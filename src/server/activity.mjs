@@ -17,7 +17,7 @@
 export const OPEN_CAP_MS = 30 * 60_000;
 
 const OPENS = new Set([
-  "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "SubagentStart", "SubagentStop",
+  "CodexSessionRecovered", "ClaudeSessionRecovered", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "SubagentStart", "SubagentStop",
 ]);
 const CLOSES = new Set(["Stop", "SessionEnd"]);
 
@@ -40,7 +40,8 @@ export function createActivity({ openCapMs = OPEN_CAP_MS } = {}) {
   return {
     /** One hook payload, as pushEvent receives it. Anything else is ignored. */
     note(raw, at) {
-      const name = raw?.hook_event_name;
+      const name = raw?.recovery_active === false && ["CodexSessionRecovered", "ClaudeSessionRecovered"].includes(raw?.hook_event_name)
+        ? "Stop" : raw?.hook_event_name;
       if (!OPENS.has(name) && !CLOSES.has(name)) return;
       if (at > lastAt) lastAt = at;
       const id = raw?.session_id;

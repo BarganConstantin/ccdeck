@@ -206,7 +206,7 @@ export function pushEvent(raw, source, opts = {}) {
 
   // Whether a turn is running, for the away-update. Not from a replay: the log
   // is history, and a turn it shows open is one that ended in another process.
-  if (!opts.replay) activity.note(raw, evt.receivedAt);
+  if (!opts.replay || ["CodexSessionRecovered", "ClaudeSessionRecovered"].includes(raw?.hook_event_name)) activity.note(raw, evt.receivedAt);
 
   if (persisting) {
     // Fire-and-forget append. JSONL = newline-delimited JSON, so the whole line

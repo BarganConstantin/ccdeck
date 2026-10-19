@@ -125,11 +125,20 @@ export function pruneOldAgents(
     if (!state.agents.has(c.id)) continue;
     // Read the children out of the live map rather than the snapshot: some of
     // them may have been evicted by an earlier iteration already.
-    const kids = (childrenOf.get(c.id) ?? [])
-      .map(id => state.agents.get(id))
-      .filter((k): k is AgentNodeData => k != null);
-    if (kids.some(k => !evictable(k))) continue;
-    for (const k of kids) drop(k.id);
+    const descendants: AgentNodeData[] = [];
+    const visited = new Set([c.id]);
+    const pending = [...(childrenOf.get(c.id) ?? [])];
+    while (pending.length) {
+      const id = pending.pop()!;
+      if (visited.has(id)) continue;
+      visited.add(id);
+      const child = state.agents.get(id);
+      if (!child) continue;
+      descendants.push(child);
+      pending.push(...(childrenOf.get(id) ?? []));
+    }
+    if (descendants.some(k => !evictable(k))) continue;
+    for (const k of descendants.reverse()) drop(k.id);
     drop(c.id);
   }
   if (onForget && touched.size > 0) {

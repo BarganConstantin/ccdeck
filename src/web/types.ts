@@ -336,6 +336,10 @@ export interface AgentNodeData {
    *  Subagents never carry it: only `SubagentStart` creates one, so a subagent
    *  node exists precisely when its beginning WAS observed. */
   synthetic?: boolean;
+  /** Restored from an unfinished log turn; cleared when live traffic arrives. */
+  restoredFromLog?: boolean;
+  /** Real session traffic, excluding startup snapshots and transcript scans. */
+  recoveryLiveAt?: number;
   /** Number of direct subagents spawned by this agent. */
   childCount: number;
   usage: TokenUsage;

@@ -9,9 +9,9 @@
 // reads the ring or the SSE clients. index.mjs starts the watcher. The bodies
 // are unchanged.
 import { stat } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { PRODUCT } from "./brand.mjs";
-import { STOP, sidFromRolloutName, walkRolloutDays } from "./codex-dir.mjs";
+import { STOP, rolloutNameId, sidFromRolloutName, walkRolloutDays } from "./codex-dir.mjs";
 // What one rollout line means as a hook payload, and the shape of the header
 // record that says whose rollout it is — see codex-translate.mjs. The watcher
 // below still decides which lines are read and where each one goes.
@@ -30,6 +30,8 @@ import { maybeResolveCodexMemory } from "./session-enrichment.mjs";
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
 import { codexThreadLink } from "./codex-lineage.mjs";
+import { readCodexRecovery, latestCodexRecovery, RECOVERY_FILE_LIMIT, RECOVERY_RECENT_MS, RECOVERY_SCAN_BYTES, RECOVERY_TAIL_BYTES } from "./codex-recovery.mjs";
+import { heldPrefs, prefsRead } from "./prefs-state.mjs";
 
 // ─── Codex rollout watcher ────────────────────────────────────────────────
 // Codex CLI hooks never fire on Windows — the elevated/unelevated sandbox
@@ -327,7 +329,7 @@ function ensureCodexRoot(state, persist) {
  * skipping cursor is parked at its end; or this is the first scan, and the
  * file's history is skipped.
  */
-async function openCodexCursor(path, st, now, firstRun) {
+async function openCodexCursor(path, st, now, firstRun, recover = false) {
   // New file — read the header for sid + cwd, then decide whether to
   // capture it. Skip files outside our workspace.
   const header = await readCodexHeader(path);
@@ -381,6 +383,16 @@ async function openCodexCursor(path, st, now, firstRun) {
     // brace (#981).
     state.offset = st.size;
     state.sawBeginning = false;
+    if (recover) {
+      try {
+        state.recovery = await readCodexRecovery(path, st, state.sid, state.cwd);
+        state.recoveryObservedAt ??= now;
+        state.recoverySize = st.size;
+        state.recoveryBootSize = st.size;
+        state.offset = state.recovery.offset;
+      } catch { state.recovery = { certain: false }; }
+      return state;
+    }
     return null;
   }
   return state;
@@ -504,7 +516,12 @@ export async function scanCodexNow() {
 
 async function scanRollouts(firstRun) {
   try {
+    if (firstRun) await prefsRead;
     const now = Date.now();
+    const recoverAtBoot = firstRun && heldPrefs.current().recoverCodexSessions !== false;
+    let recoveryBudget = RECOVERY_FILE_LIMIT;
+    let olderStatBudget = RECOVERY_FILE_LIMIT;
+    let recoveryBytes = RECOVERY_SCAN_BYTES;
     // Read at most once per scan, and only from the first rollout that actually
     // has new bytes: most ticks read nothing and must not pay a directory
     // listing for the answer to a question nothing is asking.
@@ -515,7 +532,9 @@ async function scanRollouts(firstRun) {
     // `null` rather than 0 for "never", so a clock that starts near the epoch,
     // or a faked one, cannot make boot look recent.
     const walkAll = codexOlderWalkedAt == null || Math.abs(now - codexOlderWalkedAt) >= CODEX_STATE_TTL_MS;
-    const { files, older } = await listRecentCodexRollouts(walkAll);
+    const { files: recentFiles, older } = await listRecentCodexRollouts(walkAll);
+    const recent = new Set(recentFiles);
+    const files = recoverAtBoot ? [...recentFiles, ...older] : recentFiles;
     if (walkAll) { codexOlderWalkedAt = now; catalogOlderRollouts(older); }
     const listed = new Set(files);
     // Every rollout this tick has a reason to read, with its stat and cursor:
@@ -523,14 +542,20 @@ async function scanRollouts(firstRun) {
     // rollouts found grown. One pass reads them all below.
     const due = [];
     for (const path of files) {
-      codexOlderRollouts.delete(path); // listed, so the listing's
+      if (!recent.has(path) && olderStatBudget-- <= 0) continue;
       let st;
       try { st = await stat(path); } catch { continue; }
+      const eligible = recoverAtBoot && now - st.mtimeMs <= RECOVERY_RECENT_MS;
+      if (!recent.has(path) && (!eligible || recoveryBudget <= 0)) continue;
+      codexOlderRollouts.delete(path);
       let state = codexFileState.get(path);
       if (state) state.seenAt = now;
 
       if (!state) {
-        state = await openCodexCursor(path, st, now, firstRun);
+        const cost = Math.min(st.size, RECOVERY_TAIL_BYTES);
+        const recover = eligible && recoveryBudget > 0 && cost <= recoveryBytes;
+        if (recover) { recoveryBudget--; recoveryBytes -= cost; }
+        state = await openCodexCursor(path, st, now, firstRun, recover);
         if (!state) continue;
       }
       state.mtimeMs = st.mtimeMs;
@@ -549,6 +574,78 @@ async function scanRollouts(firstRun) {
     }
     due.push(...await openGrownOlderRollouts(now));
 
+    // Retry an unstable prefix only after its file changes. The live cursor
+    // stays behind an incomplete line and never replays skipped tool history.
+    let retryBudget = 16;
+    for (const entry of due) {
+      const { state, path, st } = entry;
+      const cost = Math.min(st.size, RECOVERY_TAIL_BYTES);
+      if (!firstRun && state.recovery && !state.recovery.certain && retryBudget > 0 && cost <= recoveryBytes && st.size !== state.recoverySize) {
+        recoveryBytes -= cost;
+        retryBudget--;
+        try {
+          state.recovery = await readCodexRecovery(path, st, state.sid, state.cwd, state.recoveryBootSize);
+          state.recoveryObservedAt ??= now;
+          // Keep the live cursor: bytes appended since boot are emitted below.
+        } catch { state.recovery = { certain: false }; }
+        state.recoverySize = st.size;
+      }
+    }
+    const bySession = new Map();
+    for (const entry of due) {
+      if (!entry.state.recovery) continue;
+      const candidates = bySession.get(entry.state.sid) ?? [];
+      candidates.push({ ...entry, snapshot: entry.state.recovery });
+      bySession.set(entry.state.sid, candidates);
+    }
+    const knownPathsBySession = new Map();
+    const unknownPaths = [];
+    if (bySession.size) for (const path of new Set([...files, ...codexOlderRollouts.keys(), ...codexFileState.keys()])) {
+      const sid = rolloutNameId(basename(path));
+      if (!sid) { unknownPaths.push(path); continue; }
+      const paths = knownPathsBySession.get(sid) ?? [];
+      paths.push(path); knownPathsBySession.set(sid, paths);
+    }
+    const selected = new Map();
+    for (const [sid, candidates] of bySession) {
+      // A resumed thread's unexamined rollout may contain a newer ending.
+      // Compare exact filename ids, including historical directories, before
+      // accepting a bounded selection. Unknown names make recovery uncertain.
+      const inspected = new Set(candidates.map(c => c.path));
+      const unseen = [...(knownPathsBySession.get(sid) ?? []), ...unknownPaths].some(path => !inspected.has(path));
+      const best = unseen ? null : latestCodexRecovery(candidates);
+      if (!best || !Number.isFinite(best.snapshot.at)) continue;
+      selected.set(sid, { candidates, best });
+    }
+    const recoveredLinks = [];
+    for (const { candidates, best } of selected.values()) {
+      const { state, snapshot } = best;
+      const signature = candidates.map(c => `${c.path}:${c.snapshot.offset}`).join("|");
+      if (candidates.every(c => c.state.recoveryEmitted === signature)) continue;
+      for (const c of candidates) c.state.recoveryEmitted = signature;
+      state.rootOpened = true;
+      pushEvent({
+        hook_event_name: "CodexSessionRecovered", provider: "codex",
+        session_id: state.sid, cwd: state.cwd, snapshot_observed_at: Math.min(...candidates.map(c => c.state.recoveryObservedAt ?? now)),
+        recovery_active: snapshot.active,
+        turn_started_at: snapshot.at, prompt: snapshot.prompt, model: snapshot.model,
+        usage: snapshot.usage, context_tokens: snapshot.contextTokens,
+        model_context_window: snapshot.window, approval_policy: snapshot.approval,
+        reasoning_effort: snapshot.effort,
+      }, "codex", { replay: true, persist: false });
+      if (snapshot.active) {
+        if (state.link) recoveredLinks.push({ ...state.link, cwd: state.cwd });
+        for (const link of snapshot.links ?? []) {
+          // Historical ancestry alone cannot establish that a child is active.
+          if (selected.get(link.session_id)?.best.snapshot.active) recoveredLinks.push(link);
+        }
+      }
+      // Keep terminal candidates too: a sibling rollout still being written
+      // must be reconciled against this ending on its next stable snapshot.
+      for (const c of candidates) c.state.recoverySize = c.st.size;
+    }
+    // Snapshots precede relationships so a child placeholder cannot overtake its facts.
+    for (const link of recoveredLinks) pushEvent(link, "codex", { replay: true, persist: false });
     for (const { path, st, state } of due) {
       if (state.skip) { state.offset = st.size; continue; }
       // A cursor sitting PAST the end of the file is a different thing from

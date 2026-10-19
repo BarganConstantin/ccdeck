@@ -101,4 +101,12 @@ describe("Codex thread families", () => {
     pruneOldAgents(state, 100_000, 1, 1);
     expect([...state.agents.keys()]).toEqual(["lead", "worker", "reviewer"]);
   });
+  it("removes all finished generations together when the agent cap evicts their ancestor", () => {
+    const { state, start, send, link } = graph();
+    start("lead"); link("worker", "lead"); link("reviewer", "worker");
+    for (const id of ["lead", "worker", "reviewer"]) send({ session_id: id, hook_event_name: "Stop" }, 30_000);
+    pruneOldAgents(state, 100_000, 1, 1);
+    expect(state.agents.size).toBe(0);
+  });
+
 });

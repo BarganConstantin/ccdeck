@@ -173,6 +173,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         <div className="title">
           <StatePill state={data.state} />
           <span className="label" title={cardTooltip}>{data.label}</span>
+          {data.restoredFromLog && <span className="synth-tag" title={data.provider === "claude" ? "Restored from Claude’s busy-session registry after verifying the process identity. Earlier tool history is partial." : "Restored from a log with no recorded ending. Process status is not confirmed."}>restored</span>}
           {data.synthetic && <span className="synth-tag" title="No SessionStart captured — synthesised">?</span>}
           {/* Claude Code's ※, in the session's colour, beside the name: the
               card's own mark that a recap is there, and the switch for its

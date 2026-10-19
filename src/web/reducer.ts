@@ -18,6 +18,7 @@
 //   board-sweeps.ts        the tick's sweeps and pruners, which no event drives
 //
 // The rest of the client imports what it reads of these from here.
+import { recoverSession } from "./session-recovery";
 import { linkCodexThread } from "./codex-thread-links";
 import { extractModel } from "./payload-model";
 import { claudeEffort } from "./payload-effort";
@@ -88,6 +89,11 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   state.lastSeq = env.seq;
   state.revision += 1;
 
+  if (name === "CodexSessionRecovered" || name === "ClaudeSessionRecovered") {
+    recoverSession(state, p, now);
+    return state;
+  }
+
   if (name === "CodexThreadLinked") {
     linkCodexThread(state, p, now);
     return state;
@@ -145,6 +151,11 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   }
 
   const owner = resolveOwner(state, p, now);
+  const liveRoot = state.agents.get(rootAgentId(sessionId));
+  if (liveRoot && now >= (liveRoot.recoveryLiveAt ?? 0)) {
+    liveRoot.recoveryLiveAt = now;
+    liveRoot.restoredFromLog = undefined;
+  }
   // The card exists now, if this event made it: what reached the session before
   // it lands first, so everything this event says, being newer, lands on top.
   adoptParkedEnrichment(state, sessionId);

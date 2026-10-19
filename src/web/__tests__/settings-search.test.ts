@@ -35,6 +35,7 @@ const ids = (results: readonly SettingsEntry[]) => results.map(r => r.id);
  *  fails — a new one has to say what it expands to. */
 function renderedIds(): { found: Set<string>; unknown: string[] } {
   const DYNAMIC: Record<string, readonly string[]> = {
+    "SessionRecoverySettings.tsx {settingId}": ["codex-session-recovery", "claude-session-recovery"],
     "NotificationsSection.tsx {kind}": ACCOUNT_NOTIFY_SWITCHES.map(s => s.kind),
     "ThemeSection.tsx {`theme-${choice}`}": THEMES.map(t => `theme-${t}`),
     "ToneSection.tsx {`tone-${chime}`}": CHIME_ORDER.map(c => `tone-${c}`),

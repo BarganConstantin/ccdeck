@@ -16,6 +16,7 @@
 // no portal is needed (panel-modal-portal.test.ts). Each section is its own
 // component, lifted whole out of the menu it used to live in; this file is
 // only the frame, the nav and the search above it (SettingsSearch.tsx).
+import SessionRecoverySettings from "./SessionRecoverySettings";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
 import { focusedTabToFollow, isFindChord, sectionIndex, SETTINGS_SECTIONS, type SettingsDoors, type SettingsSection } from "../settings";
@@ -259,6 +260,8 @@ export default function SettingsModal({
         return (
           <>
             <BoardSection />
+            <SessionRecoverySettings provider="Codex" />
+            {providers.claude && <SessionRecoverySettings provider="Claude" />}
             <UpdatesSection autoRestart={restart.autoRestart} onToggleAutoRestart={restart.toggleAutoRestart} version={versionCheck.version} />
             <ElsewhereSection claudeHere={providers.claude} singleKeys={singleKeys} doors={doors} />
           </>
