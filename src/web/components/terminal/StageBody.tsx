@@ -24,6 +24,7 @@
 // synchronously, off its own state, before any re-render could catch up.
 import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
 import { copyText } from "../../copy-text";
+import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import { agentName, frameRun, type FrameRun, type StagePhase } from "./stage-model";
 import { CopyGlyph, PlusGlyph, TerminalGlyph } from "./stage-icons";
 
@@ -234,7 +235,13 @@ export default function StageBody(p: StageBodyProps) {
     lostKeys.current = false;
     if (kind !== "error" || typeof document === "undefined") return;
     if (document.activeElement && document.activeElement !== document.body) return;
-    hostRef.current?.parentElement?.querySelector<HTMLElement>("[data-stage-land]")?.focus();
+    const retry = hostRef.current?.parentElement?.querySelector<HTMLElement>("[data-stage-land]");
+    if (!retry) return;
+    // Marked while it holds the focus, so the stage's letters leave it alone
+    // too (terminal-keys.ts stageKeyIntent).
+    retry.setAttribute(CAUGHT_KEYS_ATTR, "");
+    retry.addEventListener("blur", () => retry.removeAttribute(CAUGHT_KEYS_ATTR), { once: true });
+    retry.focus();
   }, [kind, hostRef]);
   return (
     <div className="ts-body">

@@ -28,7 +28,7 @@ import { isUndoChord } from "./rearrange-undo";
 import type { GraphState } from "./reducer";
 import { isSettingsChord, type SettingsSection } from "./settings";
 import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
-import { canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
+import { CAUGHT_KEYS_ATTR, canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import { inTerminalPanel, isReleaseChord, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, type StageKeyIntent } from "./terminal-keys";
 import { nextTheme, type Theme } from "./theme";
 
@@ -182,6 +182,7 @@ export function useDeckShortcuts({
         role: el?.getAttribute?.("role"),
         type: el?.type,
         pointerFocused: el != null && el === pointerFocusRef.current,
+        caught: el?.hasAttribute?.(CAUGHT_KEYS_ATTR) === true,
       };
       // Inside the terminal pane every key is the session's, and asked before
       // anything else here reads the keystroke. Escape most of all: the branch
