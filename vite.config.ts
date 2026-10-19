@@ -12,6 +12,8 @@ const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 // The app's own first module, as Rollup spells module ids: with forward slashes
 // on Windows too, which resolve() alone does not give (#2162).
 const appModule = normalizePath(resolve(root, "src/web/main.tsx"));
+// React or React DOM, including the `\0…?commonjs-…` proxies that wrap them.
+const REACT_MODULE = /\/node_modules\/react(?:-dom)?\//;
 
 export default defineConfig({
   root: resolve(root, "src/web"),
@@ -74,9 +76,17 @@ export default defineConfig({
     // holds the first paint until it has loaded, into a <link> that the script
     // adds once it is running. entry-runs-once-2162.test.ts builds the app and
     // holds the chunk graph to all of this.
+    //
+    // React goes into the app chunk by name as well, every module of it. A lazy
+    // panel's dependency can import a React entry the app does not: Radar's JSON
+    // tree, json-edit-react, imports `react/jsx-runtime`, and a build under any
+    // NODE_ENV but production — that test's, under vitest — compiles the app's
+    // own JSX to `react/jsx-dev-runtime`, so Rollup put the runtime in Radar's
+    // chunk. Named here, React stays in the one chunk the panels import it
+    // from, whichever runtime the app compiles to.
     rollupOptions: {
       output: {
-        manualChunks: id => (id === appModule ? "app" : undefined),
+        manualChunks: id => (id === appModule || REACT_MODULE.test(id) ? "app" : undefined),
       },
     },
   },
