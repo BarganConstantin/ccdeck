@@ -49,6 +49,8 @@ export const FEATURES = Object.freeze([
   // What the server saw done.
   "account-switch", "accounts-manage", "auto-switch", "lan-pairing", "feedback-sent",
   "self-update", "clear-board",
+  // A connected tracker's panel was read (#2178): the provider, never the connection.
+  "jira",
   // Which CLI the day's sessions came from.
   "claude-sessions", "codex-sessions",
 ]);

@@ -3,6 +3,41 @@
 Updated: 2026-10-15. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
 
+## Jira integration (#2178) on Linux — 2026-10-19
+
+- Branch `feat/2178-jira-integration`, worktree
+  `/home/constantin/Desktop/personal/ccdeck-wt/2178-jira-integration`, on
+  development `87883b03`. PR into development, "Closes #2178"; the owner merges.
+- Contents:
+  - Settings → Integrations, between Sounds and Data.
+  - One left-stripe control per connected kind (under More on phones), with
+    shortcut **I** (J/K already move between agents).
+  - A 90vw × 90dvh modal.
+  - The Jira panel for Cloud (email + API token; scoped tokens through
+    api.atlassian.com) and Server/DC 8.14+ (PAT). Read only.
+- Contract:
+  - `docs/features/jira-integration-2178.md`
+  - `DESIGN.md` → Integrations and the Jira panel
+  - `.impeccable/surfaces/jira-integration.md`
+- Store: `<deck home>/integrations/` (0700, files 0600). The page only ever
+  sees `tokenSaved`.
+- Gate: every `/api/integrations/` GET is a guarded read
+  (`GUARDED_READ_PREFIXES`).
+- The asset route serves raster images only, through `client.fetchAsset`. It
+  answers an empty 403/404 and never touches the connection.
+- #2179 (GitHub/GitLab) builds on this core. Its session was sent the paths,
+  exports and the provider contract.
+- QA:
+  - `node scripts/mock-jira.mjs --flavor server|cloud --port 47xx` with an
+    isolated deck (`AGENTS_DECK_NO_LAN=1`, scratch `CCDECK_HOME`, ports
+    4740–4760; set `CCDECK_JIRA_API_ORIGIN` for the Cloud mock's api).
+  - The chrome-devtools MCP could not start here (no X display). Headless
+    Chromium from `~/.cache/ms-playwright` driven by a borrowed
+    `playwright-core` worked.
+- Real smoke: the owner's Jira Server 9.0.0 refused the PAT in `JIRA_TOKEN`
+  itself (401, `X-AUSERNAME: anonymous`, also with plain curl). Rerun the
+  read-only smoke test once the owner has a fresh token.
+
 ## Owner UI continuation — 2026-10-19
 
 - Active Mac worktree: `/Users/constantin/Desktop/ccdeck-radar-debug`, branch

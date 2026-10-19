@@ -41,6 +41,10 @@ import DetailAside from "./components/DetailAside";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { useRadarSettings } from "./use-radar-settings";
 import { railItems } from "./rail-items";
+import IntegrationModal from "./components/IntegrationModal";
+import { connectionsOf, requestIntegrationFocus, useIntegrations } from "./integrations/client";
+import { integrationDefs } from "./integrations/registry";
+import type { IntegrationKind } from "./integrations/types";
 import { useMediaQuery } from "./use-media-query";
 import { ReadoutGroup, WaitingNames } from "./components/TopbarReadouts";
 import SelectedRibbon from "./components/SelectedRibbon";
@@ -268,6 +272,22 @@ function Inner() {
   const { watchOn, watchUnseen } = watchBadge;
   const radarSettings = useRadarSettings();
   useEffect(() => { if (radarSettings.enabled === false) dialogs.setTrafficRadarOpen(false); }, [radarSettings.enabled, dialogs.setTrafficRadarOpen]);
+  // The trackers this deck is connected to (#2178): one rail button per kind
+  // with a connection, which opens that kind's large modal. The list is the
+  // one Settings › Integrations edits, so a connection added there puts the
+  // button up at once and the last one removed takes it away.
+  const integrations = useIntegrations();
+  const [integrationOpen, setIntegrationOpen] = useState<IntegrationKind | null>(null);
+  const closeIntegration = useCallback(() => setIntegrationOpen(null), []);
+  const connectedKinds = integrationDefs().filter(p => connectionsOf(integrations, p.kind).length > 0);
+  const openIntegrationRef = useMirroredRef((kind: string) => {
+    const def = connectedKinds.find(p => p.kind === kind);
+    if (def) setIntegrationOpen(def.kind);
+  });
+  const reconnectIntegration = useCallback((connId: string) => {
+    requestIntegrationFocus(connId);
+    openSettings("integrations");
+  }, [openSettings]);
 
   // A LAN pairing request waiting on this deck — the poll that finds one, and
   // the one answer at a time the dialog over the canvas gives — lives in
@@ -558,7 +578,7 @@ function Inner() {
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
     handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen: usageRail.set, setMachinePanelOpen: machineRail.set,
-    setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
+    setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef,
   });
 
   /** Not a topbar readout any more — the "agents" counter went with the
@@ -635,6 +655,7 @@ function Inner() {
     radioOpen, setRadioOpen,
     openToolActivity: () => setToolAuditOpen(true),
     toggles: panelReturn.toggles,
+    integrations: connectedKinds.map(provider => ({ provider, onPress: () => setIntegrationOpen(provider.kind) })),
   });
   // How many of the waiting sessions the topbar names, for the count's hint,
   // which lists the rest.
@@ -722,8 +743,8 @@ function Inner() {
           control before the region it discloses — or, on a phone, the dock
           that stands in for both stripes and the utilities. */}
       {phone
-        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.right.slice(1).flat(), rails.utilities[1]]} />
-        : <EdgeRail side="left" label="Left column" groups={[rails.left]} />}
+        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.right.slice(1).flat(), ...rails.integrations, rails.utilities[1]]} />
+        : <EdgeRail side="left" label="Left column" groups={[rails.left, rails.integrations]} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -829,6 +850,10 @@ function Inner() {
       {!phone && <EdgeRail side="right" label="Right panels" groups={rails.right} />}
 
       {toolAuditOpen && <ToolAuditModal onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}
+      {integrationOpen && (
+        <IntegrationModal kind={integrationOpen} connections={connectionsOf(integrations, integrationOpen)}
+          onClose={closeIntegration} onReconnect={reconnectIntegration} />
+      )}
 
       {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
           fixed, so where they sit in the DOM changes nothing on screen — only

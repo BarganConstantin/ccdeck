@@ -450,6 +450,19 @@ const PRESSES: Press[] = [
   [".film-link:active", "0.97", "transform"],
   // Settings › About's Source, the same kind of link out of the deck (#2176).
   [".settings-link:active", "0.97", "transform"],
+  // The integrations modal (#2178): Back to the list on a narrow window, and
+  // the Jira panel's controls — a sprint's header, an issue's row and its
+  // disclosure triangle (0.94: a 12px glyph), a board in the picker, a
+  // sub-task in an issue's detail, a crumb back up its path, and the
+  // worded links (Clear filters, Try again).
+  [".ig-back:active", "0.97", "transform"],
+  [".jr-group-toggle:active", "0.97", "transform"],
+  [".jr-row-main:active", "0.97", "transform"],
+  [".jr-toggle:active", "0.94", "transform"],
+  [".jr-board-item:active", "0.97", "transform"],
+  [".jr-detail-sub:active", "0.97", "transform"],
+  [".jr-crumb:active", "0.97", "transform"],
+  [".jr-link-btn:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */

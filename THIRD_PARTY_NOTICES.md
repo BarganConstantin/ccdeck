@@ -877,3 +877,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
+## Jira mark — Simple Icons
+
+The monochrome Jira glyph on the left stripe and in Settings › Integrations
+(`JiraGlyph` in `src/web/components/rail-glyphs.tsx`, #2178) is the path data
+of the Jira icon from Simple Icons, https://github.com/simple-icons/simple-icons,
+drawn in the stripe's own ink and never in Atlassian's colours. Simple Icons
+releases its icon data under CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/.
+
+Jira and Atlassian are trademarks of Atlassian Pty Ltd. ccdeck is not
+affiliated with or endorsed by Atlassian; the mark is used only to name the
+service a connection reaches.

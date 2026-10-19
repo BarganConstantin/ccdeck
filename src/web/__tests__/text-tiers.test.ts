@@ -224,6 +224,20 @@ describe("what was migrated to the secondary tier", () => {
       // issue from it, never with the contact or the images. Read once, to
       // decide what to write.
       ".fb-where",
+      // Settings › Integrations (#2178): the provider's words on its token —
+      // where to make one, what it reads — what the tracker itself said about
+      // a refused one, the cautions a check found, and the sentence a Test or
+      // a Disconnect answers with. Each is read once, to act on.
+      ".ig-form-detail", ".ig-help", ".ig-note", ".ig-warnings",
+      // The Jira panel's sentences: a note over the board (no active sprint,
+      // the first 600 shown), a sprint's goal, why a read failed and what to
+      // do, the empty board's explanation, and a quote inside an issue.
+      ".jr-board-note", ".jr-failure-text span", ".jr-goal", ".jr-html blockquote", ".jr-state p",
+      // Jira's labels, status lozenges and sprint totals: words on a
+      // --ctl-fill pill, kept here by their bed rather than their role, as
+      // the shared field's placeholder is — --muted is 4.05:1 on that fill
+      // in dark.
+      ".jr-label", ".jr-status", ".jr-total, .jr-estimate",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.
       ".nm-next",

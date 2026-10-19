@@ -233,7 +233,8 @@ describe("the topbar's Feedback button", () => {
     // the three rare dialogs — History, Browser watch, Feedback — sit behind
     // More, where a row has the room to say "Send feedback" whole.
     expect(item).toMatch(/menu: "Send feedback"/);
-    expect(app).toMatch(/more=\{\[\.\.\.rails\.right\.slice\(1\)\.flat\(\), rails\.utilities\[1\]\]\}/);
+    // A connected tracker's row (#2178) comes before it; Feedback stays last.
+    expect(app).toMatch(/more=\{\[\.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, rails\.utilities\[1\]\]\}/);
     expect(rails).toMatch(/item\.menu \?\? item\.label/);
   });
 

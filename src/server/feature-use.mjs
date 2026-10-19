@@ -23,10 +23,18 @@ const ROUTE_FEATURES = new Map([
   ["POST /api/clear", "clear-board"],
 ]);
 
+/** Features a whole namespace of routes is: a connected tracker's reads carry
+ *  the connection's id in the path (#2178), so they are matched by prefix. The
+ *  name is the provider's, never the connection, board or issue read. */
+const ROUTE_PREFIX_FEATURES = [
+  ["GET /api/integrations/jira/", "jira"],
+];
+
 /** Note the feature a request is, if it is one. Called for requests that got
  *  past the deck's own gates. */
 export function noteRouteFeature(method, pathname) {
-  const name = ROUTE_FEATURES.get(`${method} ${pathname}`);
+  const route = `${method} ${pathname}`;
+  const name = ROUTE_FEATURES.get(route) ?? ROUTE_PREFIX_FEATURES.find(([prefix]) => route.startsWith(prefix))?.[1];
   if (name) usageDay.noteFeature(name);
 }
 

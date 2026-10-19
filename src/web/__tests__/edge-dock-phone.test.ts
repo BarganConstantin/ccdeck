@@ -98,7 +98,9 @@ describe("the dock holds the four panels and Settings, then More", () => {
   it("is what App.tsx draws at a phone's width, in place of both stripes and the topbar's utilities", () => {
     const app = sourceOf("App.tsx");
     expect(app).toContain("const phone = useMediaQuery(PHONE_QUERY);");
-    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\], rails\.utilities\[0\]\]\} more=\{\[\.\.\.rails\.right\.slice\(1\)\.flat\(\), rails\.utilities\[1\]\]\} \/>\s*:\s*<EdgeRail side="left"/);
+    // A connected tracker (#2178) is a left-stripe control on a desktop and a
+    // More row on a phone, before Feedback: the dock keeps its five slots.
+    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\], rails\.utilities\[0\]\]\} more=\{\[\.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, rails\.utilities\[1\]\]\} \/>\s*:\s*<EdgeRail side="left"/);
     expect(app).toMatch(/\{!phone && <EdgeRail side="right"/);
     expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{rails\.utilities\} \/><\/div>\}/);
   });

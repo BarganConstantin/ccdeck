@@ -118,3 +118,14 @@ export const ToolActivityGlyph = () => (
 export const ClockGlyph = () => (
   <Glyph><circle cx="7" cy="7" r="5" /><path d="M7 3.8V7l2.2 1.4" /></Glyph>
 );
+
+/** Jira (#2178): the three-tile mark from Simple Icons' Jira icon (CC0;
+ *  THIRD_PARTY_NOTICES.md), filled in currentColor so it takes the stripe's
+ *  ink like every glyph here, and drawn a little inside the frame so its solid
+ *  tiles weigh about what a 1.4 stroke does. Never the coloured logo. */
+export const JiraGlyph = () => (
+  <Glyph>
+    <path fill="currentColor" stroke="none" transform="translate(1.25 1.25) scale(0.479)"
+      d="M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.736a5.215 5.215 0 0 0 5.215 5.214h2.129v2.058a5.218 5.218 0 0 0 5.215 5.214V6.758a1.001 1.001 0 0 0-1.001-1.001zM23.013 0H11.455a5.215 5.215 0 0 0 5.215 5.215h2.129v2.057A5.215 5.215 0 0 0 24 12.483V1.005A1.001 1.001 0 0 0 23.013 0z" />
+  </Glyph>
+);

@@ -485,7 +485,26 @@ export const GUARDED_READS = new Set([
   "/api/terminal/target",
   "/api/radio-stations",
   "/api/radio-click",
+  // The trackers this deck is connected to (#2178): the list of connections
+  // with their accounts, and below it every read a provider adds.
+  "/api/integrations",
 ]);
+
+/** Whole namespaces of guarded reads, for routes whose path carries an id —
+ *  /api/integrations/<kind>/<connId>/… (#2178). A connected tracker's boards,
+ *  issues, comments and the images the asset route signs for are the user's
+ *  work and the employer's data, read with the user's own token; every one of
+ *  them is fetched by the deck's own page and nothing else. A prefix rather
+ *  than a list because a provider adds its routes without touching this file,
+ *  and a read it adds must be covered from the moment it exists. */
+export const GUARDED_READ_PREFIXES = Object.freeze(["/api/integrations/"]);
+
+/** Whether a GET to `pathname` must come from the deck's page or carry the
+ *  token: listed in GUARDED_READS, or under one of GUARDED_READ_PREFIXES. */
+export function isGuardedRead(pathname) {
+  const path = String(pathname ?? "");
+  return GUARDED_READS.has(path) || GUARDED_READ_PREFIXES.some(prefix => path.startsWith(prefix));
+}
 
 export function isAuthorizedMutation(req) {
   const headers = req?.headers ?? {};
