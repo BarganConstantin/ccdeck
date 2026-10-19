@@ -40,6 +40,9 @@ export interface Failure {
    *  on that row rather than at the foot of the panel, far from the button
    *  that was pressed. Absent for everything else. */
   row?: number;
+  /** The refusal's remedy is signing in as that row's account again (#2184):
+   *  the deck would not switch onto a login it knows has expired. */
+  signIn?: true;
 }
 
 /** One of the panel's two GETs, once it has come back. */

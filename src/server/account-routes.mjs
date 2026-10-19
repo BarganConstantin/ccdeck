@@ -25,6 +25,9 @@ import { readBody, send } from "./http-io.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { incidentsFrom, withDismissed, withSignIn, withTidied } from "./account-origins.mjs";
+// What a removal of the active account does after it lands (#2184). Pure and
+// importless, so it puts nothing on the path to a listening socket.
+import { removeLeavingLiveLogin } from "./login-guard.mjs";
 
 // Resolved the way pinned-build.mjs resolves it, from a file in the same
 // directory, so every lazy import below is the URL the pin has already evaluated.
@@ -52,7 +55,18 @@ export async function handleClaudeAccountSwitch(req, res) {
   try { parsed = JSON.parse(body ?? ""); } catch { /* handled below */ }
   if (!parsed || typeof parsed !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
 
-  const result = await switchClaudeAccount(parsed.account);
+  send(res, ...await switchAndTell(parsed.account, { switchClaudeAccount, invalidateClaudeAccountsCache }));
+}
+
+/**
+ * One switch somebody asked for, and everything that has to hear about it —
+ * as `[status, body]`. The switch route's, and the one a removal of an expired
+ * active login makes afterwards (removeLeavingLiveLogin), so both say it the
+ * same way. The two functions it needs from claude-accounts.mjs are the
+ * caller's, which has already imported it.
+ */
+async function switchAndTell(account, { switchClaudeAccount, invalidateClaudeAccountsCache }) {
+  const result = await switchClaudeAccount(account);
   // The active account just moved; the next poll should see it immediately
   // rather than serving the pre-switch roster for another few seconds.
   invalidateClaudeAccountsCache();
@@ -73,10 +87,10 @@ export async function handleClaudeAccountSwitch(req, res) {
     // effort — a failed log write must never fail the switch — so it is not
     // awaited into the response.
     import(pathToFileURL(join(PKG_ROOT, "src/server/swap-log.mjs")).href)
-      .then(({ recordSwap }) => recordSwap(parsed.account, "manual"))
+      .then(({ recordSwap }) => recordSwap(account, "manual"))
       .catch(() => {});
   }
-  send(res, result.ok ? 200 : 400, result);
+  return [result.ok ? 200 : 400, result];
 }
 
 // The account-projects rollup, started once and shared. Its timer is unref'd
@@ -256,6 +270,28 @@ async function dismissReauth(raw) {
   return { ok: true };
 }
 
+/**
+ * Remove an account — and when it was the active one and its login had expired,
+ * move Claude Code to a working account once it is gone (#2184).
+ *
+ * `cswap remove` leaves the live login where it is. That is right when the
+ * login works and wrong when it is the dead one: every session stays stopped,
+ * and nothing else will move them, since auto-switch does not touch a login
+ * claude-swap no longer manages. The roster is read BEFORE the removal, because
+ * after it the account is not on it to ask about; the move goes through the
+ * switch route's own path, guard and bookkeeping included.
+ */
+async function removeAccount(admin, num) {
+  const accounts = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href
+  );
+  return removeLeavingLiveLogin(num, {
+    roster: () => accounts.fetchClaudeAccounts({ force: true }),
+    remove: n => admin.removeAccount(n),
+    switchTo: async n => (await switchAndTell(n, accounts))[1],
+  });
+}
+
 // Reading the login's progress. The browser polls this while its dialog is
 // open, the same way the upgrade notice polls /api/version.
 export async function handleAccountLoginState(_req, res) {
@@ -302,7 +338,9 @@ export async function handleClaudeAccountAdmin(req, res) {
       result = out?.ok ? { ...out, results: await admin.checkImportResults(out.results) } : out;
       break;
     }
-    case "remove":       result = await admin.removeAccount(parsed.account); break;
+    // #2184. Removing the ACTIVE account leaves Claude Code signed in as it;
+    // when that login is the expired one, a working account takes over after.
+    case "remove":       result = await removeAccount(admin, parsed.account); break;
     // #721. Re-captures the active slot's credentials in place; see
     // recaptureActive for why this is not a login and cannot become one.
     case "recapture":    result = await admin.recaptureActive(); break;
