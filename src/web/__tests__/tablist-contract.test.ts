@@ -201,7 +201,8 @@ describe("a role=\"tab\" in this client comes with the keyboard model it promise
         const namesTab = tabs.some(tab => /\bid=(\{[^}]*\}|"[^"]*")/.exec(tab)?.[1] === labelledBy)
           || (name.endsWith("AddAccountDialog.tsx") && labelledBy === "{tabDomId(tab)}" && tabs.some(tab => /id=\{tabDomId\(t\.id\)\}/.test(tab)))
           || (name.endsWith("SettingsModal.tsx") && /aria-labelledby=\{`settings-tab-\$\{section\}`\}/.test(src) && tabs.some(tab => /id=\{`settings-tab-\$\{choice\.id\}`\}/.test(tab)))
-          || (name.endsWith("TrafficRadar.tsx") && /aria-labelledby="tr-tab-monitor"/.test(src) && /id=\{`tr-tab-\$\{id\}`\}/.test(src));
+          || (name.endsWith("TrafficRadar.tsx") && /aria-labelledby="tr-tab-monitor"/.test(src) && /id=\{`tr-tab-\$\{id\}`\}/.test(src))
+          || (name.endsWith("ToolAuditModal.tsx") && /aria-labelledby=\{`ta-view-\$\{view\}`\}/.test(src) && tabs.some(tab => /id=\{`ta-view-\$\{item\.id\}`\}/.test(tab)));
         const radioPair = name.endsWith("RadioPanel.tsx")
           && /aria-labelledby=\{`radio-tab-\$\{collection\}`\}/.test(src)
           && tabs.some(tab => /id=\{`radio-tab-\$\{tab.value\}`\}/.test(tab));

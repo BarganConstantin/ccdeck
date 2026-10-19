@@ -1,16 +1,22 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { auditDuration, readAuditReport, type AuditProvider, type AuditReport, type AuditRow } from '../tool-audit';
 import { auditDay, count, failureShare, findHighlights, periodLabels, sortTools, summaryParts, toolSorts, toolSortValue, type Highlight, type ToolSort } from '../tool-audit-report';
 import { operationDescription, operationName } from '../operation-glossary';
 import ToolAuditDrawer from './ToolAuditDrawer';
+import ToolAuditInspector from './ToolAuditInspector';
 import ToolAuditSplitter from './ToolAuditSplitter';
+import SkillActivity, { type ReportStatus } from './SkillActivity';
+import type { SessionLinks } from './SkillInspector';
+import { tabStripMove } from "../tablist-keys";
 import { readDetailsWidth, writeDetailsWidth } from '../tool-audit-layout';
 import { useMediaQuery } from '../use-media-query';
 import { useModalDismiss, useScrimDismiss } from './use-modal-dismiss';
 
 const FIRST_ROWS = 12;
 const providers: { id: AuditProvider; label: string }[] = [{ id: 'all', label: 'All agents' }, { id: 'claude', label: 'Claude' }, { id: 'codex', label: 'Codex' }];
+type View = 'tools' | 'skills';
+const views: { id: View; label: string }[] = [{ id: 'tools', label: 'Tools' }, { id: 'skills', label: 'Skills' }];
 
 const RefreshGlyph = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5" /></svg>;
 const SearchGlyph = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>;
@@ -27,9 +33,13 @@ function rowLabel(row: AuditRow) {
   return `${operationName(row.operation)}${operationDescription(row.operation) ? `, ${operationDescription(row.operation)}` : ''}: ${count(row.calls, 'call')}, ${time}, ${failed}`;
 }
 
-export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
+export default function ToolAuditModal({ onClose, sessionLabel, onOpenSession }: SessionLinks & { onClose: () => void }) {
+  // Tools and Skills read the same journal for the same period and agent (#2181).
+  const [view, setView] = useState<View>('tools');
   const [provider, setProvider] = useState<AuditProvider>('all');
   const [period, setPeriod] = useState('7');
+  const [skillRefresh, setSkillRefresh] = useState(0);
+  const [skillStatus, setSkillStatus] = useState<ReportStatus>({ loading: true, detailLoading: false, capturedAt: null, hasData: false });
   const [sort, setSort] = useState<ToolSort>('calls');
   const [search, setSearch] = useState('');
   const currentOrder = useRef({ sort, search }); currentOrder.current = { sort, search };
@@ -67,6 +77,8 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
   const query = new URLSearchParams({ provider, days: period }).toString();
 
   useEffect(() => {
+    // One report at a time: the Skills tab reads its own while it is open.
+    if (view !== 'tools') return;
     const controller = new AbortController(); let live = true;
     const deadline = window.setTimeout(() => controller.abort(), 65000);
     setError('');
@@ -85,12 +97,12 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
       } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'Reading the history took too long. Try again, or keep less history in Settings.'); }
       finally { window.clearTimeout(deadline); if (live) { busy.current = false; setLoading(false); } }
     })();
-    return () => { live = false; controller.abort(); window.clearTimeout(deadline); };
-  }, [query, refresh]);
+    return () => { live = false; controller.abort(); window.clearTimeout(deadline); busy.current = false; };
+  }, [query, refresh, view]);
 
   useEffect(() => {
     setDetails(previous => previous?.operation === selected && loadedQuery.current === query ? previous : null); setDetailError('');
-    if (!selected || !data || loading) { setDetailLoading(false); return; }
+    if (!selected || !data || loading || view !== 'tools') { setDetailLoading(false); return; }
     let live = true; const controller = new AbortController();
     const deadline = window.setTimeout(() => controller.abort(), 65000); setDetailLoading(true);
     void (async () => {
@@ -101,7 +113,7 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
       finally { window.clearTimeout(deadline); if (live) setDetailLoading(false); }
     })();
     return () => { live = false; controller.abort(); window.clearTimeout(deadline); };
-  }, [selected, data, loading, query]);
+  }, [selected, data, loading, query, view]);
 
   const rows = useMemo(() => sortTools(data?.rows ?? [], sort, search), [data, sort, search]);
   const highlights = useMemo(() => data ? findHighlights(data.rows, data.totalMs) : [], [data]);
@@ -122,25 +134,40 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
       (origin?.isConnected && origin.checkVisibility() ? origin : row ?? closeRef.current)?.focus({ preventScroll: true });
     });
   };
-  const doRefresh = () => { if (busy.current || detailLoading) return; busy.current = true; setRefresh(value => value + 1); };
+  const doRefresh = () => {
+    if (view === 'skills') { if (!skillStatus.loading && !skillStatus.detailLoading) setSkillRefresh(value => value + 1); return; }
+    if (busy.current || detailLoading) return; busy.current = true; setRefresh(value => value + 1);
+  };
   const summary = data && summaryParts(data, provider, period);
+  const viewTabs = useRef<(HTMLButtonElement | null)[]>([]);
+  const moveView = (event: KeyboardEvent<HTMLDivElement>) => {
+    const move = tabStripMove(event, views.findIndex(item => item.id === view), views.length);
+    if (move.kind === 'pass') return;
+    event.preventDefault(); setView(views[move.index].id); viewTabs.current[move.index]?.focus();
+  };
+  const reading = view === 'skills' ? skillStatus.loading : loading;
+  const shown = view === 'skills' ? (skillStatus.hasData ? skillStatus.capturedAt : null) : data?.capturedAt ?? null;
+  const filters = <div className="ta-filters">
+    <div className="uh-range" role="group" aria-label="Period">{Object.entries(periodLabels).map(([days, label]) => <button key={days} type="button" className="uh-range-btn" aria-pressed={period === days} onClick={() => setPeriod(days)}>{label}</button>)}</div>
+    <div className="uh-range" role="group" aria-label="Agent">{providers.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={provider === item.id} onClick={() => setProvider(item.id)}>{item.label}</button>)}</div>
+  </div>;
 
   return createPortal(<div className="modal-backdrop ta-report-backdrop" role="presentation" {...scrimPress}>
     <div className="modal ta-report" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title">
       <header className="ta-report-header">
         <h2 id="tool-audit-title">Tool activity</h2>
+        <div className="ta-views" role="tablist" aria-label="Show" onKeyDown={moveView}>{views.map((item, index) => <button key={item.id} ref={element => { viewTabs.current[index] = element; }} type="button" role="tab" id={`ta-view-${item.id}`} className="ta-view" aria-selected={view === item.id} aria-controls="ta-view-panel" tabIndex={view === item.id ? 0 : -1} onClick={() => setView(item.id)}>{item.label}</button>)}</div>
         <div className="ta-actions">
-          <span className="ta-freshness" role="status">{loading ? data ? 'Updating…' : 'Reading history…' : data ? `Updated ${new Date(data.capturedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
-          <button type="button" className="glyph-btn" aria-label="Refresh tool activity" title="Refresh" data-loading={loading || undefined} aria-busy={loading || detailLoading} onClick={doRefresh}><RefreshGlyph /></button>
+          <span className="ta-freshness" role="status">{reading ? shown !== null ? 'Updating…' : 'Reading history…' : shown !== null ? `Updated ${new Date(shown).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
+          <button type="button" className="glyph-btn" aria-label={view === 'skills' ? 'Refresh skill activity' : 'Refresh tool activity'} title="Refresh" data-loading={reading || undefined} aria-busy={view === 'skills' ? skillStatus.loading || skillStatus.detailLoading : loading || detailLoading} onClick={doRefresh}><RefreshGlyph /></button>
           <button type="button" ref={closeRef} className="glyph-btn" onClick={closeReport} aria-label="Close tool activity" title="Close (Esc)">×</button>
         </div>
       </header>
+      <div className="ta-view-panel" id="ta-view-panel" role="tabpanel" aria-labelledby={`ta-view-${view}`}>
+      {view === 'skills' ? <SkillActivity filters={filters} provider={provider} period={period} setPeriod={setPeriod} refresh={skillRefresh} onStatus={setSkillStatus} sessionLabel={sessionLabel} onOpenSession={onOpenSession} /> :
       <div className="ta-workspace" ref={workspaceRef} data-inspecting={!!selection || undefined} style={{ "--ta-details-w": `${detailsWidth}px` } as CSSProperties}>
         <div className="ta-body"><div className="ta-report-content">
-          <div className="ta-filters">
-            <div className="uh-range" role="group" aria-label="Period">{Object.entries(periodLabels).map(([days, label]) => <button key={days} type="button" className="uh-range-btn" aria-pressed={period === days} onClick={() => setPeriod(days)}>{label}</button>)}</div>
-            <div className="uh-range" role="group" aria-label="Agent">{providers.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={provider === item.id} onClick={() => setProvider(item.id)}>{item.label}</button>)}</div>
-          </div>
+          {filters}
 
           {loading && !data && <div className="ta-loading" role="status" aria-label="Reading tool history"><i /><i /><i /><i /><i /></div>}
           {error && <div className="ta-message" role="alert"><p>{data && 'Showing the last numbers. '}{error}</p><button type="button" className="btn" onClick={doRefresh}>Try again</button></div>}
@@ -201,7 +228,11 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
           </>)}
         </div></div>
         {selection && sideBySide && <ToolAuditSplitter width={detailsWidth} workspace={workspaceRef} onCommit={resizeDetails} />}
-        {selection && <ToolAuditDrawer keyboard={keyboardSelection} row={details?.operation === selected && details.measurements ? details.measurements : selection} details={details?.operation === selected ? details : null} loading={detailLoading} error={detailError} kind={detailKind} setKind={setDetailKind} onClose={closeInspector} />}
+        {selection && <ToolAuditDrawer keyboard={keyboardSelection} itemKey={selection.operation} onClose={closeInspector}>
+          <ToolAuditInspector row={details?.operation === selected && details.measurements ? details.measurements : selection} details={details?.operation === selected ? details : null} loading={detailLoading} error={detailError} kind={detailKind} setKind={setDetailKind} onClose={closeInspector}
+            onShowSkills={selection.operation === 'Skill' ? () => { setSelected(null); setView('skills'); } : undefined} />
+        </ToolAuditDrawer>}
+      </div>}
       </div>
     </div>
   </div>, document.body);
