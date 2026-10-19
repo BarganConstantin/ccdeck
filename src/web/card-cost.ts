@@ -1,3 +1,4 @@
+import { FREE_AUTO_REVIEW_TIER } from "../server/codex-review-policy.mjs";
 // The card's cost tooltip: the multiplication behind the figure in its chip,
 // written out so it can be checked by hand.
 //
@@ -63,7 +64,7 @@ function singleRateTooltip(usage: TokenUsage, modelId: string | undefined, speed
   const base = ratesForModel(modelId, Date.now(), speed);
   const rates = base ? contextRates(base, long) : null;
   const tier = long ? " · prompt >100K" : "";
-  const heading = (speed === STANDARD_SPEED ? `model: ${modelId}` : `model: ${modelId} · ${speed}`) + tier;
+  const heading = (speed === FREE_AUTO_REVIEW_TIER ? `model: ${modelId} · no charge for ChatGPT auto-review` : speed === STANDARD_SPEED ? `model: ${modelId}` : `model: ${modelId} · ${speed}`) + tier;
   // This branch was unreachable until #400: the only element carrying this
   // tooltip was gated on the same ratesForModel call that returns null here, so
   // the graceful answer existed and could never be read. It names the model now
@@ -168,7 +169,7 @@ export function costChip(data: AgentNodeData): CostChip | null {
   // some of its tokens reached no rate card — the same thing the "+" on
   // the usage panel's session rows has always meant.
   const unpricedTok = agentUnpricedTokens(data);
-  if (!rates && c.total <= 0) {
+  if (!rates && c.total <= 0 && unpricedTok > 0) {
     if ((data.usage.inputTokens + data.usage.outputTokens) <= 0) return null;
     return { kind: "unpriced", tt: agentCostTooltip(data) };
   }
