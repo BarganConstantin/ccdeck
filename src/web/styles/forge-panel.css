@@ -102,6 +102,17 @@
 .fh-check { margin: 0 6px 0 0; vertical-align: middle; }
 .forge-html li:has(> .fh-check) { list-style: none; margin-left: -1.3em; }
 
+/* The help beside a token field in Settings › Integrations. */
+.fg-token-help { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.6; }
+.fg-token-help p, .fg-token-help ul { margin: 0 0 6px; }
+.fg-token-help ul { padding-left: 1.2em; }
+.fg-token-help li + li { margin-top: 4px; }
+.fg-token-help strong { color: var(--text); font-weight: 600; }
+.fg-token-help code { font-family: var(--font-mono); font-size: 0.95em; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 4px; }
+.fg-token-link { color: var(--accent); text-decoration: none; white-space: nowrap; }
+.fg-token-link:hover { text-decoration: underline; }
+.fg-token-link svg { vertical-align: -1px; }
+
 @media (max-width: 640px) {
   .fg-toolbar, .fg-searchbar { padding-inline: 16px; }
   .fg-tabs { margin-inline: 16px; max-width: calc(100% - 32px); }
