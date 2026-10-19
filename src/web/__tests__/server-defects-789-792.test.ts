@@ -163,7 +163,7 @@ describe("#792 — how much of a Codex rollout reaches memory", () => {
     // would be concatenated into a line that never existed in the file, and
     // JSON.parse might well accept it.
     const src = read("../../server/codex-enrichment.mjs");
-    expect(src).toMatch(/text = `\$\{head\}\\n\$\{tail\}`;/);
+    expect(src).toMatch(/text = `\$\{head\}\\n__ccdeck_gap__\\n\$\{tail\}`;/);
   });
 
   it("still finds every field when the whole file fits in the windows", async () => {

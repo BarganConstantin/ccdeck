@@ -98,11 +98,11 @@ export interface TokenUsage {
    *  models. Carried separately so the UI can surface it without polluting
    *  Claude usage math (Claude doesn't emit this bucket). */
   reasoningOutputTokens?: number;
-  /** Claude-only: the share of these tokens billed at a speed other than
-   *  standard, keyed by the transcript's `usage.speed` (`"fast"`). A subset of
+  /** The share of these tokens estimated at a speed other than
+   *  standard, keyed by Claude usage.speed or recorded Codex settings. A subset of
    *  the counts above, never an addition to them, the way the TTL split is a
    *  subset of `cacheCreateTokens`. Present only on a per-model bucket whose
-   *  transcript ran at such a speed; pricing.ts prices each share at its own
+   *  transcript recorded such a speed; pricing.ts prices each share at its own
    *  speed's rates (#754). */
   bySpeed?: Record<string, TokenUsage>;
   /** Haiku 5.5 tokens from individual requests whose full prompt exceeded
@@ -234,6 +234,8 @@ export interface AgentNodeData {
   label: string;              // human label (workspace basename, subagent_type, etc.)
   kind: "root" | "subagent";
   parentId?: string;
+  /** Canvas grouping only; sessionId still owns tools, usage and lifecycle. */
+  canvasSessionId?: string;
   state: AgentState;
   startedAt: number;
   endedAt?: number;
@@ -334,6 +336,10 @@ export interface AgentNodeData {
    *  Subagents never carry it: only `SubagentStart` creates one, so a subagent
    *  node exists precisely when its beginning WAS observed. */
   synthetic?: boolean;
+  /** Restored from an unfinished log turn; cleared when live traffic arrives. */
+  restoredFromLog?: boolean;
+  /** Real session traffic, excluding startup snapshots and transcript scans. */
+  recoveryLiveAt?: number;
   /** Number of direct subagents spawned by this agent. */
   childCount: number;
   usage: TokenUsage;
@@ -651,6 +657,9 @@ export interface HookPayload {
   /** Real CC SubagentStart/Stop payloads. */
   agent_id?: string;
   agent_type?: string;
+  parent_session_id?: string;
+  agent_nickname?: string | null;
+  agent_role?: string | null;
   /** Synthetic / older alias used by some test fixtures. */
   parent_tool_use_id?: string;
   subagent_type?: string;
@@ -705,7 +714,7 @@ export interface HookPayload {
    *  arriving as its own event because it is measured by the same record at the
    *  same instant as the usage totals beside it (#399). */
   context_tokens?: number;
-  /** Claude-only, on the synthetic `UsageObserved`: the transcript's totals
+  /** On the synthetic `UsageObserved`: the transcript's totals
    *  broken out by the model that produced them, in the same snake_case shape
    *  as `usage` beside it. Null when the scan attributed nothing, and null
    *  CLEARS whatever the root already held — both fields are cumulative, so a

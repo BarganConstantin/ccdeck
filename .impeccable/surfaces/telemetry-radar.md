@@ -4,7 +4,7 @@ Mode: Operate. Scope: `src/web/components/TrafficRadar.tsx`, `TelemetryCapture.t
 
 Direction: a compact network inspector within ccdeck’s established theme system. Replace the explanatory stack with a monitoring toolbar and destination strip. Distinguish local listener readiness, observed traffic, decoded exports and collector receipt. Socket observations are never called decoded messages.
 
-FIRST VIEWPORT: identity and subdued Beta at the top; one-line purpose and disclosed help; Monitor / Configuration / File navigation; listener status beside Start/Stop; active collector address; a narrow activity feed and wider contextual inspector. The feed reports decoded-message and connection-observation counts explicitly. Unreadable observations show time, destination, source and capture limitation at the top of the inspector rather than in a centered blank field.
+FIRST VIEWPORT: identity and subdued Beta at the top; one-line purpose and disclosed help; Monitor / Configuration / File navigation; automatic listener status and the active collector; active collector address; a narrow activity feed and wider contextual inspector. The feed reports decoded-message and connection-observation counts explicitly. Unreadable observations show time, destination, source and capture limitation at the top of the inspector rather than in a centered blank field.
 
 Signature interaction: selection stays fixed while new activity arrives. Pause list freezes visible entries while capture continues and reports arrivals; Resume reveals new entries without stopping monitoring. Keyboard arrows move within the feed. Filters reset the inspection deliberately. Long histories are rendered in bounded batches.
 
@@ -137,3 +137,129 @@ not a full accessibility certification. Captures: `/private/tmp/ccdeck-rail-qa/`
 Live capture still has two observations and no decoded messages; decoded tests
 use isolated fixtures. No packaged Electron or screen-reader run. No lint script;
 build retains the existing large-chunk warning.
+
+
+## Message-first inspection — 2026-10-19
+
+Overview now leads with captured content and useful measurements. An explicit
+field alias list selects prompt/response, tool/error, model, token, cost, timing
+and success values; missing values are omitted and zero/false remain visible.
+Full record fields, instrumentation, resource metadata and transfer facts sit
+behind disclosures. Prompt/response previews reveal full long text on demand.
+
+JSON uses pinned `json-edit-react` with ccdeck theme tokens, key/value search,
+value/path copying and keyboard-reachable native buttons. OTLP wrappers open to
+record fields. Large collections retain 50-item batching through a custom node;
+raw JSON remains complete. This expands the incumbent visual world, preserving
+the monitor split, feed, modal, capture controls and theme system.
+
+Verification: 95 relevant tests, TypeScript and build passed. Browser inspection
+runs in isolated contexts with intercepted synthetic payloads and a separate
+clipboard stub, preserving owner state. This pass is reviewed directly in-thread,
+without an independent reviewer. The fixed local backend also previously decoded
+four actual Claude test exports with accepted collector receipts; browser fixtures
+are separate evidence. The frontend rebuild preserves the running capture history.
+
+## Prompt and project evidence — 2026-10-19
+
+The first view names the project/working directory when known, then distinguishes
+included, redacted and absent prompt/response fields. Exported fields and exact
+local session context have different source labels. Never infer a project from a
+collector socket or reconstruct missing prompt text from local transcripts.
+Prompt, response, error and tool/usage log events precede background events,
+which move into a lazy Other events disclosure. A disclosed About captured content
+explains that this is the collector export, not the complete model request.
+
+Applied the incumbent-world clarification/refinement workflow. Verified directly
+in-thread with 81 relevant tests, typecheck/build and isolated Chromium at desktop,
+390 and 320px in dark/light themes. No independent reviewer was available. Real
+retained test exports have redacted prompts and no exported project path; this
+runtime evidence is separate from browser fixtures with an exported directory.
+
+
+## Automatic monitoring and Settings switch — 2026-10-19
+
+Radar defaults On and starts monitoring from the server, independently of the
+modal or browser lifecycle. Settings gains a dedicated Radar section with one
+switch in the existing appearance-row style. Off stops capture/discovery, hides
+the desktop rail/mobile menu entry and closes an open Radar modal. The saved
+preference survives reload/restart; enabling restores automatic monitoring.
+Monitor removes Start/Stop and manual address selection for managed capture.
+Readiness, permission errors and waiting for a collector remain honest states.
+
+Server preference and shared client state are separate from capture readiness.
+Regressions cover persistence, failed saves, stale polls/setup, late discovery
+and settings/monitor presentation. The native macOS automatic smoke test decoded
+synthetic packets and accepted responses, and preserved Off after restart. Browser
+QA uses real local settings on desktop (restored to On) and isolated mobile replies.
+This is a direct in-thread refinement review, not an independent reviewer verdict.
+
+## Activity prompt filter — 2026-10-19
+
+The Activity heading includes a compact “With prompt” switch using the shared
+switch style. It filters retained exports by their existing Prompt content tag,
+excludes undecoded connection observations, and combines with session/type/
+destination filters. Redacted prompt fields remain eligible. The count reflects
+visible activity; an empty result explains how to restore all activity. It does
+not change capture, retained history, or telemetry settings.
+
+## Compact activity and adjustable columns — 2026-10-19
+
+Activity exports use three compact lines: title/time, one-line session context,
+and receipt/count. The icon conveys signal; full destination and signal remain
+in the inspector. Names and session context truncate with full native tooltips.
+Prompt exports add at most two preview lines, loaded from the actual retained
+export only as the row approaches the viewport. Redacted content is labelled,
+never reconstructed. Failed preview loading leaves an invitation to inspect.
+
+On desktop, a visible divider supports pointer capture, arrow keys (Shift for
+larger steps), Home/End, and double-click/Enter to reset. The percentage is saved
+locally; CSS constrains both columns as the viewport changes. On mobile the
+existing stacked layout remains and the divider is hidden.
+
+## Filters and history cleanup — 2026-10-19
+
+The expanded disclosure uses two aligned selects, without redundant visible
+Type/To prefixes (accessible names remain). A second row contains the compact
+24h / decoded / observed counts and quiet pause/resume and clear icon buttons.
+The actions keep accessible labels and explanatory native titles; Clear expands
+to an explicit confirmation label before removal. Coarse pointers get larger
+controls, and the toolbar wraps at narrow list widths.
+
+The compact filter wrappers exposed a chevron alignment defect: block layout
+left absolute SVGs at the top edge (measured 8px above center). RadarSelect
+chevrons now anchor explicitly at 50% with a -50% translation, independent of
+wrapper display mode. Browser checks measured zero center offset at 1440,
+390 and 320px and exercised filtering, pause/resume and clear-confirmation blur.
+
+## File pane layout isolation — 2026-10-19
+
+The Monitor's three-column splitter rule accidentally matched File's two-column
+workspace, squeezing its inspector into the divider track (48px including
+padding). Scope that rule to the immediate workspace in `.tr-telemetry`.
+File keeps its two-column layout after import. Before import it uses a single
+empty workspace with an explicit Open file instruction, a visible file-picker
+button, and no redundant zero-count list or empty inspector.
+
+## Remove File view — 2026-10-19
+
+The owner removed manual file import from Radar: it suggested an automatic
+Claude telemetry-file view but was only a browser file importer. The dialog now
+contains Monitor and Configuration only. The removed panel no longer contributes
+session IDs; keyboard tab navigation wraps between the two remaining views.
+
+## Unified Radar header — 2026-10-19
+
+Identity, Monitor/Configuration tabs, session filter, About and Close now share
+one desktop header. The same mounted controls wrap into a second header row
+below 1100px; on phones the session filter takes its own row. No portals,
+duplicated controls, or viewport-dependent remounting are used, preserving
+selected messages, session filters and keyboard navigation across resizes.
+
+## Session names — 2026-10-19
+
+Radar's local session labels now use the same sessionDisplay resolver as canvas
+cards: known session name, then title, then project/agent label. The short ID
+remains a disambiguator. Captured sessions without local metadata display
+“Session · <short ID>” rather than repeating the ID twice. Names are local
+context joined by exact session ID, not a claim that telemetry exported them.

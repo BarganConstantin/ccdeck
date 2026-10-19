@@ -67,6 +67,8 @@ describe("scrubReport takes identifying text out of a message shown on the page"
     ["mail bob@example.org now", "mail <email> now"],
     ["token sk-ant-abcdefghijklmnop failed", "token <secret> failed"],
     ["ghp_abcdefghijklmnopqrstuvwxyz0123", "<secret>"],
+    ["auth glpat-abcdefghij0123456789 failed", "auth <secret> failed"],
+    ["github_pat_11ABCDEFG0abcdefghij", "<secret>"],
     ["Cannot read properties of undefined (reading 'agents')", "Cannot read properties of undefined (reading 'agents')"],
   ])("%s → %s", (input, output) => {
     expect(scrubReport(input)).toBe(output);
@@ -233,7 +235,8 @@ describe("the topbar's Feedback button", () => {
     // the three rare dialogs — History, Browser watch, Feedback — sit behind
     // More, where a row has the room to say "Send feedback" whole.
     expect(item).toMatch(/menu: "Send feedback"/);
-    expect(app).toMatch(/more=\{\[\.\.\.rails\.right\.slice\(1\)\.flat\(\), rails\.utilities\[1\]\]\}/);
+    // A connected tracker's row (#2178) comes before it; Feedback stays last.
+    expect(app).toMatch(/more=\{\[\.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, rails\.utilities\[1\]\]\}/);
     expect(rails).toMatch(/item\.menu \?\? item\.label/);
   });
 
@@ -261,6 +264,21 @@ describe("Settings, which the Appearance menu became, has no Help improve ccdeck
     for (const gone of ["Help improve ccdeck", "appearance-improve", "Send usage reports", "appearance-reports", "Send feedback"]) {
       expect(settingsSurface, gone).not.toContain(gone);
     }
+  });
+
+  it("has Send feedback back in About (#2176) as a door onto the one dialog, with no reports switch beside it", () => {
+    // The owner's About page lists feedback beside the version and What's
+    // new. It is not the section that went: it holds no switch and says
+    // nothing about reports, and it opens the topbar's dialog through the
+    // dialogs hook's one door, closing Settings first.
+    const about = read("../components/AboutSection.tsx");
+    expect(about).toContain('name="Send feedback"');
+    expect(about).toMatch(/onClick=\{doors\.feedback\}/);
+    for (const gone of ["Help improve ccdeck", "Send usage reports", 'role="switch"', "reportsOn"]) {
+      expect(about, gone).not.toContain(gone);
+    }
+    expect(mounted).toMatch(/feedback: doorOut\(closeSettings, \(\) => openFeedback\(\)\)/);
+    expect(deckDialogs).toMatch(/feedbackPrefill, setFeedbackPrefill, openFeedback \} = dialogs;/);
   });
 
   it("takes no reports or feedback props, and is handed none", () => {

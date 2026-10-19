@@ -7,6 +7,7 @@ import { fmtTokens } from "../token-format";
 import { sessionFailure, type SessionReply, type SessionSelection, type SessionSpeed } from "../session-usage";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { RefreshGlyph } from "./action-glyphs";
+import SessionUsageLoading from "./SessionUsageLoading";
 
 const count = (n: number) => n.toLocaleString();
 const at = (value: string) => new Date(value).toLocaleString(undefined, {
@@ -75,11 +76,11 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
               <option value="flex">Flex scenario</option>
             </select>
           </label>}
-          {!reply && <p className="su-message" role="status">Reading local session usage…</p>}
+          {!reply && <SessionUsageLoading />}
           {reply && !reply.ok && <p className="su-message" role="status" title={reply.error}>
             {sessionFailure(reply)} Use Refresh to try again.
           </p>}
-          {detail && <>
+          {detail && <div className="su-result">
             <dl className="su-totals">
               <div><dt>{speed === "auto" ? "Estimated cost" : "Scenario estimate"}{missing.length > 0 ? " · partial" : ""}</dt>
                 <dd>{detail.totalCost > 0 ? fmtCost(detail.totalCost)
@@ -125,7 +126,7 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
               {detail.lastActivity && <div><dt>Last activity</dt><dd><time dateTime={detail.lastActivity} title={new Date(detail.lastActivity).toLocaleString()}>{at(detail.lastActivity)}</time></dd></div>}
               {detail.entries != null && <div><dt>Usage records</dt><dd>{count(detail.entries)}</dd></div>}
             </dl>
-          </>}
+          </div>}
           <footer className="su-footer">
           <p className="su-note">{speed === "auto" ? "Estimated from local logs, not an invoice." : "Pricing scenario · does not change settings or billing."} Includes the whole session.</p>
           <details className="su-id su-assumptions"><summary>Estimate details</summary>

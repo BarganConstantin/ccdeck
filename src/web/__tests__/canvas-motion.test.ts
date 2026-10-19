@@ -354,8 +354,6 @@ const PRESSES: Press[] = [
   // 30px track, and six percent of that reads as the knob slipping.
   [".switch:active:not(:disabled)", "0.97", "transform"],
   [".ap-field select:active:not(:disabled)", "0.97", "transform"],
-  [".appearance-source-trigger:active", "0.97", "transform"],
-  [".appearance-source-option:active", "0.97", "transform"],
   // Browser Watch's two range selects, in the same language as the panel's:
   // the popup opens anchored to this box, so 0.97 rather than 0.94.
   [".bw-settings select:active:not(:disabled)", "0.97", "transform"],
@@ -391,14 +389,13 @@ const PRESSES: Press[] = [
   // above it: a full-width row that opens to show what it is summarising.
   [".bw-ep-head:active", "0.97", "transform"],
   // Tool activity: a tool's row and a finding are full-width rows that open
-  // details, Back is a labelled control, and How this is counted a disclosure.
+  // details, and How this is counted is a disclosure.
   [".ta-row:active", "0.97", "transform"],
   [".ta-highlight:active", "0.97", "transform"],
-  [".ta-back:active", "0.97", "transform"],
   [".ta-explain summary:active", "0.97", "transform"],
+  [".ta-view:active", "0.97", "transform"],
+  [".sa-session:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
-  [".appearance-source-trigger:active", "0.97", "transform"],
-  [".appearance-source-option:active", "0.97", "transform"],
   [".selected-ribbon .selected-close:active", "0.94", "transform"],
   // The × is a span inside the ribbon's own button, and `:active` is set on
   // every ancestor of what was pressed — without the guard, clearing the
@@ -427,6 +424,8 @@ const PRESSES: Press[] = [
   // A section of Settings, in the nav down its side: a labelled row the width
   // of the nav, pressed like every other labelled control — 0.97.
   [".settings-tab:active", "0.97", "transform"],
+  // A search result in Settings (SettingsSearch.tsx), a row of its list.
+  [".settings-result:active", "0.97", "transform"],
   // The Other accounts list's expand-all (#1579): a glyph in a 24px box, but a
   // labelled control by its name, like the header's icon buttons — 0.97.
   [".ap-rest-all:active", "0.97", "transform"],
@@ -449,6 +448,30 @@ const PRESSES: Press[] = [
   // The way to a panel's 30-second video on ccdeck.dev: two words and a
   // number, so 0.97 like every other labelled control.
   [".film-link:active", "0.97", "transform"],
+  // Settings › About's Source, the same kind of link out of the deck (#2176).
+  [".settings-link:active", "0.97", "transform"],
+  // The integrations modal (#2178): Back to the list on a narrow window, and
+  // the Jira panel's controls — a sprint's header, an issue's row and its
+  // disclosure triangle (0.94: a 12px glyph), a board in the picker, a
+  // sub-task in an issue's detail, a crumb back up its path, and the
+  // worded links (Clear filters, Try again).
+  [".ig-back:active", "0.97", "transform"],
+  [".jr-group-toggle:active", "0.97", "transform"],
+  [".jr-row-main:active", "0.97", "transform"],
+  [".jr-toggle:active", "0.94", "transform"],
+  [".jr-board-item:active", "0.97", "transform"],
+  [".jr-detail-sub:active", "0.97", "transform"],
+  [".jr-crumb:active", "0.97", "transform"],
+  [".jr-link-btn:active", "0.97", "transform"],
+  // The GitHub and GitLab panel (#2179): a list's row, a group's or a stage's
+  // fold, a project in the picker and a link to another item on a page are
+  // labelled controls, 0.97; the copy button beside a value is a glyph in a
+  // 24px box, 0.94.
+  [".fg-row:active", "0.97", "transform"],
+  [".fg-fold:active", "0.97", "transform"],
+  [".fgl-repo-option:active", "0.97", "transform"],
+  [".fd-jump:active", "0.97", "transform"],
+  [".fg-copy:active", "0.94", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */
@@ -574,14 +597,15 @@ const EXEMPT: string[] = [
   // answered by the platform's own list opening over it; scaling the control
   // in the same instant would shift the words the list is drawn against.
   ".ap-rest-sort select",
-  // Settings' Claude FM and character rows: a <label> round the switch, the same
-  // argument as `.bw-switch` — the knob travelling and the switch's own 0.97
-  // answer the press, and a scaled row would slide the words out from under it.
-  ".appearance-row",
   // A theme choice. Its press is answered by the whole deck changing theme and
   // the frame moving to it; a 118px preview scaled by 3% lurches rather than
   // clicks, and the hover plate under it already deepens.
   ".appearance-theme",
+  // A branch row's hit area in the GitHub and GitLab panel (#2179): an empty
+  // button stretched over the row so the copy button and Create merge request
+  // inside it stay controls of their own. Scaling it would move only the
+  // invisible hit target; the row answers with its fill, as the LAN list's do.
+  ".fgl-hit",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {

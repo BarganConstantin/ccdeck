@@ -3,6 +3,8 @@ import { isIP } from "node:net";
 import { fileURLToPath } from "node:url";
 import { captureInterface, captureInterfaceValid, captureTool, CaptureSetupError } from './traffic-radar-platform.mjs';
 import { monitorDestination, capturePreferences } from "./traffic-radar-monitor.mjs";
+import { createRadarService } from "./traffic-radar-service.mjs";
+import { trafficRadar } from "./traffic-radar.mjs";
 import { createWireCapture } from "./traffic-radar-wire.mjs";
 
 const WINDOW = 24 * 60 * 60 * 1000;
@@ -165,4 +167,4 @@ export function createTrafficCapture({ now = Date.now, platform = process.platfo
   };
   return api;
 }
-export const trafficCapture = createTrafficCapture({ managed: true, preferences: capturePreferences() });
+export const trafficCapture = createRadarService({ capture: createTrafficCapture({ managed: true }), preferences: capturePreferences(), discover: () => trafficRadar.read() });

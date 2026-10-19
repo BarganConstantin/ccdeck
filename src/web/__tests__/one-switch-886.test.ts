@@ -43,7 +43,13 @@ describe("every switch is the one switch (#886)", () => {
     // Seventeen with Settings › General's "Single-key shortcuts" (WCAG 2.1.4).
     // Sixteen after Music left Settings; Radio Explorer owns music controls.
     // Seventeen with the editable telemetry flags in Radar.
-    expect(switches, "the seventeen switches in the source").toBe(17);
+    // Eighteen with Settings › General's "Update when idle" (#2176), the
+    // banner's auto-restart preference drawn where it can be found at rest.
+    // Nineteen with the shared Codex/Claude startup-recovery switch markup.
+    // Twenty-one with Settings › Radar's "Enable Radar", and Radar's own "With
+    // prompt", an on/off filter over its activity list.
+    // Twenty-two with the terminal's Beta switch in General (TerminalSection.tsx).
+    expect(switches, "the twenty-two switches in the source").toBe(22);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

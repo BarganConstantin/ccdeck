@@ -21,9 +21,10 @@
 //
 // No React here: types from reactflow, and the same modules App.tsx was calling.
 import { type Edge, type Node } from "reactflow";
+import { canvasSessions } from "./canvas-session";
 import { agentAriaLabel } from "./agent-copy";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
-import { NODE_W } from "./layout-geometry";
+import { NODE_W, sessionOfNode } from "./layout-geometry";
 import { branchSummaries, type BranchSummary } from "./node-face";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
 import { liveNodeIds, measuredNodeIds, pruneStaleEntries } from "./prune";
@@ -63,20 +64,22 @@ const NODE_DATA = new WeakMap<GraphState, {
   /** The branch summaries, counted once per revision — a pass over the board
    *  that every root's copy reads, rather than one pass per root. */
   branches: Map<string, BranchSummary>;
+  groups: Map<string, string>;
 }>();
 
 export function nodeDataFor(state: GraphState, onOpenContext: (sessionId: string) => void): (a: AgentNodeData) => FlowNodeData {
   let entry = NODE_DATA.get(state);
   if (!entry || entry.revision !== state.revision || entry.open !== onOpenContext) {
-    entry = { revision: state.revision, open: onOpenContext, byId: new Map(), branches: branchSummaries(state.agents.values()) };
+    entry = { revision: state.revision, open: onOpenContext, byId: new Map(), branches: branchSummaries(state.agents.values()), groups: canvasSessions(state.agents.values()) };
     NODE_DATA.set(state, entry);
   }
-  const { byId, branches } = entry;
+  const { byId, branches, groups } = entry;
   return a => {
     let d = byId.get(a.id);
     if (!d) {
       const branch = a.kind === "root" ? branches.get(a.sessionId) : undefined;
       d = branch ? { ...a, onOpenContext, branch } : { ...a, onOpenContext };
+      d.canvasSessionId = groups.get(a.id);
       byId.set(a.id, d);
     }
     return d;
@@ -123,7 +126,7 @@ export function laneMap(state: GraphState): Map<string, number> {
  * overlaps the column its card stands in.
  */
 export function boardOrder<N extends Node>(nodes: readonly N[], depthOf: (n: N) => number): N[] {
-  const sessionOf = (n: N) => (n.data as { sessionId?: string } | undefined)?.sessionId ?? n.id;
+  const sessionOf = (n: N) => sessionOfNode(n);
   const boxes = new Map<string, { minX: number; maxX: number; minY: number }>();
   for (const n of nodes) {
     const sid = sessionOf(n);
@@ -314,7 +317,7 @@ export function snapshotToFlow(
         id: noteId,
         type: "recapNote",
         position: { x: 0, y: 0 },
-        data: { sessionId: a.sessionId, parentId: a.id, note, noteKey, hue },
+        data: { sessionId: a.sessionId, canvasSessionId: dataFor(a).canvasSessionId, parentId: a.id, note, noteKey, hue },
         className: spotlitOut ? "rf-spotlit-out" : undefined,
         selectable: false,
         // Not a keyboard stop either, like the session drag handles: Enter on a
@@ -377,7 +380,8 @@ export function snapshotToFlow(
   // repaired the way every board was before this.)
   const holding = restored.size > 0 && !(settled && historyReplayed);
   if (!holding) restored.clear();
-  const sig = `${layoutSig}#lanes:${laneSignature(lanes)}${holding ? "#held" : ""}`;
+  const ancestry = nodes.filter(n => n.data.provider === "codex" && n.data.parentId).map(n => `${n.id}:${sessionOfNode(n)}:${n.data.parentId}`).sort().join("|");
+  const sig = `${layoutSig}${ancestry ? `#codex:${ancestry}` : ""}#lanes:${laneSignature(lanes)}${holding ? "#held" : ""}`;
   // A node holding a placeholder counts as missing however real its entry in
   // `positions` looks — see placement.ts. Without that, the one write that
   // exists to keep a node on screen for a frame was also the write that told

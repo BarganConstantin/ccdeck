@@ -32,6 +32,14 @@ export async function handleTrafficCapture(req, res, url, capture = trafficCaptu
       }
       catch (error) { return reply(res, 400, { error: error.message }); }
     }
+    if (req.method === 'GET' && action === '/settings') return reply(res, 200, await capture.settings());
+    if (req.method === 'POST' && action === '/settings') {
+      let data;
+      try { data = JSON.parse((await body(req, 4096)).toString()); } catch { return reply(res, 400, { error: 'Invalid Radar settings.' }); }
+      if (typeof data?.enabled !== 'boolean') return reply(res, 400, { error: 'Radar enabled must be a boolean.' });
+      try { return reply(res, 200, await capture.setEnabled(data.enabled)); }
+      catch { return reply(res, 500, { error: 'Could not save Radar settings. Try again.' }); }
+    }
     if (req.method === 'GET' && action === '/capture') return reply(res, 200, capture.read());
     if (req.method === 'GET' && action === '/capture/event') {
       const detail = capture.detail(Number(url.searchParams.get('id')));

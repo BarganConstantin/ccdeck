@@ -12,6 +12,7 @@ import type { PanelToggles } from "./use-panel-return";
 import { platformName } from "./platform";
 import { settingsChordLabel, type SettingsSection } from "./settings";
 import type { RailItem } from "./components/EdgeRails";
+import type { IntegrationWebDef } from "./integrations/types";
 import {
   AccountsGlyph, BrowserWatchGlyph, FeedbackGlyph, HistoryGlyph, MachineGlyph,
   SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph,
@@ -27,6 +28,17 @@ export interface RailItems {
   right: RailItem[][];
   /** Settings and Feedback, in the topbar's corner. */
   utilities: RailItem[];
+  /** One per connected tracker kind (#2178) — Jira — under the left column's
+   *  two, after a divider; on a phone, under More. Empty until a connection
+   *  of that kind exists. */
+  integrations: RailItem[];
+}
+
+/** A tracker kind with at least one connection, and the press that opens its
+ *  panel. */
+export interface IntegrationRail {
+  provider: Pick<IntegrationWebDef, "kind" | "label" | "Glyph" | "shortcut" | "detail">;
+  onPress: () => void;
 }
 
 /** What Browser watch's hint adds under its name: whether it is watching, and
@@ -43,6 +55,7 @@ export function railItems({
   providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, radioOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
+  integrations = [],
 }: {
   providers: Providers;
   sessionListOpen: boolean;
@@ -59,6 +72,7 @@ export function railItems({
   /** Findings nobody has looked at yet. */
   watchUnseen: number;
   setBrowserWatchOpen: Toggle;
+  /** Absent where Radar is not offered, or is turned off in Settings. */
   setTrafficRadarOpen?: Toggle;
   radioOpen?: boolean;
   setRadioOpen?: Toggle;
@@ -68,6 +82,8 @@ export function railItems({
   onFeedback: () => void;
   /** Where a panel's own close hands keyboard focus back (use-panel-return.ts). */
   toggles: PanelToggles;
+  /** The connected tracker kinds, in the registry's order (#2178). */
+  integrations?: IntegrationRail[];
 }): RailItems {
   const settingsCap = settingsChordLabel(platformName());
   // aria-expanded, not aria-pressed, on the four panels: each shows and
@@ -143,5 +159,12 @@ export function railItems({
       detail: "Explore stations around the world", onPress: () => setRadioOpen(open => !open),
     }]] : [])],
     utilities: [settings, feedback],
+    // Each opens its large modal, so a dialog: aria-haspopup and no state.
+    integrations: integrations.map(({ provider, onPress }): RailItem => ({
+      id: `integration-${provider.kind}`, label: provider.label, short: provider.label,
+      ariaLabel: provider.label, detail: provider.detail,
+      key: provider.shortcut ? { cap: provider.shortcut.toUpperCase(), aria: provider.shortcut.toUpperCase(), single: true } : undefined,
+      glyph: <provider.Glyph />, kind: "dialog", onPress,
+    })),
   };
 }

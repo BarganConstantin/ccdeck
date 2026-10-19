@@ -1,14 +1,33 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, one, textOf } from "./fake-react";
 import type { CaptureSnapshot, CapturedExport } from "../use-telemetry-capture";
-vi.mock("react", async () => (await import("./fake-react")).react);
+vi.mock("react", async importOriginal => ({ ...await importOriginal<typeof import("react")>(), ...(await import("./fake-react")).react }));
 const { TelemetryCapture } = await import("../components/TelemetryCapture");
-const empty: CaptureSnapshot = { ok: true, sessionId: null, state: "idle", destination: null, interface: null, startedAt: null, expiresAt: null, lastInputAt: null, bytes: 0, issues: {}, events: [] };
+const empty: CaptureSnapshot = { ok: true, automatic: false, sessionId: null, state: "idle", destination: null, interface: null, startedAt: null, expiresAt: null, lastInputAt: null, bytes: 0, issues: {}, events: [] };
 const event = (id: number, signal: CapturedExport["signal"]): CapturedExport => ({ id, signal, at: 1700000000000, observedAt: 1700000000000, destination: "192.0.2.16:4317", bytes: 100, count: 1, name: `Synthetic ${signal} ${id}`, content: [], outcome: "unconfirmed", response: null });
 const props = { capture: { ...empty, events: [event(2, "logs"), event(1, "metrics")] }, radar: { ok: true, sampledAt: 0, platform: "darwin", pollMs: 5000, status: "observing" as const, processCount: 0, connections: [], alerts: [], config: { sources: [], variables: [{ key: "OTEL_EXPORTER_OTLP_ENDPOINT", value: "http://192.0.2.16:4317", source: "User settings" }] } }, failed: false, busy: false, error: "", command: "", action: vi.fn(async () => {}) };
 beforeEach(() => { vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ payload: {} }) }))); });
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); vi.restoreAllMocks(); vi.useRealTimers(); });
 describe("telemetry capture interactions", () => {
+  it("filters activity to prompt exports and restores observations when switched off", () => {
+    const capture = { ...props.capture, events: [{ ...event(3, "logs"), content: ["Prompt"] }, ...props.capture.events], observations: [{ id: 4, at: 1700000000001, destination: "192.0.2.16:4317", source: "192.0.2.1:50000", reason: "joined_midstream" }] };
+    const view = mount(TelemetryCapture, { ...props, capture });
+    const feed = () => one(view.tree, e => e.props.className === "tr-connections")!;
+    const toggle = () => one(view.tree, e => e.props.role === "switch" && e.props["aria-label"] === "With prompt")!;
+    expect(textOf(feed())).toContain("Connection observed");
+    (toggle().props.onClick as () => void)();
+    expect(toggle().props["aria-checked"]).toBe(true);
+    expect(textOf(feed())).toContain("Synthetic logs 3");
+    expect(textOf(feed())).not.toContain("Synthetic logs 2");
+    expect(textOf(feed())).not.toContain("Synthetic metrics 1");
+    expect(textOf(feed())).not.toContain("Connection observed");
+    view.rerender({ ...props, capture: { ...capture, events: props.capture.events } });
+    expect(textOf(view.tree)).toContain("Turn off With prompt");
+    (toggle().props.onClick as () => void)();
+    expect(textOf(feed())).toContain("Connection observed");
+    expect(textOf(feed())).toContain("Synthetic metrics 1");
+    view.unmount();
+  });
   it("starts with one empty workspace and reveals history tools only after activity arrives", () => {
     const view = mount(TelemetryCapture, { ...props, capture: empty });
     expect(one(view.tree, e => e.props.className === "tr-workspace")!.props["data-empty"]).toBe(true);
@@ -127,7 +146,7 @@ describe("telemetry capture interactions", () => {
   });
   it("identifies unreadable observations separately and keeps their real metadata", () => {
     const view = mount(TelemetryCapture, { ...props, capture: { ...empty, managed: true, enabled: true, state: "capturing", bytes: 100, sources: [{ destination: "192.0.2.16:4317", interface: "en0", active: true, bytes: 100 }], observations: [{ id: 1, at: 1700000000000, destination: "192.0.2.16:4317", source: "192.0.2.10:50210", reason: "joined_midstream" }] } });
-    expect(textOf(view.tree)).toContain("0 decoded messages · 1 observation");
+    expect(textOf(view.tree)).toContain("0 decoded · 1 observed");
     const inspector = textOf(one(view.tree, e => e.props.className === "tr-inspector"));
     expect(inspector).toContain("192.0.2.10:50210");
     expect(inspector).toContain("Not decoded");
@@ -187,7 +206,7 @@ describe("telemetry capture interactions", () => {
   it("loads older history in batches and reports capacity evictions", () => {
     const events = Array.from({ length: 150 }, (_, i) => event(150 - i, "logs"));
     const view = mount(TelemetryCapture, { ...props, capture: { ...empty, events, retention: { windowMs: 86400000, maxExports: 2000, payloadBudgetBytes: 33554432, evictedExports: 12 } } });
-    expect(textOf(view.tree)).toContain("Last 24 hours");
+    expect(textOf(view.tree)).toContain("24h");
     expect(textOf(view.tree)).toContain("12 older messages removed");
     expect(one(view.tree, e => e.props.className === "tr-event-name" && textOf(e) === "Synthetic logs 1")).toBeNull();
     (one(view.tree, e => e.type === "button" && textOf(e) === "Show older messages")!.props.onClick as () => void)();

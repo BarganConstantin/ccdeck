@@ -8,6 +8,8 @@ const cleanup: (() => Promise<void> | void)[] = [];
 afterEach(async () => { for (const close of cleanup.splice(0)) await close(); });
 describe('telemetry capture route authorization', () => {
   it('guards content reads and setup mutations instead of making capture a public mutation', () => {
+    expect(GUARDED_READS.has('/api/system/traffic-radar/settings')).toBe(true);
+    expect(OPEN_MUTATIONS.has('/api/system/traffic-radar/settings')).toBe(false);
     expect(GUARDED_READS.has('/api/system/traffic-radar/capture')).toBe(true);
     expect(GUARDED_READS.has('/api/system/traffic-radar/capture/event')).toBe(true);
     expect(OPEN_MUTATIONS.has('/api/system/traffic-radar/ingest')).toBe(false);
@@ -38,4 +40,18 @@ describe('telemetry capture route authorization', () => {
     expect((await fetch(base + '/ingest', { method: 'POST', headers: { 'x-radar-capture': token }, body: Buffer.alloc(0) })).status).toBe(401);
     capture.clear(); expect((await fetch(base + `/capture/event?id=${state.events[0].id}`)).status).toBe(404);
   });
+});
+
+it('validates the Settings switch and returns its saved state', async () => {
+  let enabled = true;
+  const settings = { settings: async () => ({ ok: true, enabled }), setEnabled: async (value: boolean) => { enabled = value; return { ok: true, enabled }; } };
+  const server = createServer((req, res) => void handleTrafficCapture(req, res, new URL(req.url!, 'http://localhost'), settings));
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  cleanup.push(() => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }));
+  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/system/traffic-radar/settings`;
+  expect((await fetch(url).then(r => r.json())).enabled).toBe(true);
+  expect((await fetch(url, { method: 'POST', body: JSON.stringify({ enabled: 'false' }) })).status).toBe(400);
+  expect(enabled).toBe(true);
+  expect((await fetch(url, { method: 'POST', body: JSON.stringify({ enabled: false }) }).then(r => r.json())).enabled).toBe(false);
+  expect((await fetch(url).then(r => r.json())).enabled).toBe(false);
 });
