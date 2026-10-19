@@ -111,7 +111,7 @@ export const TMUX_SETUP_GIVE_UP_MS = 180_000;
 /** The session on stage, a new one being started, or nothing. */
 export type StageSubject =
   | { kind: "empty" }
-  | { kind: "session"; ref: SessionRef }
+  | { kind: "session"; ref: SessionRef; launch?: string }
   | { kind: "launch"; agent: TerminalProvider; cwd: string; key: string; options?: LaunchOptions };
 
 /** One string per subject, so a re-render that hands the same subject again
@@ -928,9 +928,11 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     show(next) {
       if (disposed) return;
       // The session a launch just started, arriving on the board: the stage
-      // is already attached to it, so this is a rename, not a switch.
-      if (next.kind === "session" && subject.kind === "launch" && launchedRef
-        && next.ref.sessionId === launchedRef.sessionId) {
+      // is already attached to it, so this is a rename, not a switch. Known
+      // by the id the launch was answered with, or, for a Codex, which is
+      // answered none, by the stage saying which launch it came from.
+      if (next.kind === "session" && subject.kind === "launch"
+        && ((launchedRef && next.ref.sessionId === launchedRef.sessionId) || (launched && next.launch === subject.key))) {
         subject = next;
         launchedRef = null;
         launched = false;

@@ -189,7 +189,7 @@ describe("a launch becoming its session", () => {
 
   it("shows the new session as itself once the board has it", () => {
     const s = shellReducer(launching, { type: "launched", key: "l1", sessionId: "s-new" });
-    expect(s.target).toEqual({ kind: "session", id: "s-new" });
+    expect(s.target, "carrying the launch it came from, so its pane is kept").toEqual({ kind: "session", id: "s-new", launch: "l1" });
     expect(s.last).toBe("s-new");
   });
 

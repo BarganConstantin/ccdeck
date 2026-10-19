@@ -284,6 +284,32 @@ describe("GET /api/terminal/target", () => {
     expect(labelled).toEqual([]);
   });
 
+  it("says whether a launch became this session, when the page names the launch", async () => {
+    // A Codex picks its own id once it starts, so the launch route cannot name
+    // it: the page asks this of each Codex that turns up in the launch's folder.
+    target = { kind: "A", socket: DECK_SOCKET, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: SID, launchKey: "launch-k1" };
+    const q = { session: SID, provider: "codex", cwd: PROJECT };
+    const yes = await ask("GET", path({ ...q, launch: "launch-k1" }));
+    expect(yes.body).toEqual({ ok: true, target: describeTarget({ kind: "A" }), launched: true });
+    expect(yes.raw, "and not which pane").not.toContain("%9");
+    expect(yes.raw).not.toContain("ccdeck-codex-5e6f7a8b");
+    expect((await ask("GET", path({ ...q, launch: "launch-k2" }))).body.launched, "another launch's pane").toBe(false);
+    target = { kind: "A", socket: DECK_SOCKET, pane: "%9", name: "ccdeck-codex-5e6f7a8b" };
+    expect((await ask("GET", path({ ...q, launch: "launch-k1" }))).body.launched, "a pane no launch named").toBe(false);
+    target = { kind: "B", socket: { path: "/tmp/tmux-1000/default" }, pane: "%3", launchKey: "launch-k1" };
+    expect((await ask("GET", path({ ...q, launch: "launch-k1" }))).body.launched, "only the deck's own panes are launches").toBe(false);
+    expect((await ask("GET", path(q))).body, "nothing said when no launch was named").not.toHaveProperty("launched");
+    expect(labelled, "still a read").toEqual([]);
+  });
+
+  it("refuses a launch key it could not have given, before asking anything", async () => {
+    for (const launch of ["", "a b", "x".repeat(97), "../k"]) {
+      const got = await ask("GET", path({ session: SID, provider: "codex", cwd: PROJECT, launch }));
+      expect(got.status, JSON.stringify(launch)).toBe(400);
+    }
+    expect(resolved).toEqual([]);
+  });
+
   it("asks about the session in lower case, on the deck's own socket", async () => {
     await ask("GET", path({ session: SID.toUpperCase(), provider: "codex", cwd: PROJECT }));
     const { q, deps } = resolved.at(-1);

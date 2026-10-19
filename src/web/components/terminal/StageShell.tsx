@@ -37,6 +37,7 @@ import type { Stage } from "../../use-stage";
 import { prefersReducedMotion } from "../../viewport-motion";
 import BoardNavigator from "../BoardNavigator";
 import NewSessionPopover from "./NewSessionPopover";
+import { useCodexLaunch } from "./codex-launch";
 import { barArrival, barAsks, boardProjects, stageShowFor } from "./stage-board";
 import { closedAnnouncement, type StagePhaseKind } from "./stage-model";
 import TerminalStage, { stageName } from "./TerminalStage";
@@ -150,6 +151,7 @@ export function StageDock(p: StageDockProps) {
 
   const agents = stateRef.current.agents;
   const show = stageShowFor(shell.target, agents, p.now);
+  useCodexLaunch(shell.target, agents, sessionId => stage.onLaunched({ sessionId }));
   const name = stageName(show);
   // The empty stage's name is a description, not a session: closing it keeps
   // nothing running, so the sentence says only that the stage closed.

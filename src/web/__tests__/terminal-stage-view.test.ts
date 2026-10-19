@@ -444,6 +444,8 @@ describe("the stage as a whole", () => {
     expect(subjectOf(session)).toEqual({ kind: "session", ref: { sessionId: "s1", provider: "claude", cwd: "/w/paycore" } });
     expect(subjectOf({ kind: "launch", agent: "codex", cwd: "/w", name: "w", hue: 3, key: "n1" })).toEqual({ kind: "launch", agent: "codex", cwd: "/w", key: "n1" });
     expect(subjectOf({ kind: "empty" })).toEqual({ kind: "empty" });
+    expect(subjectOf({ ...session, launch: "n1" } as StageShow), "and the launch a session came from, so its pane is kept")
+      .toEqual({ kind: "session", ref: { sessionId: "s1", provider: "claude", cwd: "/w/paycore" }, launch: "n1" });
   });
 });
 

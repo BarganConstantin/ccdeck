@@ -206,7 +206,14 @@ export async function handleTerminalStatus(req, res, options) {
 }
 
 /** GET /api/terminal/target?session=&provider=&cwd= → `{ ok: true, target }`,
- *  where target is describeTarget's answer. */
+ *  where target is describeTarget's answer.
+ *
+ *  With `&launch=`, a launch's key, the answer also says whether the session
+ *  runs in that launch's pane (`launched`). A Codex chooses its own id once it
+ *  starts writing, so the launch route cannot name it, and the page asks this
+ *  of each new Codex the board hears of while the stage shows the launch
+ *  (codex-launch.ts). Only the deck can tell two of them apart, and it says
+ *  yes or no, never which pane. */
 export async function handleTerminalTarget(req, res, url, options) {
   const d = terminalDeps(options);
   if (!d.enabled()) return notFound(res);
@@ -216,8 +223,15 @@ export async function handleTerminalTarget(req, res, url, options) {
     cwd: url?.searchParams.get("cwd") ?? "",
   });
   if (!q.ok) return send(res, 400, { ok: false, error: q.error });
+  const launch = url?.searchParams.get("launch");
+  if (launch != null && !isLaunchKey(launch)) {
+    return send(res, 400, { ok: false, error: "The launch's key is not one the deck can keep." });
+  }
   const { target } = await locate(q, d);
-  return send(res, 200, { ok: true, target: describeTarget(target) });
+  return send(res, 200, {
+    ok: true, target: describeTarget(target),
+    ...(launch != null ? { launched: target.kind === "A" && target.launchKey === launch } : {}),
+  });
 }
 
 /**

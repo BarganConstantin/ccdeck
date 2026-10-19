@@ -505,7 +505,26 @@ describe("the other ways in", () => {
     expect(now().stage.shell.target, "not on the board yet").toMatchObject({ kind: "launch" });
     deps.stateRef.current.agents.set("s-new", root("s-new"));
     view.rerender(props);
-    expect(now().stage.shell.target).toEqual({ kind: "session", id: "s-new" });
+    expect(now().stage.shell.target).toEqual({ kind: "session", id: "s-new", launch: key });
+  });
+
+  it("follows a Codex launch to the session the stage recognised, whichever report comes first", () => {
+    // The launch's answer carries no id for a Codex; the stage reports the one
+    // the deck recognised on the board (codex-launch.ts). The empty one never
+    // undoes it.
+    for (const order of [["", "c-new"], ["c-new", ""]]) {
+      const { view, now, turnOn, props, deps } = setup();
+      turnOn();
+      now().stage.openFromButton(null);
+      now().stage.launch("codex", "/w/app");
+      for (const sessionId of order) now().stage.onLaunched({ sessionId });
+      view.rerender(props);
+      expect(now().stage.shell.target, "the board has not heard of it yet").toMatchObject({ kind: "launch" });
+      deps.stateRef.current.agents.set("c-new", root("c-new"));
+      view.rerender(props);
+      expect(now().stage.shell.target, order.join(" then ")).toMatchObject({ kind: "session", id: "c-new" });
+      expect(now().stage.shell.last).toBe("c-new");
+    }
   });
 
   it("goes back to a launch the board has not heard of yet, from the Terminal button", () => {
@@ -557,15 +576,30 @@ describe("the keys", () => {
     expect(now().stage.shell.target).toEqual({ kind: "session", id: "s1" });
   });
 
-  it("leaves the keys on the board for a pointer on that tile, and for Enter on any other tile", () => {
+  it("leaves the keys on the board for Enter on another tile, so j and k go on walking", () => {
     const { now, turnOn } = setup();
     turnOn();
     now().stage.switchTo("s1", { focusPane: false });
-    now().stage.openTile("s1", { keyboard: false });
-    expect(now().stage.shell.focusRequest, "pointing at the socket is not asking to type").toBeNull();
     now().stage.openTile("s2", { keyboard: true });
     expect(now().stage.shell.target).toEqual({ kind: "session", id: "s2" });
     expect(now().stage.shell.focusRequest, "another tile is a switch, keys on the board").toBeNull();
+  });
+
+  it("puts the keys in the pane for a pointer on any tile, as a click on its card does", () => {
+    // Left on the board, the letters typed next to the session the pointer had
+    // just picked ran the deck's shortcuts: "us" opened Usage and Machine and
+    // closed the stage.
+    const { now, turnOn, selectAgent } = setup();
+    turnOn();
+    now().stage.switchTo("s1", { focusPane: false });
+    now().stage.openTile("s2", { keyboard: false });
+    expect(now().stage.shell.target).toEqual({ kind: "session", id: "s2" });
+    const first = now().stage.shell.focusRequest;
+    expect(first, "another tile").not.toBeNull();
+    expect(selectAgent).toHaveBeenLastCalledWith("s2", false, false);
+    now().stage.openTile("s2", { keyboard: false });
+    expect(now().stage.shell.focusRequest, "the tile on the stage, asked afresh").not.toBe(first);
+    expect(now().stage.shell.focusRequest).not.toBeNull();
   });
 
   it("gives the keys back onto the session's tile in the navigator", () => {
@@ -1028,6 +1062,15 @@ describe("keys typed before the pane can take them", () => {
     expect(now().stage.shell.focusRequest, "nor a hold that ran out: nobody said not to type").toBe(request);
   });
 
+  it("is started by a pointer on a tile, as by a click on a card", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.switchTo("s1", { focusPane: false });
+    now().stage.openTile("s2", { keyboard: false });
+    expect(held(press("u")), "the first letter for s2, not the Usage key").toBe(true);
+    expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest)).toBe("u");
+  });
+
   it("is ended by any answer to its request, and only that request's answer is handed the text", () => {
     const { now, turnOn } = setup();
     turnOn();
@@ -1068,7 +1111,7 @@ describe("keys typed before the pane can take them", () => {
     const { now, turnOn } = setup();
     turnOn();
     now().stage.switchTo("s1", { focusPane: false });
-    now().stage.openTile("s2");
+    now().stage.openTile("s2", { keyboard: true });
     expect(held(press("j"))).toBe(false);
     now().stage.launch("claude", "/work");
     expect(held(press("h")), "a launch asks for the pane, but its welcome screen is seconds away").toBe(false);

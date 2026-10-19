@@ -317,7 +317,7 @@ export function attachIdOf(rec, sessionId) {
  * Where a session can be reached from, or why it cannot. See the header for
  * the kinds; the shapes are:
  *
- *   { kind: "A", socket, pane, name, learnedId? }
+ *   { kind: "A", socket, pane, name, learnedId?, launchKey? }
  *                                          socket is the deck's own (DECK_SOCKET)
  *   { kind: "B", socket: { path }, pane }
  *   { kind: "D", attachId, wrapper? }      wrapper: a live deck pane already
@@ -333,8 +333,10 @@ export function attachIdOf(rec, sessionId) {
  * the original has stopped — for C it has not — which is the adopt route's
  * check to make when somebody asks.
  *
- * Two fields are for the routes and never reach the page (describeTarget
- * leaves them out). `learnedId` is on an A that was found by its process
+ * Three fields are for the routes and never reach the page (describeTarget
+ * leaves them out). `launchKey` is on an A in a deck pane a page launch
+ * named, for the target route to say whether that launch became this
+ * session. `learnedId` is on an A that was found by its process
  * because its pane's `@ccdeck-session` is still empty — a Codex the deck
  * launched, recognised by the rollout it holds open — and is the id that
  * process was found by, for the open route to write into the option so the
@@ -558,6 +560,7 @@ function deckTarget(io, s, sessionId) {
   return {
     kind: "A", socket: io.deckSocket, pane: s.pane, name: s.name,
     ...(!s.sessionId && sessionId ? { learnedId: sessionId } : {}),
+    ...(s.launchKey ? { launchKey: s.launchKey } : {}),
   };
 }
 
