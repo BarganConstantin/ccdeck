@@ -16,7 +16,7 @@ import { modelChipText, modelChipTitle as chipTitle, modelFamily } from "../mode
 import { maxSqueeze, nextSqueeze, rowAt } from "../card-row-squeeze";
 // The card's words — its state, a block's sentence and label — which the
 // session list, the peek and the topbar say too. See agent-copy.ts.
-import { spawnBadgeTitle, stateLabel, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
+import { agentKindLabel, spawnBadgeTitle, stateLabel, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
 // The card's token count, which used to be a private three-tier `fmtTok` here —
 // byte-identical to the two copies #323 deleted, and the fourth one it missed
@@ -211,7 +211,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
           prefers over this one under the pointer. */}
       <div className="sub" title={subRowTitle(data)}>
         <span className="sub-details" ref={detailsRef}>
-          {row.kind && <span>{data.provider === "codex" && data.parentId ? "child session" : data.kind === "root" ? "session" : "subagent"}</span>}
+          {row.kind && <span>{agentKindLabel(data)}</span>}
           {data.childCount > 0 && (
             <span className="spawn-badge" title={spawnBadgeTitle(data.childCount)}>→ {data.childCount}</span>
           )}

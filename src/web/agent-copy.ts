@@ -15,6 +15,11 @@ import { guessLine } from "./notify";
 import { isAlarming } from "./ambient-counts";
 import { planSpoken, planSummary } from "./agent-plan";
 
+/** A Codex child remains its own session, wherever its kind is displayed. */
+export function agentKindLabel(a: Pick<AgentNodeData, "provider" | "parentId" | "kind">): string {
+  return a.provider === "codex" && a.parentId ? "child session" : a.kind === "root" ? "session" : "subagent";
+}
+
 /** The one word this app uses for a session's state, wherever it says it.
  *
  *  It was inline in StatePill until #373, where the session list and the usage
@@ -66,7 +71,7 @@ export function spawnBadgeTitle(count: number): string {
  *  Codex session with no model yet says Codex, as its chip does, and a Claude
  *  one says nothing about a model it has not reported. */
 export function subRowTitle(a: AgentNodeData): string {
-  const parts = [a.provider === "codex" && a.parentId ? "child session" : a.kind === "root" ? "session" : "subagent"];
+  const parts = [agentKindLabel(a)];
   if (a.childCount > 0) parts.push(`→ ${a.childCount}`);
   if (a.kind === "subagent" && a.cwdBasename) parts.push(a.cwdBasename);
   if (a.model) {
@@ -92,7 +97,7 @@ export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), se
   const cost = agentCost(data, now).total;
   return [
     data.label,
-    data.provider === "codex" && data.parentId ? "child session" : data.kind === "root" ? "session" : "subagent",
+    agentKindLabel(data),
     stateLabel(data.state),
     isAlarming(data.waiting) ? waitingSentence(data.waiting!) : null,
     data.model ? shortModel(data.model) : null,
