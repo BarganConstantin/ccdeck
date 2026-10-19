@@ -11,9 +11,13 @@ export const EXIT_ANIM_MS = 600;
  *  (drives the burst overlay). */
 export function isAgentVisible(a: AgentNodeData, now: number): boolean {
   if (a.exitAt != null && now - a.exitAt > EXIT_ANIM_MS) return false;
+  // A ghost: a session that ended within three seconds having done nothing.
+  // Not one whose turn stopped on an error, which is what a session dispatched
+  // on a login that has already expired does at once (#2193) — that card is
+  // the one place it says so, and where it is continued from.
   if (
     a.kind === "root" && a.state === "done" && a.tools.length === 0 &&
-    a.endedAt != null && (a.endedAt - a.startedAt) < 3000
+    a.endedAt != null && (a.endedAt - a.startedAt) < 3000 && !a.stopFailure
   ) return false;
   return true;
 }

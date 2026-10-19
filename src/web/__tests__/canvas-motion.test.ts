@@ -448,6 +448,11 @@ const PRESSES: Press[] = [
   [".film-link:active", "0.97", "transform"],
   // Settings › About's Source, the same kind of link out of the deck (#2176).
   [".settings-link:active", "0.97", "transform"],
+  // Continue on a stopped background session's card (#2193): a word in a
+  // 20px pill, a labelled control, so 0.97. And the detail panel's
+  // disclosure of the commands it runs, a sentence that opens them.
+  [".agent-node .stop-continue:active:not(:disabled)", "0.97", "transform"],
+  [".detail-continue-how > summary:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */
