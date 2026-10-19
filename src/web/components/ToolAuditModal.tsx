@@ -32,7 +32,8 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
   const [period, setPeriod] = useState('7');
   const [sort, setSort] = useState<ToolSort>('calls');
   const [search, setSearch] = useState('');
-  const currentOrder = useRef({ sort, search }); currentOrder.current = { sort, search };
+  const sortRef = useRef(sort); sortRef.current = sort;
+  const searchRef = useRef(search); searchRef.current = search;
   const [showAll, setShowAll] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const initialSelectionMade = useRef(false);
@@ -78,7 +79,7 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
         const reply = await readAuditReport(query, controller.signal);
         if (live) {
           loadedQuery.current = query; setData(reply);
-          const first = !initialSelectionMade.current && sortTools(reply.rows, currentOrder.current.sort, currentOrder.current.search)[0];
+          const first = !initialSelectionMade.current && sortTools(reply.rows, sortRef.current, searchRef.current)[0];
           if (first) { initialSelectionMade.current = true; setSelected(first.operation); }
           else if (selectedRef.current && !reply.rows.some(row => row.operation === selectedRef.current)) setSelected(null);
         }
@@ -125,7 +126,7 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
   const doRefresh = () => { if (busy.current || detailLoading) return; busy.current = true; setRefresh(value => value + 1); };
   const summary = data && summaryParts(data, provider, period);
 
-  return createPortal(<div className="modal-backdrop ta-report-backdrop" role="presentation" {...scrimPress}>
+  return createPortal(<div className="modal-backdrop" role="presentation" {...scrimPress}>
     <div className="modal ta-report" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title">
       <header className="ta-report-header">
         <h2 id="tool-audit-title">Tool activity</h2>
