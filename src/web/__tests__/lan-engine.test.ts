@@ -409,7 +409,9 @@ describe("the account that is dead here and alive there", () => {
     const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false }]);
     const theirs = store([{ num: 5, email: "s@x", orgUuid: "org", alive: true, active: true, collector: null }]);
     const a = await deck(mine, "Deck-A", [key]);
-    const b = await deck(theirs, "Deck-B", [key]);
+    // Sending the login it is on is the owner's choice (#2192); this is what
+    // holds even then.
+    const b = await deck(theirs, "Deck-B", [key], {}, { sendInUse: true });
     await point(a, b, b.port);
     await a.e.round();
     expect(theirs.exported).toEqual([]);
@@ -424,7 +426,7 @@ describe("the account that is dead here and alive there", () => {
       { num: 7, email: "s@x", orgUuid: "org", alive: true, active: false, collector: "ok" },
     ]);
     const a = await deck(mine, "Deck-A", [key]);
-    const b = await deck(theirs, "Deck-B", [key]);
+    const b = await deck(theirs, "Deck-B", [key], {}, { sendInUse: true });
     await point(a, b, b.port);
     await a.e.round();
     expect(theirs.exported).toEqual([7]);
@@ -581,7 +583,7 @@ describe("what the holder checks when a credential is asked for", () => {
     const a = await deck(mine, "Deck-A", [S]);
     const b = await deck(theirs, "Deck-B", [S], {
       readAccounts: async () => ({ accounts: [{ ...row, collector: ++reads === 1 ? "ok" : null }] }),
-    });
+    }, { sendInUse: true });
     await point(a, b, b.port);
     expect(await a.e.round()).toEqual([
       { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
@@ -593,7 +595,7 @@ describe("what the holder checks when a credential is asked for", () => {
     const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
     const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
     const a = await deck(mine, "Deck-A", [S]);
-    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => ({ email: "other@x", orgId: "o" }) });
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => ({ email: "other@x", orgId: "o" }) }, { sendInUse: true });
     await point(a, b, b.port);
     expect(await a.e.round()).toEqual([
       { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
@@ -605,7 +607,7 @@ describe("what the holder checks when a credential is asked for", () => {
     const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
     const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
     const a = await deck(mine, "Deck-A", [S]);
-    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => null });
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => null }, { sendInUse: true });
     await point(a, b, b.port);
     expect(await a.e.round()).toEqual([
       { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
@@ -613,14 +615,32 @@ describe("what the holder checks when a credential is asked for", () => {
     expect(theirs.exported).toEqual([]);
   }, 20_000);
 
-  it("gives the active login when the CLI is signed in as that account", async () => {
+  it("gives the active login when the CLI is signed in as that account, once its owner sends it", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => ({ email: "S@x", orgId: "o" }) }, { sendInUse: true });
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(theirs.exported).toEqual([5]);
+  }, 20_000);
+
+  it("keeps the login it is on by default, says so, and is not asked for it", async () => {
+    // #2192: the same pair with "Send the login this deck is using too" left
+    // off. Deck-B lists the login — it is what `current` names — as in use and
+    // not offered, so Deck-A's round does not ask, and nothing is exported.
     const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
     const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
     const a = await deck(mine, "Deck-A", [S]);
     const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => ({ email: "S@x", orgId: "o" }) });
     await point(a, b, b.port);
-    await a.e.round();
-    expect(theirs.exported).toEqual([5]);
+    expect(await a.e.round()).toEqual([]);
+    expect(theirs.exported).toEqual([]);
+    const offers = peerRow(a, b.id.fp)?.offers;
+    expect(offers?.accounts).toEqual([{ key: S, email: "s@x", alive: true, shareable: false, inUse: true }]);
+    // And still says which one it is on — what the warning on Deck-A reads.
+    expect(offers?.current).toEqual({ key: S });
+    expect(b.e.status().sendInUse).toBe(false);
   }, 20_000);
 
   it("never asks the CLI who is signed in for an inactive login", async () => {

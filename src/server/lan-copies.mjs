@@ -135,17 +135,40 @@ export function slotFor(accounts, key) {
  * manifest entirely — not listed as withheld, which would tell the group that
  * an account exists and is being kept back, and that is itself the fact being
  * kept back.
+ *
+ * THE ONE THIS DECK IS ON IS LISTED AND NOT GIVEN, unless `sendInUse` says to
+ * (#2192). A Claude login renews once: the copy that renews it first keeps it,
+ * and every other copy is refused from then on — so a peer handed the login
+ * this deck is signed in to holds the same expiry, reaches for the same renewal,
+ * and one of the two machines is signed out ("Login expired · Please run
+ * /login"). The row stays in the list, because it is what `current` names and a
+ * paired deck keeps a `current` only for an account in the same list (see
+ * heardCurrent) — which is how the other deck knows this one is on it. It goes
+ * as `shareable: false`, which every peer since 3.29.0 already reads as "do not
+ * ask", and `inUse`, which a peer of this version reads as why. An older peer
+ * that asks anyway is refused by `serve` (lan-serve.mjs) with "in use".
  */
-export function manifestFor(accounts, shared) {
+export function manifestFor(accounts, shared, { sendInUse = false } = {}) {
   const want = new Set(shared);
+  // Which identity is live here, whichever of its slots onePerKey picks: two
+  // slots for one login are one login.
+  const live = new Set(sendInUse ? [] : accounts.filter(a => a.active).map(a => a.key));
   return onePerKey(accounts.filter(a => want.has(a.key)))
     .map(a => ({
       key: a.key,
       email: a.email,
       alive: !!a.alive,
-      ...(a.readable === false ? { shareable: false } : {}),
+      ...(a.readable === false || live.has(a.key) ? { shareable: false } : {}),
+      ...(live.has(a.key) ? { inUse: true } : {}),
     }))
     .sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/** Whether a peer that asks may be handed this identity now: every one but the
+ *  one this deck is on, unless the owner chose to send that too — the same
+ *  rule manifestFor lists by, checked again at the moment of sending. */
+export function mayGiveInUse(accounts, key, sendInUse) {
+  return sendInUse === true || !accounts.some(a => a.key === key && a.active);
 }
 
 /**
@@ -201,6 +224,9 @@ export function offered(list) {
       alive: storedCopyAlive(a.alive, a.collector),
       // Additive wire field: an older peer omitted it, which means shareable.
       ...(a.shareable === false ? { shareable: false } : {}),
+      // Additive too (#2192): that deck is on this login and keeps it there.
+      // Only beside `shareable: false`, which is what stops a round asking.
+      ...(a.shareable === false && a.inUse === true ? { inUse: true } : {}),
     }))
     .filter(a => a.key && a.email))
     // Fifty IDENTITIES, so the cap is spent after onePerKey rather than before
@@ -238,8 +264,10 @@ export const SENDER_UNREADABLE = "keychain_unavailable";
 
 /** The reasons `serve` gives for a login it will not send. Its other answer to
  *  a `want`, "not paired", is not in the set, so a deck that gets it records
- *  "refused". */
-const WIRE_REFUSALS = new Set(["proof", "not shared", "not mine to give", "export failed", SENDER_UNREADABLE, "error"]);
+ *  "refused". "in use" is the sending deck being on that login itself (#2192);
+ *  a deck older than that records it as "refused", which is all it proves. */
+export const IN_USE = "in use";
+const WIRE_REFUSALS = new Set(["proof", "not shared", "not mine to give", "export failed", SENDER_UNREADABLE, IN_USE, "error"]);
 
 /**
  * A peer's refusal, as this deck records it. The panel prints these, so a peer

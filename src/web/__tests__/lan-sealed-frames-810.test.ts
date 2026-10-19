@@ -75,7 +75,10 @@ async function deck(rows: Row[], name: string, shared: string[], port: number, o
     ...over,
   });
   running.push(e);
-  await e.apply({ enabled: true, name, secret: id.secret, shared, trusted: [], port, autoAsk: false, autoAccept: false });
+  // Each heals from the login the other deck is on (THEIRS' slot 5), which a
+  // deck sends only once its owner turns that on (#2192) — what is pinned here
+  // is the seal, not that choice.
+  await e.apply({ enabled: true, name, secret: id.secret, shared, trusted: [], port, autoAsk: false, autoAccept: false, sendInUse: true });
   return { e, id, imported, port: e.status().port as number };
 }
 

@@ -592,12 +592,14 @@ const isSlotNumber = (e: string): boolean => /^String\([A-Za-z_$][\w$]*\)$/.test
  * The modules that put a value of the deck's into claude-swap's argv. The
  * collector nudge and the verdict read were lifted out of claude-accounts.mjs,
  * and the settings read and the tick out of cswap-auto.mjs; all four are scanned
- * so that the census still covers every spawn those files used to hold.
+ * so that the census still covers every spawn those files used to hold. The
+ * tick's holds (#2192) spawn `cswap disable` / `enable` and the tick itself
+ * from cswap-tick-holds.mjs, so it is scanned too.
  */
 const CSWAP_MODULES = [
   "cswap-auto.mjs", "cswap-admin.mjs", "claude-accounts.mjs",
   "claude-collector.mjs", "claude-verdicts.mjs", "cswap-auto-readers.mjs",
-  "cswap-auto-loop.mjs",
+  "cswap-auto-loop.mjs", "cswap-tick-holds.mjs",
 ] as const;
 
 const moduleSource = (name: string) =>

@@ -27,6 +27,7 @@ import { laneName } from "../other-accounts-order";
 import { resetSinceReading } from "../accounts-usage-report";
 import { sharedLine } from "../account-lan";
 import { switchedTelemetry, telemetryLine } from "../org-telemetry";
+import { deckList } from "../../server/lan-elsewhere.mjs";
 
 type RequestSlot = ReturnType<typeof useRequestSlot>;
 
@@ -89,9 +90,10 @@ function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
 interface Props {
   a: Account;
   nowSec: number;
-  /** What Local network knows about this account's copies on other decks, and
-   *  the paired decks this deck offers it to — null when it offers it to none. */
-  lan?: { noCopyWorksNearby?: boolean; sharedTo?: readonly string[] | null };
+  /** What Local network knows about this account's copies on other decks, the
+   *  paired decks this deck offers it to — null when it offers it to none — and
+   *  the paired decks on it right now (#2192), null when none is. */
+  lan?: { noCopyWorksNearby?: boolean; sharedTo?: readonly string[] | null; elsewhere?: readonly string[] | null };
   /** The reader has opened this row's detail. */
   opened: boolean;
   /** Open this row's detail, or shut it. */
@@ -172,6 +174,15 @@ export default function AccountRow({
   // non-interactive surfaces. See org-telemetry.ts.
   const telemetry = telemetryLine(a.telemetry, nowSec, { holdOut: rotating && !a.active && !a.disabled });
   const switchedNote = switchedTelemetry(a.telemetry);
+  // ANOTHER DECK ON THIS LOGIN, said at the Switch as well as on the row
+  // (#2192): the press is still allowed — it is a person's to make — and the
+  // control says what it costs before it is made. In its title, which is its
+  // description to a screen reader as well, the name being its aria-label.
+  const elsewhere = !a.active && lan?.elsewhere?.length ? deckList(lan.elsewhere) : null;
+  const switchTitle = elsewhere
+    ? `Switch to ${a.alias ?? a.email} — ${elsewhere} ${lan!.elsewhere!.length > 1 ? "are" : "is"} using this login `
+      + "right now, and when one machine renews it the other is signed out"
+    : `Switch to ${a.alias ?? a.email}`;
   return (
     <li className={`ap-account${a.active ? " active" : ""}`}
       aria-current={a.active ? "true" : undefined}
@@ -258,7 +269,7 @@ export default function AccountRow({
             {...pressProps(`switch-${a.num}`)}
             onClick={() => onSwitch(a.num, name)}
             aria-label={`Switch to ${name}`}
-            title={`Switch to ${a.alias ?? a.email}`}
+            title={switchTitle}
           >{busy === `switch-${a.num}` ? "…" : "Switch"}</button>
         )}
         {/* THE WAY IN TO EVERYTHING ELSE. It opens a menu over the

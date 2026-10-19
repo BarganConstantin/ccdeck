@@ -19,6 +19,7 @@ const { state } = vi.hoisted(() => ({
     forced: [] as boolean[],
     enabledAtSwitch: [] as (string | null)[],
     activeAlive: false,
+    elsewhere: new Map<string, string[]>(),
   },
 }));
 
@@ -61,6 +62,12 @@ vi.mock("../../server/claude-accounts.mjs", () => ({
   },
 }));
 
+// Which of this deck's logins a paired deck is on right now (#2192).
+vi.mock("../../server/lan-elsewhere.mjs", async importOriginal => ({
+  ...(await importOriginal() as Record<string, unknown>),
+  elsewhereNow: () => state.elsewhere,
+}));
+
 vi.mock("../../server/claude-identity.mjs", () => ({
   cliSignIn: async () => state.signedIn,
   currentIdentity: async () => null,
@@ -72,6 +79,7 @@ process.env.HOME = HOME;
 process.env.USERPROFILE = HOME;
 
 const mod = await import("../../server/cswap-auto.mjs");
+const { accountKey } = await import("../../server/lan-copies.mjs");
 const rest = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 beforeEach(async () => {
@@ -80,6 +88,7 @@ beforeEach(async () => {
   state.forced.length = 0;
   state.enabledAtSwitch.length = 0;
   state.activeAlive = false;
+  state.elsewhere = new Map();
   mod.invalidateCswapAutoCache();
   await mod.setAutoEnabled(false);
 });
@@ -94,6 +103,17 @@ afterAll(() => {
 });
 
 describe("a tick that cannot read an active login that has died", () => {
+  // First: a switch in this file starts the failover's five-minute cooldown,
+  // which would hold this tick still for the wrong reason.
+  it("does not move onto a login a paired deck is on right now, and says it has nowhere to go", async () => {
+    state.elsewhere = new Map([[accountKey("spare@x.com", undefined), ["iMac"]]]);
+    await mod.setAutoEnabled(true);
+    await rest(80);
+    expect(state.switches).toEqual([]);
+    const { lastTick } = await mod.autoStatus();
+    expect(lastTick).toMatchObject({ event: "no-switch", reason: "login-expired", stuck: true });
+  });
+
   it("switches to an account that can be used, and reports why", async () => {
     await mod.setAutoEnabled(true);
     await rest(80);

@@ -150,6 +150,7 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   // Settings › General › Claude sessions (SessionRecoverySettings.tsx), off
   // until somebody turns it on (#2193).
   ["continueStopped", { continueStopped: true }, p => p.continueStopped, true],
+  ["notifyElsewhere", { notifyElsewhere: false }, p => p.notifyElsewhere, false],
   ["tourSeen", { tourSeen: true }, p => p.tourSeen, true],
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
   ["recoverClaudeSessions", { recoverClaudeSessions: false }, p => p.recoverClaudeSessions, false],
@@ -162,6 +163,8 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["lan.name", { lan: { name: "studio" } }, p => p.lan.name, "studio"],
   ["lan.shared", { lan: { shared: ["acct-1", "acct-2", "acct-3"] } }, p => p.lan.shared, ["acct-1", "acct-2", "acct-3"]],
   ["lan.shareActive", { lan: { shareActive: false } }, p => p.lan.shareActive, false],
+  // Sending the login this deck is on, from its switch in the setup (#2192).
+  ["lan.sendInUse", { lan: { sendInUse: true } }, p => p.lan.sendInUse, true],
   ["lan.pairingMode", { lan: { pairingMode: "invite" } }, p => p.lan.pairingMode, "invite"],
   ["lan.autoAsk", { lan: { autoAsk: false } }, p => p.lan.autoAsk, false],
   ["lan.autoAccept", { lan: { autoAccept: false } }, p => p.lan.autoAccept, false],
@@ -235,9 +238,9 @@ describe("the fields a page may write", () => {
   // own until somebody makes that decision in PAGE_FIELDS and in this test.
   it("are these, and no others", () => {
     expect(PAGE_FIELDS).toEqual({
-      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "continueStopped", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal"],
+      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "continueStopped", "notifyElsewhere", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal"],
       lan: [
-        "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
+        "enabled", "name", "shared", "manual", "shareActive", "sendInUse", "pairingMode",
         "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
       ],
     });

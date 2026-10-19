@@ -11,8 +11,14 @@ import { run } from "./exec.mjs";
 import { failureDetail } from "./exec-output.mjs";
 import { cswapBin } from "./cswap-install.mjs";
 import { externalAutoRunning, readCswapConfig } from "./cswap-auto-readers.mjs";
-import { invalidateClaudeAccountsCache } from "./claude-accounts.mjs";
+import { fetchClaudeAccounts, invalidateClaudeAccountsCache } from "./claude-accounts.mjs";
 import { invalidateQuotaCache } from "./quota.mjs";
+// A tick kept off the logins a paired deck is on (#2192): which those are, the
+// identity rule that matches them to this store's slots, and the holds that
+// keep claude-swap's pick off them for one tick.
+import { elsewhereNow } from "./lan-elsewhere.mjs";
+import { accountKey } from "./lan-copies.mjs";
+import { holdable, releaseLeft, steeredTick } from "./cswap-tick-holds.mjs";
 // The one store mutex. A tick is the only thing in the deck that moves the live
 // account with nobody watching, which is why it of all writers must queue.
 import { withStoreLock } from "./store-lock.mjs";
@@ -73,6 +79,62 @@ function summarise(stdout) {
   };
 }
 
+/** Whether the state file holds a record of holds not yet put back: null until
+ *  this deck has read the file once, then kept with every write to it — so a
+ *  tick with nothing left behind reads nothing to learn so. */
+let _holdsLeft = null;
+function noteHoldsLeft(state) {
+  _holdsLeft = Array.isArray(state?.tickHolds) && state.tickHolds.length > 0;
+}
+
+/** The holds a tick made, written down before each is made — see
+ *  cswap-tick-holds.mjs — in the loop's own state file, beside the switch. */
+const holdJournal = {
+  async keep(list) {
+    await saveState({ ...(await loadState()), tickHolds: list.map(h => ({ num: h.num, email: h.email, org: h.org })) });
+    _holdsLeft = true;
+  },
+  async drop() {
+    const { tickHolds: _left, ...rest } = await loadState();
+    await saveState(rest);
+    _holdsLeft = false;
+  },
+};
+
+/** Which slots this tick must not land on: none, unless a paired deck says it
+ *  is on one of this store's accounts — and then the store is read, through the
+ *  roster's cache, to find their slots. */
+async function tickHolds() {
+  const elsewhere = elsewhereNow();
+  if (elsewhere.size === 0) return [];
+  const got = await fetchClaudeAccounts().catch(() => null);
+  return got?.ok ? holdable(got.accounts, elsewhere, accountKey) : [];
+}
+
+/** Put back any slot a tick held out and a stopped deck never returned. Under
+ *  the store lock, and a no-op when nothing was left — without a read, once
+ *  the deck has read the file that says so. */
+async function releaseLeftHolds() {
+  if (_holdsLeft === false) return;
+  const state = await loadState();
+  noteHoldsLeft(state);
+  const left = state.tickHolds;
+  if (!Array.isArray(left) || left.length === 0) return;
+  await withStoreLock(async () => {
+    const got = await fetchClaudeAccounts({ force: true }).catch(() => null);
+    // A store that could not be read keeps the record for the next try.
+    if (!got?.ok) return;
+    await releaseLeft({ run, bin: await cswapBin(), left, accounts: got.accounts, keyOf: accountKey, journal: holdJournal });
+    invalidateClaudeAccountsCache();
+  });
+}
+
+/** What a tick's record says about the holds it made, when it made any: the
+ *  slots and the decks each is on, for /api/cswap-auto. */
+function heldOf(held) {
+  return held?.length ? { held: held.map(h => ({ num: h.num, email: h.email, decks: h.decks })) } : {};
+}
+
 /**
  * Evaluate a tick for real. May switch the active account.
  *
@@ -105,9 +167,18 @@ async function runAutoTick() {
   const r = await withStoreLock(async () => {
     if (!_enabled) return { skipped: "disabled" };
     if (await externalAutoRunning()) return { skipped: "external-engine" };
-    return run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS });
+    // Anything a stopped deck left held out goes back first, so this tick
+    // decides over the rotation the owner set.
+    await releaseLeftHolds();
+    // Steered off the logins a paired deck is on, when it would land on one —
+    // see cswap-tick-holds.mjs. With no such deck this is the tick as it was.
+    const steered = await steeredTick({
+      run, bin: await cswapBin(), timeout: TICK_TIMEOUT_MS, holds: await tickHolds(), journal: holdJournal,
+    });
+    if (steered.held.length) invalidateClaudeAccountsCache();
+    return { ...steered.r, ...heldOf(steered.held) };
   });
-  if (r.skipped) return { event: "skipped", reason: r.skipped };
+  if (r.skipped) return { event: "skipped", reason: r.skipped, ...heldOf(r.held) };
   // A KILLED RUN IS NOT A QUIET ONE. `run`'s timeout path deliberately keeps an
   // 8 KB tail of whatever the child managed to print, so `!r.ok && !r.stdout`
   // is false for a tick that emitted its `{"event":"poll"}` line and then
@@ -120,7 +191,7 @@ async function runAutoTick() {
   if (!r.ok && !r.stdout) {
     return { ok: false, reason: "tick_failed", detail: failureDetail(r, 300) };
   }
-  return { ok: true, ...summarise(r.stdout) };
+  return { ok: true, ...summarise(r.stdout), ...heldOf(r.held) };
 }
 
 // ── deck-managed loop ──────────────────────────────────────────────────────
@@ -223,9 +294,18 @@ async function runTick() {
   // died, which the engine cannot leave under --once (autoswitch-failover.mjs).
   // The switch asks both of this function's questions again inside the lock,
   // for the same reason runAutoTick does (#1797).
+  // Never onto a login a paired deck is on right now (#2192), as the engine's
+  // own pick is steered off it above: the next renewal signs one of the two
+  // machines out. The active row stays, since it is the one being judged dead.
+  const elsewhere = elsewhereNow();
   const failover = await failOver(result, {
     lastAt: _lastFailoverAt,
     before: async () => (!_enabled ? "disabled" : (await externalAutoRunning()) ? "external-engine" : null),
+    ...(elsewhere.size > 0 && {
+      roster: () => fetchClaudeAccounts({ force: true }).then(r => (r?.ok
+        ? { ...r, accounts: r.accounts.filter(a => a?.active === true || !elsewhere.has(accountKey(a.email, a.orgUuid))) }
+        : r)),
+    }),
   }).catch(() => null);
   if (failover) {
     result = { ...result, ...failover };
@@ -420,7 +500,9 @@ export function lastTick() {
 export async function setAutoEnabled(enabled) {
   _enabled = Boolean(enabled);
   noteAutoSwitch(_enabled);
-  await saveState({ ...(await loadState()), enabled: _enabled });
+  const state = await loadState();
+  noteHoldsLeft(state);
+  await saveState({ ...state, enabled: _enabled });
   if (_enabled) await startLoop(); else stopLoop();
   return { ok: true, enabled: _enabled };
 }
@@ -438,6 +520,12 @@ export async function setAutoEnabled(enabled) {
  */
 export async function initCswapAuto({ after = null } = {}) {
   _toolQuiet = Promise.resolve(after).then(() => {}, () => {});
+  // A slot a tick held out before this deck last stopped goes back to rotation
+  // whether or not the loop is on — once claude-swap is quiet, like a tick. A
+  // boot reads the file to know, whatever this process thought before.
+  _holdsLeft = null;
+  void _toolQuiet.then(() => releaseLeftHolds()).catch(() => {});
   const state = await loadState();
+  if (_holdsLeft === null) noteHoldsLeft(state);
   if (state.enabled) { _enabled = true; noteAutoSwitch(true); await startLoop(); }
 }

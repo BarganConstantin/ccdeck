@@ -259,6 +259,8 @@ describe("the fields the engine authors", () => {
       // A page owns the pairing mode too (#1236); absent is automatic.
       pairingMode: "automatic",
       shareActive: true,
+      // Absent is off (#2192): the login this deck is on stays here.
+      sendInUse: false,
       tailscale: false,
       tailscaleAsk: true,
       tailscaleAccept: true,

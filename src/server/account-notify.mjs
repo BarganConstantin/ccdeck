@@ -13,6 +13,11 @@
 //              every session on the machine shares the login, so they stop
 //              together — with how many stopped and that each needs a
 //              "continue" once a working login is active.
+//   ELSEWHERE  the Claude account this deck is on is the one a paired deck says
+//              it is on too (#2192). Said once per incident — from the moment
+//              both are on it until one of them is not — because the next
+//              renewal signs one of the two machines out, and nothing on the
+//              desktop says so before it does. See lan-elsewhere.mjs.
 //
 // SPARSE BY CONSTRUCTION. Each window is a record keyed by provider, account
 // and window, holding the reset instant it is about and the levels already said
@@ -42,6 +47,7 @@
 // injected — the shape block-notify.mjs uses, for the reason it gives: what the
 // suite cannot run is what drifts.
 import { switchCanCure } from "./stop-failure.mjs";
+import { deckList } from "./lan-elsewhere.mjs";
 
 /** The levels a window is announced at, lowest first. */
 export const LEVELS = Object.freeze([90, 100]);
@@ -397,6 +403,23 @@ export function stuckNotice({ fromName }) {
   return { who: SWAP_WHO, body: `${from}'s login expired · no other account is ready to switch to` };
 }
 
+/**
+ * "Claude · work@x.com", "Also active on iMac. When one machine renews this
+ * login, the other is signed out — use a different account on one of them."
+ *
+ * The decks by the names Local network's list gives them. The reason is the
+ * sentence, because it is the whole of why this is worth a notification: the
+ * same account on two machines is ordinary, one copied login live on two is
+ * what breaks, and the remedy is one press on either machine.
+ */
+export function elsewhereNotice({ accountName, decks }) {
+  return {
+    who: whoFor("claude", accountName),
+    body: `Also active on ${cut(deckList(decks), NAME_MAX)}. When one machine renews this login, the other is `
+      + "signed out — use a different account on one of them.",
+  };
+}
+
 /** The records, as read back from disk: anything that is not one is dropped,
  *  and so is one nobody has read for RECORD_KEEP_MS. */
 export function normaliseRecords(raw, now) {
@@ -429,7 +452,7 @@ function laterUnref(fn, ms) {
  *
  *   notify(title, body, meta)  the OS call — injected, never awaited by a poll
  *                              or a tick, and its failure goes to `onError`
- *   settings()                 `{ swap, quota, reset, stopped }`, asked per
+ *   settings()                 `{ swap, quota, reset, stopped, elsewhere }`, asked per
  *                              decision, so a switch pressed mid-run takes
  *                              effect at once
  *   load() / save(records)     the disk, both best effort
@@ -453,6 +476,11 @@ export function createAccountNotifier({
   let policy = null;
   /** Threshold notices held for a tick, by record key. */
   const held = new Map();
+  /** The account whose ELSEWHERE incident is open — this deck and another on
+   *  it — and therefore already said, or null. One at a time, because this
+   *  deck is on one account at a time. Kept in memory: a restart in the middle
+   *  of an incident says it once more, which is a restart's news as well. */
+  let elsewhereOpen = null;
   let holdTimer = null;
   let saving = Promise.resolve();
   /** The stop incident being gathered or held, or the one already said while
@@ -728,11 +756,35 @@ export function createAccountNotifier({
     }
   }
 
+  /**
+   * What Local network says about the account this deck is on: `account` is
+   * `{ key, name }`, or null when this deck is on none, and `decks` the paired
+   * decks that say they are on it too, by name.
+   *
+   * ONCE PER INCIDENT. The incident opens when both are on it, is said then —
+   * if the switch is on at that moment — and closes when either moves off it
+   * or the other deck stops saying so (lan-elsewhere.mjs holds a deck's word
+   * for five minutes, which is what keeps a dropped round from closing it). A
+   * new one is news again; the same one, every minute, is not.
+   */
+  async function elsewhere(account, decks) {
+    try {
+      await ready;
+      const key = account?.key && Array.isArray(decks) && decks.length > 0 ? account.key : null;
+      if (key === elsewhereOpen) return;
+      elsewhereOpen = key;
+      if (key && settings().elsewhere) say(elsewhereNotice({ accountName: account.name, decks }));
+    } catch (err) {
+      onError?.(err);
+    }
+  }
+
   return {
     ready,
     observe,
     tick,
     stopped,
+    elsewhere,
     /** The loop was switched on or off. Off, nothing will carry what is held. */
     autoSwitch(on) {
       autoOn = on === true;

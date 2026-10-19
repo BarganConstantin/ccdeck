@@ -12,7 +12,7 @@ import { openAbout, sealAbout } from "./lan-about.mjs";
  * is the engine's clock. `myFp` answers this deck's fingerprint as it is at
  * the moment of asking — a restart for a new key changes it — and `settings`
  * the settings in force, of which a manifest reads `shared`, `onward`,
- * `trusted` and `shareActive`.
+ * `trusted`, `shareActive` and `sendInUse`.
  */
 export function createManifests({ about, now, myFp, settings }) {
   /** What each paired deck said about itself — version, operating system,
@@ -43,7 +43,7 @@ export function createManifests({ about, now, myFp, settings }) {
     const cfg = settings();
     const shared = sharedWith(cfg, toFp);
     return {
-      t: "manifest", accounts: manifestFor(accounts, shared),
+      t: "manifest", accounts: manifestFor(accounts, shared, { sendInUse: cfg.sendInUse === true }),
       ...currentFor(accounts, shared, cfg.shareActive),
       ...cardFor(key, toFp),
     };

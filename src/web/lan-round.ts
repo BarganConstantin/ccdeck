@@ -49,6 +49,15 @@ const ROUND_WHY: Record<string, { short: string; long: string }> = {
     short: "Keychain locked on the other Mac",
     long: `the other Mac could not export it. On that Mac: ${KEYCHAIN}. The next round brings it.`,
   },
+  // Also from the sending deck (#2192): it is on that login and keeps it, so
+  // one login is live in one place. Once it switches away, the next round
+  // brings it; signing in here instead gives this machine a login of its own.
+  "in use": {
+    short: "in use on the other deck",
+    long: "the other deck is using this login right now and does not send it: two machines on one login race to "
+      + "renew it, and the loser is signed out. It comes on the first round after that deck switches away — or "
+      + "sign in to it here, which gives this machine a login of its own.",
+  },
 };
 
 /** What a round has to say about one login beyond arrived / did not, or null.

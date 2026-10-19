@@ -33,26 +33,33 @@ export interface OsNotificationsDeps {
 
 /** What /api/prefs answers, as far as this hook reads it. */
 export interface NotifyPrefsAnswer {
-  prefs?: { notifications?: boolean; notifySwap?: boolean; notifyQuota?: boolean; notifyReset?: boolean; notifyStopped?: boolean };
+  prefs?: {
+    notifications?: boolean; notifySwap?: boolean; notifyQuota?: boolean; notifyReset?: boolean; notifyStopped?: boolean;
+    notifyElsewhere?: boolean;
+  };
   notificationsVetoed?: boolean;
 }
 
 /** The four account notifications (src/server/account-notify.mjs), one switch
  *  each, by the name the prefs file keeps them under. */
-export type AccountNotifyKind = "notifySwap" | "notifyQuota" | "notifyReset" | "notifyStopped";
+export type AccountNotifyKind = "notifySwap" | "notifyQuota" | "notifyReset" | "notifyStopped" | "notifyElsewhere";
 export type AccountNotify = Record<AccountNotifyKind, boolean>;
 
 /** What the server starts with (deck-prefs.mjs DEFAULTS), drawn until the first
- *  read answers: the swap and the stopped sessions on, the two quota ones off. */
+ *  read answers: the swap, the stopped sessions and the login-on-two-decks one
+ *  on, the two quota ones off. */
 export const ACCOUNT_NOTIFY_DEFAULTS: Readonly<AccountNotify> = Object.freeze({
-  notifySwap: true, notifyQuota: false, notifyReset: false, notifyStopped: true,
+  notifySwap: true, notifyQuota: false, notifyReset: false, notifyStopped: true, notifyElsewhere: true,
 });
 
 /** The four switches out of a prefs answer, each on its default when the
  *  answer does not hold a real boolean for it. */
 export function accountNotifyFrom(prefs: NotifyPrefsAnswer["prefs"]): AccountNotify {
   const pick = (k: AccountNotifyKind) => (typeof prefs?.[k] === "boolean" ? prefs[k] as boolean : ACCOUNT_NOTIFY_DEFAULTS[k]);
-  return { notifySwap: pick("notifySwap"), notifyQuota: pick("notifyQuota"), notifyReset: pick("notifyReset"), notifyStopped: pick("notifyStopped") };
+  return {
+    notifySwap: pick("notifySwap"), notifyQuota: pick("notifyQuota"), notifyReset: pick("notifyReset"),
+    notifyStopped: pick("notifyStopped"), notifyElsewhere: pick("notifyElsewhere"),
+  };
 }
 
 export function useOsNotifications({ waitingSessions, liveSince, focusSession }: OsNotificationsDeps) {
