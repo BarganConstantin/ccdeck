@@ -258,6 +258,24 @@ describe("an image for the deck to pass on", () => {
     expect((await failure(t.asset("https://img.example.org/b.jpg", { allow: images, maxBytes: 1000 }))).message).toBe("image too large");
   });
 
+  it("is one of the four types the asset route passes on", async () => {
+    const { t } = transport({ "https://img.example.org/a.avif": () => new Response(new Uint8Array(4), { status: 200, headers: { "content-type": "image/avif" } }) });
+    expect((await failure(t.asset("https://img.example.org/a.avif", { allow: images }))).kind).toBe("incompatible");
+  });
+
+  it("stops when the page gives up on it", async () => {
+    let seen: AbortSignal | undefined;
+    const t = createForgeTransport({
+      token: "x", authHeaders: () => ({}), allowedOrigins: [],
+      fetchImpl: async (_url: string, init: { signal: AbortSignal }) => { seen = init.signal; return png(); },
+    });
+    const caller = new AbortController();
+    await t.asset("https://img.example.org/a.png", { allow: images, signal: caller.signal });
+    expect(seen?.aborted).toBe(false);
+    caller.abort();
+    expect(seen?.aborted).toBe(true);
+  });
+
   it("a missing image is the forge's own failure", async () => {
     const { t } = transport({ "https://img.example.org/gone.png": () => new Response("", { status: 404 }) });
     expect((await failure(t.asset("https://img.example.org/gone.png", { allow: images }))).kind).toBe("not-found");

@@ -197,8 +197,8 @@ export function createGitlabClient({ baseUrl = "https://gitlab.com", token, fetc
   const imageHost = (u) => u.origin === origin || (u.protocol === "https:" && GRAVATAR.has(u.host.toLowerCase()));
 
   /** An image on the instance or Gravatar, for the deck to pass on. */
-  function fetchAsset(url) {
-    return t.asset(url, { allow: imageHost });
+  function fetchAsset(url, { maxBytes, signal } = {}) {
+    return t.asset(url, { allow: imageHost, maxBytes, signal });
   }
 
   /** The first of `queries` this instance accepts: a later one is tried only

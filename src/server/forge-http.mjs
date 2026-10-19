@@ -36,7 +36,8 @@ const TAIL_SLACK = 32;
 const ASSET_MAX_BYTES = 8 << 20;
 // Raster images only: an SVG served from the deck's own origin and opened as
 // a page could run script there.
-const RASTER = /^image\/(?:png|jpeg|gif|webp|avif|bmp|x-icon|vnd\.microsoft\.icon)$/;
+// The four the integrations core's asset route passes on (#2178).
+const RASTER = /^image\/(?:png|jpeg|gif|webp)$/;
 
 /** A failure, in the panel's vocabulary. */
 export class ForgeError extends Error {
@@ -266,10 +267,11 @@ export function createForgeTransport({
 
   /** One request, redirects followed by hand: the token is re-decided at
    *  every hop, so a hop off the allowed origins drops it. `allow`, when
-   *  given, is asked about the address and every hop after it. */
-  async function send(url, { method = "GET", headers, body, timeout = timeoutMs, allow } = {}) {
+   *  given, is asked about the address and every hop after it; `signal`
+   *  gives up early, as well as the timeout. */
+  async function send(url, { method = "GET", headers, body, timeout = timeoutMs, allow, signal: caller } = {}) {
     let target = String(url);
-    const signal = AbortSignal.timeout(timeout);
+    const signal = caller ? anySignal(caller, AbortSignal.timeout(timeout)) : AbortSignal.timeout(timeout);
     for (let hop = 0; ; hop++) {
       if (allow && !allow(new URL(target))) {
         throw new ForgeError("permission", `${new URL(target).origin} is not a host this connection reads from`, { status: 403 });
@@ -394,8 +396,8 @@ export function createForgeTransport({
    *
    * @returns {Promise<{ contentType: string, bytes: Buffer }>}
    */
-  async function asset(url, { allow, maxBytes: cap = ASSET_MAX_BYTES }) {
-    const res = await send(url, { headers: { accept: "image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.9,*/*;q=0.1" }, timeout: 15_000, allow });
+  async function asset(url, { allow, maxBytes: cap = ASSET_MAX_BYTES, signal }) {
+    const res = await send(url, { headers: { accept: "image/webp,image/png,image/jpeg,image/gif;q=0.9,*/*;q=0.1" }, timeout: 15_000, allow, signal });
     if (!res.ok) throw await httpError(res, now());
     const type = (res.headers?.get?.("content-type") ?? "").split(";")[0].trim().toLowerCase();
     const declared = Number(res.headers?.get?.("content-length") ?? NaN);
@@ -413,6 +415,17 @@ export function createForgeTransport({
   }
 
   return { send, json, graphql, tail, asset };
+}
+
+/** Aborted when either is: AbortSignal.any where Node has it (20.3+). */
+function anySignal(a, b) {
+  if (typeof AbortSignal.any === "function") return AbortSignal.any([a, b]);
+  const controller = new AbortController();
+  for (const s of [a, b]) {
+    if (s.aborted) controller.abort(s.reason);
+    else s.addEventListener("abort", () => controller.abort(s.reason), { once: true });
+  }
+  return controller.signal;
 }
 
 /** The body as bytes, refused past `max` while it is still arriving. */

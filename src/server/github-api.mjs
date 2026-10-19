@@ -553,8 +553,8 @@ export function createGithubClient({ baseUrl = "https://github.com", token, fetc
   }
 
   /** An image at one of GitHub's image hosts, for the deck to pass on. */
-  function fetchAsset(url) {
-    return transport.asset(url, { allow: imageHost });
+  function fetchAsset(url, { maxBytes, signal } = {}) {
+    return transport.asset(url, { allow: imageHost, maxBytes, signal });
   }
 
   /** Run a query with the newer issue fields, and again without them when the
