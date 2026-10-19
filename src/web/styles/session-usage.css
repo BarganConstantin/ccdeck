@@ -66,3 +66,22 @@
   .up-session-open, .su-id summary { transition: none; }
   .up-session-open:active, .su-id summary:active { transform: none; }
 }
+
+/* The occasional whole-session read, not a second set of provisional totals. */
+.su-loading { min-height: 154px; padding: 8px 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; }
+.su-loading-art { width: 144px; height: 88px; max-width: 100%; color: var(--text-secondary); }
+.su-loading strong { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.su-loading > span { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; max-width: 36ch; }
+.su-loading-read { stroke: var(--accent); animation: su-session-read 1400ms cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.su-loading[data-paused] .su-loading-read { animation-play-state: paused; }
+.su-result { display: grid; gap: 16px; animation: su-result-in 120ms cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes su-session-read {
+  0% { opacity: 0.3; transform: translateY(0); }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; transform: translateY(6px); }
+}
+@keyframes su-result-in { from { opacity: 0.7; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .su-loading-read { animation: none; transform: translateY(3px); }
+  .su-result { animation: none; }
+}

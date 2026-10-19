@@ -532,12 +532,13 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
 
 ### Tool activity
 
-A full page, opened from the rail below Usage history (More → Tools on phones),
+A large modal (90vw × 90dvh on desktop), opened from the rail below Usage
+history (More → Tools on phones),
 that a person reads top to bottom in under a minute. Owner direction
 (2026-10-15): simple and useful for the people using it, nothing complicated.
 Plain words carry it; the earlier P95 / interval vocabulary is gone.
 
-- **Order of the page:** period and agent pills (the `uh-range` strip Usage
+- **Order of the report:** period and agent pills (the `uh-range` strip Usage
   history uses), one summary sentence with the numbers in `--text` weight 600
   and failures in `--err`, then *Worth a look* — at most three findings in one
   bordered list, each a button that opens its tool — then *Tools and commands*,
@@ -744,13 +745,12 @@ See `.impeccable/surfaces/usage-insights.md` for the scoped contract.
 
 A focused inspector in ccdeck’s existing visual world, with a 1060 × 740px
 preferred window capped by the viewport. Identity and purpose share the header;
-Monitor / Configuration / File use a compact segmented strip alongside the session
-selector and About Radar. On phones, About retains its accessible name behind
-an information icon. Configuration and File stay mounted to preserve inspection
-and imported content.
+Monitor / Configuration, the session selector and About Radar share the title
+header on desktop and wrap below it on smaller screens. On phones, About retains its accessible name behind
+an information icon. Monitor and Configuration stay mounted to preserve the selected message and inspection state.
 
 The monitoring toolbar groups listener state, traffic evidence and destination
-with Start/Stop and Clear history. A subdued activity feed occupies 34% of the
+with automatic monitoring status and Clear history. A subdued activity feed occupies 34% of the
 workspace (at least 300px), beside the plain reading surface of the inspector.
 `--tr-toolbar`, `--tr-feed-surface` and `--tr-divider` derive surfaces from the
 existing theme. High-contrast themes retain their stronger separators. At 640px
@@ -767,10 +767,27 @@ Listener readiness, observed traffic, decoded contents and collector receipts
 remain separate facts. Full readiness uses `--ok`, actionable partial readiness
 `--warn`, genuine failures `--err`. Initial and explicit selection stay pinned
 while arrivals continue. Pause list freezes visible entries and counts arrivals;
-Stop monitoring stops capture. Arrow/Home/End keep focus on rows, including on
+Settings → Radar turns the feature off, stops capture and hides its toolbar entry. Radar is on by default and starts in the server; Monitor has no Start/Stop controls. Arrow/Home/End keep focus on rows, including on
 mobile; explicit activation reveals the inspector. History renders in batches of
 100. JSON offers lazy branches, batched children, complete raw data and exact
-copy of decoded fields. File retains original local JSON/JSONL separately.
+copy of decoded fields. Radar has no manual file-import view.
+
+Overview leads with the captured message and useful measurements: prompt,
+response, tool/error information, model, tokens, cost, duration and outcome when
+present. IDs, instrumentation, resource metadata and transfer facts are secondary
+and disclosed. Complete record JSON mounts on opening its details. Unknown fields
+remain available there; summaries never manufacture missing values. The first view distinguishes prompt/
+response content included, redacted or absent from the export. Project and working
+directory evidence is surfaced from captured attributes; any project supplied by
+an exact local session match is explicitly labelled local context. Logs prioritize
+prompt, response, error and tool/usage events; background events are disclosed.
+The inspector does not reconstruct missing text from local conversations.
+
+The JSON tree uses `json-edit-react` with existing theme tokens, key/value search,
+value/path copying and keyboard-reachable controls. Small OTLP wrapper collections
+open through to record fields; metadata stays collapsed. Large collections retain
+50-item batches, while Raw JSON and whole-document copying preserve the complete
+captured value.
 
 Controls share 32px geometry (40px on phones) and 6px corners. Native selects keep
 platform keyboard behavior with authored chevrons. Hover and selection use short

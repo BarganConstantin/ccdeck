@@ -110,32 +110,28 @@
   min-height: 184px;
   padding: 0 0 16px;
 }
-/* `margin: auto` rather than `justify-content: center` on the column: the axis
-   has to sit on the floor and the word has to centre in whatever is left above
-   it, and centring the whole column would have shared the free space with the
-   axis instead of giving it all to the word. */
-.uh-wait-word { margin: auto; }
-/* The chart's baseline, drawn where the chart will draw it: the same
-   --line-soft hairline at the same y, so nothing about the axis moves when the
-   columns land on it.
-   The travelling light is a gradient position, which is a paint on one 1px
-   strip and costs no layout at any width. Indeterminate — see the markup for
-   why a fill would be a claim. */
-.uh-wait-axis {
-  height: 1px;
-  border-radius: 1px;
-  background:
-    linear-gradient(90deg,
-      transparent 0%,
-      color-mix(in srgb, var(--accent) 55%, transparent) 50%,
-      transparent 100%) no-repeat,
-    var(--line-soft);
-  background-size: 34% 100%, 100% 100%;
-  animation: uh-wait-sweep 1600ms cubic-bezier(0.5, 0, 0.5, 1) infinite;
+.uh-wait-word { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: 100%; padding: 8px 12px 16px; }
+.uh-reading-art { width: 208px; height: 83px; max-width: 100%; color: var(--text-secondary); margin-bottom: 4px; }
+.uh-reading-link { stroke: var(--line); stroke-dasharray: 2 5; }
+.uh-reading-packets { color: var(--accent); }
+.uh-reading-packets rect { transform-box: view-box; animation: uh-reading-transfer 1800ms cubic-bezier(0.4, 0, 0.2, 1) infinite; opacity: 0; }
+.uh-reading-packets rect:nth-child(2) { animation-delay: 350ms; }
+.uh-reading-packets rect:nth-child(3) { animation-delay: 700ms; }
+.uh-reading-title { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.uh-reading-note { color: var(--text-secondary); line-height: 1.5; max-width: 40ch; }
+.uh-reading-hint { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-secondary); line-height: 1.5; }
+.uh-wait-axis { height: 1px; background: var(--line-soft); }
+.uh-status-wait[data-paused] .uh-reading-packets rect { animation-play-state: paused; }
+@keyframes uh-reading-transfer {
+  0% { opacity: 0; transform: translateX(-4px); }
+  15% { opacity: 1; }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(44px); }
 }
-@keyframes uh-wait-sweep {
-  from { background-position: -40% 0, 0 0; }
-  to   { background-position: 140% 0, 0 0; }
+@media (prefers-reduced-motion: reduce) {
+  .uh-reading-packets rect { animation: none; opacity: 1; transform: none; }
+  .uh-reading-packets rect:nth-child(2) { transform: translateX(18px); }
+  .uh-reading-packets rect:nth-child(3) { transform: translateX(36px); }
 }
 .uh-status.uh-err { color: var(--err); max-width: 46ch; margin: 0 auto; line-height: 1.5; }
 /* The recovery belongs where the failure is. The header's ↻ is on screen in
