@@ -197,7 +197,7 @@ export default function SettingsModal({
   const pane = (() => {
     switch (section) {
       case "radar":
-        return <RadarSettings />;
+        return <RadarSettings onOpen={doors.radar} />;
       case "appearance":
         return (
           <>

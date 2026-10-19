@@ -622,7 +622,10 @@ function Inner() {
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
     usagePanelOpen: usageRail.shown, setUsagePanelOpen: usageRail.set,
     machinePanelOpen: machineRail.shown, setMachinePanelOpen: machineRail.set, setUsageHistoryOpen,
-    watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, radarEnabled: radarSettings.enabled === true, openSettings, onFeedback: dialogs.openFeedback,
+    watchOn, watchUnseen, setBrowserWatchOpen,
+    // Radar turned off in Settings leaves the stripe as a deck without it has it.
+    setTrafficRadarOpen: radarSettings.enabled === true ? dialogs.setTrafficRadarOpen : undefined,
+    openSettings, onFeedback: dialogs.openFeedback,
     radioOpen, setRadioOpen,
     openToolActivity: () => setToolAuditOpen(true),
     toggles: panelReturn.toggles,
