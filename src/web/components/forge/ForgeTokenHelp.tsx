@@ -7,6 +7,7 @@
 // filled in where the forge allows it.
 import type { ForgeKind } from "../../forge-types";
 import { ExternalLinkGlyph } from "../action-glyphs";
+import { useIntegrationForm } from "../IntegrationConnectionForm";
 
 /** The page that makes a token: GitHub's, or the GitLab instance's at
  *  `baseUrl` (null while what was typed is not an address yet). */
@@ -16,13 +17,16 @@ export function forgeTokenUrl(kind: ForgeKind, baseUrl?: string | null, style: "
       ? "https://github.com/settings/tokens/new?scopes=repo,read:org&description=ccdeck"
       : "https://github.com/settings/personal-access-tokens/new";
   }
+  const raw = (baseUrl ?? "").trim() || "https://gitlab.com";
   let base: URL;
   try {
-    base = new URL((baseUrl ?? "").trim() || "https://gitlab.com");
+    // The form takes an address without its scheme, as the deck does.
+    base = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`);
   } catch {
     return null;
   }
   if (base.protocol !== "https:" && base.protocol !== "http:") return null;
+  if (!base.hostname.includes(".") && base.hostname !== "localhost") return null;
   return `${base.origin}${base.pathname.replace(/\/+$/, "")}/-/user_settings/personal_access_tokens?name=ccdeck&scopes=read_api`;
 }
 
@@ -35,7 +39,10 @@ function Make({ href, children }: { href: string | null; children: string }) {
   );
 }
 
+/** Under the connect form's fields; on GitLab it follows the instance typed
+ *  so far (or `baseUrl`, outside a form). */
 export default function ForgeTokenHelp({ kind, baseUrl }: { kind: ForgeKind; baseUrl?: string | null }) {
+  const { values } = useIntegrationForm();
   if (kind === "github") {
     return (
       <div className="fg-token-help">
@@ -56,7 +63,7 @@ export default function ForgeTokenHelp({ kind, baseUrl }: { kind: ForgeKind; bas
       </div>
     );
   }
-  const href = forgeTokenUrl("gitlab", baseUrl);
+  const href = forgeTokenUrl("gitlab", baseUrl ?? (values.where === "self" ? values.baseUrl : null));
   return (
     <div className="fg-token-help">
       <p>

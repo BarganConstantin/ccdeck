@@ -24,7 +24,7 @@ import { forgeErrorInfo } from "./forge-http.mjs";
 
 const STATUS_OF_KIND = {
   auth: 401, expired: 401, permission: 403, "not-found": 404, "rate-limit": 429,
-  unreachable: 502, tls: 502, incompatible: 502, upstream: 502,
+  unreachable: 502, tls: 502, incompatible: 502, upstream: 502, invalid: 400,
 };
 
 /** The answer for a failure: the uniform envelope and the status its kind implies. */
@@ -134,7 +134,7 @@ export async function forgeRead(client, method, subpath, params) {
   try {
     return { status: 200, body: { ok: true, data: await read(params, client) } };
   } catch (err) {
-    if (err instanceof BadRequest) return failure({ kind: "upstream", message: err.message }, 400);
+    if (err instanceof BadRequest) return failure({ kind: "invalid", message: err.message });
     return failure(forgeErrorInfo(err));
   }
 }

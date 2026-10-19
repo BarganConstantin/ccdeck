@@ -74,6 +74,12 @@ function tabLabel(kind: ForgeKind, tab: ForgeTab): string {
   }
 }
 
+/** What the drill-in screen's Back returns to: "Back to merge requests". */
+function backLabel(kind: ForgeKind, tab: ForgeTab): string {
+  const label = tabLabel(kind, tab);
+  return `Back to ${label === "Actions" ? label : label.toLowerCase()}`;
+}
+
 export default function ForgePanel({ kind, connection, api, assetUrl, prefs, narrow, onReconnect, Split }: ForgePanelProps) {
   const scope = `${kind}:${connection.id}`;
   const [view, setViewState] = useState<ForgeView>(() => loadForgeView(prefs));
@@ -227,7 +233,7 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   return (
     <ForgeProvider value={ctx}>
       <div className="fg-panel" data-kind={kind}>
-        <Split list={list} detail={detail} onBack={() => setSelected(null)} backLabel={tabLabel(kind, view.tab)} storageKey={kind} />
+        <Split list={list} detail={detail} onBack={() => setSelected(null)} backLabel={backLabel(kind, view.tab)} storageKey={kind} />
       </div>
     </ForgeProvider>
   );

@@ -9,9 +9,12 @@
 // between a list and a detail, the remembered view — is the core's, and takes
 // the provider's parts from here.
 import { createElement } from "react";
-import { JiraGlyph } from "../components/rail-glyphs";
+import { GithubGlyph, GitlabGlyph, JiraGlyph } from "../components/rail-glyphs";
 import JiraPanel from "../components/JiraPanel";
 import JiraTokenHelp from "../components/JiraTokenHelp";
+import {
+  GITHUB_FIELDS, GITLAB_FIELDS, GithubPanel, GitlabPanel, githubTokenHelp, gitlabTokenHelp,
+} from "../components/forge/ForgeIntegrations";
 import type { IntegrationConnection, IntegrationKind, IntegrationWebDef } from "./types";
 
 export type {
@@ -63,8 +66,32 @@ const jira: IntegrationWebDef = {
   Panel: JiraPanel,
 };
 
-/** Every provider the page has, by kind. GitHub and GitLab arrive with #2179. */
-export const INTEGRATIONS: Readonly<Partial<Record<IntegrationKind, IntegrationWebDef>>> = { jira };
+// GitHub and GitLab (#2179): one panel, the screens the owner works through on
+// GitLab. Read-only, and no key of their own yet.
+const github: IntegrationWebDef = {
+  kind: "github",
+  label: "GitHub",
+  Glyph: GithubGlyph,
+  detail: "Branches, pull requests, Actions",
+  blurb: "github.com, read-only, with a personal access token.",
+  fields: GITHUB_FIELDS,
+  tokenHelp: githubTokenHelp,
+  Panel: GithubPanel,
+};
+
+const gitlab: IntegrationWebDef = {
+  kind: "gitlab",
+  label: "GitLab",
+  Glyph: GitlabGlyph,
+  detail: "Branches, merge requests, pipelines",
+  blurb: "GitLab.com or your own instance, read-only.",
+  fields: GITLAB_FIELDS,
+  tokenHelp: gitlabTokenHelp,
+  Panel: GitlabPanel,
+};
+
+/** Every provider the page has, by kind. */
+export const INTEGRATIONS: Readonly<Partial<Record<IntegrationKind, IntegrationWebDef>>> = { jira, github, gitlab };
 
 /** The providers, in the order Settings lists them. */
 export const integrationDefs = (): IntegrationWebDef[] => Object.values(INTEGRATIONS).filter((d): d is IntegrationWebDef => Boolean(d));

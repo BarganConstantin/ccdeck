@@ -28,6 +28,8 @@ const ROUTE_FEATURES = new Map([
  *  name is the provider's, never the connection, board or issue read. */
 const ROUTE_PREFIX_FEATURES = [
   ["GET /api/integrations/jira/", "jira"],
+  ["GET /api/integrations/github/", "github"],
+  ["GET /api/integrations/gitlab/", "gitlab"],
 ];
 
 /** Note the feature a request is, if it is one. Called for requests that got

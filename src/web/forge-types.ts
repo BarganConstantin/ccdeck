@@ -29,7 +29,10 @@ export type ForgeKind = "github" | "gitlab";
  *  error of its own (5xx, an unreadable body). */
 export type ForgeErrorKind =
   | "auth" | "expired" | "permission" | "unreachable" | "tls" | "rate-limit" | "incompatible"
-  | "not-found" | "upstream";
+  | "not-found" | "upstream"
+  /** The deck refused the request before the forge heard of it: a parameter
+   *  that is not the shape it must be. */
+  | "invalid";
 
 export interface ForgeErrorInfo {
   kind: ForgeErrorKind;

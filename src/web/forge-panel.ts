@@ -185,6 +185,7 @@ export function forgeErrorWords(kind: ForgeKind, err: ForgeErrorInfo, now = Date
     incompatible: { title: `This is not a ${name} API`, detail: `${err.message}. Check the address in Settings › Integrations.`, action: "connection" },
     "not-found": { title: "Not found", detail: "It was deleted, moved, or this token cannot see it.", action: "retry" },
     upstream: { title: `${name} answered with an error`, detail: err.message, action: "retry" },
+    invalid: { title: "The deck could not ask for that", detail: err.message, action: "retry" },
   };
   return words[err.kind] ?? words.upstream;
 }

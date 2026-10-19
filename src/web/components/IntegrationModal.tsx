@@ -45,7 +45,7 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
   const scrimPress = useScrimDismiss(close);
   // The provider's name, once a day, for the usage reports: never the
   // connection or anything read through it.
-  useFeatureUse("jira", kind === "jira");
+  useFeatureUse(kind);
 
   const [active, setActive] = useState<string>(() => {
     const remembered = loadActiveConnection(kind);

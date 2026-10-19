@@ -79,6 +79,7 @@ describe("what is refused before the forge hears of it", () => {
     const { client, calls } = fakeClient();
     const r = await read(client, path, query);
     expect(r.status).toBe(400);
+    expect(r.body.error.kind).toBe("invalid");
     expect(calls).toEqual([]);
   });
 

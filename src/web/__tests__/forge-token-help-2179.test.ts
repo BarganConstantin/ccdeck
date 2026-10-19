@@ -23,9 +23,14 @@ describe("where a token is made", () => {
       .toBe("https://git.example.com/gitlab/-/user_settings/personal_access_tokens?name=ccdeck&scopes=read_api");
   });
 
+  it("takes an address typed without its scheme, as the deck does", () => {
+    expect(forgeTokenUrl("gitlab", "git.example.com")).toBe("https://git.example.com/-/user_settings/personal_access_tokens?name=ccdeck&scopes=read_api");
+  });
+
   it("is nowhere while what was typed is not an address", () => {
-    expect(forgeTokenUrl("gitlab", "git.exa")).toBeNull();
+    expect(forgeTokenUrl("gitlab", "git")).toBeNull();
     expect(forgeTokenUrl("gitlab", "javascript:alert(1)")).toBeNull();
+    expect(forgeTokenUrl("gitlab", "ftp://git.example.com")).toBeNull();
   });
 });
 
