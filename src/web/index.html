@@ -80,6 +80,8 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="./main.tsx"></script>
+    <!-- entry.ts, not main.tsx: the entry holds no app code, so the app runs
+         once whatever URL the entry is loaded under. See entry.ts (#2162). -->
+    <script type="module" src="./entry.ts"></script>
   </body>
 </html>

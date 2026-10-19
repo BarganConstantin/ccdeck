@@ -212,8 +212,10 @@ describe("the sound switch, which had a control and no key", () => {
   it("names its key where the switch is", () => {
     // The topbar speaker named M in its tooltip, the way every control on the
     // bar names its key. The speaker left the bar (2026-10-07), and the switch
-    // is Settings › Sounds' — which draws the key under it, as a key.
-    expect(read("components/SoundSwitch.tsx")).toContain("<kbd>M</kbd>Mute or unmute sounds anywhere.");
+    // is Settings › Sounds' — which draws the key beside it, as a key, and
+    // declares it on the switch (#2176).
+    expect(read("components/SoundSwitch.tsx")).toMatch(/<kbd className="settings-key"[^>]*>M<\/kbd>/);
+    expect(read("components/SoundSwitch.tsx")).toContain('aria-keyshortcuts={singleKeys ? "M" : undefined}');
   });
 
   it("sends both ways to the switch through one door", () => {

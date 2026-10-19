@@ -31,6 +31,7 @@ import { notifyTrays, pageCount, sseClients, trayClients, writeSse } from "./sse
 import { eventLogPath, maybeRotatePersistFile, writesLogFor } from "./event-log.mjs";
 import { appendLogLine } from "./log-writer.mjs";
 // The away-update's word on whether a turn is running — see lifecycle.mjs.
+import { shouldTrackActivity } from "./activity.mjs";
 import { activity } from "./lifecycle.mjs";
 // The session LRU and the transcript watch — see session-tracking.mjs.
 import { outputWatch, touchSession } from "./session-tracking.mjs";
@@ -204,9 +205,9 @@ export function pushEvent(raw, source, opts = {}) {
   // know the other exists. block-notify.mjs holds the gates and the cooldown.
   blockNotifier.consider(raw, { clients: pageCount(), replay: !!opts.replay });
 
-  // Whether a turn is running, for the away-update. Not from a replay: the log
-  // is history, and a turn it shows open is one that ended in another process.
-  if (!opts.replay) activity.note(raw, evt.receivedAt);
+  // Persisted history is not current activity. Fresh recovery snapshots are
+  // current evidence even though they bypass replayed-tool accounting.
+  if (shouldTrackActivity(raw, opts)) activity.note(raw, evt.receivedAt);
 
   if (persisting) {
     // Fire-and-forget append. JSONL = newline-delimited JSON, so the whole line

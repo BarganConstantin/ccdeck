@@ -72,6 +72,8 @@ export { prefsPath };
  */
 export const DEFAULTS = Object.freeze({
   notifications: false,
+  recoverCodexSessions: true,
+  recoverClaudeSessions: true,
   // ACCOUNT NOTIFICATIONS, one switch each (account-notify.mjs). Not part of
   // `notifications` above, which is about a deck nobody is looking at: these
   // are said whether a page is open or not, because no page says them. The
@@ -314,6 +316,8 @@ export function normalise(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   return {
     notifications: flagOr(src.notifications, DEFAULTS.notifications),
+    recoverClaudeSessions: flagOr(src.recoverClaudeSessions, DEFAULTS.recoverClaudeSessions),
+    recoverCodexSessions: flagOr(src.recoverCodexSessions, DEFAULTS.recoverCodexSessions),
     notifySwap: flagOr(src.notifySwap, DEFAULTS.notifySwap),
     notifyQuota: flagOr(src.notifyQuota, DEFAULTS.notifyQuota),
     notifyReset: flagOr(src.notifyReset, DEFAULTS.notifyReset),
@@ -701,7 +705,7 @@ export function publicPrefs(prefs) {
  * here — prefs-route-fields.test.ts lists them.
  */
 export const PAGE_FIELDS = Object.freeze({
-  top: Object.freeze(["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate"]),
+  top: Object.freeze(["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions"]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
     "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",

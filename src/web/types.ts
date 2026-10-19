@@ -234,6 +234,8 @@ export interface AgentNodeData {
   label: string;              // human label (workspace basename, subagent_type, etc.)
   kind: "root" | "subagent";
   parentId?: string;
+  /** Canvas grouping only; sessionId still owns tools, usage and lifecycle. */
+  canvasSessionId?: string;
   state: AgentState;
   startedAt: number;
   endedAt?: number;
@@ -298,6 +300,13 @@ export interface AgentNodeData {
    *  server last read it. Whether it still describes the session is a question
    *  for session-recap.ts, which every surface that draws it asks. */
   recap?: SessionRecap;
+  /** The task list this agent keeps for itself, as its own calls last left it
+   *  (#2157) — TodoWrite's and update_plan's on the agent that made them, the
+   *  Task tools' on the session's root, whose list its subagents share. Absent
+   *  until the agent writes one. Held apart from `tools`, whose inputs are
+   *  released after a window of calls: a plan written in the first minute is
+   *  still the plan an hour later. See agent-plan.ts. */
+  plan?: AgentPlan;
   /** What the session's newest reply says it is doing, as the server's
    *  transcript watch last read it. Root only, Claude only. Whether it still
    *  describes the session is session-status.ts's question. */
@@ -327,6 +336,10 @@ export interface AgentNodeData {
    *  Subagents never carry it: only `SubagentStart` creates one, so a subagent
    *  node exists precisely when its beginning WAS observed. */
   synthetic?: boolean;
+  /** Restored from an unfinished log turn; cleared when live traffic arrives. */
+  restoredFromLog?: boolean;
+  /** Real session traffic, excluding startup snapshots and transcript scans. */
+  recoveryLiveAt?: number;
   /** Number of direct subagents spawned by this agent. */
   childCount: number;
   usage: TokenUsage;
@@ -359,6 +372,12 @@ export interface AgentNodeData {
    *  see `usageByModel` above for why the two are different questions and why
    *  no cost surface may answer the second with this. */
   model?: string;
+  /** The reasoning effort this agent runs at now — "xhigh", "medium" — as the
+   *  session itself reported it (#2155): Claude Code's `effort.level` on its
+   *  tool-call hooks, Codex's `turn_context`. Absent when nothing said it,
+   *  never filled in from a setting or a model's default. Shown after the
+   *  model in its chip. */
+  effort?: string;
   /** Which CLI ecosystem this agent belongs to. Set from the hook payload's
    *  `provider` field on first event; defaults to "claude" for back-compat
    *  with replay events written before multi-provider support. */
@@ -511,6 +530,30 @@ export interface AgentNodeData {
   context?: ContextBreakdown;
 }
 
+/** Where one step of an agent's plan stands — the three states both CLIs use. */
+export type PlanStatus = "pending" | "in_progress" | "completed";
+
+/** One step of an agent's plan, in the agent's own words. */
+export interface PlanItem {
+  /** The Task tools' id, which TaskUpdate addresses; absent for TodoWrite and
+   *  update_plan, which rewrite the whole list every time. */
+  id?: string;
+  text: string;
+  status: PlanStatus;
+  /** How the agent words the step while doing it ("Writing the migration"),
+   *  when it gave one. */
+  active?: string;
+}
+
+/** An agent's plan, as its newest call left it. */
+export interface AgentPlan {
+  items: PlanItem[];
+  /** When the call that last changed it was received. */
+  at: number;
+  /** Codex's `explanation` for its newest update, when it gave one. */
+  note?: string;
+}
+
 /** Claude Code's recap of a session — the "※ recap:" line, as a card can show
  *  it (the terminal's "(disable recaps in /config)" taken off) — and when
  *  Claude Code wrote it. See src/server/session-recap.mjs. */
@@ -614,6 +657,9 @@ export interface HookPayload {
   /** Real CC SubagentStart/Stop payloads. */
   agent_id?: string;
   agent_type?: string;
+  parent_session_id?: string;
+  agent_nickname?: string | null;
+  agent_role?: string | null;
   /** Synthetic / older alias used by some test fixtures. */
   parent_tool_use_id?: string;
   subagent_type?: string;
@@ -652,6 +698,16 @@ export interface HookPayload {
    *  rollout watcher and spread onto every payload it emits — see
    *  `AgentNodeData.approvalPolicy`. */
   approval_policy?: string;
+  /** Codex-only: the newest `turn_context`'s reasoning effort, spread onto every
+   *  payload as `approval_policy` is, and on a hook-delivered session's
+   *  `ModelObserved`. Null when that turn named none, which clears the chip;
+   *  absent before the first turn — see `AgentNodeData.effort`. */
+  reasoning_effort?: string | null;
+  /** Claude-only: the effort level in effect when the hook ran, on the events
+   *  Claude Code fires inside a tool-use context (PreToolUse, PostToolUse,
+   *  Stop, SubagentStop) whenever the model supports effort. See
+   *  payload-effort.ts. */
+  effort?: { level?: unknown } | null;
   /** Codex-only: how much of the context window is occupied right now, taken
    *  from `token_count.info.last_token_usage.total_tokens` and carried on the
    *  `UsageObserved` the same record produces. It rides along rather than

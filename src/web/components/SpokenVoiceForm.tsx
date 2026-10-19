@@ -47,6 +47,7 @@ export default function SpokenVoiceForm({ full, fullProps, runCustom, onCreateVo
   return (
     <details className="sm-voice">
       <summary
+        className="settings-row"
         {...fullProps}
         // Held shut while full, so nobody fills in a form that cannot be
         // saved. One already open can still be closed.
@@ -55,8 +56,15 @@ export default function SpokenVoiceForm({ full, fullProps, runCustom, onCreateVo
           if (full && details && !details.open) e.preventDefault();
         }}
       >
-        <span>Spoken voice</span>
-        <span>Create from text</span>
+        <span className="settings-row-name">Spoken voice</span>
+        <span className="settings-row-note">Create from text</span>
+        {/* Turns a quarter as the form opens. Drawn, not a typed "›": the
+            deck has no icons made of characters (#837). */}
+        <span className="settings-row-control">
+          <svg className="sm-voice-chevron" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M5.5 3.5 9 7l-3.5 3.5" />
+          </svg>
+        </span>
       </summary>
       <div className="sm-voice-fields">
         {/* The deck's text field, as the appearance menu's station fields

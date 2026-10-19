@@ -36,6 +36,19 @@ function mount(nodes: Node[] = [node()]) {
 
 beforeEach(() => vi.clearAllMocks());
 
+it("moves Codex child sessions and notes with their canvas family while leaving another session alone", () => {
+  const group = node("group", "sessionGroup", 0, 0);
+  const child = { ...node("child"), data: { sessionId: "child", canvasSessionId: "session" } };
+  const note = { ...node("note", "recapNote"), data: { sessionId: "child", canvasSessionId: "session" } };
+  const other = { ...node("other"), data: { sessionId: "other" } };
+  const { input, call } = mount([group, node(), child, note, other]);
+  call("onNodeDragStart", group);
+  call("onNodeDrag", node("group", "sessionGroup", 30, 40));
+  call("onNodeDragStop", node("group", "sessionGroup", 35, 45));
+  for (const id of ["agent", "child", "note"]) expect(input.positionsRef.current.get(id)).toEqual({ x: 45, y: 65 });
+  expect(input.positionsRef.current.get("other")).toEqual({ x: 10, y: 20 });
+});
+
 describe("drag callbacks whose node has disappeared", () => {
   it("ignores an unresolvable drag start", () => {
     const { input, call } = mount();
@@ -105,9 +118,50 @@ describe("drag callbacks whose node has disappeared", () => {
     call("onNodeDrag", node("group", "sessionGroup", 30, 40));
     call("onNodeDragStop", node("group", "sessionGroup", 35, 45));
     expect(input.positionsRef.current.get("agent")).toEqual({ x: 45, y: 65 });
-    expect(input.endTrashDrag).toHaveBeenCalledWith(event, false);
+    expect(input.endTrashDrag).toHaveBeenCalledWith(event, true);
     expect(input.draggingRef.current).toBe(false);
     expect(saveLayout).toHaveBeenCalledTimes(1);
     expect(input.removeNode).not.toHaveBeenCalled();
+  });
+});
+
+describe("dragging a session's box to the trash", () => {
+  const withRoot = (input: ReturnType<typeof mount>["input"]) => {
+    input.stateRef.current.agents.set("session", { id: "session", label: "web-api" } as never);
+  };
+
+  it("raises the trash under the session's name and follows the pointer", () => {
+    const group = node("group", "sessionGroup", 0, 0);
+    const { input, call } = mount([group, node()]);
+    withRoot(input);
+    call("onNodeDragStart", group);
+    call("onNodeDrag", node("group", "sessionGroup", 30, 40));
+    expect(input.beginTrashDrag).toHaveBeenCalledWith("web-api");
+    expect(input.trackTrashDrag).toHaveBeenCalledWith(event);
+  });
+
+  it("removes the whole session and puts its cards back where the drag found them", () => {
+    const group = node("group", "sessionGroup", 0, 0);
+    const pinned = node("pinned", "agent", 100, 200);
+    const { input, call } = mount([group, node(), pinned]);
+    withRoot(input);
+    input.pinnedRef.current.set("pinned", { x: 100, y: 200 });
+    input.endTrashDrag.mockReturnValue(true);
+    call("onNodeDragStart", group);
+    call("onNodeDrag", node("group", "sessionGroup", 300, 400));
+    call("onNodeDragStop", node("group", "sessionGroup", 300, 400));
+    expect(input.removeNode).toHaveBeenCalledWith("session");
+    expect(input.positionsRef.current.get("agent")).toEqual({ x: 10, y: 20 });
+    expect(input.pinnedRef.current.has("agent")).toBe(false);
+    expect(input.pinnedRef.current.get("pinned")).toEqual({ x: 100, y: 200 });
+    expect(saveLayout).not.toHaveBeenCalled();
+    expect(input.draggingRef.current).toBe(false);
+  });
+
+  it("leaves the trash down for a box whose session has no card to remove by", () => {
+    const group = node("group", "sessionGroup", 0, 0);
+    const { input, call } = mount([group, node()]);
+    call("onNodeDragStart", group);
+    expect(input.beginTrashDrag).toHaveBeenCalledWith(null);
   });
 });

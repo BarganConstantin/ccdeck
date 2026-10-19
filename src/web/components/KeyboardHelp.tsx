@@ -39,7 +39,7 @@ interface Props {
   /** Close this and open the tour — `?` is the help key, and the tour is the
    *  other half of help. */
   onTour?: () => void;
-  /** Close this and open Settings at General, where the single-key switch is. */
+  /** Close this and open Settings at Keyboard, where the single-key switch is. */
   onSettings?: () => void;
 }
 

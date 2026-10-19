@@ -1,4 +1,5 @@
-import React, { memo } from "react";
+import React, { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { sessionHue } from "../reducer";
 import { fmtCost, UNPRICED_LABEL } from "../pricing";
@@ -11,10 +12,11 @@ import { codexApprovalTell } from "../codex-approval";
 // #462 so that a pure matcher and a bare-node suite could reach it without a
 // React component behind it. See model-label.ts for why the move happened with
 // that fix rather than with #374's wider consolidation.
-import { shortModel, modelFamily } from "../model-label";
+import { modelChipText, modelChipTitle as chipTitle, modelFamily } from "../model-label";
+import { maxSqueeze, nextSqueeze, rowAt } from "../card-row-squeeze";
 // The card's words — its state, a block's sentence and label — which the
 // session list, the peek and the topbar say too. See agent-copy.ts.
-import { spawnBadgeTitle, stateLabel, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
+import { agentKindLabel, spawnBadgeTitle, stateLabel, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
 // The card's token count, which used to be a private three-tier `fmtTok` here —
 // byte-identical to the two copies #323 deleted, and the fourth one it missed
@@ -28,11 +30,13 @@ import { elapsed } from "../duration";
 // the column cap in #521 is only sound while both surfaces show the same field.
 import { sessionDisplay } from "../session-display";
 import { ContextDonut } from "./ContextModal";
-import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
+import type { AgentNodeData, PlanItem, ToolCall, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { noteTag, sessionNoteShown } from "../session-note";
 import { toggleRecapDismissed, useRecapDismissed } from "../recap-note";
 import { faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
+// The agent's own checklist, as one line (#2157). See agent-plan.ts.
+import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
 import { primaryDisplayFor, toolSubject } from "../tool-skin";
 // The activity chart's counting and its scale. See tool-spark.ts.
 import { barHeight, BUCKETS, SPARK_H, SPARK_W, sparkWindow } from "../tool-spark";
@@ -44,6 +48,10 @@ import { NoteMark } from "./RecapMark";
  *  the waiting row and the sparkline — each on a shared one-second beat, and
  *  the card itself is memoised on node data that keeps its identity until the
  *  board's revision moves. */
+/** A layout effect in the browser, and nothing on the server, where the suite
+ *  draws cards to markup and a layout effect only warns (as use-count-up.ts). */
+const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
 function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary }>) {
   // No `selected` here. React Flow's prop is never true on this canvas, so the
   // class it set matched nothing; the frame marks a selected card's wrapper
@@ -64,7 +72,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // session's early ones. Silent at zero, like the in-flight count: a session
   // with nothing wrong says nothing.
   const failed = data.toolErrorCount ?? 0;
-  const hue = sessionHue(data.sessionId);
+  const hue = sessionHue(data.canvasSessionId ?? data.sessionId);
   const currentContextTokens = data.context?.currentContextTokens ?? 0;
   const hasContextSignal = data.kind === "root" && currentContextTokens > 0;
   // The sentence Claude Code titles the session with, in the tooltip the card
@@ -86,9 +94,52 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // names the others, so a reader who sees $7.50 under a Sonnet chip is not left
   // to conclude the deck priced a million Opus tokens at Sonnet's rate.
   const otherModels = otherModelIds(data);
-  const modelChipTitle = otherModels.length > 0
-    ? `${data.model}\nspend on this card also covers:\n${otherModels.join("\n")}`
-    : data.model;
+  // WHAT GIVES WAY ON A TIGHT ROW (#2155, #2169): the kind word, then the
+  // effort, and a subagent's folder is cut short on its own — never the model.
+  // The order and why are card-row-squeeze.ts's. MEASURED, not reserved: the
+  // row is drawn whole and steps down one notch per paint while it overflows
+  // or the folder is cut, and starts again from the top whenever what it holds
+  // changes, or its width does (a text-size change, a clock that gained a
+  // digit).
+  const detailsRef = useRef<HTMLSpanElement>(null);
+  const folderRef = useRef<HTMLSpanElement>(null);
+  const squeezeMax = maxSqueeze(data);
+  const [squeeze, setSqueeze] = useState(0);
+  // The row's width as last observed: a change in it starts the squeeze again
+  // like a change in what the row holds does. A state, not a reset alone — a
+  // row still at the top notch that has narrowed must be measured again too.
+  const [rowWidth, setRowWidth] = useState<number | null>(null);
+  useBeforePaint(() => { setSqueeze(0); }, [data.effort, data.model, otherModels.length, data.cwdBasename, data.childCount, data.kind, squeezeMax, rowWidth]);
+  useBeforePaint(() => {
+    const el = detailsRef.current;
+    // No layout read once there is nothing left to give up.
+    if (!el || squeeze >= squeezeMax) return;
+    const folder = folderRef.current;
+    const next = nextSqueeze(squeeze, {
+      overflowing: el.scrollWidth > el.clientWidth,
+      folderCut: !!folder && folder.scrollWidth > folder.clientWidth,
+      max: squeezeMax,
+    });
+    if (next !== squeeze) setSqueeze(next);
+  });
+  useEffect(() => {
+    const el = detailsRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let width = el.clientWidth;
+    // Synchronously, so the row is measured again before the frame is painted
+    // rather than drawn once at its old notch.
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth === width) return;
+      width = el.clientWidth;
+      flushSync(() => setRowWidth(width));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const row = rowAt(squeeze);
+  const modelChipTitle = data.model && (otherModels.length > 0
+    ? `${chipTitle(data.model, data.effort)}\nspend on this card also covers:\n${otherModels.join("\n")}`
+    : chipTitle(data.model, data.effort));
   // Two strings for the name row, chosen once. `face` is the name when the
   // session has one and the sentence when it does not, which is the common
   // case rather than the fallback: 0.2% of the transcripts on this machine
@@ -122,6 +173,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         <div className="title">
           <StatePill state={data.state} />
           <span className="label" title={cardTooltip}>{data.label}</span>
+          {data.restoredFromLog && <span className="synth-tag" title={data.provider === "claude" ? "Restored from Claude’s busy-session registry after verifying the process identity. Earlier tool history is partial." : "Restored from a log with no recorded ending. Process status is not confirmed."}>restored</span>}
           {data.synthetic && <span className="synth-tag" title="No SessionStart captured — synthesised">?</span>}
           {/* Claude Code's ※, in the session's colour, beside the name: the
               card's own mark that a recap is there, and the switch for its
@@ -153,17 +205,19 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         </div>
       </div>
 
-      {/* The row ellipsises at the card's width and a subagent's folder can
-          fill it, cutting the model chip away; its tooltip says it whole. The
-          badge and the chip keep their own, which the browser prefers over
-          this one under the pointer. */}
+      {/* The row gives way in order (squeeze, above), so a subagent's folder
+          is cut short rather than the model chip; its tooltip says the row
+          whole. The badge and the chip keep their own, which the browser
+          prefers over this one under the pointer. */}
       <div className="sub" title={subRowTitle(data)}>
-        <span className="sub-details">
-          {data.kind === "root" ? "session" : "subagent"}
+        <span className="sub-details" ref={detailsRef}>
+          {row.kind && <span>{agentKindLabel(data)}</span>}
           {data.childCount > 0 && (
             <span className="spawn-badge" title={spawnBadgeTitle(data.childCount)}>→ {data.childCount}</span>
           )}
-          {data.cwdBasename && data.kind === "subagent" ? ` · ${data.cwdBasename}` : ""}
+          {data.cwdBasename && data.kind === "subagent" && (
+            <span className="sub-folder" ref={folderRef}>{row.kind ? "· " : ""}{data.cwdBasename}</span>
+          )}
           {/* The chip README.md names as how the two CLIs are told apart, on the
               nodes that have no model to put in it (#404). `provider` has been
               carried on every node since Codex support landed and read by nothing
@@ -186,7 +240,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
                Sonnet to Opus matched two equal-specificity rules and took the
                last one, drawing "Opus 5 +1" in Sonnet blue. */
             ? <span className="model-chip" data-family={modelFamily(data.model)} title={modelChipTitle}>
-                {shortModel(data.model)}{otherModels.length > 0 ? ` +${otherModels.length}` : ""}
+                {modelChipText(data.model, row.effort ? data.effort : undefined)}{otherModels.length > 0 ? ` +${otherModels.length}` : ""}
               </span>
             : data.provider === "codex"
               ? <span className="model-chip" title="OpenAI Codex — no model reported yet">Codex</span>
@@ -269,6 +323,17 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         );
       })()}
 
+      {/* WHAT IT IS WORKING THROUGH, in its own words (#2157): how far down
+          its checklist it is and the step under way. Under the alarms, because
+          a session that needs you is the more urgent fact, and over the
+          figures, because this is the one row that says what the figures are
+          for. Absent until the agent writes a list, so a session that keeps
+          none is the card it always was. */}
+      {(() => {
+        const plan = planSummary(data.plan);
+        return plan && data.plan ? <PlanRow plan={plan} items={data.plan.items} /> : null;
+      })()}
+
       {(data.tools.length > 0 || (data.outputs?.length ?? 0) > 0) && (
         <ToolRateSpark tools={data.tools} outputs={data.outputs} />
       )}
@@ -308,6 +373,30 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
 }
 
 export default memo(AgentNode);
+
+/**
+ * The plan as one row: a meter, the count, and the step.
+ *
+ * The step is the in-progress one, worded the way the agent words it while
+ * doing it, or the next one waiting, said as "next:" so it is not read as under
+ * way. The row ellipsises the step and never the count — the count is the half
+ * that is true at a glance. The whole list is the tooltip and the details
+ * panel; the meter repeats the count, so it is decoration to a screen reader,
+ * which hears the count in the card's name (agentAriaLabel).
+ */
+function PlanRow({ plan, items }: { plan: PlanSummary; items: readonly PlanItem[] }) {
+  return (
+    <div className={plan.allDone ? "plan-row plan-done" : "plan-row"} title={planTitle(items)}>
+      <span className="plan-meter" aria-hidden style={{ "--plan-done": plan.done / plan.total } as React.CSSProperties} />
+      <span className="plan-count">{plan.done}/{plan.total}</span>
+      <span className="plan-step">
+        {plan.allDone || !plan.current
+          ? "done"
+          : <>{plan.next && <span className="plan-next">next: </span>}{plan.current}</>}
+      </span>
+    </div>
+  );
+}
 
 /**
  * THE CARD AS IT IS DRAWN FROM A DISTANCE — the compact and overview faces.
