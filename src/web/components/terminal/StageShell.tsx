@@ -333,6 +333,7 @@ export function StageDock(p: StageDockProps) {
           // still hidden would be spent on nothing and not asked again.
           focusRequest={shell.phase === "waiting" ? null : shell.focusRequest}
           takeTypeAhead={stage.takeTypeAhead}
+          holdsTypeAhead={stage.holdsTypeAhead}
           onWantKeys={stage.focusPane}
           onNextAsk={p.asks.nextAsk}
           onAnswerArrival={p.asks.nextAsk}

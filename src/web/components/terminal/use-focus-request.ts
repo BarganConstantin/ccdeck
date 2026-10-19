@@ -34,8 +34,9 @@ export interface FocusRequest {
   focus(request: FocusRequest["request"]): void;
   /** The stage shows a card that is its answer, not a pane on its way. */
   settled?: boolean;
-  /** Focus onto the card's action; true once the request needs nothing more. */
-  land?: () => boolean;
+  /** Focus onto the card's action for this request; true once it needs
+   *  nothing more. */
+  land?: (request: FocusRequest["request"]) => boolean;
   /** The request ended without the pane taking the keys. */
   unmet?: (request: FocusRequest["request"]) => void;
 }
@@ -70,7 +71,7 @@ export function useFocusRequest({ key, request, launch, typing, focus, settled =
     if (typing) {
       wanted.current = null;
       focus(want.request);
-    } else if (settled && land?.()) {
+    } else if (settled && land?.(want.request)) {
       wanted.current = null;
       unmet?.(want.request);
     }

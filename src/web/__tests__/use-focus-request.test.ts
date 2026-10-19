@@ -68,6 +68,7 @@ describe("a request the stage answers with a card", () => {
     const { focus, go } = rig({ settled: true, land });
     go({ request: 1 });
     expect(land).toHaveBeenCalledTimes(1);
+    expect(land, "told which request, whose held keys decide how it lands").toHaveBeenCalledWith(1);
     expect(focus, "no pane to put the keys in").not.toHaveBeenCalled();
     go({});
     expect(land).toHaveBeenCalledTimes(1);
