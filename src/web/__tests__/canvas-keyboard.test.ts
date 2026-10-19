@@ -370,9 +370,18 @@ describe("nothing else in the deck invents a focus stop", () => {
     // `tabIndex={0}`, `tabIndex="0"`, `tabIndex={2}` — anything whose value
     // starts with a digit. A leading `-` is not a digit, which is the whole
     // distinction this regex is drawn to make.
+    //
+    // Revisited a second time, by the terminal stage's divider, and allowed
+    // once more by name rather than by widening the rule. A window splitter
+    // (the WAI-ARIA pattern) is a focusable separator: ← and → resize the
+    // stage a detent at a time, Home and End run to the ends, and its value is
+    // read out in columns. No native element is one, so it has to be given
+    // its stop — and only the element with role="separator" gets it.
+    const SPLITTER = "components/terminal/Divider.tsx";
     const offenders = components(web)
       .filter(p => /tabIndex=\{?["']?\d/.test(code(readFileSync(p, "utf8"))))
-      .map(p => p.slice(web.length).replaceAll("\\", "/"));
+      .map(p => p.slice(web.length).replaceAll("\\", "/"))
+      .filter(p => p !== SPLITTER);
     // Radio results is a focusable tabpanel, allowing keyboard scrolling.
     // Tool activity's details splitter is the ARIA window splitter: a focusable
     // separator whose value is the panel's width, moved with the arrow keys.
@@ -383,6 +392,9 @@ describe("nothing else in the deck invents a focus stop", () => {
     const map = code(readFileSync(`${web}components/RadioMap.tsx`, "utf8"));
     expect(map).toContain("tabIndex={0}");
     expect(map).not.toMatch(/tabIndex=\{[1-9]/);
+    const splitter = code(readFileSync(join(web, SPLITTER), "utf8"));
+    expect([...splitter.matchAll(/tabIndex=/g)], "one stop, on the separator").toHaveLength(1);
+    expect(splitter).toMatch(/role="separator"[^>]*?tabIndex=\{0\}/);
   });
 
   it("keeps negative tabIndex only on deliberate programmatic focus targets", () => {

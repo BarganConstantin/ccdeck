@@ -36,7 +36,7 @@ export interface SettingsSectionEntry {
  *  what it is. About comes last and stands at the foot of the nav, as it does
  *  in the desktop settings windows this dialog is modelled on. */
 export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
-  { id: "general", label: "General", note: "The board, updates, and the settings that live in their own panels." },
+  { id: "general", label: "General", note: "The board, the terminal, updates, and the settings that live in their own panels." },
   { id: "appearance", label: "Appearance", note: "The colour theme and the character on the canvas." },
   { id: "reading", label: "Text & density", note: "Make the deck comfortable to read. Changes apply immediately and stay separate from canvas zoom." },
   { id: "keyboard", label: "Keyboard", note: "Every shortcut, and whether single keys answer." },
