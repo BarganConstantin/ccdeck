@@ -50,6 +50,23 @@ export interface TmuxStatus {
    *  download_failed, checksum_mismatch, too_large, extract_failed or
    *  does_not_run. */
   download?: string;
+  /** While "installing": how far the download has got, once it has said. */
+  progress?: TmuxProgress;
+}
+
+/** The deck's own tmux on its way: bytes so far (`total` null when the server
+ *  did not say how many), then the check before it is used. */
+export type TmuxProgress =
+  | { stage: "downloading"; received: number; total: number | null }
+  | { stage: "checking" };
+
+/** A progress the deck sent, or nothing for anything that is not one. */
+function progressOf(value: unknown): TmuxProgress | null {
+  if (!isObject(value)) return null;
+  if (value.stage === "checking") return { stage: "checking" };
+  const count = (n: unknown) => typeof n === "number" && Number.isFinite(n) && n >= 0;
+  if (value.stage !== "downloading" || !count(value.received)) return null;
+  return { stage: "downloading", received: value.received as number, total: count(value.total) && (value.total as number) > 0 ? value.total as number : null };
 }
 
 export interface TerminalStatus {
@@ -225,7 +242,10 @@ const post = (body: unknown): RequestInit => ({
 export function terminalStatus(options: ApiOptions = {}): Promise<TerminalStatus | ApiFailure> {
   return ask<TerminalStatus>(TERMINAL_ROUTES.status, { method: "GET" }, options, body => {
     if (!isObject(body) || body.ok !== true || !isObject(body.tmux) || typeof body.tmux.ok !== "boolean") return null;
-    return { ok: true, platform: typeof body.platform === "string" ? body.platform : "", tmux: body.tmux as unknown as TmuxStatus };
+    const { progress, ...rest } = body.tmux;
+    const sent = progressOf(progress);
+    const tmux = { ...rest, ...(sent ? { progress: sent } : {}) } as unknown as TmuxStatus;
+    return { ok: true, platform: typeof body.platform === "string" ? body.platform : "", tmux };
   });
 }
 

@@ -67,6 +67,7 @@ let controls: FakeControl[];
 let downloadBlocked: string | null;
 let downloads: number;
 let downloadResult: Promise<any>;
+let progress: any;
 let recentFailure: { reason: string; at: number } | null;
 let forgot: number;
 let pruned: any[];
@@ -99,6 +100,7 @@ beforeEach(() => {
   downloadBlocked = "not_published";
   downloads = 0;
   downloadResult = Promise.resolve({ ok: true, path: "/secret/data/tools/tmux/tmux-3.8-1/tmux" });
+  progress = null;
   recentFailure = null;
   forgot = 0;
   pruned = [];
@@ -125,6 +127,7 @@ beforeAll(async () => {
       openControl: (o: any) => { const c = new FakeControl(o); controls.push(c); return c; },
       downloadBlocked: () => downloadBlocked,
       downloadTmux: () => { downloads += 1; return downloadResult; },
+      downloadProgress: () => progress,
       recentDownloadFailure: () => recentFailure,
       forgetTmux: () => { forgot += 1; },
       pruneDeadDeckSessions: async (o: any) => { pruned.push(o); return []; },
@@ -204,6 +207,17 @@ describe("GET /api/terminal/status", () => {
     land({ ok: true, path: "/secret/data/tools/tmux/tmux-3.8-1/tmux" });
     await new Promise(r => setTimeout(r, 10));
     expect(forgot, "the remembered miss goes, so the next ask finds the new tmux").toBe(2);
+  });
+
+  it("says how far the download has got, once it has said, for the stage's bar", async () => {
+    downloadBlocked = null;
+    downloadResult = new Promise(() => {});
+    tmuxAnswer = { ok: false, reason: "missing", install: "sudo apt install tmux" };
+    progress = { stage: "downloading", received: 420_000, total: 1_100_000 };
+    expect((await ask("GET", "/api/terminal/status")).body.tmux)
+      .toEqual({ ok: false, reason: "installing", progress: { stage: "downloading", received: 420_000, total: 1_100_000 } });
+    progress = { stage: "checking" };
+    expect((await ask("GET", "/api/terminal/status")).body.tmux.progress).toEqual({ stage: "checking" });
   });
 
   it("answers a recent failed download as the plain fact, with why, and does not try again yet", async () => {

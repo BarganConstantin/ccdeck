@@ -49,6 +49,7 @@ import {
   type ApiFailure,
   type SessionRef,
   type TerminalProvider,
+  type TmuxProgress,
   type TmuxStatus,
 } from "./terminal-api";
 import { connectTerminal, hexColour, pasteTooLarge, type ConnectOptions, type SizeOwner, type TerminalConnection, type TmuxVersion } from "./terminal-protocol";
@@ -96,8 +97,10 @@ export const RECONNECT_GIVE_UP_MS = 120_000;
  *  wait 1.6 s. A refused connection costs nothing on loopback. */
 export const RESTART_POLL_MS = 250;
 export const RESTART_FAST_MS = 15_000;
-/** How often the stage asks again while the deck fetches its own tmux. */
-export const TMUX_SETUP_POLL_MS = 1500;
+/** How often the stage asks again while the deck fetches its own tmux: often
+ *  enough that its bar moves with the download, which is a second or two on
+ *  a good connection. A status is a loopback read of a value in memory. */
+export const TMUX_SETUP_POLL_MS = 400;
 /** When it stops waiting for that: a build is about a megabyte, so this is a
  *  connection that is not working rather than a slow one. */
 export const TMUX_SETUP_GIVE_UP_MS = 180_000;
@@ -485,6 +488,12 @@ const isFailure = (v: { ok: boolean }): v is ApiFailure => v.ok === false && !("
  *  all, or a gateway in front of it that has none yet. */
 const transient = (f: ApiFailure) => f.status === null || f.status === 502 || f.status === 503 || f.status === 504;
 
+/** Whether two answers about the deck's tmux download say the same thing, so
+ *  a poll that learned nothing new draws nothing. */
+const sameProgress = (a?: TmuxProgress, b?: TmuxProgress) =>
+  a?.stage === b?.stage
+  && (a?.stage !== "downloading" || b?.stage !== "downloading" || (a.received === b.received && a.total === b.total));
+
 const STOPPED = "The terminal stopped. The session may still be running.";
 const NO_RETURN = "The deck did not come back. The session is still running in tmux; try again once the deck is up.";
 const NOT_REOPENABLE = "This session started without a name the deck can find it by yet. Open it from the board.";
@@ -731,7 +740,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       return;
     }
     if (deps.now() - since > TMUX_SETUP_GIVE_UP_MS) { setPhase({ kind: "error", message: TMUX_SETUP_SLOW }); return; }
-    if (snap.phase.kind !== "tmux-installing") setPhase({ kind: "tmux-installing" });
+    if (snap.phase.kind !== "tmux-installing" || !sameProgress(snap.phase.progress, tmux.progress)) {
+      setPhase({ kind: "tmux-installing", ...(tmux.progress ? { progress: tmux.progress } : {}) });
+    }
     clearTimer(retryTimer);
     retryTimer = setTimeout(() => {
       retryTimer = null;
@@ -746,8 +757,10 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         } else if (status.ok) {
           tmuxNotReady(my, status.tmux, since);
         } else if (transient(status)) {
-          // The deck blinked; the download it started goes on without it.
-          tmuxNotReady(my, { ok: false, reason: "installing" }, since);
+          // The deck blinked; the download it started goes on without it,
+          // and the bar stays where it was.
+          const shown = snap.phase.kind === "tmux-installing" ? snap.phase.progress : undefined;
+          tmuxNotReady(my, { ok: false, reason: "installing", ...(shown ? { progress: shown } : {}) }, since);
         } else {
           setPhase({ kind: "error", message: status.error });
         }

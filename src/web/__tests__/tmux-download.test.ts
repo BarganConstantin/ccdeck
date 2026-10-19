@@ -43,6 +43,35 @@ function fetching(body: Buffer, { status = 200, length }: { status?: number; len
   return { asked, impl };
 }
 
+/** The same, its body streamed in `chunks` as a fetch's is, each one waiting
+ *  for `step()` so a test can look between them. */
+function streaming(chunks: Buffer[], { length }: { length?: number | null } = {}) {
+  const waits: (() => void)[] = [];
+  let cancelled = false;
+  const step = () => waits.shift()?.();
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const impl = async () => {
+    let i = 0;
+    return {
+      ok: true, status: 200,
+      headers: { get: (h: string) => (h === "content-length" && length !== null ? String(length ?? total) : null) },
+      body: {
+        getReader: () => ({
+          read: async () => {
+            if (i >= chunks.length) return { done: true, value: undefined };
+            await new Promise<void>(r => waits.push(r));
+            return { done: false, value: new Uint8Array(chunks[i++]) };
+          },
+          cancel: async () => { cancelled = true; },
+        }),
+      },
+    };
+  };
+  return { impl, step, cancelled: () => cancelled, pending: () => waits.length };
+}
+
+const tick = () => new Promise(r => setTimeout(r, 0));
+
 /** tar that unpacks a tmux answering `version` to -V (or nothing at all). */
 function running(version: string | null, { unpack = true } = {}) {
   const ran: string[][] = [];
@@ -161,6 +190,67 @@ describe("fetching it", () => {
       expect(existsSync(dl.managedTmuxDir(dataDir, BUILD))).toBe(false);
       expect(leftovers(dataDir), "the staging folder goes too").toEqual([]);
     }
+  });
+});
+
+describe("how far it has got", () => {
+  // A build is a megabyte or so: a second on a good connection, half a
+  // minute on a bad one, with only "setting up" to look at all that time.
+  it("says the bytes as they arrive, then that it is checking the build", async () => {
+    const parts = [ARCHIVE.subarray(0, 10), ARCHIVE.subarray(10, 30), ARCHIVE.subarray(30)];
+    const f = streaming(parts);
+    const heard: unknown[] = [];
+    const got = dl.downloadTmux({ ...LINUX, dataDir: freshDir(), fetchImpl: f.impl, execImpl: running("3.8").impl, onProgress: (p: unknown) => heard.push(p) });
+    for (let i = 0; i < parts.length; i++) { await tick(); f.step(); }
+    expect((await got).ok).toBe(true);
+    const total = ARCHIVE.length;
+    expect(heard).toEqual([
+      { stage: "downloading", received: 0, total },
+      { stage: "downloading", received: 10, total },
+      { stage: "downloading", received: 30, total },
+      { stage: "downloading", received: total, total },
+      { stage: "checking" },
+    ]);
+  });
+
+  it("says no total when the server did not give one", async () => {
+    const f = streaming([ARCHIVE], { length: null });
+    const heard: { total?: unknown }[] = [];
+    const got = dl.downloadTmux({ ...LINUX, dataDir: freshDir(), fetchImpl: f.impl, execImpl: running("3.8").impl, onProgress: (p: { total?: unknown }) => heard.push(p) });
+    await tick(); f.step();
+    expect((await got).ok).toBe(true);
+    expect(heard[0]).toEqual({ stage: "downloading", received: 0, total: null });
+  });
+
+  it("stops reading a body that runs past a build's size when no size was given", async () => {
+    // Read whole, the cap was only checked once all of it was in memory.
+    const big = Buffer.alloc(17 << 20);
+    const f = streaming([big, big, big], { length: null });
+    const got = dl.downloadTmux({ ...LINUX, dataDir: freshDir(), fetchImpl: f.impl, execImpl: running("3.8").impl });
+    await tick(); f.step(); await tick(); f.step();
+    expect(await got).toEqual({ ok: false, reason: "too_large" });
+    expect(f.cancelled(), "the rest is not fetched").toBe(true);
+    expect(f.pending(), "and not waited for").toBe(0);
+  });
+
+  it("is there to ask while the download is out, and gone once it lands", async () => {
+    const f = streaming([ARCHIVE.subarray(0, 20), ARCHIVE.subarray(20)]);
+    const out = dl.ensureManagedTmux({ ...LINUX, dataDir: freshDir(), fetchImpl: f.impl, execImpl: running("3.8").impl });
+    await tick();
+    expect(dl.tmuxDownloadProgress()).toEqual({ stage: "downloading", received: 0, total: ARCHIVE.length });
+    f.step(); await tick();
+    expect(dl.tmuxDownloadProgress()).toEqual({ stage: "downloading", received: 20, total: ARCHIVE.length });
+    f.step();
+    expect((await out).ok).toBe(true);
+    expect(dl.tmuxDownloadProgress(), "none out").toBeNull();
+
+    // The next download starts from nothing, not from where the last one ended.
+    let answer!: (r: unknown) => void;
+    const next = dl.ensureManagedTmux({ ...LINUX, dataDir: freshDir(), fetchImpl: () => new Promise(r => { answer = r; }) });
+    await tick();
+    expect(dl.tmuxDownloadProgress()).toBeNull();
+    answer({ ok: false, status: 503, headers: { get: () => null } });
+    expect((await next).ok).toBe(false);
   });
 });
 

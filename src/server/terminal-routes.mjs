@@ -42,7 +42,7 @@ import {
 import { createTicketStore, terminalBridge } from "./terminal-socket.mjs";
 import { checkTargetQuery, describeTarget, resolveTarget } from "./terminal-target.mjs";
 import { DECK_SOCKET, findTmux, resetTmuxCache } from "./tmux.mjs";
-import { ensureManagedTmux, recentTmuxFailure, tmuxDownloadBlocked } from "./tmux-download.mjs";
+import { ensureManagedTmux, recentTmuxFailure, tmuxDownloadBlocked, tmuxDownloadProgress } from "./tmux-download.mjs";
 import { deckDataDir } from "./deck-home.mjs";
 
 /** Adopt's refusal while the session's own process still runs: two agents
@@ -133,6 +133,7 @@ export function terminalDeps(overrides = {}) {
     // ccdeck's own tmux, for a machine with none (tmux-download.mjs).
     downloadBlocked: null,
     downloadTmux: null,
+    downloadProgress: tmuxDownloadProgress,
     recentDownloadFailure: recentTmuxFailure,
     forgetTmux: resetTmuxCache,
     ...(overrides ?? {}),
@@ -180,8 +181,8 @@ export function tmuxStatus(found) {
  * GET /api/terminal/status → `{ ok: true, platform, tmux }`.
  *
  * With no usable tmux, the first ask starts fetching ccdeck's own build
- * (tmux-download.mjs) and answers `reason: "installing"`; the panel asks again
- * until it is `ok`. A download that failed is answered for RETRY_AFTER_MS as
+ * (tmux-download.mjs) and answers `reason: "installing"`, with `progress` once
+ * the download has said how far it is; the panel asks again until it is `ok`. A download that failed is answered for RETRY_AFTER_MS as
  * the plain missing or too-old state with `download: <why>`, so the panel can
  * offer the install line instead, and is tried again after that.
  */
@@ -197,7 +198,8 @@ export async function handleTerminalStatus(req, res, options) {
     // answer it remembers is forgotten when the build lands, so the next ask
     // finds it.
     void d.downloadTmux().then((r) => { if (r?.ok) d.forgetTmux(); });
-    return send(res, 200, { ok: true, platform: d.platform, tmux: { ok: false, reason: "installing" } });
+    const progress = d.downloadProgress();
+    return send(res, 200, { ok: true, platform: d.platform, tmux: { ok: false, reason: "installing", ...(progress ? { progress } : {}) } });
   }
   maybePrune(d, found);
   return send(res, 200, { ok: true, platform: d.platform, tmux: tmuxStatus(found) });
