@@ -516,6 +516,15 @@ describe("a Claude background session (case D)", () => {
     expect(s.asked, "a background session's pty is not a tmux pane, so no server is asked").toEqual([]);
   });
 
+  it("names the background session's own terminal, whose size a wrapper starts at", async () => {
+    const s = setup({
+      procs: [DAEMON, PTY_HOST, { ...BG_CLAUDE, tty: "/dev/pts/12" }],
+      records: [record(7002, { kind: "bg", jobId: "0b9c2f4e" })],
+    });
+    expect(await ask(s.deps)).toEqual({ kind: "D", attachId: "0b9c2f4e", tty: "/dev/pts/12" });
+    expect(describeTarget({ kind: "D", attachId: "0b9c2f4e", tty: "/dev/pts/12" }), "and never to the page").not.toHaveProperty("tty");
+  });
+
   it("is still case D after the daemon died and the pty host was reparented, with no kind in the record", async () => {
     const s = setup({
       procs: [SYSTEMD_USER, { ...PTY_HOST, ppid: 1923 }, BG_CLAUDE],

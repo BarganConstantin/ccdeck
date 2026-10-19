@@ -12,7 +12,7 @@
 // through startServer's `terminal` option, the seam the product leaves at its
 // defaults. terminal-target.test.ts and terminal-sessions.test.ts pin those
 // modules; terminal-socket-tmux.test.ts runs the whole path on real tmux.
-import { describe, it, expect, afterAll, beforeAll, beforeEach } from "vitest";
+import { describe, it, expect, afterAll, beforeAll, beforeEach, vi } from "vitest";
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { request, type Server } from "node:http";
 import { EventEmitter } from "node:events";
@@ -72,6 +72,8 @@ let recentFailure: { reason: string; at: number } | null;
 let forgot: number;
 let pruned: any[];
 let clock: number;
+let sized: string[];
+let ttyAnswer: { cols: number; rows: number } | null;
 const tickets = createTicketStore();
 
 class FakeControl extends EventEmitter {
@@ -105,7 +107,10 @@ beforeEach(() => {
   forgot = 0;
   pruned = [];
   clock = 1_000_000_000;
+  sized = [];
+  ttyAnswer = null;
   routes.resetPruneClock();
+  routes.resetWrappers();
 });
 
 let server: Server;
@@ -124,6 +129,7 @@ beforeAll(async () => {
       killDeckSession: (o: any) => { killed.push(o); return killImpl(o); },
       labelDeckSession: (o: any) => { labelled.push(o); return labelImpl(o); },
       claudeBin: () => claudeBin,
+      ttySize: async (tty: string) => { sized.push(tty); return ttyAnswer; },
       openControl: (o: any) => { const c = new FakeControl(o); controls.push(c); return c; },
       downloadBlocked: () => downloadBlocked,
       downloadTmux: () => { downloads += 1; return downloadResult; },
@@ -421,11 +427,33 @@ describe("POST /api/terminal/open", () => {
     expect(got.raw).not.toContain("ccdeck-claude-00000002");
   });
 
-  it("reaches a background session through its live attach wrapper, starting nothing", async () => {
+  it("reaches a background session through its live attach wrapper, starting nothing, at the size it has", async () => {
+    // Every view of a background session shares one pty, which takes the size
+    // of the latest attach: a panel that sized it drew the user's own
+    // `claude agents` view for the stage's width.
     target = { kind: "D", attachId: "b02a39b7", wrapper: { name: "ccdeck-att-0b9f3c1e", pane: "%21" } };
     const got = await opened();
-    expect(got.binding).toMatchObject({ kind: "D", socket: DECK_SOCKET, target: "ccdeck-att-0b9f3c1e", pane: "%21", ignoreSize: false });
+    expect(got.binding).toMatchObject({ kind: "D", socket: DECK_SOCKET, target: "ccdeck-att-0b9f3c1e", pane: "%21", ignoreSize: true });
     expect(launches).toEqual([]);
+  });
+
+  it("starts a new wrapper at the background session's own size, read off its terminal", async () => {
+    target = { kind: "D", attachId: "b02a39b7", tty: "/dev/pts/7" };
+    ttyAnswer = { cols: 100, rows: 35 };
+    const got = await opened();
+    expect(sized).toEqual(["/dev/pts/7"]);
+    expect(launches[0]).toMatchObject({ cols: 100, rows: 35 });
+    expect(got.raw, "the terminal is the deck's to know").not.toContain("/dev/pts/7");
+    // Unread, or with no terminal to read: tmux's default, as before.
+    launches = [];
+    ttyAnswer = null;
+    await opened();
+    expect(launches[0]).not.toHaveProperty("cols");
+    launches = []; sized = [];
+    target = { kind: "D", attachId: "b02a39b7" };
+    await opened();
+    expect(sized).toEqual([]);
+    expect(launches[0]).not.toHaveProperty("cols");
   });
 
   it("starts `claude attach <short id>` in a deck pane when there is no wrapper yet", async () => {
@@ -810,5 +838,76 @@ describe("tmuxStatus", () => {
       .toEqual({ ok: true, warning: "unknown-version" });
     expect(routes.tmuxStatus(undefined)).toEqual({ ok: false, reason: "missing" });
     expect(routes.tmuxStatus({ ok: false, reason: "unsupported-platform" })).toEqual({ ok: false, reason: "unsupported-platform" });
+  });
+});
+
+describe("a background session's attach wrapper", () => {
+  // terminalUpgradeOptions' bridge, on a fake connection and control: what is
+  // pinned is when the wrapper is closed, not what the bridge says.
+  const BINDING = { kind: "D", socket: DECK_SOCKET, target: "ccdeck-att-0b9f3c1e", pane: "%21", ignoreSize: true, tmux: "/secret/bin/tmux" };
+  const conn = () => ({ sendText() {}, sendBinary() {}, close() {}, bufferedAmount: 0 });
+  const options = () => routes.terminalUpgradeOptions({
+    killDeckSession: async (o: any) => { killed.push(o); return true; },
+    openControl: (o: any) => new FakeControl(o),
+  });
+  const show = (o: ReturnType<typeof options>, binding: object = BINDING) => o.openBridge({ conn: conn(), socket: {}, binding });
+
+  it("is closed once the last panel on it has gone, after a grace, and the session with it is left running", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const o = options();
+      const a = show(o), b = show(o);
+      a.closed(1000, "");
+      vi.advanceTimersByTime(routes.WRAPPER_GRACE_MS * 2);
+      expect(killed, "another panel still shows it").toEqual([]);
+      b.closed(1000, "");
+      vi.advanceTimersByTime(routes.WRAPPER_GRACE_MS - 1);
+      expect(killed).toEqual([]);
+      vi.advanceTimersByTime(1);
+      expect(killed.map(k => [k.name, k.socket, k.tmux])).toEqual([["ccdeck-att-0b9f3c1e", DECK_SOCKET, "/secret/bin/tmux"]]);
+      b.closed(1000, "");
+      vi.advanceTimersByTime(routes.WRAPPER_GRACE_MS * 2);
+      expect(killed, "a socket closed twice is one panel gone").toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is kept for a panel that opens again inside the grace, as a reopen does", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const o = options();
+      show(o).closed(1000, "");
+      vi.advanceTimersByTime(routes.WRAPPER_GRACE_MS / 2);
+      const again = show(o);
+      vi.advanceTimersByTime(routes.WRAPPER_GRACE_MS * 2);
+      expect(killed).toEqual([]);
+      again.closed(1000, "");
+      vi.advanceTimersByTime(routes.WRAPPER_GRACE_MS);
+      expect(killed).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("closes nothing for a pane the deck started or the user's own", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const o = options();
+      show(o, { ...BINDING, kind: "A", target: "ccdeck-claude-0a1b2c3d", ignoreSize: false }).closed(1000, "");
+      show(o, { ...BINDING, kind: "B", target: "%3", socket: { path: "/tmp/tmux-1000/default" } }).closed(1000, "");
+      vi.advanceTimersByTime(60_000);
+      expect(killed).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("ttySize", () => {
+  it("reads nothing that is not a terminal's path", async () => {
+    for (const tty of ["", "pts/3", "/dev/pts/3; rm -rf /", "/dev/../etc/passwd x", null]) {
+      expect(await routes.ttySize(tty as string), String(tty)).toBeNull();
+    }
   });
 });
