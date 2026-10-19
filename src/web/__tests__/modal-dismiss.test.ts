@@ -221,7 +221,7 @@ describe("the modals themselves", () => {
       // #723's share picker, named here for the same reason as the three
       // above: this is how it joins the loop below, not how it leaves it.
       "ShareAccountsDialog.tsx",
-      // Tool activity: the page, and its details as a sheet on phones.
+      // Tool activity: the report, and its details as a sheet on phones.
       "ToolAuditDrawer.tsx", "ToolAuditModal.tsx",
       "ToolModal.tsx", "TrafficRadar.tsx", "UsageHistoryModal.tsx",
     ]);
