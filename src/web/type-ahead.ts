@@ -75,6 +75,15 @@ export function startTypeAhead(now: number): TypeAhead {
   return { text: "", until: now + TYPE_AHEAD_MS };
 }
 
+/** A live hold, as a card that answers its request sees it: keys typed into
+ *  it already (or one it could not send), or none yet. */
+export type HeldKeys = "typed" | "empty";
+
+/** Which, for a hold. */
+export function heldKeys(ahead: TypeAhead): HeldKeys {
+  return ahead.text || ahead.spoiled ? "typed" : "empty";
+}
+
 /** What the hold gives for a delivery: nothing once it is spoiled. */
 export function heldText(ahead: TypeAhead): string {
   return ahead.spoiled ? "" : ahead.text;

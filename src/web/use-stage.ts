@@ -58,7 +58,7 @@ import {
 } from "./stage-shell";
 import { localStore, readStored, removeStored, writeStored } from "./storage";
 import type { LaunchOptions, TerminalProvider } from "./terminal-api";
-import { heldText, holdKey, isPaneInput, startTypeAhead, typesItself, type TypeAhead } from "./type-ahead";
+import { heldKeys, heldText, holdKey, isPaneInput, startTypeAhead, typesItself, type HeldKeys, type TypeAhead } from "./type-ahead";
 import { useAsks, type Asks } from "./use-asks";
 import type { StageShortcuts } from "./use-deck-shortcuts";
 import { useMirroredRef } from "./use-mirrored-ref";
@@ -594,9 +594,9 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   /** The stage's, once it has answered a request for the keys: what was typed
    *  for that request, if any. Any answer to it ends the hold; only a pane
    *  that took the keys is handed the text. */
-  const holdsTypeAhead = useCallback((request: unknown): boolean => {
+  const holdsTypeAhead = useCallback((request: unknown): HeldKeys | null => {
     const hold = aheadRef.current;
-    return !!hold && hold.token === request && Date.now() <= hold.ahead.until;
+    return hold && hold.token === request && Date.now() <= hold.ahead.until ? heldKeys(hold.ahead) : null;
   }, []);
   const takeTypeAhead = useCallback((request: unknown): string => {
     const hold = aheadRef.current;

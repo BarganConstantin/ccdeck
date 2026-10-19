@@ -4,7 +4,7 @@
 // descendant retained focus"), which the hands-on run of the stage logged when
 // a switch held the last frame with the pane's textarea still focused.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import StageBody, { CAUGHT_QUIET_MS, catchKeys, type StageBodyProps } from "../components/terminal/StageBody";
+import StageBody, { CAUGHT_FIRST_MS, CAUGHT_QUIET_MS, catchKeys, type StageBodyProps } from "../components/terminal/StageBody";
 import type { StagePhase } from "../components/terminal/stage-model";
 import { CAUGHT_KEYS_ATTR } from "../shortcuts";
 import { mount } from "./fake-react";
@@ -161,6 +161,29 @@ describe("the control that caught a pane's keys", () => {
     c.fire("blur");
     expect(c.attrs.has(CAUGHT_KEYS_ATTR)).toBe(false);
     expect(c.fire("keyup", " ")).toBe(false);
+  });
+
+  it("lets a press stand once its window is out, and never makes the window longer", () => {
+    // After a card click that typed nothing (a mouse user, say), Enter on
+    // Reopen here waited 1.5 s, and every Enter pressed meanwhile started the
+    // wait again.
+    const b = button();
+    catchKeys(b as unknown as HTMLElement, { typing: false });
+    vi.advanceTimersByTime(CAUGHT_FIRST_MS - 100);
+    expect(b.fire("keydown", "Enter"), "too soon after the card: it may be the sentence's").toBe(true);
+    vi.advanceTimersByTime(100);
+    expect(b.attrs.has(CAUGHT_KEYS_ATTR), "the Enter did not hold it up").toBe(false);
+    expect(b.fire("keydown", "Enter")).toBe(false);
+
+    // Typing keeps it, at the full window from the last key.
+    const c = button();
+    catchKeys(c as unknown as HTMLElement, { typing: false });
+    vi.advanceTimersByTime(CAUGHT_FIRST_MS - 100);
+    c.fire("keydown", "y");
+    vi.advanceTimersByTime(CAUGHT_QUIET_MS - 100);
+    c.fire("keydown", " ");
+    vi.advanceTimersByTime(100);
+    expect(c.attrs.has(CAUGHT_KEYS_ATTR), "measured from the letter, not the Space").toBe(false);
   });
 
   it("marks nothing when the focus does not take", () => {

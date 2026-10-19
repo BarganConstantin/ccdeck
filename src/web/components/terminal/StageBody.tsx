@@ -196,28 +196,38 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
  *  the burst before it answers keys as itself again. Longer than any gap
  *  between two keys of one sentence; shorter than reading the card. */
 export const CAUGHT_QUIET_MS = 1500;
+/** The same before any key, for a press that has typed nothing yet: longer
+ *  than the gap between a click and the first key of a sentence typed straight
+ *  on, shorter than seeing the card and deciding to press it. */
+export const CAUGHT_FIRST_MS = 600;
 
 /**
  * Focus onto `button` for the keys a pane lost mid-typing, marked
  * CAUGHT_KEYS_ATTR while the burst lasts: until it loses the focus, or
- * CAUGHT_QUIET_MS pass with no key. Meanwhile Space and Enter do not press
+ * CAUGHT_QUIET_MS pass with no key (CAUGHT_FIRST_MS when `typing` is false:
+ * nothing typed yet). Meanwhile Space and Enter do not press
  * it, and the stage's letters pass it by (terminal-keys.ts stageKeyIntent).
  * In a sentence Space is the commonest key there is, and a Try again pressed
  * by one unmounted itself and put the rest of the sentence on the body, where
  * the deck's shortcuts run. Marked only if the focus took, so a mark is never
  * left on a control that could not hold it. True if it did.
  */
-export function catchKeys(button: HTMLElement): boolean {
+export function catchKeys(button: HTMLElement, { typing = true }: { typing?: boolean } = {}): boolean {
   button.focus();
   if (document.activeElement !== button) return false;
   let quiet: ReturnType<typeof setTimeout> | null = null;
-  const rearm = () => {
+  const rearm = (ms: number) => {
     if (quiet) clearTimeout(quiet);
-    quiet = setTimeout(release, CAUGHT_QUIET_MS);
+    quiet = setTimeout(release, ms);
   };
-  // Space presses a button on its keyup, Enter on its keydown.
   const onKey = (e: KeyboardEvent) => {
-    if (e.type === "keydown") rearm();
+    const presses = e.key === " " || e.key === "Enter";
+    // The sentence's own keys keep the catch. Space and Enter, the keys that
+    // press it, do not: a deliberate press waits out the window at most, and
+    // pressing again never makes it longer.
+    if (e.type === "keydown" && !presses) rearm(CAUGHT_QUIET_MS);
+    // Space presses a button on its keyup, Enter on its keydown (or the
+    // keypress after it, which a refused keydown never sends).
     if (e.key === " " || (e.key === "Enter" && e.type === "keydown")) e.preventDefault();
   };
   function release() {
@@ -231,7 +241,7 @@ export function catchKeys(button: HTMLElement): boolean {
   button.addEventListener("keydown", onKey);
   button.addEventListener("keyup", onKey);
   button.addEventListener("blur", release);
-  rearm();
+  rearm(typing ? CAUGHT_QUIET_MS : CAUGHT_FIRST_MS);
   return true;
 }
 

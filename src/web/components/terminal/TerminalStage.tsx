@@ -50,6 +50,7 @@ import {
 } from "./stage-model";
 import StageHeader from "./StageHeader";
 import StageBody, { catchKeys, type StageContext } from "./StageBody";
+import type { HeldKeys } from "../../type-ahead";
 import { useFocusRequest } from "./use-focus-request";
 import { tellDesktopKeys } from "../../desktop-keys";
 import { QUIET_RESCAN_MS, quietPage } from "../../quiet-page";
@@ -80,24 +81,26 @@ export function settlesFocus(phase: StagePhase): boolean {
  * under the stage. Focus already in the stage, or that the reader has taken
  * anywhere else, stays where it is, and the request is done either way.
  *
- * `typing`: the request still holds keys typed for the pane (type-ahead.ts),
- * so the reader is mid-sentence, and the control the sentence now lands on
- * catches it (StageBody's catchKeys). Uncaught, its Space or Enter pressed the
- * card's action — Reopen here, or Try again again — and an n took the next
- * ask and typed the rest into another session.
+ * `held`: the request still holds keys for the pane (use-stage.ts
+ * holdsTypeAhead), so the reader may be mid-sentence, and the control the
+ * sentence now lands on catches it (StageBody's catchKeys) — briefly when
+ * nothing was typed yet. Uncaught, its Space or Enter pressed the card's
+ * action — Reopen here, or Try again again — and an n took the next ask and
+ * typed the rest into another session.
  */
-export function landFocus(root: HTMLElement | null, typing = false): boolean {
+export function landFocus(root: HTMLElement | null, held: HeldKeys | null = null): boolean {
   if (!root) return false;
   const active = document.activeElement;
+  const typing = held === "typed";
   if (active && active !== document.body && (root.contains(active) || !active.closest?.(".react-flow"))) {
-    if (typing && root.contains(active) && (active as HTMLElement).tagName === "BUTTON") catchKeys(active as HTMLElement);
+    if (held && root.contains(active) && (active as HTMLElement).tagName === "BUTTON") catchKeys(active as HTMLElement, { typing });
     return true;
   }
   const target = root.querySelector<HTMLElement>("[data-stage-land]")
     ?? root.querySelector<HTMLElement>(".ts-head button[aria-pressed]")
     ?? root.querySelector<HTMLElement>(".ts-head button[data-stage-close]");
   if (!target) return false;
-  if (typing) catchKeys(target);
+  if (held) catchKeys(target, { typing });
   else target.focus();
   return true;
 }
@@ -147,8 +150,9 @@ export interface TerminalStageProps {
   /** What was typed for a request before the pane could take it, handed over
    *  once and ended by any answer to that request (use-stage.ts). */
   takeTypeAhead?(request: number | string | null | undefined): string;
-  /** Whether keys typed for this request are still held (use-stage.ts). */
-  holdsTypeAhead?(request: number | string | null | undefined): boolean;
+  /** Whether keys for this request are still held, and any typed yet
+   *  (use-stage.ts). */
+  holdsTypeAhead?(request: number | string | null | undefined): HeldKeys | null;
   /** Asks for the keys as a card click does: Try again, Check again and
    *  Attach again ask for the session's pane, so the keys go into it once it
    *  is back. A card that answers instead puts them on its own action. */
@@ -297,7 +301,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       const ahead = p.takeTypeAhead?.(request);
       if (ahead) session.type(ahead);
     },
-    settled: current && settlesFocus(phase), land: request => landFocus(rootRef.current, p.holdsTypeAhead?.(request) === true),
+    settled: current && settlesFocus(phase), land: request => landFocus(rootRef.current, p.holdsTypeAhead?.(request) ?? null),
     unmet: request => { p.takeTypeAhead?.(request); },
   });
 

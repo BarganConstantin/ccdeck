@@ -460,7 +460,7 @@ describe("asking for the session again from the stage", () => {
     // the focus plainly, and the rest of the sentence pressed it or took the
     // next ask (landFocus's own rule is stage-focus-landing.test.ts's).
     const stage = web("components/terminal/TerminalStage.tsx");
-    expect(stage).toContain("land: request => landFocus(rootRef.current, p.holdsTypeAhead?.(request) === true),");
+    expect(stage).toContain("land: request => landFocus(rootRef.current, p.holdsTypeAhead?.(request) ?? null),");
     expect(web("components/terminal/StageShell.tsx")).toContain("holdsTypeAhead={stage.holdsTypeAhead}");
   });
 });
