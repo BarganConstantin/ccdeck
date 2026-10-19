@@ -5,15 +5,17 @@ export function auditQuery(params) {
   const provider = params.get('provider') ?? 'all';
   const days = Number(params.get('days') ?? 7);
   const operation = params.get('operation') ?? undefined;
+  const view = params.get('view') ?? 'tools', skill = params.get('skill') ?? undefined;
   const since = params.get('since'), until = params.get('until');
   const history = params.get('history');
   let timeZone = params.get('timeZone') ?? 'UTC';
-  if (history !== null && history !== '1' || history && !operation || timeZone.length > 80) return null;
+  if (!['tools', 'skills'].includes(view) || (view === 'skills' ? operation : skill) !== undefined) return null;
+  if (history !== null && history !== '1' || history && !operation && !skill || timeZone.length > 80) return null;
   try { timeZone = new Intl.DateTimeFormat('en', { timeZone }).resolvedOptions().timeZone; } catch { return null; }
   if (!['all', 'claude', 'codex'].includes(provider) || ![1, 7, 30, 60, 90].includes(days)
-      || operation && operation.length > 150 || !!since !== !!until) return null;
+      || operation && operation.length > 150 || skill !== undefined && !/^[^\s<>]{1,150}$/.test(skill) || !!since !== !!until) return null;
   if (since && (!calendarDate(since) || !calendarDate(until) || since > until || Date.parse(until) - Date.parse(since) >= 90 * 86400000)) return null;
-  return { provider, days, operation, ...(history ? { history: true, timeZone } : {}), ...(since ? { since: Date.parse(since), until: Date.parse(until) + 86400000 - 1 } : {}) };
+  return { provider, days, ...(view === 'skills' ? { view, skill } : { operation }), ...(history ? { history: true, timeZone } : {}), ...(since ? { since: Date.parse(since), until: Date.parse(until) + 86400000 - 1 } : {}) };
 }
 export async function handleToolAudit(req, res) {
   const audit = toolAudit();
