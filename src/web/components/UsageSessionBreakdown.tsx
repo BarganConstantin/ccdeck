@@ -150,7 +150,7 @@ export default function UsageSessionBreakdown({
                 title={s.label ? `${s.label}\n${s.sessionId}` : s.sessionId}
               >{s.label ?? idTail(s.sessionId, 8)}</span>
               <span className="up-session-tokens">{fmtTokens(s.tokens)}</span>
-              {s.cost > 0
+              {s.cost > 0 || s.priced
                 ? <span className="up-session-cost" title={s.models.join(", ") || undefined}>{fmtCost(s.cost)}</span>
                 : <span className="up-session-cost up-unpriced">{UNPRICED_LABEL}</span>}
             </SessionRow>
@@ -176,7 +176,7 @@ export default function UsageSessionBreakdown({
                 dollars are real, they are just not all of them, and a
                 floor presented as a total is the one thing this panel
                 must not print without saying so. */}
-            {s.cost > 0
+            {s.cost > 0 || s.priced
               ? (
                 <span
                   className="up-session-cost"

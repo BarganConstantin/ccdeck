@@ -9,7 +9,10 @@ import { accountKey } from "../../server/lan-sync.mjs";
 // @ts-expect-error server module
 import { codexCostState, foldCodexCost, codexCostBuckets } from "../../server/codex-cost-usage.mjs";
 import { usageByModelFromWire } from "../usage-wire";
-import { boardModelTable } from "../board-usage";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import UsageSessionBreakdown from "../components/UsageSessionBreakdown";
+import { boardModelTable, boardSessionTable } from "../board-usage";
 import { agentCost, agentUnpricedTokens } from "../usage-models";
 
 const dirs: string[] = [];
@@ -84,6 +87,10 @@ describe("account cost audit", () => {
     expect(agentUnpricedTokens(agent)).toBe(0);
     expect(usageByModel!["codex-auto-review"].inputTokens).toBe(1000);
     expect(boardModelTable([agent])[0].priced).toBe(true);
+    const sessions = boardSessionTable([{ ...agent, kind: "root", sessionId: "free", state: "active" }]);
+    expect(sessions[0]).toMatchObject({ cost: 0, priced: true, unpricedTokens: 0 });
+    const html = renderToStaticMarkup(createElement(UsageSessionBreakdown, { fromRange: false, rangeSessionRows: [], boardSessionRows: sessions, boardStates: new Map(), sessionsOpen: true, setSessionsOpen: () => {}, periodNoun: "today", sessionScale: { kind: "exact", sum: 0, total: 0 } }));
+    expect(html).not.toContain("not priced");
     const unknown = { ...agent, usageByModel: undefined };
     expect(boardModelTable([agent, unknown])[0].priced).toBe(false);
     expect(boardModelTable([unknown, agent])[0].priced).toBe(false);
