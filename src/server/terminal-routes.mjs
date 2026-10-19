@@ -36,8 +36,8 @@ import { terminalOn } from "./deck-prefs.mjs";
 import { readBody, send } from "./http-io.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import {
-  AGENTS, checkCwd, findDeckSession, killDeckSession, labelDeckSession, launchSession, listDeckSessions,
-  pruneDeadDeckSessions, resolveAgentBin,
+  AGENTS, checkCwd, findDeckSession, findLaunchedSession, isLaunchKey, killDeckSession, labelDeckSession, launchSession,
+  listDeckSessions, pruneDeadDeckSessions, resolveAgentBin,
 } from "./terminal-sessions.mjs";
 import { createTicketStore, terminalBridge } from "./terminal-socket.mjs";
 import { checkTargetQuery, describeTarget, resolveTarget } from "./terminal-target.mjs";
@@ -64,7 +64,7 @@ const ATTACH_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
  *  400; the machine not having what it takes is a 409, a state the panel can
  *  say; tmux failing in a way it did not explain is the deck's 500. */
 const SESSION_STATUS = Object.freeze({
-  "bad-agent": 400, "bad-kind": 400, "bad-cwd": 400, "bad-session-id": 400, "bad-argv": 400, "bad-name": 400, "bad-options": 400,
+  "bad-agent": 400, "bad-kind": 400, "bad-cwd": 400, "bad-session-id": 400, "bad-argv": 400, "bad-name": 400, "bad-options": 400, "bad-launch-key": 400,
   "agent-missing": 409, "tmux-unavailable": 409, "exists": 409,
   "tmux-failed": 500,
 });
@@ -78,6 +78,9 @@ const TICKETS = createTicketStore();
 // agents on one conversation, and resolveTarget cannot see the first one
 // until its tmux session exists.
 const adopting = new Set();
+
+// Launches starting right now, by the page's key for them (launchOnce).
+const launching = new Map();
 
 /** How often the deck clears old dead sessions off its server, at most: on
  *  the first status or launch after this long. Dead panes pile up over days,
@@ -318,7 +321,8 @@ export async function handleTerminalAdopt(req, res, options) {
  * POST /api/terminal/launch `{ agent, cwd }` → `{ ok: true, sessionId, name,
  * ticket }`: a new Claude or Codex in a deck-owned tmux session, and a ticket
  * to attach to it. `sessionId` is the id the new Claude was told to use, or ""
- * for Codex, which chooses its own once it starts writing.
+ * for Codex, which chooses its own once it starts writing. An optional `key`,
+ * the page's name for this launch, makes asking again safe (launchOnce).
  */
 export async function handleTerminalLaunch(req, res, options) {
   const d = terminalDeps(options);
@@ -327,6 +331,9 @@ export async function handleTerminalLaunch(req, res, options) {
   if (!body) return send(res, 400, { ok: false, error: "The request did not say what to start." });
   if (!AGENTS.includes(body.agent)) {
     return send(res, 400, { ok: false, error: "The deck can start Claude or Codex sessions only." });
+  }
+  if (body.key !== undefined && !isLaunchKey(body.key)) {
+    return send(res, 400, { ok: false, error: "The launch's key is not one the deck can keep." });
   }
   try {
     // The folder before tmux: "that folder does not exist" is the answer a
@@ -337,7 +344,8 @@ export async function handleTerminalLaunch(req, res, options) {
       const said = describeTarget({ kind: "unsupported", reason: tmux?.reason || "missing", install: tmux?.install });
       return send(res, 409, { ok: false, error: said.label, ...(said.install ? { install: said.install } : {}) });
     }
-    const started = await d.launchSession({
+    const key = body.key ?? "";
+    const started = await launchOnce(d, tmux, key, () => d.launchSession({
       tmux, agent: body.agent, cwd: body.cwd, socket: d.deckSocket, env: d.env, platform: d.platform,
       // The panel's size, so the agent draws its first screen at the size it
       // is shown at. Started at the fallback instead, Claude Code drew its
@@ -349,13 +357,40 @@ export async function handleTerminalLaunch(req, res, options) {
       // its first frame is told the deck's (terminal-sessions.mjs).
       colours: body.colours ?? null,
       options: body.options ?? null,
-    });
+      ...(key ? { launchKey: key } : {}),
+    }));
     const ticket = mint(d, req, tmux, { kind: "A", socket: d.deckSocket, target: started.name, pane: started.pane, ignoreSize: false });
     maybePrune(d, tmux);
     return send(res, 200, { ok: true, sessionId: started.sessionId ?? "", name: started.name, ticket });
   } catch (err) {
     return sessionFailure(res, err);
   }
+}
+
+/**
+ * What a launch named `key` started, starting it with `start` only if nothing
+ * has yet. A launch whose answer never reached the page — the deck restarting
+ * under it, a connection dropped — leaves an agent running behind an error,
+ * and Try again asks with the same key: started again, a second agent opened
+ * in the same folder. The key is on the session's labels, so a restarted deck
+ * finds it there; a launch still on its way here is waited for, since tmux
+ * may not have labelled its session yet. No key, no lookup: every launch new.
+ */
+async function launchOnce(d, tmux, key, start) {
+  if (!key) return start();
+  let list = [];
+  try { list = await d.listDeckSessions({ tmux, socket: d.deckSocket, env: d.env }); } catch { /* the launch says what is wrong */ }
+  const found = findLaunchedSession(list, key);
+  if (found) return { name: found.name, sessionId: found.sessionId, pane: found.pane };
+  // After the listing, not before: one started while it was being read is
+  // not in it.
+  const running = launching.get(key);
+  if (running) return running;
+  const started = start();
+  launching.set(key, started);
+  const done = () => { if (launching.get(key) === started) launching.delete(key); };
+  started.then(done, done);
+  return started;
 }
 
 // ---------------------------------------------------------------------------

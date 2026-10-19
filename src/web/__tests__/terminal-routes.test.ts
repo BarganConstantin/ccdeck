@@ -566,6 +566,62 @@ describe("POST /api/terminal/launch", () => {
     expect(got.body.sessionId).toBe("");
   });
 
+  it("starts a launch asked again by its key once: the second ask reaches the agent the first started", async () => {
+    // The deck restarted under a launch, so its answer never reached the
+    // page, and Try again asked again: a second Codex in the same folder.
+    const first = await ask("POST", "/api/terminal/launch", { agent: "codex", cwd: PROJECT, key: "launch-mgx1-1-k2v9q0" });
+    expect(first.status).toBe(200);
+    expect(launches[0].launchKey, "kept on the session it starts").toBe("launch-mgx1-1-k2v9q0");
+    listed = [
+      { name: "ccdeck-codex-0d0d0d0d", sessionId: "", kind: "launch", launchKey: "", pane: "%39", dead: false, created: 1 },
+      { name: "ccdeck-claude-feedf00d", sessionId: "", kind: "launch", launchKey: "launch-mgx1-1-k2v9q0", pane: "%40", dead: false, created: 2 },
+    ];
+    const again = await ask("POST", "/api/terminal/launch", { agent: "codex", cwd: PROJECT, key: "launch-mgx1-1-k2v9q0" });
+    expect(again.status).toBe(200);
+    expect(again.body).toMatchObject({ ok: true, sessionId: "", name: "ccdeck-claude-feedf00d" });
+    expect(launches, "nothing started the second time").toHaveLength(1);
+    expect(again.body.ticket, "a ticket of its own").not.toBe(first.body.ticket);
+    expect(tickets.redeem(again.body.ticket)).toMatchObject({ kind: "A", target: "ccdeck-claude-feedf00d", pane: "%40" });
+
+    const other = await ask("POST", "/api/terminal/launch", { agent: "codex", cwd: PROJECT, key: "launch-mgx1-2-p4r7s1" });
+    expect(other.status).toBe(200);
+    expect(launches, "another key is another launch").toHaveLength(2);
+    await ask("POST", "/api/terminal/launch", { agent: "codex", cwd: PROJECT });
+    expect(launches, "and no key, every launch new").toHaveLength(3);
+    expect(launches[2].launchKey).toBeUndefined();
+  });
+
+  it("starts one agent for a launch asked again while the first ask is still on its way", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(r => { release = r; });
+    launchImpl = async () => { await gate; return { name: "ccdeck-codex-feedf00d", sessionId: "", pane: "%41" }; };
+    const body = { agent: "codex", cwd: PROJECT, key: "launch-mgx1-3-a1b2c3" };
+    const first = ask("POST", "/api/terminal/launch", body);
+    await new Promise(r => setTimeout(r, 50));
+    const second = ask("POST", "/api/terminal/launch", body);
+    await new Promise(r => setTimeout(r, 50));
+    release();
+    const [a, b] = await Promise.all([first, second]);
+    expect([a.status, b.status]).toEqual([200, 200]);
+    expect(b.body.name).toBe(a.body.name);
+    expect(launches).toHaveLength(1);
+
+    // A launch that failed is not kept: asked again, it is tried again.
+    launchImpl = async () => { throw new TerminalSessionError("agent-missing", "Codex is not installed on this machine."); };
+    expect((await ask("POST", "/api/terminal/launch", { ...body, key: "launch-mgx1-4-d4e5f6" })).status).toBe(409);
+    launchImpl = async () => ({ name: "ccdeck-codex-0a0a0a0a", sessionId: "", pane: "%42" });
+    expect((await ask("POST", "/api/terminal/launch", { ...body, key: "launch-mgx1-4-d4e5f6" })).body.name).toBe("ccdeck-codex-0a0a0a0a");
+  });
+
+  it("refuses a key it could not keep on a session, before starting anything", async () => {
+    for (const key of ["", "a b", "a;kill-server", "#{pane_id}", 7, null]) {
+      const got = await ask("POST", "/api/terminal/launch", { agent: "codex", cwd: PROJECT, key });
+      expect(got.status, String(key)).toBe(400);
+      expect(got.body.error).toBe("The launch's key is not one the deck can keep.");
+    }
+    expect(launches).toEqual([]);
+  });
+
   it("refuses an agent it does not start, and a folder that is not one, with a sentence and no path", async () => {
     const agent = await ask("POST", "/api/terminal/launch", { agent: "bash", cwd: PROJECT });
     expect(agent.status).toBe(400);

@@ -265,12 +265,14 @@ export function adoptTerminal(ref: SessionRef, options: ApiOptions = {}, size?: 
 }
 
 /** Start a new agent in `cwd`, inside a deck-owned tmux session, and get a
- *  ticket to attach to it. */
+ *  ticket to attach to it. `key` names the launch, so asking again after an
+ *  answer that never came reaches the agent it started instead of a second. */
 export function launchTerminal(
-  { agent, cwd, size, launch, colours }: { agent: TerminalProvider; cwd: string; size?: PaneSize; launch?: LaunchOptions; colours?: PaneColours },
+  { agent, cwd, size, launch, colours, key }: { agent: TerminalProvider; cwd: string; size?: PaneSize; launch?: LaunchOptions; colours?: PaneColours; key?: string },
   options: ApiOptions = {},
 ): Promise<Launched | ApiFailure> {
   const extra = {
+    ...(key ? { key } : {}),
     ...(size ? { cols: size.cols, rows: size.rows } : {}),
     ...(launch && Object.keys(launch).length ? { options: launch } : {}),
     ...(colours ? { colours } : {}),

@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
   AGENTS, DEAD_KEEP, KINDS, LAUNCH_MODELS, PANE_HISTORY, paneTerm, LAUNCH_PERMISSION_MODES, SESSION_OPTIONS, TerminalSessionError, agentArgv, launchOptionArgs, checkCwd, clampSize, deadDeckSessions,
-  deckSessionName, findDeckSession, isDeckSessionName, killDeckSession, labelDeckSession, launchCommand, launchSession, paneColours,
+  deckSessionName, findDeckSession, findLaunchedSession, isDeckSessionName, isLaunchKey, killDeckSession, labelDeckSession, launchCommand, launchSession, paneColours,
   listDeckSessions, parseDeckPanes, pruneDeadDeckSessions, resolveAgentBin, staleDeadSessions,
 } from "../../server/terminal-sessions.mjs";
 // @ts-expect-error — plain .mjs server module, no types
@@ -248,10 +248,21 @@ describe("the tmux command that makes a deck session", () => {
     expect(paneTerm({ env: {}, home: "/h", exists: () => false }), "macOS's own terminfo has no tmux entry").toBe("screen-256color");
   });
 
-  it("labels with the four options the listing reads back", () => {
+  it("labels with the five options the listing reads back", () => {
     expect(SESSION_OPTIONS).toEqual({
-      session: "@ccdeck-session", agent: "@ccdeck-agent", kind: "@ccdeck-kind", cwd: "@ccdeck-cwd",
+      session: "@ccdeck-session", agent: "@ccdeck-agent", kind: "@ccdeck-kind", cwd: "@ccdeck-cwd", launch: "@ccdeck-launch",
     });
+  });
+
+  it("keeps the page's name for a launch on the session, when the page gave one", () => {
+    const base = { name: "ccdeck-codex-0123abcd", cwd: "/w", cols: 80, rows: 24, argv: ["/x/codex"], sessionId: "", agent: "codex", kind: "launch" };
+    const args = launchCommand({ ...base, launchKey: "launch-mgx1-3-k2v9q0" });
+    const at = args.indexOf("@ccdeck-launch");
+    expect(args.slice(at - 4, at + 2)).toEqual([";", "set-option", "-t", "=ccdeck-codex-0123abcd:", "@ccdeck-launch", "launch-mgx1-3-k2v9q0"]);
+    expect(at, "after new-session, in its sequence").toBeGreaterThan(args.indexOf("new-session"));
+    expect(launchCommand(base)).not.toContain("@ccdeck-launch");
+    expect(isLaunchKey("launch-mgx1-3-k2v9q0")).toBe(true);
+    for (const bad of ["", "a b", "a;kill-server", "#{pane_id}", "x".repeat(97), 7, null]) expect(isLaunchKey(bad), String(bad)).toBe(false);
   });
 
   it("hands a one-word command to /bin/sh's exec, never to the user's shell", () => {
@@ -389,20 +400,20 @@ const line = (...cols: (string | number)[]) => cols.join("\t");
 describe("reading the deck's sessions back out of tmux", () => {
   it("is one entry per deck session, with its labels, its pane and whether it is still alive", () => {
     const listing = [
-      line("ccdeck-claude-0123abcd", "%0", 4242, 0, "", 1791441852, 120, 40, ID, "claude", "launch", "/home/me/proiect școală"),
-      line("ccdeck-codex-89abcdef", "%3", 4300, 1, 3, 1791441900, 80, 24, "", "codex", "launch", "/w/tab\there"),
-      line("ccdeck-claude-0123abcd", "%7", 5000, 0, "", 1791441852, 60, 40, ID, "claude", "launch", "/split/by/hand"),
-      line("my-own-session", "%5", 1, 0, "", 1, 80, 24, "", "", "", ""),
+      line("ccdeck-claude-0123abcd", "%0", 4242, 0, "", 1791441852, 120, 40, ID, "claude", "launch", "", "/home/me/proiect școală"),
+      line("ccdeck-codex-89abcdef", "%3", 4300, 1, 3, 1791441900, 80, 24, "", "codex", "launch", "launch-k1", "/w/tab\there"),
+      line("ccdeck-claude-0123abcd", "%7", 5000, 0, "", 1791441852, 60, 40, ID, "claude", "launch", "", "/split/by/hand"),
+      line("my-own-session", "%5", 1, 0, "", 1, 80, 24, "", "", "", "", ""),
       "garbage",
       "",
     ].join("\n");
     expect(parseDeckPanes(listing)).toEqual([
       {
-        name: "ccdeck-claude-0123abcd", sessionId: ID, agent: "claude", kind: "launch", cwd: "/home/me/proiect școală",
+        name: "ccdeck-claude-0123abcd", sessionId: ID, agent: "claude", kind: "launch", launchKey: "", cwd: "/home/me/proiect școală",
         pane: "%0", panePid: 4242, dead: false, exitStatus: null, created: 1791441852000, cols: 120, rows: 40,
       },
       {
-        name: "ccdeck-codex-89abcdef", sessionId: "", agent: "codex", kind: "launch", cwd: "/w/tab\there",
+        name: "ccdeck-codex-89abcdef", sessionId: "", agent: "codex", kind: "launch", launchKey: "launch-k1", cwd: "/w/tab\there",
         pane: "%3", panePid: 4300, dead: true, exitStatus: 3, created: 1791441900000, cols: 80, rows: 24,
       },
     ]);
@@ -421,13 +432,13 @@ describe("reading the deck's sessions back out of tmux", () => {
   });
 
   it("asks for exactly the columns it parses", async () => {
-    const tmux = fakeTmux({ ok: true, stdout: `${line("ccdeck-att-5f0c2a9e", "%2", 77, 0, "", 10, 90, 30, ID, "claude", "attach", "/p")}\n` });
+    const tmux = fakeTmux({ ok: true, stdout: `${line("ccdeck-att-5f0c2a9e", "%2", 77, 0, "", 10, 90, 30, ID, "claude", "attach", "", "/p")}\n` });
     const [s] = await listDeckSessions({ tmux: "t", run: tmux.run });
     expect(s).toMatchObject({ name: "ccdeck-att-5f0c2a9e", kind: "attach", panePid: 77, cols: 90, rows: 30, cwd: "/p" });
     expect(tmux.calls[0].args[3].split("\t")).toEqual([
       "#{session_name}", "#{pane_id}", "#{pane_pid}", "#{pane_dead}", "#{pane_dead_status}",
       "#{session_created}", "#{pane_width}", "#{pane_height}",
-      "#{@ccdeck-session}", "#{@ccdeck-agent}", "#{@ccdeck-kind}", "#{@ccdeck-cwd}",
+      "#{@ccdeck-session}", "#{@ccdeck-agent}", "#{@ccdeck-kind}", "#{@ccdeck-launch}", "#{@ccdeck-cwd}",
     ]);
   });
 });
@@ -458,6 +469,14 @@ describe("finding a session's deck pane", () => {
     expect(findDeckSession(list, ID2)).toBeNull();
     expect(findDeckSession(list, "")).toBeNull();
     expect(findDeckSession([], ID)).toBeNull();
+  });
+
+  it("finds a launch by the page's name for it, and never a session no launch named", () => {
+    const named = [{ ...list[4], launchKey: "launch-k1" }, ...list.map(x => ({ ...x, launchKey: "" }))];
+    expect(findLaunchedSession(named, "launch-k1")?.name).toBe("ccdeck-codex-00000004");
+    expect(findLaunchedSession(named, "launch-k2")).toBeNull();
+    expect(findLaunchedSession(named, ""), "the label an unnamed launch has").toBeNull();
+    expect(findLaunchedSession(undefined, "launch-k1")).toBeNull();
   });
 });
 

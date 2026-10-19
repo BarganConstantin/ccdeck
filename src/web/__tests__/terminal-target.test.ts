@@ -900,7 +900,7 @@ describe("wired to the tmux modules by default", () => {
       "#!/bin/sh",
       `echo "$*" >> '${log}'`,
       'case "$2" in',
-      `  -L) [ "$3" = ccdeck ] && printf 'ccdeck-claude-0a1b2c3d\\t%%4\\t900\\t0\\t\\t1791440000\\t120\\t40\\t${ID}\\tclaude\\tlaunch\\t${CWD}\\n'; exit 0 ;;`,
+      `  -L) [ "$3" = ccdeck ] && printf 'ccdeck-claude-0a1b2c3d\\t%%4\\t900\\t0\\t\\t1791440000\\t120\\t40\\t${ID}\\tclaude\\tlaunch\\t\\t${CWD}\\n'; exit 0 ;;`,
       "  -S) printf '%%3\\t6001\\t0\\t/dev/pts/7\\t/tmp/tmux-1000/default\\twork\\n'; exit 0 ;;",
       "esac",
       "exit 1",

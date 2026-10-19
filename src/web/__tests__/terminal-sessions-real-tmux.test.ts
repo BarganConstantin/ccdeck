@@ -28,11 +28,11 @@ import { rmTempDir } from "./rm-temp-dir";
 // @ts-expect-error — plain .mjs server module, no types
 import { findTmux, resetTmuxCache, runTmux } from "../../server/tmux.mjs";
 import {
-  findDeckSession, killDeckSession, labelDeckSession, launchSession, listDeckSessions, pruneDeadDeckSessions,
+  findDeckSession, findLaunchedSession, killDeckSession, labelDeckSession, launchSession, listDeckSessions, pruneDeadDeckSessions,
 } from "../../server/terminal-sessions.mjs";
 
 type Found = { ok: boolean; path?: string; reason?: string; install?: string };
-type Deck = { name: string; sessionId: string; agent: string; kind: string; cwd: string; pane: string; panePid: number; dead: boolean; exitStatus: number | null; created: number; cols: number; rows: number };
+type Deck = { name: string; sessionId: string; agent: string; kind: string; launchKey: string; cwd: string; pane: string; panePid: number; dead: boolean; exitStatus: number | null; created: number; cols: number; rows: number };
 
 let found: Found = { ok: false };
 const SANDBOX = mkdtempSync(join(tmpdir(), "cct-"));
@@ -197,6 +197,18 @@ describe("a deck session on a real tmux", () => {
     expect(findDeckSession(await listDeckSessions(opts()), id)?.name).toBe(s.name);
     await killDeckSession({ ...opts(), name: s.name });
     expect(await labelDeckSession({ ...opts(), name: s.name, sessionId: id }), "gone meanwhile is an answer, not an error").toBe(false);
+  });
+
+  it("keeps the page's name for a launch, so the listing finds that launch again", async () => {
+    if (!found.ok) return expectNoTmux();
+    const key = `launch-${randomBytes(4).toString("hex")}`;
+    const s = await launchSession({ ...opts(), agent: "codex", cwd: PROJECT, argv: ["cat"], launchKey: key });
+    const plain = await launchSession({ ...opts(), agent: "codex", cwd: PROJECT, argv: ["cat"] });
+    const list = await listDeckSessions(opts());
+    expect(findLaunchedSession(list, key)).toMatchObject({ name: s.name, pane: s.pane, launchKey: key, cwd: PROJECT });
+    expect(list.find(x => x.name === plain.name)?.launchKey, "a launch no page named").toBe("");
+    await killDeckSession({ ...opts(), name: s.name });
+    await killDeckSession({ ...opts(), name: plain.name });
   });
 
   it("closes a session it started, and says so when it is already gone", async () => {
