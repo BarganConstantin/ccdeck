@@ -53,8 +53,9 @@ describe("the deck's modals", () => {
     // The twenty-fourth is Settings, behind the gear and Cmd/Ctrl+,. The
     // Appearance modal it replaced was never counted here: its backdrop wore
     // two classes, which the sweep's one-class pattern does not match.
-    // The twenty-eighth and twenty-ninth are Tool activity: the page itself,
-    // and its details as a sheet on phones.
+    // The twenty-eighth and twenty-ninth are Tool activity: the report, on the
+    // shared scrim alone since it stopped being a page, and its details as a
+    // sheet on phones.
     expect(MODALS.length).toBe(29);
   });
 

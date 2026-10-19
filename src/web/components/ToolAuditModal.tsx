@@ -42,7 +42,8 @@ export default function ToolAuditModal({ onClose, sessionLabel, onOpenSession }:
   const [skillStatus, setSkillStatus] = useState<ReportStatus>({ loading: true, detailLoading: false, capturedAt: null, hasData: false });
   const [sort, setSort] = useState<ToolSort>('calls');
   const [search, setSearch] = useState('');
-  const currentOrder = useRef({ sort, search }); currentOrder.current = { sort, search };
+  const sortRef = useRef(sort); sortRef.current = sort;
+  const searchRef = useRef(search); searchRef.current = search;
   const [showAll, setShowAll] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const initialSelectionMade = useRef(false);
@@ -90,7 +91,7 @@ export default function ToolAuditModal({ onClose, sessionLabel, onOpenSession }:
         const reply = await readAuditReport(query, controller.signal);
         if (live) {
           loadedQuery.current = query; setData(reply);
-          const first = !initialSelectionMade.current && sortTools(reply.rows, currentOrder.current.sort, currentOrder.current.search)[0];
+          const first = !initialSelectionMade.current && sortTools(reply.rows, sortRef.current, searchRef.current)[0];
           if (first) { initialSelectionMade.current = true; setSelected(first.operation); }
           else if (selectedRef.current && !reply.rows.some(row => row.operation === selectedRef.current)) setSelected(null);
         }
@@ -154,7 +155,7 @@ export default function ToolAuditModal({ onClose, sessionLabel, onOpenSession }:
     <div className="uh-range" role="group" aria-label="Agent">{providers.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={provider === item.id} onClick={() => setProvider(item.id)}>{item.label}</button>)}</div>
   </div>;
 
-  return createPortal(<div className="modal-backdrop ta-report-backdrop" role="presentation" {...scrimPress}>
+  return createPortal(<div className="modal-backdrop" role="presentation" {...scrimPress}>
     <div className="modal ta-report" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title">
       <header className="ta-report-header">
         <h2 id="tool-audit-title">Tool activity</h2>

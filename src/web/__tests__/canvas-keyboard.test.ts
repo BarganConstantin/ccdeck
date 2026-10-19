@@ -376,7 +376,9 @@ describe("nothing else in the deck invents a focus stop", () => {
     // Radio results is a focusable tabpanel, allowing keyboard scrolling.
     // Tool activity's details splitter is the ARIA window splitter: a focusable
     // separator whose value is the panel's width, moved with the arrow keys.
-    expect(offenders).toEqual(["components/RadioMap.tsx", "components/RadioPanel.tsx", "components/ToolAuditSplitter.tsx"]);
+    // Radar's activity list splitter is the same widget, its value the list's
+    // share of the workspace.
+    expect(offenders).toEqual(["components/RadarSplitter.tsx", "components/RadioMap.tsx", "components/RadioPanel.tsx", "components/ToolAuditSplitter.tsx"]);
     expect(code(readFileSync(`${web}components/RadioPanel.tsx`, "utf8"))).toMatch(/role="tabpanel"[^>]*tabIndex=\{0\}/);
     const map = code(readFileSync(`${web}components/RadioMap.tsx`, "utf8"));
     expect(map).toContain("tabIndex={0}");

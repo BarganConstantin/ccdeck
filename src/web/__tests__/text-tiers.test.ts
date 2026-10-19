@@ -306,6 +306,29 @@ describe("what was migrated to the secondary tier", () => {
       ".ta-note",
       ".ta-search input::placeholder",
       ".ta-summary",
+      // The local reads' waits — Projects, session usage, usage history, and
+      // quota, process and sensor history: the one sentence under each title
+      // that says what is being read, and that the first run may download
+      // ccusage. Read once while waiting, as .bw-loading p is. Their drawings
+      // are decoration and sit on --muted.
+      ".ap-proj-loading > span",
+      ".read-activity > span",
+      ".su-loading > span",
+      ".uh-reading-hint",
+      ".uh-reading-note",
+      // Radar's telemetry inspection adds more of the same utility labels: the
+      // highlight and evidence terms, the project context's heading, the prompt
+      // filter, the JSON search and its placeholder on --ctl-fill, the JSON
+      // tree's controls, and the history toolbar's line and buttons.
+      ".tr-content-evidence dt",
+      ".tr-highlights dt",
+      ".tr-history-toolbar .btn",
+      ".tr-history-toolbar .tr-history",
+      ".tr-json-search",
+      ".tr-json-search input::placeholder",
+      ".tr-json-tree .jer-collapse-icon, .tr-json-tree .jer-copy-pulse",
+      ".tr-project-context h4",
+      ".tr-prompt-filter",
       ".tr-active-destinations > span",
       ".tr-event-top time",
       ".tr-history",

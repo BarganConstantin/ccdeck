@@ -719,7 +719,7 @@
 
 /* Initial report read: explain grouping work into projects, not fake totals. */
 .ap-proj-loading { min-height: 176px; padding: 12px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; }
-.ap-proj-loading-art { width: 210px; height: 98px; max-width: 100%; color: var(--text-secondary); margin-bottom: 4px; }
+.ap-proj-loading-art { width: 210px; height: 98px; max-width: 100%; color: var(--muted); margin-bottom: 4px; }
 .ap-proj-loading strong { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .ap-proj-loading > span { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
 .ap-proj-loading-links { stroke: var(--line); }

@@ -1,7 +1,6 @@
 /* Tool activity: a large modal that answers four questions in order — how much,
    what is worth a look, which tools, and what one tool did. The report and the
    details panel sit side by side; only a phone's details are a sheet. */
-.ta-report-backdrop { z-index: 1000; }
 .modal.ta-report { width: 90vw; height: 90dvh; max-height: 90dvh; min-width: 0; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; color: var(--text); background: var(--bg); font-size: calc(13px + var(--ui-text-increase, 0px)); }
 .ta-report-header { min-height: 56px; padding: 8px 24px; box-sizing: border-box; display: flex; align-items: center; gap: 24px; border-bottom: 1px solid var(--line); background: var(--panel); flex: none; }
 .ta-report-header h2 { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; }
