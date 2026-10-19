@@ -1,6 +1,6 @@
 // The fold between the board and its navigator is a FLIP on one timer clock
 // (DESIGN-UI decision 1): each tile is laid out where it belongs and drawn, for
-// 220ms opening or 180ms closing on the house ease-out, as if it started where
+// 280ms opening or 200ms closing on a soft-start deceleration, as if it started where
 // its cluster stood on the board. The prototype ran every frame off one clock
 // because its headless Chromium stalled animation promises, and the stage's
 // own morph rides the same beat — so the clock, the curve and the frames are
@@ -13,9 +13,9 @@
 // motion it is one frame, the end state.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  BOARD_OUT_BY, FLIP_CLOSE_MS, FLIP_EASE, FLIP_OPEN_MS, FLIP_TILE_LIMIT, WORDS_IN_FROM,
-  clusterScreenRects, cubicBezier, easeOut, flipFrame, parseViewportTransform, planFlip, ramp, runFlip, runTween,
-  type FlipFrame, type FlipRect,
+  BOARD_OUT_BY, FLIP_CLOSE_MS, FLIP_EASE, FLIP_OPEN_MS, FLIP_TILE_LIMIT, FRAME_MS, MAX_FRAME_STEP_MS, WORDS_IN_FROM,
+  clusterScreenRects, cubicBezier, easeOut, flipFrame, frameClock, parseViewportTransform, planFlip, ramp, runFlip, runTween,
+  type FlipClock, type FlipFrame, type FlipRect,
 } from "../navigator-flip";
 
 const BOARD: FlipRect = { x: 600, y: 300, w: 640, h: 400 };
@@ -59,7 +59,7 @@ describe("the curve", () => {
     }
   });
 
-  it("is the sheet's cubic-bezier(0.23, 1, 0.32, 1), solved rather than approximated", () => {
+  it("is cubic-bezier(0.32, 0.72, 0, 1), solved rather than approximated", () => {
     // Walk the curve's own parameter finely and read y where x crosses each
     // probe: the bezier as CSS defines it, with no solver involved.
     const point = (u: number) => {
@@ -74,8 +74,13 @@ describe("the curve", () => {
     }
   });
 
-  it("is a strong ease-out: most of the travel is over in the first quarter", () => {
-    expect(ease(0.25)).toBeGreaterThan(0.75);
+  it("starts softly and still decelerates: a first frame the eye can follow, most of the travel by the middle", () => {
+    expect(FLIP_EASE).toEqual([0.32, 0.72, 0, 1]);
+    // One 60Hz frame into the open moves the window less than a sixth of the
+    // way; the house ease-out moved it almost a third.
+    expect(ease(16.7 / FLIP_OPEN_MS)).toBeLessThan(0.16);
+    expect(cubicBezier(0.23, 1, 0.32, 1)(16.7 / 220)).toBeGreaterThan(0.3);
+    expect(ease(0.5)).toBeGreaterThan(0.85);
     expect(easeOut(0.5)).toBe(ease(0.5));
   });
 
@@ -87,10 +92,10 @@ describe("the curve", () => {
 });
 
 describe("planning a fold", () => {
-  it("opens in 220ms and closes in 180ms", () => {
+  it("opens in 280ms and closes in 200ms", () => {
     expect(plan("open").duration).toBe(FLIP_OPEN_MS);
     expect(plan("close").duration).toBe(FLIP_CLOSE_MS);
-    expect([FLIP_OPEN_MS, FLIP_CLOSE_MS]).toEqual([220, 180]);
+    expect([FLIP_OPEN_MS, FLIP_CLOSE_MS]).toEqual([280, 200]);
     expect(plan("open").mode).toBe("flip");
   });
 
@@ -225,7 +230,7 @@ describe("the clock", () => {
     expect(frames.length, "nothing more after the end").toBe(count);
   });
 
-  it("closes in 180ms on the same clock", async () => {
+  it("closes in 200ms on the same clock", async () => {
     const frames: FlipFrame[] = [];
     const run = runFlip(plan("close"), f => frames.push(f));
     vi.advanceTimersByTime(FLIP_CLOSE_MS + 16);
@@ -254,6 +259,13 @@ describe("the clock", () => {
     await expect(run.finished).resolves.toBe(false);
   });
 
+  it("ticks on a timeout every frame where the page has no frames to offer", () => {
+    const fn = vi.fn();
+    frameClock.schedule(fn);
+    vi.advanceTimersByTime(16);
+    expect(fn.mock.calls).toEqual([[false]]);
+  });
+
   it("hands the stage's morph the same ticks: raw progress and the eased one", async () => {
     const seen: [number, number][] = [];
     const run = runTween(100, (raw, eased) => seen.push([raw, eased]));
@@ -262,6 +274,75 @@ describe("the clock", () => {
     expect(seen[0]).toEqual([0, 0]);
     expect(seen.at(-1)).toEqual([1, 1]);
     for (const [raw, eased] of seen) expect(eased).toBe(easeOut(raw));
+  });
+});
+
+describe("the clock on the page's frames", () => {
+  /** A clock whose frames are handed out by the test: `frame(ms)` moves time
+   *  on and paints, `timeout(ms)` moves it on as a background tab's timer. */
+  function handClock() {
+    let now = 0;
+    let due: ((painted: boolean) => void) | null = null;
+    const clock: FlipClock = {
+      now: () => now,
+      schedule: fn => { due = fn; return fn; },
+      cancel: () => { due = null; },
+    };
+    const fire = (ms: number, painted: boolean) => { now += ms; const fn = due; due = null; fn?.(painted); };
+    return { clock, frame: (ms: number) => fire(ms, true), timeout: (ms: number) => fire(ms, false) };
+  }
+
+  it("moves at most two frames on a frame the page was late to paint, so a hitch postpones the motion instead of skipping it", () => {
+    const c = handClock();
+    const seen: number[] = [];
+    runTween(FLIP_OPEN_MS, raw => seen.push(raw * FLIP_OPEN_MS), c.clock);
+    c.frame(80);
+    expect(seen.at(-1), "the stage mounting under the first frame: one frame, the motion's beginning").toBe(FRAME_MS);
+    c.frame(16);
+    expect(seen.at(-1)).toBe(FRAME_MS + 16);
+    c.frame(70);
+    expect(seen.at(-1), "a long task later on").toBe(FRAME_MS + 16 + MAX_FRAME_STEP_MS);
+  });
+
+  it("falls no more than its own length behind on a page that stays slow", () => {
+    const c = handClock();
+    let last = 0;
+    runTween(FLIP_OPEN_MS, raw => { last = raw * FLIP_OPEN_MS; }, c.clock);
+    for (let i = 0; i < 6; i++) c.frame(100);
+    expect(last, "600ms in, six frames of 100ms").toBe(FLIP_OPEN_MS);
+    const d = handClock();
+    runTween(FLIP_OPEN_MS, raw => { last = raw * FLIP_OPEN_MS; }, d.clock);
+    for (let i = 0; i < 2; i++) d.frame(100);
+    expect(last, "200ms in, two late frames: two capped steps").toBe(FRAME_MS + MAX_FRAME_STEP_MS);
+    for (let i = 0; i < 3; i++) d.frame(100);
+    expect(last, "500ms in: a whole open behind, and no further").toBe(500 - FLIP_OPEN_MS);
+  });
+
+  it("keeps two tweens started together in step through a late first frame", () => {
+    // The fold and the morph start in one task, a few milliseconds apart, and
+    // the page paints both on the same frames.
+    let now = 0;
+    const pending: ((painted: boolean) => void)[] = [];
+    const clock: FlipClock = { now: () => now, schedule: fn => (pending.push(fn), fn), cancel: () => {} };
+    const fold: number[] = [], morph: number[] = [];
+    runTween(FLIP_OPEN_MS, raw => fold.push(raw), clock);
+    now = 3;
+    runTween(FLIP_OPEN_MS, raw => morph.push(raw), clock);
+    for (const step of [90, 16, 17, 16]) {
+      now += step;
+      for (const fn of pending.splice(0)) fn(true);
+      expect(fold.at(-1), `${now}ms`).toBe(morph.at(-1));
+    }
+  });
+
+  it("moves by the time that passed on a timeout, so a background tab still finishes", async () => {
+    const c = handClock();
+    let last = 0;
+    const run = runTween(FLIP_OPEN_MS, raw => { last = raw; }, c.clock);
+    // A background tab's timers run a second apart at best.
+    c.timeout(1000);
+    expect(last).toBe(1);
+    await expect(run.finished).resolves.toBe(true);
   });
 });
 
