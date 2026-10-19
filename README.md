@@ -327,7 +327,7 @@ Opening Radio asks the public [Radio Browser](https://www.radio-browser.info/) d
 
 It never steers an agent or edits your code, but it is not read-only either — besides the hook entry and its own event log, it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does. It also reads your browser's history, because Browser Watch is on unless you switch it off; that is its own section below, because it is the one thing here that is about you rather than about an agent.
 
-Telemetry Radar's flag switches write to `~/.claude/settings.json` too: each puts the flag you set — `CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_LOG_USER_PROMPTS` and the other telemetry and content flags Radar lists — in that file's `env` block, as `"1"` or `"0"`. Switching a flag off writes `"0"` rather than removing it, and `--uninstall`, which removes ccdeck's hook entries, leaves these values as you set them. Starting Radar's monitoring writes `~/.agents-deck/radar-monitor-<port>.json`: the opt-in and the destinations a deck on that port resumes, never packets or decoded messages. And the quota readings the deck takes are kept in `quota-history.json`, in its data directory (see [Uninstall](#uninstall)), for 35 days and up to 2 MB, under a hash of the account rather than its address, for the Usage panel's quota history.
+Telemetry Radar's flag switches write to `~/.claude/settings.json` too: each puts the flag you set — `CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_LOG_USER_PROMPTS` and the other telemetry and content flags Radar lists — in that file's `env` block, as `"1"` or `"0"`. Switching a flag off writes `"0"` rather than removing it, and `--uninstall`, which removes ccdeck's hook entries, leaves these values as you set them. Starting Radar's monitoring writes `~/.agents-deck/radar-monitor-<port>.json`: the opt-in and the destinations a deck on that port resumes, never packets or decoded messages. And the quota readings the deck takes are kept in `quota-history.json`, in its data directory (see [Uninstall](#uninstall)), for 35 days and up to 2 MB, under a hash of the account rather than its address, for the Usage panel's quota history. What each Claude organization's settings turn on for telemetry is kept in `org-telemetry.json`, in the same data directory: per organization, the level, the content flags that are on, and the collector's scheme, host and port, never a path, a header or a credential.
 
 Tool activity keeps its history in `tool-audit/`, in the same data directory: a file a day with a line per tool call — Claude Code or Codex, when it started and ended, whether it failed, and the tool's name or, for a shell command, its operation (`git push`, `npm run build`) — with a line per skill used, holding the skill's name, the session it ran in and the name of its project folder, and a `settings.json` holding how long to keep it, when it started counting, and a random id for this device that nothing sends anywhere. The rest of a command line, the tool's or the skill's arguments and output, and paths are not saved, nor a tool call's session id, and nothing in the folder leaves the machine. It keeps 90 days unless you pick 30 or 60 under **Keep history** in **Settings › General › Tool history**, which also shows the space it takes and has **Clear history…**; older days are deleted as they fall out. `--no-persist` does not stop it — that flag is about the events log — and `--uninstall` leaves it, `--purge` too (see [Uninstall](#uninstall)).
 
@@ -361,6 +361,8 @@ The deck installs that package itself, so it installs it **bounded**: `claude-sw
 
 **Switch** on an account's row makes it the active one. New sessions start on it; sessions already running are not restarted, and pick it up on their next message — up to about 30 seconds later on macOS. Because every session on the machine shares that one login, the deck will not switch to an account whose saved login claude-swap has already seen refused: it asks claude-swap to read the account first when a read is due, and if the login has expired the row says so, with **Sign in again**, and nothing moves. When it cannot tell — offline, or claude-swap does not answer in time — the switch goes ahead. **Auto-switch**, off until you turn it on, does the same without a press: about once a minute the deck runs claude-swap's own engine, which, once the active account passes your threshold (90% unless you choose another) of its 5-hour or 7-day window, moves Claude Code to the account with the most room left. Every account keeps its own limits; when no other account is under the threshold, nothing switches. Auto-switch also moves Claude Code off an account whose login has expired, once Claude Code has signed it out and claude-swap's stored copy of it no longer works either, to the account with the most room under the threshold; the expired one stays in the list, waiting for you to sign it in again. **Custom…**, last in the threshold picker, takes any whole percent from 50 to 99 and refuses anything else under the field without saving it; the threshold is claude-swap's own setting, kept on this machine.
 
+**Telemetry** under an account's name says what that account's organization turns on for Claude Code's telemetry export, before you switch to it: `Telemetry · usage data`, or, in the warning colour, `Telemetry · prompts, tool details` when content goes with it. The whole sentence — the organization, what is sent, where to, and how long ago the deck saw it — is in the line's tooltip and its screen-reader description. A Team or Enterprise organization can turn this on for every member, and Claude Code applies it without asking in the VS Code panel, the desktop app and `claude -p`. The deck learns it from `~/.claude/remote-settings.json`, which describes whichever organization last fetched it, so it records the file only once it was written after claude-swap's last switch and the live login is that account's; an organization it has not seen that way yet shows nothing, which means unknown, not off.
+
 **Account capacity**, the gauge in the panel's header, says how many accounts are ready and what their 5-hour and 7-day windows have left. Its **Reset calendar** view lays out today and the next six days, with each account's 7-day reset on the day it falls, and marks the readings that need refreshing.
 
 **Account notifications** are three switches in **Settings › Notifications** (the gear in the topbar, or `Cmd+,`; `Ctrl+,` on Windows and Linux), each on its own and none of them tied to **Notifications while closed**: they are sent whether the deck is open or not, because nothing on the page says them. The desktop app shows them as ccdeck, without a sound.
@@ -387,6 +389,31 @@ An import adds what is missing and leaves a working account exactly as it is. Th
 **Rename**, **Move to slot…** and **Remove** are on the same row menu. Removal takes two clicks and cannot be undone. Removing the active account leaves Claude Code signed in as it; when that login is the expired one, the deck moves Claude Code to the working account with the most room left, or says that none could take over.
 
 Step by step: [Switch between multiple Claude Code accounts](https://ccdeck.dev/guides/claude-accounts/) · [Copy your Claude Code login to another machine](https://ccdeck.dev/guides/move-an-account/)
+
+## From the terminal
+
+The Accounts panel and the session list answer from any terminal on the machine too, which is the whole of what you have when you reach it over SSH:
+
+```
+ccdeck accounts               every Claude account, its 5h / 7d usage and resets
+ccdeck switch work            move the live login: a slot number, an email, an alias,
+                              or any part of one that names a single account
+ccdeck switch --best          the account with the most room left
+ccdeck switch                 pick from a list (arrows, Enter; Esc cancels)
+ccdeck usage                  the active account's limits, every lane
+ccdeck sessions               what each session is doing, the ones waiting on you first
+ccdeck open                   the deck in your browser — over SSH, the line that opens it on yours
+```
+
+`swap` and `use` are other names for `switch`, `ls` for `accounts` and `ps` for `sessions`; `status`, `stop` and `logs` are `--status`, `--stop` and `--logs`. `ccdeck swap 1 2` does not exchange two slots the way claude-swap's `cswap swap` does — it says so and points you there.
+
+**The commands ask the deck that is running.** A switch from the terminal goes through the same route as **Switch** on a row, so it waits for the same lock as the panel, Auto-switch and a sign-in in flight, the panel shows it at once, and it lands in the Projects report's history. With no deck running, `accounts`, `switch` and `usage` read and drive claude-swap's store directly; `sessions` and `open` need a deck, since sessions are what a deck watches. After a switch, the command says how many running Claude sessions move with it — all of them, from their next message.
+
+**Over SSH**, `ccdeck open` prints the line to run on your own computer, `ssh -N -o ExitOnForwardFailure=yes -L 14317:127.0.0.1:4317 you@that-machine` (with `-p` when sshd is not on 22), and the deck then opens at `http://127.0.0.1:14317` in your own browser. Your end is not 4317, so it cannot land on a deck of your own. The deck still listens only on 127.0.0.1; the tunnel is your SSH connection.
+
+**For scripts**, every command takes `--json` — one object on stdout with `schemaVersion` and `ok` — and `--port <n>` to name a deck. Nothing prompts without a terminal: `ccdeck switch` with no account named and no terminal is an error, not a wait. Exit codes are 0 done, 1 failed, 2 the command line was wrong (an account nothing matches, a misspelled command), and 3 no deck is running.
+
+A misspelled command is refused — `ccdeck acounts` suggests `accounts` and starts nothing — so a typo over SSH never leaves a deck behind.
 
 ## Local network
 
@@ -427,8 +454,10 @@ Step by step: [Repair expired Claude Code logins across machines](https://ccdeck
 
 ```
 ccdeck [options]
+ccdeck <command> [options]      accounts, switch, usage, sessions, open — see From the terminal
 
-  -p, --port <number>      Preferred port  (default: 4317; fallback: random 4318–4400)
+  -p, --port <number>      Preferred port  (default: 4317; fallback: random 4318–4400);
+                           with a command, the deck to ask
       --no-open            Don't open the browser automatically
       --foreground         Hold the terminal, the way every version before 3.20
                            did (Ctrl+C stops the deck again)
@@ -464,13 +493,16 @@ ccdeck [options]
       --uninstall          Remove ccdeck's hooks from settings files, and name
                            the files that still hold this deck's private key
       --purge              With --uninstall: delete those files too
+      --json               With a command: one object on stdout, for scripts
+      --best               With `switch`: the account with the most room left
   -h, --help               Show this help
   -v, --version            Print the version and exit
 ```
 
-Anything else on the command line is reported as an unknown option and then
-ignored — the deck still starts, so a typo costs you a warning rather than a
-dashboard.
+A word in first position that is not a command — [From the terminal](#from-the-terminal)
+lists them — is refused, so `ccdeck acounts` never starts a deck. Anything else
+on the command line is reported as an unknown option and then ignored — the deck
+still starts, so a typo costs you a warning rather than a dashboard.
 
 `--foreground` is there for anything that was relying on the old behaviour — a
 wrapper script, a CI step, a supervisor of your own that starts the deck and

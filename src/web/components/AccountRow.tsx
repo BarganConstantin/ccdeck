@@ -26,6 +26,7 @@ import { type useRequestSlot } from "../use-request-slot";
 import { laneName } from "../other-accounts-order";
 import { resetSinceReading } from "../accounts-usage-report";
 import { sharedLine } from "../account-lan";
+import { telemetryLine } from "../org-telemetry";
 
 type RequestSlot = ReturnType<typeof useRequestSlot>;
 
@@ -162,6 +163,10 @@ export default function AccountRow({
   // a hidden hot one. See lane-view.ts.
   const quick = fuller ? [...shown, fuller] : shown;
   const age = a.fetchedAt ? ago(a.fetchedAt, nowSec) : null;
+  // What the account's organization sends, when the deck has seen it — said
+  // before a switch, because Claude Code applies it without asking in its
+  // non-interactive surfaces. See org-telemetry.ts.
+  const telemetry = telemetryLine(a.telemetry, nowSec);
   return (
     <li className={`ap-account${a.active ? " active" : ""}`}
       aria-current={a.active ? "true" : undefined}
@@ -187,6 +192,7 @@ export default function AccountRow({
             a.alias && a.email ? `ap-email-${a.num}` : null,
             lan?.sharedTo ? `ap-shared-${a.num}` : null,
             !open && !issue?.blocksSwitch ? `ap-quota-${a.num}` : null,
+            telemetry ? `ap-telemetry-${a.num}` : null,
           ].filter(Boolean).join(" ") || undefined}
           onClick={() => onToggleLanes()}>
           <span className="vis-hidden">{name}, {open ? "hide details" : "details"}</span>
@@ -345,6 +351,17 @@ export default function AccountRow({
             </span>
           )}
         </div>
+      )}
+
+      {/* WHAT THE ORGANIZATION RECORDS, on every row of it, shut or open:
+          the moment it matters is before the switch. A word for what goes
+          out on the row, the sentence behind it for a pointer and for a
+          screen reader — the door's description points here. */}
+      {telemetry && (
+        <p className="ap-telemetry" id={`ap-telemetry-${a.num}`} data-tone={telemetry.tone} title={telemetry.detail}>
+          <span aria-hidden>{telemetry.text}</span>
+          <span className="vis-hidden">{telemetry.detail}</span>
+        </p>
       )}
 
       {/* SHUT: THE TWO NUMBERS AN ACCOUNT IS CHOSEN BY. No bars, no
