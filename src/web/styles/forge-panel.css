@@ -7,7 +7,7 @@
 .fg-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* The list side: toolbar, tabs and search stay; the tab's rows scroll. */
-.fg-list { flex: 1; height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.fg-list { flex: 1; height: 100%; min-height: 0; display: flex; flex-direction: column; container: fg-list / inline-size; }
 .fg-toolbar { display: flex; align-items: center; gap: 12px; padding: 12px 20px 0; flex: none; }
 .fg-fresh { margin-left: auto; min-width: 0; flex-shrink: 9; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fg-fresh[data-stale] { color: var(--warn); }
@@ -16,11 +16,31 @@
 .fg-refresh[aria-busy=true] { cursor: wait; }
 .fg-tabs { margin: 12px 20px 0; flex: none; align-self: flex-start; max-width: calc(100% - 40px); overflow-x: auto; }
 .fg-tabs .uh-range-btn { font-size: calc(12px + var(--ui-text-increase, 0px)); padding: 4px 12px; min-height: 28px; white-space: nowrap; }
+/* The panel's tabs and a change's sections are the deck's segmented strip,
+   but they are tabs, so the chosen one says aria-selected where the strip's
+   other users say aria-pressed: the same chip, the accent fill with the word
+   inverted on it (.uh-range-btn[aria-pressed="true"], #583). It out-specifies
+   the strip's hover, which would repaint the word in --text. */
+.fg-tabs .uh-range-btn[aria-selected="true"], .fd-sections .uh-range-btn[aria-selected="true"] { background: var(--accent); color: var(--bg); }
+/* A narrow list — the column beside an open item, or a phone — has no room
+   for the four names in one row of the pill, which cut the last one off: the
+   strip becomes four equal cells across the list, as a change's sections do
+   on a narrow page, and a long name ("Merge requests") wraps in its cell. A
+   phone's list makes the cells two rows of two, each name whole. */
+@container fg-list (max-width: 520px) {
+  .fg-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-self: stretch; overflow-x: visible; border-radius: var(--r-panel); }
+  .fg-tabs .uh-range-btn { min-width: 0; padding: 4px 2px; border-radius: var(--r-ctl); line-height: 1.3; white-space: normal; overflow-wrap: anywhere; text-align: center; }
+}
+@container fg-list (max-width: 400px) {
+  .fg-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .fg-searchbar { display: flex; gap: 8px; align-items: center; padding: 12px 20px 0; flex: none; }
 .fg-search { flex: 1; min-width: 0; display: flex; }
 .fg-search input { width: 100%; min-height: 32px; box-sizing: border-box; padding: 6px 10px; font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); caret-color: var(--accent); }
 .fg-search input:hover { border-color: var(--text); }
 .fg-search input::placeholder { color: var(--text-secondary); opacity: 1; }
+/* Open, beside the field once it holds a link: as wide as its word. */
+.fg-resolve { flex: none; }
 .fg-tab-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; padding: 8px 20px 32px; }
 .fg-note { margin: 8px 20px 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.6; }
 .fg-tab-body .fg-note { margin: 12px 0 0; }
@@ -29,8 +49,9 @@
 /* A group: a heading that folds, with its count. */
 .fg-group { margin-top: 16px; }
 .fg-group-head { display: flex; align-items: center; gap: 8px; margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
-.fg-fold { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 4px; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; border-radius: var(--r-ctl); }
+.fg-fold { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 4px; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; border-radius: var(--r-ctl); transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
 .fg-fold:hover { background: var(--ctl-fill); }
+.fg-fold:active { transform: scale(0.97); }
 .fg-fold-chevron { width: 5px; height: 5px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(-45deg); transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
 .fg-group[data-open] .fg-fold-chevron { transform: rotate(45deg); }
 .fg-count { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-weight: 400; color: var(--muted); }
@@ -41,12 +62,12 @@
 .fg-rows > li + li { border-top: 1px solid var(--line-soft); }
 .fg-row { display: grid; gap: 4px 16px; align-items: center; min-height: 48px; padding: 8px 14px; box-sizing: border-box; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
 .fg-row:hover, .fg-row[data-selected] { background: var(--ctl-fill); }
-.fg-row:active { transform: scale(0.99); }
+.fg-row:active { transform: scale(0.97); }
 .fg-row:focus-visible { outline-offset: -2px; }
 .fg-row-title { min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
 .fg-row[data-selected] .fg-row-title { font-weight: 600; }
 .fg-meta { min-width: 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fg-meta code { font-size: calc(11.5px + var(--ui-text-increase, 0px)); }
+.fg-meta code { font-size: calc(11px + var(--ui-text-increase, 0px)); }
 
 /* A state: a mark and a word. Tones, never colour alone. */
 .fg-mark { display: inline-flex; align-items: center; gap: 4px; font-size: calc(12px + var(--ui-text-increase, 0px)); white-space: nowrap; }
@@ -76,21 +97,27 @@
 .fg-avatar-initial { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: var(--muted); }
 .fg-person-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fg-copyable { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
-.fg-copy { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--muted); font: inherit; cursor: pointer; flex: none; }
+.fg-copy { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--muted); font: inherit; cursor: pointer; flex: none; transition: background 120ms, color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
 .fg-copy:hover { background: var(--ctl-fill); color: var(--text); }
+/* A glyph in a 24px box: the icon-sized press. */
+.fg-copy:active { transform: scale(0.94); }
 .fg-open { color: var(--accent); text-decoration: none; white-space: nowrap; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .fg-open:hover { text-decoration: underline; }
 
-/* A forge's rendered description (ForgeHtml.tsx). */
+/* A forge's rendered description (ForgeHtml.tsx), on the page's 13px. Its
+   headings and code take steps on the deck's type ladder rather than the
+   forge's own ems: 18, 16 and 14px for the three heading levels, 12px code. */
 .forge-html { line-height: 1.6; overflow-wrap: anywhere; color: var(--text); }
 .forge-html > :first-child { margin-top: 0; }
 .forge-html h1, .forge-html h2, .forge-html h3, .forge-html h4 { margin: 1.2em 0 0.5em; font-weight: 600; line-height: 1.3; }
-.forge-html h1 { font-size: 1.4em; } .forge-html h2 { font-size: 1.25em; padding-bottom: 0.3em; border-bottom: 1px solid var(--line); } .forge-html h3 { font-size: 1.1em; }
+.forge-html h1 { font-size: calc(18px + var(--ui-text-increase, 0px)); }
+.forge-html h2 { font-size: calc(16px + var(--ui-text-increase, 0px)); padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+.forge-html h3 { font-size: calc(14px + var(--ui-text-increase, 0px)); }
 .forge-html p, .forge-html ul, .forge-html ol, .forge-html pre, .forge-html blockquote, .forge-html table, .forge-html details { margin: 0 0 0.8em; }
-.forge-html ul, .forge-html ol { padding-left: 1.5em; }
+.forge-html ul, .forge-html ol { padding-left: 20px; }
 .forge-html li + li { margin-top: 0.2em; }
 .forge-html a { color: var(--accent); }
-.forge-html code { padding: 0.1em 0.35em; border-radius: 4px; background: var(--ctl-fill); font-size: 0.92em; }
+.forge-html code { padding: 1px 4px; border-radius: 4px; background: var(--ctl-fill); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .forge-html pre { padding: 10px 12px; border-radius: var(--r-ctl); background: var(--ctl-fill); overflow-x: auto; }
 .forge-html pre code { padding: 0; background: none; }
 .forge-html blockquote { padding-left: 12px; border-left: 3px solid var(--line); color: var(--text-secondary); }
@@ -99,16 +126,20 @@
 .forge-html hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
 .forge-html img { max-width: 100%; height: auto; border-radius: 4px; }
 .forge-html .fh-image { display: inline-block; }
+/* An image that would not load is the link it stood for, drawn as the
+   panel's other links out are: its words and ↗, underlined under the pointer. */
+.forge-html .fh-image-link { text-decoration: none; }
+.forge-html .fh-image-link:hover { text-decoration: underline; }
 .fh-check { margin: 0 6px 0 0; vertical-align: middle; }
 .forge-html li:has(> .fh-check) { list-style: none; margin-left: -1.3em; }
 
 /* The help beside a token field in Settings › Integrations. */
 .fg-token-help { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.6; }
 .fg-token-help p, .fg-token-help ul { margin: 0 0 6px; }
-.fg-token-help ul { padding-left: 1.2em; }
+.fg-token-help ul { padding-left: 14px; }
 .fg-token-help li + li { margin-top: 4px; }
 .fg-token-help strong { color: var(--text); font-weight: 600; }
-.fg-token-help code { font-family: var(--font-mono); font-size: 0.95em; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 4px; }
+.fg-token-help code { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text); background: var(--ctl-fill); border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 4px; }
 .fg-token-link { color: var(--accent); text-decoration: none; white-space: nowrap; }
 .fg-token-link:hover { text-decoration: underline; }
 .fg-token-link svg { vertical-align: -1px; }
@@ -120,6 +151,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .fg-row, .fg-fold-chevron { transition: none; }
-  .fg-row:active { transform: none; }
+  .fg-row:active, .fg-fold:active, .fg-copy:active { transform: none; }
   .fg-refresh[data-loading] svg { animation: none; }
 }

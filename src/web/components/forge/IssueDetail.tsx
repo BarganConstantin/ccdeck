@@ -162,7 +162,7 @@ function CommentList({ selection }: { selection: Selection }) {
       {pages.data.items.length
         ? <ol className="fd-threads fd-issue-comments">{pages.data.items.map(c => <li key={c.id} className="fd-thread"><ol className="fd-comments"><Comment comment={c} /></ol></li>)}</ol>
         : <p className="fd-none">No comments.</p>}
-      <ListEnd next={pages.data.next} loading={pages.loadingMore} error={pages.moreError} onMore={pages.loadMore} label="Load more comments" />
+      <ListEnd pages={pages} label="Load more comments" />
     </>
   );
 }

@@ -48,8 +48,7 @@ export default function PipelinesTab({ view, query }: ForgeTabProps) {
         </div>
       )}
       {read.data && (
-        <ListEnd next={read.data.next} loading={read.loadingMore} error={read.moreError} onMore={read.loadMore}
-          label={moreLabel(items.length, read.data.total)} />
+        <ListEnd pages={read} label={moreLabel(items.length, read.data.total)} />
       )}
     </div>
   );

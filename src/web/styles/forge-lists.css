@@ -131,8 +131,9 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
 .fgl-repo-scroll .fg-failure { margin: 4px 2px; }
 .fgl-repo-scroll .fg-more { width: 100%; margin-top: 4px; }
 .fgl-repo-options { display: grid; gap: 1px; }
-.fgl-repo-option { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 14px; align-items: center; gap: 8px; min-height: 38px; padding: 5px 8px; box-sizing: border-box; border: 0; border-radius: var(--r-ctl); background: none; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.fgl-repo-option { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 14px; align-items: center; gap: 8px; min-height: 38px; padding: 5px 8px; box-sizing: border-box; border: 0; border-radius: var(--r-ctl); background: none; color: var(--text); text-align: left; font: inherit; cursor: pointer; transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
 .fgl-repo-option[data-active="true"] { background: var(--ctl-fill); }
+.fgl-repo-option:active { transform: scale(0.97); }
 .fgl-repo-option-text { display: flex; flex-direction: column; min-width: 0; }
 .fgl-repo-option-name, .fgl-repo-option-group { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fgl-repo-option-name { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; }
@@ -178,4 +179,5 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
 }
 @media (prefers-reduced-motion: reduce) {
   .fgl-branch { transition: none; }
+  .fgl-repo-option:active { transform: none; }
 }

@@ -202,7 +202,7 @@ function RepoOptions({ value, allowAll, onPick, onEscape }: {
           ))}
         </div>
         {repos.data && (
-          <ListEnd next={repos.data.next} loading={repos.loadingMore} error={repos.moreError} onMore={repos.loadMore} label={`More ${plural}`} />
+          <ListEnd pages={repos} label={`More ${plural}`} />
         )}
       </div>
     </div>

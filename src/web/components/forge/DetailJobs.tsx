@@ -9,12 +9,13 @@
 // a failure says why; asking for more lines keeps the reader's place, so the
 // earlier lines arrive above what they were reading. A running job is not
 // followed — the panel's Refresh asks again.
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ForgeJob, LogTail } from "../../forge-types";
 import { ciMark, durationWords } from "../../forge-panel";
 import {
   annotationMark, jobStartsOpen, LOG_STEPS, logLineTone, nextLogLines, stagesOf, stageStartsOpen,
 } from "../../forge-detail";
+import { selfPressAccepted, selfPressProps } from "../../panel-press";
 import { useForgeRead } from "../../use-forge-read";
 import { useForge } from "./ForgeContext";
 import { LoadingRows, OpenOnForge, ReadFailure, StateMark } from "./ForgeParts";
@@ -101,8 +102,17 @@ function JobLog({ repo, job }: { repo: string; job: ForgeJob }) {
     fromEnd.current = 0;
   }, [tail]);
 
+  // "Show more lines" stays pressable while the longer tail is out (#620). A
+  // second press is refused here, off a ref: the press sets it at once, and it
+  // follows the read from then on, so it clears when the read lands, fails or
+  // is answered from what was kept.
+  const askingRef = useRef(false);
+  useEffect(() => { askingRef.current = read.loading; }, [read.loading, tail, read.error]);
+
   const more = nextLogLines(lines);
   const askMore = () => {
+    if (!selfPressAccepted(askingRef.current)) return;
+    askingRef.current = true;
     const el = pre.current;
     fromEnd.current = el ? el.scrollHeight - el.clientHeight - el.scrollTop : 0;
     setLines(more);
@@ -124,7 +134,7 @@ function JobLog({ repo, job }: { repo: string; job: ForgeJob }) {
           {tail ? (tail.truncated ? `Last ${tail.lines.length.toLocaleString()} lines` : `All ${tail.lines.length.toLocaleString()} lines`) : "Log"}
         </span>
         {tail?.truncated && more && (
-          <button type="button" className="btn" onClick={askMore} disabled={read.loading} aria-busy={read.loading}>
+          <button type="button" className="btn" onClick={askMore} {...selfPressProps(read.loading)}>
             {read.loading ? "Loading…" : "Show more lines"}
           </button>
         )}

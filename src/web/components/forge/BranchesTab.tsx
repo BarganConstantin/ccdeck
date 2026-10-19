@@ -69,8 +69,7 @@ export default function BranchesTab({ view, query }: ForgeTabProps) {
         </>
       )}
       {read.data && (
-        <ListEnd next={read.data.next} loading={read.loadingMore} error={read.moreError} onMore={read.loadMore}
-          label={moreLabel(items.length, read.data.total)} />
+        <ListEnd pages={read} label={moreLabel(items.length, read.data.total)} />
       )}
     </div>
   );

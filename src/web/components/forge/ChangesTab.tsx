@@ -112,8 +112,7 @@ export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
         )
         : <div className="fgl-flat">{rows(shown)}</div>)}
       {read.data && (
-        <ListEnd next={read.data.next} loading={read.loadingMore} error={read.moreError} onMore={read.loadMore}
-          label={moreLabel(items.length, read.data.total)} />
+        <ListEnd pages={read} label={moreLabel(items.length, read.data.total)} />
       )}
     </div>
   );

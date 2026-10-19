@@ -35,17 +35,14 @@ export function PathDir({ dir }: { dir: string }) {
 }
 
 /** One item page. It starts at the top: the pane's scroll belongs to the
- *  host and would otherwise carry the last page's position into this one. */
+ *  host and would otherwise carry the last page's position into this one.
+ *  The pane is the host's `.ig-detail` (IntegrationSplit), which scrolls; it
+ *  is found by its class rather than by reading styles up the tree. */
 export function DetailFrame({ label, children }: { label: string; children: ReactNode }) {
   const ref = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
-    for (let el = ref.current?.parentElement ?? null; el; el = el.parentElement) {
-      const overflow = getComputedStyle(el).overflowY;
-      if (overflow === "auto" || overflow === "scroll") {
-        el.scrollTop = 0;
-        break;
-      }
-    }
+    const pane = ref.current?.closest<HTMLElement>(".ig-detail");
+    if (pane) pane.scrollTop = 0;
   }, []);
   return <article ref={ref} className="fd" aria-label={label}>{children}</article>;
 }

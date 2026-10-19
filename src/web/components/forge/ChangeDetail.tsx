@@ -13,7 +13,7 @@
 // and asked for when their tab is first shown; the change's pipelines are read
 // with the page, because the pipeline line under the title links to the
 // latest one.
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { ChangedFile, ChangeDetail as Change, ForgeCommit, ForgePipeline, ForgeReviewer } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
 import { ciMark, durationWords, reviewerMark } from "../../forge-panel";
@@ -21,6 +21,7 @@ import {
   approvalWords, changeReference, changeSections, changeStateMark, fileStatusWord, nodesWithoutDraftPrefix, pathParts,
   pipelineIdFromUrl, shortRef, splitDiscussions, withoutDraftPrefix, type ChangeSection,
 } from "../../forge-detail";
+import { tabStripMove } from "../../tablist-keys";
 import { useForgePages, useForgeRead, type ForgeReadState } from "../../use-forge-read";
 import ForgeHtml, { renderForgeNodes } from "../ForgeHtml";
 import { useForge, type ForgeSelection } from "./ForgeContext";
@@ -44,6 +45,10 @@ export default function ChangeDetail({ selection }: { selection: Selection }) {
   const pipelines = useForgeRead<ForgePipeline[]>(api, scope, wantsPipelines ? "change/pipelines" : null, params, refresh);
   const [section, setSection] = useState<ChangeSection>("overview");
   const reference = c?.key ?? changeReference(kind, selection.repo, selection.number);
+  const uid = useId();
+  const sectionTabId = (id: ChangeSection) => `${uid}-tab-${id}`;
+  const sectionPanelId = (id: ChangeSection) => `${uid}-panel-${id}`;
+  const sections = c ? changeSections(kind, c.counts) : [];
 
   return (
     <DetailFrame label={`${words.change} ${reference}`}>
@@ -56,15 +61,30 @@ export default function ChangeDetail({ selection }: { selection: Selection }) {
           <div className="fd-layout">
             <ChangeSide change={c} />
             <div className="fd-main">
-              <div className="uh-range fd-sections" role="tablist" aria-label={`${words.change} sections`}>
-                {changeSections(kind, c.counts).map(s => (
+              {/* The page's tabs: one tab stop, the arrows between them (#581). */}
+              <div
+                className="uh-range fd-sections"
+                role="tablist"
+                aria-label={`${words.change} sections`}
+                onKeyDown={event => {
+                  const move = tabStripMove(event, sections.findIndex(s => s.id === section), sections.length);
+                  if (move.kind === "pass") return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setSection(sections[move.index].id);
+                  event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]')[move.index]?.focus();
+                }}
+              >
+                {sections.map(s => (
                   <button
                     key={s.id}
+                    id={sectionTabId(s.id)}
                     type="button"
                     role="tab"
                     className="uh-range-btn"
                     aria-selected={section === s.id}
-                    aria-pressed={section === s.id}
+                    aria-controls={sectionPanelId(s.id)}
+                    tabIndex={section === s.id ? 0 : -1}
                     onClick={() => setSection(s.id)}
                   >
                     <span className="fd-section-label">{s.label}</span>
@@ -72,12 +92,16 @@ export default function ChangeDetail({ selection }: { selection: Selection }) {
                   </button>
                 ))}
               </div>
-              <div className="fd-section" role="tabpanel" aria-label={changeSections(kind, c.counts).find(s => s.id === section)?.label}>
-                {section === "overview" ? <Overview change={c} />
-                  : section === "commits" ? <Commits selection={selection} />
-                  : section === "pipelines" ? <Pipelines repo={selection.repo} read={pipelines} />
-                  : <Files selection={selection} />}
-              </div>
+              {/* A panel per section; only the chosen one is drawn, and reads. */}
+              {sections.map(s => (
+                <div key={s.id} className="fd-section" id={sectionPanelId(s.id)} role="tabpanel" aria-labelledby={sectionTabId(s.id)} hidden={section !== s.id}>
+                  {section !== s.id ? null
+                    : s.id === "overview" ? <Overview change={c} />
+                    : s.id === "commits" ? <Commits selection={selection} />
+                    : s.id === "pipelines" ? <Pipelines repo={selection.repo} read={pipelines} />
+                    : <Files selection={selection} />}
+                </div>
+              ))}
             </div>
           </div>
         </>
@@ -216,7 +240,7 @@ function Commits({ selection }: { selection: Selection }) {
       {pages.data.items.length
         ? <ul className="fd-items">{pages.data.items.map(cm => <CommitRow key={cm.sha} commit={cm} />)}</ul>
         : <p className="fg-empty">No commits.</p>}
-      <ListEnd next={pages.data.next} loading={pages.loadingMore} error={pages.moreError} onMore={pages.loadMore} label="Load more commits" />
+      <ListEnd pages={pages} label="Load more commits" />
     </>
   );
 }
@@ -279,7 +303,7 @@ function Files({ selection }: { selection: Selection }) {
       {pages.data.items.length
         ? <ul className="fd-files">{pages.data.items.map(f => <FileRow key={`${f.oldPath ?? ""}>${f.path}`} file={f} />)}</ul>
         : <p className="fg-empty">No changed files.</p>}
-      <ListEnd next={pages.data.next} loading={pages.loadingMore} error={pages.moreError} onMore={pages.loadMore} label="Load more files" />
+      <ListEnd pages={pages} label="Load more files" />
     </>
   );
 }

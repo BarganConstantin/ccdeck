@@ -7,6 +7,8 @@ import type { ForgeErrorInfo, ForgeUser } from "../../forge-types";
 import { forgeErrorWords, type Mark } from "../../forge-panel";
 import { shortAgo } from "../../relative-time";
 import { copyText } from "../../copy-text";
+import { selfPressProps } from "../../panel-press";
+import type { ForgePagesState } from "../../use-forge-read";
 import { useForge } from "./ForgeContext";
 
 /** A state: its mark, and its word (visually hidden when `quiet`). */
@@ -68,15 +70,17 @@ export function ReadFailure({ error, onRetry, compact = false }: { error: ForgeE
   );
 }
 
-/** The bottom of a paged list: Load more, its failure, or nothing. */
-export function ListEnd({ next, loading, error, onMore, label = "Load more" }: {
-  next: string | null; loading: boolean; error: ForgeErrorInfo | null; onMore: () => void; label?: string;
+/** The bottom of a paged list: Load more, its failure, or nothing. The
+ *  button stays pressable while its page is out (#620), so focus stays on it,
+ *  and the list's own loadMore refuses the second press. */
+export function ListEnd({ pages, label = "Load more" }: {
+  pages: Pick<ForgePagesState<unknown>, "data" | "loadingMore" | "moreError" | "loadMore">; label?: string;
 }) {
-  if (error) return <ReadFailure error={error} onRetry={onMore} compact />;
-  if (!next) return null;
+  if (pages.moreError) return <ReadFailure error={pages.moreError} onRetry={pages.loadMore} compact />;
+  if (!pages.data?.next) return null;
   return (
-    <button type="button" className="btn fg-more" onClick={onMore} disabled={loading} aria-busy={loading}>
-      {loading ? "Loading…" : label}
+    <button type="button" className="btn fg-more" onClick={pages.loadMore} {...selfPressProps(pages.loadingMore)}>
+      {pages.loadingMore ? "Loading…" : label}
     </button>
   );
 }

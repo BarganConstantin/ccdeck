@@ -254,18 +254,20 @@ export const DEFAULT_VIEW: ForgeView = {
 };
 
 const TABS: ForgeTab[] = ["branches", "changes", "pipelines", "issues"];
-const VIEW_KEY = "view";
+/** The field the view is kept under in the host's per-connection prefs — a
+ *  name inside that one stored object, not a storage key of its own. */
+const VIEW_PREF = "view";
 
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
 /** A panel's remembered view for one connection (the host scopes the store to
  *  it); anything unreadable falls back to the default, field by field. */
 export function loadForgeView(prefs: ForgePrefs): ForgeView {
-  return normaliseView(prefs.read(VIEW_KEY, isObject) ?? {});
+  return normaliseView(prefs.read(VIEW_PREF, isObject) ?? {});
 }
 
 export function saveForgeView(prefs: ForgePrefs, view: ForgeView): void {
-  prefs.write(VIEW_KEY, view);
+  prefs.write(VIEW_PREF, view);
 }
 
 export function normaliseView(raw: Record<string, unknown>): ForgeView {

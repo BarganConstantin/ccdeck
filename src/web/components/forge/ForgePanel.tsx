@@ -13,13 +13,15 @@
 // The view — project, tab, filters, which groups are unfolded — is remembered
 // per connection through the host's prefs, so reopening the panel lands where
 // the user left it.
-import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import type { ForgeKind, ForgeRefTarget, Page, ForgeRepo } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
 import {
   fetchForge, forgeReadPath, ForgeReadError, loadForgeView, looksLikeRef, saveForgeView, tabAllowsAllProjects,
   type ForgeApi, type ForgePrefs, type ForgeTab, type ForgeView,
 } from "../../forge-panel";
+import { selfPressAccepted, selfPressProps } from "../../panel-press";
+import { tabStripMove } from "../../tablist-keys";
 import { useForgeRead } from "../../use-forge-read";
 import { RefreshGlyph } from "../action-glyphs";
 import { ForgeProvider, type ForgeConnectionInfo, type ForgeContextValue, type ForgeSelection, type Freshness } from "./ForgeContext";
@@ -88,7 +90,13 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   const [query, setQuery] = useState("");
   const [fresh, setFresh] = useState<Freshness>({ loadedAt: null, loading: false, stale: false });
   const [resolving, setResolving] = useState(false);
+  // Open stays pressable while it resolves (#620); Enter in the field and a
+  // second press are refused here, off a ref, not by disabling the button.
+  const resolvingRef = useRef(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
+  const uid = useId();
+  const tabDomId = (tab: ForgeTab) => `${uid}-tab-${tab}`;
+  const panelDomId = (tab: ForgeTab) => `${uid}-panel-${tab}`;
 
   // Another connection is another place: its own view, nothing selected.
   useEffect(() => {
@@ -138,6 +146,8 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   }, [needsRepo, repos.data, setView]);
 
   const openRef = async () => {
+    if (!selfPressAccepted(resolvingRef.current)) return;
+    resolvingRef.current = true;
     setResolving(true);
     setResolveError(null);
     try {
@@ -147,9 +157,12 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
     } catch (err) {
       setResolveError(err instanceof ForgeReadError ? err.info.message : "Could not open it.");
     } finally {
+      resolvingRef.current = false;
       setResolving(false);
     }
   };
+
+  const chooseTab = (tab: ForgeTab) => { setView({ tab }); setQuery(""); };
 
   const words = forgeWords[kind];
   const tabProps: ForgeTabProps = { view, setView, query };
@@ -176,16 +189,31 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
           <RefreshGlyph />
         </button>
       </div>
-      <div className="uh-range fg-tabs" role="tablist" aria-label={`${words.name} views`}>
+      {/* One tab stop for the strip, the arrows between its tabs (#581). */}
+      <div
+        className="uh-range fg-tabs"
+        role="tablist"
+        aria-label={`${words.name} views`}
+        onKeyDown={event => {
+          const move = tabStripMove(event, TAB_ORDER.indexOf(view.tab), TAB_ORDER.length);
+          if (move.kind === "pass") return;
+          event.preventDefault();
+          event.stopPropagation();
+          chooseTab(TAB_ORDER[move.index]);
+          event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]')[move.index]?.focus();
+        }}
+      >
         {TAB_ORDER.map(tab => (
           <button
             key={tab}
+            id={tabDomId(tab)}
             type="button"
             role="tab"
             className="uh-range-btn"
             aria-selected={view.tab === tab}
-            aria-pressed={view.tab === tab}
-            onClick={() => { setView({ tab }); setQuery(""); }}
+            aria-controls={panelDomId(tab)}
+            tabIndex={view.tab === tab ? 0 : -1}
+            onClick={() => chooseTab(tab)}
           >
             {tabLabel(kind, tab)}
           </button>
@@ -203,24 +231,29 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
           />
         </label>
         {looksLikeRef(query) && (
-          <button type="button" className="btn fg-resolve" onClick={() => void openRef()} disabled={resolving} aria-busy={resolving}>
+          <button type="button" className="btn fg-resolve" onClick={() => void openRef()} {...selfPressProps(resolving)}>
             {resolving ? "Opening…" : "Open"}
           </button>
         )}
       </div>
       {resolveError && <p className="fg-note" role="status">{resolveError}</p>}
-      <div className="fg-tab-body" role="tabpanel" aria-label={tabLabel(kind, view.tab)}>
-        {needsRepo
-          ? repos.error
-            ? <ReadFailure error={repos.error} onRetry={repos.reload} />
-            : repos.data && !repos.data.items.length
-              ? <p className="fg-empty">This token can see no {words.repo.toLowerCase()} yet.</p>
-              : <p className="fg-note">Finding your most recent {words.repo.toLowerCase()}…</p>
-          : view.tab === "branches" ? <BranchesTab {...tabProps} />
-          : view.tab === "changes" ? <ChangesTab {...tabProps} />
-          : view.tab === "pipelines" ? <PipelinesTab {...tabProps} />
-          : <IssuesTab {...tabProps} />}
-      </div>
+      {/* A panel per tab, so each tab names the one it controls; only the
+          chosen tab's is drawn, and it alone reads. */}
+      {TAB_ORDER.map(tab => (
+        <div key={tab} className="fg-tab-body" id={panelDomId(tab)} role="tabpanel" aria-labelledby={tabDomId(tab)} hidden={view.tab !== tab}>
+          {view.tab !== tab ? null
+            : needsRepo
+              ? repos.error
+                ? <ReadFailure error={repos.error} onRetry={repos.reload} />
+                : repos.data && !repos.data.items.length
+                  ? <p className="fg-empty">This token can see no {words.repo.toLowerCase()} yet.</p>
+                  : <p className="fg-note">Finding your most recent {words.repo.toLowerCase()}…</p>
+              : tab === "branches" ? <BranchesTab {...tabProps} />
+              : tab === "changes" ? <ChangesTab {...tabProps} />
+              : tab === "pipelines" ? <PipelinesTab {...tabProps} />
+              : <IssuesTab {...tabProps} />}
+        </div>
+      ))}
     </div>
   );
 

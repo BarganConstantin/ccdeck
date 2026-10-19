@@ -16,6 +16,7 @@ import type { ForgeErrorInfo, Page } from "./forge-types";
 import {
   fetchForge, forgeReadPath, ForgeReadError, isStale, keepRead, keptRead, readDue, type ForgeApi, type Kept,
 } from "./forge-panel";
+import { selfPressAccepted } from "./panel-press";
 
 export interface ForgeReadState<T> {
   data: T | null;
@@ -110,6 +111,10 @@ export function useForgePages<T>(api: ForgeApi, scope: string, read: string | nu
   );
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<ForgeErrorInfo | null>(null);
+  // Load more stays pressable while its page is out (#620): the second press
+  // is refused here, off a ref, because the state a handler closed over is a
+  // render old and a quick second press would ask for the same page twice.
+  const busyRef = useRef(false);
 
   // A new first page (a refresh, or another list) starts the pages over —
   // unless it is the same answer the appended pages were loaded after.
@@ -122,7 +127,8 @@ export function useForgePages<T>(api: ForgeApi, scope: string, read: string | nu
 
   const next = more.next !== undefined ? more.next : first.data?.next ?? null;
   const loadMore = useCallback(() => {
-    if (!read || !next || loadingMore || !key) return;
+    if (!read || !next || !key || !selfPressAccepted(busyRef.current)) return;
+    busyRef.current = true;
     setLoadingMore(true);
     setMoreError(null);
     fetchForge<Page<T>>(api, forgeReadPath(read, { ...params, cursor: next })).then(
@@ -134,8 +140,11 @@ export function useForgePages<T>(api: ForgeApi, scope: string, read: string | nu
         });
       },
       err => setMoreError(errorInfo(err)),
-    ).finally(() => setLoadingMore(false));
-  }, [api, read, next, loadingMore, key, params, firstAt]);
+    ).finally(() => {
+      busyRef.current = false;
+      setLoadingMore(false);
+    });
+  }, [api, read, next, key, params, firstAt]);
 
   const data: Page<T> | null = first.data
     ? { items: [...first.data.items, ...(more.key === key ? more.items : [])], next, total: first.data.total }

@@ -11,8 +11,11 @@
 .fd { container: fd / inline-size; min-width: 0; padding: 12px 20px 40px; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); }
 .fd code { font-family: var(--font-mono); }
 
-/* The top line: the reference to copy, the link out, Close. */
-.fd-bar { display: flex; align-items: center; gap: 12px; min-height: 32px; }
+/* The top line: the reference to copy, the link out, Close. It stays at the
+   top of the host's pane while the page scrolls under it, on the pane's own
+   --panel and across the page's side padding; the 4px it gains above and
+   below are given back by its margins, so at rest nothing moves. */
+.fd-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 12px; min-height: 32px; margin: -4px -20px; padding: 4px 20px; background: var(--panel); }
 .fd-ref { flex: 1; min-width: 0; display: flex; }
 .fd-ref .fg-copyable { min-width: 0; max-width: 100%; }
 .fd-ref code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
@@ -29,7 +32,7 @@
 /* A sentence, so it wraps like one: the chips in it are inline boxes. */
 .fd-byline { margin: 10px 0 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 2; overflow-wrap: anywhere; }
 .fd-byline > * { vertical-align: middle; }
-.fd-byline > * + * { margin-left: 5px; }
+.fd-byline > :not(:first-child) { margin-left: 5px; }
 .fd-byline > .fg-badge { margin-right: 3px; }
 .fd-byline .fg-person-name { color: var(--text); font-weight: 500; }
 .fd-byline .fg-copyable { max-width: 100%; }
@@ -248,6 +251,7 @@ button.btn.fd-show-comments { margin-top: 8px; }
 
 @media (max-width: 640px) {
   .fd { padding: 10px 16px 32px; }
+  .fd-bar { margin-inline: -16px; padding-inline: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

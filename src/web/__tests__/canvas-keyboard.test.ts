@@ -405,7 +405,11 @@ describe("nothing else in the deck invents a focus stop", () => {
     // pointer's twin of ArrowRight/ArrowLeft on the row itself, so it is not
     // a second stop; an issue's heading takes focus when its detail opens in
     // place of the list on a narrow window, the way Tool activity's does.
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx"]);
+    // The GitHub and GitLab panel's project picker (#2179) is the same
+    // combobox shape again: focus stays in its search field and the options
+    // are reached through aria-activedescendant (forge/RepoPicker.tsx).
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/RepoPicker.tsx"]);
+    expect(code(readFileSync(join(web, "components/forge/RepoPicker.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/JiraIssueDetail.tsx"), "utf8"))).toMatch(/<h3 id="jira-detail-title" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/RadioFilter.tsx"), "utf8"))).toMatch(/role="option" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/SettingsSearch.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
