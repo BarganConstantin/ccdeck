@@ -102,7 +102,9 @@ export default function ToolAuditModal({ onClose, sessionLabel, onOpenSession }:
 
   useEffect(() => {
     setDetails(previous => previous?.operation === selected && loadedQuery.current === query ? previous : null); setDetailError('');
-    if (!selected || !data || loading || view !== 'tools') { setDetailLoading(false); return; }
+    // `busy` and not just `loading`: back on this tab, the list's read starts in this same commit,
+    // where `loading` is still false, and the two reads would meet at the one report worker.
+    if (!selected || !data || loading || busy.current || view !== 'tools') { setDetailLoading(false); return; }
     let live = true; const controller = new AbortController();
     const deadline = window.setTimeout(() => controller.abort(), 65000); setDetailLoading(true);
     void (async () => {

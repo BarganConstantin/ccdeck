@@ -259,6 +259,10 @@
 @container tool-report (max-width: 640px) {
   .sa-list .ta-row, .sa-list[data-failures] .ta-row { display: flex; }
 }
+/* Three orders, so one row of three where the Tools strip of four goes 2×2. */
+@container tool-report (max-width: 400px) {
+  .ta-sorts.sa-sorts { grid-template-columns: repeat(3, 1fr); }
+}
 @media (max-width: 520px) {
   .ta-report-header h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .ta-views { margin-left: -8px; }
