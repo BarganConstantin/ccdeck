@@ -9,6 +9,7 @@ import { armedPress, pressState } from "../panel-press";
 import type { RadarSnapshot } from "../traffic-radar";
 import { captureAddress, configuredDestinations, observedDestinations, type RadarSession } from "../telemetry-inspection";
 import type { CaptureAction, CaptureSnapshot, CapturedExport } from "../use-telemetry-capture";
+import { readStored, writeStored } from "../storage";
 
 import type { Json } from "./JsonInspector";
 import { attributes, fieldEvidence, projectEvidence, recordPriority, redactedValue, PROMPT_FIELDS, RESPONSE_FIELDS, PROJECT_FIELDS, DIRECTORY_FIELDS, otlpValue as readAny } from "../telemetry-highlights";
@@ -16,6 +17,8 @@ type Obj = { [key: string]: Json };
 const obj = (v: Json | undefined): Obj => v && typeof v === "object" && !Array.isArray(v) ? v : {};
 const arr = (v: Json | undefined): Json[] => Array.isArray(v) ? v : [];
 const stamp = (at: number) => new Date(at).toLocaleTimeString();
+/** The activity list's share of the workspace, as a percentage, kept between visits. */
+const FEED_WIDTH_KEY = "agent-dag.radar-feed-width";
 export const outcomeLabel = (event: CapturedExport) => ({ unconfirmed: "Transfer observed · receipt unconfirmed", accepted: "Collector accepted", partial: "Collector reported partial success", rejected: "Collector rejected", unknown: "Response incomplete", reset: "Stream reset" })[event.outcome];
 const issueText: Record<string, string> = {
   encrypted: "Encrypted traffic observed; contents cannot be read.",
@@ -217,8 +220,8 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
   const [messageDestination, setMessageDestination] = useState("all");
   const [filter, setFilter] = useState("all");
   const workspace = useRef<HTMLDivElement>(null);
-  const [feedWidth, setFeedWidth] = useState(() => { try { const value = Number(localStorage.getItem("ccdeck.radar-feed-width")); return value >= 28 && value <= 65 ? value : 34; } catch { return 34; } });
-  const saveFeedWidth = (value: number) => { setFeedWidth(value); try { localStorage.setItem("ccdeck.radar-feed-width", String(value)); } catch { /* Keep resizing available without storage. */ } };
+  const [feedWidth, setFeedWidth] = useState(() => { const value = Number(readStored(FEED_WIDTH_KEY)); return value >= 28 && value <= 65 ? value : 34; });
+  const saveFeedWidth = (value: number) => { setFeedWidth(value); writeStored(FEED_WIDTH_KEY, String(value)); };
   const [promptsOnly, setPromptsOnly] = useState(false);
   const [visibleCount, setVisibleCount] = useState(100);
   const [pausedObservationIds, setPausedObservationIds] = useState<number[] | null>(null);
