@@ -1,0 +1,12 @@
+{
+  "id": "0199f0a2-6c1e-7b3a-9d2e-5b8f3c1a7e40",
+  "name": "laptop-a",
+  "os": "darwin", "arch": "arm64", "version": "3.43.0", "channel": "npm",
+  "enrolledAt": "2026-10-18T08:00:00Z",
+  "link": { "state": "running", "receivedAgoMs": 4200 },
+  "cpu": { "pct": 37.5, "cores": 10, "agoMs": 6708 },
+  "memory": { "unknown": "warming-up" },
+  "agents": { "running": 3, "waiting": 1, "agoMs": 4201 },
+  "clockSkewed": false,
+  "sync": { "mode": "shared", "profileRevision": 14, "appliedRevision": 13 }
+}

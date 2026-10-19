@@ -1,0 +1,2 @@
+{ "type": "https://api.ccdeck.dev/problems/device-token", "title": "Unknown connection request", "status": 400,
+  "error": "invalid_grant" }

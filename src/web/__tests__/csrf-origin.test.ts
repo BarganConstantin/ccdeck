@@ -316,6 +316,21 @@ describe("mutations require the deck's own authority", () => {
     expect(await post("/api/clear", { headers: { ...rebound, "x-ccdeck-token": hookToken() } })).toBe(403);
   });
 
+  it("guards the ccdeck account's reads, and turns away a cross-site page on its writes, flag on or off", async () => {
+    // @ts-expect-error — plain .mjs module, no types
+    const { GUARDED_READS } = await import("../../server/request-gates.mjs");
+    expect(GUARDED_READS.has("/api/account")).toBe(true);
+    expect(GUARDED_READS.has("/api/account/sync/preview")).toBe(true);
+    const here = `127.0.0.1:${port}`;
+    for (const path of ["/api/account/connect", "/api/account/disconnect", "/api/account/ui", "/api/account/sync/mode", "/api/account/sync/upload"]) {
+      // Another site, and a rebound name: refused as a page, before the route.
+      expect(await post(path, { headers: { Host: here, Origin: "https://evil.example", "Sec-Fetch-Site": "cross-site" }, body: "{}" }), path).toBe(403);
+      expect(await post(path, { headers: { Host: "attacker.example:4317", Origin: "http://attacker.example:4317", "Sec-Fetch-Site": "same-origin" }, body: "{}" }), path).toBe(403);
+      // And nothing at all: a mutation like every other.
+      expect(await post(path, { body: "{}" }), path).toBe(401);
+    }
+  });
+
   it("leaves reads alone — they answer to the gate above, not to this one", async () => {
     const status = await new Promise<number>((resolve, reject) => {
       const req = request({ host: "127.0.0.1", port, path: "/api/health", method: "GET" }, res => {

@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "bootId": "0199f0b7-2a4c-7d1e-9f30-4b5c6d7e8f90",
+  "seq": 0,
+  "observedAt": "2026-10-18T09:20:00.120Z",
+  "state": "running",
+  "deck": { "version": "3.43.0", "os": "linux", "arch": "x64", "channel": "npm" },
+  "cpu": { "unknown": "warming-up" },
+  "memory": { "unknown": "unavailable" },
+  "agents": { "unknown": "starting" }
+}

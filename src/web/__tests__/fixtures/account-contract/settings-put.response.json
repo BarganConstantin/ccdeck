@@ -1,0 +1,3 @@
+{ "profile": { "id": "0199f0a2-7000-7aa1-9c3e-1b2d3e4f5a6b", "kind": "shared", "revision": 15, "schema": 1,
+  "values": { "theme": "paper", "density": "compact", "panels.detail": true },
+  "updatedAt": "2026-10-18T09:15:12Z", "updatedBy": { "kind": "device", "deviceId": "0199f0a2-6c1e-7b3a-9d2e-5b8f3c1a7e40", "name": "laptop-a" } } }

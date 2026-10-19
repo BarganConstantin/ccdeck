@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "bootId": "0199f0a2-6c1e-7b3a-9d2e-5b8f3c1a7e40",
+  "seq": 128,
+  "observedAt": "2026-10-18T09:14:03.512Z",
+  "state": "running",
+  "deck": { "version": "3.43.0", "os": "darwin", "arch": "arm64", "channel": "npm" },
+  "cpu": { "pct": 37.5, "cores": 10, "sampledAt": "2026-10-18T09:14:01.004Z" },
+  "memory": { "usedPct": 61.2, "totalMb": 32768, "sampledAt": "2026-10-18T09:13:41.950Z" },
+  "agents": { "running": 3, "waiting": 1, "sampledAt": "2026-10-18T09:14:03.511Z" },
+  "settings": { "profileId": "0199…a6b", "appliedRevision": 13 }
+}
