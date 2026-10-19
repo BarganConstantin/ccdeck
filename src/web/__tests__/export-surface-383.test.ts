@@ -172,7 +172,7 @@ describe("everything those symbols decide still gets decided", () => {
     expect(events).toEqual([
       "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse",
       "PostToolUseFailure", "SubagentStart", "SubagentStop", "Stop",
-      "SessionEnd", "Notification",
+      "SessionEnd", "Notification", "UserPromptExpansion",
     ]);
     // And the list is still what the claude provider installs, rather than a
     // constant left behind beside a literal that has drifted away from it.

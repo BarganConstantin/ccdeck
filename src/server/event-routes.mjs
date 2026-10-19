@@ -17,6 +17,7 @@ import { presentsDeckToken } from "./request-gates.mjs";
 import { SEQ_EPOCH, ringHoldsNewerThan, ringSnapshot } from "./event-ring.mjs";
 // The one door every event comes through — see event-pipeline.mjs.
 import { pushEvent } from "./event-pipeline.mjs";
+import { noteToolAudit } from "./tool-audit.mjs";
 import { noteLogWriter } from "./event-log.mjs";
 // Which CLIs this deck watches — see deck-scope.mjs.
 import { deckProviders } from "./deck-scope.mjs";
@@ -200,6 +201,20 @@ export function handleEventIngest(req, res, persist = true) {
     // arrived, so it is the payload saying whose it is.
     if (!deckProviders().claude && parsed?.provider === "claude") {
       return send(res, 409, { error: "this deck is not watching Claude" });
+    }
+    // A slash command expanding into a prompt (UserPromptExpansion) is counted
+    // for Skill activity and goes no further. The prompt it becomes arrives on
+    // its own UserPromptSubmit, the canvas has nothing to draw for it, and the
+    // reducer would otherwise treat an event it does not know as session
+    // traffic. So it never reaches the ring, the pages or the log.
+    if (parsed?.hook_event_name === "UserPromptExpansion") {
+      try {
+        noteToolAudit(parsed, "hook", {});
+        send(res, 200, { ok: true });
+      } catch (err) {
+        sendInternalError(res, err);
+      }
+      return;
     }
     // Everything past the parse is inside one net, because this listener is the
     // one place in the route table `guard` cannot reach. The route does wrap the
