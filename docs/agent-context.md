@@ -67,7 +67,7 @@ branches still have the same state. Verify them at the start of a new session.
   - The chrome-devtools MCP could not start here (no X display). Headless
     Chromium from `~/.cache/ms-playwright` driven by a borrowed
     `playwright-core` worked.
-- Real smoke: `jira.sapec.md` (Jira 9.0.0) refused the PAT in `JIRA_TOKEN`
+- Real smoke: the owner's Jira Server 9.0.0 refused the PAT in `JIRA_TOKEN`
   itself (401, `X-AUSERNAME: anonymous`, also with plain curl). Rerun the
   read-only smoke test once the owner has a fresh token.
 
@@ -91,11 +91,25 @@ branches still have the same state. Verify them at the start of a new session.
   Monitor and Configuration. Earlier three-tab/Start-Stop notes below describe
   the superseded design. Session labels prefer available local session names.
 - Tool Activity uses a shared modal at 90vw × 90dvh, a wrench rail icon and an
-  automatically selected first visible tool. Skill analytics are future work:
-  GitHub issue #2181 was already created; do not duplicate it.
+  automatically selected first visible tool. Skill analytics are its Skills
+  tab (#2181, below).
 - Frontend builds need no backend restart. Avoid restarting the Radar process
   during UI work: capture history and persistent HTTP/2 decoder state live in
   memory. Radar verification details remain in its feature investigation docs.
+
+## Skill activity on Linux — 2026-10-19
+
+- Issue #2181, branch `feat/2181-skill-activity`, worktree
+  `/home/constantin/Desktop/personal/ccdeck-wt/2181-skill-activity`.
+- Tool activity gained a Tools | Skills tab. Claude skills come from the Skill
+  tool's hooks and, for typed commands, the new `UserPromptExpansion` hook;
+  Codex skills from rollouts (`<skill>` messages, plus SKILL.md reads and
+  `scripts/` runs for skills in the session's catalog). Repeats such as `/loop`
+  ticks are kept out of the count. Contract: `docs/features/tool-audit.md` →
+  Skill activity.
+- development already fails 41 tests in this Linux environment; compare
+  failure messages, not just names, against a base checkout before calling a
+  convention test pre-existing.
 
 ## Tool activity redesign on Linux — 2026-10-15
 

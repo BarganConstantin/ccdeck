@@ -393,6 +393,8 @@ const PRESSES: Press[] = [
   [".ta-row:active", "0.97", "transform"],
   [".ta-highlight:active", "0.97", "transform"],
   [".ta-explain summary:active", "0.97", "transform"],
+  [".ta-view:active", "0.97", "transform"],
+  [".sa-session:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
   [".selected-ribbon .selected-close:active", "0.94", "transform"],
   // The × is a span inside the ribbon's own button, and `:active` is set on

@@ -398,6 +398,9 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       "components/RemoteControl.tsx",
       "components/SessionSummary.tsx",
       "components/ShareAccountsDialog.tsx",
+      // Skill activity's details, the same shape as Tool activity's below: an
+      // <h3> naming the skill, divided into its projects and latest uses (#2181).
+      "components/SkillInspector.tsx",
       "components/TelemetryCapture.tsx",
       "components/TelemetryFile.tsx",
       // Tool activity's details: an <h3> naming the tool, divided into calls

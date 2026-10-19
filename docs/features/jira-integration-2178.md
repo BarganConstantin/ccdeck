@@ -267,7 +267,7 @@ Jira's rendered HTML is rebuilt into React elements from an allowlist
   - 401, 403, 429 and 500 states, Reconnect into the edit form, and Test
     recovering;
   - no page-level horizontal overflow.
-- `jira.sapec.md` (Jira 9.0.0) answered `serverInfo`. The PAT supplied for the
+- The owner's Jira Server 9.0.0 answered `serverInfo`. The PAT supplied for the
   read-only smoke test was refused by Jira itself: `401`,
   `X-AUSERNAME: anonymous`, the same with plain curl. The deck reported *auth*
   and saved nothing. The token reached no log, answer or file, and the scratch

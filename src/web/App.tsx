@@ -604,6 +604,12 @@ function Inner() {
   const [radioOpen, setRadioOpen] = useState(false);
   const [toolAuditOpen, setToolAuditOpen] = useState(false);
   const closeToolAudit = useCallback(() => setToolAuditOpen(false), []);
+  // Skill activity names a session by its card, and opens it there, while the card is still drawn.
+  const toolAuditSessionLabel = useCallback((sessionId: string) => {
+    const card = stateRef.current.agents.get(sessionId);
+    return card ? card.label || card.cwdBasename || "session" : null;
+  }, []);
+  const openToolAuditSession = useCallback((sessionId: string) => { setToolAuditOpen(false); openSession(sessionId); }, [openSession]);
   const closeRadio = useCallback(() => setRadioOpen(false), []);
   const rails = railItems({
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
@@ -788,7 +794,7 @@ function Inner() {
           control before the region it discloses. */}
       {!phone && <EdgeRail side="right" label="Right panels" groups={rails.right} />}
 
-      {toolAuditOpen && <ToolAuditModal onClose={closeToolAudit} />}
+      {toolAuditOpen && <ToolAuditModal onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}
       {integrationOpen && (
         <IntegrationModal kind={integrationOpen} connections={connectionsOf(integrations, integrationOpen)}
           onClose={closeIntegration} onReconnect={reconnectIntegration} />
