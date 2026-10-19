@@ -570,6 +570,58 @@ Plain words carry it; the earlier P95 / interval vocabulary is gone.
   Findings appear only above their sample floors, so a handful of calls never
   becomes a headline.
 
+### Integrations and the Jira panel
+
+Issue #2178. A connected tracker is a large modal on Tool activity's shell
+(`.modal.ig-modal`, 90vw × 90dvh on `--bg`). It is opened from one control per
+connected kind on the left stripe, under a divider below Accounts and Session
+list (under More on phones), or with **I**. Contract:
+`docs/features/jira-integration-2178.md`, `.impeccable/surfaces/jira-integration.md`.
+
+- **The host draws only the header.** It shows the provider's monochrome mark
+  (`--muted`) and name, the connection (a `sm-select` once there are two), and
+  a 36px Close. Everything under it is the provider's panel.
+- **List and detail** (`IntegrationSplit`):
+  - From 900px the detail sits beside the list on `--panel`, 440px by
+    default. The reader can drag it 320–1600px with Tool activity's splitter
+    (arrows, Enter to reset, remembered per browser), and the list always
+    keeps 420px.
+  - Under 900px the detail is a screen of its own, with *Back to the board* at
+    the top, and the board's toolbar steps aside until Back.
+- **The backlog is Jira's Backlog page, quieter.**
+  - Sprint headers are buttons with a chevron: name, an `ACTIVE` badge, dates
+    and count, then the facts on the right. The facts are mine-done, an avatar
+    stack, and three total pills by status category (`data-cat` new /
+    indeterminate / done, on tinted fills).
+  - Issues sit in one bordered `--panel` body per group.
+  - A row is a grid of chevron, type glyph, priority glyph, key (`--muted`,
+    struck through when done), summary, then meta: flag, versions, the epic
+    chip in the epic's Jira colour, estimate, avatar.
+  - Hover is `--ctl-fill`; selection is `--accent-dim`, never a stripe.
+  - A context row ("not assigned to you") is muted and italic in its note.
+- **Narrow:**
+  - Container queries on the list (`jira-list`) put the meta under the
+    summary below 560px, and drop the priority glyph and wrap the summary
+    below 360px.
+  - On a phone the search takes the full width and the filter chips scroll
+    sideways in one row.
+- **Icons Jira serves as SVG are drawn by the panel:**
+  - Types are 16px tiles: bug red, story green, task blue, sub-task light
+    blue, epic purple, with white marks.
+  - Priorities are chevrons and bars in their level's colour.
+  - Raster icons and avatars come through the asset route; an avatar falls
+    back to initials.
+- **Controls are the deck's:**
+  - `btn` for the board, chips (pressed: `--accent-dim` fill with an
+    `--accent` edge), Copy key / Copy link.
+  - `.jr-open` is the anchor twin of `btn`, for *Open in Jira*.
+  - `glyph-btn` for Refresh, `ap-manage-input` for fields.
+- **The issue's HTML** gets reading styles under `.jr-html`: tables in a
+  scroller, code on `--ctl-fill`, Jira's info panels as bordered notes, links
+  in `--accent`.
+- **Forced colours:** the open issue and a pressed chip are outlined in
+  Highlight, and the splitter line is CanvasText.
+
 ### Canvas objects
 
 - **Agent node** — the canvas's primary object. `--node-grad` fill, `--r-node` radius,

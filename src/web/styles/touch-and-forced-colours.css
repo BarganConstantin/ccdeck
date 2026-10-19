@@ -309,4 +309,12 @@
   .ta-row[data-selected], .ta-highlight[aria-expanded=true] { outline: 1px solid Highlight; }
   .ta-splitter::before { forced-color-adjust: none; background: CanvasText; }
   .ta-splitter:hover::before, .ta-splitter:focus-visible::before { background: Highlight; }
+
+  /* A tracker's panel (#2178): the line between the list and an issue in
+     system ink like Tool activity's, and the open issue and a pressed filter
+     outlined, since their fills are gone. */
+  .ig-splitter::before { forced-color-adjust: none; background: CanvasText; }
+  .ig-splitter:hover::before, .ig-splitter:focus-visible::before { background: Highlight; }
+  .jr-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
+  button.btn.jr-chip[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
 }
