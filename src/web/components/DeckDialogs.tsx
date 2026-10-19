@@ -180,8 +180,8 @@ export default function DeckDialogs({
              shortcuts sheet hands over to it below, and each opens through
              the deck's own way in: the version chip's (What's new, and for a
              lit chip the banner put back too), the topbar's Feedback, the
-             tour's, Browser Watch's stripe button, and App's for the two
-             panels. */
+             tour's, Browser Watch's stripe button, Radar's toolbar button,
+             and App's for the two panels. */
           doors={{
             whatsNew: doorOut(closeSettings, openReleaseNotes),
             update: doorOut(closeSettings, () => { openReleaseNotes(); showNotice(); }),
@@ -190,6 +190,7 @@ export default function DeckDialogs({
             accounts: doorOut(closeSettings, panelDoors.accounts),
             localNetwork: doorOut(closeSettings, panelDoors.localNetwork),
             browserWatch: doorOut(closeSettings, () => setBrowserWatchOpen(true)),
+            radar: doorOut(closeSettings, () => setTrafficRadarOpen(true)),
           }}
         />
       )}

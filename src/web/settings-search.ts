@@ -161,7 +161,7 @@ function buildIndex(): SettingsEntry[] {
         keywords: ["delete history", "erase", "wipe", "remove"] },
     ],
     radar: [
-      { id: "radar-enabled", section: "radar", group: "Telemetry Radar", label: "Enable Radar",
+      { id: "radar-enabled", section: "radar", label: "Enable Radar",
         keywords: ["telemetry", "collector", "monitoring", "traffic", "background", "toolbar"] },
     ],
     about: [

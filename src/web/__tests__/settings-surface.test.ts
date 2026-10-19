@@ -55,7 +55,7 @@ function settingsProps(over: Partial<SettingsModalProps> = {}): SettingsModalPro
     versionCheck: { version: null, notice: null, noticeOpen: false, showNotice: noop, dismissNotice: noop, versionChecking: false, loadVersion: async () => null },
     desktopUpdate: { desktopUpdateRestarting: false, desktopUpdateFailure: null, readyAppUpdate: null, appUpdate: null, askDesktopUpdateRestart: asyncNoop, onDesktopUpdateEvent: noop },
     restart: { autoRestart: true, toggleAutoRestart: noop },
-    doors: { whatsNew: noop, update: noop, tour: noop, feedback: noop, accounts: noop, localNetwork: noop, browserWatch: noop },
+    doors: { whatsNew: noop, update: noop, tour: noop, feedback: noop, accounts: noop, localNetwork: noop, browserWatch: noop, radar: noop },
     ...over,
   } as unknown as SettingsModalProps;
 }

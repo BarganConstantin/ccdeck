@@ -96,6 +96,8 @@ export interface SettingsDoors {
   /** The accounts panel, at its Local network view. */
   localNetwork: () => void;
   browserWatch: () => void;
+  /** Radar, as its toolbar button opens it. */
+  radar: () => void;
 }
 
 /** A door out of Settings: close it, then open what the door names.
