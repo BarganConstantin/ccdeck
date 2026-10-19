@@ -9,7 +9,7 @@ import { elapsed } from "../duration";
 import { modelChipText } from "../model-label";
 import { sessionDisplay } from "../session-display";
 import { useNow } from "../use-now";
-import { branchLong, stateMarkKind, type BranchSummary } from "../node-face";
+import { branchLong, drawnState, stateMarkKind, type BranchSummary } from "../node-face";
 import { promptTime } from "../relative-time";
 import type { AgentNodeData } from "../types";
 import { stateLabel, waitingLabel } from "../agent-copy";
@@ -226,8 +226,8 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
         <span className="node-peek-time">{a.synthetic ? "≥ " : ""}{elapsed(a.startedAt, a.endedAt, now)}</span>
       </div>
       <div className="node-peek-kind">
-        <span className="node-peek-state" data-kind={stateMarkKind(a.state)}>
-          <StateMark kind={stateMarkKind(a.state)} />{stateLabel(a.state)}
+        <span className="node-peek-state" data-kind={stateMarkKind(drawnState(a))}>
+          <StateMark kind={stateMarkKind(drawnState(a))} />{stateLabel(drawnState(a))}
         </span>
         <span>{kind}</span>
         {a.model ? <span>{modelChipText(a.model, a.effort)}</span> : null}

@@ -1,7 +1,8 @@
 // A session's life on the board: the start that retracts the joined-late
-// marker, the prompt that opens a turn, the Stop that closes one and the
-// SessionEnd that closes the session — and the late event that brings back a
-// session the stale sweep had given up on.
+// marker, the prompt that opens a turn, the Stop that closes one — or the
+// StopFailure that closes it on an API error — and the SessionEnd that closes
+// the session, and the late event that brings back a session the stale sweep
+// had given up on.
 //
 // All of them write to the ROOT rather than to whichever agent `resolveOwner`
 // picked: a human types into a session, and a turn or a session ends for the
@@ -11,7 +12,8 @@ import { rootAgentId, type GraphState } from "./graph-state";
 import { injectedPrompt } from "./injected-prompt";
 import { HOOK_REDELIVERY_WINDOW_MS, recordPrompt, sessionEvidenceAt } from "./redelivery";
 import { settleUnanswered, shortPreview } from "./tool-calls";
-import type { HookPayload } from "./types";
+import type { AgentNodeData, HookPayload } from "./types";
+import type { StopFacts } from "../server/stop-failure.mjs";
 
 /** That this session was heard from, whatever the event says: the root's
  *  `lastEventAt`, and a root the stale sweep reaped put back (#350).
@@ -46,6 +48,15 @@ export function noteSessionHeard(state: GraphState, sessionId: string, now: numb
   }
 }
 
+/** The session did something after the turn that stopped on an error: the
+ *  stop's note comes down. Only for evidence NEWER than the stop — order
+ *  independence again: a copy of the prompt that opened the failed turn,
+ *  arriving after it from another deck's log, is not the human typing
+ *  "continue". See `stopFailure` in types.ts for who may clear it. */
+export function clearStopFailure(root: AgentNodeData | undefined, now: number): void {
+  if (root?.stopFailure && now > root.stopFailure.at) root.stopFailure = null;
+}
+
 /** A session beginning — or beginning again, after `/clear` or `--resume`. The
  *  one event that retracts the joined-late marker (#677). */
 export function applySessionStart(state: GraphState, p: HookPayload, sessionId: string, now: number): void {
@@ -73,6 +84,9 @@ export function applySessionStart(state: GraphState, p: HookPayload, sessionId: 
   // left an `active` card whose elapsed clock was frozen at the previous
   // ending, counting from a moment the card no longer claims.
   root.endedAt = undefined;
+  // And a turn that stopped on an error before it is history: a fresh start
+  // has nothing to "continue".
+  clearStopFailure(root, now);
   // The EARLIEST beginning we have heard of, not the first one recorded.
   // `root.startedAt || now` kept whichever event happened to create the node,
   // and that is not always the earliest: hook POSTs are fire-and-forget and
@@ -120,6 +134,9 @@ export function applyUserPromptSubmit(state: GraphState, p: HookPayload, session
   // real ending and would wipe the flag a second after it was set.
   root.closedAt = undefined;
   root.exitAt = undefined;
+  // The human typed — "continue", as the note asked, or anything else: the
+  // turn that stopped on an error is behind them now.
+  clearStopFailure(root, now);
 
   // Everything below is the ROOT's, and it is spelled `root` rather than
   // `resolveOwner(state, p, now)` on purpose (#675). That helper is the
@@ -172,10 +189,19 @@ export function applyUserPromptSubmit(state: GraphState, p: HookPayload, session
   }
 }
 
-/** `Stop` or `SessionEnd`, which `name` says: the root's turn is over, and for
- *  `SessionEnd` the session with it. Refused whole when it is a re-delivery or
- *  out of order (#1022). */
-export function applyTurnEnd(state: GraphState, name: string, sessionId: string, now: number): void {
+/** `Stop`, `StopFailure` or `SessionEnd`, which `name` says: the root's turn is
+ *  over, and for `SessionEnd` the session with it. Refused whole when it is a
+ *  re-delivery or out of order (#1022).
+ *
+ *  `outcome` is what the hook said about HOW the turn ended, and only a hook
+ *  says it: a `StopFailure` hands its facts, a `Stop` hands null — a finished
+ *  turn, which takes any earlier stop's note down. Without one — a
+ *  `SessionEnd`, or the recovery snapshot reporting a session idle — the note
+ *  is left as it was: neither says the failed turn was ever run again. */
+export function applyTurnEnd(
+  state: GraphState, name: string, sessionId: string, now: number,
+  outcome?: { stopFailure: StopFacts | null },
+): void {
   // Mark the root done; leave the subagent nodes alone (they have their
   // own Stop), but drop the session's attribution stack. Keys land there
   // on SubagentStart and used to come off only on SubagentStop, and hook
@@ -266,6 +292,10 @@ export function applyTurnEnd(state: GraphState, name: string, sessionId: string,
   root.state = "done";
   root.endedAt = now;
   root.lastTurnEndAt = now;
+  // Newer than the note it replaces, for the order independence everything
+  // above is guarding: the guards already refuse a stale ending, and this
+  // keeps an equal-or-older one from writing over a newer stop's facts.
+  if (outcome && (!root.stopFailure || now >= root.stopFailure.at)) root.stopFailure = outcome.stopFailure;
   // A TURN THAT ENDED CANNOT STILL BE HOLDING ITS OWN TOOL CALL.
   //
   // The hook POSTs are fire-and-forget, so a call whose PostToolUse fired
