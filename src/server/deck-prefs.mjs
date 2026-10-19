@@ -88,6 +88,11 @@ export const DEFAULTS = Object.freeze({
   // incident (account-notify.mjs). ON for the swap's reason: it is rare, every
   // running session is stopped when it happens, and nothing else says so.
   notifyStopped: true,
+  // Continue a BACKGROUND session whose turn stopped on an expired login or a
+  // usage limit, once a working login with room is active again — once per
+  // stop (stop-continue.mjs, #2193). OFF: it stops and restarts a session's
+  // process on the user's behalf, and that is something a person turns on.
+  continueStopped: false,
   // The Electron window can open on a new localhost port after an update.
   // Its tour marker must outlive that origin; browser tabs still use their
   // own localStorage marker and never read this preference.
@@ -339,6 +344,7 @@ export function normalise(raw) {
     notifyQuota: flagOr(src.notifyQuota, DEFAULTS.notifyQuota),
     notifyReset: flagOr(src.notifyReset, DEFAULTS.notifyReset),
     notifyStopped: flagOr(src.notifyStopped, DEFAULTS.notifyStopped),
+    continueStopped: flagOr(src.continueStopped, DEFAULTS.continueStopped),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
     terminal: flagOr(src.terminal, DEFAULTS.terminal),
@@ -725,7 +731,7 @@ export function publicPrefs(prefs) {
  */
 export const PAGE_FIELDS = Object.freeze({
   top: Object.freeze([
-    "notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions",
+    "notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "continueStopped", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions",
     "terminal",
   ]),
   lan: Object.freeze([

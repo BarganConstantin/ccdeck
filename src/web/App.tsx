@@ -71,6 +71,7 @@ import { leftColumnWidth, useColumnSettle, useLeftColumn } from "./use-left-colu
 import { useRightPanels } from "./use-right-panels";
 import { useLiveAnnouncements } from "./use-live-announcements";
 import { useOsNotifications } from "./use-os-notifications";
+import { useStopContinueFeed } from "./use-stop-continue";
 import { useMirroredRef } from "./use-mirrored-ref";
 import { useDialogs } from "./use-dialogs";
 import { useClearFlow } from "./use-clear-flow";
@@ -316,6 +317,11 @@ function Inner() {
 
   // The deck's 250ms clock, and the sweeps that run on it — use-board-tick.ts.
   const now = useBoardTick({ stateRef, rerender, pruneSelectionToBoard, setContextFor, setSummaryFor });
+
+  // Continue for turns that stopped on a login or a usage limit (#2193): asks
+  // the server while a card is stopped, for the store the cards and the
+  // detail panel read (use-stop-continue.ts).
+  useStopContinueFeed({ stateRef, now, enabled: providers.claude });
 
   // What the providers' status pages report (#1311): use-provider-status.ts
   // asks, provider-status.ts decides which lines are an incident. Read against

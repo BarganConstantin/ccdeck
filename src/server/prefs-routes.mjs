@@ -14,6 +14,7 @@ import { applyLanPrefs, forgetReach, resetLanLoaded } from "./lan-deck.mjs";
 import { giveBackDeckFolders } from "./prefs-give-back.mjs";
 import { readBody, send } from "./http-io.mjs";
 import { closeOpenTerminals } from "./terminal-socket.mjs";
+import { noteContinueSwitchedOn } from "./stop-continue.mjs";
 
 /**
  * GET the deck's settings, and what the machine is allowing.
@@ -98,6 +99,9 @@ export async function handlePrefsWrite(req, res) {
   // to one question: is anything going to turn up. Whatever the probe said
   // before is about a deck whose sockets were down — see forgetReach.
   if (body.lan?.enabled === true) forgetReach();
+  // A stopped background session already waiting for a working login is
+  // looked at now, not at the next pass (stop-continue.mjs).
+  if (patch.continueStopped === true) noteContinueSwitchedOn();
   return send(res, 200, prefsPayload());
 }
 

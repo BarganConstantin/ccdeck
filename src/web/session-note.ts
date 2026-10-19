@@ -152,7 +152,7 @@ function statusNote(a: NoteBearing): SessionNote | null {
   const stop = a.stopFailure;
   if (stop) {
     return {
-      kind: "stopped", text: stopNoteText(stop), at: stop.at, source: "stop", stop,
+      kind: "stopped", text: stopNoteText(stop, a.job != null), at: stop.at, source: "stop", stop,
       key: `${a.sessionId}@stopped:${stop.at}`,
     };
   }

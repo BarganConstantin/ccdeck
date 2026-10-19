@@ -49,7 +49,9 @@ describe("every switch is the one switch (#886)", () => {
     // Twenty-one with Settings › Radar's "Enable Radar", and Radar's own "With
     // prompt", an on/off filter over its activity list.
     // Twenty-two with the terminal's Beta switch in General (TerminalSection.tsx).
-    expect(switches, "the twenty-two switches in the source").toBe(22);
+    // Twenty-three with Claude sessions' "Continue stopped background sessions"
+    // (#2193), off until it is turned on.
+    expect(switches, "the twenty-three switches in the source").toBe(23);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

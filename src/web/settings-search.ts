@@ -100,6 +100,7 @@ function buildIndex(): SettingsEntry[] {
   const rows: Record<SettingsSection, SettingsEntry[]> = {
     general: [
       { id: "claude-session-recovery", claudeOnly: true, section: "general", group: "Claude sessions", label: "Restore unfinished sessions", keywords: ["claude", "recover", "restore", "startup", "restart", "busy"] },
+      { id: "claude-continue-stopped", claudeOnly: true, section: "general", group: "Claude sessions", label: "Continue stopped background sessions", keywords: ["claude", "continue", "background", "stopped", "login", "usage limit", "automatically"] },
       { id: "codex-session-recovery", section: "general", group: "Codex sessions", label: "Restore unfinished sessions", keywords: ["codex", "recover", "restore", "startup", "restart", "unfinished"] },
       { id: "hide-finished", section: "general", group: "Board", label: "Hide finished sessions after",
         keywords: ["finished", "done", "completed", "idle", "clean up", "auto hide", "canvas", "board", "remove"] },

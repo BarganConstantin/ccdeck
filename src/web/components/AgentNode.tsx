@@ -45,6 +45,9 @@ import { NoteMark } from "./RecapMark";
 // The words for a turn that stopped on an error. See stop-failure-copy.ts.
 import { stopRowLabel, stopTooltip } from "../stop-failure-copy";
 import type { StopFacts } from "../../server/stop-failure.mjs";
+// Continue on a stopped background session, and the line a continue leaves
+// (#2193). See StopContinue.tsx.
+import { CardContinue, ContinuedRow } from "./StopContinue";
 
 /** A card re-renders when its agent changes, not when the clock does (#873).
  *  Time reaches it through the three leaves that print it — the elapsed clock,
@@ -303,7 +306,10 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
           the waiting row, which a stopped turn makes redundant when it is only
           the idle "your turn" — Claude Code's idle reminder a minute later is
           about the same turn. */}
-      {data.kind === "root" && data.stopFailure && <StopRow stop={data.stopFailure} />}
+      {data.kind === "root" && data.stopFailure && <StopRow data={data} stop={data.stopFailure} />}
+      {/* What a continue did, once the session is no longer stopped (#2193):
+          "Continued automatically 2m ago", for half an hour. */}
+      {data.kind === "root" && !data.stopFailure && <ContinuedRow data={data} />}
 
       {/* A row of its own rather than a chip in the title. The card is 260px
           wide and the header already spends it on the state pill, the workspace
@@ -477,12 +483,15 @@ function StatePill({ state }: { state: AgentNodeData["state"] }) {
  *  Claude Code said and what to do in the tooltip. The card's accessible name
  *  carries the same (agentAriaLabel), which is where a reader on the node hears
  *  it — a title is not announced there. The still dot is the waiting row's:
- *  nothing here is still happening. */
-function StopRow({ stop }: { stop: StopFacts }) {
+ *  nothing here is still happening. A background session's row carries its
+ *  Continue button at the end (#2193); an interactive one's says to type
+ *  "continue" in its terminal. */
+function StopRow({ data, stop }: { data: AgentNodeData; stop: StopFacts }) {
   return (
-    <div className="stop-row" title={stopTooltip(stop)} data-kind={stop.kind}>
+    <div className="stop-row" title={stopTooltip(stop, data.job != null)} data-kind={stop.kind}>
       <span className="waiting-dot" aria-hidden />
       <span className="stop-said">{stopRowLabel(stop)}</span>
+      <CardContinue data={data} />
     </div>
   );
 }

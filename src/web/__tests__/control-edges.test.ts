@@ -527,6 +527,10 @@ const CONTROLS: Control[] = [
   { at: ".tr-body .btn.tr-quiet:hover:not(:disabled)", beds: ["--panel"] },
   { at: ".tr-input:hover", beds: ["--panel"] },
   { at: ".tr-select:hover", beds: ["--panel"] },
+  // Continue at the end of a stopped background session's stop row (#2193),
+  // edged in the row's own hue on the card's face, and in the text colour
+  // under the pointer.
+  { at: ".agent-node .stop-continue", states: [".agent-node .stop-continue:hover:not(:disabled)"], beds: ["--panel", "--bg-soft"] },
   // Radar's Clear history, armed for its second press. At rest it is a glyph
   // with no boundary; armed, its words and its edge take the error colour until
   // the press lands or focus leaves. The activity list's ground is mixed from
@@ -943,7 +947,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // pointer, a filter chip that is on, and Open in Jira at rest and hovered.
     // The GitHub and GitLab panel (#2179) adds two: its search field at rest
     // and under the pointer.
-    expect(EDGED_CONTROLS.length).toBeLessThan(160);
+    // Continue on a stopped background session's card (#2193) adds two: the
+    // stop row's hue at rest, the text colour under the pointer.
+    expect(EDGED_CONTROLS.length).toBeLessThan(162);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

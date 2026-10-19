@@ -554,6 +554,56 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Continue, at the end of a background session's stop row (#2193). Sized to
+   the row rather than to a toolbar: the row's own text size, a 20px target in
+   its 3px padding, and the row's hue for its edge so it reads as part of the
+   row. The label yields nothing — "Continue" is the verb the row is about, and
+   the sentence beside it is the one that ellipsises. Disabled at the sheet's
+   --dim-off, like every other button that cannot act yet. */
+.agent-node .stop-continue {
+  flex: none;
+  min-height: 20px;
+  padding: 0 8px;
+  margin: -2px -5px -2px 0;
+  border: 1px solid color-mix(in srgb, var(--err) 85%, transparent);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.agent-node .stop-continue:hover:not(:disabled) { background: var(--ctl-fill); border-color: var(--text); }
+.agent-node .stop-continue:active:not(:disabled) { transform: scale(0.97); }
+.agent-node .stop-continue:disabled { opacity: var(--dim-off); cursor: default; }
+/* What a continue did, once the session is going again: the stop row's
+   geometry in the quiet tier, because nothing here needs anybody. A continue
+   that failed keeps the failure's hue. */
+.agent-node .continued-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-weight: 600;
+  min-width: 0;
+  color: var(--muted);
+}
+.agent-node .continued-row.failed {
+  color: var(--err);
+  border-color: color-mix(in srgb, var(--err) 85%, transparent);
+}
+.agent-node .continued-said {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .agent-node .sub {
   display: flex;
