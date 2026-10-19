@@ -1,0 +1,114 @@
+/* The GitHub and GitLab panel (#2179): the shell and the pieces every tab and
+   detail shares. Tabs are in forge-lists.css, the item pages in
+   forge-detail.css. Built from the deck's own controls — uh-range strips,
+   btn, glyph-btn — and its tokens; a state is always a mark and a word. */
+.fg-panel { height: 100%; min-height: 0; min-width: 0; display: flex; flex-direction: column; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); }
+.fg-panel code { font-family: var(--font-mono); }
+.fg-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* The list side: toolbar, tabs and search stay; the tab's rows scroll. */
+.fg-list { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.fg-toolbar { display: flex; align-items: center; gap: 12px; padding: 12px 20px 0; flex: none; }
+.fg-fresh { margin-left: auto; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fg-fresh[data-stale] { color: var(--warn); }
+.fg-refresh { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; flex: none; }
+.fg-refresh[data-loading] svg { animation: ta-spin 1000ms linear infinite; }
+.fg-refresh[aria-busy=true] { cursor: wait; }
+.fg-tabs { margin: 12px 20px 0; flex: none; align-self: flex-start; max-width: calc(100% - 40px); overflow-x: auto; }
+.fg-tabs .uh-range-btn { font-size: calc(12px + var(--ui-text-increase, 0px)); padding: 4px 12px; min-height: 28px; white-space: nowrap; }
+.fg-searchbar { display: flex; gap: 8px; align-items: center; padding: 12px 20px 0; flex: none; }
+.fg-search { flex: 1; min-width: 0; display: flex; }
+.fg-search input { width: 100%; min-height: 32px; box-sizing: border-box; padding: 6px 10px; font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); caret-color: var(--accent); }
+.fg-search input:hover { border-color: var(--text); }
+.fg-search input::placeholder { color: var(--text-secondary); opacity: 1; }
+.fg-tab-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; padding: 8px 20px 32px; }
+.fg-note { margin: 8px 20px 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.6; }
+.fg-tab-body .fg-note { margin: 12px 0 0; }
+.fg-empty { margin: 24px 0 0; color: var(--text-secondary); line-height: 1.6; max-width: 60ch; }
+
+/* A group: a heading that folds, with its count. */
+.fg-group { margin-top: 16px; }
+.fg-group-head { display: flex; align-items: center; gap: 8px; margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.fg-fold { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 4px; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; border-radius: var(--r-ctl); }
+.fg-fold:hover { background: var(--ctl-fill); }
+.fg-fold-chevron { width: 5px; height: 5px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(-45deg); transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fg-group[data-open] .fg-fold-chevron { transform: rotate(45deg); }
+.fg-count { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-weight: 400; color: var(--muted); }
+
+/* A row: one button, quiet fill on hover and when selected. */
+.fg-rows { list-style: none; margin: 6px 0 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); overflow: hidden; }
+.fg-rows > li { display: grid; }
+.fg-rows > li + li { border-top: 1px solid var(--line-soft); }
+.fg-row { display: grid; gap: 4px 16px; align-items: center; min-height: 48px; padding: 8px 14px; box-sizing: border-box; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fg-row:hover, .fg-row[data-selected] { background: var(--ctl-fill); }
+.fg-row:active { transform: scale(0.99); }
+.fg-row:focus-visible { outline-offset: -2px; }
+.fg-row-title { min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
+.fg-row[data-selected] .fg-row-title { font-weight: 600; }
+.fg-meta { min-width: 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fg-meta code { font-size: calc(11.5px + var(--ui-text-increase, 0px)); }
+
+/* A state: a mark and a word. Tones, never colour alone. */
+.fg-mark { display: inline-flex; align-items: center; gap: 4px; font-size: calc(12px + var(--ui-text-increase, 0px)); white-space: nowrap; }
+.fg-mark > [aria-hidden] { font-weight: 700; }
+.fg-mark[data-tone=ok] { color: var(--ok); }
+.fg-mark[data-tone=bad] { color: var(--err); }
+.fg-mark[data-tone=busy] { color: var(--accent); }
+.fg-mark[data-tone=idle] { color: var(--muted); }
+.fg-mark-word { color: var(--text-secondary); }
+.fg-badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 500; white-space: nowrap; color: var(--text-secondary); }
+.fg-badge[data-tone=ok] { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.fg-badge[data-tone=bad] { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, var(--line)); }
+.fg-badge[data-tone=busy] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+
+/* A failed read, and the way out of it. */
+.fg-failure { margin: 16px 0 0; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--err) 35%, var(--line)); border-radius: var(--r-panel); background: var(--panel); color: var(--text-secondary); line-height: 1.6; }
+.fg-failure p { margin: 0 0 10px; }
+.fg-failure strong { color: var(--text); font-weight: 600; }
+.fg-failure-compact { margin-top: 8px; padding: 8px 12px; border-color: color-mix(in srgb, var(--warn) 35%, var(--line)); }
+.fg-more { margin-top: 12px; }
+.fg-loading { display: grid; gap: 10px; margin-top: 16px; }
+.fg-loading i { display: block; height: 36px; border-radius: var(--r-ctl); background: var(--ctl-fill); animation: ta-pulse 1200ms ease-in-out infinite alternate; }
+
+/* People, values to copy, links out. */
+.fg-person { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.fg-avatar { flex: none; border-radius: 50%; object-fit: cover; background: var(--ctl-fill); }
+.fg-avatar-initial { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: var(--muted); }
+.fg-person-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fg-copyable { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+.fg-copy { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--muted); font: inherit; cursor: pointer; flex: none; }
+.fg-copy:hover { background: var(--ctl-fill); color: var(--text); }
+.fg-open { color: var(--accent); text-decoration: none; white-space: nowrap; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.fg-open:hover { text-decoration: underline; }
+
+/* A forge's rendered description (ForgeHtml.tsx). */
+.forge-html { line-height: 1.6; overflow-wrap: anywhere; color: var(--text); }
+.forge-html > :first-child { margin-top: 0; }
+.forge-html h1, .forge-html h2, .forge-html h3, .forge-html h4 { margin: 1.2em 0 0.5em; font-weight: 600; line-height: 1.3; }
+.forge-html h1 { font-size: 1.4em; } .forge-html h2 { font-size: 1.25em; padding-bottom: 0.3em; border-bottom: 1px solid var(--line); } .forge-html h3 { font-size: 1.1em; }
+.forge-html p, .forge-html ul, .forge-html ol, .forge-html pre, .forge-html blockquote, .forge-html table, .forge-html details { margin: 0 0 0.8em; }
+.forge-html ul, .forge-html ol { padding-left: 1.5em; }
+.forge-html li + li { margin-top: 0.2em; }
+.forge-html a { color: var(--accent); }
+.forge-html code { padding: 0.1em 0.35em; border-radius: 4px; background: var(--ctl-fill); font-size: 0.92em; }
+.forge-html pre { padding: 10px 12px; border-radius: var(--r-ctl); background: var(--ctl-fill); overflow-x: auto; }
+.forge-html pre code { padding: 0; background: none; }
+.forge-html blockquote { padding-left: 12px; border-left: 3px solid var(--line); color: var(--text-secondary); }
+.forge-html table { border-collapse: collapse; display: block; max-width: 100%; overflow-x: auto; }
+.forge-html th, .forge-html td { padding: 4px 10px; border: 1px solid var(--line); }
+.forge-html hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
+.forge-html img { max-width: 100%; height: auto; border-radius: 4px; }
+.forge-html .fh-image { display: inline-block; }
+.fh-check { margin: 0 6px 0 0; vertical-align: middle; }
+.forge-html li:has(> .fh-check) { list-style: none; margin-left: -1.3em; }
+
+@media (max-width: 640px) {
+  .fg-toolbar, .fg-searchbar { padding-inline: 16px; }
+  .fg-tabs { margin-inline: 16px; max-width: calc(100% - 32px); }
+  .fg-tab-body { padding-inline: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fg-row, .fg-fold-chevron { transition: none; }
+  .fg-row:active { transform: none; }
+  .fg-refresh[data-loading] svg { animation: none; }
+}

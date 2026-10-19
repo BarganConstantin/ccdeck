@@ -47,6 +47,9 @@
 @import "./styles/usage-panel.css";              /* the usage panel and its quota bars */
 @import "./styles/usage-history.css";            /* the usage history modal */
 @import "./styles/tool-audit.css";               /* the tool activity page */
+@import "./styles/forge-panel.css";              /* the GitHub and GitLab panel: shell and shared pieces */
+@import "./styles/forge-lists.css";              /* its tabs: branches, changes, pipelines, issues */
+@import "./styles/forge-detail.css";             /* its item pages: a change, a branch, a pipeline, an issue */
 @import "./styles/read-activity.css";
 @import "./styles/session-usage.css";
 @import "./styles/quota-history.css";
