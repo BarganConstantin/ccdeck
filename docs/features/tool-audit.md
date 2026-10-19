@@ -1,6 +1,7 @@
 # Tool activity
 
-Issue [#2122](https://github.com/BarganConstantin/ccdeck/issues/2122).
+Issue [#2122](https://github.com/BarganConstantin/ccdeck/issues/2122); its Skills tab,
+[#2181](https://github.com/BarganConstantin/ccdeck/issues/2181).
 
 Open **Tool activity** from the rail button below Usage history (on narrow screens,
 **More → Tool activity**). It is a device-wide page across Claude and Codex, independent
@@ -49,6 +50,71 @@ differently; nothing but grouped names is saved.
 P95, custom dates and per-chart views from the first iterations were removed on
 2026-10-15: they answered the same questions as the list in harder words.
 
+## Skill activity
+
+The header's **Tools | Skills** switch shows the second view under the same period
+and agent filters. Skills answers which skills ran, how often and how lately:
+
+1. **How much.** One sentence: in the period, the agents used N skills M times,
+   with failures when there are any and the repeats left out ("4 repeated runs,
+   such as `/loop` ticks, are left out").
+2. **Skills.** One list, ranked by uses, with Latest and Name orders and a
+   search. Each row shows the uses and when it last ran, and under the name which
+   agents ran it and in how many sessions. A plugin skill's namespace
+   (`anthropic-skills:`) is quiet before the short name, and Name sorts by the
+   short name. The Failed column exists only when something failed. Twelve rows
+   first, then all.
+3. **One skill.** Its details: uses, sessions, last used, failed (or projects),
+   how the uses came about (typed by you, called by the agent, detected in
+   Codex, in a subagent), uses per day, the five projects it ran in most, and its
+   latest 50 uses with agent, origin and project. A use whose session is still on
+   the canvas links to it; one that is gone says so.
+
+The Tools view's `Skill` row links to this view ("See which skills ran →"),
+since that row only says how often Claude's Skill tool ran, not which skill.
+
+### What counts as a use
+
+A use is a skill loaded into an agent:
+
+- **Claude, called by the agent:** a `PreToolUse` for the Skill tool, its
+  `tool_input.skill` the name; `PostToolUse` / `PostToolUseFailure` settle the
+  outcome. This is the Tools view's own `Skill` row, so it needs no new hook.
+- **Claude, typed:** `UserPromptExpansion` with `expansion_type: "slash_command"`,
+  which Claude Code sends when a typed slash command expands into a prompt
+  (skills and custom commands alike; checked on Claude Code 2.1.303). The
+  installer adds the hook; an older Claude Code ignores it, and then only the
+  skills Claude calls itself are counted. The event is recorded and answered
+  before the canvas would see it, so it never becomes a canvas event. Built-in
+  commands such as `/clear` do not send it; MCP prompts
+  (`expansion_type: "mcp_prompt"`) are not counted. Every deck on the device hears
+  the same hook, so the row id is the session, the prompt id (or a 5-second
+  bucket when there is none) and the name, and the first row wins.
+- **Codex, typed:** the `<skill><name>…</name>` message Codex injects into the
+  rollout when a person picks a skill with `$name` or `/skills`. It is written
+  only once the skill has loaded.
+- **Codex, detected:** a successful command (`exit_code` 0) that reads a skill's
+  `SKILL.md` or runs something from its `scripts/` folder, for a skill in the catalog Codex
+  listed for that session (`<skills_instructions>`, read from the rollout's first
+  512 KiB). Searching for `SKILL.md` files, or reading a Claude skill, is not a
+  use. At most one use per turn and skill.
+
+Codex rows are keyed by turn id and skill, so a forked rollout's copy of its
+parent's turns lands on the rows the parent already wrote. A subagent's use is
+counted under its parent session and marked as a subagent's.
+
+**Repeats.** The same typed command run again in one session with the same
+arguments, such as a `/loop` tick, is recorded with `repeat: true`: it is shown
+as a repeat and left out of uses and the ranking. The last arguments per session
+are compared as a digest held in memory, so the first run after a restart counts
+as a use. A name typed inside a message, and installed skills that never ran,
+are not uses.
+
+**From when.** `settings.json` keeps `skillsSince`, set when a deck that records
+skills first starts (and again on Clear). When it falls inside the period the
+page says that counting started then, so the days before it read as empty rather
+than unused.
+
 ## What is recorded
 
 Operations such as `git status`, `git commit`, `git push`, `npm run build`, and
@@ -78,9 +144,12 @@ session time. Wrapper intervals include orchestration/delivery/approval waits.
 `deckDataDir()/tool-audit/` honors `CCDECK_HOME` and contains atomic settings plus
 append-only daily JSONL metadata journals. Settings include a stable random
 device identity, clear-generation identity, retention and collection start.
-Call IDs hash device/generation/provider/session/call identity; raw session IDs
-are not stored. This gives future synchronization a namespace without enabling
-sync, uploading these records or aggregating other devices now.
+Call IDs hash device/generation/provider/session/call identity; a tool call's raw
+session ID is not stored. A skill use keeps the skill's name, its session ID (so
+its details can link to the session on the canvas) and the name of the project
+folder, never the full path or the command's arguments. This gives future
+synchronization a namespace without enabling sync, uploading these records or
+aggregating other devices now.
 
 General Settings shows actual journal/settings bytes, retention 30/60/90 days
 (default90), size refresh and a separate clear action. Shorter retention and
@@ -118,6 +187,8 @@ sync.
 `tool-audit.test.ts` and `tool-audit-history.test.ts` cover the collector,
 retention, report aggregation and daily history; `tool-audit-report.test.ts`
 covers the list orders, the findings' thresholds, the summary sentence and
-failure shares; `operation-glossary.test.ts` the descriptions. The style
+failure shares; `operation-glossary.test.ts` the descriptions;
+`skill-activity.test.ts` the skill collection (Claude and Codex), repeats,
+forks, the skills report and its list helpers. The style
 guards (`text-tiers`, `control-edges`, `type-ladder`, `dead-css`) hold the
 page to the shared tokens.
