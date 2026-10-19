@@ -10,7 +10,7 @@ export default function ReadActivity({ kind, title, note, delayed = false }: {
     document.addEventListener("visibilitychange", changed);
     return () => document.removeEventListener("visibilitychange", changed);
   }, []);
-  return <div className={`read-activity read-activity-${kind}`} role="status" aria-label={title} data-paused={hidden || undefined} data-delayed={delayed || undefined}>
+  return <div className="read-activity" data-kind={kind} role="status" aria-label={title} data-paused={hidden || undefined} data-delayed={delayed || undefined}>
     <svg className="read-activity-art" viewBox="0 0 180 100" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {kind === "quota" ? <>
         <path d="M36 26a23 23 0 1 1-3 28M34 20v14h14" /><path d="M56 33v14l8 5" />

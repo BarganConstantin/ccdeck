@@ -1,11 +1,13 @@
 /* Occasional local reads: keep this out of polling rows and live chart marks. */
 .read-activity { min-height: 144px; padding: 12px 4px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; text-align: center; }
-.read-activity-art { width: 160px; height: 89px; max-width: 100%; color: var(--text-secondary); }
+.read-activity-art { width: 160px; height: 89px; max-width: 100%; color: var(--muted); }
 .read-activity strong { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .read-activity > span { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; max-width: 38ch; }
 .read-activity-mark { stroke: var(--accent); animation: read-activity-scan 1400ms cubic-bezier(0.4, 0, 0.2, 1) infinite; }
-.read-activity-quota .read-activity-mark { animation-name: read-activity-transfer; animation-duration: 1600ms; }
-.read-activity-processes .read-activity-mark { animation-duration: 1200ms; }
+/* Quota's mark carries a reading from the clock to the record, so it travels
+   across the link rather than down the lines. */
+.read-activity[data-kind="quota"] .read-activity-mark { animation: read-activity-transfer 1600ms cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.read-activity[data-kind="processes"] .read-activity-mark { animation-duration: 1200ms; }
 .read-activity[data-delayed] .read-activity-art { animation: read-activity-appear 120ms ease-out 150ms both; }
 .read-activity[data-delayed] .read-activity-mark { animation-delay: 150ms; }
 .read-activity[data-paused] .read-activity-mark, .read-activity[data-paused] .read-activity-art { animation-play-state: paused; }
@@ -16,7 +18,7 @@
 @keyframes read-activity-appear { from { opacity: 0; } to { opacity: 1; } }
 @keyframes read-result-in { from { opacity: 0.7; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .read-activity .read-activity-mark, .read-activity[data-delayed] .read-activity-art, .read-result { animation: none; }
-  .read-activity .read-activity-mark { transform: translateY(4px); }
-  .read-activity-quota .read-activity-mark { transform: translateX(8px); }
+  .read-activity-mark, .read-activity[data-delayed] .read-activity-art, .read-result { animation: none; }
+  .read-activity-mark { transform: translateY(4px); }
+  .read-activity[data-kind="quota"] .read-activity-mark { animation: none; transform: translateX(8px); }
 }
