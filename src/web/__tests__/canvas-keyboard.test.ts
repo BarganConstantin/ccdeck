@@ -393,9 +393,12 @@ describe("nothing else in the deck invents a focus stop", () => {
     // The skip link's <main> and Radar's mobile inspector are deliberate
     // destinations, not extra tab stops. Selecting an export on a phone
     // moves focus to its contents, so the newly revealed details are announced.
+    // Sorted: readdir answers in the file system's order, and NTFS lists the
+    // forge/ folder among the capitals where ext4 and APFS list it after them.
     const negatives = components(web)
       .flatMap(p => [...code(readFileSync(p, "utf8")).matchAll(/tabIndex=\{-\d+\}/g)]
-        .map(() => p.slice(web.length).replaceAll("\\", "/")));
+        .map(() => p.slice(web.length).replaceAll("\\", "/")))
+      .sort();
     // Combobox options use aria-activedescendant; focus stays on the input.
     // Tool activity's details heading takes focus when a tool is opened from
     // the keyboard, so the panel that appeared is announced by its name.
