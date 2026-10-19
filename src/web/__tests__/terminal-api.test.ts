@@ -137,6 +137,18 @@ describe("reading the answers", () => {
     expect(await terminalStatus({ fetchFn })).toEqual({ ok: true, platform: "linux", tmux });
   });
 
+  it("keeps a download's progress only when it is one", async () => {
+    const status = async (progress: unknown) =>
+      (await terminalStatus({ fetchFn: answering(200, { ok: true, platform: "linux", tmux: { ok: false, reason: "installing", progress } }).fetchFn })) as { tmux: { progress?: unknown } };
+    expect((await status({ stage: "downloading", received: 10, total: 100 })).tmux.progress).toEqual({ stage: "downloading", received: 10, total: 100 });
+    expect((await status({ stage: "downloading", received: 10 })).tmux.progress, "no size given").toEqual({ stage: "downloading", received: 10, total: null });
+    expect((await status({ stage: "downloading", received: 10, total: 0 })).tmux.progress).toEqual({ stage: "downloading", received: 10, total: null });
+    expect((await status({ stage: "checking", received: "x" })).tmux.progress).toEqual({ stage: "checking" });
+    for (const bad of [null, "50%", { stage: "downloading" }, { stage: "downloading", received: -1 }, { stage: "downloading", received: Infinity }, { stage: "done" }]) {
+      expect((await status(bad)).tmux, JSON.stringify(bad)).not.toHaveProperty("progress");
+    }
+  });
+
   it("returns a ticket and its target when the session can be attached", async () => {
     const { fetchFn } = answering(200, { ok: true, ticket: "Zm9vYmFy", target: ATTACHABLE });
     expect(await openTerminal(SESSION, { fetchFn })).toEqual({ ok: true, ticket: "Zm9vYmFy", target: ATTACHABLE });

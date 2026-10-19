@@ -918,6 +918,30 @@ describe("while the deck sets up its own tmux", () => {
     expect(r.sockets).toHaveLength(1);
   });
 
+  it("carries how far the download has got to the card, drawing only what changed", async () => {
+    const at = (progress: unknown) => ({ ok: true, platform: "linux", tmux: { ok: false, reason: "installing", progress } }) as TerminalStatus;
+    const half = { stage: "downloading", received: 550_000, total: 1_100_000 };
+    const { r, ctl } = rig();
+    r.launch.mockResolvedValueOnce(refused());
+    r.status.mockResolvedValueOnce(INSTALLING).mockResolvedValueOnce(at(half)).mockResolvedValueOnce(at(half))
+      .mockResolvedValueOnce(failure(null)).mockResolvedValueOnce(at({ stage: "checking" })).mockResolvedValueOnce(READY);
+    ctl.show({ kind: "launch", agent: "codex", cwd: "/w", key: "n7" });
+    await flush();
+    expect(r.last().phase, "the deck has not said yet").toEqual({ kind: "tmux-installing" });
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS);
+    expect(r.last().phase).toEqual({ kind: "tmux-installing", progress: half });
+    const drawn = r.snaps.length;
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS);
+    expect(r.snaps.length, "the same answer draws nothing").toBe(drawn);
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS);
+    expect(r.last().phase, "a deck that blinks leaves the bar where it was").toEqual({ kind: "tmux-installing", progress: half });
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS);
+    expect(r.last().phase).toEqual({ kind: "tmux-installing", progress: { stage: "checking" } });
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS);
+    await flush();
+    expect(r.launch).toHaveBeenCalledTimes(2);
+  });
+
   it("reopens a board session the same way", async () => {
     const { r, ctl } = rig();
     r.open.mockResolvedValueOnce({ ok: false, target: { kind: "unsupported", label: "The terminal runs on tmux…", reason: "missing" } });

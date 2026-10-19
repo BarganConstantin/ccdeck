@@ -101,10 +101,15 @@ function exec(file, args, timeout = 15_000) {
  * a deck without tmux is an expected state, and the panel says why. Reasons:
  * install_disabled, download_disabled, unsupported_platform, not_published,
  * download_failed, too_large, checksum_mismatch, extract_failed, does_not_run.
+ *
+ * `onProgress` hears how far it is, for the panel's bar: `{ stage:
+ * "downloading", received, total }` as the bytes arrive (`total` null when
+ * the server did not say), then `{ stage: "checking" }` while the build is
+ * verified, unpacked and run once.
  */
 export async function downloadTmux({
   dataDir = deckDataDir(), env = process.env, platform = process.platform, arch = process.arch,
-  build = TMUX_BUILD, fetchImpl = globalThis.fetch, execImpl = exec,
+  build = TMUX_BUILD, fetchImpl = globalThis.fetch, execImpl = exec, onProgress = () => {},
 } = {}) {
   const blocked = tmuxDownloadBlocked({ env, platform, arch, build });
   if (blocked) return { ok: false, reason: blocked };
@@ -119,11 +124,14 @@ export async function downloadTmux({
     if (!res.ok) return { ok: false, reason: "download_failed" };
     const length = Number(res.headers?.get?.("content-length") ?? 0);
     if (length > MAX_BYTES) return { ok: false, reason: "too_large" };
-    archive = Buffer.from(await res.arrayBuffer());
+    const total = length > 0 ? length : null;
+    onProgress({ stage: "downloading", received: 0, total });
+    archive = await readCapped(res, MAX_BYTES, (received) => onProgress({ stage: "downloading", received, total }));
+    if (!archive) return { ok: false, reason: "too_large" };
   } catch {
     return { ok: false, reason: "download_failed" };
   }
-  if (archive.length > MAX_BYTES) return { ok: false, reason: "too_large" };
+  onProgress({ stage: "checking" });
   if (sha256(archive) !== build.sha256[key]) return { ok: false, reason: "checksum_mismatch" };
 
   // Unpacked inside the tools folder, under a name nobody can predict — the
@@ -154,7 +162,30 @@ export async function downloadTmux({
   }
 }
 
+/** The body, chunk by chunk as it arrives, telling `progress` the bytes so far;
+ *  null once it passes `cap`. A response with no stream is read whole. */
+async function readCapped(res, cap, progress) {
+  const reader = res.body?.getReader?.();
+  if (!reader) {
+    const whole = Buffer.from(await res.arrayBuffer());
+    progress(whole.length);
+    return whole.length > cap ? null : whole;
+  }
+  const chunks = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    received += value.byteLength;
+    if (received > cap) { await reader.cancel().catch(() => {}); return null; }
+    chunks.push(Buffer.from(value));
+    progress(received);
+  }
+  return Buffer.concat(chunks, received);
+}
+
 let flight = null;
+let progress = null;
 let lastFailure = null;
 /** How long a failed download is believed before the next status asks again:
  *  long enough that a panel polling while offline does not hammer GitHub,
@@ -166,15 +197,19 @@ export const RETRY_AFTER_MS = 5 * 60_000;
  * it, and a finished one — good or bad — lets the next caller try again.
  */
 export function ensureManagedTmux(options, now = Date.now) {
-  flight ??= downloadTmux(options).then((r) => {
+  flight ??= downloadTmux({ ...options, onProgress: (p) => { progress = p; } }).then((r) => {
     lastFailure = r.ok ? null : { reason: r.reason, at: now() };
     return r;
-  }).finally(() => { flight = null; });
+  }).finally(() => { flight = null; progress = null; });
   return flight;
 }
 
 /** Whether a download is out right now, for the panel's "setting up" line. */
 export const tmuxDownloading = () => flight !== null;
+
+/** How far the download that is out has got (downloadTmux's onProgress), or
+ *  null when none is out or it has not heard back yet. */
+export const tmuxDownloadProgress = () => (flight ? progress : null);
 
 /** The last download's failure while it is still believed, else null. */
 export function recentTmuxFailure(now = Date.now) {
@@ -182,4 +217,4 @@ export function recentTmuxFailure(now = Date.now) {
 }
 
 /** For tests: forget the last failure. */
-export function resetTmuxDownload() { lastFailure = null; }
+export function resetTmuxDownload() { lastFailure = null; progress = null; }

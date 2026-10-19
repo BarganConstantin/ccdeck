@@ -18,7 +18,7 @@
 // decided there (DESIGN-UI decision 4); the stage only prints the chord and
 // says who owns the keys.
 import type { SizeOwner } from "../../terminal-protocol";
-import type { TerminalProvider, TerminalTarget } from "../../terminal-api";
+import type { TerminalProvider, TerminalTarget, TmuxProgress } from "../../terminal-api";
 import { shortAgo } from "../../relative-time";
 import { elapsed } from "../../duration";
 
@@ -38,6 +38,7 @@ import { elapsed } from "../../duration";
  *    the deck's one sentence. `stillRunning` is adopt's 409.
  *  - tmux-installing: no usable tmux, and the deck is fetching its own
  *    (src/server/tmux-download.mjs); the stage asks again until it lands.
+ *    `progress` is how far it has got, once the deck has said.
  *  - tmux-missing: a fact, with the line that installs it. `download` is why
  *    the deck's own tmux could not be fetched, when it tried.
  *  - ended: the session finished; its last frame stays, frozen. `atOpen`
@@ -53,7 +54,7 @@ export type StagePhase =
   | { kind: "starting"; agent: TerminalProvider; cwd: string }
   | { kind: "live"; sizeOwner: SizeOwner; readOnly: boolean }
   | { kind: "not-attachable"; target: TerminalTarget; stillRunning: boolean; busy: boolean }
-  | { kind: "tmux-installing" }
+  | { kind: "tmux-installing"; progress?: TmuxProgress }
   | { kind: "tmux-missing"; reason: string; install?: string; download?: string; busy: boolean }
   | { kind: "ended"; atOpen?: boolean }
   | { kind: "detached" }

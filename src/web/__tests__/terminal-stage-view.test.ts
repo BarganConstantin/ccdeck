@@ -19,7 +19,7 @@ import { withoutComments } from "./tsx-scan";
 import { sheetText } from "./sheet-source";
 import TerminalStage, { stageName, subjectOf, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
 import StageHeader, { BACK_EMPTY_LABEL, BACK_LABEL, CLOSE_EMPTY_LABEL, CLOSE_LABEL, FULL_LABEL, FULL_LEAVE_LABEL, chipLabel, chipText, type StageHeaderProps } from "../components/terminal/StageHeader";
-import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE, StateCard, downloadNote, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
+import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE, StateCard, downloadNote, setupLine, setupShare, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
 import type { StagePhase, StageStatus } from "../components/terminal/stage-model";
@@ -246,6 +246,38 @@ describe("the body's state cards, each at the terminal's origin", () => {
     expect(buttons.map(b => textOf(b))).toEqual(["Not now"]);
     press(buttons[0]);
     expect(props.onNotNow).toHaveBeenCalled();
+  });
+
+  it("shows how far the download has got: a bar that fills, then the check", () => {
+    const bar = (progress?: Parameters<typeof setupShare>[0]) => {
+      const el = all(StateCard(bodyProps({ kind: "tmux-installing", ...(progress ? { progress } : {}) })), e => e.props?.role === "progressbar")[0];
+      const fill = all(el, e => e.type === "i")[0];
+      return { el, fill };
+    };
+    // Before the deck has said: a segment that travels, and no number to read.
+    const first = bar();
+    expect(first.el.props["aria-label"]).toBe("Fetching tmux");
+    expect(first.el.props["data-unknown"]).toBe(true);
+    expect(first.el.props["aria-valuenow"]).toBeUndefined();
+    expect(first.el.props["aria-valuetext"]).toBe("Starting the download…");
+    expect(first.fill.props.style).toBeUndefined();
+
+    const half = bar({ stage: "downloading", received: 550_000, total: 1_100_000 });
+    expect(half.el.props["data-unknown"]).toBeUndefined();
+    expect(half.el.props["aria-valuenow"]).toBe(50);
+    expect(half.el.props["aria-valuetext"]).toBe("0.6 of 1.1 MB");
+    expect(half.fill.props.style).toEqual({ transform: "scaleX(0.5)" });
+    expect(html(createElement(StateCard, bodyProps({ kind: "tmux-installing", progress: { stage: "downloading", received: 550_000, total: 1_100_000 } }))))
+      .toContain("0.6 of 1.1 MB");
+
+    const checking = bar({ stage: "checking" });
+    expect(checking.el.props["aria-valuenow"]).toBe(100);
+    expect(checking.el.props["aria-valuetext"]).toBe("Checking the build…");
+
+    // No size given: the bytes, and the travelling segment.
+    expect(setupShare({ stage: "downloading", received: 300_000, total: null })).toBeNull();
+    expect(setupLine({ stage: "downloading", received: 300_000, total: null })).toBe("0.3 MB");
+    expect(setupShare({ stage: "downloading", received: 2_000, total: 1_000 }), "never past full").toBe(1);
   });
 
   it("says why the deck's own tmux is not there before the install line, when it tried", () => {

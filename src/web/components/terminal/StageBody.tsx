@@ -25,6 +25,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
 import { copyText } from "../../copy-text";
 import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
+import type { TmuxProgress } from "../../terminal-api";
 import { agentName, frameRun, type FrameRun, type StagePhase } from "./stage-model";
 import { CopyGlyph, PlusGlyph, TerminalGlyph } from "./stage-icons";
 
@@ -65,6 +66,23 @@ export function tmuxFact(reason: string): string {
 
 /** Why the deck's own tmux is not there, when it tried to fetch it — said
  *  before the install line, which is then the way forward. */
+/** How far the deck's own tmux has got, as the card's bar fills: a share of
+ *  1, or null while it cannot say (no bytes yet, or no size given). Full
+ *  while the build is checked. */
+export function setupShare(progress?: TmuxProgress): number | null {
+  if (!progress) return null;
+  if (progress.stage === "checking") return 1;
+  return progress.total ? Math.min(1, progress.received / progress.total) : null;
+}
+
+/** The words beside the bar. */
+export function setupLine(progress?: TmuxProgress): string {
+  if (!progress) return "Starting the download…";
+  if (progress.stage === "checking") return "Checking the build…";
+  const mb = (n: number) => (n / 1_000_000).toFixed(1);
+  return progress.total ? `${mb(progress.received)} of ${mb(progress.total)} MB` : `${mb(progress.received)} MB`;
+}
+
 export function downloadNote(reason: string): string {
   if (reason === "download_failed") return "The deck could not download its own tmux. Check the connection, or install tmux yourself.";
   if (reason === "checksum_mismatch" || reason === "too_large") {
@@ -147,7 +165,9 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
         </div>
       );
     }
-    case "tmux-installing":
+    case "tmux-installing": {
+      const share = setupShare(phase.progress);
+      const line = setupLine(phase.progress);
       return (
         <div className="ts-card">
           <div className="ts-ctx ts-fact"><i className="ts-fact-mark" data-kind="tmux" aria-hidden="true" />tmux · setting up</div>
@@ -155,11 +175,22 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
             This machine has no tmux the stage can use, so the deck is fetching its own: about a megabyte, once. It
             stays in the deck's folder; nothing is installed on the system.
           </p>
+          <div className="ts-setup">
+            <div
+              className="ts-setup-bar" role="progressbar" aria-label="Fetching tmux" aria-valuemin={0} aria-valuemax={100}
+              aria-valuenow={share == null ? undefined : Math.round(share * 100)} aria-valuetext={line}
+              data-unknown={share == null || undefined}
+            >
+              <i className="ts-setup-fill" style={share == null ? undefined : { transform: `scaleX(${share})` }} />
+            </div>
+            <span className="ts-setup-line">{line}</span>
+          </div>
           <div className="ts-acts">
             <button type="button" className="btn" onClick={p.onNotNow}>Not now</button>
           </div>
         </div>
       );
+    }
     case "tmux-missing":
       return (
         <div className="ts-card">
