@@ -60,6 +60,9 @@ describe("a hold", () => {
     for (const e of [
       key("ArrowLeft"), key("Tab"), key("Delete"), key("Home"), key("F5"), key("c", { ctrlKey: true }), key("k", { metaKey: true }),
       key("b", { altKey: true }), key("Enter", { ctrlKey: true }), key("a", { isComposing: true }), key("Process", { keyCode: 229 }),
+      // Ctrl+3 is the pane's Esc: held, its lone ESC joined the next key as
+      // one (Ctrl+3 then p arrived as Meta+P).
+      key("3", { ctrlKey: true, code: "Digit3" }),
     ]) {
       const { ahead, swallowed } = run([key("h"), e, key("j")]);
       expect(swallowed, e.key).toEqual([true, false, true]);

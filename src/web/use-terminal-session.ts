@@ -503,6 +503,11 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   let subject: StageSubject = { kind: "empty" };
   /** The ref to reach a launched session by, once the deck has named it. */
   let launchedRef: SessionRef | null = null;
+  /** The launch was answered: its agent is running, whether or not the deck
+   *  could name it (a Codex launch answers no session id). Asked again, it
+   *  would start a second agent in the same folder; NOT_REOPENABLE says to
+   *  open it from the board instead. */
+  let launched = false;
 
   let term: StageTerminal | null = null;
   let mounting = false;
@@ -569,6 +574,8 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   /** The ref the current subject is reached by, or null when there is none. */
   const refOf = (): SessionRef | null =>
     subject.kind === "session" ? subject.ref : subject.kind === "launch" ? launchedRef : null;
+  /** The subject is a launch that has not started an agent yet. */
+  const toLaunch = () => subject.kind === "launch" && !launchedRef && !launched;
 
   // -- the socket ------------------------------------------------------------
 
@@ -732,7 +739,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       void deps.api.status().then((status) => {
         if (my !== gen) return;
         if (status.ok && status.tmux.ok) {
-          setPhase(subject.kind === "launch" && !launchedRef
+          setPhase(toLaunch() && subject.kind === "launch"
             ? { kind: "starting", agent: subject.agent, cwd: subject.cwd }
             : { kind: "attaching", reconnect: false });
           askAgain(my);
@@ -751,7 +758,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   /** Ask again for what tmux's absence refused: the launch, or the open. */
   const askAgain = (my: number) => {
     const ref = refOf();
-    if (subject.kind === "launch" && !launchedRef) void launchFlow(subject.agent, subject.cwd, my, subject.options);
+    if (toLaunch() && subject.kind === "launch") void launchFlow(subject.agent, subject.cwd, my, subject.options);
     else if (ref) void openFlow(ref, my, false);
     else setPhase({ kind: "empty" });
   };
@@ -785,6 +792,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       else setPhase({ kind: "error", message: answer.error });
       return;
     }
+    launched = true;
     if (answer.sessionId) launchedRef = { sessionId: answer.sessionId, provider: agent, cwd };
     callbacks.onLaunched?.({ agent, cwd, sessionId: answer.sessionId, name: answer.name });
     connect(answer.ticket, my);
@@ -797,7 +805,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     const my = gen;
     dropConnection();
     if (subject.kind === "empty") { setPhase({ kind: "empty" }); return; }
-    if (subject.kind === "launch" && !launchedRef) {
+    if (toLaunch() && subject.kind === "launch") {
       setPhase({ kind: "starting", agent: subject.agent, cwd: subject.cwd });
       void launchFlow(subject.agent, subject.cwd, my, subject.options);
       return;
@@ -910,12 +918,14 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         && next.ref.sessionId === launchedRef.sessionId) {
         subject = next;
         launchedRef = null;
+        launched = false;
         emit({});
         return;
       }
       if (subjectKey(next) === subjectKey(subject)) return;
       subject = next;
       launchedRef = null;
+      launched = false;
       held = [];
       attempts = 0;
       reconnectStarted = null;
@@ -988,7 +998,8 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     // One key per message, as the pane sends a typist's: each reaches tmux as
     // a send-keys of its own. A program that reads several in one go reads
     // what a fast typist's keys would have given it. An ESC is never held on
-    // its own — Esc ends the hold (type-ahead.ts) — so one here is the first
+    // its own — Esc ends the hold, and a chord that sends a lone ESC spoils it
+    // (type-ahead.ts) — so one here is the first
     // half of a key sent as two bytes, Shift+Enter or an Option chord, and
     // goes in one message with its second, as the pane sends it: apart, a
     // program could read a lone Esc and then the Enter as a submit.

@@ -909,6 +909,18 @@ describe("keys typed before the pane can take them", () => {
     expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest), "what was typed for s1 went with s1").toBe("b");
   });
 
+  it("holds after the stage itself asks for the keys again: Try again, Check again, Attach again, i", () => {
+    // Try again brings the pane back a moment later; meanwhile its card had
+    // gone, the focus was on the body, and the deck's shortcuts had the keys.
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.switchTo("s1", { focusPane: false });
+    expect(held(press("x")), "nothing asked yet").toBe(false);
+    now().stage.focusPane();
+    expect(type(["o", "k"])).toEqual([true, true]);
+    expect(now().stage.takeTypeAhead(now().stage.shell.focusRequest)).toBe("ok");
+  });
+
   it("lets a key it cannot send go where it always went, and delivers nothing after one", () => {
     const { now, turnOn } = setup();
     turnOn();

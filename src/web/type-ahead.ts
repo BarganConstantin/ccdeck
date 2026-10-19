@@ -98,7 +98,10 @@ export function holdKey(ahead: TypeAhead, e: HeldKeyEvent, apple = isApplePlatfo
   if (e.isComposing || e.keyCode === 229) return { ahead: { ...ahead, spoiled: true }, swallow: false };
   if (chord.repeat && chord.key === "Enter") return { ahead, swallow: true };
   const add = sent({ ...chord, type: "keydown" }, apple);
-  if (add == null) return { ahead: { ...ahead, spoiled: true }, swallow: false };
+  // A lone ESC (Ctrl+3, which the pane sends as Esc) is an Esc, and
+  // held, it would join the next key as one (use-terminal-session's type()):
+  // Ctrl+3 then p arrived as Meta+P. Not one to deliver, then.
+  if (add == null || add === "\x1b") return { ahead: { ...ahead, spoiled: true }, swallow: false };
   if ([...ahead.text].length + [...add].length > TYPE_AHEAD_MAX) return { ahead: { ...ahead, spoiled: true }, swallow: true };
   return { ahead: { ...ahead, text: ahead.text + add }, swallow: true };
 }

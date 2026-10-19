@@ -3,8 +3,8 @@
 // over a focused descendant ("Blocked aria-hidden on an element because its
 // descendant retained focus"), which the hands-on run of the stage logged when
 // a switch held the last frame with the pane's textarea still focused.
-import { afterEach, describe, expect, it, vi } from "vitest";
-import StageBody, { type StageBodyProps } from "../components/terminal/StageBody";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import StageBody, { CAUGHT_QUIET_MS, catchKeys, type StageBodyProps } from "../components/terminal/StageBody";
 import type { StagePhase } from "../components/terminal/stage-model";
 import { CAUGHT_KEYS_ATTR } from "../shortcuts";
 import { mount } from "./fake-react";
@@ -23,6 +23,28 @@ function host(focusedInside: boolean) {
   };
   (globalThis as Record<string, unknown>).document = { activeElement: focusedInside ? textarea : null };
   return el;
+}
+
+/** A button that takes the focus when asked (unless `refuses`), with its
+ *  attributes and listeners, and a way to fire a key or a blur at it. */
+function button({ refuses = false } = {}) {
+  const attrs = new Map<string, string>();
+  const on = new Map<string, Set<(e: unknown) => void>>();
+  const b = {
+    attrs,
+    focus: vi.fn(() => { if (!refuses) (globalThis as { document: { activeElement: unknown } }).document.activeElement = b; }),
+    setAttribute: (k: string, v: string) => { attrs.set(k, v); },
+    removeAttribute: (k: string) => { attrs.delete(k); },
+    addEventListener: (t: string, fn: (e: unknown) => void) => { if (!on.has(t)) on.set(t, new Set()); on.get(t)!.add(fn); },
+    removeEventListener: (t: string, fn: (e: unknown) => void) => { on.get(t)?.delete(fn); },
+    listeners: (t: string) => on.get(t)?.size ?? 0,
+    fire(type: string, key?: string) {
+      const e = { type, key, prevented: false, preventDefault() { e.prevented = true; } };
+      for (const fn of [...(on.get(type) ?? [])]) fn(e);
+      return e.prevented;
+    },
+  };
+  return b;
 }
 
 const props = (phase: StagePhase, el: ReturnType<typeof host>): StageBodyProps => ({
@@ -59,33 +81,23 @@ describe("the terminal host and assistive technology", () => {
     // after a reconnect that gave up.
     for (const via of [null, { kind: "attaching", reconnect: true }] as const) {
       const el = host(false);
-      const blurs: (() => void)[] = [];
-      const retry = {
-        focus: vi.fn(), setAttribute: vi.fn(), removeAttribute: vi.fn(),
-        addEventListener: vi.fn((type: string, fn: () => void) => { if (type === "blur") blurs.push(fn); }),
-      };
-      const card = { querySelector: vi.fn((s: string) => (s === "[data-stage-land]" ? retry : null)) };
-      Object.assign(el, { parentElement: card });
+      const retry = button();
+      Object.assign(el, { parentElement: { querySelector: vi.fn((s: string) => (s === "[data-stage-land]" ? retry : null)) } });
       const view = mount(StageBody, props({ kind: "live", readOnly: false } as StagePhase, el));
       (globalThis as { document: { activeElement: unknown } }).document.activeElement = el.textarea;
       if (via) view.rerender(props(via, el));
       view.rerender(props({ kind: "error", message: "The deck lost its connection to tmux." }, el));
       expect(el.textarea.blur).toHaveBeenCalledTimes(1);
       expect(retry.focus, `via ${JSON.stringify(via)}`).toHaveBeenCalledTimes(1);
-      // Marked as the catch while it holds the focus, so the stage's letters
-      // pass it by too (terminal-keys.ts); unmarked once it lets go.
-      expect(retry.setAttribute).toHaveBeenCalledWith(CAUGHT_KEYS_ATTR, "");
-      expect(retry.setAttribute.mock.invocationCallOrder[0]).toBeLessThan(retry.focus.mock.invocationCallOrder[0]);
-      expect(retry.removeAttribute).not.toHaveBeenCalled();
-      for (const blur of blurs) blur();
-      expect(retry.removeAttribute).toHaveBeenCalledWith(CAUGHT_KEYS_ATTR);
+      expect(retry.attrs.has(CAUGHT_KEYS_ATTR), "caught (catchKeys, below)").toBe(true);
+      retry.fire("blur");
     }
   });
 
   it("leaves the keys alone on any other card, and when the pane never had them", () => {
     const land = () => {
       const el = host(false);
-      const action = { focus: vi.fn(), setAttribute: vi.fn(), removeAttribute: vi.fn(), addEventListener: vi.fn() };
+      const action = button();
       Object.assign(el, { parentElement: { querySelector: () => action } });
       return { el, action };
     };
@@ -110,5 +122,53 @@ describe("the terminal host and assistive technology", () => {
     view.rerender(props({ kind: "attaching", reconnect: true }, el));
     expect(el.textarea.blur).not.toHaveBeenCalled();
     expect(el.attrs.has("aria-hidden")).toBe(false);
+  });
+});
+
+describe("the control that caught a pane's keys", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    (globalThis as Record<string, unknown>).document = { activeElement: null };
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("is not pressed by the Space or Enter of the sentence still being typed", () => {
+    // A Try again pressed mid-sentence unmounted itself and put the rest of
+    // the sentence on the body, where the deck's shortcuts run.
+    const b = button();
+    expect(catchKeys(b as unknown as HTMLElement)).toBe(true);
+    expect(b.attrs.has(CAUGHT_KEYS_ATTR)).toBe(true);
+    expect(b.fire("keydown", " "), "Space, on its way down").toBe(true);
+    expect(b.fire("keyup", " "), "and up, where a button takes it").toBe(true);
+    expect(b.fire("keydown", "Enter")).toBe(true);
+    expect(b.fire("keydown", "n"), "a letter is nobody's to cancel: the stage passes it by").toBe(false);
+  });
+
+  it("answers as itself once the burst has been quiet for a moment, or once it loses the focus", () => {
+    const b = button();
+    catchKeys(b as unknown as HTMLElement);
+    vi.advanceTimersByTime(CAUGHT_QUIET_MS - 100);
+    b.fire("keydown", "e");
+    vi.advanceTimersByTime(CAUGHT_QUIET_MS - 100);
+    expect(b.attrs.has(CAUGHT_KEYS_ATTR), "every key of the burst keeps it caught").toBe(true);
+    vi.advanceTimersByTime(100);
+    expect(b.attrs.has(CAUGHT_KEYS_ATTR)).toBe(false);
+    expect(b.fire("keydown", "Enter"), "a deliberate Enter presses it").toBe(false);
+    expect(b.listeners("keydown") + b.listeners("keyup") + b.listeners("blur"), "nothing left listening").toBe(0);
+
+    const c = button();
+    catchKeys(c as unknown as HTMLElement);
+    c.fire("blur");
+    expect(c.attrs.has(CAUGHT_KEYS_ATTR)).toBe(false);
+    expect(c.fire("keyup", " ")).toBe(false);
+  });
+
+  it("marks nothing when the focus does not take", () => {
+    // An inert dock mid-morph: a mark left on a control without the focus
+    // would block the stage's letters the next time a reader tabbed to it.
+    const b = button({ refuses: true });
+    expect(catchKeys(b as unknown as HTMLElement)).toBe(false);
+    expect(b.attrs.has(CAUGHT_KEYS_ATTR)).toBe(false);
+    expect(b.listeners("keydown")).toBe(0);
   });
 });

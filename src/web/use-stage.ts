@@ -335,7 +335,14 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
 
   // ── the keys ───────────────────────────────────────────────────────────────
   const focusPane = useCallback(() => {
-    if (stageClaimsKeys(shellRef.current.phase)) dispatch({ type: "focus", token: ++tokenRef.current });
+    if (!stageClaimsKeys(shellRef.current.phase)) return;
+    const token = ++tokenRef.current;
+    // Held, as after a click on a card: Try again asks for a pane that is a
+    // moment away, and what is typed meanwhile is the session's, not the
+    // deck's shortcuts' (type-ahead.ts).
+    const id = targetSession(shellRef.current.target);
+    aheadRef.current = id ? { token, session: id, from: document.activeElement, ahead: startTypeAhead(Date.now()) } : null;
+    dispatch({ type: "focus", token });
   }, [shellRef]);
 
   /** The keys back to the board: onto the socket's tile, as v3 does — or,

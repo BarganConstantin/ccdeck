@@ -176,13 +176,16 @@ export function useDeckShortcuts({
       // things the rules need off the target — getAttribute rather than the
       // reflected .role property, which older browsers do not expose.
       const el = e.target as (HTMLElement & { type?: string }) | null;
+      const caught = el?.hasAttribute?.(CAUGHT_KEYS_ATTR) === true;
       const target: FocusTarget = {
         tagName: el?.tagName,
         isContentEditable: el?.isContentEditable,
         role: el?.getAttribute?.("role"),
         type: el?.type,
-        pointerFocused: el != null && el === pointerFocusRef.current,
-        caught: el?.hasAttribute?.(CAUGHT_KEYS_ATTR) === true,
+        // A catch is the stage's doing even within a press's window, and a
+        // button the pointer pressed hands its letters to the deck (#851).
+        pointerFocused: el != null && el === pointerFocusRef.current && !caught,
+        caught,
       };
       // Inside the terminal pane every key is the session's, and asked before
       // anything else here reads the keystroke. Escape most of all: the branch
