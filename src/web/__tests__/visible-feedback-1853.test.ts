@@ -67,6 +67,8 @@ describe("scrubReport takes identifying text out of a message shown on the page"
     ["mail bob@example.org now", "mail <email> now"],
     ["token sk-ant-abcdefghijklmnop failed", "token <secret> failed"],
     ["ghp_abcdefghijklmnopqrstuvwxyz0123", "<secret>"],
+    ["auth glpat-abcdefghij0123456789 failed", "auth <secret> failed"],
+    ["github_pat_11ABCDEFG0abcdefghij", "<secret>"],
     ["Cannot read properties of undefined (reading 'agents')", "Cannot read properties of undefined (reading 'agents')"],
   ])("%s → %s", (input, output) => {
     expect(scrubReport(input)).toBe(output);
@@ -233,7 +235,8 @@ describe("the topbar's Feedback button", () => {
     // the three rare dialogs — History, Browser watch, Feedback — sit behind
     // More, where a row has the room to say "Send feedback" whole.
     expect(item).toMatch(/menu: "Send feedback"/);
-    expect(app).toMatch(/more=\{\[\.\.\.rails\.right\.slice\(1\)\.flat\(\), rails\.utilities\[1\]\]\}/);
+    // A connected tracker's row (#2178) comes before it; Feedback stays last.
+    expect(app).toMatch(/more=\{\[\.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, rails\.utilities\[1\]\]\}/);
     expect(rails).toMatch(/item\.menu \?\? item\.label/);
   });
 

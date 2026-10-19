@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), useEffect: (run: () => void) => { run(); } }));
 
-const { mountDeckKeys } = await import("./deck-keys-harness");
+const { mountDeckKeys, stageKeys } = await import("./deck-keys-harness");
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -50,5 +50,35 @@ describe("a held shortcut acts once", () => {
     hold(deck, "j", 4);
     hold(deck, "k", 2);
     expect(deck.props.stepAgent).toHaveBeenCalledTimes(1 + 4 + 1 + 2);
+  });
+});
+
+describe("a held key on the open terminal stage", () => {
+  // The stage gives J and K a second meaning — walk the navigator's sessions —
+  // and keeps the first rule: a held J still walks. What it adds is that the
+  // stage itself moves once, where the key comes to rest, rather than
+  // attaching to every session the held key passes (use-deck-shortcuts.ts).
+  it("moves the board's focus on every repeat and the stage once, after the key rests", () => {
+    vi.useFakeTimers();
+    try {
+      const stage = stageKeys({ order: ["s1", "s2", "s3", "s4", "s5"] });
+      const deck = mountDeckKeys({ stage });
+      hold(deck, "j", 3);
+      expect(stage.focusTile).toHaveBeenCalledTimes(1 + 3);
+      expect(stage.switchTo).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(160);
+      expect(stage.switchTo.mock.calls).toEqual([["s5", { focusPane: false }]]);
+      expect(deck.props.stepAgent, "the canvas walked behind the stage").not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("takes the next ask once for a held N or W", () => {
+    const stage = stageKeys();
+    const deck = mountDeckKeys({ stage });
+    hold(deck, "n");
+    hold(deck, "w");
+    expect(stage.nextAsk).toHaveBeenCalledTimes(2);
   });
 });
