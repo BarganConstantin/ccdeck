@@ -480,7 +480,8 @@ describe("with a deck running", () => {
   it("prints the roster for a person", async () => {
     const { code, out } = await run(["ls"]);
     expect(code).toBe(0);
-    expect(out).toMatch(/● 1 {2}work/);
+    // `*` where the console is on the ASCII tier, as a Windows runner's is.
+    expect(out).toMatch(/[●*] 1 {2}work/);
     expect(out).toContain("sign-in needed");
     expect(out).not.toContain("no deck is running");
   }, 45_000);
@@ -617,7 +618,8 @@ describe("with no deck running", () => {
     const { code, out, err } = await run(["switch", "--best", "--json"]);
     expect(code, err).toBe(0);
     expect(JSON.parse(out)).toMatchObject({ switched: true, source: "local", account: { num: 2 } });
-    expect(readFileSync(STUB_LOG, "utf8")).toMatch(/^switch 2\s*$/m);
+    // cmd's `%*` keeps the quotes each argument was passed with.
+    expect(readFileSync(STUB_LOG, "utf8").replace(/"/g, "")).toMatch(/^switch 2\s*$/m);
     const log = readFileSync(join(SANDBOX, ".agents-deck", "log", "account-active.jsonl"), "utf8");
     expect(log).toContain("\"slot\":2");
   }, 45_000);
