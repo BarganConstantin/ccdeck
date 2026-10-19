@@ -34,7 +34,7 @@ import type { AgentNodeData, PlanItem, ToolCall, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { noteTag, sessionNoteShown } from "../session-note";
 import { toggleRecapDismissed, useRecapDismissed } from "../recap-note";
-import { faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
+import { drawnState, faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
 // The agent's own checklist, as one line (#2157). See agent-plan.ts.
 import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
 import { primaryDisplayFor, toolSubject } from "../tool-skin";
@@ -42,6 +42,9 @@ import { primaryDisplayFor, toolSubject } from "../tool-skin";
 import { barHeight, BUCKETS, SPARK_H, SPARK_W, sparkWindow } from "../tool-spark";
 import { AlertMark, StateMark } from "./StateMark";
 import { NoteMark } from "./RecapMark";
+// The words for a turn that stopped on an error. See stop-failure-copy.ts.
+import { stopRowLabel, stopTooltip } from "../stop-failure-copy";
+import type { StopFacts } from "../../server/stop-failure.mjs";
 
 /** A card re-renders when its agent changes, not when the clock does (#873).
  *  Time reaches it through the three leaves that print it — the elapsed clock,
@@ -171,7 +174,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
 
       <div className="head">
         <div className="title">
-          <StatePill state={data.state} />
+          <StatePill state={drawnState(data)} />
           <span className="label" title={cardTooltip}>{data.label}</span>
           {data.restoredFromLog && <span className="synth-tag" title={data.provider === "claude" ? "Restored from Claude’s busy-session registry after verifying the process identity. Earlier tool history is partial." : "Restored from a log with no recorded ending. Process status is not confirmed."}>restored</span>}
           {data.synthetic && <span className="synth-tag" title="No SessionStart captured — synthesised">?</span>}
@@ -292,11 +295,18 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         </div>
       )}
 
+      {/* The turn ended on an error and has to be run again by hand (#2185):
+          the state pill says "done", and this says what that done is not. Above
+          the waiting row, which a stopped turn makes redundant when it is only
+          the idle "your turn" — Claude Code's idle reminder a minute later is
+          about the same turn. */}
+      {data.kind === "root" && data.stopFailure && <StopRow stop={data.stopFailure} />}
+
       {/* A row of its own rather than a chip in the title. The card is 260px
           wide and the header already spends it on the state pill, the workspace
           name and the elapsed clock; a fourth item there pushed the label to an
           ellipsis and still overflowed. A blocked session has earned a line. */}
-      {data.waiting && <WaitingRow waiting={data.waiting} />}
+      {data.waiting && !(data.stopFailure && data.waiting.kind === "idle") && <WaitingRow waiting={data.waiting} />}
 
       {/* The same slot, for the sessions that can never fill it (#398). A Codex
           session emits no notification and its rollout carries no approval
@@ -433,7 +443,7 @@ function NodeFace({ data, title }: { data: AgentNodeData & { branch?: BranchSumm
       aria-hidden
     >
       <div className="lod-id">
-        <StateMark kind={stateMarkKind(data.state)} />
+        <StateMark kind={stateMarkKind(drawnState(data))} />
         <span className="lod-name">{data.label}</span>
         {signal && <span className="lod-inline" data-tone={signal.tone}>{signal.short}</span>}
         {alarm && <AlertMark />}
@@ -458,6 +468,20 @@ function Elapsed({ start, end }: { start: number; end?: number }) {
 
 function StatePill({ state }: { state: AgentNodeData["state"] }) {
   return <span className={`state-pill state-${state}`}>{stateLabel(state)}</span>;
+}
+
+/** The turn stopped on an error: which one, in the row's words, with what
+ *  Claude Code said and what to do in the tooltip. The card's accessible name
+ *  carries the same (agentAriaLabel), which is where a reader on the node hears
+ *  it — a title is not announced there. The still dot is the waiting row's:
+ *  nothing here is still happening. */
+function StopRow({ stop }: { stop: StopFacts }) {
+  return (
+    <div className="stop-row" title={stopTooltip(stop)} data-kind={stop.kind}>
+      <span className="waiting-dot" aria-hidden />
+      <span className="stop-said">{stopRowLabel(stop)}</span>
+    </div>
+  );
 }
 
 /** The session is blocked on a human — and on which of the two chores that is.

@@ -9,7 +9,8 @@
 //
 // With no page open there is no reducer, so this keeps the smallest version of
 // it: a session is open from the first event of a turn until the turn ends
-// (`Stop`, `SessionEnd`). SessionStart and Notification move nothing — a CLI
+// (`Stop`, `StopFailure` — the Stop of a turn that ended on an API error —
+// `SessionEnd`). SessionStart and Notification move nothing — a CLI
 // sitting at its prompt is not busy, and the idle reminder arrives after the
 // turn it is about. An open session whose last event is older than
 // OPEN_CAP_MS counts as gone rather than busy: a CLI that crashed never sends
@@ -26,7 +27,7 @@ export function shouldTrackActivity(raw, opts = {}) {
 const OPENS = new Set([
   ...RECOVERIES, "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "SubagentStart", "SubagentStop",
 ]);
-const CLOSES = new Set(["Stop", "SessionEnd"]);
+const CLOSES = new Set(["Stop", "StopFailure", "SessionEnd"]);
 
 /** More turns open at once than any machine runs — the same figure as the
  *  deck's own working limit for the sessions it tracks (MAX_TRACKED_SESSIONS in
