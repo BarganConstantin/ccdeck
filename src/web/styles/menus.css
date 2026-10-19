@@ -1000,3 +1000,31 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
   .character-picker { flex-direction: column; }
   .character-choice { flex-basis: auto; }
 }
+
+/* Settings › Account (hidden: drawn only on a deck with the ccdeck account on).
+   The code to match in the browser, in the data face and large enough to read
+   across a desk; the presses beside a row; the join preview and the conflict
+   review, a plain table on the list's own ground. */
+.account-code {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: calc(18px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.account-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.account-name { width: 200px; max-width: 100%; }
+.account-preview { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; min-width: 0; margin-top: 8px; }
+.account-preview .account-actions { justify-content: flex-start; }
+.account-preview p { margin: 0; }
+.account-diff { width: 100%; border-collapse: collapse; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.account-diff caption { text-align: left; padding-bottom: 6px; }
+.account-diff :is(th, td) { padding: 4px 8px 4px 0; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.account-diff thead th { color: var(--muted); font-weight: 600; }
+.account-diff tbody th { color: var(--text); font-weight: 500; }
+.account-diff td { color: var(--text); }
+.account-diff tbody tr + tr :is(th, td) { border-top: 1px solid var(--line); }
+@media (max-width: 520px) {
+  .account-name { width: 100%; }
+}

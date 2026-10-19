@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
@@ -85,6 +85,16 @@ import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { createChimePlayer } from "./chime-player";
+import type { AccountSwitch } from "./components/SettingsModal";
+import type { Appliers } from "./account-bridge";
+import { setSingleKeyShortcuts } from "./single-key-shortcuts";
+import { setHideFinishedAfter } from "./hide-finished";
+import type { Density, TextSize } from "./reading-preferences";
+import type { Theme } from "./theme";
+
+// The ccdeck account's settings sync in this tab — hidden, and its own chunk:
+// mounted, and so fetched, only while /api/prefs says the account is on.
+const AccountBridge = lazy(() => import("./components/AccountBridge"));
 
 export default function App() {
   return (
@@ -575,7 +585,31 @@ function Inner() {
   const { loadNotifyPrefs } = notify;
   // One read of the deck's server-side prefs, each hook handed its half —
   // use-prefs-read.ts.
-  usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs: reports.loadReportsPrefs });
+  // Whether this deck has the hidden ccdeck account (account-flag.mjs), on the
+  // same read: off until the deck says otherwise, and with it off nothing of
+  // the account is drawn, fetched or run.
+  const [account, setAccount] = useState<AccountSwitch>({ on: false, vetoed: false });
+  usePrefsRead({
+    loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs: reports.loadReportsPrefs,
+    loadAccountPrefs: d => setAccount({ on: d.accountOn === true, vetoed: d.accountVetoed === true }),
+  });
+  // The setter behind each setting the account can carry, by its schema key
+  // (account-ui-fields.ts): applying the account's value is the same act as
+  // the reader changing it here.
+  const accountAppliers: Appliers = {
+    theme: v => setTheme(v as Theme),
+    textSize: v => appearance.setTextSize(v as TextSize),
+    density: v => appearance.setDensity(v as Density),
+    "panels.sessionList": v => { if (v) { if (!sessionListOpen) toggleSessionList(); } else closeSessionList(); },
+    "panels.accounts": v => { if (v) openAccountsPanel(); else closeAccountsPanel(); },
+    "panels.detail": v => setDetailOpen(v === true),
+    "panels.usage": v => setUsagePanelOpen(v === true),
+    "panels.machine": v => setMachinePanelOpen(v === true),
+    singleKeyShortcuts: v => setSingleKeyShortcuts(v === true),
+    hideFinishedAfter: v => setHideFinishedAfter(Number(v)),
+    character: v => appearance.setCharacterEnabled(v === true),
+    sound: v => sound.setSound(v === true),
+  };
 
   // The eight controls of the chrome, each defined once, and the edge each
   // lives on — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
@@ -812,6 +846,8 @@ function Inner() {
         />
       ) : null}
 
+      {account.on && <Suspense fallback={null}><AccountBridge appliers={accountAppliers} /></Suspense>}
+
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}
       <DeckDialogs
         dialogs={dialogs} welcome={welcome} desktopUpdate={desktopUpdate} versionCheck={versionCheck} restart={restart}
@@ -819,6 +855,7 @@ function Inner() {
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
         menus={menus} sound={sound} tones={tones} customTones={customTones} notify={notify}
         panelDoors={{ accounts: openAccountsPanel, localNetwork: openLocalNetwork }}
+        account={account}
       />
     </div>
   );

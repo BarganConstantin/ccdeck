@@ -15,6 +15,7 @@
 // `rerender`, both of which belong to the canvas.
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 
+import { ACCOUNT_EVENT, STREAM_OPEN_EVENT } from "./account-events";
 import { createRenderCoalescer } from "./coalesce";
 import type { PauseGate } from "./pause";
 import { applyEvent, type GraphState } from "./reducer";
@@ -110,6 +111,13 @@ export function useEventStream({ stateRef, rerender, pauseGate, chimesRef, deskt
       setLiveSince(Date.now());
     });
     es.addEventListener("desktop-update", (e) => desktopUpdateRef.current((e as MessageEvent).data));
+    // The ccdeck account's frames, handed on as a window event for whoever
+    // listens (use-account.ts, which loads only while the account is on). A
+    // deck with the account off never sends one.
+    es.addEventListener("account", (e) => {
+      window.dispatchEvent(new CustomEvent(ACCOUNT_EVENT, { detail: (e as MessageEvent).data }));
+    });
+    es.addEventListener("open", () => { window.dispatchEvent(new Event(STREAM_OPEN_EVENT)); });
     es.addEventListener("hook", (e) => {
       try {
         const env: HookEnvelope = JSON.parse((e as MessageEvent).data);

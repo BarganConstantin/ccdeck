@@ -17,9 +17,9 @@
 // component, lifted whole out of the menu it used to live in; this file is
 // only the frame, the nav and the search above it (SettingsSearch.tsx).
 import SessionRecoverySettings from "./SessionRecoverySettings";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
-import { focusedTabToFollow, isFindChord, sectionIndex, SETTINGS_SECTIONS, type SettingsDoors, type SettingsSection } from "../settings";
+import { focusedTabToFollow, isFindChord, sectionIndex, settingsSections, type SettingsDoors, type SettingsSection } from "../settings";
 import { indexFor, isSectionEntry, searchSettings, type SettingsEntry } from "../settings-search";
 import { isTypingTarget } from "../shortcuts";
 import { tabStripMove } from "../tablist-keys";
@@ -51,6 +51,18 @@ import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SettingsSearchField, SettingsSearchResults, SettingsSearchStatus } from "./SettingsSearch";
 import { useSettingsJump } from "./use-settings-jump";
 
+// Settings › Account, hidden: its own chunk, fetched only when the section is
+// drawn, which is only on a deck with the ccdeck account on (or vetoed at
+// launch after being asked for).
+const AccountSection = lazy(() => import("./AccountSection"));
+
+/** Whether this deck draws Settings › Account, and why — /api/prefs's
+ *  `accountOn` and `accountVetoed`. */
+export interface AccountSwitch {
+  on: boolean;
+  vetoed: boolean;
+}
+
 export interface SettingsModalProps {
   /** The section on show; the nav and the door that opened this both set it. */
   section: SettingsSection;
@@ -72,12 +84,17 @@ export interface SettingsModalProps {
   restart: ReturnType<typeof useAutoRestart>;
   /** Where About and General send the reader, each closing this first. */
   doors: SettingsDoors;
+  /** The ccdeck account's section, drawn only when this says so. */
+  account?: AccountSwitch;
 }
 
 export default function SettingsModal({
   section, onSection, onClose, providers, sound, tones, customTones, notify, appearance,
-  versionCheck, desktopUpdate, restart, doors,
+  versionCheck, desktopUpdate, restart, doors, account,
 }: SettingsModalProps) {
+  // The nav this deck draws: the released sections, and Account while the account is on.
+  const accountShown = account?.on === true || account?.vetoed === true;
+  const sections = useMemo(() => settingsSections({ account: accountShown }), [accountShown]);
   // Focus starts on the section's own tab, not on the ×: the nav is what this
   // dialog is walked by, and a door that opened it at Sounds lands the reader
   // on "Sounds", which says where they are.
@@ -85,7 +102,7 @@ export default function SettingsModal({
   const dialogRef = useModalDismiss(onClose, { focusRef: selectedTabRef });
   const scrimPress = useScrimDismiss(onClose);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const at = sectionIndex(section);
+  const at = sectionIndex(section, sections);
 
   // THE SEARCH. While the field holds a query the pane shows what matches it
   // in place of the section; the section stays mounted under it, hidden, so a
@@ -148,12 +165,12 @@ export default function SettingsModal({
   const singleKeys = useSingleKeyShortcuts();
 
   const moveSection = (event: KeyboardEvent<HTMLDivElement>) => {
-    const move = tabStripMove(event, at, SETTINGS_SECTIONS.length, "vertical");
+    const move = tabStripMove(event, at, sections.length, "vertical");
     if (move.kind === "pass") return;
     event.preventDefault();
     // An arrow that chooses a section ends the search, as a press does.
     changeQuery("");
-    onSection(SETTINGS_SECTIONS[move.index].id);
+    onSection(sections[move.index].id);
     tabRefs.current[move.index]?.focus();
   };
 
@@ -190,8 +207,11 @@ export default function SettingsModal({
   const { notifyPermission, notifyOn, notifyVetoed, toggleNotify, notifySupported, askForNotifications,
           accountNotify, toggleAccountNotify } = notify;
 
+  // A section this deck does not draw — Account, on a deck without the
+  // account — is General, as the nav's index already says.
+  const paneSection = sections[at].id;
   const pane = (() => {
-    switch (section) {
+    switch (paneSection) {
       case "radar":
         return <RadarSettings onOpen={doors.radar} />;
       case "appearance":
@@ -245,6 +265,8 @@ export default function SettingsModal({
         );
       case "data":
         return <ToolAuditSettings />;
+      case "account":
+        return <Suspense fallback={null}><AccountSection vetoed={account?.on !== true} /></Suspense>;
       case "about":
         return (
           <AboutSection
@@ -331,7 +353,7 @@ export default function SettingsModal({
               aria-orientation="vertical"
               onKeyDown={moveSection}
             >
-              {SETTINGS_SECTIONS.map((choice, index) => (
+              {sections.map((choice, index) => (
                 <button
                   key={choice.id}
                   ref={el => {
@@ -375,8 +397,8 @@ export default function SettingsModal({
                 page and a Raycast preference pane open on. */}
             <div className="settings-pane-head">
               <div className="settings-pane-heading">
-                <h2 className="settings-pane-title">{SETTINGS_SECTIONS[at].label}</h2>
-                <p className="settings-pane-note">{SETTINGS_SECTIONS[at].note}</p>
+                <h2 className="settings-pane-title">{sections[at].label}</h2>
+                <p className="settings-pane-note">{sections[at].note}</p>
               </div>
               {paneAction}
             </div>

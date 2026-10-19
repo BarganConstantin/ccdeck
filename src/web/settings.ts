@@ -14,7 +14,7 @@ import { isApplePlatform } from "./platform";
 
 /** A section of Settings, in nav order. */
 export type SettingsSection =
-  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "data" | "radar" | "about";
+  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "data" | "radar" | "account" | "about";
 
 /** One section's nav entry: the word on its tab, and the line under its name
  *  at the head of the pane, saying what the section holds before anything in
@@ -47,9 +47,25 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "about", label: "About", note: "The version you are running, and where to say what you think of it." },
 ];
 
+/** Settings › Account, while the ccdeck account is hidden: drawn only on a
+ *  deck that has it switched on (or was asked for it and vetoed at launch),
+ *  and never in the list above, so no search, test or reader of the nav finds
+ *  a section for a feature that is not released. */
+export const ACCOUNT_SECTION: SettingsSectionEntry = {
+  id: "account", label: "Account", note: "Connect this deck to your ccdeck account, and keep its settings in step with your other machines.",
+};
+
+/** The nav this deck draws: the released sections, and Account before About when the
+ *  account is on. About stays last, at the foot of the nav. */
+export function settingsSections({ account = false }: { account?: boolean } = {}): readonly SettingsSectionEntry[] {
+  if (!account) return SETTINGS_SECTIONS;
+  const about = SETTINGS_SECTIONS.length - 1;
+  return [...SETTINGS_SECTIONS.slice(0, about), ACCOUNT_SECTION, SETTINGS_SECTIONS[about]];
+}
+
 /** Where a section sits in the nav; General for anything that is not one. */
-export function sectionIndex(section: SettingsSection): number {
-  return Math.max(0, SETTINGS_SECTIONS.findIndex(s => s.id === section));
+export function sectionIndex(section: SettingsSection, sections: readonly SettingsSectionEntry[] = SETTINGS_SECTIONS): number {
+  return Math.max(0, sections.findIndex(s => s.id === section));
 }
 
 const TAB_ID_PREFIX = "settings-tab-";

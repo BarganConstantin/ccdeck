@@ -68,6 +68,12 @@ export default function SettingsSectionGlyph({ section }: { section: SettingsSec
           <path d="M7 6.4v3.4M7 4.4h.01" />
         </>
       )}
+      {section === "account" && (
+        <>
+          <circle cx="7" cy="4.7" r="2.4" />
+          <path d="M2.4 12.2c.6-2.5 2.4-3.8 4.6-3.8s4 1.3 4.6 3.8" />
+        </>
+      )}
       {section === "notifications" && (
         <>
           <path d="M3.4 9.1c.6-.8.6-1.8.6-3V4.7a3 3 0 0 1 6 0v1.4c0 1.2 0 2.2.6 3" />

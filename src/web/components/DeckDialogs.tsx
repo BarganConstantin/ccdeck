@@ -45,7 +45,7 @@ import { usePairRequestDialog } from "./LanPairRequestModal";
 import { AccountAttention } from "./AccountAttentionModal";
 import ReleaseNotesModal from "./ReleaseNotesModal";
 import SessionSummary from "./SessionSummary";
-import SettingsModal from "./SettingsModal";
+import SettingsModal, { type AccountSwitch } from "./SettingsModal";
 import ToolModal from "./ToolModal";
 // Loaded when they open (#883). Both are opened rarely and each is a large
 // file; imported here, they were in the one bundle every reload and every deck
@@ -59,7 +59,7 @@ const TrafficRadar = lazyDialog(() => import("./TrafficRadar"), "Telemetry Radar
 
 export default function DeckDialogs({
   dialogs, welcome, desktopUpdate, versionCheck, restart, upgrade, lanPairs, attention, clearFlow, watchBadge, announcements,
-  appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify, panelDoors,
+  appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify, panelDoors, account,
 }: {
   dialogs: ReturnType<typeof useDialogs>;
   welcome: ReturnType<typeof useWelcomeAndNotes>;
@@ -88,6 +88,8 @@ export default function DeckDialogs({
   /** The two panels Settings › General points at that are App's to open: the
    *  accounts panel, and the Local network view inside it (#2176). */
   panelDoors: { accounts: () => void; localNetwork: () => void };
+  /** Whether Settings draws its hidden Account section (/api/prefs). */
+  account?: AccountSwitch;
 }) {
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
@@ -176,6 +178,7 @@ export default function DeckDialogs({
           versionCheck={versionCheck}
           desktopUpdate={desktopUpdate}
           restart={restart}
+          account={account}
           /* Every door out closes Settings first (doorOut), the way the
              shortcuts sheet hands over to it below, and each opens through
              the deck's own way in: the version chip's (What's new, and for a

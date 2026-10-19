@@ -13,6 +13,8 @@
 // layout on every patch release would throw away hand-arranged canvases for no
 // reason; this is bumped by hand, in the same commit that changes the shape.
 
+import { UI_STORAGE_KEYS } from "./account-ui-fields";
+
 /** Bump ONLY when the stored shape of a key below changes. */
 export const STATE_SCHEMA = "1";
 
@@ -53,7 +55,17 @@ export function readStored(key: string): string | null {
 export function writeStored(key: string, value: string): void {
   if (typeof window === "undefined") return;
   try { window.localStorage.setItem(key, value); } catch { /* private mode, blocked site data, full quota */ }
+  // A setting a ccdeck account can carry, announced to this tab: the browser's
+  // own `storage` event reaches only the OTHER tabs. Heard by the account's
+  // sync (account-bridge.ts) when the account is on; with nobody listening, a
+  // dispatch is all it costs, and only for the dozen keys that sync.
+  if (UI_STORAGE_KEYS.has(key)) {
+    try { window.dispatchEvent(new CustomEvent(STORED_EVENT, { detail: { key, value } })); } catch { /* no events here */ }
+  }
 }
+
+/** What writeStored dispatches for a setting an account can carry. */
+export const STORED_EVENT = "ccdeck:stored";
 
 /** Forgets one key, or does nothing where the store refuses — see `writeStored`. */
 export function removeStored(key: string): void {
