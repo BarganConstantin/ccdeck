@@ -94,6 +94,12 @@ export const DEFAULTS = Object.freeze({
   // `auto when idle`, which defaulted on as a localStorage key; it moved here so
   // the server can read it with no page open.
   autoUpdate: true,
+  // THE CCDECK ACCOUNT, OFF and hidden (account-flag.mjs): Settings › Account,
+  // the status frames and the settings sync. Deck-owned and hand-edited — not
+  // in PAGE_FIELDS while the feature is hidden, so no page can switch on a
+  // connection to the API. CCDECK_ACCOUNT=1 turns it on for one run, and
+  // AGENTS_DECK_NO_ACCOUNT / AGENTS_DECK_NO_INSTALL veto both.
+  account: false,
   // USAGE REPORTS (#1853), ON unless somebody turns them off — the owner's
   // decision, 2026-09-30: nobody is asked and the README says what is sent; the
   // page has no switch since 2026-10-01. See reports.mjs for what is sent, and
@@ -323,6 +329,7 @@ export function normalise(raw) {
     notifyReset: flagOr(src.notifyReset, DEFAULTS.notifyReset),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
+    account: flagOr(src.account, DEFAULTS.account),
     reports: flagOr(src.reports, DEFAULTS.reports),
     report: normaliseReport(src.report),
     accounts: normaliseOrigins(src.accounts),

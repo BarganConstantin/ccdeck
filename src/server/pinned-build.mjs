@@ -96,6 +96,20 @@ const PINNED_MODULES = [
   "codex-auth.mjs",
 ];
 
+/**
+ * Reached only through `import()` as well, and deliberately NOT pinned: the
+ * hidden ccdeck account's routes, and everything they import. A deck with the
+ * account off must never evaluate a line of them (account-flag.mjs,
+ * account-flag-off.test.ts), so they cannot be on the list above, which every
+ * deck loads. A deck with the account on loads them at boot instead —
+ * index.mjs startAccountWhenOn, right after the listen, as early as the pin
+ * itself — so they are in memory before any install can start. The one case
+ * left is the account switched on at runtime by a hand edit of prefs.json,
+ * which loads them on the first request after it, as any lazy module was
+ * loaded before #1042. self-update-pins-build.test.ts names this list.
+ */
+export const PINNED_AT_BOOT_WHEN_ON = Object.freeze(["ccdeck-account-routes.mjs"]);
+
 let _pinned = null;
 
 /**

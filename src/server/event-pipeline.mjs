@@ -55,6 +55,20 @@ import { connectEventSink } from "./event-sink.mjs";
 connectEventSink(pushEvent);
 
 /**
+ * One more reader of every event, connected by whoever needs it: the
+ * account's session counts (session-counts.mjs), which keep the waiting and
+ * running numbers the status frame carries. A slot rather than an import, so
+ * a deck with the account off never loads the module and pays one null check
+ * per event. Handed the payload after the token is taken out, its stamp, and
+ * the options — a replay included, which the counts consume and activity does
+ * not. A tap that throws is the tap's problem, never the event's.
+ */
+let eventTap = null;
+export function connectEventTap(fn) {
+  eventTap = typeof fn === "function" ? fn : null;
+}
+
+/**
  * Where a notification goes. The desktop app, while it is connected, raises it
  * itself — under its own name, icon and permission, with a click that opens its
  * window. Only when no app is listening does the OS helper speak.
@@ -208,6 +222,9 @@ export function pushEvent(raw, source, opts = {}) {
   // Persisted history is not current activity. Fresh recovery snapshots are
   // current evidence even though they bypass replayed-tool accounting.
   if (shouldTrackActivity(raw, opts)) activity.note(raw, evt.receivedAt);
+  if (eventTap) {
+    try { eventTap(raw, evt.receivedAt, opts); } catch { /* the event goes on */ }
+  }
 
   if (persisting) {
     // Fire-and-forget append. JSONL = newline-delimited JSON, so the whole line

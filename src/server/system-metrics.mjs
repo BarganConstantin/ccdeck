@@ -51,6 +51,15 @@ let swap = null;
 const cpuHistory = [];
 let memory = null;
 let memInFlight = false;
+/** When the newest CPU and memory readings were taken, by the wall clock — the
+ *  `sampledAt` machineReading hands the account's status frame, so the console
+ *  can say how old each number is. 0 before the first one. */
+let lastCpuAt = 0;
+let lastMemAt = 0;
+/** Memory polls that ran and could not measure, since the last one that could.
+ *  A sampler that has run and found nothing is `unavailable`; one that has not
+ *  run yet is only warming up. */
+let memMisses = 0;
 /** When sampling started, so a modal can say what "since" means. */
 let historySince = 0;
 
@@ -326,7 +335,11 @@ async function sampleMemory() {
         available,
         usedPct: Math.max(0, Math.min(100, Math.round(((total - available) / total) * 1000) / 10)),
       };
+      lastMemAt = Date.now();
+      memMisses = 0;
       record("mem:physical", memory.usedPct);
+    } else {
+      memMisses++;
     }
     // Same 30s cadence as memory, and for the same reason: it moves in minutes
     // and costs a subprocess on two of the three platforms.
@@ -341,6 +354,7 @@ function sampleCpu() {
   const pct = cpuPercent();
   if (pct == null) return;
   cores = per;
+  lastCpuAt = Date.now();
   cpuHistory.push(pct);
   while (cpuHistory.length > HISTORY) cpuHistory.shift();
   record("cpu:all", pct);
@@ -406,6 +420,9 @@ export function stopSystemMetrics() {
   memory = null;
   cores = null;
   swap = null;
+  lastCpuAt = 0;
+  lastMemAt = 0;
+  memMisses = 0;
   // The process list's Windows baseline and its last list, which go together.
   resetProcessList();
 }
@@ -440,4 +457,44 @@ export function systemSnapshot() {
     intervalMs: CPU_INTERVAL_MS,
     sampledAt: Date.now(),
   };
+}
+
+/**
+ * CPU and memory as the account's status frame carries them (account-status.mjs):
+ * the newest readings and when each was taken, or why there is none.
+ *
+ *   cpu     { pct, cores, sampledAt } — `pct` is exactly the Machine panel's
+ *           number, the busy share of every core since the previous 3-second
+ *           sample; or { unknown: "warming-up" } before two samples exist
+ *   memory  { usedPct, totalMb, sampledAt } — (total - available) / total with
+ *           the platform's own "available"; or { unknown: "warming-up" } before
+ *           the first poll, { unknown: "unavailable" } once polls have run and
+ *           none could measure
+ *
+ * A reading the sampler has not been started for at all is `unavailable`.
+ *
+ * SIDE-EFFECT FREE, and that is the reason it exists beside systemSnapshot
+ * rather than reading it: systemSnapshot calls notePanelPoll, which tells the
+ * network section a panel is open and so starts the probe that times the API
+ * and reads the route — the one part of this module that leaves the machine.
+ * A frame sent every fifteen seconds must never be what keeps that probe
+ * running. machine-reading.test.ts holds this to it. No load average, by the
+ * owner's decision: CPU and memory only.
+ */
+export function machineReading() {
+  const running = cpuTimer != null;
+  // A machine that lists no cores has a percentage nobody can read against.
+  const coreCount = os.cpus().length;
+  const cpu = !running || coreCount < 1 ? { unknown: "unavailable" }
+    : cpuHistory.length && lastCpuAt ? { pct: cpuHistory[cpuHistory.length - 1], cores: coreCount, sampledAt: lastCpuAt }
+    : { unknown: "warming-up" };
+  return { cpu, memory: memoryReading(running) };
+}
+
+function memoryReading(running) {
+  if (memory && lastMemAt) {
+    return { usedPct: memory.usedPct, totalMb: Math.max(1, Math.round(memory.total / (1024 * 1024))), sampledAt: lastMemAt };
+  }
+  if (!running) return { unknown: "unavailable" };
+  return { unknown: memMisses > 0 ? "unavailable" : "warming-up" };
 }

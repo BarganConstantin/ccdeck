@@ -447,6 +447,35 @@ async function handlePresence(req, res) {
   return send(res, ok ? 200 : 400, { ok });
 }
 
+/**
+ * What has to happen on the way out that the launcher cannot know about: the
+ * account's last status frame, so the console says "ccdeck stopped" at once
+ * rather than after 90 seconds of silence (account-status.mjs sendStopping).
+ * Registered by whatever needs it, while it needs it — nothing registers one
+ * on a deck with the account off, and then `beforeShutdown` is free.
+ */
+const _beforeShutdown = new Set();
+
+/** Run `fn` on the way out; answers the unregister. */
+export function onBeforeShutdown(fn) {
+  _beforeShutdown.add(fn);
+  return () => _beforeShutdown.delete(fn);
+}
+
+/** The registered steps, all at once, bounded: bin/deck.js's shutdown awaits
+ *  this on every way out — a signal, `ccdeck --stop`, a restart into an update
+ *  — and never waits past `ms`, nor on a step that throws. */
+export async function beforeShutdown(ms = 1_500) {
+  if (_beforeShutdown.size === 0) return;
+  const steps = [..._beforeShutdown].map(fn => Promise.resolve().then(fn).catch(() => {}));
+  let timer;
+  await Promise.race([
+    Promise.all(steps),
+    new Promise(r => { timer = setTimeout(r, ms); timer.unref?.(); }),
+  ]);
+  clearTimeout(timer);
+}
+
 // What index.mjs calls besides the two exported above. Listed rather than
 // marked at each declaration, so the declarations read as they did where they
 // came from.

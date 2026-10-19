@@ -471,6 +471,12 @@ export const GUARDED_READS = new Set([
   "/api/fm-station",
   "/api/radio-stations",
   "/api/radio-click",
+  // The ccdeck account (account-flag.mjs): which account this deck is
+  // connected to, its email, the device and the settings it syncs, and the
+  // join preview's values. The user's own, and read by the deck's own page
+  // alone. Guarded whether the account is on or off, as every path here is.
+  "/api/account",
+  "/api/account/sync/preview",
 ]);
 
 export function isAuthorizedMutation(req) {

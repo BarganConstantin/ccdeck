@@ -13,6 +13,7 @@ import { heldPrefs } from "./prefs-state.mjs";
 import { applyLanPrefs, forgetReach, resetLanLoaded } from "./lan-deck.mjs";
 import { giveBackDeckFolders } from "./prefs-give-back.mjs";
 import { readBody, send } from "./http-io.mjs";
+import { accountOn, accountRequested, accountVetoed } from "./account-flag.mjs";
 
 /**
  * GET the deck's settings, and what the machine is allowing.
@@ -39,6 +40,15 @@ function prefsPayload() {
     notificationsAllowed: notificationsOn(prefs),
     notificationsVetoed: notificationsVetoed(),
     reportsVetoed: reportsVetoed(),
+    // The ccdeck account, on the read every page already makes at boot: the
+    // page draws Settings › Account, and fetches its code, only when this says
+    // so. A route of its own would have to exist with the flag off, which is
+    // the state it reports. `accountVetoed` only for a deck somebody asked to
+    // have one — the switch or the variable — so a machine launched with
+    // AGENTS_DECK_NO_INSTALL and no account in mind is not shown a section
+    // about a feature that is hidden.
+    accountOn: accountOn(prefs),
+    accountVetoed: accountRequested(prefs) && accountVetoed(),
   };
 }
 

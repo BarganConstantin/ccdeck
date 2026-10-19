@@ -133,7 +133,14 @@ import { armLifecycle, handlePresence, handleRestart, handleStop, handleUpgrade,
 export { markDeckReady, releaseRestart } from "./lifecycle.mjs";
 // The settings as this process holds them, and every write that changes them —
 // see prefs-state.mjs.
-import { prefsRead } from "./prefs-state.mjs";
+import { heldPrefs, prefsRead } from "./prefs-state.mjs";
+// Whether this deck has a ccdeck account at all — hidden, and off unless
+// CCDECK_ACCOUNT=1 or the deck-owned `account` pref says so; see
+// account-flag.mjs. The account's own modules are imported only behind it.
+import { accountOn } from "./account-flag.mjs";
+// The way out a launcher takes, for the steps the server registers on it (the
+// account's last status frame) — see lifecycle.mjs onBeforeShutdown.
+export { beforeShutdown } from "./lifecycle.mjs";
 // Quota read for the account notifications while no page reads it — only while
 // one of their quota switches is on (account-watch.mjs).
 import { startAccountWatch } from "./account-watch.mjs";
@@ -194,7 +201,43 @@ export function requestUrl(rawUrl) {
   catch { return null; }
 }
 
-export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null } = {}) {
+// The ccdeck account's routes, loaded the first time they are wanted and only
+// while the account is on (account-flag.mjs) — so a deck with it off never
+// evaluates a line of them. One per process, like the deck's token.
+let accountRoutes = null;
+function loadAccountRoutes(deps) {
+  accountRoutes ??= import("./ccdeck-account-routes.mjs")
+    .then(m => m.startAccountRoutes(deps))
+    .catch(err => { accountRoutes = null; throw err; });
+  return accountRoutes;
+}
+
+/** The account at boot, once the settings are read: loaded and started when
+ *  it is on — which also loads it before any install can replace the tree, the
+ *  pin pinned-build.mjs cannot give a module a deck with the account off must
+ *  never evaluate — and nothing at all when it is off. */
+async function startAccountWhenOn(deps) {
+  try {
+    await prefsRead;
+    if (accountOn(heldPrefs.current())) await loadAccountRoutes(deps);
+  } catch (err) {
+    console.error(`${PRODUCT}: the account could not start:`, err?.message ?? err);
+  }
+}
+
+/** An /api/account route: with the account off, exactly the 404 an /api path
+ *  with no route answers, asked of nothing else — see account-flag-off.test.ts. */
+async function accountRoute(req, res, url, deps) {
+  await prefsRead;
+  if (!accountOn(heldPrefs.current())) return send(res, 404, { error: "not found" });
+  const routes = await loadAccountRoutes(deps);
+  return routes.handle(req, res, url);
+}
+
+// `account` is handed to the account's service as its stand-ins (a token store
+// that never reaches a real keychain, a clock): the suite's, like `terminal`
+// on the terminal branch. The product passes nothing.
+export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null, account = {} } = {}) {
   startQuotaHistory();
   await startToolAudit();
   armLifecycle({ onRestart, onStop, persist, onSelfUpdate: () => reporter.noteSelfUpdate() });
@@ -426,6 +469,20 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // once per name per day. A name, never what was in it. See feature-use.mjs.
     if (req.method === "POST" && url.pathname === "/api/feature") return guard(handleFeature(req, res), res);
 
+    // The ccdeck account (account-flag.mjs). Switched off, each of these is
+    // the 404 below, word for word, and nothing of the account is loaded. The
+    // two reads are in GUARDED_READS; the POSTs are mutations like any other.
+    if (req.method === "GET"  && url.pathname === "/api/account")                return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/connect")        return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/connect/cancel") return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/disconnect")     return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/ui")             return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/ui/applied")     return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "GET"  && url.pathname === "/api/account/sync/preview")   return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/sync/mode")      return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/sync/resolve")   return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/sync/upload")    return guard(accountRoute(req, res, url, account), res);
+
     // AN UNMATCHED /api/ PATH IS A 404, not the SPA shell.
     //
     // serveStatic falls back to index.html for a path it cannot find, which is
@@ -544,6 +601,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // unref'd timers. Switched off in Appearance, or with
       // AGENTS_DECK_NO_REPORTS / AGENTS_DECK_NO_INSTALL, nothing is sent.
       reporter.start();
+      // The ccdeck account, when it is on: the status frames and the settings
+      // sync of a deck that is connected, after the reporter as the design
+      // orders them. Off — the default — nothing here is even imported.
+      void startAccountWhenOn(account);
       // Auto-switch resumes only if the user previously turned it on; the
       // module reads its own persisted flag and does nothing otherwise. Its
       // ticks wait for `cswapQuiet`, the launcher's word that claude-swap is not

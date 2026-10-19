@@ -469,6 +469,10 @@ export function scrub(text, home = homedir(), root = PKG_ROOT) {
   // Never half a name: a home of /home/al is not the start of /home/alice.
   if (home && home.length > 1) out = out.replace(new RegExp(`${escapeRegExp(home)}(?![\\w.-])`, "g"), "~");
   return out
+    // The account's device token and device code (account-*.mjs), named by
+    // their prefixes so a short one is caught too, and first, so no pattern
+    // below can split one before it is recognised.
+    .replace(/\bccd[dc]_[A-Za-z0-9_-]{20,}/g, "<secret>")
     .replace(/\/(?:home|Users)\/[^/\s:'"]+/g, "~")
     .replace(/[A-Za-z]:\\(?:Users|Documents and Settings)\\[^\\\r\n:'"]+/gi, "~")
     .replace(new RegExp(PATH_PATTERN, "g"), hidePath)
