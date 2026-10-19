@@ -9,18 +9,18 @@
 // to take its card off the board while the stage still showed it.
 //
 // So each Codex session that turns up on the board while the stage shows the
-// launch is put to the deck with the launch's key (GET /api/terminal/target
-// &launch=). The deck finds the pane the session runs in, the way it does for
-// a click on its card, and says whether that pane is the one this launch
-// started. The page never guesses: two Codex sessions can begin in one folder
-// in the same second, and only the deck can tell which pane each is in. A
-// session the board had before the launch was asked for is never asked about,
-// since a launch starts a new session, and nor is anything once the stage has
-// moved off the launch.
+// launch is put to the deck with the launch's key (POST /api/terminal/claim).
+// The deck finds the pane the session runs in, the way it does for a click on
+// its card, says whether that pane is the one this launch started, and on a
+// yes labels the pane with the session's id. The page never guesses: two
+// Codex sessions can begin in one folder in the same second, and only the
+// deck can tell which pane each is in. A session the board had before the
+// launch was asked for is never asked about, since a launch starts a new
+// session, and nor is anything once the stage has moved off the launch.
 
 import { useEffect, useRef } from "react";
 import type { StageTarget } from "../../stage-shell";
-import { terminalTarget } from "../../terminal-api";
+import { claimLaunch } from "../../terminal-api";
 import type { AgentNodeData } from "../../types";
 import { useMirroredRef } from "../../use-mirrored-ref";
 
@@ -52,17 +52,19 @@ export function codexCandidates(
 }
 
 /** While `target` is a Codex launch, find the board session it became and
- *  hand its id to `onFound`, once. Runs after every render, which the board's
- *  events and the deck's clock both cause, so a session asked again is asked
- *  on the first render after its gap. */
+ *  hand its id to `onFound` with the launch's key, once. Runs after every
+ *  render, which the board's events and the deck's clock both cause, so a
+ *  session asked again is asked on the first render after its gap. */
 export function useCodexLaunch(
   target: StageTarget | null,
   agents: ReadonlyMap<string, AgentNodeData>,
-  onFound: (sessionId: string) => void,
+  onFound: (sessionId: string, key: string) => void,
 ): void {
   const watch = useRef<{ key: string; before: Set<string>; asked: Map<string, Asked>; found: boolean } | null>(null);
   const found = useMirroredRef(onFound);
   const key = target?.kind === "launch" && target.agent === "codex" ? target.key : null;
+  // An answer that comes back after the stage has gone is for nobody.
+  useEffect(() => () => { watch.current = null; }, []);
   useEffect(() => {
     if (!key) {
       watch.current = null;
@@ -75,14 +77,14 @@ export function useCodexLaunch(
     for (const a of codexCandidates(agents.values(), w.before, w.asked, now)) {
       const entry: Asked = { tries: (w.asked.get(a.id)?.tries ?? 0) + 1, at: now, busy: true, done: false };
       w.asked.set(a.id, entry);
-      void terminalTarget({ sessionId: a.sessionId, provider: "codex", cwd: a.cwd ?? "" }, {}, key).then(answer => {
+      void claimLaunch({ sessionId: a.sessionId, provider: "codex", cwd: a.cwd ?? "" }, key).then(answer => {
         entry.busy = false;
         if (!answer.ok) return;
-        if (answer.launched === true) {
+        if (answer.claimed) {
           entry.done = true;
           if (watch.current !== w || w.found) return;
           w.found = true;
-          found.current(a.sessionId);
+          found.current(a.sessionId, key);
           return;
         }
         if (answer.target.kind !== "unsupported") entry.done = true;

@@ -338,10 +338,12 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    *  that session, the stage shows it as itself (the effect below). A Codex
    *  is reported twice: by the launch's answer with no id, since Codex picks
    *  its own, and by the stage once the deck has recognised it on the board
-   *  (codex-launch.ts). The first never undoes the second. */
-  const onLaunched = useCallback((l: { sessionId: string }) => {
+   *  (codex-launch.ts), which names the launch it means: one the stage has
+   *  since left is not the launch on it now. The first never undoes the
+   *  second. */
+  const onLaunched = useCallback((l: { sessionId: string; key?: string }) => {
     const t = shellRef.current.target;
-    if (t?.kind !== "launch") return;
+    if (t?.kind !== "launch" || (l.key !== undefined && l.key !== t.key)) return;
     if (!l.sessionId && launchedRef.current?.key === t.key && launchedRef.current.sessionId) return;
     launchedRef.current = { key: t.key, sessionId: l.sessionId };
     // Reachable again from the Terminal button even before the board knows

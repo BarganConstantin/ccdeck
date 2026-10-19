@@ -270,7 +270,7 @@ describe("a session the deck started (case A)", () => {
     expect(s.opened, "the launcher-lookalike's open files were read").not.toContain("/proc/950/fd");
   });
 
-  it("carries the key of the page launch that made the pane, for the target route to answer", async () => {
+  it("carries the key of the page launch that made the pane, for the claim route to answer", async () => {
     // The route says yes or no to "is this the launch I asked for"; the key
     // never reaches the page from here (describeTarget leaves it out).
     const rollout = `/home/u/.codex/sessions/2026/10/08/rollout-2026-10-08T09-12-33-${ID}.jsonl`;
@@ -338,6 +338,18 @@ describe("a session the deck started (case A)", () => {
       // In another folder it could not have.
       const other = setup({ procs: [SYSTEMD_USER, PANE_PROC, TUI, DAEMON, { ...elsewhere, cwd: "/home/u/other" }], deck: [pane()] });
       expect(await codex(other.deps)).toMatchObject({ kind: "A", pane: "%9" });
+    });
+
+    it("is not guessed at when a Codex with no terminal in that folder could have begun it, and the daemon is not one", async () => {
+      // `codex exec`, run by a script or by another agent's shell, begins a
+      // session of its own with no terminal at all.
+      const exec: Proc = { pid: 7101, ppid: 7100, cmd: ["/home/u/.local/bin/codex", "exec", "fix the build"], cwd: CWD };
+      const s = setup({ procs: [SYSTEMD_USER, PANE_PROC, TUI, DAEMON, { pid: 7100, ppid: 1923, cmd: ["node", "agent.js"] }, exec], deck: [pane()] });
+      expect(await codex(s.deps)).toMatchObject({ kind: "C" });
+      // The daemon has no terminal, runs in the folder it was started from, and
+      // holds every rollout: it began none of them.
+      const daemon = setup({ procs: [SYSTEMD_USER, PANE_PROC, TUI, { ...DAEMON, cwd: CWD }], deck: [pane()] });
+      expect(await codex(daemon.deps)).toMatchObject({ kind: "A", pane: "%9", learnedId: V7 });
     });
 
     it("is not a pane that opened after it began, nor one of two that could be it", async () => {

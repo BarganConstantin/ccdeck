@@ -3,7 +3,7 @@
 // board to the deck with the launch's key, and follows only a yes.
 //
 // Run as a hook under the suite's stand-in React (fake-react.ts), with the
-// deck's target route answered by a stubbed fetch.
+// deck's claim route answered by a stubbed fetch.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CODEX_LAUNCH_ASKS, CODEX_LAUNCH_GAP_MS, codexCandidates, useCodexLaunch } from "../components/terminal/codex-launch";
 import type { StageTarget } from "../stage-shell";
@@ -19,24 +19,25 @@ function root(id: string, extra: Partial<AgentNodeData> = {}): AgentNodeData {
   return { id, sessionId: id, kind: "root", label: id, state: "active", tools: [], prompts: [], startedAt: 0, provider: "codex", cwd: "/w/app", ...extra } as AgentNodeData;
 }
 
-/** What the deck answers, per session id: launched or not, a target kind, or a failure. */
-type Answer = { launched?: boolean; kind?: string; status?: number };
+/** What the deck answers, per session id: claimed or not, a target kind, or a failure. */
+type Answer = { claimed?: boolean; kind?: string; status?: number };
+type Asked = { path: string; method: string; body: { key: string; sessionId: string; provider: string; cwd: string } };
 let answers: Map<string, Answer>;
-let asked: URL[];
+let asked: Asked[];
 
 beforeEach(() => {
   vi.useFakeTimers();
   answers = new Map();
   asked = [];
-  vi.stubGlobal("fetch", vi.fn(async (input: string) => {
-    const url = new URL(input, "http://127.0.0.1/");
-    asked.push(url);
-    const a = answers.get(url.searchParams.get("session") ?? "") ?? { launched: false, kind: "C" };
+  vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body));
+    asked.push({ path: input, method: init?.method ?? "GET", body });
+    const a = answers.get(body.sessionId) ?? { claimed: false, kind: "C" };
     if (a.status) return new Response(JSON.stringify({ ok: false, error: "no" }), { status: a.status });
     const target = a.kind === "unsupported"
       ? { kind: "unsupported", label: "tmux is not answering right now.", reason: "not-answering" }
       : { kind: a.kind ?? "A", label: "…" };
-    return new Response(JSON.stringify({ ok: true, target, ...(url.searchParams.has("launch") ? { launched: a.launched === true } : {}) }), { status: 200 });
+    return new Response(JSON.stringify({ ok: true, claimed: a.claimed === true, target }), { status: 200 });
   }));
 });
 
@@ -45,7 +46,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-interface Props { target: StageTarget | null; agents: Map<string, AgentNodeData>; onFound: (id: string) => void }
+interface Props { target: StageTarget | null; agents: Map<string, AgentNodeData>; onFound: (id: string, key: string) => void }
 function Harness({ target, agents, onFound }: Props) {
   useCodexLaunch(target, agents, onFound);
   return null;
@@ -66,13 +67,13 @@ function setup(agents: AgentNodeData[] = [root("old-codex")]) {
 describe("finding the session a Codex launch became", () => {
   it("asks the deck about a Codex that turns up after the launch, with the launch's key, and follows its yes once", async () => {
     const { view, props, onFound, add } = setup();
-    answers.set("c-new", { launched: true });
+    answers.set("c-new", { claimed: true });
     add(root("c-new"));
     await settle();
     expect(asked).toHaveLength(1);
-    expect(asked[0].pathname).toBe("/api/terminal/target");
-    expect(Object.fromEntries(asked[0].searchParams)).toEqual({ session: "c-new", provider: "codex", cwd: "/w/app", launch: KEY });
-    expect(onFound.mock.calls).toEqual([["c-new"]]);
+    expect(asked[0]).toMatchObject({ path: "/api/terminal/claim", method: "POST" });
+    expect(asked[0].body).toEqual({ key: KEY, sessionId: "c-new", provider: "codex", cwd: "/w/app" });
+    expect(onFound.mock.calls, "with the launch it was asked for").toEqual([["c-new", KEY]]);
     vi.advanceTimersByTime(CODEX_LAUNCH_GAP_MS * 4);
     view.rerender({ ...props });
     await settle();
@@ -90,26 +91,26 @@ describe("finding the session a Codex launch became", () => {
 
   it("follows only the session the deck says yes to, when two begin at once", async () => {
     const { board, view, props, onFound } = setup();
-    answers.set("c-mine", { launched: true });
-    answers.set("c-theirs", { launched: false, kind: "A" });
+    answers.set("c-mine", { claimed: true });
+    answers.set("c-theirs", { claimed: false, kind: "A" });
     board.set("c-theirs", root("c-theirs"));
     board.set("c-mine", root("c-mine"));
     view.rerender({ ...props });
     await settle();
-    expect(asked.map(u => u.searchParams.get("session")).sort()).toEqual(["c-mine", "c-theirs"]);
-    expect(onFound.mock.calls).toEqual([["c-mine"]]);
+    expect(asked.map(a => a.body.sessionId).sort()).toEqual(["c-mine", "c-theirs"]);
+    expect(onFound.mock.calls).toEqual([["c-mine", KEY]]);
   });
 
   it("takes a no as final, and asks again only when the deck could not say", async () => {
     const { view, props, add } = setup();
-    answers.set("c-no", { launched: false, kind: "C" });
+    answers.set("c-no", { claimed: false, kind: "C" });
     answers.set("c-stalled", { kind: "unsupported" });
     answers.set("c-failed", { status: 503 });
     add(root("c-no"));
     add(root("c-stalled"));
     add(root("c-failed"));
     await settle();
-    const count = (id: string) => asked.filter(u => u.searchParams.get("session") === id).length;
+    const count = (id: string) => asked.filter(a => a.body.sessionId === id).length;
     expect([count("c-no"), count("c-stalled"), count("c-failed")]).toEqual([1, 1, 1]);
     view.rerender({ ...props });
     await settle();
@@ -132,7 +133,7 @@ describe("finding the session a Codex launch became", () => {
     expect(asked).toEqual([]);
 
     const moved = setup();
-    answers.set("c-late", { launched: true });
+    answers.set("c-late", { claimed: true });
     moved.board.set("c-late", root("c-late"));
     moved.view.rerender({ ...moved.props });
     moved.view.rerender({ ...moved.props, target: { kind: "session", id: "other" } });
@@ -141,18 +142,29 @@ describe("finding the session a Codex launch became", () => {
     expect(moved.onFound).not.toHaveBeenCalled();
   });
 
+  it("drops a yes that comes after the stage has gone", async () => {
+    const { view, props, board, onFound } = setup();
+    answers.set("c-late", { claimed: true });
+    board.set("c-late", root("c-late"));
+    view.rerender({ ...props });
+    view.unmount();
+    await settle();
+    expect(asked).toHaveLength(1);
+    expect(onFound).not.toHaveBeenCalled();
+  });
+
   it("starts over for the next launch, with the board as it is then", async () => {
     const { view, props, board, onFound } = setup();
     board.set("c-between", root("c-between"));
     view.rerender({ ...props, target: { ...LAUNCH, key: "launch-k2" } });
     await settle();
     expect(asked, "a session that was there when the launch was asked for").toEqual([]);
-    answers.set("c-next", { launched: true });
+    answers.set("c-next", { claimed: true });
     board.set("c-next", root("c-next"));
     view.rerender({ ...props, target: { ...LAUNCH, key: "launch-k2" } });
     await settle();
-    expect(asked[0].searchParams.get("launch")).toBe("launch-k2");
-    expect(onFound.mock.calls).toEqual([["c-next"]]);
+    expect(asked[0].body.key).toBe("launch-k2");
+    expect(onFound.mock.calls).toEqual([["c-next", "launch-k2"]]);
   });
 });
 

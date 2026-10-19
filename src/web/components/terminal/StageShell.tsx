@@ -151,7 +151,7 @@ export function StageDock(p: StageDockProps) {
 
   const agents = stateRef.current.agents;
   const show = stageShowFor(shell.target, agents, p.now);
-  useCodexLaunch(shell.target, agents, sessionId => stage.onLaunched({ sessionId }));
+  useCodexLaunch(shell.target, agents, (sessionId, key) => stage.onLaunched({ sessionId, key }));
   const name = stageName(show);
   // The empty stage's name is a description, not a session: closing it keeps
   // nothing running, so the sentence says only that the stage closed.

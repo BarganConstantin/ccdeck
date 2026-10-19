@@ -520,6 +520,12 @@ describe("asking for the session again from the stage", () => {
     expect(web("components/terminal/TerminalStage.tsx")).toContain("launchAgain: p.onLaunchAgain");
   });
 
+  it("reports a recognised Codex with the launch it was recognised for", () => {
+    // The stage takes it only while that launch is still the one on it (use-stage's onLaunched).
+    expect(web("components/terminal/StageShell.tsx"))
+      .toContain("useCodexLaunch(shell.target, agents, (sessionId, key) => stage.onLaunched({ sessionId, key }));");
+  });
+
   it("lands a request still holding keys with a catch, so a sentence mid-way never presses the card", () => {
     // Try again with tmux still stalled: the retry failed, a new Try again took
     // the focus plainly, and the rest of the sentence pressed it or took the

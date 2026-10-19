@@ -517,7 +517,8 @@ describe("the other ways in", () => {
       turnOn();
       now().stage.openFromButton(null);
       now().stage.launch("codex", "/w/app");
-      for (const sessionId of order) now().stage.onLaunched({ sessionId });
+      const key = (now().stage.shell.target as { key: string }).key;
+      for (const sessionId of order) now().stage.onLaunched(sessionId ? { sessionId, key } : { sessionId });
       view.rerender(props);
       expect(now().stage.shell.target, "the board has not heard of it yet").toMatchObject({ kind: "launch" });
       deps.stateRef.current.agents.set("c-new", root("c-new"));
@@ -525,6 +526,20 @@ describe("the other ways in", () => {
       expect(now().stage.shell.target, order.join(" then ")).toMatchObject({ kind: "session", id: "c-new" });
       expect(now().stage.shell.last).toBe("c-new");
     }
+  });
+
+  it("takes no recognition meant for another launch", () => {
+    // An answer about the launch before this one, arriving late, is not this
+    // launch's session.
+    const { view, now, turnOn, props, deps } = setup();
+    turnOn();
+    now().stage.openFromButton(null);
+    now().stage.launch("codex", "/w/app");
+    const key = (now().stage.shell.target as { key: string }).key;
+    deps.stateRef.current.agents.set("c-old", root("c-old"));
+    now().stage.onLaunched({ sessionId: "c-old", key: "launch-before" });
+    view.rerender(props);
+    expect(now().stage.shell.target).toEqual({ kind: "launch", agent: "codex", cwd: "/w/app", key });
   });
 
   it("goes back to a launch the board has not heard of yet, from the Terminal button", () => {
