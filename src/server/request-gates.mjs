@@ -462,6 +462,9 @@ export const GUARDED_READS = new Set([
   "/api/ccusage/session",
   "/api/codex-usage",
   "/api/cswap-auto",
+  // Which sessions stopped, and the active account's quota reading the
+  // Continue button is gated on (stop-continue.mjs) — the quota route's class.
+  "/api/stop-continue",
   // Not a secret, and here for the other reason a read can be dangerous: it is
   // the one route where the caller names what the deck goes and fetches
   // (#1208). fm-station.mjs holds that to YouTube, but a page on another site

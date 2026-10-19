@@ -144,6 +144,9 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["notifyQuota", { notifyQuota: true }, p => p.notifyQuota, true],
   ["notifyReset", { notifyReset: true }, p => p.notifyReset, true],
   ["notifyStopped", { notifyStopped: false }, p => p.notifyStopped, false],
+  // Settings › General › Claude sessions (SessionRecoverySettings.tsx), off
+  // until somebody turns it on (#2193).
+  ["continueStopped", { continueStopped: true }, p => p.continueStopped, true],
   ["tourSeen", { tourSeen: true }, p => p.tourSeen, true],
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
   ["recoverClaudeSessions", { recoverClaudeSessions: false }, p => p.recoverClaudeSessions, false],
@@ -188,7 +191,7 @@ describe("the fields a page may write", () => {
   // own until somebody makes that decision in PAGE_FIELDS and in this test.
   it("are these, and no others", () => {
     expect(PAGE_FIELDS).toEqual({
-      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions"],
+      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "continueStopped", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions"],
       lan: [
         "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
         "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
