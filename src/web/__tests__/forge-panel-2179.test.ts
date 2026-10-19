@@ -6,11 +6,12 @@
 // answer is drawn as it is, asked again, or marked stale; that every CI and
 // review state has a mark and a word; GitLab's "999+"; the Branches page's
 // active/stale split and the review list's waiting/approved split; the search
-// over loaded rows and what counts as a pasted reference; and that a
-// remembered view survives anything unreadable in the store, field by field.
+// over loaded rows and what counts as a pasted reference; that a remembered
+// view survives anything unreadable in the store, field by field; and where
+// focus goes when a page opens or closes.
 import { describe, expect, it } from "vitest";
 import {
-  changeBadge, ciMark, DEFAULT_VIEW, divergeCount, durationWords, fetchForge, forgeErrorWords, forgeReadPath, FRESH_MS,
+  changeBadge, ciMark, DEFAULT_VIEW, divergeCount, durationWords, fetchForge, focusAfterSelect, forgeErrorWords, forgeReadPath, FRESH_MS,
   isStale, loadForgeView, looksLikeRef, matchesQuery, normaliseView, readDue, splitBranches, splitReviews,
   tabAllowsAllProjects, type ForgePrefs,
 } from "../forge-panel";
@@ -151,5 +152,24 @@ describe("the remembered view", () => {
   it("keeps each readable field and drops each unreadable one", () => {
     expect(normaliseView({ repo: "group/project", tab: "changes", filter: "everyone", state: "merged", open: ["stale", 3] }))
       .toEqual({ ...DEFAULT_VIEW, repo: "group/project", tab: "changes", state: "merged", open: ["stale"] });
+  });
+});
+
+describe("focus when a page opens or closes", () => {
+  it("hands focus back to the row a page was opened from when it closes", () => {
+    expect(focusAfterSelect(false, false, true)).toBe("opener");
+    expect(focusAfterSelect(false, false, false)).toBe("opener");
+  });
+
+  it("moves focus onto a page the pressed row is hidden behind", () => {
+    expect(focusAfterSelect(true, true, true)).toBe("page");
+  });
+
+  it("leaves it on the row beside the page, so the list stays walkable", () => {
+    expect(focusAfterSelect(true, true, false)).toBe("stay");
+  });
+
+  it("moves it onto the next page when a link on the last one opened it", () => {
+    expect(focusAfterSelect(true, false, false)).toBe("page");
   });
 });

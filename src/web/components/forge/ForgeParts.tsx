@@ -94,17 +94,23 @@ export function LoadingRows({ rows = 6, label }: { rows?: number; label: string 
   );
 }
 
+// Avatars the deck could not fetch — a self-managed GitLab may serve them only
+// to a signed-in browser — are drawn as the initial from then on, not asked
+// for again on every page.
+const failedAvatars = new Set<string>();
+
 /** A person: avatar through the deck's proxy (or the initial), and a name. */
 export function Person({ user, size = 20, nameless = false }: { user: ForgeUser | null; size?: number; nameless?: boolean }) {
   const { asset } = useForge();
   const [failed, setFailed] = useState(false);
   if (!user) return null;
   const label = user.name || user.login;
-  const src = user.avatarUrl && !failed ? asset(user.avatarUrl) : null;
+  const avatar = user.avatarUrl;
+  const src = avatar && !failed && !failedAvatars.has(avatar) ? asset(avatar) : null;
   return (
     <span className="fg-person" title={nameless ? label : undefined}>
       {src
-        ? <img className="fg-avatar" src={src} alt="" width={size} height={size} referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+        ? <img className="fg-avatar" src={src} alt="" width={size} height={size} referrerPolicy="no-referrer" onError={() => { failedAvatars.add(avatar!); setFailed(true); }} />
         : <span className="fg-avatar fg-avatar-initial" style={{ width: size, height: size }} aria-hidden="true">{label.slice(0, 1).toUpperCase()}</span>}
       {nameless ? <span className="fg-sr">{label}</span> : <span className="fg-person-name">{label}</span>}
     </span>

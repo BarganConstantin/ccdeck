@@ -343,6 +343,11 @@ describe("the change page", () => {
     expect(page(createElement(ChangeDetailPage, { selection: sel }), { narrow: true })).not.toContain('aria-label="Close details"');
   });
 
+  it("can take focus, for when the row that opened it is out of sight", () => {
+    keep("change", { repo: "acme/web", number: 12 }, change());
+    expect(page(createElement(ChangeDetailPage, { selection: sel }), { narrow: true })).toMatch(/<article class="fd"[^>]*tabindex="-1"/);
+  });
+
   it("says all threads are resolved, and says so with a mark and a word", () => {
     keep("change", { repo: "acme/web", number: 13 }, change({ number: 13, key: "acme/web!13", threads: [thread("t", { resolved: true })], generalComments: [] }));
     const words = text(page(createElement(ChangeDetailPage, { selection: { ...sel, number: 13 } })));

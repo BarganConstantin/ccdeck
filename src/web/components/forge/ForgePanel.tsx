@@ -17,9 +17,10 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Componen
 import type { ForgeKind, ForgeRefTarget, Page, ForgeRepo } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
 import {
-  fetchForge, forgeReadPath, ForgeReadError, loadForgeView, looksLikeRef, saveForgeView, tabAllowsAllProjects,
+  fetchForge, focusAfterSelect, forgeReadPath, ForgeReadError, loadForgeView, looksLikeRef, saveForgeView, tabAllowsAllProjects,
   type ForgeApi, type ForgePrefs, type ForgeTab, type ForgeView,
 } from "../../forge-panel";
+import { modalStack } from "../../modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../../panel-press";
 import { tabStripMove } from "../../tablist-keys";
 import { useForgeRead } from "../../use-forge-read";
@@ -94,6 +95,10 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   // second press are refused here, off a ref, not by disabling the button.
   const resolvingRef = useRef(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // The row a page was opened from. The split keeps the list mounted under the
+  // drill-in screen, so Back and Close can hand focus back to it.
+  const opener = useRef<HTMLElement | null>(null);
   const uid = useId();
   const tabDomId = (tab: ForgeTab) => `${uid}-tab-${tab}`;
   const panelDomId = (tab: ForgeTab) => `${uid}-panel-${tab}`;
@@ -122,18 +127,39 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
     });
   }, [prefs]);
 
+  const select = useCallback((next: ForgeSelection | null) => {
+    const active = document.activeElement;
+    const fromList = active instanceof HTMLElement && active.closest(".ig-list") != null;
+    if (next && fromList) opener.current = active;
+    setSelected(next);
+    const target = focusAfterSelect(next != null, fromList, narrow);
+    requestAnimationFrame(() => {
+      if (target === "opener" && opener.current?.isConnected) opener.current.focus();
+      else if (target === "page") panelRef.current?.querySelector<HTMLElement>(".ig-detail .fd")?.focus();
+    });
+  }, [narrow]);
+
+  // On the drill-in screen Escape is Back, before it closes the modal.
+  const open = selected != null;
+  const selectRef = useRef(select);
+  selectRef.current = select;
+  useEffect(() => {
+    if (!narrow || !open) return;
+    return modalStack.push(() => selectRef.current(null), 0, "popover");
+  }, [narrow, open]);
+
   const ctx = useMemo<ForgeContextValue>(() => ({
     kind, connection, scope, api,
     asset: (url: string) => assetUrl(url),
     refresh,
     selected,
-    select: setSelected,
+    select,
     isOpen: (group: string) => view.open.includes(group),
     toggle,
     reportFreshness: setFresh,
     onReconnect,
     narrow,
-  }), [kind, connection, scope, api, assetUrl, refresh, selected, view.open, toggle, onReconnect, narrow]);
+  }), [kind, connection, scope, api, assetUrl, refresh, selected, select, view.open, toggle, onReconnect, narrow]);
 
   // A tab that reads one project needs one: the most recently active, until
   // the user picks another.
@@ -153,7 +179,7 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
     try {
       const target = await fetchForge<ForgeRefTarget | null>(api, forgeReadPath("resolve", { q: query.trim() }));
       if (!target) setResolveError("Nothing to open at that address.");
-      else setSelected(target.type === "change" ? { type: "change", repo: target.repo, number: target.number } : { type: "issue", repo: target.repo, number: target.number });
+      else select(target.type === "change" ? { type: "change", repo: target.repo, number: target.number } : { type: "issue", repo: target.repo, number: target.number });
     } catch (err) {
       setResolveError(err instanceof ForgeReadError ? err.info.message : "Could not open it.");
     } finally {
@@ -265,8 +291,8 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
 
   return (
     <ForgeProvider value={ctx}>
-      <div className="fg-panel" data-kind={kind}>
-        <Split list={list} detail={detail} onBack={() => setSelected(null)} backLabel={backLabel(kind, view.tab)} storageKey={kind} />
+      <div ref={panelRef} className="fg-panel" data-kind={kind}>
+        <Split list={list} detail={detail} onBack={() => select(null)} backLabel={backLabel(kind, view.tab)} storageKey={kind} />
       </div>
     </ForgeProvider>
   );

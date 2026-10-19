@@ -407,9 +407,13 @@ describe("nothing else in the deck invents a focus stop", () => {
     // place of the list on a narrow window, the way Tool activity's does.
     // The GitHub and GitLab panel's project picker (#2179) is the same
     // combobox shape again: focus stays in its search field and the options
-    // are reached through aria-activedescendant (forge/RepoPicker.tsx).
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/RepoPicker.tsx"]);
+    // are reached through aria-activedescendant (forge/RepoPicker.tsx). Its
+    // item page takes focus when the row that opened it goes out of sight —
+    // behind the drill-in screen, or on the page a link replaced
+    // (forge/DetailParts.tsx).
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
     expect(code(readFileSync(join(web, "components/forge/RepoPicker.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
+    expect(code(readFileSync(join(web, "components/forge/DetailParts.tsx"), "utf8"))).toMatch(/<article ref=\{ref\} className="fd"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/JiraIssueDetail.tsx"), "utf8"))).toMatch(/<h3 id="jira-detail-title" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/RadioFilter.tsx"), "utf8"))).toMatch(/role="option" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/SettingsSearch.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);

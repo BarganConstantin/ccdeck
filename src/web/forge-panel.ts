@@ -283,6 +283,16 @@ export function normaliseView(raw: Record<string, unknown>): ForgeView {
   };
 }
 
+/** Where focus goes when the chosen item changes. Closing a page hands it back
+ *  to the row the page was opened from. Opening one moves it onto the new page
+ *  when the control that was pressed is no longer on screen — hidden under the
+ *  drill-in screen, or on the page being replaced — and leaves it on the row
+ *  otherwise, so the list stays walkable beside the page. */
+export function focusAfterSelect(opening: boolean, fromList: boolean, narrow: boolean): "opener" | "page" | "stay" {
+  if (!opening) return "opener";
+  return narrow || !fromList ? "page" : "stay";
+}
+
 /** Tabs that read across projects when none is picked; the others need one. */
 export function tabAllowsAllProjects(kind: ForgeKind, tab: ForgeTab): boolean {
   if (tab === "branches") return false;

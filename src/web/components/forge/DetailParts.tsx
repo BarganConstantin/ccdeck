@@ -44,7 +44,9 @@ export function DetailFrame({ label, children }: { label: string; children: Reac
     const pane = ref.current?.closest<HTMLElement>(".ig-detail");
     if (pane) pane.scrollTop = 0;
   }, []);
-  return <article ref={ref} className="fd" aria-label={label}>{children}</article>;
+  // tabIndex -1: the panel moves focus here when the control that opened the
+  // page is no longer on screen.
+  return <article ref={ref} className="fd" aria-label={label} tabIndex={-1}>{children}</article>;
 }
 
 /** The page's top line: what it is (copyable), where it lives on the forge,
