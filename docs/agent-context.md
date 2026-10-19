@@ -34,7 +34,7 @@ branches still have the same state. Verify them at the start of a new session.
   - The chrome-devtools MCP could not start here (no X display). Headless
     Chromium from `~/.cache/ms-playwright` driven by a borrowed
     `playwright-core` worked.
-- Real smoke: `jira.sapec.md` (Jira 9.0.0) refused the PAT in `JIRA_TOKEN`
+- Real smoke: the owner's Jira Server 9.0.0 refused the PAT in `JIRA_TOKEN`
   itself (401, `X-AUSERNAME: anonymous`, also with plain curl). Rerun the
   read-only smoke test once the owner has a fresh token.
 
