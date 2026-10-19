@@ -157,6 +157,16 @@ describe('Codex skill detection', () => {
     expect(uses(command('t3', [{ type: 'unknown', cmd: 'python3 /home/me/.codex/plugins/cache/openai-bundled/visualize/1.0.39/skills/visualize/scripts/chart.py' }])))
       .toMatchObject([{ key: 't3|visualize:visualize', name: 'visualize:visualize', origin: 'detected' }]);
   });
+  it('reads a rollout by its own path rules, not the host’s: Windows paths on Linux, and POSIX ones on Windows', () => {
+    const windows = catalog.replace('`/home/me/.agents/skills`', '`C:\\Users\\me\\.agents\\skills`');
+    const skills = codexSkillState(); const uses = (obj: unknown) => codexSkillUses(obj, skills);
+    uses({ ...developer, payload: { ...developer.payload, content: [{ type: 'input_text', text: windows }] } });
+    const at = (turnId: string, cwd: string, parsed: unknown[]) => { const line = command(turnId, parsed); line.payload.item.cwd = cwd; return line; };
+    expect(uses(at('t1', 'file:///C:/Users/me/.agents/skills/impeccable', [read('SKILL.md')]))).toMatchObject([{ key: 't1|impeccable', origin: 'detected' }]);
+    expect(uses(at('t2', 'C:\\Users\\me\\work', [read('..\\.agents\\skills\\impeccable\\SKILL.md')]))).toMatchObject([{ key: 't2|impeccable' }]);
+    expect(uses(at('t3', 'C:\\Users\\me\\work', [read('D:\\Users\\me\\.agents\\skills\\impeccable\\SKILL.md')]))).toEqual([]);
+    expect(uses(at('t3', 'C:\\Users\\me\\work', [read('C:\\Users\\me\\.agents\\skills\\impeccable\\SKILL.md')]))).toMatchObject([{ key: 't3|impeccable' }]);
+  });
   it('does not count failed reads, searches, or a SKILL.md outside the catalog', () => {
     const skills = codexSkillState(); const uses = (obj: unknown) => codexSkillUses(obj, skills);
     uses(developer);
