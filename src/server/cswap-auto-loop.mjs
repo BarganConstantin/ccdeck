@@ -18,8 +18,9 @@ import { invalidateQuotaCache } from "./quota.mjs";
 import { withStoreLock } from "./store-lock.mjs";
 // Told about every finished tick and about the switch itself, so a tick that
 // moved the account is said once on the desktop (account-notify.mjs). Both
-// doors return at once and never throw.
-import { noteAutoSwitch, noteAutoTick } from "./account-watch.mjs";
+// doors return at once and never throw. The third is the other way round: how a
+// session that stopped on a dead login asks for a tick now (tickSoon).
+import { connectEarlyTick, noteAutoSwitch, noteAutoTick } from "./account-watch.mjs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -127,6 +128,9 @@ let _starting = false;
 let _restartWanted = false;
 // The tick in flight, so the interval can skip rather than stack. See tick.
 let _ticking = null;
+// When the tick in flight began, so an early tick can tell whether the one
+// running already started after it was asked for. See tickSoon.
+let _tickStartedAt = 0;
 // What every tick waits for before it runs anything: the launcher's word that
 // the claude-swap it drives is not being installed or upgraded underneath it.
 // Settled by default, so a caller with nothing to wait for — a respawn, a test,
@@ -244,11 +248,62 @@ async function runTick() {
 function tick() {
   if (_ticking) return _ticking;
   // The notifier hears what every tick did, the ones that switched nothing
-  // included: a threshold notice it is holding waits for exactly that answer.
+  // included: a threshold notice it is holding waits for exactly that answer,
+  // and a stopped notice for one that began after the stop.
   // Not awaited, and caught inside: a notification never delays a tick.
-  _ticking = runTick().then(() => { noteAutoTick(_lastTick); }).finally(() => { _ticking = null; });
+  const startedAt = Date.now();
+  _tickStartedAt = startedAt;
+  _ticking = runTick().then(() => { noteAutoTick(_lastTick, { startedAt }); }).finally(() => { _ticking = null; });
   return _ticking;
 }
+
+/** How long an early tick waits for the rest of a burst: sessions sharing a
+ *  login stop within a second or two of each other. */
+export const SOON_MS = 1_500;
+
+/** The least time between two early ticks. The stops arrive on `/api/event`,
+ *  which takes a post without the deck's token, so this is what keeps a loop
+ *  of fake ones from running `cswap auto --once` back to back — the interval's
+ *  own floor is fifteen seconds, and this is twice that. */
+export const SOON_GAP_MS = 30_000;
+
+let _soon = null;
+let _soonAskedAt = -Infinity;
+
+/**
+ * Run one tick now rather than at the next interval, because a session has
+ * just stopped on an expired login or a usage limit (account-watch.mjs
+ * `noteHookStop`). The same tick the interval runs, through the same guards,
+ * so nothing about what the engine decides changes — only when it is asked.
+ *
+ * COALESCED: the first ask arms one tick SOON_MS later and every ask until it
+ * runs joins it, so ten sessions stopping in the same second cause one tick;
+ * after it, asks inside SOON_GAP_MS are dropped, and the interval carries on.
+ * NEVER BESIDE A RUNNING TICK: one in flight is waited for, and is enough by
+ * itself when it began after the ask. Off, this does nothing.
+ *
+ * Returns whether a tick was armed, for the suite.
+ */
+export function tickSoon() {
+  if (!_enabled || _soon) return false;
+  const askedAt = Date.now();
+  if (askedAt - _soonAskedAt < SOON_GAP_MS) return false;
+  _soonAskedAt = askedAt;
+  _soon = setTimeout(async () => {
+    _soon = null;
+    try {
+      if (_ticking) {
+        const covered = _tickStartedAt >= askedAt;
+        await _ticking;
+        if (covered) return;
+      }
+      if (_enabled) await tick();
+    } catch { /* a tick reports its own failures in _lastTick */ }
+  }, SOON_MS);
+  _soon.unref?.();
+  return true;
+}
+connectEarlyTick(tickSoon);
 
 /**
  * Start the deck-managed loop, at most once.
@@ -312,6 +367,7 @@ async function startLoop() {
 
 function stopLoop() {
   if (_timer) { clearInterval(_timer); _timer = null; }
+  if (_soon) { clearTimeout(_soon); _soon = null; }
 }
 
 /** Put a new interval into effect: the timer goes, and a fresh read of the

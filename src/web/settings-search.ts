@@ -85,6 +85,7 @@ const ACCOUNT_KEYWORDS: Record<(typeof ACCOUNT_NOTIFY_SWITCHES)[number]["kind"],
   notifySwap: ["auto-switch", "switch account", "swap", "alerts"],
   notifyQuota: ["quota", "limit", "rate limit", "usage", "alerts"],
   notifyReset: ["quota", "limit", "window", "available", "alerts"],
+  notifyStopped: ["stopped", "login", "expired", "usage limit", "continue", "alerts"],
 };
 
 const sectionLabel = (section: SettingsSection) => SETTINGS_SECTIONS.find(s => s.id === section)?.label ?? section;
