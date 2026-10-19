@@ -11,7 +11,7 @@
 // prints it, at the header's size scaled down to the card's at the start.
 //
 // THE SAME BEAT AS THE FOLD. The navigator's fold (navigator-flip.ts) runs in
-// the same 220ms open / 180ms close on the same ease-out and the same timer
+// the same 280ms open / 200ms close on the same curve and the same frame
 // clock (runTween), and the board's own fade here is the fold's formula, so
 // when the stage opens beside no navigator at all — the takeover a narrow
 // window gets — the board still leaves on the frame it would have.
@@ -37,8 +37,8 @@ export interface MorphRect { x: number; y: number; w: number; h: number }
  * before the window got there. But then it is still some way from home late in
  * the open, and v3's 0.80 had the state line under its landing fading in while
  * it flew over it — "ccdeck" printed across "working" for the last stretch.
- * From 0.97 the rider is within a few pixels of home, and on this ease-out
- * that still leaves the last ~105ms of the 220ms open for them to arrive in.
+ * From 0.97 the rider is within a few pixels of home, and on the fold's curve
+ * that still leaves the last ~120ms of the 280ms open for them to arrive in.
  */
 export const HEADER_LATE = 0.97;
 

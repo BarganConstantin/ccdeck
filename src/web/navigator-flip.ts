@@ -15,12 +15,17 @@
 // Meanwhile the board itself fades by the halfway mark. Order-preserving
 // tiles (board-navigator.ts) mean no two rims cross on the way.
 //
-// ONE CLOCK, A TIMER. Every frame is computed from elapsed time on one clock,
-// never from an animation's `finished` promise or a CSS transition end: the
-// prototype's headless Chromium stalled those, and the stage's own morph runs
-// in the same beat on the same clock (runTween is exported for it). Frame 0 is
-// delivered synchronously, so the first paint after the switch already shows
-// the tiles where the board was — never one frame of the navigator at rest.
+// ONE CLOCK, ON THE PAGE'S FRAMES. Every frame is computed from elapsed time on
+// one clock, never from an animation's `finished` promise or a CSS transition
+// end: the prototype's headless Chromium stalled those, and the stage's own
+// morph runs in the same beat on the same clock (runTween is exported for it).
+// Frame 0 is delivered synchronously, so the first paint after the switch
+// already shows the tiles where the board was — never one frame of the
+// navigator at rest. The ticks are the page's own frames (frameClock), and a
+// frame the page was late to paint moves the fold on by two frames at most:
+// the stage mounting under the fold's first frame used to cost it the first
+// 60% of its travel, the board went from full to gone between two frames, and
+// a close lost all but its last few pixels to the 80ms its first frame took.
 //
 // OVER 60 CLUSTERS the per-tile transforms stop being worth what they cost and
 // the fold becomes a plain cross-fade of the board and the navigator. Under
@@ -31,15 +36,34 @@ export interface FlipRect { x: number; y: number; w: number; h: number }
 
 export type FoldDirection = "open" | "close";
 
-/** The house ease-out (DESIGN.md's motion vocabulary), the curve the stage's
- *  morph rides in the same beat. */
-export const FLIP_EASE = [0.23, 1, 0.32, 1] as const;
-export const FLIP_OPEN_MS = 220;
-export const FLIP_CLOSE_MS = 180;
+/**
+ * The curve the fold and the stage's morph ride: a deceleration with a softer
+ * start than the house ease-out, the one iOS presents a sheet on.
+ *
+ * Not the house cubic-bezier(0.23, 1, 0.32, 1), which is for control feedback
+ * — a few pixels, where a fast start reads as a quick answer. Here the window
+ * crosses most of the screen, and on that curve its first frame covered 31% of
+ * the way (some 300px of a 1000px open) and its third 74%: the eye saw a jump
+ * and then a settle, never the window leaving the card. On this one the first
+ * frame is 15%, the third 58%, and it still lands as a deceleration.
+ */
+export const FLIP_EASE = [0.32, 0.72, 0, 1] as const;
+/** Long enough to follow across the screen, inside the 300ms a layout change
+ *  is given; the close, which only has to be seen going home, is shorter. */
+export const FLIP_OPEN_MS = 280;
+export const FLIP_CLOSE_MS = 200;
 /** More clusters than this and the fold is a cross-fade with no rect tween. */
 export const FLIP_TILE_LIMIT = 60;
-/** The tick of the timer clock: a 60Hz frame. */
+/** The tick where the page has no frames to offer: a 60Hz frame. */
 export const FRAME_MS = 16;
+/** How far one painted frame may move a motion along: two 60Hz frames. A
+ *  frame the page was late to paint — the stage mounting under it, any long
+ *  task — moves the motion this far and no further, so a hitch postpones the
+ *  part that was due rather than skipping it. */
+export const MAX_FRAME_STEP_MS = 34;
+/** After this long with no frame the page is not painting — a background tab
+ *  — and the motion moves on by the clock, so it still finishes. */
+export const FALLBACK_TICK_MS = 250;
 /** Where along the fold the tiles' words start to appear, and by when the
  *  board's own cards are gone — v3's 0.45 and 0.5, so the two sets of words
  *  never print over each other for more than a sliver of the fold. */
@@ -195,20 +219,42 @@ export function flipFrame(plan: FlipPlan, t: number): FlipFrame {
   return { t, eased, fold, done, board: 1 - ramp(fold, 0, BOARD_OUT_BY), nav: 1, tiles };
 }
 
-/** The clock a fold runs on: a time source and a way to be called back. */
+/** The clock a fold runs on: a time source and a way to be called back —
+ *  with `painted` true when the call is a frame the page is painting, false
+ *  when it is a timeout standing in for one. */
 export interface FlipClock {
   now(): number;
-  schedule(fn: () => void): unknown;
+  schedule(fn: (painted: boolean) => void): unknown;
   cancel(handle: unknown): void;
 }
 
-/** The timer clock: performance.now() and a 16ms timeout. A timeout rather
- *  than requestAnimationFrame so a fold in a background tab still finishes —
- *  late, at its end state, but finishes — instead of waiting for a frame. */
-export const timerClock: FlipClock = {
+interface FrameHandle { raf?: number; timer?: ReturnType<typeof setTimeout> }
+
+/**
+ * The page's frames: requestAnimationFrame, so every tick lands on a frame the
+ * display shows (a 16ms timeout drifts against the display's refresh, and on a
+ * 120Hz screen it judders), with a timeout behind it, so a fold in a
+ * background tab, where no frame comes, still finishes — late, at its end
+ * state, but finishes. Where there is no requestAnimationFrame at all, the
+ * timeout alone, every FRAME_MS.
+ */
+export const frameClock: FlipClock = {
   now: () => performance.now(),
-  schedule: fn => setTimeout(fn, FRAME_MS),
-  cancel: handle => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  schedule: fn => {
+    const h: FrameHandle = {};
+    if (typeof requestAnimationFrame !== "function") {
+      h.timer = setTimeout(() => fn(false), FRAME_MS);
+      return h;
+    }
+    h.raf = requestAnimationFrame(() => { clearTimeout(h.timer); fn(true); });
+    h.timer = setTimeout(() => { cancelAnimationFrame(h.raf!); fn(false); }, FALLBACK_TICK_MS);
+    return h;
+  },
+  cancel: handle => {
+    const h = handle as FrameHandle;
+    if (h.raf != null) cancelAnimationFrame(h.raf);
+    clearTimeout(h.timer);
+  },
 };
 
 export interface Running {
@@ -220,23 +266,40 @@ export interface Running {
 
 /**
  * Calls `onFrame(raw, eased)` from 0 to 1 over `duration` on `clock`, the
- * first call synchronously. A duration of zero is one call at 1.
+ * first call synchronously. A duration of zero is one call at 1. A painted
+ * frame moves it on by at most MAX_FRAME_STEP_MS, and the first one by one
+ * frame — the first the eye sees of a motion is its beginning, however long
+ * the page took to paint it; a timeout, by the time that passed. Never more than its own duration behind the time that passed, so on
+ * a page that stays slow it takes twice as long at most, and still shows every
+ * part of the way that one late frame would have skipped.
+ *
+ * Two tweens started in one task stay in step: their frames come in one
+ * batch, and a first frame late enough to be capped moves both by the cap.
  */
-export function runTween(duration: number, onFrame: (raw: number, eased: number) => void, clock: FlipClock = timerClock): Running {
+export function runTween(duration: number, onFrame: (raw: number, eased: number) => void, clock: FlipClock = frameClock): Running {
   let handle: unknown = null;
   let settle: (ran: boolean) => void = () => {};
   let over = false;
   const finished = new Promise<boolean>(resolve => { settle = resolve; });
   const start = clock.now();
-  const tick = () => {
+  let last = start;
+  let elapsed = 0;
+  let painted0 = true;
+  const tick = (painted: boolean) => {
     handle = null;
     if (over) return;
-    const raw = duration > 0 ? Math.min(1, Math.max(0, (clock.now() - start) / duration)) : 1;
+    const now = clock.now();
+    const step = Math.max(0, now - last);
+    last = now;
+    const cap = painted0 ? FRAME_MS : MAX_FRAME_STEP_MS;
+    if (painted) painted0 = false;
+    elapsed = Math.max(elapsed + (painted ? Math.min(step, cap) : step), now - start - duration);
+    const raw = duration > 0 ? Math.min(1, elapsed / duration) : 1;
     onFrame(raw, easeOut(raw));
     if (raw >= 1) { over = true; settle(true); return; }
     handle = clock.schedule(tick);
   };
-  tick();
+  tick(false);
   return {
     cancel() {
       if (over) return;
@@ -249,7 +312,7 @@ export function runTween(duration: number, onFrame: (raw: number, eased: number)
 }
 
 /** Runs `plan`, handing every frame to `onFrame`, frame 0 before it returns. */
-export function runFlip(plan: FlipPlan, onFrame: (frame: FlipFrame) => void, clock: FlipClock = timerClock): Running {
+export function runFlip(plan: FlipPlan, onFrame: (frame: FlipFrame) => void, clock: FlipClock = frameClock): Running {
   return runTween(plan.duration, raw => onFrame(flipFrame(plan, raw * plan.duration)), clock);
 }
 
