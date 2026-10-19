@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import StageBody, { type StageBodyProps } from "../components/terminal/StageBody";
 import type { StagePhase } from "../components/terminal/stage-model";
+import { CAUGHT_KEYS_ATTR } from "../shortcuts";
 import { mount } from "./fake-react";
 
 vi.mock("react", async () => (await import("./fake-react")).react);
@@ -58,7 +59,11 @@ describe("the terminal host and assistive technology", () => {
     // after a reconnect that gave up.
     for (const via of [null, { kind: "attaching", reconnect: true }] as const) {
       const el = host(false);
-      const retry = { focus: vi.fn() };
+      const blurs: (() => void)[] = [];
+      const retry = {
+        focus: vi.fn(), setAttribute: vi.fn(), removeAttribute: vi.fn(),
+        addEventListener: vi.fn((type: string, fn: () => void) => { if (type === "blur") blurs.push(fn); }),
+      };
       const card = { querySelector: vi.fn((s: string) => (s === "[data-stage-land]" ? retry : null)) };
       Object.assign(el, { parentElement: card });
       const view = mount(StageBody, props({ kind: "live", readOnly: false } as StagePhase, el));
@@ -67,13 +72,20 @@ describe("the terminal host and assistive technology", () => {
       view.rerender(props({ kind: "error", message: "The deck lost its connection to tmux." }, el));
       expect(el.textarea.blur).toHaveBeenCalledTimes(1);
       expect(retry.focus, `via ${JSON.stringify(via)}`).toHaveBeenCalledTimes(1);
+      // Marked as the catch while it holds the focus, so the stage's letters
+      // pass it by too (terminal-keys.ts); unmarked once it lets go.
+      expect(retry.setAttribute).toHaveBeenCalledWith(CAUGHT_KEYS_ATTR, "");
+      expect(retry.setAttribute.mock.invocationCallOrder[0]).toBeLessThan(retry.focus.mock.invocationCallOrder[0]);
+      expect(retry.removeAttribute).not.toHaveBeenCalled();
+      for (const blur of blurs) blur();
+      expect(retry.removeAttribute).toHaveBeenCalledWith(CAUGHT_KEYS_ATTR);
     }
   });
 
   it("leaves the keys alone on any other card, and when the pane never had them", () => {
     const land = () => {
       const el = host(false);
-      const action = { focus: vi.fn() };
+      const action = { focus: vi.fn(), setAttribute: vi.fn(), removeAttribute: vi.fn(), addEventListener: vi.fn() };
       Object.assign(el, { parentElement: { querySelector: () => action } });
       return { el, action };
     };

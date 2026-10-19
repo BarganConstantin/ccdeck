@@ -70,7 +70,14 @@ export interface FocusTarget {
    *  `:focus-visible` is re-decided on the keystroke itself, before any
    *  handler runs (see canvas-pointer-focus.test.ts), so App.tsx tracks it. */
   pointerFocused?: boolean | null;
+  /** Did the focus land here because the pane lost the keys mid-typing?
+   *  (CAUGHT_KEYS_ATTR.) The letters that follow were meant for the session. */
+  caught?: boolean | null;
 }
+
+/** Marks the control that caught a pane's keys when its connection was lost
+ *  (StageBody.tsx), until it loses the focus. */
+export const CAUGHT_KEYS_ATTR = "data-caught-keys";
 
 // <input> covers far more than typing, and the types below take Space or a
 // click rather than characters — blurring them on Escape would only cost the

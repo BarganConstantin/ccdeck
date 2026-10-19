@@ -371,6 +371,10 @@ export function stageKeyIntent(
     return { kind: "focus-pane" };
   }
   if (!/^[jkinw]$/i.test(key)) return null;
+  // Except on the button that caught a pane's keys as its connection was lost:
+  // the letters still coming were the session's, and an n in mid-word took
+  // the next ask and typed the rest into another session's prompt.
+  if (target?.caught) return null;
   const letter = key.toLowerCase();
   // A letter on a button is the board's; on anything that types or picks, it
   // is that control's. Asked as the pointer-pressed button #851 already frees.

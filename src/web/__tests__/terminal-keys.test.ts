@@ -21,7 +21,7 @@ import {
   terminalKeyOutcome, type TerminalKey,
 } from "../terminal-keys";
 import { isSettingsChord } from "../settings";
-import { isBrowserChord } from "../shortcuts";
+import { CAUGHT_KEYS_ATTR, isBrowserChord } from "../shortcuts";
 
 const XTERM = fileURLToPath(new URL("../../../node_modules/@xterm/xterm/", import.meta.url));
 
@@ -333,6 +333,21 @@ describe("the board's keys while the stage is open", () => {
     for (const target of owners) {
       for (const k of ["j", "k", "i", "n", "w", "Enter"]) expect(ask(k, { target }), `${k} on ${JSON.stringify(target)}`).toBeNull();
     }
+  });
+
+  it("takes no letter from the button that caught a pane's keys as its connection was lost", () => {
+    // The letters still coming were meant for the session: an n in mid-word
+    // took the next ask and typed the rest into another session's prompt.
+    const caught = { tagName: "BUTTON", caught: true };
+    for (const k of ["j", "k", "i", "n", "w", "N"]) expect(ask(k, { target: caught }), k).toBeNull();
+    expect(ask("Enter", { target: caught }), "its Enter is still its own press").toBeNull();
+    expect(ask("n", { target: { tagName: "BUTTON", caught: false } })).toEqual({ kind: "next-ask" });
+  });
+
+  it("reads the catch off the focused element's own mark", () => {
+    const src = readFileSync(new URL("../use-deck-shortcuts.ts", import.meta.url), "utf8");
+    expect(src).toMatch(/caught: el\?\.hasAttribute\?\.\(CAUGHT_KEYS_ATTR\) === true,/);
+    expect(CAUGHT_KEYS_ATTR).toBe("data-caught-keys");
   });
 
   it("takes a button's letters but not its Enter — the release leaves focus on one", () => {
