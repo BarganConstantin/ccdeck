@@ -49,20 +49,21 @@ export function notifyNote(inApp: boolean): string {
 export const NOTIFY_VETO_NOTE =
   "Held off for this run — the deck was started with alerts disabled. Your choice is saved for the next start.";
 
-/** The three account notifications, in the order the menu draws them: what
+/** The four account notifications, in the order the menu draws them: what
  *  each switch is called, and the line its tooltip adds about when it fires.
  *  The rules are src/server/account-notify.mjs's; this is only their names. */
 export const ACCOUNT_NOTIFY_SWITCHES = [
   { kind: "notifySwap", label: "Account auto-switched", title: "When auto-switch moves Claude Code to another account" },
   { kind: "notifyQuota", label: "Quota at 90% and 100%", title: "When a quota window of the account you're on reaches 90%, and again at 100%" },
   { kind: "notifyReset", label: "Quota reset", title: "When a quota window that reached 90% is available again" },
+  { kind: "notifyStopped", label: "Sessions stopped on login or limit", title: "When Claude Code sessions stop on an expired login or a usage limit — once for all of them, with what to type to resume" },
 ] as const;
 
-/** Under the three: whose accounts, and that a closed deck is not required —
+/** Under the four: whose accounts, and that a closed deck is not required —
  *  the one way they differ from the switch above them. */
 export const ACCOUNT_NOTIFY_NOTE = "For the Claude and Codex accounts you're on, whether or not the deck is open.";
 
-/** The same launch veto, under the three it also silences. */
+/** The same launch veto, under the four it also silences. */
 export const ACCOUNT_NOTIFY_VETO_NOTE = "Held off for this run too.";
 
 export interface Channel {
