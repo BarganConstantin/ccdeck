@@ -13,11 +13,24 @@
 // before the forge hears of it — a repository path is a path, a number is a
 // positive integer, a filter is one of its words.
 //
-// A FORGE'S FAILURE IS NOT THE DECK'S. A token the forge refused, a rate
-// limit, an instance that is down: those answer 502 with the ForgeError's kind,
-// so the page can tell "GitLab said no" from "the deck broke" and pick its
-// recovery from the kind. The deck's own 401 stays the deck's own.
+// ONE ENVELOPE FOR EVERY INTEGRATION. A failure answers { ok: false, error:
+// { kind, message, status?, retryAfter? } } — the same shape the Jira panel's
+// reads answer in (#2178) — with the HTTP status the kind implies: 401 for a
+// token refused or expired, 403 permission, 404 not found, 429 rate limit,
+// 502 for a forge that could not be reached or answered wrongly, 400 for a
+// parameter that is not the shape it should be. The page picks its recovery
+// from `kind`, never from the status.
 import { forgeErrorInfo } from "./forge-http.mjs";
+
+const STATUS_OF_KIND = {
+  auth: 401, expired: 401, permission: 403, "not-found": 404, "rate-limit": 429,
+  unreachable: 502, tls: 502, incompatible: 502, upstream: 502,
+};
+
+/** The answer for a failure: the uniform envelope and the status its kind implies. */
+export function failure(info, status = STATUS_OF_KIND[info.kind] ?? 502) {
+  return { status, body: { ok: false, error: info } };
+}
 
 const REPO = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+){1,20}$/;
 const CURSOR = /^[A-Za-z0-9_=+/.:-]{1,512}$/;
@@ -116,12 +129,12 @@ export const FORGE_READS = Object.freeze(Object.keys(READS));
  */
 export async function forgeRead(client, method, subpath, params) {
   const read = Object.hasOwn(READS, subpath) ? READS[subpath] : null;
-  if (!read) return { status: 404, body: { ok: false, error: "no such read" } };
-  if (method !== "GET") return { status: 405, body: { ok: false, error: "the panels only read" } };
+  if (!read) return failure({ kind: "not-found", message: "no such read" });
+  if (method !== "GET") return failure({ kind: "upstream", message: "the panels only read" }, 405);
   try {
     return { status: 200, body: { ok: true, data: await read(params, client) } };
   } catch (err) {
-    if (err instanceof BadRequest) return { status: 400, body: { ok: false, error: err.message } };
-    return { status: 502, body: { ok: false, forge: forgeErrorInfo(err) } };
+    if (err instanceof BadRequest) return failure({ kind: "upstream", message: err.message }, 400);
+    return failure(forgeErrorInfo(err));
   }
 }

@@ -92,17 +92,25 @@ describe("what is refused before the forge hears of it", () => {
 });
 
 describe("when the forge fails", () => {
-  it("answers 502 with the forge's kind and wait", async () => {
+  it("answers in the integrations' envelope, with the kind's status and the forge's wait", async () => {
     const { client } = fakeClient(new ForgeError("rate-limit", "API rate limit exceeded", { status: 403, retryAfter: 40 }));
     expect(await read(client, "branches", "repo=owner/repo")).toEqual({
-      status: 502,
-      body: { ok: false, forge: { kind: "rate-limit", message: "API rate limit exceeded", status: 403, retryAfter: 40 } },
+      status: 429,
+      body: { ok: false, error: { kind: "rate-limit", message: "API rate limit exceeded", status: 403, retryAfter: 40 } },
     });
+  });
+
+  it.each([
+    ["auth", 401], ["expired", 401], ["permission", 403], ["not-found", 404],
+    ["unreachable", 502], ["tls", 502], ["incompatible", 502], ["upstream", 502],
+  ])("%s answers %i", async (kind, status) => {
+    const { client } = fakeClient(new ForgeError(kind, "x"));
+    expect((await read(client, "branches", "repo=owner/repo")).status).toBe(status);
   });
 
   it("does not pass on the message of an error that was not the forge's", async () => {
     const { client } = fakeClient(new Error("internal detail"));
     const r = await read(client, "branches", "repo=owner/repo");
-    expect(r.body).toEqual({ ok: false, forge: { kind: "upstream", message: "unexpected error reading the forge" } });
+    expect(r.body).toEqual({ ok: false, error: { kind: "upstream", message: "unexpected error reading the forge" } });
   });
 });
