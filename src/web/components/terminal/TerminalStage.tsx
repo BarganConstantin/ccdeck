@@ -64,9 +64,12 @@ import Divider from "./Divider";
 const NOTICE_MS = 6000;
 
 /** The phases whose card is the stage's answer, which a request for the keys
- *  lands on: not the ones on their way to a pane. */
+ *  lands on: not the ones on their way to a pane. tmux missing while it
+ *  checks again is on its way too: Check again asks for the keys, which its
+ *  own card would otherwise answer at once, before the check had. */
 export function settlesFocus(phase: StagePhase): boolean {
   return phase.kind !== "attaching" && phase.kind !== "starting" && phase.kind !== "tmux-installing"
+    && !(phase.kind === "tmux-missing" && phase.busy)
     && !(phase.kind === "live" && !phase.readOnly);
 }
 

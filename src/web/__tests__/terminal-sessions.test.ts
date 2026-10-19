@@ -335,6 +335,18 @@ describe("launching a session", () => {
     expect(tmux.calls[1].args).toEqual(["kill-session", "-t", `=${made}`]);
   });
 
+  it("keeps a session whose pane was printed before tmux stopped answering", async () => {
+    // Closing it would ask the same stalled server; a kill that timed out
+    // too left the agent running behind a failure that invited a second one.
+    const tmux = fakeTmux({ ok: false, code: "ETIMEDOUT", stdout: "%9\n", stderr: "tmux did not answer in time" });
+    const out = await launchSession({ tmux: "t", run: tmux.run, agent: "claude", cwd: PROJECT, argv: ["cat"] });
+    expect(out.pane).toBe("%9");
+    expect(tmux.calls).toHaveLength(1);
+    // With nothing printed, it is the failure it always was.
+    const silent = fakeTmux({ ok: false, code: "ETIMEDOUT", stdout: "", stderr: "tmux did not answer in time" });
+    expect((await failure(launchSession({ tmux: "t", run: silent.run, agent: "claude", cwd: PROJECT, argv: ["cat"] }))).code).toBe("tmux-failed");
+  });
+
   it("starts the server outside the deck's systemd service when it runs in one, and plainly when systemd refuses", async () => {
     const prefix = ["/usr/bin/systemd-run", "--user", "--scope", "--collect", "--quiet", "--"];
     const scoped = fakeTmux({ ok: true, stdout: "%4\n" });

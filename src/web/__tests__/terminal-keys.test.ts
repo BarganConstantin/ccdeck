@@ -346,7 +346,8 @@ describe("the board's keys while the stage is open", () => {
 
   it("reads the catch off the focused element's own mark", () => {
     const src = readFileSync(new URL("../use-deck-shortcuts.ts", import.meta.url), "utf8");
-    expect(src).toMatch(/caught: el\?\.hasAttribute\?\.\(CAUGHT_KEYS_ATTR\) === true,/);
+    expect(src).toMatch(/const caught = el\?\.hasAttribute\?\.\(CAUGHT_KEYS_ATTR\) === true;/);
+    expect(src, "and never as a button the pointer pressed, whose letters the deck takes").toMatch(/pointerFocused: el != null && el === pointerFocusRef\.current && !caught,/);
     expect(CAUGHT_KEYS_ATTR).toBe("data-caught-keys");
   });
 

@@ -68,6 +68,8 @@ describe("landing the keys on the stage's answer", () => {
     const off: StagePhase[] = [
       { kind: "attaching", reconnect: false }, { kind: "starting", agent: "claude", cwd: "/w" }, { kind: "tmux-installing" },
       { kind: "live", sizeOwner: "dock", readOnly: false },
+      // Check again: the request it makes waits for what the check finds.
+      { kind: "tmux-missing", reason: "missing", busy: true },
     ];
     for (const phase of off) expect(settlesFocus(phase), phase.kind).toBe(false);
   });

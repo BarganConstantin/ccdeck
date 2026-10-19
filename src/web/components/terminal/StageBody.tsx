@@ -192,6 +192,49 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
   }
 }
 
+/** How long a control that caught a pane's keys waits after the last key of
+ *  the burst before it answers keys as itself again. Longer than any gap
+ *  between two keys of one sentence; shorter than reading the card. */
+export const CAUGHT_QUIET_MS = 1500;
+
+/**
+ * Focus onto `button` for the keys a pane lost mid-typing, marked
+ * CAUGHT_KEYS_ATTR while the burst lasts: until it loses the focus, or
+ * CAUGHT_QUIET_MS pass with no key. Meanwhile Space and Enter do not press
+ * it, and the stage's letters pass it by (terminal-keys.ts stageKeyIntent).
+ * In a sentence Space is the commonest key there is, and a Try again pressed
+ * by one unmounted itself and put the rest of the sentence on the body, where
+ * the deck's shortcuts run. Marked only if the focus took, so a mark is never
+ * left on a control that could not hold it. True if it did.
+ */
+export function catchKeys(button: HTMLElement): boolean {
+  button.focus();
+  if (document.activeElement !== button) return false;
+  let quiet: ReturnType<typeof setTimeout> | null = null;
+  const rearm = () => {
+    if (quiet) clearTimeout(quiet);
+    quiet = setTimeout(release, CAUGHT_QUIET_MS);
+  };
+  // Space presses a button on its keyup, Enter on its keydown.
+  const onKey = (e: KeyboardEvent) => {
+    if (e.type === "keydown") rearm();
+    if (e.key === " " || (e.key === "Enter" && e.type === "keydown")) e.preventDefault();
+  };
+  function release() {
+    if (quiet) clearTimeout(quiet);
+    button.removeAttribute(CAUGHT_KEYS_ATTR);
+    button.removeEventListener("keydown", onKey);
+    button.removeEventListener("keyup", onKey);
+    button.removeEventListener("blur", release);
+  }
+  button.setAttribute(CAUGHT_KEYS_ATTR, "");
+  button.addEventListener("keydown", onKey);
+  button.addEventListener("keyup", onKey);
+  button.addEventListener("blur", release);
+  rearm();
+  return true;
+}
+
 /** The host before its first render: nothing shown, nothing held. */
 const NOTHING_SHOWN: FrameRun = { state: "hidden", afterHold: false };
 
@@ -236,12 +279,7 @@ export default function StageBody(p: StageBodyProps) {
     if (kind !== "error" || typeof document === "undefined") return;
     if (document.activeElement && document.activeElement !== document.body) return;
     const retry = hostRef.current?.parentElement?.querySelector<HTMLElement>("[data-stage-land]");
-    if (!retry) return;
-    // Marked while it holds the focus, so the stage's letters leave it alone
-    // too (terminal-keys.ts stageKeyIntent).
-    retry.setAttribute(CAUGHT_KEYS_ATTR, "");
-    retry.addEventListener("blur", () => retry.removeAttribute(CAUGHT_KEYS_ATTR), { once: true });
-    retry.focus();
+    if (retry) catchKeys(retry);
   }, [kind, hostRef]);
   return (
     <div className="ts-body">

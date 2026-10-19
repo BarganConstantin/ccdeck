@@ -826,6 +826,36 @@ describe("a new session started from the stage", () => {
     expect(r.launch.mock.calls[0][0]).toMatchObject({ agent: "codex", colours: { fg: "#e6e6e6", bg: "#fafaf8" } });
   });
 
+  it("never starts a second agent on Try again once the launch has started one", async () => {
+    // A Codex launch answers no session id, so the stage can only reach it
+    // by the launch's own ticket. Try again after its connection was lost
+    // ran the launch again: a second Codex in the same folder, one press
+    // (or a stray Space) away.
+    const { r, ctl } = rig();
+    r.launch.mockResolvedValueOnce({ ok: true, sessionId: "", name: "ccdeck-codex-9f8e7d6c", ticket: "launched" } as Launched);
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    ctl.show({ kind: "launch", agent: "codex", cwd: "/w", key: "n11" });
+    await flush();
+    const s = r.sockets[0];
+    s.open();
+    s.text({ t: "exit", reason: "error", message: "The deck lost its connection to tmux." });
+    expect(r.last().phase).toMatchObject({ kind: "error" });
+    ctl.retry();
+    await flush();
+    expect(r.launch, "launched once").toHaveBeenCalledTimes(1);
+    expect(r.last().phase).toEqual({ kind: "error", message: "This session started without a name the deck can find it by yet. Open it from the board." });
+
+    // A launch the deck refused started nothing, and Try again asks again.
+    r.launch.mockResolvedValueOnce(failure(500, "tmux could not start the session."));
+    ctl.show({ kind: "launch", agent: "codex", cwd: "/w", key: "n12" });
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "error", message: "tmux could not start the session." });
+    ctl.retry();
+    await flush();
+    expect(r.launch).toHaveBeenCalledTimes(3);
+  });
+
   it("says starting, reports the launched session, and attaches with the launch's own ticket", async () => {
     const { r, ctl } = rig();
     ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });

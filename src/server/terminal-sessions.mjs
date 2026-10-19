@@ -444,7 +444,12 @@ export async function launchSession({
       r = await run(bin, socket, args, { env });
     }
     const pane = /^%\d+$/m.exec(r.stdout)?.[0] ?? "";
-    if (r.ok && pane) return { name, sessionId: id, pane };
+    // A client that timed out after the pane was printed (tmuxTimedOut) still
+    // made it: tmux runs the whole sequence in the server, and the stall was
+    // after. Closing it would ask the same stalled server, and a kill that
+    // timed out too would leave the agent running behind a failure that
+    // invites a second launch.
+    if ((r.ok || r.code === "ETIMEDOUT") && pane) return { name, sessionId: id, pane };
     if (pane) {
       await run(bin, socket, ["kill-session", "-t", `=${name}`], { env });
       throw new TerminalSessionError("tmux-failed", "tmux started the session but could not label it.", r.stderr.trim());
