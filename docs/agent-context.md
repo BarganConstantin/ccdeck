@@ -3,6 +3,32 @@
 Updated: 2026-10-15. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
 
+## Owner UI continuation — 2026-10-19
+
+- Active Mac worktree: `/Users/constantin/Desktop/ccdeck-radar-debug`, branch
+  `fix/radar-undecoded-connections`; original `agents-deck` work remains protected.
+  The owner authorized committing and merging this work into development.
+  Integration with the newer Settings redesign preserves its shared rows and
+  adds Radar to search; 474 relevant tests, typecheck and build passed.
+  Recheck the listener before managing processes: port 4317 was
+  verified serving this worktree through Node 22 and its built `dist/web`.
+- Latest owner scope: finish all justified animation opportunities and verify
+  the whole set. All five are complete: Projects, Session Usage, Quota History,
+  Processes and Sensor History. Audit, deliberate exclusions and evidence:
+  `docs/features/animation-opportunities.md`. Usage History loading and Tool
+  Activity entrance/automatic first selection were improved earlier in this run.
+  Browser QA uses isolated fixtures, including narrow/light/dark/Reduce Motion.
+- Radar now defaults to monitoring on; Settings → Radar turns it off and hides
+  its rail entry. The owner removed the manual File tab; the current modal has
+  Monitor and Configuration. Earlier three-tab/Start-Stop notes below describe
+  the superseded design. Session labels prefer available local session names.
+- Tool Activity uses a shared modal at 90vw × 90dvh, a wrench rail icon and an
+  automatically selected first visible tool. Skill analytics are future work:
+  GitHub issue #2181 was already created; do not duplicate it.
+- Frontend builds need no backend restart. Avoid restarting the Radar process
+  during UI work: capture history and persistent HTTP/2 decoder state live in
+  memory. Radar verification details remain in its feature investigation docs.
+
 ## Tool activity redesign on Linux — 2026-10-15
 
 - Issue #2122, PR #2125, branch `feat/2122-tool-audit`, worktree

@@ -89,6 +89,7 @@ describe("a door into Settings opens it at the section it names", () => {
       ["notifications", />Notifications while closed</],
       ["sounds", />Custom sounds</],
       ["data", />Tool history<\/h3>/],
+      ["radar", />Enable Radar</],
       ["about", />Version</],
     ];
     expect(cases.map(([id]) => id)).toEqual(SETTINGS_SECTIONS.map(s => s.id));
@@ -144,8 +145,8 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
-  it("names the eight sections in the nav, in order, About last", () => {
-    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Data", "About"];
+  it("names the nine sections in the nav, in order, About last", () => {
+    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Data", "Radar", "About"];
     expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(names);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all

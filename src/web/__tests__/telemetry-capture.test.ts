@@ -33,6 +33,38 @@ describe('passive OTLP capture', () => {
   it('handles gzip without mistaking compressed bytes for readable text', () => {
     const r = reader(); r.decoder.feed(pcap(packet(request('logs', LOGS, true)))); expect(r.events[0].payload).toEqual(LOGS);
   });
+  it.each([60000, 60001, 300000])('keeps decoding an established connection after %i ms without packets', idleMs => {
+    const r = reader(), first = request(), at = 1700000000000;
+    r.decoder.feed(pcap(packet(first, { at }), packet(response(), { side: 'in', at })));
+    // HTTP/2 connections reuse their preface; later exports start at a new stream.
+    const next = Buffer.from(first.subarray(24));
+    let offset = 0;
+    while (offset < next.length) {
+      if (next.readUInt32BE(offset + 5) === 1) next.writeUInt32BE(3, offset + 5);
+      offset += 9 + next.readUIntBE(offset, 3);
+    }
+    r.decoder.feed(packet(next, { seq: 1000 + first.length, at: at + idleMs }));
+    expect(r.events).toHaveLength(2);
+    expect(r.events[1].payload).toEqual(LOGS);
+    expect(r.issues).toEqual([]);
+  });
+  it('bounds retained connections and evicts the least recently used connection', () => {
+    const r = reader(), first = request(), at = 1700000000000;
+    r.decoder.feed(pcap(packet(first, { at })));
+    for (let i = 20; i < 35; i++) {
+      r.decoder.feed(packet(Buffer.alloc(0), { source: `192.0.2.${i}`, flags: 2, seq: 999, at }));
+    }
+    // Refresh the oldest connection before a seventeenth connection arrives.
+    r.decoder.feed(packet(Buffer.alloc(0), { seq: 1000 + first.length, flags: 16, at: at + 300000 }));
+    r.decoder.feed(packet(Buffer.alloc(0), { source: '192.0.2.35', flags: 2, seq: 999, at: at + 300000 }));
+    r.decoder.feed(packet(response(), { side: 'in', at: at + 300001 }));
+    expect(r.receipts[0]).toMatchObject({ id: 1, outcome: 'accepted' });
+    expect(r.issues).toEqual(['connection_limit']);
+    // The evicted connection no longer has its original SYN sequence state.
+    r.decoder.feed(packet(request(), { source: '192.0.2.20', seq: 2000, at: at + 300002 }));
+    expect(r.events).toHaveLength(2);
+    expect(r.issues).toEqual(['connection_limit', 'connection_limit']);
+  });
   it('preserves 64-bit measurements and non-finite doubles without JSON precision loss', () => {
     const payload = { resourceMetrics: [{ scopeMetrics: [{ metrics: [{ name: 'synthetic.values', gauge: { dataPoints: [{ asInt: '9223372036854775806' }, { asDouble: Infinity }] } }] }] }] };
     const r = reader(); r.decoder.feed(pcap(packet(request('metrics', payload))));

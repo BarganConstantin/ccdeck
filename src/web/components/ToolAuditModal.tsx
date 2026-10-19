@@ -7,12 +7,11 @@ import ToolAuditDrawer from './ToolAuditDrawer';
 import ToolAuditSplitter from './ToolAuditSplitter';
 import { readDetailsWidth, writeDetailsWidth } from '../tool-audit-layout';
 import { useMediaQuery } from '../use-media-query';
-import { useModalDismiss } from './use-modal-dismiss';
+import { useModalDismiss, useScrimDismiss } from './use-modal-dismiss';
 
 const FIRST_ROWS = 12;
 const providers: { id: AuditProvider; label: string }[] = [{ id: 'all', label: 'All agents' }, { id: 'claude', label: 'Claude' }, { id: 'codex', label: 'Codex' }];
 
-const BackGlyph = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18" /></svg>;
 const RefreshGlyph = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5" /></svg>;
 const SearchGlyph = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>;
 const highlightGlyph: Record<Highlight['kind'], ReactNode> = {
@@ -33,8 +32,10 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
   const [period, setPeriod] = useState('7');
   const [sort, setSort] = useState<ToolSort>('calls');
   const [search, setSearch] = useState('');
+  const currentOrder = useRef({ sort, search }); currentOrder.current = { sort, search };
   const [showAll, setShowAll] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const initialSelectionMade = useRef(false);
   const [keyboardSelection, setKeyboardSelection] = useState(false);
   const selectedRef = useRef(selected); selectedRef.current = selected;
   const selectionOrigin = useRef<HTMLElement | null>(null);
@@ -62,6 +63,7 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
     });
   };
   const dialogRef = useModalDismiss(closeReport, { focusRef: closeRef });
+  const scrimPress = useScrimDismiss(closeReport);
   const query = new URLSearchParams({ provider, days: period }).toString();
 
   useEffect(() => {
@@ -76,7 +78,9 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
         const reply = await readAuditReport(query, controller.signal);
         if (live) {
           loadedQuery.current = query; setData(reply);
-          if (selectedRef.current && !reply.rows.some(row => row.operation === selectedRef.current)) setSelected(null);
+          const first = !initialSelectionMade.current && sortTools(reply.rows, currentOrder.current.sort, currentOrder.current.search)[0];
+          if (first) { initialSelectionMade.current = true; setSelected(first.operation); }
+          else if (selectedRef.current && !reply.rows.some(row => row.operation === selectedRef.current)) setSelected(null);
         }
       } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'Reading the history took too long. Try again, or keep less history in Settings.'); }
       finally { window.clearTimeout(deadline); if (live) { busy.current = false; setLoading(false); } }
@@ -121,14 +125,14 @@ export default function ToolAuditModal({ onClose }: { onClose: () => void }) {
   const doRefresh = () => { if (busy.current || detailLoading) return; busy.current = true; setRefresh(value => value + 1); };
   const summary = data && summaryParts(data, provider, period);
 
-  return createPortal(<div className="ta-report-backdrop" role="presentation">
-    <div className="ta-report" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title">
+  return createPortal(<div className="modal-backdrop ta-report-backdrop" role="presentation" {...scrimPress}>
+    <div className="modal ta-report" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title">
       <header className="ta-report-header">
-        <button type="button" ref={closeRef} className="ta-back" onClick={closeReport} aria-label="Close tool activity"><BackGlyph /><span>Back to workspace</span></button>
         <h2 id="tool-audit-title">Tool activity</h2>
         <div className="ta-actions">
           <span className="ta-freshness" role="status">{loading ? data ? 'Updating…' : 'Reading history…' : data ? `Updated ${new Date(data.capturedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
           <button type="button" className="glyph-btn" aria-label="Refresh tool activity" title="Refresh" data-loading={loading || undefined} aria-busy={loading || detailLoading} onClick={doRefresh}><RefreshGlyph /></button>
+          <button type="button" ref={closeRef} className="glyph-btn" onClick={closeReport} aria-label="Close tool activity" title="Close (Esc)">×</button>
         </div>
       </header>
       <div className="ta-workspace" ref={workspaceRef} data-inspecting={!!selection || undefined} style={{ "--ta-details-w": `${detailsWidth}px` } as CSSProperties}>

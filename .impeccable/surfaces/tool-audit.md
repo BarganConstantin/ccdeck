@@ -48,3 +48,36 @@ Linux, Chrome via DevTools, isolated `CCDECK_HOME` with a seeded 8-day journal
 (1,742 calls, Claude and Codex): 1440, 1280, 390 and 320px; dark (Rider Black)
 and light; list orders and search; findings opening details; details beside the
 list and as a phone sheet; no horizontal overflow at 320px.
+
+## Large modal — 2026-10-19
+
+Owner direction: show Tool activity as a large modal rather than covering the
+workspace as a page. The report is centered at 90vw × 90dvh on all screen sizes. It uses the shared modal scrim, rounded border and
+contained report/detail scroll regions. The header has a close action instead
+of Back to workspace. Escape, focus return and nested tool details keep their
+existing behavior; a deliberate click on the outer scrim also closes it.
+
+The report now composes the shared `.modal` surface directly, inheriting its
+subtle `--line` border, corner radius, shadow and entrance. Only report sizing
+and content layout are specialized; no stronger control border surrounds it.
+
+The Tool activity rail glyph is a simple wrench, without a magnifier. It uses
+the existing 14-unit viewBox, 1.4 stroke, round caps/joins, muted currentColor
+and standard 17px desktop rail size. No separate sizing or colour override.
+
+The first visible tool is selected automatically once after report data arrives
+on opening. Closing its details leaves them closed; polling and sorting do not
+force them open again. Reopening the report selects its first tool afresh.
+
+## Details motion — 2026-10-19
+
+The first tool selection is committed with the first report response, so no
+unselected report frame flashes before its inspector. The desktop workspace
+keeps three tracks and transitions its detail allocation over 220ms on open,
+180ms on close using exponential easing. Drag resizing bypasses the transition.
+The integrated inspector's content enters with a 6px horizontal/opacity motion
+for 140ms on operation changes; the previous animation cancels on interruption.
+No row stagger, counters, chart entrances or new dependencies are added.
+Reduced motion disables these spatial effects. The mobile sheet retains its
+existing arrival and focus handling. All report controls remain usable during
+transitions.

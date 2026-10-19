@@ -16,7 +16,7 @@ import { modelChipText, modelChipTitle as chipTitle, modelFamily } from "../mode
 import { maxSqueeze, nextSqueeze, rowAt } from "../card-row-squeeze";
 // The card's words — its state, a block's sentence and label — which the
 // session list, the peek and the topbar say too. See agent-copy.ts.
-import { spawnBadgeTitle, stateLabel, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
+import { agentKindLabel, spawnBadgeTitle, stateLabel, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
 // The card's token count, which used to be a private three-tier `fmtTok` here —
 // byte-identical to the two copies #323 deleted, and the fourth one it missed
@@ -72,7 +72,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // session's early ones. Silent at zero, like the in-flight count: a session
   // with nothing wrong says nothing.
   const failed = data.toolErrorCount ?? 0;
-  const hue = sessionHue(data.sessionId);
+  const hue = sessionHue(data.canvasSessionId ?? data.sessionId);
   const currentContextTokens = data.context?.currentContextTokens ?? 0;
   const hasContextSignal = data.kind === "root" && currentContextTokens > 0;
   // The sentence Claude Code titles the session with, in the tooltip the card
@@ -173,6 +173,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         <div className="title">
           <StatePill state={data.state} />
           <span className="label" title={cardTooltip}>{data.label}</span>
+          {data.restoredFromLog && <span className="synth-tag" title={data.provider === "claude" ? "Restored from Claude’s busy-session registry after verifying the process identity. Earlier tool history is partial." : "Restored from a log with no recorded ending. Process status is not confirmed."}>restored</span>}
           {data.synthetic && <span className="synth-tag" title="No SessionStart captured — synthesised">?</span>}
           {/* Claude Code's ※, in the session's colour, beside the name: the
               card's own mark that a recap is there, and the switch for its
@@ -210,7 +211,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
           prefers over this one under the pointer. */}
       <div className="sub" title={subRowTitle(data)}>
         <span className="sub-details" ref={detailsRef}>
-          {row.kind && <span>{data.kind === "root" ? "session" : "subagent"}</span>}
+          {row.kind && <span>{agentKindLabel(data)}</span>}
           {data.childCount > 0 && (
             <span className="spawn-badge" title={spawnBadgeTitle(data.childCount)}>→ {data.childCount}</span>
           )}

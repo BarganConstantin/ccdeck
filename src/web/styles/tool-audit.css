@@ -1,13 +1,10 @@
-/* Tool activity: one page that answers four questions in order — how much,
+/* Tool activity: a large modal that answers four questions in order — how much,
    what is worth a look, which tools, and what one tool did. The report and the
    details panel sit side by side; only a phone's details are a sheet. */
-.ta-report-backdrop { position: fixed; inset: 0; z-index: 1000; background: var(--bg); }
-.ta-report { height: 100%; display: flex; flex-direction: column; color: var(--text); background: var(--bg); font-size: calc(13px + var(--ui-text-increase, 0px)); animation: radioOpen 200ms cubic-bezier(.22, 1, .36, 1); }
+.ta-report-backdrop { z-index: 1000; }
+.modal.ta-report { width: 90vw; height: 90dvh; max-height: 90dvh; min-width: 0; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; color: var(--text); background: var(--bg); font-size: calc(13px + var(--ui-text-increase, 0px)); }
 .ta-report-header { min-height: 56px; padding: 8px 24px; box-sizing: border-box; display: flex; align-items: center; gap: 24px; border-bottom: 1px solid var(--line); background: var(--panel); flex: none; }
 .ta-report-header h2 { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; }
-.ta-back { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 0; border: 0; color: var(--muted); background: transparent; font: inherit; cursor: pointer; transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
-.ta-back:hover { color: var(--text); }
-.ta-back:active { transform: scale(0.97); }
 .ta-actions { display: flex; align-items: center; margin-left: auto; gap: 10px; }
 .ta-freshness { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 .ta-actions .glyph-btn, .ta-inspector-head .glyph-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; flex: none; }
@@ -190,8 +187,6 @@
 }
 @media (max-width: 700px) {
   .ta-report-header { padding: 8px 12px; gap: 10px; }
-  .ta-back { width: 36px; justify-content: center; }
-  .ta-back span { display: none; }
   .ta-workspace[data-inspecting] { grid-template-columns: minmax(0, 1fr); }
   .ta-report-content { padding: 16px 16px 40px; }
   .ta-inspector { padding-inline: 16px; }
@@ -210,4 +205,15 @@
   .ta-report, .ta-drawer:not([data-keyboard]), .ta-loading i, .ta-actions [data-loading] svg { animation: none; }
   .ta-row, .ta-highlight { transition: none; }
   .ta-row:active, .ta-highlight:active, .ta-back:active, .ta-explain summary:active { transform: none; }
+}
+
+/* Opening details makes room in the report; resizing remains direct. */
+@media (min-width: 960px) {
+  .ta-workspace { grid-template-columns: minmax(0, 1fr) 0px 0px; transition: grid-template-columns 180ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .ta-workspace[data-inspecting] { transition-duration: 220ms; }
+  .ta-workspace[data-resizing] { transition: none; }
+}
+.ta-integrated-inspector:not([data-keyboard]) { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .ta-workspace, .ta-workspace[data-inspecting] { transition: none; }
 }

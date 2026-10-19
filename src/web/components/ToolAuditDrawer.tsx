@@ -28,6 +28,14 @@ function IntegratedInspector({ keyboard, ...props }: Props) {
     if (root.current) root.current.scrollTop = 0;
     if (document.activeElement === document.body || keyboard && document.activeElement instanceof HTMLElement && document.activeElement.dataset.operation === props.row.operation) root.current?.querySelector<HTMLElement>('#tool-operation-heading')?.focus({ preventScroll: true });
   }, [props.row.operation, keyboard]);
+  useLayoutEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const content = root.current?.querySelector<HTMLElement>('.ta-inspector');
+    const motion = content?.animate?.([{ opacity: 0.65, transform: 'translateX(6px)' }, { opacity: 1, transform: 'translateX(0)' }], {
+      duration: 140, easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+    });
+    return () => motion?.cancel();
+  }, [props.row.operation]);
   // No local Tab trap: report and evidence form one keyboard workspace.
   return <aside ref={root} className="ta-drawer ta-integrated-inspector" data-keyboard={keyboard || undefined} aria-labelledby="tool-operation-heading"><ToolAuditInspector {...props} /></aside>;
 }

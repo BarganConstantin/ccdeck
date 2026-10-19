@@ -9,6 +9,7 @@ import { capturePreferences } from '../src/server/traffic-radar-monitor.mjs';
 import { spawn } from 'node:child_process';
 import { createTrafficRadar } from '../src/server/traffic-radar.mjs';
 import { captureInterface, captureTool } from '../src/server/traffic-radar-platform.mjs';
+import { createRadarService } from "../src/server/traffic-radar-service.mjs";
 import { createTrafficCapture } from '../src/server/traffic-radar-capture.mjs';
 import { handleTrafficCapture } from '../src/server/traffic-radar-routes.mjs';
 import { streamCapture } from '../src/server/traffic-radar-helper.mjs';
@@ -22,10 +23,15 @@ catch (error) { console.log(JSON.stringify({ captureSetup: error.message })); if
 if (!process.argv.includes('--live')) process.exit(0);
 
 const { request, response, LOGS } = await import('../src/web/__tests__/traffic-capture-fixture.mjs');
-const managed = process.argv.includes('--managed');
+const automatic = process.argv.includes('--automatic');
+const managed = automatic || process.argv.includes('--managed');
 const directory = managed ? await mkdtemp(join(tmpdir(), 'radar-native-monitor-')) : null;
 const options = { managed, preferences: directory ? capturePreferences(directory) : null };
-let capture = createTrafficCapture(options);
+let automaticEndpoint = null;
+const makeCapture = () => automatic ? createRadarService({ capture: createTrafficCapture({ managed: true }), preferences: options.preferences,
+  discover: async () => ({ config: { variables: automaticEndpoint ? [{ key: 'OTEL_EXPORTER_OTLP_ENDPOINT', value: automaticEndpoint }] : [] }, connections: [] }),
+}) : createTrafficCapture(options);
+let capture = makeCapture();
 const waitListening = async () => {
   const end = Date.now() + 15000;
   while (Date.now() < end && !capture.read().sources.every(s => s.active)) await new Promise(r => setTimeout(r, 100));
@@ -39,8 +45,10 @@ collector.on('connection', socket => { sockets.add(socket); socket.on('close', (
 try {
   await Promise.all([new Promise(r => ingest.listen(0, '127.0.0.1', r)), new Promise(r => collector.listen(0, '127.0.0.1', r))]);
   const port = collector.address().port, localPort = ingest.address().port;
-  const setup = await capture.prepare(`127.0.0.1:${port}`, localPort);
-  const token = /'([a-f0-9]{64})'/.exec(setup.command)[1];
+  automaticEndpoint = `http://127.0.0.1:${port}`;
+  const setup = automatic ? null : await capture.prepare(`127.0.0.1:${port}`, localPort);
+  if (automatic) await capture.resume(localPort);
+  const token = setup ? /'([a-f0-9]{64})'/.exec(setup.command)[1] : null;
   const base = `http://127.0.0.1:${localPort}`;
   const tool = await captureTool(process.platform), iface = await captureInterface('127.0.0.1', process.platform);
   if (managed) {
@@ -81,14 +89,14 @@ try {
   assert.deepEqual(capture.detail(event.id).payload, LOGS);
   if (managed) {
     capture.dispose(); client.destroy();
-    capture = createTrafficCapture(options);
+    capture = makeCapture();
     await capture.resume(localPort); await waitListening();
     client = connect(port, '127.0.0.1'); await new Promise(r => client.once('connect', r)); client.write(request());
     const end = Date.now() + 10000;
     while (Date.now() < end && !capture.read().events.some(e => e.outcome === 'accepted')) await new Promise(r => setTimeout(r, 100));
     const resumed = capture.read().events[0]; assert.equal(resumed?.outcome, 'accepted'); assert.deepEqual(capture.detail(resumed.id).payload, LOGS);
     await capture.stop(); await capture.resume(localPort); assert.equal(capture.read().enabled, false);
-    console.log(JSON.stringify({ managedRestart: 'passed', stoppedAfterResume: true }));
+    console.log(JSON.stringify({ managedRestart: 'passed', automatic, stoppedAfterResume: true }));
   }
   console.log(JSON.stringify({ liveCapture: 'passed', backend: capture.read().backend, sessionIds: event.sessionIds, outcome: event.outcome }));
 } finally {

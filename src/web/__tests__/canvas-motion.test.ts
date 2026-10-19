@@ -389,10 +389,9 @@ const PRESSES: Press[] = [
   // above it: a full-width row that opens to show what it is summarising.
   [".bw-ep-head:active", "0.97", "transform"],
   // Tool activity: a tool's row and a finding are full-width rows that open
-  // details, Back is a labelled control, and How this is counted a disclosure.
+  // details, and How this is counted is a disclosure.
   [".ta-row:active", "0.97", "transform"],
   [".ta-highlight:active", "0.97", "transform"],
-  [".ta-back:active", "0.97", "transform"],
   [".ta-explain summary:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
   [".selected-ribbon .selected-close:active", "0.94", "transform"],

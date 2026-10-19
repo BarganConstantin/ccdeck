@@ -3,7 +3,7 @@
 // ranking that turns what was typed into a short list — apart from React, so a
 // plain-node test can hold the index to the rows the sections draw.
 //
-// Settings has eight sections and some forty controls, and a reader who wants
+// Settings has nine sections and some forty controls, and a reader who wants
 // "dark mode" does not know it is called Theme or that it is under Appearance.
 // Every settings window this dialog follows answers that with a field at the
 // top of its nav: type, see the matching settings with where each one lives,
@@ -68,6 +68,7 @@ const SECTION_KEYWORDS: Record<SettingsSection, readonly string[]> = {
   notifications: ["alerts", "notify"],
   sounds: ["audio", "tones", "chimes"],
   data: ["privacy", "local data"],
+  radar: ["telemetry", "collector", "monitoring"],
   about: ["information"],
 };
 
@@ -96,6 +97,8 @@ function sectionEntry(section: SettingsSection): SettingsEntry {
 function buildIndex(): SettingsEntry[] {
   const rows: Record<SettingsSection, SettingsEntry[]> = {
     general: [
+      { id: "claude-session-recovery", claudeOnly: true, section: "general", group: "Claude sessions", label: "Restore unfinished sessions", keywords: ["claude", "recover", "restore", "startup", "restart", "busy"] },
+      { id: "codex-session-recovery", section: "general", group: "Codex sessions", label: "Restore unfinished sessions", keywords: ["codex", "recover", "restore", "startup", "restart", "unfinished"] },
       { id: "hide-finished", section: "general", group: "Board", label: "Hide finished sessions after",
         keywords: ["finished", "done", "completed", "idle", "clean up", "auto hide", "canvas", "board", "remove"] },
       { id: "terminal", section: "general", group: "Terminal", label: "Type into sessions from the deck",
@@ -158,6 +161,10 @@ function buildIndex(): SettingsEntry[] {
         keywords: ["storage", "disk", "size", "bytes"] },
       { id: "tool-history-clear", section: "data", group: "Tool history", label: "Clear history",
         keywords: ["delete history", "erase", "wipe", "remove"] },
+    ],
+    radar: [
+      { id: "radar-enabled", section: "radar", group: "Telemetry Radar", label: "Enable Radar",
+        keywords: ["telemetry", "collector", "monitoring", "traffic", "background", "toolbar"] },
     ],
     about: [
       { id: "version", section: "about", group: "ccdeck", label: "Version",

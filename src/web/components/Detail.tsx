@@ -4,6 +4,7 @@
 // with the row it draws for each tool call. App.tsx mounts it beside the canvas
 // while an agent is selected and the panel is open.
 import React from "react";
+import { agentKindLabel } from "../agent-copy";
 
 import CostBar from "./CostBar";
 import { mcpChipIdentity } from "../tool-skin";
@@ -87,7 +88,7 @@ export default function Detail({
         <div className="hero-meta">
           {/* The card's word for it, not the reducer's (#833): "root" is
               internal vocabulary, and one thing had two names. */}
-          <span className="hero-meta-item">{agent.kind === "root" ? "session" : "subagent"}</span>
+          <span className="hero-meta-item">{agentKindLabel(agent)}</span>
           <span className="hero-sep">·</span>
           <span className="hero-meta-item" title={`started ${new Date(agent.startedAt).toLocaleString()}`}>
             {elapsedLabel}

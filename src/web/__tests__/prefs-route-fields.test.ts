@@ -148,6 +148,8 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["notifyReset", { notifyReset: true }, p => p.notifyReset, true],
   ["tourSeen", { tourSeen: true }, p => p.tourSeen, true],
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
+  ["recoverClaudeSessions", { recoverClaudeSessions: false }, p => p.recoverClaudeSessions, false],
+  ["recoverCodexSessions", { recoverCodexSessions: false }, p => p.recoverCodexSessions, false],
   // The terminal's Beta switch in Settings › General (use-stage.ts
   // toggleTerminal), from off — every deck's start — to on.
   ["terminal", { terminal: true }, p => p.terminal, true],
@@ -229,7 +231,7 @@ describe("the fields a page may write", () => {
   // own until somebody makes that decision in PAGE_FIELDS and in this test.
   it("are these, and no others", () => {
     expect(PAGE_FIELDS).toEqual({
-      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "terminal"],
+      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal"],
       lan: [
         "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
         "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",

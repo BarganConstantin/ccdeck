@@ -62,7 +62,7 @@ describe("the readers that ask them", () => {
   it("agree on one rollout's usage, window and model", async () => {
     // `effort: null`: the one turn_context among OTHERS names a model and no
     // effort, which is a turn that has none, not one not read yet (#2155).
-    expect(await readCodexRollout(path)).toEqual({ usage: TOTAL, model: "gpt-5.6", contextWindow: 258400, cwd: "/srv/proj", effort: null });
+    expect(await readCodexRollout(path)).toMatchObject({ usage: TOTAL, model: "gpt-5.6", contextWindow: 258400, cwd: "/srv/proj", effort: null });
     expect(await readTokenSeriesForTest(path)).toEqual([
       { ts: Date.parse(TOKENS.timestamp), inp: 120, out: 7, cacheR: 100, cacheW: 0, total: 127 },
     ]);

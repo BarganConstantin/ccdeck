@@ -16,6 +16,7 @@
 // no portal is needed (panel-modal-portal.test.ts). Each section is its own
 // component, lifted whole out of the menu it used to live in; this file is
 // only the frame, the nav and the search above it (SettingsSearch.tsx).
+import SessionRecoverySettings from "./SessionRecoverySettings";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
 import { focusedTabToFollow, isFindChord, sectionIndex, SETTINGS_SECTIONS, type SettingsDoors, type SettingsSection } from "../settings";
@@ -38,6 +39,7 @@ import KeyboardSection from "./KeyboardSection";
 import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
+import RadarSettings from "./RadarSettings";
 import ToolAuditSettings from "./ToolAuditSettings";
 import ThemeSection from "./ThemeSection";
 import ReadingSection, { ReadingReset } from "./ReadingSection";
@@ -194,6 +196,8 @@ export default function SettingsModal({
 
   const pane = (() => {
     switch (section) {
+      case "radar":
+        return <RadarSettings />;
       case "appearance":
         return (
           <>
@@ -258,13 +262,15 @@ export default function SettingsModal({
           />
         );
       default:
-        // General: how the board behaves, the terminal's Beta beside it, how
-        // the deck updates itself, and the preferences that live in a panel of
-        // their own (#2176).
+        // General: how the board behaves, the terminal's Beta beside it, the
+        // sessions recovered at startup, how the deck updates itself, and the
+        // preferences that live in a panel of their own (#2176).
         return (
           <>
             <BoardSection />
             {terminal && <TerminalSection terminal={terminal} platform={platformName()} />}
+            <SessionRecoverySettings provider="Codex" />
+            {providers.claude && <SessionRecoverySettings provider="Claude" />}
             <UpdatesSection autoRestart={restart.autoRestart} onToggleAutoRestart={restart.toggleAutoRestart} version={versionCheck.version} />
             <ElsewhereSection claudeHere={providers.claude} singleKeys={singleKeys} doors={doors} />
           </>

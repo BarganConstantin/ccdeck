@@ -5,8 +5,9 @@
 //
 // Inspired by the task-board project's ccusage modal, reimplemented in
 // agent-dag's idiom (plain CSS, no Tailwind/framer-motion).
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { fmtCost } from "../pricing";
+import { reportedCost, storedCostNote, MISSING_PRICE_NOTE } from "../reported-cost";
 import { commandOutput, explainCcusageFailure } from "../admin-failure";
 import { usageView } from "../usage-view";
 import { fmtTokens } from "../token-format";
@@ -52,6 +53,14 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
     want: rangeDays,
     answer: landed && { range: landed.range, ok: landed.resp.ok === true, days: landed.resp.days?.length ?? 0 },
   });
+  const [pageHidden, setPageHidden] = useState(() => typeof document !== "undefined" && document.hidden);
+  useEffect(() => {
+    if (view.phase !== "busy") return;
+    const changed = () => setPageHidden(document.hidden);
+    changed();
+    document.addEventListener("visibilitychange", changed);
+    return () => document.removeEventListener("visibilitychange", changed);
+  }, [view.phase]);
   // Only a "chart" verdict means a non-empty response for the range on screen,
   // so nothing below can render another range's bars, totals or legend.
   const days = view.phase === "chart" ? landed!.resp.days ?? [] : [];
@@ -80,7 +89,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   }, [days]);
 
   // Aggregate totals + per-model cost across the range.
-  const { totalCost, totalTok, inOut, cacheRead, modelCosts } = useMemo(() => historyTotals(days), [days]);
+  const { totalCost, totalTok, inOut, cacheRead, modelCosts, missingModels, storedCost } = useMemo(() => historyTotals(days), [days]);
 
   const legend = useMemo(() => legendOf(modelCosts), [modelCosts]);
 
@@ -161,27 +170,20 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
         </header>
 
         {view.phase === "busy" ? (
-          /* THE AXIS ARRIVES BEFORE THE DAYS, and the reason is a measurement
-             rather than a flourish. This modal stood 186px tall while ccusage
-             ran and 429px the instant it answered — a 243px jump on a centred
-             dialog, so the whole thing lurched 121px upward under the pointer,
-             4.4 seconds after a press. Reserving the chart's own box is most of
-             that back: its height is fixed in the sheet, so this cannot drift
-             away from the thing it is standing in for.
-             What is drawn in the reserved space is the chart's baseline and
-             nothing else — one hairline, at the exact y the columns will land
-             on. Not a skeleton of grey bars: those stand in for CONTENT, and a
-             row of plausible-looking columns for a reading that has not come
-             back is the shape of lie this panel refuses everywhere else. An
-             axis is furniture, and furniture is honest before the data. */
-          <div className="uh-status uh-status-wait" aria-busy="true">
+          /* A decorative local-files-to-report illustration, not sample data or
+             measured progress. Reserve the chart's room while ccusage runs. */
+          <div className="uh-status uh-status-wait" role="status" aria-label="Reading usage history" aria-busy="true" data-paused={pageHidden || undefined}>
             <span className="uh-wait-word">
-              {landed ? "running ccusage…" : "running ccusage… (first run downloads the package)"}
+              <svg className="uh-reading-art" viewBox="0 0 240 96" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <g className="uh-reading-files"><path d="M25 24v-7a4 4 0 0 1 4-4h28a4 4 0 0 1 4 4v43" /><rect x="17" y="24" width="36" height="51" rx="4" /><path d="M25 36h19M25 44h19M25 52h13M25 64h7" /></g>
+                <path className="uh-reading-link" d="M69 49h59" />
+                <g className="uh-reading-packets"><rect x="76" y="46" width="6" height="6" rx="1.5" /><rect x="76" y="46" width="6" height="6" rx="1.5" /><rect x="76" y="46" width="6" height="6" rx="1.5" /></g>
+                <g className="uh-reading-report"><rect x="145" y="18" width="76" height="57" rx="5" /><path d="M154 28h21M154 64h57M154 38v26M163 39h47M163 49h47" /><circle cx="209" cy="28" r="2" /></g>
+              </svg>
+              <strong className="uh-reading-title">Reading usage history</strong>
+              <span className="uh-reading-note">Gathering costs and tokens from local logs…</span>
+              {!landed && <span className="uh-reading-hint">The first run may download ccusage.</span>}
             </span>
-            {/* Indeterminate on purpose. The deck knows a subprocess is
-                running and does not know how far through the logs it is, so
-                the light travels rather than fills — a bar that filled would
-                be claiming a progress nobody measured. */}
             <span className="uh-wait-axis" aria-hidden />
           </div>
         ) : view.phase === "error" ? (
@@ -211,11 +213,14 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
           // subtitle above says what is running.
           <div className={view.stale ? "uh-stale" : undefined} aria-busy={view.stale || undefined}>
             <div className="uh-totals">
-              <Stat label="total cost"   val={fmtCost(totalCost)} accent />
+              <Stat label="total cost"   val={reportedCost(totalCost, missingModels.size > 0)} accent />
               <Stat label="tokens"       val={fmtTokens(totalTok)} />
               <Stat label="input+output" val={fmtTokens(inOut)} />
               <Stat label="cache reads"  val={fmtTokens(cacheRead)} />
             </div>
+
+            {missingModels.size > 0 && <p className="uh-cost-note">{MISSING_PRICE_NOTE}</p>}
+            {storedCostNote(storedCost, totalCost) && <p className="uh-cost-note">{storedCostNote(storedCost, totalCost)}</p>}
 
             {/* The split, and the reason this issue exists (#431). It sits
                 directly under the total it decomposes so the merged number and
@@ -306,7 +311,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                 // figure. The tooltip has carried the whole answer all along;
                 // this is that same sentence where a name is read from, and it
                 // is built from the same two values rather than a second copy.
-                const dayLabel = `${d.period}, ${fmtCost(d.totalCost)}`;
+                const dayLabel = `${d.period}, ${reportedCost(d.totalCost, d.modelBreakdowns.some(m => m.missingPricing))}`;
                 return (
                   <button
                     key={d.period}
@@ -318,7 +323,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                        chips this deck already models. */
                     aria-pressed={isSel}
                     aria-label={dayLabel}
-                    title={`${d.period} · ${fmtCost(d.totalCost)}`}
+                    title={dayLabel}
                     /* THE DAYS LAND OLDEST FIRST, which is the one stagger this
                        chart can justify: left to right is not a decorative
                        sweep here, it is the order they were lived in, and it is
@@ -367,7 +372,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
               {legend.map(([m, c]) => (
                 <span key={m} className="uh-legend-item" title={m}>
                   <span className="uh-legend-dot" style={{ background: modelColor(m) }} />
-                  {shortModel(m)} <span className="uh-legend-cost">{fmtCost(c)}</span>
+                  {shortModel(m)} <span className="uh-legend-cost">{reportedCost(c, missingModels.has(m))}</span>
                 </span>
               ))}
             </div>
