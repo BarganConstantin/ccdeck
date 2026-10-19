@@ -131,7 +131,7 @@ export function JsonInspector({ value, initialMode = "tree" }: { value: Json; in
     </div>
     {mode === "raw" ? <RawJson value={value} /> : <>
       <div className="tr-json-tools">
-        <label className="tr-json-search">Search JSON<input type="search" value={search} placeholder="Find a key or value…" onChange={event => setSearch(event.target.value)} /></label>
+        <label className="tr-json-search">Search JSON<input type="search" className="tr-input" value={search} placeholder="Find a key or value…" onChange={event => setSearch(event.target.value)} /></label>
         <button type="button" className="btn" onClick={() => { setCollapseCommand(current => ({ revision: (current?.revision ?? 0) + 1, collapsed: true })); viewer.current?.collapse({ path: [], collapsed: true, includeChildren: true }); }}>Collapse all</button>
         <button type="button" className="btn" onClick={() => { setCollapseCommand(current => ({ revision: (current?.revision ?? 0) + 1, collapsed: false })); viewer.current?.collapse([{ path: [], collapsed: true, includeChildren: true }, { path: [], collapsed: false, includeChildren: false }]); }}>Open root</button>
       </div>
