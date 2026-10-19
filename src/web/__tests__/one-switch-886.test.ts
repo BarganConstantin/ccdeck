@@ -48,7 +48,9 @@ describe("every switch is the one switch (#886)", () => {
     // Nineteen with the shared Codex/Claude startup-recovery switch markup.
     // Twenty-one with Settings › Radar's "Enable Radar", and Radar's own "With
     // prompt", an on/off filter over its activity list.
-    expect(switches, "the twenty-one switches in the source").toBe(21);
+    // Twenty-two with Claude sessions' "Continue stopped background sessions"
+    // (#2193), off until it is turned on.
+    expect(switches, "the twenty-two switches in the source").toBe(22);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });
