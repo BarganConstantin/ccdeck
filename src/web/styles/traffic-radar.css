@@ -393,7 +393,7 @@
 .tr-splitter { position: relative; cursor: col-resize; touch-action: none; background: var(--tr-divider); outline-offset: -1px; }
 .tr-splitter::before { content: ""; position: absolute; inset: 0 -3px; z-index: 1; }
 .tr-splitter:hover, .tr-splitter:focus-visible, .tr-workspace[data-resizing] > .tr-splitter { background: var(--accent); }
-.tr-workspace[data-resizing], .tr-workspace[data-resizing] * { cursor: col-resize !important; user-select: none; }
+.tr-workspace[data-resizing], .tr-workspace[data-resizing] * { cursor: col-resize; user-select: none; }
 @media (max-width: 640px) {
   .tr-telemetry > .tr-workspace:not([data-empty="true"]) { grid-template-columns: minmax(0, 1fr); }
   .tr-splitter { display: none; }
@@ -416,7 +416,7 @@
 }
 
 .tr-file-picker { display: inline-flex; align-items: center; justify-content: center; min-height: var(--tr-control-h); padding: 6px 10px; border: 1px solid var(--ctl-edge); border-radius: var(--tr-radius); background: var(--ctl-fill); }
-.tr-file-picker:hover { background: var(--ctl-hover, var(--ctl-fill)); border-color: var(--text-secondary); }
+.tr-file-picker:hover { background: var(--ctl-fill); border-color: var(--text-secondary); }
 
 /* One desktop header carries identity, navigation and close. */
 .tr-modal .tr-header { display: grid; grid-template-columns: minmax(0, 1fr) auto 28px; align-items: center; gap: 12px; flex-shrink: 0; }
