@@ -137,12 +137,13 @@ describe("POST /api/prefs and the fields the deck writes itself", () => {
 // LanSetupModal.tsx.
 const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["notifications", { notifications: true }, p => p.notifications, true],
-  // The three account notifications, each from its own switch in the sound
+  // The four account notifications, each from its own switch in the sound
   // menu (use-os-notifications.ts toggleAccountNotify), each to the opposite
   // of what it starts as.
   ["notifySwap", { notifySwap: false }, p => p.notifySwap, false],
   ["notifyQuota", { notifyQuota: true }, p => p.notifyQuota, true],
   ["notifyReset", { notifyReset: true }, p => p.notifyReset, true],
+  ["notifyElsewhere", { notifyElsewhere: false }, p => p.notifyElsewhere, false],
   ["tourSeen", { tourSeen: true }, p => p.tourSeen, true],
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
   ["recoverClaudeSessions", { recoverClaudeSessions: false }, p => p.recoverClaudeSessions, false],
@@ -152,6 +153,8 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["lan.name", { lan: { name: "studio" } }, p => p.lan.name, "studio"],
   ["lan.shared", { lan: { shared: ["acct-1", "acct-2", "acct-3"] } }, p => p.lan.shared, ["acct-1", "acct-2", "acct-3"]],
   ["lan.shareActive", { lan: { shareActive: false } }, p => p.lan.shareActive, false],
+  // Sending the login this deck is on, from its switch in the setup (#2192).
+  ["lan.sendInUse", { lan: { sendInUse: true } }, p => p.lan.sendInUse, true],
   ["lan.pairingMode", { lan: { pairingMode: "invite" } }, p => p.lan.pairingMode, "invite"],
   ["lan.autoAsk", { lan: { autoAsk: false } }, p => p.lan.autoAsk, false],
   ["lan.autoAccept", { lan: { autoAccept: false } }, p => p.lan.autoAccept, false],
@@ -187,9 +190,9 @@ describe("the fields a page may write", () => {
   // own until somebody makes that decision in PAGE_FIELDS and in this test.
   it("are these, and no others", () => {
     expect(PAGE_FIELDS).toEqual({
-      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions"],
+      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyElsewhere", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions"],
       lan: [
-        "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
+        "enabled", "name", "shared", "manual", "shareActive", "sendInUse", "pairingMode",
         "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
       ],
     });

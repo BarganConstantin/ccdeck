@@ -138,10 +138,10 @@ export default function NotificationsSection({
         )}
       </SettingsGroup>
 
-      {/* THREE MORE, AND NOT UNDER THE ONE ABOVE. That switch is about a deck
+      {/* FOUR MORE, AND NOT UNDER THE ONE ABOVE. That switch is about a deck
           nobody is looking at; these are said whether a page is open or not,
           so each is its own switch and none waits on it. One caption with one
-          note, because the note is the same for all three: whose accounts,
+          note, because the note is the same for all four: whose accounts,
           and that the deck need not be closed. What each one says, and when,
           is its own row's note — it was a tooltip, which a reader on a touch
           screen or a keyboard never saw. */}

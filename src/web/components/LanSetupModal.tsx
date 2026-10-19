@@ -233,6 +233,9 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   };
   // The same rule for the third: absent is on, which is what the engine does.
   const tells = status.shareActive !== false;
+  // And the opposite for the fourth (#2192): absent is off, which is what the
+  // engine does with a missing setting — the login this deck is on stays here.
+  const sends = status.sendInUse === true;
   const ts = status.tailscale ?? null;
   const tsOn = !!ts?.on;
   const tsAsks = ts?.ask !== false;
@@ -330,6 +333,10 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                       that is about the account or about this machine. It is about this
                       machine's copy, and that is what makes it the one a peer heals. */}
                   {!a.alive && <span className="ap-lan-dead">not working here</span>}
+                  {/* THE ONE THIS DECK IS ON, ticked or not, stays here while it
+                      is (#2192) — said beside it, in the same quiet words, so a
+                      tick that seems to do nothing says why. */}
+                  {a.alive && a.inUse && <span className="ap-lan-dead">in use here · not sent</span>}
                 </label>
               ))}
             </div>
@@ -338,26 +345,68 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 because it only ever names an account ticked above — sitting
                 here, it says so without a sentence. */}
             {accounts.length > 0 && (
-              <div className="lan-switch">
-                <span className="lan-switch-what">Show paired decks which of these this deck is using</span>
-                <button
-                  type="button"
-                  className="switch ap-auto-state"
-                  role="switch"
-                  aria-checked={tells}
-                  aria-label="Show paired decks which of these this deck is using"
-                  {...pressProps("current")}
-                  onClick={() => void write(
-                    { shareActive: !tells },
-                    tells ? "stop showing which account this deck is using" : "show which account this deck is using",
-                    "current",
-                  )}
-                  title={tells
-                    ? "Stop telling paired decks which account this one is on. They read “current account hidden” instead."
-                    : "Tell paired decks which of the ticked accounts this one is on. An unticked account is never named."}
-                >
-                  <span className="switch-knob" />
-                </button>
+              <div className="lan-switches">
+                <div className="lan-switch">
+                  <span className="lan-switch-what">Show paired decks which of these this deck is using</span>
+                  <button
+                    type="button"
+                    className="switch ap-auto-state"
+                    role="switch"
+                    aria-checked={tells}
+                    aria-label="Show paired decks which of these this deck is using"
+                    {...pressProps("current")}
+                    onClick={() => void write(
+                      { shareActive: !tells },
+                      tells ? "stop showing which account this deck is using" : "show which account this deck is using",
+                      "current",
+                    )}
+                    title={tells
+                      ? "Stop telling paired decks which account this one is on. They read “current account hidden” instead, and cannot warn you when one login is live on both machines."
+                      : "Tell paired decks which of the ticked accounts this one is on, so each can warn when one login is live on two machines. An unticked account is never named."}
+                  >
+                    <span className="switch-knob" />
+                  </button>
+                </div>
+                {/* THE LOGIN IN USE, SENT TOO — an explicit choice, off until
+                    somebody makes it (#2192). A Claude login renews once, so two
+                    machines on one copied login race for it and the loser is
+                    signed out; while it is off the account this deck is on stays
+                    here and goes out like the others once this deck switches
+                    away. Its line says what it costs only while it is on, the
+                    rule invite-only keeps below: off is the resting state. And it
+                    wears --warn, like the one switch below whose on gives
+                    something away. */}
+                <div className="lan-switch">
+                  <span className="lan-switch-what">
+                    Send the login this deck is using too
+                    {sends && (
+                      <span id="lan-send-in-use-detail" className="lan-switch-detail">
+                        If the other machine uses it as well, whichever renews it second is signed out.
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    className="switch ap-auto-state"
+                    role="switch"
+                    aria-checked={sends}
+                    aria-label="Send the login this deck is using too"
+                    aria-describedby={sends ? "lan-send-in-use-detail" : undefined}
+                    data-tone="warn"
+                    {...pressProps("send-in-use")}
+                    onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
+                    onClick={() => void write(
+                      { sendInUse: !sends },
+                      sends ? "keep the login this deck is using here" : "send the login this deck is using",
+                      "send-in-use",
+                    )}
+                    title={sends
+                      ? "Keep the account this deck is signed in to here while it is. It goes out like the others once this deck switches away."
+                      : "Also hand out the account this deck is signed in to right now. Two machines on one login race to renew it, and the one that renews it second is signed out (“Login expired · Please run /login”)."}
+                  >
+                    <span className="switch-knob" />
+                  </button>
+                </div>
               </div>
             )}
           </div>

@@ -58,13 +58,14 @@ export function offerLine(
   mine: LanAccount | null,
 ): { there: string; here: string; note: string | null; tone: "ok" | "wait" | "bad" | "idle" } {
   const here = !mine ? "not on this deck" : mine.alive
-    ? mine.shareable === false ? "cannot share here" : "works here"
+    ? mine.shareable === false ? mine.inUse ? "in use here" : "cannot share here" : "works here"
     : "expired here";
   // A valid copy behind an unavailable Keychain is not broken and cannot be
   // pulled. Say exactly that, without promising a transfer or telling the user
-  // to sign in again.
+  // to sign in again. The same for the login that deck is on and keeps there
+  // (#2192), which it says as itself.
   if (theirs.alive && theirs.shareable === false) {
-    return { there: "cannot share there", here, note: null, tone: "idle" };
+    return { there: theirs.inUse ? "in use there" : "cannot share there", here, note: null, tone: "idle" };
   }
   if (!theirs.alive) {
     // BOTH COPIES GONE is the one state with no repair anywhere, and it used
@@ -105,10 +106,12 @@ export type LaneFlow = "live" | "wait" | "cut";
 export interface Lane {
   key: string;
   email: string;
-  /** This deck's copy. */
-  here: "works" | "expired" | "missing" | "unavailable";
-  /** That deck's, as its last list said — `unknown` when it does not offer it. */
-  there: "works" | "broken" | "unavailable" | "unknown";
+  /** This deck's copy. `inUse` is a working copy kept here because this deck
+   *  is on it (#2192); `unavailable`, one this process cannot read. */
+  here: "works" | "expired" | "missing" | "unavailable" | "inUse";
+  /** That deck's, as its last list said — `unknown` when it does not offer it,
+   *  `inUse` when it is on it and keeps it there. */
+  there: "works" | "broken" | "unavailable" | "unknown" | "inUse";
   /** From that deck to this one; null when that deck does not offer it. */
   in: LaneFlow | null;
   /** From this deck to that deck; null when this deck does not offer it there. */
@@ -145,7 +148,7 @@ export function exchangeLanes(
     const giving = sharedHere.has(theirs.key);
     const said = offerLine(theirs, mine);
     const here = !mine ? "missing" : !mine.alive ? "expired"
-      : mine.shareable === false ? "unavailable" : "works";
+      : mine.shareable === false ? mine.inUse ? "inUse" : "unavailable" : "works";
     // Both copies gone is the one note that already names both ends.
     const caption = !theirs.alive && mine && !mine.alive
       ? said.note
@@ -157,7 +160,7 @@ export function exchangeLanes(
       key: theirs.key,
       email: theirs.email,
       here,
-      there: !theirs.alive ? "broken" : theirs.shareable === false ? "unavailable" : "works",
+      there: !theirs.alive ? "broken" : theirs.shareable === false ? theirs.inUse ? "inUse" : "unavailable" : "works",
       in: !theirs.alive || theirs.shareable === false
         ? "cut"
         : said.tone === "wait" ? "wait" : "live",
@@ -175,11 +178,12 @@ export function exchangeLanes(
     lanes.push({
       key,
       email: mine.email,
-      here: !mine.alive ? "expired" : mine.shareable === false ? "unavailable" : "works",
+      here: !mine.alive ? "expired" : mine.shareable === false ? mine.inUse ? "inUse" : "unavailable" : "works",
       there: "unknown",
       in: null,
       out: mine.alive && mine.shareable !== false ? "live" : "cut",
-      caption: !mine.alive ? "expired here" : mine.shareable === false ? "cannot share here" : null,
+      caption: !mine.alive ? "expired here"
+        : mine.shareable === false ? mine.inUse ? "in use here" : "cannot share here" : null,
       tone: mine.alive ? mine.shareable === false ? "idle" : "ok" : "bad",
       // That deck does not offer it, so it is never named as the one it is on.
       usedThere: false,

@@ -33,26 +33,32 @@ export interface OsNotificationsDeps {
 
 /** What /api/prefs answers, as far as this hook reads it. */
 export interface NotifyPrefsAnswer {
-  prefs?: { notifications?: boolean; notifySwap?: boolean; notifyQuota?: boolean; notifyReset?: boolean };
+  prefs?: {
+    notifications?: boolean; notifySwap?: boolean; notifyQuota?: boolean; notifyReset?: boolean; notifyElsewhere?: boolean;
+  };
   notificationsVetoed?: boolean;
 }
 
-/** The three account notifications (src/server/account-notify.mjs), one switch
+/** The four account notifications (src/server/account-notify.mjs), one switch
  *  each, by the name the prefs file keeps them under. */
-export type AccountNotifyKind = "notifySwap" | "notifyQuota" | "notifyReset";
+export type AccountNotifyKind = "notifySwap" | "notifyQuota" | "notifyReset" | "notifyElsewhere";
 export type AccountNotify = Record<AccountNotifyKind, boolean>;
 
 /** What the server starts with (deck-prefs.mjs DEFAULTS), drawn until the first
- *  read answers: the swap on, the two quota ones off. */
+ *  read answers: the swap and the login-on-two-decks one on, the two quota ones
+ *  off. */
 export const ACCOUNT_NOTIFY_DEFAULTS: Readonly<AccountNotify> = Object.freeze({
-  notifySwap: true, notifyQuota: false, notifyReset: false,
+  notifySwap: true, notifyQuota: false, notifyReset: false, notifyElsewhere: true,
 });
 
-/** The three switches out of a prefs answer, each on its default when the
+/** The four switches out of a prefs answer, each on its default when the
  *  answer does not hold a real boolean for it. */
 export function accountNotifyFrom(prefs: NotifyPrefsAnswer["prefs"]): AccountNotify {
   const pick = (k: AccountNotifyKind) => (typeof prefs?.[k] === "boolean" ? prefs[k] as boolean : ACCOUNT_NOTIFY_DEFAULTS[k]);
-  return { notifySwap: pick("notifySwap"), notifyQuota: pick("notifyQuota"), notifyReset: pick("notifyReset") };
+  return {
+    notifySwap: pick("notifySwap"), notifyQuota: pick("notifyQuota"), notifyReset: pick("notifyReset"),
+    notifyElsewhere: pick("notifyElsewhere"),
+  };
 }
 
 export function useOsNotifications({ waitingSessions, liveSince, focusSession }: OsNotificationsDeps) {
@@ -111,7 +117,7 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
    *  different sentence for each: one is the user's own press, the other is
    *  somebody else's decision the press cannot undo until the next launch. */
   const [notifyVetoed, setNotifyVetoed] = useState(false);
-  /** The three account notifications, each its own switch, held server-side
+  /** The four account notifications, each its own switch, held server-side
    *  beside `notifications` for the same reason: the server raises them. */
   const [accountNotify, setAccountNotify] = useState<AccountNotify>(ACCOUNT_NOTIFY_DEFAULTS);
   const toggleAccountNotify = useCallback((kind: AccountNotifyKind) => {

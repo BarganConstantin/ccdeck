@@ -5,7 +5,7 @@
 // answered at all. It keeps nothing of its own: every check reads the
 // engine's settings, listener and key at the moment it is made, because any
 // of them can change while the store is read.
-import { credentialAad, seal, sharedWith, slotFor, transferChallenge, trustedPeer } from "./lan-sync.mjs";
+import { credentialAad, IN_USE, mayGiveInUse, seal, sharedWith, slotFor, transferChallenge, trustedPeer } from "./lan-sync.mjs";
 import { liveLoginIs } from "./account-health.mjs";
 
 /**
@@ -83,6 +83,11 @@ export function createServe({
         // live one behind it.
         const mine = slotFor(accounts, msg.key);
         if (!mine) return ctx.send({ t: "no", why: "not mine to give" });
+        // NOT THE LOGIN THIS DECK IS ON, unless its owner said so (#2192). The
+        // manifest already marked it not to be asked for, and a peer older than
+        // that mark asks anyway; this is the answer that does not depend on the
+        // asker's version, read off the same store read as everything below.
+        if (!mayGiveInUse(accounts, msg.key, settings().sendInUse)) return ctx.send({ t: "no", why: IN_USE });
         // A LOGIN THIS DECK CANNOT READ IS SAID SO, from state rather than from
         // a failed export: no subprocess, and nothing the CLI printed. The
         // asking deck prints it under the account, so the person learns which

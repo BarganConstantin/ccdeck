@@ -84,6 +84,10 @@ export const DEFAULTS = Object.freeze({
   notifySwap: true,
   notifyQuota: false,
   notifyReset: false,
+  // A login this deck is on, live on another deck too (#2192). ON, like the
+  // swap: it is rare, it is said once per incident, and nothing else on the
+  // desktop says it before one of the two machines is signed out.
+  notifyElsewhere: true,
   // The Electron window can open on a new localhost port after an update.
   // Its tour marker must outlive that origin; browser tabs still use their
   // own localStorage marker and never read this preference.
@@ -158,6 +162,16 @@ export const DEFAULTS = Object.freeze({
     // of one person's machines show each other where they are working; off, and
     // paired decks read "current account hidden" instead.
     shareActive: true,
+    // THE LOGIN THIS DECK IS USING, SENT TO A PAIRED DECK, off unless somebody
+    // turns it on (#2192). A ticked account goes to every paired deck that
+    // lacks it or holds an expired copy — and when it is the one this deck is
+    // signed in to, the two machines then hold one login. A Claude login renews
+    // once: whichever copy renews it first keeps it, and the other machine is
+    // signed out. So while this deck is on an account, that account stays
+    // here, and goes out like any other the moment this deck switches away. A
+    // new field, so nobody's saved choice is changed: the ticks are untouched,
+    // and what they hand out is every login except the one in use.
+    sendInUse: false,
     // FINDING THIS PERSON'S OTHER MACHINES OVER TAILSCALE, off until they turn
     // it on: it is a new path off this machine, and the owner chooses it. Its
     // two permissions ship on, like the local pair above, and they are narrower
@@ -298,6 +312,9 @@ function normaliseLan(raw) {
     // Whether paired decks are told which shared account this one is on. Absent
     // is on — the default above — and only a real boolean turns it off.
     shareActive: flagOr(src.shareActive, DEFAULTS.lan.shareActive),
+    // Whether the login in use here may be sent. Off unless a real boolean
+    // says on.
+    sendInUse: flagOr(src.sendInUse, DEFAULTS.lan.sendInUse),
     // The Tailscale switch and its two permissions. Only a real boolean
     // overrides a default, as above.
     tailscale: flagOr(src.tailscale, DEFAULTS.lan.tailscale),
@@ -321,6 +338,7 @@ export function normalise(raw) {
     notifySwap: flagOr(src.notifySwap, DEFAULTS.notifySwap),
     notifyQuota: flagOr(src.notifyQuota, DEFAULTS.notifyQuota),
     notifyReset: flagOr(src.notifyReset, DEFAULTS.notifyReset),
+    notifyElsewhere: flagOr(src.notifyElsewhere, DEFAULTS.notifyElsewhere),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
     reports: flagOr(src.reports, DEFAULTS.reports),
@@ -705,9 +723,12 @@ export function publicPrefs(prefs) {
  * here — prefs-route-fields.test.ts lists them.
  */
 export const PAGE_FIELDS = Object.freeze({
-  top: Object.freeze(["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions"]),
+  top: Object.freeze([
+    "notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyElsewhere", "tourSeen", "autoUpdate",
+    "recoverCodexSessions", "recoverClaudeSessions",
+  ]),
   lan: Object.freeze([
-    "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
+    "enabled", "name", "shared", "manual", "shareActive", "sendInUse", "pairingMode",
     "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
   ]),
 });
@@ -739,15 +760,15 @@ export function notificationsOn(prefs, env = process.env) {
 }
 
 /**
- * Which account notifications may go out right now: the three switches, each
- * on its own, and all three off when the machine vetoed notifications at
+ * Which account notifications may go out right now: the four switches, each
+ * on its own, and all four off when the machine vetoed notifications at
  * launch — AGENTS_DECK_NO_NOTIFY=1 keeps the deck off the desktop whatever
  * else it was told, and these are desktop notifications too.
  */
 export function accountNotifySettings(prefs, env = process.env) {
-  if (notificationsVetoed(env)) return { swap: false, quota: false, reset: false };
+  if (notificationsVetoed(env)) return { swap: false, quota: false, reset: false, elsewhere: false };
   const p = normalise(prefs);
-  return { swap: p.notifySwap, quota: p.notifyQuota, reset: p.notifyReset };
+  return { swap: p.notifySwap, quota: p.notifyQuota, reset: p.notifyReset, elsewhere: p.notifyElsewhere };
 }
 
 /**

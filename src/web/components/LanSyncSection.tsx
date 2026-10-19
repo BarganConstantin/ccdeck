@@ -37,7 +37,7 @@
 // every machine at once.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { checkedLabel, deckRows, entryLine, rowSource, sectionState, viewRows } from "../lan-roster";
-import { noCopyWorksNearby, sharedTo } from "../account-lan";
+import { activeElsewhere, noCopyWorksNearby, offeredHere, sharedTo } from "../account-lan";
 import type { LanAccount } from "../lan-types";
 import { useHoverPeek } from "../use-hover-peek";
 import { useLanSection } from "../use-lan-section";
@@ -65,7 +65,9 @@ import { SettingsFailureLine } from "./SettingsFailureLine";
 export { PEEK_DELAY_MS, PEEK_GRACE_MS } from "../use-hover-peek";
 export { CONFIRM_GAP_MS } from "../panel-press";
 
-export default function LanSyncSection({ accounts, onChanged, onNoCopy, onShared, view, onOpen, onBack, closeButton }: {
+export default function LanSyncSection({
+  accounts: held, onChanged, onNoCopy, onShared, onElsewhere, view, onOpen, onBack, closeButton,
+}: {
   accounts: LanAccount[];
   /** The roster changed under us — a healed account is a different row. */
   onChanged: () => void;
@@ -77,6 +79,10 @@ export default function LanSyncSection({ accounts, onChanged, onNoCopy, onShared
    *  offered to — see sharedTo — so their rows can carry the share mark
    *  (#2170). Handed up only when it changes, as onNoCopy is. */
   onShared?: (shared: ReadonlyMap<string, readonly string[]>) => void;
+  /** The accounts a paired deck says it is on right now, each with those decks
+   *  by name — see activeElsewhere — so their rows can say one login is live
+   *  in two places (#2192). Handed up only when it changes, as onNoCopy is. */
+  onElsewhere?: (elsewhere: ReadonlyMap<string, readonly string[]>) => void;
   /** Whether this section has the column — its own header, its switch and its
    *  list — or is one row at the foot of the accounts view. */
   view: boolean;
@@ -127,6 +133,11 @@ export default function LanSyncSection({ accounts, onChanged, onNoCopy, onShared
    *  closing that dialog lands back on the picture it was opened from. */
   const [mapOpen, setMapOpen] = useState(false);
 
+  // What this deck hands out, which is everything it holds but the login it is
+  // on, unless its owner said otherwise — see offeredHere. The dialogs draw
+  // from this, so a lane never shows that login crossing.
+  const accounts = useMemo(() => offeredHere(held, status ?? null), [held, status]);
+
   const noCopy = useMemo(
     () => accounts.filter(a => noCopyWorksNearby(a.key, status ?? null, now)).map(a => a.key).sort().join("\n"),
     [accounts, status, now],
@@ -142,6 +153,15 @@ export default function LanSyncSection({ accounts, onChanged, onNoCopy, onShared
     [accounts, status],
   );
   useEffect(() => { onShared?.(new Map(JSON.parse(shared))); }, [shared, onShared]);
+  // And which of them a paired deck is on right now, the same way.
+  const elsewhere = useMemo(
+    () => JSON.stringify(accounts.flatMap(a => {
+      const on = activeElsewhere(a.key, status ?? null, now);
+      return on ? [[a.key, on] as const] : [];
+    })),
+    [accounts, status, now],
+  );
+  useEffect(() => { onElsewhere?.(new Map(JSON.parse(elsewhere))); }, [elsewhere, onElsewhere]);
 
   const on = status?.enabled === true;
   // Invite-only has no actionable manual pairing requests, including during

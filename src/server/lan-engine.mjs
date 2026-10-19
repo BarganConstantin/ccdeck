@@ -307,6 +307,9 @@ export function createEngine({
     autoAsk: true, autoAccept: true, pairingMode: "automatic", aliases: {},
     // Tell paired decks which shared account this one is on — see currentFor.
     shareActive: true,
+    // Send the account this deck is on to a paired deck that asks — off, so
+    // one login is live in one place (#2192). See manifestFor and lan-serve.mjs.
+    sendInUse: false,
     // DISCOVERY OVER TAILSCALE, off until somebody turns it on, and its own
     // pair of permissions. They are separate from the two above because the
     // tailnet is a different audience: the local switches answer for whoever
@@ -1474,6 +1477,8 @@ export function createEngine({
         pairingMode: cfg.pairingMode === "invite" ? "invite" : "automatic",
         // Whether paired decks are told which shared account this one is on.
         shareActive: cfg.shareActive !== false,
+        // Whether the account this deck is on may be sent to one (#2192).
+        sendInUse: cfg.sendInUse === true,
         // Discovery over Tailscale: whether this machine has it at all, which
         // decides whether the dialog shows the switch, and what it can see.
         tailscale: tailnet ? tailnetStatus() : null,

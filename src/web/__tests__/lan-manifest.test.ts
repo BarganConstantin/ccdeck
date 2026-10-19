@@ -16,7 +16,7 @@ const A = "aaa-aaa-aaa-aaa";
 const B = "bbb-bbb-bbb-bbb";
 const CARD = { version: "3.29.9", os: "Linux", arch: "x64" };
 
-type Cfg = { shared: string[]; shareActive?: boolean };
+type Cfg = { shared: string[]; shareActive?: boolean; sendInUse?: boolean };
 
 /** One deck: its card, its fingerprint and its settings, all changeable. */
 function side(fp: string, about: typeof CARD | null, cfg: Cfg) {
@@ -36,10 +36,19 @@ describe("the frame a deck sends", () => {
       t: "manifest",
       accounts: [
         { key: "a@x@@org", email: "a@x", alive: true },
-        { key: "b@x@@org", email: "b@x", alive: true },
+        // The one it is on is listed — `current` names it — and not offered
+        // (#2192): a copy of it would be one login live on two machines.
+        { key: "b@x@@org", email: "b@x", alive: true, shareable: false, inUse: true },
       ],
       current: { key: "b@x@@org" },
     });
+  });
+
+  it("offers the one it is on as well when its owner turned that on", () => {
+    const { m } = side(A, null, { shared: ["b@x@@org"], shareActive: true, sendInUse: true });
+    const frame = m.manifestFrame([acct("b@x", { active: true })], randomBytes(32), B);
+    expect(frame.accounts).toEqual([{ key: "b@x@@org", email: "b@x", alive: true }]);
+    expect(frame.current).toEqual({ key: "b@x@@org" });
   });
 
   it("reads the settings when it is built, not when the deck was", () => {

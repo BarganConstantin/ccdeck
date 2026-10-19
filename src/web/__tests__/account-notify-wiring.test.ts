@@ -33,13 +33,14 @@ const inside = (p: string) => resolve(p).startsWith(resolve(DIR));
 for (const k of ENV_KEYS) if (!inside(process.env[k]!)) throw new Error(`sandbox escaped: ${k}=${process.env[k]}`);
 if (!inside(homedir())) throw new Error(`sandbox escaped: homedir ${homedir()}`);
 
-const { proc } = vi.hoisted(() => ({ proc: { calls: [] as string[][], engine: "" } }));
+const { proc } = vi.hoisted(() => ({ proc: { calls: [] as string[][], engine: "", probe: "" } }));
 
 vi.mock("../../server/exec.mjs", () => ({
   run: async (cmd: string, args: string[] = []) => {
     proc.calls.push([cmd, ...args]);
     const okay = { ok: true, code: 0, killed: false, timedOut: false, stdout: "", stderr: "" };
-    if (args[0] === "auto") return { ...okay, stdout: proc.engine };
+    // `--dry-run` is the tick asked where it would go before it goes (#2192).
+    if (args[0] === "auto") return { ...okay, stdout: args.includes("--dry-run") ? proc.probe : proc.engine };
     return okay;
   },
   runDetached: () => {},
@@ -99,7 +100,7 @@ let watch: Watch;
 let auto: Auto;
 let quota: Quota;
 const said: { title: string; body: string }[] = [];
-const settings = { swap: true, quota: false, reset: false };
+const settings = { swap: true, quota: false, reset: false, elsewhere: true };
 let notify: (title: string, body: string) => unknown = (title, body) => { said.push({ title, body }); };
 
 const rest = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -119,8 +120,9 @@ async function tickOnce(engine: string) {
 
 beforeEach(async () => {
   proc.calls.length = 0;
+  proc.probe = "";
   said.length = 0;
-  Object.assign(settings, { swap: true, quota: false, reset: false });
+  Object.assign(settings, { swap: true, quota: false, reset: false, elsewhere: true });
   notify = (title, body) => { said.push({ title, body }); };
   rmTempDir(ROOT);
   rmTempDir(join(DIR, "deck"));
@@ -235,5 +237,98 @@ describe("the deck's own quota reads", () => {
     await watch.watchOnce(() => ({ claude: true, codex: false }));
     expect(said.map(s => s.title)).toEqual(["Claude · personal — ccdeck"]);
     expect(said[0].body).toMatch(/^5-hour usage reached 90% · resets in 2h 5\dm$/);
+  });
+});
+
+// ONE LOGIN, LIVE IN ONE PLACE (#2192). The two doors that read which login a
+// paired deck is on, wired to the real roster and the real loop: the status
+// handed in through lan-elsewhere.mjs's door the way lan-deck.mjs hands in its
+// engine's, and the store above.
+describe("a login a paired deck is on as well", () => {
+  type Door = typeof import("../../server/lan-elsewhere.mjs");
+  /** The door, from the registry the modules under test were loaded into. */
+  const door = async () => await import("../../server/lan-elsewhere.mjs") as Door;
+  /** Local network's status with one paired deck that just said it is on `num`. */
+  const onDeck = (num: number | null) => ({
+    enabled: true, addrs: [], aliases: { "fp-imac": "iMac" },
+    peers: [{
+      fp: "fp-imac", name: "imac", addr: "192.168.1.20", paired: true,
+      offers: { at: Date.now(), accounts: [], ...(num ? { current: { key: `account-${num}@b.c@@org-${num}` } } : {}) },
+    }],
+  });
+
+  it("reaches the desktop once while this deck and the other are both on it", async () => {
+    writeStore(2, { 2: 40, 3: 20 }, { 2: "personal" });
+    const lan = await door();
+    let peer: ReturnType<typeof onDeck> = onDeck(2);
+    lan.connectLanStatus(() => peer);
+    try {
+      await watch.watchElsewhereOnce();
+      await watch.watchElsewhereOnce();
+      expect(said).toEqual([{
+        title: "Claude · personal — ccdeck",
+        body: "Also active on iMac. When one machine renews this login, the other is signed out — use a different account on one of them.",
+      }]);
+      // The other deck moved: the incident is over, and saying so is nothing.
+      peer = onDeck(3);
+      await watch.watchElsewhereOnce();
+      expect(said).toHaveLength(1);
+      // Back on it is a new one.
+      peer = onDeck(2);
+      await watch.watchElsewhereOnce();
+      expect(said).toHaveLength(2);
+    } finally {
+      lan.connectLanStatus(null);
+    }
+  });
+
+  it("is not said with its switch off", async () => {
+    settings.elsewhere = false;
+    writeStore(2, { 2: 40 });
+    const lan = await door();
+    lan.connectLanStatus(() => onDeck(2));
+    try {
+      await watch.watchElsewhereOnce();
+      expect(said).toEqual([]);
+    } finally {
+      lan.connectLanStatus(null);
+    }
+  });
+
+  it("keeps the deck's own auto-switch off it, for the one tick, and puts the rotation back", async () => {
+    writeStore(2, { 2: 94, 3: 20, 4: 30 });
+    const lan = await door();
+    lan.connectLanStatus(() => onDeck(3));
+    try {
+      // Asked first, the tick would go to 3 — the login the iMac is on. With 3
+      // held out it goes to 4, as claude-swap would pick next.
+      proc.probe = JSON.stringify({ event: "switch", dryRun: true, to: { number: 3, email: "account-3@b.c" } });
+      const tick = await tickOnce([
+        JSON.stringify({ event: "poll", active: { number: 2, email: "account-2@b.c" }, threshold: 90 }),
+        JSON.stringify({ event: "switch", trigger: "proactive", from: { number: 2, email: "account-2@b.c" }, to: { number: 4, email: "account-4@b.c" }, dryRun: false }),
+      ].join("\n"));
+      expect(tick?.event).toBe("switch");
+      expect((tick as { held?: unknown }).held).toEqual([{ num: 3, email: "account-3@b.c", decks: ["iMac"] }]);
+      const swap = proc.calls.filter(c => c[1] === "auto" || c[1] === "disable" || c[1] === "enable").map(c => c.slice(1).join(" "));
+      expect(swap).toEqual(["auto --once --json --dry-run", "disable 3", "auto --once --json", "enable 3"]);
+      // Nothing is left written down once the slot is back.
+      const state = JSON.parse(readFileSync(join(DIR, ".agents-deck", "cswap-auto.json"), "utf8"));
+      expect(state).not.toHaveProperty("tickHolds");
+    } finally {
+      lan.connectLanStatus(null);
+    }
+  });
+
+  it("costs a tick nothing at all while no paired deck is on any login here", async () => {
+    writeStore(2, { 2: 94, 3: 20 });
+    const lan = await door();
+    lan.connectLanStatus(() => onDeck(null));
+    try {
+      await tickOnce(SWITCHED);
+      const swap = proc.calls.filter(c => c[1] === "auto" || c[1] === "disable" || c[1] === "enable").map(c => c.slice(1).join(" "));
+      expect(swap).toEqual(["auto --once --json"]);
+    } finally {
+      lan.connectLanStatus(null);
+    }
   });
 });

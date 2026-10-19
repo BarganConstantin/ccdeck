@@ -31,6 +31,9 @@ import { run } from "./exec.mjs";
 // A LAN round checks the imports it lands the way the paste box does.
 import { CHECKS_IMPORTS } from "./account-routes.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
+// Which of this deck's accounts a paired deck is working on, for the tick and
+// the notifier, which reach the engine's status through it (#2192).
+import { connectLanStatus } from "./lan-elsewhere.mjs";
 
 // ── LAN sync ────────────────────────────────────────────────────────────────
 //
@@ -301,6 +304,11 @@ export const lanEngine = createEngine({
   },
 });
 
+// The status the auto-switch tick and the account notifier read "which deck is
+// on what" from — see lan-elsewhere.mjs, which says why they do not import this
+// file for it.
+connectLanStatus(() => lanEngine.status());
+
 /**
  * What prefs is entitled to tell the LAN engine, and what it is not.
  *
@@ -352,6 +360,9 @@ export function lanApplyFields(prefs, { load = false, env = process.env } = {}) 
     pairingMode: lan.pairingMode === "invite" ? "invite" : "automatic",
     // Whether paired decks are told which shared account this one is on.
     shareActive: lan.shareActive !== false,
+    // Whether the account this deck is using right now may be sent to a paired
+    // deck. Off unless somebody turned it on (#2192).
+    sendInUse: lan.sendInUse === true,
     // Discovery over Tailscale, off unless somebody turned it on, and the two
     // permissions that answer for the owner's own machines there.
     tailscale: lan.tailscale === true,

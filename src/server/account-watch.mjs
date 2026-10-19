@@ -21,6 +21,10 @@ import {
 } from "./account-notify.mjs";
 import { deckDataDir } from "./deck-home.mjs";
 import { writeFileAtomic } from "./atomic-write.mjs";
+// Which deck is on what, as Local network last heard it, and the identity rule
+// its keys are made by (#2192).
+import { elsewhereNow } from "./lan-elsewhere.mjs";
+import { accountKey } from "./lan-copies.mjs";
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -39,10 +43,19 @@ export function recordsPath(home = deckDataDir()) {
  */
 export const WATCH_MS = 2 * 60_000;
 
+/**
+ * How often the notifier asks Local network whether the account this deck is
+ * on is live on another deck too (#2192). A round is a minute, so asking more
+ * often finds nothing new; and with no deck on any account of this one's, the
+ * look is the engine's status and nothing else — the store is not read.
+ */
+export const ELSEWHERE_WATCH_MS = 60_000;
+
 let _deps = null;
 let _notifier = null;
 let _autoOn = false;
 let _timer = null;
+let _elsewhereTimer = null;
 let _watching = null;
 
 /**
@@ -156,6 +169,35 @@ export function watchOnce(providers) {
 }
 
 /**
+ * One look at whether the account this deck is on is one a paired deck says it
+ * is on too, handed to the notifier, which says it once per incident.
+ *
+ * The store is read only when some deck is on some account, and through the
+ * roster's own cache, which the panel and every LAN round already keep warm. A
+ * roster that could not be read says nothing and closes nothing: not knowing
+ * which account this deck is on is not the same as being on none.
+ */
+export async function watchElsewhereOnce(now = Date.now()) {
+  const n = notifier();
+  if (!n) return;
+  try {
+    const on = elsewhereNow(now);
+    if (on.size === 0) return n.elsewhere(null, []);
+    const { fetchClaudeAccounts } = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href);
+    const got = await fetchClaudeAccounts();
+    if (!got?.ok || !Array.isArray(got.accounts)) return;
+    const live = got.accounts.find(a => a?.active === true);
+    if (!live?.email) return n.elsewhere(null, []);
+    const key = accountKey(live.email, live.orgUuid);
+    const name = typeof live.alias === "string" && live.alias.trim() ? live.alias.trim() : live.email;
+    return n.elsewhere({ key, name }, on.get(key) ?? []);
+  } catch {
+    // The roster's own failures are its panel's to say; here there is nothing
+    // to compare this time.
+  }
+}
+
+/**
  * Start reading quota on a timer, from startServer once the port is bound —
  * never at import, because a launcher imports the server module only to ask
  * whether a deck is already up. Unref'd like every other timer the deck keeps.
@@ -166,4 +208,9 @@ export function startAccountWatch({ providers } = {}) {
   _timer.unref?.();
   const first = setTimeout(() => { watchOnce(providers).catch(() => {}); }, 15_000);
   first.unref?.();
+  // And Local network's word on the account this deck is on, on its own clock:
+  // it costs nothing while no deck is on anything, and it is said whichever of
+  // the quota switches is on.
+  _elsewhereTimer = setInterval(() => { watchElsewhereOnce().catch(() => {}); }, ELSEWHERE_WATCH_MS);
+  _elsewhereTimer.unref?.();
 }
