@@ -19,7 +19,7 @@
 // to "where does the `claude` command live", and the deck now asks that question
 // at boot, before any quota exists, to decide whether this is a Claude machine
 // at all. One list, one caller-visible name, no second spelling to drift.
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, posix as posixPath, win32 as winPath } from "node:path";
 
@@ -131,15 +131,26 @@ function claudeCliOnDisk({
   home = homedir(),
   exists = existsSync,
 } = {}) {
+  for (const _ of claudeCliFound({ platform, env, home, exists })) return true;
+  return false;
+}
+
+/**
+ * Every `claude` the walk above finds, in the order it finds them — the known
+ * install paths first, then each PATH entry. claudeCliOnDisk stops at the first;
+ * claudeCodeVersions below reads them all, because an old CLI anywhere on the
+ * machine still reads the settings file a new one does.
+ */
+function* claudeCliFound({ platform, env, home, exists }) {
   const path = platform === "win32" ? winPath : posixPath;
   const bare = [];
   for (const candidate of claudeCliCandidates(platform, env, home)) {
     // A full path is worth a single stat; a bare name means "ask PATH", which
     // is the walk below. Same split quotaClaudeBin makes, for the same reason.
-    if (candidate.includes(path.sep)) { if (exists(candidate)) return true; }
+    if (candidate.includes(path.sep)) { if (exists(candidate)) yield candidate; }
     else bare.push(candidate);
   }
-  if (bare.length === 0) return false;
+  if (bare.length === 0) return;
 
   // process.env is case-insensitive on Windows, but an injected plain object in
   // a test is not, and %Path% is how the variable is actually spelled there.
@@ -156,10 +167,120 @@ function claudeCliOnDisk({
     const dir = entry.trim().replace(/^"+|"+$/g, "");
     if (dir === "") continue;
     for (const name of bare) {
-      for (const ext of exts) if (exists(path.join(dir, name + ext))) return true;
+      for (const ext of exts) {
+        const found = path.join(dir, name + ext);
+        if (exists(found)) yield found;
+      }
     }
   }
-  return false;
+}
+
+/** A Claude Code version as its installers spell it: three numbers, and a
+ *  pre-release or build suffix that does not change which release it is. */
+const CC_VERSION_RE = /^(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.+-]*)?$/;
+
+/** Whether `version` is `min` or newer, by the three numbers. */
+export function claudeVersionAtLeast(version, min) {
+  const a = CC_VERSION_RE.exec(String(version ?? ""));
+  const b = CC_VERSION_RE.exec(String(min ?? ""));
+  if (!a || !b) return false;
+  for (let i = 1; i <= 3; i++) {
+    const d = Number(a[i]) - Number(b[i]);
+    if (d !== 0) return d > 0;
+  }
+  return true;
+}
+
+/** The npm package every npm install of Claude Code is. */
+const CC_PACKAGE = "@anthropic-ai/claude-code";
+
+/**
+ * The version of the one install `bin` belongs to, read off disk, or
+ * undefined when its layout does not say.
+ *
+ *   npm      the package's own package.json, found by walking up from the
+ *            file the bin resolves to — or, for the `claude.cmd` shim npm
+ *            writes on Windows, in the node_modules beside the shim
+ *   native   `~/.local/bin/claude` links to `…/claude/versions/<version>`;
+ *            on Windows it is a copy, and the newest of those versions is the
+ *            one the installer put there
+ *   Homebrew the cask's binary lives at `…/Caskroom/claude-code/<version>/claude`
+ *
+ * The package.json comes first, and a version-shaped directory is believed only
+ * where those two layouts put one: a node manager keeps the NODE version in its
+ * paths (`…/installs/node/22.14.0/…`), and reading that as Claude Code's would
+ * let a machine with an old CLI through the gate.
+ */
+function installVersion(bin, { platform, home, exists, realpath, readText, list }) {
+  const path = platform === "win32" ? winPath : posixPath;
+  let real = bin;
+  try { real = realpath(bin); } catch { /* a dangling link reads as itself */ }
+  const fromPackage = file => {
+    try {
+      const pkg = JSON.parse(readText(file));
+      return pkg?.name === CC_PACKAGE && CC_VERSION_RE.test(pkg.version) ? pkg.version : undefined;
+    } catch { return undefined; }
+  };
+  const beside = path.join(path.dirname(bin), "node_modules", ...CC_PACKAGE.split("/"), "package.json");
+  if (exists(beside)) {
+    const v = fromPackage(beside);
+    if (v) return v;
+  }
+  let dir = path.dirname(real);
+  for (let i = 0; i < 5; i++) {
+    const file = path.join(dir, "package.json");
+    if (exists(file)) {
+      const v = fromPackage(file);
+      if (v) return v;
+    }
+    const up = path.dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  const name = path.basename(real);
+  const parent = path.basename(path.dirname(real));
+  if (CC_VERSION_RE.test(name) && parent === "versions") return name;
+  if (CC_VERSION_RE.test(parent) && path.basename(path.dirname(path.dirname(real))) === "claude-code") return parent;
+  const nativeBin = path.join(home, ".local", "bin");
+  if (path.dirname(real) === nativeBin) {
+    try {
+      const versions = list(path.join(home, ".local", "share", "claude", "versions"))
+        .filter(v => CC_VERSION_RE.test(v));
+      let newest;
+      for (const v of versions) if (!newest || claudeVersionAtLeast(v, newest)) newest = v;
+      if (newest) return newest;
+    } catch { /* no native install beside it */ }
+  }
+  return undefined;
+}
+
+/**
+ * The versions of every Claude Code the deck can find on this machine, read
+ * off disk without running any of them — the same places hasClaudeInstalled
+ * looks, each resolved to the install it belongs to. Distinct, and only the
+ * ones whose layout names a version: an install that does not say is left out
+ * rather than guessed at.
+ *
+ * WITHOUT A CHILD PROCESS, for the reason claudeCliOnDisk gives: the installer
+ * asks this at boot, and a `claude --version` is about three seconds there.
+ * Every dependency is injected so the suite can lay out an npm, a native and a
+ * Homebrew install for any platform without one on the machine.
+ */
+export function claudeCodeVersions({
+  platform = process.platform,
+  env = process.env,
+  home = homedir(),
+  exists = existsSync,
+  realpath = p => realpathSync.native(p),
+  readText = p => readFileSync(p, "utf8"),
+  list = p => readdirSync(p),
+} = {}) {
+  const out = new Set();
+  for (const bin of claudeCliFound({ platform, env, home, exists })) {
+    const v = installVersion(bin, { platform, home, exists, realpath, readText, list });
+    if (v) out.add(v);
+  }
+  return [...out];
 }
 
 /**
