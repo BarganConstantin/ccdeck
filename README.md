@@ -96,7 +96,7 @@ The deck opens on these eight pictures the first time it runs — they are the w
 | **Blocked on you** | A permission prompt, or a finished turn waiting for your next instruction, sorts that session to the top of the sidebar with how long it has been stuck — longest wait first, so the oldest block is the first row. A permission prompt also puts a count in the topbar that jumps straight to it, and the session's name beside it, with how long it has waited and on what — one click from its card. Claude Code only — the deck reads Codex from its rollout log, and a rollout carries no such signal. |
 | **What each session is doing** | The note tied to each session's card — and the line under its row in the sidebar — says it while it works: the sentence the newest reply wrote, or the description on the command it ran. Once the turn is over it keeps the last thing the session did, until Claude Code's recap takes its place. A background session (`claude --bg`, or one started from `claude agents`) shows Claude Code's own line instead, read from its job folder in `~/.claude/jobs`: the question it is stuck on and the reply Claude Code suggests, or the headline of what it got done. No model is called for any of it. A Codex session, read from its rollout log, has the note only while a turn runs, and it says the first line of the prompt that began the turn: no line is taken from a Codex reply, and no recap follows. |
 | **Live DAG** | Nodes are agents and edges are spawns; each agent's latest tool calls sit beside its node and light up while they run. In-flight edges animate, settled ones dim. |
-| **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The model chip (`Opus 5`, `GPT-5.5`) tells them apart. Subagent cards are Claude Code only: a Codex session is one node with its tool calls. |
+| **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The model chip (`Opus 5`, `GPT-5.5`) tells them apart. Codex child sessions are connected when their rollout records an explicit parent. Each thread keeps its own tool calls and token totals. |
 | **Cost and quota, live** | Spend per model and per session, plus Claude and Codex quota windows as they refill. |
 | **Tool activity** | Which tools and commands your Claude Code and Codex agents ran on this machine, over the last day or up to 90 days: how many calls, how long they took, which ones fail. Kept on this machine and nowhere else. |
 | **Double-click to inspect** | Any node opens its prompt, tool calls, token usage and timing in the side panel. A single click selects it and frames its session. |
@@ -686,9 +686,9 @@ so existing clones, links and bookmarks keep working.
 
 **Does it work with Codex, or only Claude Code?**
 Both, on one canvas. Claude Code arrives through a hook, Codex through its
-rollout log, and the model chip tells them apart. Subagent cards are Claude
-Code only: a Codex session is one node with its tool calls. So is the *blocked
-on you* queue, because a rollout log is a record of what happened and the
+rollout log, and the model chip tells them apart. Codex threads with a recorded spawning parent appear as connected child
+sessions, grouped together for layout, focus and dragging. Missing links are
+left unconnected. The *blocked on you* queue remains Claude Code only, because a rollout log is a record of what happened and the
 queue needs to know what is happening now. Codex does report it — its
 `app-server` pushes a thread status carrying `waitingOnApproval` — and reading
 that is open work, not a wall. Step by step:

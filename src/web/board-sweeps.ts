@@ -1,3 +1,4 @@
+import { canvasSessions } from "./canvas-session";
 // What changes the board without an event of its own: the two stale sweeps and
 // the two pruners the deck's tick runs (`sweepTick` in prune.ts, and the tray
 // over its own copy of the board), and the note the pause gate writes when a
@@ -83,6 +84,8 @@ export function pruneOldAgents(
   const evictable = (a: AgentNodeData): boolean =>
     a.state === "done" && a.endedAt != null && now - a.endedAt > graceMs;
 
+  const groups = canvasSessions(state.agents.values());
+  const protectedGroups = new Set([...state.agents.values()].filter(a => a.provider === "codex" && !evictable(a)).map(a => groups.get(a.id)));
   const stale: Array<{ id: string; endedAt: number }> = [];
   // Children per parent, over the WHOLE map rather than over the candidates —
   // the agents that are not candidates are exactly the ones whose parent has to
@@ -93,7 +96,7 @@ export function pruneOldAgents(
       const kids = childrenOf.get(a.parentId);
       if (kids) kids.push(id); else childrenOf.set(a.parentId, [id]);
     }
-    if (evictable(a)) stale.push({ id, endedAt: a.endedAt! });
+    if (evictable(a) && !protectedGroups.has(groups.get(id))) stale.push({ id, endedAt: a.endedAt! });
   }
   if (stale.length === 0) return false;
   stale.sort((x, y) => x.endedAt - y.endedAt); // oldest first
@@ -193,8 +196,10 @@ export function pruneDoneSessions(
 
   // Kept as [id, session] pairs rather than values alone: the id is what a
   // session that leaves the board has to be reported by. See `ForgetSession`.
+  const groups = canvasSessions(state.agents.values());
+  const liveGroups = new Set([...state.agents.values()].filter(a => a.state !== "done" || a.endedAt == null).map(a => groups.get(a.id)));
   const finished = [...sessions]
-    .filter(([, s]) => !s.live && s.endedAt > 0 && now - s.endedAt > graceMs)
+    .filter(([sid, s]) => !liveGroups.has(groups.get(sid)) && !s.live && s.endedAt > 0 && now - s.endedAt > graceMs)
     // Genuinely-closed sessions first, and oldest-finished first within each
     // group — so the old ordering is exactly what remains when nothing on the
     // board is known to be closed, which is every board a Codex-only or a

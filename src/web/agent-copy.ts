@@ -66,7 +66,7 @@ export function spawnBadgeTitle(count: number): string {
  *  Codex session with no model yet says Codex, as its chip does, and a Claude
  *  one says nothing about a model it has not reported. */
 export function subRowTitle(a: AgentNodeData): string {
-  const parts = [a.kind === "root" ? "session" : "subagent"];
+  const parts = [a.provider === "codex" && a.parentId ? "child session" : a.kind === "root" ? "session" : "subagent"];
   if (a.childCount > 0) parts.push(`→ ${a.childCount}`);
   if (a.kind === "subagent" && a.cwdBasename) parts.push(a.cwdBasename);
   if (a.model) {
@@ -92,7 +92,7 @@ export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), se
   const cost = agentCost(data, now).total;
   return [
     data.label,
-    data.kind === "root" ? "session" : "subagent",
+    data.provider === "codex" && data.parentId ? "child session" : data.kind === "root" ? "session" : "subagent",
     stateLabel(data.state),
     isAlarming(data.waiting) ? waitingSentence(data.waiting!) : null,
     data.model ? shortModel(data.model) : null,

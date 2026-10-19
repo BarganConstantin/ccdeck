@@ -72,7 +72,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // session's early ones. Silent at zero, like the in-flight count: a session
   // with nothing wrong says nothing.
   const failed = data.toolErrorCount ?? 0;
-  const hue = sessionHue(data.sessionId);
+  const hue = sessionHue(data.canvasSessionId ?? data.sessionId);
   const currentContextTokens = data.context?.currentContextTokens ?? 0;
   const hasContextSignal = data.kind === "root" && currentContextTokens > 0;
   // The sentence Claude Code titles the session with, in the tooltip the card
@@ -210,7 +210,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
           prefers over this one under the pointer. */}
       <div className="sub" title={subRowTitle(data)}>
         <span className="sub-details" ref={detailsRef}>
-          {row.kind && <span>{data.kind === "root" ? "session" : "subagent"}</span>}
+          {row.kind && <span>{data.provider === "codex" && data.parentId ? "child session" : data.kind === "root" ? "session" : "subagent"}</span>}
           {data.childCount > 0 && (
             <span className="spawn-badge" title={spawnBadgeTitle(data.childCount)}>→ {data.childCount}</span>
           )}

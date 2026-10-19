@@ -234,6 +234,8 @@ export interface AgentNodeData {
   label: string;              // human label (workspace basename, subagent_type, etc.)
   kind: "root" | "subagent";
   parentId?: string;
+  /** Canvas grouping only; sessionId still owns tools, usage and lifecycle. */
+  canvasSessionId?: string;
   state: AgentState;
   startedAt: number;
   endedAt?: number;
@@ -651,6 +653,9 @@ export interface HookPayload {
   /** Real CC SubagentStart/Stop payloads. */
   agent_id?: string;
   agent_type?: string;
+  parent_session_id?: string;
+  agent_nickname?: string | null;
+  agent_role?: string | null;
   /** Synthetic / older alias used by some test fixtures. */
   parent_tool_use_id?: string;
   subagent_type?: string;

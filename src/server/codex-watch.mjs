@@ -29,6 +29,7 @@ import { maybeResolveCodexMemory } from "./session-enrichment.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
+import { codexThreadLink } from "./codex-lineage.mjs";
 
 // ─── Codex rollout watcher ────────────────────────────────────────────────
 // Codex CLI hooks never fire on Windows — the elevated/unelevated sandbox
@@ -219,7 +220,7 @@ async function readCodexHeader(path) {
           // workspace test below, the log election, the cwd on every event this
           // rollout produces — reads state.cwd, and this is the one place it is
           // read off disk. See canonicalCwd.
-          return { sid, cwd: await canonicalCwd(meta.cwd) };
+          return { sid, cwd: await canonicalCwd(meta.cwd), link: codexThreadLink(obj, sid, meta.cwd) };
         }
         // The other rename the scan would otherwise retry in silence: a first
         // line that is whole but is not a session_meta will never become one.
@@ -313,6 +314,7 @@ function emitCodexEvent(payload, persist, toolAuditAt) {
 function ensureCodexRoot(state, persist) {
   if (state.rootOpened) return;
   state.rootOpened = true;
+  if (state.link) emitCodexEvent({ ...state.link, cwd: state.cwd }, persist);
   if (!state.sawBeginning) return;
   emitCodexEvent({ session_id: state.sid, cwd: state.cwd, provider: "codex", hook_event_name: "SessionStart" }, persist);
 }
@@ -347,7 +349,7 @@ async function openCodexCursor(path, st, now, firstRun) {
   // UsageObserved in the file to every tab, and re-appending the lot to
   // the shared events.jsonl if this deck is the elected writer (#981).
   const fresh = !codexSeenEver.has(path);
-  const state = { offset: fresh ? 0 : st.size, sid: header.sid, cwd: header.cwd, skip: false, sawBeginning: fresh, rootOpened: false, seenAt: now };
+  const state = { offset: fresh ? 0 : st.size, sid: header.sid, cwd: header.cwd, link: header.link, skip: false, sawBeginning: fresh, rootOpened: false, seenAt: now };
   codexFileState.set(path, state);
   rememberCodexPath(path);
   if (firstRun) {
@@ -397,6 +399,11 @@ function emitCodexLines(state, consume, persist) {
     try { obj = JSON.parse(line); } catch { continue; }
     const prevModel = codexSessionModel.get(state.sid);
     const payload = codexObjToPayload(obj, state.sid, state.cwd);
+    const link = codexThreadLink(obj, state.sid, state.cwd);
+    if (link) {
+      ensureCodexRoot(state, persist);
+      emitCodexEvent(link, persist);
+    }
     // If the model changed (turn_context/response_item), surface it.
     const nowModel = codexSessionModel.get(state.sid);
     if (nowModel && nowModel !== prevModel) {
@@ -467,7 +474,7 @@ async function openGrownOlderRollouts(now) {
     // Never `sawBeginning`, whatever this process read of the file before: the
     // lines before `was` are ones this deck has either drawn already or joined
     // too late for, and either way a SessionStart now would be a false one.
-    const state = { offset: skip ? st.size : was, sid: header.sid, cwd: header.cwd, skip, sawBeginning: false, rootOpened: false, seenAt: now, mtimeMs: st.mtimeMs };
+    const state = { offset: skip ? st.size : was, sid: header.sid, cwd: header.cwd, link: header.link, skip, sawBeginning: false, rootOpened: false, seenAt: now, mtimeMs: st.mtimeMs };
     codexFileState.set(path, state);
     rememberCodexPath(path);
     opened.push({ path, st, state });
