@@ -320,7 +320,10 @@ export function attachIdOf(rec, sessionId) {
  *   { kind: "A", socket, pane, name, learnedId?, launchKey? }
  *                                          socket is the deck's own (DECK_SOCKET)
  *   { kind: "B", socket: { path }, pane }
- *   { kind: "D", attachId, wrapper? }      wrapper: a live deck pane already
+ *   { kind: "D", attachId, tty?, wrapper? }
+ *                                          tty: the background session's own
+ *                                          terminal, whose size a wrapper takes;
+ *                                          wrapper: a live deck pane already
  *                                          running `claude attach` for it
  *   { kind: "C", adoptable, pid }
  *   { kind: "gone", adoptable, deadSessions? }
@@ -419,9 +422,11 @@ async function locateIn(q, io, platform) {
   if (holder.background) {
     const found = findDeckSession(deck, q.sessionId, { kinds: ["attach"] });
     const wrapper = found && !found.dead ? found : null;
+    const tty = proc.tty(holder.pid);
     return {
       kind: "D",
       attachId: holder.attachId,
+      ...(tty ? { tty } : {}),
       ...(wrapper ? { wrapper: { name: wrapper.name, pane: wrapper.pane } } : {}),
     };
   }
@@ -468,7 +473,7 @@ export function describeTarget(target) {
     case "B":
       return { kind, label: "This session runs in your own tmux, so the panel joins that pane at its own size and leaves your terminal as it is." };
     case "D":
-      return { kind, label: "This is a Claude background session, so the panel opens it the way claude attach does, and it keeps running when the panel closes." };
+      return { kind, label: "This is a Claude background session, so the panel opens it the way claude attach does, at the size it already has, and it keeps running when the panel closes." };
     case "C":
       return target.adoptable
         ? {

@@ -30,6 +30,7 @@
 // log gets what tmux actually said. "Not attachable" is not an error: open
 // answers it with HTTP 200 and `{ ok: false, target }`, a state for the panel
 // to draw.
+import { execFile } from "node:child_process";
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { PRODUCT } from "./brand.mjs";
@@ -40,7 +41,7 @@ import {
   AGENTS, checkCwd, findDeckSession, findLaunchedSession, isLaunchKey, killDeckSession, labelDeckSession, launchSession,
   listDeckSessions, pruneDeadDeckSessions, resolveAgentBin,
 } from "./terminal-sessions.mjs";
-import { createTicketStore, terminalBridge } from "./terminal-socket.mjs";
+import { TICKET_TTL_MS, createTicketStore, terminalBridge } from "./terminal-socket.mjs";
 import { checkTargetQuery, describeTarget, resolveTarget } from "./terminal-target.mjs";
 import { DECK_SOCKET, findTmux, resetTmuxCache } from "./tmux.mjs";
 import { ensureManagedTmux, recentTmuxFailure, tmuxDownloadBlocked, tmuxDownloadProgress } from "./tmux-download.mjs";
@@ -130,6 +131,7 @@ export function terminalDeps(overrides = {}) {
     claudeBin: null,
     isDir,
     home: homedir,
+    ttySize: null,
     openControl: null,
     // ccdeck's own tmux, for a machine with none (tmux-download.mjs).
     downloadBlocked: null,
@@ -144,6 +146,7 @@ export function terminalDeps(overrides = {}) {
   d.downloadTmux ??= () => ensureManagedTmux({ env: d.env, platform: d.platform, dataDir: deckDataDir(d.platform, d.env) });
   d.findTmux ??= () => findTmux({ env: d.env, platform: d.platform });
   d.claudeBin ??= () => resolveAgentBin("claude", { env: d.env, platform: d.platform });
+  d.ttySize ??= (tty) => ttySize(tty, d.platform);
   return d;
 }
 
@@ -157,8 +160,100 @@ export function terminalUpgradeOptions(overrides = {}) {
   return {
     enabled: () => d.enabled(),
     tickets: d.tickets,
-    openBridge: (ctx) => terminalBridge(d.openControl ? { ...ctx, open: d.openControl } : ctx),
+    openBridge: (ctx) => {
+      const bridge = terminalBridge(d.openControl ? { ...ctx, open: d.openControl } : ctx);
+      if (ctx.binding?.kind !== "D") return bridge;
+      const gone = showWrapper(ctx.binding, d);
+      return {
+        ...bridge,
+        closed: (...args) => {
+          try { return bridge.closed(...args); } finally { gone(); }
+        },
+      };
+    },
   };
+}
+
+/**
+ * THE WRAPPER GOES WHEN THE LAST PANEL ON IT DOES. Every view of a background
+ * session shares one pty, and it takes the size of whichever `claude attach`
+ * came last; a wrapper left attached went on holding the session at the
+ * stage's size after the stage had closed, so the user's own `claude agents`
+ * drew it for a width it did not have — words run together, lines broken
+ * mid-word — until they resized their window. So a wrapper no panel shows is
+ * closed, and the session goes back to the views still on it. After a grace:
+ * a reopen closes one socket and then opens the next, and should find the
+ * wrapper still there. The background session itself keeps running.
+ */
+export const WRAPPER_GRACE_MS = 3_000;
+/** Wrapper name → how many panels show it, and the close waiting to happen. */
+const wrappers = new Map();
+
+function wrapperEntry(name) {
+  let w = wrappers.get(name);
+  if (!w) { w = { open: 0, timer: null }; wrappers.set(name, w); }
+  return w;
+}
+
+/** Close `binding`'s wrapper in `ms`, unless a panel shows it by then. */
+function closeWrapperIn(binding, d, ms) {
+  const w = wrapperEntry(binding.target);
+  clearTimeout(w.timer);
+  w.timer = setTimeout(() => {
+    if (wrappers.get(binding.target) !== w || w.open > 0) return;
+    wrappers.delete(binding.target);
+    // Already gone, or tmux would not: the next open replaces a dead one.
+    try {
+      void Promise.resolve(d.killDeckSession({ tmux: binding.tmux, name: binding.target, socket: binding.socket, env: d.env })).catch(() => {});
+    } catch { /* see above */ }
+  }, ms);
+  w.timer.unref?.();
+}
+
+/** A panel now shows `binding`'s wrapper; answers the call for when it stops. */
+function showWrapper(binding, d) {
+  const w = wrapperEntry(binding.target);
+  clearTimeout(w.timer);
+  w.timer = null;
+  w.open += 1;
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    w.open -= 1;
+    if (w.open <= 0) closeWrapperIn(binding, d, WRAPPER_GRACE_MS);
+  };
+}
+
+/** A ticket for `binding`'s wrapper was handed out: it stays while the ticket
+ *  can still be redeemed, and goes after it if no panel ever opened. */
+function holdWrapper(binding, d) {
+  const w = wrapperEntry(binding.target);
+  if (w.open === 0) closeWrapperIn(binding, d, TICKET_TTL_MS + WRAPPER_GRACE_MS);
+}
+
+/** Forget every wrapper this process was counting; for tests. */
+export function resetWrappers() {
+  for (const w of wrappers.values()) clearTimeout(w.timer);
+  wrappers.clear();
+}
+
+/**
+ * The size of the terminal at `tty`, as `stty size` reads it, or null.
+ *
+ * What a wrapper for a background session starts at: the session's own pty is
+ * at the size its viewers gave it, and a `claude attach` at any other size
+ * would take it there.
+ */
+export function ttySize(tty, platform = process.platform) {
+  return new Promise((resolve) => {
+    if (!/^\/dev\/[A-Za-z0-9/]+$/.test(String(tty ?? ""))) return resolve(null);
+    execFile("stty", [platform === "linux" ? "-F" : "-f", String(tty), "size"], { timeout: 1_000 }, (err, out) => {
+      const m = /^(\d+) (\d+)\s*$/.exec(String(out ?? ""));
+      const rows = m ? Number(m[1]) : 0, cols = m ? Number(m[2]) : 0;
+      resolve(err || !rows || !cols ? null : { cols, rows });
+    });
+  });
 }
 
 /**
@@ -280,8 +375,11 @@ export async function handleTerminalOpen(req, res, options) {
       // panel joins it at that size rather than resizing it under them.
       binding = { kind: "B", socket: target.socket, target: target.pane, pane: target.pane, ignoreSize: true };
     } else if (target.kind === "D") {
+      // Joined at the size the wrapper started at, which is the session's:
+      // the panel never resizes it, since the session's other views would be
+      // drawn at whatever size it took (see WRAPPER_GRACE_MS).
       const wrapper = target.wrapper ?? await attachWrapper(q, target, tmux, d);
-      binding = { kind: "D", socket: d.deckSocket, target: wrapper.name, pane: wrapper.pane, ignoreSize: false };
+      binding = { kind: "D", socket: d.deckSocket, target: wrapper.name, pane: wrapper.pane, ignoreSize: true };
     } else if (target.kind === "gone" && target.deadSessions?.length) {
       // An ended session whose deck pane is still there under remain-on-exit:
       // its last frame is the most useful thing the stage can show, so the
@@ -297,6 +395,7 @@ export async function handleTerminalOpen(req, res, options) {
       return send(res, 200, { ok: false, target: describeTarget(target) });
     }
     const ticket = mint(d, req, tmux, binding);
+    if (binding.kind === "D") holdWrapper({ ...binding, tmux }, d);
     return send(res, 200, { ok: true, ticket, target: describeTarget(target) });
   } catch (err) {
     return sessionFailure(res, err);
@@ -523,9 +622,14 @@ async function attachWrapper(q, target, tmux, d) {
   }
   // The short id terminal-target found, which is what `claude attach` takes.
   const attachId = ATTACH_ID.test(String(target.attachId ?? "")) ? target.attachId : q.sessionId.slice(0, 8);
+  // At the session's own size, or `claude attach` takes the session to the
+  // wrapper's (see WRAPPER_GRACE_MS). Unread, tmux's default.
+  let size = null;
+  try { size = target.tty ? await d.ttySize(target.tty) : null; } catch { size = null; }
   const launch = () => d.launchSession({
     tmux, agent: "claude", kind: "attach", sessionId: q.sessionId, cwd: wrapperCwd(q, d),
     argv: [bin, "attach", attachId], socket: d.deckSocket, env: d.env, platform: d.platform,
+    ...(size ? { cols: size.cols, rows: size.rows } : {}),
   });
   try {
     return await launch();
