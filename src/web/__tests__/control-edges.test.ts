@@ -540,6 +540,9 @@ const CONTROLS: Control[] = [
   { at: ".jr-search input", states: [".jr-search input:hover"], beds: ["--panel"] },
   { at: 'button.btn.jr-chip[aria-pressed="true"]', fillFrom: 'button.btn.jr-chip[aria-pressed="true"]', beds: ["--panel"] },
   { at: ".jr-open", states: [".jr-open:hover"], beds: ["--panel", "--bg"] },
+  // The GitHub and GitLab panel (#2179): its search field over the list, on
+  // --panel, which is also where a pasted link is opened from.
+  { at: ".fg-search input", states: [".fg-search input:hover"], beds: ["--panel"] },
   // topbar
   // The up-to-date version chip draws no boundary any more: it is metadata
   // beside the wordmark, identified by its own text, and it wears the
@@ -938,7 +941,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // Radar's Clear history adds one: the error edge it takes while armed.
     // The Jira panel (#2178) adds five: its search box at rest and under the
     // pointer, a filter chip that is on, and Open in Jira at rest and hovered.
-    expect(EDGED_CONTROLS.length).toBeLessThan(158);
+    // The GitHub and GitLab panel (#2179) adds two: its search field at rest
+    // and under the pointer.
+    expect(EDGED_CONTROLS.length).toBeLessThan(160);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

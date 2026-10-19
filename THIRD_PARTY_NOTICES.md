@@ -890,3 +890,17 @@ https://creativecommons.org/publicdomain/zero/1.0/.
 Jira and Atlassian are trademarks of Atlassian Pty Ltd. ccdeck is not
 affiliated with or endorsed by Atlassian; the mark is used only to name the
 service a connection reaches.
+
+## GitHub and GitLab marks — Simple Icons
+
+The monochrome GitHub and GitLab glyphs on the left stripe and in Settings ›
+Integrations (`GithubGlyph` and `GitlabGlyph` in
+`src/web/components/rail-glyphs.tsx`, #2179) are the path data of the GitHub
+and GitLab icons from Simple Icons, https://github.com/simple-icons/simple-icons,
+drawn in the stripe's own ink and never in either company's colours. Simple
+Icons releases its icon data under CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/.
+
+GitHub is a trademark of GitHub, Inc., and GitLab of GitLab Inc. ccdeck is not
+affiliated with or endorsed by either; the marks are used only to name the
+service a connection reaches.

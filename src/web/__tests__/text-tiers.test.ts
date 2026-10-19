@@ -238,6 +238,21 @@ describe("what was migrated to the secondary tier", () => {
       // the shared field's placeholder is — --muted is 4.05:1 on that fill
       // in dark.
       ".jr-label", ".jr-status", ".jr-total, .jr-estimate",
+      // The GitHub and GitLab panel's sentences (#2179): why a list or a page
+      // is empty, why a read failed and what to do, a note over the list, the
+      // token's help in Settings, a project search that found nothing, and a
+      // quote inside a description.
+      ".fg-empty", ".fg-failure", ".fg-note", ".fg-token-help", ".fgl-group-empty", ".fgl-repo-none",
+      ".forge-html blockquote",
+      // And its words on rows by their bed, as Tool activity's are: a list's
+      // row, a branch row and a project in the picker take --ctl-fill under the
+      // pointer and while chosen, where --muted is 4.05:1 in dark (#1789) — a
+      // state's word beside its mark or in its chip, a row's meta line, a
+      // label, a branch's behind | ahead, and a project's group, there and in
+      // the picker's button. The search field's placeholder sits on the same
+      // fill.
+      ".fg-badge", ".fg-mark-word", ".fg-meta", ".fgl-label", ".fgl-diverge", ".fgl-repo-group",
+      ".fgl-repo-option-group", ".fg-search input::placeholder",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.
       ".nm-next",

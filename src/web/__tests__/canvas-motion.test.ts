@@ -463,6 +463,15 @@ const PRESSES: Press[] = [
   [".jr-detail-sub:active", "0.97", "transform"],
   [".jr-crumb:active", "0.97", "transform"],
   [".jr-link-btn:active", "0.97", "transform"],
+  // The GitHub and GitLab panel (#2179): a list's row, a group's or a stage's
+  // fold, a project in the picker and a link to another item on a page are
+  // labelled controls, 0.97; the copy button beside a value is a glyph in a
+  // 24px box, 0.94.
+  [".fg-row:active", "0.97", "transform"],
+  [".fg-fold:active", "0.97", "transform"],
+  [".fgl-repo-option:active", "0.97", "transform"],
+  [".fd-jump:active", "0.97", "transform"],
+  [".fg-copy:active", "0.94", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */
@@ -592,6 +601,11 @@ const EXEMPT: string[] = [
   // the frame moving to it; a 118px preview scaled by 3% lurches rather than
   // clicks, and the hover plate under it already deepens.
   ".appearance-theme",
+  // A branch row's hit area in the GitHub and GitLab panel (#2179): an empty
+  // button stretched over the row so the copy button and Create merge request
+  // inside it stay controls of their own. Scaling it would move only the
+  // invisible hit target; the row answers with its fill, as the LAN list's do.
+  ".fgl-hit",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {

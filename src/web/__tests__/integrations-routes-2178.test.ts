@@ -129,8 +129,9 @@ describe("every read under /api/integrations/ is a guarded read", () => {
     });
 
     it(`lets the deck's own page read ${path.split("?")[0]}, which the route then answers`, async () => {
-      // Past the gate: no provider "gitlab" here, and no connection abc123,
-      // so the route itself says not found — an image's refusal empty.
+      // Past the gate: no connection abc123 (for jira, or for the gitlab
+      // provider #2179 registers), so the route itself says not found — an
+      // image's refusal empty.
       const r = await page(path);
       expect(r.status).toBe(404);
       if (path.includes("/asset?")) expect(r.raw).toBe("");

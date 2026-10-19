@@ -405,9 +405,12 @@ describe("nothing else in the deck invents a focus stop", () => {
     // The skip link's <main> and Radar's mobile inspector are deliberate
     // destinations, not extra tab stops. Selecting an export on a phone
     // moves focus to its contents, so the newly revealed details are announced.
+    // Sorted: readdir answers in the file system's order, and NTFS lists the
+    // forge/ folder among the capitals where ext4 and APFS list it after them.
     const negatives = components(web)
       .flatMap(p => [...code(readFileSync(p, "utf8")).matchAll(/tabIndex=\{-\d+\}/g)]
-        .map(() => p.slice(web.length).replaceAll("\\", "/")));
+        .map(() => p.slice(web.length).replaceAll("\\", "/")))
+      .sort();
     // Combobox options use aria-activedescendant; focus stays on the input.
     // Tool activity's details heading takes focus when a tool is opened from
     // the keyboard, so the panel that appeared is announced by its name.
@@ -418,7 +421,15 @@ describe("nothing else in the deck invents a focus stop", () => {
     // a second stop; an issue's heading takes focus when its detail opens in
     // place of the list on a narrow window, the way Tool activity's does.
     // Skill activity's details heading does what Tool activity's does (#2181).
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx"]);
+    // The GitHub and GitLab panel's project picker (#2179) is the same
+    // combobox shape again: focus stays in its search field and the options
+    // are reached through aria-activedescendant (forge/RepoPicker.tsx). Its
+    // item page takes focus when the row that opened it goes out of sight —
+    // behind the drill-in screen, or on the page a link replaced
+    // (forge/DetailParts.tsx).
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
+    expect(code(readFileSync(join(web, "components/forge/RepoPicker.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
+    expect(code(readFileSync(join(web, "components/forge/DetailParts.tsx"), "utf8"))).toMatch(/<article ref=\{ref\} className="fd"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/JiraIssueDetail.tsx"), "utf8"))).toMatch(/<h3 id="jira-detail-title" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/RadioFilter.tsx"), "utf8"))).toMatch(/role="option" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/SettingsSearch.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);

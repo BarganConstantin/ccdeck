@@ -3,6 +3,39 @@
 Updated: 2026-10-15. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
 
+## GitHub and GitLab panels (#2179) on Linux — 2026-10-19
+
+- Branch `feat/2179-forge-panels`, worktree
+  `/home/constantin/Desktop/personal/ccdeck-wt/2179-github-gitlab-integration`,
+  stacked on `feat/2178-jira-integration` (merged in, not rebased). PR into
+  development, "Closes #2179", after #2178's PR has merged.
+- Contents:
+  - GitHub (github.com) and GitLab (GitLab.com or self-managed) as
+    integration kinds, personal access token only. Read only: GET and GraphQL
+    queries, never a mutation.
+  - The panel is GitLab's own screens: Branches, Merge requests (Pull
+    requests), Pipelines (Actions), Issues; a project picker with All projects
+    where the tab allows it; a search that also opens a pasted link; the item
+    page beside the list, or as its own screen with Back below 900px.
+  - Feature-use names are `github` and `gitlab`, matching `jira`.
+- Contract:
+  - `docs/features/forge-panels-2179.md`
+  - `DESIGN.md` → The GitHub and GitLab panels
+  - `.impeccable/surfaces/forge-panels.md`
+- Images: the token goes only to the API origin; avatars and description
+  images come through the asset route from an allow-list of image hosts.
+- Known behaviour:
+  - GitHub's Branches tab scans every branch to order them by last commit:
+    about 5 s cold on a repository with ~450 branches.
+  - A self-managed GitLab may serve its avatars only to a signed-in browser;
+    those show initials and are not asked for again in the session.
+- QA: an isolated deck (`AGENTS_DECK_NO_LAN=1`, scratch `HOME`, `CCDECK_HOME`,
+  `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `--no-claude --no-codex`, port 4793),
+  driven by headless Chromium through a borrowed `playwright-core`, against
+  the owner's real GitHub and self-managed GitLab at 1440, 390 and 320px in
+  Rider Black and light. Keep the employer's host, projects and people out of
+  fixtures, comments and commits.
+
 ## Jira integration (#2178) on Linux — 2026-10-19
 
 - Branch `feat/2178-jira-integration`, worktree

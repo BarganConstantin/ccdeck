@@ -4,5 +4,8 @@
 // docs/features/jira-integration-2178.md walks through it.
 import { registerProvider } from "./registry.mjs";
 import { jiraProvider } from "./jira.mjs";
+import { githubProvider, gitlabProvider } from "./forge.mjs";
 
 registerProvider(jiraProvider);
+registerProvider(githubProvider);
+registerProvider(gitlabProvider);
