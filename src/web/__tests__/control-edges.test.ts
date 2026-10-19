@@ -527,6 +527,10 @@ const CONTROLS: Control[] = [
   { at: ".tr-body .btn.tr-quiet:hover:not(:disabled)", beds: ["--panel"] },
   { at: ".tr-input:hover", beds: ["--panel"] },
   { at: ".tr-select:hover", beds: ["--panel"] },
+  // Continue at the end of a stopped background session's stop row (#2193),
+  // edged in the row's own hue on the card's face, and in the text colour
+  // under the pointer.
+  { at: ".agent-node .stop-continue", states: [".agent-node .stop-continue:hover:not(:disabled)"], beds: ["--panel", "--bg-soft"] },
   // topbar
   // The up-to-date version chip draws no boundary any more: it is metadata
   // beside the wordmark, identified by its own text, and it wears the
@@ -922,7 +926,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // Settings' redesign (#2176) adds Keyboard's filter field the same way,
     // two more, and took the Music section's station picker away with its own.
     // Its search adds one: the ring a keyboard-highlighted result wears.
-    expect(EDGED_CONTROLS.length).toBeLessThan(152);
+    // Continue on a stopped background session's card (#2193) adds two: the
+    // stop row's hue at rest, the text colour under the pointer.
+    expect(EDGED_CONTROLS.length).toBeLessThan(154);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
