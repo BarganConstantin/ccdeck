@@ -295,6 +295,8 @@ describe("through the service", () => {
     const { s, timers, home, deviceId } = await connected();
     api.revoke(deviceId);
     await timers.fire({ until: () => s.view().state === "revoked" });
+    // The view moves at once; account.json follows on the store's write queue.
+    await until(() => fileToken(home) === "", 5_000, "account.json without the token");
     const onDisk = JSON.parse(readFileSync(join(home, "account.json"), "utf8"));
     expect(onDisk.token).toBe("");
     expect(onDisk.deviceId).toBe("");
