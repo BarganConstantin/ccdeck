@@ -495,6 +495,7 @@ export function createProjectRollup({
 } = {}) {
   let state = { version: STATE_VERSION, cursors: {}, tally: {}, folders: {}, requests: {} };
   let canonicalRoots = [];
+  let gapRoots = [];
   let timer = null;
   let running = false;
   let dirty = false;
@@ -504,8 +505,10 @@ export function createProjectRollup({
     if (loaded) return;
     loaded = true;
     canonicalRoots = [...new Set(await Promise.all(roots.map(r => swapProjectsRoot(r))))];
+    gapRoots = canonicalRoots;
     try {
       const disk = JSON.parse(await readFile(stateFile, "utf8"));
+      gapRoots = [...new Set([...canonicalRoots, ...(Array.isArray(disk?.sourceRoots) ? disk.sourceRoots.filter(r => typeof r === "string") : [])])];
       if (disk && disk.version === STATE_VERSION && disk.tally && disk.cursors) {
         state = disk;
         state.folders ??= {};
@@ -584,7 +587,7 @@ export function createProjectRollup({
       // switched accounts by hand while nothing was recording. Written before
       // the seed so the order is stop → start.
       if (state.lastAlive && nowMs - state.lastAlive > GAP_MS) {
-        await markGap(state.lastAlive + 1, swapLog, canonicalRoots[0]);
+        for (const root of gapRoots) await markGap(state.lastAlive + 1, swapLog, root);
       }
       await seedActive({ now, path: swapLog, root: storeRoot, projectsRoot: canonicalRoots[0] });   // anchor the current account, once, deduped
       const timeline = await readSwapLog(swapLog);
