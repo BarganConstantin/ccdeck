@@ -36,6 +36,7 @@ export { eventBufferStats, eventsSince } from "./event-ring.mjs";
 // routes below: it connects pushEvent to event-sink.mjs as it loads, and the
 // boot replay pushes through that sink before any route has run.
 import "./event-pipeline.mjs";
+import { stopCodexEnrichment } from "./codex-enrichment.mjs";
 // POST /api/event, GET /events and GET /api/events — see event-routes.mjs.
 import { handleEventIngest, handleSse, writeJsonArray } from "./event-routes.mjs";
 // Exported from this file before it moved, and still.
@@ -514,7 +515,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       void trafficCapture.resume(boundPort).catch(() => {});
       server.once("close", () => trafficCapture.dispose());
       // Codex has no working hooks on Windows — tail its rollout files instead.
-      if (codex) startCodexWatcher(workspace);
+      if (codex) {
+        startCodexWatcher(workspace);
+        server.once("close", stopCodexEnrichment);
+      }
       if (claude) {
         const recovery = createClaudeRecovery({ workspace });
         const recover = () => { void recovery.scan().catch(() => {}); };

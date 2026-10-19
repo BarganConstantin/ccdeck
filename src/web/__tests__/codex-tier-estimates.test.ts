@@ -58,6 +58,16 @@ describe("recorded Codex tier estimates", () => {
     expect(agentUnpricedTokens(a)).toBe(1000);
     expect(agentCost(a).total).toBe(0);
   });
+  it("drops charges from before a reset hidden in the skipped range", () => {
+    const { state } = read([meta, tier("fast"), usage(1000)]);
+    codexCostGap(state);
+    foldCodexCost(state, usage(100));
+    expect(codexCostBuckets(state)).toBeUndefined();
+  });
+  it("keeps model attribution when both models ran at standard rates", () => {
+    const result = read([meta, usage(1000), { type: "turn_context", payload: { model: "gpt-6-astra" } }, usage(2000)]);
+    expect(Object.keys(result.usageByModel!)).toEqual([model, "gpt-6-astra"]);
+  });
   it("passes tier shares through the bounded rollout reader and reducer", async () => {
     const path = join(DIR, "rollout.jsonl");
     writeFileSync(path, [meta, tier("fast"), usage(1000), tier("flex"), usage(2000)].map(v => JSON.stringify(v)).join("\n"));
@@ -72,6 +82,9 @@ describe("recorded Codex tier estimates", () => {
     emit({ hook_event_name: "UsageObserved", usage: { input_tokens: 3000, output_tokens: 0 } });
     expect(root.usageByModel?.[model].bySpeed?.fast.inputTokens).toBe(1000);
     emit({ hook_event_name: "UsageObserved", usage: { input_tokens: 3000, output_tokens: 0 }, usageByModel: null });
+    expect(root.usageByModel).toBeUndefined();
+    emit({ hook_event_name: "UsageObserved", usage: { input_tokens: 3000, cached_input_tokens: 800 }, usageByModel: snapshot.usageByModel });
+    emit({ hook_event_name: "UsageObserved", usage: { input_tokens: 3000, cached_input_tokens: 0 } });
     expect(root.usageByModel).toBeUndefined();
   });
 });

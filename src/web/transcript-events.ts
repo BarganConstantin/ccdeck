@@ -369,7 +369,8 @@ export function applyUsageObserved(state: GraphState, p: HookPayload, sessionId:
       // written when the wire carries it, exactly as the field-by-field read
       // this replaced did.
       const nextUsage = usageFromWire(u);
-      const reset = nextUsage.inputTokens < root.usage.inputTokens || nextUsage.outputTokens < root.usage.outputTokens;
+      const reset = nextUsage.inputTokens < root.usage.inputTokens || nextUsage.outputTokens < root.usage.outputTokens
+        || nextUsage.cacheReadTokens < root.usage.cacheReadTokens || nextUsage.cacheCreateTokens < root.usage.cacheCreateTokens;
       Object.assign(root.usage, nextUsage);
       // The same totals, split by the model that produced them (#686). The
       // flat bucket above answers "how many tokens"; this answers "at whose

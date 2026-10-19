@@ -22,8 +22,11 @@ reset clears the old split, and a skipped byte range clears tier evidence and
 rebases on its first subsequent total. No unobserved usage is assigned the latest
 tier. Unclassified tokens retain the existing standard-rate estimate.
 
-The bounded scanner refreshes on session activity, with its existing 2.5-second
-throttle. Flat live token events preserve the last snapshot's model/tier split;
+The bounded scanner refreshes on watcher and hook activity, with its existing
+2.5-second throttle. Refused reads stay queued behind one timer per session until
+a read starts; activity supersedes older scans, and eviction/shutdown invalidates
+them. Synthetic events preserve the watcher's log-writer election. Flat live
+token events preserve the last snapshot's model/tier split;
 an explicit empty snapshot or counter reset clears it. No extra process, full
 transcript read, config-file parser or runtime dependency was added.
 

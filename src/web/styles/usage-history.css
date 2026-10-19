@@ -367,7 +367,7 @@
 
 .uh-cost-note {
   margin: 8px 0;
-  color: var(--dim);
+  color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.5;
   overflow-wrap: anywhere;

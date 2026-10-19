@@ -159,6 +159,8 @@ describe("what was migrated to the secondary tier", () => {
       // and the heading carry the failure; the reason is prose, so it reads and does not
       // shout.
       ".aa-reason",
+      // Explains missing prices and recorded cost provenance.
+      ".uh-cost-note",
       ".ap-issue-hint",
       ".ap-lan-intro-text",
       // The shared text field's placeholder, in dark only: an example, not a
