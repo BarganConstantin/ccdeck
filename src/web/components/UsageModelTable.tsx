@@ -68,7 +68,7 @@ export default function UsageModelTable({ fromRange, rangeModelRows, boardModelR
             ))}
         </tbody>
       </table>
-      {provenance && <p className="up-note">{provenance}</p>}
+      {provenance && <p className="uh-cost-note">{provenance}</p>}
     </section>
   );
 }

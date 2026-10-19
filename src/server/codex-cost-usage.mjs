@@ -5,9 +5,10 @@ const TIERS = new Map([["default", "standard"], ["standard", "standard"], ["prio
 const count = n => typeof n === "number" && Number.isFinite(n) && n >= 0 ? n : 0;
 const empty = () => Object.fromEntries(FIELDS.map(k => [k, 0]));
 export function codexCostState() {
-  return { model: null, tier: null, previous: null, models: new Map(), hasTier: false };
+  return { model: null, tier: null, previous: null, models: new Map() };
 }
 export function codexCostGap(state) {
+  state.gapPrevious = state.previous;
   state.previous = null;
   state.tier = null;
   state.model = null;
@@ -26,12 +27,13 @@ export function foldCodexCost(state, obj) {
   if (!raw || typeof raw !== "object") return;
   const next = Object.fromEntries(FIELDS.map(k => [k, count(raw[k])]));
   const prior = state.previous;
+  const baseline = prior ?? state.gapPrevious;
+  state.gapPrevious = null;
   state.previous = next;
   // The first total could precede the tier setting; the first read after a gap
   // certainly does. Leave that part at base rates instead of guessing its tier.
-  if (prior && FIELDS.some(k => next[k] < prior[k])) {
+  if (baseline && FIELDS.some(k => next[k] < baseline[k])) {
     state.models.clear();
-    state.hasTier = false;
     return;
   }
   if (!prior || !state.model) return;
@@ -42,12 +44,11 @@ export function foldCodexCost(state, obj) {
     const share = bucket.speeds.get(state.tier) ?? empty();
     for (const k of FIELDS) share[k] += delta[k];
     bucket.speeds.set(state.tier, share);
-    state.hasTier = true;
   }
   state.models.set(state.model, bucket);
 }
 export function codexCostBuckets(state) {
-  if (!state.hasTier) return undefined;
+  if (state.models.size === 0) return undefined;
   return Object.fromEntries([...state.models].map(([model, { speeds, ...usage }]) => [model, {
     ...usage, ...(speeds.size ? { speeds: Object.fromEntries(speeds) } : {}),
   }]));

@@ -241,6 +241,9 @@ export function pushEvent(raw, source, opts = {}) {
   // Provider gates the path: Claude reads transcript_path; Codex reads its
   // rollout JSONL under ~/.codex/sessions/. The Claude scanners short-circuit
   // when transcript_path is absent (always the case for Codex hooks).
+  if (source === "codex" && !opts.replay && raw?.hook_event_name === "UsageObserved") {
+    maybeResolveCodex(raw, { persist: opts.persist });
+  }
   if (source === "hook" && !opts.replay) {
     // A hook is somebody running the CLI, which is what the day's usage counts.
     usageDay.noteUse(raw);
