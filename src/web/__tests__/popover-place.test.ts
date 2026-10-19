@@ -89,6 +89,16 @@ describe("where the popover opens (popover-place.ts)", () => {
     expect(placePopover(anchor(120, 100), SIZE, VIEW).left).toBe(POPOVER_MARGIN);
   });
 
+  it("start-aligned, opens rightward into the surface whose left end holds the anchor", () => {
+    // The empty terminal stage's New session: end-aligned it would hang out
+    // over the navigator to its left.
+    const p = placePopover(anchor(580, 100), SIZE, VIEW, "start");
+    expect(p.left).toBe(580 - 24);
+    expect(p.side).toBe("below");
+    // Still never past the right edge.
+    expect(placePopover(anchor(1270, 100), SIZE, VIEW, "start").left + SIZE.width).toBe(VIEW.width - POPOVER_MARGIN);
+  });
+
   it("never runs past the right edge of the window", () => {
     const p = placePopover(anchor(1279, 100), SIZE, VIEW);
     expect(p.left + SIZE.width).toBe(VIEW.width - POPOVER_MARGIN);
