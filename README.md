@@ -393,6 +393,31 @@ An import adds what is missing and leaves a working account exactly as it is. Th
 
 Step by step: [Switch between multiple Claude Code accounts](https://ccdeck.dev/guides/claude-accounts/) · [Copy your Claude Code login to another machine](https://ccdeck.dev/guides/move-an-account/)
 
+## From the terminal
+
+The Accounts panel and the session list answer from any terminal on the machine too, which is the whole of what you have when you reach it over SSH:
+
+```
+ccdeck accounts               every Claude account, its 5h / 7d usage and resets
+ccdeck switch work            move the live login: a slot number, an email, an alias,
+                              or any part of one that names a single account
+ccdeck switch --best          the account with the most room left
+ccdeck switch                 pick from a list (arrows, Enter; Esc cancels)
+ccdeck usage                  the active account's limits, every lane
+ccdeck sessions               what each session is doing, the ones waiting on you first
+ccdeck open                   the deck in your browser — over SSH, the line that opens it on yours
+```
+
+`swap` and `use` are other names for `switch`, `ls` for `accounts` and `ps` for `sessions`; `status`, `stop` and `logs` are `--status`, `--stop` and `--logs`. `ccdeck swap 1 2` does not exchange two slots the way claude-swap's `cswap swap` does — it says so and points you there.
+
+**The commands ask the deck that is running.** A switch from the terminal goes through the same route as **Switch** on a row, so it waits for the same lock as the panel, Auto-switch and a sign-in in flight, the panel shows it at once, and it lands in the Projects report's history. With no deck running, `accounts`, `switch` and `usage` read and drive claude-swap's store directly; `sessions` and `open` need a deck, since sessions are what a deck watches. After a switch, the command says how many running Claude sessions move with it — all of them, from their next message.
+
+**Over SSH**, `ccdeck open` prints the line to run on your own computer, `ssh -N -o ExitOnForwardFailure=yes -L 14317:127.0.0.1:4317 you@that-machine` (with `-p` when sshd is not on 22), and the deck then opens at `http://127.0.0.1:14317` in your own browser. Your end is not 4317, so it cannot land on a deck of your own. The deck still listens only on 127.0.0.1; the tunnel is your SSH connection.
+
+**For scripts**, every command takes `--json` — one object on stdout with `schemaVersion` and `ok` — and `--port <n>` to name a deck. Nothing prompts without a terminal: `ccdeck switch` with no account named and no terminal is an error, not a wait. Exit codes are 0 done, 1 failed, 2 the command line was wrong (an account nothing matches, a misspelled command), and 3 no deck is running.
+
+A misspelled command is refused — `ccdeck acounts` suggests `accounts` and starts nothing — so a typo over SSH never leaves a deck behind.
+
 ## Local network
 
 A Claude login expires on the machine that has not used it for a while, and stays alive on the one that has. With two or three machines that is a `claude login` a week, each time on the machine you are not sitting at. **Local network** is the last section of the Claude accounts panel, and it is that chore done for you: decks on one network find each other, pair, and a login that has expired on one is copied back from another that still has it.
@@ -432,8 +457,10 @@ Step by step: [Repair expired Claude Code logins across machines](https://ccdeck
 
 ```
 ccdeck [options]
+ccdeck <command> [options]      accounts, switch, usage, sessions, open — see From the terminal
 
-  -p, --port <number>      Preferred port  (default: 4317; fallback: random 4318–4400)
+  -p, --port <number>      Preferred port  (default: 4317; fallback: random 4318–4400);
+                           with a command, the deck to ask
       --no-open            Don't open the browser automatically
       --foreground         Hold the terminal, the way every version before 3.20
                            did (Ctrl+C stops the deck again)
@@ -469,13 +496,16 @@ ccdeck [options]
       --uninstall          Remove ccdeck's hooks from settings files, and name
                            the files that still hold this deck's private key
       --purge              With --uninstall: delete those files too
+      --json               With a command: one object on stdout, for scripts
+      --best               With `switch`: the account with the most room left
   -h, --help               Show this help
   -v, --version            Print the version and exit
 ```
 
-Anything else on the command line is reported as an unknown option and then
-ignored — the deck still starts, so a typo costs you a warning rather than a
-dashboard.
+A word in first position that is not a command — [From the terminal](#from-the-terminal)
+lists them — is refused, so `ccdeck acounts` never starts a deck. Anything else
+on the command line is reported as an unknown option and then ignored — the deck
+still starts, so a typo costs you a warning rather than a dashboard.
 
 `--foreground` is there for anything that was relying on the old behaviour — a
 wrapper script, a CI step, a supervisor of your own that starts the deck and
