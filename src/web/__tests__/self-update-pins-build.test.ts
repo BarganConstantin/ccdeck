@@ -38,6 +38,13 @@ const source = (name: string) => readFileSync(join(REAL_SERVER, name), "utf8");
 
 // ── the list, against the sources ────────────────────────────────────────────
 
+/** pinned-build.mjs's PINNED_AT_BOOT_WHEN_ON: lazy, and loaded at boot by
+ *  their owner when switched on rather than pinned for every deck. */
+function atBootWhenOn(): string[] {
+  const body = /export const PINNED_AT_BOOT_WHEN_ON = Object\.freeze\(\[([\s\S]*?)\]\);/.exec(source("pinned-build.mjs"))?.[1] ?? "";
+  return [...body.matchAll(/"([\w.-]+\.mjs)"/g)].map(m => m[1]);
+}
+
 /** The names in pinned-build.mjs's PINNED_MODULES, read the way a reviewer would. */
 function pinnedList(): string[] {
   const body = /const PINNED_MODULES = \[([\s\S]*?)\];/.exec(source("pinned-build.mjs"))?.[1] ?? "";
@@ -74,8 +81,21 @@ describe("the modules a running deck pins before its tree can change", () => {
     // an empty set and can never fail. These two are the issue's own examples.
     expect(targets.has("cswap-admin.mjs"), "the scanner found no lazy import of cswap-admin.mjs").toBe(true);
     expect(targets.has("self-update.mjs"), "the scanner found no lazy import of self-update.mjs").toBe(true);
-    const missing = [...targets].filter(([t]) => !pinned.has(t)).map(([t, by]) => `${t} (imported lazily by ${[...new Set(by)].join(", ")})`);
+    const missing = [...targets].filter(([t]) => !pinned.has(t) && !atBootWhenOn().includes(t)).map(([t, by]) => `${t} (imported lazily by ${[...new Set(by)].join(", ")})`);
     expect(missing, "a module is loaded on demand and would be read out of whatever npm wrote last").toEqual([]);
+  });
+
+  it("leave out only the hidden account's routes, which a deck with the account on loads at boot instead", () => {
+    // The one exception, by name: a deck with the account off must never
+    // evaluate them (account-flag-off.test.ts), so they cannot be pinned for
+    // every deck. index.mjs loads them right after the listen when the account
+    // is on, which is the pin's own moment.
+    expect(atBootWhenOn()).toEqual(["ccdeck-account-routes.mjs"]);
+    expect(lazyTargets().has("ccdeck-account-routes.mjs")).toBe(true);
+    expect(pinnedList()).not.toContain("ccdeck-account-routes.mjs");
+    const index = source("index.mjs");
+    expect(index).toMatch(/async function startAccountWhenOn\(deps\) \{[\s\S]*?await prefsRead;[\s\S]*?if \(accountOn\(heldPrefs\.current\(\)\)\) await loadAccountRoutes\(deps\);/);
+    expect(index).toMatch(/reporter\.start\(\);[\s\S]{0,400}?void startAccountWhenOn\(account\);/);
   });
 
   it("name only files that exist", () => {

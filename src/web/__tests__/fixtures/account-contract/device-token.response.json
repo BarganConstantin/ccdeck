@@ -1,0 +1,9 @@
+{
+  "accessToken": "ccdd_9QmN2fX0aLr7tYc3Kp8VbWzE1uHs6jDg4oRiTe5yAqM",
+  "tokenType": "Bearer",
+  "deviceId": "0199f0a2-6c1e-7b3a-9d2e-5b8f3c1a7e40",
+  "name": "laptop-a",
+  "account": { "id": "0199e1c0-0d5b-7d02-8a51-3f6e2c9b1a77", "email": "me@example.com" },
+  "settings": { "mode": "independent", "profileId": "0199f0a2-7000-7bb2-8d4f-2c3e4f5a6b7c", "revision": 0 },
+  "status": { "everySec": 15 }
+}

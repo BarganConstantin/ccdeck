@@ -1,0 +1,12 @@
+{
+  "id": "0199f0a3-0b1c-7d2e-8f3a-4b5c6d7e8f9a",
+  "name": "build-02",
+  "os": "linux", "arch": "x64", "version": "3.43.0", "channel": "npm",
+  "enrolledAt": "2026-10-18T08:05:00Z",
+  "link": { "state": "never" },
+  "cpu": null,
+  "memory": null,
+  "agents": null,
+  "clockSkewed": false,
+  "sync": { "mode": "independent", "profileRevision": 0, "appliedRevision": null }
+}

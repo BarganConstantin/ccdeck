@@ -266,8 +266,10 @@ describe("the arrow keys walk the nav", () => {
 
   it("is what the nav runs, with the section the arrow lands on shown and focused", () => {
     const modal = (sourceOf("components/SettingsModal.tsx"));
-    expect(modal).toContain('const move = tabStripMove(event, at, SETTINGS_SECTIONS.length, "vertical");');
-    expect(modal).toContain("onSection(SETTINGS_SECTIONS[move.index].id);");
+    // `sections`, the nav this deck draws: the eight, and the hidden Account
+    // section only on a deck with the ccdeck account on (settings.ts).
+    expect(modal).toContain('const move = tabStripMove(event, at, sections.length, "vertical");');
+    expect(modal).toContain("onSection(sections[move.index].id);");
     expect(modal).toContain("tabRefs.current[move.index]?.focus();");
     expect(drawSettings()).toMatch(/role="tablist" aria-label="Settings sections" aria-orientation="vertical"/);
   });

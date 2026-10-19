@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "bootId": "0199f0a2-6c1e-7b3a-9d2e-5b8f3c1a7e40",
+  "seq": 131,
+  "observedAt": "2026-10-18T09:14:48.020Z",
+  "state": "stopping",
+  "deck": { "version": "3.43.0", "os": "darwin", "arch": "arm64", "channel": "npm" },
+  "cpu": { "pct": 37.5, "cores": 10, "sampledAt": "2026-10-18T09:14:01.004Z" },
+  "memory": { "usedPct": 61.2, "totalMb": 32768, "sampledAt": "2026-10-18T09:13:41.950Z" },
+  "agents": { "unknown": "no-capture" },
+  "settings": { "profileId": "0199f0a2-7000-7aa1-9c3e-1b2d3e4f5a6b", "appliedRevision": null }
+}

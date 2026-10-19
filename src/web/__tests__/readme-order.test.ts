@@ -684,7 +684,7 @@ describe("every environment variable the deck reads is in the README's table", (
   // caught only the literal forms, so it stayed green with CCDECK_HOME deleted
   // from the table, which is the very variable that prompted it.
   const names = new Set<string>();
-  for (const file of ["deck-home.mjs", "deck-prefs.mjs", "args.mjs", "ccusage.mjs", "ccusage-install.mjs", "ccusage-runner.mjs", "claude-dir.mjs", "codex-dir.mjs"]) {
+  for (const file of ["deck-home.mjs", "deck-prefs.mjs", "account-flag.mjs", "args.mjs", "ccusage.mjs", "ccusage-install.mjs", "ccusage-runner.mjs", "claude-dir.mjs", "codex-dir.mjs"]) {
     const src = read("src", "server", file);
     for (const m of src.matchAll(/\b(?:process\.)?env(?:\.|\[")([A-Z][A-Z0-9_]{3,})"?\]?/g)) names.add(m[1]);
     for (const m of src.matchAll(/const\s+[A-Za-z_]*ENV[A-Za-z_]*\s*=\s*"([A-Z][A-Z0-9_]{3,})"/g)) names.add(m[1]);
@@ -698,6 +698,21 @@ describe("every environment variable the deck reads is in the README's table", (
     "NO_COLOR", "FORCE_COLOR", "CI", "AGENTS_DECK_RESPAWN", "AGENTS_DECK_SUPERVISED",
     "NODE_ENV", "TMPDIR", "TEMP", "TMP", "PROGRAMFILES", "SYSTEMROOT", "WINDIR",
   ]);
+  // Knobs, and undocumented ON PURPOSE: the ccdeck account ships hidden until
+  // its owner says otherwise (account-flag.mjs). CCDECK_ACCOUNT switches it on,
+  // CCDECK_ACCOUNT_API points it at a development API, and the veto
+  // AGENTS_DECK_NO_ACCOUNT would announce the feature by its row. Named here so
+  // documenting any of them is a decision too, and taken off this list when it
+  // is — the test below holds the README to having none of them.
+  const hiddenOnPurpose = ["CCDECK_ACCOUNT", "CCDECK_ACCOUNT_API", "AGENTS_DECK_NO_ACCOUNT"];
+  for (const name of hiddenOnPurpose) notKnobs.add(name);
+
+  it("finds the account's variables, and documents none of them while the account is hidden", () => {
+    for (const name of hiddenOnPurpose) {
+      expect(names, `${name} is read through account-flag.mjs`).toContain(name);
+      expect(readme, `${name} is documented, but the account is hidden`).not.toContain(name);
+    }
+  });
 
   it("finds the variables at all, including the ones read through a constant", () => {
     expect([...names].length).toBeGreaterThan(5);

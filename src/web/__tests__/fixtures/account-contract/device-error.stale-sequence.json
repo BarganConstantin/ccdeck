@@ -1,0 +1,2 @@
+{ "type": "https://api.ccdeck.dev/problems/stale-frame", "title": "An older status frame than one already received", "status": 409,
+  "error": "stale_sequence" }

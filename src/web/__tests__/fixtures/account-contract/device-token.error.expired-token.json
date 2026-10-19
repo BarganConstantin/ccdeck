@@ -1,0 +1,2 @@
+{ "type": "https://api.ccdeck.dev/problems/device-token", "title": "This connection request expired", "status": 400,
+  "error": "expired_token" }

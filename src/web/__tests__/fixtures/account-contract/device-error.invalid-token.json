@@ -1,0 +1,2 @@
+{ "type": "https://api.ccdeck.dev/problems/device-unauthorized", "title": "Not a valid device token", "status": 401,
+  "error": "invalid_token" }

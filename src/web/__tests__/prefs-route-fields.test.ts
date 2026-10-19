@@ -121,6 +121,19 @@ describe("POST /api/prefs and the fields the deck writes itself", () => {
     }
   });
 
+  it("does not take the ccdeck account's switch from a page, in either direction", async () => {
+    // Hidden, so deck-owned: a page that could set it could make the deck open
+    // a connection to the API nobody asked for (account-flag.mjs).
+    const { out } = await post({ account: true });
+    expect((await restart()).account).toBe(false);
+    expect(out.accountOn).toBe(false);
+    writeFileSync(FILE, JSON.stringify({ ...ON_DISK, account: true }) + "\n", { mode: 0o600 });
+    await post({ account: false, notifications: true });
+    const now = await restart();
+    expect(now.account, "a hand-edited switch survives a page's write").toBe(true);
+    expect(now.notifications).toBe(true);
+  });
+
   it("takes the page's half of a body that names both", async () => {
     await post({ notifications: true, lan: { name: "renamed", secret: "a-key-from-a-page", port: 1 } });
     const now = await restart();
@@ -199,7 +212,9 @@ describe("the fields a page may write", () => {
     // Every field the file holds is on one list or the other, so a new one
     // cannot be added to the file without being sorted onto one.
     const DECKS_OWN = {
-      top: ["reports", "report", "accounts"],
+      // `account` is the hidden ccdeck account's switch (account-flag.mjs):
+      // hand-edited, never a page's while the feature is hidden.
+      top: ["reports", "report", "accounts", "account"],
       lan: ["secret", "onward", "trusted", "unpaired", "port", "aliases"],
     };
     const held = normalise({});

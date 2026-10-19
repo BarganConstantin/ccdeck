@@ -1,0 +1,2 @@
+{ "type": "https://api.ccdeck.dev/problems/no-shared-profile", "title": "There are no shared settings yet", "status": 409,
+  "error": "no_shared_profile" }

@@ -1,0 +1,2 @@
+{ "type": "https://api.ccdeck.dev/problems/settings-conflict", "title": "Settings changed elsewhere", "status": 409,
+  "error": "revision_conflict", "latest": { "id": "0199f0a2-7000-7aa1-9c3e-1b2d3e4f5a6b", "kind": "shared", "revision": 15, "schema": 1, "values": { "theme": "nord" } } }

@@ -1,0 +1,17 @@
+{
+  "mode": "independent",
+  "overrides": ["sound"],
+  "profile": {
+    "id": "0199f0a2-7000-7bb2-8d4f-2c3e4f5a6b7c", "kind": "device", "revision": 4, "schema": 1,
+    "values": { "theme": "paper", "density": "default", "sound": false },
+    "updatedAt": "2026-10-18T08:30:00Z",
+    "updatedBy": { "kind": "device", "deviceId": "0199f0a2-6c1e-7b3a-9d2e-5b8f3c1a7e40", "name": "laptop-a" }
+  },
+  "own": null,
+  "shared": {
+    "id": "0199f0a2-7000-7aa1-9c3e-1b2d3e4f5a6b", "kind": "shared", "revision": 14, "schema": 1,
+    "values": { "theme": "rider-black", "density": "compact", "panels.detail": true },
+    "updatedAt": "2026-10-18T09:10:00Z",
+    "updatedBy": { "kind": "console" }
+  }
+}

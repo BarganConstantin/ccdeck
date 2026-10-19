@@ -1,0 +1,2 @@
+{ "type": "https://api.ccdeck.dev/problems/device-token", "title": "Waiting for approval in the browser", "status": 400,
+  "error": "authorization_pending", "interval": 5 }

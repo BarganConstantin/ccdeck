@@ -19,3 +19,10 @@ process.env.AGENTS_DECK_NO_LAN = "1";
 // install id and tell api.ccdeck.dev about an install that is a test run. A
 // suite that tests the reporter hands it its own env and a fake fetch.
 process.env.AGENTS_DECK_NO_REPORTS = "1";
+
+// The ccdeck account is hidden and off by default. A developer whose shell
+// exports CCDECK_ACCOUNT=1 must not switch it on in every deck the suite boots,
+// nor point them at an API: a suite that tests the account turns it on itself,
+// against the fake API in account-fake-api.ts.
+delete process.env.CCDECK_ACCOUNT;
+delete process.env.CCDECK_ACCOUNT_API;
