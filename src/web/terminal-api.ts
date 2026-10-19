@@ -98,6 +98,8 @@ export interface SessionRef {
 export interface TargetAnswer {
   ok: true;
   target: TerminalTarget;
+  /** Asked with a launch's key: whether the session runs in that launch's pane. */
+  launched?: boolean;
 }
 
 /** A ticket for /api/terminal/attach, single-use and short-lived, and the
@@ -249,12 +251,15 @@ export function terminalStatus(options: ApiOptions = {}): Promise<TerminalStatus
   });
 }
 
-/** How a session could be reached, without attaching to it. */
-export function terminalTarget(ref: SessionRef, options: ApiOptions = {}): Promise<TargetAnswer | ApiFailure> {
-  const query = new URLSearchParams({ session: ref.sessionId, provider: ref.provider, cwd: ref.cwd });
+/** How a session could be reached, without attaching to it. With `launch`, a
+ *  launch's key, also whether that launch became this session: how a Codex,
+ *  which picks its own id, is recognised as the launch it came from. */
+export function terminalTarget(ref: SessionRef, options: ApiOptions = {}, launch?: string): Promise<TargetAnswer | ApiFailure> {
+  const query = new URLSearchParams({ session: ref.sessionId, provider: ref.provider, cwd: ref.cwd, ...(launch ? { launch } : {}) });
   return ask<TargetAnswer>(`${TERMINAL_ROUTES.target}?${query}`, { method: "GET" }, options, body => {
     const target = isObject(body) && body.ok === true ? targetOf(body.target) : null;
-    return target ? { ok: true, target } : null;
+    if (!target || !isObject(body)) return null;
+    return { ok: true, target, ...(typeof body.launched === "boolean" ? { launched: body.launched } : {}) };
   });
 }
 

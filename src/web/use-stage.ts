@@ -242,8 +242,9 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    *  there is one; the camera stays where it is. A pointer that picked a
    *  session is about to type to it: left on the board, the first letters
    *  meant for the agent fired the deck's shortcuts instead (u, s, e opened
-   *  and closed rail panels in the hands-on run). The keyboard's ways in — a
-   *  tile, j/k — still leave the keys on the board. */
+   *  and closed rail panels in the hands-on run). A pointer on a navigator tile
+   *  is answered the same way (openTile); the keyboard's ways in, Enter on a
+   *  tile and j/k, still leave the keys on the board. */
   const onNodeClick = useCallback((id: string, el: Element | null): boolean => {
     if (!enabledRef.current) return false;
     const sessionId = stateRef.current.agents.get(id)?.sessionId ?? id;
@@ -298,18 +299,27 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   }, [shellRef]);
 
   /**
-   * A navigator tile was pressed: that session, keys left on the board.
+   * A navigator tile was pressed. From the keyboard, that session with the
+   * keys left on the board, so j and k go on walking the tiles. Except Enter
+   * on the tile already on the stage, which is the bar's "↵ type here": the
+   * keys go into its pane. That tile is exactly where the release chord
+   * leaves the focus, so without this the Enter that should take the keys
+   * back re-opened the same session and left them on the board, and the next
+   * letters typed for the session landed on the board as its shortcuts.
    *
-   * Except Enter (a keyboard press) on the tile that is already on the stage,
-   * which is the bar's "↵ type here": the keys go into its pane. That tile is
-   * exactly where the release chord leaves the focus, so without this the
-   * Enter that should take the keys back re-opened the same session and left
-   * them on the board — and the next letters typed for the session landed on
-   * the board as its shortcuts. A mouse press on it stays a no-op: pointing at
-   * the socket is not asking to type.
+   * A pointer press is a click on a card by another name, and is answered
+   * the same way (onNodeClick): that session, with the keys in its pane. Left
+   * on the board, the letters typed next to the session it had just picked
+   * fired the deck's shortcuts ("us" opened Usage and Machine and closed the
+   * stage in the hands-on run).
    */
   const openTile = useCallback((sessionId: string, how?: { keyboard?: boolean }) => {
-    if (how?.keyboard && sessionId === targetSession(shellRef.current.target)) {
+    if (!how?.keyboard) {
+      openOn({ kind: "session", id: sessionId }, { focusPane: true });
+      follow(sessionId);
+      return;
+    }
+    if (sessionId === targetSession(shellRef.current.target)) {
       focusPane();
       return;
     }
@@ -325,10 +335,14 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   }, [openOn]);
 
   /** The stage reports what a launch became; once the board has heard from
-   *  that session, the stage shows it as itself (the effect below). */
+   *  that session, the stage shows it as itself (the effect below). A Codex
+   *  is reported twice: by the launch's answer with no id, since Codex picks
+   *  its own, and by the stage once the deck has recognised it on the board
+   *  (codex-launch.ts). The first never undoes the second. */
   const onLaunched = useCallback((l: { sessionId: string }) => {
     const t = shellRef.current.target;
     if (t?.kind !== "launch") return;
+    if (!l.sessionId && launchedRef.current?.key === t.key && launchedRef.current.sessionId) return;
     launchedRef.current = { key: t.key, sessionId: l.sessionId };
     // Reachable again from the Terminal button even before the board knows
     // it: a new Claude in a folder it has not been trusted in asks first, and

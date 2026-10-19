@@ -136,7 +136,7 @@ function record(pid: number, extra: Record<string, unknown> = {}) {
   return { pid, sessionId: ID, cwd: CWD, startedAt: 1_000, procStart: "1000", kind: "interactive", pidDomain: DOMAIN, ...extra };
 }
 
-type DeckSession = { name: string; sessionId: string; agent: string; kind: string; cwd: string; pane: string; panePid: number; dead: boolean; created: number };
+type DeckSession = { name: string; sessionId: string; agent: string; kind: string; cwd: string; pane: string; panePid: number; dead: boolean; created: number; launchKey?: string };
 function deckSession(extra: Partial<DeckSession>): DeckSession {
   return { name: "ccdeck-claude-0a1b2c3d", sessionId: ID, agent: "claude", kind: "launch", cwd: CWD, pane: "%1", panePid: 900, dead: false, created: 1, ...extra };
 }
@@ -270,6 +270,20 @@ describe("a session the deck started (case A)", () => {
     expect(s.opened, "the launcher-lookalike's open files were read").not.toContain("/proc/950/fd");
   });
 
+  it("carries the key of the page launch that made the pane, for the target route to answer", async () => {
+    // The route says yes or no to "is this the launch I asked for"; the key
+    // never reaches the page from here (describeTarget leaves it out).
+    const rollout = `/home/u/.codex/sessions/2026/10/08/rollout-2026-10-08T09-12-33-${ID}.jsonl`;
+    const procs: Proc[] = [
+      { pid: 900, ppid: 880, cmd: ["node", "/home/u/.local/bin/codex"] },
+      { pid: 901, ppid: 900, cmd: ["codex"], tty: "/dev/pts/9", fds: [rollout] },
+    ];
+    const named = setup({ procs, deck: [deckSession({ name: "ccdeck-codex-5e6f7a8b", agent: "codex", sessionId: "", pane: "%9", panePid: 900, launchKey: "launch-k1" })] });
+    expect(await ask(named.deps, { provider: "codex" })).toMatchObject({ kind: "A", pane: "%9", launchKey: "launch-k1" });
+    const unnamed = setup({ procs, deck: [deckSession({ name: "ccdeck-codex-5e6f7a8b", agent: "codex", sessionId: "", pane: "%9", panePid: 900, launchKey: "" })] });
+    expect(await ask(unnamed.deps, { provider: "codex" }), "a pane no launch named carries no key").not.toHaveProperty("launchKey");
+  });
+
   it("never offers a new id for a deck pane that already carries one", async () => {
     // A Claude the deck launched as OTHER that has since moved on to ID (a
     // /clear): found by its process, but the label stays the one it was
@@ -313,6 +327,8 @@ describe("a session the deck started (case A)", () => {
     it("is the one deck pane that opened in its folder before it began, labelled with the id from then on", async () => {
       const s = setup({ procs: [SYSTEMD_USER, PANE_PROC, TUI, DAEMON], deck: [pane()] });
       expect(await codex(s.deps)).toEqual({ kind: "A", socket: DECK, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: V7 });
+      const named = setup({ procs: [SYSTEMD_USER, PANE_PROC, TUI, DAEMON], deck: [pane({ launchKey: "launch-k1" })] });
+      expect(await codex(named.deps), "with the key of the launch that made it").toMatchObject({ kind: "A", pane: "%9", launchKey: "launch-k1" });
     });
 
     it("is not guessed at when a Codex on another terminal in that folder could have begun it", async () => {
@@ -820,8 +836,8 @@ describe("describeTarget, the one sentence the panel shows", () => {
     });
   });
 
-  it("leaves out what only the routes use: the id a pane was found by and the dead panes' names", () => {
-    expect(describeTarget({ kind: "A", socket: DECK, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: ID }))
+  it("leaves out what only the routes use: the id a pane was found by, its launch's key and the dead panes' names", () => {
+    expect(describeTarget({ kind: "A", socket: DECK, pane: "%9", name: "ccdeck-codex-5e6f7a8b", learnedId: ID, launchKey: "launch-k1" }))
       .toEqual(describeTarget({ kind: "A" }));
     expect(describeTarget({ kind: "gone", adoptable: true, deadSessions: ["ccdeck-claude-00000001"] }))
       .toEqual(describeTarget({ kind: "gone", adoptable: true }));

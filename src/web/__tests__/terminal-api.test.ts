@@ -83,6 +83,19 @@ describe("the requests themselves", () => {
     expect(asked[0].method).toBe("GET");
   });
 
+  it("adds a launch's key to the target's query only when asked about one, and reads the deck's yes or no", async () => {
+    const yes = answering(200, { ok: true, target: ATTACHABLE, launched: true });
+    expect(await terminalTarget(SESSION, { fetchFn: yes.fetchFn }, "launch-k1")).toEqual({ ok: true, target: ATTACHABLE, launched: true });
+    expect(new URL(yes.asked[0].url, "http://127.0.0.1/").searchParams.get("launch")).toBe("launch-k1");
+    const no = answering(200, { ok: true, target: ATTACHABLE, launched: false });
+    expect(await terminalTarget(SESSION, { fetchFn: no.fetchFn }, "launch-k1")).toMatchObject({ launched: false });
+    const odd = answering(200, { ok: true, target: ATTACHABLE, launched: "yes" });
+    expect(await terminalTarget(SESSION, { fetchFn: odd.fetchFn }, "launch-k1"), "a yes that is not a boolean is not one").not.toHaveProperty("launched");
+    const plain = answering(200, { ok: true, target: ATTACHABLE });
+    expect(await terminalTarget(SESSION, { fetchFn: plain.fetchFn })).toEqual({ ok: true, target: ATTACHABLE });
+    expect(new URL(plain.asked[0].url, "http://127.0.0.1/").searchParams.has("launch")).toBe(false);
+  });
+
   it("POSTs open and adopt as JSON with exactly the session's three fields", async () => {
     for (const call of [openTerminal, adoptTerminal]) {
       const { fetchFn, asked } = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });

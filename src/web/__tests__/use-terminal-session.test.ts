@@ -885,6 +885,33 @@ describe("a new session started from the stage", () => {
     expect(r.last().subject, "and says so, for the stage to match it against what it shows").toBe(subjectKey({ kind: "session", ref: OTHER }));
   });
 
+  it("keeps a Codex launch's connection for the session the stage says it became, and only that one", async () => {
+    // Codex is answered no id, so the launch's own answer cannot name the
+    // session; the stage, which asked the deck, says which launch it came from.
+    const codexRef = { sessionId: "019a1b2c-3d4e-7f50-8a9b-0c1d2e3f4a5b", provider: "codex" as const, cwd: OTHER.cwd };
+    for (const [next, kept] of [
+      [{ kind: "session", ref: codexRef, launch: "n1" }, true],
+      [{ kind: "session", ref: codexRef }, false],
+      [{ kind: "session", ref: codexRef, launch: "n0" }, false],
+    ] as const) {
+      const { r, ctl } = rig();
+      r.launch.mockResolvedValueOnce({ ok: true, sessionId: "", name: "ccdeck-codex-9f8e7d6c", ticket: "launched" } as Launched);
+      ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+      await flush();
+      ctl.show({ kind: "launch", agent: "codex", cwd: OTHER.cwd, key: "n1" });
+      await flush();
+      ctl.show(next);
+      await flush();
+      const label = JSON.stringify(next);
+      if (kept) {
+        expect(r.sockets[0].closedWith, label).toEqual([]);
+        expect(r.open, label).not.toHaveBeenCalled();
+      } else {
+        expect(r.open, `${label}: a switch, attached afresh`).toHaveBeenCalled();
+      }
+    }
+  });
+
   it("says tmux is missing when the launch is refused for want of it", async () => {
     const { r, ctl } = rig();
     r.launch.mockResolvedValueOnce(failure(409, "The terminal runs on tmux, which is not installed on this machine."));

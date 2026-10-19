@@ -30,10 +30,14 @@ import type { LaunchOptions, TerminalProvider } from "./terminal-api";
 export type ShellPhase = "closed" | "waiting" | "opening" | "open" | "closing";
 
 /** What the stage is asked to show — by id; the stage itself turns an id into
- *  the session's name, state and pane (components/terminal/stage-board.ts). */
+ *  the session's name, state and pane (components/terminal/stage-board.ts).
+ *  A session's `launch` is the key of the launch on this stage that became it,
+ *  so the pane already attached to it is kept rather than attached again
+ *  (use-terminal-session.ts, show): a Codex launch is not told its id, so the
+ *  id alone cannot say that. */
 export type StageTarget =
   | { kind: "empty" }
-  | { kind: "session"; id: string }
+  | { kind: "session"; id: string; launch?: string }
   | { kind: "launch"; agent: TerminalProvider; cwd: string; key: string; options?: LaunchOptions };
 
 /** A box on the page, in CSS pixels from the viewport's top-left corner. */
@@ -184,7 +188,7 @@ export function shellReducer(state: ShellState, action: ShellAction): ShellState
       // showing it as that session, on the connection it already has.
       const t = state.target;
       if (t?.kind !== "launch" || t.key !== action.key || !action.sessionId) return state;
-      return { ...state, target: { kind: "session", id: action.sessionId }, last: action.sessionId };
+      return { ...state, target: { kind: "session", id: action.sessionId, launch: t.key }, last: action.sessionId };
     }
     case "remember":
       // A launch the board has not heard of yet — Claude's trust question is

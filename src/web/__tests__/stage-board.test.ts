@@ -64,6 +64,13 @@ describe("the facts the header's sentence is built from", () => {
 });
 
 describe("what the stage shows", () => {
+  it("passes on the launch a session came from, whether or not the board has it", () => {
+    const root = agent("s1");
+    expect(stageShowFor({ kind: "session", id: "s1", launch: "n1" }, new Map([["s1", root]]), NOW)).toMatchObject({ kind: "session", launch: "n1" });
+    expect(stageShowFor({ kind: "session", id: "gone", launch: "n1" }, new Map(), NOW)).toMatchObject({ kind: "session", launch: "n1" });
+    expect(stageShowFor({ kind: "session", id: "s1" }, new Map([["s1", root]]), NOW)).not.toHaveProperty("launch");
+  });
+
   it("shows a board session by its face's name, its hue and its pane's address", () => {
     const root = agent("s1", { model: "claude-opus-5-5", effort: "max", state: "active", tools: [tool("Bash", NOW - 3000)] });
     const show = stageShowFor({ kind: "session", id: "s1" }, new Map([["s1", root]]), NOW);

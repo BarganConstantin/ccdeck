@@ -119,11 +119,13 @@ export function stageShowFor(
     };
   }
   const id = target.id;
+  const launch = target.launch ? { launch: target.launch } : {};
   const root = agents.get(id);
   if (!root) {
     return {
       kind: "session",
       session: { ref: { sessionId: id, provider: "claude", cwd: "" }, name: id.slice(0, 8), hue: sessionHue(id), status: { state: "none", phrase: "" } },
+      ...launch,
     };
   }
   const subs = subagentsOf(agents.values(), id);
@@ -151,6 +153,7 @@ export function stageShowFor(
       context: { prompt: promptLine(lastPrompt), fact },
       endedAgo: root.closedAt != null ? shortAgo(now - root.closedAt) : null,
     },
+    ...launch,
   };
 }
 

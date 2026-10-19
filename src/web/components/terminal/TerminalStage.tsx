@@ -126,7 +126,7 @@ export interface StageSessionInfo {
 /** What the stage is asked to show. */
 export type StageShow =
   | { kind: "empty" }
-  | { kind: "session"; session: StageSessionInfo }
+  | { kind: "session"; session: StageSessionInfo; launch?: string }
   | { kind: "launch"; agent: TerminalProvider; cwd: string; name: string; hue: number; key: string; options?: LaunchOptions };
 
 export interface TerminalStageProps {
@@ -186,7 +186,7 @@ export interface TerminalStageProps {
 export function subjectOf(show: StageShow): StageSubject {
   switch (show.kind) {
     case "empty": return { kind: "empty" };
-    case "session": return { kind: "session", ref: show.session.ref };
+    case "session": return { kind: "session", ref: show.session.ref, ...(show.launch ? { launch: show.launch } : {}) };
     case "launch": return { kind: "launch", agent: show.agent, cwd: show.cwd, key: show.key, ...(show.options ? { options: show.options } : {}) };
   }
 }
