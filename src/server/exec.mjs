@@ -96,8 +96,12 @@ const TIMEOUT_TAIL = 8 << 10;
  * `{...process.env, X: "1"}` to add to it. It exists because the quota probe
  * runs a whole Claude Code and has to mark the run as the deck's own, and that
  * marker is what stops every poll drawing itself onto the canvas.
+ *
+ * `cwd` is the child's working directory, and the deck's own when absent. It
+ * exists for `claude --resume <id> --bg` (stop-continue.mjs): Claude Code
+ * finds a conversation by the project it was started in, and resumes it there.
  */
-export function run(cmd, args, { timeout = 20_000, maxBuffer = 4 << 20, env } = {}) {
+export function run(cmd, args, { timeout = 20_000, maxBuffer = 4 << 20, env, cwd } = {}) {
   const tries = candidates(cmd);
   return new Promise((resolve) => {
     const attempt = (i) => {
@@ -166,7 +170,7 @@ export function run(cmd, args, { timeout = 20_000, maxBuffer = 4 << 20, env } = 
         // process, so a shutdown that does not reap it leaves the child with
         // no deadline at all. See `live` in exec-children.mjs, and #1012.
         const cp = watchChild(execFile(file, argv,
-          { timeout: 0, shell: false, windowsHide: true, maxBuffer, ...(env ? { env } : {}), ...opts }, done));
+          { timeout: 0, shell: false, windowsHide: true, maxBuffer, ...(env ? { env } : {}), ...(cwd ? { cwd } : {}), ...opts }, done));
         // Give the child EOF on stdin straight away, which is what this
         // function's contract has always claimed ("run closes stdin", says
         // runInteractive's header) and what execFile does not do: it leaves the
