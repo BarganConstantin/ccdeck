@@ -9,6 +9,8 @@ import { createToolAudit } from '../../server/tool-audit.mjs';
 import { auditQuery } from '../../server/tool-audit-routes.mjs';
 // @ts-expect-error server module
 import { codexSkillState, codexSkillUses, noteCodexSkills, parseSkillCatalog } from '../../server/codex-skills.mjs';
+import { countingStartedLate, originParts, skillParts, skillSummary, sortSkills } from '../skill-activity';
+import type { SkillRow } from '../tool-audit';
 
 const dirs: string[] = []; const audits: any[] = [];
 const START = Date.parse('2026-10-13T10:00:00Z');
@@ -173,5 +175,32 @@ describe('Codex skill detection', () => {
     expect(noted).toEqual([]);
     await new Promise(resolve => setTimeout(resolve, 50));
     expect(noted).toMatchObject([{ key: 't1|impeccable', name: 'impeccable', origin: 'detected', session: 'parent1', subagent: true, cwd: '/home/me/site' }]);
+  });
+});
+
+describe('Skill activity list', () => {
+  const row = (name: string, uses: number, lastAt: number, extra: Partial<SkillRow> = {}): SkillRow => ({ name, uses, lastAt, repeats: 0, failed: 0, typed: 0,
+    agent: uses, detected: 0, subagent: 0, providers: { claude: uses, codex: 0 }, firstAt: 0, sessions: 1, projects: 1, ...extra });
+  const rows = [row('loop', 3, 50), row('anthropic-skills:docx', 9, 10), row('impeccable', 3, 90)];
+  it('ranks by uses, then by latest, and sorts names by what comes after the namespace', () => {
+    expect(sortSkills(rows, 'uses').map(r => r.name)).toEqual(['anthropic-skills:docx', 'impeccable', 'loop']);
+    expect(sortSkills(rows, 'recent').map(r => r.name)).toEqual(['impeccable', 'loop', 'anthropic-skills:docx']);
+    expect(sortSkills(rows, 'name').map(r => r.name)).toEqual(['anthropic-skills:docx', 'impeccable', 'loop']);
+    expect(sortSkills(rows, 'uses', ' DOCX ').map(r => r.name)).toEqual(['anthropic-skills:docx']);
+  });
+  it('quiets a plugin’s namespace and leaves a plain name whole', () => {
+    expect(skillParts('anthropic-skills:docx')).toEqual({ namespace: 'anthropic-skills:', short: 'docx' });
+    expect(skillParts('matt-pr')).toEqual({ namespace: '', short: 'matt-pr' });
+    expect(skillParts('odd:')).toEqual({ namespace: '', short: 'odd:' });
+  });
+  it('says how the uses came about, and only what happened', () => {
+    expect(originParts(row('x', 6, 0, { typed: 2, agent: 3, detected: 1, subagent: 1 }))).toEqual(['2 typed by you', '3 called by the agent', '1 detected in Codex', '1 in a subagent']);
+    expect(originParts(row('x', 1, 0))).toEqual(['1 called by the agent']);
+  });
+  it('sums the period in one sentence and leaves repeats out of the count', () => {
+    const summary = skillSummary({ total: 1, failed: 0, repeats: 4, rows: [row('loop', 1, 0, { repeats: 4 }), row('idle', 0, 0, { repeats: 2 })] }, 'claude', '7');
+    expect(summary).toEqual({ lead: 'In the last 7 days, Claude used', skills: '1 skill', uses: 'once', failed: 0, repeats: 4 });
+    expect(countingStartedLate({ countedSince: 10, since: 5 })).toBe(true);
+    expect(countingStartedLate({ countedSince: 5, since: 10 })).toBe(false);
   });
 });
