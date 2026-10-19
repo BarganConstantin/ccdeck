@@ -38,6 +38,7 @@ import LanSyncSection from "./LanSyncSection";
 import { useRequestSlot } from "../use-request-slot";
 import { useAccountMenu } from "../use-account-menu";
 import { useAccountSwitching } from "../use-account-switching";
+import { afterRemoval, type RemoveAnswer } from "../expired-switch";
 import { useThresholdDraft } from "../use-threshold-draft";
 import { POLL_MS, useAccountRoster } from "../use-account-roster";
 import { useRosterFocus } from "../use-roster-focus";
@@ -88,6 +89,9 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   const issueRef = useRef(issueOpen);
   issueRef.current = issueOpen;
   const [addOpen, setAddOpen] = useState(false);
+  // The address the sign-in dialog opens filled in with, when a refused switch
+  // asked for that account's sign-in (#2184). Null is the ordinary + → Add.
+  const [signInAs, setSignInAs] = useState<string | null>(null);
   // The Usage report (#1707): every account's 5h and 7d added up, and the
   // order the panel listed them in when it was opened — its rows keep that
   // order through the polls, as the panel's own list does under a reader.
@@ -184,15 +188,30 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // The ⋯ popover, what it is holding and the requests pressed in it — see
   // use-account-menu.ts. The panel reads which menu is open and the note a swap
   // leaves on a row; the popover gets the whole of it.
-  const accountMenu = useAccountMenu({ claim, release, load, clearFailure, rescueFocus });
+  // What a removal did after it landed, said by the hooks below it: the menu
+  // is built before the switching hook whose confirmation it may need (#2184).
+  const afterRemoveRef = useRef<((out: RemoveAnswer) => void) | null>(null);
+  const accountMenu = useAccountMenu({
+    claim, release, load, clearFailure, rescueFocus, afterRemove: out => afterRemoveRef.current?.(out),
+  });
   const { menu, menuFor, swapNote, showMenu, dropMenu, closeMenu, sayInMenu } = accountMenu;
 
   // Switching to an account, every auto-switch control's POST, and the
   // confirmation a switch that took leaves on its row — see
   // use-account-switching.ts.
-  const { switched, post, doSwitch } = useAccountSwitching({
+  const { switched, post, doSwitch, noteSwitched } = useAccountSwitching({
     data, claim, release, load, sayFailure, clearFailure, sayInMenu, rescueFocus,
   });
+  // Removing the live account with its login expired moves Claude Code to a
+  // working one, said on that row as a switch is; when none could take over,
+  // said at the foot, because the live account is no longer a row to say it on.
+  afterRemoveRef.current = out => {
+    const said = afterRemoval(out);
+    if (said && "switched" in said) noteSwitched(said.switched.num, said.switched.name);
+    else if (said) sayFailure(said.failure);
+  };
+  /** The sign-in dialog, filled in with this account's address. */
+  const signInAgain = (email: string | null) => { setSignInAs(email); setAddOpen(true); };
 
   // Where auto-switch trips, what the picker proposes instead, and the press
   // that stores it — see use-threshold-draft.ts.
@@ -447,7 +466,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
         opened={opened} onToggleLanes={() => setOpenness(o => toggleOne(o, a))}
         busy={busy} pressProps={pressProps} onSwitch={doSwitch}
         menuOpen={menuOpen} onOpenMenu={openMenu} onCloseMenu={closeMenu}
-        refusal={refusal} onDismissRefusal={() => clearFailure()}
+        refusal={refusal} onDismissRefusal={() => clearFailure()} onSignIn={signInAgain}
         switchedHere={switchedHere} swapped={swapped} displaced={displaced}
         issueExpanded={issueExpanded} onOpenIssue={openIssue}
         sortKey={a.active ? null : orderKey(shownOrder)} />
@@ -716,7 +735,8 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
 
       {addOpen && (
         <AddAccountDialog
-          onClose={() => setAddOpen(false)}
+          email={signInAs}
+          onClose={() => { setAddOpen(false); setSignInAs(null); }}
           onChanged={() => load(true)}
         />
       )}

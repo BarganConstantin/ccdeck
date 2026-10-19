@@ -105,6 +105,9 @@ interface Props {
   /** Why a switch pressed on this row did not work, if one did not. */
   refusal: Failure | null;
   onDismissRefusal: () => void;
+  /** Open the sign-in dialog for this account — the remedy a refusal for an
+   *  expired login offers (#2184). Absent, that refusal offers no button. */
+  onSignIn?: (email: string | null) => void;
   /** A switch from the panel just landed on this account. */
   switchedHere: boolean;
   /** The swap a move into a taken slot made, when it landed on this row. */
@@ -121,7 +124,7 @@ interface Props {
 
 export default function AccountRow({
   a, nowSec, lan, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
-  refusal, onDismissRefusal, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null,
+  refusal, onDismissRefusal, onSignIn, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null,
 }: Props) {
   // The windows that have not reset since they were read: the only ones whose
   // numbers say anything about this window (lane-view.ts's lapsed).
@@ -284,6 +287,16 @@ export default function AccountRow({
       {refusal && (
         <div className="ap-failure ap-row-failure" role="alert">
           <span className="ap-failure-text" title={refusal.raw || undefined}>{refusal.text}</span>
+          {/* A switch the deck refused because this login has expired
+              (#2184) has one remedy, and it is offered where the refusal
+              is: the sign-in dialog, filled in with this account. */}
+          {refusal.signIn && onSignIn && (
+            <button type="button" className="ap-fix ap-failure-fix" onClick={() => onSignIn(a.email)}
+              aria-label={`Sign in again as ${a.email ?? name}`}
+              title="Open the sign-in dialog. Signing in as this account replaces its expired login in place — it keeps its slot, its alias and its history.">
+              Sign in again
+            </button>
+          )}
           <button type="button" className="ap-failure-x" onClick={() => onDismissRefusal()}
             aria-label="Dismiss this message" title="Dismiss">×</button>
         </div>
