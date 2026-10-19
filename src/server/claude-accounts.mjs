@@ -904,8 +904,18 @@ export async function expiredSwitchTarget(num) {
  * (readBeforeSwitch), and judged inside the lock, on the store as it stands
  * when `cswap switch` would run (expiredSwitchTarget). Anything that cannot be
  * judged lets the switch go ahead.
+ *
+ * `before`, when given, is asked first thing inside the lock: a switch nobody
+ * pressed — the auto-switch failover — may have been turned off while it
+ * queued, and answers `{ skipped: <why> }` instead of moving the account.
+ *
+ * `force` is `cswap switch --force`: activate the target without backing up
+ * the current login first. Only for a current login already known to be dead.
+ * Claude Code clears a login whose refresh was refused, and a plain switch then
+ * refuses in turn ("Current account credential is empty …; refusing to
+ * overwrite its backup"), which would leave the user exactly where they were.
  */
-export function switchClaudeAccount(accountNum) {
+export function switchClaudeAccount(accountNum, { before, force = false } = {}) {
   // Straight into an exec argument, so nothing but a slot number gets through.
   const num = slotNumber(accountNum);
   if (num == null) {
@@ -915,9 +925,12 @@ export function switchClaudeAccount(accountNum) {
   // Argument vector, never a shell — and resolved through exec.mjs so the
   // Windows `.exe`/`.cmd` shim is found too.
   return readBeforeSwitch(num).then(() => withStoreLock(async () => {
+    const skipped = before ? await before() : null;
+    if (skipped) return { ok: false, skipped };
     const expired = await expiredSwitchTarget(num);
     if (expired) return expired;
-    const r = await run(await cswapBin(), ["switch", String(num)], { timeout: 30_000 });
+    const argv = force ? ["switch", String(num), "--force"] : ["switch", String(num)];
+    const r = await run(await cswapBin(), argv, { timeout: 30_000 });
     if (r.ok) return { ok: true, output: r.stdout.trim() };
     const reason = r.code === "ENOENT" ? "no_cswap" : r.killed ? "timeout" : "switch_failed";
     return { ok: false, reason, output: failureDetail(r, 500) };

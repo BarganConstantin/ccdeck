@@ -91,7 +91,9 @@ export function noteAutoSwitch(enabled) {
 export function noteAutoTick(result) {
   const n = notifier();
   if (!n || !result) return Promise.resolve();
-  return (result.switched ? storeAccounts() : Promise.resolve(null))
+  // A dead login with nowhere to go is named too, so its notice can say whose.
+  const named = result.switched || result.reason === "login-expired";
+  return (named ? storeAccounts() : Promise.resolve(null))
     .then(accounts => n.tick(result, accounts))
     .catch(() => {});
 }
