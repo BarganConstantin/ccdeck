@@ -304,6 +304,16 @@ describe("what was migrated to the secondary tier", () => {
       ".ta-note",
       ".ta-search input::placeholder",
       ".ta-summary",
+      // The local reads' waits — Projects, session usage, usage history, and
+      // quota, process and sensor history: the one sentence under each title
+      // that says what is being read, and that the first run may download
+      // ccusage. Read once while waiting, as .bw-loading p is. Their drawings
+      // are decoration and sit on --muted.
+      ".ap-proj-loading > span",
+      ".read-activity > span",
+      ".su-loading > span",
+      ".uh-reading-hint",
+      ".uh-reading-note",
       ".tr-active-destinations > span",
       ".tr-event-top time",
       ".tr-history",

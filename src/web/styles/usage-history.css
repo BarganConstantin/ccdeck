@@ -111,7 +111,7 @@
   padding: 0 0 16px;
 }
 .uh-wait-word { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: 100%; padding: 8px 12px 16px; }
-.uh-reading-art { width: 208px; height: 83px; max-width: 100%; color: var(--text-secondary); margin-bottom: 4px; }
+.uh-reading-art { width: 208px; height: 83px; max-width: 100%; color: var(--muted); margin-bottom: 4px; }
 .uh-reading-link { stroke: var(--line); stroke-dasharray: 2 5; }
 .uh-reading-packets { color: var(--accent); }
 .uh-reading-packets rect { transform-box: view-box; animation: uh-reading-transfer 1800ms cubic-bezier(0.4, 0, 0.2, 1) infinite; opacity: 0; }
