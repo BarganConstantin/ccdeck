@@ -40,7 +40,8 @@ describe("version 1 browser contract", () => {
     const response = await fetch(base + path, { method: sample.method, headers: { Origin: base, "Sec-Fetch-Site": "same-origin", ...(request ? { "Content-Type": "application/json" } : {}) }, ...(request ? { body: JSON.stringify(request) } : {}) });
     expect(response.status).toBe(sample.status);
     const body = await response.json();
-    expect(body).toEqual(sample.response);
+    // Recorded on macOS; `platform` is the deck's own OS wherever it runs.
+    expect(body).toEqual(JSON.parse(JSON.stringify(sample.response).replaceAll("$PLATFORM", process.platform)));
     if (body.target) for (const key of Object.keys(body.target)) expect(Object.keys(spec.$defs.target.properties)).toContain(key);
     expect(JSON.stringify(body)).not.toMatch(/socketPath|panePid|"pid"|"pane"|"socket"/);
   });

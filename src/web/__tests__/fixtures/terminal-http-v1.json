@@ -6,7 +6,7 @@
     "status": 200,
     "response": {
       "ok": true,
-      "platform": "darwin",
+      "platform": "$PLATFORM",
       "tmux": {
         "ok": false,
         "reason": "missing",
