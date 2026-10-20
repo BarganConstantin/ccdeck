@@ -112,6 +112,14 @@ function maybePrune(d, tmux) {
  * startServer passes its `terminal` option through here, which is how the
  * suite runs the routes on a tmux server of its own, or with no tmux at all.
  * The product passes nothing.
+ *
+ * `engine` is the optional local engine's terminal, as engineTerminals in
+ * pro-engine-terminal.mjs builds it for a client — and nothing, the default,
+ * and always so in the free product. It too reaches the deck only through
+ * this option: no setting, variable or flag turns it on. While it is enabled,
+ * each route below is asked of it first (viaEngine) and the upgrade relays the
+ * tickets it minted; with none, nothing here differs from a deck built before
+ * the engine existed, and nothing of the engine's is loaded.
  */
 export function terminalDeps(overrides = {}) {
   const d = {
@@ -139,6 +147,7 @@ export function terminalDeps(overrides = {}) {
     downloadProgress: tmuxDownloadProgress,
     recentDownloadFailure: recentTmuxFailure,
     forgetTmux: resetTmuxCache,
+    engine: null,
     ...(overrides ?? {}),
   };
   d.downloadBlocked ??= () => tmuxDownloadBlocked({ env: d.env, platform: d.platform });
@@ -152,14 +161,16 @@ export function terminalDeps(overrides = {}) {
 
 /**
  * What terminal-socket's installTerminalUpgrade needs from this side: the
- * flag, the ticket store the routes mint into, and the bridge for a socket it
- * admitted. Same `overrides` as terminalDeps.
+ * flag, the ticket store the routes mint into, the bridge for a socket it
+ * admitted, and the engine when there is one. Same `overrides` as
+ * terminalDeps.
  */
 export function terminalUpgradeOptions(overrides = {}) {
   const d = terminalDeps(overrides);
   return {
     enabled: () => d.enabled(),
     tickets: d.tickets,
+    ...(d.engine ? { engine: d.engine } : {}),
     openBridge: (ctx) => {
       const bridge = terminalBridge(d.openControl ? { ...ctx, open: d.openControl } : ctx);
       if (ctx.binding?.kind !== "D") return bridge;
@@ -285,6 +296,7 @@ export function tmuxStatus(found) {
 export async function handleTerminalStatus(req, res, options) {
   const d = terminalDeps(options);
   if (!d.enabled()) return notFound(res);
+  if (d.engine?.enabled === true && await viaEngine(d, req, res, "status", null)) return;
   const found = await d.findTmux();
   const fixable = !found?.ok && (found?.reason === "missing" || found?.reason === "too-old");
   if (fixable && !d.downloadBlocked()) {
@@ -306,11 +318,13 @@ export async function handleTerminalStatus(req, res, options) {
 export async function handleTerminalTarget(req, res, url, options) {
   const d = terminalDeps(options);
   if (!d.enabled()) return notFound(res);
-  const q = checkTargetQuery({
+  const query = {
     sessionId: url?.searchParams.get("session") ?? "",
     provider: url?.searchParams.get("provider") ?? "",
     cwd: url?.searchParams.get("cwd") ?? "",
-  });
+  };
+  if (d.engine?.enabled === true && await viaEngine(d, req, res, "target", query)) return;
+  const q = checkTargetQuery(query);
   if (!q.ok) return send(res, 400, { ok: false, error: q.error });
   const { target } = await locate(q, d);
   return send(res, 200, { ok: true, target: describeTarget(target) });
@@ -334,6 +348,7 @@ export async function handleTerminalClaim(req, res, options) {
   const d = terminalDeps(options);
   if (!d.enabled()) return notFound(res);
   const body = await jsonBody(req, res);
+  if (d.engine?.enabled === true && await viaEngine(d, req, res, "claim", body)) return;
   if (!body) return send(res, 400, { ok: false, error: "The request did not name a session." });
   if (!isLaunchKey(body.key)) return send(res, 400, { ok: false, error: "The launch's key is not one the deck can keep." });
   const q = checkTargetQuery(body);
@@ -361,6 +376,7 @@ export async function handleTerminalOpen(req, res, options) {
   const d = terminalDeps(options);
   if (!d.enabled()) return notFound(res);
   const body = await jsonBody(req, res);
+  if (d.engine?.enabled === true && await viaEngine(d, req, res, "open", body)) return;
   if (!body) return send(res, 400, { ok: false, error: "The request did not name a session." });
   const q = checkTargetQuery(body);
   if (!q.ok) return send(res, 400, { ok: false, error: q.error });
@@ -420,6 +436,7 @@ export async function handleTerminalAdopt(req, res, options) {
   const d = terminalDeps(options);
   if (!d.enabled()) return notFound(res);
   const body = await jsonBody(req, res);
+  if (d.engine?.enabled === true && await viaEngine(d, req, res, "adopt", body)) return;
   if (!body) return send(res, 400, { ok: false, error: "The request did not name a session." });
   const q = checkTargetQuery(body);
   if (!q.ok) return send(res, 400, { ok: false, error: q.error });
@@ -462,6 +479,7 @@ export async function handleTerminalLaunch(req, res, options) {
   const d = terminalDeps(options);
   if (!d.enabled()) return notFound(res);
   const body = await jsonBody(req, res);
+  if (d.engine?.enabled === true && await viaEngine(d, req, res, "launch", body)) return;
   if (!body) return send(res, 400, { ok: false, error: "The request did not say what to start." });
   if (!AGENTS.includes(body.agent)) {
     return send(res, 400, { ok: false, error: "The deck can start Claude or Codex sessions only." });
@@ -565,8 +583,54 @@ async function locate(q, d) {
 /** A ticket for `binding`, with the tmux that found the pane and the page's
  *  own origin added — the socket must be opened by the page that asked. */
 function mint(d, req, tmux, binding) {
-  const origin = typeof req?.headers?.origin === "string" ? req.headers.origin.trim().toLowerCase() : "";
+  const origin = pageOrigin(req);
   return d.tickets.mint({ ...binding, tmux: tmux?.path, ...(origin ? { origin } : {}) });
+}
+
+function pageOrigin(req) {
+  return typeof req?.headers?.origin === "string" ? req.headers.origin.trim().toLowerCase() : "";
+}
+
+/**
+ * The route answered by the optional local engine (terminalDeps' `engine`):
+ * true once the answer is sent, false when the engine did not take the
+ * question and the route goes on as it does with no engine — none running,
+ * none with a terminal, or a request it turned away before running it
+ * (routeThroughEngine says which). `body` is the route's parsed question.
+ *
+ * Everything HTTP stays here: the flag and the gates have been asked, the body
+ * read under its cap (a 413 is already sent). The engine answers the status
+ * and body this file would send. Where that body carries a ticket the engine's
+ * holds null, and its answer an opaque `handle`: the ticket is minted here, in
+ * the same store, 30 s and single use, bound to `{ handle, origin }` — the
+ * page's origin as for any ticket — and the upgrade relays it to the engine.
+ * The pane never reaches this process. Its `log` line goes to the deck's log
+ * where this file logs, never to the page; `fixable` runs the download branch
+ * handleTerminalStatus runs, and a build that lands is forgotten on both
+ * sides.
+ */
+async function viaEngine(d, req, res, method, body) {
+  if (res.headersSent) return true;
+  const answer = await d.engine.route(method, body);
+  if (!answer) return false;
+  if (answer.log) console.error(`${PRODUCT}: terminal: ${answer.log}`);
+  let out = answer.body;
+  if (answer.handle) {
+    const origin = pageOrigin(req);
+    out = { ...out, ticket: d.tickets.mint({ handle: answer.handle, ...(origin ? { origin } : {}) }) };
+  }
+  if (answer.fixable && !d.downloadBlocked()) {
+    const failed = d.recentDownloadFailure();
+    if (failed) {
+      out = { ...out, tmux: { ...out.tmux, download: failed.reason } };
+    } else {
+      void d.downloadTmux().then((r) => { if (r?.ok) { d.forgetTmux(); d.engine.forgetTmux(); } }, () => {});
+      const progress = d.downloadProgress();
+      out = { ...out, tmux: { ok: false, reason: "installing", ...(progress ? { progress } : {}) } };
+    }
+  }
+  send(res, answer.status, out);
+  return true;
 }
 
 /**

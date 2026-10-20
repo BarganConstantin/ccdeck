@@ -153,9 +153,9 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual({ total: 0, byFile: {} });
   });
 
-  it("expects the one hundred and five platform-gated cases to skip on Windows, file by file", () => {
-    // Seventy-five behind `process.platform === "win32"`, nineteen behind the
-    // optional engine's macOS-and-Linux gate, eight behind the posix
+  it("expects the one hundred and thirteen platform-gated cases to skip on Windows, file by file", () => {
+    // Seventy-five behind `process.platform === "win32"`, twenty-seven behind
+    // the optional engine's macOS-and-Linux gate, eight behind the posix
     // runIf family, and the three read-only-directory cases — sound-hook-park's,
     // the swap script's in desktop-updater and the macOS updater's in
     // desktop-update-unreplaceable-app — whose probe reports false on
@@ -164,7 +164,7 @@ describe("the register of conditionally-skipped cases", () => {
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 105,
+      total: 113,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
@@ -184,6 +184,7 @@ describe("the register of conditionally-skipped cases", () => {
         "no-shell-hook-commands.test.ts": 2,
         "prefs-corrupt-1002.test.ts": 2,
         "pro-engine-client.test.ts": 19,
+        "pro-engine-routes.test.ts": 8,
         "pro-engine-terminal.test.ts": 26,
         "relay-guard.test.ts": 6,
         "settings-atomic-write.test.ts": 1,
