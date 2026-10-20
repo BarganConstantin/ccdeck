@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ccdeck.dev/contracts/terminal-v1.schema.json",
+  "title": "ccdeck browser terminal contract",
+  "version": 1,
+  "routes": {
+    "status": {
+      "method": "GET",
+      "path": "/api/terminal/status"
+    },
+    "target": {
+      "method": "GET",
+      "path": "/api/terminal/target"
+    },
+    "open": {
+      "method": "POST",
+      "path": "/api/terminal/open"
+    },
+    "adopt": {
+      "method": "POST",
+      "path": "/api/terminal/adopt"
+    },
+    "launch": {
+      "method": "POST",
+      "path": "/api/terminal/launch"
+    },
+    "claim": {
+      "method": "POST",
+      "path": "/api/terminal/claim"
+    }
+  },
+  "websocket": {
+    "path": "/api/terminal/attach",
+    "ticketTtlMs": 30000,
+    "maxTickets": 32,
+    "maxConnections": 4,
+    "maxMessageBytes": 1048576,
+    "ackWindowBytes": 524288,
+    "serverMessages": [
+      "hello",
+      "tmux",
+      "reset",
+      "size",
+      "exit"
+    ],
+    "clientMessages": [
+      "size",
+      "paste",
+      "colours",
+      "ack"
+    ],
+    "data": "binary; reset followed immediately by one binary seed"
+  },
+  "$defs": {
+    "session": {
+      "type": "object",
+      "required": [
+        "sessionId",
+        "provider"
+      ],
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "provider": {
+          "enum": [
+            "claude",
+            "codex"
+          ]
+        },
+        "cwd": {
+          "type": "string"
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "kind",
+        "label"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "A",
+            "B",
+            "C",
+            "D",
+            "gone",
+            "unsupported"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "adoptable": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "install": {
+          "type": "string"
+        },
+        "hint": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

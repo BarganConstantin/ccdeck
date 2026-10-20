@@ -1,0 +1,133 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/terminal/status",
+    "request": null,
+    "status": 200,
+    "response": {
+      "ok": true,
+      "platform": "darwin",
+      "tmux": {
+        "ok": false,
+        "reason": "missing",
+        "install": "Install tmux 3.2 or newer."
+      }
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/terminal/target?session=invalid&provider=claude",
+    "request": null,
+    "status": 400,
+    "response": {
+      "ok": false,
+      "error": "That is not a session id."
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/terminal/target?session=11112222-3333-4000-8000-111122223333&provider=claude&cwd=$PROJECT",
+    "request": null,
+    "status": 200,
+    "response": {
+      "ok": true,
+      "target": {
+        "kind": "unsupported",
+        "label": "The terminal runs on tmux, which is not installed on this machine.",
+        "reason": "missing",
+        "install": "Install tmux 3.2 or newer."
+      }
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/terminal/open",
+    "request": {
+      "sessionId": "11112222-3333-4000-8000-111122223333",
+      "provider": "claude",
+      "cwd": "$PROJECT"
+    },
+    "status": 200,
+    "response": {
+      "ok": false,
+      "target": {
+        "kind": "unsupported",
+        "label": "The terminal runs on tmux, which is not installed on this machine.",
+        "reason": "missing",
+        "install": "Install tmux 3.2 or newer."
+      }
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/terminal/adopt",
+    "request": {
+      "sessionId": "11112222-3333-4000-8000-111122223333",
+      "provider": "claude",
+      "cwd": "$PROJECT"
+    },
+    "status": 409,
+    "response": {
+      "ok": false,
+      "error": "The terminal runs on tmux, which is not installed on this machine.",
+      "install": "Install tmux 3.2 or newer."
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/terminal/launch",
+    "request": {
+      "agent": "bad",
+      "cwd": "$PROJECT"
+    },
+    "status": 400,
+    "response": {
+      "ok": false,
+      "error": "The deck can start Claude or Codex sessions only."
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/terminal/launch",
+    "request": {
+      "agent": "codex",
+      "cwd": "$PROJECT"
+    },
+    "status": 409,
+    "response": {
+      "ok": false,
+      "error": "The terminal runs on tmux, which is not installed on this machine.",
+      "install": "Install tmux 3.2 or newer."
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/terminal/claim",
+    "request": {
+      "key": "launch-fixture",
+      "sessionId": "11112222-3333-4000-8000-111122223333",
+      "provider": "codex",
+      "cwd": "$PROJECT"
+    },
+    "status": 200,
+    "response": {
+      "ok": true,
+      "claimed": false,
+      "target": {
+        "kind": "unsupported",
+        "label": "The terminal runs on tmux, which is not installed on this machine.",
+        "reason": "missing",
+        "install": "Install tmux 3.2 or newer."
+      }
+    }
+  },
+  {
+    "baseline": "main",
+    "method": "GET",
+    "path": "/api/terminal/status",
+    "status": 404,
+    "response": {
+      "error": "not found"
+    }
+  }
+]
