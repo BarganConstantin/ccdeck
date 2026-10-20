@@ -15,7 +15,15 @@ async function readOwned(file, limit, executable = false) {
   try {
     const before = await handle.stat();
     if (!before.isFile() || !owned(before, executable) || before.size > limit || before.size < 1) throw invalid();
-    const data = await handle.readFile();
+    // Bound reads even if a concurrent writer grows the file after fstat.
+    const buffer = Buffer.alloc(before.size + 1);
+    let offset = 0;
+    while (offset < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, offset, buffer.length - offset, null);
+      if (!bytesRead) break;
+      offset += bytesRead;
+    }
+    const data = buffer.subarray(0, offset);
     const after = await handle.stat();
     if (data.length !== before.size || after.size !== before.size || after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs) throw invalid();
     return { data, stat: after };
