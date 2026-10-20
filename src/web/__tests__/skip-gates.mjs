@@ -125,6 +125,10 @@ export const CONDITIONS = {
     holdsOn: () => false,
     why: "publish.yml runs `npm run build` before the suite, so dist/web/index.html is always on disk in CI.",
   },
+  "!['darwin', 'linux'].includes(process.platform)": {
+    holdsOn: (platform) => !["darwin", "linux"].includes(platform),
+    why: "The optional local engine is verified and launched on macOS and Linux only; Windows' ownership and ACL checks are not written yet, and pro-engine-client.test.ts asserts its refusal there on every leg.",
+  },
 };
 
 /**
@@ -204,6 +208,17 @@ export const GATES = [
   // including every assertion about what is kept and what refuses to write,
   // runs on all three legs.
   { file: "prefs-corrupt-1002.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
+  // The terminal socket relayed to the optional local engine, against a signed
+  // test double started as the engine. An engine installation is verified and
+  // launched on macOS and Linux only — Windows' ownership and ACL checks are
+  // not there yet — so neither block can start one on Windows. What a deck
+  // with no engine does is pro-engine-terminal-off, un-gated, on every leg.
+  { file: "pro-engine-terminal.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 26 },
+  // The optional engine's own boundary: install verification, the signed
+  // handshake and the request lifecycle, against the same test double. Written
+  // on the two platforms the installer accepts rather than on win32, so a
+  // fourth platform skips rather than failing an installation it never accepts.
+  { file: "pro-engine-client.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 19 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   // #673's end-to-end block. Creating a FILE symlink on Windows needs
   // SeCreateSymbolicLinkPrivilege, so the seven cases that make one, run a

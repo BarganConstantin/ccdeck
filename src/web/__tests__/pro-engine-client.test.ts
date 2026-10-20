@@ -142,8 +142,17 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))('optional nativ
   });
 });
 
-it.runIf(process.platform === 'win32')('keeps Windows native installation gated until ACL validation', async () => {
-  const client = createProEngineClient(); clients.push(client);
-  await expect(client.start()).rejects.toMatchObject({ code: 'disabled' });
-  await expect(verifyEngineInstallation({ directory: 'C:\\missing', publicKey: 'untrusted' })).rejects.toThrow('could not be verified');
+// Stated on every leg rather than run on Windows alone (skip-gates.mjs keeps
+// Linux and macOS at zero skips): the refusal reads process.platform, so the
+// case stands it at "win32" — a no-op on Windows — and puts it back after.
+it('keeps Windows native installation gated until ACL validation', async () => {
+  const realPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+  Object.defineProperty(process, 'platform', { ...realPlatform, value: 'win32' });
+  try {
+    const client = createProEngineClient(); clients.push(client);
+    await expect(client.start()).rejects.toMatchObject({ code: 'disabled' });
+    await expect(verifyEngineInstallation({ directory: 'C:\\missing', publicKey: 'untrusted' })).rejects.toThrow('could not be verified');
+  } finally {
+    Object.defineProperty(process, 'platform', realPlatform);
+  }
 });

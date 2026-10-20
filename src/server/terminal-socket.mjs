@@ -221,6 +221,9 @@ const everyTerminal = new Set();
 // every upgrade is a 503, so nothing starts a tmux client after the shutdown
 // has already told the others to go.
 let shuttingDown = false;
+// Upgrades waiting on the engine's answer to their attach (relayAdmit). Not
+// open yet, so not counted above, but told of a switch-off once they are.
+const attaching = new Set();
 
 /**
  * Add the terminal's one 'upgrade' listener to `server`.
@@ -231,6 +234,13 @@ let shuttingDown = false;
  *                 admitted socket and answers `{ message, closed, shutdown }`;
  *                 terminalBridge is the real one
  *   max           live terminal sockets allowed (MAX_TERMINALS)
+ *   engine        the optional local engine's terminals, as engineTerminals
+ *                 in pro-engine-terminal.mjs answers them, or nothing — the
+ *                 default, and always so in the free product. A ticket whose
+ *                 binding is an engine `handle` is relayed through it while
+ *                 it is enabled (relayAdmit); every other ticket goes to
+ *                 openBridge, exactly as with no engine. This file imports
+ *                 nothing of the engine's.
  *
  * A refused upgrade gets a plain HTTP status and its socket hung up — never a
  * 101. An admitted one gets the 101, a wsConnection, and its bridge.
@@ -246,7 +256,7 @@ let shuttingDown = false;
  * first. A socket already upgraded is no longer the server's and is left
  * alone either way. Answers `{ sync }` for a caller that knows better.
  */
-export function installTerminalUpgrade(server, { enabled = () => false, tickets, openBridge, max = MAX_TERMINALS } = {}) {
+export function installTerminalUpgrade(server, { enabled = () => false, tickets, openBridge, max = MAX_TERMINALS, engine } = {}) {
   const live = new Set();
   const isOn = () => {
     try { return enabled() === true; } catch { return false; }
@@ -283,12 +293,20 @@ export function installTerminalUpgrade(server, { enabled = () => false, tickets,
     // A ticket minted for one origin is not good for another: the page that
     // asked for it is the page that opens the socket.
     if (binding.origin && binding.origin !== verdict.origin) return refuseSocket(socket, 403);
+    // A ticket an engine route minted is relayed to the engine; any other is
+    // the bridge in this process, exactly as on a deck with no engine.
+    if (engine?.enabled === true && typeof binding.handle === "string") return relayAdmit(verdict.key, socket, head, binding.handle);
+    accept(verdict.key, socket, head, (conn) => openBridge({ conn, socket, binding }));
+  }
 
+  /** Answer an admitted upgrade with the 101 and run its socket, every
+   *  message going to the bridge `open(conn)` answers. Answers the entry. */
+  function accept(key, socket, head, open) {
     // An upgraded socket keeps whatever timeout the HTTP server gave it, and
     // an idle terminal is not a hung request. The keepalive in wsConnection
     // is what notices a peer that has gone.
     socket.setTimeout?.(0);
-    socket.write(upgradeResponse(verdict.key));
+    socket.write(upgradeResponse(key));
     const entry = { socket, conn: null, bridge: null };
     entry.conn = wsConnection(socket, head, {
       // wsConnection reads nothing until the next tick, so the bridge below
@@ -303,9 +321,53 @@ export function installTerminalUpgrade(server, { enabled = () => false, tickets,
     live.add(entry);
     everyTerminal.add(entry);
     try {
-      entry.bridge = openBridge({ conn: entry.conn, socket, binding });
+      entry.bridge = open(entry.conn);
     } catch {
       entry.conn.close(1011, "the terminal could not be opened");
+    }
+    return entry;
+  }
+
+  /**
+   * An engine ticket, past every gate above: the engine runs the bridge and
+   * this socket is relayed to it (`engine.attach`). Until the engine has
+   * answered there is no 101, and the upgrade holds its place among `max`.
+   * A refusal is a plain status like any
+   * other; a socket gone meanwhile, or a deck that began shutting down, gives
+   * the attach up, as the deck refuses any upgrade then.
+   */
+  function relayAdmit(key, socket, head, handle) {
+    const held = { told: null };
+    live.add(held);
+    attaching.add(held);
+    attachRelay(key, socket, head, handle, held).catch(() => socket.destroy());
+  }
+
+  async function attachRelay(key, socket, head, handle, held) {
+    let attached;
+    try {
+      attached = await engine.attach(handle, socket);
+    } catch {
+      attached = { ok: false, status: 500 };
+    } finally {
+      live.delete(held);
+      attaching.delete(held);
+    }
+    if (!attached.ok) return refuseSocket(socket, attached.status);
+    if (socket.destroyed || shuttingDown) {
+      attached.giveUp();
+      return refuseSocket(socket, 503);
+    }
+    try {
+      const entry = accept(key, socket, head, attached.start);
+      entry.relayed = true;
+      // The switch went off while the engine was answering: told now, as it
+      // would have been had the socket opened a moment sooner.
+      if (held.told) entry.bridge?.shutdown(held.told.reason, held.told.text);
+    } catch {
+      // Past the 101 a plain status cannot be sent any more.
+      attached.giveUp();
+      socket.destroy();
     }
   }
 
@@ -359,11 +421,15 @@ export function closeOpenTerminals(reason, text) {
       if (entry.bridge) entry.bridge.shutdown(reason, text);
       else entry.conn?.close(reason === "server-shutdown" ? 1001 : 1000, reason);
     } catch { /* this one is going away regardless */ }
+    // A relayed terminal ends its socket itself, once the engine's own close
+    // has gone down it (pro-engine-terminal.mjs).
+    if (entry.relayed && entry.bridge) continue;
     // Ended rather than left for the close handshake: the shutdown has a
     // second and a half, and a panel that answers its close does so to a
     // socket that is already on its way out.
     try { entry.socket.end(); } catch { /* already gone */ }
   }
+  for (const held of attaching) held.told = { reason, text };
   return told;
 }
 
