@@ -219,6 +219,10 @@ export const GATES = [
   // on the two platforms the installer accepts rather than on win32, so a
   // fourth platform skips rather than failing an installation it never accepts.
   { file: "pro-engine-client.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 19 },
+  // The panel's routes answered by the same signed double started as the
+  // engine, on a real deck, on the same two platforms. What a deck with no
+  // engine answers is pro-engine-routes-off, un-gated, on every leg.
+  { file: "pro-engine-routes.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 8 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   // #673's end-to-end block. Creating a FILE symlink on Windows needs
   // SeCreateSymbolicLinkPrivilege, so the seven cases that make one, run a

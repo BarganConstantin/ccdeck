@@ -211,7 +211,10 @@ export function requestUrl(rawUrl) {
 
 // `terminal` is handed to the terminal routes and its upgrade as their
 // stand-ins (see terminalDeps in terminal-routes.mjs): the suite runs them on
-// a tmux server of its own through it. The product passes nothing.
+// a tmux server of its own through it. The product passes nothing. It is also
+// the only way a deck is given the optional local engine's terminal,
+// `terminal.engine` (engineTerminals in pro-engine-terminal.mjs, built where
+// the client is created): no setting, variable or flag reaches it.
 export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null, terminal = {} } = {}) {
   startQuotaHistory();
   await startToolAudit();

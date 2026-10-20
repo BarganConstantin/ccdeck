@@ -84,6 +84,26 @@ function streamFrame(kind, id, payload) {
   log.push({ stream: id, kind, size: payload.length, ...(payload.length <= 4096 ? { data: payload.toString('base64') } : { sha256: createHash('sha256').update(payload).digest('hex') }) });
   if (!s.hold) credit(id, s);
 }
+// The panel's route methods (terminal.status, .target, .claim, .open, .adopt,
+// .launch, .forgetTmux), answered as terminal.answers set them: per method,
+// `{ data }` or `{ error }`, after `delayMs`, or `{ crash: true }`. A data whose
+// `handle` is "mint" carries a fresh handle this double will redeem, as a
+// route's does. Every call is logged with its params; a method with no answer
+// set is echoed like any other.
+const answers = new Map();
+function route(req) {
+  const a = answers.get(req.method);
+  log.push({ route: req.method, params: req.params });
+  if (a.crash) process.exit(67);
+  const answer = () => {
+    if (a.error) return respond(req.id, null, a.error);
+    const data = JSON.parse(JSON.stringify(a.data));
+    if (data && data.handle === 'mint') { data.handle = randomBytes(32).toString('hex'); handles.set(data.handle, Date.now()); log.push({ minted: data.handle }); }
+    respond(req.id, data);
+  };
+  if (a.delayMs) pending.set(req.id, setTimeout(() => { pending.delete(req.id); answer(); }, a.delayMs)); else answer();
+}
+
 // Frames for terminal.emit: `{ kind, stream, text | size + seed, skip }` as
 // one frame, or `{ binary: size, stream, seed }` as one binary message, in
 // kind-4 parts when it does not fit one frame.
@@ -133,6 +153,8 @@ process.stdin.on('data', chunk => {
     else if (req.method === 'terminal.emit') { emit(req.params.frames); respond(req.id, { emitted: req.params.frames.length }); }
     else if (req.method === 'terminal.hold') { const s = streams.get(req.params.stream); if (s) { s.hold = req.params.hold; if (!s.hold) credit(req.params.stream, s); } respond(req.id, { live: !!s }); }
     else if (req.method === 'terminal.log') respond(req.id, { log, live: [...streams.keys()], named });
+    else if (req.method === 'terminal.answers') { for (const [method, a] of Object.entries(req.params.answers)) answers.set(method, a); respond(req.id, { set: answers.size }); }
+    else if (answers.has(req.method)) route(req);
     else respond(req.id, { value: req.params, pid: process.pid });
   }
 });

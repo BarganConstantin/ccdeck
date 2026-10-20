@@ -1,10 +1,14 @@
 # Optional local engine host contract v1
 
 `createProEngineClient` is an internal Node adapter, not a browser API. It does
-not change HTTP routes, UI, or the active backend. The terminal WebSocket is
-relayed to the engine only for a ticket bound to an engine handle while the
-engine is enabled (Terminal streams, below); otherwise it is served exactly as
-before and the relay module is never loaded.
+not change the UI, and with no engine the HTTP routes and the terminal
+WebSocket are served exactly as before and no engine module is loaded. A deck
+is given an engine only through `startServer`'s `terminal.engine` option, set
+to `engineTerminals(client)` where the client is created; the product passes
+none, and no setting, environment variable or command-line flag reaches it.
+While that engine is enabled, the terminal panel's routes are asked of it
+first (Terminal routes, below), and the terminal WebSocket is relayed to it
+for a ticket bound to an engine handle (Terminal streams, below).
 Construction is disabled by default and performs no file lookup, installation,
 network request or process launch. Only explicit owner configuration may enable
 it. `request(method, params, { signal, timeoutMs })` permits terminal namespace
@@ -53,6 +57,47 @@ browser/other-user selection; it does not claim protection from the same OS
 identity. Installation/update signing and key rotation require separate release
 validation. The free package contains only this host interface, not Rust sources,
 private build machinery, private fixtures or a bundled engine executable.
+
+## Terminal routes
+
+While the deck holds an enabled engine, each of the panel's six routes is
+asked of it, after everything HTTP the deck keeps: the panel switch (404), the
+request gates, and the body (at most 8 KiB, else 413; a JSON object, or null).
+
+| Method | Route | `params` |
+|---|---|---|
+| `terminal.status` | `GET /api/terminal/status` | `{ "body": null }` |
+| `terminal.target` | `GET /api/terminal/target` | `{ "body": { sessionId, provider, cwd } }`, from `session`, `provider` and `cwd` in the query, each `""` when absent |
+| `terminal.claim` | `POST /api/terminal/claim` | `{ "body": B }` |
+| `terminal.open` | `POST /api/terminal/open` | `{ "body": B }` |
+| `terminal.adopt` | `POST /api/terminal/adopt` | `{ "body": B }` |
+| `terminal.launch` | `POST /api/terminal/launch` | `{ "body": B }` |
+| `terminal.forgetTmux` | not a route | `{ "body": null }`, to a running engine once a tmux the deck fetched has landed |
+
+`B` is the request's body when it is a JSON object, else null. The engine
+answers `{ status, body, handle?, log?, fixable? }`, and the deck sends
+`status` and `body` as they are; JSON key order is not part of the contract.
+
+- `handle`, 64 lowercase hex characters, stands where the body's `ticket` is
+  null. The deck mints its ticket there, in the same store as every ticket (30
+  s, single use, at most 32), bound to `{ handle, origin }` with the page's
+  origin, and the upgrade relays that ticket to the engine (Terminal streams).
+  The handle itself is never sent to the page.
+- `log` goes to the deck's log, where the deck's own route logs, never to the
+  page.
+- `fixable` (status only): no usable tmux, and one the deck could fetch. The
+  deck runs its own download branch on the engine's `body.tmux`.
+
+Any other shape is the deck's own 500. The deck's own route answers instead,
+as with no engine, when the engine was not asked or did not run the request:
+it is not running and will not start, its hello advertised
+`terminal.backend: "unavailable"`, it refused with `unavailable` or `busy`,
+or the client refused the request with `invalid_request`. A read (status,
+target) that failed any other way is answered by the deck too. `internal` is
+the deck's 500. A mutation (claim, open, adopt, launch) that failed any other
+way, with no answer in time or the engine gone, is the deck's 500 and is never
+asked again, of the engine or of the deck's own route: it may already have
+started an agent.
 
 ## Terminal streams
 
