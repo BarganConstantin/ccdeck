@@ -11,7 +11,7 @@ function owned(stat, executable = false) {
   return stat.uid === process.getuid() && !(stat.mode & 0o022) && (!executable || !!(stat.mode & 0o100));
 }
 async function readOwned(file, limit, executable = false) {
-  const handle = await fs.open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  const handle = await fs.open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const before = await handle.stat();
     if (!before.isFile() || !owned(before, executable) || before.size > limit || before.size < 1) throw invalid();
