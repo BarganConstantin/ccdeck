@@ -3,6 +3,7 @@ import { mkdtemp, chmod, readFile, writeFile, symlink, rm } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 // @ts-expect-error plain server module
 import { createProEngineClient } from '../../server/pro-engine-client.mjs';
 // @ts-expect-error plain server module
@@ -23,7 +24,7 @@ async function installed(source?: string) {
   const client = createProEngineClient(options); clients.push(client);
   return { ...options, client, executable, manifest, entry, privateKey };
 }
-describe('optional native engine boundary', () => {
+describe.skipIf(!['darwin', 'linux'].includes(process.platform))('optional native engine boundary', () => {
   it('does no path lookup or process launch while disabled', async () => {
     const client = createProEngineClient({ directory: '/nonexistent', publicKey: 'bogus' }); clients.push(client);
     expect(client.running).toBe(false); expect(client.capabilities).toBeUndefined();
@@ -52,6 +53,11 @@ describe('optional native engine boundary', () => {
     const f = await installed(); const other = join(f.directory, 'actual'); await writeFile(other, await readFile(f.executable), { mode: 0o700 });
     await rm(f.executable); await symlink(other, f.executable);
     await expect(f.client.start()).rejects.toThrow('could not be verified');
+  });
+  it('refuses non-regular executable files without waiting for a writer', async () => {
+    const f = await installed(); await rm(f.executable); execFileSync('/usr/bin/mkfifo', [f.executable]);
+    await expect(f.client.start()).rejects.toThrow('could not be verified');
+    expect(f.client.running).toBe(false);
   });
   it('uses one authenticated child for concurrent requests and fragmented replies', async () => {
     const f = await installed(); const result = await Promise.all(Array.from({ length: 24 }, (_, n) => f.client.request('terminal.echo', { n })));
@@ -103,4 +109,10 @@ describe('optional native engine boundary', () => {
     expect(f.client.running).toBe(false); await f.client.close();
     await expect(f.client.request('terminal.echo')).rejects.toMatchObject({ code: 'closed' });
   });
+});
+
+it.runIf(process.platform === 'win32')('keeps Windows native installation gated until ACL validation', async () => {
+  const client = createProEngineClient(); clients.push(client);
+  await expect(client.start()).rejects.toMatchObject({ code: 'disabled' });
+  await expect(verifyEngineInstallation({ directory: 'C:\\missing', publicKey: 'untrusted' })).rejects.toThrow('could not be verified');
 });
