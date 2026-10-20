@@ -2,6 +2,7 @@
 const { createHash } = require('node:crypto');
 const { readFileSync } = require('node:fs');
 const digest = createHash('sha256').update(readFileSync(process.argv[1])).digest('hex');
+const HANDSHAKE_DELAY_MS = 0;
 let input = Buffer.alloc(0), seq = 0n, nonce;
 const pending = new Map();
 function respond(id, data, error) {
@@ -16,13 +17,15 @@ process.stdin.on('data', chunk => {
     const length = input.readUInt32BE(); const req = JSON.parse(input.subarray(17, length + 4)); input = input.subarray(length + 4);
     if (req.method === 'system.hello') {
       nonce = req.params.nonce;
-      respond(req.id, { protocol: 1, target: ({darwin:'apple-darwin',linux:'unknown-linux-gnu'})[process.platform] && `${process.arch === 'x64' ? 'x86_64' : 'aarch64'}-${process.platform === 'darwin' ? 'apple-darwin' : 'unknown-linux-gnu'}`, engineVersion: '0.1.0', engineInstance: '12345678-1234-1234-1234-123456789abc', buildDigest: digest, maxFrameBytes: 2097152, maxPending: 32, streamWindowBytes: 524288, terminal: { backend: 'unavailable', launch: false, resume: false, attachOwned: false, attachExternalTmux: false, attachExternalConsole: false, surviveEngineRestart: false } });
+      setTimeout(() => respond(req.id, { protocol: 1, target: ({darwin:'apple-darwin',linux:'unknown-linux-gnu'})[process.platform] && `${process.arch === 'x64' ? 'x86_64' : 'aarch64'}-${process.platform === 'darwin' ? 'apple-darwin' : 'unknown-linux-gnu'}`, engineVersion: '0.1.0', engineInstance: '12345678-1234-1234-1234-123456789abc', buildDigest: digest, maxFrameBytes: 2097152, maxPending: 32, streamWindowBytes: 524288, terminal: { backend: 'unavailable', launch: false, resume: false, attachOwned: false, attachExternalTmux: false, attachExternalConsole: false, surviveEngineRestart: false } }), HANDSHAKE_DELAY_MS);
     } else if (req.auth !== nonce) process.exit(64);
     else if (req.method === 'system.ping') respond(req.id, { alive: true });
     else if (req.method === 'system.shutdown') { respond(req.id, { stopping: true }); process.exit(0); }
     else if (req.method === 'system.cancel') {
       const id = req.params.id; const timer = pending.get(id); clearTimeout(timer); pending.delete(id);
       if (timer) respond(id, null, 'cancelled'); respond(req.id, { cancelled: !!timer });
+    } else if (req.method === 'terminal.pause') {
+      process.stdin.pause(); respond(req.id, { paused: process.stdin.isPaused() }); return;
     } else if (req.method === 'terminal.slow') {
       pending.set(req.id, setTimeout(() => { pending.delete(req.id); respond(req.id, { pid: process.pid }); }, 2000));
     } else if (req.method === 'terminal.crash') process.exit(67);

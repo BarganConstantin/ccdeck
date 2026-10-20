@@ -7,6 +7,15 @@ import { ENGINE_PROTOCOL, ENGINE_MAX_FRAME, verifyEngineInstallation } from './p
 const fail = (code, message = 'The terminal engine is unavailable.') => Object.assign(new Error(message), { code });
 const MAX_PENDING = 32;
 const MAX_WRITE_QUEUE = 4 * 1024 * 1024;
+function awaitStartup(starting, signal, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const clean = () => { clearTimeout(timer); signal?.removeEventListener('abort', abort); };
+    const abort = () => { clean(); reject(fail('cancelled', 'The operation was cancelled.')); };
+    const timer = setTimeout(() => { clean(); reject(fail('timeout')); }, timeoutMs); timer.unref();
+    signal?.addEventListener('abort', abort, { once: true });
+    starting.then(value => { clean(); resolve(value); }, error => { clean(); reject(error); });
+  });
+}
 const ALLOWED = /^terminal\.[a-zA-Z][a-zA-Z0-9.]{0,63}$/;
 export class ProEngineClient extends EventEmitter {
   #child; #starting; #installation; #nonce; #pending = new Map(); #out = 0n; #in = 0n; #id = 0;
@@ -28,7 +37,7 @@ export class ProEngineClient extends EventEmitter {
     try { return await starting; } finally { if (this.#starting === starting) this.#starting = undefined; }
   }
   async #launch() {
-    const installation = await verifyEngineInstallation(this.options);
+    const installation = await awaitStartup(verifyEngineInstallation(this.options), undefined, 5000);
     if (this.#closed) throw fail('closed');
     const child = spawn(installation.executable, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: false, env: process.env });
     this.#child = child; this.#installation = installation; this.#nonce = randomBytes(32).toString('hex');
@@ -53,8 +62,13 @@ export class ProEngineClient extends EventEmitter {
   async request(method, params = {}, options = {}) {
     if (!ALLOWED.test(method)) throw fail('unknown_method');
     if (options.signal?.aborted) throw fail('cancelled', 'The operation was cancelled.');
-    await this.start();
-    return this.#send(method, params, options);
+    const timeoutMs = options.timeoutMs ?? this.options.timeoutMs;
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 120_000) throw fail('invalid_request');
+    const deadline = performance.now() + timeoutMs;
+    await awaitStartup(this.start(), options.signal, timeoutMs);
+    const remaining = deadline - performance.now();
+    if (remaining <= 0) throw fail('timeout');
+    return this.#send(method, params, { ...options, timeoutMs: remaining });
   }
   #send(method, params, { signal, timeoutMs = this.options.timeoutMs } = {}, authenticated = true) {
     if (!this.#child || this.#closed) return Promise.reject(fail('exited'));
@@ -65,14 +79,14 @@ export class ProEngineClient extends EventEmitter {
     try { payload = Buffer.from(JSON.stringify({ id, method, params, ...(authenticated ? { auth: this.#nonce } : {}) })); } catch { return Promise.reject(fail('invalid_request')); }
     if (payload.length > ENGINE_MAX_FRAME - 13 || this.#child.stdin.writableLength + payload.length + 17 > MAX_WRITE_QUEUE) return Promise.reject(fail('busy'));
     const body = Buffer.allocUnsafe(payload.length + 17); body.writeUInt32BE(payload.length + 13); body[4] = 0; body.writeUInt32BE(0, 5); body.writeBigUInt64BE(++this.#out, 9); payload.copy(body, 17);
+    const child = this.#child;
     return new Promise((resolve, reject) => {
       const clean = () => { clearTimeout(timer); signal?.removeEventListener('abort', abort); this.#pending.delete(id); };
-      const cancel = code => { if (!this.#pending.has(id)) return; clean(); reject(fail(code, code === 'cancelled' ? 'The operation was cancelled.' : undefined)); if (authenticated && method !== 'system.cancel') this.#send('system.cancel', { id }, { timeoutMs: 1000 }).catch(() => {}); };
+      const cancel = code => { if (!this.#pending.has(id)) return; clean(); reject(fail(code, code === 'cancelled' ? 'The operation was cancelled.' : undefined)); if (authenticated && method !== 'system.cancel') this.#send('system.cancel', { id }, { timeoutMs: 1000 }).catch(() => this.#lost(child, fail('cancellation_failed'))); };
       const abort = () => cancel('cancelled');
       const timer = setTimeout(() => cancel('timeout'), timeoutMs); timer.unref();
       this.#pending.set(id, { resolve: value => { clean(); resolve(value); }, reject: error => { clean(); reject(error); } });
       signal?.addEventListener('abort', abort, { once: true });
-      const child = this.#child;
       child.stdin.write(body, error => { if (error) this.#lost(child, fail('transport')); });
     });
   }

@@ -42,7 +42,7 @@ export async function verifyEngineInstallation({ directory, publicKey }) {
     let ancestor = path.dirname(root);
     while (true) {
       const s = await fs.stat(ancestor);
-      if ((s.mode & 0o022) && !(s.mode & 0o1000)) throw invalid();
+      if (![0, process.getuid()].includes(s.uid) || ((s.mode & 0o022) && !(s.mode & 0o1000))) throw invalid();
       const parent = path.dirname(ancestor); if (parent === ancestor) break; ancestor = parent;
     }
     const { data: manifestBytes } = await readOwned(path.join(root, 'manifest.json'), 16 * 1024);
