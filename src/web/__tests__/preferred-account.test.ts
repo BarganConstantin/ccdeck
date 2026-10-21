@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldReturnToPreferred } from "../../server/preferred-account.mjs";
+import { idlePreferredAvailable, shouldReturnToPreferred } from "../../server/preferred-account.mjs";
 
 const state = { email: "work@example.com", orgUuid: "org", resetAt: 100, awaitingWindow: false };
 const account = {
@@ -29,5 +29,9 @@ describe("return to preferred account", () => {
     expect(shouldReturnToPreferred(state, idle, 90)).toBe(true);
     expect(shouldReturnToPreferred(state, { ...idle, fetchedAt: 90_000 }, 90)).toBe(false);
     expect(shouldReturnToPreferred({ ...state, awaitingWindow: true }, idle, 90)).toBe(false);
+    expect(idlePreferredAvailable({ ...state, awaitingWindow: true }, idle, 90)).toBe(true);
+    expect(idlePreferredAvailable({ ...state, awaitingWindow: true, idleDelivered: true }, idle, 90)).toBe(false);
+    expect(idlePreferredAvailable({ ...state, awaitingWindow: true }, { ...idle, stale: true }, 90)).toBe(false);
+    expect(idlePreferredAvailable({ ...state, awaitingWindow: true }, { ...idle, lanes: [idle.lanes[0], { ...idle.lanes[1], pct: 90 }] }, 90)).toBe(false);
   });
 });

@@ -96,7 +96,7 @@ async function runAutoTick() {
     if (!_enabled) return { skipped: "disabled" };
     if (await externalAutoRunning()) return { skipped: "external-engine" };
     const output = await run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS });
-    if (output.timedOut || (!output.ok && !output.stdout)) return output;
+    if (!output.ok || output.timedOut) return output;
     const summary = summarise(output.stdout);
     if (summary.switched || summary.reason === "cooldown") return output;
     if (!preferredAccountConfigured()) return output;

@@ -55,7 +55,8 @@ async function setPreferredAccountLocked(accountNum) {
   if (!account?.email || !fiveHour) return { ok: false, reason: "no_five_hour_window" };
   if (account.disabled || account.alive === false) return { ok: false, reason: "account_unavailable" };
   await writeState({ email: account.email, orgUuid: account.orgUuid ?? null,
-    resetAt: fiveHour.resetAt, awaitingWindow: fiveHour.resetAt == null });
+    resetAt: fiveHour.resetAt, awaitingWindow: fiveHour.resetAt == null,
+    idleDelivered: fiveHour.resetAt == null && account.active });
   configured = true;
   return { ok: true };
 }
@@ -74,6 +75,28 @@ export function shouldReturnToPreferred(state, account, threshold) {
   return windowResetObserved(state, account) && account.lanes.every(l => l.pct < threshold);
 }
 
+export function idlePreferredAvailable(state, account, threshold) {
+  if (!state?.awaitingWindow || state.idleDelivered || !account || account.active
+    || account.disabled || account.alive === false || account.stale) return false;
+  if (account.email !== state.email || (account.orgUuid ?? null) !== state.orgUuid) return false;
+  if (!Number.isFinite(threshold)) return false;
+  const fiveHour = account.lanes.find(l => l.id === "five_hour");
+  return fiveHour?.pct === 0 && fiveHour.resetAt == null
+    && account.lanes.every(l => l.pct < threshold);
+}
+
+async function switchToPreferred(account, roster, nextState, canSwitch) {
+  const previous = roster.accounts.find(a => a.active);
+  if (!await canSwitch()) return null;
+  await run(await cswapBin(), ["switch", String(account.num)], { timeout: 30_000 });
+  if (await currentActiveSlot() !== account.num) return null;
+  invalidateClaudeAccountsCache();
+  invalidateQuotaCache();
+  await writeState(nextState);
+  return { from: previous ? { number: previous.num, email: previous.email } : null,
+    to: { number: account.num, email: account.email } };
+}
+
 /** Called only while the auto tick holds the store mutex. */
 export async function returnToPreferred(threshold, canSwitch = () => true) {
   const state = await preferredAccount();
@@ -85,23 +108,25 @@ export async function returnToPreferred(threshold, canSwitch = () => true) {
   const fiveHour = account.lanes.find(l => l.id === "five_hour");
   if (!fiveHour) return null;
   if (state.awaitingWindow) {
-    if (fiveHour.resetAt != null) await writeState({ ...state, resetAt: fiveHour.resetAt, awaitingWindow: false });
-    return null;
+    if (fiveHour.resetAt != null) {
+      await writeState({ ...state, resetAt: fiveHour.resetAt, awaitingWindow: false, idleDelivered: false });
+      return null;
+    }
+    if (state.idleDelivered || fiveHour.pct !== 0) return null;
+    if (account.active) {
+      await writeState({ ...state, idleDelivered: true });
+      return null;
+    }
+    if (!idlePreferredAvailable(state, account, threshold)) return null;
+    return switchToPreferred(account, roster, { ...state, idleDelivered: true }, canSwitch);
   }
   if (!windowResetObserved(state, account)) return null;
-  const nextState = { ...state, resetAt: fiveHour.resetAt, awaitingWindow: fiveHour.resetAt == null };
+  const nextState = { ...state, resetAt: fiveHour.resetAt, awaitingWindow: fiveHour.resetAt == null,
+    idleDelivered: fiveHour.resetAt == null };
   if (account.active) {
     await writeState(nextState);
     return null;
   }
   if (!shouldReturnToPreferred(state, account, threshold)) return null;
-  const previous = roster.accounts.find(a => a.active);
-  if (!await canSwitch()) return null;
-  await run(await cswapBin(), ["switch", String(account.num)], { timeout: 30_000 });
-  if (await currentActiveSlot() !== account.num) return null;
-  invalidateClaudeAccountsCache();
-  invalidateQuotaCache();
-  await writeState(nextState);
-  return { from: previous ? { number: previous.num, email: previous.email } : null,
-    to: { number: account.num, email: account.email } };
+  return switchToPreferred(account, roster, nextState, canSwitch);
 }

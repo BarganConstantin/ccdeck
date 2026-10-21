@@ -53,8 +53,9 @@ export default function AutoSwitchPolicy({
   proposeThreshold, typeThreshold, cancelThreshold, leaveThreshold, doThreshold, pressProps, post, load,
 }: Props) {
   const noteId = useId();
-  const savedPreferred = String(accounts?.find(a => a.email === auto.preferred?.email
-    && (a.orgUuid ?? null) === auto.preferred?.orgUuid)?.num ?? "");
+  const preferredAccount = accounts?.find(a => a.email === auto.preferred?.email
+    && (a.orgUuid ?? null) === auto.preferred?.orgUuid);
+  const savedPreferred = String(preferredAccount?.num ?? (auto.preferred ? "missing" : ""));
   const [preferredPick, setPreferredPick] = useState(savedPreferred);
   useEffect(() => setPreferredPick(savedPreferred), [savedPreferred]);
   return (
@@ -152,6 +153,7 @@ export default function AutoSwitchPolicy({
           onChange={e => setPreferredPick(e.target.value)}
         >
           <option value="">None</option>
+          {savedPreferred === "missing" && <option value="missing" disabled>Saved account no longer here</option>}
           {accounts.filter(a => a.email && a.lanes.some(l => l.id === "five_hour")).map(a => (
             <option key={a.num} value={a.num} disabled={a.disabled || a.alive === false}>
               {a.alias || a.email}{a.disabled ? " (held out)" : a.alive === false ? " (unavailable)" : ""}
