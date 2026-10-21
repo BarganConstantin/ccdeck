@@ -49,6 +49,19 @@ describe("nothing set: the engine decides, exactly as before", () => {
 });
 
 describe("soonest weekly reset", () => {
+  it("uses the earliest eligible weekly reset in the reported 95% roster", () => {
+    const accounts = [
+      acct(1, { active: true, five: 9, week: 95, weekIn: 16.25, fetchedAt: NOW - 8 * 60_000 }),
+      acct(12, { five: 15, week: 25, weekIn: 118, fetchedAt: NOW - 5 * 60_000 }),
+      acct(14, { five: 0, week: 24, weekIn: 70, fetchedAt: NOW - 10 * 60_000 }),
+      acct(16, { five: 6, week: 45, weekIn: 125, fetchedAt: NOW - 60_000 }),
+      acct(15, { five: 30, week: 49, weekIn: 83, fetchedAt: NOW - 3 * 60_000 }),
+      acct(9, { five: 49, week: 65, weekIn: 91, fetchedAt: NOW - 19 * 60_000 }),
+      acct(10, { five: 15, week: 99, weekIn: 52 }),
+    ];
+    expect(chooseAccount({ ...base, threshold: 95, accounts, choice: weekly })?.to.num).toBe(14);
+  });
+
   it("leaving at the threshold, goes to the soonest weekly reset rather than the most room", () => {
     const accounts = [
       acct(1, { active: true, five: 92 }),

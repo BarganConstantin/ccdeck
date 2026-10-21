@@ -102,8 +102,23 @@ async function runAutoTick() {
     if (await externalAutoRunning()) return { skipped: "external-engine" };
     // The deck's own rules first. A move they make is the tick; when they have
     // nothing to say — or cannot say it — the engine decides, as it always did.
-    const chose = await chooseBeforeEngine().catch(() => ({ result: null, accounts: null }));
+    let chose = await chooseBeforeEngine().catch(() => ({ result: null, accounts: null }));
     if (chose.result) return { chose: chose.result };
+    // The store may still have a reading from before the active account
+    // reached its limit. The engine polls before deciding; letting
+    // its real tick run now would switch by `best` before our weekly/home
+    // rules ever saw that reading. Poll without moving first, then give the
+    // configured rules the refreshed roster under this same store lock.
+    // No rule configured (accounts === null) keeps the original single run.
+    if (chose.accounts) {
+      const preview = await run(await cswapBin(), ["auto", "--once", "--json", "--dry-run"], { timeout: TICK_TIMEOUT_MS });
+      if (preview.timedOut || (!preview.ok && !preview.stdout)) return preview;
+      if (!_enabled) return { skipped: "disabled" };
+      if (await externalAutoRunning()) return { skipped: "external-engine" };
+      invalidateClaudeAccountsCache();
+      chose = await chooseBeforeEngine().catch(() => ({ result: null, accounts: null }));
+      if (chose.result) return { chose: chose.result };
+    }
     const out = await run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS });
     return { ...out, accounts: chose.accounts };
   });
