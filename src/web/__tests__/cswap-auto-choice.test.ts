@@ -32,13 +32,22 @@ if (!inside(homedir())) throw new Error(`sandbox escaped: homedir ${homedir()}`)
 const ROOT = join(DIR, "cswap");
 const H = 3600_000;
 
-const { proc } = vi.hoisted(() => ({ proc: { calls: [] as string[][], config: "" } }));
+const { proc } = vi.hoisted(() => ({
+  proc: { calls: [] as string[][], config: "", duringConfig: null as null | (() => Promise<unknown>) },
+}));
 
 vi.mock("../../server/exec.mjs", () => ({
   run: async (cmd: string, args: string[] = []) => {
     proc.calls.push([cmd, ...args]);
     const okay = { ok: true, code: 0, killed: false, timedOut: false, stdout: "", stderr: "" };
-    if (args[0] === "config") return { ...okay, stdout: proc.config };
+    if (args[0] === "config") {
+      // Something the panel does while a tick is reading the engine's
+      // settings — the one await in the middle of a tick's decision.
+      const during = proc.duringConfig;
+      proc.duringConfig = null;
+      if (during) await during();
+      return { ...okay, stdout: proc.config };
+    }
     if (args[0] === "switch") {
       // What `cswap switch N` leaves behind: the store names N as active.
       const { readFileSync: read, writeFileSync: write } = await import("node:fs");
@@ -91,6 +100,13 @@ function writeStore(activeNum: number, rows: Record<number, { five: number; week
   }));
 }
 
+/** claude-swap's own state file, as its engine writes it: when it last
+ *  switched (unix seconds) and the slots it quarantined, each by email. */
+function writeEngineState(state: { lastSwitchAt?: number; quarantine?: Record<string, { email: string }> }) {
+  mkdirSync(ROOT, { recursive: true });
+  writeFileSync(join(ROOT, "autoswitch_state.json"), JSON.stringify(state));
+}
+
 const activeInStore = () => JSON.parse(readFileSync(join(ROOT, "sequence.json"), "utf8")).activeAccountNumber;
 const engineRuns = () => proc.calls.filter(c => c[1] === "auto").length;
 const switches = () => proc.calls.filter(c => c[1] === "switch").map(c => Number(c[2]));
@@ -126,6 +142,7 @@ async function tickOnce() {
 beforeEach(async () => {
   proc.calls.length = 0;
   proc.config = CONFIG();
+  proc.duringConfig = null;
   said.length = 0;
   rmTempDir(ROOT);
   rmTempDir(join(DIR, "deck"));
@@ -188,6 +205,24 @@ describe("soonest weekly reset", () => {
     expect((await auto.autoStatus()).choice.next).toBe("room");
   });
 
+  it("never moves onto an account claude-swap has quarantined", async () => {
+    // 3 resets soonest but its refresh token is dead: the engine would not
+    // activate it, and neither may the deck.
+    writeEngineState({ quarantine: { "3": { email: "account-3@b.c" } } });
+    writeStore(1, { 1: { five: 95, weekIn: 100 }, 2: { five: 0, weekIn: 90 }, 3: { five: 40, weekIn: 20 } });
+    await auto.setNextChoice("weekly");
+    await tickOnce();
+    expect(switches()).toEqual([2]);
+  });
+
+  it("reads a quarantine as the account's, not the slot's: one for whoever held the slot before does not count", async () => {
+    writeEngineState({ quarantine: { "3": { email: "someone-else@b.c" } } });
+    writeStore(1, { 1: { five: 95, weekIn: 100 }, 2: { five: 0, weekIn: 90 }, 3: { five: 40, weekIn: 20 } });
+    await auto.setNextChoice("weekly");
+    await tickOnce();
+    expect(switches()).toEqual([3]);
+  });
+
   it("makes no move below the threshold while the engine runs a strategy of its own", async () => {
     proc.config = CONFIG("consume-first");
     auto.invalidateCswapAutoCache();
@@ -228,6 +263,15 @@ describe("home account", () => {
     expect((await choice.chooseBeforeEngine({ now: Date.now() + 5 * H })).result?.to?.number).toBe(1);
   });
 
+  it("passes over a quarantined home, and leaves the move to the engine", async () => {
+    writeEngineState({ quarantine: { "1": { email: "account-1@b.c" } } });
+    writeStore(2, { 1: { five: 0, weekIn: 100 }, 2: { five: 30, weekIn: 100 } });
+    await auto.setHomeAccount(1);
+    await tickOnce();
+    expect(switches()).toEqual([]);
+    expect(engineRuns()).toBeGreaterThan(0);
+  });
+
   it("removing it ends the rule", async () => {
     writeStore(2, { 1: { five: 0, weekIn: 100 }, 2: { five: 30, weekIn: 100 } });
     await auto.setHomeAccount(1);
@@ -235,6 +279,19 @@ describe("home account", () => {
     expect((await auto.autoStatus()).choice.home).toBeNull();
     await tickOnce();
     expect(switches()).toEqual([]);
+  });
+
+  it("keeps a home set while a tick was deciding, and goes there on the next one", async () => {
+    // The engine moved ten minutes ago: past its cooldown, inside the half
+    // hour optional moves wait — so only a home just set may be gone to.
+    writeEngineState({ lastSwitchAt: (Date.now() - 10 * 60_000) / 1000 });
+    writeStore(1, { 1: { five: 20, weekIn: 80 }, 2: { five: 30, weekIn: 100 } });
+    await auto.setNextChoice("weekly");
+    auto.invalidateCswapAutoCache();
+    proc.duringConfig = () => auto.setHomeAccount(2);
+    expect((await choice.chooseBeforeEngine()).result).toBeNull();
+    accounts.invalidateClaudeAccountsCache();
+    expect((await choice.chooseBeforeEngine()).result?.to?.number).toBe(2);
   });
 
   it("refuses a slot that holds no account", async () => {

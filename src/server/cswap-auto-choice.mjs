@@ -122,16 +122,27 @@ export function forgetPicksByHand() {
   return updateChoice(c => ({ ...c, manual: false, lastActive: null })).catch(() => {});
 }
 
-/** When claude-swap's engine last switched, in ms, or 0. A move the deck makes
- *  does not start the engine's cooldown, so this one has to keep both. */
-async function engineLastSwitchAt() {
-  try {
-    const state = JSON.parse(await readFile(join(backupRoot(), "autoswitch_state.json"), "utf8"));
-    const at = Number(state?.lastSwitchAt);
-    return Number.isFinite(at) && at > 0 ? at * 1000 : 0;
-  } catch {
-    return 0;
-  }
+/**
+ * What claude-swap's engine keeps in autoswitch_state.json that a move here
+ * has to respect: when it last switched, in ms or 0 — a move the deck makes
+ * does not start the engine's cooldown, so this one keeps both — and the
+ * accounts it has quarantined, by key.
+ *
+ * A quarantine is the slot's, with the email it held: the engine drops one
+ * whose slot now holds somebody else, so it is only this account's while the
+ * emails agree. One the engine would drop for a fresh login it drops on its
+ * next run, which every tick that does not move here is.
+ */
+async function engineState(accounts) {
+  let state = null;
+  try { state = JSON.parse(await readFile(join(backupRoot(), "autoswitch_state.json"), "utf8")); } catch {}
+  const at = Number(state?.lastSwitchAt);
+  const held = state?.quarantine && typeof state.quarantine === "object" ? state.quarantine : {};
+  const sameEmail = (x, y) => typeof x === "string" && typeof y === "string" && x.trim().toLowerCase() === y.trim().toLowerCase();
+  return {
+    lastSwitchAt: Number.isFinite(at) && at > 0 ? at * 1000 : 0,
+    quarantined: new Set(accounts.filter(a => sameEmail(held[String(a.num)]?.email, a.email)).map(a => a.key)),
+  };
 }
 
 /** The accounts the decks this one is paired with say they are working on.
@@ -176,18 +187,28 @@ export async function chooseBeforeEngine({ now = Date.now() } = {}) {
   const byHand = active != null && choice.lastActive != null && choice.lastActive !== active.key;
   const manual = choice.manual || byHand;
   const goHome = choice.goHome && active?.key !== choice.home?.key;
-  const keep = c => ({ ...c, manual, goHome, lastActive: active?.key ?? c.lastActive });
+  // WHAT THIS TICK LEARNED, WRITTEN OVER WHAT IS THERE NOW. The panel's writes
+  // do not wait for the store lock, so "Set as home" or a new rule can land
+  // while the awaits below run. `manual` and `goHome` were worked out from the
+  // choice as it was read, so they are only written back over that same
+  // choice — over a newer one they would undo what the person just set.
+  // Every write replaces the held object, which is what tells the two apart.
+  const keep = c => (c === choice
+    ? { ...c, manual, goHome, lastActive: active?.key ?? c.lastActive }
+    : { ...c, lastActive: active?.key ?? c.lastActive });
 
   const cfg = (await readCswapConfig()) ?? {};
   const threshold = numberOr(cfg["autoswitch.threshold"]?.value, 90);
   const models = countedModels(cfg["autoswitch.model"]?.value);
+  const engine = await engineState(accounts);
   const pick = chooseAccount({
     accounts,
     choice: { next: choice.next, home: choice.home?.key ?? null, manual, goHome },
     threshold,
     models,
     busy: await accountsOnOtherDecks(),
-    sinceMove: now - Math.max(choice.lastMoveAt, await engineLastSwitchAt()),
+    quarantined: engine.quarantined,
+    sinceMove: now - Math.max(choice.lastMoveAt, engine.lastSwitchAt),
     cooldownMs: numberOr(cfg["autoswitch.cooldownSeconds"]?.value, 300) * 1000,
     optional: (cfg["autoswitch.strategy"]?.value ?? "best") === "best",
     now,
@@ -201,8 +222,11 @@ export async function chooseBeforeEngine({ now = Date.now() } = {}) {
     await updateChoice(keep);
     return { result: null, accounts };
   }
+  // The move happened, so where it left the user and when are true whatever
+  // was set meanwhile; a home still to be gone to is the current choice's.
   await updateChoice(c => ({
-    ...c, manual: false, goHome: goHome && pick.to.key !== c.home?.key, lastActive: pick.to.key, lastMoveAt: now,
+    ...c, manual: false, goHome: (c === choice ? goHome : c.goHome) && pick.to.key !== c.home?.key,
+    lastActive: pick.to.key, lastMoveAt: now,
   }));
   return {
     result: {

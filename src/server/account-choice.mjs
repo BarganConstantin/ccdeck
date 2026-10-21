@@ -95,15 +95,21 @@ export function readingCurrent(account, models, now) {
 
 /**
  * Whether Auto-switch may land on this account: signed in, in rotation, not
- * the one another paired deck is working on, read recently, and comfortably
- * under the threshold on every window that counts. An account with no 5-hour
- * or weekly window (an API key) is never a target here; the engine still
- * decides about those.
+ * the one another paired deck is working on, not one claude-swap has
+ * quarantined, read recently, and comfortably under the threshold on every
+ * window that counts. An account with no 5-hour or weekly window (an API key)
+ * is never a target here; the engine still decides about those.
+ *
+ * QUARANTINED IS NOT THE SAME AS SIGNED OUT. The engine quarantines an account
+ * when the refresh it tries before activating one says the token is dead. Its
+ * usage reads go on working until the access token expires, hours later, so
+ * the roster still calls it healthy — and `cswap switch`, which is what a move
+ * here runs, does not ask the engine.
  */
-export function landable(account, { threshold, models, busy, now }) {
+export function landable(account, { threshold, models, busy, quarantined, now }) {
   if (!account || account.active || account.disabled || account.alive === false) return false;
   if (account.error || account.reauth) return false;
-  if (busy?.has?.(account.key)) return false;
+  if (busy?.has?.(account.key) || quarantined?.has?.(account.key)) return false;
   const ids = new Set((account.lanes ?? []).map(l => l.id));
   if (!ids.has("five_hour") || !ids.has("seven_day")) return false;
   if (!readingCurrent(account, models, now)) return false;
@@ -135,6 +141,7 @@ function soonestWeekly(accounts, ctx, before = null) {
  *   threshold the engine's, in percent
  *   models    countedModels(...) of the engine's model setting
  *   busy      keys of the accounts paired decks are working on
+ *   quarantined keys of the accounts claude-swap's engine has quarantined
  *   sinceMove ms since the last move, the engine's or this one's
  *   cooldownMs the engine's cooldown, which every move here keeps too
  *   optional  whether moves below the threshold may be made at all: only
@@ -142,7 +149,7 @@ function soonestWeekly(accounts, ctx, before = null) {
  *
  * Returns { to, trigger: "home"|"weekly-reset", leaving, resetAt? }.
  */
-export function chooseAccount({ accounts, choice, threshold, models = [], busy = new Set(), sinceMove = Infinity, cooldownMs = 300_000, optional = true, now }) {
+export function chooseAccount({ accounts, choice, threshold, models = [], busy = new Set(), quarantined = new Set(), sinceMove = Infinity, cooldownMs = 300_000, optional = true, now }) {
   const next = choice?.next === "weekly" ? "weekly" : "room";
   const homeKey = choice?.home ?? null;
   if (next === "room" && !homeKey) return null;
@@ -155,7 +162,7 @@ export function chooseAccount({ accounts, choice, threshold, models = [], busy =
   const used = usedOf(active, models);
   if (used == null) return null;
 
-  const ctx = { threshold, models, busy, now };
+  const ctx = { threshold, models, busy, quarantined, now };
   const home = homeKey ? accounts.find(a => a.key === homeKey) ?? null : null;
   const onHome = home != null && home === active;
 
