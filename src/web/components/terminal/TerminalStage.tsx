@@ -329,6 +329,7 @@ export default function TerminalStage(p: TerminalStageProps) {
   const current = session.subject === key;
   useFocusRequest({
     key, request: p.focusRequest, launch: subject.kind === "launch", typing: current && typing,
+    from: subject.kind === "session" && subject.launch ? `launch:${subject.launch}` : null,
     focus: request => {
       session.focus();
       const ahead = p.takeTypeAhead?.(request);

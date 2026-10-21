@@ -60,6 +60,39 @@ describe("a request for the keys", () => {
     go({ typing: true });
     expect(focus).toHaveBeenCalledTimes(1);
   });
+
+  it("goes on with a launch that the board names before its pane is ready", () => {
+    // The board hears the new session's SessionStart before the pane takes
+    // keys (a slow page, a quick agent): the stage shows the launch as that
+    // session, on the same pane, and the keys still go to it.
+    const { focus, unmet, go } = rig();
+    go({ key: "launch:n1", launch: true, request: 1 });
+    go({ key: "session:s1", launch: false, from: "launch:n1" });
+    expect(unmet, "the same pane: nothing ended").not.toHaveBeenCalled();
+    go({ typing: true });
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(focus).toHaveBeenCalledWith(1);
+  });
+
+  it("is still dropped when the stage moves from a launch to another session", () => {
+    const { focus, unmet, go } = rig();
+    go({ key: "launch:n1", launch: true, request: 1 });
+    go({ key: "session:b", launch: false, from: null });
+    go({ typing: true });
+    expect(focus).not.toHaveBeenCalled();
+    expect(unmet).toHaveBeenCalledWith(1);
+  });
+
+  it("goes on only from the launch the session came from, never another subject's", () => {
+    // The request waits for launch n2; the session the board names came from
+    // launch n1. Another pane: the request ends there.
+    const { focus, unmet, go } = rig();
+    go({ key: "launch:n2", launch: true, request: 1 });
+    go({ key: "session:s1", launch: false, from: "launch:n1" });
+    go({ typing: true });
+    expect(focus).not.toHaveBeenCalled();
+    expect(unmet).toHaveBeenCalledWith(1);
+  });
 });
 
 describe("a request the stage answers with a card", () => {

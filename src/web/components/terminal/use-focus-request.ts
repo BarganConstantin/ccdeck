@@ -29,6 +29,10 @@ export interface FocusRequest {
   request: number | string | null | undefined;
   /** The subject is a launch, which asks for the keys by itself. */
   launch: boolean;
+  /** The subject this one goes on from (subjectKey), or null: a launch the
+   *  board has since named is the same pane on the same connection, so a
+   *  request made for the launch is still this subject's. */
+  from?: string | null;
   /** The pane takes keys now. */
   typing: boolean;
   focus(request: FocusRequest["request"]): void;
@@ -41,12 +45,19 @@ export interface FocusRequest {
   unmet?: (request: FocusRequest["request"]) => void;
 }
 
-export function useFocusRequest({ key, request, launch, typing, focus, settled = false, land, unmet }: FocusRequest): void {
+export function useFocusRequest({ key, request, launch, typing, focus, settled = false, land, unmet, from = null }: FocusRequest): void {
   const wanted = useRef<{ key: string; request: FocusRequest["request"] } | null>(null);
   // The subject's effect runs first, so a move that brings its own request
   // (the asks run, Enter on a tile) keeps it.
   useEffect(() => {
     const was = wanted.current;
+    // A launch the board named before its pane took the keys — its
+    // SessionStart came first, on a slow page or from a quick agent — is
+    // still the launch's pane: its request goes on, under the new name.
+    if (was && from != null && was.key === from) {
+      wanted.current = { key, request: was.request };
+      return;
+    }
     wanted.current = launch ? { key, request } : null;
     if (was) unmet?.(was.request);
   }, [key]);

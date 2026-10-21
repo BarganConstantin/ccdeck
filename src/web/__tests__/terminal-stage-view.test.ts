@@ -23,6 +23,7 @@ import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE, StateCard, downloa
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
 import type { StagePhase, StageStatus } from "../components/terminal/stage-model";
+import { subjectKey } from "../use-terminal-session";
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 const press = (el: Drawn | null, event: Record<string, unknown> = {}) => {
@@ -483,6 +484,17 @@ describe("the keys typed before the pane could take them", () => {
     expect(stage).toMatch(/focus: request => \{\s*session\.focus\(\);\s*const ahead = p\.takeTypeAhead\?\.\(request\);\s*if \(ahead\) session\.type\(ahead\);\s*\}/);
     expect(stage).toMatch(/unmet: request => \{ p\.takeTypeAhead\?\.\(request\); \}/);
     expect(web("components/terminal/StageShell.tsx")).toContain("takeTypeAhead={stage.takeTypeAhead}");
+  });
+
+  it("stay with a launch the board names before its pane is live: the session goes on from the launch's key", () => {
+    // SessionStart can reach the board before the launch's pane takes keys (a
+    // slow page, a quick agent). The stage then shows the session on the same
+    // pane, and the launch's request, with the keys it holds, goes on with it
+    // (the hook's side is use-focus-request.test.ts's).
+    const launch: StageShow = { kind: "launch", agent: "claude", cwd: "/w/paycore", name: "paycore", hue: 3, key: "n1" };
+    expect(subjectKey(subjectOf(launch)), "the key the launch's request was made under").toBe("launch:n1");
+    const stage = web("components/terminal/TerminalStage.tsx");
+    expect(stage).toMatch(/from: subject\.kind === "session" && subject\.launch \? `launch:\$\{subject\.launch\}` : null,/);
   });
 
   it("meet a request only on the shown subject's own pane or card, never the last one's", () => {
