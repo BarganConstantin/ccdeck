@@ -1,19 +1,10 @@
-// GitHub and GitLab as the integrations host draws them (#2178, #2179): one
-// panel for both, told which forge it is and handed the host's list/detail
-// split, and the connect form's fields for each.
+// GitHub and GitLab as the integrations host offers them (#2178, #2179): the
+// connect form's fields for each, and the words on its token. Their one panel
+// is in integrations/panels.tsx, which loads with the modal rather than with
+// the page.
 import { createElement } from "react";
-import type { FieldDef, IntegrationConnection, IntegrationPanelProps } from "../../integrations/types";
-import IntegrationSplit from "../IntegrationSplit";
-import ForgePanel from "./ForgePanel";
+import type { FieldDef, IntegrationConnection } from "../../integrations/types";
 import ForgeTokenHelp from "./ForgeTokenHelp";
-
-export function GithubPanel(props: IntegrationPanelProps) {
-  return <ForgePanel kind="github" {...props} Split={IntegrationSplit} />;
-}
-
-export function GitlabPanel(props: IntegrationPanelProps) {
-  return <ForgePanel kind="gitlab" {...props} Split={IntegrationSplit} />;
-}
 
 const TOKEN: FieldDef = {
   name: "token", label: "Personal access token", type: "password", secret: true, placeholder: "Paste the token",

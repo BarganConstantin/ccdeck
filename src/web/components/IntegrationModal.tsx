@@ -7,11 +7,15 @@
 // glyph and name, which connection is on show (a selector once there is more
 // than one, remembered per kind), and Close. Everything under the header —
 // the toolbar, the filters, Refresh, the list and its detail — is the
-// provider's panel (integrations/registry.ts), handed the connection, a way to
+// provider's panel (integrations/panels.tsx), handed the connection, a way to
 // read through it, its images, its own memory and whether the window is narrow.
+//
+// Loaded when it first opens, with every panel, through
+// IntegrationModalOnDemand.tsx: nothing here is in the page's own bundle.
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { connectionApi, connectionAssetUrl, connectionHost } from "../integrations/client";
+import { INTEGRATION_PANELS } from "../integrations/panels";
 import { connectionPrefs, loadActiveConnection, saveActiveConnection } from "../integrations/prefs";
 import { integrationDef } from "../integrations/registry";
 import type { IntegrationConnection, IntegrationKind } from "../integrations/types";
@@ -30,6 +34,7 @@ export interface IntegrationModalProps {
 
 export default function IntegrationModal({ kind, connections, onClose, onReconnect }: IntegrationModalProps) {
   const def = integrationDef(kind);
+  const Panel = INTEGRATION_PANELS[kind];
   const selectId = useId();
   const narrow = useDrillIn();
   // Read once, while focus is still on the rail button that opened this.
@@ -68,8 +73,8 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
     assetUrl: connectionAssetUrl({ kind, id: connId }),
     prefs: connectionPrefs(kind, connId),
   } : null), [kind, connId]);
-  if (!def || !connection || !helpers) return null;
-  const { Panel, Glyph } = def;
+  if (!def || !Panel || !connection || !helpers) return null;
+  const { Glyph } = def;
 
   return createPortal(
     <div className="modal-backdrop" role="presentation" {...scrimPress}>

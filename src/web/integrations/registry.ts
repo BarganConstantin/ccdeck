@@ -1,8 +1,10 @@
 // The trackers the page knows how to show (#2178), keyed by kind: a static,
-// typed map. Each entry is the provider's whole page half — its name and rail
-// glyph, the key that opens it, the fields of its connect form and the words
-// on its token, and the panel the host draws under its header. The server's
-// half is src/server/integrations/registry.mjs; a provider registers in both.
+// typed map. Each entry is the provider's page half bar its panel — its name
+// and rail glyph, the key that opens it, the fields of its connect form and
+// the words on its token. The panel the host draws under its header is in
+// panels.tsx, which loads with the modal rather than with the page. The
+// server's half is src/server/integrations/registry.mjs; a provider registers
+// in both.
 //
 // Everything that is not a provider's own — the list of connections, Settings
 // → Integrations, the rail slot, the large modal and its header, the split
@@ -10,15 +12,14 @@
 // the provider's parts from here.
 import { createElement } from "react";
 import { GithubGlyph, GitlabGlyph, JiraGlyph } from "../components/rail-glyphs";
-import JiraPanel from "../components/JiraPanel";
 import JiraTokenHelp from "../components/JiraTokenHelp";
 import {
-  GITHUB_FIELDS, GITLAB_FIELDS, GithubPanel, GitlabPanel, githubTokenHelp, gitlabTokenHelp,
+  GITHUB_FIELDS, GITLAB_FIELDS, githubTokenHelp, gitlabTokenHelp,
 } from "../components/forge/ForgeIntegrations";
 import type { IntegrationConnection, IntegrationKind, IntegrationWebDef } from "./types";
 
 export type {
-  FieldDef, IntegrationConnection, IntegrationKind, IntegrationPanelProps, IntegrationPrefs, IntegrationWebDef,
+  FieldDef, IntegrationConnection, IntegrationKind, IntegrationPanel, IntegrationPanelProps, IntegrationPrefs, IntegrationWebDef,
 } from "./types";
 
 const deploymentOf = (conn?: IntegrationConnection) => (conn?.meta?.deployment === "cloud" ? "cloud" : "server");
@@ -63,7 +64,6 @@ const jira: IntegrationWebDef = {
     },
   ],
   tokenHelp: createElement(JiraTokenHelp),
-  Panel: JiraPanel,
 };
 
 // GitHub and GitLab (#2179): one panel, the screens the owner works through on
@@ -76,7 +76,6 @@ const github: IntegrationWebDef = {
   blurb: "github.com, read-only, with a personal access token.",
   fields: GITHUB_FIELDS,
   tokenHelp: githubTokenHelp,
-  Panel: GithubPanel,
 };
 
 const gitlab: IntegrationWebDef = {
@@ -87,7 +86,6 @@ const gitlab: IntegrationWebDef = {
   blurb: "GitLab.com or your own instance, read-only.",
   fields: GITLAB_FIELDS,
   tokenHelp: gitlabTokenHelp,
-  Panel: GitlabPanel,
 };
 
 /** Every provider the page has, by kind. */

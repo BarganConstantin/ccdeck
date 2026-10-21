@@ -40,7 +40,9 @@ import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { railItems } from "./rail-items";
-import IntegrationModal from "./components/IntegrationModal";
+// The modal and its panels load on demand; this is the light wrapper that
+// fetches them (IntegrationModalOnDemand.tsx).
+import IntegrationModal, { preloadIntegrationModal } from "./components/IntegrationModalOnDemand";
 import { connectionsOf, kindOffered, kindOpenable, requestIntegrationFocus, useIntegrations } from "./integrations/client";
 import { integrationDefs } from "./integrations/registry";
 import type { IntegrationKind } from "./integrations/types";
@@ -285,6 +287,10 @@ function Inner() {
     requestIntegrationFocus(connId);
     openSettings("integrations");
   }, [openSettings]);
+  // The modal's chunk, fetched the moment a rail control is up, so the first
+  // press opens it at once; a deck with none to show never fetches it.
+  const integrationShown = connectedKinds.length > 0;
+  useEffect(() => { if (integrationShown) preloadIntegrationModal(); }, [integrationShown]);
 
   // A LAN pairing request waiting on this deck — the poll that finds one, and
   // the one answer at a time the dialog over the canvas gives — lives in

@@ -1,7 +1,7 @@
 // The page's half of the integrations contract (#2178, #2179): what a
 // connection is, what the host hands a provider's panel, and what a provider
-// gives the host. registry.ts holds the providers; the server's half is
-// src/server/integrations/registry.mjs.
+// gives the host. registry.ts holds the providers and panels.tsx their panels;
+// the server's half is src/server/integrations/registry.mjs.
 import type { ComponentType, ReactNode } from "react";
 
 export type IntegrationKind = "jira" | "github" | "gitlab";
@@ -114,5 +114,9 @@ export interface IntegrationWebDef {
   /** What the token is and where to make one, under the fields. Drawn inside
    *  the form, so it can read the values typed so far (useIntegrationForm). */
   tokenHelp: ReactNode;
-  Panel: ComponentType<IntegrationPanelProps>;
 }
+
+/** The panel a provider draws under the modal's header. Kept apart from its
+ *  IntegrationWebDef (integrations/panels.tsx), so the panels load with the
+ *  modal, when one first opens, and not with the page. */
+export type IntegrationPanel = ComponentType<IntegrationPanelProps>;
