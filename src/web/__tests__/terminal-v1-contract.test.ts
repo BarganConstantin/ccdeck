@@ -22,6 +22,22 @@ beforeAll(async () => {
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 });
 afterAll(async () => { await new Promise<void>(done => server?.close(() => done())); rmTempDir(root); });
+// Recorded on macOS without tmux; `platform` is the deck's own OS wherever it
+// runs. On Windows the deck answers a question about a session before it looks
+// for tmux, which it has none of there: resolveTarget says
+// `unsupported-platform` (terminal-target.mjs), and target, open, adopt and
+// claim all ask it. A 400 is answered before that; launch and status ask
+// findTmux and answer as recorded.
+const WINDOWS_TARGET = Object.freeze({ kind: "unsupported", label: "The terminal is not available on this operating system yet.", reason: "unsupported-platform" });
+const ASKS_FOR_TARGET = /^\/api\/terminal\/(target|open|adopt|claim)\b/;
+function expected(sample: any, platform: string) {
+  const recorded = JSON.parse(JSON.stringify(sample.response).replaceAll("$PLATFORM", platform));
+  if (platform !== "win32" || !ASKS_FOR_TARGET.test(sample.path) || sample.status === 400) return recorded;
+  if (recorded.target) return { ...recorded, target: WINDOWS_TARGET };
+  const answer = { ...recorded, error: WINDOWS_TARGET.label };
+  delete answer.install;
+  return answer;
+}
 describe("version 1 browser contract", () => {
   it("freezes paths and bounded ticket/stream constants", async () => {
     // @ts-expect-error plain server module
@@ -35,13 +51,14 @@ describe("version 1 browser contract", () => {
     expect(spec.websocket.ackWindowBytes).toBe(wire.ACK_WINDOW_BYTES);
   });
   for (const sample of fixtures.filter((s: any) => !s.baseline)) it(`${sample.method} ${sample.path}`, async () => {
-    const request = sample.request ? JSON.parse(JSON.stringify(sample.request).replaceAll("$PROJECT", cwd)) : null;
+    // The folder goes in as a JSON string's contents, escaped: a Windows path's
+    // backslashes are not JSON escapes.
+    const request = sample.request ? JSON.parse(JSON.stringify(sample.request).replaceAll("$PROJECT", JSON.stringify(cwd).slice(1, -1))) : null;
     const path = sample.path.replaceAll("$PROJECT", encodeURIComponent(cwd));
     const response = await fetch(base + path, { method: sample.method, headers: { Origin: base, "Sec-Fetch-Site": "same-origin", ...(request ? { "Content-Type": "application/json" } : {}) }, ...(request ? { body: JSON.stringify(request) } : {}) });
     expect(response.status).toBe(sample.status);
     const body = await response.json();
-    // Recorded on macOS; `platform` is the deck's own OS wherever it runs.
-    expect(body).toEqual(JSON.parse(JSON.stringify(sample.response).replaceAll("$PLATFORM", process.platform)));
+    expect(body).toEqual(expected(sample, process.platform));
     if (body.target) for (const key of Object.keys(body.target)) expect(Object.keys(spec.$defs.target.properties)).toContain(key);
     expect(JSON.stringify(body)).not.toMatch(/socketPath|panePid|"pid"|"pane"|"socket"/);
   });
