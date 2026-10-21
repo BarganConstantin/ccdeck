@@ -13,6 +13,11 @@
 //                                                        own image hosts (raster only; empty 403/404)
 //   GET    /api/integrations/<kind>/<id>/<subpath…>     the provider's own reads (registry.mjs)
 //
+// A route that would ask a provider that is not answering (registry.mjs,
+// `available`), or ask for a saved connection whose provider this deck does
+// not have, answers `unavailable` (503) and asks nothing; an image is an
+// empty 404 as always; Disconnect needs no provider at all.
+//
 // Every GET here is a guarded read (request-gates.mjs, GUARDED_READ_PREFIXES):
 // what a tracker holds is the user's work, and the deck's own page is the only
 // caller. Every mutation already needs the page or the deck token.
@@ -27,7 +32,7 @@ import { createHash } from "node:crypto";
 import { readBody, send } from "../http-io.mjs";
 import { errorBody, errorResponse, integrationError, isTypedError } from "./errors.mjs";
 import { fetchImage, IMAGE_MAX_BYTES, isSafeTarget, normaliseBaseUrl, originOf, RASTER_TYPES, rasterMatches } from "./proxy.mjs";
-import { getProvider, providerList } from "./registry.mjs";
+import { getProvider, isAvailable, providerList } from "./registry.mjs";
 import { integrationsStore } from "./store.mjs";
 import "./providers.mjs";
 
@@ -320,6 +325,8 @@ function needsValidation(existing, existingSecret, candidate) {
 
 const notFound = res => send(res, 404, errorBody(integrationError("not-found", "No such integrations route.")));
 const notAllowed = res => send(res, 405, errorBody(integrationError("invalid", "That method is not allowed here.")));
+/** The provider for this kind is not on this deck, or not answering it. */
+const unavailable = label => integrationError("unavailable", `${label} is not available on this deck.`);
 
 /**
  * Every /api/integrations request. `deps` is for the suite: a store in a temp
@@ -358,6 +365,7 @@ export async function handleIntegrations(req, res, url, deps = {}) {
         if (body == null) return;
         const provider = getProvider(String(body.kind ?? ""));
         if (!provider) throw integrationError("invalid", "Choose which tracker to connect.", { field: "kind" });
+        if (!isAvailable(provider)) throw unavailable(provider.label);
         hold(typeof body.input?.token === "string" ? body.input.token : null);
         const candidate = parseInput(provider, body.input ?? {}, null);
         hold(candidate.secret);
@@ -381,8 +389,9 @@ export async function handleIntegrations(req, res, url, deps = {}) {
         return send(res, 200, { ok: true });
       }
 
+      // Test and Edit ask the provider: without one that answers, they say so.
       const provider = getProvider(existing.kind);
-      if (!provider) throw integrationError("incompatible", `This deck no longer knows how to talk to ${existing.kind}.`);
+      if (!isAvailable(provider)) throw unavailable(provider?.label ?? existing.kind);
 
       if (action === "test" && method === "POST") {
         const secret = hold(await store.secret(id));
@@ -419,26 +428,38 @@ export async function handleIntegrations(req, res, url, deps = {}) {
 
     // /api/integrations/<kind>/<id>/<subpath…>
     const [kind, id, ...rest] = segments;
-    const provider = getProvider(kind);
-    if (!provider || !id || rest.length === 0) return notFound(res);
+    if (!id || rest.length === 0) return notFound(res);
+    // Reads only, whatever the kind and whether or not this deck has its
+    // provider: nothing under here may change anything.
     if (method !== "GET" && method !== "HEAD") return notAllowed(res);
+    const provider = getProvider(kind);
 
     // An image: whatever goes wrong, an empty 403 or 404, and the connection
-    // is not touched (see the asset route above).
+    // is not touched (see the asset route above) — also when no provider
+    // here can read it.
     if (rest.length === 1 && rest[0] === "asset") {
+      if (!provider) return assetRefused(res, 404);
       let conn, secret;
       try {
         conn = await store.get(id);
         secret = conn && conn.kind === kind ? await store.secret(id) : null;
       } catch { return assetRefused(res, 404); }
-      if (!conn || conn.kind !== kind || secret == null) return assetRefused(res, 404);
+      if (!conn || conn.kind !== kind || secret == null || !isAvailable(provider)) return assetRefused(res, 404);
       let client;
       try { client = clientFor(provider, conn, secret, { fetchImpl }); } catch { return assetRefused(res, 404); }
       return await serveAsset(res, conn, client, url.searchParams.get("url"), { signal, method, fetchImpl });
     }
 
     const conn = await store.get(id);
+    if (!provider) {
+      // No provider for this kind on this deck. A saved connection of the kind
+      // is there and cannot be read here, and says so; anything else is not a
+      // route at all.
+      if (conn && conn.kind === kind) throw unavailable(kind);
+      return notFound(res);
+    }
     if (!conn || conn.kind !== kind) throw integrationError("not-found", "That connection is not there any more.");
+    if (!isAvailable(provider)) throw unavailable(provider.label);
     const secret = hold(await store.secret(id));
     if (secret == null) throw integrationError("expired", "No token is saved for this connection. Reconnect it in Settings.");
     const client = clientFor(provider, conn, secret, { fetchImpl });

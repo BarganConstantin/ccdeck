@@ -16,6 +16,11 @@
 //                                         //    Default: { baseUrl: input.baseUrl, secret: input.token },
 //                                         //    a blank token keeping the saved one.
 //     defaultName?(checked),              // a name for a connection the form left unnamed
+//     available?(),                       // whether this deck can connect and read this kind
+//                                         //    now: false when what serves it has gone away.
+//                                         //    Default: always. While false, every route that
+//                                         //    would ask the provider answers `unavailable`
+//                                         //    (503) without asking it; Disconnect still works.
 //   }
 //
 // A CLIENT is the provider's, made for one connection and kept by the core —
@@ -105,6 +110,9 @@ export function registerProvider(provider) {
   if (typeof provider.createClient !== "function" || typeof provider.routes !== "function") {
     throw new TypeError("createClient and routes must be functions");
   }
+  if (provider.available !== undefined && typeof provider.available !== "function") {
+    throw new TypeError("available must be a function");
+  }
   if (!/^[a-z][a-z0-9-]{1,30}$/.test(provider.kind)) throw new TypeError(`bad provider kind ${provider.kind}`);
   if (providers.has(provider.kind)) throw new Error(`provider ${provider.kind} is registered twice`);
   providers.set(provider.kind, provider);
@@ -114,9 +122,18 @@ export function getProvider(kind) {
   return providers.get(kind) ?? null;
 }
 
-/** Every registered provider, as the page may see it: kind and label. */
+/** Whether a provider can connect and read right now. One that cannot say,
+ *  or fails saying it, cannot. */
+export function isAvailable(provider) {
+  if (!provider) return false;
+  if (typeof provider.available !== "function") return true;
+  try { return provider.available() === true; } catch { return false; }
+}
+
+/** Every registered provider, as the page may see it: kind, label, and
+ *  whether this deck can connect and read it now. */
 export function providerList() {
-  return [...providers.values()].map(provider => ({ kind: provider.kind, label: provider.label }));
+  return [...providers.values()].map(provider => ({ kind: provider.kind, label: provider.label, available: isAvailable(provider) }));
 }
 
 /** For tests: forget every provider, or put one back. */

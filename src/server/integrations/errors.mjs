@@ -16,7 +16,10 @@ import { cooldownFromHeader } from "../quota-oauth.mjs";
  *  401 for a refused or expired token, 403 for an account that may not read
  *  it, 404 for what is not there, 429 for a rate limit, and 502 for every way
  *  the tracker itself failed. `invalid` is the deck's own: a form, or a
- *  parameter, that is not the shape it must be (400). */
+ *  parameter, that is not the shape it must be (400). `unavailable` is the
+ *  deck's too: the provider for this kind is not on this deck, or is not
+ *  answering it (503) — nothing is wrong with the connection or the token,
+ *  and a page that does not know the kind reads it as `upstream`. */
 export const ERROR_STATUS = Object.freeze({
   auth: 401,
   expired: 401,
@@ -28,6 +31,7 @@ export const ERROR_STATUS = Object.freeze({
   incompatible: 502,
   upstream: 502,
   invalid: 400,
+  unavailable: 503,
 });
 
 /** Whether a thrown thing carries one of the kinds — an IntegrationError, or a

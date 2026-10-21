@@ -92,12 +92,24 @@ type Secret = string | { auth: "basic"; email: string; token: string };
  * The tracker's own words on a failure become the error's detail, as a real
  * provider passes them on.
  */
-export function fakeProvider({ kind = "tracker", label = "Tracker", extraOrigins = () => [] as string[], basic = false } = {}) {
+export interface FakeProviderOptions {
+  kind?: string;
+  label?: string;
+  extraOrigins?: () => string[];
+  basic?: boolean;
+  /** The registry's `available`, when the suite wants one. */
+  available?: () => boolean;
+  /** An error validate throws before it asks the tracker, or nothing. */
+  validateFails?: () => unknown;
+}
+
+export function fakeProvider({ kind = "tracker", label = "Tracker", extraOrigins = () => [], basic = false, available, validateFails }: FakeProviderOptions = {}) {
   const calls: ProviderCalls = { createClient: 0, validate: 0, asset: 0, routes: [] };
   const provider = {
     kind,
     label,
     calls,
+    ...(available ? { available } : {}),
     ...(basic ? {
       parseInput(input: { baseUrl?: string; email?: string; token?: string }, existing: { secret?: { token?: string } } | null) {
         const baseUrl = normaliseBaseUrl(input?.baseUrl, { field: "baseUrl" });
@@ -137,6 +149,8 @@ export function fakeProvider({ kind = "tracker", label = "Tracker", extraOrigins
         },
         async validate({ phase, signal }: { phase?: string; signal?: AbortSignal } = {}) {
           calls.validate += 1;
+          const failure = validateFails?.();
+          if (failure) throw failure;
           const me = await get("/myself", phase, signal);
           if (me.version < 2) throw integrationError("incompatible", `This ${label} is older than the deck reads.`);
           for (const origin of extraOrigins()) if (!client.allowedOrigins.includes(origin)) client.allowedOrigins.push(origin);
@@ -157,6 +171,8 @@ export function fakeProvider({ kind = "tracker", label = "Tracker", extraOrigins
       try {
         if (subpath === "items") return { status: 200, body: { ok: true, items: await client.get("/items", "use", signal) } };
         if (subpath === "broken") return { status: 200, body: { ok: true, broken: await client.get("/broken", "use", signal) } };
+        // What serves the reads went away in the middle of one.
+        if (subpath === "gone") throw integrationError("unavailable", `${label} stopped answering.`);
         return { status: 404, body: errorBody(integrationError("not-found", "No such read.")) };
       } catch (err) {
         return errorResponse(err);
