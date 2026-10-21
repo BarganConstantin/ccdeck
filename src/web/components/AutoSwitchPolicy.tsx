@@ -154,10 +154,9 @@ export default function AutoSwitchPolicy({
         >
           <option value="">None</option>
           {savedPreferred === "missing" && <option value="missing" disabled>Saved account no longer here</option>}
-          {accounts.filter(a => a.email && a.lanes.some(l => l.id === "five_hour")).map(a => (
-            <option key={a.num} value={a.num} disabled={a.disabled || a.alive === false}>
-              {a.alias || a.email}{a.disabled ? " (held out)" : a.alive === false ? " (unavailable)" : ""}
-            </option>
+          {accounts.filter(a => a.email && !a.disabled && a.alive !== false
+            && a.lanes.some(l => l.id === "five_hour")).map(a => (
+            <option key={a.num} value={a.num}>{a.alias || a.email}</option>
           ))}
         </select>
         {preferredPick !== savedPreferred && (
