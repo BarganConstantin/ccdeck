@@ -20,7 +20,8 @@
 // case asserts what the panel would be told instead — the house pattern of
 // branching inside the case, so skip-gate-inventory has nothing to register.
 import { describe, it, expect, afterAll, beforeAll, vi } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync } from "node:fs";
 import { randomBytes, randomUUID } from "node:crypto";
 import { request, type Server } from "node:http";
 import { tmpdir } from "node:os";
@@ -58,8 +59,6 @@ const mod = await import("../../server/index.mjs");
 const { findTmux, runTmux } = await import("../../server/tmux.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { launchSession, listDeckSessions } = await import("../../server/terminal-sessions.mjs");
-// @ts-expect-error — plain .mjs server module, no types
-const { liveChildPids } = await import("../../server/exec-children.mjs");
 
 let server: Server;
 let port = 0;
@@ -101,13 +100,15 @@ function ask(method: string, path: string, body?: unknown): Promise<{ status: nu
   });
 }
 
-/** The tmux control clients this process has running, by their argv. Linux
- *  only: elsewhere there is no /proc to read it from, and the answer is []. */
+/** The control-mode clients attached to this run's own tmux server, by pid, as
+ *  tmux itself lists them. Asking tmux rather than reading /proc answers the
+ *  same on every platform that has tmux. Nothing else attaches to this socket:
+ *  the session is started detached and the listings run and exit. */
 function controlClients(): number[] {
-  if (process.platform !== "linux") return [];
-  return liveChildPids().filter((pid: number) => {
-    try { return readFileSync(`/proc/${pid}/cmdline`, "utf8").includes("attach-session"); } catch { return false; }
+  const out = execFileSync(tmux.path, ["-L", SOCKET.name, "list-clients", "-F", "#{client_control_mode} #{client_pid}"], {
+    env: process.env, encoding: "utf8", timeout: 5_000, stdio: ["ignore", "pipe", "pipe"],
   });
+  return out.split("\n").filter(line => line.startsWith("1 ")).map(line => Number(line.slice(2)));
 }
 
 describe("the terminal socket on real tmux", () => {
