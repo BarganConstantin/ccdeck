@@ -39,6 +39,8 @@ import { useRequestSlot } from "../use-request-slot";
 import { useAccountMenu } from "../use-account-menu";
 import { useAccountSwitching } from "../use-account-switching";
 import { useThresholdDraft } from "../use-threshold-draft";
+import { useNextDraft } from "../use-next-draft";
+import { homeTitle, isHome } from "../auto-choice";
 import { POLL_MS, useAccountRoster } from "../use-account-roster";
 import { useRosterFocus } from "../use-roster-focus";
 import { usePanelClock } from "../use-panel-clock";
@@ -201,6 +203,9 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
     thresholdCustom, thresholdRefusal, thresholdFieldRef,
     proposeThreshold, typeThreshold, cancelThreshold, leaveThreshold, doThreshold,
   } = useThresholdDraft({ auto, post, load });
+  // How it picks where to go, the same way — see use-next-draft.ts. No effect
+  // in it, so the clock below keeps its place after the roster's poll.
+  const { nextPick, nextCtl, nextSaved, nextRef, nextSaveRef, proposeNext, doNext } = useNextDraft({ auto, post, load });
 
 
   // Countdowns tick independently of the fetch so they stay honest between polls.
@@ -450,7 +455,8 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
         refusal={refusal} onDismissRefusal={() => clearFailure()}
         switchedHere={switchedHere} swapped={swapped} displaced={displaced}
         issueExpanded={issueExpanded} onOpenIssue={openIssue}
-        sortKey={a.active ? null : orderKey(shownOrder)} />
+        sortKey={a.active ? null : orderKey(shownOrder)}
+        home={isHome(a, auto?.choice?.home) ? homeTitle(a, !!auto?.enabled) : null} />
     );
   };
 
@@ -479,6 +485,8 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
       thresholdCustom={thresholdCustom} thresholdRefusal={thresholdRefusal} thresholdFieldRef={thresholdFieldRef}
       proposeThreshold={proposeThreshold} typeThreshold={typeThreshold}
       cancelThreshold={cancelThreshold} leaveThreshold={leaveThreshold} doThreshold={doThreshold}
+      nextPick={nextPick} nextCtl={nextCtl} nextSaved={nextSaved} nextRef={nextRef} nextSaveRef={nextSaveRef}
+      proposeNext={proposeNext} doNext={doNext}
       pressProps={pressProps} post={post} load={load} />
   ) : null;
   return (
@@ -647,6 +655,13 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                     rotating={!!(auto?.enabled || auto?.external)}
                     onProjects={() => { setProjectsFor({ num: a.num, name: a.alias ?? a.email ?? `account ${a.num}` }); closeMenu(a.num); }}
                     onRotation={() => post({ action: "account", account: a.num, enabled: a.disabled }, `rot-${a.num}`, "menu")
+                      .then(out => { load(true); if (out?.ok) closeMenu(a.num); })}
+                    home={isHome(a, auto?.choice?.home)}
+                    // The deck's own loop, not a terminal's: home is the
+                    // deck's rule, and a `cswap auto` running elsewhere never
+                    // asks it.
+                    canSetHome={!!auto?.enabled && !auto?.external}
+                    onHome={() => post({ action: "home", account: isHome(a, auto?.choice?.home) ? null : a.num }, `home-${a.num}`, "menu")
                       .then(out => { load(true); if (out?.ok) closeMenu(a.num); })} />
                 );
               })()}

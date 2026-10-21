@@ -145,7 +145,7 @@
 /* Secondary text on a lit row is still text. The tone lifts the ground under
    it, and --muted clears 4.5:1 only against --panel, so on a lit row it is
    mixed toward the foreground — the rule the LAN rows already write down. */
-.ap-account:has(> .ap-row-open):hover :is(.ap-num, .ap-q-label, .ap-issue-age, .ap-alias + .ap-email, .ap-shared) {
+.ap-account:has(> .ap-row-open):hover :is(.ap-num, .ap-q-label, .ap-issue-age, .ap-alias + .ap-email, .ap-shared, .ap-home) {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
 }
 /* THE ROW IS THE DOOR. A button laid over the whole row, under the row's own
@@ -183,7 +183,7 @@
    the door while the hover tint still promised the row would open. The door
    carries the whole identity itself instead, in its title and its
    description, so a clipped name is recoverable from anywhere on the row. */
-.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note, .ap-lane-pct[data-reset], .ap-shared) {
+.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note, .ap-lane-pct[data-reset], .ap-shared, .ap-home) {
   position: relative;
   z-index: 1;
 }
@@ -307,6 +307,10 @@
    control, so it takes no fill, no edge and no hover of its own; the title
    over the door is the whole of its interaction. */
 .ap-shared { flex: none; display: inline-grid; place-items: center; color: var(--muted); }
+/* Home (Auto-switch comes back here): the shared mark's twin, for the same
+   reasons — a state, not a control, 12px in the row's muted ink, with what it
+   means and whether Auto-switch is passing it over in its title. */
+.ap-home { flex: none; display: inline-grid; place-items: center; color: var(--muted); }
 /* THE ROW'S ONE VERB, QUIETER THAN THE ACCOUNT. It was an outlined pill with the
    control edge at rest, the strongest boundary on a row whose name and numbers
    are what a switch is decided on. A word on the control fill says "press me"
@@ -728,6 +732,18 @@
   text-align: right;
 }
 .ap-threshold-note[data-tone="err"] { color: var(--err); }
+/* WHERE AUTO-SWITCH GOES, the policy's second line and only while the switch
+   is on. Quieter than the policy's name: it is a detail of that policy, not a
+   second one. The label pushes, like the title above it, so the picker lines up
+   under the threshold's; the picker is as wide as its words, which the
+   threshold's fixed 64px is not. */
+.ap-next { margin-top: 4px; }
+.ap-next-label {
+  margin-right: auto;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+.ap-policy.ap-next .ap-field select { width: auto; }
 
 .ap-dot {
   width: 5px;

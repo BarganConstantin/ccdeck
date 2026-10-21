@@ -33,7 +33,7 @@ import {
   checkThreshold, commitThreshold, CUSTOM_HINT, CUSTOM_MAX, CUSTOM_MIN, CUSTOM_PICK, editThreshold, NO_DRAFT,
   type ThresholdDraft,
 } from "../auto-switch-threshold";
-import { thresholdCommit } from "../picker-commit";
+import { nextCommit, thresholdCommit } from "../picker-commit";
 import { type AutoStatus } from "../claude-accounts";
 import { accountsSurface } from "./accounts-surface";
 import { withoutComments } from "./tsx-scan";
@@ -45,7 +45,8 @@ const auto = (stored: string): AutoStatus => ({
 
 /** The policy row for a draft over a stored value, given what the panel's hook
  *  hands it: the pick is the draft's or the store's, the field is open while
- *  the draft says so. */
+ *  the draft says so. The next-account row under it is cut — it is a picker of
+ *  its own (auto-choice-words.test.ts), and its options are not the threshold's. */
 function row(draft: ThresholdDraft, stored: string): string {
   const pick = draft.pick ?? stored;
   return renderToStaticMarkup(createElement(AutoSwitchPolicy, {
@@ -54,8 +55,11 @@ function row(draft: ThresholdDraft, stored: string): string {
     thresholdRef: null, thresholdSaveRef: null, thresholdFieldRef: null,
     thresholdCustom: draft.custom != null, thresholdRefusal: draft.refusal,
     proposeThreshold: () => {}, typeThreshold: () => {}, cancelThreshold: () => {}, leaveThreshold: () => {},
-    doThreshold: () => {}, pressProps: () => ({}), post: async () => null, load: async () => {},
-  }));
+    doThreshold: () => {},
+    nextPick: "room", nextCtl: nextCommit("room", "room"), nextSaved: false, nextRef: null, nextSaveRef: null,
+    proposeNext: () => {}, doNext: () => {},
+    pressProps: () => ({}), post: async () => null, load: async () => {},
+  })).replace(/<div class="ap-policy ap-next">[\s\S]*?<\/div>/, "");
 }
 
 const options = (html: string) => [...html.matchAll(/<option value="([^"]*)"[^>]*>([^<]*)<\/option>/g)].map(m => m[2]);

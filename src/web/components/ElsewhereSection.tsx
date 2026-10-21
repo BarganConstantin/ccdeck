@@ -26,7 +26,7 @@ import type { SettingsDoors } from "../settings";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 
 export const ACCOUNTS_ROW = "Accounts and auto-switch";
-export const ACCOUNTS_ROW_NOTE = "Your Claude accounts, and Auto-switch, which moves Claude Code to the one with the most room left.";
+export const ACCOUNTS_ROW_NOTE = "Your Claude accounts, and Auto-switch, which moves Claude Code to another one before the account in use runs out.";
 export const LAN_ROW = "Local network";
 export const LAN_ROW_NOTE = "Pairing with the decks on your other machines, so a login that expires on one is repaired from another.";
 export const WATCH_ROW = "Browser Watch";

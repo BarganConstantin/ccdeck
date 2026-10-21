@@ -285,18 +285,24 @@ export function usedBefore(result, fromNumber) {
  * "Switched to work@x.com · personal@x.com reached 90%".
  *
  * The reason is stated only when the tick carries it: the account it left had
- * used at least the threshold the policy ran with. A switch for any other
- * reason — the account's usage could not be read, or a strategy that moves
- * below the threshold — says where it went and from where, and nothing about
- * why.
+ * used at least the threshold the policy ran with. Below it, the deck's own two
+ * rules say theirs (cswap-auto-choice.mjs) — "home" is a return to the home
+ * account, "weekly-reset" a move to the account whose weekly limit resets
+ * sooner. A switch for any other reason — the account's usage could not be
+ * read — says where it went and from where, and nothing about why.
  */
-export function swapNotice({ toName, fromName, used, threshold }) {
+export function swapNotice({ toName, fromName, used, threshold, trigger = null, resetAt = null, now = Date.now() }) {
   const to = toName ? cut(toName, NAME_MAX) : "another account";
-  if (!fromName) return { who: SWAP_WHO, body: `Switched to ${to}` };
+  const verb = trigger === "home" ? "Back on" : "Switched to";
+  if (!fromName) return { who: SWAP_WHO, body: `${verb} ${to}` };
   const from = cut(fromName, NAME_MAX);
-  if (used != null && used >= 100) return { who: SWAP_WHO, body: `Switched to ${to} · ${from} reached 100%` };
+  if (used != null && used >= 100) return { who: SWAP_WHO, body: `${verb} ${to} · ${from} reached 100%` };
   if (used != null && typeof threshold === "number" && used >= threshold) {
-    return { who: SWAP_WHO, body: `Switched to ${to} · ${from} reached ${pctLabel(threshold)}%` };
+    return { who: SWAP_WHO, body: `${verb} ${to} · ${from} reached ${pctLabel(threshold)}%` };
+  }
+  if (trigger === "home") return { who: SWAP_WHO, body: `Back on ${to} · your home account` };
+  if (trigger === "weekly-reset" && typeof resetAt === "number" && resetAt * 1000 > now) {
+    return { who: SWAP_WHO, body: `Switched to ${to} · weekly limit resets in ${inDuration(resetAt, now)}` };
   }
   return { who: SWAP_WHO, body: `Switched to ${to} from ${from}` };
 }
@@ -488,6 +494,7 @@ export function createAccountNotifier({
         say(swapNotice({
           toName: to?.name ?? null, fromName: from?.name ?? null,
           used: usedBefore(result, result.from?.number), threshold: result.threshold,
+          trigger: result.trigger ?? null, resetAt: result.resetAt ?? null, now: at,
         }));
       }
       await persist();

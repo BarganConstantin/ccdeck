@@ -82,12 +82,13 @@ describe("the row keeps its shape when its ⋯ is pressed", () => {
 describe("the menu", () => {
   it("offers its items in the order they are reached for, the irreversible one last", () => {
     // Five always — Rename, Move, Share, Projects (this account's per-project
-    // spend) — and a sixth, holding the account out of rotation or putting it
-    // back, whenever that means something: it moved here off the row, where it
-    // was a word under every account while auto-switch ran.
+    // spend) — and two more whenever they mean something: holding the account
+    // out of rotation or putting it back, which moved here off the row, where
+    // it was a word under every account while auto-switch ran; and making it
+    // Auto-switch's home or removing that, which the row's ⌂ only shows.
     const menu = view("menu");
-    expect([...menu.matchAll(/role="menuitem"/g)]).toHaveLength(6);
-    const order = [">Rename</button>", ">Move to slot…</button>", ': "Share"}', ">Projects</button>", ': "Hold out of rotation"}', 'role="separator"', ': "Remove"}']
+    expect([...menu.matchAll(/role="menuitem"/g)]).toHaveLength(7);
+    const order = [">Rename</button>", ">Move to slot…</button>", ': "Share"}', ">Projects</button>", ': "Hold out of rotation"}', ': "Set as home"}', 'role="separator"', ': "Remove"}']
       .map(s => menu.indexOf(s));
     expect(order.every(i => i >= 0), order.join()).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
