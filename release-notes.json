@@ -78,6 +78,28 @@
     "3.40.1",
     "3.41.3"
   ],
+  "3.43.0": [
+    {
+      "title": "🏠 Auto-switch can come back to a home account",
+      "body": "Choose Set as home in an account’s ⋯ menu. With Auto-switch on, Next account › Soonest weekly reset uses up quota that resets within 4 days first."
+    },
+    {
+      "title": "🔄 Sessions already running appear when ccdeck starts",
+      "body": "Busy Codex sessions, and Claude ones on macOS and Linux, show up again after a restart. Restore unfinished sessions, in Settings › General, turns it off."
+    },
+    {
+      "title": "⚙️ Settings, reorganized and searchable",
+      "body": "Search every setting from the top of the list. Keyboard, Data and About have sections of their own."
+    },
+    {
+      "title": "📋 Plan progress and reasoning effort on agent cards",
+      "body": "Cards show how far an agent is through its plan, and the effort beside the model. Finished sessions can hide themselves after a delay you choose."
+    },
+    {
+      "title": "✨ Calmer desktop updates, marked shared accounts, Codex sub-agents kept together",
+      "body": "The desktop app installs an update only when no agent is working or waiting. Accounts shared on Local network are marked."
+    }
+  ],
   "3.42.0": [
     {
       "title": "🔠 Text size and density, in Settings",
