@@ -146,14 +146,21 @@ async function engineState(accounts) {
   };
 }
 
-/** The accounts the decks this one is paired with say they are working on.
+/** The accounts paired decks have recently said they are working on.
  *  One login live on two machines races for every renewal (README, "One login
- *  live in one place"), so a tick never moves onto one of them. */
-async function accountsOnOtherDecks() {
+ *  live in one place"), so a tick never moves onto one of them. The LAN table
+ *  retains old manifests for display after a peer goes quiet; those are not
+ *  current reservations. Use the authenticated manifest's receipt time, not a
+ *  beacon or a failed round, which cannot confirm the account still in use. */
+async function accountsOnOtherDecks(now) {
   try {
-    const { lanEngine } = await import("./lan-deck.mjs");
+    const [{ lanEngine }, { PRESENT_MS }] = await Promise.all([
+      import("./lan-deck.mjs"), import("./lan-sync.mjs"),
+    ]);
     const peers = lanEngine.status()?.peers ?? [];
-    return new Set(peers.map(p => p?.offers?.current?.key).filter(k => typeof k === "string"));
+    return new Set(peers
+      .filter(p => p?.paired === true && Number.isFinite(p.offers?.at) && p.offers.at > 0 && now - p.offers.at < PRESENT_MS)
+      .map(p => p.offers.current?.key).filter(k => typeof k === "string"));
   } catch {
     return new Set();
   }
@@ -242,7 +249,7 @@ export async function chooseBeforeEngine({ now = Date.now() } = {}) {
     choice: { next: choice.next, home: choice.home?.key ?? null, manual, goHome },
     threshold,
     models,
-    busy: new Set([...await accountsOnOtherDecks(), ...await accountsInCswapRun(accounts)]),
+    busy: new Set([...await accountsOnOtherDecks(now), ...await accountsInCswapRun(accounts)]),
     quarantined: engine.quarantined,
     sinceMove: now - Math.max(choice.lastMoveAt, engine.lastSwitchAt),
     cooldownMs: numberOr(cfg["autoswitch.cooldownSeconds"]?.value, 300) * 1000,
