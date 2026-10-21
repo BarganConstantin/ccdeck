@@ -405,6 +405,12 @@ export async function handleCswapAutoAction(req, res) {
     case "account":
       result = await mod.setAccountEnabled(parsed.account, parsed.enabled === true);
       break;
+    case "next":
+      result = await mod.setNextChoice(parsed.value);
+      break;
+    case "home":
+      result = await mod.setHomeAccount(parsed.account ?? null);
+      break;
     default:
       return send(res, 400, { ok: false, reason: "unknown_action" });
   }

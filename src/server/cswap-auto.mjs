@@ -20,6 +20,7 @@ import {
   commandTokens, externalAutoRunning, invalidateCswapAutoCache, looksLikeAutoLoop, readCswapConfig,
 } from "./cswap-auto-readers.mjs";
 import { initCswapAuto, lastTick, loopEnabled, restartLoop, setAutoEnabled } from "./cswap-auto-loop.mjs";
+import { choiceStatus, setHomeAccount, setNextChoice } from "./cswap-auto-choice.mjs";
 import { invalidateClaudeAccountsCache, slotNumber } from "./claude-accounts.mjs";
 // The one store mutex, which the rotation flag below holds like every other
 // writer of claude-swap's store.
@@ -135,14 +136,19 @@ export { commandTokens, externalAutoRunning, looksLikeAutoLoop };
 // cswap-auto-loop.mjs.
 export { initCswapAuto, setAutoEnabled };
 
+// Which account a tick moves to — the home it comes back to and the strategy
+// for the next one — kept by the deck, not by claude-swap: cswap-auto-choice.mjs.
+export { setHomeAccount, setNextChoice };
+
 export async function autoStatus() {
-  const [config, external] = await Promise.all([readCswapConfig(), externalAutoRunning()]);
+  const [config, external, choice] = await Promise.all([readCswapConfig(), externalAutoRunning(), choiceStatus()]);
   return {
     ok:        config != null,
     enabled:   loopEnabled(),
     external,                       // user is running their own `cswap auto`
     lastTick:  lastTick(),
     settings:  config ?? {},
+    choice,                         // { next: "room"|"weekly", home: {email, orgUuid}|null }
   };
 }
 

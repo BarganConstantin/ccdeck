@@ -49,7 +49,7 @@ const fiveCell = (a: Account) =>
 
 /** What a screen reader hears of a cell: everything but what is hidden from it. */
 const heard = (cell: string) => cell
-  .replace(/<span aria-hidden="true">[^<]*<\/span>/g, "")
+  .replace(/<span[^>]*aria-hidden="true"[^>]*>[^<]*<\/span>/g, "")
   .replace(/<[^>]+>/g, "").trim();
 
 const stale = acct(33, { stale: true, fetchedAt: (NOW - HOUR) * 1000 });
@@ -75,8 +75,8 @@ describe("what a capacity cell that is not current says to a screen reader", () 
   });
 
   it("says when a reset window reset and what it read, as #2093 does", () => {
-    expect(heard(fiveCell(reset))).toBe("Reset 15h ago, 96% when read 18h ago");
-    expect(usageReport([reset], NOW).windows[0].used).toBe(0);
+    expect(heard(fiveCell(reset))).toBe("96%. Reported reset time passed 15h ago, 96% when read 18h ago. Awaiting a fresh reading, last reading, counted as is.");
+    expect(usageReport([reset], NOW).windows[0].used).toBe(96);
   });
 
   it("says a window never read is not counted", () => {

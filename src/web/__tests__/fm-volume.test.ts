@@ -1,4 +1,4 @@
-// Claude FM's volume: a slider in the Appearance menu's "Claude FM" section,
+// Claude FM's volume: a slider in Radio Explorer,
 // in the sound menu's own shape, persisted under its own key and sent to the
 // player over the same postMessage channel the play/pause commands already
 // take.
@@ -38,7 +38,9 @@ describe("the Claude FM volume preference", () => {
   it("parses a stored level strictly, then snaps and clamps it", () => {
     expect(resolveFmVolume("50")).toBe(50);
     expect(resolveFmVolume(" 70 ")).toBe(70);
-    expect(resolveFmVolume("72")).toBe(70);
+    expect(resolveFmVolume("26")).toBe(26);
+    expect(resolveFmVolume("72")).toBe(72);
+    expect(resolveFmVolume("72.6")).toBe(73);
     expect(resolveFmVolume("-40")).toBe(LEVEL_MIN);
     expect(resolveFmVolume("400")).toBe(LEVEL_MAX);
   });
@@ -49,26 +51,25 @@ describe("the Claude FM volume preference", () => {
     const app = clientText();
     expect(app).toContain("useState(storedFmVolume)");
     expect(app).toContain("writeStored(FM_VOLUME_KEY, String(fmVolume))");
-    expect(app).toContain("fmVolume={fmVolume}");
-    expect(app).toContain("onFmVolume={setFmVolume}");
+    expect(app).toContain("value={fm.fmVolume}");
+    expect(app).toContain("onLevel={fm.setFmVolume}");
     expect(app).toContain("<ClaudeFm");
-    expect(app).toContain("volume={fmVolume}");
-    expect(app).toContain("muted={fmMuted}");
-    expect(app).toContain("source={fmSource}");
-    expect(app).toContain("customStation={customFmStations.find");
-    expect(app).toContain("onAvailabilityChange={markFmStationAvailability}");
+    expect(app).toContain("volume: fm.fmVolume");
+    expect(app).toContain("muted: fm.fmMuted");
+    expect(app).toContain("source: fm.fmSource");
+    expect(app).toContain("const customStation = fm.customFmStations.find");
+    expect(app).toContain("onAvailabilityChange: fm.markFmStationAvailability");
   });
 
   it("reuses the sound menu's slider row rather than inventing a second shape", () => {
     // The row is VolumeRow.tsx now, which each tone's section draws too, so
     // "the same shape" is the same component rather than a copy of its markup.
-    // Claude FM's controls moved from the Appearance modal to Settings › Music
-    // & character (2026-10-07), and they draw the same row there.
-    const menu = read("components/MusicSection.tsx");
+    // Radio Explorer and notification tones share the same slider row.
+    const menu = read("components/RadioPanel.tsx");
     const row = read("components/VolumeRow.tsx");
     expect(menu).toContain("<VolumeRow");
-    expect(menu).toContain('id="appearance-fm-volume"');
-    expect(menu).toContain("onLevel={onFmVolume}");
+    expect(menu).toContain('id="radio-volume"');
+    expect(menu).toContain("onLevel={fm.setFmVolume}");
     expect(read("components/ToneSection.tsx")).toContain("<VolumeRow");
     expect(row).toContain('className="sm-row"');
     expect(row).toContain('className="sm-read"');

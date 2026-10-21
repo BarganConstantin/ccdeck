@@ -1,4 +1,4 @@
-// Whether any agent is mid-turn, from the hook stream alone.
+// Whether any agent is mid-turn, from live events and startup snapshots.
 //
 // For the one decision the server takes on its own that must not land in the
 // middle of a turn: restarting into a new version while nobody is looking
@@ -16,8 +16,15 @@
 // its Stop, and waiting on one forever would mean never updating.
 export const OPEN_CAP_MS = 30 * 60_000;
 
+const RECOVERIES = new Set(["CodexSessionRecovered", "ClaudeSessionRecovered"]);
+
+/** Persisted history is not live activity; a fresh startup snapshot is. */
+export function shouldTrackActivity(raw, opts = {}) {
+  return !opts.replay || RECOVERIES.has(raw?.hook_event_name);
+}
+
 const OPENS = new Set([
-  "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "SubagentStart", "SubagentStop",
+  ...RECOVERIES, "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "SubagentStart", "SubagentStop",
 ]);
 const CLOSES = new Set(["Stop", "SessionEnd"]);
 
@@ -40,7 +47,8 @@ export function createActivity({ openCapMs = OPEN_CAP_MS } = {}) {
   return {
     /** One hook payload, as pushEvent receives it. Anything else is ignored. */
     note(raw, at) {
-      const name = raw?.hook_event_name;
+      const name = raw?.recovery_active === false && RECOVERIES.has(raw?.hook_event_name)
+        ? "Stop" : raw?.hook_event_name;
       if (!OPENS.has(name) && !CLOSES.has(name)) return;
       if (at > lastAt) lastAt = at;
       const id = raw?.session_id;

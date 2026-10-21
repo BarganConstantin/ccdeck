@@ -10,7 +10,7 @@
 import { memo } from "react";
 import type { Act, Facing } from "../claude-fm";
 import {
-  GEAR_CELLS, HAT, HAT_X, HAT_Y, LEG_SPLIT_COL, LEG_TOP_ROW, spriteRects, SPRITE_H, SPRITE_W,
+  GEAR_CELLS, GRIP_LEFT_PATH, GRIP_RIGHT_PATH, HAT, HAT_X, HAT_Y, LEG_SPLIT_COL, LEG_TOP_ROW, spriteRects, SPRITE_H, SPRITE_W,
 } from "../claude-fm-sprite";
 
 /** What each grid cell is drawn as. A map here rather than a chain of
@@ -123,8 +123,8 @@ export default memo(function FmSprite({ act, facing }: { act: Act | null; facing
       </g>
       {(act === "climb" || act === "rope-throw" || act === "rope-catch" || act === "pull-up") && (
         <g className="fm-grip">
-          <path className="fm-grip-left" d="M5 9H4V4H7V3H9V5H6V9Z" />
-          <path className="fm-grip-right" d="M12 9H14V6H11V5H9V7H12Z" />
+          <path className="fm-grip-left" d={GRIP_LEFT_PATH} />
+          <path className="fm-grip-right" d={GRIP_RIGHT_PATH} />
         </g>
       )}
       {(act === "land" || act === "dismount") && (

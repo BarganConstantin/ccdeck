@@ -253,7 +253,7 @@ async function readUsageRows(root) {
  * trust a row the other two refuse. Exported for its test.
  */
 export function usageRows(usage) {
-  return usage?.schemaVersion === 2 ? (usage.accounts ?? {}) : {};
+  return usage?.schemaVersion === 2 && usage.accounts && typeof usage.accounts === "object" && !Array.isArray(usage.accounts) ? usage.accounts : {};
 }
 
 /**
@@ -267,14 +267,14 @@ export function usageRows(usage) {
  * cannot disagree about whose row it is. Exported for its test.
  */
 export function rowIsFor(row, acct) {
-  return Boolean(row)
+  return Boolean(row) && typeof acct?.email === "string" && acct.email.trim().length > 0
     && row.email === acct.email
     && (row.organizationUuid ?? "") === (acct.organizationUuid ?? "");
 }
 
 function pctOf(win) {
   const p = win?.pct;
-  return typeof p === "number" && Number.isFinite(p) ? p : null;
+  return typeof p === "number" && Number.isFinite(p) ? Math.min(100, Math.max(0, p)) : null;
 }
 
 /** One lane, in the shape the panel's bars already speak. */
@@ -288,7 +288,7 @@ function lane(id, label, win) {
     pct,
     // claude-swap stores a countdown string too, but it was computed when the
     // row was written and drifts — the client recomputes from the timestamp.
-    resetAt: isNaN(resetAt) ? null : Math.floor(resetAt / 1000),
+    resetAt: !Number.isFinite(resetAt) || resetAt <= 0 ? null : Math.floor(resetAt / 1000),
   };
 }
 
@@ -480,9 +480,12 @@ async function readRoster(now, gen) {
     ? await currentIdentity().catch(() => null)
     : null;
 
-  const order = Array.isArray(seq.sequence) && seq.sequence.length
-    ? seq.sequence.map(String)
-    : Object.keys(seq.accounts).sort((a, b) => Number(a) - Number(b));
+  // Sequence is an ordering hint, not a second roster. Preserve all slots
+  // exactly once when an older or partially written order omits one.
+  const order = [...new Set([
+    ...(Array.isArray(seq.sequence) ? seq.sequence.map(String) : []),
+    ...Object.keys(seq.accounts).sort((a, b) => Number(a) - Number(b)),
+  ])].filter(num => Object.hasOwn(seq.accounts, num));
 
   const accounts = [];
   const recovered = [];
@@ -515,14 +518,19 @@ async function readRoster(now, gen) {
  * verdict cache, and asks the registered repair about a `stale-copy` row —
  * which is what starts that repair (see repairStaleCopyWith).
  */
+function observedMs(seconds) {
+  const ms = typeof seconds === "number" ? seconds * 1000 : NaN;
+  return Number.isFinite(ms) && ms > 0 && Number.isFinite(new Date(ms).getTime()) ? ms : null;
+}
+
 function rosterRow({ seq, num, acct, row, identity, now, key, origin = null }) {
   const matches = rowIsFor(row, acct);
   const good = matches ? row.lastGood : null;
 
-  const fetchedAtMs = matches && typeof row.fetchedAt === "number" ? row.fetchedAt * 1000 : null;
+  const fetchedAtMs = matches ? observedMs(row.fetchedAt) : null;
   // When claude-swap last TRIED, well or not. A refusal counts against a login
   // only when it came after the deck last signed that login in (#1893).
-  const attemptedAtMs = matches && typeof row.lastAttemptAt === "number" ? row.lastAttemptAt * 1000 : null;
+  const attemptedAtMs = matches ? observedMs(row.lastAttemptAt) : null;
   const isActive = String(seq.activeAccountNumber) === num;
   const trouble = authTrouble(row, {
     matches, isActive, identity, email: acct.email, fetchedAt: fetchedAtMs, now,
@@ -703,7 +711,7 @@ export async function activeAccountUsage() {
   const row = (await readUsageRows(root))[num];
   // Same identity guard the panel uses: rows are keyed by slot, and slots are
   // reused, so a row can outlive the account it was written for.
-  if (!row?.lastGood || !rowIsFor(row, acct) || typeof row.fetchedAt !== "number") return null;
+  if (!row?.lastGood || !rowIsFor(row, acct) || observedMs(row.fetchedAt) == null) return null;
 
   return {
     num:       Number(num),

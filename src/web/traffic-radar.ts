@@ -3,6 +3,8 @@ export interface RadarVariable {
   value: string;
   rawValue?: string;
   source: string;
+  editable?: boolean;
+  blockedReason?: string;
 }
 
 export interface RadarSnapshot {
@@ -16,6 +18,7 @@ export interface RadarSnapshot {
   config: {
     sources: { name: string; status: "read" | "absent" | "unavailable" }[];
     variables: RadarVariable[];
+    unsetFlags?: string[];
   } | null;
   connections: {
     pid: number;

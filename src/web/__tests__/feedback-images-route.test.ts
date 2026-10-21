@@ -79,11 +79,14 @@ function sentForm({ url, init }: Sent): Promise<FormData> {
   return new Request(url, { method: init.method, headers: init.headers, body: init.body as BodyInit }).formData();
 }
 
-async function send(parts: [string, Part][], { status = 202, answer = undefined as unknown, env = {} as Record<string, string> } = {}) {
+async function send(
+  parts: [string, Part][],
+  { status = 202, answer = undefined as unknown, env = {} as Record<string, string>, device = null as string | null } = {},
+) {
   const { type, bytes } = await multipart(parts);
   const api = upstream(status, answer);
   const { req, res, answer: reply } = post(bytes, type);
-  await handleFeedback(req, res, { fetchImpl: api.fetchImpl, env });
+  await handleFeedback(req, res, { fetchImpl: api.fetchImpl, env, device });
   return { calls: api.calls, reply: reply() };
 }
 
@@ -123,6 +126,16 @@ describe("a report with images goes on as a multipart form", () => {
     // fetch writes the boundary itself; a content type set here would lose it.
     expect(Object.keys(calls[0].init.headers).map(k => k.toLowerCase())).not.toContain("content-type");
     expect(calls[0].init.headers["user-agent"]).toBe(`ccdeck/${installFacts({ env: {} }).version}`);
+  });
+
+  it("carries this deck's fingerprint as a `deviceId` part, never one the page sends", async () => {
+    const page: [string, Part][] = [...TEXT, ["deviceId", "forged-by-the-page"], ["images", { bytes: png(), name: "a.png", type: "image/png" }]];
+
+    const withOne = await send(page, { device: "0123456789abcdef" });
+    const withNone = await send(page, { device: null });
+
+    expect((await sentForm(withOne.calls[0])).getAll("deviceId")).toEqual(["0123456789abcdef"]);
+    expect((await sentForm(withNone.calls[0])).has("deviceId")).toBe(false);
   });
 
   it("takes the version and the system from this deck, never from the page", async () => {
@@ -261,12 +274,13 @@ describe("the veto, and the JSON post, as they were", () => {
     const api = upstream(202, { id: "fb_1", images: 0 });
     const message = { kind: "idea", title: "A quieter chime", body: "The done chime is loud at night." };
     const { req, res, answer } = post(JSON.stringify(message), "application/json");
-    await handleFeedback(req, res, { fetchImpl: api.fetchImpl, env: {} });
+    await handleFeedback(req, res, { fetchImpl: api.fetchImpl, env: {}, device: "0123456789abcdef" });
     expect(answer()).toEqual({ status: 200, body: { ok: true } });
     expect(api.calls[0].init.headers["content-type"]).toBe("application/json");
     expect(typeof api.calls[0].init.body).toBe("string");
     expect(JSON.parse(api.calls[0].init.body as string)).toEqual({
       ...message, appVersion: installFacts({ env: {} }).version, platform: `${process.platform}-${process.arch}`,
+      deviceId: "0123456789abcdef",
     });
   });
 

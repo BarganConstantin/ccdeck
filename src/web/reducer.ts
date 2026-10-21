@@ -18,7 +18,10 @@
 //   board-sweeps.ts        the tick's sweeps and pruners, which no event drives
 //
 // The rest of the client imports what it reads of these from here.
+import { recoverSession } from "./session-recovery";
+import { linkCodexThread } from "./codex-thread-links";
 import { extractModel } from "./payload-model";
+import { claudeEffort } from "./payload-effort";
 import { initialState, rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { explicitSubagentKey, noteKeyedSubagent, resolveOwner } from "./agent-attribution";
 import { adoptParkedEnrichment, parkEnrichment } from "./parked-enrichment";
@@ -86,6 +89,16 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   state.lastSeq = env.seq;
   state.revision += 1;
 
+  if (name === "CodexSessionRecovered" || name === "ClaudeSessionRecovered") {
+    recoverSession(state, p, now);
+    return state;
+  }
+
+  if (name === "CodexThreadLinked") {
+    linkCodexThread(state, p, now);
+    return state;
+  }
+
   const sessionId = p.session_id ?? "unknown";
 
   // Clear the waiting block here rather than adding a line to eight cases. A
@@ -138,6 +151,11 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   }
 
   const owner = resolveOwner(state, p, now);
+  const liveRoot = state.agents.get(rootAgentId(sessionId));
+  if (liveRoot && now >= (liveRoot.recoveryLiveAt ?? 0)) {
+    liveRoot.recoveryLiveAt = now;
+    liveRoot.restoredFromLog = undefined;
+  }
   // The card exists now, if this event made it: what reached the session before
   // it lands first, so everything this event says, being newer, lands on top.
   adoptParkedEnrichment(state, sessionId);
@@ -153,6 +171,10 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
     owner.provider = p.provider === "codex" ? "codex" : "claude";
   }
 
+  if (owner.provider === "codex") {
+    owner.childCount = [...state.agents.values()].filter(a => a.parentId === owner.id).length;
+  }
+
   // Snapshot model whenever it shows up in the payload — we want the most
   // recent observation per owner since either CLI can switch models mid-session.
   // Only onto the agent the payload itself names, though: a payload naming
@@ -162,6 +184,10 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   const namedKey = explicitSubagentKey(p);
   const named = namedKey ? subagentIdFor(sessionId, namedKey) : rootAgentId(sessionId);
   if (observedModel && owner.id === named) owner.model = observedModel;
+  // The effort beside it, on the same terms: onto the agent the payload names,
+  // and cleared by a tool event that no longer carries one (payload-effort.ts).
+  const observedEffort = claudeEffort(name, p);
+  if (observedEffort !== undefined && owner.id === named) owner.effort = observedEffort ?? undefined;
 
   switch (name) {
     case "SessionStart": applySessionStart(state, p, sessionId, now); break;

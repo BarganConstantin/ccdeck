@@ -78,9 +78,9 @@ describe("an account whose 5-hour window has reset since it was read", () => {
     expect(order("5h:empty")).toEqual([3, 2]);
   });
 
-  it("has its room measured against the windows still running", () => {
-    expect(sortAccounts([running, lapsed], "room", () => true, NOW).map(a => a.num)).toEqual([2, 3]);
-    expect(peersOf([lapsed], NOW)[0].headroom).toBe(80);
+  it("keeps headroom unknown until the elapsed window is observed again", () => {
+    expect(sortAccounts([running, lapsed], "room", () => true, NOW).map(a => a.num)).toEqual([3, 2]);
+    expect(peersOf([lapsed], NOW)[0].headroom).toBeNull();
     expect(peersOf([running], NOW)[0].headroom).toBe(40);
   });
 

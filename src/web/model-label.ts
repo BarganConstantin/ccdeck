@@ -173,3 +173,20 @@ export function modelFamily(id: string): string {
   if (/^gpt[-_]/i.test(bare)) return "gpt";
   return "";
 }
+
+/**
+ * The model chip's words: the model's label, and the reasoning effort after it
+ * when the session stated one (#2155) — "Opus 5.5 · xhigh". In the chip rather
+ * than a chip of its own because the effort qualifies the model, and because
+ * the card's sub row ellipsises at its width: a second chip is the first thing
+ * a long subagent folder would push out of view. Without an effort the label
+ * is the model's alone, never a level read off a setting or a default.
+ */
+export function modelChipText(model: string, effort?: string): string {
+  return effort ? `${shortModel(model)} · ${effort}` : shortModel(model);
+}
+
+/** The chip's tooltip head: the model's full id, and its effort when stated. */
+export function modelChipTitle(model: string, effort?: string): string {
+  return effort ? `${model}\neffort: ${effort}` : model;
+}

@@ -14,6 +14,7 @@ import type { ResetCredits } from "./reset-credits";
 // ── Quota types ────────────────────────────────────────────────────────────
 export interface QuotaData {
   ok: boolean;
+  historyAccount?: string;
   session5hPct?: number;
   session5hReset?: string;
   session5hResetAt?: number;   // unix seconds
@@ -159,6 +160,7 @@ interface CodexCreditLimit {
 
 export interface CodexQuotaData {
   ok: boolean;
+  historyAccount?: string;
   limitReached?: boolean;
   windows?: CodexLane[];
   extraWindows?: CodexLane[];

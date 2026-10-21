@@ -40,6 +40,8 @@ import { useRequestSlot } from "../use-request-slot";
 import { useAccountMenu } from "../use-account-menu";
 import { useAccountSwitching } from "../use-account-switching";
 import { useThresholdDraft } from "../use-threshold-draft";
+import { useNextDraft } from "../use-next-draft";
+import { homeTitle, isHome } from "../auto-choice";
 import { POLL_MS, useAccountRoster } from "../use-account-roster";
 import { useRosterFocus } from "../use-roster-focus";
 import { usePanelClock } from "../use-panel-clock";
@@ -60,6 +62,11 @@ interface Props {
    *  re-sign-in prompt over the canvas watches the same reads rather than
    *  polling the store for itself (#1893). */
   onRoster?: (fresh: AccountsData) => void;
+  /** Settings › General asked for Local network (#2176): the view is shown
+   *  once it can be — when the roster that mounts it has arrived — and
+   *  `onLanShown` says the ask has been answered. */
+  lanWanted?: boolean;
+  onLanShown?: () => void;
 }
 
 export default function AccountsPanel(props: Props) {
@@ -72,7 +79,7 @@ export default function AccountsPanel(props: Props) {
   return <ClaudeAccountsPanel {...props} />;
 }
 
-function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnabled = true }: Props) {
+function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnabled = true, lanWanted = false, onLanShown }: Props) {
   // Opened: one of the features the usage reports name (feature-use.ts).
   useFeatureUse("accounts-panel");
   const singleKeys = useSingleKeyShortcuts();
@@ -209,6 +216,9 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
     thresholdCustom, thresholdRefusal, thresholdFieldRef,
     proposeThreshold, typeThreshold, cancelThreshold, leaveThreshold, doThreshold,
   } = useThresholdDraft({ auto, post, load });
+  // How it picks where to go, the same way — see use-next-draft.ts. No effect
+  // in it, so the clock below keeps its place after the roster's poll.
+  const { nextPick, nextCtl, nextSaved, nextRef, nextSaveRef, proposeNext, doNext } = useNextDraft({ auto, post, load });
 
 
   // Countdowns tick independently of the fetch so they stay honest between polls.
@@ -230,7 +240,14 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
   // that will not come. See noCopyWorksNearby.
   const [noCopy, setNoCopy] = useState<ReadonlySet<string>>(() => new Set());
   const takeNoCopy = useCallback((keys: readonly string[]) => setNoCopy(new Set(keys)), []);
-  const lanFor = (a: Account) => ({ noCopyWorksNearby: noCopy.has(lanAccounts([a])[0].key) });
+  // And which logins this deck offers, to whom, for the share mark on their
+  // rows (#2170): from the same status, so a row and the setup dialog's ticks
+  // never disagree.
+  const [shared, setShared] = useState<ReadonlyMap<string, readonly string[]>>(() => new Map());
+  const lanFor = (a: Account) => {
+    const key = lanAccounts([a])[0].key;
+    return { noCopyWorksNearby: noCopy.has(key), sharedTo: shared.get(key) ?? null };
+  };
   const activeAcct = data?.accounts?.find(a => a.active);
   const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec, lanFor(activeAcct)) : null;
 
@@ -364,6 +381,15 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
     });
   }, [view]);
   useEffect(() => { if (data?.ok) setLanReady(true); }, [data?.ok]);
+  // Settings' door to Local network (#2176), answered by the panel's own way
+  // in, so nothing hangs over the view on the way and focus lands on Back as
+  // it does after a press of the row. Not before the section is mounted: a
+  // view switched to with nothing to draw would be an empty column.
+  useEffect(() => {
+    if (!lanWanted || !lanReady) return;
+    openLan();
+    onLanShown?.();
+  }, [lanWanted, lanReady]);
 
   // A popover left standing as the panel slides out would float over the
   // canvas where the panel used to be; one whose account has left the store
@@ -442,7 +468,8 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
         refusal={refusal} onDismissRefusal={() => clearFailure()}
         switchedHere={switchedHere} swapped={swapped} displaced={displaced}
         issueExpanded={issueExpanded} onOpenIssue={openIssue}
-        sortKey={a.active ? null : orderKey(shownOrder)} />
+        sortKey={a.active ? null : orderKey(shownOrder)}
+        home={isHome(a, auto?.choice?.home) ? homeTitle(a, !!auto?.enabled) : null} />
     );
   };
 
@@ -471,6 +498,8 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
       thresholdCustom={thresholdCustom} thresholdRefusal={thresholdRefusal} thresholdFieldRef={thresholdFieldRef}
       proposeThreshold={proposeThreshold} typeThreshold={typeThreshold}
       cancelThreshold={cancelThreshold} leaveThreshold={leaveThreshold} doThreshold={doThreshold}
+      nextPick={nextPick} nextCtl={nextCtl} nextSaved={nextSaved} nextRef={nextRef} nextSaveRef={nextSaveRef}
+      proposeNext={proposeNext} doNext={doNext}
       pressProps={pressProps} post={post} load={load} />
   ) : null;
   return (
@@ -639,6 +668,13 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
                     rotating={!!(auto?.enabled || auto?.external)}
                     onProjects={() => { setProjectsFor({ num: a.num, name: a.alias ?? a.email ?? `account ${a.num}` }); closeMenu(a.num); }}
                     onRotation={() => post({ action: "account", account: a.num, enabled: a.disabled }, `rot-${a.num}`, "menu")
+                      .then(out => { load(true); if (out?.ok) closeMenu(a.num); })}
+                    home={isHome(a, auto?.choice?.home)}
+                    // The deck's own loop, not a terminal's: home is the
+                    // deck's rule, and a `cswap auto` running elsewhere never
+                    // asks it.
+                    canSetHome={!!auto?.enabled && !auto?.external}
+                    onHome={() => post({ action: "home", account: isHome(a, auto?.choice?.home) ? null : a.num }, `home-${a.num}`, "menu")
                       .then(out => { load(true); if (out?.ok) closeMenu(a.num); })} />
                 );
               })()}
@@ -699,6 +735,7 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
           accounts={lanAccounts(data?.accounts ?? [])}
           onChanged={() => load(true)}
           onNoCopy={takeNoCopy}
+          onShared={setShared}
           view={view === "lan"}
           onOpen={openLan}
           onBack={() => setView("accounts")}

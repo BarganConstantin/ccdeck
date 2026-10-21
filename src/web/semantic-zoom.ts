@@ -21,6 +21,21 @@ export type LodMode = "detail" | "compact" | "overview";
 export const CARD_BODY_PX = 11;
 
 /**
+ * The body size the full card's threshold is judged at, for a text size that
+ * adds `increase` px to the sheet.
+ *
+ * Smaller text lowers it — 10px or 9px of body is under the legible 7.2px on
+ * screen at a zoom where 11px was not, so the faces take over sooner. Larger
+ * text does not raise it: the full card then appears at the zooms it always
+ * did, with its words bigger than the floor, which is what larger text was
+ * chosen for. Judging 15px at the floor instead would draw full cards at
+ * 7.2px from further out, smaller than the faces they replace.
+ */
+export function cardBodyPx(increase = 0): number {
+  return CARD_BODY_PX + Math.min(0, increase);
+}
+
+/**
  * The full card is drawn while its body type renders at 7.2px or more, and
  * given up below 6.6px. Judged from screenshots of this sheet at 1× device
  * pixels, 1440x900: at 0.664 (7.3px) the name, the pill's word, the title, the
@@ -93,9 +108,9 @@ function fits(card: CardSize, zoom: number, floor: { width: number; height: numb
  * `prev` null is the canvas's first frame, which uses the entering thresholds:
  * there is nothing to be sticky about yet.
  */
-export function nextLod(prev: LodMode | null, zoom: number, card: CardSize = DEFAULT_CARD): LodMode {
+export function nextLod(prev: LodMode | null, zoom: number, card: CardSize = DEFAULT_CARD, bodyPx = CARD_BODY_PX): LodMode {
   if (!Number.isFinite(zoom) || zoom <= 0) return prev ?? "detail";
-  const body = CARD_BODY_PX * zoom;
+  const body = bodyPx * zoom;
   if (prev === "detail") {
     if (body >= DETAIL_EXIT_PX) return "detail";
     return fits(card, zoom, COMPACT_EXIT) ? "compact" : "overview";
@@ -105,9 +120,9 @@ export function nextLod(prev: LodMode | null, zoom: number, card: CardSize = DEF
   return fits(card, zoom, COMPACT_ENTER) ? "compact" : "overview";
 }
 
-/** The same two thresholds as zooms, for the callers that choose a zoom rather
- *  than read one. Detail depends on the zoom alone — its text is in layout
- *  units — so these need no card. */
+/** The same two thresholds as zooms at the designed text size, for the
+ *  callers that choose a zoom rather than read one. Detail depends on the zoom
+ *  alone — its text is in layout units — so these need no card. */
 export const DETAIL_ENTER_ZOOM = DETAIL_ENTER_PX / CARD_BODY_PX;
 export const DETAIL_EXIT_ZOOM = DETAIL_EXIT_PX / CARD_BODY_PX;
 
@@ -129,9 +144,9 @@ export const DETAIL_EXIT_ZOOM = DETAIL_EXIT_PX / CARD_BODY_PX;
  * that, no mode the canvas can be in draws the bubbles — and never below the
  * fit that reserved them, which is safe at any zoom.
  */
-export function fitZoomForDrawnLanes(withLanes: number, bare: number): number {
-  if (withLanes >= DETAIL_ENTER_ZOOM) return withLanes;
-  return Math.max(withLanes, Math.min(bare, DETAIL_EXIT_ZOOM - 0.001));
+export function fitZoomForDrawnLanes(withLanes: number, bare: number, bodyPx = CARD_BODY_PX): number {
+  if (withLanes >= DETAIL_ENTER_PX / bodyPx) return withLanes;
+  return Math.max(withLanes, Math.min(bare, DETAIL_EXIT_PX / bodyPx - 0.001));
 }
 
 /** The zoom a focused card is shown at: never below the one `detail` is

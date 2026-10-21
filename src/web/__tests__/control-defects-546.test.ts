@@ -47,7 +47,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { accountsSurface } from "./accounts-surface";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const read = (name: string) =>
   readFileSync(fileURLToPath(new URL(name, import.meta.url)), "utf8");

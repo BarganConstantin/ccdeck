@@ -13,7 +13,8 @@
 // and the column's width is leftColumnWidth's: the open panel's, or nothing.
 // The sheet eases it from the last one (styles/left-column.css), so every frame
 // of a switch is between the two panels' widths and the canvas beside it rides
-// along. A panel that arrives with the column slides in with its edge; one that
+// along. Larger text widens both panels by the same --ui-panel-increase
+// (styles/reading.css), so the column takes it too, and only while it is open. A panel that arrives with the column slides in with its edge; one that
 // arrives in a column already open fades in where it stands, at its own width,
 // over the one leaving.
 import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
@@ -33,7 +34,7 @@ export default function LeftColumn({ width, children }: {
   });
   return (
     <div ref={ref} className={`left-column${width === 0 ? " closing" : ""}`}
-      style={{ "--left-col-w": `${width}px` } as CSSProperties}>
+      style={{ "--left-col-w": width === 0 ? "0px" : `calc(${width}px + var(--ui-panel-increase, 0px))` } as CSSProperties}>
       {children}
     </div>
   );

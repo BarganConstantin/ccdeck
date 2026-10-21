@@ -24,12 +24,11 @@
 // set is filtered against the roster on every load so a name nobody answers to
 // is dropped rather than left waiting for its slot to be reused.
 //
-// Identity is email plus organization, which is the same pair claude-swap
+// Identity is email plus stable organization UUID where available, which is the same pair claude-swap
 // itself matches a usage row to an account by (claude-accounts.mjs: `row.email
 // === acct.email && (row.organizationUuid ?? "") === (acct.organizationUuid ??
-// "")`). The panel is shipped the organization NAME rather than its uuid, so
-// that is what it can use; the pair still separates one address signed into two
-// organizations, which is the case the uuid is there for.
+// "")`). The UUID survives organization renames and separates identical display names.
+// Older responses without a UUID retain the display-name fallback.
 //
 // This is a pure function in its own file for the reason account-move.ts gives
 // for the same move: the suite runs on plain node with no DOM, the panel cannot
@@ -44,6 +43,8 @@ export interface LaneOwner {
   email?: string | null;
   /** The organization name, as `claude-accounts.mjs` ships it. */
   org?: string | null;
+  /** Stable provider identity; the display name can collide or be renamed. */
+  orgUuid?: string | null;
 }
 
 /** Separates the two halves of an identity key. No address contains a NUL, so
@@ -67,7 +68,8 @@ const SEP = "\u0000";
 export function laneKey(a: LaneOwner): string {
   const email = typeof a.email === "string" ? a.email.trim() : "";
   if (!email) return `slot:${a.num}`;
-  const org = typeof a.org === "string" ? a.org.trim() : "";
+  const org = typeof a.orgUuid === "string" && a.orgUuid.trim()
+    ? `uuid:${a.orgUuid.trim()}` : typeof a.org === "string" ? a.org.trim() : "";
   return `acct:${email}${SEP}${org}`;
 }
 

@@ -6,7 +6,7 @@ import { agentCost, agentUnpricedTokens } from "../usage-models";
 import { fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
 import { elapsed } from "../duration";
-import { shortModel } from "../model-label";
+import { modelChipText } from "../model-label";
 import { sessionDisplay } from "../session-display";
 import { useNow } from "../use-now";
 import { branchLong, stateMarkKind, type BranchSummary } from "../node-face";
@@ -230,7 +230,7 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
           <StateMark kind={stateMarkKind(a.state)} />{stateLabel(a.state)}
         </span>
         <span>{kind}</span>
-        {a.model ? <span>{shortModel(a.model)}</span> : null}
+        {a.model ? <span>{modelChipText(a.model, a.effort)}</span> : null}
       </div>
       {a.kind === "root" && naming.face && <p className="node-peek-title" title={naming.face}>{naming.face}</p>}
       {a.kind === "root" && a.waiting && (

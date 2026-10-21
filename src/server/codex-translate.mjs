@@ -19,6 +19,10 @@ export const codexSessionModel = new Map();   // sid -> last model string
 // session. See codexObjToPayload for why this is read and what it is NOT used
 // for; #398 for why the deck holds it at all.
 export const codexSessionApproval = new Map(); // sid -> last approval_policy string
+// sid -> the reasoning effort of the newest `turn_context`, or null when that
+// record named none (#2155). Spread onto every payload as `reasoning_effort`,
+// as approval_policy is, so the card says the effort the current turn runs at.
+export const codexSessionEffort = new Map();
 
 // ─── What a rollout record states ─────────────────────────────────────────
 // The record shapes more than one reader takes a fact off: the translation
@@ -53,6 +57,19 @@ export function taskStartedWindow(obj) {
   return obj && obj.type === "event_msg" && pl && pl.type === "task_started" && typeof pl.model_context_window === "number"
     ? pl.model_context_window
     : null;
+}
+
+/**
+ * The reasoning effort a `turn_context` record says the turn runs at, or null
+ * when it names none (#2155). Codex writes it twice on every turn — `effort`,
+ * and again as `collaboration_mode.settings.reasoning_effort` — and the first
+ * is read first, the second only in its absence. Not a fixed set of words: the
+ * config reference lists `low` … `xhigh` and more, and says the levels depend
+ * on the model, so any short word is taken as written.
+ */
+export function turnContextEffort(pl) {
+  const effort = pl?.effort ?? pl?.collaboration_mode?.settings?.reasoning_effort;
+  return typeof effort === "string" && /^[a-z][a-z0-9_-]{0,23}$/i.test(effort) ? effort : null;
 }
 
 /** The model a `response_item` names, or null. */
@@ -93,6 +110,12 @@ export function codexObjToPayload(obj, sid, cwd) {
   // watcher reads. The reducer stamps it on the root beside `contextWindow`.
   const approval_policy = codexSessionApproval.get(sid);
   const base = { session_id: sid, cwd, provider: "codex", approval_policy };
+  // The effort, on the same terms — but sent as null once a turn_context named
+  // none, where approval_policy is left out: a policy that goes missing is a
+  // record that dropped a field, while a turn with no effort is a model that
+  // has none, and the chip must stop showing the last one. Before the first
+  // turn_context it is absent, which the page reads as "not known yet".
+  if (codexSessionEffort.has(sid)) base.reasoning_effort = codexSessionEffort.get(sid);
 
   // Track model from turn_context / response_item before mapping events.
   if (type === "turn_context") {
@@ -128,6 +151,7 @@ export function codexObjToPayload(obj, sid, cwd) {
     } else {
       codexSessionApproval.delete(sid);
     }
+    codexSessionEffort.set(sid, turnContextEffort(pl));
     return null;
   }
   const itemModel = responseItemModel(obj);

@@ -941,7 +941,7 @@ describe("M silences the deck from anywhere, and the switch is in Settings › S
     // sounds, which moved to CustomSoundsSection.tsx. Their markup is held to the
     // same three there.
     const custom = customSounds.slice(customSounds.indexOf("  return ("));
-    expect(custom).toContain('<section className="sm-custom"');   // the right slice
+    expect(custom).toContain('className="sm-custom"');             // the right slice
     expect(custom, "a custom-sound control was disabled").not.toMatch(/\bdisabled\b/);
     expect(custom, "a custom-sound control was dimmed").not.toMatch(/\bopacity\b/);
     expect(custom).not.toMatch(/\bsoundOn\b/);

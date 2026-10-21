@@ -301,9 +301,9 @@ export const DEFAULT_LEVEL = 50;
  * upstream, and answering "silent" or "loudest" to that is a guess; answering
  * "what a fresh profile gets" is not.
  */
-export function clampLevel(value: number): number {
+export function clampLevel(value: number, step = LEVEL_STEP): number {
   if (!Number.isFinite(value)) return DEFAULT_LEVEL;
-  const snapped = Math.round(value / LEVEL_STEP) * LEVEL_STEP;
+  const snapped = Math.round(value / step) * step;
   return Math.min(LEVEL_MAX, Math.max(LEVEL_MIN, snapped));
 }
 
@@ -319,11 +319,11 @@ export function clampLevel(value: number): number {
  * are refused for the same reason: none of them is a spelling this file ever
  * writes, so each is evidence the value did not come from here.
  */
-export function levelFrom(raw: string | null | undefined): number {
+export function levelFrom(raw: string | null | undefined, step = LEVEL_STEP): number {
   if (raw == null) return DEFAULT_LEVEL;
   const text = raw.trim();
   if (!/^-?\d+(\.\d+)?$/.test(text)) return DEFAULT_LEVEL;
-  return clampLevel(Number(text));
+  return clampLevel(Number(text), step);
 }
 
 /**

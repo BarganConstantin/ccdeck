@@ -16,7 +16,7 @@
 // headless browser with a 12-session board: no frame of a switch, an open or
 // a close moved React Flow's viewport, and none re-packed the board.
 import { describe, it, expect } from "vitest";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 import { sourceOf } from "./client-source";
 
 const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");

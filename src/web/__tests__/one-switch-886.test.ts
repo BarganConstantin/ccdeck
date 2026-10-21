@@ -22,7 +22,7 @@ const count = (re: RegExp) => SOURCES.reduce((n, [, src]) => n + (src.match(re)?
 
 /** The body of the rule written for exactly this selector. */
 function body(selector: string): string {
-  const m = new RegExp(`(?:^|\\n)${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`).exec(css);
+  const m = new RegExp(`(?:^|\\n)\\s*${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`).exec(css);
   return m?.[1] ?? "";
 }
 
@@ -41,7 +41,12 @@ describe("every switch is the one switch (#886)", () => {
     // (#1312), which are three switches drawn by one `role="switch"` from one
     // list — this counts the markup that draws them, not what it draws.
     // Seventeen with Settings › General's "Single-key shortcuts" (WCAG 2.1.4).
-    expect(switches, "the seventeen switches in the source").toBe(17);
+    // Sixteen after Music left Settings; Radio Explorer owns music controls.
+    // Seventeen with the editable telemetry flags in Radar.
+    // Eighteen with Settings › General's "Update when idle" (#2176), the
+    // banner's auto-restart preference drawn where it can be found at rest.
+    // Nineteen with the shared Codex/Claude startup-recovery switch markup.
+    expect(switches, "the nineteen switches in the source").toBe(19);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });
@@ -102,6 +107,9 @@ describe("the one switch owns its states (#886)", () => {
     const normal = at > -1 ? css.slice(0, at) + css.slice(close + 1) : css;
     const overrides = [...normal.matchAll(/(?:^|\n)([^{}\n]*\.switch\b[^{}\n]*)\{/g)].map(m => m[1].trim())
       .filter(sel => !sel.startsWith(".switch"));
-    expect(overrides).toEqual(['.ver-banner .switch[aria-checked="true"]']);
+    // Radar enlarges only the invisible mobile hit area; the track and knob
+    // retain the shared geometry and states.
+    expect(body('.tr-flag-action .switch::after')).toMatch(/width:\s*44px;\s*height:\s*44px/);
+    expect(overrides.sort()).toEqual(['.tr-flag-action .switch::after', '.ver-banner .switch[aria-checked="true"]']);
   });
 });

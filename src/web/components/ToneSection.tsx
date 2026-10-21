@@ -11,6 +11,7 @@ import { FIGURE_SETS, type Chime, type ToneSettings } from "../sound";
 import { type CustomAssetSummary, type CustomSelections } from "../notification-audio";
 import { customIdOf, customOptionValue } from "../tone-option";
 import VolumeRow from "./VolumeRow";
+import { SettingsGroup } from "./SettingsParts";
 
 /** What each tone is called where a user is choosing between the two. Not
  *  "done" and "needs-input" — those are event names. */
@@ -58,15 +59,12 @@ export default function ToneSection({
   const figureId = `sm-figure-${chime}`;
   const customId = customSelections[chime];
   return (
-    <section className="sm-tone" aria-labelledby={`sm-name-${chime}`}>
-      <div className="sm-tone-head">
-        <h3 className="sm-tone-name" id={`sm-name-${chime}`}>{TONE_LABEL[chime]}</h3>
-        {/* The point of the menu, not decoration: choosing a sound you
-            cannot hear and setting a level in silence are both guessing.
-            It plays THIS tone at what it is currently set to, and it
-            plays whether the switch is on or off — the press is the
-            request, and the person most likely to be here is somebody
-            who turned the sound off because it was too loud. */}
+    <SettingsGroup
+      id={`sm-name-${chime}`}
+      title={TONE_LABEL[chime]}
+      note={TONE_NOTE[chime]}
+      settingId={`tone-${chime}`}
+      aside={
         <button
           type="button"
           className="btn sm-hear"
@@ -100,8 +98,8 @@ export default function ToneSection({
           </svg>
           Hear it
         </button>
-      </div>
-
+      }
+    >
       <VolumeRow id={levelId} value={tone.level} onLevel={level => onLevel(chime, level)} />
 
       <div className="sm-row">
@@ -135,7 +133,6 @@ export default function ToneSection({
         </select>
       </div>
 
-      <p className="sm-note">{TONE_NOTE[chime]}</p>
-    </section>
+    </SettingsGroup>
   );
 }

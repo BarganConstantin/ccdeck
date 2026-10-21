@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { createActivity, MAX_OPEN_TURNS, OPEN_CAP_MS } from "../../server/activity.mjs";
+import { createActivity, shouldTrackActivity, MAX_OPEN_TURNS, OPEN_CAP_MS } from "../../server/activity.mjs";
 import { AWAY_BOOT_GRACE_MS, AWAY_QUIET_MS, AWAY_RETRY_MS, awayGate, awayUpdateStep } from "../../server/auto-update.mjs";
 import { createPresence, PRESENCE_TTL_MS } from "../../server/presence.mjs";
 import { DEFAULTS, normalise } from "../../server/deck-prefs.mjs";
@@ -269,8 +269,19 @@ describe("the wiring", () => {
   const lifecycle = src("../../server/lifecycle.mjs");
   const app = src("../App.tsx");
 
-  it("learns about turns from every live event and never from a replay", () => {
-    expect(pipeline).toContain("if (!opts.replay) activity.note(raw, evt.receivedAt);");
+  it("takes live activity and fresh recovery snapshots, excluding persisted history", () => {
+    expect(pipeline).toContain("if (shouldTrackActivity(raw, opts)) activity.note(raw, evt.receivedAt);");
+    expect(shouldTrackActivity({ hook_event_name: "UserPromptSubmit" }, { replay: true })).toBe(false);
+    expect(shouldTrackActivity({ hook_event_name: "PreToolUse" }, {})).toBe(true);
+    for (const hook_event_name of ["CodexSessionRecovered", "ClaudeSessionRecovered"]) {
+      const a = createActivity();
+      const raw = { hook_event_name, session_id: "restored", recovery_active: true };
+      expect(shouldTrackActivity(raw, { replay: true })).toBe(true);
+      a.note(raw, 1000);
+      expect(a.busy(2000)).toBe(true);
+      a.note({ ...raw, recovery_active: false }, 3000);
+      expect(a.busy(4000)).toBe(false);
+    }
   });
 
   it("takes presence on a route only the deck's own page can post to", () => {

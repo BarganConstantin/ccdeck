@@ -227,4 +227,23 @@ describe("selected Codex quota", () => {
     const { getCodexAuth } = await import("../../server/codex-auth.mjs");
     expect(await getCodexAuth({ selectedReadOnly: true })).toMatchObject({ ok: true, accountId: "b", refreshed: false, planType: "plus" });
   });
+
+  it("records quota history once per fresh reading, under the selected account", async () => {
+    const note = vi.fn();
+    const forget = vi.fn();
+    vi.doMock("../../server/quota-history.mjs", () => ({ noteQuotaHistory: note, forgetQuotaHistoryAccount: forget }));
+    wireUsage(account => reply(200, usage(account === "a" ? 31 : 72)));
+    const { fetchCodexQuota } = await quotaModule();
+    const first = await fetchCodexQuota({ readSelection });
+    await fetchCodexQuota({ readSelection });
+    selected = { ...selected, home: b, profileId: "profile-b", revision: 2 };
+    await fetchCodexQuota({ readSelection });
+    expect(note.mock.calls.map(([provider, account]) => [provider, account])).toEqual([
+      ["codex", { accountId: "a", email: "a@example.test" }],
+      ["codex", { accountId: "b", email: "b@example.test" }],
+    ]);
+    expect(note.mock.calls[0][2]).toBe(first);
+    expect(forget).not.toHaveBeenCalled();
+    vi.doUnmock("../../server/quota-history.mjs");
+  });
 });

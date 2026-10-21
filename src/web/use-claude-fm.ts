@@ -41,8 +41,15 @@ export function useClaudeFm() {
 
   useEffect(() => { writeStored(FM_SOURCE_KEY, fmSource); }, [fmSource]);
 
-  const addFmStation = useCallback((station: CustomFmStation) => {
-    setCustomFmStations(current => current.some(item => item.id === station.id) ? current : [...current, station]);
+  const addFmStation = useCallback((station: CustomFmStation, refreshRadio = false) => {
+    setCustomFmStations(current => {
+      const existing = current.find(item => item.id === station.id);
+      if (!existing) return [...current, station];
+      if (!refreshRadio || !station.radio || !existing.radio || (existing.url === station.url && JSON.stringify(existing.radio) === JSON.stringify(station.radio))) return current;
+      // Explicit directory playback refreshes stale format/location data while
+      // preserving a personal station name. Saving a favorite never restarts audio.
+      return current.map(item => item.id === station.id ? { ...item, url: station.url, radio: station.radio } : item);
+    });
     setUnavailableFmStations(current => {
       if (!current.has(station.id)) return current;
       const next = new Set(current); next.delete(station.id); return next;
@@ -69,10 +76,12 @@ export function useClaudeFm() {
   // A station marked unavailable is the exception, because picking it is the
   // retry — the mark comes off and the counter moves, so ClaudeFm asks again,
   // whether it is the station already set or one somebody came back to.
-  const pickFmSource = useCallback((next: FmSelection) => {
+  // A restored current station may need a new request after its directory
+  // URL or format changed; ordinary current-station picks remain unchanged.
+  const pickFmSource = useCallback((next: FmSelection, restart = false) => {
     const retryId = fmAvailabilityKey(next);
     const retry = unavailableFmStations.has(retryId);
-    if (next === fmSource && !retry) return;
+    if (next === fmSource && !retry && !restart) return;
     if (retry) {
       setUnavailableFmStations(current => {
         const rest = new Set(current); rest.delete(retryId); return rest;

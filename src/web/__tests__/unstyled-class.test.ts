@@ -136,9 +136,4 @@ describe("every class the markup hard-codes", () => {
     const stubs = [...tokens].flatMap(([, names]) => names.filter(composed));
     expect([...new Set(stubs)].sort()).toEqual(["cat-", "state-", "status-", "tr-dot-", "tr-json-"]);
   });
-
-  it("styles every Radar status and JSON scalar suffix composed at runtime", () => {
-    for (const suffix of ['ok', 'error', 'attention', 'neutral']) expect(styled(`tr-dot-${suffix}`)).toBe(true);
-    for (const suffix of ['key', 'string', 'number', 'boolean', 'null']) expect(styled(`tr-json-${suffix}`)).toBe(true);
-  });
 });

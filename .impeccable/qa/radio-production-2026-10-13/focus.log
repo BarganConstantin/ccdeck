@@ -1,0 +1,24 @@
+RESTORE {
+  active: '<button id="dock-more" type="button" data-rail-item="more" class="rail-btn rail-btn-dock" tabindex="',
+  launchers: [
+    {
+      html: '<button id="dock-more" type="button" data-rail-item="more" class="rail-btn rail-btn-dock" tabindex="0" aria-label="More: Usage history, Browser watch, watching, 6 unread, Telemetry',
+      rects: 1,
+      display: 'flex',
+      visibility: 'visible'
+    }
+  ]
+}
+PASS responsive focus restoration 390 desktop→More, More→More, More→desktop; search never autofocused
+RESTORE {
+  active: '<button id="dock-more" type="button" data-rail-item="more" class="rail-btn rail-btn-dock" tabindex="',
+  launchers: [
+    {
+      html: '<button id="dock-more" type="button" data-rail-item="more" class="rail-btn rail-btn-dock" tabindex="0" aria-label="More: Usage history, Browser watch, watching, 6 unread, Telemetry',
+      rects: 1,
+      display: 'flex',
+      visibility: 'visible'
+    }
+  ]
+}
+PASS responsive focus restoration 320 desktop→More, More→More, More→desktop; search never autofocused

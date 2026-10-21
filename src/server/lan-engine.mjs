@@ -119,7 +119,12 @@ export function defaultName() {
  * `internal` is node's word for loopback, and a link-local 169.254 address is a
  * machine whose DHCP failed — reachable by nobody worth telling about.
  */
-export function localAddresses(faces = networkInterfaces()) {
+export function localAddresses(faces) {
+  if (faces === undefined) {
+    // Windows can temporarily fail to enumerate adapters. Keep status and
+    // invite reads usable, and ask the OS again on the next read.
+    try { faces = networkInterfaces(); } catch { return []; }
+  }
   const out = [];
   for (const list of Object.values(faces ?? {})) {
     for (const n of list ?? []) {

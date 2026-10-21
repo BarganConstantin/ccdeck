@@ -25,6 +25,7 @@ import { resetCountdown } from "../relative-time";
 import { type useRequestSlot } from "../use-request-slot";
 import { laneName } from "../other-accounts-order";
 import { resetSinceReading } from "../accounts-usage-report";
+import { sharedLine } from "../account-lan";
 
 type RequestSlot = ReturnType<typeof useRequestSlot>;
 
@@ -87,8 +88,9 @@ function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
 interface Props {
   a: Account;
   nowSec: number;
-  /** What Local network knows about this account's copies on other decks. */
-  lan?: { noCopyWorksNearby?: boolean };
+  /** What Local network knows about this account's copies on other decks, and
+   *  the paired decks this deck offers it to — null when it offers it to none. */
+  lan?: { noCopyWorksNearby?: boolean; sharedTo?: readonly string[] | null };
   /** The reader has opened this row's detail. */
   opened: boolean;
   /** Open this row's detail, or shut it. */
@@ -115,11 +117,14 @@ interface Props {
   /** What the list behind the fold is ordered by (#1579) — a window's name,
    *  "room", or null — so the row can mark the number it was placed by. */
   sortKey?: string | null;
+  /** This is Auto-switch's home account: what the mark says about it
+   *  (auto-choice.ts homeTitle), or null on every other row. */
+  home?: string | null;
 }
 
 export default function AccountRow({
   a, nowSec, lan, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
-  refusal, onDismissRefusal, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null,
+  refusal, onDismissRefusal, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null, home = null,
 }: Props) {
   // The windows that have not reset since they were read: the only ones whose
   // numbers say anything about this window (lane-view.ts's lapsed).
@@ -180,6 +185,8 @@ export default function AccountRow({
           aria-controls={open ? `ap-detail-${a.num}` : undefined}
           aria-describedby={[
             a.alias && a.email ? `ap-email-${a.num}` : null,
+            home ? `ap-home-${a.num}` : null,
+            lan?.sharedTo ? `ap-shared-${a.num}` : null,
             !open && !issue?.blocksSwitch ? `ap-quota-${a.num}` : null,
           ].filter(Boolean).join(" ") || undefined}
           onClick={() => onToggleLanes()}>
@@ -204,6 +211,42 @@ export default function AccountRow({
             id is what the door's description points at. */}
         {a.alias && <span className="ap-alias" title={a.alias}>{a.alias}</span>}
         <span className="ap-email" id={`ap-email-${a.num}`} title={a.email ?? undefined}>{a.email}</span>
+        {/* HOME: the account Auto-switch comes back to. A mark, like the
+            shared one beside it, and set from the ⋯ rather than by another
+            control on every row; whether Auto-switch is passing it over
+            right now, and why, is its title. */}
+        {home && (
+          <span className="ap-home" id={`ap-home-${a.num}`} title={home}>
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+              strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M2.2 6.6 7 2.6l4.8 4" />
+              <path d="M3.6 5.6v5.8h6.8V5.6" />
+              <path d="M6 11.4V8.6h2v2.8" />
+            </svg>
+            <span className="vis-hidden">{home}</span>
+          </span>
+        )}
+        {/* SHARED, SAID ON THE ROW (#2170). Whether a login is offered to the
+            paired decks was a tick in Local network's setup dialog and nowhere
+            else, so somebody keeping a personal login to themselves opened
+            that dialog every time to be sure. A mark rather than a word: it
+            stands after the email, which takes the free width, so the marks
+            line up down the column and a login without one reads as not
+            offered at a glance. Who it is offered to is its title — raised
+            over the door so the pointer gets it — and what a screen reader
+            hears, on the row and in the door's description. */}
+        {lan?.sharedTo && (
+          <span className="ap-shared" id={`ap-shared-${a.num}`} title={sharedLine(lan.sharedTo)}>
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+              strokeWidth="1.3" strokeLinecap="round" aria-hidden>
+              <circle cx="10.5" cy="3.2" r="1.7" />
+              <circle cx="3.5" cy="7" r="1.7" />
+              <circle cx="10.5" cy="10.8" r="1.7" />
+              <path d="M5.2 6.1 8.8 4.1M5.2 7.9l3.6 2" />
+            </svg>
+            <span className="vis-hidden">{sharedLine(lan.sharedTo)}</span>
+          </span>
+        )}
         {/* A state, said in a word and not in a pill. It stands where
             `Switch` would, because a switch to a held-out account is
             refused and a control that can never act is worse than

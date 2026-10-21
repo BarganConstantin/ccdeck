@@ -12,6 +12,7 @@ import {
   backgroundUpdateDue, installsDisabled, maybeBackgroundUpdate, resolveEntry, startInstall,
 } from "./ccusage-install.mjs";
 import { overrideIsThere, runCcusage, userCcusage } from "./ccusage-runner.mjs";
+import { sessionDetail, validSessionLookup } from "./ccusage-session.mjs";
 
 // 60s, and it is the panel's poll interval rather than a number of its own: the
 // Usage panel asks once a minute and expects a reading that has actually moved,
@@ -291,6 +292,45 @@ export async function fetchCcusageDaily({ since, until, force = false } = {}) {
 
   const run = queued(() => readRange(sinceArg, until, key))
     .finally(() => { _inflight.delete(key); });
+  _inflight.set(key, run);
+  return run;
+}
+
+/** A manual, whole-session read. Shares the history queue and its limits. */
+export async function fetchCcusageSession({ agent, sessionId, speed = "auto", force = false } = {}) {
+  if (!validSessionLookup(agent, sessionId, speed)) {
+    return { ok: false, reason: "bad_session", error: "Choose a Claude or Codex session and a supported pricing mode." };
+  }
+  const now = Date.now();
+  const key = `session:${agent}:${speed}:${sessionId}`;
+  const cached = _cache.get(key);
+  if (!force && cached && now - cached.at < CACHE_MS) return cached.result;
+  if (_inflight.has(key)) return _inflight.get(key);
+  if (_outstanding >= MAX_OUTSTANDING) {
+    return { ok: false, reason: "busy", error: "Usage reports are already being read. Try again in a moment." };
+  }
+  const run = queued(async () => {
+    let result;
+    try {
+      const args = [agent, "session", "--id", sessionId, "--json"];
+      // Auto is ccusage's default. Omitting the flag preserves older copies;
+      // explicit modes are scenarios and must never silently fall back.
+      if (agent === "codex" && speed !== "auto") args.push("--speed", speed);
+      const ran = await runCcusage(args);
+      const raw = ran.out.trim() === "null" ? null : extractJson(ran.out);
+      const detail = sessionDetail(raw, agent, sessionId, speed);
+      result = detail ? { ok: true, detail, fetchedAt: Date.now() }
+        : { ok: false, reason: raw == null ? "not_found" : "bad_output",
+          error: raw == null ? "No local usage was found for this session." : "ccusage returned an unsupported session report.", fetchedAt: Date.now() };
+    } catch (err) {
+      const error = String(err?.message ?? err);
+      const reason = err?.reason ?? (/No Codex session found with ID:/i.test(error) ? "not_found"
+        : /Codex session ID .* is ambiguous/i.test(error) ? "ambiguous" : "run_failed");
+      result = { ok: false, reason, error, fetchedAt: Date.now() };
+    }
+    rememberRange(key, result, Date.now());
+    return result;
+  }).finally(() => { _inflight.delete(key); });
   _inflight.set(key, run);
   return run;
 }

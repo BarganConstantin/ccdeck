@@ -93,11 +93,13 @@ self-update with a stale-module warning and self-restart.
 
 **Browser Watch**, which is on unless switched off and is the one feature that is
 about the user rather than about an agent. Every five minutes it copies each
-Chromium profile's `History` database and looks for `FROM_API` visits — the mark an
-agent's browser control leaves — so a run of them while nobody was at the machine
-becomes a card. Its reactions are `notify`, `close-tab` (macOS only) and
-`quit-browser` (every platform, and the only one that takes the session back). Any
-UI copy claiming the deck looks only at agents would be false.
+Chromium profile's `History` database and looks for `FROM_API` visits — the mark
+Chromium leaves on a page loaded with the DevTools protocol's `Page.navigate` or an
+extension's `tabs.update`, and not on every page an agent opens (a tab created at an
+address, a clicked link, a URL from `open` carry none) — so a run of them while nobody
+was browsing that profile becomes a card. Its reactions are `notify`, `close-tab`
+(macOS only) and `quit-browser` (every platform, and the only one that takes the
+session back). Any UI copy claiming the deck looks only at agents would be false.
 
 **Binding constraints, all of them load-bearing:**
 

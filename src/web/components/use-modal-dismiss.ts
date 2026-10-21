@@ -31,6 +31,9 @@ interface Options {
    *  primary button rather than a tab strip on the sign-in dialog. Left unset,
    *  the dialog's first tabbable control gets it. */
   focusRef?: RefObject<HTMLElement | null>;
+  /** A responsive launcher may disappear while the dialog is open. Used only
+   * when ordinary opener restoration leaves focus on the document body. */
+  restoreFocusFallback?: () => HTMLElement | null;
   /** Higher answers Escape first — see CONFIRM_LAYER in modal-dismiss.ts. */
   layer?: number;
   /** A popover rather than a dialog: no scrim, nothing inert behind it. Only
@@ -102,7 +105,7 @@ export function useModalDismiss<T extends HTMLElement = HTMLDivElement>(
   onDismiss: () => void,
   opts: Options = {},
 ): RefObject<T> {
-  const { focusRef, layer, popover } = opts;
+  const { focusRef, restoreFocusFallback, layer, popover } = opts;
   const kind = popover ? "popover" : "dialog";
   const dialogRef = useRef<T | null>(null);
 
@@ -132,6 +135,10 @@ export function useModalDismiss<T extends HTMLElement = HTMLDivElement>(
     (focusRef?.current ?? tabbablesIn(dialogRef.current)[0])?.focus();
     return () => {
       if (shouldRestoreFocus(opener, document.activeElement)) opener!.focus();
+      if (restoreFocusFallback && document.activeElement === document.body) {
+        const fallback = restoreFocusFallback();
+        if (shouldRestoreFocus(fallback, document.activeElement)) fallback!.focus();
+      }
     };
     // Mount and unmount only: this is where focus enters the dialog and where
     // it goes back, and re-running it on a prop change would fight the user.

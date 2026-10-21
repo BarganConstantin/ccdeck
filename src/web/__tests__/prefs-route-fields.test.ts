@@ -145,6 +145,8 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["notifyReset", { notifyReset: true }, p => p.notifyReset, true],
   ["tourSeen", { tourSeen: true }, p => p.tourSeen, true],
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
+  ["recoverClaudeSessions", { recoverClaudeSessions: false }, p => p.recoverClaudeSessions, false],
+  ["recoverCodexSessions", { recoverCodexSessions: false }, p => p.recoverCodexSessions, false],
   ["lan.enabled", { lan: { enabled: false } }, p => p.lan.enabled, false],
   ["lan.manual", { lan: { manual: ["10.0.0.1:5000", "10.0.0.2:5001"] } }, p => p.lan.manual, ["10.0.0.1:5000", "10.0.0.2:5001"]],
   ["lan.name", { lan: { name: "studio" } }, p => p.lan.name, "studio"],
@@ -185,7 +187,7 @@ describe("the fields a page may write", () => {
   // own until somebody makes that decision in PAGE_FIELDS and in this test.
   it("are these, and no others", () => {
     expect(PAGE_FIELDS).toEqual({
-      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate"],
+      top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions"],
       lan: [
         "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
         "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",

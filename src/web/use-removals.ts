@@ -72,6 +72,28 @@ export function useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clea
     if (lastRemoval) canvasRef.current?.focus();
   }, [lastRemoval]);
 
+  // Settings' "Hide finished sessions after" (use-hide-finished.ts): the same
+  // removal, minus what a press brings with it — no sentence for a screen
+  // reader and no selection cleared, since nobody pressed anything.
+  const hideSessions = useCallback((ids: Iterable<string>) => {
+    const list = [...ids];
+    setRemovedNodes(previous => {
+      let next: Set<string> | null = null;
+      for (const id of list) {
+        if (previous.has(id)) continue;
+        next ??= new Set(previous);
+        next.add(id);
+      }
+      if (!next) return previous;
+      saveRemovedNodes(localStore(), next);
+      return next;
+    });
+    for (const id of list) {
+      pinnedRef.current.delete(id);
+      positionsRef.current.delete(id);
+    }
+  }, []);
+
   const bringBack = useCallback((ids: Iterable<string>) => {
     const list = [...ids];
     setRemovedNodes(previous => {
@@ -99,7 +121,7 @@ export function useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clea
   // No setter leaves this file: every change to what is off the board goes
   // through one of the operations above.
   return { removedNodes, lastRemoval, removedAgentIds, removeNode, removeSelectedNode, removalNotice,
-           bringBack, bringBackAll, forgetRemovals };
+           hideSessions, bringBack, bringBackAll, forgetRemovals };
 }
 
 /** The two ways a removed card comes back without being asked for, moved out

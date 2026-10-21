@@ -448,6 +448,20 @@ describe("what a swap says about why", () => {
     expect(swapNotice({ toName: "work", fromName: null, used: null, threshold: null }).body).toBe("Switched to work");
   });
 
+  it("says the deck's own reasons below the threshold: home, and the weekly reset", () => {
+    const now = Date.UTC(2026, 9, 21, 12);
+    const in31h = now / 1000 + 31 * 3600;
+    expect(swapNotice({ toName: "work", fromName: "me", used: 30, threshold: 90, trigger: "home", now }).body)
+      .toBe("Back on work · your home account");
+    expect(swapNotice({ toName: "work", fromName: "me", used: 95, threshold: 90, trigger: "home", now }).body)
+      .toBe("Back on work · me reached 90%");
+    expect(swapNotice({ toName: "side", fromName: "me", used: 30, threshold: 90, trigger: "weekly-reset", resetAt: in31h, now }).body)
+      .toBe("Switched to side · weekly limit resets in 1d 7h");
+    // A reset already past says nothing it cannot stand behind.
+    expect(swapNotice({ toName: "side", fromName: "me", used: 30, threshold: 90, trigger: "weekly-reset", resetAt: now / 1000 - 60, now }).body)
+      .toBe("Switched to side from me");
+  });
+
   it("reads the account's usage from the tick's own poll, in both shapes", () => {
     expect(usedBefore({ headroom: { "2": 6, "3": 70 } }, 2)).toBe(94);
     expect(usedBefore({ headroom: 4, active: { number: "2" } }, 2)).toBe(96);

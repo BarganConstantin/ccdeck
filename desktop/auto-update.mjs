@@ -15,12 +15,22 @@
 //   SHA-256 checked and its Ed25519 signature checked against ccdeck's own key
 //   (updater.mjs, updater-mac.mjs) — nothing here can install anything else;
 //
-//   NOT WHAT AN AGENT IS DOING, and that is the owner's call, made on
-//   2026-09-22: a restart under a running agent is a second in which the deck
-//   is not there to be posted to, and the hook survives it — it POSTs, exits 0
-//   and never speaks to the agent about it, so the worst case is a gap in the
-//   drawing of a turn rather than a turn that goes wrong. Waiting for every
-//   agent on the machine to be idle is how an app stays three versions behind;
+//   NO AGENT WORKING OR WAITING, for a minute — FOR A DAY AT MOST. The owner
+//   first decided otherwise, on 2026-09-22: the hook survives a restart, so
+//   the cost is a gap in the drawing of a turn. People read it differently:
+//   an app that restarts while their agents work restarts "randomly", and a
+//   user said so in feedback (2026-10-16). So it now waits for the agents too,
+//   and the reason for the old rule survives as its limit: a machine that is
+//   never idle would never update, so after MAX_WAIT_MS behind it installs
+//   at the next quiet minute whatever the agents are doing;
+//
+//   NOT POSTPONED: "Later" on the ready notice holds it off for POSTPONE_MS,
+//   and the day's limit counts from the end of that, not from the download;
+//
+//   THE NEWEST ONE: the release staged may have been overtaken while it waited.
+//   It installs only after a look for a newer one that is no older than
+//   FRESH_MS, and with no look in flight — or the app would update into a
+//   version that is already behind, and update again an hour later;
 //
 //   THE WINDOW must not be FOCUSED. A focused window is somebody there right
 //   now, mid-read or mid-type. A window left open behind other things is not,
@@ -44,6 +54,15 @@
 /** How long the app must have been quiet before it updates itself. */
 export const QUIET_MS = 60_000;
 
+/** How long an update may wait for the agents before it stops waiting. */
+export const MAX_WAIT_MS = 24 * 60 * 60_000;
+
+/** How long "Later" holds the update off. */
+export const POSTPONE_MS = 24 * 60 * 60_000;
+
+/** How old the last look for a newer release may be when a staged one installs. */
+export const FRESH_MS = 30 * 60_000;
+
 /**
  * May the app install the staged update right now?
  *
@@ -53,12 +72,54 @@ export const QUIET_MS = 60_000;
  * @param {boolean} o.windowFocused is somebody in the deck's window right now
  * @param {boolean} o.busy         a deck start or restart is already in flight
  * @param {number} o.quietSince    when the last of all that stopped being true
+ * @param {number|null} o.idleSince when the agents last stopped working or waiting
+ * @param {number|null} o.behindSince when an update first became ready
+ * @param {number|null} [o.postponedUntil] until when "Later" holds it off
+ * @param {number|null} o.lookedAt  when the updater last started a look for a newer release
+ * @param {boolean} o.looking       a look is in flight
  * @param {number} o.now
  * @param {number} [o.quietMs]
  */
-export function canInstallQuietly({ status, unattended, windowFocused, busy, quietSince, now, quietMs = QUIET_MS }) {
+export function canInstallQuietly({
+  status, unattended, windowFocused, busy, quietSince, idleSince, behindSince, postponedUntil,
+  lookedAt, looking, now, quietMs = QUIET_MS,
+}) {
   if (status !== "ready" || unattended !== true) return false;
-  return quietLongEnough({ windowFocused, busy, quietSince, now, quietMs });
+  if (postponed({ postponedUntil, now })) return false;
+  if (!isFresh({ lookedAt, looking, now })) return false;
+  if (!quietLongEnough({ windowFocused, busy, quietSince, now, quietMs })) return false;
+  if (overdue({ behindSince, postponedUntil, now })) return true;
+  return typeof idleSince === "number" && now - idleSince >= quietMs;
+}
+
+/** Is "Later" still holding the update off? */
+export function postponed({ postponedUntil, now }) {
+  return typeof postponedUntil === "number" && now < postponedUntil;
+}
+
+/** Has the update waited for the agents for as long as it will? Counted from
+ *  the first ready update, or from the end of a "Later", whichever is later. */
+export function overdue({ behindSince, postponedUntil, now }) {
+  if (typeof behindSince !== "number") return false;
+  const from = Math.max(behindSince, typeof postponedUntil === "number" ? postponedUntil : 0);
+  return now - from >= MAX_WAIT_MS;
+}
+
+/** Is the staged update known to be the newest: no look in flight, and the
+ *  last one started within FRESH_MS? With none in flight, the last one has
+ *  also finished, and a newer release it found is being downloaded — which
+ *  takes the update out of "ready" until it is staged. */
+export function isFresh({ lookedAt, looking, now }) {
+  return !looking && typeof lookedAt === "number" && now - lookedAt < FRESH_MS;
+}
+
+/**
+ * When the agents last went idle, given where it stood and what is true now:
+ * any agent working or waiting resets it, idle keeps the first idle moment.
+ */
+export function idleSinceNext(previous, { agentsBusy, now }) {
+  if (agentsBusy) return null;
+  return typeof previous === "number" ? previous : now;
 }
 
 /**

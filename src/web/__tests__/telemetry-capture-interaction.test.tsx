@@ -9,6 +9,20 @@ const props = { capture: { ...empty, events: [event(2, "logs"), event(1, "metric
 beforeEach(() => { vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ payload: {} }) }))); });
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); vi.restoreAllMocks(); vi.useRealTimers(); });
 describe("telemetry capture interactions", () => {
+  it("starts with one empty workspace and reveals history tools only after activity arrives", () => {
+    const view = mount(TelemetryCapture, { ...props, capture: empty });
+    expect(one(view.tree, e => e.props.className === "tr-workspace")!.props["data-empty"]).toBe(true);
+    expect(one(view.tree, e => e.props.className === "tr-inspector")!.props.hidden).toBe(true);
+    expect(one(view.tree, e => e.props["aria-label"] === "Message type")).toBeNull();
+    expect(one(view.tree, e => e.type === "button" && textOf(e) === "Clear history")).toBeNull();
+    view.rerender(props);
+    expect(one(view.tree, e => e.props.className === "tr-workspace")!.props["data-empty"]).toBe(false);
+    expect(one(view.tree, e => e.props.className === "tr-inspector")!.props.hidden).toBe(false);
+    expect(one(view.tree, e => e.props.className === "tr-details tr-feed-options")!.props.open).toBeUndefined();
+    expect(one(view.tree, e => e.props["aria-label"] === "Message type")).not.toBeNull();
+    view.unmount();
+  });
+
   it("keeps consecutive arrow navigation in the feed without activating mobile inspector focus", () => {
     vi.stubGlobal("window", { matchMedia: () => ({ matches: true }) });
     const doc: { activeElement: unknown } = { activeElement: null };

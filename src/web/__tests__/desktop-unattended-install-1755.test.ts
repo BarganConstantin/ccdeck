@@ -152,7 +152,13 @@ describe("whether an update can install with nobody there", () => {
 });
 
 describe("the quiet install", () => {
-  const quiet = { status: "ready", windowFocused: false, busy: false, quietSince: 0, now: 120_000 };
+  // Everything else the rule asks for holds — the person and the agents gone
+  // for two minutes, a look for a newer release just back — so the answer is
+  // the install's own.
+  const quiet = {
+    status: "ready", windowFocused: false, busy: false, quietSince: 0, now: 120_000,
+    idleSince: 0, behindSince: 0, postponedUntil: null, lookedAt: 110_000, looking: false,
+  };
 
   it("never starts an install that would ask for a password", () => {
     expect(canInstallQuietly({ ...quiet, unattended: false })).toBe(false);

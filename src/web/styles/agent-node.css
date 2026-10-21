@@ -9,14 +9,15 @@
 .agent-node {
   --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   position: relative;
-  min-width: 220px;
-  max-width: 260px;
-  padding: 10px 12px 10px 16px;
+  width: calc(260px + var(--ui-card-increase, 0px));
+  min-width: calc(220px + var(--ui-card-increase, 0px));
+  max-width: calc(260px + var(--ui-card-increase, 0px));
+  padding: calc(10px * var(--ui-space, 1)) 12px calc(10px * var(--ui-space, 1)) 16px;
   background: var(--node-grad);
   border: 1px solid var(--line);
   border-radius: var(--r-node);
   color: var(--text);
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   box-shadow: var(--shadow-1);
   transition: border-color 200ms ease, box-shadow 200ms ease;
   overflow: hidden;
@@ -161,8 +162,8 @@
   border: 1px solid var(--lod-alarm, var(--lod-edge, var(--line)));
   border-radius: 6px;
   color: var(--text);
-  font-size: 11px;
-  line-height: 14px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
 }
 /* The session's stripe, at the width the card's reads at 1× less a pixel —
    the same mark in the same hue, so the face is recognisably the card. */
@@ -187,7 +188,7 @@
 :root[data-color-scheme="light"] .agent-node.state-active > .lod-face { --lod-edge: rgba(126,34,206,0.65); }
 :root[data-color-scheme="light"] .agent-node.state-done > .lod-face { --lod-edge: var(--ok); }
 :root[data-color-scheme="light"] .agent-node.state-err > .lod-face { --lod-edge: var(--err); }
-.lod-face[data-alarm] { --lod-alarm: var(--warn); }
+.lod-face[data-alarm] { --lod-alarm: var(--warn); padding-inline: 6px; }
 .agent-node.synthetic > .lod-face { border-style: dashed; }
 .react-flow__node:hover .lod-face {
   background: color-mix(in srgb, var(--text) 6%, var(--panel));
@@ -213,9 +214,9 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 600;
-  line-height: 15px;
+  line-height: calc(15px + var(--ui-text-increase, 0px));
 }
 .lod-name,
 .lod-inline,
@@ -247,7 +248,7 @@
 /* OVERVIEW is a smaller face with less in it: one line of 11px, a second only
    where the card is tall enough, no title, and the short form of the signal. */
 .canvas-wrap[data-lod="overview"] .lod-face { padding: 3px 6px 3px 8px; gap: 1px; }
-.canvas-wrap[data-lod="overview"] .lod-id { font-size: 11px; line-height: 14px; }
+.canvas-wrap[data-lod="overview"] .lod-id { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); }
 .canvas-wrap[data-lod="overview"] .lod-title,
 .canvas-wrap[data-lod="overview"] .lod-long { display: none; }
 .canvas-wrap[data-lod="overview"] .lod-short { display: inline; }
@@ -264,6 +265,9 @@
    above it — and "Needs you" or "→ 5 · 3 live" is the thing the overview is
    for. A subagent keeps its name: it has no label above it. */
 @container lod (max-height: 36px) {
+  .lod-id { gap: 4px; }
+  .lod-inline { font-size: calc(11px + var(--ui-text-increase, 0px)); }
+  .lod-id .alert-mark { margin-left: 0; }
   .lod-signal,
   .lod-title { display: none; }
   .lod-face[data-kind="root"][data-signal] .lod-name { display: none; }
@@ -320,6 +324,7 @@
   gap: 8px;
 }
 .agent-node .head-right {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 6px;

@@ -13,8 +13,8 @@ export default function RecapTieEdge({ sourceX, sourceY, targetX, targetY, sourc
   const [path] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, curvature: 0.35 });
   return (
     <g className="recap-tie" style={style as React.CSSProperties}>
-      <path className="recap-tie-thread" d={path} />
-      <path className="recap-tie-beads" d={path} />
+      <path className="recap-tie-thread" d={path} vectorEffect="non-scaling-stroke" />
+      <path className="recap-tie-beads" d={path} vectorEffect="non-scaling-stroke" />
       <circle className="recap-tie-end" cx={sourceX} cy={sourceY} r={3.5} />
       <circle className="recap-tie-end" cx={targetX} cy={targetY} r={3.5} />
     </g>

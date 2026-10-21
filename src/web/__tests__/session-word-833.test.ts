@@ -1,6 +1,7 @@
 // #833: the details rail called a session "root · 118m 13s" while its card
 // called the same agent "session". One thing with two names, and "root" is the
 // reducer's word, not the reader's. Every surface now says session or subagent.
+import { agentKindLabel } from "../agent-copy";
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -19,12 +20,15 @@ function modulesUnder(dir: string): string[] {
   });
 }
 
-const WORDS = 'kind === "root" ? "session" : "subagent"';
 
 describe("a session is called a session everywhere (#833)", () => {
   it("says session or subagent in the details rail, as the card does", () => {
-    expect(app).toContain(`<span className="hero-meta-item">{agent.${WORDS}}</span>`);
-    expect(node).toContain(`{data.${WORDS}}`);
+    expect(app).toContain('<span className="hero-meta-item">{agentKindLabel(agent)}</span>');
+    expect(node).toContain("{agentKindLabel(data)}");
+    expect(agentKindLabel({ kind: "root", provider: "claude" })).toBe("session");
+    expect(agentKindLabel({ kind: "subagent", provider: "claude", parentId: "parent" })).toBe("subagent");
+    expect(agentKindLabel({ kind: "root", provider: "codex" })).toBe("session");
+    expect(agentKindLabel({ kind: "root", provider: "codex", parentId: "parent" })).toBe("child session");
   });
 
   it("renders no agent's raw kind as text anywhere", () => {

@@ -1,0 +1,3 @@
+
+> ccdeck@3.40.2 typecheck
+> tsc --noEmit -p tsconfig.build.json

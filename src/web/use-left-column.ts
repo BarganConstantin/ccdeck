@@ -10,7 +10,8 @@
 // eviction further down, and the two toggles further still.
 //
 // What the move buys is an invariant. The setters are private, so the only ways
-// to OPEN either panel are the two toggles, which are the only code that knows
+// to OPEN either panel are the two toggles and Settings' door to the accounts
+// panel (the toggle's opening half, #2176), which are the only code that knows
 // about the other one. Before, any line in `Inner` could call
 // `setAccountsPanelOpen(true)` with the list open and draw both panels into one
 // slot. Closing is still free — `closeSessionList` / `closeAccountsPanel` — and
@@ -101,7 +102,11 @@ export interface LeftColumn {
   toggleSessionList: () => void;
   /** The reader's own call on the panel, which also ends any eviction. */
   toggleAccountsPanel: () => void;
+  /** The panel opened, or left open if it is — Settings' door to it (#2176). */
+  openAccountsPanel: () => void;
   closeSessionList: () => void;
+  /** The list closing to show the session just picked, on a phone. */
+  closeSessionListToCanvas: () => void;
   closeAccountsPanel: () => void;
 }
 
@@ -159,11 +164,31 @@ export function useLeftColumn(): LeftColumn {
     });
   }, []);
 
+  // Settings › General's door to the panel (#2176): the toggle's opening half
+  // alone. A door that shut a panel already open would hide the very thing it
+  // names, and pressed while the list holds the column it takes the column
+  // back, as A would, ending the eviction rather than queueing behind it.
+  const openAccountsPanel = useCallback(() => {
+    accountsEvictedRef.current = false;
+    setAccountsPanelOpen(open => {
+      if (!open) setSessionListOpen(false);
+      return true;
+    });
+  }, []);
+
   const closeSessionList = useCallback(() => setSessionListOpen(false), []);
+  /** On a phone the column is a drawer over the canvas, and the list closes
+   *  there to show the session the reader just picked. The panel it evicted
+   *  stays closed this once instead of sliding back over that session; the
+   *  stored preference is untouched, so the next load still opens it. */
+  const closeSessionListToCanvas = useCallback(() => {
+    accountsEvictedRef.current = false;
+    setSessionListOpen(false);
+  }, []);
   const closeAccountsPanel = useCallback(() => setAccountsPanelOpen(false), []);
 
   const panel = leftColumnPanel(sessionListOpen, accountsPanelOpen, accountsEvictedRef.current);
 
-  return { sessionListOpen, accountsPanelOpen, panel, toggleSessionList, toggleAccountsPanel,
-           closeSessionList, closeAccountsPanel };
+  return { sessionListOpen, accountsPanelOpen, panel, toggleSessionList, toggleAccountsPanel, openAccountsPanel,
+           closeSessionList, closeSessionListToCanvas, closeAccountsPanel };
 }

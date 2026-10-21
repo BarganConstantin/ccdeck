@@ -11,7 +11,7 @@
 // none of these. Read from the sheet: each state has to leave that block in a
 // channel the theme honours, a fill in the highlight or a heavier edge in it.
 import { describe, expect, it } from "vitest";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 const OPEN = "@media (forced-colors: active) {";

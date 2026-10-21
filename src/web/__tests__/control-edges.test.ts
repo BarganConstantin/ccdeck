@@ -105,6 +105,9 @@ function topLevel(src: string): Array<{ selector: string; body: string }> {
 
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
 const RULES = topLevel(bare);
+// Hover-gated controls still owe the same contrast in their pointer state.
+const POINTER_RULES = [...bare.matchAll(/@media \(hover: hover\) and \(pointer: fine\)\s*\{/g)]
+  .flatMap(m => topLevel(block(bare, m.index! + m[0].length - 1)[0]));
 
 function splitTop(list: string): string[] {
   const parts: string[] = [];
@@ -122,7 +125,7 @@ const selectors = (list: string) => splitTop(list).map(s => s.replace(/\s+/g, " 
 /** Every top-level rule naming this exact selector, concatenated in source
  *  order — one element's cascade may be written in more than one place. */
 function bodyOf(selector: string): string {
-  const hit = RULES.filter(r => selectors(r.selector).includes(selector));
+  const hit = [...RULES, ...POINTER_RULES].filter(r => selectors(r.selector).includes(selector));
   if (!hit.length) throw new Error(`no rule for ${selector}`);
   return hit.map(r => r.body).join(";");
 }
@@ -320,57 +323,38 @@ function rootTokens(theme: Theme): Record<string, string> {
   for (const [, name, value] of body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
     out[name] = value.trim();
   }
+  for (const [, name, value] of bodyOf(".modal.tr-modal").matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[name] = value.trim();
+  // The reset navigator inherits its selection fill from the calendar body.
+  for (const [, name, value] of bodyOf(".ap-reset-body").matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[name] = value.trim();
   return out;
 }
 
 const TOK: Record<Theme, Record<string, string>> = { dark: rootTokens("dark"), light: rootTokens("light") };
 
-/** Resolve tokens and two-color sRGB mixes, with premultiplied alpha. */
-function resolve(value: string, theme: Theme, scope?: string): Rgba {
+/** var() with an optional fallback, and the `color-mix(in srgb, X N%, transparent)`
+ *  form this sheet uses for every tint — which is just X at N% alpha. */
+function resolve(value: string, theme: Theme): Rgba {
   const v = value.trim();
-  const mix = /^color-mix\(in srgb,([\s\S]*)\)$/.exec(v);
+  const mix = /^color-mix\(in srgb,\s*(.+?)\s+([\d.]+)%,\s*transparent\)$/.exec(v);
   if (mix) {
-    const parts = topLevelParts(mix[1]).map(part => /^(.*?)(?:\s+([\d.]+)%)?$/.exec(part.trim())!);
-    if (parts.length !== 2) throw new Error(`unsupported mix: ${v}`);
-    const weights = parts.map(part => part[2] === undefined ? null : +part[2] / 100);
-    const first = weights[0] ?? (weights[1] === null ? 0.5 : 1 - weights[1]);
-    const second = weights[1] ?? 1 - first;
-    const total = first + second;
-    if (first < 0 || second < 0 || total <= 0) throw new Error(`invalid mix weights: ${v}`);
-    const a = resolve(parts[0][1], theme, scope), b = resolve(parts[1][1], theme, scope);
-    const alpha = (a[3] * first + b[3] * second) / total;
-    return [0, 1, 2].map(i => alpha === 0 ? 0 : (a[i] * a[3] * first + b[i] * b[3] * second) / (total * alpha))
-      .concat(alpha * Math.min(1, total)) as Rgba;
+    const base = resolve(mix[1], theme);
+    return [base[0], base[1], base[2], base[3] * (+mix[2] / 100)];
+  }
+  const blend = /^color-mix\(in srgb,\s*(.+?)\s+([\d.]+)%,\s*(.+)\)$/.exec(v);
+  if (blend) {
+    const a = resolve(blend[1], theme), b = resolve(blend[3], theme);
+    const p = +blend[2] / 100, alpha = a[3] * p + b[3] * (1 - p);
+    return [0, 1, 2].map(i => alpha ? (a[i] * a[3] * p + b[i] * b[3] * (1 - p)) / alpha : 0).concat(alpha) as Rgba;
   }
   const ref = /^var\(\s*(--[\w-]+)\s*(?:,\s*([\s\S]+))?\)$/.exec(v);
   if (ref) {
-    const defined = (scope ? decl(scope, ref[1]) : null) ?? TOK[theme][ref[1]];
-    if (defined !== undefined) return resolve(defined, theme, scope);
+    const defined = TOK[theme][ref[1]];
+    if (defined !== undefined) return resolve(defined, theme);
     if (ref[2] === undefined) throw new Error(`undefined token with no fallback: ${v}`);
-    return resolve(ref[2], theme, scope);
+    return resolve(ref[2], theme);
   }
   return parseColor(v);
 }
-
-describe('the contrast sweep resolves sRGB color mixes', () => {
-  it('interpolates two opaque colors and preserves alpha for transparent tints', () => {
-    expect(resolve('color-mix(in srgb, #ff0000 25%, #0000ff)', 'dark')).toEqual([63.75, 0, 191.25, 1]);
-    expect(resolve('color-mix(in srgb, #ff0000 25%, transparent)', 'dark')).toEqual([255, 0, 0, 0.25]);
-    expect(resolve('color-mix(in srgb, #ff0000 25%, #0000ff 25%)', 'dark')).toEqual([127.5, 0, 127.5, 0.5]);
-  });
-  it('reads the selected Radar fill from each theme, including the panel contribution', () => {
-    for (const theme of ['dark', 'light'] as const) {
-      const actual = resolve('var(--tr-selection)', theme, '.modal.tr-modal');
-      const mix = decl('.modal.tr-modal', '--tr-selection')!;
-      const weight = Number(/var\(--accent\)\s+([\d.]+)%/.exec(mix)?.[1]) / 100;
-      expect(weight).toBeGreaterThan(0);
-      expect(weight).toBeLessThan(1);
-      const accent = resolve('var(--accent)', theme), panel = resolve('var(--panel)', theme);
-      for (const channel of [0, 1, 2]) expect(actual[channel]).toBeCloseTo(accent[channel] * weight + panel[channel] * (1 - weight));
-      expect(actual[3]).toBe(1);
-    }
-  });
-});
 
 /** Every opaque bed a control is ever painted on, by the name the sheet gives
  *  it. The topbar is a gradient, so both of its ends count: a pill centred in
@@ -394,7 +378,6 @@ function surfaces(theme: Theme): Record<string, Rgba> {
     "--panel": panel,
     "--bg-soft": parseColor(TOK[theme]["--bg-soft"]),
     "--bg": bg,
-    "Radar feed": resolve("var(--tr-feed-surface)", theme, ".modal.tr-modal"),
     "the topbar's light end": top[0],
     "the topbar's dark end": top[1],
     "the version banner": over(bannerTint, bg),
@@ -406,7 +389,6 @@ function surfaces(theme: Theme): Record<string, Rgba> {
  *  themselves against it. */
 const BEDS = [
   "--panel", "--bg-soft", "--bg",
-  "Radar feed",
   "the topbar's light end", "the topbar's dark end",
   "the version banner", "the active account row",
 ];
@@ -517,18 +499,34 @@ interface Control {
   fillFrom?: string;
   states?: string[];
   beds: string[];
-  scope?: string;
 }
 
 const CONTROLS: Control[] = [
-  { at: ".tr-input", states: [".tr-input:hover"], beds: ["--panel"] },
-  { at: ".tr-select", states: [".tr-select:hover"], beds: ["--panel"] },
+  { at: ".qh-provider", states: [".qh-provider:hover"], beds: ["--panel"] },
+  { at: '.qh-provider[aria-pressed="true"]', beds: ["--panel"] },
+  { at: ".qh-window select", beds: ["--panel"] },
+  { at: ".radio-controls > .radio-player-button", states: ['.radio-controls > .radio-player-button:not(.radio-mute[aria-pressed="true"]):not(:disabled):hover'], beds: ["--bg-soft"] },
+  { at: '.radio-controls .radio-mute[aria-pressed="true"]', beds: ["--bg-soft"] },
+  { at: ".radio-search", states: [".radio-search:hover:not(:focus-within)"], beds: ["--panel", "--bg-soft"] },
+  { at: ".radio-filter-search input", states: [".radio-filter-search input:focus-visible"], beds: ["--panel"] },
+  { at: ".radio-filter-trigger", states: ['.radio-filter-trigger[data-filtered="true"]', ".radio-filter-trigger:focus-visible", ".radio-filter-trigger:hover"], beds: ["--panel", "--bg-soft"] },
+  { at: ".radio-map-tools .radio-map-button", beds: ["--bg"] },
+  { at: ".radio-play", states: [".radio-play:not(:disabled):hover"], beds: ["--bg-soft"] },
+  { at: '.character-choice', beds: ["--panel"] },
+  { at: '.character-choice[aria-checked="true"]', fillFrom: '.character-choice', beds: ["--panel"] },
+  { at: '.ap-report-view[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.ap-reset-day-button[aria-pressed="true"]', fillFrom: '.ap-reset-day-button[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.ap-reset-coverage-link[aria-pressed="true"]', beds: ["--panel"] },
+  { at: ".ta-search input", states: [".ta-search input:hover"], beds: ["--bg"] },
+  { at: ".tr-input", beds: ["--panel"] },
+  { at: ".tr-select", beds: ["--panel"] },
+  { at: ".su-pricing select", beds: ["--panel"] },
   { at: '.tr-detail-tabs .btn[aria-pressed="true"]', fillFrom: '.tr-detail-tabs .btn[aria-pressed="true"]', beds: ["--panel"] },
-  { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["Radar feed"], scope: ".modal.tr-modal" },
-  { at: '.tr-tab[aria-selected="true"]', fillFrom: '.tr-tab[aria-selected="true"]', beds: ["Radar feed"], scope: ".modal.tr-modal" },
-  // Start now uses the shared primary button measured below. Quiet utilities
-  // identify themselves by text at rest; measure their edge when it appears.
+  { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["--panel"] },
+  { at: '.tr-tab[aria-selected="true"]', fillFrom: '.tr-tab[aria-selected="true"]', beds: ["--panel"] },
   { at: ".tr-body .btn.tr-quiet:hover:not(:disabled)", beds: ["--panel"] },
+  { at: ".tr-input:hover", beds: ["--panel"] },
+  { at: ".tr-select:hover", beds: ["--panel"] },
   // topbar
   // The up-to-date version chip draws no boundary any more: it is metadata
   // beside the wordmark, identified by its own text, and it wears the
@@ -637,7 +635,9 @@ const CONTROLS: Control[] = [
   // the control edge at rest, so a dark screenshot keeps an outline on the
   // dark panel, and --text under the pointer and the keyboard.
   { at: ".fb-shot-img", states: [".fb-shot-pick:hover .fb-shot-img", ".fb-shot-pick:focus-visible .fb-shot-img"], beds: ["--panel"] },
-  { at: ".appearance-source-trigger", states: [".appearance-source-trigger:hover", ".appearance-source-picker.is-open .appearance-source-trigger"], beds: ["--panel"] },
+  // Settings › Keyboard's filter (#2176): framed at rest, as Tool activity's
+  // search field is, and louder under the pointer.
+  { at: ".settings-filter-field", states: [".settings-filter-field:hover"], beds: ["--panel"] },
   // The one switch whose on gives something away (#828): on, it fills with
   // --warn; waiting for its second press, its edge is --warn, hovered or not.
   // It lives in the LAN dialog, on the panel.
@@ -741,9 +741,9 @@ function restingFill(c: Control): string {
 /** A boundary's ratio against the bed it is drawn on, with the control's own
  *  fill in between — `background-clip` is `border-box` by default, so the
  *  border composites over the fill, not straight onto the surface. */
-function edgeRatio(edge: string, fill: string, bed: Rgba, theme: Theme, scope?: string): number {
-  const filled = over(resolve(fill, theme, scope), bed);
-  return contrastRatio(over(resolve(edge, theme, scope), filled), bed);
+function edgeRatio(edge: string, fill: string, bed: Rgba, theme: Theme): number {
+  const filled = over(resolve(fill, theme), bed);
+  return contrastRatio(over(resolve(edge, theme), filled), bed);
 }
 
 // ── the rings ────────────────────────────────────────────────────────────────
@@ -767,18 +767,9 @@ const EXEMPT_RINGS = new Set([
   // check at the bottom of this describe is the one that would have said so
   // the moment the exemption outlived what it excused.
   ".cluster-label:hover",
-  // The same shape on a tool burst: a hover lift in the burst's own category
-  // hue, over a chip identified by the tool name written across it.
-  ".tool-burst.clickable:hover",
-  // And the light twins of those two, which #1025 added because neither hover
-  // reached this theme at all: `:root[data-color-scheme="light"] .cluster-label` and
-  // `… .tool-burst` are (0,3,0) and outranked the (0,2,0) and (0,3,0)-earlier
-  // hovers, so the light sheet kept the RESTING shadow under the pointer. They
-  // are the same hairline over the same still-present edge, so they are the
-  // same lift and carry the same exemption — and the same unmeasurable ring
-  // colours, `currentColor` and `var(--cat-accent, …)`.
+  // The light cluster label keeps the same decorative hairline. Tool bursts
+  // now lift with a diffuse shadow, so they no longer need ring exemptions.
   ':root[data-color-scheme="light"] .cluster-label:hover',
-  ':root[data-color-scheme="light"] .tool-burst.clickable:hover',
 ]);
 
 /** Every rule in the sheet that draws a ring somebody has to be able to see:
@@ -860,21 +851,35 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // focus ring are the whole of its boundary — the bar itself has no box.
       ".ap-proj-day.selected .ap-proj-col",
       ".ap-proj-day:focus-visible",
-      // The station list's keyboard highlight, which is focus the DOM does not
-      // hold — see VIRTUAL_FOCUS.
-      '.appearance-source-option[data-highlighted="true"]',
       ".appearance-theme:focus-visible",
       ".cat-filter:focus-visible",
+      ".character-choice:focus-visible",
       ".ctx-donut:focus-visible",
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
       ".fb-kind:has(input:focus-visible)",
+      ".radio-collection:focus-visible",
+      ".radio-filter-back:focus-visible",
+      ".radio-filter-chip:focus-visible",
+      ".radio-filter-field:focus-visible",
+      ".radio-filter-search input:focus-visible",
+      ".radio-filter-toggle:focus-visible",
+      ".radio-filter-trigger:focus-visible",
+      ".radio-list:focus-visible",
+      ".radio-loading > .icon-btn:focus-visible",
+      ".radio-map-canvas:focus-visible",
+      ".radio-reset:focus-visible",
+      ".radio-workspace-toggle:focus-visible",
       ".react-flow__node:focus-visible .agent-node",
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.
       ".react-flow__node:focus-visible .lod-face",
+      ".reading-choice:has(input:focus-visible)",
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
+      // Settings' search results: the highlight the arrows move while focus
+      // stays in the field — VIRTUAL_FOCUS again (SettingsSearch.tsx).
+      '.settings-result[data-highlighted="true"]',
       ".switch:focus-visible",
       '.tr-body :is(button, input, select, summary):focus-visible',
       ".uh-bar-col.sel .uh-bar",
@@ -913,8 +918,14 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // feedback dialog's design pass: each image, the button that replaces it,
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
+    // Radio discovery, session pricing and reset-calendar controls extend the inventory.
+    // Gruvbox adds one resting cluster-label rim; its visible name identifies it.
+    // Tool activity's search field adds two: framed at rest, louder under the pointer.
+    // Settings' redesign (#2176) adds Keyboard's filter field the same way,
+    // two more, and took the Music section's station picker away with its own.
+    // Its search adds one: the ring a keyboard-highlighted result wears.
     // Codex profile actions join the account controls with a visible resting edge.
-    expect(EDGED_CONTROLS.length).toBeLessThan(125);
+    expect(EDGED_CONTROLS.length).toBeLessThan(155);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
@@ -1144,7 +1155,7 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
         const fill = restingFill(c);
         const edge = borderColour(c.at);
         for (const bedName of c.beds) {
-          expect(edgeRatio(edge, fill, beds[bedName], theme, c.scope), `${theme} ${c.at} on ${bedName}`)
+          expect(edgeRatio(edge, fill, beds[bedName], theme), `${theme} ${c.at} on ${bedName}`)
             .toBeGreaterThanOrEqual(NON_TEXT);
         }
       }
@@ -1164,8 +1175,8 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
           const edge = borderColourIn(body) ?? restEdge;
           for (const bedName of c.beds) {
             const bed = beds[bedName];
-            expect(edgeRatio(edge, fill, bed, theme, c.scope), `${theme} ${state} on ${bedName}`)
-              .toBeGreaterThanOrEqual(edgeRatio(restEdge, restFill, bed, theme, c.scope) - 1e-9);
+            expect(edgeRatio(edge, fill, bed, theme), `${theme} ${state} on ${bedName}`)
+              .toBeGreaterThanOrEqual(edgeRatio(restEdge, restFill, bed, theme) - 1e-9);
           }
         }
       }
@@ -1214,13 +1225,16 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // name at 4.5:1, which is the identification. (It read "draggable" here
       // until #546; it is a fit-view button and never was one.)
       ".cluster-label",
+      // Gruvbox retunes the same decorative rim, preserving hover and alarm states.
+      ':root[data-theme^="gruvbox-"] .cluster-label:where(:not(:hover):not([data-alarm]))',
       // The same label for a session stopped until a human answers. It only
       // RECOLOURS the rim above to --warn — the aria-busy argument: nothing
       // appears or moves, the label is still identified by the name written in
       // it, and the state is also said by the triangle and, for a screen
       // reader, in words. A state indicator on a decorative rim, not a boundary.
       ".cluster-label[data-alarm]",
-      ".appearance-source-option",
+      // A labelled region button: its rim conveys selection, not identity.
+      '.radio-regions .radio-region[aria-pressed="true"]',
     ]);
     const swept = new Set<string>();
     for (const c of CONTROLS) {

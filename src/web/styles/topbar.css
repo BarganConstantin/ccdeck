@@ -35,7 +35,7 @@
      it leaves 43 for the content, and a 30px control centred in 43 sat on a
      half pixel, its edges smeared across two rows at 1x. 42 centres every
      height on the bar — 30, 28, 24, 16 — on whole pixels. */
-  padding: 1px 18px 0;
+  padding: 1px 6px 0 18px;
   background: var(--topbar-grad);
   border-bottom: 1px solid var(--line);
   user-select: none;
@@ -78,7 +78,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 16px;
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   /* The version chip grows when it carries a drift warning; the product name
      must not break onto two lines to make room for it. */
   white-space: nowrap;
@@ -110,7 +110,7 @@
 .topbar .brand .v {
   color: var(--muted);
   font-weight: 400;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   margin-left: 2px;
 }
 /* Version drift lives here permanently. The banner can be dismissed; the fact
@@ -141,7 +141,7 @@
   border-radius: var(--r-ctl);
   background: none;
   font: inherit;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 500;
   cursor: pointer;
   transition: background 130ms, border-color 130ms, color 130ms,
@@ -212,6 +212,20 @@
   box-shadow: none;
   animation: none;
 }
+/* AND THE PRESS ITSELF, beside it, while the update is ready (owner's call,
+   2026-10-18). The chip says what is on offer and opens the notes; this one
+   does it. It wears `.btn.primary`'s fill — the accent's dim bed under --text
+   — so the action reads as the action, and the chip beside it, an outline in
+   the same accent, as what it is about. Only while ready: it is not the pill
+   #712 tried, which stood here permanently for a dialog. */
+.topbar .brand button.v.v-update {
+  color: var(--text);
+  background: var(--accent-dim);
+}
+.topbar .brand button.v.v-update:hover {
+  background: color-mix(in srgb, var(--accent) 34%, var(--accent-dim));
+}
+.topbar .brand button.v.v-update[aria-busy="true"] { cursor: progress; }
 /* #712 put a second pill here — "What's new", the way back into the release
    notes — and #715 took it away again. The chip beside it now opens them, so
    the words were two of topbar spent permanently on a dialog most people open
@@ -256,6 +270,13 @@
    comes later in the cascade. */
 @media (max-width: 480px) {
   .topbar .readout .provider-incident { display: none; }
+}
+/* And the ready chip leaves when its Restart to update is beside it. Both,
+   228px, and a session waiting pushed the chip's left edge out of a 320px
+   bar; the button is the way into the update the chip was there to be, and
+   it names the version to a screen reader. */
+@media (max-width: 480px) {
+  .topbar .brand button.v.ready:has(+ .v-update) { display: none; }
 }
 /* A phone or a narrow window (#849), at the sheet's one narrow breakpoint.
    Every control is in the dock along the bottom there (edge-rails.css), and

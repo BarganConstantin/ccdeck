@@ -213,7 +213,7 @@ describe("the incremental scan", () => {
 
     // The tally persisted to disk.
     const disk = JSON.parse(await readFile(stateFile, "utf8"));
-    expect(disk.version).toBe(6);
+    expect(disk.version).toBe(7);
     expect(disk.tally[KEY_A]["/Users/c/agents-deck"]).toBeTruthy();
     expect(disk.cursors[file]).toBeGreaterThan(0);
   });
@@ -236,7 +236,7 @@ describe("the incremental scan", () => {
     expect(rep.projects[0].name).toBe("widget");
   });
 
-  it("fences off the time the deck was down, so that work is unattributed not mis-charged", async () => {
+  it.each([1, 6])("rebuilds version %s while fencing off the time the deck was down", async (version) => {
     const root = await tmp();
     const projects = join(root, "projects");
     const slug = join(projects, "-Users-c-p");
@@ -250,7 +250,7 @@ describe("the incremental scan", () => {
     await appendSwap({ at: ISO("2026-09-01T00:00:00Z"), slot: 1, email: "a@x.com", orgUuid: "O1", source: "start" }, swapLog);
     // A state file whose last heartbeat is well before now: the deck was down.
     const stateFile = join(await tmp(), "st.json");
-    await writeFile(stateFile, JSON.stringify({ version: 1, cursors: {}, tally: {}, lastAlive: ISO("2026-09-10T00:00:00Z") }), "utf8");
+    await writeFile(stateFile, JSON.stringify({ version, cursors: {}, tally: {}, lastAlive: ISO("2026-09-10T00:00:00Z") }), "utf8");
 
     const rollup = createProjectRollup({
       now: () => ISO("2026-09-22T00:00:00Z"),   // ~12 days after lastAlive → a gap
@@ -405,7 +405,7 @@ describe("a session counts under the folder it started in (#1278)", () => {
     await rollup.tick();
     expect(rows(await rollup.report(KEY_A, 0))).toEqual({ [ws]: 3 });   // and only once
     const disk = JSON.parse(await readFile(stateFile, "utf8"));
-    expect(disk.version).toBe(6);
+    expect(disk.version).toBe(7);
     expect(disk.folders[slug]).toBe(ws);
     // The heartbeat survived the rebuild: the hour down is fenced from it.
     const stop = (await readSwapLog(swapLog)).find((e: { source: string }) => e.source === "stop");

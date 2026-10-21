@@ -242,7 +242,7 @@ describe("the topbar chip", () => {
     expect(out).toContain(">· partial outage<");
     // Where it goes, said to a screen reader and drawn as ↗ for everyone else.
     expect(out).toContain('<span class="vis-hidden">, on status.claude.com, opens in a new tab</span>');
-    expect(out).toContain('<span class="pi-go" aria-hidden="true">↗</span>');
+    expect(out).toContain('<span class="pi-go" aria-hidden="true"><svg');
   });
 
   it("is named by the words it shows, whichever of them the sheet shows (2.5.3)", () => {

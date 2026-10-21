@@ -22,6 +22,11 @@ details before using them; update it when those details change.
   authorized. Inspect branch, worktree and remote state first, and preserve
   unrelated work. Merge `main` into `development` when requested; this is not
   permission to publish development changes to `main`.
+- Clean up after a merge without being asked. Once a branch's PR is merged,
+  remove the worktree you made for it and delete the branch locally and on
+  `origin` (`gh pr merge --delete-branch` takes both branches). First confirm
+  that the PR is merged and the worktree has nothing uncommitted or unpushed.
+  Leave every other worktree and branch alone.
 - The unfinished Git View and separate CLI work are protected from unrelated UI
   edits until the owner explicitly requests work on those features.
 - Aim for the clarity and comfort of Rider / VS Code: compact icon rails with
@@ -108,6 +113,12 @@ Improved reliability and security across the local server and desktop app.
 ```
 
 Small releases do not need every heading. Two or three clear lines are better than empty sections.
+
+For a release with no meaningful change the user would notice, use exactly
+`🐛 Bug fixes and performance improvements.` as the annotated tag message and
+the entire GitHub release body. Keep it to that one line, including after any
+workflow-generated footer is added. In the app, use the `//nothing-to-say`
+convention below so this version creates no new What's new dialog.
 
 `release-notes.json` is the source of truth for release-note data, version handling, formatting constraints, and the `//nothing-to-say` convention. Follow its embedded authoring rules exactly when editing that file.
 

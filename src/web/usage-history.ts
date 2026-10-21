@@ -225,3 +225,12 @@ export function dayAgentsLine(day: DayEntry): string | null {
     ? day.metadata.agents.join(" · ")
     : null);
 }
+
+/** Which days carry a date under the chart: every one up to two weeks, every
+ *  other one up to a month, and one a week beyond that. A column is at least
+ *  24px wide (#539) and `09-16` needs 27px at 9px, so a date under every
+ *  column of a month was cut to `09-…` thirty times over. Counted back from the
+ *  newest day, so today always has its date. */
+export function dayLabelStep(dayCount: number): number {
+  return dayCount <= 14 ? 1 : dayCount <= 31 ? 2 : 7;
+}

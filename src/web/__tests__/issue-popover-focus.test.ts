@@ -83,6 +83,6 @@ describe("the account issue popover", () => {
   it("hands the popover's focusRef to the dismiss hook", () => {
     // AnchoredPopover is DOM and portal code; its forwarding is read as text.
     const popover = sourceOf("components/AnchoredPopover.tsx");
-    expect(popover).toMatch(/\}, \{ popover: true, focusRef \}\);/);
+    expect(popover).toMatch(/\}, \{ popover: true, focusRef(?:, layer)? \}\);/);
   });
 });

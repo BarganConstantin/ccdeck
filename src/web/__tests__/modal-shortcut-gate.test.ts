@@ -188,7 +188,7 @@ describe("every dialog reaches the gate (#1175)", () => {
     for (const name of [
       "ProcessListModal.tsx", "SectionHistoryModal.tsx", "AddAccountDialog.tsx",
       "ShareAccountsDialog.tsx", "LanAddDeckModal.tsx", "LanSetupModal.tsx",
-      "LanPeerModal.tsx", "LanPairRequestModal.tsx", "ClearConfirm.tsx",
+      "LanPeerModal.tsx", "LanPairRequestModal.tsx", "ClearConfirm.tsx", "RadioPanel.tsx",
     ]) expect(dialogs, name).toContain(name);
   });
 

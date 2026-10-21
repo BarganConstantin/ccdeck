@@ -1,3 +1,4 @@
+import { noteQuotaHistory, forgetQuotaHistoryAccount } from "./quota-history.mjs";
 // Fetches Codex/ChatGPT quota from the same endpoint the Codex CLI uses.
 // Auth (including token refresh) lives in codex-auth.mjs.
 //
@@ -623,7 +624,21 @@ export async function fetchCodexQuota({ force = false, readSelection: read = rea
   if (current.selectionEnabled !== selected.selectionEnabled || (selected.selectionEnabled && (
     current.home !== selected.home || current.profileId !== selected.profileId || current.revision !== selected.revision
   ))) return { ok: false, reason: "profile_changed" };
+  noteHistory(result);
   return result;
+}
+
+// Recorded once per fresh reading, after the selection check, so history is
+// never filed under an account the reading was not taken for.
+const _recorded = new WeakSet();
+function noteHistory(result) {
+  if (result.ok && !result.stale) {
+    if (_recorded.has(result)) return;
+    _recorded.add(result);
+    noteQuotaHistory("codex", codexQuotaAccount(result), result);
+  } else if (["no_token", "api_key_mode", "refresh_rejected"].includes(result.reason)) {
+    forgetQuotaHistoryAccount("codex");
+  }
 }
 
 /** The account a fetchCodexQuota reading was taken for, or null — for

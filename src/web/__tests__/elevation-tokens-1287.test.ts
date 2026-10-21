@@ -71,9 +71,11 @@ describe("the deck's elevations are tokens, in both themes (#1287)", () => {
     const shadowOf = (sel: string) => DECLS.find(d => d.sel === sel)?.value;
     // The two menus on --shadow-3 are gone: `.appearance-menu` with the
     // Appearance modal and `.sound-menu` with the topbar speaker (both
-    // 2026-10-07). Settings is a `.modal`, on the dialogs' --shadow-2.
+    // 2026-10-07). Settings is a `.modal`, on the dialogs' --shadow-2. The
+    // station list (`.appearance-source-list`) went with Settings' Music
+    // section, and its rules with it (#2176).
     expect(DECLS.some(d => /--shadow-3/.test(d.value))).toBe(false);
-    for (const pop of [".anchored-popover", ".appearance-source-list", ".ap-peek"]) {
+    for (const pop of [".anchored-popover", ".ap-peek"]) {
       expect(shadowOf(pop), pop).toBe("var(--shadow-contact), var(--shadow-2)");
     }
   });

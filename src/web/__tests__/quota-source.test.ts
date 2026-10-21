@@ -40,9 +40,9 @@ describe("quotaFromStore", () => {
     expect(q.weekOpusPct).toBe(44);
   });
 
-  it("falls back to the 7d window when there is no 5h one", () => {
+  it("keeps a missing 5h window unknown beside a measured 7d one", () => {
     const q = quotaFromStore(entry({ seven_day: { pct: 62 } }));
-    expect(q.session5hPct).toBe(62);
+    expect(q.session5hPct).toBeNull();
     expect(q.week7dPct).toBe(62);
   });
 

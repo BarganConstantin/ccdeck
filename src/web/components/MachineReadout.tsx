@@ -77,7 +77,7 @@ const DOUBLE_PRESS_MS = 300;
  * it. `value` is the exception the CPU section needs — a strip of bars with no
  * figure anywhere — and it is the reading itself, so the name says it too.
  */
-export function OpensHistory({ group, title, action, label, value, hint, children }: {
+export function OpensHistory({ group, title, action, label, value, hint, liveNote, children }: {
   group: "thermal" | "cores" | "memory" | "load" | "network";
   /** What the dialog calls itself. A name for a thing. */
   title: string;
@@ -98,6 +98,8 @@ export function OpensHistory({ group, title, action, label, value, hint, childre
    *  where a control's name belongs. Announced after the name, and only where a
    *  reader asks for more. */
   hint?: string;
+  /** The same live reading remains visible while its history covers the panel. */
+  liveNote?: string | null;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -147,7 +149,7 @@ export function OpensHistory({ group, title, action, label, value, hint, childre
         {children}
       </div>
       {hint && <span id={`sd-hint-${group}`} className="vis-hidden">{hint}</span>}
-      {open && <SectionHistoryModal group={group} title={title} onClose={() => setOpen(false)} />}
+      {open && <SectionHistoryModal group={group} title={title} liveNote={liveNote} onClose={() => setOpen(false)} />}
     </>
   );
 }

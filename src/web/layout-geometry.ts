@@ -100,8 +100,9 @@ export function fitZoom(w: number, h: number, canvasW: number, canvasH: number):
   return Math.min(FULL_SIZE, canvasW / Math.max(1, w), canvasH / Math.max(1, h));
 }
 
-export function sessionOfNode(n: Node): string {
-  const sid = (n.data as { sessionId?: string } | undefined)?.sessionId;
+export function sessionOfNode(n: { data?: unknown }): string {
+  const data = n.data as { sessionId?: string; canvasSessionId?: string } | undefined;
+  const sid = data?.canvasSessionId ?? data?.sessionId;
   return sid ?? "_default";
 }
 

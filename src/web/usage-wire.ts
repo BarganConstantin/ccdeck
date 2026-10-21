@@ -66,6 +66,9 @@ export function usageFromWire(u: Record<string, unknown>): TokenUsage {
   if (typeof u.reasoning_output_tokens === "number") {
     out.reasoningOutputTokens = Number(u.reasoning_output_tokens);
   }
+  if (u.longContext && typeof u.longContext === "object" && !Array.isArray(u.longContext)) {
+    out.longContext = usageFromWire({ ...u.longContext as Record<string, unknown>, longContext: undefined });
+  }
   return out;
 }
 

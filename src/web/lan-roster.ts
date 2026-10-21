@@ -475,6 +475,12 @@ function pairedName(p: Peer, fp: string, aliases: Record<string, string>): { nam
   return p.manual && !p.met ? { name: p.addr ? `${p.addr}:${p.port}` : "" } : named(aliases, fp, p.name || fp);
 }
 
+/** A paired deck's name as its row in the list says it, alias and all — for
+ *  the accounts' share mark, which names the decks a login is offered to. */
+export function pairedDeckName(p: Peer, aliases: Record<string, string>): string {
+  return pairedName(p, p.peerFp ?? p.fp, aliases).name;
+}
+
 /** A machine on the network that nobody here has paired with. */
 function nearbyRow(p: LanStranger, aliases: Record<string, string>, pairingMode: "automatic" | "invite" | undefined): DeckRow {
   const n = named(aliases, p.fp, p.name || p.fp);

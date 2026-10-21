@@ -300,8 +300,8 @@ describe("the fits the deck asks for stay marked as its own", () => {
     // A focus turns auto-fit off on purpose (see focusAgent); it still stamps,
     // so its move is never ALSO read as a drag.
     // Every fit and focus is one call to moveCamera (use-camera.ts), and that
-    // is where the stamp is, right after the door. Asked three ways: the stamp
-    // follows the move inside it, both callers go through it, and nothing in
+    // is where the stamp is, before the door. Asked three ways: the stamp
+    // precedes the move inside it, both callers go through it, and nothing in
     // App.tsx, use-agent-focus.ts or use-camera.ts takes the door with a fit's
     // or a focus's frame on its own.
     const lines = (appCode + "\n" + boardCode + "\n" + focusCode + "\n" + cameraCode).split("\n");
@@ -310,11 +310,13 @@ describe("the fits the deck asks for stay marked as its own", () => {
       .filter(({ line }) => /\brf\.fitView\(|\bapplyViewport\(want, (duration|FOCUS_MS)\)/.test(line));
     expect(calls.length).toBeGreaterThanOrEqual(1);
     for (const { i } of calls) {
-      expect(lines.slice(i, i + 4).join("\n")).toMatch(/lastFitTimeRef\.current = Date\.now\(\)/);
+      // Immediate moves must stamp BEFORE applyViewport: it emits onMove
+      // synchronously. See camera-immediate-intent.test.ts for that behaviour.
+      expect(lines.slice(Math.max(0, i - 1), i + 4).join("\n")).toMatch(/lastFitTimeRef\.current = Date\.now\(\)/);
     }
     const doors = lines.filter(line => /\bapplyViewport\(want, (duration|FOCUS_MS)\)/.test(line));
     expect(doors, "a fit or a focus takes the door outside moveCamera").toHaveLength(1);
-    expect(cameraCode).toMatch(/const moveCamera = useCallback\([\s\S]*?applyViewport\(want, duration\);\s*lastFitTimeRef\.current = Date\.now\(\);/);
+    expect(cameraCode).toMatch(/const moveCamera = useCallback\([\s\S]*?lastFitTimeRef\.current = Date\.now\(\);\s*applyViewport\(want, duration\);/);
     expect(cameraCode).toMatch(/const epoch = moveCamera\(want, duration\);/);
     expect(focusCode).toMatch(/moveCamera\(want, FOCUS_MS\);/);
   });

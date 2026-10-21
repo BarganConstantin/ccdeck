@@ -255,11 +255,13 @@ export function spanLabel(fromMs: number, toMs: number): string {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
-export default function SectionHistoryModal({ group, title, onClose }: {
+export default function SectionHistoryModal({ group, title, liveNote, onClose }: {
   /** Which section of the panel was pressed. The server keeps one ring of
    *  minute buckets for all of them and answers one section per request. */
   group: "thermal" | "cores" | "memory" | "load" | "network";
   title: string;
+  /** Live snapshot context, distinct from the minute-bucket chart summaries. */
+  liveNote?: string | null;
   onClose: () => void;
 }) {
   const dialogRef = useModalDismiss(onClose);
@@ -353,6 +355,10 @@ export default function SectionHistoryModal({ group, title, onClose }: {
               <Chart key={s.label} series={s} stepMs={hist.stepMs} domain={domain} />
             ))
           )}
+          {group === "load" && liveNote && <p className="hist-note hist-load-summary">
+            <span>Current 1-minute load</span>
+            <strong>{liveNote}</strong>
+          </p>}
         </div>
       </div>
     </div>,

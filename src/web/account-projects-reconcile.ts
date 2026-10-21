@@ -60,6 +60,8 @@ export interface Counters {
   /** The share billed at each speed other than standard (#754), a subset of
    *  the counters above. Absent when every token ran at the standard speed. */
   s?: Record<string, Counters>;
+  /** Tokens of Haiku 5.5 requests over 100K prompt tokens. */
+  l?: Counters;
 }
 export interface DayInput {
   day: string;
@@ -94,6 +96,7 @@ export function toUsage(c: Counters): TokenUsage {
     cacheReadTokens: c.cr, cacheCreateTokens: c.cc,
     cacheCreate1hTokens: c.c1h, cacheCreate5mTokens: c.c5m,
   };
+  if (c.l) u.longContext = toUsage(c.l);
   const shares = c.s ? Object.entries(c.s) : [];
   if (shares.length > 0) u.bySpeed = Object.fromEntries(shares.map(([speed, share]) => [speed, toUsage(share)]));
   return u;
@@ -103,7 +106,10 @@ export function toUsage(c: Counters): TokenUsage {
  *  flat count, with no TTL split — the basis a drift is measured on. The
  *  speed shares are kept, each flat as well. */
 function flatUsage(c: Counters): TokenUsage {
-  const flat = (u: TokenUsage): TokenUsage => ({ ...u, cacheCreate1hTokens: 0, cacheCreate5mTokens: 0 });
+  const flat = (u: TokenUsage): TokenUsage => ({
+    ...u, cacheCreate1hTokens: 0, cacheCreate5mTokens: 0,
+    ...(u.longContext ? { longContext: { ...u.longContext, cacheCreate1hTokens: 0, cacheCreate5mTokens: 0 } } : {}),
+  });
   const u = flat(toUsage(c));
   if (u.bySpeed) u.bySpeed = Object.fromEntries(Object.entries(u.bySpeed).map(([speed, share]) => [speed, flat(share)]));
   return u;
@@ -118,6 +124,7 @@ function billedOf(c: Counters): number {
 function addCounters(dst: Counters, src: Counters): Counters {
   dst.i += src.i; dst.o += src.o; dst.cr += src.cr;
   dst.cc += src.cc; dst.c1h += src.c1h; dst.c5m += src.c5m;
+  if (src.l) addCounters(dst.l ??= { i: 0, o: 0, cr: 0, cc: 0, c1h: 0, c5m: 0 }, src.l);
   for (const [speed, share] of Object.entries(src.s ?? {})) {
     addCounters((dst.s ??= {})[speed] ??= { i: 0, o: 0, cr: 0, cc: 0, c1h: 0, c5m: 0 }, share);
   }
@@ -138,7 +145,7 @@ function bySpeed(usage: TokenUsage, model: string, now: number) {
       continue;
     }
     atSpeed += costAtSpeed(share.usage, model, share.speed, now).total;
-    atStandard += costAtSpeed(share.usage, model, STANDARD_SPEED, now).total;
+    atStandard += costAtSpeed({ ...share.usage, longContext: undefined }, model, STANDARD_SPEED, now).total;
   }
   return { atSpeed, atStandard, unpriced, unpricedSpeeds };
 }
@@ -201,10 +208,10 @@ export function reconcile(
   ccByDayModel: Map<string, CcCell>,
   now: number = Date.now(),
 ): Reconciled {
-  // Each day's speed mix per model, from every token we folded that day: our
-  // tokens priced by speed over the same tokens at the standard rate. 1 — and
-  // so absent — for a day that ran nothing fast. Keyed by the bare id as well,
-  // which is how a ccusage cell names the model.
+  // Each day's speed and request-context tier mix per model: the observed
+  // tokens priced at their tiers over the same tokens at base rates. 1 when
+  // every request was standard and short. A ccusage cell has no tier split,
+  // so remove this premium from its drift before calibrating each project.
   const mixByDay = new Map<string, Map<string, number>>();
   for (const d of daily) {
     const sums: Record<string, Counters> = {};
@@ -214,7 +221,7 @@ export function reconcile(
     for (const p of d.projects) add(p.models);
     if (d.unattributed) add(d.unattributed);
     for (const [m, c] of Object.entries(sums)) {
-      if (!c.s) continue;
+      if (!c.s && !c.l) continue;
       const { atSpeed, atStandard } = bySpeed(flatUsage(c), m, now);
       if (!(atSpeed > 0 && atStandard > 0)) continue;
       let mix = mixByDay.get(d.day);

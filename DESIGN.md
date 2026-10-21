@@ -356,6 +356,11 @@ one-off hero sizes and using them as steps will look wrong:
 
 ## Layout
 
+Owner preference (2026-10-13): do not use colored left-edge stripes to mark
+selected or active rows, cards, or panels. Use a quiet surface fill, the relevant
+control state, and readable status text instead. Structural separators remain
+part of the layout.
+
 A CSS grid shell, `.app`, with `:has()` deciding the columns rather than a body
 class:
 
@@ -525,6 +530,45 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
   **no blur**: the scrim is already opaque enough, and a blur over a canvas whose
   dashes never stop re-rasterises under the dialog for as long as it is open.
 
+### Tool activity
+
+A full page, opened from the rail below Usage history (More → Tools on phones),
+that a person reads top to bottom in under a minute. Owner direction
+(2026-10-15): simple and useful for the people using it, nothing complicated.
+Plain words carry it; the earlier P95 / interval vocabulary is gone.
+
+- **Order of the page:** period and agent pills (the `uh-range` strip Usage
+  history uses), one summary sentence with the numbers in `--text` weight 600
+  and failures in `--err`, then *Worth a look* — at most three findings in one
+  bordered list, each a button that opens its tool — then *Tools and commands*,
+  then *How this is counted* folded at the bottom. No tiles, no charts on the
+  page itself; the summary is a sentence on purpose.
+- **The list** is one set of rows with four orders (Most used, Most time,
+  Slowest, Failures) in a `uh-range` strip, and a search field. Columns: Calls,
+  Total time, Usually, Failed. The sorted column is the bright one (`--text`,
+  600) and draws the 3px bar under the name — `--accent`, or `--err` when sorting
+  by failures. Unsorted values and the description are `--text-secondary` by
+  bed (a row is raised on `--ctl-fill`); a zero failure is `--muted`. Selection
+  is the quiet fill, never a stripe. Twelve rows, then Show all.
+- **Details** sit in a column beside the list, 380px until the reader drags the
+  line between them (`ToolAuditSplitter`, an ARIA window splitter: arrows move
+  it, Enter or a double click restores 380px, the width is remembered per
+  browser, and the list always keeps 420px). Stacked under the list from
+  701–959px, a bottom sheet under 701px. The panel holds: name and description, a 2×2 facts grid
+  on hairlines, who used it and the longest call, calls per day as plain bars
+  (`--muted`, the described day in `--accent`), and the latest or slowest calls
+  with time, agent, duration and a drawn result glyph.
+- **Narrow report:** a container query on the report body, not the viewport,
+  turns rows into a name over one wrapped line of values that carry their own
+  words ("258 calls · 12.3 s total · usually 43 ms · 1 failed"), so a laptop
+  with details open gets the same treatment as a phone. Under 400px the sort
+  strip becomes a 2×2 grid.
+- **Honesty stays, in small print:** approval waits inside times, overlapping
+  total time, the median, compound command lines, different Claude/Codex clocks
+  and what is saved are each one plain line under *How this is counted*.
+  Findings appear only above their sample floors, so a handful of calls never
+  becomes a headline.
+
 ### Canvas objects
 
 - **Agent node** — the canvas's primary object. `--node-grad` fill, `--r-node` radius,
@@ -663,6 +707,38 @@ are literals today.
 - Don't add a hue that only works in dark. Light is a peer, and it is where the bugs
   are.
 - Don't use `--line` to identify a control. That is `--ctl-edge`'s job.
+
+### Session usage inspector
+
+Usage's By session rows open a focused whole-session report. A small chevron
+marks supported Claude/Codex rows as controls; they retain the usage table's
+spacing and global focus ring. The inspector composes the shared modal shell,
+portals to the document body and returns keyboard focus to its opener.
+
+Use the existing 14px dialog title and 12px body/data. The two 22px headline
+measurements make estimated cost and token volume readable before the model
+table. A labeled composition bar uses existing usage-series colours; token
+counters use two columns on desktop and aligned rows below 420px. Pricing and
+activity dates wrap at narrow widths. Keep the brief estimate caveat visible
+and disclose the full methodology under “Estimate details”. Settings-derived estimates and explicit pricing scenarios
+are named separately. Missing costs remain missing rather than being rebuilt
+from a rate with no tier evidence. See
+`.impeccable/surfaces/session-usage.md` for the surface contract.
+
+### Usage insights
+
+Quota history opens from a chart glyph beside Refresh and Close; quota bars
+remain display-only. Header glyphs have equal targets and consistent SVG weight.
+Entry reuses Radio’s fade/scale for 200ms, skipped for keyboard/reduced motion.
+Quota history shares the report shell and existing measurement hierarchy. Keep
+percentage/time labels in HTML outside the SVG so narrow plots retain readable
+11px annotations; stack provider/window controls at widths up to 420px. Observed
+remaining, capture age, the non-forecast guide caveat and recorded-readings
+disclosure stay distinct. “Recorded” does not promise disk persistence; expose
+storage failure separately. Quota Refresh remains focusable with aria-busy and
+a synchronous repeat-press guard. Session cached input reuse retains measured
+coverage and distinguishes 0% from unavailable or zero-input measurements.
+See `.impeccable/surfaces/usage-insights.md` for the scoped contract.
 
 ### Telemetry Radar
 

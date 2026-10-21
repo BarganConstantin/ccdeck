@@ -80,23 +80,13 @@ function BurstLayer({ bursts, spotlight, onOpenTool }: BurstLayerProps) {
     const sy = b.anchorY;
     const tx = b.worldX + 6;
     const ty = b.worldY + BUBBLE_HALF_H;
-    // FOUR CURVES THAT LEFT AS ONE. Every connector starts at the same
-    // point — the card's right edge, mid-height — and every one of them
-    // put its control point at that same height, so they ran the
-    // identical horizontal line out of the anchor and only came apart
-    // once their vertical legs did. Four coincident strokes for the first
-    // half of the run, told apart by colour alone.
-    //
-    // The bend now depends on how far the row has to travel: a bubble
-    // level with the card keeps the long flat lead it always had, and one
-    // several rows up or down breaks away sooner. Nothing moves — same
-    // anchor, same targets, same curve family — the strokes simply stop
-    // sharing their first half, so the eye can follow one of them back.
-    // (`lean` is a ratio, so it reads the same in world units as it did in
-    // screen pixels.)
+    // Separate sibling curves gently at the card, then enter each pill
+    // horizontally. Both endpoints stay attached to their existing anchors.
     const run = Math.max(1, tx - sx);
     const lean = Math.min(1, Math.abs(ty - sy) / run);
     const cx = sx + run * (0.55 - 0.22 * lean);
+    const cy = sy + (ty - sy) * 0.12;
+    const endCx = tx - run * 0.25;
     const isSpotOut = spotlight != null && !spotlight.has(b.agentId);
     const opacity = b.fade * (isSpotOut ? 0.14 : 1);
     // `non-scaling-stroke` keeps the line's width and its dashes in screen
@@ -105,7 +95,7 @@ function BurstLayer({ bursts, spotlight, onOpenTool }: BurstLayerProps) {
     return (
       <path
         key={`l:${b.id}`}
-        d={`M ${sx} ${sy} Q ${cx} ${sy}, ${tx} ${ty}`}
+        d={`M ${sx} ${sy} C ${cx} ${cy}, ${endCx} ${ty}, ${tx} ${ty}`}
         className={`tool-conn status-${b.status}${b.fading ? " fading" : ""}`}
         opacity={opacity}
         vectorEffect="non-scaling-stroke"
@@ -140,7 +130,7 @@ function BurstCamera({ connectors, bubbles }: { connectors: React.ReactNode; bub
     // aria-hidden on the whole layer, connectors and bubbles alike, and nothing
     // inside it takes focus — see the note on the bubble below for why this is
     // decoration rather than a control surface.
-    <div className="tool-bursts-layer" aria-hidden>
+    <div className="tool-bursts-layer" aria-hidden style={{ "--tool-burst-height": `${2 * BUBBLE_HALF_H}px` } as React.CSSProperties}>
       <svg className="tool-bursts-svg">
         <g transform={`translate(${x} ${y}) scale(${zoom})`}>{connectors}</g>
       </svg>

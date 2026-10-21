@@ -470,7 +470,7 @@ describe("which panels the UI draws for each machine", () => {
     expect(appSrc).toMatch(/<EdgeDock items=\{\[\.\.\.rails\.left, /);
     expect(appSrc).toMatch(/<EdgeRail side="left" label="Left column" groups=\{\[rails\.left\]\}/);
     // And nowhere else: the right stripe and the utilities never carry it.
-    expect(appSrc).toMatch(/right: \[\[usage, machine\], \[history, browserWatch, \.\.\.\(setTrafficRadarOpen \? \[\{[^}]*\}\] : \[\]\)\]\]/);
+    expect(appSrc).toMatch(/right: \[\[usage, machine\], \[history, \.\.\.\(openToolActivity \? \[\{[^}]*\}\] : \[\]\), browserWatch, \.\.\.\(setTrafficRadarOpen \? \[\{[^}]*\}\] : \[\]\)\], \.\.\.\(setRadioOpen/);
     expect(appSrc).toMatch(/utilities: \[settings, feedback\]/);
   });
 
@@ -504,6 +504,7 @@ describe("which panels the UI draws for each machine", () => {
     // section nobody is going to see.
     expect(usageSrc).toContain("useQuota(providers.claude)");
     expect(usageSrc).toContain("useCodexQuota(providers.codex)");
-    expect(usageSrc).toContain("useCodexUsage(providers.codex)");
+    // Usage insights retired the local token summary and its unused poll.
+    expect(usageSrc).not.toContain("useCodexUsage(");
   });
 });

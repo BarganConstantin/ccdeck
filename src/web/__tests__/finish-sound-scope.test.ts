@@ -114,7 +114,10 @@ describe("what the switch says it is", () => {
     expect(drawSounds({ soundOn: true })).toMatch(/role="switch" aria-checked="true"/);
     expect(drawSounds({ soundOn: false })).toMatch(/role="switch" aria-checked="false"/);
     for (const soundOn of [true, false]) {
-      expect(drawSounds({ soundOn }), `soundOn=${soundOn}`).toContain("<kbd>M</kbd>Mute or unmute sounds anywhere.");
+      // The key as a cap beside the switch it flips, and declared on the
+      // switch for a reader who cannot see the cap (#2176).
+      expect(drawSounds({ soundOn }), `soundOn=${soundOn}`).toMatch(/<kbd class="settings-key"[^>]*>M<\/kbd>/);
+      expect(drawSounds({ soundOn }), `soundOn=${soundOn}`).toContain('aria-keyshortcuts="M"');
     }
   });
 

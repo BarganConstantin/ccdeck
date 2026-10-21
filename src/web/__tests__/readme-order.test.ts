@@ -322,11 +322,12 @@ describe("the hero image", () => {
   it("is reachable at full size, because GitHub renders it at about half scale", () => {
     // The old shot was 1917 logical px in a ~890px column and its labels were a
     // smear. Its replacement was framed at 1600 and shot at 2x for that reason;
-    // the shot that replaced THAT is framed at 1920 again, because it is the
-    // narrowest 16:9 window in which the deck's own fit, with both side panels
-    // open, still draws every card in full with its tool calls beside it
-    // (assets/capture-hero.mjs says why). It is shot at 2x, and the link stays
-    // for the reader who wants the pixels.
+    // the shot that replaced THAT was framed at 1920 again, and the one after
+    // it (3.41.1) at 2240x1260, because each is the narrowest 16:9 window in
+    // which the deck's own fit, with both side panels open, still draws every
+    // card in full with its tool calls beside it (assets/capture-hero.mjs
+    // says why). It is shot at 2x, and the link stays for the reader who
+    // wants the pixels.
     expect(readme).toContain(`[![`);
     expect(readme).toContain(`](${embedded[0]})](${embedded[0]})`);
   });
@@ -478,10 +479,11 @@ describe("the hero image", () => {
     // what its own fit does with both side panels open in a 1600x900 window:
     // the shot taken that way was honest and showed none of them. So anything
     // but full cards is refused, and a board that outgrows the window fails
-    // here, by name, instead of shipping quietly smaller.
+    // here, by name, instead of shipping quietly smaller. 1920x1080 did on
+    // 3.41.1, so the window grew rather than the picture shrinking.
     const src = read("assets", "capture-hero.mjs");
     expect(src).toContain('if (lod !== "detail") problems.push(');
-    expect(src).toContain('process.env.VIEWPORT ?? "1920x1080"');
+    expect(src).toContain('process.env.VIEWPORT ?? "2240x1260"');
   });
 });
 

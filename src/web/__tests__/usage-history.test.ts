@@ -7,7 +7,7 @@
 // now, beside the rows they read, and these are their answers.
 import { describe, expect, it } from "vitest";
 
-import { asDay, byCost, dayAgentsLine, historyTotals, legendOf, modelColor, percentOf, type ModelBreakdown } from "../usage-history";
+import { asDay, byCost, dayAgentsLine, dayLabelStep, historyTotals, legendOf, modelColor, percentOf, type ModelBreakdown } from "../usage-history";
 
 const mb = (modelName: string, cost: number): ModelBreakdown =>
   ({ modelName, cost, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 });
@@ -93,5 +93,13 @@ describe("the colour a model is drawn in", () => {
     expect(modelColor("gpt5-mini")).toBe("var(--model-gpt5)");
     expect(modelColor("gpt-4.1")).toBe("var(--model-gpt)");
     expect(modelColor("gpt-5.4-codex")).toBe("var(--model-gpt5)");
+  });
+});
+
+describe("dates under the daily chart", () => {
+  it("labels every day up to two weeks, every other day up to a month, and weekly beyond", () => {
+    // A column is at least 24px and a date needs 27px, so a month labelled day
+    // by day printed `09-…` under every bar.
+    expect([7, 14, 15, 30, 31, 45, 90].map(dayLabelStep)).toEqual([1, 1, 2, 2, 2, 7, 7]);
   });
 });

@@ -53,6 +53,7 @@ const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
  */
 const PINNED_MODULES = [
   "self-update.mjs",
+  "tool-audit.mjs",
   "claude-accounts.mjs",
   "account-health.mjs",
   "cswap-admin.mjs",
@@ -67,6 +68,7 @@ const PINNED_MODULES = [
   "browser-watch-store.mjs",
   "claude-fm.mjs",
   "fm-station.mjs",
+  "radio-directory.mjs",
   "lofi-girl.mjs",
   "live-radio-mix.mjs",
   "best-of-nostalgia.mjs",
@@ -94,6 +96,10 @@ const PINNED_MODULES = [
   // The plans the daily report says, read through import() by depth-facts.mjs.
   "quota-oauth.mjs",
   "codex-auth.mjs",
+  // The paired decks' current accounts, which Auto-switch's own rules skip
+  // (cswap-auto-choice.mjs). Already in memory through prefs-routes.mjs; named
+  // here because the tick reaches it through import().
+  "lan-deck.mjs",
 ];
 
 let _pinned = null;

@@ -128,21 +128,16 @@ export const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) =>
   { match: /^claude[-_]opus[-_]5\b(?![-_.]\d{1,7}(?!\d))/i,
     rates: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25, cacheWrite1h: 10 } },
 
-  // Sonnet 5.5 — $2 / $10, the same five numbers as Sonnet 5 (#1700).
-  //
-  // Read 2026-09-29 from platform.claude.com/docs/en/about-claude/pricing:
-  // "Claude Sonnet 5.5 | $2 / MTok | $2.50 / MTok | $4 / MTok | $0.20 / MTok |
-  // $10 / MTok", with no footnote, so its cache read is the standard 0.1x.
-  // LiteLLM's `claude-sonnet-5-5`, which ccusage prices from, carries the same
-  // five numbers.
-  //
-  // A row of its own although the rates match Sonnet 5's today. Loosening
-  // Sonnet 5's guard would have priced it too, and would also have priced every
-  // Sonnet 5.x nobody has read a price for (#688) — Opus 5.5 is the proof that
-  // a ".5" can come with a different cache rate. Above Sonnet 5 because it is
-  // the more specific of the two.
+  // Verified 2026-10-12 against Anthropic's pricing page. Sonnet 5.5
+  // cache hits cost 0.05x input ($0.10), unlike Sonnet 5's 0.1x.
   { match: /^claude[-_]sonnet[-_]5[-_.]5\b(?![-_.]\d{1,7}(?!\d))/i,
-    rates: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5, cacheWrite1h: 4 } },
+    rates: { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5, cacheWrite1h: 4 } },
+
+  // Haiku 5.5: prompts up to 100K tokens. Requests above that threshold
+  // cost 5x in every category, including output and both cache TTLs.
+  // pricing.ts applies that premium only to the observed per-request share.
+  { match: /^claude[-_]haiku[-_]5[-_.]5\b(?![-_.]\d{1,7}(?!\d))/i,
+    rates: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125, cacheWrite1h: 0.2 } },
 
   // Sonnet 5 — $2 / $10, the introductory rate that became the standard one
   // (see SONNET_5 above). The version guard keeps an unrecognised Sonnet 5.x
@@ -239,15 +234,15 @@ export const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) =>
   // being non-zero: the written tokens stayed on the input line at $12.50 AND
   // the cache-write line rendered "-". Zero remains correct for the older
   // families -- gpt-5.1-codex-max publishes no cache-write line at all.
-  { match: /^gpt[-_]5[-_.]6[-_]cyber/i,
+  { match: /^gpt[-_]5[-_.]6[-_]cyber\b(?![-_][A-Za-z])/i,
     rates: { input: 12.50, output: 75, cacheRead: 1.25, cacheWrite: 15.625 } },
 
   // gpt-5.6-luna — $0.20 / $1.20  (cached $0.02, cache write $0.25)
-  { match: /^gpt[-_]5[-_.]6[-_]luna/i,
+  { match: /^gpt[-_]5[-_.]6[-_]luna\b(?![-_][A-Za-z])/i,
     rates: { input: 0.20, output: 1.20, cacheRead: 0.02, cacheWrite: 0.25 } },
 
   // gpt-5.6-terra — $2 / $12  (cached $0.20, cache write $2.50)
-  { match: /^gpt[-_]5[-_.]6[-_]terra/i,
+  { match: /^gpt[-_]5[-_.]6[-_]terra\b(?![-_][A-Za-z])/i,
     rates: { input: 2, output: 12, cacheRead: 0.20, cacheWrite: 2.50 } },
 
   // gpt-5.6 / gpt-5.6-sol — $4 / $20  (cached $0.40, cache write $5).
@@ -302,6 +297,11 @@ export const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) =>
   // gpt-5.4 — $2.50 / $15  (cached $0.25)
   { match: /^gpt[-_]5[-_.]4\b/i,
     rates: { input: 2.50, output: 15, cacheRead: 0.25, cacheWrite: 0 } },
+
+  // Historical GPT-5.3 Chat usage. Official model page, checked 2026-10-12:
+  // developers.openai.com/api/docs/models/gpt-5.3-chat-latest.
+  { match: /^gpt[-_]5[-_.]3[-_]chat[-_]latest$/i,
+    rates: { input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: 0 } },
 
   // gpt-5.3-codex (and -spark) — $1.75 / $14  (cached $0.175).
   // The last codex-tuned model: there is no gpt-5.4/5.5/5.6-codex.

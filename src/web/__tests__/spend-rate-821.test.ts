@@ -9,7 +9,6 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { usageSurface } from "./usage-surface";
 import { recordSpend, spendRate, SPEND_WINDOW_MS, NO_SPEND_HISTORY, type SpendHistory, type SpendBySession } from "../spend-rate";
-import { sheetText } from "./sheet-source";
 
 /** One session on the board, at this cost. The rate is per-session since #987;
  *  these #821 cases are about the window and the arithmetic over it, so one
@@ -123,7 +122,6 @@ describe("the usage header's pill (#821)", () => {
   /** Where the samples are taken and the rate is read, since the headline memo
    *  and its two refs left the panel. */
   const spend = read("../use-board-spend.ts");
-  const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
   it("no longer divides live agents' cost by the longest one's age", () => {
     expect(usageSurface()).not.toMatch(/liveCost|liveSec/);
@@ -143,16 +141,6 @@ describe("the usage header's pill (#821)", () => {
     expect(spend).toMatch(/const rate = liveSince == null \? null : spendRate\(/);
   });
 
-  it("says the span it measured, beside the figure and in its title", () => {
-    expect(panel).toMatch(/title=\{`Spend on this board over the last \$\{burnRate\.spanMin\} min`\}/);
-    expect(panel).toMatch(/<span className="up-rate-span"> · \{burnRate\.spanMin\} min<\/span>/);
-  });
-
-  it("is not painted in the colour that means running", () => {
-    // The primary tier: the panel's headline figure. --text-secondary is for
-    // prose (text-tiers.test.ts), which a rate is not.
-    const rule = /^\.up-rate\s*\{([^}]*)\}/m.exec(css)?.[1] ?? "";
-    expect(rule).not.toMatch(/--inflight/);
-    expect(rule).toMatch(/color:\s*var\(--text\);/);
-  });
+  // The owner removed the rate from the Usage header in #2121. The sampling
+  // and arithmetic contracts above remain independent of that UI choice.
 });

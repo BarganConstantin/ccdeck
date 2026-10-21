@@ -35,7 +35,8 @@ export const WIN_7D_SEC  = 604800;
  * Exported for its test.
  */
 export function clampPct(v) {
-  return Math.min(100, Math.max(0, Math.round(v)));
+  return typeof v === "number" && Number.isFinite(v)
+    ? Math.min(100, Math.max(0, Math.round(v))) : null;
 }
 
 // ISO-8601 → "Jun 19, 1:19pm" (local time, matching the CLI display format).
@@ -48,13 +49,13 @@ export function clampPct(v) {
 const fmtResetIso = resetLabelIso;
 
 function isoToSec(iso) {
-  if (!iso) return null;
+  if (typeof iso !== "string" || !iso) return null;
   const t = new Date(iso).getTime();
-  return isNaN(t) ? null : Math.floor(t / 1000);
+  return !Number.isFinite(t) || t <= 0 ? null : Math.floor(t / 1000);
 }
 
 // Map the OAuth usage JSON to our quota result shape.
-// utilization is already a 0–100 percentage. 5h falls back to 7d if absent.
+// utilization is already a 0–100 percentage. Each window stays independent.
 //
 // A 7d window that is absent is UNKNOWN, and published as null (#1627). The
 // endpoint can send `seven_day: null`, and this used to fill in a zero there —
@@ -67,25 +68,26 @@ export function mapOAuthUsage(data) {
   const son = data?.seven_day_sonnet;
   const opus = data?.seven_day_opus;
 
-  const primary = (fh?.utilization != null) ? fh : sd;
-  if (!primary || primary.utilization == null) return null;
+  const fivePct = clampPct(fh?.utilization);
+  const sevenPct = clampPct(sd?.utilization);
+  if (fivePct == null && sevenPct == null) return null;
 
   const result = {
-    session5hPct:       clampPct(primary.utilization),
+    session5hPct:       fivePct,
     session5hWindowSec: WIN_5H_SEC,
-    session5hReset:     fmtResetIso(primary.resets_at),
-    session5hResetAt:   isoToSec(primary.resets_at),
+    session5hReset:     fmtResetIso(fivePct == null ? null : fh?.resets_at),
+    session5hResetAt:   isoToSec(fivePct == null ? null : fh?.resets_at),
     week7dWindowSec:    WIN_7D_SEC,
   };
-  if (sd?.utilization != null) {
-    result.week7dPct     = clampPct(sd.utilization);
+  if (sevenPct != null) {
+    result.week7dPct     = sevenPct;
     result.week7dReset   = fmtResetIso(sd.resets_at);
     result.week7dResetAt = isoToSec(sd.resets_at);
   } else {
     result.week7dPct = null;
   }
-  if (son?.utilization != null)  result.weekSonnetPct = clampPct(son.utilization);
-  if (opus?.utilization != null) result.weekOpusPct   = clampPct(opus.utilization);
+  if (clampPct(son?.utilization) != null)  result.weekSonnetPct = clampPct(son.utilization);
+  if (clampPct(opus?.utilization) != null) result.weekOpusPct   = clampPct(opus.utilization);
 
   // extra usage credits (pay-as-you-go top-up), if enabled
   const extra = data?.extra_usage;
@@ -114,21 +116,22 @@ export function quotaFromStore(entry) {
   const good = entry?.lastGood;
   const fh = good?.five_hour;
   const sd = good?.seven_day;
-  const primary = (typeof fh?.pct === "number") ? fh : sd;
-  if (typeof primary?.pct !== "number") return null;
+  const fivePct = clampPct(fh?.pct);
+  const sevenPct = clampPct(sd?.pct);
+  if (fivePct == null && sevenPct == null) return null;
 
   const out = {
     ok: true,
     source: "claude-swap",
-    session5hPct:       clampPct(primary.pct),
+    session5hPct:       fivePct,
     session5hWindowSec: WIN_5H_SEC,
-    session5hReset:     fmtResetIso(primary.resets_at),
-    session5hResetAt:   isoToSec(primary.resets_at),
+    session5hReset:     fmtResetIso(fivePct == null ? null : fh?.resets_at),
+    session5hResetAt:   isoToSec(fivePct == null ? null : fh?.resets_at),
     week7dWindowSec:    WIN_7D_SEC,
     // Unknown rather than 0 when the row has no 7d window, as mapOAuthUsage
     // publishes it (#1627): claude-swap writes no `seven_day` at all when the
     // endpoint sent none.
-    week7dPct:          typeof sd?.pct === "number" ? clampPct(sd.pct) : null,
+    week7dPct:          sevenPct,
     week7dReset:        fmtResetIso(sd?.resets_at),
     week7dResetAt:      isoToSec(sd?.resets_at),
     // The age of the DATA, not of our read of it. The panel prints this, and
@@ -139,7 +142,7 @@ export function quotaFromStore(entry) {
   // claude-swap keeps per-model windows in a named list rather than fixed
   // fields, because which ones an account has depends on its plan.
   for (const s of Array.isArray(good.scoped) ? good.scoped : []) {
-    if (typeof s?.pct !== "number") continue;
+    if (clampPct(s?.pct) == null) continue;
     if (/sonnet/i.test(s.name ?? "")) out.weekSonnetPct = clampPct(s.pct);
     else if (/opus/i.test(s.name ?? "")) out.weekOpusPct = clampPct(s.pct);
   }

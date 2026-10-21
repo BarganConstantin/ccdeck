@@ -1,0 +1,6 @@
+20 open/close+region loops {"ms":15949.287969999998,"baseline":{"documents":3,"nodes":3490,"jsEventListeners":782},"after":{"documents":3,"nodes":2283,"jsEventListeners":659}}
+300-result search end-to-end ms (includes 350ms debounce) 55.20476199999757
+PASS synthetic CDP two-touch pinch; physical touch not tested
+PASS malformed entries discarded, missing coordinates retained in list
+PASS empty directory / aborted network / Retry recovery
+Long tasks ms [52,54,108,391,180,57,102,82,103,117,55,90,76,181,307,59,132,89,56,94,75,58,54,79,100,59,84,155,192,87,67,166,138,109,120,94,142,97,95,109,143,192,63,106,233,120,110,257,102,455,152,106,112,100,105,111,116,103,121,92,109,99,152,85,108,100,103,106,105,96,89,95,91,93,63,65]

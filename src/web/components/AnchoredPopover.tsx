@@ -58,6 +58,8 @@ interface Props {
   /** The control this hangs off, by id. Looked up at each placement rather
    *  than held, so a row re-rendered under it is followed rather than lost. */
   anchorId: string;
+  /** Keep modal-owned controls inside its accessibility boundary. */
+  portalRootId?: string;
   /** The element the anchor scrolls inside. Once the anchor has left it, the
    *  popover closes. Named rather than discovered: finding it would mean
    *  asking the style engine about every ancestor on every scroll. */
@@ -95,7 +97,7 @@ function itemsIn(root: HTMLElement | null): HTMLButtonElement[] {
 }
 
 export default function AnchoredPopover({
-  anchorId, boundaryId, id, className, role, labelledBy, start = "first", focusRef, fallbackFocus, onClose, children,
+  anchorId, boundaryId, portalRootId, id, className, role, labelledBy, start = "first", focusRef, fallbackFocus, onClose, children,
 }: Props) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -244,6 +246,6 @@ export default function AnchoredPopover({
     >
       {children}
     </div>,
-    document.body,
+    (portalRootId ? document.getElementById(portalRootId) : null) ?? document.body,
   );
 }

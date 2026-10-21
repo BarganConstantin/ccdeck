@@ -65,4 +65,12 @@ it('shows continuous managed monitoring without Terminal steps or a time limit',
 it('keeps Stop available while retrying a denied capture and explains the required permission', () => {
   const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, platform: 'darwin', managed: true, enabled: true, state: 'interrupted', sources: [{ destination: '127.0.0.1:4317', interface: 'lo0', active: false, bytes: 0, error: 'Packet capture permission is required.' }] }} />);
   expect(markup).toContain('Capture permission needed'); expect(markup).toContain('Stop monitoring'); expect(markup).toContain('ChmodBPF'); expect(markup).toContain('retries automatically');
+  // ccdeck runs this capture itself: no command screen is drawn, so the copy
+  // must not hold a Terminal command up as the alternative.
+  expect(markup).not.toContain('Terminal');
+});
+it('names PowerShell, not Terminal, when unmanaged Windows activation must be generated again', () => {
+  const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, state: 'awaiting', shell: 'PowerShell', platform: 'win32' }} />);
+  expect(markup).toContain('Generate the PowerShell instructions again'); expect(markup).toContain('Show activation instructions');
+  expect(markup).not.toContain('Terminal');
 });

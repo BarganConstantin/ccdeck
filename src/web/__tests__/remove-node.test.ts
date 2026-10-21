@@ -568,7 +568,9 @@ describe("where Remove lives and what follows it", () => {
   });
 
   it("keeps a removed session in the session list, marked, as the way back", () => {
-    expect(app).toMatch(/onSelect=\{openSession\}[\s\S]*?removedIds=\{removedAgentIds\}/);
+    // Through pickSession, which closes a phone's drawer after openSession.
+    expect(app).toMatch(/onSelect=\{pickSession\}[\s\S]*?removedIds=\{removedAgentIds\}/);
+    expect(app).toMatch(/const pickSession = useCallback\(\(sessionId: string\) => \{\s*openSession\(sessionId\);/);
     expect(app).toMatch(/if \(removedAgentIds\.has\(sessionId\)\) bringBack\(\[sessionId\]\);\s*focusSession\(sessionId\);/);
     expect(list).toMatch(/\{removed && <span className="sl-removed">off the board<\/span>\}/);
     expect(list).toMatch(/Bring back \{count\} removed \{count === 1 \? "card" : "cards"\}/);

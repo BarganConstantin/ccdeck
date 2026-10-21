@@ -214,10 +214,10 @@ describe("defaultExclusions covers the deck's own tabs", () => {
   });
 
   it("removes the deck without touching the site next to it", () => {
-    // The end-to-end shape of the measured problem: the deck opening its own
-    // tab is the loudest FROM_API source on the machine, and it fires at the
-    // exact moment the rule is most sensitive — nobody is browsing when a
-    // background process opens a tab.
+    // The end-to-end shape of the measured problem: the deck's own page is the
+    // loudest FROM_API source on the machine, and its visits land at the exact
+    // moment the rule is most sensitive — nobody is browsing while a program
+    // loads it.
     const visits = [
       program("http://127.0.0.1:4317/", Date.UTC(2026, 7, 24, 9, 0)),
       program("http://localhost:4399/?tab=usage", Date.UTC(2026, 7, 24, 11, 0)),

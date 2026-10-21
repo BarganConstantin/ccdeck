@@ -139,6 +139,7 @@ export function upstreamForm({ fields, images }, facts) {
   if (contact) text("contact", contact);
   text("appVersion", facts.appVersion);
   text("platform", facts.platform);
+  if (facts.deviceId) text("deviceId", facts.deviceId);
   for (const [index, { data, format }] of images.entries()) {
     const { type, extension } = FORMAT[format];
     parts.push(`${head(IMAGES_FIELD, `; filename="image-${index + 1}.${extension}"`)}Content-Type: ${type}\r\n\r\n`, data, "\r\n");

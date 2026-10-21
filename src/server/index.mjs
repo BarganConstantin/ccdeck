@@ -83,6 +83,7 @@ import { ccProjectSlug } from "./claude-dir.mjs";
 export { ccProjectSlug };
 // The Codex half of capture: the rollouts directory tailed for its events —
 // see codex-watch.mjs.
+import { createClaudeRecovery } from "./claude-recovery.mjs";
 import { startCodexWatcher } from "./codex-watch.mjs";
 // Exported from this file before they moved, and still. scanCodexNow is new,
 // and is here for the suites that import this file to drive the watcher.
@@ -162,9 +163,12 @@ import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccou
 // Browser Watch's three routes — see browser-watch-routes.mjs.
 import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettings } from "./browser-watch-routes.mjs";
 // The music routes, every one behind AGENTS_DECK_NO_MUSIC — see music-routes.mjs.
-import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStation, handleGoodLifeRadio, handleLiveRadioMix, handleLofiGirl } from "./music-routes.mjs";
+import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStation, handleGoodLifeRadio, handleLiveRadioMix, handleLofiGirl, handleRadioStations, handleRadioClick, handleMusicConfig } from "./music-routes.mjs";
 // The usage panel's quota and history reads — see usage-routes.mjs.
-import { handleCcusage, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota } from "./usage-routes.mjs";
+import { startToolAudit } from "./tool-audit.mjs";
+import { handleToolAudit } from "./tool-audit-routes.mjs";
+import { startQuotaHistory } from "./quota-history.mjs";
+import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota, handleQuotaHistory } from "./usage-routes.mjs";
 // The port fallback, one listen attempt, and the words for a failed one — see
 // listen.mjs. The loop that uses them is startServer's.
 import { listenFailure, portRetryable, randomPort, tryListen } from "./listen.mjs";
@@ -190,6 +194,8 @@ export function requestUrl(rawUrl) {
 }
 
 export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null } = {}) {
+  startQuotaHistory();
+  await startToolAudit();
   armLifecycle({ onRestart, onStop, persist, onSelfUpdate: () => reporter.noteSelfUpdate() });
   // Which tree and which CLIs, normalised once — see setDeckScope.
   setDeckScope({ workspace, claude, codex });
@@ -316,6 +322,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/restart")     return guard(handleRestart(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/presence")    return guard(handlePresence(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/shutdown")    return guard(handleStop(req, res), res);
+    if (["GET", "POST"].includes(req.method) && ["/api/tool-audit", "/api/tool-audit/storage"].includes(url.pathname)) return guard(handleToolAudit(req, res), res);
+    if (req.method === "GET" && url.pathname === "/api/quota/history") return guard(handleQuotaHistory(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/quota")       return guard(handleQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-usage")  return guard(handleCodexUsage(req, res), res);
     // Machine state, not session state: sampled on the server's own timer and
@@ -371,6 +379,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     }
     if (req.method === "GET"  && url.pathname === "/api/codex-quota") return guard(handleCodexQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/ccusage")     return guard(handleCcusage(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/ccusage/session") return guard(handleCcusageSession(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/provider-status") return guard(handleProviderStatus(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/browser-watch") return guard(handleBrowserWatch(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/browser-watch") return guard(handleBrowserWatchSettings(req, res), res);
@@ -390,6 +399,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/cswap-auto")  return guard(handleCswapAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/cswap-auto")  return guard(handleCswapAutoAction(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-fm")   return guard(handleClaudeFm(req, res), res);
+    if (req.method === "GET" && url.pathname === "/api/music-config") return handleMusicConfig(req, res);
+    if (req.method === "GET" && url.pathname === "/api/radio-stations") return guard(handleRadioStations(req, res), res);
+    if (req.method === "GET" && url.pathname === "/api/radio-click") return guard(handleRadioClick(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/fm-station") return guard(handleFmStation(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/lofi-girl")   return guard(handleLofiGirl(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/live-radio-mix") return guard(handleLiveRadioMix(req, res), res);
@@ -510,6 +522,14 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       server.once("close", () => trafficCapture.dispose());
       // Codex has no working hooks on Windows — tail its rollout files instead.
       if (codex) startCodexWatcher(workspace);
+      if (claude) {
+        const recovery = createClaudeRecovery({ workspace });
+        const recover = () => { void recovery.scan().catch(() => {}); };
+        recover();
+        const timer = setInterval(recover, 1500);
+        timer.unref?.();
+        server.once("close", () => { clearInterval(timer); recovery.stop(); });
+      }
       // What a session is producing between its tool calls. Claude only — it
       // reads `transcript_path`, which Codex hooks never send — and unref'd
       // like its neighbours.

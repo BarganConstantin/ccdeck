@@ -311,7 +311,7 @@ export function releaseNotesIntro({ since, running, entries, firstRun }: Release
   }
   const drift = compareVersions(newest, running);
   if (drift < 0) {
-    return `v${running} — the release you are running — changed nothing you would notice, which most releases do not. Below is the last release that did, and everything before it, newest first.`;
+    return `v${running} · 🐛 Bug fixes and performance improvements. Earlier release notes are shown below.`;
   }
   // drift > 0 cannot happen through the chip, which never asks for notes past
   // the running version. It can happen to a caller that does, and the honest

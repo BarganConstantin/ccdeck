@@ -201,10 +201,11 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     // wrap them.
     for (const body of handlers(surfaceCode, "onChange")) {
       expect(body, body).not.toMatch(/\b(admin|post|doMove|doSlot|doThreshold|doAlias|doSwitch|onSwitch|makeShare|pressRemove|load|fetch)\s*\(/);
-      // A setter, or one of the four drafts written by name — the ⋯ menu's
-      // two and the threshold's two, its picker and its custom field — and
-      // each of those is one state write and nothing else.
-      expect(body, body).toMatch(/\b(set[A-Z]\w*|typeAlias|pickSlot|proposeThreshold|typeThreshold)\(/);
+      // A setter, or one of the five drafts written by name — the ⋯ menu's
+      // two, the threshold's two, its picker and its custom field, and the
+      // next-account picker's one — and each of those is one state write and
+      // nothing else.
+      expect(body, body).toMatch(/\b(set[A-Z]\w*|typeAlias|pickSlot|proposeThreshold|typeThreshold|proposeNext)\(/);
     }
     // The threshold's draft is a reducer since the picker grew `Custom…`, so
     // its two writers are one dispatch each, and what a dispatch can do is
@@ -219,6 +220,8 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     expect(reducer).not.toMatch(/\b(admin|post|load|fetch|commitThreshold)\s*\(/);
     expect(accountMenuCode).toMatch(/const typeAlias = \(text: string\) => setAliasDraft\(text\);/);
     expect(accountMenuCode).toMatch(/const pickSlot = \(slot: number\) => setSlotDraft\(slot\);/);
+    const nextCode = withoutComments(readFileSync(fileURLToPath(new URL("../use-next-draft.ts", import.meta.url)), "utf8"));
+    expect(nextCode).toMatch(/const proposeNext = \(value: string\) => setPick\(isNextChoice\(value\) \? value : null\);/);
   });
 
   it("commits both pickers from a press instead", () => {

@@ -1,0 +1,139 @@
+
+> ccdeck@3.40.2 test
+> vitest run src/web/__tests__/radio-directory.test.ts src/web/__tests__/radio-library.test.ts src/web/__tests__/radio-discovery.test.ts src/web/__tests__/radio-map-geometry.test.ts src/web/__tests__/radio-favorite-state.test.ts src/web/__tests__/radio-failover.test.ts src/web/__tests__/radio-country-flags.test.ts src/web/__tests__/radio-miss-cache-1744.test.ts src/web/__tests__/fm-stations-1208.test.ts src/web/__tests__/fm-station-server-1208.test.ts src/web/__tests__/fm-volume.test.ts src/web/__tests__/claude-fm.test.ts src/web/__tests__/claude-fm-runtime.test.ts src/web/__tests__/modal-dismiss.test.ts src/web/__tests__/modal-focus-trap.test.ts src/web/__tests__/popover-place.test.ts src/web/__tests__/panel-overflow.test.ts src/web/__tests__/contrast-floors.test.ts src/web/__tests__/control-edges.test.ts src/web/__tests__/fm-focus-ring-light-1793.test.ts src/web/__tests__/fm-player-lifecycle.test.ts src/web/__tests__/radio-filter-a11y.test.ts
+
+
+ RUN  v2.1.9 /Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web
+
+[stray-deck guard] 1 deck(s) from an earlier run are still alive and will be ignored:
+  10018  /Users/constantin/.nvm/versions/node/v22.14.0/bin/node /var/folders/wl/62nt10wn1zv836q4f5kvn56w0000gn/T/ccdeck-boot-budget-GZ44MW/pkg/bin/deck.js --port 28229 --claude --no-codex --history /var/folders/wl/62nt10wn1zv836q4f5kvn56w0000gn/T/ccdeck-boot-budget-GZ44MW/events-installing.jsonl
+ ✓ __tests__/fm-station-server-1208.test.ts (14 tests) 83ms
+ ✓ __tests__/modal-dismiss.test.ts (17 tests) 19ms
+ ✓ __tests__/modal-focus-trap.test.ts (45 tests) 78ms
+ ✓ __tests__/fm-player-lifecycle.test.ts (16 tests) 688ms
+ ✓ __tests__/radio-library.test.ts (14 tests) 36ms
+ ✓ __tests__/popover-place.test.ts (14 tests) 22ms
+ ✓ __tests__/fm-stations-1208.test.ts (15 tests) 185ms
+ ✓ __tests__/radio-directory.test.ts (7 tests) 488ms
+   ✓ radio directory > deduplicates a concurrent search, caches results and refreshes expired data 353ms
+ ✓ __tests__/panel-overflow.test.ts (14 tests) 2279ms
+   ✓ the account alias in the accounts panel row > is contained the way the email span beside it always was 320ms
+   ✓ the account alias in the accounts panel row > raises only the small age labels above the inactive row's door (#1115) 1640ms
+ ✓ __tests__/fm-focus-ring-light-1793.test.ts (7 tests) 2080ms
+   ✓ the Claude FM character's focus ring in the light theme (#1793) > changes nothing in the dark theme, where ring and body are both the accent 718ms
+ ✓ __tests__/claude-fm-runtime.test.ts (6 tests) 21ms
+ ✓ __tests__/radio-map-geometry.test.ts (7 tests) 27ms
+ ✓ __tests__/radio-miss-cache-1744.test.ts (12 tests) 42ms
+ ✓ __tests__/fm-volume.test.ts (6 tests) 2005ms
+   ✓ the Claude FM volume preference > is owned by App, persisted on change, and handed to both consumers 1992ms
+ ✓ __tests__/radio-failover.test.ts (3 tests) 99ms
+ ✓ __tests__/radio-discovery.test.ts (3 tests) 11ms
+ ✓ __tests__/radio-filter-a11y.test.ts (2 tests) 135ms
+stderr | __tests__/radio-favorite-state.test.ts > radio favorite indicators > draws the same country image in the player and station row
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+
+stderr | __tests__/radio-favorite-state.test.ts > radio favorite indicators > shows radio first with workspace streams collapsed and reachable
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+
+stderr | __tests__/radio-favorite-state.test.ts > radio favorite indicators > uses the saved station name consistently in Discover
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+
+stderr | __tests__/radio-favorite-state.test.ts > radio favorite indicators > reports missing map coordinates without implying every result is plotted
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+
+stderr | __tests__/radio-favorite-state.test.ts > radio favorite indicators > shows failed active streams as retryable in both source groups
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+
+stderr | __tests__/radio-favorite-state.test.ts > radio favorite indicators > styles both the current station and the list heart for each saved state
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+
+stderr | __tests__/radio-favorite-state.test.ts > radio favorite indicators > exposes the player heart for workspace streams using their shared favorite ID
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at RadioPanel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/components/RadioPanel.tsx:32:23)
+    at Panel (/Users/constantin/.cache/ccdeck-wt/radio-built-in-stations/src/web/__tests__/radio-favorite-state.test.ts:22:18)
+
+ ✓ __tests__/radio-favorite-state.test.ts (9 tests) 1426ms
+   ✓ radio favorite indicators > draws the same country image in the player and station row 422ms
+ ✓ __tests__/radio-country-flags.test.ts (3 tests) 585ms
+   ✓ radio country artwork > renders local images for countries independently of the OS emoji font 339ms
+ ✓ __tests__/contrast-floors.test.ts (83 tests) 3770ms
+   ✓ an opacity over text is a contrast ratio too (#1289) > tells a mark from a box that can hold a word, so the sweep below means something 621ms
+   ✓ an opacity over text is a contrast ratio too (#1289) > would have failed every one of the four rules #1289 found 398ms
+   ✓ an opacity over text is a contrast ratio too (#1289) > puts --dim-stale on marks and fills only — elements with no children to hold a word 575ms
+   ✓ nothing at rest paints --inflight itself (#1649) > draws the empty canvas, which only shows when nothing runs, in neither theme's --inflight 356ms
+   ✓ words quietened with an opacity, measured as what they composite to (#1787) > fades only the report's marks while it reloads — the bar, the meters, the day columns and the dots 495ms
+ ✓ __tests__/claude-fm.test.ts (105 tests) 5151ms
+   ✓ the deck's own sound plays over the music > plays a chime and leaves Claude FM alone, live and in the sound menu 1488ms
+   ✓ the character > keeps the flying ball visible until it drops at viewport width 768 733ms
+   ✓ the character > keeps the flying ball visible until it drops at viewport width 1500 1412ms
+ ✓ __tests__/control-edges.test.ts (29 tests) 6300ms
+   ✓ every control that draws a boundary draws one that can be seen (1.4.11) > clears 3:1 at rest, on every surface it can land on, in both themes 3938ms
+   ✓ every control that draws a boundary draws one that can be seen (1.4.11) > never draws it fainter in a state than at rest — a hover that lowers a contrast is not a hover 2047ms
+
+ Test Files  22 passed (22)
+      Tests  431 passed (431)
+   Start at  10:43:48
+   Duration  11.69s (transform 7.14s, setup 4.65s, collect 19.25s, tests 25.53s, environment 12ms, prepare 9.80s)

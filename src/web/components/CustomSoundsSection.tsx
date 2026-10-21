@@ -12,6 +12,7 @@ import { armedPress, focusDropped } from "../panel-press";
 import { CONFIRM_GAP_MS } from "./LanSyncSection";
 import { useClipRecorder } from "../use-clip-recorder";
 import SpokenVoiceForm from "./SpokenVoiceForm";
+import { SettingRow, SettingsGroup } from "./SettingsParts";
 import {
   MAX_CUSTOM_ASSETS,
   deleteFocusTarget,
@@ -90,18 +91,26 @@ export default function CustomSoundsSection({
   const { recording, startRecording, stopRecording } = useClipRecorder({ full, setCustomError, runCustom, onImportCustom });
 
   return (
-    <section className="sm-custom" aria-labelledby="sm-custom-title">
-      <div className="sm-custom-head">
-        <h3 className="sm-tone-name" id="sm-custom-title">Custom sounds</h3>
-        <span>{customCount} of {MAX_CUSTOM_ASSETS}, kept on this machine</span>
-      </div>
-      {full && <p className="sm-note" id="sm-custom-full">{fullReason}</p>}
-      <div className="sm-custom-actions">
-        <div className="sm-custom-card">
-          <span className="sm-custom-card-copy">
-            <strong>Import audio</strong>
-            <span>WAV, MP3 or OGG</span>
-          </span>
+    // One group in the shared shape (SettingsParts.tsx, #2176): the ways to add
+    // a sound as rows, a name and what it takes on the left and the one verb on
+    // the right, then the sounds already added as rows of the same list. They
+    // were two cards side by side and a disclosure under them, a third shape in
+    // a section whose tones above are rows.
+    <SettingsGroup
+      id="sm-custom-title"
+      title="Custom sounds"
+      note="Your own files, clips and voices, kept on this machine. Either tone above can play one."
+      aside={<span className="settings-caption-count">{customCount} of {MAX_CUSTOM_ASSETS}</span>}
+      className="sm-custom"
+      settingId="custom-sounds"
+    >
+      {full && <p className="settings-row settings-row-status" id="sm-custom-full">{fullReason}</p>}
+      <SettingRow
+        as="div"
+        settingId="custom-import"
+        name="Import audio"
+        note="WAV, MP3 or OGG"
+        control={
           <button
             ref={importRef}
             type="button"
@@ -111,77 +120,73 @@ export default function CustomSoundsSection({
           >
             Choose file
           </button>
-          <input
-            ref={pickerRef}
-            type="file"
-            hidden
-            accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/ogg,.wav,.mp3,.ogg"
-            onChange={e => {
-              const file = e.target.files?.[0];
-              e.currentTarget.value = "";
-              if (file && !full) void runCustom(() => onImportCustom(file));
-            }}
-          />
-        </div>
-
-        <div className="sm-custom-card">
-          <span className="sm-custom-card-copy">
-            <strong>Record a clip</strong>
-            <span>{recording ? "Recording…" : "Up to 5 seconds"}</span>
-          </span>
-          {recording ? (
-            <button type="button" className="btn sm-custom-action" onClick={stopRecording}>Stop &amp; save</button>
-          ) : (
-            <button type="button" className="btn sm-custom-action" {...fullProps} onClick={() => void startRecording()}>Record</button>
-          )}
-        </div>
-      </div>
+        }
+      >
+        <input
+          ref={pickerRef}
+          type="file"
+          hidden
+          accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/ogg,.wav,.mp3,.ogg"
+          onChange={e => {
+            const file = e.target.files?.[0];
+            e.currentTarget.value = "";
+            if (file && !full) void runCustom(() => onImportCustom(file));
+          }}
+        />
+      </SettingRow>
+      <SettingRow
+        as="div"
+        settingId="custom-record"
+        name="Record a clip"
+        note={recording ? "Recording…" : "Up to 5 seconds"}
+        control={recording ? (
+          <button type="button" className="btn sm-custom-action" onClick={stopRecording}>Stop &amp; save</button>
+        ) : (
+          <button type="button" className="btn sm-custom-action" {...fullProps} onClick={() => void startRecording()}>Record</button>
+        )}
+      />
 
       <SpokenVoiceForm full={full} fullProps={fullProps} runCustom={runCustom} onCreateVoice={onCreateVoice} />
 
-      {customAssets.length > 0 && (
-        <div className="sm-custom-list">
-          {customAssets.map(asset => (
-            <div className="sm-custom-item" key={asset.id}>
-              <input
-                className="ap-manage-input"
-                aria-label={`Rename ${asset.name}`}
-                defaultValue={asset.name}
-                maxLength={80}
-                onBlur={e => {
-                  // A name cannot be blank, so a cleared field goes back to
-                  // the one it had rather than showing a name nothing saved.
-                  if (!e.target.value.trim()) { e.target.value = asset.name; return; }
-                  void runCustom(() => onRenameCustom(asset.id, e.target.value));
-                }}
-                onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
-              />
-              <span>{asset.kind === "audio" ? `${asset.duration.toFixed(1)}s` : "Voice"}</span>
-              {/* Named for the sound, not only the verb: a list of eight
-                  rows read aloud as "Play, Delete, Play, Delete" says
-                  nothing about which one a press would act on. */}
-              <button type="button" className="btn sm-custom-icon" aria-label={`Play ${asset.name}`} onClick={() => onPreviewCustom(asset.id)}>Play</button>
-              {/* Two presses, because nothing brings a deleted sound back:
-                  the first arms, a second inside four seconds deletes. And
-                  it hands focus on, since the row it sat in goes with it. */}
-              <button
-                type="button"
-                ref={el => { if (el) deleteRefs.current.set(asset.id, el); else deleteRefs.current.delete(asset.id); }}
-                className={`btn sm-custom-icon${armedDelete === asset.id ? " armed" : ""}`}
-                // A held key repeats at about half a second, past the gap,
-                // while the finger has never come up: one decision.
-                onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
-                onClick={e => pressDelete(asset.id, e.currentTarget)}
-                aria-label={armedDelete === asset.id ? `Confirm deleting ${asset.name}` : `Delete ${asset.name}`}
-                title={armedDelete === asset.id ? "Press again to delete this sound. It cannot be brought back." : "Delete this sound"}
-              >
-                {armedDelete === asset.id ? "Confirm" : "Delete"}
-              </button>
-            </div>
-          ))}
+      {customAssets.map(asset => (
+        <div className="sm-custom-item" key={asset.id}>
+          <input
+            className="ap-manage-input"
+            aria-label={`Rename ${asset.name}`}
+            defaultValue={asset.name}
+            maxLength={80}
+            onBlur={e => {
+              // A name cannot be blank, so a cleared field goes back to
+              // the one it had rather than showing a name nothing saved.
+              if (!e.target.value.trim()) { e.target.value = asset.name; return; }
+              void runCustom(() => onRenameCustom(asset.id, e.target.value));
+            }}
+            onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+          />
+          <span>{asset.kind === "audio" ? `${asset.duration.toFixed(1)}s` : "Voice"}</span>
+          {/* Named for the sound, not only the verb: a list of eight
+              rows read aloud as "Play, Delete, Play, Delete" says
+              nothing about which one a press would act on. */}
+          <button type="button" className="btn sm-custom-icon" aria-label={`Play ${asset.name}`} onClick={() => onPreviewCustom(asset.id)}>Play</button>
+          {/* Two presses, because nothing brings a deleted sound back:
+              the first arms, a second inside four seconds deletes. And
+              it hands focus on, since the row it sat in goes with it. */}
+          <button
+            type="button"
+            ref={el => { if (el) deleteRefs.current.set(asset.id, el); else deleteRefs.current.delete(asset.id); }}
+            className={`btn sm-custom-icon${armedDelete === asset.id ? " armed" : ""}`}
+            // A held key repeats at about half a second, past the gap,
+            // while the finger has never come up: one decision.
+            onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
+            onClick={e => pressDelete(asset.id, e.currentTarget)}
+            aria-label={armedDelete === asset.id ? `Confirm deleting ${asset.name}` : `Delete ${asset.name}`}
+            title={armedDelete === asset.id ? "Press again to delete this sound. It cannot be brought back." : "Delete this sound"}
+          >
+            {armedDelete === asset.id ? "Confirm" : "Delete"}
+          </button>
         </div>
-      )}
-      {customError && <p className="sm-custom-error" role="alert">{customError}</p>}
-    </section>
+      ))}
+      {customError && <p className="settings-row settings-row-status sm-custom-error" role="alert">{customError}</p>}
+    </SettingsGroup>
   );
 }

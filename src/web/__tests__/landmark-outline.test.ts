@@ -41,7 +41,7 @@ import { versionNoticeLabel } from "../version-chip";
 import { openTags, withoutComments } from "./tsx-scan";
 import { usageSurface } from "./usage-surface";
 import { usageHistorySurface } from "./usage-history-surface";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = sheetText();
@@ -287,8 +287,8 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     const h1s = BUNDLE.flatMap(([name, src]) => [...src.matchAll(/<h1[\s>]/g)].map(() => name));
     expect(h1s).toEqual(["components/TopbarReadouts.tsx"]);
     expect(code(readouts)).toMatch(/<h1>\{PRODUCT\}<\/h1>/);
-    // `{}` is what is left of the pointer comment between the two.
-    expect(code(app)).toMatch(/<header className="topbar">[\s{}]*<ReadoutGroup\b/);
+    // The desktop menu precedes the readout; the wordmark stays the sole h1.
+    expect(code(app)).toMatch(/<header className="topbar">[\s{}]*(?:<DesktopTitlebar\s*\/>[\s{}]*)?<ReadoutGroup\b/);
   });
 
   it("did not hide it, because the name it carries is already visible", () => {
@@ -379,6 +379,8 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     // assertions above are what enforce that, and they still run.
     const withH4 = BUNDLE.filter(([, src]) => /<h4[\s>]/.test(src)).map(([name]) => name).sort();
     expect(withH4).toEqual([
+      // Weekly resets is an h3 within Account capacity; its day groups are h4.
+      "components/AccountResetCalendar.tsx",
       "components/AddAccountDialog.tsx",
       // Browser Watch's sections, lifted out of BrowserWatchModal.tsx and still
       // rendered inside its dialog: their <h4>s are the dialog's, and the
@@ -392,6 +394,11 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       "components/ShareAccountsDialog.tsx",
       "components/TelemetryCapture.tsx",
       "components/TelemetryFile.tsx",
+      // Tool activity's details: an <h3> naming the tool, divided into calls
+      // per day and its calls. A dialog on phones, a side panel beside the
+      // report's own <h3> sections elsewhere.
+      "components/ToolAuditHistory.tsx",
+      "components/ToolAuditInspector.tsx",
       "components/ToolModal.tsx",
       "components/TrafficRadar.tsx",
     ]);

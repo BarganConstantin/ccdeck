@@ -67,13 +67,14 @@ export function listenCommand(id = "claude-fm"): string {
 /** What the player says back. Everything else it sends is ignored. */
 export type FmSignal =
   | { kind: "ready" }
+  | { kind: "buffering" }
+  | { kind: "blocked" }
   | { kind: "playing"; playing: boolean }
   | { kind: "error"; code: number };
 
-/** The player's own state numbers. 1 is playing and 3 is buffering; both are
- *  "the user asked for sound and sound is coming", which is what the sprite
- *  dances to. -1, 0, 2 and 5 are not. */
-export const PLAYING_STATES: readonly number[] = [1, 3];
+/** Only state 1 confirms playback. Buffering keeps the session armed without
+ * claiming sound is playing or adding an unplayed station to Recent. */
+export const PLAYING_STATES: readonly number[] = [1];
 
 /** Ended, and paused. The only two states that mean playback has stopped —
  *  everything else the player reports is either playing or not yet anything. */
@@ -84,12 +85,13 @@ export const STOPPED_STATES: readonly number[] = [0, 2];
  *
  * 2 is a malformed parameter, 5 an HTML5 playback failure, 100 a video that is
  * gone, and 101 and 150 are the two spellings of "the owner does not allow this
- * to be embedded". A music toy has nothing useful to say about any of them and
- * no second thing to try, so the component's answer to all five is to take the
+ * to be embedded". 153 means the embed lacks client identification.
+ * A music toy has nothing useful to say about any of them and
+ * no second thing to try, so the component's answer to all six is to take the
  * control off the canvas. A control that presses and does nothing is worse than
  * no control.
  */
-export const FATAL_ERRORS: readonly number[] = [2, 5, 100, 101, 150];
+export const FATAL_ERRORS: readonly number[] = [2, 5, 100, 101, 150, 153];
 
 /**
  * Reads one `message` payload.
@@ -107,6 +109,7 @@ export function readSignal(raw: unknown): FmSignal | null {
   if (!msg || typeof msg !== "object") return null;
   const { event, info } = msg as { event?: unknown; info?: unknown };
   if (event === "onReady") return { kind: "ready" };
+  if (event === "onAutoplayBlocked") return { kind: "blocked" };
   if (event === "onError") {
     const code = typeof info === "number" ? info : Number((info as { errorCode?: unknown })?.errorCode);
     return Number.isFinite(code) ? { kind: "error", code } : null;
@@ -126,6 +129,7 @@ export function readSignal(raw: unknown): FmSignal | null {
     // music stopped.
     if (typeof state !== "number" || !Number.isFinite(state)) return null;
     if (PLAYING_STATES.includes(state)) return { kind: "playing", playing: true };
+    if (state === 3) return { kind: "buffering" };
     // UNSTARTED IS NOT STOPPED, and reading it as stopped is what made the hat
     // flash back on between the press and the first note. A freshly built
     // player announces -1 before it has done anything at all, and 5 means a

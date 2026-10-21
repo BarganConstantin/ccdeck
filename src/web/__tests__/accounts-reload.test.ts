@@ -227,7 +227,7 @@ describe("the panel's reload path", () => {
     // Only the forced half: a poll blinking the button every 15 seconds would
     // read as the panel doing something to itself.
     expect(load).toContain("if (force) setReloading(true);");
-    expect(load).toContain("if (force) setReloading(false);");
+    expect(load).toContain("if (activeRef.current && version === versionRef.current) setReloading(false);");
   });
 
   it("writes the failure line in one file, and merges a reload's verdict into it nowhere else", () => {
@@ -239,8 +239,8 @@ describe("the panel's reload path", () => {
     const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     const writers = ACCOUNTS_FILES.filter(rel => /\bsetFailure\(/.test(code(readFileSync(`${web}${rel}`, "utf8"))));
     expect(writers).toEqual(["use-account-roster.ts"]);
-    expect(code(roster).match(/setFailure\(prev => nextFailure\(prev, /g)).toHaveLength(2);
-    expect(code(roster).match(/\bsetFailure\(/g)).toHaveLength(4);
+    expect(code(roster).match(/setFailure\(prev => nextFailure\(prev, /g)).toHaveLength(3);
+    expect(code(roster).match(/\bsetFailure\(/g)).toHaveLength(5);
   });
 
   it("gives the empty state something to say and a way out of it", () => {

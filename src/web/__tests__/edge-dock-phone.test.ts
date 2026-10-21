@@ -98,7 +98,7 @@ describe("the dock holds the four panels and Settings, then More", () => {
   it("is what App.tsx draws at a phone's width, in place of both stripes and the topbar's utilities", () => {
     const app = sourceOf("App.tsx");
     expect(app).toContain("const phone = useMediaQuery(PHONE_QUERY);");
-    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\], rails\.utilities\[0\]\]\} more=\{\[\.\.\.rails\.right\[1\], rails\.utilities\[1\]\]\} \/>\s*:\s*<EdgeRail side="left"/);
+    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\], rails\.utilities\[0\]\]\} more=\{\[\.\.\.rails\.right\.slice\(1\)\.flat\(\), rails\.utilities\[1\]\]\} \/>\s*:\s*<EdgeRail side="left"/);
     expect(app).toMatch(/\{!phone && <EdgeRail side="right"/);
     expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{rails\.utilities\} \/><\/div>\}/);
   });
@@ -220,7 +220,7 @@ describe("the page around the dock", () => {
   it("gives the stripes' width back to the page, which has no stripes there", () => {
     const root = [el("html", [], { states: ["root"] })];
     expect(cascade(s => selects(s, root), "--edge-w", 390)).toBe("0px");
-    expect(cascade(s => selects(s, root), "--edge-w", 641)).toBe("var(--ctl-h)");
+    expect(cascade(s => selects(s, root), "--edge-w", 641)).toBe("40px");
   });
 
   it("marks an open panel with the stripes' line, on the dock's top edge, in the foreground and not the accent", () => {

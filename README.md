@@ -96,8 +96,9 @@ The deck opens on these eight pictures the first time it runs — they are the w
 | **Blocked on you** | A permission prompt, or a finished turn waiting for your next instruction, sorts that session to the top of the sidebar with how long it has been stuck — longest wait first, so the oldest block is the first row. A permission prompt also puts a count in the topbar that jumps straight to it, and the session's name beside it, with how long it has waited and on what — one click from its card. Claude Code only — the deck reads Codex from its rollout log, and a rollout carries no such signal. |
 | **What each session is doing** | The note tied to each session's card — and the line under its row in the sidebar — says it while it works: the sentence the newest reply wrote, or the description on the command it ran. Once the turn is over it keeps the last thing the session did, until Claude Code's recap takes its place. A background session (`claude --bg`, or one started from `claude agents`) shows Claude Code's own line instead, read from its job folder in `~/.claude/jobs`: the question it is stuck on and the reply Claude Code suggests, or the headline of what it got done. No model is called for any of it. A Codex session, read from its rollout log, has the note only while a turn runs, and it says the first line of the prompt that began the turn: no line is taken from a Codex reply, and no recap follows. |
 | **Live DAG** | Nodes are agents and edges are spawns; each agent's latest tool calls sit beside its node and light up while they run. In-flight edges animate, settled ones dim. |
-| **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The model chip (`Opus 5`, `GPT-5.5`) tells them apart. Subagent cards are Claude Code only: a Codex session is one node with its tool calls. |
+| **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The model chip (`Opus 5`, `GPT-5.5`) tells them apart. Codex child sessions are connected when their rollout records an explicit parent. Each thread keeps its own tool calls and token totals. |
 | **Cost and quota, live** | Spend per model and per session, plus Claude and Codex quota windows as they refill. |
+| **Tool activity** | Which tools and commands your Claude Code and Codex agents ran on this machine, over the last day or up to 90 days: how many calls, how long they took, which ones fail. Kept on this machine and nowhere else. |
 | **Double-click to inspect** | Any node opens its prompt, tool calls, token usage and timing in the side panel. A single click selects it and frames its session. |
 | **Survives restarts** | Events are appended to this platform's log directory (see `--history` below) and replayed on open. |
 | **Accounts without a terminal** | Sign a new Claude account in, move one or your whole set to another machine, rename, reorder, remove — from the panel. |
@@ -120,9 +121,17 @@ log in. **`ccdeck --stop` is the off switch**; `Ctrl+C` only cancels a start tha
 is still printing. `ccdeck --status` says what is running, and `--foreground`
 holds the terminal the way every version before 3.20 did.
 
-The panels open from the window's edges: the session list and the Claude accounts panel from the stripe on the left, Usage, This machine, Usage history and Browser Watch from the one on the right. Each shows or hides beside the canvas, and several can be open at once. Point at one, or Tab to it, and its hint names its key — `L`, `A`, `U`, `S`, `H`, `B` — while the single-key shortcuts are on. On a phone they are in a dock along the bottom.
+Sessions already working when ccdeck starts can appear with a **restored** marker. Codex recovery reads recent unfinished turns from local rollouts; an absent ending does not confirm that its process is still running. On macOS and Linux, Claude recovery verifies a busy session against its process-start identity. **Settings › General** has a separate startup-recovery switch for each provider. Earlier tool calls are not replayed. [Recovery behavior and limits](docs/features/session-recovery.md).
 
-Everything the page lets you set — the theme, the single-key shortcuts, the sounds, notifications, Claude FM and the minimap character — is in **Settings**, behind the gear at the right of the topbar, or `Cmd+,` (`Ctrl+,` on Windows and Linux). A change applies the moment you make it. The sounds and how loud each tone is are in **Settings › Sounds**, which `V` opens straight away; `M` turns sounds off or on from anywhere. `?` lists every key. If you use voice control or press letters by accident, turn off **Single-key shortcuts** in **Settings › General**: letters, `?` and Space then do nothing, while `Cmd+,`, `Esc`, `Enter`, `Tab`, `Delete` and the arrows keep working.
+The panels open from the window's edges: the session list and the Claude accounts panel from the stripe on the left, Usage, This machine, Usage history, Tool activity and Browser Watch from the one on the right. Each shows or hides beside the canvas, and several can be open at once. Point at one, or Tab to it, and its hint names its key — `L`, `A`, `U`, `S`, `H`, `B` — while the single-key shortcuts are on; Tool activity has none. On a phone they are in a dock along the bottom, and the session list and the Claude accounts panel open as a drawer over the canvas rather than beside it: picking a session closes the list, so the session is on screen.
+
+Two notes can appear at the bottom of the canvas: **Undo**, for a few seconds after `R` or the re-arrange button lays the canvas out again — `Ctrl+Z` (`⌘Z` on a Mac) does the same — and **Resume**, which turns auto-fit back on after you have panned or zoomed.
+
+Everything the page lets you set apart from the music — the theme, the text size and spacing, the character on the canvas, the single-key shortcuts, the sounds and notifications, how long Tool activity keeps its history — is in **Settings**, behind the gear at the right of the topbar, or `Cmd+,` (`Ctrl+,` on Windows and Linux); the music is in **Radio**, below. Changes apply immediately except startup recovery, which applies at the next server start. **Settings › Appearance** holds twelve color themes, Gruvbox Dark, Gruvbox Light and Gruvbox Material the newest — a fresh install starts in Rider Black rather than following your system's light or dark setting, a theme you picked stays, `T` steps through all twelve, and the deck fades from one theme to the next over 180 ms, or switches at once when your system asks for reduced motion — and the character: Deck companion, Fox or Penguin, with a switch to hide it. **Settings › Text & density** has five text sizes — Smallest, Smaller, Default, Larger and Largest, 11, 12, 13, 15 and 17 px for body text — and five densities for the spacing in lists, panels and controls: Tightest, Tighter, Compact, Default and Comfortable, at 30%, 50%, 70%, 100% and 140% of the designed spacing. Both are kept in this browser, and neither is a zoom: your browser's zoom and the canvas's stay where they were, the panels widen for larger text, and the cards on the canvas follow it. **Reset to defaults** puts both back. The sounds and how loud each tone is are in **Settings › Sounds**, which `V` opens straight away; `M` turns sounds off or on from anywhere. `?` lists every key. If you use voice control or press letters by accident, turn off **Single-key shortcuts** in **Settings › Keyboard**, which also lists every shortcut: letters, `?` and Space then do nothing, while `Cmd+,`, `Esc`, `Enter`, `Tab`, `Delete` and the arrows keep working.
+
+**Radio**, on the right sidebar beside the character (in **More** on a phone), opens a responsive Radio Explorer with a large interactive map, station discovery and a persistent player. Filter by country, sound or language, save favorites, return to recent stations, or choose **Surprise me**. Your existing Claude FM, Lofi Girl and custom streams are under **Your streams**. Select a station to inspect it, then press Play to listen; closing Radio or hiding the character keeps it playing. Favorites, history and the last catalogue are saved in this browser. Control music directly in Radio Explorer; character settings are in **Settings › Appearance**.
+
+**Tool activity**, on the stripe on the right below Usage history (in **More** on a phone), is a page of which tools and commands the Claude Code and Codex agents on this machine used. For the last 24 hours, 7, 30 or 90 days, and both CLIs or one, it lists each tool's calls, its total and usual time and its failures, sortable by any of them and searchable, under up to three findings worth a look: the tool that takes the most time, one that fails often, the slowest. A row opens that tool's details beside the list: who used it, its calls per day, its latest and slowest calls. A shell command counts per operation — `git status`, `git push` and `npm run build` are rows of their own — and an MCP tool under its own name. A call's time runs from the agent starting the tool to its result, so it includes any wait for your approval, and Claude Code and Codex time their tools differently. It counts what the deck captures from the first time it runs at 3.42.0 or later — earlier sessions are not read back — and it is kept apart from the canvas: Clear empties the canvas and leaves the tool history. What it keeps, and where, is in [What it touches](#what-it-touches).
 
 No config file. No account. What your sessions contain — your prompts, the replies, the files they touch — is never reported anywhere. The deck does send usage reports, on by default: its version, your system, your IP address and a device fingerprint, rough counts such as how many sessions ran in a day, and the errors it hits. It has no switch for them; `AGENTS_DECK_NO_REPORTS=1` keeps them off from the first start.
 
@@ -147,7 +156,9 @@ The same deck as an app: it starts the deck itself and puts an icon in the menu 
 - **Windows** — installs for your user, with no admin prompt. It is not signed yet, so SmartScreen asks once: More info, then Run anyway.
 - **Linux** — on Debian and Ubuntu take the **.deb**: it installs with a double click and puts ccdeck in the applications menu. The AppImage is one file for every other distribution, and a browser saves it without the permission to run, so it does nothing at all until you give it one back — `chmod +x ccdeck-linux-x86_64.AppImage`, then open it. The icon also needs a tray to sit in: KDE and waybar have one, and GNOME needs the AppIndicator extension.
 
-The app keeps itself current from this repository's releases, and installs an update only if it carries ccdeck's own signature. It installs on Quit, or by itself once the app has been left alone for a minute — its window closed or not in focus, and no deck starting — and restarts into the new version. That does not wait for your agents to go idle: the deck is gone for a second or two, which can leave a gap in the drawing of a turn, and the agents carry on. On the .deb, where installing asks for your password, it installs only when you choose Restart to update.
+The window is the deck under one compact toolbar that follows its theme, with the system's own window controls; on Windows and Linux the **Application menu** button at the toolbar's left end opens the app's menu.
+
+The app keeps itself current from this repository's releases, and installs an update only if it carries ccdeck's own signature. It installs on Quit, when you choose **Restart to update**, or by itself and restarts into the new version — but only once the app has been left alone for a minute (its window closed or not in focus) and none of your agents has been working or waiting for a minute. If your agents never stop, it waits a day for them and then installs at the next quiet minute; the deck is gone for a second or two, which can leave a gap in the drawing of a turn, and the agents carry on. **Later**, on the notice that an update is ready, holds it off for 24 hours. While it waits, the app looks again every half hour for a newer release, so it installs the latest one rather than one that is already behind. On the .deb, where installing asks for your password, it installs only when you choose Restart to update. **Check for updates**, in the icon's menu or in What's new, asks the app's own updater. On Windows, **Restart to update** stops the deck the app started before the installer runs.
 
 Step by step: [Install the ccdeck app on Mac, Windows or Linux](https://ccdeck.dev/guides/desktop-app/)
 
@@ -164,7 +175,9 @@ Open **Telemetry Radar** from the right rail, or **More → Telemetry Radar** on
 phone. Three views keep configuration, observed traffic and saved files separate:
 
 - **Monitor** lists decoded messages and unreadable connection observations.
-  Filter by session, destination or message type, then select a message for its
+  The empty view shows one workspace. History controls and filters appear under
+  **Filters and history** once activity arrives; the inspector appears alongside
+  the list. Filter by session, destination or message type, then select a message for its
   readable overview or decoded **JSON**. Session attribution comes from IDs in
   the captured payload; absent IDs remain unidentified, and an export containing
   multiple session IDs is shown under each matching session.
@@ -172,7 +185,14 @@ phone. Three views keep configuration, observed traffic and saved files separate
   their sources. Enabled flags are highlighted and recognized boolean values
   are shown as written. These are settings-file evidence, not confirmation of a
   running session's effective environment. Credentials and endpoint paths stay
-  hidden.
+  hidden. Each recognized telemetry/content flag has a switch that saves its
+  value to Claude's user settings for new sessions, including a flag no settings
+  file names yet, which shows **Not set** with its switch off. Flags set by
+  organization or managed settings show **Managed** beside a locked switch and
+  require an administrator to change;
+  Radar does not rewrite cached organization policy. Controls are unavailable
+  when configuration cannot be verified. Unknown values offer explicit
+  **Enable** and **Disable** actions.
 - **File** opens a local JSON or JSONL file, lists its records and shows the
   original text. Files stay in the browser and are never uploaded. Search and
   session filtering narrow the list. Inputs are bounded to 10 MB and 10,000
@@ -180,21 +200,24 @@ phone. Three views keep configuration, observed traffic and saved files separate
   prove that a record was sent.
 
 Choose all configured IPv4 destinations, one destination or a custom IPv4
-address and port, then press **Start monitoring**. Run each generated command
-in a separate Terminal tab on macOS/Linux, or **PowerShell** tab on Windows.
-macOS includes `tcpdump`; install Wireshark’s official
-[ChmodBPF permission helper](https://www.wireshark.org/docs/wsug_html_chunked/ChBuildInstallOSXInstall.html)
-to allow capture without a Terminal command. Linux needs `tcpdump` and packet
-capture permissions for the user running ccdeck. Windows needs
-[Wireshark with Npcap](https://www.wireshark.org/download.html), with capture access
-for that user. ccdeck stays unprivileged and explains missing permissions; it
-does not install drivers or change permissions automatically.
+address and port, then press **Start monitoring** once. ccdeck runs the capture
+itself, as the user running ccdeck: there is no command to paste into a
+Terminal or PowerShell tab, and no repeated ten-minute activation. It retries
+after a capture-process failure or network interface change, and remembers the
+enabled destinations across server restarts. What that user needs:
 
-Choose your destinations and press **Start monitoring** once. ccdeck manages
-capture directly, retries after a capture-process failure or network interface
-change, and remembers the enabled destinations across server restarts. No
-Terminal tab or repeated ten-minute activation is needed. A blocked capture
-shows its permission or reconnecting state rather than claiming to be listening.
+- **macOS** — the `tcpdump` macOS includes, and permission to capture, which
+  Wireshark’s official
+  [ChmodBPF permission helper](https://www.wireshark.org/docs/wsug_html_chunked/ChBuildInstallOSXInstall.html)
+  grants.
+- **Linux** — `tcpdump`, and packet capture permission for the user running
+  ccdeck.
+- **Windows** — [Wireshark with Npcap](https://www.wireshark.org/download.html)
+  (ccdeck runs its `dumpcap`), with capture access for that user.
+
+ccdeck stays unprivileged: it does not install drivers or change permissions. A
+blocked capture shows its permission or reconnecting state rather than claiming
+to be listening, and capture starts by itself once access is granted.
 
 Each destination gets its own decoder, up to eight destinations per capture.
 Linux captures routed and loopback traffic through `any`; macOS resolves the
@@ -306,15 +329,23 @@ Quota is the one thing that is not just reading. It needs a live token, so when 
 
 ## What it touches
 
+Opening Radio asks the public [Radio Browser](https://www.radio-browser.info/) directory for stations; searching sends the search text and selected filters to it. Playing a directory station reports its identifier for the directory's public popularity count, once per server session. Playing connects directly to the broadcaster, or to YouTube for the existing video streams. These services receive ordinary connection information such as your IP address. Favorites and listening history stay in this browser. `AGENTS_DECK_NO_MUSIC=1` disables the radio player and directory requests.
+
 It never steers an agent or edits your code, but it is not read-only either — besides the hook entry and its own event log, it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does. It also reads your browser's history, because Browser Watch is on unless you switch it off; that is its own section below, because it is the one thing here that is about you rather than about an agent.
 
-What does go out is short and ordinary: a ~20-byte version check against the npm registry (plus one small request to confirm a version it has not seen before), installs and daily version checks for the two tools the deck manages (claude-swap from PyPI, ccusage from npm), on an Apple Silicon Mac whose sensors stay silent one release lookup and one binary download from GitHub for `macmon`, and, while the page is open or one of the two quota notifications is on, quota reads to Anthropic and OpenAI signed with your own credentials — that is where those numbers live. While the page is open, and while the desktop app has a session running or waiting, it also reads Anthropic's and OpenAI's public status pages (`status.claude.com`, `status.openai.com`), unsigned, about every three minutes, and once a minute at most while a page is not answering, so an outage on their side shows as a chip in the topbar instead of looking like a fault on yours. While the machine panel is open, on a machine with Claude Code, it times the way to Claude every thirty seconds — a DNS lookup of `api.anthropic.com` and a TCP handshake on port 443, with nothing sent over it — for the panel's latency reading. While the Browser Watch panel is open, it looks up the address of Claude's browser relay, `bridge.claudeusercontent.com`, about every thirty seconds — a DNS query to your resolver — to tell whether a running browser holds a connection to it. The [desktop app](#desktop-app) also asks this repository's GitHub releases for its own updates. With **Local network** on, which it is unless you switch it off, the deck also announces itself to other decks on your local network over UDP (port 45317) and pairs with the ones that answer — see [Local network](#local-network). The deck also sends usage reports to `api.ccdeck.dev`: an install event (naming the ccdeck.dev page the command was copied from, when the command says so with `--ref`, which the site's copy buttons add; a page name and nothing else, sent once), an update event (saying how the new version arrived: the deck's own update, the desktop app's updater, npx, npm or a source checkout), one "active" a day, one "uninstall" when you run `ccdeck --uninstall` (which asks, at a terminal, one skippable question about why, from a short list), one "activated" when a new install's first session arrives (how long after the install, in rough buckets such as "under five minutes", and whether it was a Claude or a Codex session), one "rated" if you answer the one question the deck asks about itself after about a week of use — "How useful is ccdeck to you?", 0 to 10, which you can skip — with the number you picked and how many days you had used the deck, as a range (nothing is sent for a question you put off or leave), and the errors it runs into, with every path outside ccdeck's own code, project folder names, the machine name in every web address, every IP address and the machine name a network error carries (the loopback, such as `127.0.0.1:4317`, stays, so a local port error still reads as one), email addresses and keys scrubbed out (a line of ccdeck's own code keeps its place in the package, such as `ccdeck/src/server/tail.mjs:42`, or in the page, such as `<deck>/assets/index-abc.js:1:2345`, so the error still says where it happened). Each carries the version, your OS and CPU architecture, the channel (desktop, npm or a source checkout), the runtime, your IP address and a device fingerprint (a stable hashed machine id), and the machine's rough shape — the number of CPU cores, the amount of RAM, the locale, the shell, the terminal, and the Claude Code and Codex versions — and whether the Claude hooks went in and Codex is being watched, with the daily "active" also carrying how many sessions, subagents and projects you ran on the last day you used the deck, that day's date, and which of the deck's own features you used that day — fixed names such as "usage history" or "account switch", a yes for each and nothing about what you did with them — plus how the deck held up and what it runs with: how long this run took to start, that day's peak memory and how many events it took in, each as a rough bucket such as "under two seconds" or "256–512 MB", the Claude and Codex plan as its category only (such as "Max 5x" or "Plus", read from the file each CLI keeps beside its login, and nothing else from it), and how many Claude accounts and paired machines the deck holds, as counts. The fingerprint is a one-way hash of stable machine traits, never those traits in the clear; everything else is coarse counts and short tokens — no path, no project name, no free text. These reports are no longer anonymous: the install id is random, but the fingerprint follows this machine and the server records the IP the report arrives from. What still never leaves is your sessions, prompts, files, project names and paths. The deck has no switch for them; `AGENTS_DECK_NO_REPORTS=1` keeps them off from the first start. While the deck runs it also sends a tiny heartbeat every few minutes, the install id and nothing else, so the count of decks running right now, and how many hours a day a deck stays open, can be seen. **Send feedback** (the topbar's Feedback button; on a phone, under More) sends what you write, and any screenshots you add, to the same place, where the people who make ccdeck read it and may open a public issue from it, never with the contact you gave or your screenshots. `AGENTS_DECK_NO_INSTALL=1` turns off everything but the quota reads; `AGENTS_DECK_NO_DOWNLOAD=1` is the narrower version — no `uv` binary is fetched, the managed installs stay.
+Telemetry Radar's flag switches write to `~/.claude/settings.json` too: each puts the flag you set — `CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_LOG_USER_PROMPTS` and the other telemetry and content flags Radar lists — in that file's `env` block, as `"1"` or `"0"`. Switching a flag off writes `"0"` rather than removing it, and `--uninstall`, which removes ccdeck's hook entries, leaves these values as you set them. Starting Radar's monitoring writes `~/.agents-deck/radar-monitor-<port>.json`: the opt-in and the destinations a deck on that port resumes, never packets or decoded messages. And the quota readings the deck takes are kept in `quota-history.json`, in its data directory (see [Uninstall](#uninstall)), for 35 days and up to 2 MB, under a hash of the account rather than its address, for the Usage panel's quota history.
+
+Tool activity keeps its history in `tool-audit/`, in the same data directory: a file a day with a line per tool call — Claude Code or Codex, when it started and ended, whether it failed, and the tool's name or, for a shell command, its operation (`git push`, `npm run build`) — and a `settings.json` holding how long to keep it, when it started counting, and a random id for this device that nothing sends anywhere. The rest of a command line, the tool's arguments and output, paths and session ids are not saved, and nothing in the folder leaves the machine. It keeps 90 days unless you pick 30 or 60 under **Keep history** in **Settings › Data › Tool history**, which also shows the space it takes and has **Clear history…**; older days are deleted as they fall out. `--no-persist` does not stop it — that flag is about the events log — and `--uninstall` leaves it, `--purge` too (see [Uninstall](#uninstall)).
+
+What does go out is short and ordinary: a ~20-byte version check against the npm registry (plus one small request to confirm a version it has not seen before), installs and daily version checks for the two tools the deck manages (claude-swap from PyPI, ccusage from npm), on an Apple Silicon Mac whose sensors stay silent one release lookup and one binary download from GitHub for `macmon`, and, while the page is open or one of the two quota notifications is on, quota reads to Anthropic and OpenAI signed with your own credentials — that is where those numbers live. While the page is open, and while the desktop app has a session running or waiting, it also reads Anthropic's and OpenAI's public status pages (`status.claude.com`, `status.openai.com`), unsigned, about every three minutes, and once a minute at most while a page is not answering, so an outage on their side shows as a chip in the topbar instead of looking like a fault on yours. While the machine panel is open, on a machine with Claude Code, it times the way to Claude every thirty seconds — a DNS lookup of `api.anthropic.com` and a TCP handshake on port 443, with nothing sent over it — for the panel's latency reading. While the Browser Watch panel is open, it looks up the address of Claude's browser relay, `bridge.claudeusercontent.com`, about every thirty seconds — a DNS query to your resolver — to tell whether a running browser holds a connection to it. The [desktop app](#desktop-app) also asks this repository's GitHub releases for its own updates. With **Local network** on, which it is unless you switch it off, the deck also announces itself to other decks on your local network over UDP (port 45317) and pairs with the ones that answer — see [Local network](#local-network). The deck also sends usage reports to `api.ccdeck.dev`: an install event (naming the ccdeck.dev page the command was copied from, when the command says so with `--ref`, which the site's copy buttons add; a page name and nothing else, sent once), an update event (saying how the new version arrived: the deck's own update, the desktop app's updater, npx, npm or a source checkout), one "active" a day, one "uninstall" when you run `ccdeck --uninstall` (which asks, at a terminal, one skippable question about why, from a short list), one "activated" when a new install's first session arrives (how long after the install, in rough buckets such as "under five minutes", and whether it was a Claude or a Codex session), one "rated" if you answer the one question the deck asks about itself after about a week of use — "How useful is ccdeck to you?", 0 to 10, which you can skip — with the number you picked and how many days you had used the deck, as a range (nothing is sent for a question you put off or leave), and the errors it runs into, with every path outside ccdeck's own code, project folder names, the machine name in every web address, every IP address and the machine name a network error carries (the loopback, such as `127.0.0.1:4317`, stays, so a local port error still reads as one), email addresses and keys scrubbed out (a line of ccdeck's own code keeps its place in the package, such as `ccdeck/src/server/tail.mjs:42`, or in the page, such as `<deck>/assets/index-abc.js:1:2345`, so the error still says where it happened). Each carries the version, your OS and CPU architecture, the channel (desktop, npm or a source checkout), your IP address and the machine's rough shape — the number of CPU cores, the amount of RAM, the locale, the shell, the terminal, and the Claude Code and Codex versions. The install, update, active, activated, rated and uninstall reports also carry the runtime and a device fingerprint (a stable hashed machine id); an error report carries neither. The first four also say whether the Claude hooks went in and Codex is being watched, with the daily "active" also carrying how many sessions, subagents and projects you ran on the last day you used the deck, that day's date, and which of the deck's own features you used that day — fixed names such as "usage history" or "account switch", a yes for each and nothing about what you did with them — plus how the deck held up and what it runs with: how long this run took to start, that day's peak memory and how many events it took in, each as a rough bucket such as "under two seconds" or "256–512 MB", the Claude and Codex plan as its category only (such as "Max 5x" or "Plus", read from the file each CLI keeps beside its login, and nothing else from it), and how many Claude accounts and paired machines the deck holds, as counts. The fingerprint is a one-way hash of stable machine traits, never those traits in the clear; everything else is coarse counts and short tokens — no path, no project name, no free text. These reports are no longer anonymous: the install id is random, but the fingerprint follows this machine and the server records the IP the report arrives from. What still never leaves is your sessions, prompts, files, project names and paths. The deck has no switch for them; `AGENTS_DECK_NO_REPORTS=1` keeps them off from the first start. While the deck runs it also sends a tiny heartbeat every few minutes, the install id and nothing else, so the count of decks running right now, and how many hours a day a deck stays open, can be seen. **Send feedback** (the topbar's Feedback button; on a phone, under More) sends what you write, and any screenshots and contact you add, to the same place, with the ccdeck version and your system (such as `darwin-arm64`), which the dialog names before you send, and, while the usage reports are on, the same device fingerprint they carry, which it does not show; `AGENTS_DECK_NO_REPORTS=1` keeps the fingerprint home and the feedback still goes. As with a report, the server records the IP address it arrives from. The people who make ccdeck read it there and may open a public issue from it, never with the contact you gave or your screenshots. `AGENTS_DECK_NO_INSTALL=1` turns off everything but the quota reads; `AGENTS_DECK_NO_DOWNLOAD=1` is the narrower version — no `uv` binary is fetched, the managed installs stay.
 
 Local network, Claude accounts, Usage and the empty canvas each carry a small **Watch · 30 s** link to their 30-second video on [ccdeck.dev](https://ccdeck.dev/guides/). Opening one is your click, in your own browser; the deck itself sends nothing for it.
 
 ## Browser Watch
 
-The panel behind the eye on the window's right edge answers one question: **did something drive your browser while you were away?** An agent with browser control opens pages through an API, and Chromium records that — `visits.transition` says `FROM_API` rather than `LINK` or `TYPED`. So a run of those, in a stretch when you were not touching the machine, is a finding worth showing.
+The panel behind the eye on the window's right edge answers one question: **did something drive your browser while you were away?** Chromium marks the most common way a program goes to an address: a page loaded with the DevTools protocol's `Page.navigate` (what Playwright and Puppeteer navigate with), or by an extension's `tabs.update`, carries the `FROM_API` flag in `visits.transition`, on top of its type (`LINK`, `TYPED` and the rest). So a run of those, in a stretch when nobody opened a page by hand in that profile, is a finding worth showing. The deck has no idle timer: it goes by the history alone.
+
+**What it misses.** Not every way a program opens a page sets the flag. A tab opened straight at an address (`Target.createTarget` over the DevTools protocol, or an extension's `tabs.create`), a link a program clicks, and a URL handed to the browser by `open` or `xdg-open` carry none (tested on Google Chrome 155 on macOS and Brave 1.95 on Linux, against Chromium's source). Those pages are not reported, and because any visit without the flag counts as a person at the browser, they can also cancel a finding close to them.
 
 To answer it the deck reads the browsers' own history. That means, on each poll: it finds every Chromium profile (Chrome, Brave, Edge, Vivaldi), **copies each profile's `History` database** to a temp file — a live database cannot be opened safely — queries the visits newer than the moment this deck started, and deletes the copy. None of what it reads leaves the machine, and the copy exists for as long as one query takes. The one thing the watch sends out is a DNS query: while the panel is open, it looks up the address of Claude's browser relay (`bridge.claudeusercontent.com`) about every thirty seconds, to show whether a running browser is connected to it. The background poll does not.
 
@@ -332,9 +363,13 @@ The deck installs that package itself, so it installs it **bounded**: `claude-sw
 
 **Switch** on an account's row makes it the active one. New sessions start on it; sessions already running are not restarted, and pick it up on their next message — up to about 30 seconds later on macOS. **Auto-switch**, off until you turn it on, does the same without a press: about once a minute the deck runs claude-swap's own engine, which, once the active account passes your threshold (90% unless you choose another) of its 5-hour or 7-day window, moves Claude Code to the account with the most room left. Every account keeps its own limits; when no other account is under the threshold, nothing switches. **Custom…**, last in the threshold picker, takes any whole percent from 50 to 99 and refuses anything else under the field without saving it; the threshold is claude-swap's own setting, kept on this machine.
 
+Two choices change where Auto-switch goes, and do nothing while it is off. **Next account**, under the switch, is **Most room left** — claude-swap's own pick, and the default — or **Soonest weekly reset**: the account whose 7-day window resets soonest, as long as that is within 95 hours, so quota that is about to reset is used first. With it, the deck also moves below the threshold, to an account that resets at least an hour sooner than the one in use, and never sooner than half an hour after the last move. **Set as home**, in an account's **⋯**, marks the row with ⌂: Auto-switch takes you there, does not move you off it before the threshold, and comes back once its 5-hour window has reset. Only an account comfortably under the threshold, read in the last 15 minutes, signed in, in rotation, not set aside by claude-swap and not in use in a local `cswap run` session is moved to. An account reported as active on another paired device remains eligible for Home and Soonest weekly reset. If Home has stale readings, Auto-switch asks claude-swap to collect before choosing a weekly alternative; if Home is still unavailable afterward, it uses the alternative. A switch you make yourself is left alone until that account reaches the threshold, or until you set a home or pick a rule again. When no account fits either rule, claude-swap decides, as before. Both choices are kept on this machine.
+
+**Account capacity**, the gauge in the panel's header, says how many accounts are ready and what their 5-hour and 7-day windows have left. Its **Reset calendar** view lays out today and the next six days, with each account's 7-day reset on the day it falls, and marks the readings that need refreshing.
+
 **Account notifications** are three switches in **Settings › Notifications** (the gear in the topbar, or `Cmd+,`; `Ctrl+,` on Windows and Linux), each on its own and none of them tied to **Notifications while closed**: they are sent whether the deck is open or not, because nothing on the page says them. The desktop app shows them as ccdeck, without a sound.
 
-- **Account auto-switched**, on unless you turn it off. When Auto-switch moves Claude Code to another account, one notification says where to and, when the engine's own reading shows it, why: `Switched to work · personal@example.com reached 90%`, with an account's alias when it has one. A switch you make yourself is not announced.
+- **Account auto-switched**, on unless you turn it off. When Auto-switch moves Claude Code to another account, one notification says where to and, when the engine's own reading shows it, why: `Switched to work · personal@example.com reached 90%`, `Back on work · your home account` or `Switched to side · weekly limit resets in 1d 7h`, with an account's alias when it has one. A switch you make yourself is not announced.
 - **Quota at 90% and 100%**, off until you turn it on. When a window of the Claude or Codex account you are on reaches 90%, and once more at 100%: Claude's 5-hour, 7-day and per-model windows, and every Codex window the Usage panel shows, the extra limits included — `5-hour usage reached 90% · resets in 2h 14m`. Only the account in use is watched, not every account you have stored. When reaching it is what makes Auto-switch move the account, the switch notification says it and this one is not sent, unless the switch notification is off.
 - **Quota reset**, off until you turn it on. When one of those windows that had reached 90% starts over: `5-hour window available again`. A window that never got that high resets without a word.
 
@@ -528,7 +563,7 @@ Environment:
 | `AGENTS_DECK_NO_FRESHEN=1` | Never nudge claude-swap to collect usage early |
 | `AGENTS_DECK_NO_NOTIFY=1` | Never raise a desktop notification: not when a session blocks and no page is open, not when Browser Watch finds something, and not about your accounts |
 | `AGENTS_DECK_NO_LAN=1` | Keep **Local network** off, whatever its switch in the panel says |
-| `AGENTS_DECK_NO_REPORTS=1` | Never send usage reports |
+| `AGENTS_DECK_NO_REPORTS=1` | Never send usage reports, nor the device fingerprint with feedback |
 | `AGENTS_DECK_CSWAP` | Full path to `cswap`, when it lives somewhere unusual |
 | `AGENTS_DECK_CLAUDE` | Full path to the `claude` CLI |
 | `AGENTS_DECK_CCUSAGE` | Full path to your own `ccusage`, used ahead of everything else |
@@ -537,7 +572,15 @@ Environment:
 | `CLAUDE_CONFIG_DIR` | Override `~/.claude` — the hook entry, the event log and everything else the deck writes move with it |
 | `AGENTS_DECK_LHM_PORT` | Port of a running LibreHardwareMonitor web server, when it is not 8085 (Windows temperatures) |
 
+`AGENTS_DECK_NO_MUSIC=1` turns Radio off: no station directory requests, no play reports and no playback. It is not in the table because, unlike the variables above, the login item does not carry it and the desktop app does not take it from your login shell: it holds for a deck started where it is set.
+
 Usage history is read with `ccusage`, and the deck takes the first of these that answers: `AGENTS_DECK_CCUSAGE` if you set it, then the copy it installed for itself under `~/.agents-deck/ccusage`, then a `ccusage` on your PATH, then `npx -y ccusage@latest`. So installing ccusage yourself is enough — the deck will not fetch a second copy, and it works under `AGENTS_DECK_NO_INSTALL=1`, which is the combination that variable is for. When something fails, the modal names which of those four it was.
+
+Open **Usage → By session** and select a Claude Code or Codex row to inspect its whole-session cost estimate, input/output and cache tokens, model breakdown and activity dates. This also works for historical sessions no longer on the canvas. The whole session may extend beyond the period selected in Usage; logs missing from this machine cannot be recovered by the inspector. Its token breakdown also shows **Cached input reuse**, the share of the session's measured input that was read from cache.
+
+For Codex, **Estimate using** compares ccusage's automatic estimate with Standard, Fast or Flex scenarios. Automatic pricing follows recorded settings where available and may use the current Codex config for unmarked usage. Scenarios apply one mode to the whole session, use ccusage's model-specific multipliers, and never change Codex settings or billing. Requested modes do not confirm the tier actually billed. This requires a ccusage version that supports the chosen report; older copies show an update message rather than silently substituting another mode. See [ccusage's Codex pricing behavior](https://ccusage.com/guide/codex/).
+
+The chart button at the top of the Usage panel opens **Quota history**: the Claude and Codex quota readings the deck has already taken for the account in use, window by window over time, with a dashed line for even use until the reset — a guide, not a forecast. Recording it adds no requests; the readings are kept in `quota-history.json` in the data directory for 35 days, up to 2 MB.
 
 Step by step: [See Claude Code and Codex cost and quota left](https://ccdeck.dev/guides/cost-and-quota/)
 
@@ -553,9 +596,9 @@ Removes every hook entry ccdeck injected from `~/.claude/settings.json`, and `~/
 
 It removes the hook entries and nothing else. The forwarder script
 (`~/.claude/agent-dag/hook.js`), the discovery directory around it, the events
-log, the deck's own state, and the tools ccdeck installed for you — claude-swap,
-ccusage, and a `uv` binary if it had to fetch one — are all left in place, and
-each has its own uninstaller.
+log, the deck's own state, Tool activity's history included, and the tools
+ccdeck installed for you — claude-swap, ccusage, and a `uv` binary if it had to
+fetch one — are all left in place, and each has its own uninstaller.
 
 Three directories hold ccdeck's own files, and the second one matters most:
 `~/.claude/agent-dag/` (the forwarder and the discovery directory), the
@@ -563,13 +606,21 @@ platform's **data** directory, and the platform's **log** directory.
 
 | | macOS | Windows | Linux |
 |---|---|---|---|
-| data — `prefs.json` | `~/Library/Application Support/ccdeck` | `%LOCALAPPDATA%\ccdeck\Data` | `$XDG_DATA_HOME/ccdeck` |
+| data — `prefs.json`, `tool-audit/` | `~/Library/Application Support/ccdeck` | `%LOCALAPPDATA%\ccdeck\Data` | `$XDG_DATA_HOME/ccdeck` |
 | log — `events.jsonl` | `~/Library/Logs/ccdeck` | `%LOCALAPPDATA%\ccdeck\Log` | `$XDG_STATE_HOME/ccdeck` |
 
 `prefs.json` is the one to delete deliberately: it holds this deck's **Local
 network private key**, the one every deck you paired with has pinned. Leaving it
 behind leaves that identity on the machine. (`~/.agents-deck/` holds the managed
-tools rather than the deck's own state, and goes when you remove them.)
+tools and the deck's records about them, and `radar-monitor-<port>.json` once
+Telemetry Radar has monitored — the destinations it resumes — but no key.)
+
+The data directory also holds Tool activity's `tool-audit/` folder — up to 90
+days of which tools and commands your agents ran, and how long they took — and
+`quota-history.json`. Neither holds a key, so `--uninstall` leaves both, and so
+does `--purge` below, which deletes only the files that can hold one. **Clear
+history…** under **Settings › Data › Tool history** empties the tool history
+while the deck runs; deleting the folder removes it.
 
 `uv tool uninstall claude-swap` (or `pipx uninstall claude-swap`) removes the
 account switcher.
@@ -596,7 +647,7 @@ Step by step: [Uninstall ccdeck and remove its Claude Code hook](https://ccdeck.
 
 ## Updating
 
-The deck checks npm for a newer release at most once an hour, plus once when it starts — a ~20-byte GET to `registry.npmjs.org`, asking about the package this copy would actually install (a deck started with `npx ccdeck` asks about `ccdeck`). When that names a version it has not seen before, one more request confirms the version is really there: npm moves the dist-tag before the version itself has propagated, and a banner shown inside that window ends in `ETARGET` instead of an upgrade. So a check is one request, or two when there is something new to confirm — and a version that is tagged but not yet installable is looked at again in five minutes rather than in an hour. To ask immediately, click the version chip in the topbar, or **Check for updates** in What's new (the dialog the chip opens), which runs the same check under the same limits and offers the same update as the banner below. In the desktop app, whose deck leaves updates to the app, What's new says where the app's own check stands instead.
+The deck checks npm for a newer release at most once an hour, plus once when it starts — a ~20-byte GET to `registry.npmjs.org`, asking about the package this copy would actually install (a deck started with `npx ccdeck` asks about `ccdeck`). When that names a version it has not seen before, one more request confirms the version is really there: npm moves the dist-tag before the version itself has propagated, and a banner shown inside that window ends in `ETARGET` instead of an upgrade. So a check is one request, or two when there is something new to confirm — and a version that is tagged but not yet installable is looked at again in five minutes rather than in an hour. To ask immediately, click the version chip in the topbar, or **Check for updates** in What's new (the dialog the chip opens), which runs the same check under the same limits and offers the same update as the banner below. In the desktop app, whose deck leaves updates to the app, **Check for updates** asks the app's own updater instead, and What's new says where that check stands.
 
 What the banner offers depends on how this copy was installed:
 
@@ -615,7 +666,7 @@ Nothing is ever installed unless you click, the argument vector is fixed in the 
 
 ccdeck runs as a two-process pair: a supervisor that owns nothing but the lifecycle, and the deck itself. When newer code is found, the deck exits with code 75 and the supervisor brings it back **on the port it actually bound**, which is not always the one it asked for. Both live in their own process group since 3.20, so stdout goes to `deck.log` rather than to the terminal you started from — `ccdeck --logs` reads it back. The supervisor also puts the deck back after a crash, five times in ten minutes with the wait doubling, and then stops and says why rather than spinning.
 
-It restarts on its own only after 30 seconds with nothing running, because hook events are fire-and-forget and anything fired during the gap is lost. The toggle in the banner turns that off; the preference is per-browser. Under `--no-persist` a restart is refused outright — with no event log there is nothing to replay, and the canvas would be gone.
+It restarts on its own only after 30 seconds with nothing running, because hook events are fire-and-forget and anything fired during the gap is lost. The toggle in the banner, or Settings › General › Updates, turns that off; the deck keeps the choice in its `prefs.json`, so every tab and the next start agree. Under `--no-persist` a restart is refused outright — with no event log there is nothing to replay, and the canvas would be gone.
 
 Step by step: [Update ccdeck to the latest version](https://ccdeck.dev/guides/update-and-restart/)
 
@@ -648,9 +699,9 @@ so existing clones, links and bookmarks keep working.
 
 **Does it work with Codex, or only Claude Code?**
 Both, on one canvas. Claude Code arrives through a hook, Codex through its
-rollout log, and the model chip tells them apart. Subagent cards are Claude
-Code only: a Codex session is one node with its tool calls. So is the *blocked
-on you* queue, because a rollout log is a record of what happened and the
+rollout log, and the model chip tells them apart. Codex threads with a recorded spawning parent appear as connected child
+sessions, grouped together for layout, focus and dragging. Missing links are
+left unconnected. The *blocked on you* queue remains Claude Code only, because a rollout log is a record of what happened and the
 queue needs to know what is happening now. Codex does report it — its
 `app-server` pushes a thread status carrying `waitingOnApproval` — and reading
 that is open work, not a wall. Step by step:
@@ -661,9 +712,10 @@ Your sessions, never. The deck binds `127.0.0.1`, so your sessions, prompts, fil
 project names and paths stay put. It does send usage reports — no longer anonymous:
 version, system, your IP address and a device fingerprint, and errors — unless it
 was started with `AGENTS_DECK_NO_REPORTS=1`.
-Beyond those, the outbound requests are a ~20-byte version check to the npm registry at most once
-an hour, and whatever the usage panels ask Anthropic and OpenAI for about your
-own quota. [What it touches](#what-it-touches) lists all of it.
+Beyond those, the main outbound requests are a ~20-byte version check to the npm registry at most once
+an hour, whatever the usage panels ask Anthropic and OpenAI for about your
+own quota, and, once you open Radio, the Radio Browser directory and the
+station or YouTube stream you play. [What it touches](#what-it-touches) lists all of it.
 
 **Can it interfere with what my agent does?**
 No. The hook it installs is a one-way forwarder: it POSTs the event, exits `0`,

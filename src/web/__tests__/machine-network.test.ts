@@ -19,7 +19,7 @@ import {
 import { tailscaleCandidates } from "../../server/tailscale.mjs";
 import { figureText, latencyFigure, rateFigure } from "../net-format";
 import { machinePanelSurface } from "./machine-panel-surface";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 

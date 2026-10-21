@@ -38,7 +38,7 @@
 // because a share of the machine's cores IS what that section measures and the
 // strip under it is the only reading in the panel with no number of its own.
 import React, { useState } from "react";
-import { attentionFlag, thermalTone, throttleRow, uptime } from "../machine-readings";
+import { attentionFlag, loadQueueNote, thermalTone, throttleRow, uptime } from "../machine-readings";
 import { fmtBytes } from "../byte-format";
 import type { Memory, Snapshot, Swap, Thermal } from "../machine-snapshot";
 import { useSystem } from "../use-system";
@@ -181,6 +181,7 @@ function CpuSection({ cpu, perCore, loadavg, cores }: {
   loadavg: number[] | null;
   cores: number;
 }) {
+  const loadNote = loadQueueNote(loadavg?.[0], cores);
   const hasStrip = !!perCore && perCore.length > 0;
   if (!hasStrip && !loadavg) return null;
   return (
@@ -229,6 +230,7 @@ function CpuSection({ cpu, perCore, loadavg, cores }: {
       {loadavg && (
         <OpensHistory
           group="load" title="Load history" action="Show load history" label="Load average"
+          liveNote={loadNote}
           hint="the queue for the cores, counted in tasks rather than as a share of them"
         >
           {/* The figures keep the number on top and the window under it: these
@@ -249,11 +251,7 @@ function CpuSection({ cpu, perCore, loadavg, cores }: {
               sentence below says something the figures cannot: by how much the
               queue exceeds the cores once it has. No colour on it — see the
               note at the top of this file about what a load average counts. */}
-          {loadavg[0] > cores && (
-            <div className="sd-note">
-              {`${(loadavg[0] / cores).toFixed(1)}× more work queued than cores to run it`}
-            </div>
-          )}
+          {loadNote && <div className="sd-note">{loadNote}</div>}
         </OpensHistory>
       )}
     </div>

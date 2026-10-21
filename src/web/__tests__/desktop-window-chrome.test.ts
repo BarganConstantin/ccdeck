@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { titlebarColors, windowChrome } from "../../../desktop/window-chrome.mjs";
+import { TITLEBAR_HEIGHT, titlebarColors, windowChrome } from "../../../desktop/window-chrome.mjs";
 
 describe("desktop caption chrome", () => {
   it("keeps native controls on Linux and Windows", () => {
     for (const platform of ["linux", "win32"]) {
-      expect(windowChrome(platform)).toMatchObject({ titleBarStyle: "hidden", titleBarOverlay: { height: 34 }, autoHideMenuBar: true });
+      expect(windowChrome(platform)).toMatchObject({ titleBarStyle: "hidden", titleBarOverlay: { height: 37 }, autoHideMenuBar: true });
     }
   });
   it("preserves macOS traffic lights", () => {
-    expect(windowChrome("darwin")).toEqual({ titleBarStyle: "hidden", trafficLightPosition: { x: 12, y: 10 } });
+    expect(windowChrome("darwin")).toEqual({ titleBarStyle: "hidden", trafficLightPosition: { x: 12, y: 12 } });
   });
   it("accepts theme colours without allowing native options from a renderer", () => {
-    expect(titlebarColors({ color: "#191a1c", symbolColor: "#D4D4D4", height: 200 })).toEqual({ color: "#191a1c", symbolColor: "#D4D4D4", height: 34 });
+    expect(titlebarColors({ color: "#191a1c", symbolColor: "#D4D4D4", height: 200 })).toEqual({ color: "#191a1c", symbolColor: "#D4D4D4", height: 37 });
     for (const input of [null, {}, { color: "transparent", symbolColor: "#ffffff" }, { color: "#191a1c", symbolColor: "red" }]) expect(titlebarColors(input)).toBeNull();
   });
 });
@@ -22,6 +22,20 @@ import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { join } from "node:path";
+
+it("keeps the desktop modal blocker full size while painting below native chrome", () => {
+  const css = readFileSync(join(__dirname, "../styles/dialogs.css"), "utf8");
+  const blocker = css.match(/\.modal-backdrop\s*\{([^}]+)\}/)![1];
+  expect(blocker).toMatch(/position:\s*fixed/);
+  expect(blocker).toMatch(/inset:\s*0\s*;/);
+  expect(blocker).toMatch(/z-index:\s*100/);
+  expect(blocker).not.toMatch(/pointer-events:\s*none/);
+  const paint = css.match(/:root\[data-desktop-chrome="true"\] \.modal-backdrop::before\s*\{([^}]+)\}/)![1];
+  expect(paint).toMatch(/inset:\s*var\(--topbar-h\) 0 0/);
+  expect(paint).toMatch(/background:\s*var\(--modal-scrim\)/);
+  expect(paint).toMatch(/z-index:\s*-1/);
+  expect(paint).toMatch(/pointer-events:\s*none/);
+});
 
 it("keeps an older deck usable in a visible native window", async () => {
   const windows: FakeWindow[] = [];
@@ -61,4 +75,15 @@ it("keeps an older deck usable in a visible native window", async () => {
   expect(windows[1].options.webPreferences.additionalArguments).toEqual(["--ccdeck-native-chrome"]);
   await windows[1].listeners("ready-to-show")[0]();
   expect(windows[1].visible).toBe(true);
+});
+
+// Native controls paint over renderer content. The toolbar's last pixel
+// belongs to its separator and must remain below both overlay entry points.
+it("leaves the caption separator visible below native controls", () => {
+  for (const platform of ["win32", "linux"]) {
+    const overlay = windowChrome(platform).titleBarOverlay;
+    expect(overlay.height).toBeLessThanOrEqual(TITLEBAR_HEIGHT - 1);
+  }
+  expect(titlebarColors({ color: "#191a1c", symbolColor: "#ffffff" })!.height)
+    .toBeLessThanOrEqual(TITLEBAR_HEIGHT - 1);
 });

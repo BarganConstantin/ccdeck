@@ -6,7 +6,7 @@
 // is the component's first line now. Nothing here holds state: whether the
 // section is open is the panel's, remembered across reloads, and every row,
 // name and dot is the panel's too, handed in under the names the markup used.
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, SetStateAction, ReactNode } from "react";
 import type { BoardSessionRow } from "../board-usage";
 import { fmtCost, UNPRICED_LABEL } from "../pricing";
 import { fmtTokens } from "../token-format";
@@ -14,10 +14,27 @@ import type { AgentState } from "../types";
 import { sessionListNote, type SessionCostRow, type SessionListScale } from "../usage-from-ccusage";
 import { stateLabel } from "../agent-copy";
 import { idTail } from "../session-id-tail";
+import { canInspectSession, type SessionSelection } from "../session-usage";
+
+function SessionRow({ sessionId, agent, label, onOpen, children }: {
+  sessionId: string; agent: string; label: string; onOpen?: (session: SessionSelection) => void; children: ReactNode;
+}) {
+  return onOpen && canInspectSession(agent, sessionId)
+    ? <button type="button" className="up-session-row up-session-open" title={`Inspect session usage · ${label}`}
+        onClick={() => onOpen({ sessionId, agent, label })}>{children}
+        <svg className="up-session-inspect" width="10" height="10" viewBox="0 0 10 10" fill="none"
+          stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="m3.5 2 3 3-3 3" />
+        </svg>
+        <span className="vis-hidden">Open session usage</span>
+      </button>
+    : <div className="up-session-row">{children}</div>;
+}
 
 export default function UsageSessionBreakdown({
   fromRange, rangeSessionRows, boardSessionRows, boardStates, sessionsOpen, setSessionsOpen,
   periodNoun, sessionScale,
+  onOpenSession, boardProviders,
 }: {
   /** ccusage answered, so the rows are its sessions for the period. */
   fromRange: boolean;
@@ -33,6 +50,8 @@ export default function UsageSessionBreakdown({
   periodNoun: string;
   /** Every ccusage row summed against the period's cost, for the heading's note. */
   sessionScale: SessionListScale;
+  onOpenSession?: (session: SessionSelection) => void;
+  boardProviders?: ReadonlyMap<string, string>;
 }) {
   const sessionCount = fromRange ? rangeSessionRows.length : boardSessionRows.length;
   return (
@@ -105,7 +124,8 @@ export default function UsageSessionBreakdown({
         {fromRange && rangeSessionRows.map(s => {
           const live = boardStates.get(s.sessionId);
           return (
-            <div className="up-session-row" key={s.sessionId}>
+            <SessionRow key={`${s.agent}:${s.sessionId}`} sessionId={s.sessionId} agent={s.agent}
+              label={s.label ?? idTail(s.sessionId, 8)} onOpen={onOpenSession}>
               {/* A dot only for a session the canvas is drawing. The
                   rest of this list is history — ccusage remembers every
                   session that ever ran — and a "done" tick on a session
@@ -133,11 +153,12 @@ export default function UsageSessionBreakdown({
               {s.cost > 0
                 ? <span className="up-session-cost" title={s.models.join(", ") || undefined}>{fmtCost(s.cost)}</span>
                 : <span className="up-session-cost up-unpriced">{UNPRICED_LABEL}</span>}
-            </div>
+            </SessionRow>
           );
         })}
         {!fromRange && boardSessionRows.map(s => (
-          <div className="up-session-row" key={s.sessionId}>
+          <SessionRow key={s.sessionId} sessionId={s.sessionId} agent={boardProviders?.get(s.sessionId) ?? "claude"}
+            label={s.label} onOpen={onOpenSession}>
             {/* Same dot and the same hidden word as the session list
                 (#373) — this row is a <div>, so its state is read as
                 part of the line rather than as a control's name, but it
@@ -165,7 +186,7 @@ export default function UsageSessionBreakdown({
                 >{fmtCost(s.cost)}{s.unpricedTokens > 0 ? "+" : ""}</span>
               )
               : <span className="up-session-cost up-unpriced">{UNPRICED_LABEL}</span>}
-          </div>
+          </SessionRow>
         ))}
       </div>
     </section>

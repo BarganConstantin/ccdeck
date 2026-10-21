@@ -14,13 +14,14 @@ import { SESSION_SPEND_LABEL } from "../board-usage";
 import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { SessionRecap, WaitingBlock } from "../types";
-import { shortModel, modelFamily } from "../model-label";
+import { modelChipText, modelChipTitle, modelFamily } from "../model-label";
 import { noteSource, noteTag, sessionNoteShown, type SessionNote } from "../session-note";
 import { blockedToolTooltip, stateLabel, waitingSentence } from "../agent-copy";
 import { RecapMark } from "./RecapMark";
 import { isAgentVisible } from "../visibility";
 import { withKey } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import { planSpoken, planSummary, planTitle, type PlanSummary } from "../agent-plan";
 
 export interface Row {
   sessionId: string;
@@ -37,10 +38,16 @@ export interface Row {
    *  null whenever the recap speaks instead, or nothing has been said. */
   status?: SessionNote | null;
   modelId?: string;
+  /** The effort the session reported, shown after the model (#2155). */
+  effort?: string;
   toolCount: number;
   cost: number;
   startedAt: number;
   lastActivity: number;
+  /** The session's plan as one line, or null when it keeps none (#2157). */
+  plan: PlanSummary | null;
+  /** Every step, for the line's tooltip. */
+  planTitle: string;
 }
 
 /** Where a row sorts, before activity is looked at. A blocked session is the
@@ -95,6 +102,11 @@ export function buildRows(state: GraphState, now: number): Row[] {
       recap,
       status,
       modelId: a.model,
+      effort: a.effort,
+      // The ROOT's plan: the Task tools' list is the session's, shared with its
+      // subagents, and a row is a session (agent-plan.ts).
+      plan: planSummary(a.plan),
+      planTitle: planTitle(a.plan?.items ?? []),
       toolCount,
       cost,
       startedAt: a.startedAt,
@@ -239,7 +251,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                       the press on this row does something different, and a
                       reader has to hear that before making it. */}
                   {removed && <span className="sl-removed">off the board</span>}
-                  {r.modelId && <span className="model-chip" data-family={modelFamily(r.modelId)} title={r.modelId}>{shortModel(r.modelId)}</span>}
+                  {r.modelId && <span className="model-chip" data-family={modelFamily(r.modelId)} title={modelChipTitle(r.modelId, r.effort)}>{modelChipText(r.modelId, r.effort)}</span>}
                 </div>
                 <div className="sl-row-meta">
                   {/* One tool, as the peek card and the card's label say it
@@ -287,6 +299,21 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                       <span className="sl-elapsed" title={`Started ${new Date(r.startedAt).toLocaleString()}`}>{elapsedShort(r.startedAt, r.state === "active" ? undefined : r.lastActivity, now)}</span>
                     )}
                 </div>
+                {/* How far down its own checklist the session is, and the step
+                    under way (#2157). One line, above the note: the note says
+                    what the last reply was, this says where the work stands,
+                    and it holds still while the note is rewritten. The count is
+                    said as words to a screen reader, which reads "3/7" as a
+                    date. */}
+                {r.plan && (
+                  <span className={r.plan.allDone ? "sl-plan sl-plan-done" : "sl-plan"} title={r.planTitle}>
+                    <span className="sl-plan-count" aria-hidden>{r.plan.done}/{r.plan.total}</span>
+                    <span className="vis-hidden">{planSpoken(r.plan)}</span>
+                    <span className="sl-plan-step" aria-hidden>
+                      {r.plan.allDone || !r.plan.current ? "done" : `${r.plan.next ? "next: " : ""}${r.plan.current}`}
+                    </span>
+                  </span>
+                )}
                 {/* Claude Code's recap, while it still describes the session.
                     Three lines here against the card's two: this is the column
                     a person reads down to choose which session to go back to,

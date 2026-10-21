@@ -13,7 +13,8 @@ import { cutSubLabel, primaryDisplayFor, skinFor } from "./tool-skin";
 const FADE_MS = 600;
 const MAX_PER_AGENT = 4;
 const BUBBLE_VERT_GAP = 36;
-export const BUBBLE_HALF_H = 16;
+// Shared with the rendered pill height, so every connector meets its centre.
+export const BUBBLE_HALF_H = 14;
 const BUBBLE_OFFSET_X = 60;
 /** Vertical inset from the agent's top — first bubble sits this far below
  *  the agent's top edge, then they stack downward. Anchoring to the top

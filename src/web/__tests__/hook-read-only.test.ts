@@ -1,12 +1,14 @@
 // The README says the deck cannot steer your agent. This is the file that makes
 // that a property of the code rather than an intention.
 //
-// Claude Code's hook protocol gives a hook two channels to answer on, and both
-// of them are decisions. A JSON object on STDOUT can allow, deny, defer or
-// rewrite the tool call the event describes — `permissionDecision`,
-// `hookSpecificOutput`, `continue: false` — and a NON-ZERO EXIT feeds stderr
-// back as a block. hook.js takes neither: it POSTs the event to whichever decks
-// are listening and ends. Nothing it does can change what the agent was about
+// Claude Code's hook protocol gives a hook two channels to answer on. A JSON
+// object on STDOUT can allow, deny, defer or rewrite the tool call the event
+// describes — `permissionDecision`, `hookSpecificOutput`, `continue: false` —
+// and the EXIT CODE: exit 2 blocks the call and feeds stderr back as the
+// reason, and any other non-zero exit is a "non-blocking error", which puts a
+// `<hook name> hook error` notice in the transcript on every call it happens on
+// (https://code.claude.com/docs/en/hooks, "Exit code output"). hook.js takes
+// neither: it POSTs the event to whichever decks are listening and ends. Nothing it does can change what the agent was about
 // to do, which is the whole of what a reader is being asked to trust when they
 // let a dashboard install a hook that runs on every tool call.
 //
@@ -14,7 +16,8 @@
 // or one `process.exit(1)` on an error path, turns a read-only observer into a
 // participant in every tool call on the machine — and silently, because a hook
 // that prints unparseable text is ignored until the day it prints something
-// parseable, and a hook that exits non-zero blocks the call it was reporting.
+// parseable, and a hook that exits non-zero either blocks the call it was
+// reporting (exit 2) or shows a hook error on it (any other code).
 //
 // So both halves are pinned twice. Once over the source, which fails on the line
 // the moment it is written and names it; and once by running the real script
@@ -73,11 +76,12 @@ describe("the source names no way to speak on either channel", () => {
   });
 
   it("ends every path with exit 0", () => {
-    // The block channel. A hook that exits non-zero has its stderr handed back
-    // as a refusal of the call it was reporting, so "always 0" is the other half
-    // of "cannot steer" — and `process.exitCode` is the same thing set from a
-    // distance, which is why it is banned outright rather than checked for a
-    // value.
+    // The exit-code channel. A hook that exits 2 has its stderr handed back as
+    // a refusal of the call it was reporting, and any other non-zero code puts
+    // a hook error in front of the user on that call, so "always 0" is the
+    // other half of "cannot steer" — and `process.exitCode` is the same thing
+    // set from a distance, which is why it is banned outright rather than
+    // checked for a value.
     const codes = [...SRC.matchAll(/process\s*\.\s*exit\s*\(([^)]*)\)/g)].map(m => m[1].trim());
     expect(codes.length).toBeGreaterThan(0);
     expect([...new Set(codes)]).toEqual(["0"]);

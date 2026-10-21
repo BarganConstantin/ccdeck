@@ -141,7 +141,7 @@ describe("the text ramp has three readable levels in both themes", () => {
 
 describe("what was migrated to the secondary tier", () => {
   /** The rules that read it, by selector, from the sheet itself. */
-  const users = [...SHEET.matchAll(/(^|\n)([^\n{}]+?)\{[^}]*?color:\s*var\(--text-secondary\)/g)]
+  const users = [...SHEET.matchAll(/(^|\n)([^\n{}]+?)\{[^}]*?(?<![-\w])color:\s*var\(--text-secondary\)/g)]
     .map(m => m[2].trim());
 
   it("is prose a reader reads, not metadata they glance at", () => {
@@ -212,8 +212,6 @@ describe("what was migrated to the secondary tier", () => {
       // The crash pane's one sentence: that reloading usually clears it and a
       // report tells the makers what broke (#1853). Prose the reader reads to
       // decide which of the two buttons under it to press, on the panel surface.
-      // The empty canvas film action remains readable secondary text.
-      ".empty-hero .film-action",
       ".error-fallback-note",
       // The feedback dialog's kinds (#1853): a word to choose by, sitting on
       // the segmented track, which is a fill mixed from the foreground, where
@@ -229,7 +227,49 @@ describe("what was migrated to the secondary tier", () => {
       ".nm-next",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
+      // The line under every Settings pane's name, saying what the section
+      // holds (#2176) — Text & density's opening sentence was the first of
+      // them. Read once, before anything in the section is.
+      ".settings-pane-note",
+      // What a tool history change just did, said in its own row.
+      ".settings-row-status",
+      ".radio-art",
+      ".radio-cluster-preview button span",
+      ".radio-controls > .radio-player-button",
+      ".radio-daily-meta",
+      ".radio-directory-error p",
+      ".radio-empty",
+      ".radio-eyebrow",
+      ".radio-filter-options p",
+      ".radio-filter-search",
+      ".radio-filter-search input::placeholder",
+      ".radio-filter-back", ".radio-filter-field > span:nth-child(2)", ".radio-filter-heading .icon-btn", ".radio-filter-note",
+      ".radio-filter-trigger", ".radio-filter-toggle", ".radio-tab-count",
+      ".radio-source-heading > span", ".radio-source-heading > svg", ".radio-workspace-toggle > svg", ".radio-source-help",
+      ".radio-header h2 span",
+      ".radio-header-note",
+      ".radio-loading > .icon-btn",
+      ".radio-map-heading > span",
+      ".radio-map-help",
+      ".radio-now-details",
+      ".radio-own summary",
+      ".radio-panel .icon-btn",
+      ".radio-regions .radio-region, .radio-collections .radio-collection, .radio-mobile-view .radio-view",
+      ".radio-results-heading",
+      ".radio-search",
+      ".radio-search input::placeholder",
+      ".radio-station-code",
+      ".radio-station-pick > span > span",
+      ".radio-tuning > span",
+      ".radio-tuning-tower",
       ".sa-why",
+      // Gruvbox's spend figures (#2125 follow-up): a quantity, so neither the
+      // success green the other themes give them nor the totals' --text. Read
+      // down a column to compare sessions, which --muted is too quiet for.
+      ":root[data-theme^=\"gruvbox-\"] .uh-detail-cost",
+      // Material's waiting tool, by bed: --warn mixed toward its panel falls
+      // under AA there, and the name is what decides whether to get up.
+      ":root[data-theme=\"gruvbox-material\"] .session-list .sl-waiting-tool",
       // The machine panel's process door: the one line that says what the door
       // opens, "every process, with its command line". --muted on the door's
       // plate measured 4.34:1 in dark (#859).
@@ -239,45 +279,65 @@ describe("what was migrated to the secondary tier", () => {
       // And the status line in the same slot — what the session is doing,
       // asking or got done — which is the same kind of sentence.
       ".session-list .sl-status",
-      // The custom-sound cards' captions, by bed again: --muted on the card's
-      // --sm-fill is 4.25:1 in dark (#1788).
-      ".sm-custom-card-copy > span",
-      // Radar destination/readiness evidence, disclosed purpose, scalar values
-      // and copy controls intentionally use the readable secondary text tier.
+      // The agent's plan (#2157): its steps are sentences the agent wrote and a
+      // reader reads to know where the work stands — on the card's row, in the
+      // session list's line and in the detail panel's checklist. The counts
+      // beside them stay --muted, which is what they are.
+      ".agent-node .plan-row",
+      ".session-list .sl-plan",
+      ".plan-item",
+      // The Radar redesign adds explanatory text and neutral utility labels.
+      ".empty-hero .film-action",
+      // Tool activity: the summary sentence, the findings' one-line reasons,
+      // the explanations under "How this is counted", the empty and error
+      // sentences and the notes in the details panel are prose. A row's
+      // description and its unsorted values are here by bed: a row is raised
+      // on --ctl-fill under the pointer and while open, where --muted is
+      // 4.05:1 in dark (#1789), and the search placeholder sits on the same fill.
+      ".ta-cell",
+      ".ta-cell small",
+      ".ta-desc",
+      ".ta-empty p",
+      ".ta-explain",
+      ".ta-highlight-text small",
+      ".ta-message",
+      ".ta-note",
+      ".ta-search input::placeholder",
+      ".ta-summary",
       ".tr-active-destinations > span",
+      ".tr-event-top time",
+      ".tr-history",
+      ".tr-identity p",
+      ".tr-inline-copy",
+      ".tr-inspection-limit .tr-details > summary",
+      ".tr-inspection-limit > svg",
+      ".tr-inspector-head h3 svg",
+      ".tr-json-boolean, .tr-json-null",
+      ".tr-purpose",
+      ".tr-row-icon",
+      ".tr-select-wrap > svg",
+      ".tr-signal",
+      ".tr-source-error",
+      ".tr-source-ready",
       ".tr-attributes dt > span",
       ".tr-count",
       ".tr-destination label, .tr-filter label",
       ".tr-destinations li > span",
       ".tr-empty",
-      ".tr-event-top time",
       ".tr-facts dt",
-      ".tr-history",
-      ".tr-identity p",
-      ".tr-inline-copy",
       ".tr-input::placeholder",
-      ".tr-inspection-limit .tr-details > summary",
-      ".tr-inspection-limit > svg",
       ".tr-inspector-empty svg",
-      ".tr-inspector-head h3 svg",
-      ".tr-json-boolean, .tr-json-null",
       ".tr-live-connections span",
       ".tr-message > span, .tr-message > code",
       ".tr-monitor-footer",
       ".tr-note",
-      ".tr-purpose",
       ".tr-raw-flag",
-      ".tr-row-icon",
-      ".tr-select-wrap > svg",
       ".tr-session-filter",
-      ".tr-signal",
-      ".tr-source-error",
-      ".tr-source-ready",
       ".tr-sources li > span:last-child",
       ".tr-tab",
       ".tr-tone-unknown",
       ".tr-variables dt > span, .tr-variables dt > code",
-    ]);
+    ].sort());
   });
 
   it("left the timestamps, counts, labels and system lines where they were", () => {

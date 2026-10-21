@@ -1,0 +1,18 @@
+{
+  "directoryStatus": 200,
+  "count": 300,
+  "results": [
+    {
+      "name": "RMC FR",
+      "url": "https://audio.bfmtv.com/rmcradio_128.mp3",
+      "result": "playing",
+      "readyState": 4
+    },
+    {
+      "name": "Classic Vinyl HD",
+      "url": "https://icecast.walmradio.com:8443/classic",
+      "result": "playing",
+      "readyState": 4
+    }
+  ]
+}

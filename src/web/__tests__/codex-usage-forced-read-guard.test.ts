@@ -529,6 +529,11 @@ const CENSUS: Record<string, {
     note: "#544. The one row with no floor, and the only exemption this census "
         + "grants; see insteadOfFloor.",
   },
+  "/api/ccusage/session": {
+    module: "ccusage.mjs", fn: "fetchCcusageSession", guards: ["inflight", "outstanding"],
+    insteadOfFloor: "Shares the same MAX_OUTSTANDING and serialized queue as daily history, keyed by session and pricing mode.",
+    note: "Manual whole-session reads share the existing ccusage queue, cache and limits.",
+  },
   "/api/claude-accounts": {
     module: "claude-accounts.mjs", fn: "fetchClaudeAccounts", guards: ["floor", "inflight"],
     predicate: "mayReadAccounts",
@@ -615,9 +620,9 @@ describe("every route that lets a caller force a read", () => {
              `${path} has no floor and no recorded reason it does not need one`)
         .toBeGreaterThan(0);
     }
-    // And the exemption stays rare enough to read: one row, not a habit.
-    expect(Object.values(CENSUS).filter(r => !r.guards.includes("floor")))
-      .toHaveLength(1);
+    // Two routes share one underlying bounded queue; no other module skips a floor.
+    expect(new Set(Object.values(CENSUS).filter(r => !r.guards.includes("floor"))
+      .map(r => r.guardedIn ?? r.module)).size).toBe(1);
   });
 
   it("spells one idea one way across every module that has it", () => {

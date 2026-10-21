@@ -262,6 +262,9 @@ type Press = [selector: string, scale: string, prop: "transform" | "scale"];
  *  it is the spec for what a pressable control does rather than a record of
  *  which ones had been got to. */
 const PRESSES: Press[] = [
+  [".reading-choice:active", "0.97", "transform"],
+  [".up-session-open:active", "0.97", "transform"],
+  [".su-id summary:active", "0.97", "transform"],
   [".empty-hero .empty-help summary:active", "0.97", "transform"],
   [".tr-details > summary:active", "0.97", "transform"],
   [".tr-activation > summary:active", "0.97", "transform"],
@@ -351,8 +354,6 @@ const PRESSES: Press[] = [
   // 30px track, and six percent of that reads as the knob slipping.
   [".switch:active:not(:disabled)", "0.97", "transform"],
   [".ap-field select:active:not(:disabled)", "0.97", "transform"],
-  [".appearance-source-trigger:active", "0.97", "transform"],
-  [".appearance-source-option:active", "0.97", "transform"],
   // Browser Watch's two range selects, in the same language as the panel's:
   // the popup opens anchored to this box, so 0.97 rather than 0.94.
   [".bw-settings select:active:not(:disabled)", "0.97", "transform"],
@@ -388,9 +389,13 @@ const PRESSES: Press[] = [
   // Browser Watch's episode disclosure. Same tier and same number as the row
   // above it: a full-width row that opens to show what it is summarising.
   [".bw-ep-head:active", "0.97", "transform"],
+  // Tool activity: a tool's row and a finding are full-width rows that open
+  // details, Back is a labelled control, and How this is counted a disclosure.
+  [".ta-row:active", "0.97", "transform"],
+  [".ta-highlight:active", "0.97", "transform"],
+  [".ta-back:active", "0.97", "transform"],
+  [".ta-explain summary:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
-  [".appearance-source-trigger:active", "0.97", "transform"],
-  [".appearance-source-option:active", "0.97", "transform"],
   [".selected-ribbon .selected-close:active", "0.94", "transform"],
   // The × is a span inside the ribbon's own button, and `:active` is set on
   // every ancestor of what was pressed — without the guard, clearing the
@@ -419,6 +424,8 @@ const PRESSES: Press[] = [
   // A section of Settings, in the nav down its side: a labelled row the width
   // of the nav, pressed like every other labelled control — 0.97.
   [".settings-tab:active", "0.97", "transform"],
+  // A search result in Settings (SettingsSearch.tsx), a row of its list.
+  [".settings-result:active", "0.97", "transform"],
   // The Other accounts list's expand-all (#1579): a glyph in a 24px box, but a
   // labelled control by its name, like the header's icon buttons — 0.97.
   [".ap-rest-all:active", "0.97", "transform"],
@@ -441,6 +448,8 @@ const PRESSES: Press[] = [
   // The way to a panel's 30-second video on ccdeck.dev: two words and a
   // number, so 0.97 like every other labelled control.
   [".film-link:active", "0.97", "transform"],
+  // Settings › About's Source, the same kind of link out of the deck (#2176).
+  [".settings-link:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */
@@ -465,6 +474,21 @@ const owner = (sel: string) => sel.replace(/:active.*$/, "");
  *  What this control gives back on press instead is the hover brightness it
  *  keeps through the whole gesture, and a fit-view that moves the canvas. */
 const EXEMPT: string[] = [
+  // Radio uses pointer-only feedback on the control or its child glyph.
+  // Range thumbs and map markers must retain fixed interaction geometry.
+  ".radio-cluster-preview > div > .radio-cluster-station",
+  ".radio-collections .radio-collection", ".radio-controls .sm-row input",
+  '.radio-controls input[type="range"]::-moz-range-thumb',
+  '.radio-controls input[type="range"]::-webkit-slider-thumb',
+  ".radio-filter-back", ".radio-filter-field", ".radio-filter-heading .icon-btn", ".radio-workspace-toggle",
+  ".radio-filter-chip", ".radio-filter-toggle",
+  ".radio-daily", ".radio-filter-option", ".radio-filter-trigger", ".radio-loading > .icon-btn",
+  ".radio-mobile-view .radio-view", ".radio-own summary", ".radio-own-station",
+  ".radio-panel .icon-btn", ".radio-pin", ".radio-play",
+  ".radio-regions .radio-region", ".radio-reset", ".radio-station-pick",
+
+  // Companion selection answers through its radio check and chosen preview.
+  ".character-choice",
   // A day column in the Projects report's chart, clickable to reveal that day's
   // breakdown. It stays out of the transform convention for the reason a thin
   // bar always does: a 3-to-26px column scaled on press moves out from under
@@ -506,6 +530,23 @@ const EXEMPT: string[] = [
   // LAN dialog's above. It discloses two paragraphs and changes nothing else,
   // and it answers the press by its text lifting to --text while it is open.
   ".ap-report-how > summary",
+  // Text view switches, chart-day selection and native disclosures answer
+  // through selection/expansion; scaling would move labels or chart data.
+  // Usage-history provider selection and native disclosure keep labels still.
+  ".qh-provider",
+  ".qh-readings summary",
+  ".ap-report-view",
+  ".ap-reset-day-button",
+  ".ap-reset-disclosure > summary",
+  ".ap-reset-about summary",
+  // Account detail disclosure uses its native expanded state; names stay still.
+  ".ap-reset-account > summary",
+  // Full identity is revealed through native details, without moving labels.
+  ".ap-reset-next-account > summary",
+  // Coverage links open and focus native disclosures without moving text.
+  ".ap-reset-coverage-link",
+  // Companion selection answers through its radio check and chosen preview.
+  ".character-choice",
   // The file input is an invisible hit target stretched over its visible label.
   // The label owns the press feedback; transforming this overlay would only
   // move the hit target and is not visible to the user.
@@ -534,10 +575,6 @@ const EXEMPT: string[] = [
   // answered by the platform's own list opening over it; scaling the control
   // in the same instant would shift the words the list is drawn against.
   ".ap-rest-sort select",
-  // Settings' Claude FM and character rows: a <label> round the switch, the same
-  // argument as `.bw-switch` — the knob travelling and the switch's own 0.97
-  // answer the press, and a scaled row would slide the words out from under it.
-  ".appearance-row",
   // A theme choice. Its press is answered by the whole deck changing theme and
   // the frame moving to it; a 118px preview scaled by 3% lurches rather than
   // clicks, and the hover plate under it already deepens.
@@ -545,6 +582,12 @@ const EXEMPT: string[] = [
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {
+  it("keeps Radio hit targets stationary while providing pointer feedback", () => {
+    expect(css).toContain('.radio-panel :is(.icon-btn, .radio-play):not(:disabled):active:not(:focus-visible)');
+    expect(css).toContain('.radio-panel[data-keyboard-interaction] button');
+    expect(css).toContain('.radio-cluster-preview > div > .radio-cluster-station:hover');
+    expect(css).toContain('.radio-station:hover');
+  });
   it("gives every one of these controls something to give back on press", () => {
     const missing = PRESSES.filter(p =>
       !all.some(r => !r.reduced && selectors(r).includes(p[0]) && decl(r.body, p[2]) === pressed(p)));

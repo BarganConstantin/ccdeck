@@ -37,19 +37,21 @@
 //   5. Lets the deck frame the canvas itself (__ccdeckHero.frame): its own R
 //      lays the sessions out, its own auto-fit frames them, and nothing pans or
 //      zooms — a gesture turns auto-fit off, and the deck then says so on the
-//      canvas. The deck's fit draws full cards and their tool-call bubbles only
-//      when the board, with room for the bubbles, fits at 0.655 or closer
-//      (fitZoomForDrawnLanes, semantic-zoom.ts); below that it draws compact
-//      cards and no bubbles. With the session list and the Usage panel both
-//      open that takes a 1920x1080 window and a board of three sessions, which
-//      is why the shot is that size and the demo that long. Then it checks the
-//      page (__ccdeckHero.check): it refuses a picture that shows a home or
-//      temp directory, this machine's name, your user name or one of this
-//      machine's network addresses, an e-mail address outside the example
-//      domains, a panel whose data was not faked, auto-fit switched off, cards
+//      canvas. The deck's fit draws full cards and their tool-call bubbles
+//      from a zoom of 0.655, and keeps drawing them down to 0.6
+//      (fitZoomForDrawnLanes and the DETAIL_* thresholds, semantic-zoom.ts);
+//      below that it draws compact cards and no bubbles. With the session list
+//      and the Usage panel both open, 3.41.1 frames this board at 0.595 in a
+//      1920x1080 window, compact, and at 0.607 in 2240x1260, full cards —
+//      which is why the shot is that size and the demo that long. Then it waits
+//      out the Undo strip R leaves for seven seconds, and checks the page
+//      (__ccdeckHero.check): it refuses a picture that shows a home or temp
+//      directory, this machine's name, your user name or one of this machine's
+//      network addresses, an e-mail address outside the example domains, a panel
+//      whose data was not faked, auto-fit switched off, R's Undo strip, cards
 //      drawn as anything but full cards, a toast or a dialog, or a topbar
 //      without this version and the brand kit's mark.
-//   6. Writes assets/canvas.png — 1920x1080 at device scale 2, so 3840x2160 —
+//   6. Writes assets/canvas.png — 2240x1260 at device scale 2, so 4480x2520 —
 //      then stops the deck with its own --stop and closes the browser over the
 //      DevTools protocol. Nothing is killed.
 //
@@ -63,7 +65,7 @@
 //             init script that loads the page script from DECK_PORT + 1, which
 //             answers that one file to the deck's origin and nothing else.
 //             Open http://127.0.0.1:<DECK_PORT>/ in a new isolated browser
-//             context at 1920x1080x2 with that init script, evaluate
+//             context at 2240x1260x2 with that init script, evaluate
 //             `() => __ccdeckHero.frame()`, then `() => __ccdeckHero.check()`:
 //             an empty list is a picture that may be saved. Ctrl-C stops the
 //             deck.
@@ -86,7 +88,7 @@ import { demoLog, SESSION_IDS } from "./canvas-demo.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const WORKSPACE = "/demo";
-const [VW, VH] = (process.env.VIEWPORT ?? "1920x1080").split("x").map(Number);
+const [VW, VH] = (process.env.VIEWPORT ?? "2240x1260").split("x").map(Number);
 const VIEWPORT = { width: VW, height: VH, dpr: 2 };
 const SESSION_LIST = process.env.SESSION_LIST !== "0";
 const USAGE_PANEL = process.env.USAGE_PANEL !== "0";
@@ -450,6 +452,9 @@ function pageScript(C) {
       return performance.now() - since > 1500;
     }, 20_000);
     document.activeElement?.blur?.();
+    // R offers its Undo for seven seconds (rearrange-undo.ts), bottom centre
+    // of the canvas: a strip that belongs to the press, not to the picture.
+    await waitFor("the re-arrange Undo strip to go", () => !document.querySelector(".rearrange-undo"), 15_000);
     return { zoom: zoomNow(), lod: document.querySelector("[data-lod]")?.getAttribute("data-lod"), groups: [...document.querySelectorAll('.react-flow__node[data-id^="group:"]')].map((n) => { const r = n.getBoundingClientRect(); return [n.getAttribute("data-id"), Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; }) };
   }
 
@@ -481,6 +486,7 @@ function pageScript(C) {
     if (![...(bar?.querySelectorAll("img") ?? [])].some((i) => (i.getAttribute("src") ?? "").endsWith(C.mark))) problems.push(`the topbar does not carry the kit's mark (${C.mark})`);
     if (!document.querySelector(".topbar .waiting-stat")) problems.push("no session is waiting on you in the topbar");
     if (document.querySelector(".autofit-chip")) problems.push("auto-fit is off, and the canvas says so");
+    if (document.querySelector(".rearrange-undo")) problems.push("the re-arrange Undo strip is on the canvas");
     const lod = document.querySelector("[data-lod]")?.getAttribute("data-lod");
     if (lod !== "detail") problems.push(`the deck's fit draws ${lod} cards, without their tool calls: the board is too big for this window`);
     if (document.querySelector(".toast, [role=alert], .modal, [role=dialog]")) problems.push("a toast or a dialog is open");
@@ -500,7 +506,8 @@ const PAGE = {
   storage: {
     "agent-dag.tourSeen": "1",
     "agent-dag.releaseNotesSeen": VERSION,
-    "agent-dag.theme": "dark",
+    // What a fresh install opens in (theme.ts, resolveTheme).
+    "agent-dag.theme": "rider-black",
     "agent-dag.sessionListOpen": SESSION_LIST ? "1" : "0",
     "agent-dag.accountsPanelOpen": "0",
     "agent-dag.usagePanelOpen": USAGE_PANEL ? "1" : "0",

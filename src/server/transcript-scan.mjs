@@ -193,6 +193,17 @@ function billedSpeed(record) {
   return typeof speed === "string" && SPEED_VALUE_RE.test(speed) ? speed : UNRECOGNISED_SPEED;
 }
 
+/** Haiku 5.5's request tier includes uncached input, cache reads and writes.
+ *  The threshold is strictly greater than 100K, independently for each request.
+ *  https://platform.claude.com/docs/en/about-claude/pricing (2026-10-12). */
+function isLongContextRequest(model, usage) {
+  const bare = typeof model === "string"
+    ? model.replace(/^(?:(?:us-gov|global|apac|us|eu|jp|au)\.)?anthropic\./i, "") : "";
+  if (!/^claude[-_]haiku[-_]5[-_.]5\b(?![-_.]\d{1,7}(?!\d))/i.test(bare)) return false;
+  return tokenCount(usage?.input_tokens) + tokenCount(usage?.cache_read_input_tokens)
+    + tokenCount(usage?.cache_creation_input_tokens) > 100_000;
+}
+
 /** The share of `bucket` billed at `speed`, created on first sight. Null for
  *  the standard speed or a bucket we could not attribute. `Object.hasOwn`
  *  rather than a plain read, because `constructor` passes SPEED_VALUE_RE and
@@ -268,10 +279,14 @@ function tokenCount(v) {
 /** Add one bucket's counters, and its speed shares, into `dst`. */
 function addUsageBucket(dst, src) {
   for (const k of USAGE_TOTAL_FIELDS) dst[k] += src[k] ?? 0;
+  if (src.longContext) {
+    const into = dst.longContext ??= newUsageTotals();
+    for (const k of USAGE_TOTAL_FIELDS) into[k] += src.longContext[k] ?? 0;
+  }
   if (!src.speeds) return dst;
   for (const [speed, share] of Object.entries(src.speeds)) {
     const into = speedBucketFor(dst, speed);
-    for (const k of USAGE_TOTAL_FIELDS) into[k] += share[k] ?? 0;
+    addUsageBucket(into, share);
   }
   return dst;
 }
@@ -617,6 +632,8 @@ function foldUsageLine(state, line, record) {
   // and the two would stop summing to each other.
   const bucket = usageBucketFor(state, state.lastModel);
   const speedBucket = speedBucketFor(bucket, billedSpeed(record));
+  const longBuckets = isLongContextRequest(state.lastModel, record?.message?.usage)
+    ? [bucket, speedBucket].filter(Boolean).map(b => b.longContext ??= newUsageTotals()) : [];
   const charged = newUsageTotals();
   if (billing === BILL_LINE) {
     const billed = billedUsageText(line);
@@ -626,23 +643,26 @@ function foldUsageLine(state, line, record) {
     for (const m of billed.replace(ITERATIONS_ARRAY_RE, "").matchAll(CACHE_CREATION_BLOCK_RE)) {
       chargeUsage(state, bucket, m[1], CACHE_SPLIT_FIELDS, speedBucket, charged);
     }
+    for (const into of longBuckets) addUsageBucket(into, charged);
     return;
   }
   chargeRequestUsage(state, bucket, record.message?.usage, speedBucket, charged);
+  for (const into of longBuckets) addUsageBucket(into, charged);
   // What this request was charged, and where, kept until its final record
   // replaces it.
   const id = streamingRequestId(record);
-  ledger.streaming = id === null ? null : { id, bucket, speedBucket, charged };
+  ledger.streaming = id === null ? null : { id, bucket, speedBucket, longBuckets, charged };
 }
 
 /** Take back what a request was charged, from every counter it was charged
  *  to, for its later record to charge in its place. */
-function refundUsage(state, { bucket, speedBucket, charged }) {
+function refundUsage(state, { bucket, speedBucket, longBuckets = [], charged }) {
   for (const k of USAGE_TOTAL_FIELDS) {
     const n = charged[k];
     state.usage[k] -= n;
     if (bucket) bucket[k] -= n;
     if (speedBucket) speedBucket[k] -= n;
+    for (const into of longBuckets) into[k] -= n;
   }
 }
 
@@ -828,5 +848,5 @@ function scanTranscript(path) {
 export {
   scanTranscript, newUsageTotals, hasSpend, mergeUsageByModel, copyUsageBucket,
   requestBilling, newRequestLedger, noteRequestRecord, streamingRequestId,
-  BILL_LINE, REBILL_REQUEST, SKIP_LINE, billedSpeed, MAX_SPEEDS_PER_MODEL, UNRECOGNISED_SPEED,
+  BILL_LINE, REBILL_REQUEST, SKIP_LINE, billedSpeed, isLongContextRequest, MAX_SPEEDS_PER_MODEL, UNRECOGNISED_SPEED,
 };

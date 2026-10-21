@@ -44,7 +44,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
-import { sheetText } from "./sheet-source";
+import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const css = sheetText();
 const usageSrc = readFileSync(fileURLToPath(new URL("../components/UsagePanel.tsx", import.meta.url)), "utf8");
@@ -279,6 +279,8 @@ describe("a percentage width under a horizontal margin", () => {
       // the rest. Named so it enters the margin check below; no rule gives it a
       // margin.
       "ap-report-table",
+      // Each reset-day hit area fills its grid cell, with no outer margins.
+      "ap-reset-day-button",
       "bw-ep-head", "bw-radar", "cost-bar",
       // The guides' drawings: an SVG with a viewBox and no width of its own,
       // which the browser would otherwise size to its 300x150 default. Named
@@ -294,8 +296,9 @@ describe("a percentage width under a horizontal margin", () => {
       // with `width: 100%` is the table-cell idiom for that — the panel's own
       // `.sd-proc-name` does the same thing, and only misses this list because
       // its rule is scoped rather than bare.
-      "pl-name",
-      "tool-bursts-svg", "tr-event-bottom", "tr-event-top", "tr-message", "tr-search", "uh-bar", "uh-bar-seg", "up-table",
+      // Quota history SVG fills its grid track without outer margins.
+      "pl-name", "qh-chart", "radio-daily", "radio-filter-option", "radio-filter-trigger", "radio-map-canvas",
+      "tool-bursts-svg", "tr-event-bottom", "tr-event-top", "tr-message", "tr-search", "uh-bar", "uh-bar-seg", "up-session-open", "up-table",
     ]);
 
     const violations: string[] = [];

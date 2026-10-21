@@ -117,6 +117,24 @@ export function slotCommit(choices: SlotChoice[], picked: number, current: numbe
 }
 
 /**
+ * The "Next account" picker's commit control: how Auto-switch picks where to
+ * go. The threshold's rule for the same reason — one setting, nothing
+ * destructive, a keystroke is not a decision — with its hover saying what the
+ * picked option does.
+ */
+export function nextCommit(picked: string, stored: string): PickerCommit {
+  return {
+    label: "save",
+    done: "saved",
+    sends: picked !== stored,
+    swaps: false,
+    title: picked === "weekly"
+      ? "Move to the account whose weekly limit resets soonest, within 4 days."
+      : "Move to the account with the most room left.",
+  };
+}
+
+/**
  * The auto-switch threshold's commit control, for the percentage showing in it.
  *
  * Nothing here is destructive — it writes one setting and the next write

@@ -243,7 +243,11 @@ export function createBeacon({
     // broadcast is filtered, and it is what Syncthing sends — and every
     // interface's own directed broadcast goes out beside it. A duplicate packet
     // costs one datagram; a missing one costs the whole feature.
-    const plan = broadcastPlan(ifaces());
+    // Adapter enumeration may fail transiently on Windows. The limited
+    // broadcast still works without an interface map; retry next announce.
+    let faces;
+    try { faces = ifaces(); } catch { faces = {}; }
+    const plan = broadcastPlan(faces);
     // Asked behind the send, and read from what was last answered: the first
     // beacon after a start goes as it always did, and the ones after it know.
     void routes?.want?.(plan.map(p => p.to));

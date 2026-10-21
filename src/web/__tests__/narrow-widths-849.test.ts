@@ -40,7 +40,7 @@ describe("the topbar keeps its controls on screen (#849)", () => {
     expect(rule(".topbar .actions")).toMatch(/flex:\s*none/);
   });
 
-  it("spends less on padding and gaps on a narrow screen, and nothing on controls there", () => {
+  it("keeps compact padding and gaps on a narrow screen, and no controls there", () => {
     // Under 641px every control is in the dock along the bottom
     // (EdgeRails.tsx; topbar-phone-width.test.ts holds the bar to the readout
     // alone there), so the bar's narrow block narrows its own padding and gap
@@ -50,7 +50,7 @@ describe("the topbar keeps its controls on screen (#849)", () => {
     expect(narrow).toMatch(/\.topbar\s*\{[^}]*padding:\s*1px 10px 0/);
     expect(narrow).toMatch(/\.topbar\s*\{[^}]*gap:\s*12px/);
     expect(narrow).toMatch(/\.topbar \.readout\s*\{[^}]*gap:\s*12px/);
-    expect(rule(".topbar")).toMatch(/padding:\s*1px 18px 0/);
+    expect(rule(".topbar")).toMatch(/padding:\s*1px 6px 0 18px/);
     expect(narrow).not.toMatch(/\.topbar \.actions|action-run/);
   });
 });

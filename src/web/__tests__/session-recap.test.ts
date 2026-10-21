@@ -352,7 +352,7 @@ describe("where it is drawn", () => {
     expect(note).toMatch(/box-shadow: var\(--shadow-1\);/);
     // Beads, not dashes: the canvas's dashed edges mean a call.
     const beads = body("\n.recap-tie-beads {");
-    expect(beads).toMatch(/stroke-dasharray: 0 7;/);
+    expect(beads).toMatch(/stroke-dasharray: 0 10;/);
     expect(beads).toMatch(/stroke-linecap: round;/);
     expect(body("\n.recap-tie {")).toMatch(/pointer-events: none;/);
     // A curve, fastened by a bead at each end.

@@ -58,6 +58,8 @@ export function createTrafficRadar({ platform = process.platform, now = Date.now
   const seen = new Map();
   let alerts = [];
   let serial = 0;
+  let configRevision = 0;
+  let savedConfig = null;
   const addAlert = (message, at) => {
     alerts.unshift({ id: ++serial, message, at });
     alerts = alerts.slice(0, 8);
@@ -116,10 +118,19 @@ export function createTrafficRadar({ platform = process.platform, now = Date.now
   }
 
   return {
+    updateConfig(configuration) {
+      configRevision++;
+      savedConfig = configuration;
+      if (cached) cached = { ...cached, config: configuration };
+    },
     read() {
       if (pending) return pending;
       if (cached && now() - cached.sampledAt < 3_000) return Promise.resolve(cached);
-      pending = sample().then(result => { cached = result; return result; }).finally(() => { pending = null; });
+      const observedRevision = configRevision;
+      pending = sample().then(result => {
+        cached = observedRevision === configRevision ? result : { ...result, config: savedConfig };
+        return cached;
+      }).finally(() => { pending = null; });
       return pending;
     },
   };

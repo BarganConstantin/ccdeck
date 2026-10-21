@@ -106,7 +106,8 @@ beforeEach(() => invalidateBrowserWatchCache());
 describe("which tabs are the deck's own", () => {
   it("covers both ports the real profile caught it opening", () => {
     // Measured, not hypothetical: 41 visits to 127.0.0.1:4317 and 34 to
-    // 127.0.0.1:4399 carried FROM_API, because `open` is an API call and the
+    // 127.0.0.1:4399 carried FROM_API (not because of `open`, which left no
+    // FROM_API when tested — see FROM_API in agent-activity.mjs), and the
     // deck takes a random port in 4318-4400 when 4317 is held. Excluding only
     // this process's port would have left the other one reporting as an
     // intruder on a machine that has been running decks for a month.

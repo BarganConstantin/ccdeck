@@ -52,7 +52,7 @@
   background: var(--panel);
   border: 1px solid var(--accent);
   color: var(--text);
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 600;
   text-decoration: none;
   transform: translateY(calc(-100% - 16px));

@@ -20,6 +20,9 @@ import { withStoreLock } from "./store-lock.mjs";
 // moved the account is said once on the desktop (account-notify.mjs). Both
 // doors return at once and never throw.
 import { noteAutoSwitch, noteAutoTick } from "./account-watch.mjs";
+// The owner's two rules — a home account, and the soonest weekly reset — asked
+// before the engine, inside the same lock. With neither set, nothing.
+import { chooseBeforeEngine, forgetPicksByHand, noteEngineTick } from "./cswap-auto-choice.mjs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -51,6 +54,9 @@ function summarise(stdout) {
     // `switch` event for a decision it did not carry out, and a false positive
     // here throws away readings that cost a subprocess each.
     switched:  events.some(e => e.event === "switch" && e.dryRun !== true),
+    // Why the engine moved — "proactive", "at-limit", "failover" — beside the
+    // deck's own "home" and "weekly-reset" (cswap-auto-choice.mjs).
+    trigger:   action?.trigger ?? null,
     reason:    action?.reason ?? null,
     detail:    action?.detail ?? null,
     from:      action?.from ?? null,
@@ -94,9 +100,42 @@ async function runAutoTick() {
   const r = await withStoreLock(async () => {
     if (!_enabled) return { skipped: "disabled" };
     if (await externalAutoRunning()) return { skipped: "external-engine" };
-    return run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS });
+    // The deck's own rules first. A move they make is the tick; when they have
+    // nothing to say — or cannot say it — the engine decides, as it always did.
+    let chose = await chooseBeforeEngine().catch(() => ({ result: null, accounts: null }));
+    if (chose.result) return { chose: chose.result };
+    // The store may still have a reading from before the active account
+    // reached its limit. The engine polls before deciding; letting
+    // its real tick run now would switch by `best` before our weekly/home
+    // rules ever saw that reading. Poll without moving first, then give the
+    // configured rules the refreshed roster under this same store lock.
+    // No rule configured (accounts === null) keeps the original single run.
+    if (chose.accounts) {
+      const preview = await run(await cswapBin(), ["auto", "--once", "--json", "--dry-run"], { timeout: TICK_TIMEOUT_MS });
+      if (preview.timedOut || (!preview.ok && !preview.stdout)) return preview;
+      if (!_enabled) return { skipped: "disabled" };
+      if (await externalAutoRunning()) return { skipped: "external-engine" };
+      invalidateClaudeAccountsCache();
+      chose = await chooseBeforeEngine({ refreshHome: false }).catch(() => ({ result: null, accounts: null }));
+      if (chose.result) return { chose: chose.result };
+      // A deck-managed `cswap switch` does not advance the engine's own
+      // lastSwitchAt. Its fallback must keep our cooldown too, or a manual
+      // return to the full account can immediately escape the weekly rule
+      // through the engine's most-room choice. Still allow emergency exits.
+      const decision = summarise(preview.stdout);
+      if (Date.now() < chose.cooldownUntil && decision.trigger !== "at-limit" && decision.trigger !== "failover") {
+        return { chose: {
+          ok: true, ...decision, event: "no-switch", switched: false,
+          trigger: null, reason: "cooldown", from: null, to: null,
+          detail: "Waiting for the account-switch cooldown",
+        } };
+      }
+    }
+    const out = await run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS });
+    return { ...out, accounts: chose.accounts };
   });
   if (r.skipped) return { event: "skipped", reason: r.skipped };
+  if (r.chose) return r.chose;
   // A KILLED RUN IS NOT A QUIET ONE. `run`'s timeout path deliberately keeps an
   // 8 KB tail of whatever the child managed to print, so `!r.ok && !r.stdout`
   // is false for a tick that emitted its `{"event":"poll"}` line and then
@@ -109,7 +148,10 @@ async function runAutoTick() {
   if (!r.ok && !r.stdout) {
     return { ok: false, reason: "tick_failed", detail: failureDetail(r, 300) };
   }
-  return { ok: true, ...summarise(r.stdout) };
+  const result = { ok: true, ...summarise(r.stdout) };
+  // Where the engine left the user is a tick's pick, not one made by hand.
+  if (result.switched) await noteEngineTick(result, r.accounts).catch(() => {});
+  return result;
 }
 
 // ── deck-managed loop ──────────────────────────────────────────────────────
@@ -340,6 +382,7 @@ export function lastTick() {
 export async function setAutoEnabled(enabled) {
   _enabled = Boolean(enabled);
   noteAutoSwitch(_enabled);
+  if (_enabled) await forgetPicksByHand();
   await saveState({ ...(await loadState()), enabled: _enabled });
   if (_enabled) await startLoop(); else stopLoop();
   return { ok: true, enabled: _enabled };

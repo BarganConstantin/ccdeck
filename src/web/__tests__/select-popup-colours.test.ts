@@ -49,12 +49,13 @@ const html = (theme: Theme) => el("html", [], { states: ["root"], attrs: { "data
 /** Every select the deck renders, by the file that renders it, as the sheet
  *  sees it: its ancestors' classes, then its own. */
 const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
-  "components/TelemetryCapture.tsx": [
-    { name: "telemetry signal", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-telemetry"]), el("div", ["tr-workspace"]), el("section", ["tr-feed"]), el("div", ["tr-filter"]), el("label"), el("span", ["tr-select-wrap"]), el("select", ["tr-select"])] },
-    { name: "capture destination", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-telemetry"]), el("div", ["tr-destination"]), el("label"), el("span", ["tr-select-wrap"]), el("select", ["tr-select"])] },
-    { name: "message destination", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-telemetry"]), el("div", ["tr-workspace"]), el("section", ["tr-feed"]), el("div", ["tr-filter"]), el("label"), el("span", ["tr-select-wrap"]), el("select", ["tr-select"])] },
-  ],
-  "components/TrafficRadar.tsx": [{ name: "session filter", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("div", ["tr-navigation"]), el("label", ["tr-session-filter"]), el("span", ["tr-select-wrap"]), el("select", ["tr-select"])] }],
+  "components/QuotaHistoryModal.tsx": [{ name: "quota history window",
+    chain: [el("body"), el("div", ["modal", "qh-modal"]), el("div", ["modal-body", "qh-body"]), el("div", ["qh-controls"]), el("label", ["qh-window"]), el("select")],
+  }],
+  "components/SessionUsageModal.tsx": [{ name: "session pricing",
+    chain: [el("body"), el("div", ["modal", "su-modal"]), el("div", ["modal-body", "su-body"]), el("label", ["su-pricing"]), el("select")],
+  }],
+  "components/RadarSelect.tsx": [{ name: "Radar filter", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("span", ["tr-select-wrap"]), el("select", ["tr-select"])] }],
   "components/ToneSection.tsx": [{
     name: "a tone's figure",
     chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("div", ["sm-sounds"]), el("div", ["sm-tones"]), el("section", ["sm-tone"]), el("div", ["sm-row"]), el("select", ["sm-select"])],
@@ -62,6 +63,14 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
   "components/SpokenVoiceForm.tsx": [{
     name: "a spoken voice",
     chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("div", ["sm-sounds"]), el("section", ["sm-custom"]), el("details", ["sm-voice"]), el("div", ["sm-voice-fields"]), el("label"), el("select", ["sm-select"])],
+  }],
+  "components/ToolAuditSettings.tsx": [{
+    name: "how long tool history is kept",
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group", "ta-settings"]), el("div", ["ta-storage-row"]), el("label"), el("select", ["sm-select"])],
+  }],
+  "components/BoardSection.tsx": [{
+    name: "how long a finished session stays on the board",
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["appearance-controls"]), el("label", ["appearance-row"]), el("select", ["sm-select"])],
   }],
   "components/BrowserWatchSettings.tsx": [
     { name: "Browser Watch's quiet time", chain: [el("body"), el("div", ["bw-settings"]), el("label"), el("select")] },
@@ -74,6 +83,9 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
   "components/AutoSwitchPolicy.tsx": [{
     name: "the auto-switch threshold",
     chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-policy-block"]), el("div", ["ap-policy"]), el("span", ["ap-field"]), el("select")],
+  }, {
+    name: "how auto-switch picks the next account",
+    chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-policy-block"]), el("div", ["ap-policy", "ap-next"]), el("span", ["ap-field"]), el("select")],
   }],
   "components/AccountMenuPopover.tsx": [{
     name: "an account's slot",
@@ -267,18 +279,8 @@ describe("draws a select's option list in the deck's own theme, not the OS's", (
     const counts = Object.fromEntries(sources()
       .map(file => [file, openTags(readFileSync(join(WEB, file), "utf8"), ["select"]).length] as const)
       .filter(([, n]) => n > 0));
-    // Radar's four call sites share one native select implementation. Keep
-    // measuring each ancestry above, and census both implementation and uses.
-    const radarFiles = ["components/TelemetryCapture.tsx", "components/TrafficRadar.tsx"];
-    const known = Object.fromEntries(Object.entries(SELECTS)
-      .filter(([file]) => !radarFiles.includes(file))
-      .map(([file, list]) => [file, list.length]));
-    known["components/RadarSelect.tsx"] = 1;
+    const known = Object.fromEntries(Object.entries(SELECTS).map(([file, list]) => [file, list.length]));
     expect(counts).toEqual(known);
-    const radarUses = Object.fromEntries(sources()
-      .map(file => [file, openTags(readFileSync(join(WEB, file), "utf8"), ["RadarSelect"]).length] as const)
-      .filter(([, n]) => n > 0));
-    expect(radarUses).toEqual(Object.fromEntries(radarFiles.map(file => [file, SELECTS[file].length])));
   });
 
   for (const theme of THEMES) {
