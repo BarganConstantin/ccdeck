@@ -95,7 +95,7 @@ export function readingCurrent(account, models, now) {
 
 /**
  * Whether Auto-switch may land on this account: signed in, in rotation, not
- * the one another paired deck is working on, not one claude-swap has
+ * reserved by a local `cswap run` session, not one claude-swap has
  * quarantined, read recently, and comfortably under the threshold on every
  * window that counts. An account with no 5-hour or weekly window (an API key)
  * is never a target here; the engine still decides about those.
@@ -140,8 +140,8 @@ function soonestWeekly(accounts, ctx, before = null) {
  *             somebody just set a home and expects to be taken there.
  *   threshold the engine's, in percent
  *   models    countedModels(...) of the engine's model setting
- *   busy      keys of the accounts whose login is live somewhere else: on a
- *             paired deck, or in a `cswap run` session
+ *   busy      keys of accounts reserved by local `cswap run` sessions;
+ *             activity reported by other paired devices does not exclude them
  *   quarantined keys of the accounts claude-swap's engine has quarantined
  *   sinceMove ms since the last move, the engine's or this one's
  *   cooldownMs the engine's cooldown, which every move here keeps too

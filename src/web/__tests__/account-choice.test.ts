@@ -170,7 +170,7 @@ describe("home account", () => {
     expect(chooseAccount({ ...base, accounts, choice: { ...home, manual: true, goHome: true } })?.to.num).toBe(1);
   });
 
-  it("skips a home that is held out, signed out, unread or on another deck", () => {
+  it("skips a home that is held out, signed out, unread or locally reserved", () => {
     const others = [acct(2, { active: true, five: 30 })];
     const tries = [
       acct(1, { five: 0, disabled: true }),

@@ -146,26 +146,6 @@ async function engineState(accounts) {
   };
 }
 
-/** The accounts paired decks have recently said they are working on.
- *  One login live on two machines races for every renewal (README, "One login
- *  live in one place"), so a tick never moves onto one of them. The LAN table
- *  retains old manifests for display after a peer goes quiet; those are not
- *  current reservations. Use the authenticated manifest's receipt time, not a
- *  beacon or a failed round, which cannot confirm the account still in use. */
-async function accountsOnOtherDecks(now) {
-  try {
-    const [{ lanEngine }, { PRESENT_MS }] = await Promise.all([
-      import("./lan-deck.mjs"), import("./lan-sync.mjs"),
-    ]);
-    const peers = lanEngine.status()?.peers ?? [];
-    return new Set(peers
-      .filter(p => p?.paired === true && Number.isFinite(p.offers?.at) && p.offers.at > 0 && now - p.offers.at < PRESENT_MS)
-      .map(p => p.offers.current?.key).filter(k => typeof k === "string"));
-  } catch {
-    return new Set();
-  }
-}
-
 /** The name claude-swap gives an account's `cswap run` profile after its
  *  slot number: the email, NFC, with anything but ASCII letters, digits and
  *  `._-` turned into `_` (claude_swap/session.py, slugify_email). */
@@ -249,7 +229,7 @@ export async function chooseBeforeEngine({ now = Date.now() } = {}) {
     choice: { next: choice.next, home: choice.home?.key ?? null, manual, goHome },
     threshold,
     models,
-    busy: new Set([...await accountsOnOtherDecks(now), ...await accountsInCswapRun(accounts)]),
+    busy: await accountsInCswapRun(accounts),
     quarantined: engine.quarantined,
     sinceMove: now - Math.max(choice.lastMoveAt, engine.lastSwitchAt),
     cooldownMs: numberOr(cfg["autoswitch.cooldownSeconds"]?.value, 300) * 1000,
