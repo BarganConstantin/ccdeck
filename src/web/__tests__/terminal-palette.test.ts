@@ -34,7 +34,7 @@ import {
 import { withoutComments } from "./tsx-scan";
 
 const web = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");
-const sheet = web("styles/tokens.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const sheet = web("styles/themes.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
 const THEMES = ["dark", "light"] as const;
 type Theme = (typeof THEMES)[number];
@@ -43,7 +43,7 @@ type Theme = (typeof THEMES)[number];
 function block(theme: Theme): Record<string, string> {
   const head = theme === "dark" ? ':root,\\s*\\n:root\\[data-theme="dark"\\]' : ':root\\[data-theme="light"\\]';
   const found = new RegExp(`${head}\\s*\\{([\\s\\S]*?)\\n\\}`).exec(sheet);
-  if (!found) throw new Error(`styles/tokens.css has no ${theme} token block`);
+  if (!found) throw new Error(`styles/themes.css has no ${theme} token block`);
   const out: Record<string, string> = {};
   for (const [, name, value] of found[1].matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[name] = value.trim();
   return out;

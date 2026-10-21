@@ -307,7 +307,7 @@ describe("with the stage open, the board's keys move the stage", () => {
     const deck = mountDeckKeys({ stage: stageKeys() });
     deck.press("t");
     deck.press("l");
-    expect(deck.theme.value).toBe("light");
+    expect(deck.theme.value).toBe("rider-black");
     expect(deck.props.toggleSessionList).toHaveBeenCalledTimes(1);
   });
 });
