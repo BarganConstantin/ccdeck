@@ -18,6 +18,7 @@
 // whichever client the case switched to, through a box the deck was given at
 // boot; the routes' other stand-ins are terminal-routes.test.ts's.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { spawn } from "node:child_process";
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { request, type Server } from "node:http";
@@ -57,12 +58,25 @@ const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 // ── the double as an installed, signed engine ────────────────────────────────
 
 const roots: string[] = [], clients: any[] = [];
+// A new executable is run once, untimed, before any case gives the engine a
+// deadline. macOS checks an executable on its first exec: 280-450 ms for a new
+// file on an Intel iMac, 5-100 ms after, which is longer than the 300 ms the
+// cases below give the engine to start. With its stdin closed the double exits
+// 0 at once.
+function runOnce(file: string): Promise<void> {
+  return new Promise((done, fail) => {
+    const child = spawn(file, [], { stdio: "ignore" });
+    child.on("error", fail);
+    child.on("exit", (code, signal) => code === 0 ? done() : fail(new Error(`the double, run once before the cases, ended with ${code ?? signal}`)));
+  });
+}
 async function installed({ backend = "tmux", ...options }: Record<string, any> = {}) {
   const directory = await mkdtemp(join(tmpdir(), "ccpro-routes-")); roots.push(directory); await chmod(directory, 0o700);
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   const source = (await readFile(new URL("./fixtures/pro-engine-peer.cjs", import.meta.url), "utf8")).replace("const TERMINAL_BACKEND = 'unavailable';", `const TERMINAL_BACKEND = '${backend}';`);
   const bytes = Buffer.from(`#!${process.execPath}\n${source}`);
   await writeFile(join(directory, "ccdeck-pro-engine"), bytes, { mode: 0o700 });
+  await runOnce(join(directory, "ccdeck-pro-engine"));
   const entry = { file: "ccdeck-pro-engine", protocol: 1, target: `${process.arch === "x64" ? "x86_64" : "aarch64"}-${process.platform === "darwin" ? "apple-darwin" : "unknown-linux-gnu"}`, sha256: createHash("sha256").update(bytes).digest("hex"), size: bytes.length, version: "0.1.0" };
   const payload = Buffer.from(JSON.stringify(entry));
   await writeFile(join(directory, "manifest.json"), JSON.stringify({ payload: payload.toString("base64"), signature: sign(null, payload, privateKey).toString("base64") }), { mode: 0o600 });
