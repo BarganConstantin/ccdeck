@@ -575,7 +575,7 @@ describe("the boot report's row", () => {
     expect(skillHookStatus(null)).toBeNull();
     expect(skillHookStatus({ ...base, install: false, state: "off", reason: "not-enabled" })).toBeNull();
     expect(skillHookStatus({ ...base, install: true, state: "on", versions: ["2.1.306"] }, "-"))
-      .toEqual({ ok: true, detail: "on - typed slash commands are counted (Claude Code 2.1.306)" });
+      .toEqual({ ok: true, detail: "on - counts typed slash commands (Claude Code 2.1.306)" });
     for (const reason of ["no-claude", "version-unknown", "too-old", "settings-shape", "backup-failed", "raced"]) {
       const said = skillHookStatus({ ...base, install: false, state: "skipped", reason, versions: [null] }, "-");
       expect(said, reason).toMatchObject({ ok: false });

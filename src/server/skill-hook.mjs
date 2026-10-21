@@ -149,7 +149,7 @@ export async function skillHookDecision({
 export function skillHookStatus(decision, dash = "-") {
   if (!decision || decision.state === "off") return null;
   const found = (decision.versions ?? []).map(v => v ?? "unknown").join(", ");
-  if (decision.state === "on") return { ok: true, detail: `on ${dash} typed slash commands are counted (Claude Code ${found})` };
+  if (decision.state === "on") return { ok: true, detail: `on ${dash} counts typed slash commands (Claude Code ${found})` };
   const why = {
     "no-claude": "no Claude Code found",
     "version-unknown": `a Claude Code here does not say its version (found: ${found})`,
