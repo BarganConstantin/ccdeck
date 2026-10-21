@@ -266,7 +266,21 @@ function installVersion(bin, { platform, home, exists, realpath, readText, list 
  * Every dependency is injected so the suite can lay out an npm, a native and a
  * Homebrew install for any platform without one on the machine.
  */
-export function claudeCodeVersions({
+export function claudeCodeVersions(deps = {}) {
+  const out = new Set();
+  for (const { version } of claudeCodeInstalls(deps)) if (version) out.add(version);
+  return [...out];
+}
+
+/**
+ * Every `claude` the deck can find, each with the version its install layout
+ * names, or `version: undefined` where the layout does not say. The same walk
+ * and the same reading as claudeCodeVersions, which keeps only the versions;
+ * this keeps the installs that did not answer too, for a gate that has to
+ * treat "a Claude Code whose version is unknown" as a reason to refuse rather
+ * than as one fewer Claude Code (skill-hook.mjs).
+ */
+export function claudeCodeInstalls({
   platform = process.platform,
   env = process.env,
   home = homedir(),
@@ -275,12 +289,14 @@ export function claudeCodeVersions({
   readText = p => readFileSync(p, "utf8"),
   list = p => readdirSync(p),
 } = {}) {
-  const out = new Set();
+  const out = [];
+  const seen = new Set();
   for (const bin of claudeCliFound({ platform, env, home, exists })) {
-    const v = installVersion(bin, { platform, home, exists, realpath, readText, list });
-    if (v) out.add(v);
+    if (seen.has(bin)) continue;
+    seen.add(bin);
+    out.push({ bin, version: installVersion(bin, { platform, home, exists, realpath, readText, list }) });
   }
-  return [...out];
+  return out;
 }
 
 /**

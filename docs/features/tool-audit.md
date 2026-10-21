@@ -83,8 +83,10 @@ A use is a skill loaded into an agent:
 - **Claude, typed:** `UserPromptExpansion` with `expansion_type: "slash_command"`,
   which Claude Code sends when a typed slash command expands into a prompt
   (skills and custom commands alike; checked on Claude Code 2.1.303). The
-  installer adds the hook; an older Claude Code ignores it, and then only the
-  skills Claude calls itself are counted. The event is recorded and answered
+  installer adds the hook only when the deck is started with
+  `AGENTS_DECK_SKILL_HOOK=1` AND every Claude Code it finds is 2.1.116 or newer
+  (see "The typed-command hook and its gate" below); otherwise only the skills
+  Claude calls itself are counted. The event is recorded and answered
   before the canvas would see it, so it never becomes a canvas event. Built-in
   commands such as `/clear` do not send it; MCP prompts
   (`expansion_type: "mcp_prompt"`) are not counted. Every deck on the device hears
@@ -114,6 +116,57 @@ are not uses.
 skills first starts (and again on Clear). When it falls inside the period the
 page says that counting started then, so the days before it read as empty rather
 than unused.
+
+### The typed-command hook and its gate
+
+The `UserPromptExpansion` entry in Claude Code's `settings.json` is the one part
+of Skill activity that can hurt a machine. Up to 2.1.100, Claude Code ignored
+the whole `settings.json` when it met a hook event name it did not know: the
+user's permissions, env, model and every hook in it, without saying so. 2.1.101
+stopped that (Claude Code's CHANGELOG.md). The event itself arrived in 2.1.116:
+the first npm release whose CLI carries the name and whose Agent SDK lists it in
+`HOOK_EVENTS`. 2.1.114 has neither, and no 2.1.115 was published. Checked
+offline with a scratch config holding the deck's entry: 2.1.100 ignored the
+whole file, 2.1.101 and 2.1.114 read the file and ignored the entry, and 2.1.116
+and 2.1.306 fired it on a typed custom command.
+
+So the installer (`src/server/skill-hook.mjs`, `installer.mjs`) adds the entry
+only when all of these hold:
+
+- the deck was started with `AGENTS_DECK_SKILL_HOOK=1`. It is off by default,
+  and any other value is off;
+- at least one Claude Code was found, in the places the deck looks for `claude`;
+- every Claude Code found names its version, and every one is 2.1.116 or newer.
+  The version is read off disk first (npm `package.json`, the native
+  `versions/` link, the Homebrew cask). Only when the layout names none, and
+  only after the opt-in, is that binary run as `<path> --version`, as argv, and
+  believed only if it answers `<x.y.z> (Claude Code)`. A Claude Code that does
+  not say is treated as an old one;
+- `hooks` in `settings.json` is absent or an object, and any existing
+  `UserPromptExpansion` is a list.
+
+When any of these fails, the entry is left out and the rest of the install goes
+on. Opted in, the boot prints a `Skill hook` row: on, or why not. Not opted in,
+the boot prints what it printed before. Every start decides again: removing the
+opt-in, rolling Claude Code back, or adding an older one takes our entry back
+out on the next start. The user's own `UserPromptExpansion` hooks stay, and the
+key goes only when nothing of theirs is left under it.
+
+The write is the installer's usual one. It reads first and refuses a file that
+does not parse, leaving it untouched. It re-reads just before writing and
+declines when another writer changed the file. It writes atomically (temp file,
+fsync, rename), keeps a symlinked file a symlink, and keeps every key it does
+not own. The first time the entry goes in, the bytes it replaces are copied to
+`<claude config dir>/agent-dag/settings.before-skill-hook.json`, mode 0600.
+`--uninstall` removes the entry with every other forwarder of ours and leaves
+the backup, as it leaves `hook.js`. A file already in Claude Code's own layout
+(2-space JSON) comes back byte for byte when the entry goes. Any other layout is
+rewritten in that one on the deck's first write, as for every deck hook.
+
+Not covered: a Claude Code the deck cannot find. This includes a copy bundled
+inside an IDE extension or an Agent SDK app, and another machine sharing this
+`settings.json`. Every such copy reads the same file, and the gate never sees
+its version.
 
 ## What is recorded
 

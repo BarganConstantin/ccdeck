@@ -151,7 +151,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
           <ul>
             <li>A use is a skill loaded into an agent: Claude calling its Skill tool, a slash command you type, or a skill you pick in Codex with <code>$</code> or <code>/skills</code>. Custom commands count as skills.</li>
             <li>When Codex picks a skill itself, it only reads the skill’s <code>SKILL.md</code> or runs one of its scripts. That counts once per turn, only for a skill Codex listed for the session, and shows as detected.</li>
-            <li>Typed commands are counted from a Claude Code that reports them to its hooks (<code>UserPromptExpansion</code>); with an older one only the skills Claude calls itself are counted.</li>
+            <li>Typed commands are counted only when the deck was started with <code>AGENTS_DECK_SKILL_HOOK=1</code> and every Claude Code on this device is 2.1.116 or newer, which reports them to its hooks (<code>UserPromptExpansion</code>). Otherwise only the skills Claude calls itself are counted.</li>
             <li>The same command run again in one session with the same arguments, such as a <code>/loop</code> tick, is a repeat and stays out of the ranking.</li>
             <li>Built-in commands such as <code>/clear</code> or <code>/model</code>, MCP prompts and a skill’s name typed inside a message are not uses. Skills that are installed but never ran do not appear.</li>
             <li>Failures are shown only when Claude reports that loading a skill failed; Codex reports none.</li>
