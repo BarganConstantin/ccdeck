@@ -192,6 +192,17 @@ describe("what a target must be", () => {
     expect(landable(acct(2, { lanes: [] }), ctx)).toBe(false);
   });
 
+  it("is never an account claude-swap has quarantined, however much room it shows", () => {
+    // Its refresh token is dead, and its usage reads keep working until the
+    // access token expires — so the roster still calls it healthy.
+    const ctx = { threshold: 90, models: [] as string[], busy: new Set<string>(), now: NOW };
+    expect(landable(acct(2, { five: 0 }), { ...ctx, quarantined: new Set(["k2"]) })).toBe(false);
+    expect(landable(acct(2, { five: 0 }), { ...ctx, quarantined: new Set(["k3"]) })).toBe(true);
+    const quarantined = new Set(["k1", "k3"]);
+    const leaving = [acct(1, { five: 0 }), acct(2, { active: true, five: 95 }), acct(3, { weekIn: 10 }), acct(4, { weekIn: 40 })];
+    expect(chooseAccount({ ...base, quarantined, accounts: leaving, choice: { ...weekly, home: "k1" } })?.to.num).toBe(4);
+  });
+
   it("needs a reading newer than any reset it carries", () => {
     expect(readingCurrent(acct(2, { fiveIn: 1 }), [], NOW)).toBe(true);
     expect(readingCurrent(acct(2, { fiveIn: -0.1 }), [], NOW)).toBe(false);
