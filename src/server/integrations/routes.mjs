@@ -21,6 +21,8 @@
 // store already without one (store.mjs); the routes below add only
 // `tokenSaved`. The secret is read for exactly two things: handing it to the
 // provider to build a client, and through that client, signing a request.
+// And what comes back is sent without it: a tracker that echoes the token
+// reaches the page, the saved connection and the log as `[redacted]`.
 import { createHash } from "node:crypto";
 import { readBody, send } from "../http-io.mjs";
 import { errorBody, errorResponse, integrationError, isTypedError } from "./errors.mjs";
@@ -188,7 +190,8 @@ function parseInput(provider, input, existing) {
  *  settle what the connection may reach. What the provider answers is the
  *  whole of the new meta; `inputMeta` (the form's own choices, from
  *  parseInput) fills only what it left out, so nothing a previous check
- *  learned outlives the check that no longer finds it. */
+ *  learned outlives the check that no longer finds it. What the tracker said
+ *  about the account is kept without the secret in it (see below). */
 async function validateCandidate(provider, candidate, secret, { phase, signal, fetchImpl, inputMeta = {} }) {
   const conn = { allowedOrigins: [originOf(candidate.baseUrl)].filter(Boolean), ...candidate };
   const client = provider.createClient(conn, secret, { fetchImpl });
@@ -197,12 +200,90 @@ async function validateCandidate(provider, candidate, secret, { phase, signal, f
   for (const origin of origins) {
     if (!isSafeTarget(origin)) throw integrationError("invalid", `The deck will not send a token to ${origin}.`);
   }
+  const needles = secretNeedles(secret);
   return {
     baseUrl: candidate.baseUrl,
-    account: result?.account ?? {},
-    meta: { ...inputMeta, ...(result?.meta ?? {}), checkedAt: new Date().toISOString() },
+    account: redactSecrets(result?.account ?? {}, needles),
+    meta: redactSecrets({ ...inputMeta, ...(result?.meta ?? {}), checkedAt: new Date().toISOString() }, needles),
     allowedOrigins: [...origins],
   };
+}
+
+// ── the connection's own secret, in nothing the deck sends ──────────────────
+//
+// A tracker may echo what it was sent — a 401 that quotes the Authorization
+// header, a proxy's error page, an account name — and a provider passes the
+// tracker's words on: an error's reason, the account it found. So whatever
+// this file sends or keeps once a secret is in hand — an answer, an error,
+// the account saved with a connection, a failure handed to the log and the
+// error report — has the connection's own secret taken out of it first, each
+// time as `[redacted]`.
+
+export const REDACTED = "[redacted]";
+/** A string of a secret shorter than this is not looked for: "basic" or a
+ *  scheme name occurs anywhere, and no token is this short. */
+const REDACT_MIN = 8;
+const EMAIL = /^[^\s@]+@[^\s@]+$/;
+
+/**
+ * What of one or more secrets must never leave the deck, longest first: each
+ * string in a secret of REDACT_MIN characters or more — but an email address,
+ * which names who signs and is the account the page already shows — and the
+ * HTTP Basic credential one of its strings makes with another. The secret
+ * stays opaque: nothing here reads one of its fields by name.
+ */
+export function secretNeedles(...secrets) {
+  const needles = new Set();
+  for (const secret of secrets) {
+    const strings = [];
+    const walk = (value, depth) => {
+      if (typeof value === "string") strings.push(value);
+      else if (value && typeof value === "object" && depth < 8) for (const v of Object.values(value)) walk(v, depth + 1);
+    };
+    walk(secret, 0);
+    const own = strings.filter(s => s.length >= REDACT_MIN && !EMAIL.test(s));
+    for (const s of own) needles.add(s);
+    for (const user of strings) for (const s of own) {
+      if (user !== s) needles.add(Buffer.from(`${user}:${s}`, "utf8").toString("base64"));
+    }
+  }
+  return [...needles].sort((a, b) => b.length - a.length);
+}
+
+function redactText(text, needles) {
+  let out = text;
+  for (const needle of needles) if (out.includes(needle)) out = out.split(needle).join(REDACTED);
+  return out;
+}
+
+/**
+ * `value` with every needle replaced in every string in it, its keys too —
+ * or `value` itself, untouched, when no needle is anywhere in it (the
+ * answer as JSON is searched first, so an ordinary read costs one pass).
+ */
+export function redactSecrets(value, needles) {
+  if (!needles.length || value == null) return value;
+  if (typeof value === "string") return redactText(value, needles);
+  let json;
+  try { json = JSON.stringify(value); } catch { return value; }
+  if (json === undefined || !needles.some(n => json.includes(JSON.stringify(n).slice(1, -1)))) return value;
+  const walk = v => {
+    if (typeof v === "string") return redactText(v, needles);
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [redactText(k, needles), walk(x)]));
+    return v;
+  };
+  return walk(JSON.parse(json));
+}
+
+/** A failure that is a bug rather than a typed error, as the log and the
+ *  error report get it: its message and stack without the secret, and none
+ *  of what it carried besides (a cause may hold a request). */
+function redactedError(err, needles) {
+  const copy = new Error(redactText(String(err?.message ?? err), needles));
+  copy.name = typeof err?.name === "string" ? err.name : "Error";
+  copy.stack = typeof err?.stack === "string" ? redactText(err.stack, needles) : copy.stack;
+  return copy;
 }
 
 async function readJsonBody(req, res) {
@@ -213,11 +294,6 @@ async function readJsonBody(req, res) {
     return body && typeof body === "object" && !Array.isArray(body) ? body : {};
   } catch { return {}; }
 }
-
-const reply = (res, err) => {
-  const { status, body } = errorResponse(err);
-  send(res, status, body);
-};
 
 /** A connection as the page draws it: the account's avatar made loadable,
  *  through the asset route, where the provider's client decides whether its
@@ -261,6 +337,14 @@ export async function handleIntegrations(req, res, url, deps = {}) {
   res.on?.("close", () => { if (!res.writableEnded) controller.abort(); });
   const signal = controller.signal;
 
+  // Every secret this request has in hand — a saved one, a candidate, the
+  // token as it was typed — and the answer without any of them.
+  const held = [];
+  const hold = secret => { if (secret != null) held.push(secret); return secret; };
+  const needles = () => secretNeedles(...held);
+  const answer = (status, body) => send(res, status, held.length ? redactSecrets(body, needles()) : body);
+  const clean = text => (held.length ? redactSecrets(text, needles()) : text);
+
   try {
     if (segments.length === 0) {
       if (method !== "GET" && method !== "HEAD") return notAllowed(res);
@@ -274,13 +358,15 @@ export async function handleIntegrations(req, res, url, deps = {}) {
         if (body == null) return;
         const provider = getProvider(String(body.kind ?? ""));
         if (!provider) throw integrationError("invalid", "Choose which tracker to connect.", { field: "kind" });
+        hold(typeof body.input?.token === "string" ? body.input.token : null);
         const candidate = parseInput(provider, body.input ?? {}, null);
+        hold(candidate.secret);
         const checked = await validateCandidate(provider, { kind: provider.kind, name: "", baseUrl: candidate.baseUrl, meta: candidate.meta ?? {} }, candidate.secret,
           { phase: "validate", signal, fetchImpl, inputMeta: candidate.meta });
-        const name = String(body.name ?? candidate.name ?? "").trim().slice(0, 120)
-          || (provider.defaultName ? provider.defaultName(checked) : provider.label);
+        const name = clean(String(body.name ?? candidate.name ?? "").trim()).slice(0, 120)
+          || clean(provider.defaultName ? provider.defaultName(checked) : provider.label);
         const connection = await store.create({ kind: provider.kind, name, ...checked }, candidate.secret);
-        return send(res, 201, { ok: true, connection: forPage(connection) });
+        return answer(201, { ok: true, connection: forPage(connection) });
       }
       if (!id || segments.length > 3) return notFound(res);
       const existing = await store.get(id);
@@ -299,32 +385,34 @@ export async function handleIntegrations(req, res, url, deps = {}) {
       if (!provider) throw integrationError("incompatible", `This deck no longer knows how to talk to ${existing.kind}.`);
 
       if (action === "test" && method === "POST") {
-        const secret = await store.secret(id);
+        const secret = hold(await store.secret(id));
         if (secret == null) throw integrationError("expired", "No token is saved for this connection. Edit it and enter one.");
         const checked = await validateCandidate(provider, existing, secret, { phase: "use", signal, fetchImpl });
         const connection = await store.update(id, checked);
         forgetConnection(id);
-        return send(res, 200, { ok: true, connection: forPage(connection) });
+        return answer(200, { ok: true, connection: forPage(connection) });
       }
 
       if (!action && (method === "PATCH" || method === "POST")) {
         const body = await readJsonBody(req, res);
         if (body == null) return;
-        const name = typeof body.name === "string" ? body.name.trim().slice(0, 120) : undefined;
+        const existingSecret = hold(await store.secret(id));
+        const name = typeof body.name === "string" ? clean(body.name.trim()).slice(0, 120) : undefined;
         if (body.input && typeof body.input === "object") {
-          const existingSecret = await store.secret(id);
+          hold(typeof body.input.token === "string" ? body.input.token : null);
           const candidate = parseInput(provider, body.input, { conn: existing, secret: existingSecret });
           if (candidate.secret == null) throw integrationError("invalid", "Enter a token.", { field: "token" });
+          hold(candidate.secret);
           if (needsValidation(existing, existingSecret, candidate)) {
             const checked = await validateCandidate(provider, { ...existing, baseUrl: candidate.baseUrl, meta: { ...existing.meta, ...(candidate.meta ?? {}) } }, candidate.secret,
               { phase: "validate", signal, fetchImpl, inputMeta: candidate.meta });
             const connection = await store.update(id, { ...checked, ...(name ? { name } : {}) }, candidate.secret);
             forgetConnection(id);
-            return send(res, 200, { ok: true, connection: forPage(connection), validated: true });
+            return answer(200, { ok: true, connection: forPage(connection), validated: true });
           }
         }
         const connection = await store.update(id, name ? { name } : {});
-        return send(res, 200, { ok: true, connection: forPage(connection), validated: false });
+        return answer(200, { ok: true, connection: forPage(connection), validated: false });
       }
       return notAllowed(res);
     }
@@ -351,16 +439,19 @@ export async function handleIntegrations(req, res, url, deps = {}) {
 
     const conn = await store.get(id);
     if (!conn || conn.kind !== kind) throw integrationError("not-found", "That connection is not there any more.");
-    const secret = await store.secret(id);
+    const secret = hold(await store.secret(id));
     if (secret == null) throw integrationError("expired", "No token is saved for this connection. Reconnect it in Settings.");
     const client = clientFor(provider, conn, secret, { fetchImpl });
 
-    const answer = await provider.routes(client, method, rest.join("/"), url.searchParams, req, { signal });
+    const read = await provider.routes(client, method, rest.join("/"), url.searchParams, req, { signal });
     if (res.writableEnded || signal.aborted) return;
-    const status = Number.isInteger(answer?.status) ? answer.status : 500;
-    return send(res, status, answer?.body ?? errorBody(null));
+    const status = Number.isInteger(read?.status) ? read.status : 500;
+    return answer(status, read?.body ?? errorBody(null));
   } catch (err) {
-    if (isTypedError(err)) return reply(res, err);
-    throw err;
+    if (isTypedError(err)) {
+      const { status, body } = errorResponse(err);
+      return answer(status, body);
+    }
+    throw held.length ? redactedError(err, needles()) : err;
   }
 }
