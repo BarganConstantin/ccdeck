@@ -1,15 +1,17 @@
-// Settings › General, last of its switches: the terminal (use-stage.ts), a
-// Beta that every deck starts with off.
+// Settings › General, after the board: the terminal (use-stage.ts), a Beta
+// that every deck starts with off.
 //
-// Drawn as Keyboard's row is — a caption, then one <label> row with the switch
-// on the name's line and the note under both — with Beta on the caption's
-// right, where a group's one piece of metadata goes. The note says what the
-// switch gives and what it needs, because tmux is the one thing here that is
-// not already on the machine. Two states the press cannot change are said
+// One row in the shared shape (SettingsParts.tsx, #2176) — the switch on the
+// name's line, the note under the name — in a group of its own, with Beta in
+// the caption's right-hand slot, where a group's one piece of metadata goes.
+// The note says what the switch gives and what it needs, because tmux is the
+// one thing here that is not already on the machine. Two states the press cannot change are said
 // rather than offered: a deck launched with the terminal on (the switch reads
 // on and is fixed), and Windows, which has no tmux — fixed off there, though
 // never fixed on: a settings file carried over from another machine can still
 // be switched off.
+
+import { SettingRow, SettingsGroup } from "./SettingsParts";
 
 export interface TerminalSwitch {
   /** The terminal is on now, whichever way. */
@@ -35,14 +37,18 @@ export default function TerminalSection({ terminal, platform }: { terminal: Term
   const windows = /^win/i.test(platform);
   const fixed = terminal.forced || (windows && !terminal.on);
   return (
-    <section className="settings-group" aria-labelledby="settings-terminal-caption">
-      <div className="settings-caption">
-        <h3 id="settings-terminal-caption">Terminal</h3>
-        <span className="settings-beta" title={BETA_TITLE}>Beta</span>
-      </div>
-      <div className="appearance-controls">
-        <label className="appearance-row">
-          <span className="appearance-row-label" id="settings-terminal-label">{TERMINAL_LABEL}</span>
+    <SettingsGroup
+      id="settings-terminal-caption"
+      title="Terminal"
+      aside={<span className="settings-beta" title={BETA_TITLE}>Beta</span>}
+    >
+      <SettingRow
+        settingId="terminal"
+        name={TERMINAL_LABEL}
+        nameId="settings-terminal-label"
+        note={terminalNote(terminal.forced, windows)}
+        noteId="settings-terminal-note"
+        control={
           <button
             type="button"
             className="switch"
@@ -55,9 +61,8 @@ export default function TerminalSection({ terminal, platform }: { terminal: Term
           >
             <span className="switch-knob" />
           </button>
-          <span id="settings-terminal-note" className="appearance-row-note">{terminalNote(terminal.forced, windows)}</span>
-        </label>
-      </div>
-    </section>
+        }
+      />
+    </SettingsGroup>
   );
 }

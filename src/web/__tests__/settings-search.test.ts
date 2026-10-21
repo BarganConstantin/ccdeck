@@ -19,6 +19,7 @@ import { THEMES, THEME_DEFINITIONS } from "../theme";
 import { ACCOUNT_NOTIFY_SWITCHES } from "../notify-reach";
 import { CHIME_ORDER } from "../sound";
 import { TONE_LABEL } from "../components/ToneSection";
+import { TERMINAL_LABEL } from "../components/TerminalSection";
 import SettingsModal, { type SettingsModalProps } from "../components/SettingsModal";
 import { DEFAULT_PREFS } from "../sound";
 import { ACCOUNT_NOTIFY_DEFAULTS } from "../use-os-notifications";
@@ -99,6 +100,13 @@ describe("the index holds every place a result can land", () => {
     for (const chime of CHIME_ORDER) {
       expect(SETTINGS_INDEX.find(e => e.id === `tone-${chime}`)?.label).toBe(TONE_LABEL[chime]);
     }
+  });
+
+  it("names the terminal's switch as General names it, and finds it by the words people use for one", () => {
+    const entry = SETTINGS_INDEX.find(e => e.id === "terminal")!;
+    expect(entry.label).toBe(TERMINAL_LABEL);
+    expect(resultPlace(entry)).toBe("General › Terminal");
+    for (const q of ["terminal", "tmux", "shell", "command line"]) expect(ids(searchSettings(q)), q).toContain("terminal");
   });
 
   it("names every theme by its name, under Appearance › Theme", () => {
