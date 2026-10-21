@@ -191,19 +191,25 @@ async function heldDeck(name: string, { ipc = false, holdUnlink = false } = {}) 
   return { c, record, exited, said, out: () => out };
 }
 
-describe.skipIf(process.platform === "win32")("a deck signalled between writing its record and the end of its boot", () => {
-  it.each([["SIGHUP", 129], ["SIGTERM", 0], ["SIGINT", 0]] as const)(
-    "runs its shutdown on %s and exits %i", async (sig, want) => {
-      const { c, record, exited, out } = await heldDeck(sig);
-      c.kill(sig);
-      // A deck that is shutting down waits for that write to finish before it
-      // removes the record — see discovery.stop() — so it has to be let go of.
-      letGo(c.pid, "chmod");
-      const { code, signal } = await exited;
+/** Signal a held deck, let its write go, and see what it left and how it ended. */
+async function signalledMidBoot(sig: "SIGHUP" | "SIGTERM" | "SIGINT", want: number) {
+  const { c, record, exited, out } = await heldDeck(sig);
+  c.kill(sig);
+  // A deck that is shutting down waits for that write to finish before it
+  // removes the record — see discovery.stop() — so it has to be let go of.
+  letGo(c.pid, "chmod");
+  const { code, signal } = await exited;
 
-      expect(existsSync(record), `the record was left behind\n${out()}`).toBe(false);
-      expect({ code, signal }, out()).toEqual({ code: want, signal: null });
-    }, 90_000);
+  expect(existsSync(record), `the record was left behind\n${out()}`).toBe(false);
+  expect({ code, signal }, out()).toEqual({ code: want, signal: null });
+}
+
+// One case per signal, written out rather than as it.each: skip-gates.mjs
+// counts the cases behind this gate from the source, one per `it(`.
+describe.skipIf(process.platform === "win32")("a deck signalled between writing its record and the end of its boot", () => {
+  it("runs its shutdown on SIGHUP and exits 129", () => signalledMidBoot("SIGHUP", 129), 90_000);
+  it("runs its shutdown on SIGTERM and exits 0", () => signalledMidBoot("SIGTERM", 0), 90_000);
+  it("runs its shutdown on SIGINT and exits 0", () => signalledMidBoot("SIGINT", 0), 90_000);
 
   // The boot is still running when its shutdown starts, and from here on it
   // must not get any further: no browser, no login item, no pulse, no
