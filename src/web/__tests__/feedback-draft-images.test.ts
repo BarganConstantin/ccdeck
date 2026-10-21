@@ -6,6 +6,7 @@
 //
 // Run on fake-react.ts's React, with the fit of each image answered by the
 // test, as feedback-refused-while-sending.test.ts does.
+import "./web-globals";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { flush, mount } from "./fake-react";

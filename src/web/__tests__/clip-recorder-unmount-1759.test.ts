@@ -12,6 +12,7 @@
 // whose setter does nothing, a ref that keeps its value, and an effect whose
 // cleanup the test calls as the unmount — and the microphone and the recorder
 // are fakes the test answers by hand. Nothing here opens a real device.
+import "./web-globals";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const react = vi.hoisted(() => ({

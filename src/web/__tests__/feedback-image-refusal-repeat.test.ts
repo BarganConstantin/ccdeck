@@ -14,6 +14,7 @@
 // react-dom asks of `window` on the way. What the dialog draws from it — the
 // alert keyed on each refusal — is FeedbackShots', compared in a browser and
 // pinned in feedback-images.test.ts.
+import "./web-globals";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";

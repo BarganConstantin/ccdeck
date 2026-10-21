@@ -6,6 +6,7 @@
 // vi.resetModules, then the dialog imported again. The mocked "react" is kept
 // by the mocks registry across the reset, so it also hands over the
 // fake-react.ts it was made from, and the dialog is mounted by that one.
+import "./web-globals";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Drawn } from "./fake-react";

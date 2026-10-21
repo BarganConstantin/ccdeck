@@ -7,6 +7,7 @@
 //
 // Run on fake-react.ts's React: the dialog itself is mounted, written in,
 // handed a pasted screenshot, closed (unmounted) and opened (mounted) again.
+import "./web-globals";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { flush, mount, one, type Drawn } from "./fake-react";
