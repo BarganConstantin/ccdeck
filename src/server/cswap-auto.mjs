@@ -24,6 +24,7 @@ import { invalidateClaudeAccountsCache, slotNumber } from "./claude-accounts.mjs
 // The one store mutex, which the rotation flag below holds like every other
 // writer of claude-swap's store.
 import { withStoreLock } from "./store-lock.mjs";
+import { preferredAccount, setPreferredAccount } from "./preferred-account.mjs";
 
 // Only these may be written, and only with a value of the right shape. The
 // value reaches an exec argument, and `cswap config set` will happily store
@@ -40,6 +41,7 @@ const SETTINGS = {
 // user runs their own loop — each one child at a time and one per window
 // (#616): cswap-auto-readers.mjs.
 export { invalidateCswapAutoCache, readCswapConfig };
+export { setPreferredAccount };
 
 // ── settings ───────────────────────────────────────────────────────────────
 
@@ -136,13 +138,14 @@ export { commandTokens, externalAutoRunning, looksLikeAutoLoop };
 export { initCswapAuto, setAutoEnabled };
 
 export async function autoStatus() {
-  const [config, external] = await Promise.all([readCswapConfig(), externalAutoRunning()]);
+  const [config, external, preferred] = await Promise.all([readCswapConfig(), externalAutoRunning(), preferredAccount()]);
   return {
     ok:        config != null,
     enabled:   loopEnabled(),
     external,                       // user is running their own `cswap auto`
     lastTick:  lastTick(),
     settings:  config ?? {},
+    preferred,
   };
 }
 

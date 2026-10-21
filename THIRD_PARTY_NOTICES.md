@@ -97,8 +97,8 @@ is off under `AGENTS_DECK_NO_INSTALL=1`.
 | `react-dom` | 18.3.1 | MIT | Copyright (c) Facebook, Inc. and its affiliates. |
 | `reactflow` | 11.11.4 | MIT | Copyright (c) 2019-2023 webkid GmbH |
 | `scheduler` | 0.23.2 | MIT | Copyright (c) Facebook, Inc. and its affiliates. |
-| `use-sync-external-store` | 1.6.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| `vite` | 6.4.3 | MIT | Copyright (c) 2019-present, VoidZero Inc. and Vite contributors |
+| `use-sync-external-store` | 1.7.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| `vite` | 6.4.4 | MIT | Copyright (c) 2019-present, VoidZero Inc. and Vite contributors |
 | `zustand` | 4.5.7 | MIT | Copyright (c) 2019 Paul Henschel |
 
 Every one is a permissive licence (MIT, ISC, BSD-3-Clause, Apache-2.0). All
@@ -171,7 +171,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 2. `use-sync-external-store` 1.6.0
+### 2. `use-sync-external-store` 1.7.0
 
 ```text
 MIT License
@@ -458,7 +458,7 @@ licenses; we recommend you read them, as their terms may differ from the
 terms above.
 ```
 
-### 13. `vite` 6.4.3
+### 13. `vite` 6.4.4
 
 The code Vite contributes to `dist/web` is its own — the `modulePreloadPolyfill`
 that opens the entry chunk, and the CommonJS interop helpers that follow it. Both

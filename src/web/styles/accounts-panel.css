@@ -740,3 +740,13 @@
 
 
 .ap-report-upd-h { text-align: left; }
+.ap-preferred-account {
+  display: grid;
+  gap: 8px;
+  margin-top: 0.75rem;
+}
+
+.ap-preferred-account select {
+  min-width: 0;
+  width: 100%;
+}

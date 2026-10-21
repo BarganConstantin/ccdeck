@@ -348,6 +348,9 @@ export async function handleCswapAutoAction(req, res) {
     case "account":
       result = await mod.setAccountEnabled(parsed.account, parsed.enabled === true);
       break;
+    case "preferred":
+      result = await mod.setPreferredAccount(parsed.account ?? null);
+      break;
     default:
       return send(res, 400, { ok: false, reason: "unknown_action" });
   }

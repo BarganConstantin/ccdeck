@@ -7,15 +7,16 @@
 // elements focus moves between stay in the panel and are handed in, because
 // the row unmounts whenever the fold is shut and a pick nobody saved must
 // outlive that.
-import { type KeyboardEvent, type Ref, useId } from "react";
+import { type KeyboardEvent, type Ref, useEffect, useId, useState } from "react";
 
 import { CUSTOM_HINT, CUSTOM_PICK, thresholdChoices } from "../auto-switch-threshold";
-import { type AutoStatus } from "../claude-accounts";
+import { type Account, type AutoStatus } from "../claude-accounts";
 import { type PickerCommit } from "../picker-commit";
 import { type useRequestSlot } from "../use-request-slot";
 
 interface Props {
   auto: AutoStatus;
+  accounts?: Account[];
   /** Where auto-switch trips, as the store holds it. */
   threshold: string;
   /** What the picker is showing, which is a proposal until it is saved. */
@@ -47,11 +48,15 @@ interface Props {
  * over is the one thing still said under it.
  */
 export default function AutoSwitchPolicy({
-  auto, threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdRef, thresholdSaveRef,
+  auto, accounts, threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdRef, thresholdSaveRef,
   thresholdCustom, thresholdRefusal, thresholdFieldRef,
   proposeThreshold, typeThreshold, cancelThreshold, leaveThreshold, doThreshold, pressProps, post, load,
 }: Props) {
   const noteId = useId();
+  const savedPreferred = String(accounts?.find(a => a.email === auto.preferred?.email
+    && (a.orgUuid ?? null) === auto.preferred?.orgUuid)?.num ?? "");
+  const [preferredPick, setPreferredPick] = useState(savedPreferred);
+  useEffect(() => setPreferredPick(savedPreferred), [savedPreferred]);
   return (
     <div className="ap-policy-block">
       {/* Escape is the row's while the field is open, so it reaches the field
@@ -137,6 +142,29 @@ export default function AutoSwitchPolicy({
           <span className="switch-knob" />
         </button>
       </div>
+
+      {accounts && <label className="ap-preferred-account">
+        Return to after 5h reset
+        <select
+          aria-label="Preferred account after five-hour reset"
+          value={preferredPick}
+          {...pressProps("preferred")}
+          onChange={e => setPreferredPick(e.target.value)}
+        >
+          <option value="">None</option>
+          {accounts.filter(a => a.email && a.lanes.some(l => l.id === "five_hour")).map(a => (
+            <option key={a.num} value={a.num} disabled={a.disabled || a.alive === false}>
+              {a.alias || a.email}{a.disabled ? " (held out)" : a.alive === false ? " (unavailable)" : ""}
+            </option>
+          ))}
+        </select>
+        {preferredPick !== savedPreferred && (
+          <button type="button" className="ap-manage-btn" {...pressProps("preferred")}
+            onClick={() => post({ action: "preferred", account: preferredPick ? Number(preferredPick) : null }, "preferred").then(() => load(true))}
+          >Save</button>
+        )}
+      </label>}
+      {accounts && <p className="ap-auto-note">With Auto-switch on, return to this account when its 5h window resets and all its limits are below the threshold.</p>}
 
       {/* What the field takes, under it while it is open, and in its place
           why a value was refused. Two keyed nodes rather than one whose text

@@ -87,4 +87,5 @@ export interface AutoStatus {
   external: boolean;          // the user runs their own `cswap auto` loop
   lastTick: AutoTick | null;
   settings: Record<string, { value: string | null; isDefault: boolean }>;
+  preferred?: { email: string; orgUuid: string | null; resetAt: number | null; awaitingWindow: boolean } | null;
 }

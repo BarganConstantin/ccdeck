@@ -83,6 +83,9 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
   "components/AutoSwitchPolicy.tsx": [{
     name: "the auto-switch threshold",
     chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-policy-block"]), el("div", ["ap-policy"]), el("span", ["ap-field"]), el("select")],
+  }, {
+    name: "the preferred return account",
+    chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-policy-block"]), el("label", ["ap-preferred-account"]), el("select")],
   }],
   "components/AccountMenuPopover.tsx": [{
     name: "an account's slot",

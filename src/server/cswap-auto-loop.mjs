@@ -16,6 +16,7 @@ import { invalidateQuotaCache } from "./quota.mjs";
 // The one store mutex. A tick is the only thing in the deck that moves the live
 // account with nobody watching, which is why it of all writers must queue.
 import { withStoreLock } from "./store-lock.mjs";
+import { loadPreferredAccount, preferredAccountConfigured, returnToPreferred } from "./preferred-account.mjs";
 // Told about every finished tick and about the switch itself, so a tick that
 // moved the account is said once on the desktop (account-notify.mjs). Both
 // doors return at once and never throw.
@@ -94,7 +95,19 @@ async function runAutoTick() {
   const r = await withStoreLock(async () => {
     if (!_enabled) return { skipped: "disabled" };
     if (await externalAutoRunning()) return { skipped: "external-engine" };
-    return run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS });
+    const output = await run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS });
+    if (output.timedOut || (!output.ok && !output.stdout)) return output;
+    const summary = summarise(output.stdout);
+    if (summary.switched || summary.reason === "cooldown") return output;
+    if (!preferredAccountConfigured()) return output;
+    const config = await readCswapConfig();
+    const threshold = Number(config?.["autoswitch.threshold"]?.value ?? 90);
+    if (!_enabled || await externalAutoRunning() || !_enabled) return output;
+    const preferred = await returnToPreferred(threshold, async () => {
+      if (!_enabled) return false;
+      return !(await externalAutoRunning()) && _enabled;
+    }).catch(() => null);
+    return { ...output, preferred };
   });
   if (r.skipped) return { event: "skipped", reason: r.skipped };
   // A KILLED RUN IS NOT A QUIET ONE. `run`'s timeout path deliberately keeps an
@@ -109,7 +122,15 @@ async function runAutoTick() {
   if (!r.ok && !r.stdout) {
     return { ok: false, reason: "tick_failed", detail: failureDetail(r, 300) };
   }
-  return { ok: true, ...summarise(r.stdout) };
+  const result = { ok: true, ...summarise(r.stdout) };
+  if (r.preferred) {
+    result.switched = true;
+    result.event = "switch";
+    result.reason = "preferred-five-hour-reset";
+    result.from = r.preferred.from;
+    result.to = r.preferred.to;
+  }
+  return result;
 }
 
 // ── deck-managed loop ──────────────────────────────────────────────────────
@@ -358,6 +379,7 @@ export async function setAutoEnabled(enabled) {
  */
 export async function initCswapAuto({ after = null } = {}) {
   _toolQuiet = Promise.resolve(after).then(() => {}, () => {});
+  await loadPreferredAccount();
   const state = await loadState();
   if (state.enabled) { _enabled = true; noteAutoSwitch(true); await startLoop(); }
 }

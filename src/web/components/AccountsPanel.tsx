@@ -473,7 +473,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
    * drop a pick nobody saved.
    */
   const policyBlock = data?.ok && auto?.ok ? (
-    <AutoSwitchPolicy auto={auto} threshold={threshold} thresholdPick={thresholdPick}
+    <AutoSwitchPolicy auto={auto} accounts={data.accounts ?? []} threshold={threshold} thresholdPick={thresholdPick}
       thresholdCtl={thresholdCtl} thresholdSaved={thresholdSaved}
       thresholdRef={thresholdRef} thresholdSaveRef={thresholdSaveRef}
       thresholdCustom={thresholdCustom} thresholdRefusal={thresholdRefusal} thresholdFieldRef={thresholdFieldRef}
