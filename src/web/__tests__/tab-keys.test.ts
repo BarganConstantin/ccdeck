@@ -50,6 +50,7 @@ function stubPage(over: { platform?: string; ua?: string; lock?: boolean; fullsc
    *  the page asked to stay. */
   const leave = () => {
     const e = new Event("beforeunload", { cancelable: true }) as Event & { returnValue?: unknown };
+    Object.defineProperty(e, "returnValue", { value: undefined, writable: true });
     win.dispatchEvent(e);
     return e.defaultPrevented;
   };

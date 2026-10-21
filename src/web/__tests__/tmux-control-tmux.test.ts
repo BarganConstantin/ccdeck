@@ -427,7 +427,8 @@ describe("against a real tmux", () => {
     expect(before).toEqual(["DISPLAY=:0", "SSH_AUTH_SOCK=/run/user/1000/agent.sock"]);
     // A deck started by a login item: no agent socket, no display, both of
     // which are on tmux's default update-environment list.
-    const deckEnv: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: process.env.HOME, LANG: "C.UTF-8" };
+    const deckEnv: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: process.env.HOME, LANG: "C.UTF-8",
+      ...(process.env.TMUX_TMPDIR ? { TMUX_TMPDIR: process.env.TMUX_TMPDIR } : {}) };
     const c = open({ target: paneOf("envs"), pane: paneOf("envs"), ignoreSize: true, env: deckEnv });
     await c.ready;
     await c.seed();
