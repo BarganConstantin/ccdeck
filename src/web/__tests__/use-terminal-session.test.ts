@@ -668,6 +668,26 @@ describe("keys, paste and the pane's size", () => {
     expect(mount).toMatch(/replies\.dispose\(\)/);
   });
 
+  it("keeps 10,000 lines of scrollback in the pane, the history the deck's tmux keeps for it (8ecfcfb7)", () => {
+    // mountXterm's options (source-pinned: they need a real xterm). xterm's
+    // own default is 1,000 and the stage kept 2,000 before 8ecfcfb7; native
+    // terminals keep 10,000, and so does the pane's tmux (PANE_HISTORY,
+    // set as history-limit on the deck's server). A reattach seeds only the
+    // last SEED_HISTORY lines, which must stay below what the pane keeps.
+    const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+    const src = read("../use-terminal-session.ts");
+    const mount = src.slice(src.indexOf("export const mountXterm"), src.indexOf("// The controller."));
+    const lines = (text: string, re: RegExp) => Number((re.exec(text)?.[1] ?? "NaN").replaceAll("_", ""));
+    const kept = lines(mount, /\n\s*scrollback: ([\d_]+),/);
+    expect(kept, "the pane's scrollback").toBe(10_000);
+    expect(mount.match(/\bscrollback:/g), "set once, in the one Terminal the stage makes").toHaveLength(1);
+    const sessions = read("../../server/terminal-sessions.mjs");
+    expect(lines(sessions, /export const PANE_HISTORY = ([\d_]+);/), "the deck's tmux history-limit").toBe(kept);
+    expect(sessions).toMatch(/\["set-option", "-g", "history-limit", String\(PANE_HISTORY\)\]/);
+    const socket = read("../../server/terminal-socket.mjs");
+    expect(lines(socket, /export const SEED_HISTORY = ([\d_]+);/), "a reattach's seed fits in what the pane keeps").toBeLessThan(kept);
+  });
+
   it("keeps the release chord from the pane without acting on it, and lets Escape through to the TUI", async () => {
     // The release itself is the deck's window listener's (terminal-keys.ts):
     // answering it here too would release twice.
