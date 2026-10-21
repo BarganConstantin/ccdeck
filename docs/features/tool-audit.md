@@ -135,7 +135,8 @@ only when all of these hold:
 
 - the deck was started with `AGENTS_DECK_SKILL_HOOK=1`. It is off by default,
   and any other value is off;
-- at least one Claude Code was found, in the places the deck looks for `claude`;
+- at least one Claude Code was found, in the places the deck looks for `claude`
+  (PATH, the known install directories, and `AGENTS_DECK_CLAUDE`);
 - every Claude Code found names its version, and every one is 2.1.116 or newer.
   The version is read off disk first (npm `package.json`, the native
   `versions/` link, the Homebrew cask). Only when the layout names none, and

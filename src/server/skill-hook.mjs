@@ -24,7 +24,8 @@
 //
 // WHAT HAS TO BE TRUE before the entry is written:
 //   - the deck was started with AGENTS_DECK_SKILL_HOOK=1 — never by default;
-//   - at least one Claude Code was found, the way the deck finds `claude`;
+//   - at least one Claude Code was found, the way the deck finds `claude`: the
+//     candidate list (claude-dir.mjs) and AGENTS_DECK_CLAUDE;
 //   - EVERY one found says which version it is, and every one is 2.1.116 or
 //     newer. An old CLI anywhere on the machine still reads the same file, and
 //     one that will not say its version is treated as an old one.
@@ -103,7 +104,8 @@ async function askVersion(runImpl, bin, timeout) {
  * is claudeCodeInstalls()'s answer, `runImpl` is exec.mjs's run.
  */
 export async function skillHookDecision({
-  optedIn = skillHookOptedIn(),
+  env = process.env,
+  optedIn = skillHookOptedIn(env),
   installs,
   runImpl = run,
   timeout = PROBE_TIMEOUT_MS,
@@ -114,10 +116,16 @@ export async function skillHookDecision({
   if (!optedIn) return { install: false, state: "off", reason: "not-enabled", since, versions: [] };
   let found;
   try {
-    found = Array.isArray(installs) ? installs : claudeCodeInstalls();
+    found = Array.isArray(installs) ? [...installs] : claudeCodeInstalls();
   } catch {
     found = [];
   }
+  // AGENTS_DECK_CLAUDE is the other way the deck finds `claude` — the sign-in
+  // and the account panel run it ahead of the candidate list
+  // (claude-identity.mjs) — so it is one more Claude Code that reads this
+  // settings.json. Its layout is not read: it is asked.
+  const configured = typeof env?.AGENTS_DECK_CLAUDE === "string" ? env.AGENTS_DECK_CLAUDE.trim() : "";
+  if (configured && !found.some(i => i.bin === configured)) found.push({ bin: configured, version: undefined });
   if (found.length === 0) return { install: false, state: "skipped", reason: "no-claude", since, versions: [] };
   const versions = [];
   for (const { bin, version } of found) {

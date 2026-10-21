@@ -13,13 +13,16 @@
 // stop-failure-install-2185 runs it.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
 import {
-  chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync,
+  chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 
-const DIR = mkdtempSync(join(tmpdir(), "ccdeck-skill-hook-fp03-"));
+// Resolved, because the version is read through the install's realpath and
+// macOS's temp directory is a link (/var → /private/var): the fakes have to be
+// recognised under the name the deck will see them by.
+const DIR = realpathSync(mkdtempSync(join(tmpdir(), "ccdeck-skill-hook-fp03-")));
 const FAKE = join(DIR, "fake");
 const prevEnv = {
   HOME: process.env.HOME,
@@ -27,13 +30,16 @@ const prevEnv = {
   CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
   CODEX_HOME: process.env.CODEX_HOME,
   AGENTS_DECK_SKILL_HOOK: process.env.AGENTS_DECK_SKILL_HOOK,
+  AGENTS_DECK_CLAUDE: process.env.AGENTS_DECK_CLAUDE,
 };
 process.env.HOME = DIR;
 process.env.USERPROFILE = DIR;
 process.env.CLAUDE_CONFIG_DIR = join(DIR, ".claude");
 process.env.CODEX_HOME = join(DIR, "codex");
-// The default under test is the one a person gets: nothing set.
+// The default under test is the one a person gets: nothing set. And no
+// configured claude of the machine running the suite gets asked anything.
 delete process.env.AGENTS_DECK_SKILL_HOOK;
+delete process.env.AGENTS_DECK_CLAUDE;
 
 // @ts-expect-error — plain .mjs module, no types
 const installer = await import("../../server/installer.mjs");
@@ -45,7 +51,10 @@ const claudeDir = await import("../../server/claude-dir.mjs");
 type Install = { bin: string; version?: string };
 type Decision = { install: boolean; state: string; reason?: string; since: string; versions: (string | null)[]; backup?: string };
 type RunResult = { ok: boolean; stdout?: string; stderr?: string };
-type SkillOptions = { optedIn?: boolean; installs?: Install[]; runImpl?: (cmd: string, args: string[], o: object) => Promise<RunResult>; timeout?: number };
+type SkillOptions = {
+  env?: Record<string, string | undefined>; optedIn?: boolean; installs?: Install[];
+  runImpl?: (cmd: string, args: string[], o: object) => Promise<RunResult>; timeout?: number;
+};
 type InstallResult = { changed: boolean; raced?: boolean; events: string[]; skillHook?: Decision };
 
 const { CLAUDE_DIR, installHooks, uninstallHooks, SKILL_HOOK_BACKUP } = installer as {
@@ -265,6 +274,31 @@ describe("a claude whose layout does not say, asked --version", () => {
   it("refuses when one install says and another cannot", async () => {
     const d = await skillHookDecision({ optedIn: true, installs: found(npmInstall("2.1.306"), wrapper("dev").dir) });
     expect(d).toMatchObject({ install: false, reason: "version-unknown" });
+  });
+});
+
+describe("the claude AGENTS_DECK_CLAUDE names", () => {
+  const binOf = (dir: string) => join(dir, WIN ? "claude.cmd" : "claude");
+
+  it("is one more Claude Code reading the file: an old one there refuses, whatever else is found", async () => {
+    const old = binOf(wrapper("2.1.100 (Claude Code)").dir);
+    const d = await skillHookDecision({ env: { AGENTS_DECK_CLAUDE: old }, optedIn: true, installs: found(npmInstall("2.1.306")) });
+    expect(d).toMatchObject({ install: false, reason: "too-old" });
+    expect([...d.versions].sort()).toEqual(["2.1.100", "2.1.306"]);
+  });
+
+  it("is enough on its own when it answers at the gate", async () => {
+    const w = wrapper("2.1.116 (Claude Code)");
+    const d = await skillHookDecision({ env: { AGENTS_DECK_CLAUDE: binOf(w.dir) }, optedIn: true, installs: [] });
+    expect(d).toMatchObject({ install: true, state: "on", versions: ["2.1.116"] });
+    expect(readFileSync(w.argv, "utf8").trim()).toBe("--version");
+  });
+
+  it("is not asked anything when the opt-in is off", async () => {
+    const w = wrapper("2.1.306 (Claude Code)");
+    const d = await skillHookDecision({ env: { AGENTS_DECK_CLAUDE: binOf(w.dir) }, installs: [] });
+    expect(d).toMatchObject({ install: false, state: "off" });
+    expect(existsSync(w.argv)).toBe(false);
   });
 });
 
