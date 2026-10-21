@@ -18,7 +18,7 @@
 // only: Windows cannot send a process SIGHUP.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, symlinkSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
@@ -68,9 +68,12 @@ for (const k of ["HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "CCDE
 }
 
 let deck: ChildProcess | null = null;
+const held: ChildProcess[] = [];
 
 afterAll(() => {
-  if (deck && deck.exitCode === null && deck.signalCode === null) deck.kill("SIGKILL");
+  for (const c of [deck, ...held]) {
+    if (c && c.exitCode === null && c.signalCode === null) c.kill("SIGKILL");
+  }
   rmTempDir(SANDBOX);
 });
 
@@ -116,5 +119,112 @@ describe.skipIf(process.platform === "win32")("a deck that is hung up", () => {
 
     expect(existsSync(record), `the record was left behind\n${out}`).toBe(false);
     expect(code === 129 || signal === "SIGHUP", `exit ${code} ${signal}`).toBe(true);
+  }, 90_000);
+});
+
+// ── a signal before the boot is over ──────────────────────────────────────────
+//
+// The record is written some way before the end of the boot — the login item
+// and, without --no-open, the browser are still to come — and SIGINT, SIGTERM
+// and SIGHUP were handed to shutdown only after those. A signal in between found
+// no handler, the deck died of it, and the record stayed for the hooks to find.
+// That is the test above failing now and then on a loaded machine.
+//
+// HELD THERE, so it is the same answer every run. A preload, put in front of
+// the deck with --require, stalls the one call that finishes the record's first
+// write — the chmod after the rename, so the record is whole and on disk — until
+// the test lets it go. Only that file's chmod, and only as a timer: the deck's
+// event loop runs on, so a handler it has can run. The deck is signalled once
+// it has said it is stalled there, and let go of straight after. With
+// HOLD_UNLINK set, the shutdown's unlink of the same record is held the same way.
+const HELD = join(SANDBOX, "held");
+const HOLD = join(SANDBOX, "hold-record.cjs");
+mkdirSync(HELD, { recursive: true });
+writeFileSync(HOLD, [
+  `const { existsSync, writeFileSync } = require("node:fs");`,
+  `const { join, sep } = require("node:path");`,
+  `const fsp = require("node:fs/promises");`,
+  `const HELD = ${JSON.stringify(HELD)};`,
+  `const ours = (path) => String(path).endsWith(sep + "agent-dag" + sep + process.pid + ".json");`,
+  `const hold = (what) => new Promise(done => {`,
+  `  writeFileSync(join(HELD, process.pid + "." + what), "");`,
+  `  const t = setInterval(() => {`,
+  `    if (existsSync(join(HELD, process.pid + "." + what + ".go"))) { clearInterval(t); done(); }`,
+  `  }, 20);`,
+  `});`,
+  `const { chmod, unlink } = fsp;`,
+  `fsp.chmod = async (path, mode) => { if (ours(path)) await hold("chmod"); return chmod(path, mode); };`,
+  `if (process.env.HOLD_UNLINK) fsp.unlink = async (path) => { if (ours(path)) await hold("unlink"); return unlink(path); };`,
+  // discovery.mjs takes both as named imports, which are copies of these.
+  `require("node:module").syncBuiltinESMExports();`,
+].join("\n"));
+
+const isHeld = (pid: number | undefined, what: string) => existsSync(join(HELD, `${pid}.${what}`));
+const letGo = (pid: number | undefined, what: string) => writeFileSync(join(HELD, `${pid}.${what}.go`), "");
+
+/** A deck spawned behind the preload, with its own registry and data: a record
+ *  the deck before it left behind must not be what this one is judged by. */
+async function heldDeck(name: string, { ipc = false, holdUnlink = false } = {}) {
+  const cfg = join(SANDBOX, name, ".claude");
+  const env = {
+    ...CHILD_ENV, CLAUDE_CONFIG_DIR: cfg, CCDECK_HOME: join(SANDBOX, name, "deck-data"),
+    HOLD_UNLINK: holdUnlink ? "1" : undefined,
+  };
+  for (const k of ["CLAUDE_CONFIG_DIR", "CCDECK_HOME"] as const) {
+    if (!resolve(String(env[k])).startsWith(resolve(SANDBOX))) throw new Error(`sandbox escaped: ${k}`);
+  }
+  const port = await freePort();
+  let out = "";
+  const said: string[] = [];
+  const c = spawn(process.execPath, ["--require", HOLD, DECK, "--port", String(port), "--no-open", "--no-codex"], {
+    stdio: ipc ? ["ignore", "pipe", "pipe", "ipc"] : ["ignore", "pipe", "pipe"], env, cwd: SANDBOX,
+  });
+  held.push(c);
+  c.stdout!.on("data", d => { out += String(d); });
+  c.stderr!.on("data", d => { out += String(d); });
+  c.on("message", (m: { type?: string }) => { if (m?.type) said.push(m.type); });
+  const exited = new Promise<{ code: number | null; signal: string | null }>(done =>
+    c.on("exit", (code, signal) => done({ code, signal })));
+  const record = join(cfg, "agent-dag", `${c.pid}.json`);
+  await until(() => isHeld(c.pid, "chmod") && existsSync(record), 60_000,
+    "the deck to write its record and stall", () => out);
+  return { c, record, exited, said, out: () => out };
+}
+
+describe.skipIf(process.platform === "win32")("a deck signalled between writing its record and the end of its boot", () => {
+  it.each([["SIGHUP", 129], ["SIGTERM", 0], ["SIGINT", 0]] as const)(
+    "runs its shutdown on %s and exits %i", async (sig, want) => {
+      const { c, record, exited, out } = await heldDeck(sig);
+      c.kill(sig);
+      // A deck that is shutting down waits for that write to finish before it
+      // removes the record — see discovery.stop() — so it has to be let go of.
+      letGo(c.pid, "chmod");
+      const { code, signal } = await exited;
+
+      expect(existsSync(record), `the record was left behind\n${out()}`).toBe(false);
+      expect({ code, signal }, out()).toEqual({ code: want, signal: null });
+    }, 90_000);
+
+  // The boot is still running when its shutdown starts, and from here on it
+  // must not get any further: no browser, no login item, no pulse, no
+  // "booted" to a launcher waiting to hand the prompt back, no held restart.
+  // The shutdown is held at the record's unlink, which it reaches only after the
+  // boot has had its turn; a boot that carried on would say "booted" in there.
+  it("goes no further with its boot once the shutdown has begun", async () => {
+    const { c, record, exited, said, out } = await heldDeck("no-further", { ipc: true, holdUnlink: true });
+    c.kill("SIGTERM");
+    letGo(c.pid, "chmod");
+    // Or for the deck to be gone, which is what a deck with no handler does.
+    await until(() => isHeld(c.pid, "unlink") || c.exitCode !== null || c.signalCode !== null, 30_000,
+      "the shutdown to reach the record", out);
+    // Long enough for a boot that carried on to load one module and say so.
+    await new Promise(r => setTimeout(r, 1_000));
+    letGo(c.pid, "unlink");
+    const { code, signal } = await exited;
+
+    expect(said, out()).toContain("listening");
+    expect(said, out()).not.toContain("booted");
+    expect(existsSync(record), `the record was left behind\n${out()}`).toBe(false);
+    expect({ code, signal }, out()).toEqual({ code: 0, signal: null });
   }, 90_000);
 });
