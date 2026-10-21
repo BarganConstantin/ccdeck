@@ -30,7 +30,7 @@ import { backupRoot, fetchClaudeAccounts, slotNumber, switchClaudeAccount } from
 import { readCswapConfig } from "./cswap-auto-readers.mjs";
 import { accountKey } from "./lan-copies.mjs";
 import { isProcessAlive } from "./deck-probe.mjs";
-import { chooseAccount, countedModels, NEXT_CHOICES } from "./account-choice.mjs";
+import { chooseAccount, countedModels, readingCurrent, NEXT_CHOICES } from "./account-choice.mjs";
 
 /** Where the choice is kept: beside prefs.json, in the deck's own data. */
 export function choicePath(home = deckDataDir()) {
@@ -199,7 +199,7 @@ const refOf = a => (a ? { number: a.num, email: a.email ?? null } : null);
  * roster it decided on, which noteEngineTick needs to name where the engine
  * went, and null when nothing is set.
  */
-export async function chooseBeforeEngine({ now = Date.now() } = {}) {
+export async function chooseBeforeEngine({ now = Date.now(), refreshHome = true } = {}) {
   const choice = await readChoice();
   if (choice.next === "room" && !choice.home) return { result: null, accounts: null };
   const roster = await fetchClaudeAccounts();
@@ -240,6 +240,16 @@ export async function chooseBeforeEngine({ now = Date.now() } = {}) {
     now,
   });
   if (!pick) {
+    await updateChoice(keep);
+    return { result: null, accounts, cooldownUntil };
+  }
+  // Give Home one collection pass before a fresh weekly candidate can
+  // preempt it. The loop retries with refreshHome=false after its dry run:
+  // a failed/backed-off collection must not prevent leaving a full account.
+  const home = choice.home ? accounts.find(a => a.key === choice.home.key) : null;
+  if (refreshHome && pick.trigger !== "home" && home && !home.active &&
+      !home.disabled && home.alive !== false && !home.error && !home.reauth &&
+      !readingCurrent(home, models, now)) {
     await updateChoice(keep);
     return { result: null, accounts, cooldownUntil };
   }

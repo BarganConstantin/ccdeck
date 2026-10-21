@@ -116,7 +116,7 @@ async function runAutoTick() {
       if (!_enabled) return { skipped: "disabled" };
       if (await externalAutoRunning()) return { skipped: "external-engine" };
       invalidateClaudeAccountsCache();
-      chose = await chooseBeforeEngine().catch(() => ({ result: null, accounts: null }));
+      chose = await chooseBeforeEngine({ refreshHome: false }).catch(() => ({ result: null, accounts: null }));
       if (chose.result) return { chose: chose.result };
       // A deck-managed `cswap switch` does not advance the engine's own
       // lastSwitchAt. Its fallback must keep our cooldown too, or a manual

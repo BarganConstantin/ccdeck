@@ -458,6 +458,36 @@ describe("home account", () => {
     expect(switches()).toEqual([1]);
   });
 
+  it.each([20, 96])("refreshes a stale Home before selecting a fresh weekly alternate (refreshed Home: %i%%)", async homePct => {
+    const rows = { 1: { five: 20, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } };
+    writeStore(2, rows);
+    const path = join(ROOT, "cache", "usage.json");
+    const usage = JSON.parse(readFileSync(path, "utf8"));
+    usage.accounts["1"].fetchedAt = (Date.now() - 20 * 60_000) / 1000;
+    writeFileSync(path, JSON.stringify(usage));
+    proc.duringPoll = () => writeStore(2, { ...rows, 1: { ...rows[1], five: homePct } });
+    await auto.setNextChoice("weekly");
+    await auto.setHomeAccount(1);
+    const tick = await tickOnce();
+    expect(engineRuns()).toBe(1);
+    expect(activeInStore()).toBe(homePct < 90 ? 1 : 3);
+    expect(tick?.trigger).toBe(homePct < 90 ? "home" : "weekly-reset");
+  });
+
+  it("uses the weekly alternate after one unsuccessful Home refresh", async () => {
+    writeStore(2, { 1: { five: 20, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } });
+    const path = join(ROOT, "cache", "usage.json");
+    const usage = JSON.parse(readFileSync(path, "utf8"));
+    usage.accounts["1"].fetchedAt = (Date.now() - 20 * 60_000) / 1000;
+    writeFileSync(path, JSON.stringify(usage));
+    await auto.setNextChoice("weekly");
+    await auto.setHomeAccount(1);
+    const tick = await tickOnce();
+    expect(engineRuns()).toBe(1);
+    expect(activeInStore()).toBe(3);
+    expect(tick?.trigger).toBe("weekly-reset");
+  });
+
   it("rechecks Home after the engine refreshes its stale usage", async () => {
     const rows = { 1: { five: 0, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } };
     writeStore(2, rows);
