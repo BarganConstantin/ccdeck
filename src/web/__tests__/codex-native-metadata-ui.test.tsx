@@ -12,7 +12,7 @@ it('distinguishes unavailable native inspection from signed out and marks limite
       { id: 'b', label: 'Personal', available: true, authSource: 'native', signedIn: false, signedInFilePresent: true, identityVersion: 'b' },
     ] }
     : { ok: true, partial: true, identityVersion: 'a', windows: [{ usedPercent: 25, seconds: 18000 }] } })));
-  const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
+  const view = mount(() => CodexProfilesSection({ initiallyOpen: true })); cleanup = view.unmount;
   await flush();
   expect(textOf(view.tree)).toContain('Login inspection unavailable: rpc timeout');
   expect(textOf(view.tree)).toContain('Not signed in to Codex');

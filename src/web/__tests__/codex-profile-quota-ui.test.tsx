@@ -29,7 +29,7 @@ async function setup(revision: string, slowRoster = false) {
     return pending;
   }));
   let focused = true;
-  const view = mount(() => CodexProfilesSection(), {}, { commit(tree) {
+  const view = mount(() => CodexProfilesSection({ autoQuota: false, initiallyOpen: true }), {}, { commit(tree) {
     const button = quotaButton(tree);
     if (button?.props.disabled) focused = false;
   } });

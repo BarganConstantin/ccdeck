@@ -20,7 +20,7 @@ describe('Codex default selection controls', () => {
         { id: 'b', label: 'Work', active: switched, signedInFilePresent: false },
       ] }) };
     }));
-    const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
+    const view = mount(() => CodexProfilesSection({ initiallyOpen: true })); cleanup = view.unmount;
     await flush();
     const button = one(view.tree, el => el.type === 'button' && textOf(el) === 'Use account')!;
     (button.props.onClick as () => void)(); (button.props.onClick as () => void)();

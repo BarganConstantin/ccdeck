@@ -25,7 +25,7 @@ describe('Codex roster polling', () => {
     const pending = deferred<ReturnType<typeof roster>>();
     const fetcher = vi.fn().mockImplementationOnce(() => pending.promise).mockResolvedValue(roster());
     vi.stubGlobal('fetch', fetcher);
-    const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
+    const view = mount(() => CodexProfilesSection({ autoQuota: false, initiallyOpen: true })); cleanup = view.unmount;
     await vi.advanceTimersByTimeAsync(45_000);
     expect(fetcher).toHaveBeenCalledTimes(1);
     pending.resolve(roster()); await flush();
@@ -44,7 +44,7 @@ describe('Codex roster polling', () => {
       reads++;
       return reads === 2 ? oldPoll.promise : roster(reads > 2 ? 'b' : 'a', reads > 2 ? 1 : 0);
     }));
-    const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
+    const view = mount(() => CodexProfilesSection({ autoQuota: false, initiallyOpen: true })); cleanup = view.unmount;
     await flush();
     await vi.advanceTimersByTimeAsync(15_000);
     (one(view.tree, el => el.type === 'button' && textOf(el) === 'Use account')!.props.onClick as () => void)();
@@ -73,7 +73,7 @@ describe('Codex roster polling', () => {
       signal = options?.signal ?? undefined;
       return reads === 1 ? roster() : pending.promise;
     }));
-    const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
+    const view = mount(() => CodexProfilesSection({ autoQuota: false, initiallyOpen: true })); cleanup = view.unmount;
     await flush();
     (one(view.tree, el => el.type === 'button' && textOf(el) === 'Use account')!.props.onClick as () => void)();
     await flush();

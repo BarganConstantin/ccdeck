@@ -26,8 +26,14 @@ interface ProfileQuota {
   windows?: { usedPercent: number; seconds: number | null; resetAt: number | null }[];
 }
 
+function resetLabel(resetAt: number | null): string {
+  if (!resetAt) return '';
+  const at = new Date(resetAt * 1000);
+  return `, resets ${at.toLocaleDateString(undefined, { weekday: 'short' })} ${at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+}
+
 function quotaSummary(quota: ProfileQuota, now: number): string {
-  const windows = quota.windows?.map((w) => `${Math.round(w.usedPercent)}% used (${w.seconds ? `${Math.round(w.seconds / 3600)}h` : 'window'})`).join(' · ');
+  const windows = quota.windows?.map((w) => `${Math.round(w.usedPercent)}% used (${w.seconds ? `${Math.round(w.seconds / 3600)}h` : 'window'}${resetLabel(w.resetAt)})`).join(' · ');
   const age = quota.fetchedAt ? ` · Read ${Math.max(0, Math.floor((now - quota.fetchedAt) / 1000))}s ago` : '';
   return `${quota.plan ?? 'Codex'} · ${windows || 'No limits reported'}${age}${quota.partial ? ' · Ordinary Codex limits only' : ''}`;
 }
@@ -40,7 +46,25 @@ function quotaStatus(quota: ProfileQuota, now: number): string {
     : error;
 }
 
-export default function CodexProfilesSection() {
+const OPEN_KEY = "ccdeck.codexProfilesOpen";
+
+function storedOpen(): boolean {
+  try { return localStorage.getItem(OPEN_KEY) === "1"; } catch { return false; }
+}
+
+function foldLine(profiles: CodexProfile[] | null, quotas: Record<string, ProfileQuota | null>): string {
+  if (profiles === null) return "Checking profiles…";
+  const parts = profiles.map(profile => {
+    const name = profile.label.split(/[@·]/)[0].trim();
+    const quota = quotas[profile.id];
+    const used = quota?.ok && quota.identityVersion === profile.identityVersion ? quota.windows?.[0]?.usedPercent : undefined;
+    return used === undefined ? name : `${name} ${Math.round(used)}%`;
+  });
+  return [`${profiles.length} ${profiles.length === 1 ? "account" : "accounts"}`, ...parts].join(" · ");
+}
+
+export default function CodexProfilesSection({ autoQuota = true, initiallyOpen }: { autoQuota?: boolean; initiallyOpen?: boolean } = {}) {
+  const [open, setOpen] = useState(() => initiallyOpen ?? storedOpen());
   const [profiles, setProfiles] = useState<CodexProfile[] | null>(null);
   const profileRequest = useRef(0);
   const profileRefreshes = useRef(0);
@@ -111,19 +135,21 @@ export default function CodexProfilesSection() {
     }
   }
 
-  async function checkQuota(id: string) {
+  // Background reads keep the last reading on screen and skip the roster refresh.
+  async function checkQuota(id: string, background = false) {
     if (quotaRequests.current.has(id)) return;
     quotaRequests.current.add(id);
-    setQuotas((current) => ({ ...current, [id]: null }));
+    if (!background) setQuotas((current) => ({ ...current, [id]: null }));
     try {
       const response = await fetch(`/api/codex-profile-quota?id=${encodeURIComponent(id)}`);
       if (!response.ok) throw new Error('Quota unavailable');
       const value = await response.json() as ProfileQuota;
       setQuotas((current) => ({ ...current, [id]: value }));
     } catch {
-      setQuotas((current) => ({ ...current, [id]: { ok: false, reason: 'fetch_error' } }));
+      setQuotas((current) => background && current[id]?.ok ? current : ({ ...current, [id]: { ok: false, reason: 'fetch_error' } }));
       return;
     } finally { quotaRequests.current.delete(id); }
+    if (background) return;
     const request = profileRequest.current + 1;
     await refreshProfiles().catch(() => {
       if (request === profileRequest.current) setError(true);
@@ -161,9 +187,39 @@ export default function CodexProfilesSection() {
     return () => { controller.abort(); profileRequest.current++; clearInterval(timer); };
   }, []);
 
+  const quotaIds = profiles?.filter(profile => profile.available !== false).map(profile => profile.id).join(',') ?? '';
+  useEffect(() => {
+    if (!autoQuota || !quotaIds) return;
+    const ids = quotaIds.split(',');
+    const read = () => { for (const id of ids) void checkQuota(id, true); };
+    read();
+    // The server caches each profile's reading for 60s, so this is one request per profile per minute at most.
+    const timer = setInterval(read, 60_000);
+    return () => clearInterval(timer);
+  }, [autoQuota, quotaIds]);
+
+  function toggle() {
+    setOpen(current => {
+      try { localStorage.setItem(OPEN_KEY, current ? "0" : "1"); } catch { /* per-viewer convenience only */ }
+      return !current;
+    });
+  }
+
   return (
     <section className="ap-codex" aria-label="Codex profiles">
-      <div className="ap-codex-title">Codex profiles</div>
+      <div className="ap-rest">
+        <button type="button" className="ap-nav" aria-expanded={open} aria-controls={open ? "ap-codex-body" : undefined} onClick={toggle}>
+          <span className="ap-nav-text">
+            <span className="ap-nav-name">Codex profiles</span>
+            <span className="ap-nav-state">{error && profiles === null ? "Could not load" : foldLine(profiles, quotas)}</span>
+          </span>
+          <svg className="ap-nav-chev" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+            strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M5.6 3.4 9.2 7l-3.6 3.6" />
+          </svg>
+        </button>
+      </div>
+      {open && <div className="ap-codex-body" id="ap-codex-body">
       {error && profiles === null ? <p role="alert" className="ap-codex-hint">Could not load Codex profiles.</p> :
         profiles === null ? <p className="ap-codex-hint">Checking profiles…</p> :
         <>
@@ -197,6 +253,7 @@ export default function CodexProfilesSection() {
           {launch.terminal && <p className="ap-codex-hint" role="status">{launch.terminal}</p>}
           <p className="ap-codex-hint">The default applies to new sessions. Existing sessions keep their account until restarted. Terminal selection needs a one-time setup; an explicit CODEX_HOME takes priority. Codex manages sign-in and renewal. A login file does not guarantee an active session.</p>
         </>}
+      </div>}
     </section>
   );
 }

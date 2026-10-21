@@ -57,8 +57,12 @@
   overflow: hidden auto;
 }
 .ap-scroll > * { flex: none; }
-.ap-codex { padding: 14px var(--panel-inset); border-top: 1px solid var(--line-soft); }
-.ap-codex-title { font-weight: 600; font-size: 12px; margin-bottom: 9px; }
+/* With Codex profiles below it, the rest panel must not be the line that gives:
+   it would shrink to nothing and spill under them. A cap keeps a long list
+   scrolling inside itself, as it does without Codex. */
+.ap-scroll:has(> .ap-codex) > .ap-rest-panel { flex: none; max-height: 60%; }
+.ap-codex { padding-bottom: 4px; border-top: 1px solid var(--line-soft); }
+.ap-codex-body { padding: 4px var(--panel-inset) 10px; }
 .ap-codex-list { margin: 0; padding: 0; list-style: none; }
 .ap-codex-row { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-top: 1px solid var(--line-soft); font-size: 12px; }
 .ap-codex-hint { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 4px 0 0; }
