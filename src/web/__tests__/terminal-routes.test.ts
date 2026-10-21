@@ -57,6 +57,9 @@ let resolved: any[];
 let launches: any[];
 let launchImpl: (o: any) => Promise<any>;
 let listed: any[];
+// The deck's listing of its sessions, and every ask for it (launchOnce's).
+let listImpl: (o: any) => Promise<any[]>;
+let lists: any[];
 let killed: any[];
 let killImpl: (o: any) => Promise<boolean>;
 let labelled: any[];
@@ -93,6 +96,8 @@ beforeEach(() => {
   launches = [];
   launchImpl = async (o) => ({ name: o.kind === "attach" ? "ccdeck-att-0b9f3c1e" : "ccdeck-claude-feedf00d", sessionId: o.sessionId || (o.agent === "claude" ? SID : ""), pane: "%40" });
   listed = [];
+  listImpl = async () => listed;
+  lists = [];
   killed = [];
   killImpl = async () => true;
   labelled = [];
@@ -125,7 +130,7 @@ beforeAll(async () => {
       findTmux: async () => tmuxAnswer,
       resolveTarget: async (q: any, deps: any) => { resolved.push({ q, deps }); return target; },
       launchSession: (o: any) => { launches.push(o); return launchImpl(o); },
-      listDeckSessions: async () => listed,
+      listDeckSessions: (o: any) => { lists.push(o); return listImpl(o); },
       killDeckSession: (o: any) => { killed.push(o); return killImpl(o); },
       labelDeckSession: (o: any) => { labelled.push(o); return labelImpl(o); },
       claudeBin: () => claudeBin,
@@ -649,6 +654,56 @@ describe("POST /api/terminal/adopt", () => {
   });
 });
 
+/** A promise the case lets go of: a launch's, or a listing's. */
+type Gate = { passed: Promise<void>; release: () => void };
+function gate(): Gate {
+  let release!: () => void;
+  const passed = new Promise<void>(r => { release = r; });
+  return { passed, release };
+}
+
+/** The deck's listings in the order they are asked for: the i-th waits for
+ *  `held[i]` when there is one, and every one answers what the deck had when
+ *  it was asked, as tmux does. */
+function listingsHeld(held: (Gate | null)[]): (o: any) => Promise<any[]> {
+  let asked = 0;
+  return async () => {
+    const had = listed;
+    const g = held[asked++];
+    if (g) await g.passed;
+    return had;
+  };
+}
+
+/** Launches named by their order (ccdeck-codex-00000001 first); the first
+ *  waits for `first` when given, and then fails with `firstFails` when given. */
+function launchesNumbered(first: Gate | null = null, firstFails: Error | null = null): (o: any) => Promise<any> {
+  let started = 0;
+  return async () => {
+    const n = ++started;
+    if (n === 1 && first) await first.passed;
+    if (n === 1 && firstFails) throw firstFails;
+    return { name: `ccdeck-codex-${n.toString(16).padStart(8, "0")}`, sessionId: "", pane: `%4${n}` };
+  };
+}
+
+/** A launch asked by a page whose connection drops once the deck has started
+ *  the agent, so its answer never reaches it. */
+function askDroppedOnceStarted(body: unknown): Promise<void> {
+  return new Promise((resolve_) => {
+    const payload = JSON.stringify(body);
+    const req = request({
+      host: "127.0.0.1", port, path: "/api/terminal/launch", method: "POST",
+      headers: { ...page(), "content-type": "application/json", "content-length": String(Buffer.byteLength(payload)) },
+    }, res => { res.resume(); });
+    req.on("error", () => { /* dropped, as meant */ });
+    req.on("close", () => resolve_());
+    req.end(payload);
+    const drop = () => req.destroy();
+    void vi.waitFor(() => expect(launches.length).toBeGreaterThan(0)).then(drop, drop);
+  });
+}
+
 describe("POST /api/terminal/launch", () => {
   it("starts an agent in a deck-owned session and answers its id, its name and a ticket", async () => {
     const got = await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: PROJECT });
@@ -710,6 +765,127 @@ describe("POST /api/terminal/launch", () => {
     expect((await ask("POST", "/api/terminal/launch", { ...body, key: "launch-mgx1-4-d4e5f6" })).status).toBe(409);
     launchImpl = async () => ({ name: "ccdeck-codex-0a0a0a0a", sessionId: "", pane: "%42" });
     expect((await ask("POST", "/api/terminal/launch", { ...body, key: "launch-mgx1-4-d4e5f6" })).body.name).toBe("ccdeck-codex-0a0a0a0a");
+  });
+
+  // Each ask reads the deck's sessions first and looks for a launch under way
+  // after, so a launch that finishes while an ask's listing is out is in
+  // neither: the listing was read before its session was made, and the launch
+  // is no longer under way. Asked twice at once (a double click, the stage
+  // and a panel), the first finding nothing starts the agent and answers; the
+  // second's listing comes back after that, and it started a second agent.
+  it("starts one agent for a launch asked twice at once, even when the first is done before the second has looked", async () => {
+    const held = [gate(), gate()];
+    listImpl = listingsHeld(held);
+    launchImpl = launchesNumbered();
+    const key = "launch-mgx1-5-q8w2e4";
+    const body = { agent: "codex", cwd: PROJECT, key };
+    const first = ask("POST", "/api/terminal/launch", body);
+    await vi.waitFor(() => expect(lists).toHaveLength(1));
+    const second = ask("POST", "/api/terminal/launch", body);
+    await vi.waitFor(() => expect(lists).toHaveLength(2));
+    held[0].release();
+    const a = await first;
+    expect(a.status).toBe(200);
+    expect(a.body).toMatchObject({ ok: true, sessionId: "", name: "ccdeck-codex-00000001" });
+    expect(launches).toHaveLength(1);
+    // The deck lists that session under the key from now on.
+    listed = [{ name: "ccdeck-codex-00000001", sessionId: "", kind: "launch", launchKey: key, pane: "%41", dead: false, created: 1 }];
+    held[1].release();
+    const b = await second;
+    expect(b.status).toBe(200);
+    expect(b.body, "the agent the first started").toMatchObject({ ok: true, sessionId: "", name: "ccdeck-codex-00000001" });
+    expect(launches, "one agent for one key").toHaveLength(1);
+    expect(b.body.ticket, "a ticket of its own").not.toBe(a.body.ticket);
+    expect(tickets.redeem(b.body.ticket)).toMatchObject({ kind: "A", target: "ccdeck-codex-00000001", pane: "%41" });
+    // And asked once more, the listing alone finds it.
+    const c = await ask("POST", "/api/terminal/launch", body);
+    expect(c.body.name).toBe("ccdeck-codex-00000001");
+    expect(launches).toHaveLength(1);
+  });
+
+  // Try again after an answer that never came: the page's connection dropped
+  // while the agent was starting, and it asked again by the same key. The
+  // launch was on its way when the retry began to look, and was done and
+  // forgotten before that listing came back.
+  it("starts one agent for a launch asked again after its answer was dropped, even when the first is done before the retry has looked", async () => {
+    const held = gate();
+    listImpl = listingsHeld([null, held]);
+    const starting = gate();
+    let done = 0;
+    const numbered = launchesNumbered(starting);
+    launchImpl = async (o) => { try { return await numbered(o); } finally { done += 1; } };
+    const key = "launch-mgx1-6-z3x5c7";
+    const body = { agent: "codex", cwd: PROJECT, key };
+    await askDroppedOnceStarted(body);
+    expect(launches).toHaveLength(1);
+    const retry = ask("POST", "/api/terminal/launch", body);
+    await vi.waitFor(() => expect(lists).toHaveLength(2));
+    starting.release();
+    await vi.waitFor(() => expect(done, "the first launch is done, its answer lost").toBe(1));
+    held.release();
+    const b = await retry;
+    expect(b.status).toBe(200);
+    expect(b.body, "the agent the first ask started").toMatchObject({ ok: true, sessionId: "", name: "ccdeck-codex-00000001" });
+    expect(launches, "one agent for one key").toHaveLength(1);
+    expect(tickets.redeem(b.body.ticket)).toMatchObject({ kind: "A", target: "ccdeck-codex-00000001", pane: "%41" });
+  });
+
+  // What an ask whose listing was out answers when the launch failed (a
+  // reconnect asking while the first ask was still on its way), and that a
+  // failure is still not kept for an ask that comes after its answer.
+  it("answers a failed launch to an ask whose listing was out as it failed, and starts afresh for an ask after that answer", async () => {
+    const [heldB, heldD] = [gate(), gate()];
+    listImpl = listingsHeld([null, heldB, heldD]);
+    const starting = gate();
+    launchImpl = launchesNumbered(starting, new TerminalSessionError("tmux-failed", "tmux could not start the session."));
+    const body = { agent: "codex", cwd: PROJECT, key: "launch-mgx1-7-v6b8n0" };
+    const first = ask("POST", "/api/terminal/launch", body);
+    await vi.waitFor(() => expect(launches).toHaveLength(1));
+    const b = ask("POST", "/api/terminal/launch", body);
+    await vi.waitFor(() => expect(lists).toHaveLength(2));
+    const d = ask("POST", "/api/terminal/launch", body);
+    await vi.waitFor(() => expect(lists).toHaveLength(3));
+    starting.release();
+    const a = await first;
+    expect([a.status, a.body]).toEqual([500, { ok: false, error: "tmux could not start the session.", code: "tmux-failed" }]);
+    // Looking while it was on its way, it answers what that launch came to,
+    // as an ask that waited for it does.
+    heldD.release();
+    const dGot = await d;
+    expect([dGot.status, dGot.body]).toEqual([a.status, a.body]);
+    expect(launches).toHaveLength(1);
+    // Asked again after that answer, it is tried again, though an ask from
+    // before is still looking.
+    const retry = await ask("POST", "/api/terminal/launch", body);
+    expect(retry.status).toBe(200);
+    expect(retry.body.name).toBe("ccdeck-codex-00000002");
+    expect(launches).toHaveLength(2);
+    // That ask answers the newest launch under its key, and starts nothing.
+    heldB.release();
+    const bGot = await b;
+    expect(bGot.status).toBe(200);
+    expect(bGot.body).toMatchObject({ ok: true, sessionId: "", name: "ccdeck-codex-00000002" });
+    expect(launches).toHaveLength(2);
+  });
+
+  it("still starts another key's launch, and one with no key, while a launch under a key finishes", async () => {
+    const held = [gate(), gate()];
+    listImpl = listingsHeld(held);
+    launchImpl = launchesNumbered();
+    const first = ask("POST", "/api/terminal/launch", { agent: "codex", cwd: PROJECT, key: "launch-mgx1-8-m1n2b3" });
+    await vi.waitFor(() => expect(lists).toHaveLength(1));
+    const other = ask("POST", "/api/terminal/launch", { agent: "codex", cwd: PROJECT, key: "launch-mgx1-9-h4j5k6" });
+    await vi.waitFor(() => expect(lists).toHaveLength(2));
+    held[0].release();
+    expect((await first).body.name).toBe("ccdeck-codex-00000001");
+    held[1].release();
+    const o = await other;
+    expect(o.status).toBe(200);
+    expect(o.body.name, "another key is another launch").toBe("ccdeck-codex-00000002");
+    const none = await ask("POST", "/api/terminal/launch", { agent: "codex", cwd: PROJECT });
+    expect(none.body.name, "and no key, every launch new").toBe("ccdeck-codex-00000003");
+    expect(launches).toHaveLength(3);
+    expect(lists, "no key, no listing").toHaveLength(2);
   });
 
   it("refuses a key it could not keep on a session, before starting anything", async () => {

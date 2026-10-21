@@ -84,6 +84,11 @@ const adopting = new Set();
 // Launches starting right now, by the page's key for them (launchOnce).
 const launching = new Map();
 
+// The asks under a launch key whose listing of the deck's sessions is still
+// out, and the launches under that key that finished meanwhile (launchOnce):
+// key → { asks, finished, last }.
+const looking = new Map();
+
 /** How often the deck clears old dead sessions off its server, at most: on
  *  the first status or launch after this long. Dead panes pile up over days,
  *  not minutes, and the prune is a listing plus a kill per corpse. */
@@ -527,20 +532,47 @@ export async function handleTerminalLaunch(req, res, options) {
  * in the same folder. The key is on the session's labels, so a restarted deck
  * finds it there; a launch still on its way here is waited for, since tmux
  * may not have labelled its session yet. No key, no lookup: every launch new.
+ *
+ * ONE AGENT PER KEY, ALSO AT A DOUBLE CLICK. Each ask reads the deck's
+ * sessions first and looks for a launch under way after, so a launch that
+ * finishes while an ask's listing is out can be in neither: the listing was
+ * read before its session was made, and it is no longer under way. Starting
+ * one there was a second agent. That ask answers the outcome of the launch
+ * that finished meanwhile (the newest, if more than one did), a failure as
+ * well, which is what it would have answered had its listing come back a
+ * moment sooner. An ask whose listing began after a launch's answer is not
+ * handed that launch: a failure is still tried again, and a success is in its
+ * listing. The engine's launch_once answers the same.
  */
 async function launchOnce(d, tmux, key, start) {
   if (!key) return start();
+  const look = looking.get(key) ?? { asks: 0, finished: 0, last: null };
+  looking.set(key, look);
+  look.asks += 1;
+  const seen = look.finished;
   let list = [];
-  try { list = await d.listDeckSessions({ tmux, socket: d.deckSocket, env: d.env }); } catch { /* the launch says what is wrong */ }
+  try {
+    list = await d.listDeckSessions({ tmux, socket: d.deckSocket, env: d.env });
+  } catch { /* the launch says what is wrong */ } finally {
+    look.asks -= 1;
+    if (look.asks === 0 && looking.get(key) === look) looking.delete(key);
+  }
   const found = findLaunchedSession(list, key);
   if (found) return { name: found.name, sessionId: found.sessionId, pane: found.pane };
   // After the listing, not before: one started while it was being read is
   // not in it.
   const running = launching.get(key);
   if (running) return running;
+  if (look.finished > seen) return look.last;
   const started = start();
   launching.set(key, started);
-  const done = () => { if (launching.get(key) === started) launching.delete(key); };
+  // Forgotten before the answer, so an ask after it starts afresh; the asks
+  // still reading the sessions keep it, since what they read cannot have it.
+  const done = () => {
+    if (launching.get(key) === started) launching.delete(key);
+    const still = looking.get(key);
+    if (still) { still.finished += 1; still.last = started; }
+  };
   started.then(done, done);
   return started;
 }
