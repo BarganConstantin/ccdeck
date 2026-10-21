@@ -37,7 +37,7 @@ const { proc } = vi.hoisted(() => ({
     calls: [] as string[][], config: "",
     duringConfig: null as null | (() => Promise<unknown>),
     duringPoll: null as null | (() => unknown),
-    engineTarget: null as number | null, pollTimeout: false,
+    engineTarget: null as number | null, engineTrigger: "proactive", pollTimeout: false,
     peers: [] as { paired: boolean; lastSeen?: number; offers?: { at?: number; current?: { key?: string } } }[],
   },
 }));
@@ -78,7 +78,7 @@ vi.mock("../../server/exec.mjs", () => ({
           seq.activeAccountNumber = proc.engineTarget;
           write(path, JSON.stringify(seq));
         }
-        return { ...okay, stdout: JSON.stringify({ event: "switch", dryRun, to: { number: proc.engineTarget } }) };
+        return { ...okay, stdout: JSON.stringify({ event: "switch", trigger: proc.engineTrigger, dryRun, to: { number: proc.engineTarget } }) };
       }
       return { ...okay, code: 2, ok: false, stdout: JSON.stringify({ event: "no-switch", reason: "below-threshold" }) };
     }
@@ -104,7 +104,7 @@ const account = (num: number) => ({ email: `account-${num}@b.c`, organizationUui
 
 /** A store with `activeNum` live: per account its 5-hour percentage and the
  *  hours to its weekly reset, every row read a minute before `at`. */
-function writeStore(activeNum: number, rows: Record<number, { five: number; weekIn: number }>, at = Date.now()) {
+function writeStore(activeNum: number, rows: Record<number, { five: number; weekIn: number; week?: number }>, at = Date.now()) {
   mkdirSync(join(ROOT, "cache"), { recursive: true });
   const nums = Object.keys(rows).map(Number);
   writeFileSync(join(ROOT, "sequence.json"), JSON.stringify({
@@ -119,7 +119,7 @@ function writeStore(activeNum: number, rows: Record<number, { five: number; week
       fetchedAt: (at - 60_000) / 1000,
       lastGood: {
         five_hour: { pct: rows[n].five, resets_at: new Date(at + 3 * H).toISOString() },
-        seven_day: { pct: 10, resets_at: new Date(at + rows[n].weekIn * H).toISOString() },
+        seven_day: { pct: rows[n].week ?? 10, resets_at: new Date(at + rows[n].weekIn * H).toISOString() },
       },
     }])),
   }));
@@ -181,6 +181,7 @@ beforeEach(async () => {
   proc.duringConfig = null;
   proc.duringPoll = null;
   proc.engineTarget = null;
+  proc.engineTrigger = "proactive";
   proc.pollTimeout = false;
   proc.peers = [];
   said.length = 0;
@@ -220,6 +221,76 @@ describe("with nothing set", () => {
 });
 
 describe("soonest weekly reset", () => {
+  it("keeps a recent deck-managed move's cooldown instead of falling back to most room", async () => {
+    const rows = {
+      1: { five: 95, weekIn: 16 },
+      14: { five: 0, weekIn: 100 },
+      15: { five: 40, weekIn: 82 },
+    };
+    writeStore(1, rows);
+    await auto.setNextChoice("weekly");
+    expect((await choice.chooseBeforeEngine()).result?.to?.number).toBe(15);
+    // A manual return to the full account happens while the deck's cooldown
+    // is still running. cswap's own lastSwitchAt did not change on our move.
+    writeStore(1, rows);
+    accounts.invalidateClaudeAccountsCache();
+    proc.engineTarget = 14;
+    const tick = await tickOnce();
+    expect(activeInStore()).toBe(1);
+    expect(tick).toMatchObject({ event: "no-switch", switched: false, reason: "cooldown" });
+    expect(proc.calls.filter(c => c[1] === "auto" && !c.includes("--dry-run"))).toEqual([]);
+    const later = Date.now() + 301_000;
+    writeStore(1, rows, later);
+    accounts.invalidateClaudeAccountsCache();
+    expect((await choice.chooseBeforeEngine({ now: later })).result?.to?.number).toBe(15);
+  });
+
+  it("still escapes a fully exhausted account using the weekly rule during cooldown", async () => {
+    const rows = { 1: { five: 95, weekIn: 16 }, 14: { five: 0, weekIn: 100 }, 15: { five: 40, weekIn: 82 } };
+    writeStore(1, rows);
+    await auto.setNextChoice("weekly");
+    expect((await choice.chooseBeforeEngine()).result?.to?.number).toBe(15);
+    writeStore(1, { ...rows, 1: { five: 100, weekIn: 16 } });
+    accounts.invalidateClaudeAccountsCache();
+    const tick = await tickOnce();
+    expect(activeInStore()).toBe(15);
+    expect(tick?.trigger).toBe("weekly-reset");
+  });
+
+  it("allows the engine's emergency failover during the deck cooldown", async () => {
+    const rows = { 1: { five: 95, weekIn: 16 }, 14: { five: 0, weekIn: 100 }, 15: { five: 40, weekIn: 82 } };
+    writeStore(1, rows);
+    await auto.setNextChoice("weekly");
+    expect((await choice.chooseBeforeEngine()).result?.to?.number).toBe(15);
+    writeStore(1, { ...rows, 1: { five: 20, weekIn: 16 } });
+    accounts.invalidateClaudeAccountsCache();
+    proc.engineTarget = 14;
+    proc.engineTrigger = "failover";
+    const tick = await tickOnce();
+    expect(activeInStore()).toBe(14);
+    expect(tick).toMatchObject({ switched: true, trigger: "failover" });
+  });
+
+  it("selects the soonest reset even when a paired device uses that account", async () => {
+    // Reported case: active at 95% weekly, a 24% account resetting in 4d,
+    // and a 51% account resetting in 3d10h that another deck is using.
+    proc.config = CONFIG().replace("threshold          90", "threshold          95");
+    const now = Date.now();
+    proc.peers = [{ paired: true, lastSeen: now, offers: { at: now, current: { key: "account-15@b.c@@org-15" } } }];
+    writeStore(1, {
+      1: { five: 9, week: 95, weekIn: 16 },
+      14: { five: 0, week: 24, weekIn: 100 },
+      15: { five: 37, week: 51, weekIn: 82 },
+    }, now);
+    proc.engineTarget = 14;
+    await auto.setNextChoice("weekly");
+    const tick = await tickOnce();
+    expect(activeInStore()).toBe(15);
+    expect(tick?.trigger).toBe("weekly-reset");
+    expect(switches()).toEqual([15]);
+    expect(proc.calls.filter(c => c[1] === "auto" && !c.includes("--dry-run"))).toEqual([]);
+  });
+
   it.each(["stale", "below threshold"])("honors the weekly policy after the engine refreshes a %s active reading", async initial => {
     // The active reading is stale or still below the limit. The engine's
     // next poll updates it, then its default most-room rule would choose 2.
@@ -368,12 +439,17 @@ describe("soonest weekly reset", () => {
 });
 
 describe("home account", () => {
-  it("prefers a usable Home over the weekly alternate when a peer's old claim has expired", async () => {
-    // Peer rows retain their last manifest while offline. That historical
-    // display data must not reserve Home forever and force a weekly alternate.
-    const at = Date.now();
-    proc.peers = [{ paired: true, lastSeen: at - H, offers: { at: at - H, current: { key: "account-1@b.c@@org-1" } } }];
-    writeStore(2, { 1: { five: 0, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } });
+  it.each([
+    { name: "a fresh paired manifest", age: 0, paired: true, beacon: true },
+    { name: "an inbound-only peer", age: 0, paired: true, beacon: false },
+    { name: "a retained offline manifest", age: H, paired: true, beacon: true },
+    { name: "an unpaired row", age: 0, paired: false, beacon: true },
+  ])("selects Home even when another device reports it in $name", async ({ age, paired, beacon }) => {
+    const now = Date.now();
+    proc.peers = [{ paired, ...(beacon ? { lastSeen: now } : {}), offers: {
+      at: now - age, current: { key: "account-1@b.c@@org-1" },
+    } }];
+    writeStore(2, { 1: { five: 0, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } }, now);
     await auto.setNextChoice("weekly");
     await auto.setHomeAccount(1);
     const tick = await tickOnce();
@@ -382,54 +458,34 @@ describe("home account", () => {
     expect(switches()).toEqual([1]);
   });
 
-  it.each([
-    { name: "a recent paired claim", age: 0.5, paired: true, expected: 3 },
-    { name: "a claim exactly at the presence limit", age: 1, paired: true, expected: 1 },
-    { name: "an old claim despite a fresh beacon", age: 2, paired: true, expected: 1 },
-    { name: "an unpaired peer's recent claim", age: 0.5, paired: false, expected: 1 },
-    { name: "a claim with no receipt timestamp", age: null, paired: true, expected: 1 },
-    { name: "a manifest arriving after the tick's clock sample", age: -0.01, paired: true, expected: 3 },
-  ])("handles $name when choosing Home", async ({ age, paired, expected }) => {
-    const { PRESENT_MS } = await import("../../server/lan-sync.mjs");
-    const now = Date.now();
-    proc.peers = [{ paired, lastSeen: now, offers: {
-      ...(age == null ? {} : { at: now - age * PRESENT_MS }),
-      current: { key: "account-1@b.c@@org-1" },
-    } }];
-    writeStore(2, { 1: { five: 0, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } }, now);
+  it.each([20, 96])("refreshes a stale Home before selecting a fresh weekly alternate (refreshed Home: %i%%)", async homePct => {
+    const rows = { 1: { five: 20, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } };
+    writeStore(2, rows);
+    const path = join(ROOT, "cache", "usage.json");
+    const usage = JSON.parse(readFileSync(path, "utf8"));
+    usage.accounts["1"].fetchedAt = (Date.now() - 20 * 60_000) / 1000;
+    writeFileSync(path, JSON.stringify(usage));
+    proc.duringPoll = () => writeStore(2, { ...rows, 1: { ...rows[1], five: homePct } });
     await auto.setNextChoice("weekly");
     await auto.setHomeAccount(1);
-    const { result } = await choice.chooseBeforeEngine({ now });
-    expect(activeInStore()).toBe(expected);
-    expect(result?.trigger).toBe(expected === 1 ? "home" : "weekly-reset");
-    expect(switches()).toEqual([expected]);
+    const tick = await tickOnce();
+    expect(engineRuns()).toBe(1);
+    expect(activeInStore()).toBe(homePct < 90 ? 1 : 3);
+    expect(tick?.trigger).toBe(homePct < 90 ? "home" : "weekly-reset");
   });
 
-  it("honors a recent authenticated claim from a peer that only calls in", async () => {
-    const now = Date.now();
-    proc.peers = [{ paired: true, offers: { at: now, current: { key: "account-1@b.c@@org-1" } } }];
-    writeStore(2, { 1: { five: 0, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } }, now);
+  it("uses the weekly alternate after one unsuccessful Home refresh", async () => {
+    writeStore(2, { 1: { five: 20, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } });
+    const path = join(ROOT, "cache", "usage.json");
+    const usage = JSON.parse(readFileSync(path, "utf8"));
+    usage.accounts["1"].fetchedAt = (Date.now() - 20 * 60_000) / 1000;
+    writeFileSync(path, JSON.stringify(usage));
     await auto.setNextChoice("weekly");
     await auto.setHomeAccount(1);
-    expect((await choice.chooseBeforeEngine({ now })).result?.to?.number).toBe(3);
+    const tick = await tickOnce();
+    expect(engineRuns()).toBe(1);
     expect(activeInStore()).toBe(3);
-  });
-
-  it("reserves Home again as soon as the peer sends a new manifest", async () => {
-    const { PRESENT_MS } = await import("../../server/lan-sync.mjs");
-    const now = Date.now();
-    proc.peers = [{ paired: true, offers: { at: now - PRESENT_MS, current: { key: "account-1@b.c@@org-1" } } }];
-    const rows = { 1: { five: 0, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } };
-    writeStore(2, rows, now);
-    await auto.setNextChoice("weekly");
-    await auto.setHomeAccount(1);
-    expect((await choice.chooseBeforeEngine({ now })).result?.to?.number).toBe(1);
-    // After the normal cooldown, the refreshed claim must block Home again.
-    const later = now + H;
-    writeStore(2, rows, later);
-    accounts.invalidateClaudeAccountsCache();
-    proc.peers[0].offers!.at = later;
-    expect((await choice.chooseBeforeEngine({ now: later })).result?.to?.number).toBe(3);
+    expect(tick?.trigger).toBe("weekly-reset");
   });
 
   it("rechecks Home after the engine refreshes its stale usage", async () => {

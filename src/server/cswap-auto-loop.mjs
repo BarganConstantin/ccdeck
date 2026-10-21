@@ -116,8 +116,20 @@ async function runAutoTick() {
       if (!_enabled) return { skipped: "disabled" };
       if (await externalAutoRunning()) return { skipped: "external-engine" };
       invalidateClaudeAccountsCache();
-      chose = await chooseBeforeEngine().catch(() => ({ result: null, accounts: null }));
+      chose = await chooseBeforeEngine({ refreshHome: false }).catch(() => ({ result: null, accounts: null }));
       if (chose.result) return { chose: chose.result };
+      // A deck-managed `cswap switch` does not advance the engine's own
+      // lastSwitchAt. Its fallback must keep our cooldown too, or a manual
+      // return to the full account can immediately escape the weekly rule
+      // through the engine's most-room choice. Still allow emergency exits.
+      const decision = summarise(preview.stdout);
+      if (Date.now() < chose.cooldownUntil && decision.trigger !== "at-limit" && decision.trigger !== "failover") {
+        return { chose: {
+          ok: true, ...decision, event: "no-switch", switched: false,
+          trigger: null, reason: "cooldown", from: null, to: null,
+          detail: "Waiting for the account-switch cooldown",
+        } };
+      }
     }
     const out = await run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS });
     return { ...out, accounts: chose.accounts };

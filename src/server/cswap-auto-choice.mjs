@@ -30,7 +30,7 @@ import { backupRoot, fetchClaudeAccounts, slotNumber, switchClaudeAccount } from
 import { readCswapConfig } from "./cswap-auto-readers.mjs";
 import { accountKey } from "./lan-copies.mjs";
 import { isProcessAlive } from "./deck-probe.mjs";
-import { chooseAccount, countedModels, NEXT_CHOICES } from "./account-choice.mjs";
+import { chooseAccount, countedModels, readingCurrent, NEXT_CHOICES } from "./account-choice.mjs";
 
 /** Where the choice is kept: beside prefs.json, in the deck's own data. */
 export function choicePath(home = deckDataDir()) {
@@ -146,26 +146,6 @@ async function engineState(accounts) {
   };
 }
 
-/** The accounts paired decks have recently said they are working on.
- *  One login live on two machines races for every renewal (README, "One login
- *  live in one place"), so a tick never moves onto one of them. The LAN table
- *  retains old manifests for display after a peer goes quiet; those are not
- *  current reservations. Use the authenticated manifest's receipt time, not a
- *  beacon or a failed round, which cannot confirm the account still in use. */
-async function accountsOnOtherDecks(now) {
-  try {
-    const [{ lanEngine }, { PRESENT_MS }] = await Promise.all([
-      import("./lan-deck.mjs"), import("./lan-sync.mjs"),
-    ]);
-    const peers = lanEngine.status()?.peers ?? [];
-    return new Set(peers
-      .filter(p => p?.paired === true && Number.isFinite(p.offers?.at) && p.offers.at > 0 && now - p.offers.at < PRESENT_MS)
-      .map(p => p.offers.current?.key).filter(k => typeof k === "string"));
-  } catch {
-    return new Set();
-  }
-}
-
 /** The name claude-swap gives an account's `cswap run` profile after its
  *  slot number: the email, NFC, with anything but ASCII letters, digits and
  *  `._-` turned into `_` (claude_swap/session.py, slugify_email). */
@@ -219,7 +199,7 @@ const refOf = a => (a ? { number: a.num, email: a.email ?? null } : null);
  * roster it decided on, which noteEngineTick needs to name where the engine
  * went, and null when nothing is set.
  */
-export async function chooseBeforeEngine({ now = Date.now() } = {}) {
+export async function chooseBeforeEngine({ now = Date.now(), refreshHome = true } = {}) {
   const choice = await readChoice();
   if (choice.next === "room" && !choice.home) return { result: null, accounts: null };
   const roster = await fetchClaudeAccounts();
@@ -244,26 +224,39 @@ export async function chooseBeforeEngine({ now = Date.now() } = {}) {
   const threshold = numberOr(cfg["autoswitch.threshold"]?.value, 90);
   const models = countedModels(cfg["autoswitch.model"]?.value);
   const engine = await engineState(accounts);
+  const lastMoveAt = Math.max(choice.lastMoveAt, engine.lastSwitchAt);
+  const cooldownMs = numberOr(cfg["autoswitch.cooldownSeconds"]?.value, 300) * 1000;
+  const cooldownUntil = lastMoveAt + cooldownMs;
   const pick = chooseAccount({
     accounts,
     choice: { next: choice.next, home: choice.home?.key ?? null, manual, goHome },
     threshold,
     models,
-    busy: new Set([...await accountsOnOtherDecks(now), ...await accountsInCswapRun(accounts)]),
+    busy: await accountsInCswapRun(accounts),
     quarantined: engine.quarantined,
-    sinceMove: now - Math.max(choice.lastMoveAt, engine.lastSwitchAt),
-    cooldownMs: numberOr(cfg["autoswitch.cooldownSeconds"]?.value, 300) * 1000,
+    sinceMove: now - lastMoveAt,
+    cooldownMs,
     optional: (cfg["autoswitch.strategy"]?.value ?? "best") === "best",
     now,
   });
   if (!pick) {
     await updateChoice(keep);
-    return { result: null, accounts };
+    return { result: null, accounts, cooldownUntil };
+  }
+  // Give Home one collection pass before a fresh weekly candidate can
+  // preempt it. The loop retries with refreshHome=false after its dry run:
+  // a failed/backed-off collection must not prevent leaving a full account.
+  const home = choice.home ? accounts.find(a => a.key === choice.home.key) : null;
+  if (refreshHome && pick.trigger !== "home" && home && !home.active &&
+      !home.disabled && home.alive !== false && !home.error && !home.reauth &&
+      !readingCurrent(home, models, now)) {
+    await updateChoice(keep);
+    return { result: null, accounts, cooldownUntil };
   }
   const moved = await switchClaudeAccount(pick.to.num);
   if (!moved.ok) {
     await updateChoice(keep);
-    return { result: null, accounts };
+    return { result: null, accounts, cooldownUntil };
   }
   // The move happened, so where it left the user and when are true whatever
   // was set meanwhile; a home still to be gone to is the current choice's.
