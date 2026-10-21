@@ -1,6 +1,7 @@
 // Whether this deck can connect and read a kind (#2178): each provider says
-// so (`available`), the page is told only of those that can, and a route
-// that would ask a provider that is not answering, or ask for a saved
+// so (`available`), the page is told of every registered provider with that
+// answer and offers only those that can (a deck with none lists none), and a
+// route that would ask a provider that is not answering, or ask for a saved
 // connection whose provider this deck does not have, answers the error kind
 // `unavailable` (503) and asks nothing. An image is an empty 404 as always,
 // and Disconnect still works. A booted deck in a sandbox home, with fake
@@ -113,23 +114,27 @@ describe("the kinds the page is told about", () => {
     expect(r.body.providers).toEqual(expect.arrayContaining([{ kind: "tracker", label: "Tracker", available: true }]));
   });
 
-  it("are only those available now, and every saved connection stays listed", async () => {
+  it("are every registered provider, one not answering listed with available false, and every saved connection stays listed", async () => {
     down = false;
     const id = await connect("tracker-down");
-    const kinds = async () => (await page("/api/integrations")).body.providers.map((p: { kind: string }) => p.kind);
-    expect(await kinds()).toContain("tracker-down");
+    const listed = async () => (await page("/api/integrations")).body.providers;
+    expect(await listed()).toContainEqual({ kind: "tracker-down", label: "Tracker Down", available: true });
     down = true;
     try {
       const r = await page("/api/integrations");
       expect(r.status).toBe(200);
-      expect(r.body.providers.map((p: { kind: string }) => p.kind)).not.toContain("tracker-down");
-      expect(r.body.providers.every((p: { available: boolean }) => p.available === true)).toBe(true);
+      // Listed, as not available now: the page keeps reading the list (it
+      // polls where the deck reports a provider) and offers the kind only
+      // once it says true.
+      expect(r.body.providers).toContainEqual({ kind: "tracker-down", label: "Tracker Down", available: false });
+      expect(r.body.providers).toContainEqual({ kind: "tracker", label: "Tracker", available: true });
+      expect(r.body.providers).toEqual(providerList());
       expect(r.body.connections.find((c: { id: string }) => c.id === id)).toMatchObject({ kind: "tracker-down", tokenSaved: true });
       expect((await page("/api/integrations", "HEAD")).status).toBe(200);
     } finally {
       down = false;
     }
-    expect(await kinds()).toContain("tracker-down");
+    expect(await listed()).toContainEqual({ kind: "tracker-down", label: "Tracker Down", available: true });
     expect((await call("DELETE", `/api/integrations/connections/${id}`)).status).toBe(200);
   });
 

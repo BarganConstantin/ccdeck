@@ -365,6 +365,24 @@ describe("the I row in Keyboard help and Settings › Keyboard", () => {
   });
 });
 
+// ── a provider listed as not available now ───────────────────────────────────
+
+describe("a provider the deck lists as not available now", () => {
+  it("draws no Integrations entry while it is unavailable, and every entry once a later read lists it available", async () => {
+    await deckSays([], [{ kind: "jira", label: "Jira", available: false }]);
+    expect(theList()).toMatchObject({ connections: [], providers: [{ kind: "jira", available: false }] });
+    drawsNoIntegration();
+    await deckSays([], [JIRA]);
+    const state = theList();
+    expect(tabsOf(draw(createElement(SettingsModal, settingsProps())))).toContain("Integrations");
+    expect(searchSettings("integrations", indexFor(true, integrationsReach(state))).length).toBeGreaterThan(0);
+    expect(draw(createElement(KeyboardHelp, { onClose: noop }))).toContain("<kbd>I</kbd>");
+    expect(draw(createElement(IntegrationsSection))).toContain(">Add integration<");
+    // No connection yet, so still no rail control.
+    expect(railFor(state)).toEqual([]);
+  });
+});
+
 // ── the unavailable words ────────────────────────────────────────────────────
 
 describe("a read the deck cannot serve: 503, kind unavailable", () => {

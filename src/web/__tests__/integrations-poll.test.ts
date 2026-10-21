@@ -37,9 +37,16 @@ const PROVIDER_DOWN = answer({ ok: true, providers: [{ kind: "jira", label: "Jir
 const STRANDED = answer({ ok: true, providers: [], connections: [CONN] });
 const FAILS = answer({ error: "internal error" }, 500);
 
+/** What the page shows of the integrations for the list it holds now, by the
+ *  same calls its surfaces draw from: the kinds offered, the Settings tab,
+ *  Settings search, the I row in Keyboard help, the rail's controls. */
+interface Shown { offered: string[]; settingsTab: boolean; searchHits: boolean; iRow: boolean; railControls: number }
+const NOTHING_SHOWN: Shown = { offered: [], settingsTab: false, searchHits: false, iRow: false, railControls: 0 };
+
 interface Page {
   /** How many times the page has read the list. */
   reads(): number;
+  shows(): Shown;
   /** The tab comes back into view. */
   show(): void;
   unmount(): void;
@@ -65,12 +72,26 @@ async function pageOn(...answers: Array<() => Answer>): Promise<Page> {
     addEventListener: (type: string, run: () => void) => { if (type === "visibilitychange") onVisible = run; },
     removeEventListener: (type: string) => { if (type === "visibilitychange") onVisible = null; },
   });
-  const { useIntegrations } = await import("../integrations/client");
+  const { useIntegrations, offeredKinds, integrationsReach, kindOffered, kindOpenable } = await import("../integrations/client");
+  const { sectionsDrawn } = await import("../settings");
+  const { indexFor, searchSettings } = await import("../settings-search");
+  const { keyHelpFor } = await import("../key-help");
   const { fakeMount, fakeFlush } = (await import("react")) as unknown as FakeReact;
   const page = fakeMount(() => useIntegrations(), {});
   await fakeFlush();
   return {
     reads: () => fetch.mock.calls.filter(([path]) => path === "/api/integrations").length,
+    shows: () => {
+      const state = page.tree as ReturnType<typeof useIntegrations>;
+      const reach = integrationsReach(state);
+      return {
+        offered: [...offeredKinds(state)].sort(),
+        settingsTab: sectionsDrawn(reach, "general").some(s => s.id === "integrations"),
+        searchHits: searchSettings("integrations", indexFor(true, reach)).length > 0,
+        iRow: keyHelpFor(true, kind => kindOffered(state, kind)).some(g => g.rows.some(r => r.cap === "I")),
+        railControls: (["jira", "github", "gitlab"] as const).filter(kind => kindOpenable(state, kind)).length,
+      };
+    },
     show: () => onVisible?.(),
     unmount: () => page.unmount(),
   };
@@ -130,6 +151,37 @@ describe("a deck that reports a provider, or holds a connection", () => {
       expect(page.reads()).toBe(3);
       page.unmount();
     }
+  });
+});
+
+describe("a deck that lists its provider as not available now, with no connection", () => {
+  // As a deck lists a provider that cannot serve yet: the host lists every
+  // registered provider, with `available` false meanwhile.
+
+  it("is read every minute, and shows no Integrations entry while the provider stays unavailable", async () => {
+    const page = await pageOn(PROVIDER_DOWN);
+    expect(page.reads()).toBe(1);
+    expect(page.shows()).toEqual(NOTHING_SHOWN);
+    for (const reads of [2, 3]) {
+      await pass(60_000);
+      expect(page.reads()).toBe(reads);
+      expect(page.shows()).toEqual(NOTHING_SHOWN);
+    }
+    page.unmount();
+  });
+
+  it("shows the kind's entries from the later read that lists it available, and keeps reading every minute", async () => {
+    const page = await pageOn(PROVIDER_DOWN, PROVIDER);
+    expect(page.shows()).toEqual(NOTHING_SHOWN);
+    await pass(59_999);
+    expect(page.reads()).toBe(1);
+    expect(page.shows()).toEqual(NOTHING_SHOWN);
+    await pass(1);
+    expect(page.reads()).toBe(2);
+    expect(page.shows()).toEqual({ offered: ["jira"], settingsTab: true, searchHits: true, iRow: true, railControls: 0 });
+    await pass(60_000);
+    expect(page.reads()).toBe(3);
+    page.unmount();
   });
 });
 
