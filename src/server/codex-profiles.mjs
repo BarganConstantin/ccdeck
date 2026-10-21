@@ -172,7 +172,7 @@ export async function readCodexProfileQuota(id, options = {}) {
       if (raw == null || raw === '') return null;
       const pct = Number(raw);
       return Number.isFinite(pct) && pct >= 0
-        ? { usedPercent: pct, resetAt: value.resets_at ?? null, seconds: value.limit_window_seconds ?? null }
+        ? { usedPercent: pct, resetAt: value.reset_at ?? value.resets_at ?? null, seconds: value.limit_window_seconds ?? null }
         : null;
     };
     return {

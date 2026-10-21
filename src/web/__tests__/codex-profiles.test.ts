@@ -164,6 +164,21 @@ describe('Codex profile discovery', () => {
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 
+  it('keeps the reset time wham/usage reports as reset_at', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-quota-reset-'));
+    try {
+      await writeFile(join(root, 'auth.json'), JSON.stringify({ tokens: { access_token: 'ACCESS' } }));
+      const env = { CODEX_HOME: root };
+      const [profile] = await discoverCodexProfiles({ env });
+      const mockFetch = async () => ({ ok: true, json: async () => ({ plan_type: 'prolite', rate_limit: {
+        primary_window: { used_percent: 1, limit_window_seconds: 604800, reset_after_seconds: 602854, reset_at: 1793209822 },
+        secondary_window: null,
+      } }) });
+      const quota = await readCodexProfileQuota(profile.id, { env, fetch: mockFetch });
+      expect(quota.windows).toEqual([{ usedPercent: 1, resetAt: 1793209822, seconds: 604800 }]);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
   it('reports revoked authentication and quota throttling without publishing secrets', async () => {
     const root = await mkdtemp(join(tmpdir(), 'ccdeck-quota-fail-'));
     try {
