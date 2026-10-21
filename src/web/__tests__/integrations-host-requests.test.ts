@@ -298,6 +298,42 @@ describe("the asset route", () => {
   });
 });
 
+describe("a connection whose provider this deck does not have", () => {
+  // Made by a deck that had the provider, as development's did: this one has
+  // none for jira. Its secret is an object, as Jira's is.
+  const STRANDED = fakeToken("stranded");
+  const secretsFile = () => join(DIR, "deck", "integrations", "integrations-secrets.json");
+  const metaFile = () => join(DIR, "deck", "integrations", "integrations.json");
+
+  it("is disconnected, and its token goes with it, without asking any provider", async () => {
+    const conn = await integrationsStore.create({
+      kind: "jira", name: "Old", baseUrl: "https://jira.example.com",
+      account: { login: "jdoe" }, allowedOrigins: ["https://jira.example.com"],
+    }, { auth: "bearer", token: STRANDED });
+    const listed = await page("/api/integrations");
+    expect(listed.body.connections.find((c: { id: string }) => c.id === conn.id)).toMatchObject({ kind: "jira", tokenSaved: true });
+    expect(listed.raw).not.toContain(STRANDED);
+    expect(readFileSync(secretsFile(), "utf8")).toContain(STRANDED);
+
+    const before = asked();
+    const r = await call("DELETE", `/api/integrations/connections/${conn.id}`);
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ ok: true });
+    expect(asked()).toBe(before);
+
+    expect((await list()).map((c: { id: string }) => c.id)).not.toContain(conn.id);
+    expect(Object.keys(JSON.parse(readFileSync(secretsFile(), "utf8")).secrets)).not.toContain(conn.id);
+    expect(JSON.parse(readFileSync(metaFile(), "utf8")).connections.map((c: { id: string }) => c.id)).not.toContain(conn.id);
+    const walk = (dir: string): string[] => readdirSync(dir).flatMap(name => {
+      const path = join(dir, name);
+      return statSync(path).isDirectory() ? walk(path) : [path];
+    });
+    for (const file of walk(DIR)) expect(readFileSync(file, "latin1").includes(STRANDED), file).toBe(false);
+
+    expectRefused(await call("DELETE", `/api/integrations/connections/${conn.id}`), 404, "not-found");
+  });
+});
+
 describe("what the deck said and kept while it ran", () => {
   it("never once named the token, and kept it in the secrets file only", () => {
     for (const line of said) expect(line.includes(TOKEN), line.slice(0, 120)).toBe(false);

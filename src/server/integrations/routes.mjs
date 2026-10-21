@@ -7,7 +7,8 @@
 //                                                        the address, the token or the provider's
 //                                                        options change
 //   POST   /api/integrations/connections/<id>/test      ask the tracker again with the saved token
-//   DELETE /api/integrations/connections/<id>           disconnect: the connection and its token
+//   DELETE /api/integrations/connections/<id>           disconnect: the connection and its token,
+//                                                        with or without a provider for its kind
 //   GET    /api/integrations/<kind>/<id>/asset?url=     an image, read by the provider's client from its
 //                                                        own image hosts (raster only; empty 403/404)
 //   GET    /api/integrations/<kind>/<id>/<subpath…>     the provider's own reads (registry.mjs)
@@ -284,14 +285,18 @@ export async function handleIntegrations(req, res, url, deps = {}) {
       if (!id || segments.length > 3) return notFound(res);
       const existing = await store.get(id);
       if (!existing) throw integrationError("not-found", "That connection is not there any more.");
-      const provider = getProvider(existing.kind);
-      if (!provider) throw integrationError("incompatible", `This deck no longer knows how to talk to ${existing.kind}.`);
 
+      // Disconnect asks no provider: a connection, and the token saved with
+      // it, can always be deleted — also one whose provider this deck does not
+      // have, which nothing else here can read or check.
       if (!action && method === "DELETE") {
         forgetConnection(id);
         await store.remove(id);
         return send(res, 200, { ok: true });
       }
+
+      const provider = getProvider(existing.kind);
+      if (!provider) throw integrationError("incompatible", `This deck no longer knows how to talk to ${existing.kind}.`);
 
       if (action === "test" && method === "POST") {
         const secret = await store.secret(id);
