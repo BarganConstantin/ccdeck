@@ -117,11 +117,14 @@ interface Props {
   /** What the list behind the fold is ordered by (#1579) — a window's name,
    *  "room", or null — so the row can mark the number it was placed by. */
   sortKey?: string | null;
+  /** This is Auto-switch's home account: what the mark says about it
+   *  (auto-choice.ts homeTitle), or null on every other row. */
+  home?: string | null;
 }
 
 export default function AccountRow({
   a, nowSec, lan, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
-  refusal, onDismissRefusal, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null,
+  refusal, onDismissRefusal, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null, home = null,
 }: Props) {
   // The windows that have not reset since they were read: the only ones whose
   // numbers say anything about this window (lane-view.ts's lapsed).
@@ -182,6 +185,7 @@ export default function AccountRow({
           aria-controls={open ? `ap-detail-${a.num}` : undefined}
           aria-describedby={[
             a.alias && a.email ? `ap-email-${a.num}` : null,
+            home ? `ap-home-${a.num}` : null,
             lan?.sharedTo ? `ap-shared-${a.num}` : null,
             !open && !issue?.blocksSwitch ? `ap-quota-${a.num}` : null,
           ].filter(Boolean).join(" ") || undefined}
@@ -207,6 +211,21 @@ export default function AccountRow({
             id is what the door's description points at. */}
         {a.alias && <span className="ap-alias" title={a.alias}>{a.alias}</span>}
         <span className="ap-email" id={`ap-email-${a.num}`} title={a.email ?? undefined}>{a.email}</span>
+        {/* HOME: the account Auto-switch comes back to. A mark, like the
+            shared one beside it, and set from the ⋯ rather than by another
+            control on every row; whether Auto-switch is passing it over
+            right now, and why, is its title. */}
+        {home && (
+          <span className="ap-home" id={`ap-home-${a.num}`} title={home}>
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+              strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M2.2 6.6 7 2.6l4.8 4" />
+              <path d="M3.6 5.6v5.8h6.8V5.6" />
+              <path d="M6 11.4V8.6h2v2.8" />
+            </svg>
+            <span className="vis-hidden">{home}</span>
+          </span>
+        )}
         {/* SHARED, SAID ON THE ROW (#2170). Whether a login is offered to the
             paired decks was a tick in Local network's setup dialog and nowhere
             else, so somebody keeping a personal login to themselves opened

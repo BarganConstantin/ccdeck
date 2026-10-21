@@ -40,10 +40,17 @@ interface Props {
   onProjects: () => void;
   /** Hold this account out of rotation, or put it back. */
   onRotation: () => void;
+  /** This account is Auto-switch's home. */
+  home: boolean;
+  /** Whether a home may be set from here: the deck's own loop is on. */
+  canSetHome: boolean;
+  /** Make this account home, or stop it being home. */
+  onHome: () => void;
 }
 
 export default function AccountMenuPopover({
   a, slots, nowSec, boundaryId, accountMenu, busy, pressProps, rotating, onProjects, onRotation,
+  home, canSetHome, onHome,
 }: Props) {
   const {
     menu, menuError, aliasDraft, confirmRemove, share, shareCopied, slotDraft,
@@ -113,6 +120,20 @@ export default function AccountMenuPopover({
                 : "Hold this account out of auto-rotation"}
               onClick={() => onRotation()}
             >{a.disabled ? "Put back in rotation" : "Hold out of rotation"}</button>
+          )}
+          {/* Home, by the rotation item's rule: set it while the deck's
+              Auto-switch is on, which is the only time it does anything,
+              and remove it whenever there is one — the row's ⌂ says so, and
+              this is the one way to undo it. A preference set once, so a
+              word here rather than a control on every row. */}
+          {(home || (canSetHome && a.email)) && (
+            <button type="button" role="menuitem" className="ap-menu-item"
+              {...pressProps(`home-${a.num}`)}
+              title={home
+                ? "Auto-switch stops coming back to this account"
+                : "Auto-switch takes you here, and comes back after this account's 5-hour window resets"}
+              onClick={() => onHome()}
+            >{home ? "Remove home" : "Set as home"}</button>
           )}
           <div role="separator" className="ap-menu-sep" />
           {/* Two presses, and the second one expires. There is no

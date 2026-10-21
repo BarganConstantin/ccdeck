@@ -94,6 +94,10 @@ const PINNED_MODULES = [
   // The plans the daily report says, read through import() by depth-facts.mjs.
   "quota-oauth.mjs",
   "codex-auth.mjs",
+  // The paired decks' current accounts, which Auto-switch's own rules skip
+  // (cswap-auto-choice.mjs). Already in memory through prefs-routes.mjs; named
+  // here because the tick reaches it through import().
+  "lan-deck.mjs",
 ];
 
 let _pinned = null;

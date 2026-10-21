@@ -79,6 +79,15 @@ export interface AutoTick {
   reason?: string | null;
   detail?: string | null;
   to?: number | null;
+  /** Why it moved: the engine's "proactive"/"at-limit"/"failover", or the
+   *  deck's own "home"/"weekly-reset". */
+  trigger?: string | null;
+}
+
+/** Which account a tick moves to — kept by the deck (cswap-auto-choice.mjs). */
+export interface AutoChoice {
+  next: "room" | "weekly";
+  home: { email: string; orgUuid: string | null } | null;
 }
 
 export interface AutoStatus {
@@ -87,4 +96,6 @@ export interface AutoStatus {
   external: boolean;          // the user runs their own `cswap auto` loop
   lastTick: AutoTick | null;
   settings: Record<string, { value: string | null; isDefault: boolean }>;
+  /** Absent from a server older than the two rules. */
+  choice?: AutoChoice;
 }

@@ -9,6 +9,7 @@
 // outlive that.
 import { type KeyboardEvent, type Ref, useId } from "react";
 
+import { NEXT_OPTIONS, type NextChoice, WEEKLY_HINT } from "../auto-choice";
 import { CUSTOM_HINT, CUSTOM_PICK, thresholdChoices } from "../auto-switch-threshold";
 import { type AutoStatus } from "../claude-accounts";
 import { type PickerCommit } from "../picker-commit";
@@ -34,6 +35,15 @@ interface Props {
   cancelThreshold: (e: KeyboardEvent) => void;
   leaveThreshold: () => void;
   doThreshold: (pick: string, commit: PickerCommit) => void;
+  /** How the next account is picked, as the panel holds the draft of it —
+   *  see use-next-draft.ts. */
+  nextPick: NextChoice;
+  nextCtl: PickerCommit;
+  nextSaved: boolean;
+  nextRef: Ref<HTMLSelectElement>;
+  nextSaveRef: Ref<HTMLButtonElement>;
+  proposeNext: (pick: string) => void;
+  doNext: () => void;
   pressProps: ReturnType<typeof useRequestSlot>["pressProps"];
   post: (body: Record<string, unknown>, tag: string) => Promise<unknown>;
   load: (force?: boolean) => Promise<void>;
@@ -49,9 +59,12 @@ interface Props {
 export default function AutoSwitchPolicy({
   auto, threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdRef, thresholdSaveRef,
   thresholdCustom, thresholdRefusal, thresholdFieldRef,
-  proposeThreshold, typeThreshold, cancelThreshold, leaveThreshold, doThreshold, pressProps, post, load,
+  proposeThreshold, typeThreshold, cancelThreshold, leaveThreshold, doThreshold,
+  nextPick, nextCtl, nextSaved, nextRef, nextSaveRef, proposeNext, doNext, pressProps, post, load,
 }: Props) {
   const noteId = useId();
+  const nextId = useId();
+  const hintId = useId();
   return (
     <div className="ap-policy-block">
       {/* Escape is the row's while the field is open, so it reaches the field
@@ -146,6 +159,40 @@ export default function AutoSwitchPolicy({
       ) : thresholdCustom ? (
         <p key="hint" id={noteId} className="ap-threshold-note">{CUSTOM_HINT}</p>
       ) : null}
+
+      {/* WHERE IT GOES, only while it goes anywhere: with the switch off the
+          rule does nothing, and a row that does nothing is the clutter this
+          block was cut down to avoid. The same propose-then-save as the
+          threshold (#516). Home is not here — it is a mark on its row and a
+          word in that row's ⋯. */}
+      {auto.enabled && (
+        <div className="ap-policy ap-next">
+          <label className="ap-next-label" htmlFor={nextId}>Next account</label>
+          <span className="ap-field">
+            <select
+              id={nextId}
+              ref={nextRef}
+              value={nextPick}
+              aria-describedby={nextPick === "weekly" ? hintId : undefined}
+              {...pressProps("next")}
+              onChange={e => proposeNext(e.target.value)}
+            >
+              {NEXT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </span>
+          {(nextCtl.sends || nextSaved) && (
+            <button ref={nextSaveRef} type="button" className="ap-manage-btn" {...pressProps("next")}
+              title={nextCtl.title}
+              onClick={() => doNext()}
+            >{nextSaved && !nextCtl.sends ? nextCtl.done : nextCtl.label}</button>
+          )}
+        </div>
+      )}
+      {/* The option that is not obvious says what it does, in one quiet
+          line, and only while it is the one showing. */}
+      {auto.enabled && nextPick === "weekly" && (
+        <p id={hintId} className="ap-threshold-note">{WEEKLY_HINT}</p>
+      )}
 
       {/* Which engine is actually switching right now. The deck stands down
           while a terminal loop runs, and says so. */}
