@@ -139,6 +139,11 @@ let snapshot: IntegrationsState = { connections: null, providers: [], error: "" 
 const listeners = new Set<(state: IntegrationsState) => void>();
 let poll: number | null = null;
 let reading: Promise<void> | null = null;
+/** A failed first read's next try, and how many it has had (three at most). */
+let retry: number | null = null;
+let retries = 0;
+const RETRY_FIRST_MS = 5_000;
+const RETRIES = 3;
 
 function publish(patch: Partial<IntegrationsState>) {
   snapshot = { ...snapshot, ...patch };
@@ -161,11 +166,29 @@ export function refreshIntegrations(): Promise<void> {
       publish({ connections: connections as Connection[], providers: providers as ProviderInfo[], error: "" });
     } catch (err) {
       publish({ error: err instanceof Error ? err.message : "Could not read the connections." });
+      // A first read that failed (the deck restarting, say) is tried again
+      // after 5, 10 and 20 s, before the minute's read takes over.
+      if (snapshot.connections === null && listeners.size > 0 && retry === null && retries < RETRIES) {
+        retry = window.setTimeout(() => { retry = null; void refreshIntegrations(); }, RETRY_FIRST_MS * 2 ** retries++);
+      }
     } finally {
       reading = null;
     }
   })();
   return reading;
+}
+
+/** Whether a later read of the list could change what the page draws: the
+ *  deck has not answered it yet, or it reports a provider (available or
+ *  not) or holds a connection (a stranded one too, so its row stays right).
+ *  What the deck answers decides, never which product it is. */
+function worthReadingAgain(state: IntegrationsState): boolean {
+  return state.connections === null || state.providers.length > 0 || state.connections.length > 0;
+}
+
+/** A read on the minute, or on the tab's return: only where it is worth it. */
+function refreshIfWorthIt() {
+  if (worthReadingAgain(snapshot)) void refreshIntegrations();
 }
 
 /** Put one connection in the shared list as the deck just answered it. */
@@ -179,17 +202,19 @@ export function dropConnection(id: string) {
   publish({ connections: (snapshot.connections ?? []).filter(c => c.id !== id) });
 }
 
-/** The list, kept fresh: read on mount, every minute while anything shows it,
- *  and when the window comes back into view. */
+/** The list, kept fresh: read on mount, then every minute while anything
+ *  shows it and when the window comes back into view, where the deck reports
+ *  something a read could change (worthReadingAgain). A deck that reports no
+ *  provider and holds no connection, as the free deck does, is read once. */
 export function useIntegrations(): IntegrationsState {
   const [state, setState] = useState(snapshot);
   useEffect(() => {
     listeners.add(setState);
     setState(snapshot);
-    const onVisible = () => { if (document.visibilityState === "visible") void refreshIntegrations(); };
+    const onVisible = () => { if (document.visibilityState === "visible") refreshIfWorthIt(); };
     if (listeners.size === 1) {
       void refreshIntegrations();
-      poll = window.setInterval(() => void refreshIntegrations(), 60_000);
+      poll = window.setInterval(refreshIfWorthIt, 60_000);
       document.addEventListener("visibilitychange", onVisible);
     }
     return () => {
@@ -197,6 +222,8 @@ export function useIntegrations(): IntegrationsState {
       if (listeners.size === 0) {
         if (poll !== null) window.clearInterval(poll);
         poll = null;
+        if (retry !== null) window.clearTimeout(retry);
+        retry = null;
         document.removeEventListener("visibilitychange", onVisible);
       }
     };
