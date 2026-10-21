@@ -1,7 +1,8 @@
 // /api/integrations — the connections to trackers (#2178), and the doorway to
 // each provider's own read routes.
 //
-//   GET    /api/integrations                            providers and connections (no secrets)
+//   GET    /api/integrations                            the providers available now, and every
+//                                                        connection (no secrets)
 //   POST   /api/integrations/connections                create: { kind, name?, input }
 //   PATCH  /api/integrations/connections/<id>           edit:   { name?, input? } — re-validates when
 //                                                        the address, the token or the provider's
@@ -355,7 +356,12 @@ export async function handleIntegrations(req, res, url, deps = {}) {
   try {
     if (segments.length === 0) {
       if (method !== "GET" && method !== "HEAD") return notAllowed(res);
-      return send(res, 200, { ok: true, providers: providerList(), connections: (await store.list()).map(forPage) });
+      // The page offers what it is told about, so it is told only about the
+      // kinds this deck can connect and read now: with none, it offers none.
+      // Every saved connection is listed whatever its kind, so it can always
+      // be disconnected.
+      const providers = providerList().filter(p => p.available);
+      return send(res, 200, { ok: true, providers, connections: (await store.list()).map(forPage) });
     }
 
     if (segments[0] === "connections") {
