@@ -224,6 +224,9 @@ export async function chooseBeforeEngine({ now = Date.now() } = {}) {
   const threshold = numberOr(cfg["autoswitch.threshold"]?.value, 90);
   const models = countedModels(cfg["autoswitch.model"]?.value);
   const engine = await engineState(accounts);
+  const lastMoveAt = Math.max(choice.lastMoveAt, engine.lastSwitchAt);
+  const cooldownMs = numberOr(cfg["autoswitch.cooldownSeconds"]?.value, 300) * 1000;
+  const cooldownUntil = lastMoveAt + cooldownMs;
   const pick = chooseAccount({
     accounts,
     choice: { next: choice.next, home: choice.home?.key ?? null, manual, goHome },
@@ -231,19 +234,19 @@ export async function chooseBeforeEngine({ now = Date.now() } = {}) {
     models,
     busy: await accountsInCswapRun(accounts),
     quarantined: engine.quarantined,
-    sinceMove: now - Math.max(choice.lastMoveAt, engine.lastSwitchAt),
-    cooldownMs: numberOr(cfg["autoswitch.cooldownSeconds"]?.value, 300) * 1000,
+    sinceMove: now - lastMoveAt,
+    cooldownMs,
     optional: (cfg["autoswitch.strategy"]?.value ?? "best") === "best",
     now,
   });
   if (!pick) {
     await updateChoice(keep);
-    return { result: null, accounts };
+    return { result: null, accounts, cooldownUntil };
   }
   const moved = await switchClaudeAccount(pick.to.num);
   if (!moved.ok) {
     await updateChoice(keep);
-    return { result: null, accounts };
+    return { result: null, accounts, cooldownUntil };
   }
   // The move happened, so where it left the user and when are true whatever
   // was set meanwhile; a home still to be gone to is the current choice's.

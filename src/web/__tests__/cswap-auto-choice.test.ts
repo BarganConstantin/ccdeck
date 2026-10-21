@@ -37,7 +37,7 @@ const { proc } = vi.hoisted(() => ({
     calls: [] as string[][], config: "",
     duringConfig: null as null | (() => Promise<unknown>),
     duringPoll: null as null | (() => unknown),
-    engineTarget: null as number | null, pollTimeout: false,
+    engineTarget: null as number | null, engineTrigger: "proactive", pollTimeout: false,
     peers: [] as { paired: boolean; lastSeen?: number; offers?: { at?: number; current?: { key?: string } } }[],
   },
 }));
@@ -78,7 +78,7 @@ vi.mock("../../server/exec.mjs", () => ({
           seq.activeAccountNumber = proc.engineTarget;
           write(path, JSON.stringify(seq));
         }
-        return { ...okay, stdout: JSON.stringify({ event: "switch", dryRun, to: { number: proc.engineTarget } }) };
+        return { ...okay, stdout: JSON.stringify({ event: "switch", trigger: proc.engineTrigger, dryRun, to: { number: proc.engineTarget } }) };
       }
       return { ...okay, code: 2, ok: false, stdout: JSON.stringify({ event: "no-switch", reason: "below-threshold" }) };
     }
@@ -181,6 +181,7 @@ beforeEach(async () => {
   proc.duringConfig = null;
   proc.duringPoll = null;
   proc.engineTarget = null;
+  proc.engineTrigger = "proactive";
   proc.pollTimeout = false;
   proc.peers = [];
   said.length = 0;
@@ -220,6 +221,56 @@ describe("with nothing set", () => {
 });
 
 describe("soonest weekly reset", () => {
+  it("keeps a recent deck-managed move's cooldown instead of falling back to most room", async () => {
+    const rows = {
+      1: { five: 95, weekIn: 16 },
+      14: { five: 0, weekIn: 100 },
+      15: { five: 40, weekIn: 82 },
+    };
+    writeStore(1, rows);
+    await auto.setNextChoice("weekly");
+    expect((await choice.chooseBeforeEngine()).result?.to?.number).toBe(15);
+    // A manual return to the full account happens while the deck's cooldown
+    // is still running. cswap's own lastSwitchAt did not change on our move.
+    writeStore(1, rows);
+    accounts.invalidateClaudeAccountsCache();
+    proc.engineTarget = 14;
+    const tick = await tickOnce();
+    expect(activeInStore()).toBe(1);
+    expect(tick).toMatchObject({ event: "no-switch", switched: false, reason: "cooldown" });
+    expect(proc.calls.filter(c => c[1] === "auto" && !c.includes("--dry-run"))).toEqual([]);
+    const later = Date.now() + 301_000;
+    writeStore(1, rows, later);
+    accounts.invalidateClaudeAccountsCache();
+    expect((await choice.chooseBeforeEngine({ now: later })).result?.to?.number).toBe(15);
+  });
+
+  it("still escapes a fully exhausted account using the weekly rule during cooldown", async () => {
+    const rows = { 1: { five: 95, weekIn: 16 }, 14: { five: 0, weekIn: 100 }, 15: { five: 40, weekIn: 82 } };
+    writeStore(1, rows);
+    await auto.setNextChoice("weekly");
+    expect((await choice.chooseBeforeEngine()).result?.to?.number).toBe(15);
+    writeStore(1, { ...rows, 1: { five: 100, weekIn: 16 } });
+    accounts.invalidateClaudeAccountsCache();
+    const tick = await tickOnce();
+    expect(activeInStore()).toBe(15);
+    expect(tick?.trigger).toBe("weekly-reset");
+  });
+
+  it("allows the engine's emergency failover during the deck cooldown", async () => {
+    const rows = { 1: { five: 95, weekIn: 16 }, 14: { five: 0, weekIn: 100 }, 15: { five: 40, weekIn: 82 } };
+    writeStore(1, rows);
+    await auto.setNextChoice("weekly");
+    expect((await choice.chooseBeforeEngine()).result?.to?.number).toBe(15);
+    writeStore(1, { ...rows, 1: { five: 20, weekIn: 16 } });
+    accounts.invalidateClaudeAccountsCache();
+    proc.engineTarget = 14;
+    proc.engineTrigger = "failover";
+    const tick = await tickOnce();
+    expect(activeInStore()).toBe(14);
+    expect(tick).toMatchObject({ switched: true, trigger: "failover" });
+  });
+
   it("selects the soonest reset even when a paired device uses that account", async () => {
     // Reported case: active at 95% weekly, a 24% account resetting in 4d,
     // and a 51% account resetting in 3d10h that another deck is using.

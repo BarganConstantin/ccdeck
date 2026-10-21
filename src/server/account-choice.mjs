@@ -144,7 +144,8 @@ function soonestWeekly(accounts, ctx, before = null) {
  *             activity reported by other paired devices does not exclude them
  *   quarantined keys of the accounts claude-swap's engine has quarantined
  *   sinceMove ms since the last move, the engine's or this one's
- *   cooldownMs the engine's cooldown, which every move here keeps too
+ *   cooldownMs the engine's cooldown for proactive moves; fully exhausted
+ *             windows can be escaped immediately
  *   optional  whether moves below the threshold may be made at all: only
  *             while the engine itself is on `best`
  *
@@ -154,7 +155,7 @@ export function chooseAccount({ accounts, choice, threshold, models = [], busy =
   const next = choice?.next === "weekly" ? "weekly" : "room";
   const homeKey = choice?.home ?? null;
   if (next === "room" && !homeKey) return null;
-  if (sinceMove < cooldownMs || !Number.isFinite(threshold)) return null;
+  if (!Number.isFinite(threshold)) return null;
 
   const active = accounts.find(a => a.active);
   // The engine reads the account it is on every minute or so; if the store
@@ -162,6 +163,9 @@ export function chooseAccount({ accounts, choice, threshold, models = [], busy =
   if (!active || !readingCurrent(active, models, now)) return null;
   const used = usedOf(active, models);
   if (used == null) return null;
+  // Like the engine, an exhausted window must be escapable immediately.
+  // Ordinary threshold moves and optional returns still keep the cooldown.
+  if (sinceMove < cooldownMs && used < 100) return null;
 
   const ctx = { threshold, models, busy, quarantined, now };
   const home = homeKey ? accounts.find(a => a.key === homeKey) ?? null : null;
