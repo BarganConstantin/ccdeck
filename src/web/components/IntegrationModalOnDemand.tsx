@@ -7,8 +7,14 @@
 // nothing is drawn in its place, as nothing is for the other three while
 // theirs arrives. A chunk that does not arrive fails as this dialog alone,
 // named for its tracker, with the reload that fixes it (LazyDialog.tsx).
-import { Suspense } from "react";
+//
+// Escape, though, reaches it while it arrives: the press opened a dialog, so
+// Escape closes it, as it would once drawn, rather than going on to the canvas
+// while the dialog opens seconds later anyway. The other three are left as
+// lazyDialog has them.
+import { Suspense, useEffect } from "react";
 import { integrationDef } from "../integrations/registry";
+import { modalStack } from "../modal-dismiss";
 import type { IntegrationModalProps } from "./IntegrationModal";
 import { lazyDialog } from "./LazyDialog";
 
@@ -22,9 +28,16 @@ export function preloadIntegrationModal(): void {
 
 export const LazyIntegrationModal = lazyDialog(loadIntegrationModal, (props: IntegrationModalProps) => integrationDef(props.kind)?.label ?? "The tracker");
 
+/** What stands in while the chunk arrives: nothing drawn, and the dialog's
+ *  place on modalStack, held until the modal takes it or the dialog closes. */
+function Opening({ onClose }: { onClose: () => void }) {
+  useEffect(() => modalStack.push(onClose, 0, "dialog"), [onClose]);
+  return null;
+}
+
 export default function IntegrationModalOnDemand(props: IntegrationModalProps) {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<Opening onClose={props.onClose} />}>
       <LazyIntegrationModal {...props} />
     </Suspense>
   );

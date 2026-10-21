@@ -104,7 +104,10 @@ describe("the modal loads when it opens", () => {
   it("is React.lazy through lazyDialog, drawing nothing while the chunk arrives, as the other three", () => {
     expect(onDemand).toContain('const loadIntegrationModal = () => import("./IntegrationModal");');
     expect(onDemand).toMatch(/export const LazyIntegrationModal = lazyDialog\(loadIntegrationModal, /);
-    expect(onDemand).toMatch(/<Suspense fallback=\{null\}>\s*<LazyIntegrationModal \{\.\.\.props\} \/>\s*<\/Suspense>/);
+    // Its fallback draws nothing (it holds Escape for the dialog meanwhile:
+    // integrations-on-demand-escape.test.ts).
+    expect(onDemand).toMatch(/<Suspense fallback=\{<Opening onClose=\{props\.onClose\} \/>\}>\s*<LazyIntegrationModal \{\.\.\.props\} \/>\s*<\/Suspense>/);
+    expect(onDemand).toMatch(/function Opening\(\{ onClose \}: \{ onClose: \(\) => void \}\) \{\s*useEffect\(\(\) => modalStack\.push\(onClose, 0, "dialog"\), \[onClose\]\);\s*return null;\s*\}/);
     expect(app).toMatch(/^import IntegrationModal, \{ preloadIntegrationModal \} from "\.\/components\/IntegrationModalOnDemand";$/m);
     expect(app).not.toMatch(/from "\.\/components\/IntegrationModal";/);
   });
