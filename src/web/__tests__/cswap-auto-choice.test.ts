@@ -33,7 +33,12 @@ const ROOT = join(DIR, "cswap");
 const H = 3600_000;
 
 const { proc } = vi.hoisted(() => ({
-  proc: { calls: [] as string[][], config: "", duringConfig: null as null | (() => Promise<unknown>) },
+  proc: {
+    calls: [] as string[][], config: "",
+    duringConfig: null as null | (() => Promise<unknown>),
+    duringPoll: null as null | (() => unknown),
+    engineTarget: null as number | null, pollTimeout: false,
+  },
 }));
 
 vi.mock("../../server/exec.mjs", () => ({
@@ -59,6 +64,21 @@ vi.mock("../../server/exec.mjs", () => ({
       return okay;
     }
     if (args[0] === "auto") {
+      await proc.duringPoll?.();
+      proc.duringPoll = null;
+      if (proc.pollTimeout) return { ...okay, ok: false, timedOut: true, stdout: JSON.stringify({ event: "poll" }) };
+      if (proc.engineTarget != null) {
+        const dryRun = args.includes("--dry-run");
+        if (!dryRun) {
+          const { readFileSync: read, writeFileSync: write } = await import("node:fs");
+          const { join: j } = await import("node:path");
+          const path = j(process.env.CLAUDE_SWAP_BACKUP!, "sequence.json");
+          const seq = JSON.parse(read(path, "utf8"));
+          seq.activeAccountNumber = proc.engineTarget;
+          write(path, JSON.stringify(seq));
+        }
+        return { ...okay, stdout: JSON.stringify({ event: "switch", dryRun, to: { number: proc.engineTarget } }) };
+      }
       return { ...okay, code: 2, ok: false, stdout: JSON.stringify({ event: "no-switch", reason: "below-threshold" }) };
     }
     return okay;
@@ -154,6 +174,9 @@ beforeEach(async () => {
   proc.calls.length = 0;
   proc.config = CONFIG();
   proc.duringConfig = null;
+  proc.duringPoll = null;
+  proc.engineTarget = null;
+  proc.pollTimeout = false;
   said.length = 0;
   rmTempDir(ROOT);
   rmTempDir(join(DIR, "deck"));
@@ -184,13 +207,81 @@ describe("with nothing set", () => {
   it("a tick is the engine's alone, as before", async () => {
     writeStore(1, { 1: { five: 95, weekIn: 100 }, 2: { five: 0, weekIn: 10 } });
     await tickOnce();
-    expect(engineRuns()).toBeGreaterThan(0);
+    expect(engineRuns()).toBe(1);
     expect(switches()).toEqual([]);
     expect((await auto.autoStatus()).choice).toEqual({ next: "room", home: null });
   });
 });
 
 describe("soonest weekly reset", () => {
+  it.each(["stale", "below threshold"])("honors the weekly policy after the engine refreshes a %s active reading", async initial => {
+    // The active reading is stale or still below the limit. The engine's
+    // next poll updates it, then its default most-room rule would choose 2.
+    // The weekly rule must see that update BEFORE any real engine switch.
+    writeStore(1, { 1: { five: initial === "stale" ? 95 : 20, weekIn: 60 }, 2: { five: 0, weekIn: 118 }, 3: { five: 40, weekIn: 70 } });
+    proc.duringPoll = () => writeStore(1, { 1: { five: 95, weekIn: 100 }, 2: { five: 0, weekIn: 118 }, 3: { five: 40, weekIn: 70 } });
+    proc.engineTarget = 2;
+    await auto.setNextChoice("weekly");
+    const path = join(ROOT, "cache", "usage.json");
+    const usage = JSON.parse(readFileSync(path, "utf8"));
+    if (initial === "stale") usage.accounts["1"].fetchedAt = (Date.now() - 20 * 60_000) / 1000;
+    writeFileSync(path, JSON.stringify(usage));
+    const tick = await tickOnce();
+    expect(activeInStore()).toBe(3);
+    expect(tick?.trigger).toBe("weekly-reset");
+    expect(proc.calls.filter(c => c[1] === "auto" && !c.includes("--dry-run"))).toEqual([]);
+  });
+
+  it("refreshes stale candidates before allowing the most-room fallback to switch", async () => {
+    writeStore(1, { 1: { five: 95, weekIn: 100 }, 2: { five: 0, weekIn: 118 }, 3: { five: 40, weekIn: 70 } });
+    const path = join(ROOT, "cache", "usage.json");
+    const usage = JSON.parse(readFileSync(path, "utf8"));
+    usage.accounts["3"].fetchedAt = (Date.now() - 20 * 60_000) / 1000;
+    writeFileSync(path, JSON.stringify(usage));
+    proc.duringPoll = () => writeStore(1, { 1: { five: 95, weekIn: 100 }, 2: { five: 0, weekIn: 118 }, 3: { five: 40, weekIn: 70 } });
+    proc.engineTarget = 2;
+    await auto.setNextChoice("weekly");
+    await tickOnce();
+    expect(activeInStore()).toBe(3);
+    expect(switches()).toEqual([3]);
+    expect(proc.calls.filter(c => c[1] === "auto" && !c.includes("--dry-run"))).toEqual([]);
+    expect(said).toHaveLength(1);
+  });
+
+  it("keeps the engine fallback when no weekly target qualifies after polling", async () => {
+    writeStore(1, { 1: { five: 95, weekIn: 100 }, 2: { five: 0, weekIn: 118 } });
+    proc.engineTarget = 2;
+    await auto.setNextChoice("weekly");
+    const tick = await tickOnce();
+    expect(activeInStore()).toBe(2);
+    expect(tick?.switched).toBe(true);
+    expect(proc.calls.filter(c => c[1] === "auto").map(c => c.includes("--dry-run"))).toEqual([true, false]);
+    expect(said).toHaveLength(1);
+  });
+
+  it("does not switch if Auto-switch is disabled during the poll", async () => {
+    writeStore(1, { 1: { five: 95, weekIn: 100 }, 2: { five: 0, weekIn: 118 } });
+    proc.engineTarget = 2;
+    proc.duringPoll = () => auto.setAutoEnabled(false);
+    await auto.setNextChoice("weekly");
+    const tick = await tickOnce();
+    expect(activeInStore()).toBe(1);
+    expect(tick?.event).toBe("skipped");
+    expect(proc.calls.filter(c => c[1] === "auto" && !c.includes("--dry-run"))).toEqual([]);
+    expect(said).toEqual([]);
+  });
+
+  it("reports a poll timeout without attempting a real switch", async () => {
+    writeStore(1, { 1: { five: 95, weekIn: 100 }, 2: { five: 0, weekIn: 118 } });
+    proc.pollTimeout = true;
+    await auto.setNextChoice("weekly");
+    const tick = await tickOnce();
+    expect(activeInStore()).toBe(1);
+    expect(tick).toMatchObject({ ok: false, reason: "tick_timeout" });
+    expect(proc.calls.filter(c => c[1] === "auto" && !c.includes("--dry-run"))).toEqual([]);
+    expect(said).toEqual([]);
+  });
+
   it("leaving at the threshold, moves to the soonest reset itself and does not run the engine after", async () => {
     writeStore(1, { 1: { five: 95, weekIn: 100 }, 2: { five: 0, weekIn: 90 }, 3: { five: 40, weekIn: 20 } });
     expect(await auto.setNextChoice("weekly")).toEqual({ ok: true });
