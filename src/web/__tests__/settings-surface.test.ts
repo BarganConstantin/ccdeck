@@ -425,3 +425,42 @@ describe("moving every control into Settings resets no setting", () => {
     }
   });
 });
+
+// ── the README's way to each setting (#2209) ────────────────────────────────
+
+describe("the README sends a reader to the section a setting is drawn in", () => {
+  const readme = readFileSync(new URL("../../../README.md", import.meta.url), "utf8");
+  const labels = SETTINGS_SECTIONS.map(s => s.label);
+  const sectionOf = (label: string) => SETTINGS_SECTIONS.find(s => s.label === label)?.id;
+
+  it("names only sections Settings has", () => {
+    // "Settings › Text & density", "**Settings › Data › Tool history**":
+    // the first name after Settings is the section.
+    const named = [...readme.matchAll(/Settings › ([^*›,.:;)\n]+?)(?= ›|\*\*|[,.:;)]|\s(?:has|holds|turns|opens|empties)\b)/g)].map(m => m[1]);
+    expect(named.length).toBeGreaterThan(5);
+    for (const label of named) expect(labels, label).toContain(label);
+  });
+
+  it("points at the section that draws each setting it names", () => {
+    // 3.43.0 gave Keyboard, Appearance and Data panes of their own; the README
+    // kept sending readers to General for all three.
+    const pointers: Array<[string, RegExp, RegExp]> = [
+      ["single-key shortcuts", /\*\*Single-key shortcuts\*\* in \*\*Settings › ([^*›]+)\*\*/, />Single-key shortcuts</],
+      ["color themes", /\*\*Settings › ([^*›]+)\*\* holds twelve color themes/, />Theme<\/h3>/],
+      ["the character", /character settings are in \*\*Settings › ([^*›]+)\*\*/, />Character<\/h3>/],
+      // Its rows wait for the stored history, so the group is what a first
+      // render draws; the README names the group too.
+      ["Keep history", /\*\*Keep history\*\* in \*\*Settings › ([^*›]+) › Tool history\*\*/, />Tool history<\/h3>/],
+      ["Clear history", /\*\*Clear\s+history…\*\* under \*\*Settings › ([^*›]+) › Tool history\*\*/, />Tool history<\/h3>/],
+      ["startup recovery", /\*\*Settings › ([^*›]+)\*\* has a separate startup-recovery switch/, />Codex sessions<\/h3>/],
+      ["Updates", /Settings › ([^*›]+) › Updates/, />Updates<\/h3>/],
+    ];
+    for (const [what, sentence, drawn] of pointers) {
+      const label = sentence.exec(readme)?.[1];
+      expect(label, `the README no longer says where ${what} is`).toBeDefined();
+      const section = sectionOf(label!);
+      expect(section, `${what}: no section called ${label}`).toBeDefined();
+      expect(drawSettings({ section }), `${what} is not in Settings › ${label}`).toMatch(drawn);
+    }
+  });
+});
