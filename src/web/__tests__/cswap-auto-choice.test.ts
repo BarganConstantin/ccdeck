@@ -38,6 +38,7 @@ const { proc } = vi.hoisted(() => ({
     duringConfig: null as null | (() => Promise<unknown>),
     duringPoll: null as null | (() => unknown),
     engineTarget: null as number | null, pollTimeout: false,
+    peers: [] as { paired: boolean; lastSeen?: number; offers?: { at?: number; current?: { key?: string } } }[],
   },
 }));
 
@@ -85,6 +86,10 @@ vi.mock("../../server/exec.mjs", () => ({
   },
   runDetached: () => {},
   pathLookup: (name: string) => `/usr/bin/${name}`,
+}));
+
+vi.mock("../../server/lan-deck.mjs", () => ({
+  lanEngine: { status: () => ({ peers: proc.peers }) },
 }));
 
 const CONFIG = (strategy = "best") => [
@@ -177,6 +182,7 @@ beforeEach(async () => {
   proc.duringPoll = null;
   proc.engineTarget = null;
   proc.pollTimeout = false;
+  proc.peers = [];
   said.length = 0;
   rmTempDir(ROOT);
   rmTempDir(join(DIR, "deck"));
@@ -362,6 +368,91 @@ describe("soonest weekly reset", () => {
 });
 
 describe("home account", () => {
+  it("prefers a usable Home over the weekly alternate when a peer's old claim has expired", async () => {
+    // Peer rows retain their last manifest while offline. That historical
+    // display data must not reserve Home forever and force a weekly alternate.
+    const at = Date.now();
+    proc.peers = [{ paired: true, lastSeen: at - H, offers: { at: at - H, current: { key: "account-1@b.c@@org-1" } } }];
+    writeStore(2, { 1: { five: 0, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } });
+    await auto.setNextChoice("weekly");
+    await auto.setHomeAccount(1);
+    const tick = await tickOnce();
+    expect(activeInStore()).toBe(1);
+    expect(tick?.trigger).toBe("home");
+    expect(switches()).toEqual([1]);
+  });
+
+  it.each([
+    { name: "a recent paired claim", age: 0.5, paired: true, expected: 3 },
+    { name: "a claim exactly at the presence limit", age: 1, paired: true, expected: 1 },
+    { name: "an old claim despite a fresh beacon", age: 2, paired: true, expected: 1 },
+    { name: "an unpaired peer's recent claim", age: 0.5, paired: false, expected: 1 },
+    { name: "a claim with no receipt timestamp", age: null, paired: true, expected: 1 },
+    { name: "a manifest arriving after the tick's clock sample", age: -0.01, paired: true, expected: 3 },
+  ])("handles $name when choosing Home", async ({ age, paired, expected }) => {
+    const { PRESENT_MS } = await import("../../server/lan-sync.mjs");
+    const now = Date.now();
+    proc.peers = [{ paired, lastSeen: now, offers: {
+      ...(age == null ? {} : { at: now - age * PRESENT_MS }),
+      current: { key: "account-1@b.c@@org-1" },
+    } }];
+    writeStore(2, { 1: { five: 0, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } }, now);
+    await auto.setNextChoice("weekly");
+    await auto.setHomeAccount(1);
+    const { result } = await choice.chooseBeforeEngine({ now });
+    expect(activeInStore()).toBe(expected);
+    expect(result?.trigger).toBe(expected === 1 ? "home" : "weekly-reset");
+    expect(switches()).toEqual([expected]);
+  });
+
+  it("honors a recent authenticated claim from a peer that only calls in", async () => {
+    const now = Date.now();
+    proc.peers = [{ paired: true, offers: { at: now, current: { key: "account-1@b.c@@org-1" } } }];
+    writeStore(2, { 1: { five: 0, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } }, now);
+    await auto.setNextChoice("weekly");
+    await auto.setHomeAccount(1);
+    expect((await choice.chooseBeforeEngine({ now })).result?.to?.number).toBe(3);
+    expect(activeInStore()).toBe(3);
+  });
+
+  it("reserves Home again as soon as the peer sends a new manifest", async () => {
+    const { PRESENT_MS } = await import("../../server/lan-sync.mjs");
+    const now = Date.now();
+    proc.peers = [{ paired: true, offers: { at: now - PRESENT_MS, current: { key: "account-1@b.c@@org-1" } } }];
+    const rows = { 1: { five: 0, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } };
+    writeStore(2, rows, now);
+    await auto.setNextChoice("weekly");
+    await auto.setHomeAccount(1);
+    expect((await choice.chooseBeforeEngine({ now })).result?.to?.number).toBe(1);
+    // After the normal cooldown, the refreshed claim must block Home again.
+    const later = now + H;
+    writeStore(2, rows, later);
+    accounts.invalidateClaudeAccountsCache();
+    proc.peers[0].offers!.at = later;
+    expect((await choice.chooseBeforeEngine({ now: later })).result?.to?.number).toBe(3);
+  });
+
+  it("rechecks Home after the engine refreshes its stale usage", async () => {
+    const rows = { 1: { five: 0, weekIn: 100 }, 2: { five: 95, weekIn: 100 }, 3: { five: 10, weekIn: 20 } };
+    writeStore(2, rows);
+    const path = join(ROOT, "cache", "usage.json");
+    const usage = JSON.parse(readFileSync(path, "utf8"));
+    usage.accounts["1"].fetchedAt = (Date.now() - 20 * 60_000) / 1000;
+    writeFileSync(path, JSON.stringify(usage));
+    // Do not let the weekly alternate preempt polling either.
+    usage.accounts["3"].fetchedAt = (Date.now() - 20 * 60_000) / 1000;
+    writeFileSync(path, JSON.stringify(usage));
+    proc.duringPoll = () => writeStore(2, rows);
+    proc.engineTarget = 3;
+    await auto.setNextChoice("weekly");
+    await auto.setHomeAccount(1);
+    const tick = await tickOnce();
+    expect(activeInStore()).toBe(1);
+    expect(tick?.trigger).toBe("home");
+    expect(switches()).toEqual([1]);
+    expect(proc.calls.filter(c => c[1] === "auto" && !c.includes("--dry-run"))).toEqual([]);
+  });
+
   it("setting one takes the user there, and says so", async () => {
     writeStore(2, { 1: { five: 0, weekIn: 100 }, 2: { five: 30, weekIn: 100 } });
     expect(await auto.setHomeAccount(1)).toEqual({ ok: true });
