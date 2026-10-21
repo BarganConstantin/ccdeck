@@ -140,7 +140,8 @@ function soonestWeekly(accounts, ctx, before = null) {
  *             somebody just set a home and expects to be taken there.
  *   threshold the engine's, in percent
  *   models    countedModels(...) of the engine's model setting
- *   busy      keys of the accounts paired decks are working on
+ *   busy      keys of the accounts whose login is live somewhere else: on a
+ *             paired deck, or in a `cswap run` session
  *   quarantined keys of the accounts claude-swap's engine has quarantined
  *   sinceMove ms since the last move, the engine's or this one's
  *   cooldownMs the engine's cooldown, which every move here keeps too
