@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { copyText } from "../copy-text";
+import { readStored, writeStored } from "../storage";
 
 interface CodexProfile {
   id: string;
@@ -46,10 +47,10 @@ function quotaStatus(quota: ProfileQuota, now: number): string {
     : error;
 }
 
-const OPEN_KEY = "ccdeck.codexProfilesOpen";
+const OPEN_KEY = "agent-dag.codexProfilesOpen";
 
 function storedOpen(): boolean {
-  try { return localStorage.getItem(OPEN_KEY) === "1"; } catch { return false; }
+  return readStored(OPEN_KEY) === "1";
 }
 
 function foldLine(profiles: CodexProfile[] | null, quotas: Record<string, ProfileQuota | null>): string {
@@ -200,7 +201,7 @@ export default function CodexProfilesSection({ autoQuota = true, initiallyOpen }
 
   function toggle() {
     setOpen(current => {
-      try { localStorage.setItem(OPEN_KEY, current ? "0" : "1"); } catch { /* per-viewer convenience only */ }
+      writeStored(OPEN_KEY, current ? "0" : "1");
       return !current;
     });
   }
