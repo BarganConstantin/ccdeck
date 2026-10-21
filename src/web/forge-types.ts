@@ -32,7 +32,10 @@ export type ForgeErrorKind =
   | "not-found" | "upstream"
   /** The deck refused the request before the forge heard of it: a parameter
    *  that is not the shape it must be. */
-  | "invalid";
+  | "invalid"
+  /** The deck cannot read this kind at the moment (503): no provider for it
+   *  here, or the one it has is not answering. */
+  | "unavailable";
 
 export interface ForgeErrorInfo {
   kind: ForgeErrorKind;

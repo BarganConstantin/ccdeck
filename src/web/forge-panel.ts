@@ -186,6 +186,7 @@ export function forgeErrorWords(kind: ForgeKind, err: ForgeErrorInfo, now = Date
     "not-found": { title: "Not found", detail: "It was deleted, moved, or this token cannot see it.", action: "retry" },
     upstream: { title: `${name} answered with an error`, detail: err.message, action: "retry" },
     invalid: { title: "The deck could not ask for that", detail: err.message, action: "retry" },
+    unavailable: { title: `${name} is unavailable on this deck`, detail: "The deck cannot read it right now. Try again in a moment.", action: "retry" },
   };
   return words[err.kind] ?? words.upstream;
 }

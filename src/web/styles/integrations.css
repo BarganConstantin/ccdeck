@@ -141,6 +141,8 @@
 .ig-note { margin: 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; }
 .ig-note[data-tone="ok"] { color: var(--ok); }
 .ig-note[data-tone="err"] { color: var(--err); }
+/* A stranded connection's sentence: why only Disconnect is offered, and what it does. */
+.ig-stranded { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; overflow-wrap: anywhere; }
 
 @media (max-width: 560px) {
   .ig-head { padding-left: 12px; gap: 8px; }

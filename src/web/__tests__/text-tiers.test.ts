@@ -227,8 +227,10 @@ describe("what was migrated to the secondary tier", () => {
       // Settings › Integrations (#2178): the provider's words on its token —
       // where to make one, what it reads — what the tracker itself said about
       // a refused one, the cautions a check found, and the sentence a Test or
-      // a Disconnect answers with. Each is read once, to act on.
-      ".ig-form-detail", ".ig-help", ".ig-note", ".ig-warnings",
+      // a Disconnect answers with. Each is read once, to act on. And a
+      // stranded connection's sentence: why Disconnect is all it
+      // offers, and what Disconnect deletes.
+      ".ig-form-detail", ".ig-help", ".ig-note", ".ig-stranded", ".ig-warnings",
       // The Jira panel's sentences: a note over the board (no active sprint,
       // the first 600 shown), a sprint's goal, why a read failed and what to
       // do, the empty board's explanation, and a quote inside an issue.

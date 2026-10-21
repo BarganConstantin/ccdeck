@@ -177,6 +177,8 @@ export function failureCopy(error: IntegrationFailure, conn: Connection): { titl
       return { title: "Not there any more", body: error.message, reconnect: false };
     case "network":
       return { title: "The deck could not be reached", body: error.message, reconnect: false };
+    case "unavailable":
+      return { title: "Jira is unavailable on this deck", body: "The deck cannot read Jira right now. Try again in a moment.", reconnect: false };
     default:
       return { title: "Jira could not be read", body: error.message, reconnect: false };
   }

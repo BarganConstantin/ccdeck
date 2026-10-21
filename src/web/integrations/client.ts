@@ -15,6 +15,10 @@ type Connection = IntegrationConnection;
 export interface ProviderInfo {
   kind: IntegrationKind;
   label: string;
+  /** Whether this deck can connect and read the kind now. A deck that cannot
+   *  leaves the kind out of the list or says false; a provider listed without
+   *  the field is one the deck has, as a deck before the field listed them. */
+  available?: boolean;
 }
 
 /** A failure, as the envelope every integration route answers with says it:
@@ -196,6 +200,46 @@ export function useIntegrations(): IntegrationsState {
 /** The connections of one kind, in the order they were made. */
 export function connectionsOf(state: IntegrationsState, kind: IntegrationKind): Connection[] {
   return (state.connections ?? []).filter(c => c.kind === kind);
+}
+
+// ── what this deck offers ───────────────────────────────────────────────────
+//
+// A deck offers only the kinds it can read. One that offers none draws no
+// integrations: no Settings section, no rail control, no I, no row in
+// Keyboard help or in Settings search, as a deck without them always drew. A
+// connection of a kind it does not offer is stranded: Settings still lists
+// it, with the one thing that works without a provider, Disconnect, which
+// deletes it and its saved token. Until the first read answers nothing is
+// known: Settings keeps its section, with nothing yet to connect, and no rail
+// control is up, since no connection is known either.
+
+/** The kinds this deck can connect and read, or null until the list is read. */
+export function offeredKinds(state: IntegrationsState): ReadonlySet<IntegrationKind> | null {
+  if (state.connections === null) return null;
+  return new Set(state.providers.filter(p => p.available !== false).map(p => p.kind));
+}
+
+/** Whether the deck offers a kind: true until the list is read. */
+export function kindOffered(state: IntegrationsState, kind: IntegrationKind): boolean {
+  const offered = offeredKinds(state);
+  return offered === null || offered.has(kind);
+}
+
+/** Whether a kind's rail control, its key and its panel are up: the deck
+ *  offers it and holds a connection of it. */
+export function kindOpenable(state: IntegrationsState, kind: IntegrationKind): boolean {
+  return kindOffered(state, kind) && connectionsOf(state, kind).length > 0;
+}
+
+/** How much of Settings › Integrations a deck draws: all of it while a kind is
+ *  offered (or nothing is read yet), only the stranded connections while it
+ *  offers none, and nothing once those are gone. */
+export type IntegrationsReach = "all" | "connections" | "none";
+
+export function integrationsReach(state: IntegrationsState): IntegrationsReach {
+  const offered = offeredKinds(state);
+  if (offered === null || offered.size > 0) return "all";
+  return (state.connections ?? []).length > 0 ? "connections" : "none";
 }
 
 // ── changes ─────────────────────────────────────────────────────────────────

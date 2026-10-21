@@ -105,7 +105,7 @@ export function failureOf(err: unknown): IntegrationFailure {
 const isAbort = (err: unknown) => err instanceof DOMException && err.name === "AbortError";
 
 /** The kinds that end a refresh: every further read would fail the same way. */
-export const FATAL_KINDS = new Set(["auth", "expired", "rate-limit", "tls", "unreachable", "incompatible", "network"]);
+export const FATAL_KINDS = new Set(["auth", "expired", "rate-limit", "tls", "unreachable", "incompatible", "network", "unavailable"]);
 
 function queryFor(group: GroupDef, filters: BoardFilters, overview: JiraBoardOverview, cursor = ""): IssueQuery {
   const base = { mine: filters.mine, quick: filters.quick };

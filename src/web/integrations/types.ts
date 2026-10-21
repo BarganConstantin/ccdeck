@@ -8,10 +8,12 @@ export type IntegrationKind = "jira" | "github" | "gitlab";
 
 /** What can go wrong, as the server says it (src/server/integrations/errors.mjs).
  *  `invalid` is a form or a parameter the deck refused; `network` is the
- *  page failing to reach the deck at all. */
+ *  page failing to reach the deck at all; `unavailable` (503) is a deck that
+ *  cannot read this kind at the moment: no provider for it here, or the one
+ *  it has is not answering. */
 export type IntegrationErrorKind =
   | "auth" | "expired" | "permission" | "unreachable" | "tls" | "rate-limit" | "incompatible"
-  | "not-found" | "upstream" | "invalid" | "network";
+  | "not-found" | "upstream" | "invalid" | "network" | "unavailable";
 
 export interface IntegrationAccount {
   id: string;

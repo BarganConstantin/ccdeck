@@ -41,7 +41,7 @@ import DetailAside from "./components/DetailAside";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { railItems } from "./rail-items";
 import IntegrationModal from "./components/IntegrationModal";
-import { connectionsOf, requestIntegrationFocus, useIntegrations } from "./integrations/client";
+import { connectionsOf, kindOffered, kindOpenable, requestIntegrationFocus, useIntegrations } from "./integrations/client";
 import { integrationDefs } from "./integrations/registry";
 import type { IntegrationKind } from "./integrations/types";
 import { useMediaQuery } from "./use-media-query";
@@ -270,11 +270,13 @@ function Inner() {
   // The trackers this deck is connected to (#2178): one rail button per kind
   // with a connection, which opens that kind's large modal. The list is the
   // one Settings › Integrations edits, so a connection added there puts the
-  // button up at once and the last one removed takes it away.
+  // button up at once and the last one removed takes it away. A kind this deck
+  // does not offer has no button, no key and no modal, connected or not: its
+  // connections wait in Settings, where Disconnect removes them.
   const integrations = useIntegrations();
   const [integrationOpen, setIntegrationOpen] = useState<IntegrationKind | null>(null);
   const closeIntegration = useCallback(() => setIntegrationOpen(null), []);
-  const connectedKinds = integrationDefs().filter(p => connectionsOf(integrations, p.kind).length > 0);
+  const connectedKinds = integrationDefs().filter(p => kindOpenable(integrations, p.kind));
   const openIntegrationRef = useMirroredRef((kind: string) => {
     const def = connectedKinds.find(p => p.kind === kind);
     if (def) setIntegrationOpen(def.kind);
@@ -796,7 +798,7 @@ function Inner() {
 
       {toolAuditOpen && <ToolAuditModal onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}
       {integrationOpen && (
-        <IntegrationModal kind={integrationOpen} connections={connectionsOf(integrations, integrationOpen)}
+        <IntegrationModal kind={integrationOpen} connections={kindOffered(integrations, integrationOpen) ? connectionsOf(integrations, integrationOpen) : []}
           onClose={closeIntegration} onReconnect={reconnectIntegration} />
       )}
 
