@@ -109,7 +109,7 @@ describe("every control in the chrome says its name (#836)", () => {
     // Drawn on the stripes and in the corner whenever the window is not a
     // phone's — the dock takes over there, in the same breakpoint.
     expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{rails\.utilities\} \/><\/div>\}/);
-    expect(app).toMatch(/: <EdgeRail side="left" label="Left column" groups=\{\[rails\.left\]\} \/>\}/);
+    expect(app).toMatch(/: <EdgeRail side="left" label="Left column" groups=\{\[rails\.left, rails\.integrations\]\} \/>\}/);
     expect(app).toMatch(/\{!phone && <EdgeRail side="right" label="Right panels" groups=\{rails\.right\} \/>\}/);
   });
 

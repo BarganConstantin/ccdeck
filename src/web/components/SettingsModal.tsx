@@ -41,6 +41,7 @@ import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
 import RadarSettings from "./RadarSettings";
 import ToolAuditSettings from "./ToolAuditSettings";
+import IntegrationsSection from "./IntegrationsSection";
 import ThemeSection from "./ThemeSection";
 import ReadingSection, { ReadingReset } from "./ReadingSection";
 import AboutSection from "./AboutSection";
@@ -243,6 +244,8 @@ export default function SettingsModal({
             onDeleteCustom={deleteCustomAsset}
           />
         );
+      case "integrations":
+        return <IntegrationsSection />;
       case "data":
         return <ToolAuditSettings />;
       case "about":

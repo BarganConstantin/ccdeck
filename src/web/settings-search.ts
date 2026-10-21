@@ -67,6 +67,7 @@ const SECTION_KEYWORDS: Record<SettingsSection, readonly string[]> = {
   keyboard: ["shortcuts", "hotkeys", "keybindings", "keys"],
   notifications: ["alerts", "notify"],
   sounds: ["audio", "tones", "chimes"],
+  integrations: ["jira", "atlassian", "tracker", "issues", "connect", "token", "board", "sprint"],
   data: ["privacy", "local data"],
   radar: ["telemetry", "collector", "monitoring"],
   about: ["information"],
@@ -153,6 +154,12 @@ function buildIndex(): SettingsEntry[] {
         keywords: ["import", "upload", "file", "mp3", "wav", "ogg", "own sound"] },
       { id: "custom-record", section: "sounds", group: "Custom sounds", label: "Record a clip",
         keywords: ["record", "microphone", "mic", "clip"] },
+    ],
+    integrations: [
+      { id: "integrations-add", section: "integrations", label: "Add integration",
+        keywords: ["connect", "jira", "jira cloud", "jira server", "data center", "api token", "personal access token", "pat"] },
+      { id: "integrations-connections", section: "integrations", label: "Connections",
+        keywords: ["disconnect", "reconnect", "test connection", "edit", "token", "expired", "jira"] },
     ],
     data: [
       { id: "tool-history-retention", section: "data", group: "Tool history", label: "Keep history",
