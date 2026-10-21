@@ -85,7 +85,7 @@ export function idlePreferredAvailable(state, account, threshold) {
     && account.lanes.every(l => l.pct < threshold);
 }
 
-async function switchToPreferred(account, roster, nextState, canSwitch) {
+async function switchToPreferred(account, roster, nextState, canSwitch, kind) {
   const previous = roster.accounts.find(a => a.active);
   if (!await canSwitch()) return null;
   await run(await cswapBin(), ["switch", String(account.num)], { timeout: 30_000 });
@@ -94,7 +94,7 @@ async function switchToPreferred(account, roster, nextState, canSwitch) {
   invalidateQuotaCache();
   await writeState(nextState);
   return { from: previous ? { number: previous.num, email: previous.email } : null,
-    to: { number: account.num, email: account.email } };
+    to: { number: account.num, email: account.email }, kind };
 }
 
 /** Called only while the auto tick holds the store mutex. */
@@ -118,7 +118,7 @@ export async function returnToPreferred(threshold, canSwitch = () => true) {
       return null;
     }
     if (!idlePreferredAvailable(state, account, threshold)) return null;
-    return switchToPreferred(account, roster, { ...state, idleDelivered: true }, canSwitch);
+    return switchToPreferred(account, roster, { ...state, idleDelivered: true }, canSwitch, "idle");
   }
   if (!windowResetObserved(state, account)) return null;
   const nextState = { ...state, resetAt: fiveHour.resetAt, awaitingWindow: fiveHour.resetAt == null,
@@ -128,5 +128,5 @@ export async function returnToPreferred(threshold, canSwitch = () => true) {
     return null;
   }
   if (!shouldReturnToPreferred(state, account, threshold)) return null;
-  return switchToPreferred(account, roster, nextState, canSwitch);
+  return switchToPreferred(account, roster, nextState, canSwitch, "reset");
 }

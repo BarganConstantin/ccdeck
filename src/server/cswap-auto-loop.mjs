@@ -96,7 +96,7 @@ async function runAutoTick() {
     if (!_enabled) return { skipped: "disabled" };
     if (await externalAutoRunning()) return { skipped: "external-engine" };
     const output = await run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS });
-    if (!output.ok || output.timedOut) return output;
+    if (!mayReturnAfterTick(output)) return output;
     const summary = summarise(output.stdout);
     if (summary.switched || summary.reason === "cooldown") return output;
     if (!preferredAccountConfigured()) return output;
@@ -126,11 +126,17 @@ async function runAutoTick() {
   if (r.preferred) {
     result.switched = true;
     result.event = "switch";
-    result.reason = "preferred-five-hour-reset";
+    result.reason = r.preferred.kind === "idle" ? "preferred-idle" : "preferred-five-hour-reset";
     result.from = r.preferred.from;
     result.to = r.preferred.to;
   }
   return result;
+}
+
+/** claude-swap uses 2 for no action and 3 for no candidate, not only 0. */
+export function mayReturnAfterTick(output) {
+  return !output.timedOut && Boolean(output.stdout)
+    && (output.ok || output.code === 2 || output.code === 3);
 }
 
 // ── deck-managed loop ──────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { idlePreferredAvailable, shouldReturnToPreferred } from "../../server/preferred-account.mjs";
+import { mayReturnAfterTick } from "../../server/cswap-auto-loop.mjs";
 
 const state = { email: "work@example.com", orgUuid: "org", resetAt: 100, awaitingWindow: false };
 const account = {
@@ -12,6 +13,14 @@ const account = {
 };
 
 describe("return to preferred account", () => {
+  it("continues after normal claude-swap outcomes but stops after errors", () => {
+    expect(mayReturnAfterTick({ ok: true, code: 0, stdout: "{}" })).toBe(true);
+    expect(mayReturnAfterTick({ ok: false, code: 2, stdout: "{}" })).toBe(true);
+    expect(mayReturnAfterTick({ ok: false, code: 3, stdout: "{}" })).toBe(true);
+    expect(mayReturnAfterTick({ ok: false, code: 1, stdout: "{}" })).toBe(false);
+    expect(mayReturnAfterTick({ ok: false, code: 3, stdout: "" })).toBe(false);
+    expect(mayReturnAfterTick({ ok: false, code: "ETIMEDOUT", timedOut: true, stdout: "{}" })).toBe(false);
+  });
   it("requires a new five-hour window with every limit below the threshold", () => {
     expect(shouldReturnToPreferred(state, account, 90)).toBe(true);
     expect(shouldReturnToPreferred(state, { ...account, lanes: [{ ...account.lanes[0], resetAt: 100 }, account.lanes[1]] }, 90)).toBe(false);
