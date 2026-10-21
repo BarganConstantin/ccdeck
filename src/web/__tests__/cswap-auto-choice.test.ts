@@ -107,6 +107,17 @@ function writeEngineState(state: { lastSwitchAt?: number; quarantine?: Record<st
   writeFileSync(join(ROOT, "autoswitch_state.json"), JSON.stringify(state));
 }
 
+/** A `cswap run` session on account `num`: the record Claude Code writes for
+ *  its process, in the profile claude-swap made for that account —
+ *  `<store>/sessions/<slot>-<email, slugged>/sessions/<pid>.json`. */
+function writeSession(num: number, pid: number) {
+  const dir = join(ROOT, "sessions", `${num}-account-${num}_b.c`, "sessions");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `${pid}.json`), JSON.stringify({ pid, sessionId: "s", cwd: "/w", startedAt: Date.now() }));
+}
+/** A pid no process holds. */
+const GONE_PID = 999_999_999;
+
 const activeInStore = () => JSON.parse(readFileSync(join(ROOT, "sequence.json"), "utf8")).activeAccountNumber;
 const engineRuns = () => proc.calls.filter(c => c[1] === "auto").length;
 const switches = () => proc.calls.filter(c => c[1] === "switch").map(c => Number(c[2]));
@@ -223,6 +234,31 @@ describe("soonest weekly reset", () => {
     expect(switches()).toEqual([3]);
   });
 
+  it("never moves onto an account a `cswap run` session is working on", async () => {
+    // Activating it too would put one rotating refresh token in two places,
+    // and one of the two gets signed out. claude-swap's engine skips such an
+    // account; `cswap switch`, which a move here runs, only warns.
+    writeSession(3, process.pid);
+    writeStore(1, { 1: { five: 95, weekIn: 100 }, 2: { five: 0, weekIn: 90 }, 3: { five: 40, weekIn: 20 } });
+    await auto.setNextChoice("weekly");
+    await tickOnce();
+    expect(switches()).toEqual([2]);
+  });
+
+  it("counts a session only while its process is running", async () => {
+    writeSession(3, GONE_PID);
+    writeStore(1, { 1: { five: 95, weekIn: 100 }, 2: { five: 0, weekIn: 90 }, 3: { five: 40, weekIn: 20 } });
+    await auto.setNextChoice("weekly");
+    await tickOnce();
+    expect(switches()).toEqual([3]);
+  });
+
+  it("names a session profile the way claude-swap does", () => {
+    expect(choice.sessionSlug("account-3@b.c")).toBe("account-3_b.c");
+    expect(choice.sessionSlug("a.b-c_d@x.com")).toBe("a.b-c_d_x.com");
+    expect(choice.sessionSlug("Ünï+tag@x.com")).toBe("_n__tag_x.com");
+  });
+
   it("makes no move below the threshold while the engine runs a strategy of its own", async () => {
     proc.config = CONFIG("consume-first");
     auto.invalidateCswapAutoCache();
@@ -265,6 +301,15 @@ describe("home account", () => {
 
   it("passes over a quarantined home, and leaves the move to the engine", async () => {
     writeEngineState({ quarantine: { "1": { email: "account-1@b.c" } } });
+    writeStore(2, { 1: { five: 0, weekIn: 100 }, 2: { five: 30, weekIn: 100 } });
+    await auto.setHomeAccount(1);
+    await tickOnce();
+    expect(switches()).toEqual([]);
+    expect(engineRuns()).toBeGreaterThan(0);
+  });
+
+  it("passes over a home a `cswap run` session is working on, and leaves the move to the engine", async () => {
+    writeSession(1, process.pid);
     writeStore(2, { 1: { five: 0, weekIn: 100 }, 2: { five: 30, weekIn: 100 } });
     await auto.setHomeAccount(1);
     await tickOnce();

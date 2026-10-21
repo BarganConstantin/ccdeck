@@ -22,13 +22,14 @@
 //
 // The ticks run one at a time under the store mutex; the panel's two writes
 // do not, so every write here goes through one chain.
-import { readFile, mkdir } from "node:fs/promises";
+import { readFile, readdir, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { deckDataDir } from "./deck-home.mjs";
 import { writeFileAtomic } from "./atomic-write.mjs";
 import { backupRoot, fetchClaudeAccounts, slotNumber, switchClaudeAccount } from "./claude-accounts.mjs";
 import { readCswapConfig } from "./cswap-auto-readers.mjs";
 import { accountKey } from "./lan-copies.mjs";
+import { isProcessAlive } from "./deck-probe.mjs";
 import { chooseAccount, countedModels, NEXT_CHOICES } from "./account-choice.mjs";
 
 /** Where the choice is kept: beside prefs.json, in the deck's own data. */
@@ -158,6 +159,41 @@ async function accountsOnOtherDecks() {
   }
 }
 
+/** The name claude-swap gives an account's `cswap run` profile after its
+ *  slot number: the email, NFC, with anything but ASCII letters, digits and
+ *  `._-` turned into `_` (claude_swap/session.py, slugify_email). */
+export function sessionSlug(email) {
+  return [...String(email ?? "").normalize("NFC")].map(ch => (/^[A-Za-z0-9._-]$/.test(ch) ? ch : "_")).join("");
+}
+
+/**
+ * The accounts a `cswap run` session is working on, by key. Such a session
+ * runs Claude Code on the account's own copy of the login; the engine never
+ * activates one of them, because two copies of one login race for every
+ * renewal. `cswap switch`, which is what a move here runs, only warns — so
+ * the deck asks the same question first.
+ *
+ * Claude Code leaves one record per running instance in the profile's
+ * `sessions/<pid>.json`; one counts while its process is running. A pid used
+ * again by something else reads as live too, which only leaves that move to
+ * the engine.
+ */
+async function accountsInCswapRun(accounts) {
+  const live = new Set();
+  for (const a of accounts) {
+    if (a.num == null || !a.email) continue;
+    const dir = join(backupRoot(), "sessions", `${a.num}-${sessionSlug(a.email)}`, "sessions");
+    let names = [];
+    try { names = (await readdir(dir)).filter(n => /^\d+\.json$/.test(n)); } catch { continue; }
+    for (const name of names) {
+      let pid = null;
+      try { pid = Number(JSON.parse(await readFile(join(dir, name), "utf8"))?.pid); } catch {}
+      if (Number.isSafeInteger(pid) && pid > 0 && isProcessAlive(pid)) { live.add(a.key); break; }
+    }
+  }
+  return live;
+}
+
 const numberOr = (v, fallback) => {
   const n = Number(v);
   return v != null && v !== "" && Number.isFinite(n) ? n : fallback;
@@ -206,7 +242,7 @@ export async function chooseBeforeEngine({ now = Date.now() } = {}) {
     choice: { next: choice.next, home: choice.home?.key ?? null, manual, goHome },
     threshold,
     models,
-    busy: await accountsOnOtherDecks(),
+    busy: new Set([...await accountsOnOtherDecks(), ...await accountsInCswapRun(accounts)]),
     quarantined: engine.quarantined,
     sinceMove: now - Math.max(choice.lastMoveAt, engine.lastSwitchAt),
     cooldownMs: numberOr(cfg["autoswitch.cooldownSeconds"]?.value, 300) * 1000,
