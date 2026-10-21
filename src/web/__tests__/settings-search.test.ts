@@ -23,6 +23,11 @@ import SettingsModal, { type SettingsModalProps } from "../components/SettingsMo
 import { DEFAULT_PREFS } from "../sound";
 import { ACCOUNT_NOTIFY_DEFAULTS } from "../use-os-notifications";
 import { clientPairs, clientText } from "./client-source";
+import { deckOffersEveryKind } from "./integrations-offered";
+
+// Drawn as a deck with integrations draws it (integrations-offered.ts), before
+// anything below draws it.
+await deckOffersEveryKind();
 
 const labels = (results: readonly SettingsEntry[]) => results.map(r => r.label);
 const ids = (results: readonly SettingsEntry[]) => results.map(r => r.id);

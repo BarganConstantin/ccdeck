@@ -15,9 +15,9 @@ type Connection = IntegrationConnection;
 export interface ProviderInfo {
   kind: IntegrationKind;
   label: string;
-  /** Whether this deck can connect and read the kind now. A deck that cannot
-   *  leaves the kind out of the list or says false; a provider listed without
-   *  the field is one the deck has, as a deck before the field listed them. */
+  /** Whether this deck can connect and read the kind now. Only true offers
+   *  it: a deck that cannot leaves the kind out of the list or says false,
+   *  and an entry that does not say is not taken for an offer. */
   available?: boolean;
 }
 
@@ -150,8 +150,15 @@ export function refreshIntegrations(): Promise<void> {
   if (reading) return reading;
   reading = (async () => {
     try {
-      const body = await integrationCall<{ connections: Connection[]; providers: ProviderInfo[] }>("/api/integrations", { timeoutMs: 10_000 });
-      publish({ connections: Array.isArray(body.connections) ? body.connections : [], providers: Array.isArray(body.providers) ? body.providers : [], error: "" });
+      const body = await integrationCall<{ connections?: unknown; providers?: unknown } | null>("/api/integrations", { timeoutMs: 10_000 });
+      const connections = body?.connections;
+      const providers = body?.providers;
+      // An answer that is not the list, a field of it missing or not a list,
+      // says nothing of what the deck offers: a failed read, like a 500.
+      if (!Array.isArray(connections) || !Array.isArray(providers)) {
+        throw new IntegrationFailure("upstream", "The deck answered with something that is not the list of connections.");
+      }
+      publish({ connections: connections as Connection[], providers: providers as ProviderInfo[], error: "" });
     } catch (err) {
       publish({ error: err instanceof Error ? err.message : "Could not read the connections." });
     } finally {
@@ -209,20 +216,22 @@ export function connectionsOf(state: IntegrationsState, kind: IntegrationKind): 
 // Keyboard help or in Settings search, as a deck without them always drew. A
 // connection of a kind it does not offer is stranded: Settings still lists
 // it, with the one thing that works without a provider, Disconnect, which
-// deletes it and its saved token. Until the first read answers nothing is
-// known: Settings keeps its section, with nothing yet to connect, and no rail
-// control is up, since no connection is known either.
+// deletes it and its saved token. A kind is offered only once the deck has
+// said so: until a read of the list answers — the first still on its way, or
+// failed (the deck's 500, or no answer while it restarts) — nothing is
+// offered and nothing is drawn, so a deck that offers no kind never shows
+// one, not even until the next read.
 
-/** The kinds this deck can connect and read, or null until the list is read. */
-export function offeredKinds(state: IntegrationsState): ReadonlySet<IntegrationKind> | null {
-  if (state.connections === null) return null;
-  return new Set(state.providers.filter(p => p.available !== false).map(p => p.kind));
+/** The kinds this deck can connect and read: none until it has answered the
+ *  list. */
+export function offeredKinds(state: IntegrationsState): ReadonlySet<IntegrationKind> {
+  if (state.connections === null) return new Set();
+  return new Set(state.providers.filter(p => p?.available === true).map(p => p.kind));
 }
 
-/** Whether the deck offers a kind: true until the list is read. */
+/** Whether the deck offers a kind: false until it has answered the list. */
 export function kindOffered(state: IntegrationsState, kind: IntegrationKind): boolean {
-  const offered = offeredKinds(state);
-  return offered === null || offered.has(kind);
+  return offeredKinds(state).has(kind);
 }
 
 /** Whether a kind's rail control, its key and its panel are up: the deck
@@ -232,13 +241,12 @@ export function kindOpenable(state: IntegrationsState, kind: IntegrationKind): b
 }
 
 /** How much of Settings › Integrations a deck draws: all of it while a kind is
- *  offered (or nothing is read yet), only the stranded connections while it
- *  offers none, and nothing once those are gone. */
+ *  offered, only the stranded connections while it offers none, and nothing
+ *  once those are gone, or while the list is not read. */
 export type IntegrationsReach = "all" | "connections" | "none";
 
 export function integrationsReach(state: IntegrationsState): IntegrationsReach {
-  const offered = offeredKinds(state);
-  if (offered === null || offered.size > 0) return "all";
+  if (offeredKinds(state).size > 0) return "all";
   return (state.connections ?? []).length > 0 ? "connections" : "none";
 }
 

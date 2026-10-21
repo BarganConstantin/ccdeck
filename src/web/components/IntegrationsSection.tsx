@@ -143,7 +143,7 @@ export default function IntegrationsSection() {
   // The kinds this deck offers, and nothing until the list is read: a deck
   // that offers none must not be asked to connect one.
   const offered = offeredKinds(integrations);
-  const known = integrationDefs().filter(p => offered?.has(p.kind) ?? false);
+  const known = integrationDefs().filter(p => offered.has(p.kind));
   const reach = integrationsReach(integrations);
 
   return (
@@ -155,9 +155,7 @@ export default function IntegrationsSection() {
           note="Browse your work in a tracker beside your agents. Tokens stay on this machine: they are never shown again, never logged, and never shared with paired decks."
           settingId="integrations-add"
         >
-          {offered === null ? (
-            <SettingRow as="div" name="Connect a tracker" note="Reading what this deck can connect…" />
-          ) : editing?.mode === "add" ? (() => {
+          {editing?.mode === "add" ? (() => {
             const def = known.find(p => p.kind === editing.kind);
             if (!def) return null;
             return (

@@ -25,6 +25,11 @@ import { THEME_KEY } from "../theme";
 import { DEFAULTS } from "../../server/deck-prefs.mjs";
 import { sheetText } from "./sheet-source";
 import { sourceOf } from "./client-source";
+import { deckOffersEveryKind } from "./integrations-offered";
+
+// Drawn as a deck with integrations draws it (integrations-offered.ts), before
+// anything below draws it.
+await deckOffersEveryKind();
 
 const noop = () => {};
 const asyncNoop = async () => {};

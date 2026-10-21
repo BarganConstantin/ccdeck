@@ -14,7 +14,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import {
-  failureOf, IntegrationFailure, integrationsReach, kindOffered, kindOpenable, offeredKinds, refreshIntegrations,
+  failureOf, IntegrationFailure, integrationsReach, kindOffered, kindOpenable, offeredKinds, refreshIntegrations, useIntegrations,
   type IntegrationsState, type ProviderInfo,
 } from "../integrations/client";
 import { integrationDefs } from "../integrations/registry";
@@ -120,15 +120,75 @@ function railFor(state: IntegrationsState) {
 // ── before the list is read ──────────────────────────────────────────────────
 // First in the file: every case after it sets the list.
 
+/** The list as every surface reads it now: the client's own shared copy. */
+function theList(): IntegrationsState {
+  let seen: IntegrationsState | null = null;
+  function Probe() { seen = useIntegrations(); return null; }
+  draw(createElement(Probe));
+  return seen!;
+}
+
+/** A first read of the list that does not answer it: the deck's own 500, or
+ *  no answer at all (the deck restarting). */
+async function deckFails(answer: () => Promise<Response>): Promise<void> {
+  vi.stubGlobal("window", { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout });
+  vi.stubGlobal("fetch", answer);
+  try { await refreshIntegrations(); } finally { vi.unstubAllGlobals(); }
+}
+
+/** Every surface a deck draws its integrations on, drawn as a deck without
+ *  them draws it: the Settings nav and search, Keyboard help, Settings ›
+ *  Keyboard and the rail. */
+function drawsNoIntegration() {
+  const state = theList();
+  expect(tabsOf(draw(createElement(SettingsModal, settingsProps())))).not.toContain("Integrations");
+  const index = indexFor(true, integrationsReach(state));
+  expect(searchSettings("integrations", index)).toEqual([]);
+  for (const query of ["jira", "github", "gitlab", "personal access token", "disconnect"]) {
+    expect(searchSettings(query, index).filter(e => e.section === "integrations"), query).toEqual([]);
+  }
+  expect(draw(createElement(KeyboardHelp, { onClose: noop }))).not.toContain("<kbd>I</kbd>");
+  expect(draw(createElement(KeyboardSection, { singleKeys: true, onToggleSingleKeys: noop }))).not.toContain('<kbd class="settings-key">I</kbd>');
+  expect(railFor(state)).toEqual([]);
+}
+
 describe("before the deck has answered", () => {
-  it("keeps the Integrations section, with nothing offered to connect yet", () => {
-    expect(tabsOf(draw(createElement(SettingsModal, settingsProps())))).toContain("Integrations");
+  it("draws nothing of the integrations until the deck has said what it offers", () => {
+    expect(theList().connections).toBeNull();
+    drawsNoIntegration();
+    // The section, drawn only while it is the one on show, waits for the list
+    // with nothing offered to connect.
     const html = draw(createElement(IntegrationsSection));
-    expect(html).toContain(">Add integration</h3>");
-    expect(html).toContain("Reading what this deck can connect…");
-    expect(html).not.toContain(">Add integration</button>");
+    expect(html).not.toContain(">Add integration<");
     expect(html).toContain("Reading connections…");
-    expect(draw(createElement(KeyboardHelp, { onClose: noop }))).toContain("<kbd>I</kbd>");
+  });
+
+  it("draws nothing either when the first read fails: the deck's 500, or no answer at all", async () => {
+    await deckFails(async () => new Response(JSON.stringify({ error: "internal error" }), { status: 500, headers: { "Content-Type": "application/json" } }));
+    expect(theList()).toMatchObject({ connections: null, error: "The deck answered 500." });
+    drawsNoIntegration();
+    await deckFails(async () => { throw new TypeError("Failed to fetch"); });
+    expect(theList()).toMatchObject({ connections: null, error: "The deck could not be reached." });
+    drawsNoIntegration();
+    const html = draw(createElement(IntegrationsSection));
+    expect(html).not.toContain(">Add integration<");
+    expect(html).toContain('role="alert">The deck could not be reached.</p>');
+  });
+
+  it("nor when the answer is not the list: not JSON, or a field of it missing", async () => {
+    await deckFails(async () => new Response("<!doctype html><title>ccdeck</title>", { status: 200, headers: { "Content-Type": "text/html" } }));
+    expect(theList().connections).toBeNull();
+    expect(theList().error).not.toBe("");
+    drawsNoIntegration();
+    await deckFails(async () => new Response(JSON.stringify({ ok: true, providers: [JIRA] }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    expect(theList()).toMatchObject({ connections: null, error: "The deck answered with something that is not the list of connections." });
+    drawsNoIntegration();
+  });
+
+  it("nor when the list does not say a kind is available", async () => {
+    await deckSays([], [{ kind: "jira", label: "Jira" }]);
+    expect(theList().connections).toEqual([]);
+    drawsNoIntegration();
   });
 });
 
@@ -136,13 +196,16 @@ describe("before the deck has answered", () => {
 
 describe("what a deck offers, as the list says it", () => {
   const unread: IntegrationsState = { connections: null, providers: [], error: "" };
+  const failed: IntegrationsState = { connections: null, providers: [], error: "The deck answered 500." };
   const none: IntegrationsState = { connections: [], providers: [], error: "" };
 
-  it("knows nothing until the list is read, and draws no rail control meanwhile", () => {
-    expect(offeredKinds(unread)).toBeNull();
-    expect(kindOffered(unread, "jira")).toBe(true);
-    expect(kindOpenable(unread, "jira")).toBe(false);
-    expect(integrationsReach(unread)).toBe("all");
+  it("offers nothing until the deck has answered the list, nor after a first read that failed, and draws no rail control meanwhile", () => {
+    for (const [name, state] of Object.entries({ unread, failed })) {
+      expect([...offeredKinds(state)!], name).toEqual([]);
+      for (const kind of ["jira", "github", "gitlab"] as const) expect(kindOffered(state, kind), `${name} ${kind}`).toBe(false);
+      expect(kindOpenable(state, "jira"), name).toBe(false);
+      expect(integrationsReach(state), name).toBe("none");
+    }
   });
 
   it("offers nothing where the deck lists no provider: an empty list is not every kind", () => {
@@ -151,13 +214,14 @@ describe("what a deck offers, as the list says it", () => {
     expect(integrationsReach(none)).toBe("none");
   });
 
-  it("offers a kind listed as available, or listed without the field, and not one listed as unavailable", () => {
+  it("offers a kind listed as available, and neither one listed as unavailable nor one listed without the field", () => {
     const state: IntegrationsState = {
       connections: [],
       providers: [JIRA, { kind: "github", label: "GitHub" }, { kind: "gitlab", label: "GitLab", available: false }],
       error: "",
     };
-    expect([...offeredKinds(state)!].sort()).toEqual(["github", "jira"]);
+    expect([...offeredKinds(state)!].sort()).toEqual(["jira"]);
+    expect(kindOffered(state, "github")).toBe(false);
     expect(kindOffered(state, "gitlab")).toBe(false);
   });
 
