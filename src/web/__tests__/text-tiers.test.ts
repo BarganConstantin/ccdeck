@@ -232,9 +232,10 @@ describe("what was migrated to the secondary tier", () => {
       // offers, and what Disconnect deletes.
       ".ig-form-detail", ".ig-help", ".ig-note", ".ig-stranded", ".ig-warnings",
       // The Jira panel's sentences: a note over the board (no active sprint,
-      // the first 600 shown), a sprint's goal, why a read failed and what to
-      // do, the empty board's explanation, and a quote inside an issue.
-      ".jr-board-note", ".jr-failure-text span", ".jr-goal", ".jr-html blockquote", ".jr-state p",
+      // the first 600 shown), a sprint's goal, the empty board's explanation,
+      // and a quote inside an issue. Why a read failed is the integrations'
+      // shared failure note's.
+      ".jr-board-note", ".jr-goal", ".jr-html blockquote", ".jr-state p",
       // Jira's labels, status lozenges and sprint totals: words on a
       // --ctl-fill pill, kept here by their bed rather than their role, as
       // the shared field's placeholder is — --muted is 4.05:1 on that fill
