@@ -152,6 +152,11 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-total[data-cat="done"] { background: color-mix(in srgb, var(--ok) 14%, var(--bg)); color: var(--text); }
 .jr-goal { margin: 0 0 8px 6px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; }
 .jr-group-body { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); }
+/* A group or a row's sub-tasks the reader has just opened fade in, once, as
+   they mount; nothing moves, and a long list (JiraBacklog: over 30 rows)
+   appears at once. */
+.jr-group-body[data-fade], .jr-subrows[data-fade] { animation: jr-open 120ms ease-out; }
+@keyframes jr-open { from { opacity: 0; } }
 .jr-empty-group { margin: 0; padding: 12px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .jr-more { margin: 8px 12px; }
 .jr-closed-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 0; }
@@ -509,6 +514,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 }
 @media (prefers-reduced-motion: reduce) {
   .jr-chevron { transition: none; }
+  .jr-group-body[data-fade], .jr-subrows[data-fade] { animation: none; }
   .jr-board-item:active, .jr-crumb:active, .jr-detail-sub:active, .jr-group-toggle:active,
   .jr-link-btn:active, .jr-row-main:active, .jr-toggle:active { transform: none; }
 }

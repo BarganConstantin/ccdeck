@@ -3,6 +3,8 @@
 // DOM and no effects — the markup is the evidence, the way the page's first
 // paint would be.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import JiraBacklog, { type JiraBacklogProps } from "../components/JiraBacklog";
@@ -221,5 +223,26 @@ describe("Needs attention keeps the issues to look at first", () => {
       { filter: { search: "", hideDone: false, attention: true }, filtered: true }, OVERVIEW,
       { "MOCK-10": { status: "ready", issues: [urgent, calm], error: null } });
     expect(Object.keys(rows(html)).sort()).toEqual(["MOCK-10", "MOCK-11", "MOCK-20"]);
+  });
+});
+
+describe("what the reader opens fades in, and nothing else does", () => {
+  const sheet = readFileSync(fileURLToPath(new URL("../styles/jira.css", import.meta.url)), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const source = readFileSync(fileURLToPath(new URL("../components/JiraBacklog.tsx", import.meta.url)), "utf8");
+
+  it("draws a group open from the start, and a parent's sub-tasks open from the start, without a fade", () => {
+    const theirs = issue("MOCK-10");
+    const html = drawBoard([subOf("MOCK-11", theirs, { assignee: ME, mine: true }), issue("MOCK-20")]);
+    expect(html).toContain('class="jr-group-body"');
+    expect(html).toContain('class="jr-subrows"');
+    expect(html).not.toContain("data-fade");
+  });
+
+  it("fades for 120ms in opacity only, skips a list of more than 30 rows, and stays still under reduced motion", () => {
+    expect(sheet).toMatch(/\.jr-group-body\[data-fade\], \.jr-subrows\[data-fade\] \{ animation: jr-open 120ms ease-out; \}/);
+    expect(/@keyframes jr-open \{([^}]*)\}/.exec(sheet)?.[1].trim()).toBe("from { opacity: 0;");
+    expect(source).toMatch(/const fades = \(rows: number\) => rows <= 30;/);
+    const reduced = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(sheet)?.[1] ?? "";
+    expect(reduced).toMatch(/\.jr-group-body\[data-fade\], \.jr-subrows\[data-fade\] \{ animation: none; \}/);
   });
 });

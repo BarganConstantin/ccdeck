@@ -49,6 +49,10 @@ export interface JiraBacklogProps {
 const TOTAL_LABELS = { new: "To do", indeterminate: "In progress", done: "Done" } as const;
 const CATEGORIES = ["new", "indeterminate", "done"] as const;
 
+/** Rows the reader opens fade in, once, as they mount (120ms, jira.css). A
+ *  longer list appears at once: thirty rows fading in reads as a slow list. */
+const fades = (rows: number) => rows <= 30;
+
 /** A group's estimate totals, each named in words ("To do 3d") and drawn
  *  only when there is something in it. A kanban column holds one status
  *  already, so it has one total; a board that counts issues has its count in
@@ -164,6 +168,9 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     onShowClosed, onMoreClosed, loadSubtasks, onReconnect } = props;
   const listRef = useRef<HTMLDivElement>(null);
   const [rowsOpen, setRowsOpen] = useState<Record<string, boolean>>({});
+  // The groups the reader has opened here, whose rows fade in as they mount.
+  // A group open from the start, or from a saved choice, is simply there.
+  const [openedHere, setOpenedHere] = useState<ReadonlySet<string>>(() => new Set());
   const [current, setCurrent] = useState<string | null>(null);
   const estimation = overview.estimation.kind;
   const time = overview.timeTracking;
@@ -286,7 +293,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
           </button>
         </div>
         {expandable && open && (
-          <ul className="jr-subrows" role="list" aria-label={`Sub-tasks of ${key}`}>
+          <ul className="jr-subrows" role="list" aria-label={`Sub-tasks of ${key}`} data-fade={(rowsOpen[key] && fades(childList.length)) || undefined}>
             {all?.status === "loading" && childList.length === 0 && <li className="jr-subnote" role="status">Reading sub-tasks…</li>}
             {all?.status === "error" && (
               <li className="jr-subnote" role="alert">Sub-tasks could not be read. <button type="button" className="jr-link-btn" onClick={() => loadSubtasks(key)}>Try again</button></li>
@@ -348,7 +355,10 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               <h3 className="jr-group-title" id={`${bodyId}-title`}>
                 <button type="button" id={`${bodyId}-toggle`} className="jr-group-toggle" data-nav={nav} data-toggle={`${bodyId}-toggle`}
                   data-expanded={String(open)} aria-expanded={open} aria-controls={bodyId} tabIndex={tabStop(nav)}
-                  onFocus={() => setCurrent(nav)} onClick={() => onToggleGroup(def, !open)}>
+                  onFocus={() => setCurrent(nav)} onClick={() => {
+                    if (!open) setOpenedHere(ids => new Set(ids).add(def.id));
+                    onToggleGroup(def, !open);
+                  }}>
                   <Chevron open={open} />
                   <span className="jr-group-name">{def.title}</span>
                   {def.kind === "active" && <span className="jr-badge">Active</span>}
@@ -371,7 +381,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
             </div>
             {sprint?.goal && open && <p className="jr-goal">{sprint.goal}</p>}
             {open && (
-              <div id={bodyId} className="jr-group-body">
+              <div id={bodyId} className="jr-group-body" data-fade={(openedHere.has(def.id) && fades(rows.length)) || undefined}>
                 {data?.status === "error" && data.error && (
                   <IntegrationFailureNote error={data.error} provider="Jira" host={connectionHost(conn)} stale={data.issues.length > 0}
                     onRetry={() => onRetryGroup(def)} onReconnect={onReconnect} />
