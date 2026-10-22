@@ -242,27 +242,6 @@ export function jiraDate(iso: string | null | undefined, withTime = false): stri
     : at.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
-/** "5m ago" — how old the panel's data is. */
-export function agoLabel(at: number, now = Date.now()): string {
-  const s = Math.max(0, Math.round((now - at) / 1000));
-  if (s < 45) return "just now";
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
-}
-
-/** What the toolbar says about how current the board is. A refresh that
- *  failed never reads as a success: the board on screen is the last answer,
- *  and the line says so, with that answer's age (`stale`, drawn in the warn
- *  tone beside its mark). */
-export function freshnessLine(state: { loading: boolean; loadedAt: number; failed: boolean }, now = Date.now()): { text: string; stale: boolean } {
-  const { loading, loadedAt, failed } = state;
-  if (loading) return { text: loadedAt ? "Updating…" : "Reading…", stale: false };
-  if (failed) return { text: loadedAt ? `Not updated · last answer ${agoLabel(loadedAt, now)}` : "Not updated", stale: true };
-  return { text: loadedAt ? `Updated ${agoLabel(loadedAt, now)}` : "", stale: false };
-}
-
 /** Bytes as a file list says them. */
 export function fileSize(bytes: number | null): string {
   if (bytes == null) return "";

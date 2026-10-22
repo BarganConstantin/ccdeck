@@ -26,14 +26,6 @@
 .jr-board-btn .jr-chevron { transform: rotate(90deg); color: var(--muted); }
 .jr-board-btn .jr-chevron[data-open] { transform: rotate(-90deg); }
 .jr-board-project { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.jr-fresh { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
-/* A refresh that failed: the board is the last answer, and the line says so. */
-.jr-fresh[data-stale] { color: var(--warn); }
-.jr-stale-glyph { flex: none; }
-.jr-refresh { width: 36px; height: 36px; padding: 0; flex: none; margin-block: 0; }
-.jr-refresh:disabled { opacity: var(--dim-off); cursor: default; }
-.jr-refresh[data-loading] svg { animation: ta-spin 1000ms linear infinite; }
-
 .jr-toolbar[hidden] { display: none; }
 .jr-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .jr-filter-chips { display: contents; }
@@ -532,13 +524,10 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   .jr-filter-chips > * { flex: none; }
 }
 @media (max-width: 420px) {
-  .jr-fresh { display: none; }
-  .jr-refresh { margin-left: auto; }
   .jr-fields { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .jr-field dd { margin-bottom: 6px; }
 }
 @media (pointer: coarse) {
-  .jr-refresh { min-width: 44px; min-height: 44px; }
   .jr-row { min-height: 44px; }
   .jr-toggle, .jr-toggle-space { width: 40px; }
   .jr-group-toggle, .jr-board-item, .jr-detail-sub { min-height: 44px; }
@@ -547,7 +536,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   .jr-board-item:hover:not([aria-current="true"]), .jr-detail-sub:hover, .jr-group-toggle:hover { background: transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .jr-refresh[data-loading] svg, .jr-skeleton i { animation: none; }
+  .jr-skeleton i { animation: none; }
   .jr-chevron, .jr-open { transition: none; }
   .jr-board-item:active, .jr-crumb:active, .jr-detail-sub:active, .jr-group-toggle:active,
   .jr-link-btn:active, .jr-row-main:active, .jr-toggle:active { transform: none; }

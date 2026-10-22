@@ -14,14 +14,16 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { connectionHost, type IntegrationFailure } from "../integrations/client";
 import type { IntegrationPanelProps } from "../integrations/types";
 import { readBoards, type JiraBoardSummary } from "../jira-api";
-import { freshnessLine, type GroupDef } from "../jira-board";
+import type { GroupDef } from "../jira-board";
 import { modalStack } from "../modal-dismiss";
 import { failureOf, useJiraBoard } from "../use-jira-board";
 import AnchoredPopover from "./AnchoredPopover";
+import IntegrationFreshness from "./IntegrationFreshness";
+import { SearchGlyph } from "./integration-glyphs";
 import IntegrationSplit from "./IntegrationSplit";
 import JiraBacklog from "./JiraBacklog";
 import JiraIssueDetail from "./JiraIssueDetail";
-import { Chevron, FailureNote, RefreshGlyph, SearchGlyph, StaleGlyph } from "./JiraParts";
+import { Chevron, FailureNote } from "./JiraParts";
 
 const isString = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 40;
 const isBool = (v: unknown): v is boolean => typeof v === "boolean";
@@ -30,15 +32,6 @@ const isFlags = (v: unknown): v is Record<string, boolean> =>
 const isQuick = (v: unknown): v is { board: string; ids: string[] } =>
   Boolean(v) && typeof v === "object" && typeof (v as { board?: unknown }).board === "string"
   && Array.isArray((v as { ids?: unknown }).ids) && (v as { ids: unknown[] }).ids.every(x => typeof x === "string");
-
-function useNow(everyMs: number) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = window.setInterval(() => setNow(Date.now()), everyMs);
-    return () => window.clearInterval(t);
-  }, [everyMs]);
-  return now;
-}
 
 // ── the board picker ────────────────────────────────────────────────────────
 
@@ -139,7 +132,6 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   const [trail, setTrail] = useState<string[]>([]);
   const [boardsError, setBoardsError] = useState<IntegrationFailure | null>(null);
   const [noBoards, setNoBoards] = useState(false);
-  const now = useNow(30_000);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { prefs.write("mine", mine); }, [prefs, mine]);
@@ -222,7 +214,6 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   }, [searching]);
 
   const host = connectionHost(conn);
-  const fresh = freshnessLine({ loading, loadedAt: snap.loadedAt, failed: Boolean(error) }, now);
   const blocking = !overview ? (error ?? boardsError) : null;
 
   const list = (() => {
@@ -301,14 +292,10 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
             <Chevron open={picker} />
           </button>
           {overview?.board.projectName && <span className="jr-board-project">{overview.board.projectName}</span>}
-          <span className="jr-fresh" role="status" aria-live="polite" data-stale={fresh.stale || undefined}>
-            {fresh.stale && <StaleGlyph />}{fresh.text}
-          </span>
-          <button type="button" className="glyph-btn jr-refresh" aria-label="Refresh the board" title="Refresh"
-            aria-busy={loading || undefined} data-loading={loading || undefined} disabled={!board}
-            onClick={() => { if (board) jira.refresh(); else firstBoard(); }}>
-            <RefreshGlyph />
-          </button>
+          {/* After a refresh that failed the rows on screen are the last
+              answer, and the line says "Not updated", never "Updated". */}
+          <IntegrationFreshness loadedAt={snap.loadedAt || null} loading={loading} stale={Boolean(error)}
+            onRefresh={() => { if (board) jira.refresh(); else firstBoard(); }} label="Refresh the board" disabled={!board} />
         </div>
         <div className="jr-filters" role="group" aria-label="Filters">
           <label className="jr-search">
