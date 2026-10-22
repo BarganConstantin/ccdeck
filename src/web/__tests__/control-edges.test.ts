@@ -546,6 +546,9 @@ const CONTROLS: Control[] = [
   // The GitHub and GitLab panel (#2179): its search field over the list, on
   // --panel, which is also where a pasted link is opened from.
   { at: ".fg-search input", states: [".fg-search input:hover"], beds: ["--panel"] },
+  // The integrations' shared search field (#2178, #2179), which both panels'
+  // fields become: on a toolbar over --bg in the modal, or over --panel.
+  { at: ".ig-search-input", states: [".ig-search-input:hover"], beds: ["--panel", "--bg"] },
   // topbar
   // The up-to-date version chip draws no boundary any more: it is metadata
   // beside the wordmark, identified by its own text, and it wears the
@@ -947,8 +950,10 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // The Jira panel (#2178) adds five: its search box at rest and under the
     // pointer, a filter chip that is on, and Open in Jira at rest and hovered.
     // The GitHub and GitLab panel (#2179) adds two: its search field at rest
-    // and under the pointer.
-    expect(EDGED_CONTROLS.length).toBeLessThan(162);
+    // and under the pointer. The integrations' shared search field adds two
+    // more, at rest and under the pointer; the two panels' own fields go when
+    // they adopt it.
+    expect(EDGED_CONTROLS.length).toBeLessThan(164);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

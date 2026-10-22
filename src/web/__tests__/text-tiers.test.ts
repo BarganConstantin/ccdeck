@@ -231,6 +231,12 @@ describe("what was migrated to the secondary tier", () => {
       // stranded connection's sentence: why Disconnect is all it
       // offers, and what Disconnect deletes.
       ".ig-form-detail", ".ig-help", ".ig-note", ".ig-stranded", ".ig-warnings",
+      // The integrations' shared failure note (#2178, #2179): the sentence
+      // under a failed read's heading, what to do about it, and the
+      // provider's own words below it, which then step down to --muted. And
+      // the shared search field's placeholder, by its bed: the field's
+      // --ctl-fill takes --muted to 4.05:1 in dark, as the forge field's did.
+      ".ig-failure-body, .ig-failure-said", ".ig-search-input::placeholder",
       // The Jira panel's sentences: a note over the board (no active sprint,
       // the first 600 shown), a sprint's goal, the empty board's explanation,
       // and a quote inside an issue. Why a read failed is the integrations'
