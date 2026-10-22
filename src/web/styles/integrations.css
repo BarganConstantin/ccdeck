@@ -196,6 +196,31 @@
 .ig-failure-actions .btn[aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
 .ig-failure-actions .btn[aria-disabled="true"]:active { transform: none; }
 
+/* The list's search (IntegrationSearch): the deck's control height, the
+   magnifier inside its start and Clear inside its end. The browser's own
+   cancel mark is hidden so there is one clear, drawn like every other glyph. */
+.ig-search { position: relative; flex: 1 1 220px; min-width: 0; display: flex; align-items: center; color: var(--muted); }
+.ig-search > svg { position: absolute; left: 8px; pointer-events: none; }
+.ig-search-input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--ctl-h);
+  box-sizing: border-box;
+  padding: 0 8px 0 27px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  background: var(--ctl-fill);
+  color: var(--text);
+  caret-color: var(--accent);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+}
+.ig-search[data-filled] .ig-search-input { padding-right: 30px; }
+.ig-search-input::placeholder { color: var(--text-secondary); opacity: 1; }
+.ig-search-input:hover { border-color: var(--text); }
+.ig-search-input::-webkit-search-cancel-button { appearance: none; display: none; }
+.ig-search-clear { position: absolute; right: 3px; margin: 0; }
+
 /* A person's or a project's picture, and the initials that stand in for it. */
 .ig-avatar { flex: none; display: block; border-radius: 50%; object-fit: cover; background: var(--ctl-fill); }
 .ig-avatar-initials {
@@ -255,6 +280,7 @@
 }
 @media (pointer: coarse) {
   .ig-close, .ig-back, .ig-refresh { min-width: 44px; min-height: 44px; }
+  .ig-search-input { min-height: 40px; }
 }
 /* A touch leaves :hover on the row it pressed; only the selection may stay. */
 @media (hover: none) {
