@@ -176,7 +176,7 @@ export default function UsageSessionBreakdown({
                 dollars are real, they are just not all of them, and a
                 floor presented as a total is the one thing this panel
                 must not print without saying so. */}
-            {s.cost > 0
+            {s.cost > 0 || s.priced
               ? (
                 <span
                   className="up-session-cost"

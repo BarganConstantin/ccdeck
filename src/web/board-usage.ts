@@ -52,14 +52,14 @@
 // covers sessions this deck never watched, and does not forget. A canvas-scoped
 // number beside an authoritative one is useful; two competing totals are not.
 // So the board figure says it is the board's, and points at the durable one.
-import { costForUsage, ratesForModel, speedShares, type CostBreakdown } from "./pricing";
+import { costForUsage, type CostBreakdown } from "./pricing";
 import type { AgentState } from "./types";
 // Tokens are priced at the model that produced them, not at the last model the
 // agent was seen on (#686). This module is the seventh surface that multiplied
 // one by the other, and the reason it is the seventh rather than a survivor is
 // that it was written to be the ONE place the board arithmetic lives — so it is
 // also the one place the board arithmetic can be wrong.
-import { agentCost, agentUnpricedTokens, usageByModelEntries, type UsageBearing } from "./usage-models";
+import { agentCost, agentFullyPriced, agentUnpricedTokens, usageByModelEntries, type UsageBearing } from "./usage-models";
 
 /** Anything the deck can price: an agent, or a test's stand-in for one.
  *
@@ -208,6 +208,8 @@ export interface BoardModelRow {
 
 /** One row of the board's "by session" table. */
 export interface BoardSessionRow {
+  /** True only when every model/speed share, including cache work, has rates. */
+  priced: boolean;
   sessionId: string;
   label: string;
   state: AgentState;
@@ -252,12 +254,7 @@ export function boardModelTable(agents: Iterable<Billable>, now: number = Date.n
     for (const e of usageByModelEntries(a)) {
       const key = e.model ?? UNKNOWN_MODEL;
       const c = costForUsage(e.usage, e.model, now);
-      const shares = speedShares(e.usage).filter(({ usage: u }) =>
-        u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheCreateTokens
-          + (u.cacheCreate1hTokens ?? 0) + (u.cacheCreate5mTokens ?? 0) > 0);
-      const priced = shares.length > 0
-        ? shares.every(share => ratesForModel(e.model, now, share.speed) !== null)
-        : ratesForModel(e.model, now) !== null;
+      const priced = agentFullyPriced({ model: e.model, usage: e.usage }, now);
       const row = modelMap.get(key);
       if (row) {
         row.inputTokens        += e.usage.inputTokens;
@@ -318,14 +315,17 @@ export function boardSessionTable(agents: Iterable<SessionBillable>, now: number
     let cost = agentCost(a, now).total;
     let inT = a.usage.inputTokens, outT = a.usage.outputTokens;
     let unpricedT = agentUnpricedTokens(a, now);
+    let priced = agentFullyPriced(a, now);
     for (const sub of all) {
       if (sub.sessionId !== a.sessionId || sub.kind === "root") continue;
       cost += agentCost(sub, now).total;
       inT  += sub.usage.inputTokens;
       outT += sub.usage.outputTokens;
       unpricedT += agentUnpricedTokens(sub, now);
+      priced = priced && agentFullyPriced(sub, now);
     }
     roots.push({
+      priced,
       sessionId: a.sessionId,
       label: a.label || a.cwdBasename || "session",
       state: a.state,
