@@ -398,7 +398,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               were the whole. `hasCost` is the source's own, not the counted
               figure, so a count passing through zero cannot flip the state.
               Without money the value stands alone: the strip below says the
-              board's scope there. "not priced" takes the rows' muted italic
+              scope there, the period under ccusage and the board's otherwise. "not priced" takes the rows' muted italic
               (.up-unpriced), not the money green. */}
           <div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>
             <span className={!hasCost && hasUnpriced ? "up-total-value up-unpriced" : "up-total-value"}>
@@ -434,8 +434,11 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
                 — the money block is gated on cost — so the strip is the only
                 aggregate on screen and the only place left to say what it is
                 the aggregate OF. Said once either way: with a headline present
-                this would be the same words twice on a 280px panel. */}
-            {!hasCost && <span className="up-tok up-scope">{BOARD_SCOPE_LABEL}</span>}
+                this would be the same words twice on a 280px panel.
+                The same word the headline's label takes, on the same rule:
+                under ccusage the strip is the period's reading from the logs,
+                and "on this board" there named a canvas it does not count. */}
+            {!hasCost && <span className="up-tok up-scope">{fromRange ? periodNoun : BOARD_SCOPE_LABEL}</span>}
           </div>
 
           {/* NO BOARD FIGURE UNDER A ccusage HEADLINE.
