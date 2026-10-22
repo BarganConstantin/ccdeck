@@ -239,6 +239,43 @@
 .ig-skeleton[data-variant="lines"] i { height: 14px; border-radius: var(--r-tag); }
 .ig-skeleton[data-variant="lines"] i:nth-of-type(3n) { width: 72%; }
 
+/* An item's top line in the detail (IntegrationDetailBar): the reference and
+   Copy, then "Open in … ↗" and Close. It sticks to the top of the pane, edge
+   to edge across the panel's padding (--ig-detail-pad). The path gives way
+   with an ellipsis; the number, the part a reader looks for, never does. */
+.ig-detail-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+  margin-inline: calc(-1 * var(--ig-detail-pad, 20px));
+  padding: 4px var(--ig-detail-pad, 20px);
+  box-sizing: border-box;
+  background: var(--panel);
+}
+.ig-ref { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.ig-ref-text { min-width: 0; display: flex; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.ig-ref-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; color: var(--muted); }
+.ig-ref-num { flex: none; white-space: nowrap; color: var(--text); }
+.ig-copy { flex: none; }
+.ig-copy[data-done] { color: var(--ok); }
+.ig-detail-bar-end { display: inline-flex; align-items: center; gap: 10px; flex: none; }
+.ig-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  text-decoration: none;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+.ig-open:hover { text-decoration: underline; }
+.ig-detail-close { width: 32px; height: 32px; padding: 0; margin: 0 -6px 0 0; }
+
 /* A person's or a project's picture, and the initials that stand in for it
    (IntegrationAvatar). A transparent outline is what a Contrast theme draws
    round a face whose fill and inset edge it drops, so initials keep their
@@ -319,7 +356,7 @@ img.ig-avatar + img.ig-avatar {
   .ig-conn-actions { flex-basis: 100%; justify-content: flex-start; }
 }
 @media (pointer: coarse) {
-  .ig-close, .ig-back, .ig-refresh { min-width: 44px; min-height: 44px; }
+  .ig-close, .ig-back, .ig-refresh, .ig-detail-close { min-width: 44px; min-height: 44px; }
   .ig-search-input { min-height: 40px; }
 }
 /* A touch leaves :hover on the row it pressed; only the selection may stay. */
