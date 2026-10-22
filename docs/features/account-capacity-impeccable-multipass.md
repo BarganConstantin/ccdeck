@@ -24,7 +24,7 @@ Assessment A: Euclid (`01a13402-84c9-7e23-ac55-37fbcfd70210`) inspected source a
 The following bundled command actually ran once:
 
 ```sh
-node /Users/constantin/.agents/skills/impeccable/scripts/detect.mjs --json src/web/components/AccountResetCalendar.tsx src/web/styles/account-projects.css
+node ~/.agents/skills/impeccable/scripts/detect.mjs --json src/web/components/AccountResetCalendar.tsx src/web/styles/account-projects.css
 ```
 
 Exit 2, 24 findings: 2 `side-tab` warnings, 15 `design-system-font-size` advisories, 6 `design-system-radius` advisories, 1 `design-system-color` advisory. Both flagged local left-border treatments were removed. Radius and font advisories include existing Projects/Accounts surfaces in the shared sheet; calendar values follow the incumbent dense product scale and shared radii. No unrelated rewrite or new global palette. The color advisory is outside the reset calendar. A clean deterministic scan was never claimed. No live detector overlay is claimed; the native browser runtime was unavailable and isolated Chromium was used.

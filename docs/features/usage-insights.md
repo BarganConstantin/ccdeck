@@ -68,7 +68,7 @@ https://github.com/ccusage/ccusage/blob/main/rust/adapters/codex/src/report.rs
 
 ## Owner preview
 
-Worktree: `/Users/constantin/Desktop/ccdeck-usage-insights`.
+Worktree: `~/Desktop/ccdeck-usage-insights`.
 Branch: `feat/2121-usage-insights`, based on development `a467d552`.
 Frontend: http://127.0.0.1:4525/ (Vite).
 Backend: http://127.0.0.1:4526/.
