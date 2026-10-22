@@ -513,9 +513,10 @@ function checkRunJob(run, detail, actions) {
  * @param {string} [opts.baseUrl]  https://github.com, or a GitHub Enterprise Server's address
  * @param {string} opts.token
  * @param {typeof fetch} [opts.fetchImpl]
+ * @param {typeof fetch} [opts.publicFetchImpl]  a job log's hop to blob storage (forge-http.mjs)
  * @param {() => number} [opts.now]
  */
-export function createGithubClient({ baseUrl = "https://github.com", token, fetchImpl, now = () => Date.now() } = {}) {
+export function createGithubClient({ baseUrl = "https://github.com", token, fetchImpl, publicFetchImpl, now = () => Date.now() } = {}) {
   const typed = String(baseUrl || "https://github.com").trim().replace(/\/+$/, "");
   const host = new URL(typed).host.toLowerCase();
   const dotcom = host === "github.com" || host === "www.github.com";
@@ -531,6 +532,7 @@ export function createGithubClient({ baseUrl = "https://github.com", token, fetc
     authHeaders: (tok) => ({ authorization: `Bearer ${tok}`, "x-github-api-version": API_VERSION }),
     allowedOrigins,
     fetchImpl,
+    ...(publicFetchImpl ? { publicFetchImpl } : {}),
     now,
   });
 

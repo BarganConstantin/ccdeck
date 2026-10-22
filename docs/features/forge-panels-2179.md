@@ -144,8 +144,9 @@ The glyphs are `GithubGlyph` and `GitlabGlyph` in
 
 ### The transport
 
-`createForgeTransport({token, authHeaders, allowedOrigins, fetchImpl, now,
-timeoutMs, maxBytes})` in `forge-http.mjs` is the one road both clients take:
+`createForgeTransport({token, authHeaders, allowedOrigins, fetchImpl,
+publicFetchImpl, now, timeoutMs, maxBytes})` in `forge-http.mjs` is the one
+road both clients take:
 
 - **`send`** follows redirects by hand (at most 3) and decides the token again
   at every hop: it is attached only when the URL's origin is one of
@@ -155,7 +156,17 @@ timeoutMs, maxBytes})` in `forge-http.mjs` is the one road both clients take:
   log to a signed blob-storage URL, but only for a public https host — never
   plain http, credentials in the address, this machine or a private network
   (`isPrivateHost` in `integrations/proxy.mjs`), checked on every hop — and
-  never with the token; anything else is `permission` (403). An `allow`
+  never with the token; anything else is `permission` (403). Such a hop is
+  not made by fetch but by `publicFetchImpl` (`forge-public-fetch.mjs`): the
+  name is resolved once, every address it has is checked, and the socket
+  connects only to a checked one. A name with any address on this machine, a
+  private network (RFC 1918), link-local (169.254/16, fe80::/10), CGNAT
+  (100.64/10), unique-local (fc00::/7), multicast or a reserved range, or an
+  IPv6 form carrying one of those, is refused as `permission` before any
+  connection; so is such an address written as the host. That also closes
+  DNS rebinding. The connection's own origins keep using fetch, so a
+  self-managed instance on the LAN still works; a log it sends on to object
+  storage on a private network is refused. An `allow`
   function, when given (images), is asked about the address and every hop
   after it; a refusal is a `permission` error (403). A caller's `signal` and
   the timeout (20 s by default) both end the request.
@@ -551,6 +562,13 @@ real answers, with every name invented.
     markers or a half line; images.
   - `forge-redirects`: a JSON or GraphQL read never follows a redirect
     off the connection's origins; a log's tail only to a public https host.
+  - `forge-public-lookup`: that hop's socket connects only to a public address.
+    Over a fake resolver, names answering 127.0.0.1, 10.x, 169.254.x,
+    100.64.x, ::1 or ::ffff:127.0.0.1 are refused and a public address
+    passes; with real sockets, a loopback answer is refused before a
+    connection, through the transport and through the GitHub client as the
+    deck builds it; the answer reads as fetch's would, and a cut connection
+    fails only its reader.
   - `forge-paging`: the Actions list across repositories past its first page,
     through the route; a log's tail that ends on blank lines, whatever the
     chunks.

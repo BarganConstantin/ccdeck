@@ -40,6 +40,9 @@ function transport(routes: Record<string, () => Response>, now = 1_700_000_000_0
     authHeaders: (tok: string) => ({ authorization: `Bearer ${tok}` }),
     allowedOrigins: ["https://gitlab.example.com"],
     fetchImpl: f.fetchImpl,
+    // The fake answers the hosts off the allowed origin too, which the
+    // transport reaches by publicFetchImpl (forge-public-lookup tests that road).
+    publicFetchImpl: f.fetchImpl,
     now: () => now,
   });
   return { t, calls: f.calls };

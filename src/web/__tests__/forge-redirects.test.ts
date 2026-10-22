@@ -34,6 +34,9 @@ function transport(routes: Record<string, () => Response>) {
     authHeaders: (tok: string) => ({ authorization: `Bearer ${tok}` }),
     allowedOrigins: [FORGE],
     fetchImpl,
+    // A hop off FORGE is made by publicFetchImpl; the fake answers it here, so
+    // these tests are about the redirect rule. forge-public-lookup tests that road.
+    publicFetchImpl: fetchImpl,
     now: () => 1_700_000_000_000,
   });
   return { t, calls };

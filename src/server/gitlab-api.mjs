@@ -156,9 +156,10 @@ const ISSUE_REF = "iid title state webUrl reference(full: true) workItemType { n
  * @param {string} [opts.baseUrl]  the instance, with its path when GitLab is installed under one
  * @param {string} opts.token
  * @param {typeof fetch} [opts.fetchImpl]
+ * @param {typeof fetch} [opts.publicFetchImpl]  a job log's hop off the instance (forge-http.mjs)
  * @param {() => number} [opts.now]
  */
-export function createGitlabClient({ baseUrl = "https://gitlab.com", token, fetchImpl, now = () => Date.now() } = {}) {
+export function createGitlabClient({ baseUrl = "https://gitlab.com", token, fetchImpl, publicFetchImpl, now = () => Date.now() } = {}) {
   const baseParsed = new URL(String(baseUrl));
   const origin = baseParsed.origin;
   const prefix = baseParsed.pathname.replace(/\/+$/, "");
@@ -173,6 +174,7 @@ export function createGitlabClient({ baseUrl = "https://gitlab.com", token, fetc
     authHeaders: (tok) => ({ authorization: `Bearer ${tok}` }),
     allowedOrigins,
     ...(fetchImpl ? { fetchImpl } : {}),
+    ...(publicFetchImpl ? { publicFetchImpl } : {}),
     now,
   });
 

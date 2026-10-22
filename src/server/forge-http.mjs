@@ -14,7 +14,10 @@
 // NOR DOES THE DECK GO WHERE A FORGE POINTS IT. A JSON or GraphQL read follows
 // a redirect only on the connection's own origins; a job log's tail may leave
 // them for a public https host only. No forge can send the deck to this
-// machine, the LAN or a cloud metadata address (off-origin redirects).
+// machine, the LAN or a cloud metadata address (off-origin redirects) — not by
+// naming one, and not by a public name whose DNS answers one: a request to a
+// host off the connection's own goes through forge-public-fetch.mjs, whose
+// socket connects only to an address it resolved and checked.
 //
 // NOTHING HERE SAYS THE TOKEN. Errors carry the forge's own words and the
 // status; never a header, never the request. The messages are diagnostic —
@@ -27,6 +30,7 @@
 // network or the instance, rate-limit says when to try again.
 import { cappedText } from "./provider-status.mjs";
 import { isPrivateHost } from "./integrations/proxy.mjs";
+import { NOT_PUBLIC, publicFetch } from "./forge-public-fetch.mjs";
 
 const DEFAULT_TIMEOUT_MS = 20_000;
 // A page of fifty merge requests with their reviewers is ~200 KB; a GraphQL
@@ -249,7 +253,9 @@ export function cleanLogLine(line) {
  * @param {string} opts.token
  * @param {(token: string) => Record<string, string>} opts.authHeaders  how this forge wants the token
  * @param {string[]} opts.allowedOrigins  where the token may go
- * @param {typeof fetch} [opts.fetchImpl]
+ * @param {typeof fetch} [opts.fetchImpl]  every request to the allowed origins, and every `allow`ed one
+ * @param {typeof fetch} [opts.publicFetchImpl]  every other request — a redirect hop off the
+ *   allowed origins. Connects only to public addresses (forge-public-fetch.mjs).
  * @param {() => number} [opts.now]
  * @param {number} [opts.timeoutMs]
  * @param {number} [opts.maxBytes]
@@ -259,6 +265,7 @@ export function createForgeTransport({
   authHeaders,
   allowedOrigins,
   fetchImpl = (...a) => fetch(...a),
+  publicFetchImpl = publicFetch(),
   now = () => Date.now(),
   timeoutMs = DEFAULT_TIMEOUT_MS,
   maxBytes = DEFAULT_MAX_BYTES,
@@ -287,8 +294,9 @@ export function createForgeTransport({
    *  every hop, so a hop off the allowed origins drops it. `allow`, when
    *  given, is asked about the address and every hop after it; otherwise a
    *  hop must pass mayFollow, which refuses any off the connection's origins
-   *  unless `offOrigin` is "public". `signal` gives up early, as well as the
-   *  timeout. */
+   *  unless `offOrigin` is "public" — and such a hop is made by
+   *  publicFetchImpl, which refuses a name that resolves to a private
+   *  address. `signal` gives up early, as well as the timeout. */
   async function send(url, { method = "GET", headers, body, timeout = timeoutMs, allow, offOrigin = "refuse", signal: caller } = {}) {
     let target = String(url);
     const signal = caller ? anySignal(caller, AbortSignal.timeout(timeout)) : AbortSignal.timeout(timeout);
@@ -296,11 +304,16 @@ export function createForgeTransport({
       if (allow && !allow(new URL(target))) {
         throw new ForgeError("permission", `${new URL(target).origin} is not a host this connection reads from`, { status: 403 });
       }
+      const origin = new URL(target).origin;
+      const road = allow || origins.has(origin) ? fetchImpl : publicFetchImpl;
       let res;
       try {
-        res = await fetchImpl(target, { method, headers: headersFor(target, headers), body, redirect: "manual", signal });
+        res = await road(target, { method, headers: headersFor(target, headers), body, redirect: "manual", signal });
       } catch (err) {
-        throw networkError(err, new URL(target).origin);
+        if (errorCode(err) === NOT_PUBLIC) {
+          throw new ForgeError("permission", `${origin} is not a host this connection reads from`, { status: 403 });
+        }
+        throw networkError(err, origin);
       }
       const location = res.status >= 300 && res.status < 400 ? res.headers?.get?.("location") : null;
       if (!location) return res;

@@ -53,7 +53,9 @@ function client(handler: Handler, opts: Record<string, unknown> = {}) {
     if (!res) throw new Error(`unexpected ${req.method} ${url} ${req.query.slice(0, 120)}`);
     return res;
   };
-  const c = createGithubClient({ token: "ghp_TEST", fetchImpl, now: () => NOW, ...opts });
+  // The fake answers both roads: the API's, and the job log's hop to blob
+  // storage, which the client makes by publicFetchImpl (forge-public-lookup tests that road).
+  const c = createGithubClient({ token: "ghp_TEST", fetchImpl, publicFetchImpl: fetchImpl, now: () => NOW, ...opts });
   return { c, calls };
 }
 
