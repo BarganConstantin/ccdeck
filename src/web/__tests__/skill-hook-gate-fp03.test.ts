@@ -1,11 +1,11 @@
-// FP-03: Skill activity's UserPromptExpansion entry, its opt-in and its gate.
+// Skill activity's UserPromptExpansion entry, its off switch and its gate.
 //
 // Up to Claude Code 2.1.100 an unknown hook event name made it ignore the WHOLE
 // settings.json; 2.1.101 stopped that, and UserPromptExpansion itself arrived in
 // 2.1.116 (skill-hook.mjs has the evidence). So the entry goes in only when the
-// deck was started with AGENTS_DECK_SKILL_HOOK=1 AND every Claude Code found
-// says it is 2.1.116 or newer — and it never may cost the user a byte of their
-// own settings.
+// deck was not started with AGENTS_DECK_SKILL_HOOK turned off AND every Claude
+// Code found says it is 2.1.116 or newer — and it never may cost the user a
+// byte of their own settings.
 //
 // The installs are real files under a temp directory: npm layouts read off disk,
 // and wrapper scripts the gate has to ask `--version`, run for real by full
@@ -54,23 +54,24 @@ type Install = { bin: string; version?: string };
 type Decision = { install: boolean; state: string; reason?: string; since: string; versions: (string | null)[]; backup?: string };
 type RunResult = { ok: boolean; stdout?: string; stderr?: string };
 type SkillOptions = {
-  env?: Record<string, string | undefined>; optedIn?: boolean; installs?: Install[];
+  env?: Record<string, string | undefined>; enabled?: boolean; installs?: Install[];
   runImpl?: (cmd: string, args: string[], o: object) => Promise<RunResult>; timeout?: number;
 };
 type InstallResult = { changed: boolean; raced?: boolean; events: string[]; skillHook?: Decision };
 
-const { CLAUDE_DIR, installHooks, uninstallHooks, SKILL_HOOK_BACKUP } = installer as {
+const { CLAUDE_DIR, installHooks, uninstallHooks, skillHookState, SKILL_HOOK_BACKUP } = installer as {
   CLAUDE_DIR: string;
   SKILL_HOOK_BACKUP: string;
+  skillHookState: (env?: Record<string, string | undefined>) => Promise<"on" | "off" | "skipped">;
   installHooks: (o: { provider: string; claudeVersions?: string[]; skillHook?: SkillOptions; beforeWrite?: () => Promise<void> }) => Promise<InstallResult>;
   uninstallHooks: (o: { provider: string; beforeWrite?: () => Promise<void> }) => Promise<{ ok: boolean; changed: boolean }>;
 };
 const {
   SKILL_HOOK_SINCE, USER_PROMPT_EXPANSION_SINCE, UNKNOWN_EVENT_TOLERATED_SINCE, SKILL_HOOK_ENV,
-  skillHookOptedIn, skillHookDecision, parseClaudeVersionOutput, skillHookStatus,
+  skillHookEnabled, skillHookDecision, parseClaudeVersionOutput, skillHookStatus,
 } = gate as {
   SKILL_HOOK_SINCE: string; USER_PROMPT_EXPANSION_SINCE: string; UNKNOWN_EVENT_TOLERATED_SINCE: string; SKILL_HOOK_ENV: string;
-  skillHookOptedIn: (env?: Record<string, string | undefined>) => boolean;
+  skillHookEnabled: (env?: Record<string, string | undefined>) => boolean;
   skillHookDecision: (o?: SkillOptions) => Promise<Decision>;
   parseClaudeVersionOutput: (t: unknown) => string | undefined;
   skillHookStatus: (d: Decision | null, dash?: string) => { ok: boolean; detail: string } | null;
@@ -178,20 +179,21 @@ describe("the version the gate asks for", () => {
   });
 });
 
-describe("the opt-in", () => {
-  it("is off unless the variable is exactly 1", () => {
+describe("the switch", () => {
+  it("is on unless the variable says otherwise: only unset, empty or exactly 1 leaves it on", () => {
     expect(SKILL_HOOK_ENV).toBe("AGENTS_DECK_SKILL_HOOK");
-    expect(skillHookOptedIn({})).toBe(false);
-    for (const v of ["", "0", "true", "yes", " 1", "1 ", "01", "on"]) {
-      expect(skillHookOptedIn({ AGENTS_DECK_SKILL_HOOK: v }), JSON.stringify(v)).toBe(false);
+    expect(skillHookEnabled({})).toBe(true);
+    expect(skillHookEnabled({ AGENTS_DECK_SKILL_HOOK: "" })).toBe(true);
+    expect(skillHookEnabled({ AGENTS_DECK_SKILL_HOOK: "1" })).toBe(true);
+    for (const v of ["0", "false", "off", "no", "true", "yes", " 1", "1 ", "01", "on"]) {
+      expect(skillHookEnabled({ AGENTS_DECK_SKILL_HOOK: v }), JSON.stringify(v)).toBe(false);
     }
-    expect(skillHookOptedIn({ AGENTS_DECK_SKILL_HOOK: "1" })).toBe(true);
   });
 
   it("off, decides without looking at the machine or running anything", async () => {
     const runImpl = noSpawn();
-    const d = await skillHookDecision({ optedIn: false, installs: [{ bin: "/nowhere/claude" }], runImpl });
-    expect(d).toMatchObject({ install: false, state: "off", reason: "not-enabled" });
+    const d = await skillHookDecision({ enabled: false, installs: [{ bin: "/nowhere/claude" }], runImpl });
+    expect(d).toMatchObject({ install: false, state: "off", reason: "turned-off" });
     expect(runImpl).not.toHaveBeenCalled();
   });
 });
@@ -211,7 +213,7 @@ describe("Claude Code's own --version line", () => {
 describe("the decision on a machine laid out on disk", () => {
   it("refuses below the gate, both where the whole file would be lost and where the entry is merely unknown", async () => {
     for (const v of ["2.0.77", "2.1.78", "2.1.100", "2.1.101", "2.1.114"]) {
-      const d = await skillHookDecision({ optedIn: true, installs: found(npmInstall(v)), runImpl: noSpawn() });
+      const d = await skillHookDecision({ enabled: true, installs: found(npmInstall(v)), runImpl: noSpawn() });
       expect(d, v).toMatchObject({ install: false, state: "skipped", reason: "too-old", versions: [v] });
     }
   });
@@ -219,14 +221,14 @@ describe("the decision on a machine laid out on disk", () => {
   it("installs at the gate and above, read off disk with nothing run", async () => {
     for (const v of ["2.1.116", "2.1.117", "2.1.306", "2.2.0", "3.0.0"]) {
       const runImpl = noSpawn();
-      const d = await skillHookDecision({ optedIn: true, installs: found(npmInstall(v)), runImpl });
+      const d = await skillHookDecision({ enabled: true, installs: found(npmInstall(v)), runImpl });
       expect(d, v).toMatchObject({ install: true, state: "on", versions: [v] });
       expect(runImpl, v).not.toHaveBeenCalled();
     }
   });
 
   it("refuses when ANY Claude Code found is older, since an old one still reads the same file", async () => {
-    const d = await skillHookDecision({ optedIn: true, installs: found(npmInstall("2.1.306"), npmInstall("2.1.114")), runImpl: noSpawn() });
+    const d = await skillHookDecision({ enabled: true, installs: found(npmInstall("2.1.306"), npmInstall("2.1.114")), runImpl: noSpawn() });
     expect(d).toMatchObject({ install: false, reason: "too-old" });
     expect([...d.versions].sort()).toEqual(["2.1.114", "2.1.306"]);
   });
@@ -236,7 +238,7 @@ describe("the decision on a machine laid out on disk", () => {
     mkdirSync(empty, { recursive: true });
     const runImpl = noSpawn();
     expect(found(empty)).toEqual([]);
-    expect(await skillHookDecision({ optedIn: true, installs: found(empty), runImpl }))
+    expect(await skillHookDecision({ enabled: true, installs: found(empty), runImpl }))
       .toMatchObject({ install: false, state: "skipped", reason: "no-claude" });
     expect(runImpl).not.toHaveBeenCalled();
   });
@@ -244,7 +246,7 @@ describe("the decision on a machine laid out on disk", () => {
   it("refuses an unparseable version in the package, once the binary cannot say either", async () => {
     // "banana" is no version, so the gate asks the binary; this one is an empty
     // file that cannot run, which is no answer.
-    const d = await skillHookDecision({ optedIn: true, installs: found(npmInstall("banana")) });
+    const d = await skillHookDecision({ enabled: true, installs: found(npmInstall("banana")) });
     expect(d).toMatchObject({ install: false, state: "skipped", reason: "version-unknown", versions: [null] });
   });
 });
@@ -253,7 +255,7 @@ describe("a claude whose layout does not say, asked --version", () => {
   it("installs when it answers as Claude Code at or above the gate, asked by full path with only --version", async () => {
     for (const out of ["2.1.116 (Claude Code)", "2.1.306 (Claude Code)"]) {
       const w = wrapper(out);
-      const d = await skillHookDecision({ optedIn: true, installs: found(w.dir) });
+      const d = await skillHookDecision({ enabled: true, installs: found(w.dir) });
       expect(d, out).toMatchObject({ install: true, state: "on" });
       expect(argvOf(w)).toEqual(["--version"]);
     }
@@ -261,7 +263,7 @@ describe("a claude whose layout does not say, asked --version", () => {
 
   it("refuses when it answers as an older Claude Code", async () => {
     for (const out of ["2.1.100 (Claude Code)", "2.1.114 (Claude Code)"]) {
-      const d = await skillHookDecision({ optedIn: true, installs: found(wrapper(out).dir) });
+      const d = await skillHookDecision({ enabled: true, installs: found(wrapper(out).dir) });
       expect(d, out).toMatchObject({ install: false, reason: "too-old" });
     }
   });
@@ -274,18 +276,18 @@ describe("a claude whose layout does not say, asked --version", () => {
       wrapper("2.1.300 (Claude Code)", { code: 1 }),
     ];
     for (const w of cases) {
-      expect(await skillHookDecision({ optedIn: true, installs: found(w.dir) }))
+      expect(await skillHookDecision({ enabled: true, installs: found(w.dir) }))
         .toMatchObject({ install: false, state: "skipped", reason: "version-unknown", versions: [null] });
     }
     const slow = wrapper("2.1.300 (Claude Code)", { sleep: 5 });
     const t0 = Date.now();
-    expect(await skillHookDecision({ optedIn: true, installs: found(slow.dir), timeout: 300 }))
+    expect(await skillHookDecision({ enabled: true, installs: found(slow.dir), timeout: 300 }))
       .toMatchObject({ install: false, reason: "version-unknown" });
     expect(Date.now() - t0).toBeLessThan(4_000);
   });
 
   it("refuses when one install says and another cannot", async () => {
-    const d = await skillHookDecision({ optedIn: true, installs: found(npmInstall("2.1.306"), wrapper("dev").dir) });
+    const d = await skillHookDecision({ enabled: true, installs: found(npmInstall("2.1.306"), wrapper("dev").dir) });
     expect(d).toMatchObject({ install: false, reason: "version-unknown" });
   });
 });
@@ -295,21 +297,21 @@ describe("the claude AGENTS_DECK_CLAUDE names", () => {
 
   it("is one more Claude Code reading the file: an old one there refuses, whatever else is found", async () => {
     const old = binOf(wrapper("2.1.100 (Claude Code)").dir);
-    const d = await skillHookDecision({ env: { AGENTS_DECK_CLAUDE: old }, optedIn: true, installs: found(npmInstall("2.1.306")) });
+    const d = await skillHookDecision({ env: { AGENTS_DECK_CLAUDE: old }, enabled: true, installs: found(npmInstall("2.1.306")) });
     expect(d).toMatchObject({ install: false, reason: "too-old" });
     expect([...d.versions].sort()).toEqual(["2.1.100", "2.1.306"]);
   });
 
   it("is enough on its own when it answers at the gate", async () => {
     const w = wrapper("2.1.116 (Claude Code)");
-    const d = await skillHookDecision({ env: { AGENTS_DECK_CLAUDE: binOf(w.dir) }, optedIn: true, installs: [] });
+    const d = await skillHookDecision({ env: { AGENTS_DECK_CLAUDE: binOf(w.dir) }, enabled: true, installs: [] });
     expect(d).toMatchObject({ install: true, state: "on", versions: ["2.1.116"] });
     expect(argvOf(w)).toEqual(["--version"]);
   });
 
-  it("is not asked anything when the opt-in is off", async () => {
+  it("is not asked anything when the entry is turned off", async () => {
     const w = wrapper("2.1.306 (Claude Code)");
-    const d = await skillHookDecision({ env: { AGENTS_DECK_CLAUDE: binOf(w.dir) }, installs: [] });
+    const d = await skillHookDecision({ env: { AGENTS_DECK_CLAUDE: binOf(w.dir), AGENTS_DECK_SKILL_HOOK: "0" }, installs: [] });
     expect(d).toMatchObject({ install: false, state: "off" });
     expect(existsSync(w.argv)).toBe(false);
   });
@@ -331,8 +333,8 @@ const forwarders = (groups: Group[] = []) =>
 /** Every StopFailure decision below is pinned, so nothing reads this machine's
  *  own Claude Code: claudeVersions is the StopFailure gate's input. */
 const PINNED = ["2.1.306"];
-const ON = (installs: Install[] = found(npmInstall("2.1.306"))): SkillOptions => ({ optedIn: true, installs, runImpl: noSpawn() });
-const OFF: SkillOptions = { optedIn: false };
+const ON = (installs: Install[] = found(npmInstall("2.1.306"))): SkillOptions => ({ enabled: true, installs, runImpl: noSpawn() });
+const OFF: SkillOptions = { enabled: false };
 const install = (skillHook?: SkillOptions, extra: object = {}) =>
   installHooks({ provider: "claude", claudeVersions: PINNED, ...(skillHook ? { skillHook } : {}), ...extra });
 
@@ -386,37 +388,65 @@ beforeEach(() => {
 });
 
 describe("the default", () => {
-  it("installs no UserPromptExpansion entry and says nothing about it", async () => {
-    const r = await installHooks({ provider: "claude", claudeVersions: PINNED });
-    expect(r.skillHook).toMatchObject({ install: false, state: "off" });
-    expect(r.events).not.toContain("UserPromptExpansion");
-    expect(forwarders(read().hooks!.UserPromptExpansion)).toEqual([]);
-    // The user's own entry under that key is untouched.
-    expect(read().hooks!.UserPromptExpansion).toEqual([MINE_UPE]);
+  it("installs the UserPromptExpansion entry at the gate, after the user's own, and says nothing about it", async () => {
+    // Nothing set, as a person gets it. The installs are this suite's, so the
+    // answer does not depend on the Claude Code of the machine running it.
+    const r = await installHooks({ provider: "claude", claudeVersions: PINNED, skillHook: { installs: found(npmInstall("2.1.306")), runImpl: noSpawn() } });
+    expect(r.skillHook).toMatchObject({ install: true, state: "on", backup: BACKUP });
+    expect(r.events).toContain("UserPromptExpansion");
+    expect(read().hooks!.UserPromptExpansion[0]).toEqual(MINE_UPE);
+    expect(forwarders(read().hooks!.UserPromptExpansion)).toHaveLength(1);
     expect(forwarders(read().hooks!.Stop)).toHaveLength(1);
-    expect(existsSync(BACKUP)).toBe(false);
     expect(skillHookStatus(r.skillHook!)).toBeNull();
   });
 
-  it("reads the opt-in from the environment the deck was started with", async () => {
-    process.env.AGENTS_DECK_SKILL_HOOK = "1";
+  it("is still held to the gate: below 2.1.116 nothing goes in, and the boot says why", async () => {
+    const r = await installHooks({ provider: "claude", claudeVersions: PINNED, skillHook: { installs: found(npmInstall("2.1.114")), runImpl: noSpawn() } });
+    expect(r.skillHook).toMatchObject({ install: false, state: "skipped", reason: "too-old" });
+    expect(read().hooks!.UserPromptExpansion).toEqual([MINE_UPE]);
+    expect(existsSync(BACKUP)).toBe(false);
+    expect(skillHookStatus(r.skillHook!, "-")!.detail).toBe("not installed - needs Claude Code 2.1.116 or newer everywhere (found: 2.1.114)");
+  });
+
+  it("reads the switch from the environment the deck was started with", async () => {
+    process.env.AGENTS_DECK_SKILL_HOOK = "0";
     const r = await installHooks({ provider: "claude", claudeVersions: PINNED, skillHook: { installs: found(npmInstall("2.1.306")), runImpl: noSpawn() } });
-    expect(r.skillHook).toMatchObject({ install: true, state: "on" });
-    expect(forwarders(read().hooks!.UserPromptExpansion)).toHaveLength(1);
+    expect(r.skillHook).toMatchObject({ install: false, state: "off", reason: "turned-off" });
+    expect(forwarders(read().hooks!.UserPromptExpansion)).toEqual([]);
+    expect(read().hooks!.UserPromptExpansion).toEqual([MINE_UPE]);
+    expect(skillHookStatus(r.skillHook!)).toBeNull();
   });
 });
 
-// The owner's call for v3.44.0: Skill activity stays opt-in through
-// AGENTS_DECK_SKILL_HOOK=1, and a deck started without it changes nothing in
-// Claude Code's settings. A deck's very first start writes its own standard
-// hooks — every version has, and that is not this setting's doing — so "no
-// change" is held two ways: on a first start the file comes out exactly as the
-// unset default writes it, and on every start after that, the steady state a
-// machine is in, nothing under the config dir is written at all. The one write
-// the disabled state makes is the opt-out: our own entry, taken back out.
+describe("the state the Skills tab shows", () => {
+  it("is read from settings.json: on with our entry there, skipped without it, off when turned off", async () => {
+    expect(await skillHookState({})).toBe("skipped"); // the user's own UserPromptExpansion is not ours
+    await install(ON());
+    expect(await skillHookState({})).toBe("on");
+    expect(await skillHookState({ AGENTS_DECK_SKILL_HOOK: "0" })).toBe("off");
+    await install(ON(found(npmInstall("2.1.114"))));
+    expect(await skillHookState({})).toBe("skipped");
+  });
 
-/** Every value that is not the opt-in; `undefined` is the variable unset. */
-const OFF_VALUES = [undefined, "", "0", "true"];
+  it("is skipped, never a throw, for a settings.json that is missing or unreadable", async () => {
+    rmSync(SETTINGS, { force: true });
+    expect(await skillHookState({})).toBe("skipped");
+    writeText('{ "hooks": ');
+    expect(await skillHookState({})).toBe("skipped");
+  });
+});
+
+// Turned off with AGENTS_DECK_SKILL_HOOK (any value but 1), a deck changes
+// nothing of Skill activity's in Claude Code's settings. A deck's very first
+// start writes its own standard hooks — every version has, and that is not
+// this setting's doing — so "no change" is held two ways: on a first start
+// every off value writes the same bytes, with nothing under UserPromptExpansion
+// of ours, and on every start after that, the steady state a machine is in,
+// nothing under the config dir is written at all. The one write the off state
+// makes is turning it off: our own entry, taken back out.
+
+/** Values that turn the entry off. */
+const OFF_VALUES = ["0", "false", "off", "true"];
 /** Below 2.1.101, where the whole file was at stake; just below the gate; at
  *  it; above it. */
 const VERSIONS = ["2.1.100", "2.1.115", "2.1.116", "2.1.306"];
@@ -427,7 +457,7 @@ function setFlag(value: string | undefined) {
   else process.env.AGENTS_DECK_SKILL_HOOK = value;
 }
 
-/** A start of the deck as bin/cli/startup.js makes one — the opt-in read from
+/** A start of the deck as bin/cli/startup.js makes one — the switch read from
  *  the environment the deck was started with — on a machine whose only Claude
  *  Code is `version`, with a probe that must never run. */
 function boot(version: string, runImpl = noSpawn()) {
@@ -451,11 +481,11 @@ function tree(root = CLAUDE_DIR): Record<string, string> {
 
 const temps = () => Object.keys(tree()).filter(k => k.endsWith(".tmp"));
 
-describe("the disabled state", () => {
-  it("on a first start writes what the unset default writes, and nothing of Skill activity's, for every value but 1 and every Claude Code version", async () => {
+describe("the off state", () => {
+  it("on a first start writes the same bytes for every off value, and nothing of Skill activity's, for every Claude Code version", async () => {
     for (const [seed, seedText] of Object.entries(SEEDS)) {
       for (const version of VERSIONS) {
-        let unset: string | undefined;
+        let first: string | undefined;
         for (const value of OFF_VALUES) {
           const label = `${seed}, Claude Code ${version}, AGENTS_DECK_SKILL_HOOK=${JSON.stringify(value)}`;
           rmSync(BACKUP, { force: true });
@@ -463,7 +493,7 @@ describe("the disabled state", () => {
           setFlag(value);
           const runImpl = noSpawn();
           const r = await boot(version, runImpl);
-          expect(r.skillHook, label).toMatchObject({ install: false, state: "off", reason: "not-enabled" });
+          expect(r.skillHook, label).toMatchObject({ install: false, state: "off", reason: "turned-off" });
           expect(r.events, label).not.toContain("UserPromptExpansion");
           expect(runImpl, label).not.toHaveBeenCalled();
           expect(forwarders(read().hooks?.UserPromptExpansion), label).toEqual([]);
@@ -471,9 +501,9 @@ describe("the disabled state", () => {
           expect(read().hooks?.UserPromptExpansion, label).toEqual(JSON.parse(seedText).hooks?.UserPromptExpansion);
           expect(existsSync(BACKUP), label).toBe(false);
           expect(temps(), label).toEqual([]);
-          // Every value that is not 1 is the default, byte for byte.
-          unset ??= text();
-          expect(text(), label).toBe(unset);
+          // Every off value writes the same bytes.
+          first ??= text();
+          expect(text(), label).toBe(first);
         }
       }
     }
@@ -505,21 +535,22 @@ describe("the disabled state", () => {
   });
 
   it("turning it off is its one write: only our entry comes out, every other byte stays, nothing else is written", async () => {
-    await boot("2.1.306"); // unset: the deck's own standard hooks
+    setFlag("0");
+    await boot("2.1.306"); // off: the deck's own standard hooks
     const before = text();
-    setFlag("1");
+    setFlag(undefined);
     expect((await boot("2.1.306")).skillHook).toMatchObject({ install: true, state: "on", backup: BACKUP });
     const withEntry = text();
     if (!WIN) chmodSync(SETTINGS, 0o640);
     const files = tree();
 
-    setFlag(undefined);
+    setFlag("0");
     const runImpl = noSpawn();
     const r = await boot("2.1.306", runImpl);
     expect(r).toMatchObject({ changed: true, skillHook: { install: false, state: "off" } });
     expect(runImpl).not.toHaveBeenCalled();
     // Lines are only taken out, and only ours: the comma after the user's own
-    // group, then our group. What is left is the file from before the opt-in.
+    // group, then our group. What is left is the file from before the entry.
     const w = changedWindow(withEntry, text());
     expect(w.b).toEqual([]);
     expect(w.a[0]).toBe("      },");
@@ -529,7 +560,7 @@ describe("the disabled state", () => {
     expect(read().hooks!.UserPromptExpansion).toEqual([MINE_UPE]);
     if (!WIN) expect(statSync(SETTINGS).mode & 0o777).toBe(0o640);
     // settings.json is the one thing written. (The config dir's own entry, ".",
-    // may move: the new file is renamed into it.) The backup the opt-in made is
+    // may move: the new file is renamed into it.) The backup made with the entry is
     // the user's data and stays exactly as it was; no temp file is left.
     const now = tree();
     expect(Object.keys({ ...files, ...now }).filter(k => k !== "." && files[k] !== now[k])).toEqual(["settings.json"]);
@@ -542,7 +573,7 @@ describe("the disabled state", () => {
   });
 });
 
-describe("the entry, opted in", () => {
+describe("the entry, on", () => {
   it("is added at the gate, after the user's own, and the start after that writes nothing", async () => {
     const r = await install(ON(found(npmInstall("2.1.116"))));
     expect(r.skillHook).toMatchObject({ install: true, state: "on" });
@@ -622,13 +653,13 @@ describe("the entry, opted in", () => {
     expect(read().model).toBe("opus");
   });
 
-  it("is taken out of a file an ungated build wrote it into, once the opt-in is gone", async () => {
+  it("is taken out of a file an ungated build wrote it into, once it is turned off", async () => {
     // What e12e0f97 left on every machine it ran on: ours, unconditionally.
     writeText(canonical({ model: "opus" }));
     await install(ON());
     const ungated = text();
     expect(forwarders(JSON.parse(ungated).hooks.UserPromptExpansion)).toHaveLength(1);
-    await install(); // the default
+    await install(OFF);
     expect(Object.keys(read().hooks!)).not.toContain("UserPromptExpansion");
   });
 
@@ -653,7 +684,7 @@ describe("the entry, opted in", () => {
 describe("a settings.json the deck cannot read", () => {
   const BAD = ['{ "model": "opus", ', "", "[1, 2]", '{"hooks": {"Stop": [}', "null", '"just a string"'];
 
-  it("is refused and left untouched, opted in or not, with no backup written", async () => {
+  it("is refused and left untouched, on or off, with no backup written", async () => {
     for (const bad of BAD) {
       for (const opts of [ON(), OFF]) {
         writeText(bad);
@@ -719,12 +750,11 @@ describe("writers racing the install", () => {
 });
 
 describe("the boot report's row", () => {
-  it("is nothing when off, and says on or why not otherwise", () => {
+  it("is nothing when on or turned off, and says why not otherwise", () => {
     const base = { since: "2.1.116", versions: [] as (string | null)[] };
     expect(skillHookStatus(null)).toBeNull();
-    expect(skillHookStatus({ ...base, install: false, state: "off", reason: "not-enabled" })).toBeNull();
-    expect(skillHookStatus({ ...base, install: true, state: "on", versions: ["2.1.306"] }, "-"))
-      .toEqual({ ok: true, detail: "on - counts typed slash commands (Claude Code 2.1.306)" });
+    expect(skillHookStatus({ ...base, install: false, state: "off", reason: "turned-off" })).toBeNull();
+    expect(skillHookStatus({ ...base, install: true, state: "on", versions: ["2.1.306"] }, "-")).toBeNull();
     for (const reason of ["no-claude", "version-unknown", "too-old", "settings-shape", "backup-failed", "raced"]) {
       const said = skillHookStatus({ ...base, install: false, state: "skipped", reason, versions: [null] }, "-");
       expect(said, reason).toMatchObject({ ok: false });

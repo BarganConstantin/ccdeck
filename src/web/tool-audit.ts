@@ -44,6 +44,8 @@ export interface SkillReport {
   details: { name: string; row: SkillRow | null; total: number; projects: { name: string; uses: number }[]; recent: SkillUse[];
     history?: { timeZone: string; days: SkillDay[] } } | null;
   bytes: number; storageOk: boolean; dropped: number; startedAt: number; skillsSince: number; retentionDays: number;
+  /** Whether Claude Code reports typed slash commands to the deck; absent when it does not watch Claude. */
+  typedCommands?: 'on' | 'off' | 'skipped';
 }
 export const auditDuration = (ms: number | null) => {
   if (ms === null) return '—';

@@ -1,6 +1,9 @@
 // Whether the deck may add the UserPromptExpansion hook that Skill activity
-// counts typed slash commands with (#2181) — and, until somebody asks for it,
-// the answer is no.
+// counts typed slash commands with (#2181). It is the only signal for them: a
+// typed skill never calls the Skill tool, and UserPromptSubmit also carries a
+// prompt that only starts like a command (`/etc is full`, an unknown command
+// Claude Code hands to the model), so without this entry the Skills tab counts
+// none of the commands a person types. On by default, behind the version gate.
 //
 // WHY THIS ENTRY IS GATED HARDER THAN STOPFAILURE. A hook event name Claude
 // Code does not know is not skipped by every version. Up to 2.1.100 it made
@@ -23,7 +26,8 @@
 // it costs the user every setting they have.
 //
 // WHAT HAS TO BE TRUE before the entry is written:
-//   - the deck was started with AGENTS_DECK_SKILL_HOOK=1 — never by default;
+//   - the deck was not started with AGENTS_DECK_SKILL_HOOK turned off (any
+//     value but 1; unset or empty is on);
 //   - at least one Claude Code was found, the way the deck finds `claude`: the
 //     candidate list (claude-dir.mjs) and AGENTS_DECK_CLAUDE;
 //   - EVERY one found says which version it is, and every one is 2.1.116 or
@@ -31,11 +35,11 @@
 //     one that will not say its version is treated as an old one.
 // A version is read off disk first (claude-dir.mjs, no child process). Only
 // for an install whose layout does not name one — a wrapper script, an unusual
-// prefix — and only once the user has opted in, is that binary asked
+// prefix — and only while the entry is not turned off, is that binary asked
 // `--version`, by its full path and as argv, and believed only when it answers
 // the way Claude Code does: `<x.y.z> (Claude Code)`.
 //
-// Every boot re-decides. A machine that stops passing — the opt-in removed, a
+// Every boot re-decides. A machine that stops passing — the entry turned off, a
 // Claude Code rolled back, a second, older one installed — has the entry taken
 // back out by the next start (installer.mjs), and the user's own
 // UserPromptExpansion hooks are left where they are.
@@ -56,13 +60,15 @@ export const SKILL_HOOK_SINCE = claudeVersionAtLeast(USER_PROMPT_EXPANSION_SINCE
   ? USER_PROMPT_EXPANSION_SINCE
   : UNKNOWN_EVENT_TOLERATED_SINCE;
 
-/** Set to "1" to ask for the entry. Anything else, or nothing, is no. */
+/** Set to "0" to leave the entry out. Unset, empty or "1" is on. */
 export const SKILL_HOOK_ENV = "AGENTS_DECK_SKILL_HOOK";
 
-/** Whether the person starting the deck asked for the entry. Only the exact
- *  string "1": a typo or a "true" does not turn it on. */
-export function skillHookOptedIn(env = process.env) {
-  return env?.[SKILL_HOOK_ENV] === "1";
+/** Whether the person starting the deck left the entry on. Any value but "1"
+ *  turns it off, so a "false", an "off" or a typo is honoured as a no rather
+ *  than read as a yes; only unset or empty is no instruction at all. */
+export function skillHookEnabled(env = process.env) {
+  const value = env?.[SKILL_HOOK_ENV];
+  return value === undefined || value === "" || value === "1";
 }
 
 /** A `--version` that is not quick is not Claude Code's fast path. */
@@ -92,7 +98,7 @@ async function askVersion(runImpl, bin, timeout) {
 /**
  * The decision, and why:
  *
- *   { install: false, state: "off",     reason: "not-enabled" }
+ *   { install: false, state: "off",     reason: "turned-off" }
  *   { install: false, state: "skipped", reason: "no-claude" | "version-unknown" | "too-old", versions }
  *   { install: true,  state: "on",      versions }
  *
@@ -105,15 +111,15 @@ async function askVersion(runImpl, bin, timeout) {
  */
 export async function skillHookDecision({
   env = process.env,
-  optedIn = skillHookOptedIn(env),
+  enabled = skillHookEnabled(env),
   installs,
   runImpl = run,
   timeout = PROBE_TIMEOUT_MS,
 } = {}) {
   const since = SKILL_HOOK_SINCE;
-  // Off is decided before anything is looked at: a deck that was not asked
-  // spends nothing on the question, and spawns nothing.
-  if (!optedIn) return { install: false, state: "off", reason: "not-enabled", since, versions: [] };
+  // Off is decided before anything is looked at: a deck told to leave the
+  // entry out spends nothing on the question, and spawns nothing.
+  if (!enabled) return { install: false, state: "off", reason: "turned-off", since, versions: [] };
   let found;
   try {
     found = Array.isArray(installs) ? [...installs] : claudeCodeInstalls();
@@ -140,16 +146,16 @@ export async function skillHookDecision({
 }
 
 /**
- * The boot report's row for the entry — `{ ok, detail }` — or null when there
- * is nothing to say, which is the default: nobody asked for it, and a deck
- * that was not asked prints exactly what it printed before. `dash` is the
- * screen's own (bin/cli/screen.js), so the line carries no punctuation a
- * legacy console cannot draw.
+ * The boot report's row for the entry — `{ ok: false, detail }` — or null when
+ * there is nothing to say: installed, which is the default and needs no line,
+ * or turned off by the person starting the deck, who knows. Only an entry the
+ * gate or the file kept out is said, since then the Skills tab counts no typed
+ * command. `dash` is the screen's own (bin/cli/screen.js), so the line carries
+ * no punctuation a legacy console cannot draw.
  */
 export function skillHookStatus(decision, dash = "-") {
-  if (!decision || decision.state === "off") return null;
+  if (!decision || decision.state === "off" || decision.state === "on") return null;
   const found = (decision.versions ?? []).map(v => v ?? "unknown").join(", ");
-  if (decision.state === "on") return { ok: true, detail: `on ${dash} counts typed slash commands (Claude Code ${found})` };
   const why = {
     "no-claude": "no Claude Code found",
     "version-unknown": `a Claude Code here does not say its version (found: ${found})`,

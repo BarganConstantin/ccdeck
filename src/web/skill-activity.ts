@@ -61,3 +61,11 @@ export function skillSummary(report: Pick<SkillReport, 'total' | 'rows' | 'faile
 
 /** True when counting began inside the period, so its start is not covered. */
 export const countingStartedLate = (report: Pick<SkillReport, 'countedSince' | 'since'>) => report.countedSince > report.since;
+
+/** Why the slash commands a person types are not counted, or null when they are or the view is Codex's. */
+export function typedCommandsNote(report: Pick<SkillReport, 'typedCommands'>, provider: AuditProvider): string | null {
+  if (provider === 'codex' || !report.typedCommands || report.typedCommands === 'on') return null;
+  return report.typedCommands === 'off'
+    ? 'Slash commands you type are not counted: the deck was started with AGENTS_DECK_SKILL_HOOK turned off.'
+    : 'Slash commands you type are not counted yet: that needs Claude Code 2.1.116 or newer everywhere on this device. The deck’s start-up report says what it found.';
+}

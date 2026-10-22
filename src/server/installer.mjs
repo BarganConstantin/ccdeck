@@ -18,9 +18,9 @@ import { shellQuoteArg } from "./exec.mjs";
 // The read-before-rewrite and the atomic replace every settings writer goes
 // through — see atomic-write.mjs.
 import { readSettingsForWrite, writeFileAtomic, createTemp, renameWithRetry } from "./atomic-write.mjs";
-// Skill activity's typed-command entry, its opt-in and its version gate — see
-// skill-hook.mjs for why it is not in CLAUDE_EVENTS.
-import { USER_PROMPT_EXPANSION, skillHookDecision } from "./skill-hook.mjs";
+// Skill activity's typed-command entry, its off switch and its version gate —
+// see skill-hook.mjs for why it is not in CLAUDE_EVENTS.
+import { USER_PROMPT_EXPANSION, skillHookDecision, skillHookEnabled } from "./skill-hook.mjs";
 // The discovery dir every deck registers in and every hook reads — see
 // discovery.mjs, which keeps this deck's record there.
 import { AGENT_DAG_DIR } from "./discovery.mjs";
@@ -87,8 +87,8 @@ const PROVIDERS = {
     hookInstallDir: join(CLAUDE_DIR, "agent-dag"),
     events: CLAUDE_EVENTS,
     versioned: VERSIONED_CLAUDE_EVENTS,
-    // UserPromptExpansion, for Skill activity (#2181): opt-in, and gated on
-    // every Claude Code found being 2.1.116 or newer (skill-hook.mjs).
+    // UserPromptExpansion, for Skill activity (#2181): on unless turned off,
+    // and gated on every Claude Code found being 2.1.116 or newer (skill-hook.mjs).
     skillHook: true,
     ensureDir: CLAUDE_DIR,
   },
@@ -445,10 +445,27 @@ async function decideSkillHook(options, settings, before, backupPath) {
   return decision;
 }
 
+/**
+ * Whether Claude Code reports typed slash commands to this deck now, for the
+ * Skills tab: "on" when our UserPromptExpansion entry is in settings.json,
+ * "off" when the deck was started with the entry turned off, and "skipped"
+ * when the gate or the file kept it out (the boot report says which). Read
+ * from the file rather than remembered from the boot, because the launcher
+ * installed it in another process and the file is what Claude Code reads.
+ */
+export async function skillHookState(env = process.env, settingsPath = PROVIDERS.claude.settingsPath) {
+  if (!skillHookEnabled(env)) return "off";
+  try {
+    return holdsOurs(JSON.parse(await readFile(settingsPath, "utf8"))?.hooks?.[USER_PROMPT_EXPANSION]) ? "on" : "skipped";
+  } catch {
+    return "skipped";
+  }
+}
+
 /** Install hooks for a single provider. Returns {settingsPath, hookPath, events, changed}.
  *  `claudeVersions` is the suite's: the Claude Code versions to gate the
  *  versioned events on, in place of the ones on this machine's disk.
- *  `skillHook` is the suite's too: skillHookDecision's options (the opt-in,
+ *  `skillHook` is the suite's too: skillHookDecision's options (the switch,
  *  the installs found, the probe), in place of this machine's. The answer
  *  carries the decision as `skillHook` for the claude provider. */
 export async function installHooks({ provider = "claude", beforeWrite = null, claudeVersions = null, skillHook = null } = {}) {
@@ -490,7 +507,7 @@ export async function installHooks({ provider = "claude", beforeWrite = null, cl
     current.hooks[evt] = cleaned;
   }
   // A gated event this machine's Claude Code does not know — or, for Skill
-  // activity's, one nobody asked for — loses our entry, and the key goes with
+  // activity's, one turned off — loses our entry, and the key goes with
   // it when nothing of the user's is left under it: that key is the thing an
   // older Claude Code cannot read.
   // A value under that key that is not a list, or a list with nothing of ours

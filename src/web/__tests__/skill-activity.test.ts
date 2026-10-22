@@ -9,7 +9,7 @@ import { createToolAudit } from '../../server/tool-audit.mjs';
 import { auditQuery } from '../../server/tool-audit-routes.mjs';
 // @ts-expect-error server module
 import { codexSkillState, codexSkillUses, noteCodexSkills, parseSkillCatalog } from '../../server/codex-skills.mjs';
-import { countingStartedLate, originParts, skillParts, skillSummary, sortSkills } from '../skill-activity';
+import { countingStartedLate, originParts, skillParts, skillSummary, sortSkills, typedCommandsNote } from '../skill-activity';
 import type { SkillRow } from '../tool-audit';
 
 const dirs: string[] = []; const audits: any[] = [];
@@ -212,5 +212,12 @@ describe('Skill activity list', () => {
     expect(summary).toEqual({ lead: 'In the last 7 days, Claude used', skills: '1 skill', uses: 'once', failed: 0, repeats: 4 });
     expect(countingStartedLate({ countedSince: 10, since: 5 })).toBe(true);
     expect(countingStartedLate({ countedSince: 5, since: 10 })).toBe(false);
+  });
+  it('says why typed commands are not counted, only when they are not and only for Claude', () => {
+    expect(typedCommandsNote({ typedCommands: 'on' }, 'all')).toBeNull();
+    expect(typedCommandsNote({}, 'all')).toBeNull();
+    expect(typedCommandsNote({ typedCommands: 'skipped' }, 'codex')).toBeNull();
+    expect(typedCommandsNote({ typedCommands: 'skipped' }, 'claude')).toMatch(/not counted yet: that needs Claude Code 2\.1\.116 or newer/);
+    expect(typedCommandsNote({ typedCommands: 'off' }, 'all')).toMatch(/AGENTS_DECK_SKILL_HOOK turned off/);
   });
 });
