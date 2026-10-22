@@ -14,14 +14,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { connectionHost, type IntegrationFailure } from "../integrations/client";
 import type { IntegrationPanelProps } from "../integrations/types";
 import { readBoards, type JiraBoardSummary } from "../jira-api";
-import { agoLabel, type GroupDef } from "../jira-board";
+import { freshnessLine, type GroupDef } from "../jira-board";
 import { modalStack } from "../modal-dismiss";
 import { failureOf, useJiraBoard } from "../use-jira-board";
 import AnchoredPopover from "./AnchoredPopover";
 import IntegrationSplit from "./IntegrationSplit";
 import JiraBacklog from "./JiraBacklog";
 import JiraIssueDetail from "./JiraIssueDetail";
-import { Chevron, FailureNote, RefreshGlyph, SearchGlyph } from "./JiraParts";
+import { Chevron, FailureNote, RefreshGlyph, SearchGlyph, StaleGlyph } from "./JiraParts";
 
 const isString = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 40;
 const isBool = (v: unknown): v is boolean => typeof v === "boolean";
@@ -222,7 +222,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   }, [searching]);
 
   const host = connectionHost(conn);
-  const updated = snap.loadedAt ? agoLabel(snap.loadedAt, now) : "";
+  const fresh = freshnessLine({ loading, loadedAt: snap.loadedAt, failed: Boolean(error) }, now);
   const blocking = !overview ? (error ?? boardsError) : null;
 
   const list = (() => {
@@ -301,8 +301,8 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
             <Chevron open={picker} />
           </button>
           {overview?.board.projectName && <span className="jr-board-project">{overview.board.projectName}</span>}
-          <span className="jr-fresh" role="status" aria-live="polite">
-            {loading ? (snap.loadedAt ? "Updating…" : "Reading…") : updated ? `Updated ${updated}` : ""}
+          <span className="jr-fresh" role="status" aria-live="polite" data-stale={fresh.stale || undefined}>
+            {fresh.stale && <StaleGlyph />}{fresh.text}
           </span>
           <button type="button" className="glyph-btn jr-refresh" aria-label="Refresh the board" title="Refresh"
             aria-busy={loading || undefined} data-loading={loading || undefined} disabled={!board}

@@ -26,7 +26,10 @@
 .jr-board-btn .jr-chevron { transform: rotate(90deg); color: var(--muted); }
 .jr-board-btn .jr-chevron[data-open] { transform: rotate(-90deg); }
 .jr-board-project { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.jr-fresh { margin-left: auto; flex: none; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jr-fresh { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* A refresh that failed: the board is the last answer, and the line says so. */
+.jr-fresh[data-stale] { color: var(--warn); }
+.jr-stale-glyph { flex: none; }
 .jr-refresh { width: 36px; height: 36px; padding: 0; flex: none; margin-block: 0; }
 .jr-refresh:disabled { opacity: var(--dim-off); cursor: default; }
 .jr-refresh[data-loading] svg { animation: ta-spin 1000ms linear infinite; }

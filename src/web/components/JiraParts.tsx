@@ -146,6 +146,13 @@ export function RefreshGlyph() {
     <path d="M11.8 2.6v3h-3" /><path d="M11.6 5.4A5 5 0 1 0 12 8.3" /></svg>;
 }
 
+/** The mark beside "Not updated": a ring with a bar and a dot, in the line's
+ *  own tone, so the state is a mark and a word rather than a colour. */
+export function StaleGlyph() {
+  return <svg className="jr-stale-glyph" width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden>
+    <circle cx="7" cy="7" r="5.6" /><path d="M7 4.2v3.4" /><path d="M7 9.9v.01" strokeWidth="1.8" /></svg>;
+}
+
 export function ExternalGlyph() {
   return <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
     <path d="M8 2.2h3.8V6M11.6 2.4 6.4 7.6" /><path d="M10.4 8.6v2.6a.8.8 0 0 1-.8.8H2.8a.8.8 0 0 1-.8-.8V4.4a.8.8 0 0 1 .8-.8h2.6" /></svg>;
