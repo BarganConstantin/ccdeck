@@ -78,7 +78,8 @@ describe("the selected row in an integration panel", () => {
     }
     expect(rule).toMatch(/background\s*:\s*var\(--ig-sel-fill\)/);
     expect(rule).toMatch(/(^|[;\s])color\s*:\s*var\(--ig-sel-ink\)/);
-    // No coloured edge on a selected row (owner, 2026-10-13).
+    // No coloured edge on a selected row: the selection rule in
+    // .impeccable/surfaces/tool-audit.md.
     expect(rule).not.toMatch(/border-(left|inline-start)|box-shadow\s*:\s*inset\s+\d/);
     const hover = /\.ig-row:hover\s*\{([^}]*)\}/.exec(host)?.[1] ?? "";
     expect(hover).toMatch(/--muted\s*:\s*var\(--text-secondary\)/);
