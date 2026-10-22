@@ -33,7 +33,10 @@ export function failure(info, status = STATUS_OF_KIND[info.kind] ?? 502) {
 }
 
 const REPO = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+){1,20}$/;
-const CURSOR = /^[A-Za-z0-9_=+/.:-]{1,512}$/;
+// "~" joins the time and the run ids of GitHub's Actions list across
+// repositories (github-api.mjs listPipelines): without it that list stopped
+// at its first page.
+const CURSOR = /^[A-Za-z0-9_=+/.:~-]{1,512}$/;
 const JOB_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 class BadRequest extends Error {}

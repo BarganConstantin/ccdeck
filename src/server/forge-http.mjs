@@ -369,22 +369,47 @@ export function createForgeTransport({
     // another host: a tail may follow one, to a public https host only.
     const res = await send(url, { headers: { accept: "text/plain, */*", range: `bytes=-${tailBytes}` }, timeout: 60_000, offOrigin: "public" });
     if (!res.ok) throw await httpError(res, now());
-    const partial = res.status === 206;
+    // A suffix range starts mid-line: the first line is a fragment.
+    let fragment = res.status === 206;
     let kept = [];
+    // Blank lines (once cleaned) since the last real one. They are kept only
+    // when a real line follows them: the blank lines a log ends on are not
+    // shown, and must never take the place of real ones — however many there
+    // are, and wherever the body was cut into chunks.
+    let blanks = 0;
     let dropped = false;
     let carry = "";
     let bytes = 0;
     const decoder = new TextDecoder();
-    const take = (text, final) => {
-      const parts = (carry + text).split("\n");
-      carry = final ? "" : parts.pop();
-      for (const p of parts) kept.push(p);
-      // Trimmed with room to spare: the blank lines a log ends on are
-      // dropped below, and must not take the place of real ones.
+    const keep = (raw) => {
+      if (fragment) {
+        fragment = false;
+        dropped = true;
+        return;
+      }
+      const line = clean(raw);
+      if (line === "") {
+        blanks++;
+        return;
+      }
+      if (blanks > 0) {
+        // More than the trim below keeps could never be shown.
+        const room = lines + TAIL_SLACK;
+        if (blanks > room) dropped = true;
+        for (let i = Math.min(blanks, room); i > 0; i--) kept.push("");
+        blanks = 0;
+      }
+      kept.push(line);
+      // Trimmed with room to spare while it streams.
       if (kept.length > lines * 2 + TAIL_SLACK) {
         kept = kept.slice(-(lines + TAIL_SLACK));
         dropped = true;
       }
+    };
+    const take = (text, final) => {
+      const parts = (carry + text).split("\n");
+      carry = final ? "" : parts.pop();
+      for (const p of parts) keep(p);
     };
     const reader = res.body?.getReader?.();
     if (!reader) {
@@ -402,13 +427,7 @@ export function createForgeTransport({
       }
       take(decoder.decode(), true);
     }
-    // A suffix range starts mid-line: the first line is a fragment.
-    if (partial && kept.length > 0) {
-      kept.shift();
-      dropped = true;
-    }
-    let out = kept.map(clean);
-    while (out.length && out[out.length - 1] === "") out.pop();
+    let out = kept;
     if (out.length > lines) {
       out = out.slice(-lines);
       dropped = true;
