@@ -283,6 +283,16 @@ export function redactSecrets(value, needles) {
   return walk(JSON.parse(json));
 }
 
+/** A saved connection without its own secret in what a page reads of it.
+ *  Every save here already takes it out, but builds before this host did kept
+ *  the account a tracker answered as it came, echo and all. Its id, kind and
+ *  address are left as they are, so it can always be found and disconnected. */
+function withoutOwnSecret(conn, secret) {
+  const needles = secretNeedles(secret);
+  if (!needles.length) return conn;
+  return { ...conn, name: redactSecrets(conn.name, needles), account: redactSecrets(conn.account, needles), meta: redactSecrets(conn.meta, needles) };
+}
+
 /** A failure that is a bug rather than a typed error, as the log and the
  *  error report get it: its message and stack without the secret, and none
  *  of what it carried besides (a cause may hold a request). */
@@ -365,7 +375,7 @@ export async function handleIntegrations(req, res, url, deps = {}) {
       // Every saved connection is listed whatever its kind, so it can always
       // be disconnected.
       const providers = providerList();
-      return send(res, 200, { ok: true, providers, connections: (await store.list()).map(forPage) });
+      return send(res, 200, { ok: true, providers, connections: (await store.list({ own: withoutOwnSecret })).map(forPage) });
     }
 
     if (segments[0] === "connections") {

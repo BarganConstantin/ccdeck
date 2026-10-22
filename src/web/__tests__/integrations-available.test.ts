@@ -245,32 +245,34 @@ describe("a provider that stops answering", () => {
 });
 
 describe("a saved connection whose provider this deck does not have", () => {
-  const STRANDED = fakeToken("stranded-jira");
+  // A kind no provider here is registered for: a connection a newer deck saved,
+  // or one whose provider was taken out.
+  const STRANDED = fakeToken("stranded-youtrack");
   let id = "";
   beforeAll(async () => {
     const conn = await integrationsStore.create({
-      kind: "jira", name: "Old", baseUrl: "https://jira.example.com",
-      account: { login: "jdoe" }, allowedOrigins: ["https://jira.example.com"],
+      kind: "youtrack", name: "Old", baseUrl: "https://youtrack.example.com",
+      account: { login: "jdoe" }, allowedOrigins: ["https://youtrack.example.com"],
     }, { auth: "bearer", token: STRANDED });
     id = conn.id;
   });
 
   it("is listed, with no token, and no provider for its kind", async () => {
     const r = await page("/api/integrations");
-    expect(r.body.connections.find((c: { id: string }) => c.id === id)).toMatchObject({ kind: "jira", tokenSaved: true });
-    expect(r.body.providers.map((p: { kind: string }) => p.kind)).not.toContain("jira");
+    expect(r.body.connections.find((c: { id: string }) => c.id === id)).toMatchObject({ kind: "youtrack", tokenSaved: true });
+    expect(r.body.providers.map((p: { kind: string }) => p.kind)).not.toContain("youtrack");
     expect(r.raw).not.toContain(STRANDED);
   });
 
   it("answers every read unavailable, HEAD too", async () => {
     for (const read of ["boards", "board/1", "board/1/closed-sprints", "board/1/issues", "issue/KEY-1", "issue/KEY-1/subtasks"]) {
-      expectUnavailable(await page(`/api/integrations/jira/${id}/${read}`));
-      expect((await page(`/api/integrations/jira/${id}/${read}`, "HEAD")).status).toBe(503);
+      expectUnavailable(await page(`/api/integrations/youtrack/${id}/${read}`));
+      expect((await page(`/api/integrations/youtrack/${id}/${read}`, "HEAD")).status).toBe(503);
     }
   });
 
   it("answers an image with an empty 404", async () => {
-    const r = await page(`/api/integrations/jira/${id}/asset?url=${encodeURIComponent("https://jira.example.com/secure/useravatar?avatarId=1")}`);
+    const r = await page(`/api/integrations/youtrack/${id}/asset?url=${encodeURIComponent("https://youtrack.example.com/secure/useravatar?avatarId=1")}`);
     expect([r.status, r.raw]).toEqual([404, ""]);
   });
 
@@ -283,7 +285,7 @@ describe("a saved connection whose provider this deck does not have", () => {
 
   it("refuses a write to a read with 405, and says not found for anything that is not a saved connection", async () => {
     for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
-      expect((await call(method, `/api/integrations/jira/${id}/boards`, {})).status, method).toBe(405);
+      expect((await call(method, `/api/integrations/youtrack/${id}/boards`, {})).status, method).toBe(405);
     }
     for (const path of ["/api/integrations/jira/no-such-id/boards", "/api/integrations/nope/abc/items", `/api/integrations/github/${id}/repos`]) {
       const r = await page(path);

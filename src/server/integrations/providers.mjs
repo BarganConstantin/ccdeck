@@ -1,7 +1,11 @@
-// Every tracker this deck can connect to, registered once (#2178). This deck
-// registers none: the providers are not part of it. GET /api/integrations
-// lists no provider, so the page offers no integration; a connection saved
-// before is still listed, and can always be disconnected.
-//
-// A provider is one import and one registerProvider call here, plus its web
-// half (src/web/integrations/registry.ts). registry.mjs has the contract.
+// Every tracker the deck can connect to, registered once (#2178). A new
+// provider is one import and one registerProvider call here, plus its web half
+// (src/web/integrations/registry.ts). registry.mjs has the contract, and
+// docs/features/jira-integration-2178.md walks through it.
+import { registerProvider } from "./registry.mjs";
+import { jiraProvider } from "./jira.mjs";
+import { githubProvider, gitlabProvider } from "./forge.mjs";
+
+registerProvider(jiraProvider);
+registerProvider(githubProvider);
+registerProvider(gitlabProvider);

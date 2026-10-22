@@ -1,22 +1,23 @@
-// The rules that keep a saved token where it belongs (#2178): which addresses
-// may carry a credential at all, the base URL a connection keeps, and the one
-// image read the asset route makes itself.
+// The one way a request reaches a connected tracker (#2178), and the rules that
+// keep a saved token where it belongs.
 //
 // THE TOKEN GOES ONLY WHERE THE CONNECTION SAYS. Every connection carries
 // `allowedOrigins` — its own base URL's origin, plus any the provider found it
-// needs while validating — and routes.mjs saves none that isSafeTarget would
-// not send a token to. A provider's own transport signs for those origins
-// only and never follows a redirect elsewhere; it is the provider's, so it is
-// not here (providers.mjs).
+// needs while validating (Jira Cloud's scoped tokens answer on
+// api.atlassian.com, not on the site). A URL outside that list is refused
+// before anything is signed, so a link inside an issue, an avatar on a CDN or a
+// redirect cannot carry the credential somewhere else.
 //
-// REDIRECTS ARE NOT FOLLOWED BLIND. fetchImage asks fetch for
-// `redirect: "manual"` and checks every hop again by hand.
+// REDIRECTS ARE NOT FOLLOWED BLIND. Fetch is asked for `redirect: "manual"`;
+// a redirect to an allowed origin is followed (a few hops at most) and signed
+// again, and one anywhere else is an error — the token is never re-sent to a
+// host the user did not connect.
 //
-// READ ONLY BY CONSTRUCTION. fetchImage sends GET and nothing else. Browsing a
+// READ ONLY BY CONSTRUCTION. The proxy sends GET and nothing else. Browsing a
 // tracker is the whole feature; there is no route here that could change an
 // issue, and there is no generic "fetch this URL with my token" route anywhere
 // in the deck.
-import { integrationError } from "./errors.mjs";
+import { errorFromFetchFailure, errorFromStatus, integrationError } from "./errors.mjs";
 
 /** HTTPS only, with one exception: a tracker on this machine (a mock, a
  *  container on localhost), which has no certificate to check. */
@@ -100,8 +101,102 @@ async function readCapped(res, maxBytes) {
   return Buffer.concat(chunks.map(c => Buffer.from(c.buffer, c.byteOffset, c.byteLength)), size);
 }
 
-/** Redirect hops an image read follows before it gives up. */
 const MAX_HOPS = 3;
+
+/**
+ * A client for one connection.
+ *
+ * @param {object} opts
+ * @param {{ id: string, allowedOrigins: string[], baseUrl: string }} opts.conn
+ * @param {unknown} opts.secret the opaque secret, handed only to `sign`
+ * @param {(secret: unknown, url: URL) => Record<string, string>} opts.sign the provider's auth headers
+ * @param {"validate" | "use"} [opts.phase] how a 401 reads (integrations-errors.mjs)
+ * @param {string} [opts.label] what the tracker is called in an error ("Jira")
+ * @param {(json: any) => string} [opts.errorDetail] a short, safe reason out of an error body
+ * @param {(headers: Headers, secret: unknown) => string | null} [opts.authCheck] a refusal the
+ *   status does not show: a tracker that answers a bad credential as an anonymous visitor, with
+ *   a 200, says so only in a header. Returns why, or null.
+ * @param {typeof fetch} [opts.fetchImpl]
+ * @param {AbortSignal} [opts.signal] the page's request, so a closed panel stops its reads
+ */
+export function createProxy({ conn, secret, sign, phase = "use", label = "the tracker", errorDetail, authCheck, fetchImpl = globalThis.fetch, signal } = {}) {
+  const allowed = new Set((conn?.allowedOrigins?.length ? conn.allowedOrigins : [originOf(conn?.baseUrl)]).filter(Boolean));
+
+  /** Whether `url` is somewhere this connection's token may go. */
+  const allows = url => isSafeTarget(url) && allowed.has(originOf(url));
+
+  async function send(target, { accept = "application/json", timeoutMs = 15_000, extraHeaders = {}, signal: callSignal } = {}) {
+    let url = new URL(target);
+    for (let hop = 0; ; hop++) {
+      if (!allows(url.href)) {
+        throw integrationError("permission", `The deck only sends this connection's token to ${[...allowed].join(", ")}.`);
+      }
+      let res;
+      try {
+        res = await fetchImpl(url.href, {
+          method: "GET",
+          redirect: "manual",
+          headers: { Accept: accept, "User-Agent": "ccdeck", ...extraHeaders, ...sign(secret, url) },
+          signal: deadlineSignal(callSignal ?? signal, timeoutMs),
+        });
+      } catch (err) {
+        throw errorFromFetchFailure(err, label);
+      }
+      if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
+        await res.body?.cancel().catch(() => {});
+        let next;
+        try { next = new URL(res.headers.get("location"), url); } catch { next = null; }
+        if (!next || !allows(next.href)) {
+          throw integrationError("upstream",
+            `${label} redirected to ${next ? next.origin : "an unreadable address"}, and the deck does not send the token there. Check the address you connected.`);
+        }
+        if (hop + 1 >= MAX_HOPS) throw integrationError("upstream", `${label} redirected too many times.`);
+        url = next;
+        continue;
+      }
+      const refused = authCheck?.(res.headers, secret);
+      if (refused) {
+        await res.body?.cancel().catch(() => {});
+        throw integrationError(phase === "validate" ? "auth" : "expired", refused);
+      }
+      return { res, url };
+    }
+  }
+
+  async function failure(res) {
+    let detail;
+    try {
+      const body = await readCapped(res, 32_000);
+      detail = errorDetail ? errorDetail(JSON.parse(body.toString("utf8"))) : undefined;
+    } catch { /* an unreadable error body says nothing more than its status */ }
+    return errorFromStatus(res.status, res.headers, { phase, label, detail });
+  }
+
+  return {
+    allows,
+    origins: () => [...allowed],
+
+    /** GET a JSON document. Throws an IntegrationError for anything else.
+     *  `signal` is this read's own (the page's request), over the client's. */
+    async json(target, { timeoutMs, maxBytes = 16 * 1024 * 1024, signal: callSignal } = {}) {
+      const { res } = await send(target, { timeoutMs, signal: callSignal });
+      if (!res.ok) throw await failure(res);
+      const body = await readCapped(res, maxBytes);
+      try { return JSON.parse(body.toString("utf8")); }
+      catch {
+        throw integrationError("incompatible", `${label} answered with something that is not JSON. Check that the address is the ${label} site itself.`);
+      }
+    },
+
+    /** GET bytes (an avatar, an icon): the status, the type and the body. */
+    async bytes(target, { timeoutMs = 10_000, maxBytes = 2 * 1024 * 1024, accept = "image/*", signal: callSignal } = {}) {
+      const { res } = await send(target, { timeoutMs, accept, signal: callSignal });
+      if (!res.ok) throw await failure(res);
+      const body = await readCapped(res, maxBytes);
+      return { status: res.status, type: String(res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase(), body };
+    },
+  };
+}
 
 // ── images ──────────────────────────────────────────────────────────────────
 
