@@ -80,6 +80,12 @@
     "3.43.1",
     "3.43.3"
   ],
+  "3.43.4": [
+    {
+      "title": "🔐 Local network no longer sends the login a deck is signed in to",
+      "body": "Two machines on one Claude login race to renew it, and the one that renews second is signed out with “Login expired”. So paired decks no longer receive the login a deck is signed in to right now. Every other login you tick is shared as before, and this one goes out once the deck switches to another account.\n\nUpdate every paired deck: an older deck still sends the login it is using, and the decks paired with it still take it. To send it anyway, as before, turn on Send the login this deck is using too in the Local network dialog. Not covered yet: a paired deck that already holds a copy of that login, from before this deck switched to it, can still renew it first and sign this deck out. Auto-switch can also still move a deck onto a login another paired deck is using, if the deck already holds a copy of it."
+    }
+  ],
   "3.43.0": [
     {
       "title": "🏠 Auto-switch can come back to a home account",
