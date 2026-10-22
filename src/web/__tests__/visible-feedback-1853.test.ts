@@ -67,6 +67,10 @@ describe("scrubReport takes identifying text out of a message shown on the page"
     ["mail bob@example.org now", "mail <email> now"],
     ["token sk-ant-abcdefghijklmnop failed", "token <secret> failed"],
     ["ghp_abcdefghijklmnopqrstuvwxyz0123", "<secret>"],
+    // Fine-grained GitHub and GitLab tokens, assembled here so no token-shaped
+    // literal sits in the source.
+    [`auth ${"glpat-"}${"abcdefghij".repeat(2)} failed`, "auth <secret> failed"],
+    [`${"github_pat_"}${"11ABCDEFGH".repeat(3)}`, "<secret>"],
     ["Cannot read properties of undefined (reading 'agents')", "Cannot read properties of undefined (reading 'agents')"],
   ])("%s → %s", (input, output) => {
     expect(scrubReport(input)).toBe(output);
