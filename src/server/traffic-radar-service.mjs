@@ -14,12 +14,26 @@ export function radarTargets(snapshot) {
   return { configured: [...new Set(configured)], observed: [...new Set(observed)] };
 }
 
-/** Own the feature preference independently of whether capture is ready yet. */
+const savedDestinations = value => Array.isArray(value)
+  ? value.filter(v => typeof v === 'string' && /^\d+\.\d+\.\d+\.\d+:\d+$/.test(v)).slice(0, 8) : [];
+
+/** Own the automatic-monitoring preference independently of whether capture is ready yet.
+ *
+ *  AUTOMATIC MONITORING IS OPT-IN. `enabled` here is Settings › Radar's switch,
+ *  kept in its own file (`preferences`, radar-settings-<port>.json) and on only
+ *  where that file says `automatic: true`. A fresh deck, and a deck upgraded
+ *  from a release that never wrote the file, has it off: nothing is discovered,
+ *  nothing is retried, and the capture behaves exactly as it did before, with
+ *  the person choosing a destination and starting it in Radar's Monitor view
+ *  (`capture.prepare`/`capture.stop`, which keep their own radar-monitor-<port>
+ *  .json opt-in and resume a monitor the person started, as they always did).
+ *  Only while the switch is on does the service find the collector itself and
+ *  retry every `pollMs`. */
 export function createRadarService({ capture, preferences, discover, pollMs = 5000 }) {
-  let enabled = true, port = null, remembered = [], revision = 0, timer = null, disposed = false;
+  let enabled = false, port = null, remembered = [], revision = 0, timer = null, disposed = false;
   let ready = Promise.resolve(), syncing = null, setupError = null;
   const settings = () => ({ ok: true, enabled, setupError });
-  const save = () => preferences.write(port, { enabled, destinations: remembered });
+  const save = () => preferences.write(port, { automatic: enabled, destinations: remembered });
   const stopLoop = () => { clearInterval(timer); timer = null; };
   const startLoop = () => {
     stopLoop();
@@ -39,7 +53,9 @@ export function createRadarService({ capture, preferences, discover, pollMs = 50
         const existing = (current.sources ?? []).map(s => s.destination).sort();
         if (current.enabled && JSON.stringify(existing) === JSON.stringify(targets)) { setupError = null; return; }
         await capture.prepare(targets, port);
-        if (operation !== revision || !enabled || disposed) { await capture.stop('stopped', false); return; }
+        // Stopped with its opt-in saved off: a setup that lands after the switch
+        // went off must not leave a monitor that resumes after a restart.
+        if (operation !== revision || !enabled || disposed) { await capture.stop('stopped', !disposed); return; }
         remembered = targets;
         setupError = null;
         await save();
@@ -57,10 +73,12 @@ export function createRadarService({ capture, preferences, discover, pollMs = 50
       ready = (async () => {
         const saved = await preferences.read(port);
         if (operation !== revision || disposed) return;
-        enabled = saved?.enabled !== false;
-        remembered = Array.isArray(saved?.destinations) ? saved.destinations.filter(v => typeof v === 'string' && /^\d+\.\d+\.\d+\.\d+:\d+$/.test(v)).slice(0, 8) : [];
-        if (!enabled) await capture.stop("stopped", false);
-        startLoop();
+        enabled = saved?.automatic === true;
+        remembered = savedDestinations(saved?.destinations);
+        if (enabled) startLoop();
+        // Off: the capture's own opt-in, as before — a monitor resumes only
+        // where the person started one and did not stop it.
+        else await capture.resume(port);
       })();
       return ready.then(sync);
     },
@@ -72,7 +90,12 @@ export function createRadarService({ capture, preferences, discover, pollMs = 50
       const previous = enabled, operation = ++revision;
       enabled = next;
       stopLoop();
-      if (!next) { setupError = null; await capture.stop('stopped', false); }
+      if (next) {
+        // A monitor the person started by hand is where automatic monitoring
+        // looks first when Claude's settings name no collector.
+        const running = (capture.read().sources ?? []).map(s => s.destination);
+        if (running.length) remembered = savedDestinations(running);
+      } else { setupError = null; await capture.stop(); }
       try { await save(); }
       catch (error) {
         if (operation === revision) { enabled = previous; startLoop(); if (enabled) void sync(); }
@@ -87,19 +110,23 @@ export function createRadarService({ capture, preferences, discover, pollMs = 50
     },
     async prepare(destination, requestedPort) {
       await ready;
-      if (!enabled) throw new Error('Enable Radar in Settings first.');
+      // Off: the Monitor view's own Start, unchanged.
+      if (!enabled) return capture.prepare(destination, requestedPort);
       const operation = ++revision;
       const result = await capture.prepare(destination, requestedPort);
-      if (operation !== revision || !enabled || disposed) { await capture.stop('stopped', false); throw new Error('Radar setup was cancelled.'); }
+      if (operation !== revision || !enabled || disposed) { await capture.stop('stopped', !disposed); throw new Error('Radar setup was cancelled.'); }
       remembered = Array.isArray(destination) ? destination : [destination];
       await save();
       return result;
     },
-    stop() { return this.setEnabled(false); },
+    // Off, Stop monitoring is the Monitor view's, as before; on, stopping is
+    // turning automatic monitoring off.
+    stop(...args) { return enabled ? this.setEnabled(false) : capture.stop(...args); },
     read() {
       const value = capture.read();
-      return { ...value, automatic: true, featureEnabled: enabled, setupError,
-        state: !enabled ? 'stopped' : setupError && !value.enabled ? 'error' : value.state };
+      if (!enabled) return { ...value, automatic: false };
+      return { ...value, automatic: true, featureEnabled: true, setupError,
+        state: setupError && !value.enabled ? 'error' : value.state };
     },
     dispose() { disposed = true; revision++; stopLoop(); capture.dispose(); },
   };

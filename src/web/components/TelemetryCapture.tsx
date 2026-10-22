@@ -287,7 +287,9 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
   const monitor = radarMonitorState(capture, failed);
   const running = monitor.enabled;
   const managed = !!capture?.managed;
-  const automatic = capture?.automatic !== false;
+  // Settings › Radar's automatic monitoring, off unless the deck says it is on:
+  // off, the Monitor view keeps its destination picker and Start/Stop.
+  const automatic = capture?.automatic === true;
   const permissionNeeded = managed && monitor.permission;
   const active = monitor.active;
   const sourceCount = capture?.sources?.length ?? 1;
@@ -391,7 +393,7 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
         </button></li> : <li key={`observation-${item.event.id}`}><button className="tr-message" aria-pressed={selectedObservation === item.event.id} onClick={() => { setSelected(null); setSelectedObservation(item.event.id); if (window.matchMedia?.("(max-width: 640px)").matches) { inspector.current?.focus({ preventScroll: true }); inspector.current?.scrollIntoView({ block: "start", behavior: "auto" }); } }}>
           <RadarIcon kind="connection" className="tr-row-icon" /><span className="tr-event-top"><strong className="tr-event-name">Connection observed</strong><time dateTime={new Date(item.event.at).toISOString()}>{stamp(item.event.at)}</time></span><span className="tr-event-context" title={item.event.destination}>{item.event.destination} · {item.event.reason === "encrypted" ? "Encrypted contents" : "Contents not decoded"}</span>
         </button></li>)}</ul> : <div className="tr-empty-capture">{!hasHistory && <RadarIcon kind="radar" />}<h4>{retained.length || capture?.observations?.length ? "No matching activity" : running || automatic ? "Waiting for traffic" : "Message capture is off"}</h4>
-          <p className="tr-note">{retained.length || capture?.observations?.length ? promptsOnly ? "No exports with prompt fields match your filters. Turn off With prompt to see all activity. Redacted prompts are included." : "Try another session, type or destination." : running || automatic ? "Radar monitors automatically when a collector is available. Keep using Claude while Radar listens." : "Choose a destination and start monitoring. New collector activity will appear here."}</p>
+          <p className="tr-note">{retained.length || capture?.observations?.length ? promptsOnly ? "No exports with prompt fields match your filters. Turn off With prompt to see all activity. Redacted prompts are included." : "Try another session, type or destination." : automatic ? "Radar monitors automatically when a collector is available. Keep using Claude while Radar listens." : running ? "New collector activity will appear here. Keep using Claude while Radar listens." : "Choose a destination and start monitoring. New collector activity will appear here."}</p>
         </div>}
         {activity.length > visibleCount && <button className="btn" onClick={() => setVisibleCount(count => count + 100)}>Show older messages</button>}
         {connections.length > 0 && <details className="tr-details"><summary>Connections to these collectors ({connections.length})</summary><ul className="tr-live-connections">{connections.map(c => <li key={`${c.pid}:${c.destination}`}><code>{c.destination}</code><span>Claude · PID {c.pid} · {c.workspace ?? "Workspace unknown"}</span></li>)}</ul><p className="tr-note">A connection alone does not prove a telemetry message was sent. These connections are not filtered by session.</p></details>}
@@ -421,7 +423,9 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
       <p>History covers the last 24 hours, up to 2,000 exports and a 32 MiB payload budget. When a limit is reached, the oldest messages are removed.</p>
       <p>History stays in local memory. Restarting ccdeck or clearing messages removes it. Closing this modal does not stop capture or clear history; stopping monitoring preserves history. No capture file is written. {automatic ? <>Turn monitoring off in Settings → Radar.</> : <>Use Stop monitoring{!managed && <> and Ctrl+C in {shell}</>} to stop capture.</>}</p>
       {capture?.bytes ? <p>Captured transport bytes: {capture.bytes.toLocaleString()}. This is not a decoded-message count.</p> : null}
-      {managed && <p>Monitoring starts automatically with ccdeck and continues in the background. Turn Radar off in Settings → Radar. The in-memory history is cleared after a restart.</p>}
+      {managed && (automatic
+        ? <p>Automatic monitoring is on: it starts with ccdeck and continues in the background. Turn it off in Settings → Radar. The in-memory history is cleared after a restart.</p>
+        : <p>Enabled monitoring resumes after a ccdeck restart; the in-memory history does not.</p>)}
       {Object.entries(capture?.issues ?? {}).map(([code, count]) => <p key={code}>{issueText[code] ?? "An inspection limitation was observed."} ({count})</p>)}
     </div></details></footer>
   </div>;

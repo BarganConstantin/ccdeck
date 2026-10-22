@@ -43,7 +43,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "notifications", label: "Notifications", note: "How the deck reaches you while you are not looking at it." },
   { id: "sounds", label: "Sounds", note: "What plays when a turn finishes and when Claude asks." },
   { id: "data", label: "Data", note: "What the deck keeps on this device." },
-  { id: "radar", label: "Radar", note: "Background monitoring of Claude telemetry sent to its collectors." },
+  { id: "radar", label: "Radar", note: "Automatic monitoring of Claude telemetry, off unless you turn it on." },
   { id: "about", label: "About", note: "The version you are running, and where to say what you think of it." },
 ];
 

@@ -48,7 +48,7 @@ describe("every switch is the one switch (#886)", () => {
     // Nineteen with the shared Codex/Claude startup-recovery switch markup.
     // Twenty with Local network's "Send the login this deck is using too"
     // (#2192), under the switch that says which one that is.
-    // Twenty-two with Settings › Radar's "Enable Radar", and Radar's own "With
+    // Twenty-two with Settings › Radar's "Monitor automatically", and Radar's own "With
     // prompt", an on/off filter over its activity list.
     expect(switches, "the twenty-two switches in the source").toBe(22);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);

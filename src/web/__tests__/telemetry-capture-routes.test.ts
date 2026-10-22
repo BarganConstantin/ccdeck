@@ -55,3 +55,30 @@ it('validates the Settings switch and returns its saved state', async () => {
   expect((await fetch(url, { method: 'POST', body: JSON.stringify({ enabled: false }) }).then(r => r.json())).enabled).toBe(false);
   expect((await fetch(url).then(r => r.json())).enabled).toBe(false);
 });
+
+it('takes the switch alone: a body naming anything more, or not an object, is refused whole', async () => {
+  const writes: unknown[] = [];
+  const settings = { settings: async () => ({ ok: true, enabled: false }), setEnabled: async (value: boolean) => { writes.push(value); return { ok: true, enabled: value }; } };
+  const server = createServer((req, res) => void handleTrafficCapture(req, res, new URL(req.url!, 'http://localhost'), settings));
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  cleanup.push(() => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }));
+  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/system/traffic-radar/settings`;
+  for (const body of ['{"enabled":true,"destinations":["192.0.2.1:4317"]}', '{"enabled":true,"__proto__":{"x":1}}', '{"automatic":true}', '{}',
+    '[true]', 'true', 'null', '"enabled"', '{"enabled":true', '{"enabled":null}']) {
+    const res = await fetch(url, { method: 'POST', body });
+    expect(res.status, body).toBe(400);
+    expect(await res.json(), body).toHaveProperty('error');
+  }
+  expect(writes).toEqual([]);
+  expect((await fetch(url, { method: 'POST', body: '{"enabled":true}' })).status).toBe(200);
+  expect(writes).toEqual([true]);
+});
+
+it("holds the switch behind the deck's own page: no anonymous read, no anonymous write", () => {
+  const anonymous = { headers: { host: '127.0.0.1:4329' } };
+  expect(GUARDED_READS.has('/api/system/traffic-radar/settings')).toBe(true);
+  expect(isAuthorizedDataRead(anonymous as never)).toBe(false);
+  expect(isAuthorizedMutation(anonymous as never)).toBe(false);
+  expect(isAuthorizedDataRead({ headers: { host: '127.0.0.1:4329', 'sec-fetch-site': 'cross-site' } } as never)).toBe(false);
+  expect(isAuthorizedMutation({ headers: { host: '127.0.0.1:4329', origin: 'http://192.0.2.9:4329' } } as never)).toBe(false);
+});

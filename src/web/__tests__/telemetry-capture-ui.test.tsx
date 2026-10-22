@@ -98,6 +98,18 @@ it('explains Windows PowerShell activation without a text pipeline or macOS-only
 });
 
 it('shows continuous managed monitoring without Terminal steps or a time limit', () => {
+  const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, managed: true, enabled: true, state: 'receiving', sources: [{ destination: '127.0.0.1:4317', interface: 'lo0', active: true, bytes: 0 }] }} command='must not be shown' />);
+  expect(markup).toContain('Continuous local monitoring'); expect(markup).toContain('after a ccdeck restart'); expect(markup).toContain('Stop monitoring');
+  expect(markup).not.toContain('Activate in'); expect(markup).not.toContain('must not be shown'); expect(markup).not.toContain('10 minutes');
+});
+it('keeps Stop available while retrying a denied capture and explains the required permission', () => {
+  const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, platform: 'darwin', managed: true, enabled: true, state: 'interrupted', sources: [{ destination: '127.0.0.1:4317', interface: 'lo0', active: false, bytes: 0, error: 'Packet capture permission is required.' }] }} />);
+  expect(markup).toContain('Capture permission needed'); expect(markup).toContain('Stop monitoring'); expect(markup).toContain('ChmodBPF'); expect(markup).toContain('retries automatically');
+  // ccdeck runs this capture itself: no command screen is drawn, so the copy
+  // must not hold a Terminal command up as the alternative.
+  expect(markup).not.toContain('Terminal');
+});
+it('shows continuous automatic monitoring, switched on in Settings, without Start, Stop or Terminal steps', () => {
   const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, automatic: true, managed: true, enabled: true, state: 'receiving', sources: [{ destination: '127.0.0.1:4317', interface: 'lo0', active: true, bytes: 0 }] }} command='must not be shown' />);
   expect(markup).toContain('Continuous local monitoring'); expect(markup).toContain('Settings → Radar'); expect(markup).not.toContain('>Stop monitoring</button>');
   expect(markup).not.toContain('Activate in'); expect(markup).not.toContain('must not be shown'); expect(markup).not.toContain('10 minutes');
@@ -115,12 +127,26 @@ it('names PowerShell, not Terminal, when unmanaged Windows activation must be ge
   expect(markup).not.toContain('Terminal');
 });
 
-it('has no Start or Stop controls while automatic capture is loading or waiting for a collector', () => {
-  for (const value of [null, { ...capture, automatic: true, featureEnabled: true, managed: true, enabled: false, state: 'idle' as const }]) {
+it('has no Start or Stop controls while automatic capture is waiting for a collector', () => {
+  const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, automatic: true, featureEnabled: true, managed: true, enabled: false, state: 'idle' }} />);
+  expect(markup).not.toContain('>Start monitoring</button>');
+  expect(markup).not.toContain('>Stop monitoring</button>');
+  expect(markup).not.toContain('Capture destination');
+  expect(markup).toContain('Waiting for traffic');
+});
+
+// Automatic monitoring is off unless the deck says it is on: while it reads,
+// on a deck that does not say (an older server), and on one that says off, the
+// Monitor view is the one 3.43.4 released — a destination and Start, the
+// message capture off until the person starts it.
+it('keeps the destination picker and Start while automatic monitoring is off, unknown or still loading', () => {
+  for (const value of [null, { ...capture, managed: true }, { ...capture, automatic: false, managed: true }]) {
     const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={value} />);
-    expect(markup).not.toContain('>Start monitoring</button>');
-    expect(markup).not.toContain('>Stop monitoring</button>');
-    expect(markup).not.toContain('Capture destination');
-    expect(markup).toContain('Waiting for traffic');
+    expect(markup).toContain('>Start monitoring</button>');
+    expect(markup).toContain('aria-label="Capture destination"');
+    expect(markup).toContain('Message capture is off');
+    expect(markup).toContain('Choose a destination and start monitoring.');
+    expect(markup).not.toContain('Waiting for traffic');
+    expect(markup).not.toContain('Settings → Radar');
   }
 });

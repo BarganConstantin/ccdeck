@@ -167,4 +167,11 @@ export function createTrafficCapture({ now = Date.now, platform = process.platfo
   };
   return api;
 }
-export const trafficCapture = createRadarService({ capture: createTrafficCapture({ managed: true }), preferences: capturePreferences(), discover: () => trafficRadar.read() });
+// The monitor keeps its own opt-in (radar-monitor-<port>.json), as it always
+// has; Settings › Radar's automatic monitoring, off unless switched on, keeps
+// its own beside it (traffic-radar-service.mjs).
+export const trafficCapture = createRadarService({
+  capture: createTrafficCapture({ managed: true, preferences: capturePreferences() }),
+  preferences: capturePreferences(undefined, 'radar-settings'),
+  discover: () => trafficRadar.read(),
+});

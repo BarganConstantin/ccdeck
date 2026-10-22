@@ -89,7 +89,7 @@ describe("a door into Settings opens it at the section it names", () => {
       ["notifications", />Notifications while closed</],
       ["sounds", />Custom sounds</],
       ["data", />Tool history<\/h3>/],
-      ["radar", />Enable Radar</],
+      ["radar", />Monitor automatically</],
       ["about", />Version</],
     ];
     expect(cases.map(([id]) => id)).toEqual(SETTINGS_SECTIONS.map(s => s.id));

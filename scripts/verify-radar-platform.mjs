@@ -28,7 +28,9 @@ const managed = automatic || process.argv.includes('--managed');
 const directory = managed ? await mkdtemp(join(tmpdir(), 'radar-native-monitor-')) : null;
 const options = { managed, preferences: directory ? capturePreferences(directory) : null };
 let automaticEndpoint = null;
-const makeCapture = () => automatic ? createRadarService({ capture: createTrafficCapture({ managed: true }), preferences: options.preferences,
+// Automatic monitoring is opt-in: the monitor keeps its own preferences, and the
+// switch its own file beside them, turned on below as Settings › Radar would.
+const makeCapture = () => automatic ? createRadarService({ capture: createTrafficCapture(options), preferences: capturePreferences(directory, 'radar-settings'),
   discover: async () => ({ config: { variables: automaticEndpoint ? [{ key: 'OTEL_EXPORTER_OTLP_ENDPOINT', value: automaticEndpoint }] : [] }, connections: [] }),
 }) : createTrafficCapture(options);
 let capture = makeCapture();
@@ -47,7 +49,11 @@ try {
   const port = collector.address().port, localPort = ingest.address().port;
   automaticEndpoint = `http://127.0.0.1:${port}`;
   const setup = automatic ? null : await capture.prepare(`127.0.0.1:${port}`, localPort);
-  if (automatic) await capture.resume(localPort);
+  if (automatic) {
+    await capture.resume(localPort);
+    assert.equal((await capture.settings()).enabled, false, 'automatic monitoring must start off');
+    await capture.setEnabled(true);
+  }
   const token = setup ? /'([a-f0-9]{64})'/.exec(setup.command)[1] : null;
   const base = `http://127.0.0.1:${localPort}`;
   const tool = await captureTool(process.platform), iface = await captureInterface('127.0.0.1', process.platform);
