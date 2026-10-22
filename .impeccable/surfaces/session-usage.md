@@ -22,7 +22,7 @@ scrolls within the shared shell at short heights.
 
 Use existing panel/text/control tokens, 14px dialog title as in Usage history,
 12px body/data, 11px table annotations and 22px headline measurements. No new
-palette, shadows or animation: the modal shell owns depth and motion, and the
+palette or shadows: the modal shell owns depth and entrance motion, and the
 global focus ring owns focus. Source: SessionUsageModal.tsx and session-usage.css.
 
 Keep the short estimate/scope caveat visible. Put the full pricing explanation
@@ -43,3 +43,14 @@ Loading, error, empty and retry states retain Close. Loading disables Refresh an
 the pricing selector. Changing mode clears old results, cancelling stale browser
 requests. Reads are manual, share the bounded history queue/cache and send neither
 prompts nor tool contents to the inspector.
+
+
+## Loading refinement — 2026-10-19
+
+The occasional session read shows a compact transcript illustration with one
+6px reading stroke, 1400ms indeterminate cadence, no fabricated token or cost
+values. It pauses while the document is hidden and becomes static under Reduce
+Motion. Report content has one 120ms opacity arrival (.7→1), without moving
+numbers or token proportions. Existing refresh, failure, pricing mode, footer,
+focus and request cancellation behavior is preserved. There is no forced wait
+or new dependency. This is item 2 in docs/features/animation-opportunities.md.

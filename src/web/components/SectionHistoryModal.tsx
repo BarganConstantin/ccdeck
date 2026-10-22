@@ -1,3 +1,4 @@
+import ReadActivity from "./ReadActivity";
 // What a section of the machine panel did over time.
 //
 // Every section there answers "what is it NOW" — 61°C, 22.2 GB of 32, a load of
@@ -345,15 +346,15 @@ export default function SectionHistoryModal({ group, title, liveNote, onClose }:
 
         <div className="hist-body">
           {hist == null ? (
-            <p className="hist-empty">Reading…</p>
+            <ReadActivity kind="history" title="Reading sensor history…" note="Loading the readings recorded on this machine." delayed />
           ) : series.length === 0 ? (
             // Reachable only if the modal outlives its own section, which can
             // happen: a sensor that stops answering retires its row.
             <p className="hist-empty">Nothing has been measured yet.</p>
           ) : (
-            series.map(s => (
+            <div className="read-result">{series.map(s => (
               <Chart key={s.label} series={s} stepMs={hist.stepMs} domain={domain} />
-            ))
+            ))}</div>
           )}
           {group === "load" && liveNote && <p className="hist-note hist-load-summary">
             <span>Current 1-minute load</span>

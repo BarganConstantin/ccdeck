@@ -716,3 +716,23 @@
   .ap-report-views .ap-report-view { min-height: 44px; }
   .ap-reset-about > summary { min-height: 44px; padding-block: 12px; }
 }
+
+/* Initial report read: explain grouping work into projects, not fake totals. */
+.ap-proj-loading { min-height: 176px; padding: 12px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; }
+.ap-proj-loading-art { width: 210px; height: 98px; max-width: 100%; color: var(--muted); margin-bottom: 4px; }
+.ap-proj-loading strong { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.ap-proj-loading > span { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
+.ap-proj-loading-links { stroke: var(--line); }
+.ap-proj-loading-scan { stroke: var(--accent); animation: ap-project-read 1600ms cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.ap-proj-loading[data-paused] .ap-proj-loading-scan { animation-play-state: paused; }
+.ap-proj-ready { animation: ap-project-report-in 140ms cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes ap-project-read {
+  0% { opacity: 0.3; transform: translateY(0); }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; transform: translateY(12px); }
+}
+@keyframes ap-project-report-in { from { opacity: 0.65; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .ap-proj-loading-scan { animation: none; transform: translateY(6px); }
+  .ap-proj-ready { animation: none; }
+}
