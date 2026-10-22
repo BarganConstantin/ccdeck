@@ -159,6 +159,43 @@
 .ig-refresh[aria-busy="true"]:active { transform: none; }
 .ig-refresh[data-loading] svg { animation: ta-spin 1000ms linear infinite; }
 
+/* A failed read (IntegrationFailureNote): the error mark and a heading, the
+   sentence under it, the way out on the right, wrapping under on a phone. No
+   wash behind the words, which would only lower their contrast; the edge
+   carries the tone, error's, or warning's over rows that are the last answer. */
+.ig-failure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 16px;
+  min-width: 0;
+  padding: 12px 14px;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--err) 35%, var(--line));
+  border-radius: var(--r-panel);
+  background: var(--panel);
+  text-align: left;
+}
+.ig-failure[data-stale] { padding: 8px 12px; border-color: color-mix(in srgb, var(--warn) 35%, var(--line)); }
+.ig-failure-text { flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ig-failure-text p { margin: 0; }
+.ig-failure-title { display: flex; align-items: flex-start; gap: 8px; color: var(--text); line-height: 1.45; overflow-wrap: anywhere; }
+.ig-failure-title strong { font-weight: 600; }
+.ig-failure-title .ig-mark { margin-top: 2px; color: var(--err); }
+.ig-failure[data-stale] .ig-failure-title .ig-mark { color: var(--warn); }
+.ig-failure-body, .ig-failure-said {
+  padding-left: 21px;
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.ig-failure-said { color: var(--muted); }
+.ig-failure-actions { display: flex; flex: none; flex-wrap: wrap; gap: 8px; }
+.ig-failure-actions .btn[aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
+.ig-failure-actions .btn[aria-disabled="true"]:active { transform: none; }
+
 /* A person's or a project's picture, and the initials that stand in for it. */
 .ig-avatar { flex: none; display: block; border-radius: 50%; object-fit: cover; background: var(--ctl-fill); }
 .ig-avatar-initials {
