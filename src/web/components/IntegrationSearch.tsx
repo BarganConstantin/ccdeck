@@ -23,11 +23,11 @@ export default function IntegrationSearch({ value, onChange, label, placeholder,
   label: string;
   placeholder?: string;
   /** For a panel that moves focus here itself (a "/" shortcut, a picker that closed). */
-  inputRef?: RefObject<HTMLInputElement | null>;
+  inputRef?: RefObject<HTMLInputElement>;
   /** A panel's own keys, e.g. Enter to open a pasted link. Escape is the field's. */
   onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
 }) {
-  const ownRef = useRef<HTMLInputElement | null>(null);
+  const ownRef = useRef<HTMLInputElement>(null);
   const ref = inputRef ?? ownRef;
   const [focused, setFocused] = useState(false);
   const clearing = focused && value !== "";
