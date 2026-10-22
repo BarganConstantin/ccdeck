@@ -68,7 +68,7 @@ function PipelineRow({ kind, pipeline: p, acrossRepos }: { kind: ForgeKind; pipe
     <li>
       <button
         type="button"
-        className="fg-row fgl-row fgl-pipeline"
+        className="fg-row fgl-row fgl-pipeline ig-row"
         data-selected={isSelected || undefined}
         aria-current={isSelected || undefined}
         onClick={() => select(target)}

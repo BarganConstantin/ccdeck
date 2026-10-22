@@ -108,3 +108,18 @@ describe("an item page's top line", () => {
     expect(decls(detail, ".fd-ref-number")).toMatch(/flex: none/);
   });
 });
+
+describe("a selected row", () => {
+  it("is not the hover: the panel's own fill answers the pointer only, the host's rule the selection", () => {
+    // A list row is the integrations' shared row (ig-row in integrations.css),
+    // whose selection is a fill of its own and whose words all go to --text.
+    expect(decls(topLevel(panel), ".fg-row:hover")).toMatch(/background: var\(--ctl-fill\)/);
+    expect(panel).not.toMatch(/\.fg-row\[data-selected\]\s*[,{][^}]*background/);
+    expect(lists).not.toMatch(/\.fgl-branch\[data-selected\]\s*[,{][^}]*background/);
+  });
+
+  it("keeps a badge's word in the row's ink and its mark in the state's colour", () => {
+    expect(decls(panel, ".ig-row[data-selected] .fg-badge")).toMatch(/color: var\(--ig-sel-ink, var\(--text\)\)/);
+    expect(decls(panel, ".ig-row[data-selected] .fg-badge[data-tone=bad] > [aria-hidden]")).toMatch(/color: var\(--err\)/);
+  });
+});

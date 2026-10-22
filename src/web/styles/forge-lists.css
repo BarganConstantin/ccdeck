@@ -93,7 +93,6 @@
   box-sizing: border-box;
   transition: background 120ms;
 }
-.fgl-branch:hover, .fgl-branch[data-selected] { background: var(--ctl-fill); }
 .fgl-hit { position: absolute; inset: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: pointer; }
 .fgl-hit:focus-visible { outline-offset: -2px; border-radius: 0; }
 .fgl-branch > :not(.fgl-hit) { position: relative; pointer-events: none; }

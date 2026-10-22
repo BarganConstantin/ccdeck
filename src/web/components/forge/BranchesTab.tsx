@@ -89,7 +89,7 @@ function BranchRow({ kind, repo, branch: b, defaultBranch }: {
   const badge = b.change ? changeBadge(b.change) : null;
 
   return (
-    <li className="fgl-branch" data-selected={isSelected || undefined}>
+    <li className="fgl-branch ig-row" data-selected={isSelected || undefined}>
       <button
         type="button"
         className="fgl-hit"

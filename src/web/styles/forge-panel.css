@@ -54,12 +54,15 @@
 .fg-group[data-open] .fg-fold-chevron { transform: rotate(45deg); }
 .fg-count { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-weight: 400; color: var(--muted); }
 
-/* A row: one button, quiet fill on hover and when selected. */
+/* A row: one button, a quiet fill under the pointer. A list's rows are also
+   the integrations' shared row (`ig-row`, integrations.css): the selected
+   one takes the host's selection fill, distinct from this hover, and every
+   word on it reads in the main text colour. */
 .fg-rows { list-style: none; margin: 6px 0 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); overflow: hidden; }
 .fg-rows > li { display: grid; }
 .fg-rows > li + li { border-top: 1px solid var(--line-soft); }
 .fg-row { display: grid; gap: 4px 16px; align-items: center; min-height: 48px; padding: 8px 14px; box-sizing: border-box; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
-.fg-row:hover, .fg-row[data-selected] { background: var(--ctl-fill); }
+.fg-row:hover { background: var(--ctl-fill); }
 .fg-row:active { transform: scale(0.97); }
 .fg-row:focus-visible { outline-offset: -2px; }
 .fg-row-title { min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
@@ -79,6 +82,12 @@
 .fg-badge[data-tone=ok] { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
 .fg-badge[data-tone=bad] { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, var(--line)); }
 .fg-badge[data-tone=busy] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+/* On a selected row a badge's word is the row's ink, as every word there is;
+   its mark keeps the state's colour. */
+.ig-row[data-selected] .fg-badge { color: var(--ig-sel-ink, var(--text)); }
+.ig-row[data-selected] .fg-badge[data-tone=ok] > [aria-hidden] { color: var(--ok); }
+.ig-row[data-selected] .fg-badge[data-tone=bad] > [aria-hidden] { color: var(--err); }
+.ig-row[data-selected] .fg-badge[data-tone=busy] > [aria-hidden] { color: var(--accent); }
 
 /* A failed read, and the way out of it. */
 .fg-failure { margin: 16px 0 0; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--err) 35%, var(--line)); border-radius: var(--r-panel); background: var(--panel); color: var(--text-secondary); line-height: 1.6; }

@@ -103,7 +103,7 @@ function IssueRow({ item, onOpen }: { item: IssueRef; onOpen: () => void }) {
   const { selected } = useForge();
   const current = selected?.type === "issue" && selected.repo === item.repo && selected.number === item.number;
   return (
-    <button type="button" className="fg-row fd-child-row" onClick={onOpen} aria-current={current || undefined} data-selected={current || undefined}>
+    <button type="button" className="fg-row fd-child-row ig-row" onClick={onOpen} aria-current={current || undefined} data-selected={current || undefined}>
       <StateMark mark={childMark(item.state)} />
       <span className="fd-child-title">{item.title}</span>
       <span className="fd-child-meta">

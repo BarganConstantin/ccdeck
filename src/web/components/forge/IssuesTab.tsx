@@ -79,7 +79,7 @@ function IssueRow({ issue: i, acrossRepos, me }: { issue: ForgeIssue; acrossRepo
     <li>
       <button
         type="button"
-        className="fg-row fgl-row"
+        className="fg-row fgl-row ig-row"
         data-selected={isSelected || undefined}
         aria-current={isSelected || undefined}
         onClick={() => select(target)}
