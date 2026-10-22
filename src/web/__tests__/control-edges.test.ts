@@ -514,7 +514,6 @@ const CONTROLS: Control[] = [
   { at: ".radio-play", states: [".radio-play:not(:disabled):hover"], beds: ["--bg-soft"] },
   { at: '.character-choice', beds: ["--panel"] },
   { at: '.character-choice[aria-checked="true"]', fillFrom: '.character-choice', beds: ["--panel"] },
-  { at: '.ap-report-view[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.ap-reset-day-button[aria-pressed="true"]', fillFrom: '.ap-reset-day-button[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.ap-reset-coverage-link[aria-pressed="true"]', beds: ["--panel"] },
   { at: ".ta-search input", states: [".ta-search input:hover"], beds: ["--bg"] },
