@@ -69,7 +69,7 @@ utun4 1280  <Link#20>                       300     0     40000      300     0  
 
 describe("which way the traffic goes", () => {
   it("reads the interface out of the routing table, policy tables included", () => {
-    expect(routeIfaceLinux("160.79.104.10 dev tailscale0 table 52 src 100.106.152.6 uid 1000 \n    cache ")).toBe("tailscale0");
+    expect(routeIfaceLinux("160.79.104.10 dev tailscale0 table 52 src 100.64.10.100 uid 1000 \n    cache ")).toBe("tailscale0");
     expect(routeIfaceLinux("1.1.1.1 via 192.168.1.1 dev wlp90s0 src 192.168.1.20 uid 1000")).toBe("wlp90s0");
     expect(routeIfaceDarwin("   route to: 160.79.104.10\ndestination: default\n  interface: utun4\n")).toBe("utun4");
     expect(routeIfaceLinux(null)).toBeNull();
@@ -133,7 +133,7 @@ describe("reaching out only when asked", () => {
         connect: async () => { calls.push("connect"); return 92; },
         run: async (file: string) => {
           calls.push(file);
-          if (file === "ip") return "160.79.104.10 dev tailscale0 table 52 src 100.106.152.6 uid 1000";
+          if (file === "ip") return "160.79.104.10 dev tailscale0 table 52 src 100.64.10.100 uid 1000";
           if (file === "tailscale") return JSON.stringify({ ExitNodeStatus: {}, Peer: { a: { HostName: "Constantin’s iMac", ExitNode: true, CurAddr: "", Relay: "nue" } } });
           return null;
         },

@@ -327,7 +327,7 @@ describe("the account that is dead here and alive there", () => {
   }, 20_000);
 
   it("is healed, which is the whole feature", async () => {
-    // The owner's own case, in a fixture: claude2 is quarantined on this
+    // The owner's own case, in a fixture: bob is quarantined on this
     // machine and works on the other one.
     const mine = store([
       { num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true },
@@ -1054,8 +1054,8 @@ describe("the address a person reads out to a colleague", () => {
     expect(localAddresses({
       lo: [{ internal: true, family: "IPv4", address: "127.0.0.1" }],
       en1: [{ internal: false, family: "IPv4", address: "192.168.1.82" }],
-      utun4: [{ internal: false, family: "IPv4", address: "100.67.32.58" }],
-    })).toEqual(["192.168.1.82", "100.67.32.58"]);
+      utun4: [{ internal: false, family: "IPv4", address: "100.64.0.100" }],
+    })).toEqual(["192.168.1.82", "100.64.0.100"]);
   });
 
   it("says the same address once, however many interfaces claim it", () => {

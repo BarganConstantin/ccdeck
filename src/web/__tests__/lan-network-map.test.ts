@@ -316,10 +316,10 @@ describe("the map's headline", () => {
 
 describe("this deck's addresses", () => {
   it("lists the local network's first and the tailnet's once", () => {
-    expect(ownAddresses({ addrs: ["192.168.1.82"], port: 60263, tailscale: { addr: "100.67.32.58" } as never }))
-      .toEqual(["192.168.1.82:60263", "100.67.32.58:60263"]);
-    expect(ownAddresses({ addrs: ["100.67.32.58"], port: 1, tailscale: { addr: "100.67.32.58" } as never }))
-      .toEqual(["100.67.32.58:1"]);
+    expect(ownAddresses({ addrs: ["192.168.1.82"], port: 60263, tailscale: { addr: "100.64.0.100" } as never }))
+      .toEqual(["192.168.1.82:60263", "100.64.0.100:60263"]);
+    expect(ownAddresses({ addrs: ["100.64.0.100"], port: 1, tailscale: { addr: "100.64.0.100" } as never }))
+      .toEqual(["100.64.0.100:1"]);
     expect(ownAddresses(null)).toEqual([]);
   });
 });

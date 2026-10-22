@@ -3,7 +3,7 @@
 //
 // Reported from Windows (Node 24, v1.33.76): clicking "Update & restart" printed
 //
-//   Error: Cannot find module 'C:\Users\dtriboi\node_modules\npm\bin\npx-cli.js'
+//   Error: Cannot find module 'C:\Users\dave\node_modules\npm\bin\npx-cli.js'
 //
 // and came back on the old version. `npx.cmd` was found on PATH, and the shim
 // resolves npm's own scripts relative to its own directory (`%~dp0`) — which
@@ -120,7 +120,7 @@ const CRASH = [
   "  throw err;",
   "  ^",
   "",
-  "Error: Cannot find module 'C:\\Users\\dtriboi\\node_modules\\npm\\bin\\npx-cli.js'",
+  "Error: Cannot find module 'C:\\Users\\dave\\node_modules\\npm\\bin\\npx-cli.js'",
   "    at Module._resolveFilename (node:internal/modules/cjs/loader:1421:15)",
   "    at Module._load (node:internal/modules/cjs/loader:1237:27)",
   "  code: 'MODULE_NOT_FOUND',",
@@ -134,7 +134,7 @@ describe("summarising a failed npx run", () => {
   it("quotes the error and none of the stack", () => {
     const summary = npxFailureSummary(CRASH);
     expect(summary).toBe(
-      "Error: Cannot find module 'C:\\Users\\dtriboi\\node_modules\\npm\\bin\\npx-cli.js'",
+      "Error: Cannot find module 'C:\\Users\\dave\\node_modules\\npm\\bin\\npx-cli.js'",
     );
     // Nothing structural survives: no frames, no caret, no error-object dump,
     // no runtime version line.

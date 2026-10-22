@@ -107,7 +107,7 @@ export function defaultName() {
  *
  * It returned the first one, and that was wrong the first time somebody
  * checked: on this machine the first is 192.168.1.82 and the deck it needs to
- * reach is on Tailscale at 100.67.32.58, so the panel would have offered an
+ * reach is on Tailscale at 100.64.0.100, so the panel would have offered an
  * address that peer cannot route to and left them to work out why.
  *
  * WHICH ONE IS RIGHT DEPENDS ON WHERE THE PEER IS, which this side cannot
