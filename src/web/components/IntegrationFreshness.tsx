@@ -12,13 +12,15 @@
 // changes every minute; a hidden status says only the transitions (updating,
 // updated, not updated). Refresh is the action icon in a glyph button; it
 // spins only while a read is out, not at all under reduced motion, and while
-// it spins a second press does nothing rather than starting a second read.
+// it spins it stays pressable and focused (#518) but a second press does
+// nothing rather than starting a second read.
 // Lay it at the end of a toolbar row: it takes the free space and lets the
 // sentence shorten with an ellipsis before Refresh would move.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RefreshGlyph } from "./action-glyphs";
 import { WarnMark } from "./integration-glyphs";
 import { shortAgo } from "../relative-time";
+import { selfPressAccepted, selfPressProps } from "../panel-press";
 
 export interface FreshnessState {
   /** When the answer on screen was read (ms), or null before the first one. */
@@ -68,6 +70,9 @@ export default function IntegrationFreshness({ loadedAt, loading, stale = false,
   now?: number;
 }) {
   const [, tick] = useState(0);
+  // The press handler reads the latest busy flag, not the one its render closed over.
+  const loadingRef = useRef(loading);
+  loadingRef.current = loading;
   const [seenRead, setSeenRead] = useState(false);
   useEffect(() => {
     if (loadedAt == null) return;
@@ -90,8 +95,8 @@ export default function IntegrationFreshness({ loadedAt, loading, stale = false,
       )}
       <span className="vis-hidden" role="status">{announcement(words.tone, seenRead)}</span>
       <button type="button" className="glyph-btn ig-refresh" aria-label={label} title="Refresh"
-        disabled={disabled} aria-disabled={loading || undefined} data-loading={loading || undefined}
-        onClick={() => { if (!loading) onRefresh(); }}>
+        {...selfPressProps(loading, disabled)} data-loading={loading || undefined}
+        onClick={() => { if (!selfPressAccepted(loadingRef.current)) return; onRefresh(); }}>
         <RefreshGlyph />
       </button>
     </div>
