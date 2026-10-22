@@ -294,6 +294,15 @@ export function focusAfterSelect(opening: boolean, fromList: boolean, narrow: bo
   return narrow || !fromList ? "page" : "stay";
 }
 
+/** How far a strip that scrolls sideways (the tabs, a change's sections on
+ *  a phone) must move so the chosen item is wholly in view, with `pad` to
+ *  spare beyond it; 0 when it already is. Boxes in, a scroll delta out. */
+export function stripScrollDelta(strip: { left: number; right: number }, item: { left: number; right: number }, pad = 8): number {
+  if (item.left < strip.left) return item.left - strip.left - pad;
+  if (item.right > strip.right) return item.right - strip.right + pad;
+  return 0;
+}
+
 /** Tabs that read across projects when none is picked; the others need one. */
 export function tabAllowsAllProjects(kind: ForgeKind, tab: ForgeTab): boolean {
   if (tab === "branches") return false;

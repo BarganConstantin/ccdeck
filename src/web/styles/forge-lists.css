@@ -26,6 +26,15 @@
 .fgl-seg-count { font-variant-numeric: tabular-nums; }
 .fgl-controls button.btn.fgl-sort { gap: 6px; padding: 0 10px; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .fgl-controls-note { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+/* All / Mine / Review requests as one menu button, for a list too narrow for
+   the strip: drawn always, shown only there (below). Its words are the strip's
+   own type, the current choice and a chevron. */
+.fgl-scope { display: none; }
+.fgl-controls button.btn.fgl-scope-trigger { gap: 6px; padding: 0 10px; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); white-space: nowrap; }
+.fgl-scope-trigger[aria-expanded="true"] .fgl-chevron { transform: rotate(180deg); }
+.ap-pop.fgl-scope-pop { width: auto; min-width: 180px; }
+.fgl-scope-item { gap: 8px; }
+.fgl-scope-check { display: inline-flex; flex: none; width: 13px; color: var(--accent); }
 
 /* ── a row: title and facts on top, meta and time under it ───────────────── */
 .fg-row.fgl-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title side" "meta when"; gap: 3px 16px; }
@@ -154,6 +163,18 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
   .fgl-stats[data-empty], .fgl-diverge[data-empty] { display: none; }
   .fgl-branch:has(.fgl-stats[data-empty]) { grid-template-areas: "name name" "commit commit" "change change"; }
 }
+/* A narrow list keeps its filters on one row: the state strip, the scope as
+   a menu button, and the sort as its glyph alone (its name and tooltip still
+   say which order it is). */
+@container fgl (max-width: 520px) {
+  .fgl-controls { gap: 6px; }
+  .fgl-seg .uh-range-btn { gap: 4px; padding-inline: 7px; }
+  .fgl-scope-seg { display: none; }
+  .fgl-scope { display: inline-flex; }
+  .fgl-controls button.btn.fgl-scope-trigger { padding: 0 8px; }
+  .fgl-sort-word { display: none; }
+  .fgl-controls button.btn.fgl-sort { min-width: var(--ctl-h); padding: 0; }
+}
 /* The facts go on a line of their own, beside the time. They wrap inside
    their column rather than run under the time: the column is what is left
    once the time has its words. */
@@ -180,7 +201,7 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
 
 @media (pointer: coarse) {
   .fgl-seg .uh-range-btn { min-height: 34px; }
-  .fgl-controls button.btn.fgl-sort { min-height: 40px; }
+  .fgl-controls button.btn.fgl-sort, .fgl-controls button.btn.fgl-scope-trigger { min-height: 40px; min-width: 40px; }
   button.btn.fgl-repo-trigger { min-height: 40px; }
   .fgl-repo-option { min-height: 44px; }
   .fgl-branch .fg-copy { width: 32px; height: 32px; }

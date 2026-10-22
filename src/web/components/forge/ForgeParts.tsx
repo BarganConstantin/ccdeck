@@ -2,9 +2,9 @@
 // a state's mark and word, a fold-able group with its count, a failure with
 // its recovery, the list's end, a person, a relative time, a copyable value.
 // Each draws a state as a mark AND a word (DESIGN.md), never a colour alone.
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactNode, type RefObject } from "react";
 import type { ForgeErrorInfo, ForgeUser } from "../../forge-types";
-import { forgeErrorWords, type Mark } from "../../forge-panel";
+import { forgeErrorWords, stripScrollDelta, type Mark } from "../../forge-panel";
 import { shortAgo } from "../../relative-time";
 import { copyText } from "../../copy-text";
 import { selfPressProps } from "../../panel-press";
@@ -164,4 +164,17 @@ export function OpenOnForge({ href, children }: { href: string | null; children?
       {children ?? `Open in ${kind === "github" ? "GitHub" : "GitLab"}`} <span aria-hidden="true">↗</span>
     </a>
   );
+}
+
+/** Keeps the chosen tab of a strip that scrolls sideways in view: on a phone
+ *  the strip is wider than the list, and a tab chosen with the arrow keys, or
+ *  remembered from last time, may be past its edge. Moved at once, without a
+ *  smooth scroll, so nothing slides. */
+export function useChosenInView(strip: RefObject<HTMLElement | null>, chosen: string) {
+  useLayoutEffect(() => {
+    const el = strip.current;
+    const item = el?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!el || !item || el.scrollWidth <= el.clientWidth) return;
+    el.scrollLeft += stripScrollDelta(el.getBoundingClientRect(), item.getBoundingClientRect());
+  }, [strip, chosen]);
 }

@@ -15,7 +15,7 @@
 //
 // The comment count, the labels and the people stack are drawn the same way
 // on the Issues tab, which takes them from here.
-import { Fragment, useMemo } from "react";
+import { Fragment, useId, useMemo, useState } from "react";
 import type { ChangeCounts, ChangeFilter, ChangeState, ForgeChange, ForgeKind, ForgeLabel, ForgeReviewer, ForgeUser } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
 import { changeBadge, ciMark, matchesQuery, reviewerMark, splitReviews, type Mark } from "../../forge-panel";
@@ -27,6 +27,8 @@ import { useForgePages, useForgeRead } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
 import { sameSelection, useForge } from "./ForgeContext";
 import { Ago, Badge, FoldGroup, ListEnd, LoadingRows, Person, ReadFailure, StateMark } from "./ForgeParts";
+import { CheckGlyph, ChevronGlyph } from "./ForgeGlyphs";
+import AnchoredPopover from "../AnchoredPopover";
 
 const STATES: { state: ChangeState; label: string }[] = [
   { state: "open", label: "Open" },
@@ -80,13 +82,18 @@ export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
             );
           })}
         </div>
-        <div className="uh-range fgl-seg" role="group" aria-label={`Which ${noun}`}>
+        {/* Which ones: a strip where the list has room, one menu button named
+            by the current choice where it does not (a phone, or the column
+            beside an open item). Both are drawn and the list's width shows
+            one, so the choice never moves when the pane is resized. */}
+        <div className="uh-range fgl-seg fgl-scope-seg" role="group" aria-label={`Which ${noun}`}>
           {FILTERS.map(({ filter, label }) => (
             <button key={filter} type="button" className="uh-range-btn" aria-pressed={view.filter === filter} onClick={() => setView({ filter })}>
               {label}
             </button>
           ))}
         </div>
+        <ScopeMenu filter={view.filter} noun={noun} onChange={filter => setView({ filter })} />
         <SortToggle sort={view.sort} onChange={sort => setView({ sort })} />
       </div>
 
@@ -118,6 +125,56 @@ export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
   );
 }
 
+/** All / Mine / Review requests as one button and its menu, for a narrow
+ *  list: the button says the current choice, the menu checks it. */
+function ScopeMenu({ filter, noun, onChange }: { filter: ChangeFilter; noun: string; onChange: (filter: ChangeFilter) => void }) {
+  const id = useId();
+  const [menu, setMenu] = useState<"first" | "last" | null>(null);
+  const current = FILTERS.find(f => f.filter === filter) ?? FILTERS[0];
+  const trigger = `${id}-trigger`;
+  const pick = (next: ChangeFilter) => {
+    onChange(next);
+    setMenu(null);
+    document.getElementById(trigger)?.focus({ preventScroll: true });
+  };
+  return (
+    <span className="fgl-scope" id={`${id}-layer`}>
+      <button
+        id={trigger}
+        type="button"
+        className="btn fgl-scope-trigger"
+        aria-label={`Which ${noun}: ${current.label}`}
+        aria-haspopup="menu"
+        aria-expanded={menu != null}
+        aria-controls={menu ? `${id}-menu` : undefined}
+        onClick={() => setMenu(m => (m ? null : "first"))}
+        onKeyDown={e => {
+          if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+          e.preventDefault();
+          setMenu(e.key === "ArrowUp" ? "last" : "first");
+        }}
+      >
+        {current.label}
+        <ChevronGlyph />
+      </button>
+      {menu && (
+        <AnchoredPopover anchorId={trigger} portalRootId={`${id}-layer`} id={`${id}-menu`} className="ap-pop fgl-scope-pop" role="menu"
+          labelledBy={trigger} start={menu} onClose={() => setMenu(null)}>
+          {FILTERS.map(f => (
+            <button key={f.filter} type="button" role="menuitem" className="ap-menu-item fgl-scope-item"
+              aria-current={f.filter === filter || undefined} onClick={() => pick(f.filter)}>
+              <span className="fgl-scope-check" aria-hidden="true">{f.filter === filter && <CheckGlyph />}</span>
+              {f.label}
+            </button>
+          ))}
+        </AnchoredPopover>
+      )}
+    </span>
+  );
+}
+
+/** Created or Updated, newest first. On a narrow list only its glyph shows;
+ *  its name says the rest, and its tooltip says it to the pointer. */
 function SortToggle({ sort, onChange }: { sort: "created" | "updated"; onChange: (sort: "created" | "updated") => void }) {
   const next = sort === "created" ? "updated" : "created";
   return (
@@ -131,7 +188,7 @@ function SortToggle({ sort, onChange }: { sort: "created" | "updated"; onChange:
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true">
         <path d="M2 3h8M3.5 6h5M5 9h2" />
       </svg>
-      {sort === "created" ? "Created" : "Updated"}
+      <span className="fgl-sort-word">{sort === "created" ? "Created" : "Updated"}</span>
     </button>
   );
 }

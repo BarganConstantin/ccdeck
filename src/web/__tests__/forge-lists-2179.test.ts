@@ -336,6 +336,17 @@ describe("the Merge requests tab", () => {
     expect(html).toContain('aria-pressed="true">All</button>');
   });
 
+  it("draws the scope as a menu button too, named by the current choice, for a narrow list", () => {
+    const c = ctx("gitlab");
+    keep(c, "changes", { repo: undefined, filter: "mine", state: "open", sort: "created" }, page([change(1)]));
+    const html = draw(c, tab(ChangesTab, view({ tab: "changes", filter: "mine" })));
+    expect(html).toMatch(/<div class="uh-range fgl-seg fgl-scope-seg" role="group" aria-label="Which merge requests">/);
+    expect(html).toMatch(/<button id="[^"]+" type="button" class="btn fgl-scope-trigger" aria-label="Which merge requests: Mine" aria-haspopup="menu" aria-expanded="false">Mine<svg/);
+    // The sort keeps its name whole when only its glyph shows.
+    expect(html).toMatch(/class="btn fgl-sort"[^>]*aria-label="Sorted by date created, newest first\. Sort by last updated instead\."/);
+    expect(html).toContain('<span class="fgl-sort-word">Created</span>');
+  });
+
   it("splits review requests: waiting for me open, approved by me folded", () => {
     const c = ctx("gitlab");
     keep(c, "changes", { repo: undefined, filter: "review", state: "open", sort: "created" }, page([

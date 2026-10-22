@@ -22,17 +22,15 @@
    inverted on it (.uh-range-btn[aria-pressed="true"], #583). It out-specifies
    the strip's hover, which would repaint the word in --text. */
 .fg-tabs .uh-range-btn[aria-selected="true"], .fd-sections .uh-range-btn[aria-selected="true"] { background: var(--accent); color: var(--bg); }
-/* A narrow list — the column beside an open item, or a phone — has no room
-   for the four names in one row of the pill, which cut the last one off: the
-   strip becomes four equal cells across the list, as a change's sections do
-   on a narrow page, and a long name ("Merge requests") wraps in its cell. A
-   phone's list makes the cells two rows of two, each name whole. */
+/* A narrow list — the column beside an open item, or a phone — keeps the
+   four tabs on one row across the list, each name whole: smaller words and
+   tighter cells, and when even that does not fit, the row scrolls sideways
+   and the chosen tab is scrolled into view (ForgePanel.tsx). One row, rather
+   than the two rows of two it was, leaves the phone's first screen to the
+   list. */
 @container fg-list (max-width: 520px) {
-  .fg-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-self: stretch; overflow-x: visible; border-radius: var(--r-panel); }
-  .fg-tabs .uh-range-btn { min-width: 0; padding: 4px 2px; border-radius: var(--r-ctl); line-height: 1.3; white-space: normal; overflow-wrap: anywhere; text-align: center; }
-}
-@container fg-list (max-width: 400px) {
-  .fg-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fg-tabs { align-self: stretch; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .fg-tabs .uh-range-btn { flex: 1 0 auto; padding: 4px 6px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 }
 .fg-searchbar { display: flex; gap: 8px; align-items: center; padding: 12px 20px 0; flex: none; }
 .fg-search { flex: 1; min-width: 0; display: flex; }

@@ -26,7 +26,7 @@ import { tabStripMove } from "../../tablist-keys";
 import { useForgeRead } from "../../use-forge-read";
 import { RefreshGlyph } from "../action-glyphs";
 import { ForgeProvider, type ForgeConnectionInfo, type ForgeContextValue, type ForgeSelection, type Freshness } from "./ForgeContext";
-import { Ago, ReadFailure } from "./ForgeParts";
+import { Ago, ReadFailure, useChosenInView } from "./ForgeParts";
 import RepoPicker from "./RepoPicker";
 import BranchesTab from "./BranchesTab";
 import ChangesTab from "./ChangesTab";
@@ -96,6 +96,7 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   const resolvingRef = useRef(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
   // The row a page was opened from. The split keeps the list mounted under the
   // drill-in screen, so Back and Close can hand focus back to it.
   const opener = useRef<HTMLElement | null>(null);
@@ -189,6 +190,7 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   };
 
   const chooseTab = (tab: ForgeTab) => { setView({ tab }); setQuery(""); };
+  useChosenInView(tabsRef, view.tab);
 
   const words = forgeWords[kind];
   const tabProps: ForgeTabProps = { view, setView, query };
@@ -217,6 +219,7 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
       </div>
       {/* One tab stop for the strip, the arrows between its tabs (#581). */}
       <div
+        ref={tabsRef}
         className="uh-range fg-tabs"
         role="tablist"
         aria-label={`${words.name} views`}

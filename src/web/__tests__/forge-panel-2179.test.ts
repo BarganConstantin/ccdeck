@@ -11,7 +11,7 @@
 // focus goes when a page opens or closes.
 import { describe, expect, it } from "vitest";
 import {
-  changeBadge, ciMark, DEFAULT_VIEW, divergeCount, durationWords, fetchForge, focusAfterSelect, forgeErrorWords, forgeReadPath, FRESH_MS,
+  changeBadge, ciMark, DEFAULT_VIEW, divergeCount, durationWords, fetchForge, focusAfterSelect, forgeErrorWords, forgeReadPath, FRESH_MS, stripScrollDelta,
   isStale, loadForgeView, looksLikeRef, matchesQuery, normaliseView, readDue, splitBranches, splitReviews,
   tabAllowsAllProjects, type ForgePrefs,
 } from "../forge-panel";
@@ -171,5 +171,18 @@ describe("focus when a page opens or closes", () => {
 
   it("moves it onto the next page when a link on the last one opened it", () => {
     expect(focusAfterSelect(true, false, false)).toBe("page");
+  });
+});
+
+describe("a strip that scrolls sideways", () => {
+  const strip = { left: 100, right: 300 };
+  it("leaves a chosen tab that is already in view where it is", () => {
+    expect(stripScrollDelta(strip, { left: 120, right: 200 })).toBe(0);
+    expect(stripScrollDelta(strip, { left: 100, right: 300 })).toBe(0);
+  });
+  it("moves just far enough to show a tab past either edge, with room to spare", () => {
+    expect(stripScrollDelta(strip, { left: 260, right: 340 })).toBe(48);
+    expect(stripScrollDelta(strip, { left: 60, right: 140 })).toBe(-48);
+    expect(stripScrollDelta(strip, { left: 260, right: 340 }, 0)).toBe(40);
   });
 });

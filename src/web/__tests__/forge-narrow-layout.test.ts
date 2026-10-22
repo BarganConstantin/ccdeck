@@ -72,6 +72,35 @@ describe("a narrow list's rows", () => {
 });
 
 const detail = sheet("forge-detail.css");
+const panel = sheet("forge-panel.css");
+
+describe("a phone's first screen goes to the list", () => {
+  it("keeps a narrow list's filters on one row: the scope as a menu button, the sort as its glyph", () => {
+    const narrow = blocks(lists, "@container fgl (max-width: 520px)").join("\n");
+    // The menu button is drawn always and shown only on a narrow list…
+    expect(decls(topLevel(lists), ".fgl-scope")).toMatch(/display: none/);
+    expect(decls(narrow, ".fgl-scope")).toMatch(/display: inline-flex/);
+    // …where the strip it stands for, and the sort's word, are not.
+    expect(decls(narrow, ".fgl-scope-seg")).toMatch(/display: none/);
+    expect(decls(narrow, ".fgl-sort-word")).toMatch(/display: none/);
+  });
+
+  it("keeps the four tabs on one row that scrolls, never a grid of two rows", () => {
+    const narrow = blocks(panel, "@container fg-list (max-width: 520px)").join("\n");
+    expect(decls(narrow, ".fg-tabs")).not.toMatch(/display: grid/);
+    expect(decls(narrow, ".fg-tabs .uh-range-btn")).toMatch(/flex: 1 0 auto/);
+    expect(decls(narrow, ".fg-tabs .uh-range-btn")).not.toMatch(/white-space: normal/);
+    expect(panel).not.toMatch(/\.fg-tabs\s*\{[^}]*grid-template-columns/);
+  });
+
+  it("keeps a change's sections on one row on a phone's pane, each label whole over its count", () => {
+    const narrow = blocks(detail, "@container fd (max-width: 479px)").join("\n");
+    expect(decls(narrow, ".fd-sections")).not.toMatch(/display: grid/);
+    expect(decls(narrow, ".fd-sections .uh-range-btn")).toMatch(/flex: 1 0 auto;.*flex-direction: column/);
+    expect(decls(narrow, ".fd-sections .uh-range-btn")).not.toMatch(/white-space: normal/);
+    expect(detail).not.toMatch(/\.fd-sections\s*\{[^}]*grid-template-columns/);
+  });
+});
 
 describe("an item page's top line", () => {
   it("lets the path give way and keeps the number whole", () => {

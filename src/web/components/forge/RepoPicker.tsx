@@ -27,6 +27,7 @@ import { forgeWords } from "../../forge-types";
 import { allReposLabel, repoNounPlural, splitRepoPath } from "../../forge-lists";
 import { useForgePages } from "../../use-forge-read";
 import AnchoredPopover from "../AnchoredPopover";
+import { CheckGlyph, ChevronGlyph } from "./ForgeGlyphs";
 import { useForge } from "./ForgeContext";
 import { Ago, ListEnd, LoadingRows, ReadFailure } from "./ForgeParts";
 
@@ -251,27 +252,11 @@ function RepoGlyph() {
   );
 }
 
-function ChevronGlyph() {
-  return (
-    <svg className="fgl-chevron" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M2.5 4l2.5 2.5L7.5 4" />
-    </svg>
-  );
-}
-
 function SearchGlyph() {
   return (
     <svg className="fgl-glyph" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true">
       <circle cx="7" cy="7" r="4.5" />
       <path d="M10.5 10.5L14 14" />
-    </svg>
-  );
-}
-
-function CheckGlyph() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3.5 8.5l3 3 6-7" />
     </svg>
   );
 }
