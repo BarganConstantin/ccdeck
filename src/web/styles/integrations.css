@@ -164,7 +164,7 @@
   --muted: var(--ig-sel-muted);
   --text-dim: var(--ig-sel-muted);
 }
-.ig-row[data-selected] .ig-chip { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--ig-sel-ink); }
+.ig-row[data-selected] .ig-chip { background: transparent; box-shadow: inset 0 0 0 1px var(--ctl-edge); color: var(--ig-sel-ink); }
 
 /* A mark beside a state's word (integration-glyphs.tsx), sitting on the
    word's baseline in the word's own ink. */
@@ -336,7 +336,7 @@
 .ig-avatar-none { display: inline-block; background: none; box-shadow: inset 0 0 0 1px var(--ctl-edge); }
 /* On a chosen row's fill the control edge falls to 2.47:1 (Omarchy); the
    row's own ink is 4.5:1 or better there. */
-.ig-row[data-selected] .ig-avatar-none { box-shadow: inset 0 0 0 1px var(--ig-sel-muted); }
+.ig-row[data-selected] .ig-avatar-none { box-shadow: inset 0 0 0 1px var(--text); }
 /* Yours: the accent ring, a pixel off the face. */
 .ig-avatar[data-you] { outline: 1.5px solid var(--accent); outline-offset: 1px; }
 .ig-person { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }

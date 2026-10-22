@@ -99,6 +99,8 @@ describe("the marks that are all a face has", () => {
   it("draws the empty face's edge in the control edge", () => {
     expect(html(UnassignedAvatar, { size: 18 })).toBe('<span class="ig-avatar ig-avatar-none" style="width:18px;height:18px;--ig-avatar-size:18px" aria-hidden="true"></span>');
     expect(rule(".ig-avatar-none")).toMatch(/box-shadow:\s*inset 0 0 0 1px var\(--ctl-edge\)/);
-    expect(rule(".ig-row[data-selected] .ig-avatar-none")).toMatch(/box-shadow:\s*inset 0 0 0 1px var\(--ig-sel-muted\)/);
+    // On a chosen row the edge is the row's own ink, --text, written out so
+    // the ring sweep (control-edges) can measure it in every theme.
+    expect(rule(".ig-row[data-selected] .ig-avatar-none")).toMatch(/box-shadow:\s*inset 0 0 0 1px var\(--text\)/);
   });
 });
