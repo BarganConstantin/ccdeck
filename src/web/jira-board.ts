@@ -126,6 +126,16 @@ export interface RowFilter {
 
 const isDone = (issue: { status: { category: StatusCategory } }) => issue.status.category === "done";
 
+/** Jira's default boards carry a quick filter named "Only My Issues", and the
+ *  panel's own "Only my issues" chip already does what it does, so the
+ *  board's copy is not drawn. Only that exact name (any case) is left out: a
+ *  board that renamed or translated it keeps it, which is harmless, two ways
+ *  to the same list. */
+const BOARD_MINE_FILTER = /^only my issues$/i;
+export function shownQuickFilters<T extends { name: string }>(filters: readonly T[]): T[] {
+  return filters.filter(q => !BOARD_MINE_FILTER.test(q.name.trim()));
+}
+
 export function issueMatches(issue: { key: string; summary: string }, search: string): boolean {
   if (!search) return true;
   return issue.key.toLowerCase().includes(search) || issue.summary.toLowerCase().includes(search);

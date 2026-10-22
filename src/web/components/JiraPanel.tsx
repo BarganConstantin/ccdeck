@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { connectionHost, type IntegrationFailure } from "../integrations/client";
 import type { IntegrationPanelProps } from "../integrations/types";
 import { readBoards, type JiraBoardSummary } from "../jira-api";
-import type { GroupDef } from "../jira-board";
+import { shownQuickFilters, type GroupDef } from "../jira-board";
 import { failureOf, useJiraBoard } from "../use-jira-board";
 import { ExternalLinkGlyph } from "./action-glyphs";
 import AnchoredPopover from "./AnchoredPopover";
@@ -180,6 +180,16 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   const clearFilters = () => { setMine(false); setHideDone(false); setQuick([]); setSearch(""); };
   const rowFilter = useMemo(() => ({ search, hideDone }), [search, hideDone]);
 
+  // The board's own quick filters, less its "Only My Issues" (the panel's
+  // chip does that). A saved choice the board no longer draws, that one
+  // included, is dropped rather than left filtering out of sight.
+  const quickFilters = useMemo(() => shownQuickFilters(overview?.quickFilters ?? []), [overview]);
+  useEffect(() => {
+    if (!overview) return;
+    const drawn = new Set(quickFilters.map(q => q.id));
+    setQuick(ids => (ids.every(id => drawn.has(id)) ? ids : ids.filter(id => drawn.has(id))));
+  }, [overview, quickFilters]);
+
   // ── the detail, and the way back from it ──
   const open = trail.length > 0;
   const openIssue = (key: string) => {
@@ -306,7 +316,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
           <div className="jr-filter-chips">
             <button type="button" className="btn jr-chip" aria-pressed={mine} onClick={() => setMine(m => !m)}>Only my issues</button>
             <button type="button" className="btn jr-chip" aria-pressed={hideDone} onClick={() => setHideDone(h => !h)}>Hide done</button>
-            {(overview?.quickFilters ?? []).map(q => (
+            {quickFilters.map(q => (
               <button key={q.id} type="button" className="btn jr-chip" aria-pressed={quick.includes(q.id)} title={q.description || undefined}
                 onClick={() => setQuick(list => (list.includes(q.id) ? list.filter(x => x !== q.id) : [...list, q.id]))}>
                 {q.name}
