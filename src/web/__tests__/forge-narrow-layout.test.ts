@@ -102,6 +102,13 @@ describe("a phone's first screen goes to the list", () => {
   });
 });
 
+describe("the toolbar on a phone", () => {
+  it("keeps the freshness line's words, and lets the picker cut its own name instead", () => {
+    expect(decls(topLevel(panel), ".fg-toolbar > .ig-freshness")).toMatch(/flex-shrink: 0;.*max-width: 60%/);
+    expect(decls(topLevel(lists), "button.btn.fgl-repo-trigger")).toMatch(/min-width: 0/);
+  });
+});
+
 describe("an item page's top line", () => {
   it("is the integrations' shared bar, spanning exactly the page's own side padding at every width", () => {
     // The bar (IntegrationDetailBar) runs edge to edge by --ig-detail-pad; a
