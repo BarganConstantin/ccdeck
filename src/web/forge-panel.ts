@@ -164,6 +164,13 @@ export function reviewerMark(state: "approved" | "changes_requested" | "commente
   }
 }
 
+/** Whether `user` is the reader: the account this connection reads as. A
+ *  login is matched without regard to case, as both forges match it. */
+export function isReader(user: { login: string } | null | undefined, account: { login: string } | null | undefined): boolean {
+  const me = account?.login.trim().toLowerCase();
+  return !!me && !!user && user.login.trim().toLowerCase() === me;
+}
+
 /** Ahead/behind as GitLab's Branches page writes it: past 999 it is "999+". */
 export function divergeCount(n: number | null): string {
   if (n == null) return "–";

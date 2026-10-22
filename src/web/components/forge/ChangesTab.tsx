@@ -15,7 +15,7 @@
 //
 // The comment count, the labels and the people stack are drawn the same way
 // on the Issues tab, which takes them from here.
-import { Fragment, useId, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import type { ChangeCounts, ChangeFilter, ChangeState, ForgeChange, ForgeKind, ForgeLabel, ForgeReviewer, ForgeUser } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
 import { changeBadge, ciMark, matchesQuery, reviewerMark, splitReviews, type Mark } from "../../forge-panel";
@@ -26,7 +26,8 @@ import {
 import { useForgePages, useForgeRead } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
 import { sameSelection, useForge } from "./ForgeContext";
-import { Ago, Badge, FoldGroup, ListEnd, LoadingRows, Person, ReadFailure, StateMark } from "./ForgeParts";
+import { IntegrationAvatarStack } from "../IntegrationAvatar";
+import { Ago, Badge, Face, FoldGroup, ListEnd, LoadingRows, ReadFailure, StateMark, useFaceOf } from "./ForgeParts";
 import { CheckGlyph } from "../integration-glyphs";
 import { ChevronGlyph, StateGlyph } from "./ForgeGlyphs";
 import AnchoredPopover from "../AnchoredPopover";
@@ -246,7 +247,8 @@ function Reviewers({ reviewers }: { reviewers: ForgeReviewer[] }) {
         return (
           <span key={r.login} className="fgl-reviewer" data-tone={m.tone} title={`${r.name || r.login}: ${m.word}`}>
             {i > 0 && <span className="fg-sr">; </span>}
-            <Person user={r} size={20} nameless />
+            <Face user={r} />
+            <span className="fg-sr">{r.name || r.login}</span>
             {r.state !== "pending" && <span className="fgl-reviewer-mark" aria-hidden="true"><StateGlyph name={m.mark} size={9} weight={1.8} /></span>}
             <span className="fg-sr">, {m.word}</span>
           </span>
@@ -257,22 +259,13 @@ function Reviewers({ reviewers }: { reviewers: ForgeReviewer[] }) {
   );
 }
 
-/** A few faces in a row (assignees), then "+N"; in words, "Assignees: Alice,
- *  Bob and 2 more". */
+/** A few faces in a row (assignees), then "+N": the integrations' shared
+ *  stack, which a screen reader hears as one picture named with every name,
+ *  "Assigned to Alice, Bob and Carol". */
 export function People({ users, label }: { users: ForgeUser[]; label: string }) {
+  const faceOf = useFaceOf();
   if (!users.length) return null;
-  return (
-    <span className="fgl-people">
-      <span className="fg-sr">{label}: </span>
-      {users.slice(0, 3).map((u, i) => (
-        <Fragment key={u.login}>
-          {i > 0 && <span className="fg-sr">, </span>}
-          <Person user={u} size={20} nameless />
-        </Fragment>
-      ))}
-      <More count={users.length - 3} />
-    </span>
-  );
+  return <IntegrationAvatarStack label={label} people={users.map(u => ({ key: u.login, ...faceOf(u) }))} />;
 }
 
 /** "+2" for the eye, "and 2 more" for the ear. */

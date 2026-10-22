@@ -378,8 +378,27 @@ describe("the Merge requests tab", () => {
     expect(html).toMatch(/<span class="fg-badge" data-tone="ok"><svg class="fg-glyph" data-glyph="approved"[^>]*aria-hidden="true">(?:(?!<\/svg>).)*<\/svg> Approved<\/span>/);
     // The reviewer's mark on their face is drawn from the same family.
     expect(html).toMatch(/<span class="fgl-reviewer-mark" aria-hidden="true"><svg class="fg-glyph" data-glyph="approved"/);
+    // The face is the integrations' shared one, with no tooltip of its own to
+    // cover "Bob: approved".
+    expect(html).toMatch(/<span class="fgl-reviewer" data-tone="ok" title="Bob: approved"><span class="ig-avatar ig-avatar-initials"[^>]*>BO?<\/span><span class="fg-sr">Bob<\/span>/);
     expect(html).toContain('title="4 comments"');
     expect(noNestedControls(html)).toBe(true);
+  });
+
+  it("rings the reader's own face, whatever the case of the login", () => {
+    const reviewers = [
+      { login: "bob", name: "Bob", avatarUrl: null, webUrl: null, state: "approved" as const },
+      { login: "carol", name: "Carol", avatarUrl: null, webUrl: null, state: "pending" as const },
+    ];
+    const c = ctx("gitlab", { connection: { id: "c1", name: "Test", baseUrl: "https://gitlab.example.com", account: { login: "Bob", name: "Bob", avatarUrl: null } } });
+    keep(c, "changes", { repo: "acme/web", filter: "all", state: "open", sort: "created" }, page([change(3, { reviewers })]));
+    const html = draw(c, tab(ChangesTab, view({ tab: "changes", repo: "acme/web" })));
+    expect(html.match(/data-you="true"/g)).toHaveLength(1);
+    expect(html).toMatch(/title="Bob: approved"><span class="ig-avatar ig-avatar-initials"[^>]*data-you="true"/);
+    // Without an account to compare with, nobody is ringed.
+    const none = ctx("gitlab");
+    keep(none, "changes", { repo: "acme/web", filter: "all", state: "open", sort: "created" }, page([change(3, { reviewers })]));
+    expect(draw(none, tab(ChangesTab, view({ tab: "changes", repo: "acme/web" })))).not.toContain("data-you");
   });
 
   it("draws the selected row as the integrations' shared selected row, distinct from a hover", () => {
@@ -476,10 +495,11 @@ describe("the Issues tab", () => {
     expect(html).toContain('style="background:#d73a4a"');
     expect(html).not.toContain("red;x\"");
     expect(html).toContain("2/5");
-    // Three faces, then +1 — and the same list in words.
-    expect(html).toContain('<span class="fg-sr">Assigned to: </span>');
-    expect(html).toContain('<span class="fgl-people-more" aria-hidden="true">+1</span><span class="fg-sr"> and 1 more</span>');
-    expect(html).not.toMatch(/class="fgl-people"[^>]*aria-label/);
+    // Three faces, then +1: the integrations' shared stack, one picture to a
+    // screen reader, named with every assignee (the fourth included).
+    expect(html).toContain('<span class="ig-stack" role="img" aria-label="Assigned to bob, carol, dave and erin"');
+    expect(html.match(/class="ig-stack"(?:(?!<\/span><\/span>).)*/)?.[0].match(/class="ig-avatar /g)).toHaveLength(3);
+    expect(html).toContain('<span class="ig-stack-more" aria-hidden="true">+1</span>');
   });
 
   it("badges an issue GitHub closed as not planned", () => {

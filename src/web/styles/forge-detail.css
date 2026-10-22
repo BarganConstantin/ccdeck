@@ -39,7 +39,7 @@
 .fd-byline > * { vertical-align: middle; }
 .fd-byline > :not(:first-child) { margin-left: 5px; }
 .fd-byline > .fg-badge { margin-right: 3px; }
-.fd-byline .fg-person-name { color: var(--text); font-weight: 500; }
+.fd-byline .ig-person-name { color: var(--text); font-weight: 500; }
 .fd-byline .fg-copyable { max-width: 100%; }
 .fd-byline .fg-copyable > code, .fd-title-mono .fg-copyable > code { min-width: 0; }
 .fd-branch { display: inline-block; max-width: 100%; box-sizing: border-box; padding: 0 6px; border-radius: var(--r-tag); background: var(--ctl-fill); color: var(--text); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.7; overflow-wrap: anywhere; }
@@ -128,7 +128,7 @@
 .fd-comment { padding: 10px 12px 12px; min-width: 0; }
 .fd-comment + .fd-comment { border-top: 1px solid var(--line-soft); }
 .fd-comment-head { display: flex; align-items: center; gap: 8px; min-height: 24px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.fd-comment-head .fg-person-name { font-weight: 600; }
+.fd-comment-head .ig-person-name { font-weight: 600; }
 .fd-comment-time { color: var(--muted); white-space: nowrap; }
 .fd-comment-link { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; margin-left: auto; border-radius: var(--r-ctl); color: var(--muted); text-decoration: none; }
 .fd-comment-link:hover { background: var(--ctl-fill); color: var(--text); }

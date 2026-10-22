@@ -17,7 +17,7 @@ import {
 import { useForgePages } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
 import { sameSelection, useForge } from "./ForgeContext";
-import { Ago, ListEnd, LoadingRows, Person, ReadFailure, StateMark } from "./ForgeParts";
+import { Ago, Face, ListEnd, LoadingRows, ReadFailure, StateMark } from "./ForgeParts";
 
 export default function PipelinesTab({ view, query }: ForgeTabProps) {
   const { kind, api, scope, refresh, reportFreshness } = useForge();
@@ -91,7 +91,7 @@ function PipelineRow({ kind, pipeline: p, acrossRepos }: { kind: ForgeKind; pipe
           {source && <> · {source}</>}
         </span>
         <span className="fgl-side">
-          {p.triggeredBy && <span title={who ?? undefined}><Person user={p.triggeredBy} size={20} nameless /></span>}
+          {p.triggeredBy && <span title={who ?? undefined}><Face user={p.triggeredBy} /><span className="fg-sr">{who}</span></span>}
         </span>
         <span className="fgl-when">{at != null && <><span className="fgl-when-verb">{p.finishedAt != null ? "finished" : "created"} </span><Ago at={at} /></>}</span>
       </button>

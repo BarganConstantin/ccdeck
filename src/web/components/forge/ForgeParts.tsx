@@ -5,7 +5,8 @@
 import { useEffect, useLayoutEffect, useState, type ReactNode, type RefObject } from "react";
 import type { ForgeErrorInfo, ForgeUser } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
-import { stripScrollDelta, type Mark } from "../../forge-panel";
+import { isReader, stripScrollDelta, type Mark } from "../../forge-panel";
+import IntegrationAvatar, { IntegrationPerson } from "../IntegrationAvatar";
 import IntegrationFailureNote from "../IntegrationFailureNote";
 import IntegrationSkeleton from "../IntegrationSkeleton";
 import { shortAgo } from "../../relative-time";
@@ -99,27 +100,30 @@ export function LoadingRows({ rows = 6, label }: { rows?: number; label: string 
   return <IntegrationSkeleton label={label} rows={rows} />;
 }
 
-// Avatars the deck could not fetch — a self-managed GitLab may serve them only
-// to a signed-in browser — are drawn as the initial from then on, not asked
-// for again on every page.
-const failedAvatars = new Set<string>();
+/** What the integrations' shared face needs from a forge user: the picture
+ *  through the deck's proxy, the name its initials come from, and whether it
+ *  is the reader's own face. */
+export function useFaceOf(): (user: ForgeUser) => { src: string | null; name: string; you: boolean } {
+  const { asset, connection } = useForge();
+  return user => ({
+    src: user.avatarUrl ? asset(user.avatarUrl) : null,
+    name: user.name || user.login,
+    you: isReader(user, connection.account),
+  });
+}
 
-/** A person: avatar through the deck's proxy (or the initial), and a name. */
+/** A person: the integrations' shared face and a name. */
 export function Person({ user, size = 20, nameless = false }: { user: ForgeUser | null; size?: number; nameless?: boolean }) {
-  const { asset } = useForge();
-  const [failed, setFailed] = useState(false);
+  const faceOf = useFaceOf();
   if (!user) return null;
-  const label = user.name || user.login;
-  const avatar = user.avatarUrl;
-  const src = avatar && !failed && !failedAvatars.has(avatar) ? asset(avatar) : null;
-  return (
-    <span className="fg-person" title={nameless ? label : undefined}>
-      {src
-        ? <img className="fg-avatar" src={src} alt="" width={size} height={size} referrerPolicy="no-referrer" onError={() => { failedAvatars.add(avatar!); setFailed(true); }} />
-        : <span className="fg-avatar fg-avatar-initial" style={{ width: size, height: size }} aria-hidden="true">{label.slice(0, 1).toUpperCase()}</span>}
-      {nameless ? <span className="fg-sr">{label}</span> : <span className="fg-person-name">{label}</span>}
-    </span>
-  );
+  return <IntegrationPerson {...faceOf(user)} size={size} nameless={nameless} />;
+}
+
+/** A face alone, where the row says who it is in its own words (and its own
+ *  tooltip, which a face's would cover). */
+export function Face({ user, size = 20 }: { user: ForgeUser; size?: number }) {
+  const faceOf = useFaceOf();
+  return <IntegrationAvatar {...faceOf(user)} size={size} />;
 }
 
 /** "12m ago", kept current, with the exact time on hover. */

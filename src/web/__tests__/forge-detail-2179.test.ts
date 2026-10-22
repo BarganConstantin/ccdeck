@@ -378,7 +378,8 @@ describe("the change page", () => {
     expect(open).toMatch(/Conversation 3 Commits 4 Checks 2 Files changed 7/);
     keep("change", { repo: "acme/web", number: 12 }, { ...gh, state: "merged", mergedAt: Date.now() - 60_000 });
     const merged = text(page(createElement(ChangeDetailPage, { selection: sel }), { kind: "github" }));
-    expect(merged).toMatch(/Merged A Alice Doe · 4 commits merged into main from feature\/login/);
+    // "AD" is the face's initials, which the text of the page includes.
+    expect(merged).toMatch(/Merged AD Alice Doe · 4 commits merged into main from feature\/login/);
     expect(merged).not.toContain("wants to merge");
   });
 
