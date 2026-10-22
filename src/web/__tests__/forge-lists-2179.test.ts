@@ -392,6 +392,27 @@ describe("the Merge requests tab", () => {
     expect(html.match(/data-selected="true"/g)).toHaveLength(1);
   });
 
+  it("says a failed read with the integrations' shared note, its way out chosen by the failure", () => {
+    const c = ctx("gitlab");
+    const params = { repo: "acme/web", filter: "all", state: "open", sort: "created" };
+    keepRead(`${c.scope}\n${forgeReadPath("changes", params)}`, { data: null, loadedAt: null, error: { kind: "unreachable", message: "x" } });
+    const html = draw(c, tab(ChangesTab, view({ tab: "changes", repo: "acme/web" })));
+    expect(html).toContain('<div class="ig-failure" data-kind="unreachable">');
+    expect(html).toContain("gitlab.example.com did not answer");
+    expect(html).toContain(">Try again</button>");
+    // A refused token is fixed by reconnecting, not by asking again.
+    const c2 = ctx("github");
+    keepRead(`${c2.scope}\n${forgeReadPath("changes", params)}`, { data: null, loadedAt: null, error: { kind: "auth", message: "x" } });
+    const auth = draw(c2, tab(ChangesTab, view({ tab: "changes", repo: "acme/web" })));
+    expect(auth).toContain("GitHub did not accept the saved token");
+    expect(auth).toContain(">Reconnect</button>");
+    expect(auth).not.toContain("Try again");
+    // The scope the token lacks leads the sentence.
+    const c3 = ctx("gitlab");
+    keepRead(`${c3.scope}\n${forgeReadPath("changes", params)}`, { data: null, loadedAt: null, error: { kind: "permission", message: "The token lacks the read_api scope." } });
+    expect(draw(c3, tab(ChangesTab, view({ tab: "changes", repo: "acme/web" })))).toContain("The token lacks the read_api scope. Check the token&#x27;s scopes in the connection&#x27;s settings.");
+  });
+
   it("ends a merged row on when it was merged", () => {
     const c = ctx("gitlab");
     keep(c, "changes", { repo: "acme/web", filter: "all", state: "merged", sort: "created" }, page([change(4, { state: "merged", mergedAt: Date.now() - 60_000 })]));

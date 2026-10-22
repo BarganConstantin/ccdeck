@@ -88,11 +88,10 @@
 .ig-row[data-selected] .fg-badge[data-tone=busy] > [aria-hidden] { color: var(--accent); }
 .ig-row[data-selected] .fg-badge[data-tone=warn] > [aria-hidden] { color: var(--warn); }
 
-/* A failed read, and the way out of it. */
-.fg-failure { margin: 16px 0 0; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--err) 35%, var(--line)); border-radius: var(--r-panel); background: var(--panel); color: var(--text-secondary); line-height: 1.6; }
-.fg-failure p { margin: 0 0 10px; }
-.fg-failure strong { color: var(--text); font-weight: 600; }
-.fg-failure-compact { margin-top: 8px; padding: 8px 12px; border-color: color-mix(in srgb, var(--warn) 35%, var(--line)); }
+/* A failed read is the integrations' shared note (IntegrationFailureNote);
+   this only spaces it in the panel's lists and pages. */
+.fg-panel .ig-failure[data-kind] { margin-top: 16px; }
+.fg-panel .ig-failure[data-kind][data-stale] { margin-top: 8px; }
 .fg-more { margin-top: 12px; }
 .fg-loading { display: grid; gap: 10px; margin-top: 16px; }
 .fg-loading i { display: block; height: 36px; border-radius: var(--r-ctl); background: var(--ctl-fill); animation: ta-pulse 1200ms ease-in-out infinite alternate; }

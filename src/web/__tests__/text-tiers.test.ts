@@ -241,10 +241,10 @@ describe("what was migrated to the secondary tier", () => {
       // in dark.
       ".jr-label", ".jr-status", ".jr-total, .jr-estimate",
       // The GitHub and GitLab panel's sentences (#2179): why a list or a page
-      // is empty, why a read failed and what to do, a note over the list, the
-      // token's help in Settings, a project search that found nothing, and a
-      // quote inside a description.
-      ".fg-empty", ".fg-failure", ".fg-note", ".fg-token-help", ".fgl-group-empty", ".fgl-repo-none",
+      // is empty, a note over the list, the token's help in Settings, a
+      // project search that found nothing, and a quote inside a description.
+      // Why a read failed is the integrations' shared note now (.ig-failure).
+      ".fg-empty", ".fg-note", ".fg-token-help", ".fgl-group-empty", ".fgl-repo-none",
       ".forge-html blockquote",
       // And its words on rows by their bed, as Tool activity's are: a list's
       // row, a branch row and a project in the picker take --ctl-fill under the

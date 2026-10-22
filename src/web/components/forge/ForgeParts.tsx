@@ -4,7 +4,9 @@
 // Each draws a state as a mark AND a word (DESIGN.md), never a colour alone.
 import { useEffect, useLayoutEffect, useState, type ReactNode, type RefObject } from "react";
 import type { ForgeErrorInfo, ForgeUser } from "../../forge-types";
-import { forgeErrorWords, stripScrollDelta, type Mark } from "../../forge-panel";
+import { forgeWords } from "../../forge-types";
+import { stripScrollDelta, type Mark } from "../../forge-panel";
+import IntegrationFailureNote from "../IntegrationFailureNote";
 import { shortAgo } from "../../relative-time";
 import { copyText } from "../../copy-text";
 import { selfPressProps } from "../../panel-press";
@@ -55,21 +57,24 @@ export function FoldGroup({ id, title, count, defaultOpen, children, aside }: {
   );
 }
 
-/** A failed read: what happened in the forge's words, and the way out. With
- *  data still on screen it is one line above it, not a page. */
+/** A failed read: the integrations' shared failure note (what happened, and
+ *  the one way out its kind has), named for this forge and its host. With
+ *  rows still on screen it is the compact note above them; the freshness line
+ *  already says they are the last answer. */
 export function ReadFailure({ error, onRetry, compact = false }: { error: ForgeErrorInfo; onRetry: () => void; compact?: boolean }) {
-  const { kind, onReconnect } = useForge();
-  const words = forgeErrorWords(kind, error);
+  const { kind, connection, onReconnect } = useForge();
+  // The deck's words for a missing scope name the scope; they lead the sentence.
+  const body = error.kind === "permission" && error.message
+    ? `${error.message.replace(/\.\s*$/, "")}. Check the token's scopes in the connection's settings.`
+    : undefined;
   return (
-    <div className={compact ? "fg-failure fg-failure-compact" : "fg-failure"} role="alert">
-      <p>
-        <strong>{compact ? "Showing the last answer. " : ""}{words.title}.</strong> {words.detail}
-      </p>
-      {words.action === "connection"
-        ? <button type="button" className="btn" onClick={onReconnect}>Open connection settings</button>
-        : <button type="button" className="btn" onClick={onRetry}>Try again</button>}
-    </div>
+    <IntegrationFailureNote error={error} provider={forgeWords[kind].name} host={hostOf(connection.baseUrl)} stale={compact}
+      onRetry={onRetry} onReconnect={onReconnect} body={body} />
   );
+}
+
+function hostOf(baseUrl: string): string | undefined {
+  try { return new URL(baseUrl).host || undefined; } catch { return undefined; }
 }
 
 /** The bottom of a paged list: Load more, its failure, or nothing. The
