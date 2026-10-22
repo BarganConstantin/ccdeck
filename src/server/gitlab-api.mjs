@@ -71,7 +71,11 @@ const ASSUMED = {
   [IX]: new Set(["approved"]),
 };
 
+// The tables below are looked up by what GitLab answers with. Without a
+// prototype they find only their own entries: a plain object also answers to
+// `constructor`, `toString` and the other names every object inherits.
 const CI = {
+  __proto__: null,
   success: "success",
   failed: "failed",
   running: "running",
@@ -94,7 +98,7 @@ export function gitlabCiState(status) {
   return CI[String(status ?? "").toLowerCase()] ?? "none";
 }
 
-const ACRONYMS = { api: "API", ci: "CI", ssh: "SSH", url: "URL", id: "ID" };
+const ACRONYMS = { __proto__: null, api: "API", ci: "CI", ssh: "SSH", url: "URL", id: "ID" };
 
 /** GitLab's failure_reason as words: script_failure → "Script failure". */
 export function humanFailureReason(reason) {
@@ -566,7 +570,7 @@ export function createGitlabClient({ baseUrl = "https://gitlab.com", token, fetc
     return { scope: "all" };
   }
 
-  const STATE_PARAM = { open: "opened", merged: "merged", closed: "closed" };
+  const STATE_PARAM = { __proto__: null, open: "opened", merged: "merged", closed: "closed" };
   const changesPath = (repo) => (repo ? `/projects/${enc(repo)}/merge_requests` : "/merge_requests");
 
   async function listChanges({ repo = null, filter = "all", state = "open", sort = "created", cursor } = {}) {

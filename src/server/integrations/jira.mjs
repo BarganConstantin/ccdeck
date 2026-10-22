@@ -598,8 +598,11 @@ function rowFields(ids, estimationField) {
   ].filter(Boolean).join(",");
 }
 
-/** Cloud's "Issue color" names, as Jira's epic colour numbers. */
+/** Cloud's "Issue color" names, as Jira's epic colour numbers. Without a
+ *  prototype, so a name every object inherits (`constructor`, `toString`…)
+ *  is not one of them. */
 const ISSUE_COLOURS = {
+  __proto__: null,
   dark_grey: 1, dark_yellow: 2, yellow: 3, dark_blue: 4, dark_teal: 5, green: 6, purple: 7,
   dark_purple: 8, orange: 9, blue: 10, teal: 11, grey: 12, dark_green: 13, dark_orange: 14,
 };
@@ -673,7 +676,10 @@ async function filterJql(ctx, boardId, query) {
   return clauses;
 }
 
+// The kanban columns the page may ask for, by the name it sends. Without a
+// prototype, so `constructor` and the like are not columns.
 const KANBAN_COLUMNS = {
+  __proto__: null,
   todo: 'statusCategory = "To Do"',
   progress: 'statusCategory = "In Progress"',
   done: "statusCategory = Done AND updated >= -14d",

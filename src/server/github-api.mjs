@@ -163,11 +163,16 @@ const MISSING_FIELD = /doesn't exist on type/i;
 
 // ─── CI states ───────────────────────────────────────────────────────────────
 
+// The tables below are looked up by what GitHub answers with. Without a
+// prototype they find only their own entries: a plain object also answers to
+// `constructor`, `toString` and the other names every object inherits.
+
 // A check run's or an Actions run's verdict once it is done. Neutral is GitHub's
 // grey "nothing to say", drawn like a skip and never a failure; stale is a run
 // GitHub gave up waiting for; action_required needs a person, as a manual job
 // does on GitLab.
 const CHECK_CONCLUSION = {
+  __proto__: null,
   success: "success",
   failure: "failed",
   timed_out: "failed",
@@ -180,6 +185,7 @@ const CHECK_CONCLUSION = {
 };
 // …and while it is not done. `waiting` is a deployment waiting for a reviewer.
 const CHECK_STATUS = {
+  __proto__: null,
   queued: "pending",
   requested: "pending",
   pending: "pending",
@@ -189,6 +195,7 @@ const CHECK_STATUS = {
 // The head commit's combined state (statusCheckRollup) and a legacy commit
 // status. EXPECTED is a required check that has not reported yet.
 const ROLLUP = {
+  __proto__: null,
   success: "success",
   failure: "failed",
   error: "failed",
@@ -291,16 +298,17 @@ function need(value, errors, what) {
   throw new ForgeError("not-found", `${what} not found`);
 }
 
-const CHANGE_STATE = { OPEN: "open", MERGED: "merged", CLOSED: "closed" };
+const CHANGE_STATE = { __proto__: null, OPEN: "open", MERGED: "merged", CLOSED: "closed" };
 const REVIEW_STATE = {
+  __proto__: null,
   APPROVED: "approved",
   CHANGES_REQUESTED: "changes_requested",
   COMMENTED: "commented",
   // A dismissed review no longer counts, but its author did take part.
   DISMISSED: "commented",
 };
-const STATE_REASON = { COMPLETED: "completed", NOT_PLANNED: "not_planned", DUPLICATE: "duplicate" };
-const ANNOTATION_LEVEL = { FAILURE: "failure", WARNING: "warning", NOTICE: "notice" };
+const STATE_REASON = { __proto__: null, COMPLETED: "completed", NOT_PLANNED: "not_planned", DUPLICATE: "duplicate" };
+const ANNOTATION_LEVEL = { __proto__: null, FAILURE: "failure", WARNING: "warning", NOTICE: "notice" };
 
 /** Whether a pull request reads as approved. With a review rule on the base
  *  branch GitHub decides (reviewDecision); without one it decides nothing, and
@@ -1021,7 +1029,9 @@ export function createGithubClient({ baseUrl = "https://github.com", token, fetc
     return pipelines;
   }
 
+  // Without a prototype, as the tables above.
   const FILE_STATUS = {
+    __proto__: null,
     added: "added",
     removed: "deleted",
     modified: "modified",

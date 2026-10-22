@@ -557,6 +557,9 @@ real answers, with every name invented.
   - `integrations-unhandled`: a side request that fails (GitLab's
     capability probe, a change's file statistics) never leaves a failure
     unhandled.
+  - `integrations-names`: a state, a file status or a failure reason
+    named like something every object has (`constructor`, `toString`) reads
+    as a word the forge's table does not have.
   - `github-api-2179`: every method's request and mapping, each request a
     read; the token not sent
     to a job log's blob host; ahead/behind direction; the branch sort and its

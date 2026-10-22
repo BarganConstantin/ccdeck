@@ -249,6 +249,8 @@ Jira's rendered HTML is rebuilt into React elements from an allowlist
     in `integrations-routes-2178`.
   - `integrations-unhandled`: a side request that fails (a board page's
     issue count) never leaves a failure unhandled.
+  - `integrations-names`: a kanban column or an epic's issue colour named
+    like something every object has (`constructor`, `toString`) is not one.
   - `integrations-available` and `integrations-free-deck`: the kinds
     this deck offers, a saved connection to a kind it does not have, and the
     Free deck reading the trackers itself.
