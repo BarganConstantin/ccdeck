@@ -17,9 +17,10 @@ Source:
 
 ## Thesis
 
-The first screen answers **what is in this sprint and what is mine**. One
-press answers **what does this ticket say**. Jira's own Backlog page is the
-reference for order, grouping and totals, so nothing has to be learned twice.
+The first screen answers **what is in this sprint, what is mine and what
+needs attention**. One press answers **what does this ticket say**. Jira's
+own Backlog page is the reference for order, grouping and totals, so nothing
+has to be learned twice.
 
 ## Rules
 
@@ -27,21 +28,33 @@ reference for order, grouping and totals, so nothing has to be learned twice.
   connection, Close), the split and the drill-in Back belong to the host. A
   provider draws only its panel. #2179's GitHub and GitLab panels use the same
   frame.
+- **Escape closes the nearest thing first, at every width:** an open picker or
+  a search with text in it, then the open issue (focus back on its row), then
+  the modal.
 - **Group like Jira's Backlog page:**
   - active sprints open, future sprints and the backlog closed, closed sprints
     on demand;
   - kanban boards get To Do, In Progress and the last fortnight's Done.
 - **Each issue once.** A sub-task sits under its parent; a parent outside the
   results is a muted context row, never a duplicate.
-- **Totals by status category,** in time or points as the board estimates,
-  and written the way Jira writes them ("1w 3h").
-- **Selection is a quiet `--accent-dim` fill.** No coloured edge stripes
-  (owner, 2026-10-13).
+- **Totals by status category, named in words** ("To do 3d", "Done 2h"), in
+  time or points as the board estimates, written the way Jira writes them
+  ("1w 3h"). An empty total is left out; a kanban column has one total, and a
+  board that counts issues has none.
+- **What to look at first, in words.** A sprint's header says "3 yours ·
+  1 flagged · 1 highest", only what is there. The *Needs attention* chip keeps
+  issues not done that are flagged or at Highest (Blocker, Critical) priority.
+  Flagged rows keep the flag mark and get no tint.
+- **One "mine" filter.** The panel's *Only my issues* chip; the board's own
+  "Only My Issues" quick filter is not drawn twice.
+- **Selection is the integrations' quiet selection fill** (`--ig-sel-fill`).
+  No coloured edge stripes (owner, 2026-10-13). The reader's own issues ring
+  their avatar, no row tint.
 - **Shared controls only:**
-  - `btn` and `glyph-btn`, `sm-select`, `ap-manage-input`, the global focus
-    ring;
-  - `.jr-open` is the anchor twin of `btn`.
-  - Chips are `btn` with `aria-pressed`.
+  - `btn` and `glyph-btn`, `sm-select`, the integrations' shared search
+    field, freshness line, failure note, loading rows, avatars and detail bar,
+    the global focus ring;
+  - chips are `btn` with `aria-pressed`.
 - **No SVG from the tracker reaches the page.** Icons Jira serves as SVG are
   the panel's own drawn glyphs.
 - **Images come through the asset route, or not at all.** A failed image
@@ -52,6 +65,8 @@ reference for order, grouping and totals, so nothing has to be learned twice.
   - the detail is its own screen;
   - the toolbar steps aside behind Back;
   - the filter chips are one row that scrolls sideways;
+  - a row is three lines at most: type, key, status and person, then the
+    summary, then epic and estimate;
   - Jira is under More.
 
 ## Verified 2026-10-19

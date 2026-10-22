@@ -1,11 +1,11 @@
 // The small pieces the Jira panel draws in more than one place (#2178): an
 // issue's type and priority icons, its epic chip in Jira's own colour, an
-// estimate, a status, and what to say when Jira could not be read.
+// estimate and a status. A failed read is the shared IntegrationFailureNote.
 import { useEffect, useState, type ReactNode } from "react";
-import { connectionHost, type IntegrationFailure } from "../integrations/client";
-import type { IntegrationConnection as Connection } from "../integrations/types";
 import type { JiraEpic, JiraIssue, JiraPriority, JiraStatus, JiraType, TimeTracking } from "../jira-api";
-import { jiraDuration } from "../jira-board";
+import { jiraDuration, priorityLevel, type PriorityLevel } from "../jira-board";
+
+export { priorityLevel };
 
 /** Icons that would not load, for the life of the page: a list of a hundred
  *  rows with the same broken icon asks the deck for it once. */
@@ -60,20 +60,6 @@ export function TypeGlyph({ type, subtask }: { type: JiraType; subtask?: boolean
   );
 }
 
-type PriorityLevel = "highest" | "high" | "medium" | "low" | "lowest";
-
-/** A priority's place on Jira's five-step scale, under either of the names
- *  Jira has shipped (Highest…Lowest, and the older Blocker…Trivial). */
-export function priorityLevel(name: string): PriorityLevel | null {
-  const n = name.trim().toLowerCase();
-  if (/highest|blocker|critical|urgent/.test(n)) return "highest";
-  if (/high|major/.test(n)) return "high";
-  if (/medium|normal|moderate/.test(n)) return "medium";
-  if (/lowest|trivial/.test(n)) return "lowest";
-  if (/low|minor/.test(n)) return "low";
-  return null;
-}
-
 const PRIORITY_PATHS: Record<PriorityLevel, string> = {
   highest: "m4 8.5 4-4 4 4M4 12l4-4 4 4",
   high: "m4 10 4-4 4 4",
@@ -102,25 +88,26 @@ export const PriorityIcon = ({ priority }: { priority: JiraPriority | null }) =>
 
 /** An epic, in the colour Jira gave it (1-14), or neutral when it gave none. */
 export function EpicChip({ epic }: { epic: JiraEpic }) {
-  return <span className="jr-epic" data-color={epic.color ?? undefined} title={`Epic ${epic.key}: ${epic.name}`}>{epic.name}</span>;
+  return <span className="jr-epic ig-chip" data-color={epic.color ?? undefined} title={`Epic ${epic.key}: ${epic.name}`}>{epic.name}</span>;
 }
 
-/** Jira's status lozenge: grey for to do, blue for in progress, green for done. */
+/** Jira's status lozenge: grey for to do, blue for in progress, green for done,
+ *  in sentence case and cut at 16 characters, with the whole name on hover. */
 export function StatusLozenge({ status }: { status: JiraStatus }) {
-  return <span className="jr-status" data-cat={status.category}>{status.name}</span>;
+  return <span className="jr-status ig-chip" data-cat={status.category} title={status.name}>{status.name}</span>;
 }
 
 /** What a row says about the work in it: the estimate and, when Jira has a
  *  different one, what remains — or story points on a board that counts them. */
 export function Estimate({ issue, estimation, time }: { issue: JiraIssue; estimation: "time" | "points" | "count"; time: TimeTracking }) {
   if (estimation === "points") {
-    return issue.points == null ? null : <span className="jr-estimate" title="Story points">{Number.isInteger(issue.points) ? issue.points : issue.points.toFixed(1)}</span>;
+    return issue.points == null ? null : <span className="jr-estimate ig-chip" title="Story points">{Number.isInteger(issue.points) ? issue.points : issue.points.toFixed(1)}</span>;
   }
   const estimate = jiraDuration(issue.estimate, time);
   const remaining = issue.remaining != null && issue.remaining !== issue.estimate ? jiraDuration(issue.remaining, time) : "";
   if (!estimate && !remaining) return null;
   return (
-    <span className="jr-estimate" title={`${estimate ? `Original estimate ${estimate}` : "No original estimate"}${remaining ? ` · ${remaining} remaining` : ""}`}>
+    <span className="jr-estimate ig-chip" title={`${estimate ? `Original estimate ${estimate}` : "No original estimate"}${remaining ? ` · ${remaining} remaining` : ""}`}>
       {estimate || "–"}{remaining && <span className="jr-remaining"> · {remaining} left</span>}
     </span>
   );
@@ -134,77 +121,4 @@ export function FlagGlyph() {
 export function Chevron({ open }: { open: boolean }) {
   return <svg className="jr-chevron" data-open={open || undefined} width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
     strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m5.2 3 4 4-4 4" /></svg>;
-}
-
-export function SearchGlyph() {
-  return <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden>
-    <circle cx="6.1" cy="6.1" r="4.1" /><path d="m9.2 9.2 3.3 3.3" /></svg>;
-}
-
-export function RefreshGlyph() {
-  return <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M11.8 2.6v3h-3" /><path d="M11.6 5.4A5 5 0 1 0 12 8.3" /></svg>;
-}
-
-export function ExternalGlyph() {
-  return <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M8 2.2h3.8V6M11.6 2.4 6.4 7.6" /><path d="M10.4 8.6v2.6a.8.8 0 0 1-.8.8H2.8a.8.8 0 0 1-.8-.8V4.4a.8.8 0 0 1 .8-.8h2.6" /></svg>;
-}
-
-/** The heading and the sentence for a failure, by kind, about this connection. */
-export function failureCopy(error: IntegrationFailure, conn: Connection): { title: string; body: string; reconnect: boolean } {
-  const host = connectionHost(conn);
-  switch (error.kind) {
-    case "auth":
-      return { title: "Jira did not accept the saved token", body: error.message, reconnect: true };
-    case "expired":
-      return { title: "The saved token no longer works", body: `${error.message} Make a new token and paste it in Settings.`, reconnect: true };
-    case "permission":
-      return { title: "Your account cannot read this", body: error.message, reconnect: false };
-    case "unreachable":
-      return { title: `${host} did not answer`, body: error.message, reconnect: false };
-    case "tls":
-      return {
-        title: `${host}'s certificate is not trusted here`,
-        body: `${error.message} The deck checks every certificate and has no way to skip it: add the issuing authority to this machine's trust store, then try again.`,
-        reconnect: false,
-      };
-    case "rate-limit":
-      return { title: "Jira asked the deck to slow down", body: error.retryAfter ? `Try again in ${error.retryAfter} seconds.` : "Try again in a minute.", reconnect: false };
-    case "incompatible":
-      return { title: "This Jira cannot be read this way", body: error.message, reconnect: false };
-    case "not-found":
-      return { title: "Not there any more", body: error.message, reconnect: false };
-    case "network":
-      return { title: "The deck could not be reached", body: error.message, reconnect: false };
-    case "unavailable":
-      return { title: "Jira is unavailable on this deck", body: "The deck cannot read Jira right now. Try again in a moment.", reconnect: false };
-    default:
-      return { title: "Jira could not be read", body: error.message, reconnect: false };
-  }
-}
-
-/** A failure, with the way out it has: Reconnect for a token, Try again for
- *  the rest. `stale` says the board under it is the last one read. */
-export function FailureNote({ error, conn, stale, onRetry, onReconnect, compact }: {
-  error: IntegrationFailure;
-  conn: Connection;
-  stale?: boolean;
-  onRetry?: () => void;
-  onReconnect: () => void;
-  compact?: boolean;
-}) {
-  const copy = failureCopy(error, conn);
-  return (
-    <div className={compact ? "jr-failure jr-failure-compact" : "jr-failure"} role="alert" data-kind={error.kind}>
-      <div className="jr-failure-text">
-        <strong>{copy.title}</strong>
-        <span>{copy.body}{error.detail && error.kind !== "auth" && error.kind !== "expired" ? ` Jira said: ${error.detail}` : ""}{stale ? " Showing what was read last." : ""}</span>
-      </div>
-      <div className="jr-failure-actions">
-        {copy.reconnect && <button type="button" className="btn primary" onClick={onReconnect}>Reconnect</button>}
-        {onRetry && error.kind !== "auth" && error.kind !== "expired" && <button type="button" className="btn" onClick={onRetry}>Try again</button>}
-      </div>
-    </div>
-  );
 }

@@ -380,7 +380,11 @@ describe("nothing else in the deck invents a focus stop", () => {
     // share of the workspace.
     // The integrations modal's splitter, between a tracker's list and its
     // detail (#2178), is the same widget, its value the list's share.
-    expect(offenders).toEqual(["components/IntegrationSplit.tsx", "components/RadarSplitter.tsx", "components/RadioMap.tsx", "components/RadioPanel.tsx", "components/ToolAuditSplitter.tsx"]);
+    // A Jira issue's code block and wide table scroll sideways inside their
+    // own frame, so each is a labelled region the keyboard can reach and
+    // scroll (WCAG 2.1.1; axe's scrollable-region-focusable).
+    expect(offenders).toEqual(["components/IntegrationSplit.tsx", "components/RadarSplitter.tsx", "components/RadioMap.tsx", "components/RadioPanel.tsx", "components/ToolAuditSplitter.tsx", "jira-html.tsx"]);
+    expect(code(readFileSync(`${web}jira-html.tsx`, "utf8"))).toMatch(/tabIndex=\{0\} role="region" aria-label="Table"/);
     expect(code(readFileSync(`${web}components/IntegrationSplit.tsx`, "utf8"))).toMatch(/role="separator"[\s\S]*?tabIndex=\{0\}/);
     expect(code(readFileSync(`${web}components/RadioPanel.tsx`, "utf8"))).toMatch(/role="tabpanel"[^>]*tabIndex=\{0\}/);
     const map = code(readFileSync(`${web}components/RadioMap.tsx`, "utf8"));
@@ -419,7 +423,7 @@ describe("nothing else in the deck invents a focus stop", () => {
     expect(negatives).toEqual(["components/CanvasMain.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
     expect(code(readFileSync(join(web, "components/forge/RepoPicker.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/forge/DetailParts.tsx"), "utf8"))).toMatch(/<article ref=\{ref\} className="fd"[^>]*tabIndex=\{-1\}/);
-    expect(code(readFileSync(join(web, "components/JiraIssueDetail.tsx"), "utf8"))).toMatch(/<h3 id="jira-detail-title" tabIndex=\{-1\}/);
+    expect(code(readFileSync(join(web, "components/JiraIssueDetail.tsx"), "utf8"))).toMatch(/<h2 id="jira-detail-title" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/RadioFilter.tsx"), "utf8"))).toMatch(/role="option" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/SettingsSearch.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/CanvasMain.tsx"), "utf8"))).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);

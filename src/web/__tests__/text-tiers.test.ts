@@ -238,14 +238,18 @@ describe("what was migrated to the secondary tier", () => {
       // --ctl-fill takes --muted to 4.05:1 in dark, as the forge field's did.
       ".ig-failure-body, .ig-failure-said", ".ig-search-input::placeholder",
       // The Jira panel's sentences: a note over the board (no active sprint,
-      // the first 600 shown), a sprint's goal, why a read failed and what to
-      // do, the empty board's explanation, and a quote inside an issue.
-      ".jr-board-note", ".jr-failure-text span", ".jr-goal", ".jr-html blockquote", ".jr-state p",
+      // the first 600 shown), a sprint's goal, the empty board's explanation,
+      // and a quote inside an issue. Why a read failed is the integrations'
+      // shared failure note's.
+      ".jr-board-note", ".jr-goal", ".jr-html blockquote", ".jr-state p",
       // Jira's labels, status lozenges and sprint totals: words on a
       // --ctl-fill pill, kept here by their bed rather than their role, as
       // the shared field's placeholder is — --muted is 4.05:1 on that fill
       // in dark.
       ".jr-label", ".jr-status", ".jr-total, .jr-estimate",
+      // And by the same bed: what is left of an estimate, inside the
+      // estimate's pill. The search field is the integrations' shared one.
+      ".jr-remaining",
       // The GitHub and GitLab panel's sentences (#2179): why a list or a page
       // is empty, why a read failed and what to do, a note over the list, the
       // token's help in Settings, a project search that found nothing, and a
