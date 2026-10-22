@@ -3,7 +3,8 @@
 // of asserting that dagre was called with the right arguments.
 import { describe, it, expect } from "vitest";
 import type { Node, Edge } from "reactflow";
-import { autoLayout, separateOverlaps, fillGapsWithNewSessions, laneSignature } from "../layout";
+import { autoLayout, separateOverlaps, fillGapsWithNewSessions, laneSignature, LANE_CLEARANCE } from "../layout";
+import { TOOL_LANE_W } from "../layout-geometry";
 
 const W = 260, H = 120;
 
@@ -726,5 +727,36 @@ describe("laneSignature", () => {
 
   it("tells two agents' lanes apart", () => {
     expect(laneSignature(lanesFor({ a: 1 }))).not.toBe(laneSignature(lanesFor({ b: 1 })));
+  });
+});
+
+describe("autoLayout — a parent's subagents sit past its bubbles, not a rank gap past them", () => {
+  // A session that fanned out once was laid out 1,900 units wide for two
+  // columns of cards: dagre's 160 rank gap came AFTER the 420 lane, so every
+  // subagent landed 580 units from its parent's card, and the fit framed the
+  // board at a face — or at its 0.2 floor beside the default panels.
+  const nodes = ["p", "c1", "c2"].map(id => agent(id, "s"));
+  const edges = [{ id: "e1", source: "p", target: "c1" }, { id: "e2", source: "p", target: "c2" }] as Edge[];
+  const measured = sizes(nodes.map(n => n.id));
+  const at = (out: Node[], id: string) => out.find(n => n.id === id)!.position;
+
+  it("puts the children LANE_CLEARANCE past the end of a laned parent's trail", () => {
+    const out = autoLayout(nodes, edges, { measured, lanes: new Map([["p", 4], ["c1", 1], ["c2", 1]]) });
+    for (const c of ["c1", "c2"]) expect(at(out, c).x - (at(out, "p").x + W)).toBe(TOOL_LANE_W + LANE_CLEARANCE);
+    expect(overlaps(out, measured)).toEqual([]);
+  });
+
+  it("leaves room for a parent that has not measured to turn out wider", () => {
+    // A replayed board is laid out at NODE_W (240) and measures at 260 or more;
+    // the subagents must still clear the lane once it has.
+    const out = autoLayout(nodes, edges, { lanes: new Map([["p", 4]]) });
+    const gap = at(out, "c1").x - (at(out, "p").x + 240);
+    expect(gap).toBeGreaterThanOrEqual(TOOL_LANE_W + LANE_CLEARANCE + 80);
+    expect(gap).toBeLessThan(TOOL_LANE_W + 160);
+  });
+
+  it("keeps the whole rank gap for a parent with no bubbles", () => {
+    const out = autoLayout(nodes, edges, { measured });
+    for (const c of ["c1", "c2"]) expect(at(out, c).x - (at(out, "p").x + W)).toBe(160);
   });
 });

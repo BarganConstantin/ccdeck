@@ -24,7 +24,7 @@ import { type Edge, type Node } from "reactflow";
 import { canvasSessions } from "./canvas-session";
 import { agentAriaLabel } from "./agent-copy";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
-import { NODE_W, sessionOfNode } from "./layout-geometry";
+import { footprint, NODE_W, sessionOfNode } from "./layout-geometry";
 import { branchSummaries, type BranchSummary } from "./node-face";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
 import { liveNodeIds, measuredNodeIds, pruneStaleEntries } from "./prune";
@@ -411,11 +411,13 @@ export function snapshotToFlow(
       // its place — so this page's arrangement, not the stored board's.
       for (const n of missing) restored.delete(n.id);
       // A card joining a session already on the canvas goes beside that session
-      // as it sits now, not where a layout from scratch would have it.
+      // as it sits now, not where a layout from scratch would have it — and a
+      // subagent under the siblings its parent already has there.
       const laidOut = joinSessions(
         autoLayout(nodes, edges, { direction: "LR", pinned, measured, availableWidth, availableHeight, lanes }),
         pinned,
         id => (isUnplaced(id, positions, provisional) ? undefined : positions.get(id)),
+        id => footprint(id, measured, lanes),
       );
       for (const n of laidOut) if (isUnplaced(n.id, positions, provisional)) recordPlacement(n.id, n.position, positions, provisional);
       // Finished sessions are pruned as they complete, so the column they were
