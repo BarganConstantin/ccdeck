@@ -129,7 +129,8 @@
    panel's other links out are: its words and ↗, underlined under the pointer. */
 .forge-html .fh-image-link { text-decoration: none; }
 .forge-html .fh-image-link:hover { text-decoration: underline; }
-.fh-check { margin: 0 6px 0 0; vertical-align: middle; }
+.fh-check { display: inline-flex; margin: 0 6px 0 0; vertical-align: -1px; color: var(--text-secondary); }
+.fh-check[data-checked] { color: var(--text); }
 .forge-html li:has(> .fh-check) { list-style: none; margin-left: -1.3em; }
 
 /* The help beside a token field in Settings › Integrations. */

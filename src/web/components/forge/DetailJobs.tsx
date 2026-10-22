@@ -145,9 +145,11 @@ function JobLog({ repo, job }: { repo: string; job: ForgeJob }) {
       {tail && (
         tail.lines.length
           ? (
-            // No tab stop of its own: the browser makes a scrolling box with
-            // nothing focusable inside it reachable by the keyboard.
-            <pre ref={pre} className="fd-log">
+            // Lines are never wrapped, so a line number stays beside its
+            // line on a phone; the log scrolls sideways instead. It is a
+            // stop of its own so the keyboard can scroll it either way, and
+            // a named region so a reader knows which job's log it is.
+            <pre ref={pre} className="fd-log" tabIndex={0} role="region" aria-label={`${job.name} log`}>
               {tail.lines.map((line, i) => {
                 const tone = logLineTone(line);
                 return <span key={i} className="fd-log-line" data-tone={tone ?? undefined}>{line || " "}</span>;

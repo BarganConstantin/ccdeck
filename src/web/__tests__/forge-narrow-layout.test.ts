@@ -123,3 +123,11 @@ describe("a selected row", () => {
     expect(decls(panel, ".ig-row[data-selected] .fg-badge[data-tone=bad] > [aria-hidden]")).toMatch(/color: var\(--err\)/);
   });
 });
+
+describe("a job's log", () => {
+  it("never wraps a line, so a line number stays beside its line; it scrolls sideways instead", () => {
+    expect(decls(detail, ".fd-log")).toMatch(/overflow: auto/);
+    expect(decls(detail, ".fd-log")).toMatch(/white-space: pre;/);
+    expect(decls(detail, ".fd-log")).not.toMatch(/overflow-wrap: anywhere/);
+  });
+});

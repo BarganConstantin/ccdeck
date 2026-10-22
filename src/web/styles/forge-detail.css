@@ -207,8 +207,11 @@ a.fd-file:hover .fd-out-mark { color: var(--text); }
 .fd-log-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0; }
 .fd-log-count { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 /* The log is what the reader came to read, so it is in the text tier; a line
-   that says something failed or warns takes the state's colour. */
-.fd-log { max-height: min(360px, 55vh); margin: 0; padding: 10px 12px; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--bg); color: var(--text); font: calc(12px + var(--ui-text-increase, 0px))/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-color: var(--ctl-edge) transparent; }
+   that says something failed or warns takes the state's colour. Its lines
+   are never wrapped: a runner's output lines its numbers and carets up by
+   column, so on a narrow pane the log scrolls sideways rather than breaking
+   them apart. */
+.fd-log { max-height: min(360px, 55vh); margin: 0; padding: 10px 12px; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--bg); color: var(--text); font: calc(12px + var(--ui-text-increase, 0px))/1.5 var(--font-mono); white-space: pre; scrollbar-color: var(--ctl-edge) transparent; }
 .fd-log-line { display: block; }
 .fd-log-line[data-tone=err] { color: var(--err); }
 .fd-log-line[data-tone=warn] { color: var(--warn); }

@@ -6,7 +6,7 @@
 // words kept; links keep only web and mail schemes, become absolute against the
 // instance and open outside the deck; in-page anchors are dropped; images go
 // through the deck's proxy (GitLab's lazy data-src included) or fall back to a
-// link; task-list checkboxes are drawn disabled; a title keeps only inline
+// link; task-list checkboxes are drawn as marks; a title keeps only inline
 // marks; and a huge description is cut rather than drawn whole. The suite has
 // no DOM, so the parsed document is built here as plain objects — the same
 // shape a DOM node offers.
@@ -46,7 +46,7 @@ describe("what survives", () => {
     ));
     expect(out).toBe(
       '<div class="forge-html"><h2>✨ New</h2><ul><li>On <strong>tablets</strong>, two columns</li></ul>'
-      + "<pre><code>let a = 1 &lt; 2;</code></pre></div>",
+      + '<pre tabindex="0"><code>let a = 1 &lt; 2;</code></pre></div>',
     );
   });
 
@@ -119,9 +119,16 @@ describe("images", () => {
 });
 
 describe("task lists, titles and size", () => {
-  it("draws a task's checkbox, disabled", () => {
+  it("draws a task's checkbox as a mark with its state in words, never a control with no name", () => {
     const out = draw(body(el("ul", {}, el("li", {}, el("input", { type: "checkbox", checked: "", disabled: "" }), " done"))));
-    expect(out).toContain('<input type="checkbox" class="fh-check" disabled="" readonly="" checked=""/> done');
+    expect(out).toMatch(/<span class="fh-check" role="img" aria-label="done" data-checked="true"><svg[^>]*aria-hidden="true"><rect[^>]*><\/rect><path[^>]*><\/path><\/svg><\/span> done/);
+    expect(out).not.toContain("<input");
+    const open = draw(body(el("ul", {}, el("li", {}, el("input", { type: "checkbox" }), " later"))));
+    expect(open).toMatch(/<span class="fh-check" role="img" aria-label="to do"><svg[^>]*aria-hidden="true"><rect[^>]*><\/rect><\/svg><\/span> later/);
+  });
+
+  it("lets the keyboard reach a code block, which scrolls sideways rather than wrap", () => {
+    expect(draw(body(el("pre", {}, el("code", {}, "x"))))).toBe('<div class="forge-html"><pre tabindex="0"><code>x</code></pre></div>');
   });
 
   it("keeps only inline marks and links in a title", () => {
