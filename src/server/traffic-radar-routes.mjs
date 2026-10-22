@@ -32,6 +32,19 @@ export async function handleTrafficCapture(req, res, url, capture = trafficCaptu
       }
       catch (error) { return reply(res, 400, { error: error.message }); }
     }
+    // Settings › Radar: `enabled` is automatic monitoring, off unless switched on.
+    if (req.method === 'GET' && action === '/settings') return reply(res, 200, await capture.settings());
+    if (req.method === 'POST' && action === '/settings') {
+      let data;
+      try { data = JSON.parse((await body(req, 4096)).toString()); } catch { return reply(res, 400, { error: 'Invalid Radar settings.' }); }
+      // One field, a boolean, and nothing else: a body that names anything more
+      // is not this switch's and is refused whole, not half-applied.
+      if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).join() !== 'enabled')
+        return reply(res, 400, { error: 'Invalid Radar settings.' });
+      if (typeof data.enabled !== 'boolean') return reply(res, 400, { error: 'Radar enabled must be a boolean.' });
+      try { return reply(res, 200, await capture.setEnabled(data.enabled)); }
+      catch { return reply(res, 500, { error: 'Could not save Radar settings. Try again.' }); }
+    }
     if (req.method === 'GET' && action === '/capture') return reply(res, 200, capture.read());
     if (req.method === 'GET' && action === '/capture/event') {
       const detail = capture.detail(Number(url.searchParams.get('id')));

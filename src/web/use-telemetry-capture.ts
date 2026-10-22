@@ -8,7 +8,7 @@ export interface CapturedExport {
   response: { at: number; grpcStatus: string | null; rejected: string | null; message: string | null } | null;
 }
 export interface CaptureSnapshot {
-  ok: boolean; managed?: boolean; enabled?: boolean; platform?: string; backend?: "tcpdump" | "dumpcap"; shell?: "Terminal" | "PowerShell"; sessionId: string | null; state: "idle" | "awaiting" | "receiving" | "capturing" | "stopped" | "expired" | "interrupted" | "error";
+  ok: boolean; automatic?: boolean; featureEnabled?: boolean; setupError?: string | null; managed?: boolean; enabled?: boolean; platform?: string; backend?: "tcpdump" | "dumpcap"; shell?: "Terminal" | "PowerShell"; sessionId: string | null; state: "idle" | "awaiting" | "receiving" | "capturing" | "stopped" | "expired" | "interrupted" | "error";
   destination: string | null; interface: string | null; startedAt: number | null; expiresAt: number | null;
   observations?: { id: number; at: number; destination: string; source: string; reason: string }[];
   retention?: { windowMs: number; maxExports: number; payloadBudgetBytes: number; evictedExports: number };

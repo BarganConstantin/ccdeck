@@ -13,6 +13,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { SettingRow, SettingsGroup } from "../components/SettingsParts";
 import KeyboardSection, { shortcutMatches, shortcutName } from "../components/KeyboardSection";
 import ToolAuditSettings, { TOOL_HISTORY_NOTE } from "../components/ToolAuditSettings";
+import RadarSettings from "../components/RadarSettings";
 import { KEY_HELP } from "../key-help";
 import { sourceOf } from "./client-source";
 
@@ -115,5 +116,27 @@ describe("Settings › Data", () => {
     const html = draw(createElement(ToolAuditSettings));
     expect(html).toContain(`>${TOOL_HISTORY_NOTE}</p>`);
     expect(html).toMatch(/>Storage size unavailable\.<|>Reading storage…</);
+  });
+});
+
+describe("Settings › Radar (#2186)", () => {
+  it("is busy, never disabled, while the deck has not answered, and says so in a row of its list", () => {
+    const html = draw(createElement(RadarSettings, { onOpen: noop }));
+    expect(html).toMatch(/role="switch" aria-checked="false"[^>]*aria-busy="true"/);
+    expect(html).not.toMatch(/\sdisabled=""/);
+    expect(html).toContain('<p class="settings-row settings-row-status" role="status">Reading Radar settings…</p>');
+    // Radar's own classes stay in Radar.
+    expect(html).not.toMatch(/tr-note|tr-capture-error/);
+  });
+
+  // v3.44.0: the switch is automatic monitoring, off unless turned on, and
+  // Radar itself never leaves the deck with it — so its door is always here.
+  it("names automatic monitoring as opt-in and always offers the door to Radar", () => {
+    const html = draw(createElement(RadarSettings, { onOpen: noop }));
+    expect(html).toContain(">Monitor automatically<");
+    expect(html).toContain("Off by default.");
+    expect(html).not.toMatch(/hides Radar|toolbar/i);
+    expect(html).toMatch(/id="settings-radar-open"[^>]*aria-haspopup="dialog"[^>]*>Open</);
+    expect(sourceOf("components/RadarSettings.tsx")).not.toMatch(/enabled === true &&/);
   });
 });

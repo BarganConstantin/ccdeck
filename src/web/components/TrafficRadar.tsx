@@ -18,19 +18,17 @@ export default function TrafficRadar({ onClose, sessions = [] }: { onClose: () =
   const captureState = useTelemetryCapture();
   return <div className="modal-backdrop" {...scrimPress} role="presentation">
     <div className="modal tr-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tr-title" aria-describedby="tr-purpose" onClick={e => e.stopPropagation()}>
-      <header className="modal-head">
-        <div className="tr-identity"><RadarIcon kind="radar" /><div><div className="modal-title"><span className="modal-tool-name" id="tr-title">Telemetry Radar</span><span className="tr-beta" title="Beta feature — still being tested and improved.">Beta</span></div><p id="tr-purpose">Inspect Claude Code’s collector traffic.</p></div></div>
-        <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
-      </header>
-      <TrafficRadarView snapshot={snapshot} failed={failed} captureState={captureState} sessions={sessions} onConfigChange={updateConfig} />
+      <TrafficRadarView snapshot={snapshot} failed={failed} captureState={captureState} sessions={sessions} onConfigChange={updateConfig} onClose={onClose} />
     </div>
   </div>;
 }
 
-export function TrafficRadarView({ snapshot, failed = false, captureState, sessions = [], onConfigChange }: {
+export function TrafficRadarView({ snapshot, failed = false, captureState, sessions = [], onConfigChange, onClose }: {
   snapshot: RadarSnapshot | null; failed?: boolean; captureState?: ReturnType<typeof useTelemetryCapture>; sessions?: RadarSession[];
-  onConfigChange?: (config: RadarSnapshot["config"]) => void;
+  onConfigChange?: (config: RadarSnapshot["config"]) => void; onClose?: () => void;
 }) {
+  // The File view stays: a saved telemetry file is read in the browser, apart
+  // from live capture, as it was before the inspector's rework.
   const [page, setPage] = useState<"monitor" | "configuration" | "file">("monitor");
   const [fileSessions, setFileSessions] = useState<string[]>([]);
   const [session, setSession] = useState("all");
@@ -49,12 +47,18 @@ export function TrafficRadarView({ snapshot, failed = false, captureState, sessi
   const incomplete = snapshot?.config?.sources.some(source => source.status === "unavailable");
   const observed = failed ? [] : observedDestinations(snapshot);
   const choices = new Map(sessions.map(s => [s.id, s.label]));
-  for (const event of captureState?.capture?.events ?? []) for (const id of event.sessionIds ?? []) if (!choices.has(id)) choices.set(id, id.slice(0, 8));
-  for (const id of fileSessions) if (!choices.has(id)) choices.set(id, id.slice(0, 8));
+  for (const event of captureState?.capture?.events ?? []) for (const id of event.sessionIds ?? []) if (!choices.has(id)) choices.set(id, "Session");
+  for (const id of fileSessions) if (!choices.has(id)) choices.set(id, "Session");
   return <div className="tr-body">
+    <header className="modal-head tr-header">
+      <div className="tr-identity"><RadarIcon kind="radar" /><div><div className="modal-title"><span className="modal-tool-name" id="tr-title">Telemetry Radar</span><span className="tr-beta" title="Beta feature — still being tested and improved.">Beta</span></div><p id="tr-purpose">Inspect Claude Code’s collector traffic.</p></div></div>
     <div className="tr-navigation">
-      <div className="tr-tabs" role="tablist" aria-label="Radar views" onKeyDown={handleTabKeyDown}>{([['monitor', 'Monitor'], ['configuration', 'Configuration'], ['file', 'File']] as const).map(([id, label]) =>
-        <button key={id} id={`tr-tab-${id}`} className="tr-tab" role="tab" aria-selected={page === id} aria-controls={`tr-panel-${id}`} tabIndex={page === id ? 0 : -1} onClick={() => setPage(id)}>{label}</button>)}</div>
+      {/* Written out rather than mapped, so each tab names its panel's id as the panel spells it. */}
+      <div className="tr-tabs" role="tablist" aria-label="Radar views" onKeyDown={handleTabKeyDown}>
+        <button id="tr-tab-monitor" className="tr-tab" role="tab" aria-selected={page === "monitor"} aria-controls="tr-panel-monitor" tabIndex={page === "monitor" ? 0 : -1} onClick={() => setPage("monitor")}>Monitor</button>
+        <button id="tr-tab-configuration" className="tr-tab" role="tab" aria-selected={page === "configuration"} aria-controls="tr-panel-configuration" tabIndex={page === "configuration" ? 0 : -1} onClick={() => setPage("configuration")}>Configuration</button>
+        <button id="tr-tab-file" className="tr-tab" role="tab" aria-selected={page === "file"} aria-controls="tr-panel-file" tabIndex={page === "file" ? 0 : -1} onClick={() => setPage("file")}>File</button>
+      </div>
       <label className="tr-session-filter" hidden={!choices.size && session === "all" && !captureState?.capture?.events.length}>Session<RadarSelect value={session} onChange={e => setSession(e.target.value)} aria-label="Session">
         <option value="all">All sessions</option>{[...choices].map(([id, label]) => <option key={id} value={id}>{label} · {id.slice(0, 8)}</option>)}<option value="unidentified">Unidentified session</option>
       </RadarSelect></label>
@@ -66,6 +70,8 @@ export function TrafficRadarView({ snapshot, failed = false, captureState, sessi
         <a href="https://code.claude.com/docs/en/monitoring-usage" target="_blank" rel="noreferrer">Claude Code telemetry documentation</a>
       </div></details>
     </div>
+      {onClose && <button className="glyph-btn tr-header-close" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>}
+    </header>
     {/* Keep views mounted: selecting Configuration must not discard the selected message or imported file. */}
     <div className="tr-page" id="tr-panel-monitor" role="tabpanel" aria-labelledby="tr-tab-monitor" hidden={page !== "monitor"}>
       {captureState ? <TelemetryCapture {...captureState} radar={failed && snapshot ? { ...snapshot, status: "unavailable" } : snapshot} sessionFilter={session} sessions={sessions} /> : <p className="tr-empty">Reading monitor status…</p>}
