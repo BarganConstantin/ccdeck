@@ -538,11 +538,9 @@ const CONTROLS: Control[] = [
   { at: ".tr-history-toolbar .btn.armed", fillFrom: ".tr-history-toolbar .btn",
     states: [".tr-history-toolbar .btn:hover:not(:disabled)"], beds: ["--panel", "--bg"] },
   // The Jira panel (#2178): a filter chip that is on, which is a button.btn
-  // with the primary button's accent edge; and Open in Jira, a link drawn as
-  // a button, on the issue's detail and on the empty board's note. Its search
-  // fields are the integrations' shared one.
+  // with the primary button's accent edge. Its search fields and its Open in
+  // Jira link are the integrations' shared ones.
   { at: 'button.btn.jr-chip[aria-pressed="true"]', fillFrom: 'button.btn.jr-chip[aria-pressed="true"]', beds: ["--panel"] },
-  { at: ".jr-open", states: [".jr-open:hover"], beds: ["--panel", "--bg"] },
   // The GitHub and GitLab panel (#2179): its search field over the list, on
   // --panel, which is also where a pasted link is opened from.
   { at: ".fg-search input", states: [".fg-search input:hover"], beds: ["--panel"] },
