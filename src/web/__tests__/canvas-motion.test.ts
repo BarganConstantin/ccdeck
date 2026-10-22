@@ -477,6 +477,9 @@ const PRESSES: Press[] = [
   [".fgl-repo-option:active", "0.97", "transform"],
   [".fd-jump:active", "0.97", "transform"],
   [".fg-copy:active", "0.94", "transform"],
+  // A history chart's peak figure, which keeps that minute's reading under the
+  // chart: a number and its word, a labelled control, so 0.97.
+  [".hist-peak:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */

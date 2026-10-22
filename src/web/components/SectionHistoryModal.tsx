@@ -52,6 +52,10 @@ export interface Series {
   /** Whether zero is this reading's normal value. Only throttling is. */
   restsAtZero: boolean;
   points: Point[];
+  /** The core count a queue is measured against. Only the load chart carries
+   *  it, and its reading uses it to say how many times over the cores a point
+   *  was. */
+  cores?: number;
   /** Moments something outside the reading changed — the network's route —
    *  drawn as marks on the chart, so a line that jumps where a mark sits
    *  explains itself. */
@@ -232,6 +236,21 @@ export function throttleNote(points: Point[], stepMs: number, at = (t: number) =
   return `held back for ${minutes === 1 ? "1 minute" : `${minutes} minutes`}, last at ${at(last.t)}`;
 }
 
+/**
+ * How hard the machine was working at one point of the load chart, as a
+ * multiple of its cores.
+ *
+ * The panel's own note says it only for the load right now, and only once the
+ * queue is longer than the cores — a spike at 03:00 had no number of its own
+ * unless somebody was looking at 03:00. Read after the fact, every point gets
+ * one, under the cores too: 0.4× is as much an answer to "how busy was it" as
+ * 40× is.
+ */
+export function coreMultiple(load: number, cores: number | undefined): string | null {
+  if (cores == null || !Number.isFinite(cores) || cores <= 0 || !Number.isFinite(load) || load < 0) return null;
+  return `${(load / cores).toFixed(1)}× the core count`;
+}
+
 /** 24-hour, always, like every other clock in this panel. A locale that prints
  *  01:28 PM beside a 13:28 elsewhere is two clocks in one card. */
 export function clock(ms: number): string {
@@ -371,6 +390,10 @@ function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; dom
   const boxRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(560);
   const [hover, setHover] = useState<number | null>(null);
+  // The minute a click kept on screen, held by its time rather than its index:
+  // the history is fetched again every twenty seconds and the ring drops its
+  // oldest minute, and an index would slide onto the point beside it.
+  const [pinned, setPinned] = useState<number | null>(null);
 
   // Measured rather than assumed, because the modal is `min(820px, 92vw)` and
   // an SVG drawn at a width it does not have puts every point in the wrong
@@ -384,21 +407,30 @@ function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; dom
     return () => ro.disconnect();
   }, []);
 
-  const { points, unit, warnAt, critAt, label, top, restsAtZero, changes } = series;
+  const { points, unit, warnAt, critAt, label, top, restsAtZero, changes, cores } = series;
   const h = restsAtZero ? H_FLAT : H;
   const { now, peak } = summary(points);
   const nowF = now != null ? figureOf(now, unit) : null;
   const peakF = peak != null ? figureOf(peak, unit) : null;
   const note = label === "Throttling" ? throttleNote(points, stepMs) : null;
 
-  const at = hover != null ? points[hover] : null;
+  // The most recent minute at the peak, which the peak figure jumps to. None on
+  // a chart of one point, which has no line to read along.
+  let peakAt: Point | null = null;
+  if (peak != null && points.length > 1) {
+    for (let i = points.length - 1; i >= 0 && !peakAt; i--) if (points[i].v === peak) peakAt = points[i];
+  }
+  const kept = pinned != null ? points.find(p => p.t === pinned) ?? null : null;
+  const at = hover != null ? points[hover] : kept;
+  const atMultiple = at ? coreMultiple(at.v, cores) : null;
   // The dialog's span, shared by every chart in it; the series' own only when
   // it has no points to say anything about.
   const [t0, t1]: Domain = domain ?? (points.length ? [points[0].t, points[points.length - 1].t] : [0, 0]);
   const xOf = (t: number) => xFor(t, [t0, t1], w);
 
-  const read = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (points.length < 2) return;
+  /** The point nearest the pointer, along the dialog's span. */
+  const nearest = (e: React.MouseEvent<SVGSVGElement>): number | null => {
+    if (points.length < 2) return null;
     const rect = e.currentTarget.getBoundingClientRect();
     const frac = (e.clientX - rect.left - PAD.l) / Math.max(1, rect.width - PAD.l - PAD.r);
     const t = t0 + (t1 - t0) * Math.max(0, Math.min(1, frac));
@@ -406,8 +438,26 @@ function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; dom
     for (let i = 1; i < points.length; i++) {
       if (Math.abs(points[i].t - t) < Math.abs(points[best].t - t)) best = i;
     }
-    setHover(best);
+    return best;
   };
+  const read = (e: React.PointerEvent<SVGSVGElement>) => {
+    const i = nearest(e);
+    if (i != null) setHover(i);
+  };
+  // A click keeps the reading where it was made, so a spike can be read without
+  // holding the pointer over it — and on a touch screen, where lifting the
+  // finger is the pointer leaving, it is the only way to read one at all. The
+  // same minute again lets it go.
+  const pin = (e: React.MouseEvent<SVGSVGElement>) => {
+    const i = nearest(e);
+    if (i == null) return;
+    const t = points[i].t;
+    setPinned(prev => (prev === t ? null : t));
+  };
+  const peakFig = peak != null && peakF && (
+    <><b className={band(peak, warnAt, critAt)}>{peakF.value}</b><span>{peakF.unit} peak</span></>
+  );
+  const peakMultiple = peak != null ? coreMultiple(peak, cores) : null;
 
   return (
     <section className="hist-series" aria-label={`${label} history`}>
@@ -415,9 +465,13 @@ function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; dom
         <span className="hist-label">{label}</span>
         <span className="hist-stats">
           {nowF && <><b>{nowF.value}</b><span>{nowF.unit} now</span></>}
-          {peak != null && peakF && (
-            <><b className={band(peak, warnAt, critAt)}>{peakF.value}</b><span>{peakF.unit} peak</span></>
-          )}
+          {/* The peak is the minute people open this to find, so it is also
+              the way to it: pressing it keeps that minute's reading under
+              the chart, with its time. */}
+          {peakFig && (peakAt
+            ? <button type="button" className="hist-peak" onClick={() => setPinned(peakAt!.t)}
+                title="Show when it peaked">{peakFig}</button>
+            : peakFig)}
         </span>
       </div>
 
@@ -437,11 +491,13 @@ function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; dom
           aria-label={
             nowF == null || peakF == null
               ? `${label}: nothing measured yet`
-              : `${label}: ${figureText(nowF)} now, peak ${figureText(peakF)}, over ${
+              : `${label}: ${figureText(nowF)} now, peak ${figureText(peakF)}${
+                  peakAt ? ` at ${clock(peakAt.t)}` : ""}${peakMultiple ? ` (${peakMultiple})` : ""}, over ${
                   spanLabel(points[0].t, points[points.length - 1].t)}`
           }
           onPointerMove={read}
           onPointerLeave={() => setHover(null)}
+          onClick={pin}
         >
           {/* The bands the hardware itself publishes, drawn where they are, so
               severity is read from position instead of from a hover. */}
@@ -488,7 +544,7 @@ function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; dom
           <span className="hist-at">{clock(at.t)} — {(() => {
             const f = figureOf(at.v, unit);
             return <><b>{f.value}</b>{f.unit === "%" || f.unit === "°C" || !f.unit ? f.unit : ` ${f.unit}`}</>;
-          })()}</span>
+          })()}{atMultiple && ` · ${atMultiple}`}</span>
         ) : (
           // The span the chart is drawn across, the same under every chart
           // in the dialog.
@@ -496,6 +552,10 @@ function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; dom
             <span>{points.length ? clock(t0) : ""}</span>
             <span>{points.length ? clock(t1) : ""}</span>
           </>
+        )}
+        {kept && (
+          <button type="button" className="glyph-btn hist-unpin" onClick={() => setPinned(null)}
+            aria-label="Stop showing this reading" title="Stop showing this reading">×</button>
         )}
       </div>
 
