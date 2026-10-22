@@ -28,7 +28,7 @@ import { StringDecoder } from "node:string_decoder";
 import { renameWithRetry } from "./atomic-write.mjs";
 import { ccProjectSlug, claudeConfigDir } from "./claude-dir.mjs";
 import { accountKey } from "./lan-sync.mjs";
-import { readSwapLog, accountAtTime, trackedSince, seedActive, markGap } from "./swap-log.mjs";
+import { readSwapLog, accountAtTime, trackedSince, seedActive, markGap, swapProjectsRoot } from "./swap-log.mjs";
 // The rules the live transcript scan counts a line's usage by, so this rollup
 // and a session's card cannot disagree about which lines billed anything, nor
 // about the speed they were billed at — see transcript-scan.mjs.
@@ -43,7 +43,7 @@ import {
  *  a per-account total is never quietly inflated by work that is not that
  *  account's. A NUL keeps it from ever colliding with a real `email@@org` key. */
 export const UNATTRIBUTED = "\u0000unattributed";
-const STATE_VERSION = 7;
+const STATE_VERSION = 8;
 
 /** Where the tally and cursors live, beside cswap-auto's own state. */
 export function statePath(home = homedir()) {
@@ -372,11 +372,11 @@ async function listTranscripts(roots) {
       if (seen.has(path)) continue;
       seen.add(path);
       const parts = relative(root, dir).split(/[\\/]/).filter(Boolean);
-      found.push({ path, slug: parts[0] ?? "", depth: parts.length });
+      found.push({ root, path, slug: parts[0] ?? "", depth: parts.length });
     }
   }
   found.sort((a, b) => a.depth - b.depth);
-  return new Map(found.map(f => [f.path, f.slug]));
+  return new Map(found.map(f => [f.path, f]));
 }
 
 /** Drop day buckets older than the retention window and prune the empty
@@ -494,6 +494,8 @@ export function createProjectRollup({
   clearInterval: clearIv = clearInterval,
 } = {}) {
   let state = { version: STATE_VERSION, cursors: {}, tally: {}, folders: {}, requests: {} };
+  let canonicalRoots = [];
+  let gapRoots = [];
   let timer = null;
   let running = false;
   let dirty = false;
@@ -502,20 +504,29 @@ export function createProjectRollup({
   async function load() {
     if (loaded) return;
     loaded = true;
+    canonicalRoots = [...new Set(await Promise.all(roots.map(r => swapProjectsRoot(r))))];
+    gapRoots = canonicalRoots;
     try {
       const disk = JSON.parse(await readFile(stateFile, "utf8"));
+      gapRoots = [...new Set([...canonicalRoots, ...(Array.isArray(disk?.sourceRoots) ? disk.sourceRoots.filter(r => typeof r === "string") : [])])];
       if (disk && disk.version === STATE_VERSION && disk.tally && disk.cursors) {
         state = disk;
         state.folders ??= {};
         state.requests ??= {};
-      } else if (disk && [1, 2, 3, 4, 5, 6].includes(disk.version)) {
+        if (JSON.stringify(disk.sourceRoots) !== JSON.stringify(canonicalRoots)) {
+          state = { version: STATE_VERSION, cursors: {}, tally: {}, folders: {}, requests: {},
+            lastAlive: disk.lastAlive };
+          dirty = true;
+        }
+      } else if (disk && [1, 2, 3, 4, 5, 6, 7].includes(disk.version)) {
         // Version 1 counted every API content block; version 2 keyed each row
         // by the line's own cwd, a row per folder the agent cd'd into (#1278);
         // version 3 kept no speed, so every fast turn read at the standard
         // rate; version 4 billed a subagent's request from its streaming
         // snapshot, most of its output and its speed missing (#1883); version
         // 5 billed a resumed subagent's request again each time its file
-        // restated its history; version 6 kept no per-request context tiers.
+        // restated its history; version 6 kept no per-request context tiers;
+        // version 7 charged independent transcript roots to the same account.
         // None of them can be re-keyed, since it no
         // longer knows which transcript a count came from. Keep the heartbeat
         // so a restart gap remains fenced, but rebuild the tally from
@@ -524,6 +535,27 @@ export function createProjectRollup({
         dirty = true;
       }
     } catch { /* first run: empty state */ }
+    state.sourceRoots = canonicalRoots;
+  }
+
+  /** The swap-log entries that speak for any of `scope`, a list of canonical
+   *  roots. An entry written before swaps recorded their projects root has
+   *  none, and cannot prove which config directory it controlled — unless
+   *  only one is known: a single configured root (two configured paths are two
+   *  candidates, even when they resolve to one directory today), and no other
+   *  root anywhere in the log. Then it can only have spoken for that root, and
+   *  its history stays the account's, as it was before the upgrade. Otherwise
+   *  it is left out, and the usage it covered stays unattributed. The log is
+   *  the record asked because it only grows, so the answer cannot change back
+   *  from one boot to the next. */
+  function timelineFor(timeline, scope) {
+    let legacyRoot = null;
+    if (new Set(roots.map(r => resolve(r))).size === 1) {
+      const known = new Set(canonicalRoots);
+      for (const e of timeline) if (e.projectsRoot !== undefined) known.add(e.projectsRoot);
+      if (known.size === 1) legacyRoot = canonicalRoots[0];
+    }
+    return timeline.filter(e => scope.includes(e.projectsRoot === undefined ? legacyRoot : e.projectsRoot));
   }
 
   async function persist() {
@@ -541,7 +573,7 @@ export function createProjectRollup({
     } catch { /* a failed persist just re-folds next time; cursors stay in memory */ }
   }
 
-  async function foldFile(path, slug, timeline) {
+  async function foldFile(path, slug, timeline, root) {
     let st = null;
     try { st = await stat(path); } catch { return; }
     let offset = state.cursors[path] ?? 0;
@@ -552,7 +584,8 @@ export function createProjectRollup({
     // is the rare, safe side to err on.
     if (st.size < offset) { state.cursors[path] = st.size; delete state.requests[path]; dirty = true; return; }
     if (st.size <= offset) return;
-    const from = { slug, folders: state.folders, requests: state.requests, path };
+    const folders = state.folders[root] ??= {};
+    const from = { slug, folders, requests: state.requests, path };
     let fh = null;
     try {
       fh = await open(path, "r");
@@ -574,19 +607,26 @@ export function createProjectRollup({
       // switched accounts by hand while nothing was recording. Written before
       // the seed so the order is stop → start.
       if (state.lastAlive && nowMs - state.lastAlive > GAP_MS) {
-        await markGap(state.lastAlive + 1, swapLog);
+        for (const root of gapRoots) await markGap(state.lastAlive + 1, swapLog, root);
       }
-      await seedActive({ now, path: swapLog, root: storeRoot });   // anchor the current account, once, deduped
+      await seedActive({ now, path: swapLog, root: storeRoot, projectsRoot: canonicalRoots[0] });   // anchor the current account, once, deduped
       const timeline = await readSwapLog(swapLog);
-      const files = await listTranscripts(roots);
-      for (const [path, slug] of files) await foldFile(path, slug, timeline);
+      const files = await listTranscripts(canonicalRoots);
+      // Each root is attributed only by the entries that speak for it; an
+      // unscoped legacy entry speaks for none unless its root is unambiguous
+      // (timelineFor).
+      const timelines = new Map(canonicalRoots.map(root => [root, timelineFor(timeline, [root])]));
+      for (const [path, { slug, root }] of files) await foldFile(path, slug, timelines.get(root), root);
       // Forget the cursors and request ledgers of files that are gone, and
       // the folders of project directories with no transcript left, so none of
       // the three maps grows forever.
       for (const p of Object.keys(state.cursors)) if (!files.has(p)) { delete state.cursors[p]; dirty = true; }
       for (const p of Object.keys(state.requests)) if (!files.has(p)) { delete state.requests[p]; dirty = true; }
-      const slugs = new Set(files.values());
-      for (const s of Object.keys(state.folders)) if (!slugs.has(s)) { delete state.folders[s]; dirty = true; }
+      for (const root of Object.keys(state.folders)) {
+        const slugs = new Set([...files.values()].filter(f => f.root === root).map(f => f.slug));
+        for (const s of Object.keys(state.folders[root])) if (!slugs.has(s)) { delete state.folders[root][s]; dirty = true; }
+        if (!slugs.size) delete state.folders[root];
+      }
       // Heartbeat: record that the deck was alive now, so a later boot can see
       // how long it was down. Cheap when nothing else changed — only bumped
       // (and so only persisted) once every HEARTBEAT_MS while idle.
@@ -607,7 +647,7 @@ export function createProjectRollup({
     async report(key, days) {
       await load();
       const timeline = await readSwapLog(swapLog);
-      return reportFrom(state.tally, timeline, key, days, now());
+      return reportFrom(state.tally, timelineFor(timeline, canonicalRoots), key, days, now());
     },
     _state: () => state,
   };

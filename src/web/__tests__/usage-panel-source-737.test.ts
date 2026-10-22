@@ -412,9 +412,12 @@ describe("markup, read as source", () => {
     // carries its own `priced` flag. Same words, two different questions.
     // The decision is usage-panel-rules.ts's anyUnpriced, which
     // usage-panel-rules.test.ts drives from both sources; the panel asks it.
-    expect(rules).toContain("? rangeModelRows.some(m => m.cost <= 0 && m.tokens > 0)");
+    expect(rules).toContain("? rangeModelRows.some(");
     expect(rules).toContain(": boardModelRows.some(m => !m.priced);");
-    expect(panel).toContain("const hasUnpriced = anyUnpriced(fromRange, rangeModelRows, boardModelRows);");
+    // Under ccusage the live delta since the reading is part of the figures,
+    // priced by this build, so its unpriced tokens are asked about too.
+    expect(rules).toContain("|| deltaUnpricedTokens > 0");
+    expect(panel).toContain("const hasUnpriced = anyUnpriced(fromRange, rangeModelRows, boardModelRows, delta.unpricedTokens);");
   });
 
   it("offers the three spans from the shaping layer, never a fourth spelled here", () => {
