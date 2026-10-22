@@ -108,7 +108,9 @@
 .ig-split { position: relative; flex: 1; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .ig-split[data-detail]:not([data-drill-in]) { grid-template-columns: minmax(0, 1fr) 8px min(var(--ig-detail-w), calc(100% - 428px)); }
 .ig-split[data-resizing] { cursor: col-resize; user-select: none; }
-.ig-list, .ig-detail { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+/* Each pane is the containing block of what it scrolls, so a screen reader's
+   absolutely placed words stay inside it instead of stretching the modal. */
+.ig-list, .ig-detail { position: relative; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 .ig-list[hidden] { display: none; }
 .ig-detail { overflow-y: auto; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; background: var(--panel); }
 .ig-splitter { position: relative; cursor: col-resize; touch-action: none; }
@@ -331,6 +333,9 @@
   user-select: none;
 }
 .ig-avatar-initials[data-large] { font-size: calc(13px + var(--ui-text-increase, 0px)); }
+/* On a chosen row the face's own fill would sit on the selection and take the
+   initials under 4.5:1 (Gruvbox Material, Omarchy); the row's fill is theirs. */
+.ig-row[data-selected] .ig-avatar-initials { background: transparent; }
 /* Nobody: the empty ring is all there is, so it takes the control edge, 3:1
    or better on every ground a row has. */
 .ig-avatar-none { display: inline-block; background: none; box-shadow: inset 0 0 0 1px var(--ctl-edge); }
