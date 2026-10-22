@@ -18,6 +18,7 @@ import { modelChipText, modelChipTitle, modelFamily } from "../model-label";
 import { noteSource, noteTag, sessionNoteShown, type SessionNote } from "../session-note";
 import { blockedToolTooltip, stateLabel, waitingSentence } from "../agent-copy";
 import { RecapMark } from "./RecapMark";
+import { drawnState } from "../node-face";
 import { isAgentVisible } from "../visibility";
 import { withKey } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
@@ -97,7 +98,9 @@ export function buildRows(state: GraphState, now: number): Row[] {
       sessionId: a.sessionId,
       label: a.label || a.cwdBasename || "session",
       cwdBasename: a.cwdBasename,
-      state: a.state,
+      // A turn that stopped on an error is drawn as a failure here as on its
+      // card (#2185); it sorts with the ended ones either way.
+      state: drawnState(a),
       waiting: a.waiting,
       recap,
       status,

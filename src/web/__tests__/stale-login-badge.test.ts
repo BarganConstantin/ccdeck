@@ -225,8 +225,23 @@ describe("what the panel is allowed to offer", () => {
     expect((popover.match(/onSignIn\(\)/g) ?? []).length, "the popover signs in from somewhere other than its fix").toBe(1);
     expect(panel).toMatch(/<AccountIssuePopover[^>]*onSignIn=\{\(\) => setAddOpen\(true\)\}/);
     expect(panel).toMatch(/\{activeIssue\.fix && \(\s*<button type="button" className="ap-notice-fix" onClick=\{\(\) => setAddOpen\(true\)\}/);
+    //
+    // The fourth opener is a refused switch's remedy (#2184): the deck would
+    // not put an expired login live and says so on the row pressed. That is a
+    // claim about an account too, and it cannot be about the one the user is
+    // signed in as: the server refuses only a switch to another account, the
+    // refusal is drawn only for that answer, and the row offers the dialog
+    // only under that refusal.
+    expect(src("../../server/claude-accounts.mjs")).toMatch(/export async function expiredSwitchTarget[\s\S]*?if \(!t \|\| t\.active\) return null;/);
+    expect(src("../expired-switch.ts")).toMatch(/if \(body\?\.reason !== LOGIN_EXPIRED\) return null;\s*return \{[^\n]*, signIn: true \};/);
+    expect((accountsSurface().match(/signIn: true/g) ?? []).length, "a refusal offers the dialog from somewhere other than the expired login's").toBe(1);
+    const row = src("../components/AccountRow.tsx");
+    expect(row).toMatch(/\{refusal\.signIn && onSignIn && \(\s*<button type="button" className="ap-fix ap-failure-fix" onClick=\{\(\) => onSignIn\(a\.email\)\}/);
+    expect((row.match(/onSignIn\(/g) ?? []).length, "the row signs in from somewhere other than a refusal").toBe(1);
+    expect(panel).toMatch(/const signInAgain = \(email: string \| null\) => \{ setSignInAs\(email\); setAddOpen\(true\); \};/);
+    expect(panel).toMatch(/<AccountRow[\s\S]*?onSignIn=\{signInAgain\}/);
     const openers = (accountsSurface().match(/setAddOpen\(true\)/g) ?? []).length;
-    expect(openers, "something opens the sign-in dialog outside the gated fix and the header's +").toBe(3);
+    expect(openers, "something opens the sign-in dialog outside the gated fixes and the header's +").toBe(4);
   });
 
   it("offers nothing for a silence it will not explain, and the fix when it will", () => {

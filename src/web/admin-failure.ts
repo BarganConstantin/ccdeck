@@ -120,6 +120,10 @@ export const COMMAND_REASONS: Record<string, string> = {
   no_cswap: "claude-swap could not be run — it is not on this deck's PATH. Set AGENTS_DECK_CSWAP to its full path",
   timeout: "claude-swap took too long and was stopped — try again",
   switch_failed: "claude-swap refused the switch",
+  // #2184: the deck's own refusal, before claude-swap was asked. The accounts
+  // panel says it with the account's name (expiredSwitch); this is the sentence
+  // for a surface that only has the reason.
+  login_expired: "that account's login expired, so the deck did not switch to it — sign in again to use it",
   bad_account: "that is not an account claude-swap has",
   unknown_setting: "claude-swap has no such setting",
   out_of_range: "that value is outside what the setting allows",
