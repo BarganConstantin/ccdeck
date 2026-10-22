@@ -18,7 +18,9 @@ Commands:
                            Aliases: ls, account
   switch [n|email|alias]   Move the live Claude login to that account. With no
                            account named, pick one from a list (on a terminal).
-                           --best picks the account with the most room.
+                           --best picks what Auto-switch would: the home
+                           account or soonest weekly reset when one is set,
+                           else the most room.
                            Aliases: swap, use
   usage                    The active account's limits, every lane
   sessions                 What every session is doing, the ones waiting on

@@ -235,7 +235,7 @@ async function accountsCommand(flags, out) {
   out.say("");
   for (const line of accountLines(roster.accounts, screen())) out.say(line);
   out.say("");
-  out.say(`  ${P.muted}\`${COMMAND} switch <n|email|alias>\` ${G.bullet} \`${COMMAND} switch --best\` picks the most room${P.reset}`);
+  out.say(`  ${P.muted}\`${COMMAND} switch <n|email|alias>\` ${G.bullet} \`--best\` picks as Auto-switch would${P.reset}`);
   if (source === "local") out.say(`  ${P.muted}${localNote(silent)}${P.reset}`);
   out.say("");
   return out.done({ source, activeNum: roster.activeNum ?? null, accounts: roster.accounts.map(accountJson) });
@@ -277,14 +277,16 @@ async function switchCommand(flags, out) {
   const interactive = !out.json && Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY);
 
   let target = null;
+  let rule = null;
   if (flags.best) {
-    const best = bestAccount(accounts);
+    const best = bestAccount(accounts, await autoRules(deck, accounts));
     if (best.none) return out.fail(EXIT.FAILED, "nothing_switchable", `no account can take the login ${G.dash} every one is disabled or needs a fresh sign-in`);
     if (best.already) {
-      out.say(`\n  ${P.ok}${G.ok}${P.reset}  already on the account with the most room ${G.dash} ${accountName(best.already)}\n`);
-      return out.done({ switched: false, source, account: accountJson(best.already) });
+      out.say(`\n  ${P.ok}${G.ok}${P.reset}  already on ${BEST_STAYS[best.rule] ?? BEST_STAYS["most-room"]} ${G.dash} ${accountName(best.already)}\n`);
+      return out.done({ switched: false, source, rule: best.rule, account: accountJson(best.already) });
     }
     target = best.account;
+    rule = best.rule;
   } else if (operands.length) {
     const hit = resolveAccount(accounts, operands[0]);
     if (hit.account) target = hit.account;
@@ -308,7 +310,7 @@ async function switchCommand(flags, out) {
     if (!target) return cancelled(out);
   } else {
     return out.fail(EXIT.USAGE, "no_account_named",
-      `name the account: \`${COMMAND} switch <n|email|alias>\`, or \`--best\` for the one with the most room`);
+      `name the account: \`${COMMAND} switch <n|email|alias>\`, or \`--best\` for the one Auto-switch would pick`);
   }
 
   if (target.active) {
@@ -336,6 +338,15 @@ async function switchCommand(flags, out) {
       `\`${COMMAND} accounts\` shows which account is live`,
     ]);
   }
+  // The deck's own refusal of a login it found dead when it looked, under its
+  // store lock (#2184) — newer than the roster this command read, so said in
+  // the words of the refusal above rather than as a failed command.
+  if (!result.ok && result.reason === "login_expired") {
+    return out.fail(EXIT.FAILED, "login_expired", [
+      `${accountName(target)}'s login expired ${G.dash} switching to it would sign every running session out`,
+      `sign it in again from the deck's Accounts panel, then switch`,
+    ], { account: accountJson(target) });
+  }
   if (!result.ok) {
     const why = result.reason === "no_cswap" ? `claude-swap is not installed`
       : result.reason === "timeout" ? `claude-swap took too long to answer`
@@ -352,6 +363,7 @@ async function switchCommand(flags, out) {
   out.say("");
   out.say(`  ${P.ok}${G.ok}${P.reset}  switched to ${P.bold}${accountName(target)}${P.reset}${usage ? `  ${P.muted}${G.bullet}  ${usage}${P.reset}` : ""}`);
   if (before) out.say(`     ${P.muted}from ${accountName(before)}${P.reset}`);
+  if (rule && rule !== "most-room") out.say(`     ${P.muted}${BEST_PICKS[rule] ?? ""}${P.reset}`);
   if (live != null && live > 0) {
     out.say(`     ${P.muted}${live} running Claude session${live === 1 ? "" : "s"} ${live === 1 ? "uses" : "use"} it from the next message${P.reset}`);
   }
@@ -359,6 +371,7 @@ async function switchCommand(flags, out) {
   out.say("");
   return out.done({
     switched: true, source,
+    ...(rule ? { rule } : {}),
     account: accountJson({ ...target, active: true }),
     previous: before ? accountJson({ ...before, active: false }) : null,
     liveSessions: live,
@@ -368,6 +381,34 @@ async function switchCommand(flags, out) {
 function cancelled(out) {
   out.say(`  ${P.muted}${G.dash}  nothing switched${P.reset}\n`);
   return out.done({ switched: false, cancelled: true }, EXIT.OK);
+}
+
+/** Where `--best` stayed, by the rule that kept it (account-pick.mjs). */
+const BEST_STAYS = Object.freeze({
+  "most-room": "the account with the most room",
+  home: "your home account, which Auto-switch keeps while it has room",
+  rules: "the account Auto-switch's rules keep",
+});
+
+/** Why `--best` went where it went, when it was not by room alone. */
+const BEST_PICKS = Object.freeze({
+  home: "your home account, as Auto-switch would choose",
+  "weekly-reset": "the soonest weekly reset, as Auto-switch would choose",
+});
+
+/**
+ * Auto-switch's home and weekly rules (#2200), for `--best` to pick what Auto-
+ * switch would — or null for "neither is set", where `--best` is the most
+ * room, the engine's own choice. From the deck when one answered: the guarded
+ * read its panel makes, with its token. With no deck, read here. A deck that
+ * predates the rules (404) or cannot say has none to follow.
+ */
+async function autoRules(deck, accounts) {
+  const { bestRules } = await load("src/server/cswap-auto-choice.mjs");
+  if (!deck) return bestRules(accounts).catch(() => null);
+  const r = await ask(deck, { path: "/api/cswap-auto" });
+  if (!r.ok || !r.body?.choice || typeof r.body.choice !== "object") return null;
+  return bestRules(accounts, { choice: r.body.choice, settings: r.body.settings ?? {} }).catch(() => null);
 }
 
 /** "5h 12% · 7d 40%", from a row's lanes, or "". */

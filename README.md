@@ -392,7 +392,8 @@ The Accounts panel and the session list answer from any terminal on the machine 
 ccdeck accounts               every Claude account, its 5h / 7d usage and resets
 ccdeck switch work            move the live login: a slot number, an email, an alias,
                               or any part of one that names a single account
-ccdeck switch --best          the account with the most room left
+ccdeck switch --best          where Auto-switch would go: your home account or the soonest
+                              weekly reset when you set one, else the most room left
 ccdeck switch                 pick from a list (arrows, Enter; Esc cancels)
 ccdeck usage                  the active account's limits, every lane
 ccdeck sessions               what each session is doing, the ones waiting on you first
@@ -490,7 +491,7 @@ ccdeck <command> [options]      accounts, switch, usage, sessions, open — see 
                            the files that still hold this deck's private key
       --purge              With --uninstall: delete those files too
       --json               With a command: one object on stdout, for scripts
-      --best               With `switch`: the account with the most room left
+      --best               With `switch`: the account Auto-switch would pick
   -h, --help               Show this help
   -v, --version            Print the version and exit
 ```

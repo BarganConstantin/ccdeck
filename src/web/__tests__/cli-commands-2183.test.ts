@@ -411,7 +411,14 @@ describe("with a deck running", () => {
   let deckPid: ChildProcess | null = null;
   let server: Server | null = null;
   const seen: { method: string; path: string; headers: IncomingHttpHeaders; body: string }[] = [];
-  const roster = () => ({ ok: true, activeNum: 1, fetchedAt: NOW, accounts: ROWS });
+  // The rules below judge a reading by its age against the clock, so their
+  // roster is read "a minute ago" whenever the test runs.
+  let rosterRows: Row[] | null = null;
+  const roster = () => ({ ok: true, activeNum: 1, fetchedAt: NOW, accounts: rosterRows ?? ROWS });
+  // GET /api/cswap-auto as the deck answers it, or null for a deck that has no
+  // such route (404) — and what POST /api/claude-accounts/switch answers.
+  let autoAnswer: Row | null = null;
+  let switchAnswer: Row = { ok: true, output: "switched" };
   const deckSessions = [
     ...SESSIONS,
     { ...SESSIONS[1], id: "s-old", state: "ended", since: NOW - 9e6, lastEventAt: NOW - 9e6 },
@@ -434,7 +441,12 @@ describe("with a deck running", () => {
         seen.push({ method: req.method ?? "", path: url.pathname, headers: req.headers, body });
         if (req.headers["x-ccdeck-token"] !== "tok") { res.statusCode = 401; res.end("{}"); return; }
         if (url.pathname === "/api/claude-accounts") { res.end(JSON.stringify(roster())); return; }
-        if (url.pathname === "/api/claude-accounts/switch") { res.end(JSON.stringify({ ok: true, output: "switched" })); return; }
+        if (url.pathname === "/api/claude-accounts/switch") {
+          res.statusCode = switchAnswer.ok ? 200 : 400;
+          res.end(JSON.stringify(switchAnswer));
+          return;
+        }
+        if (url.pathname === "/api/cswap-auto" && autoAnswer) { res.end(JSON.stringify(autoAnswer)); return; }
         if (url.pathname === "/api/sessions") { res.end(JSON.stringify({ ok: true, now: NOW, sessions: deckSessions })); return; }
         res.statusCode = 404;
         res.end("{}");
@@ -455,7 +467,12 @@ describe("with a deck running", () => {
     rmSync(REGISTRY, { recursive: true, force: true });
   });
 
-  afterEach(() => { seen.length = 0; });
+  afterEach(() => {
+    seen.length = 0;
+    rosterRows = null;
+    autoAnswer = null;
+    switchAnswer = { ok: true, output: "switched" };
+  });
 
   it("finds it through the registry, the way --stop does", async () => {
     const found = await findDeck({ live: async () => [{ port: 1, version: "3.40.0" }, { port: 2, version: "3.42.0" }, { port: 3, version: "3.42.0" }] });
@@ -504,6 +521,37 @@ describe("with a deck running", () => {
     const { code, out } = await run(["switch", "--best", "--json"]);
     expect(code).toBe(0);
     expect(JSON.parse(out).account.num).toBe(2);
+  }, 45_000);
+
+  it("picks what Auto-switch would for --best, by the rules the deck's own panel reads", async () => {
+    // #1 is the home account and under the threshold: Auto-switch keeps it, so
+    // --best does, though #2 has more room.
+    rosterRows = ROWS.map(a => ({ ...a, fetchedAt: Date.now() - 60_000 }));
+    autoAnswer = { ok: true, enabled: false, choice: { next: "room", home: { email: "alice@corp.example", orgUuid: "org-1" } }, settings: {} };
+    const { code, out, err } = await run(["switch", "--best", "--json"]);
+    expect(code, err).toBe(0);
+    expect(JSON.parse(out)).toMatchObject({ ok: true, switched: false, rule: "home", account: { num: 1 } });
+    const read = seen.find(r => r.path === "/api/cswap-auto")!;
+    expect(read.method).toBe("GET");
+    expect(read.headers["x-ccdeck-token"]).toBe("tok");
+    expect(read.headers.origin).toBeUndefined();
+    expect(seen.some(r => r.path === "/api/claude-accounts/switch")).toBe(false);
+    // The home set to #2 instead: there it goes, through the deck's switch route.
+    autoAnswer = { ok: true, enabled: false, choice: { next: "room", home: { email: "bob@home.example", orgUuid: "org-2" } }, settings: {} };
+    const moved = JSON.parse((await run(["switch", "--best", "--json"])).out);
+    expect(moved).toMatchObject({ ok: true, switched: true, rule: "home", account: { num: 2 } });
+    expect(JSON.parse(seen.find(r => r.path === "/api/claude-accounts/switch")!.body)).toEqual({ account: 2 });
+  }, 45_000);
+
+  it("says the deck's own refusal of an expired login in the words of a refusal, not a failed command", async () => {
+    switchAnswer = { ok: false, reason: "login_expired", account: { num: 2, email: "bob@home.example", alias: "personal" }, error: "invalid_grant", since: NOW };
+    const json = await run(["switch", "2", "--json"]);
+    expect(json.code).toBe(1);
+    expect(JSON.parse(json.out)).toMatchObject({ ok: false, error: { code: "login_expired" }, account: { num: 2 } });
+    const person = await run(["switch", "2"]);
+    expect(person.code).toBe(1);
+    expect(person.err).toContain("#2 bob@home.example (personal)'s login expired");
+    expect(person.err).toContain("sign it in again");
   }, 45_000);
 
   it("leaves the login alone for the account already active", async () => {
@@ -622,6 +670,23 @@ describe("with no deck running", () => {
     expect(readFileSync(STUB_LOG, "utf8").replace(/"/g, "")).toMatch(/^switch 2\s*$/m);
     const log = readFileSync(join(SANDBOX, ".agents-deck", "log", "account-active.jsonl"), "utf8");
     expect(log).toContain("\"slot\":2");
+  }, 45_000);
+
+  it("follows Auto-switch's home rule for --best from the deck's own data, and switches nothing to stay there", async () => {
+    // The stub switches nothing, so the store still names #1 active — the home here.
+    const choice = join(SANDBOX, "deck-data", "auto-choice.json");
+    mkdirSync(join(SANDBOX, "deck-data"), { recursive: true });
+    writeFileSync(choice, JSON.stringify({ next: "room", home: { email: "alice@corp.example", orgUuid: "org-1" } }));
+    const calls = existsSync(STUB_LOG) ? readFileSync(STUB_LOG, "utf8") : "";
+    try {
+      const { code, out, err } = await run(["switch", "--best", "--json"]);
+      expect(code, err).toBe(0);
+      expect(JSON.parse(out)).toMatchObject({ ok: true, switched: false, source: "local", rule: "home", account: { num: 1 } });
+      const after = existsSync(STUB_LOG) ? readFileSync(STUB_LOG, "utf8") : "";
+      expect(after.slice(calls.length)).not.toMatch(/switch/);
+    } finally {
+      rmSync(choice, { force: true });
+    }
   }, 45_000);
 
   it("says a running deck is needed for sessions and open, with its own exit code", async () => {

@@ -6,6 +6,10 @@
 // drifts. The rows are the roster's own (claude-accounts.mjs rosterRow), read
 // either from a running deck or from claude-swap's store in this process.
 import { oneLine } from "./cli-lines.mjs";
+// Auto-switch's own chooser (#2200) and the key it names accounts by. Both are
+// pure and import nothing that starts anything.
+import { chooseAccount, readingCurrent, usedOf } from "./account-choice.mjs";
+import { accountKey } from "./lan-copies.mjs";
 
 /**
  * The account `query` names, as `{ account }`, or why there is none: `{ none }`
@@ -39,32 +43,78 @@ export function resolveAccount(accounts, query) {
 
 const lc = (s) => (typeof s === "string" ? s.toLowerCase() : "");
 
+/** The errors that mean the stored login itself was refused — the ones the
+ *  panel offers "Sign in again" for (account-issue.ts errorText `fixable`). */
+const SIGN_IN_ERRORS = new Set(["invalid_grant", "no_refresh_token", "http-401"]);
+
 /**
- * Could the live login be moved here at all?
+ * Whether the accounts panel withholds its Switch button from this row — the
+ * server-side copy of account-issue.ts's `blocksSwitch`, which
+ * cli-switch-rules-2183.test.ts holds to it row by row.
  *
- * Not a disabled slot — claude-swap's own "keep out of rotation", which a
- * person set on purpose — and not one whose stored login is known to be dead:
- * switching to it signs every running session out. A `stale-copy` row is fine,
- * since its login works and only claude-swap's copy is behind (see authTrouble).
+ * A login that is dead or was never stored: claude-swap refused its token, or
+ * stopped collecting it on a verdict that only a sign-in clears. Never a stale
+ * copy (#721): the login works, only claude-swap's copy is behind. And not a
+ * rate limit, a timeout or a network error — those clear by themselves, and the
+ * panel switches to such an account when asked.
  */
-export function switchable(a) {
-  return Boolean(a) && a.disabled !== true && !(a.error && a.staleCopy !== true);
+export function blocksSwitch(a) {
+  if (!a || a.staleCopy === true) return false;
+  if (a.stopped === true) return a.collector === "no_credentials" || a.collector === "relogin_required";
+  return typeof a.error === "string" && SIGN_IN_ERRORS.has(a.error);
 }
 
 /**
- * The account with the most room, as `{ account }`, `{ already: row }` when the
- * active one is it, or `{ none: true }` when nothing is switchable.
+ * Could the live login be moved here at all, when somebody names it?
  *
- * Room is the roster's own `headroom` — against the tightest lane, so an account
- * at 10% of five hours and 97% of the week is not chosen over one at 50% of
- * both. A reading nobody has taken counts as no room rather than as full: the
- * point of `--best` is to land somewhere known to have space. A tie with the
- * active account stays where it is — a switch that gains no room still moves
- * every running session — and other ties go to a fresh reading over a stale
- * one, then to the lower slot, so the answer is the same every time it is asked.
+ * Exactly when the panel would offer the switch: not a disabled slot —
+ * claude-swap's own "keep out of rotation", which a person set on purpose —
+ * and not one whose stored login is known to be dead (blocksSwitch): switching
+ * to it signs every running session out.
  */
-export function bestAccount(accounts) {
-  const rows = (Array.isArray(accounts) ? accounts : []).filter(switchable);
+export function switchable(a) {
+  return Boolean(a) && a.disabled !== true && !blocksSwitch(a);
+}
+
+/** Whether `--best` may land on this row by room alone: switchable, and with no
+ *  collector error at all. A reading that failed — a rate limit, a timeout — is
+ *  no evidence of room, which is what `--best` promises; Auto-switch's own
+ *  chooser skips any row with an error too (account-choice.mjs `landable`). A
+ *  stale copy is fine, since its login works (see authTrouble). */
+function roomCandidate(a) {
+  return switchable(a) && !(a.error && a.staleCopy !== true);
+}
+
+/**
+ * Where `--best` goes: `{ account, rule }`, `{ already: row, rule }` when the
+ * active account is it, or `{ none: true }` when nothing can take the login.
+ *
+ * WHAT AUTO-SWITCH WOULD PICK (#2200). `rules` is Auto-switch's own state as
+ * the deck holds it — `{ next, home, threshold, models, busy, quarantined,
+ * optional, now }`, see cswap-auto-choice.mjs bestRules — or null. With a home
+ * account or "soonest weekly reset" set, the answer is account-choice.mjs's
+ * chooseAccount's, asked the way a tick right after a person's request would
+ * be: nothing picked by hand to protect, the home asked for, no cooldown. Its
+ * `rule` is that pick's trigger, "home" or "weekly-reset". When it names no
+ * account and the account in use is under the threshold on a current reading,
+ * Auto-switch would keep it, and so does this (`rule: "rules"`, or "home" on
+ * the home account). Otherwise — no rule set, or the active account full or
+ * unread and no rule's account free — it is the engine's own choice, below.
+ *
+ * MOST ROOM, the engine's `best`. Room is the roster's own `headroom` — against
+ * the tightest lane, so an account at 10% of five hours and 97% of the week is
+ * not chosen over one at 50% of both. A reading nobody has taken counts as no
+ * room rather than as full: the point of `--best` is to land somewhere known to
+ * have space. A tie with the active account stays where it is — a switch that
+ * gains no room still moves every running session — and other ties go to a
+ * fresh reading over a stale one, then to the lower slot, so the answer is the
+ * same every time it is asked.
+ */
+export function bestAccount(accounts, rules = null) {
+  const all = Array.isArray(accounts) ? accounts : [];
+  const rows = all.filter(roomCandidate);
+  const ruled = rules ? byRules(all, rules) : null;
+  if (ruled) return ruled;
   if (!rows.length) return { none: true };
   const room = (a) => (typeof a.headroom === "number" ? a.headroom : -1);
   const best = [...rows].sort((x, y) =>
@@ -72,7 +122,33 @@ export function bestAccount(accounts) {
     || Number(y.active === true) - Number(x.active === true)
     || Number(x.stale === true) - Number(y.stale === true)
     || x.num - y.num)[0];
-  return best.active ? { already: best } : { account: best };
+  return best.active ? { already: best, rule: "most-room" } : { account: best, rule: "most-room" };
+}
+
+/** chooseAccount's answer for `--best`, as bestAccount describes it, or null
+ *  for "the engine's own choice". */
+function byRules(rows, { next = "room", home = null, threshold, models = [], busy, quarantined, optional = true, now = Date.now() } = {}) {
+  if (next !== "weekly" && !home) return null;
+  if (!Number.isFinite(threshold)) return null;
+  const keyed = rows.map(a => ({ ...a, key: accountKey(a.email, a.orgUuid) }));
+  const original = (k) => rows[keyed.indexOf(k)];
+  const pick = chooseAccount({
+    accounts: keyed,
+    choice: { next, home, manual: false, goHome: true },
+    threshold,
+    models,
+    busy: busy instanceof Set ? busy : new Set(),
+    quarantined: quarantined instanceof Set ? quarantined : new Set(),
+    sinceMove: Infinity,
+    optional: optional !== false,
+    now,
+  });
+  if (pick) return { account: original(pick.to), rule: pick.trigger };
+  const active = keyed.find(a => a.active);
+  if (!active || !readingCurrent(active, models, now)) return null;
+  const used = usedOf(active, models);
+  if (used == null || used >= threshold) return null;
+  return { already: original(active), rule: home && active.key === home ? "home" : "rules" };
 }
 
 /** How a row is named back to its reader: `#2 alice@corp.com (work)`. On one
