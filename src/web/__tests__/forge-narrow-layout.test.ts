@@ -164,6 +164,10 @@ describe("words an item page draws on a filled bed", () => {
   it("underlines a link inside a title, which its colour alone does not tell from the words around it", () => {
     expect(decls(detail, ".fd-title a")).toMatch(/text-decoration: underline/);
   });
+
+  it("underlines a link inside the token help's sentences, for the same reason", () => {
+    expect(decls(topLevel(panel), ".fg-token-link")).toMatch(/text-decoration: underline/);
+  });
 });
 
 describe("choosing a tab or a section", () => {

@@ -136,8 +136,10 @@
 .fg-token-help li + li { margin-top: 4px; }
 .fg-token-help strong { color: var(--text); font-weight: 600; }
 .fg-token-help code { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text); background: var(--ctl-fill); border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 4px; }
-.fg-token-link { color: var(--accent); text-decoration: none; white-space: nowrap; }
-.fg-token-link:hover { text-decoration: underline; }
+/* A link inside the help's sentences: underlined, since its colour alone is
+   under 3:1 against the words around it. */
+.fg-token-link { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; white-space: nowrap; }
+.fg-token-link:hover { text-decoration-thickness: 2px; }
 .fg-token-link svg { vertical-align: -1px; }
 
 @media (max-width: 640px) {
