@@ -290,11 +290,13 @@ describe("where it is drawn", () => {
   it("the card, the list and the detail panel all ask the one rule", () => {
     const card = read("../components/AgentNode.tsx");
     // The recap is one thing the session's note can say (session-note.ts), so
-    // the card asks the note's rule, which asks session-recap.ts's.
-    expect(card).toContain("const note = sessionNoteShown(data);");
+    // the card asks the note's rule, which asks session-recap.ts's — through
+    // boardNote, which puts the session's plan on the same note (#2157).
+    expect(card).toContain("const board = boardNote(data);");
+    expect(read("../session-note.ts")).toMatch(/export function boardNote\([^)]*\)[^{]*\{\s*const note = sessionNoteShown\(a\);/);
     expect(card).toMatch(/className="glyph-btn recap-pin"[\s\S]{0,300}aria-expanded=\{noteOpen\}/);
     // Open by itself; the pin says so while it is.
-    expect(card).toContain("const noteOpen = note != null && !noteDismissed;");
+    expect(card).toContain("const noteOpen = board != null && !noteDismissed;");
     // The note is a node of its own, built beside the root while the recap is
     // true and not put away, and tied to it by an edge from note to root.
     // The two renderers are registered where <ReactFlow> is, in

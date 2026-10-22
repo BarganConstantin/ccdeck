@@ -527,6 +527,7 @@
   color: var(--text);
   overflow-wrap: anywhere;
 }
+.recap-peek-plan { white-space: pre-line; }
 .node-peek-hint {
   margin-top: 2px;
   font-size: calc(11px + var(--ui-text-increase, 0px));

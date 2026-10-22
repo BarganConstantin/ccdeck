@@ -32,7 +32,7 @@ import { sessionDisplay } from "../session-display";
 import { ContextDonut } from "./ContextModal";
 import type { AgentNodeData, PlanItem, ToolCall, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
-import { noteTag, sessionNoteShown } from "../session-note";
+import { boardNote, noteTag } from "../session-note";
 import { toggleRecapDismissed, useRecapDismissed } from "../recap-note";
 import { drawnState, faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
 // The agent's own checklist, as one line (#2157). See agent-plan.ts.
@@ -156,16 +156,18 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // carries a name without a title. See session-display.ts for the sweep.
   const naming = sessionDisplay(data.sessionName, data.sessionTitle);
   // What the session's note says — what it is doing, what came of it, or
-  // Claude Code's recap once that arrives — or null when it says nothing. See
-  // session-note.ts for the whole rule.
-  const note = sessionNoteShown(data);
+  // Claude Code's recap once that arrives — and the plan on it, or null when it
+  // says nothing. A note can hold the plan alone. See session-note.ts for the
+  // whole rule.
+  const board = boardNote(data);
+  const note = board?.note ?? null;
   // The note opens by itself the moment there is one, and stays shut once it
   // has been closed — for THAT note: a recap, or one turn's line of one kind;
   // the next one opens again. Asked of every card, because a hook cannot wait
   // for the note (recap-note.ts).
-  const noteKey = note ? note.key : null;
+  const noteKey = board ? board.key : null;
   const noteDismissed = useRecapDismissed(noteKey);
-  const noteOpen = note != null && !noteDismissed;
+  const noteOpen = board != null && !noteDismissed;
   const isRecap = note?.kind === "recap";
   // The cost slot at the end of the meta row, decided once (card-cost.ts).
   const cost = costChip(data);
@@ -189,15 +191,17 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
               note. The note opens by itself, so this is how it is put away
               and brought back. The click stops here, so it does not also
               select the card. */}
-          {note && noteKey && (
+          {board && noteKey && (
             <button
               type="button"
               className="glyph-btn recap-pin"
-              aria-label={isRecap ? "Claude Code's recap" : `Session note: ${noteTag(note.kind)}`}
+              aria-label={isRecap ? "Claude Code's recap" : note ? `Session note: ${noteTag(note.kind)}` : "Session note: plan"}
               aria-expanded={noteOpen}
               title={isRecap
                 ? (noteOpen ? "Hide the recap" : "Show Claude Code's recap")
-                : (noteOpen ? "Hide this note" : "Show what this session is doing")}
+                : note
+                  ? (noteOpen ? "Hide this note" : "Show what this session is doing")
+                  : (noteOpen ? "Hide the plan" : "Show the plan")}
               onClick={e => { e.stopPropagation(); toggleRecapDismissed(noteKey); }}
             ><NoteMark recap={isRecap} /></button>
           )}

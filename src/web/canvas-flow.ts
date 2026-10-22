@@ -30,7 +30,7 @@ import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provis
 import { liveNodeIds, measuredNodeIds, pruneStaleEntries } from "./prune";
 import { isRecapDismissed, isRecapNoteId, recapNoteId } from "./recap-note";
 import { sessionHue, type GraphState } from "./reducer";
-import { noteTag, sessionNoteShown } from "./session-note";
+import { boardNote, noteTag } from "./session-note";
 import type { AgentNodeData } from "./types";
 import type React from "react";
 
@@ -304,9 +304,12 @@ export function snapshotToFlow(
     // only while there is something to say and nobody has put it away, and tied
     // to the root by an edge FROM the note, which is also what makes dagre rank
     // it to the left of the card.
-    const note = a.kind === "root" ? sessionNoteShown(a) : null;
-    const noteKey = note ? note.key : null;
-    if (note && noteKey && !isRecapDismissed(noteKey)) {
+    // The session's plan rides on the same note, or holds one of its own while
+    // there is nothing else to say (session-note.ts, boardNote).
+    const board = a.kind === "root" ? boardNote(a) : null;
+    const note = board?.note ?? null;
+    const noteKey = board ? board.key : null;
+    if (board && noteKey && !isRecapDismissed(noteKey)) {
       const noteId = recapNoteId(a.id);
       const hue = sessionHue(a.sessionId);
       const mn = measured.get(noteId);
@@ -317,14 +320,14 @@ export function snapshotToFlow(
         id: noteId,
         type: "recapNote",
         position: { x: 0, y: 0 },
-        data: { sessionId: a.sessionId, canvasSessionId: dataFor(a).canvasSessionId, parentId: a.id, note, noteKey, hue },
+        data: { sessionId: a.sessionId, canvasSessionId: dataFor(a).canvasSessionId, parentId: a.id, note, plan: board.plan, noteKey, hue },
         className: spotlitOut ? "rf-spotlit-out" : undefined,
         selectable: false,
         // Not a keyboard stop either, like the session drag handles: Enter on a
         // focused node selects its id, and a note's id is not an agent's. Its ×
         // is still a button, and still reached by Tab.
         focusable: false,
-        ariaLabel: note.kind === "recap" ? `Claude Code's recap for ${a.label}` : `${a.label}: ${noteTag(note.kind)}`,
+        ariaLabel: !note ? `${a.label}: plan` : note.kind === "recap" ? `Claude Code's recap for ${a.label}` : `${a.label}: ${noteTag(note.kind)}`,
         ...(mn ? { width: mn.width, height: mn.height } : null),
       } as unknown as (typeof nodes)[number]);
       edges.push({
