@@ -948,13 +948,12 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // Continue on a stopped background session's card (#2193) adds two: the
     // stop row's hue at rest, the text colour under the pointer.
     // Radar's Clear history adds one: the error edge it takes while armed.
-    // The Jira panel (#2178) adds five: its search box at rest and under the
-    // pointer, a filter chip that is on, and Open in Jira at rest and hovered.
-    // The GitHub and GitLab panel (#2179) adds two: its search field at rest
-    // and under the pointer. The integrations' shared search field adds two
-    // more, at rest and under the pointer; the two panels' own fields go when
-    // they adopt it.
-    expect(EDGED_CONTROLS.length).toBeLessThan(164);
+    // The Jira panel (#2178) adds one: a filter chip that is on. Its search
+    // box and Open in Jira, and the GitHub and GitLab panel's (#2179) search
+    // field, are now the integrations' shared ones: the shared search field
+    // adds two, at rest and under the pointer, and the link to the tracker
+    // draws no edge.
+    expect(EDGED_CONTROLS.length).toBeLessThan(161);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
