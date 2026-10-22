@@ -65,7 +65,7 @@ async function unhandledDuring<T>(run: () => Promise<T>, settleMs = 120) {
 describe("a Jira Cloud backlog's approximate count (unhandled rejections)", () => {
   const SITE = "https://acme.example.net";
   const conn = { id: "c1", kind: "jira", baseUrl: SITE, allowedOrigins: [SITE], meta: { deployment: "cloud" } };
-  const secret = { auth: "basic", email: "jane@example.com", token: fakeToken("d10-jira") };
+  const secret = { auth: "basic", email: "jane@example.com", token: fakeToken("unhandled-jira") };
   const read = (routes: Record<string, Route>) => {
     const f = fakeFetch({
       "/rest/api/3/field": { body: [] },
@@ -107,7 +107,7 @@ describe("GitLab's merge request reads (unhandled rejections)", () => {
   const BASE = "https://gitlab.example.com";
   const client = (routes: Record<string, Route>) => {
     const f = fakeFetch(routes);
-    return { f, c: createGitlabClient({ baseUrl: BASE, token: fakeToken("d10-gitlab"), fetchImpl: f.impl, now: () => 1_700_000_000_000 }) };
+    return { f, c: createGitlabClient({ baseUrl: BASE, token: fakeToken("unhandled-gitlab"), fetchImpl: f.impl, now: () => 1_700_000_000_000 }) };
   };
 
   it("never leaves an unreadable schema answer unhandled when the list has no rows", async () => {

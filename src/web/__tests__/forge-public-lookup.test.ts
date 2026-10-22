@@ -237,7 +237,7 @@ describe("what such a request answers", () => {
       return get("/log", { headers: init.headers });
     };
     const t = createForgeTransport({
-      token: "fake-q7-token",
+      token: "fake-lookup-token",
       authHeaders: (tok: string) => ({ authorization: `Bearer ${tok}` }),
       allowedOrigins: ["https://gitlab.example.com"],
       fetchImpl: async () => new Response(null, { status: 302, headers: { location: "https://blob.example.test/logs/1.txt?sig=abc" } }),
@@ -252,7 +252,7 @@ describe("what such a request answers", () => {
 
 describe("a job log's tail sent on to blob storage", () => {
   const FORGE = "https://gitlab.example.com";
-  const TOKEN = ["fake", "q7", "token", "0123456789abcdef"].join("-");
+  const TOKEN = ["fake", "lookup", "token", "0123456789abcdef"].join("-");
 
   function transport(publicFetchImpl: unknown) {
     const asked: string[] = [];

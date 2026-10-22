@@ -50,7 +50,7 @@ describe("GitHub's words", () => {
 
   it("reads a changed file's inherited status as modified", async () => {
     const fetchImpl = async () => json(INHERITED.map((status, i) => ({ filename: `src/f${i}.ts`, status, additions: 1, deletions: 0 })));
-    const c = createGithubClient({ token: fakeToken("d9-github"), fetchImpl, now: () => 1_700_000_000_000 });
+    const c = createGithubClient({ token: fakeToken("names-github"), fetchImpl, now: () => 1_700_000_000_000 });
     const p = await c.listChangeFiles("octo-org/widgets", 1);
     expect(p.items.map((f: { status: unknown }) => f.status)).toEqual(INHERITED.map(() => "modified"));
   });
@@ -59,7 +59,7 @@ describe("GitHub's words", () => {
 describe("Jira's words", () => {
   const SITE = "https://jira.example.com";
   const conn = { id: "c1", kind: "jira", baseUrl: SITE, allowedOrigins: [SITE], meta: { deployment: "server" } };
-  const secret = { auth: "bearer", token: fakeToken("d9-jira") };
+  const secret = { auth: "bearer", token: fakeToken("names-jira") };
   const FIELDS = [
     { id: "customfield_10010", name: "Epic Link", custom: true, schema: { custom: "com.pyxis.greenhopper.jira:gh-epic-link" } },
     { id: "customfield_10020", name: "Issue color", custom: true, schema: { custom: "com.pyxis.greenhopper.jira:jsw-issue-color" } },

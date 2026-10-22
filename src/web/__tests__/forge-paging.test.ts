@@ -19,7 +19,7 @@ const NOW = Date.parse("2026-10-19T12:00:00Z");
 const API = "https://api.github.com";
 const GQL = `${API}/graphql`;
 /** A fake token, built at run time so no literal here reads as a live one. */
-const TOKEN = ["fake", "q12", "token", "0123456789abcdef"].join("-");
+const TOKEN = ["fake", "paging", "token", "0123456789abcdef"].join("-");
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 

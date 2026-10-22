@@ -18,7 +18,7 @@ import { createForgeTransport, ForgeError } from "../../server/forge-http.mjs";
 type Call = { url: string; headers: Record<string, string>; method: string };
 
 /** A fake token, built at run time so no literal here reads as a live one. */
-const TOKEN = ["fake", "f1", "token", "0123456789abcdef"].join("-");
+const TOKEN = ["fake", "redirects", "token", "0123456789abcdef"].join("-");
 const FORGE = "https://gitlab.example.com";
 
 function transport(routes: Record<string, () => Response>) {
