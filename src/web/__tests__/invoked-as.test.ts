@@ -466,8 +466,11 @@ describe("one fact, one place: which line the rename notice ends with", () => {
     // versionReport checks both before asking the registry, but upgradeBlock
     // reads only NO_INSTALL, so the update-check opt-out never reached this bug.
     const pkgRoot = npxCache("d2", { _npx: { packages: ["agent-dag"] } });
-    withEnv("AGENTS_DECK_NO_UPDATE_CHECK", "1", () => {
-      expect(upgradeMode(upgradeBlock(pkgRoot))).toBe("npx");
+    // NO_INSTALL cleared, so a caller's own opt-out cannot answer for this one.
+    withEnv("AGENTS_DECK_NO_INSTALL", undefined, () => {
+      withEnv("AGENTS_DECK_NO_UPDATE_CHECK", "1", () => {
+        expect(upgradeMode(upgradeBlock(pkgRoot))).toBe("npx");
+      });
     });
   });
 
