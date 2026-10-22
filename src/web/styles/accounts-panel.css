@@ -659,12 +659,14 @@
   color: var(--text-dim);
 }
 /* ── the policy rows ──
-   ONE POLICY, ONE ROW: its name, its setting, and its switch. Auto-switch was a
-   section — a caption, a line of controls under it, a readout repeating the
-   active row's percentage, a clock of its last check under a rule — for what is
-   one decision and one number. Local network's switch takes the same row in its
-   own view. The name pushes, so the setting and the switch sit together at the
-   far edge whatever else is on the row. */
+   A POLICY'S NAME AND ITS SWITCH ON ONE ROW, and each of its settings on a row
+   of its own under it: a label, then the control. Auto-switch was a section — a
+   caption, a line of controls under it, a readout repeating the active row's
+   percentage, a clock of its last check under a rule — and then one row that
+   held the name, the threshold and the switch together, with the next-account
+   picker under it running past both. Local network's switch takes the same
+   name row in its own view. The name or label pushes, so every control on
+   every row ends at the same far edge. */
 .ap-policy {
   display: flex;
   align-items: center;
@@ -757,13 +759,16 @@
   text-align: right;
 }
 .ap-threshold-note[data-tone="err"] { color: var(--err); }
-/* WHERE AUTO-SWITCH GOES, the policy's second line and only while the switch
-   is on. Quieter than the policy's name: it is a detail of that policy, not a
-   second one. The label pushes, like the title above it, so the picker lines up
-   under the threshold's; the picker is as wide as its words, which the
-   threshold's fixed 64px is not. */
-.ap-next { margin-top: 4px; }
-.ap-next-label {
+/* A SETTING OF THE POLICY: where it trips, and where it goes. Under the name,
+   close enough to read as its own, and the same with the switch on or off —
+   they are set up before it is turned on. The label is a label, so it is the
+   metadata tier, as Browser Watch's settings labels are; both settings say
+   their names that way, so neither reads as switched off beside the other. It
+   pushes, like the title above it, so both pickers end where the switch does.
+   The next-account picker is as wide as its words, which the threshold's fixed
+   64px is not. */
+.ap-setting { margin-top: 2px; }
+.ap-setting-label {
   margin-right: auto;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);

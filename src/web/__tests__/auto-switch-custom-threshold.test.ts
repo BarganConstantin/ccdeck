@@ -59,7 +59,7 @@ function row(draft: ThresholdDraft, stored: string): string {
     nextPick: "room", nextCtl: nextCommit("room", "room"), nextSaved: false, nextRef: null, nextSaveRef: null,
     proposeNext: () => {}, doNext: () => {},
     pressProps: () => ({}), post: async () => null, load: async () => {},
-  })).replace(/<div class="ap-policy ap-next">[\s\S]*?<\/div>/, "");
+  })).replace(/<div class="ap-policy ap-setting ap-next">[\s\S]*?<\/div>/, "");
 }
 
 const options = (html: string) => [...html.matchAll(/<option value="([^"]*)"[^>]*>([^<]*)<\/option>/g)].map(m => m[2]);
@@ -85,7 +85,9 @@ describe("choosing Custom…", () => {
     expect(html).not.toContain("<select");
     const field = input(html);
     expect(field).not.toBeNull();
-    expect(field).toContain('aria-label="Switch threshold"');
+    // Named by the picker's own label, since it is the same setting.
+    const label = /<label class="ap-setting-label" for="([^"]+)"[^>]*>Switch at<\/label>/.exec(html);
+    expect(label?.[1]).toBe(/\sid="([^"]+)"/.exec(field ?? "")?.[1]);
     expect(field).toContain('inputMode="numeric"');
     expect(field).toContain('value="90"');
     expect(field).not.toContain("aria-invalid");
@@ -132,7 +134,7 @@ describe("Escape", () => {
 
   it("is answered by the row only while the field is open, and never mid-composition", () => {
     const surface = withoutComments(accountsSurface());
-    expect(surface).toMatch(/<div className="ap-policy" onKeyDown=\{thresholdCustom \? cancelThreshold : undefined\}>/);
+    expect(surface).toMatch(/<div className="ap-policy ap-setting" onKeyDown=\{thresholdCustom \? cancelThreshold : undefined\}>/);
     const handler = /const cancelThreshold = \(e: KeyboardEvent\) => \{[\s\S]*?\n {2}\};/.exec(surface)?.[0] ?? "";
     expect(handler).toMatch(/e\.key !== "Escape" \|\| e\.nativeEvent\.isComposing \|\| !draft\.custom/);
     expect(handler).toMatch(/e\.stopPropagation\(\)/);

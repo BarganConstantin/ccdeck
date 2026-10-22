@@ -247,7 +247,7 @@ describe("the row, around a switch", () => {
     expect(await render(account({ active: true, telemetry: null }), { switchedHere: true })).not.toContain("telemetry is on");
   });
 
-  it("points at Hold out of rotation only where the menu offers it", async () => {
+  it("points at Hold out of rotation only while something rotates onto that account", async () => {
     const HINT = "To keep Auto-switch off it, choose Hold out of rotation in its ⋯ menu.";
     expect(await render(account(), { rotating: true })).toContain(HINT);
     expect(await render(account())).not.toContain(HINT);

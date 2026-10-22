@@ -94,6 +94,16 @@ describe("the menu", () => {
     expect([...order].sort((x, y) => x - y)).toEqual(order);
   });
 
+  it("offers home and holding out with Auto-switch on or off", () => {
+    // Both are set up before the switch is turned on, and a tick reads them
+    // only while it is on — so neither waits for it to be offered.
+    const menu = view("menu");
+    expect(menu).toMatch(/\{\(!a\.active \|\| a\.disabled\) && \(/);
+    expect(menu).toMatch(/\{\(home \|\| a\.email\) && \(/);
+    expect(menuPopover).not.toMatch(/rotating|canSetHome|auto\??\.enabled/);
+    expect(surface).not.toMatch(/canSetHome/);
+  });
+
   it("carries the error colour on Remove alone", () => {
     expect([...surface.matchAll(/ap-menu-item danger/g)]).toHaveLength(1);
     expect(view("menu")).toMatch(/className=\{`ap-menu-item danger\$\{confirmRemove === a\.num \? " armed" : ""\}`\}/);

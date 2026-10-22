@@ -131,7 +131,7 @@ interface Props {
    *  (auto-choice.ts homeTitle), or null on every other row. */
   home?: string | null;
   /** Something is rotating accounts — the deck's loop or a terminal's — so the
-   *  ⋯ menu offers "Hold out of rotation", and the telemetry line says so. */
+   *  telemetry line points at "Hold out of rotation" in the ⋯ menu. */
   rotating?: boolean;
 }
 

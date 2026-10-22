@@ -693,15 +693,10 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                     slots={(data.accounts ?? []).map(x => x.num)}
                     boundaryId={rowBoundary(a.num)} nowSec={nowSec}
                     busy={busy} pressProps={pressProps}
-                    rotating={!!(auto?.enabled || auto?.external)}
                     onProjects={() => { setProjectsFor({ num: a.num, name: a.alias ?? a.email ?? `account ${a.num}` }); closeMenu(a.num); }}
                     onRotation={() => post({ action: "account", account: a.num, enabled: a.disabled }, `rot-${a.num}`, "menu")
                       .then(out => { load(true); if (out?.ok) closeMenu(a.num); })}
                     home={isHome(a, auto?.choice?.home)}
-                    // The deck's own loop, not a terminal's: home is the
-                    // deck's rule, and a `cswap auto` running elsewhere never
-                    // asks it.
-                    canSetHome={!!auto?.enabled && !auto?.external}
                     onHome={() => post({ action: "home", account: isHome(a, auto?.choice?.home) ? null : a.num }, `home-${a.num}`, "menu")
                       .then(out => { load(true); if (out?.ok) closeMenu(a.num); })} />
                 );

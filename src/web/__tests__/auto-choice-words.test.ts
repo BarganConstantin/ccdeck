@@ -46,10 +46,11 @@ describe("the next-account picker", () => {
     expect(nextCommit("weekly", "room").title).toMatch(/weekly limit resets soonest/);
   });
 
-  it("is a row only while Auto-switch is on, where it does something", () => {
+  it("is a row with Auto-switch on or off, so it is set up before it is turned on", () => {
     expect(policy(true, "room")).toContain(">Next account</label>");
-    expect(policy(false, "room")).not.toContain("Next account");
-    expect(policy(false, "weekly")).not.toContain(WEEKLY_HINT);
+    expect(policy(false, "room")).toContain(">Next account</label>");
+    expect(policy(false, "weekly")).toContain(WEEKLY_HINT);
+    expect(policy(false, "weekly", "room")).toMatch(/<div class="ap-policy ap-setting ap-next">[\s\S]*?<button[^>]*>save<\/button>/);
   });
 
   it("explains the weekly rule in one line under it, and only that rule", () => {
@@ -62,7 +63,7 @@ describe("the next-account picker", () => {
 
   it("offers save only for a pick nobody stored yet", () => {
     expect(policy(true, "room")).not.toMatch(/ap-next[\s\S]*?<button/);
-    expect(policy(true, "weekly", "room")).toMatch(/<div class="ap-policy ap-next">[\s\S]*?<button[^>]*>save<\/button>/);
+    expect(policy(true, "weekly", "room")).toMatch(/<div class="ap-policy ap-setting ap-next">[\s\S]*?<button[^>]*>save<\/button>/);
   });
 });
 

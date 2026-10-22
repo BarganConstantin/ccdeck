@@ -234,7 +234,8 @@ describe("the auto-switch toggle says what it switches, not what it is set to", 
     for (const named of [
       'aria-label="Add an account"',
       'aria-label="Reload accounts"',
-      'aria-label="Switch threshold"',
+      // The threshold is named by the words beside it now, a real label.
+      'htmlFor={thresholdId}',
       'aria-label="Dismiss this message"',
     ]) expect(strip(accountsSurface())).toContain(named);
   });
