@@ -18,8 +18,10 @@
 /* The head: title, then the byline with its state, then the status lines. */
 .fd-head { margin-top: 8px; }
 .fd-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; color: var(--text); }
-.fd-title a { color: var(--accent); text-decoration: none; }
-.fd-title a:hover { text-decoration: underline; }
+/* A link inside a title is told from the words around it by more than its
+   colour, which is under 3:1 against them in some themes. */
+.fd-title a { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.fd-title a:hover { text-decoration-thickness: 2px; }
 .fd-title-mono code { font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; overflow-wrap: anywhere; }
 .fd-title-mono .fg-copyable { align-items: flex-start; max-width: 100%; }
 /* A sentence, so it wraps like one: the chips in it are inline boxes. */
@@ -105,7 +107,9 @@
 /* Discussions: a thread says where it is, then its comments. */
 .fd-threads { list-style: none; display: grid; gap: 10px; margin: 6px 0 0; padding: 0; }
 .fd-thread { min-width: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); overflow: hidden; }
-.fd-thread-head { display: flex; align-items: flex-start; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line-soft); background: var(--ctl-fill); }
+/* On the head's --ctl-fill --muted is under AA in the darkest themes, so
+   its quiet words step up a tier there, as the shared rows' do on hover. */
+.fd-thread-head { display: flex; align-items: flex-start; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line-soft); background: var(--ctl-fill); --muted: var(--text-secondary); }
 .fd-path { flex: 1; min-width: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; overflow-wrap: anywhere; }
 .fd-path-dir { color: var(--muted); }
 /* The file name wraps as a whole onto the next line before it breaks inside. */
@@ -148,7 +152,7 @@
 .fd-files { list-style: none; margin: 8px 0 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); overflow: hidden; }
 .fd-files > li + li { border-top: 1px solid var(--line-soft); }
 .fd-file { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 38px; box-sizing: border-box; padding: 8px 14px; color: var(--text); text-decoration: none; }
-a.fd-file:hover { background: var(--ctl-fill); }
+a.fd-file:hover { background: var(--ctl-fill); --muted: var(--text-secondary); }
 .fd-file-path { flex: 1 1 240px; min-width: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; overflow-wrap: anywhere; }
 .fd-file-path code { font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .fd-file-old { color: var(--muted); }

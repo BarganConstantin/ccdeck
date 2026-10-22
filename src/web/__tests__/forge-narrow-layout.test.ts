@@ -149,3 +149,15 @@ describe("a row's press", () => {
     expect(decls(topLevel(lists), ".fg-rows > li.fgl-branch:has(> .fgl-hit:active)")).toMatch(/background: color-mix\(in srgb, var\(--text\) 10%, transparent\)/);
   });
 });
+
+describe("words an item page draws on a filled bed", () => {
+  it("lifts the quiet tier a step on a thread's head and a hovered file, where --muted is under AA", () => {
+    expect(decls(detail, ".fd-thread-head")).toMatch(/background: var\(--ctl-fill\);.*--muted: var\(--text-secondary\)/);
+    expect(decls(detail, "a.fd-file:hover")).toMatch(/background: var\(--ctl-fill\);.*--muted: var\(--text-secondary\)/);
+    expect(decls(detail, ".fd-path-dir")).toMatch(/color: var\(--muted\)/);
+  });
+
+  it("underlines a link inside a title, which its colour alone does not tell from the words around it", () => {
+    expect(decls(detail, ".fd-title a")).toMatch(/text-decoration: underline/);
+  });
+});
