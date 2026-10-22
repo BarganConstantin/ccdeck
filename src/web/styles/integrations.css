@@ -21,6 +21,9 @@
   --ig-sel-fill: var(--accent-dim);
   --ig-sel-ink: var(--text);
   --ig-sel-muted: var(--text);
+  /* The detail's side padding, which the item's top line spans edge to edge;
+     a panel whose detail is padded otherwise sets its own. */
+  --ig-detail-pad: 20px;
 }
 /* Their --accent-dim puts --text at 3.76:1 (Gruvbox Material) and the error
    mark at 2.88:1 (Gruvbox Dark) on the selection; 14 % accent over the panel
@@ -189,10 +192,10 @@
 .ig-failure-text p { margin: 0; }
 .ig-failure-title { display: flex; align-items: flex-start; gap: 8px; color: var(--text); line-height: 1.45; overflow-wrap: anywhere; }
 .ig-failure-title strong { font-weight: 600; }
-.ig-failure-title .ig-mark { margin-top: 2px; color: var(--err); }
+.ig-failure-title .ig-mark { width: 12px; height: 12px; margin-top: 3px; color: var(--err); }
 .ig-failure[data-stale] .ig-failure-title .ig-mark { color: var(--warn); }
 .ig-failure-body, .ig-failure-said {
-  padding-left: 21px;
+  padding-left: 20px;
   color: var(--text-secondary);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 1.45;
@@ -208,13 +211,13 @@
    magnifier inside its start and Clear inside its end. The browser's own
    cancel mark is hidden so there is one clear, drawn like every other glyph. */
 .ig-search { position: relative; flex: 1 1 220px; min-width: 0; display: flex; align-items: center; color: var(--muted); }
-.ig-search > svg { position: absolute; left: 8px; pointer-events: none; }
+.ig-search > svg { position: absolute; left: 6px; pointer-events: none; }
 .ig-search-input {
   flex: 1;
   min-width: 0;
   min-height: var(--ctl-h);
   box-sizing: border-box;
-  padding: 0 8px 0 27px;
+  padding: 0 8px 0 24px;
   border: 1px solid var(--ctl-edge);
   border-radius: var(--r-ctl);
   background: var(--ctl-fill);
@@ -223,7 +226,7 @@
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
 }
-.ig-search[data-filled] .ig-search-input { padding-right: 30px; }
+.ig-search[data-filled] .ig-search-input { padding-right: 32px; }
 .ig-search-input::placeholder { color: var(--text-secondary); opacity: 1; }
 .ig-search-input:hover { border-color: var(--text); }
 .ig-search-input::-webkit-search-cancel-button { appearance: none; display: none; }
