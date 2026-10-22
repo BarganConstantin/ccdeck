@@ -21,6 +21,9 @@
   --ig-sel-fill: var(--accent-dim);
   --ig-sel-ink: var(--text);
   --ig-sel-muted: var(--text);
+  /* The detail's side padding, which the item's top line spans edge to edge;
+     a panel whose detail is padded otherwise sets its own. */
+  --ig-detail-pad: 20px;
 }
 /* Their --accent-dim puts --text at 3.76:1 (Gruvbox Material) and the error
    mark at 2.88:1 (Gruvbox Dark) on the selection; 14 % accent over the panel
@@ -45,6 +48,14 @@
   font-size: calc(13px + var(--ui-text-increase, 0px));
 }
 .ig-modal ::selection { background: var(--accent-dim); color: var(--text); }
+/* Closing: focus has already gone back to the opener, and the modal leaves
+   faster than it came (popIn is 180ms): 120ms to transparent and 2px down,
+   the scrim fading with it, nothing under the pointer in the meantime. It is
+   unmounted when the animation ends. */
+.modal-backdrop:has(> .ig-modal[data-closing]) { pointer-events: none; animation: ig-fade-out 120ms ease-out both; }
+.modal.ig-modal[data-closing] { animation: ig-modal-out 120ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+@keyframes ig-modal-out { to { opacity: 0; transform: translateY(2px); } }
+@keyframes ig-fade-out { to { opacity: 0; } }
 .ig-head {
   min-height: 48px;
   padding: 6px 12px 6px 20px;
@@ -181,10 +192,10 @@
 .ig-failure-text p { margin: 0; }
 .ig-failure-title { display: flex; align-items: flex-start; gap: 8px; color: var(--text); line-height: 1.45; overflow-wrap: anywhere; }
 .ig-failure-title strong { font-weight: 600; }
-.ig-failure-title .ig-mark { margin-top: 2px; color: var(--err); }
+.ig-failure-title .ig-mark { width: 12px; height: 12px; margin-top: 3px; color: var(--err); }
 .ig-failure[data-stale] .ig-failure-title .ig-mark { color: var(--warn); }
 .ig-failure-body, .ig-failure-said {
-  padding-left: 21px;
+  padding-left: 20px;
   color: var(--text-secondary);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 1.45;
@@ -200,13 +211,13 @@
    magnifier inside its start and Clear inside its end. The browser's own
    cancel mark is hidden so there is one clear, drawn like every other glyph. */
 .ig-search { position: relative; flex: 1 1 220px; min-width: 0; display: flex; align-items: center; color: var(--muted); }
-.ig-search > svg { position: absolute; left: 8px; pointer-events: none; }
+.ig-search > svg { position: absolute; left: 6px; pointer-events: none; }
 .ig-search-input {
-  width: 100%;
+  flex: 1;
   min-width: 0;
   min-height: var(--ctl-h);
   box-sizing: border-box;
-  padding: 0 8px 0 27px;
+  padding: 0 8px 0 24px;
   border: 1px solid var(--ctl-edge);
   border-radius: var(--r-ctl);
   background: var(--ctl-fill);
@@ -215,7 +226,7 @@
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
 }
-.ig-search[data-filled] .ig-search-input { padding-right: 30px; }
+.ig-search[data-filled] .ig-search-input { padding-right: 32px; }
 .ig-search-input::placeholder { color: var(--text-secondary); opacity: 1; }
 .ig-search-input:hover { border-color: var(--text); }
 .ig-search-input::-webkit-search-cancel-button { appearance: none; display: none; }
@@ -364,6 +375,7 @@ img.ig-avatar + img.ig-avatar {
   .ig-row:hover:not([data-selected]) { background: transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .modal.ig-modal[data-closing] { animation: ig-fade-out 120ms ease-out both; }
   .ig-splitter::before, .ig-conn { transition: none; }
   .ig-back:active { transform: none; }
   .ig-refresh[data-loading] svg { animation: none; }
