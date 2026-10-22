@@ -109,9 +109,25 @@ export const RadioGlyph = () => (
   <Glyph><path d="M2 5h10v7H2z M4 5l6-3 M4 8h3 M9 8h1 M4 10h1 M8 10h2" /></Glyph>
 );
 
-/** Tool activity: a wrench in the shared rail-glyph style. */
+/** Tool activity: a hammer and a wrench crossed — the toolbox sign, read as
+ *  "tools" at a glance where the wrench alone sat one stroke from Settings'
+ *  gear. */
 export const ToolActivityGlyph = () => (
-  <Glyph><path d="M8.8 1.5a3 3 0 0 0-3.7 3.7l-3 3a1.8 1.8 0 0 0 2.5 2.5l3-3a3 3 0 0 0 3.7-3.7L9.4 5.9 7 3.5z" /></Glyph>
+  <Glyph>
+    <path d="M2.4 11.6 7.6 6.4" />
+    <path d="M7.6 6.4a2.4 2.4 0 0 0 3.3-3.1L9.6 4.6 8.4 3.4l1.3-1.3a2.4 2.4 0 0 0-3.1 3.3" />
+    <path d="M11.6 11.6 6.2 6.2" />
+    <path d="M2.3 4.1 4.1 2.3 6.6 4.8 4.8 6.6Z" />
+  </Glyph>
+);
+
+/** Skill activity: two sparks, the sign for an ability the agent can call on,
+ *  and nothing like the crossed tools beside it. */
+export const SkillActivityGlyph = () => (
+  <Glyph>
+    <path d="M6 2.4c.4 2.5 1.5 3.6 4 4-2.5.4-3.6 1.5-4 4-.4-2.5-1.5-3.6-4-4 2.5-.4 3.6-1.5 4-4Z" />
+    <path d="M11.2 1.4v2.6M9.9 2.7h2.6" />
+  </Glyph>
 );
 
 /** Account capacity: the gauge the accounts panel's header carried before the

@@ -6,7 +6,7 @@ import { usePanelPresence, isMounted, isDrawn, isLeaving } from "./panel-exit";
 import BoardFlow from "./components/BoardFlow";
 import DesktopTitlebar from "./components/DesktopTitlebar";
 import SessionList from "./components/SessionList";
-import ToolAuditModal from "./components/ToolAuditModal";
+import ToolAuditModal, { type ToolActivityView } from "./components/ToolAuditModal";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
@@ -615,14 +615,15 @@ function Inner() {
   // the two stripes and the utilities are one dock along the bottom.
   const phone = useMediaQuery(PHONE_QUERY);
   const [radioOpen, setRadioOpen] = useState(false);
-  const [toolAuditOpen, setToolAuditOpen] = useState(false);
-  const closeToolAudit = useCallback(() => setToolAuditOpen(false), []);
+  // Tool activity, on the view its door names: tools or skills.
+  const [toolAuditView, setToolAuditView] = useState<ToolActivityView | null>(null);
+  const closeToolAudit = useCallback(() => setToolAuditView(null), []);
   // Skill activity names a session by its card, and opens it there, while the card is still drawn.
   const toolAuditSessionLabel = useCallback((sessionId: string) => {
     const card = stateRef.current.agents.get(sessionId);
     return card ? card.label || card.cwdBasename || "session" : null;
   }, []);
-  const openToolAuditSession = useCallback((sessionId: string) => { setToolAuditOpen(false); openSession(sessionId); }, [openSession]);
+  const openToolAuditSession = useCallback((sessionId: string) => { setToolAuditView(null); openSession(sessionId); }, [openSession]);
   const closeRadio = useCallback(() => setRadioOpen(false), []);
   // Account capacity from the left stripe, on the view its door names —
   // components/AccountCapacityDialog.tsx.
@@ -633,7 +634,7 @@ function Inner() {
     usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
     watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, openSettings, onFeedback: dialogs.openFeedback,
     radioOpen, setRadioOpen,
-    openToolActivity: () => setToolAuditOpen(true),
+    openToolActivity: setToolAuditView,
     openCapacity: setCapacityView,
     toggles: panelReturn.toggles,
     integrations: connectedKinds.map(provider => ({ provider, onPress: () => setIntegrationOpen(provider.kind) })),
@@ -809,7 +810,7 @@ function Inner() {
           control before the region it discloses. */}
       {!phone && <EdgeRail side="right" label="Right panels" groups={rails.right} />}
 
-      {toolAuditOpen && <ToolAuditModal onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}
+      {toolAuditView && <ToolAuditModal view={toolAuditView} onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}
       {capacityView && <AccountCapacityDialog view={capacityView} onClose={closeCapacity} />}
       {integrationOpen && (
         <IntegrationModal kind={integrationOpen} connections={kindOffered(integrations, integrationOpen) ? connectionsOf(integrations, integrationOpen) : []}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { auditDuration, readAuditReport, type AuditProvider, type AuditReport, type AuditRow } from '../tool-audit';
 import { auditDay, count, failureShare, findHighlights, periodLabels, sortTools, summaryParts, toolSorts, toolSortValue, type Highlight, type ToolSort } from '../tool-audit-report';
@@ -8,15 +8,18 @@ import ToolAuditInspector from './ToolAuditInspector';
 import ToolAuditSplitter from './ToolAuditSplitter';
 import SkillActivity, { type ReportStatus } from './SkillActivity';
 import type { SessionLinks } from './SkillInspector';
-import { tabStripMove } from "../tablist-keys";
 import { readDetailsWidth, writeDetailsWidth } from '../tool-audit-layout';
 import { useMediaQuery } from '../use-media-query';
 import { useModalDismiss, useScrimDismiss } from './use-modal-dismiss';
 
 const FIRST_ROWS = 12;
 const providers: { id: AuditProvider; label: string }[] = [{ id: 'all', label: 'All agents' }, { id: 'claude', label: 'Claude' }, { id: 'codex', label: 'Codex' }];
-type View = 'tools' | 'skills';
-const views: { id: View; label: string }[] = [{ id: 'tools', label: 'Tools' }, { id: 'skills', label: 'Skills' }];
+/** The two views, each opened by a door of its own on the right stripe (rail-items.tsx). */
+export type ToolActivityView = 'tools' | 'skills';
+type View = ToolActivityView;
+/** Each view's title, and the stripe door that opens it — where focus goes back to. */
+const viewTitle: Record<View, string> = { tools: 'Tool activity', skills: 'Skill activity' };
+const viewDoor: Record<View, string> = { tools: 'tool-activity', skills: 'skill-activity' };
 
 const RefreshGlyph = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5" /></svg>;
 const SearchGlyph = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>;
@@ -33,9 +36,11 @@ function rowLabel(row: AuditRow) {
   return `${operationName(row.operation)}${operationDescription(row.operation) ? `, ${operationDescription(row.operation)}` : ''}: ${count(row.calls, 'call')}, ${time}, ${failed}`;
 }
 
-export default function ToolAuditModal({ onClose, sessionLabel, onOpenSession }: SessionLinks & { onClose: () => void }) {
+export default function ToolAuditModal({ view: door = 'tools', onClose, sessionLabel, onOpenSession }: SessionLinks & { view?: View; onClose: () => void }) {
   // Tools and Skills read the same journal for the same period and agent (#2181).
-  const [view, setView] = useState<View>('tools');
+  // No tabs between them: each opens from its own door. The Skill tool's details
+  // still lead on to the skills it loaded, so the view can change once open.
+  const [view, setView] = useState<View>(door);
   const [provider, setProvider] = useState<AuditProvider>('all');
   const [period, setPeriod] = useState('7');
   const [skillRefresh, setSkillRefresh] = useState(0);
@@ -68,7 +73,7 @@ export default function ToolAuditModal({ onClose, sessionLabel, onOpenSession }:
     onClose();
     requestAnimationFrame(() => {
       const original = opener;
-      const fallback = Array.from(document.querySelectorAll<HTMLElement>('[data-rail-item="tool-activity"], [data-rail-item="more"]')).find(element => element.checkVisibility());
+      const fallback = Array.from(document.querySelectorAll<HTMLElement>(`[data-rail-item="${viewDoor[door]}"], [data-rail-item="more"]`)).find(element => element.checkVisibility());
       // Safari does not focus a button on click, so the opener can be <body>, which restores nothing.
       (original && original !== document.body && original.isConnected && original.checkVisibility() ? original : fallback)?.focus({ preventScroll: true });
     });
@@ -78,7 +83,7 @@ export default function ToolAuditModal({ onClose, sessionLabel, onOpenSession }:
   const query = new URLSearchParams({ provider, days: period }).toString();
 
   useEffect(() => {
-    // One report at a time: the Skills tab reads its own while it is open.
+    // One report at a time: the Skills view reads its own while it is open.
     if (view !== 'tools') return;
     const controller = new AbortController(); let live = true;
     const deadline = window.setTimeout(() => controller.abort(), 65000);
@@ -103,7 +108,7 @@ export default function ToolAuditModal({ onClose, sessionLabel, onOpenSession }:
 
   useEffect(() => {
     setDetails(previous => previous?.operation === selected && loadedQuery.current === query ? previous : null); setDetailError('');
-    // `busy` and not just `loading`: back on this tab, the list's read starts in this same commit,
+    // `busy` and not just `loading`: back on this view, the list's read starts in this same commit,
     // where `loading` is still false, and the two reads would meet at the one report worker.
     if (!selected || !data || loading || busy.current || view !== 'tools') { setDetailLoading(false); return; }
     let live = true; const controller = new AbortController();
@@ -142,12 +147,6 @@ export default function ToolAuditModal({ onClose, sessionLabel, onOpenSession }:
     if (busy.current || detailLoading) return; busy.current = true; setRefresh(value => value + 1);
   };
   const summary = data && summaryParts(data, provider, period);
-  const viewTabs = useRef<(HTMLButtonElement | null)[]>([]);
-  const moveView = (event: KeyboardEvent<HTMLDivElement>) => {
-    const move = tabStripMove(event, views.findIndex(item => item.id === view), views.length);
-    if (move.kind === 'pass') return;
-    event.preventDefault(); setView(views[move.index].id); viewTabs.current[move.index]?.focus();
-  };
   const reading = view === 'skills' ? skillStatus.loading : loading;
   const shown = view === 'skills' ? (skillStatus.hasData ? skillStatus.capturedAt : null) : data?.capturedAt ?? null;
   const filters = <div className="ta-filters">
@@ -156,17 +155,16 @@ export default function ToolAuditModal({ onClose, sessionLabel, onOpenSession }:
   </div>;
 
   return createPortal(<div className="modal-backdrop" role="presentation" {...scrimPress}>
-    <div className="modal ta-report" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title">
+    <div className="modal ta-report" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title" data-view={view}>
       <header className="ta-report-header">
-        <h2 id="tool-audit-title">Tool activity</h2>
-        <div className="ta-views" role="tablist" aria-label="Show" onKeyDown={moveView}>{views.map((item, index) => <button key={item.id} ref={element => { viewTabs.current[index] = element; }} type="button" role="tab" id={`ta-view-${item.id}`} className="ta-view" aria-selected={view === item.id} aria-controls="ta-view-panel" tabIndex={view === item.id ? 0 : -1} onClick={() => setView(item.id)}>{item.label}</button>)}</div>
+        <h2 id="tool-audit-title">{viewTitle[view]}</h2>
         <div className="ta-actions">
           <span className="ta-freshness" role="status">{reading ? shown !== null ? 'Updating…' : 'Reading history…' : shown !== null ? `Updated ${new Date(shown).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
           <button type="button" className="glyph-btn" aria-label={view === 'skills' ? 'Refresh skill activity' : 'Refresh tool activity'} title="Refresh" data-loading={reading || undefined} aria-busy={view === 'skills' ? skillStatus.loading || skillStatus.detailLoading : loading || detailLoading} onClick={doRefresh}><RefreshGlyph /></button>
-          <button type="button" ref={closeRef} className="glyph-btn" onClick={closeReport} aria-label="Close tool activity" title="Close (Esc)">×</button>
+          <button type="button" ref={closeRef} className="glyph-btn" onClick={closeReport} aria-label={`Close ${viewTitle[view].toLowerCase()}`} title="Close (Esc)">×</button>
         </div>
       </header>
-      <div className="ta-view-panel" id="ta-view-panel" role="tabpanel" aria-labelledby={`ta-view-${view}`}>
+      <div className="ta-view-panel">
       {view === 'skills' ? <SkillActivity filters={filters} provider={provider} period={period} setPeriod={setPeriod} refresh={skillRefresh} onStatus={setSkillStatus} sessionLabel={sessionLabel} onOpenSession={onOpenSession} /> :
       <div className="ta-workspace" ref={workspaceRef} data-inspecting={!!selection || undefined} style={{ "--ta-details-w": `${detailsWidth}px` } as CSSProperties}>
         <div className="ta-body"><div className="ta-report-content">
