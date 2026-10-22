@@ -2,6 +2,7 @@
 // memory while the page is open, its words also in sessionStorage so a reload
 // of the tab keeps them, its images never written anywhere but memory. A
 // reload is a second store made over the same storage.
+import "./web-globals";
 import { describe, expect, it } from "vitest";
 
 import {
