@@ -95,6 +95,9 @@
 }
 .fgl-hit { position: absolute; inset: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: pointer; }
 .fgl-hit:focus-visible { outline-offset: -2px; border-radius: 0; }
+/* Pressed, the branch row deepens as a list row does; the hit area itself
+   draws nothing. */
+.fg-rows > li.fgl-branch:has(> .fgl-hit:active) { background: color-mix(in srgb, var(--text) 10%, transparent); }
 .fgl-branch > :not(.fgl-hit) { position: relative; pointer-events: none; }
 .fgl-branch .ig-copy, .fgl-branch .fgl-create { pointer-events: auto; }
 .fgl-branch-name { grid-area: name; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }

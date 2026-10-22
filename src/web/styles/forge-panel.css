@@ -53,9 +53,12 @@
 .fg-rows { list-style: none; margin: 6px 0 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); overflow: hidden; }
 .fg-rows > li { display: grid; }
 .fg-rows > li + li { border-top: 1px solid var(--line-soft); }
-.fg-row { display: grid; gap: 4px 16px; align-items: center; min-height: 48px; padding: 8px 14px; box-sizing: border-box; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fg-row { display: grid; gap: 4px 16px; align-items: center; min-height: 48px; padding: 8px 14px; box-sizing: border-box; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background 120ms; }
 .fg-row:hover { background: var(--ctl-fill); }
-.fg-row:active { transform: scale(0.97); }
+/* A row is the door to its item, as an account's row is: a press deepens its
+   tone a step and nothing moves, so the words stay under the pointer while
+   the item opens. (Inside a list, so it outranks the shared row's hover.) */
+.fg-rows .fg-row:active { background: color-mix(in srgb, var(--text) 10%, transparent); }
 .fg-row:focus-visible { outline-offset: -2px; }
 .fg-row-title { min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
 .fg-row[data-selected] .fg-row-title { font-weight: 600; }
@@ -141,5 +144,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .fg-row, .fg-fold-chevron { transition: none; }
-  .fg-row:active, .fg-fold:active { transform: none; }
+  .fg-fold:active { transform: none; }
 }

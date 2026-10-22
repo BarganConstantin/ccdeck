@@ -140,3 +140,12 @@ describe("a job's log", () => {
     expect(decls(detail, ".fd-log")).not.toMatch(/overflow-wrap: anywhere/);
   });
 });
+
+describe("a row's press", () => {
+  it("deepens the row's tone and moves nothing, a list row and a branch row alike", () => {
+    expect(panel).not.toMatch(/\.fg-row:active\s*\{[^}]*transform/);
+    expect(decls(topLevel(panel), ".fg-row")).not.toMatch(/transform/);
+    expect(decls(topLevel(panel), ".fg-rows .fg-row:active")).toMatch(/background: color-mix\(in srgb, var\(--text\) 10%, transparent\)/);
+    expect(decls(topLevel(lists), ".fg-rows > li.fgl-branch:has(> .fgl-hit:active)")).toMatch(/background: color-mix\(in srgb, var\(--text\) 10%, transparent\)/);
+  });
+});
