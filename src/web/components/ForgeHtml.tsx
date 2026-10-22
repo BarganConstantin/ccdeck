@@ -63,11 +63,23 @@ export function renderForgeNodes(nodes: ForgeNode[]): React.ReactNode[] {
       case "img":
         return <ForgeImage key={i} node={n} />;
       case "check":
-        return <input key={i} type="checkbox" className="fh-check" checked={n.checked} disabled readOnly />;
+        // A task's box, drawn: the panel cannot tick it, so it is a mark
+        // with its state in words, not a disabled control with no name.
+        return (
+          <span key={i} className="fh-check" role="img" aria-label={n.checked ? "done" : "to do"} data-checked={n.checked || undefined}>
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="1.6" y="1.6" width="10.8" height="10.8" rx="2.4" />
+              {n.checked && <path d="m4.3 7.2 1.9 1.9 3.6-4" />}
+            </svg>
+          </span>
+        );
       case "el": {
         const Tag = n.tag as keyof JSX.IntrinsicElements;
         // hr and br take no children; React throws on void elements given any.
         if (n.tag === "hr" || n.tag === "br") return <Tag key={i} />;
+        // A code block scrolls sideways rather than wrap, so the keyboard can
+        // reach it to scroll it.
+        if (n.tag === "pre") return <pre key={i} tabIndex={0} {...props(n.attrs)}>{renderForgeNodes(n.kids)}</pre>;
         return <Tag key={i} {...props(n.attrs)}>{renderForgeNodes(n.kids)}</Tag>;
       }
     }

@@ -11,7 +11,7 @@
 // focus goes when a page opens or closes.
 import { describe, expect, it } from "vitest";
 import {
-  changeBadge, ciMark, DEFAULT_VIEW, divergeCount, durationWords, fetchForge, focusAfterSelect, forgeErrorWords, forgeReadPath, FRESH_MS,
+  changeBadge, ciMark, DEFAULT_VIEW, GLYPHS, reviewerMark, divergeCount, durationWords, fetchForge, focusAfterSelect, forgeErrorWords, forgeReadPath, FRESH_MS, rovingStop, rowMove, stripScrollDelta,
   isStale, loadForgeView, looksLikeRef, matchesQuery, normaliseView, readDue, splitBranches, splitReviews,
   tabAllowsAllProjects, type ForgePrefs,
 } from "../forge-panel";
@@ -70,6 +70,21 @@ describe("words", () => {
     }
     expect(ciMark(null)).toEqual(ciMark("none"));
     expect(ciMark("failed")).toMatchObject({ word: "failed", tone: "bad" });
+  });
+
+  it("draws every state with a mark of its own family, never a character", () => {
+    const marks = [
+      ...(["success", "failed", "running", "pending", "canceled", "skipped", "manual", "none"] as CiState[]).map(ciMark),
+      ...(["approved", "changes_requested", "commented", "pending"] as const).map(reviewerMark),
+      changeBadge({ state: "open", draft: false, approved: false }), changeBadge({ state: "open", draft: true, approved: false }),
+      changeBadge({ state: "open", draft: false, approved: true }), changeBadge({ state: "merged", draft: false, approved: false }),
+      changeBadge({ state: "closed", draft: false, approved: false }),
+    ];
+    for (const m of marks) expect(GLYPHS, m.word).toContain(m.mark);
+    // Passed and Approved sit on one branch row: never the same drawing.
+    expect(ciMark("success").mark).not.toBe(changeBadge({ state: "open", draft: false, approved: true }).mark);
+    // "Commented" is a speech bubble, not an ellipsis that reads as text cut short.
+    expect(reviewerMark("commented").mark).toBe("commented");
   });
 
   it("badges a change by what matters most", () => {
@@ -171,5 +186,45 @@ describe("focus when a page opens or closes", () => {
 
   it("moves it onto the next page when a link on the last one opened it", () => {
     expect(focusAfterSelect(true, false, false)).toBe("page");
+  });
+});
+
+describe("a list walked with the arrow keys", () => {
+  it("moves one row with Up and Down and stays put at either end, never wrapping", () => {
+    expect(rowMove("ArrowDown", 0, 3)).toBe(1);
+    expect(rowMove("ArrowDown", 2, 3)).toBe(2);
+    expect(rowMove("ArrowUp", 2, 3)).toBe(1);
+    expect(rowMove("ArrowUp", 0, 3)).toBe(0);
+  });
+  it("goes to the ends with Home and End", () => {
+    expect(rowMove("Home", 2, 5)).toBe(0);
+    expect(rowMove("End", 0, 5)).toBe(4);
+  });
+  it("leaves every other key, and an empty list, alone", () => {
+    expect(rowMove("ArrowRight", 1, 3)).toBeNull();
+    expect(rowMove("Enter", 1, 3)).toBeNull();
+    expect(rowMove("a", 1, 3)).toBeNull();
+    expect(rowMove("ArrowDown", 0, 0)).toBeNull();
+  });
+  it("keeps its one Tab stop on the row last focused, else the open item's, else the first", () => {
+    expect(rovingStop(5, 3, 1)).toBe(3);
+    expect(rovingStop(5, -1, 1)).toBe(1);
+    expect(rovingStop(5, -1, -1)).toBe(0);
+    // A row last focused that a filter or a fold took away hands the stop on.
+    expect(rovingStop(2, 4, -1)).toBe(0);
+    expect(rovingStop(0, -1, -1)).toBe(-1);
+  });
+});
+
+describe("a strip that scrolls sideways", () => {
+  const strip = { left: 100, right: 300 };
+  it("leaves a chosen tab that is already in view where it is", () => {
+    expect(stripScrollDelta(strip, { left: 120, right: 200 })).toBe(0);
+    expect(stripScrollDelta(strip, { left: 100, right: 300 })).toBe(0);
+  });
+  it("moves just far enough to show a tab past either edge, with room to spare", () => {
+    expect(stripScrollDelta(strip, { left: 260, right: 340 })).toBe(48);
+    expect(stripScrollDelta(strip, { left: 60, right: 140 })).toBe(-48);
+    expect(stripScrollDelta(strip, { left: 260, right: 340 }, 0)).toBe(40);
   });
 });

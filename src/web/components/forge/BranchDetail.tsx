@@ -12,7 +12,8 @@ import { newChangeUrl } from "../../forge-detail";
 import { useForgeRead } from "../../use-forge-read";
 import { useForge, type ForgeSelection } from "./ForgeContext";
 import { Ago, Badge, Copyable, OpenOnForge, ReadFailure, StateMark } from "./ForgeParts";
-import { CommitRow, DetailBar, DetailFrame, DetailHeading, DetailPending } from "./DetailParts";
+import { CommitRow, DetailFrame, DetailHeading, DetailPending, useDetailBar } from "./DetailParts";
+import IntegrationDetailBar from "../IntegrationDetailBar";
 
 type Selection = Extract<ForgeSelection, { type: "branch" }>;
 
@@ -21,11 +22,12 @@ const COMMITS_SHOWN = 10;
 
 export default function BranchDetail({ selection }: { selection: Selection }) {
   const { kind, api, scope, refresh } = useForge();
+  const bar = useDetailBar();
   const read = useForgeRead<Branch>(api, scope, "branch", { repo: selection.repo, name: selection.name }, refresh);
   const d = read.data;
   return (
     <DetailFrame label={`Branch ${selection.name}`}>
-      <DetailBar reference={selection.repo} copyLabel={forgeWords[kind].repo.toLowerCase()} href={d?.branch.webUrl ?? null} />
+      <IntegrationDetailBar {...bar} reference={selection.repo} copyLabel={forgeWords[kind].repo.toLowerCase()} href={d?.branch.webUrl ?? null} />
       <DetailPending data={d} loading={read.loading} error={read.error} onRetry={read.reload} what="branch" />
       {d && (
         <>

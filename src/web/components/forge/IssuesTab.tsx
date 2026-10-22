@@ -79,7 +79,8 @@ function IssueRow({ issue: i, acrossRepos, me }: { issue: ForgeIssue; acrossRepo
     <li>
       <button
         type="button"
-        className="fg-row fgl-row"
+        className="fg-row fgl-row ig-row"
+        data-nav=""
         data-selected={isSelected || undefined}
         aria-current={isSelected || undefined}
         onClick={() => select(target)}
@@ -109,7 +110,7 @@ function IssueRow({ issue: i, acrossRepos, me }: { issue: ForgeIssue; acrossRepo
           {author && <> by {author}</>}
           {i.milestone && <> · {i.milestone.title}</>}
         </span>
-        <span className="fgl-when">{at != null && <>{i.state === "closed" && i.closedAt != null ? "closed" : "updated"} <Ago at={at} /></>}</span>
+        <span className="fgl-when">{at != null && <><span className="fgl-when-verb">{i.state === "closed" && i.closedAt != null ? "closed" : "updated"} </span><Ago at={at} /></>}</span>
       </button>
     </li>
   );

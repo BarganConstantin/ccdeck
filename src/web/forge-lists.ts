@@ -71,8 +71,8 @@ export function changeMoment(c: Pick<ForgeChange, "state" | "updatedAt" | "merge
  *  the Closed tab already says it. */
 export function issueClosedMark(i: { state: "open" | "closed"; stateReason: string | null }): Mark | null {
   if (i.state !== "closed") return null;
-  if (i.stateReason === "not_planned") return { mark: "⊘", word: "Not planned", tone: "idle" };
-  if (i.stateReason === "duplicate") return { mark: "⊘", word: "Duplicate", tone: "idle" };
+  if (i.stateReason === "not_planned") return { mark: "closed", word: "Not planned", tone: "idle" };
+  if (i.stateReason === "duplicate") return { mark: "closed", word: "Duplicate", tone: "idle" };
   return null;
 }
 

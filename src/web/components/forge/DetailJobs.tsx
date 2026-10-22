@@ -11,9 +11,9 @@
 // followed — the panel's Refresh asks again.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ForgeJob, LogTail } from "../../forge-types";
-import { ciMark, durationWords } from "../../forge-panel";
+import { durationWords } from "../../forge-panel";
 import {
-  annotationMark, jobStartsOpen, LOG_STEPS, logLineTone, nextLogLines, stagesOf, stageStartsOpen,
+  annotationMark, jobMark, jobStartsOpen, LOG_STEPS, logLineTone, nextLogLines, stageMark, stagesOf, stageStartsOpen,
 } from "../../forge-detail";
 import { selfPressAccepted, selfPressProps } from "../../panel-press";
 import { useForgeRead } from "../../use-forge-read";
@@ -35,7 +35,7 @@ export function JobStages({ repo, jobs }: { repo: string; jobs: ForgeJob[] }) {
           title={stage.name ?? "Other jobs"}
           count={stage.jobs.length}
           startsOpen={stageStartsOpen(stage, jobs.length)}
-          aside={<StateMark mark={ciMark(stage.state)} />}
+          aside={<StateMark mark={stageMark(stage)} />}
         >
           <JobList repo={repo} jobs={stage.jobs} />
         </DetailFold>
@@ -56,7 +56,7 @@ function JobRow({ repo, job }: { repo: string; job: ForgeJob }) {
     <li className="fd-job" data-open={open || undefined}>
       <button type="button" className="fg-row fd-job-row" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen(o => !o)}>
         <span className="fg-fold-chevron" aria-hidden="true" />
-        <StateMark mark={ciMark(job.state)} />
+        <StateMark mark={jobMark(job)} />
         <span className="fd-job-name">{job.name}</span>
         {job.allowFailure && job.state === "failed" && <span className="fd-job-note">allowed to fail</span>}
         {time && <span className="fd-job-time">{time}</span>}
@@ -145,9 +145,11 @@ function JobLog({ repo, job }: { repo: string; job: ForgeJob }) {
       {tail && (
         tail.lines.length
           ? (
-            // No tab stop of its own: the browser makes a scrolling box with
-            // nothing focusable inside it reachable by the keyboard.
-            <pre ref={pre} className="fd-log">
+            // Lines are never wrapped, so a line number stays beside its
+            // line on a phone; the log scrolls sideways instead. It is a
+            // stop of its own so the keyboard can scroll it either way, and
+            // a named region so a reader knows which job's log it is.
+            <pre ref={pre} className="fd-log" tabIndex={0} role="region" aria-label={`${job.name} log`}>
               {tail.lines.map((line, i) => {
                 const tone = logLineTone(line);
                 return <span key={i} className="fd-log-line" data-tone={tone ?? undefined}>{line || " "}</span>;

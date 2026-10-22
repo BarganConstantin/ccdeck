@@ -540,9 +540,6 @@ const CONTROLS: Control[] = [
   // with the primary button's accent edge. Its search fields and its Open in
   // Jira link are the integrations' shared ones.
   { at: 'button.btn.jr-chip[aria-pressed="true"]', fillFrom: 'button.btn.jr-chip[aria-pressed="true"]', beds: ["--panel"] },
-  // The GitHub and GitLab panel (#2179): its search field over the list, on
-  // --panel, which is also where a pasted link is opened from.
-  { at: ".fg-search input", states: [".fg-search input:hover"], beds: ["--panel"] },
   // The integrations' shared search field (#2178, #2179), which both panels'
   // fields become: on a toolbar over --bg in the modal, or over --panel.
   { at: ".ig-search-input", states: [".ig-search-input:hover"], beds: ["--panel", "--bg"] },
