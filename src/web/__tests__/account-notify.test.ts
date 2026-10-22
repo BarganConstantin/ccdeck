@@ -641,4 +641,41 @@ describe("a switch onto an account whose organization records telemetry", () => 
     await other.n.tick({ ...switched(), to: { number: 3, email: "someone-else@x.com" } }, ACME_ROSTER, { telemetryOf });
     expect(bodies(other.said)[0]).not.toContain("telemetry");
   });
+
+  // The deck's own rules (#2200) move below the threshold too, and the line
+  // goes with whatever the first one says about why.
+  it("says it under a move home and a move to the sooner weekly reset", async () => {
+    const home = harness();
+    home.n.autoSwitch(true);
+    await home.n.tick({ ...switched({ used: 30 }), trigger: "home" }, ACME_ROSTER, { telemetryOf });
+    expect(bodies(home.said)).toEqual(["Back on work · your home account\nAcme's telemetry is on for new sessions: it sends your prompts to h:4317"]);
+    const weekly = harness();
+    weekly.n.autoSwitch(true);
+    await weekly.n.tick({ ...switched({ used: 30 }), trigger: "weekly-reset", resetAt: T0 / 1000 + 31 * H }, ACME_ROSTER, { telemetryOf });
+    expect(bodies(weekly.said)).toEqual(["Switched to work · weekly limit resets in 1d 7h\nAcme's telemetry is on for new sessions: it sends your prompts to h:4317"]);
+  });
+
+  // A switch that cured a stop incident (#2185) says the sessions in its first
+  // line; the organization's line still follows it, in the same notification.
+  it("follows the stopped sessions a switch carries, as one notification", async () => {
+    const { n, said } = harness({ settings: { ...ALL_ON, stopped: true } as Settings });
+    n.autoSwitch(true);
+    n.stopped({ sessionId: "s-1", who: "api", kind: "login", at: T0 });
+    await n.tick(switched(), ACME_ROSTER, { startedAt: T0 + 1_000, telemetryOf });
+    expect(bodies(said)).toEqual([
+      "Switched to work · personal@x.com reached 90% · 1 session stopped, type “continue” in it\n"
+        + "Acme's telemetry is on for new sessions: it sends your prompts to h:4317",
+    ]);
+  });
+
+  it("is never said for a dead login with nowhere to go, which switched nothing", async () => {
+    const { n, said } = harness();
+    n.autoSwitch(true);
+    const stuck = {
+      ok: true, event: "no-switch", switched: false, reason: "login-expired",
+      detail: "no other account is ready", stuck: true, threshold: 90, from: { number: 2, email: "personal@x.com" },
+    };
+    await n.tick(stuck, ACME_ROSTER, { telemetryOf });
+    expect(bodies(said)).toEqual(["personal@x.com's login expired · no other account is ready to switch to"]);
+  });
 });
