@@ -4,6 +4,8 @@
 // what a sprint header counts, how Jira writes a duration, and the sanitiser
 // an issue's HTML goes through, fed by a parser written here.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { buildRows, filterRows, groupOpen, groupsFor, groupStats, jiraDuration, rowKey } from "../jira-board";
@@ -238,5 +240,18 @@ describe("Settings › Integrations, and the rail control a connection adds", ()
       integrations: connected.map(provider => ({ provider, onPress: () => {} })),
     } as Parameters<typeof railItems>[0]);
     expect(rails.integrations.map(r => [r.id, r.label, r.kind, r.key?.cap])).toEqual([["integration-jira", "Jira", "dialog", "I"]]);
+  });
+});
+
+describe("an open issue, closed by Escape once", () => {
+  // The shared split puts an open detail on the deck's dismiss stack at every
+  // width and calls the panel's Back. A second entry of the panel's own would
+  // spend a second Escape on the same issue before the modal could close.
+  const panel = readFileSync(fileURLToPath(new URL("../components/JiraPanel.tsx", import.meta.url)), "utf8")
+    .replace(/^\s*\/\/.*$/gm, "");
+
+  it("leaves Escape to the split, and names the open issue for the split's motion", () => {
+    expect(panel).not.toMatch(/modalStack/);
+    expect(panel).toMatch(/<IntegrationSplit[\s\S]*?onBack=\{back\}[\s\S]*?detailKey=\{trail\[trail\.length - 1\]\}[\s\S]*?\/>/);
   });
 });

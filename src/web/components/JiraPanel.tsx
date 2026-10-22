@@ -15,7 +15,6 @@ import { connectionHost, type IntegrationFailure } from "../integrations/client"
 import type { IntegrationPanelProps } from "../integrations/types";
 import { readBoards, type JiraBoardSummary } from "../jira-api";
 import type { GroupDef } from "../jira-board";
-import { modalStack } from "../modal-dismiss";
 import { failureOf, useJiraBoard } from "../use-jira-board";
 import { ExternalLinkGlyph } from "./action-glyphs";
 import AnchoredPopover from "./AnchoredPopover";
@@ -192,6 +191,8 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
         ?? document.querySelector<HTMLElement>(".ig-detail [data-ig-back]"))?.focus());
     }
   };
+  // Back and Escape both come here (the split puts an open issue on the
+  // deck's dismiss stack, at every width): focus goes back to the issue's row.
   const back = useCallback(() => {
     const key = trail[0];
     setTrail([]);
@@ -200,15 +201,6 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       row?.focus();
     });
   }, [trail]);
-  const backRef = useRef(back);
-  backRef.current = back;
-  // An open issue is the first thing Escape closes, at every width: one press
-  // leaves the issue (focus back on its row), the next closes the panel. A
-  // search with text in it, or an open picker, comes before both.
-  useEffect(() => {
-    if (!open) return;
-    return modalStack.push(() => backRef.current(), 0, "popover");
-  }, [open]);
 
   const host = connectionHost(conn);
   const blocking = !overview ? (error ?? boardsError) : null;
@@ -331,6 +323,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
         detail={detail}
         onBack={back}
         backLabel="Back to the board"
+        detailKey={trail[trail.length - 1]}
       />
 
       {picker && (
