@@ -9,8 +9,8 @@
 import { type Account } from "./claude-accounts";
 import { isOnline, pairedDeckName } from "./lan-roster";
 import { type LanAccount, type LanStatus } from "./lan-types";
-// Which deck is on which login, one rule in plain JavaScript (#2192), so the
-// row and the server can never read the same status two ways.
+// The rule the notifier reads on the server, so the row cannot say a deck is on
+// a login while the notification thinks it is not (#2192).
 import { decksByAccount } from "../server/lan-elsewhere.mjs";
 
 export function lanAccounts(accounts: readonly Account[]): LanAccount[] {
@@ -174,7 +174,8 @@ export function sharedTo(
  * renews it first keeps it, and every other copy of it is refused from then on,
  * so two machines on one copied login race each other at every renewal and the
  * loser is signed out. Each paired deck says which shared login it is on in its
- * last list, and lan-elsewhere.mjs holds that word for five minutes.
+ * last list, and lan-elsewhere.mjs holds that word for five minutes — the same
+ * rule the notification reads.
  *
  * ONLY WHAT A DECK SAID. The login this deck is on is marked `inUse` in its own
  * list (offeredHere) and that is not a deck saying anything; a paired deck that

@@ -12,10 +12,11 @@
 //
 // Local network already says which account each paired deck is on (`current`
 // in its manifest — see currentFor in lan-copies.mjs), so this needs nothing new
-// on the wire: it reads what the status already holds. It is plain JavaScript
-// the page reads through lan-elsewhere.d.mts, so the row's warning and anything
-// the server says about it later read one rule and cannot disagree about which
-// deck is on what.
+// on the wire: it reads what the status already holds. It is the one rule the
+// row's warning and the notification both ask, so the two cannot disagree
+// about which deck is on what. The page reads it through lan-elsewhere.d.mts;
+// the server through the door at the bottom, which lan-deck.mjs connects to its
+// engine.
 //
 // IT WARNS AND DOES NOTHING ELSE. The login a deck is on already stays on that
 // deck (manifestFor marks it `inUse` and `serve` refuses it), and Auto-switch
@@ -25,7 +26,7 @@
 // deck that hides which account it is on, or is on one it does not share with
 // this one, says nothing here, and nothing is guessed in its place.
 //
-// Pure. No sockets, no timers, no filesystem.
+// Pure apart from that door. No sockets, no timers, no filesystem.
 
 /**
  * How recent a deck's word has to be for "it is on this account right now".
@@ -108,4 +109,29 @@ export function namesByAccount(status, now, freshMs = ELSEWHERE_FRESH_MS) {
 export function deckList(names) {
   if (names.length <= 1) return names[0] ?? "another deck";
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+// ── the door ────────────────────────────────────────────────────────────────
+//
+// The notifier needs the engine's status, and the engine lives in lan-deck.mjs,
+// which imports far more than the notifier should. So lan-deck.mjs hands its
+// status() in here as it loads, and the notifier asks here. Until it does — a
+// test that runs the notifier on its own — the answer is that no deck is on
+// anything, which is what a deck with Local network off would say too.
+
+let _status = null;
+
+/** lan-deck.mjs's, once, as it loads. */
+export function connectLanStatus(status) {
+  _status = typeof status === "function" ? status : null;
+}
+
+/** namesByAccount over the engine's status as it is now. Never throws: a
+ *  status that could not be read is a deck that knows of nobody. */
+export function elsewhereNow(now = Date.now()) {
+  try {
+    return _status ? namesByAccount(_status(), now) : new Map();
+  } catch {
+    return new Map();
+  }
 }

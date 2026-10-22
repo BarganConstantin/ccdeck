@@ -1,4 +1,5 @@
-// The page's view of lan-elsewhere.mjs: the rule the accounts' rows read.
+// The page's view of lan-elsewhere.mjs: the rule the accounts' rows read, the
+// same one the notifier reads on the server.
 
 /** The parts of a status row the rule reads — the engine's and the page's
  *  status rows are both this and more. */
@@ -25,3 +26,5 @@ export function decksByAccount<P extends ElsewherePeer>(
 export function deckName(p: ElsewherePeer, aliases?: Record<string, string>): string;
 export function namesByAccount(status: ElsewhereStatus | null | undefined, now: number, freshMs?: number): Map<string, string[]>;
 export function deckList(names: readonly string[]): string;
+export function connectLanStatus(status: (() => unknown) | null): void;
+export function elsewhereNow(now?: number): Map<string, string[]>;

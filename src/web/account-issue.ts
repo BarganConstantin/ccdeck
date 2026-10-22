@@ -211,7 +211,7 @@ const EXPIRED_EVERYWHERE = {
  * starts runs on that login, and one press on either machine ends it. A row to
  * switch to says nothing: a switch is a person's to make, and Auto-switch may
  * make it too (3.43.3) — the moment it lands, this is the live row, and it says
- * so here.
+ * so here and in one notification.
  *
  * SAID AS "ACTIVE", NOT "SIGNED OUT": nothing has gone wrong yet, and a login
  * signed in to separately on each machine is two logins that never collide —

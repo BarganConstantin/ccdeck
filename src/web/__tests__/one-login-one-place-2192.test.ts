@@ -16,7 +16,8 @@
 //     (lan-elsewhere.mjs), and that a deck too old to say anything is read as
 //     saying nothing;
 //   - the live account's row: "Also active on <deck>", from that word and
-//     nothing else, so it never fires for a login the in-use rule keeps here.
+//     nothing else, so it never fires for a login the in-use rule keeps here;
+//   - the desktop notification, once per incident, from the same word.
 //
 // Auto-switch is not here: it may move to a login a paired deck is on (3.43.3),
 // and the warning is what says so once it has.
@@ -27,13 +28,17 @@
 import { describe, it, expect } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { decksByAccount, deckList, deckName, ELSEWHERE_FRESH_MS, namesByAccount } from "../../server/lan-elsewhere.mjs";
+import {
+  connectLanStatus, decksByAccount, deckList, deckName, ELSEWHERE_FRESH_MS, elsewhereNow, namesByAccount,
+} from "../../server/lan-elsewhere.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { currentFor, heardCurrent, IN_USE, manifestFor, mayGiveInUse, offered, peerWhy, plan } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { createManifests } from "../../server/lan-manifest.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { DEFAULTS, normalise } from "../../server/deck-prefs.mjs";
+// @ts-expect-error — plain .mjs server module, no types
+import { createAccountNotifier, elsewhereNotice } from "../../server/account-notify.mjs";
 import { accountIssue, elsewhereIssue } from "../account-issue";
 import { activeElsewhere, lanAccounts, offeredHere } from "../account-lan";
 import AccountRow from "../components/AccountRow";
@@ -64,6 +69,25 @@ function deck(name: string, key: string | null, ago = 30_000, over: Partial<Peer
 function status(peers: PeerRow[], over: Partial<Status> = {}): Status {
   return { enabled: true, peers, addrs: ["192.0.2.10"], aliases: {}, ...over };
 }
+
+/** A deck's two logins as its roster gives them to its manifest, on `on`. */
+const manifestRows = (on: string) => [
+  { key: WORK, email: "work@example.test", alive: true, active: on === WORK, num: 1 },
+  { key: HOME, email: "home@example.test", alive: true, active: on === HOME, num: 2 },
+];
+
+/** The status this deck holds after one manifest from the paired deck
+ *  "studio", built and kept by the real manifest code at both ends
+ *  (lan-manifest.mjs) — the in-use rule included. */
+function heardFrom(theirs: unknown[], cfg: Record<string, unknown>): Status {
+  const there = createManifests({ about: null, now: () => NOW, myFp: () => "fp-studio", settings: () => cfg });
+  const here = createManifests({ about: null, now: () => NOW - 30_000, myFp: () => "fp-here", settings: () => ({ shared: [] }) });
+  here.keepManifest(null, there.manifestFrame(theirs, null, "fp-here"), "fp-studio");
+  return status([deck("studio", null, 0, { fp: "fp-studio", offers: here.heardOf("fp-studio").offers })]);
+}
+
+/** The studio's settings that show which shared login it is on. */
+const SHOWN = { shared: [WORK, HOME], shareActive: true, sendInUse: false };
 
 // ── which deck is on which login ────────────────────────────────────────────
 
@@ -131,6 +155,17 @@ describe("which deck is on which login", () => {
     expect(deckList(["iMac"])).toBe("iMac");
     expect(deckList(["iMac", "PC"])).toBe("iMac and PC");
     expect(deckList(["iMac", "Mac", "PC"])).toBe("iMac, Mac and PC");
+  });
+
+  it("is asked through a door the server connects, and is nobody until it is", () => {
+    connectLanStatus(null);
+    expect(elsewhereNow(NOW).size).toBe(0);
+    connectLanStatus(() => status([deck("iMac", WORK)]));
+    expect(elsewhereNow(NOW).get(WORK)).toEqual(["iMac"]);
+    // A status that cannot be read is a deck that knows of nobody.
+    connectLanStatus(() => { throw new Error("engine gone"); });
+    expect(elsewhereNow(NOW).size).toBe(0);
+    connectLanStatus(null);
   });
 });
 
@@ -319,18 +354,9 @@ describe("the live account's row, when a paired deck is on that login", () => {
   // live login is marked "in use here". Neither mark is a deck saying where it
   // is, and the warning is built from that saying alone.
   it("never fires for a login the in-use rule keeps local", () => {
-    const rows = (on: string) => [
-      { key: WORK, email: "work@example.test", alive: true, active: on === WORK, num: 1 },
-      { key: HOME, email: "home@example.test", alive: true, active: on === HOME, num: 2 },
-    ];
-    /** What this deck keeps of the paired deck's list, as its engine keeps it. */
-    const heard = (theirs: unknown[], cfg: Record<string, unknown>): Status => {
-      const there = createManifests({ about: null, now: () => NOW, myFp: () => "fp-studio", settings: () => cfg });
-      const here = createManifests({ about: null, now: () => NOW - 30_000, myFp: () => "fp-here", settings: () => ({ shared: [] }) });
-      here.keepManifest(null, there.manifestFrame(theirs, null, "fp-here"), "fp-studio");
-      return status([deck("studio", null, 0, { fp: "fp-studio", offers: here.heardOf("fp-studio").offers })]);
-    };
-    const shown = { shared: [WORK, HOME], shareActive: true, sendInUse: false };
+    const rows = manifestRows;
+    const heard = heardFrom;
+    const shown = SHOWN;
     const live = account({ active: true, num: 1 });
     const warns = (s: Status) => {
       const decks = activeElsewhere(WORK, s as never, NOW);
@@ -376,5 +402,93 @@ describe("the live account's row, when a paired deck is on that login", () => {
     expect(warns(both)).toEqual({ decks: ["studio"], issue: "Also active on studio", row: true });
     // The same word as currentFor gives it on its own.
     expect(currentFor(rows(WORK), [WORK, HOME], true)).toEqual({ current: { key: WORK } });
+  });
+});
+
+// ── the notification ────────────────────────────────────────────────────────
+
+describe("the desktop notification", () => {
+  type Settings = { swap: boolean; quota: boolean; reset: boolean; stopped: boolean; elsewhere: boolean };
+  function harness(settings: Settings = { swap: true, quota: false, reset: false, stopped: true, elsewhere: true }) {
+    const said: Array<{ title: string; body: string }> = [];
+    const errors: unknown[] = [];
+    const n = createAccountNotifier({
+      notify: (title: string, body: string) => { said.push({ title, body }); },
+      settings: () => settings,
+      product: "ccdeck",
+      now: () => NOW,
+      load: async () => null,
+      save: async () => {},
+      later: () => 0,
+      onError: (err: unknown) => errors.push(err),
+    });
+    return { n, said, settings, errors };
+  }
+  const ON_WORK = { key: WORK, name: "work@example.test" };
+  const ON_HOME = { key: HOME, name: "home" };
+
+  it("is said once for as long as both decks are on the login, however often it is asked", async () => {
+    const { n, said, errors } = harness();
+    for (let i = 0; i < 5; i++) await n.elsewhere(ON_WORK, ["iMac"]);
+    expect(said).toEqual([{
+      title: "Claude · work@example.test — ccdeck",
+      body: "Also active on iMac. When one machine renews this login, the other is signed out — use a different account on one of them.",
+    }]);
+    expect(errors).toEqual([]);
+  });
+
+  it("is said again for a new incident, and not for the end of one", async () => {
+    const { n, said } = harness();
+    await n.elsewhere(ON_WORK, ["iMac"]);
+    // The other deck moved off it: the incident closes, silently.
+    await n.elsewhere(ON_WORK, []);
+    await n.elsewhere(null, []);
+    expect(said).toHaveLength(1);
+    // And back on it: that is news again.
+    await n.elsewhere(ON_WORK, ["iMac"]);
+    expect(said).toHaveLength(2);
+    // This deck moved to another login a deck is on: a different incident.
+    await n.elsewhere(ON_HOME, ["PC"]);
+    expect(said.map(s => s.title)).toEqual([
+      "Claude · work@example.test — ccdeck", "Claude · work@example.test — ccdeck", "Claude · home — ccdeck",
+    ]);
+  });
+
+  it("is not said with its switch off, and an incident that opened unsaid stays unsaid", async () => {
+    const { n, said, settings } = harness({ swap: true, quota: false, reset: false, stopped: true, elsewhere: false });
+    await n.elsewhere(ON_WORK, ["iMac"]);
+    settings.elsewhere = true;
+    await n.elsewhere(ON_WORK, ["iMac"]);
+    expect(said).toEqual([]);
+    await n.elsewhere(ON_WORK, []);
+    await n.elsewhere(ON_WORK, ["iMac"]);
+    expect(said).toHaveLength(1);
+  });
+
+  it("names every deck on it", () => {
+    expect(elsewhereNotice({ accountName: "work", decks: ["iMac", "PC"] }).body).toMatch(/^Also active on iMac and PC\. /);
+  });
+
+  // The same in-use cases as the row's, through the door the notifier reads
+  // (account-watch.mjs watchElsewhereOnce asks elsewhereNow, then this).
+  it("is never said for a login the in-use rule keeps local", async () => {
+    const { n, said } = harness();
+    const ask = async (s: Status) => {
+      connectLanStatus(() => s);
+      await n.elsewhere(ON_WORK, elsewhereNow(NOW).get(WORK) ?? []);
+    };
+    try {
+      await ask(status([]));
+      await ask(heardFrom(manifestRows(HOME), SHOWN));
+      await ask(heardFrom(manifestRows(WORK), { ...SHOWN, shareActive: false }));
+      await ask(heardFrom(manifestRows(WORK), { ...SHOWN, shared: [HOME] }));
+      await ask(heardFrom(manifestRows(WORK), { shared: [] }));
+      expect(said).toEqual([]);
+      // The one that is a deck saying so.
+      await ask(heardFrom(manifestRows(WORK), SHOWN));
+      expect(said.map(s => s.body)).toEqual([expect.stringMatching(/^Also active on studio\. /)]);
+    } finally {
+      connectLanStatus(null);
+    }
   });
 });
