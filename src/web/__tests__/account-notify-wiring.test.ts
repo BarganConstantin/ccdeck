@@ -150,7 +150,10 @@ describe("a switch the auto-switch loop made", () => {
     const tick = await tickOnce(SWITCHED);
     expect(tick?.event).toBe("switch");
     expect(said).toEqual([{ title: "Claude auto-switch — ccdeck", body: "Switched to work · account-2@b.c reached 90%" }]);
-    // And the records the next start reads back carry the crossing.
+    // And the records the next start reads back carry the crossing. They are
+    // saved after the notice, and on Windows that save can outlast tickOnce's
+    // pause: wait for the save itself before reading them.
+    await watch.accountNotifySettled();
     const file = join(DIR, "deck", "account-notify.json");
     expect(existsSync(file)).toBe(true);
     const records = JSON.parse(readFileSync(file, "utf8")).windows;

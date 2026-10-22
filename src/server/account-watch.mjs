@@ -82,6 +82,16 @@ function notifier() {
   return _notifier;
 }
 
+/**
+ * For the suite: settles once every record save the notifier has started has
+ * finished. A save follows its notice and is an atomic write, whose rename
+ * Windows retries while a scanner holds the file, so no fixed pause after a
+ * tick is long enough to read the records back.
+ */
+export function accountNotifySettled() {
+  return _notifier ? _notifier.settled() : Promise.resolve();
+}
+
 /** The deck's auto-switch loop was switched on or off (cswap-auto-loop.mjs). */
 export function noteAutoSwitch(enabled) {
   _autoOn = enabled === true;
