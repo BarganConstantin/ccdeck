@@ -310,8 +310,10 @@ Two capture paths feed one SSE stream, which feeds one canvas.
 
 ```
 SessionStart · UserPromptSubmit · PreToolUse · PostToolUse · PostToolUseFailure
-SubagentStart · SubagentStop · Stop · SessionEnd · Notification
+SubagentStart · SubagentStop · Stop · StopFailure · SessionEnd · Notification
 ```
+
+`StopFailure`, which Claude Code sends instead of `Stop` when a turn ends on an API error, is added only when every Claude Code the deck finds on disk is 2.1.78 or newer, read from its install rather than by running it. Older ones did not know the event, and before 2.1.101 an event name Claude Code did not know made it ignore the whole `settings.json`. When the deck cannot tell which version is installed, it leaves the entry out.
 
 Each one fires the bundled `hook.js`, which POSTs the event JSON to the running server. The hook is fire-and-forget with a 1-second timeout: if the deck is not running, your session is not slowed down and nothing fails.
 
