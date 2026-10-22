@@ -82,11 +82,15 @@ A use is a skill loaded into an agent:
   outcome. This is the Tools view's own `Skill` row, so it needs no new hook.
 - **Claude, typed:** `UserPromptExpansion` with `expansion_type: "slash_command"`,
   which Claude Code sends when a typed slash command expands into a prompt
-  (skills and custom commands alike; checked on Claude Code 2.1.303). The
-  installer adds the hook only when the deck is started with
-  `AGENTS_DECK_SKILL_HOOK=1` AND every Claude Code it finds is 2.1.116 or newer
-  (see "The typed-command hook and its gate" below); otherwise only the skills
-  Claude calls itself are counted. The event is recorded and answered
+  (skills and custom commands alike; checked on Claude Code 2.1.303 and
+  2.1.308). It is the only signal for a typed command: a typed skill never
+  calls the Skill tool, and `UserPromptSubmit` also carries prompts that only
+  start like one (`/etc is full`, or an unknown command Claude Code hands to
+  the model). The installer adds the hook unless the deck is started with
+  `AGENTS_DECK_SKILL_HOOK=0`, and only when every Claude Code it finds is
+  2.1.116 or newer (see "The typed-command hook and its gate" below);
+  otherwise only the skills Claude calls itself are counted, and the Skills
+  tab says so. The event is recorded and answered
   before the canvas would see it, so it never becomes a canvas event. Built-in
   commands such as `/clear` do not send it; MCP prompts
   (`expansion_type: "mcp_prompt"`) are not counted. Every deck on the device hears
@@ -133,27 +137,30 @@ and 2.1.306 fired it on a typed custom command.
 So the installer (`src/server/skill-hook.mjs`, `installer.mjs`) adds the entry
 only when all of these hold:
 
-- the deck was started with `AGENTS_DECK_SKILL_HOOK=1`. It is off by default,
-  and any other value is off;
+- the deck was not started with `AGENTS_DECK_SKILL_HOOK` turned off. Unset,
+  empty or `1` is on; any other value, such as `0`, is off;
 - at least one Claude Code was found, in the places the deck looks for `claude`
   (PATH, the known install directories, and `AGENTS_DECK_CLAUDE`);
 - every Claude Code found names its version, and every one is 2.1.116 or newer.
   The version is read off disk first (npm `package.json`, the native
   `versions/` link, the Homebrew cask). Only when the layout names none, and
-  only after the opt-in, is that binary run as `<path> --version`, as argv, and
+  only while the entry is not turned off, is that binary run as
+  `<path> --version`, as argv, and
   believed only if it answers `<x.y.z> (Claude Code)`. A Claude Code that does
   not say is treated as an old one;
 - `hooks` in `settings.json` is absent or an object, and any existing
   `UserPromptExpansion` is a list.
 
 When any of these fails, the entry is left out and the rest of the install goes
-on. Opted in, the boot prints a `Skill hook` row: on, or why not. Not opted in,
-the boot prints what it printed before and writes nothing for the entry: no
-`settings.json` change, no backup, no temp file, whatever Claude Code is
-installed (the "the disabled state" tests in `skill-hook-gate-fp03`). There is
-no Settings switch for it. Every start decides again: removing the
-opt-in, rolling Claude Code back, or adding an older one takes our entry back
-out on the next start. The user's own `UserPromptExpansion` hooks stay, and the
+on. Then the boot prints a `Skill hook` row saying why, and the Skills tab
+says typed commands are not counted (it reads `settings.json` for our entry on
+each report, as `typedCommands`: `on`, `off` or `skipped`). Installed, the boot
+prints nothing more. Turned off, the boot prints what it printed before and
+writes nothing for the entry: no `settings.json` change, no backup, no temp
+file, whatever Claude Code is installed (the "the off state" tests in
+`skill-hook-gate-fp03`). There is no Settings switch for it. Every start
+decides again: turning it off, rolling Claude Code back, or adding an older
+one takes our entry back out on the next start. The user's own `UserPromptExpansion` hooks stay, and the
 key goes only when nothing of theirs is left under it.
 
 The write is the installer's usual one. It reads first and refuses a file that

@@ -237,7 +237,7 @@
 .sa-list-head[data-failures], .sa-list[data-failures] .ta-row { grid-template-columns: minmax(0, 1fr) 72px 132px 76px; }
 .sa-list-head[data-sort=uses] [data-col=uses], .sa-list-head[data-sort=recent] [data-col=recent],
 .sa-list[data-sort=uses] [data-col=uses], .sa-list[data-sort=recent] [data-col=recent] { color: var(--text); font-weight: 600; }
-.sa-since { margin-top: 10px; }
+.sa-since, .ta-note.sa-typed-note { margin-top: 10px; }
 .ta-facts dd.sa-fact-time { font-size: calc(16px + var(--ui-text-increase, 0px)); }
 .ta-show-skills { justify-self: start; margin-top: -6px; }
 .sa-projects h4 { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }

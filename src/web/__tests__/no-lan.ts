@@ -19,3 +19,10 @@ process.env.AGENTS_DECK_NO_LAN = "1";
 // install id and tell api.ccdeck.dev about an install that is a test run. A
 // suite that tests the reporter hands it its own env and a fake fetch.
 process.env.AGENTS_DECK_NO_REPORTS = "1";
+
+// Skill activity's typed-command hook (skill-hook.mjs) is on by default too,
+// and whether it goes in depends on the Claude Code versions installed on the
+// machine running the suite. Off here, every suite that installs hooks or boots
+// a deck writes the same settings.json on every machine; the gate's own suite
+// (skill-hook-gate-fp03) unsets it and tests the default.
+process.env.AGENTS_DECK_SKILL_HOOK = "0";

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { readAuditReport, type AuditProvider, type SkillReport, type SkillRow } from '../tool-audit';
 import { auditDay, callTime, count, periodLabels } from '../tool-audit-report';
-import { countingStartedLate, skillAgents, skillParts, skillSorts, skillSummary, sortSkills, type SkillSort } from '../skill-activity';
+import { countingStartedLate, skillAgents, skillParts, skillSorts, skillSummary, sortSkills, typedCommandsNote, type SkillSort } from '../skill-activity';
 import { readDetailsWidth, writeDetailsWidth } from '../tool-audit-layout';
 import { useMediaQuery } from '../use-media-query';
 import { useFeatureUse } from '../feature-use';
@@ -105,6 +105,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
   };
   const summary = data && skillSummary(data, provider, period);
   const late = data && countingStartedLate(data);
+  const typedNote = data && typedCommandsNote(data, provider);
 
   return <div className="ta-workspace" ref={workspaceRef} data-inspecting={!!selection || undefined} style={{ "--ta-details-w": `${detailsWidth}px` } as CSSProperties}>
     <div className="ta-body"><div className="ta-report-content">
@@ -116,6 +117,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
       {data && summary && (data.total === 0 && data.repeats === 0 ? <div className="ta-empty">
         <h3>No skills used in the last {periodLabels[period]}</h3>
         <p>ccdeck counts each skill {provider === 'all' ? 'Claude Code and Codex load' : provider === 'claude' ? 'Claude Code loads' : 'Codex loads'} on this device, starting {auditDay(data.countedSince)}. Sessions from before that are not imported. Use a skill and it shows up here.</p>
+        {typedNote && <p className="sa-typed-note">{typedNote}</p>}
         {period !== '90' && !late && <button type="button" className="btn" onClick={() => setPeriod('90')}>Show the last 90 days</button>}
       </div> : <>
         <p className="ta-summary">
@@ -124,6 +126,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
           {summary.repeats > 0 && <>{count(summary.repeats, 'repeated run')}, such as <code>/loop</code> ticks, {summary.repeats === 1 ? 'is' : 'are'} left out.</>}
         </p>
         {late && <p className="ta-note sa-since">Counting started {auditDay(data.countedSince)}, so the days before it are empty rather than unused.</p>}
+        {typedNote && <p className="ta-note sa-typed-note">{typedNote}</p>}
         {(!data.storageOk || data.dropped > 0 || data.corrupt > 0) && <p className="ta-warning" role="status">Some uses could not be saved or read, so these numbers may be a little low.{!data.storageOk && ' Check free disk space.'}</p>}
 
         <section className="ta-tools" aria-labelledby="sa-skills-title">
@@ -151,7 +154,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
           <ul>
             <li>A use is a skill loaded into an agent: Claude calling its Skill tool, a slash command you type, or a skill you pick in Codex with <code>$</code> or <code>/skills</code>. Custom commands count as skills.</li>
             <li>When Codex picks a skill itself, it only reads the skill’s <code>SKILL.md</code> or runs one of its scripts. That counts once per turn, only for a skill Codex listed for the session, and shows as detected.</li>
-            <li>Typed commands are counted only when the deck was started with <code>AGENTS_DECK_SKILL_HOOK=1</code> and every Claude Code on this device is 2.1.116 or newer, which reports them to its hooks (<code>UserPromptExpansion</code>). Otherwise only the skills Claude calls itself are counted.</li>
+            <li>Typed commands reach the deck through Claude Code’s <code>UserPromptExpansion</code> hook, which the deck adds when every Claude Code on this device is 2.1.116 or newer. Starting the deck with <code>AGENTS_DECK_SKILL_HOOK=0</code> leaves it out, and then only the skills Claude calls itself are counted.</li>
             <li>The same command run again in one session with the same arguments, such as a <code>/loop</code> tick, is a repeat and stays out of the ranking.</li>
             <li>Built-in commands such as <code>/clear</code> or <code>/model</code>, MCP prompts and a skill’s name typed inside a message are not uses. Skills that are installed but never ran do not appear.</li>
             <li>Failures are shown only when Claude reports that loading a skill failed; Codex reports none.</li>

@@ -1,5 +1,7 @@
 import { toolAudit } from './tool-audit.mjs';
 import { readBody, send } from './http-io.mjs';
+import { skillHookState } from './installer.mjs';
+import { deckProviders } from './deck-scope.mjs';
 const calendarDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value ?? '') && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
 export function auditQuery(params) {
   const provider = params.get('provider') ?? 'all';
@@ -31,6 +33,8 @@ export async function handleToolAudit(req, res) {
     try { report = await audit.report(query, controller.signal); }
     catch (e) { if (controller.signal.aborted) return; throw e; }
     finally { res.off('close', cancel); }
+    // The Skills tab says when the commands a person types cannot be counted.
+    if (report.ok && query.view === 'skills' && deckProviders().claude) report.typedCommands = await skillHookState();
     return send(res, report.ok ? 200 : 409, report);
   }
   let body; try { body = JSON.parse(await readBody(req, res, 2048)); } catch { return send(res, 400, { ok: false, reason: 'bad_body' }); }

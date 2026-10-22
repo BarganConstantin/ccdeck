@@ -403,8 +403,8 @@ export const SETTING_VARS = Object.freeze([
   "AGENTS_DECK_NO_INSTALL", "AGENTS_DECK_NO_DOWNLOAD", "AGENTS_DECK_NO_UPDATE_CHECK", "AGENTS_DECK_NO_STATUS",
   "AGENTS_DECK_NO_FRESHEN", "AGENTS_DECK_NO_NOTIFY", "AGENTS_DECK_NO_LAN", "AGENTS_DECK_NO_REPORTS",
   "AGENTS_DECK_CSWAP", "AGENTS_DECK_CLAUDE", "AGENTS_DECK_CCUSAGE", "CLAUDE_SWAP_BACKUP", "AGENTS_DECK_LHM_PORT",
-  // The opt-in for Skill activity's typed-command hook (skill-hook.mjs). A deck
-  // started at login without it would take the entry back out.
+  // The off switch for Skill activity's typed-command hook (skill-hook.mjs). A
+  // deck started at login without it would put the entry back in.
   "AGENTS_DECK_SKILL_HOOK",
 ]);
 
