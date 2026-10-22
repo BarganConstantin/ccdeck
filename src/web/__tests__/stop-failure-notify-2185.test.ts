@@ -224,3 +224,59 @@ describe("an incident while the auto-switch loop is on", () => {
     expect(said.map(s => s.body)).toEqual(["Switched to work · personal@x.com reached 90%"]);
   });
 });
+
+// The deck's failover away from an expired login (autoswitch-failover.mjs) is
+// the tick a login stop is most often about. One dead login is still one
+// notification: its switch carries the incident like any switch, and when no
+// other account is ready the stuck notice carries it instead.
+describe("an incident on a login the failover could not leave", () => {
+  const expiredSwitch = () => ({ ...switched(), trigger: "login-expired", headroom: null, windows: null });
+  const stuck = () => ({
+    ok: true, event: "no-switch", switched: false, reason: "login-expired",
+    detail: "no other account is ready", stuck: true, threshold: 90,
+    from: { number: 2, email: "personal@x.com" },
+  });
+
+  it("is said inside the stuck notice, once", async () => {
+    const { n, said, fireTimers } = harness();
+    n.autoSwitch(true);
+    n.stopped(login("s-1", "vcrm-core", T0));
+    n.stopped(login("s-2", "api", T0 + 500));
+    await n.tick(stuck(), ROSTER, { startedAt: T0 + 1_500 });
+    expect(said).toEqual([{
+      title: "Claude auto-switch — ccdeck",
+      body: "personal@x.com's login expired · no other account is ready to switch to · 2 sessions stopped",
+    }]);
+    fireTimers();
+    await n.tick(stuck(), ROSTER, { startedAt: T0 + 61_500 });
+    expect(said).toHaveLength(1);
+  });
+
+  it("rides in the failover's own switch like any switch", async () => {
+    const { n, said } = harness();
+    n.autoSwitch(true);
+    n.stopped(login("s-1", "vcrm-core", T0));
+    await n.tick(expiredSwitch(), ROSTER, { startedAt: T0 + 1_500 });
+    expect(said.map(s => s.body)).toEqual([
+      "Switched to work · personal@x.com's login expired, sign in again to use it · 1 session stopped, type “continue” in it",
+    ]);
+  });
+
+  it("is said on its own when the stuck login was already said, which is not said again", async () => {
+    const { n, said } = harness();
+    n.autoSwitch(true);
+    await n.tick(stuck(), ROSTER, { startedAt: T0 - 60_000 });
+    n.stopped(login("s-1", "vcrm-core", T0));
+    await n.tick(stuck(), ROSTER, { startedAt: T0 + 1_500 });
+    expect(said.map(s => s.title)).toEqual(["Claude auto-switch — ccdeck", "1 Claude session stopped — ccdeck"]);
+  });
+
+  it("leaves the stuck notice as it was with the stopped switch off, and says nothing after it", async () => {
+    const { n, said, fireTimers } = harness({ settings: { ...ALL_ON, stopped: false } });
+    n.autoSwitch(true);
+    n.stopped(login("s-1", "vcrm-core", T0));
+    await n.tick(stuck(), ROSTER, { startedAt: T0 + 1_500 });
+    fireTimers();
+    expect(said.map(s => s.body)).toEqual(["personal@x.com's login expired · no other account is ready to switch to"]);
+  });
+});

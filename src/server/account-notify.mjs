@@ -627,22 +627,29 @@ export function createAccountNotifier({
       // included: the sessions are stopped already, and minutes is too long to
       // wait to say so for a switch that may come.
       const inc = incidentFor(startedAt);
-      if (inc && !(result.switched && settings().swap)) sayIncident();
+      // On a dead login with nowhere to go, said once and then left alone:
+      // the failover asks again every tick, and the answer will not change
+      // until somebody signs in.
+      const stuck = !result.switched && result.event === "no-switch" && result.reason === "login-expired" && result.stuck === true;
+      const stuckFrom = stuck ? accountOfRef(result.from, accounts) : null;
+      const stuckKey = stuck ? stuckFrom?.key ?? String(result.from?.number ?? "") : null;
+      const sayStuck = stuck && settings().swap && !(now() - (stuckSaid.get(stuckKey) ?? -Infinity) < STUCK_REPEAT_MS);
+      // The stuck notice carries the incident it explains, as a switch does:
+      // one notification for one dead login.
+      if (inc && !(result.switched && settings().swap) && !sayStuck) sayIncident();
       if (!result.switched) {
         // A cooldown is the one answer that says a switch is still coming.
         if (result.event === "no-switch" && result.reason === "cooldown") return;
         release([...held.values()]);
-        // On a dead login with nowhere to go, said once and then left alone:
-        // the failover asks again every tick, and the answer will not change
-        // until somebody signs in.
-        if (result.event === "no-switch" && result.reason === "login-expired" && result.stuck === true) {
-          const from = accountOfRef(result.from, accounts);
-          const key = from?.key ?? String(result.from?.number ?? "");
-          const at = now();
-          if (settings().swap && !(at - (stuckSaid.get(key) ?? -Infinity) < STUCK_REPEAT_MS)) {
-            stuckSaid.set(key, at);
-            say(stuckNotice({ fromName: from?.name ?? null }));
+        if (sayStuck) {
+          stuckSaid.set(stuckKey, now());
+          const notice = stuckNotice({ fromName: stuckFrom?.name ?? null });
+          const told = inc && incident === inc && !inc.said ? inc : null;
+          if (told) {
+            told.said = true;
+            if (told.timer) { clearTimeout(told.timer); told.timer = null; }
           }
+          say(told && settings().stopped ? { ...notice, body: `${notice.body} · ${stoppedCount(told.ids.size)}` } : notice);
         }
         return;
       }
