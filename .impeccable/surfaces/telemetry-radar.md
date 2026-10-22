@@ -263,3 +263,18 @@ cards: known session name, then title, then project/agent label. The short ID
 remains a disambiguator. Captured sessions without local metadata display
 “Session · <short ID>” rather than repeating the ID twice. Names are local
 context joined by exact session ID, not a claim that telemetry exported them.
+
+## Recovered onto 3.43.4: opt-in automatic monitoring, File kept — 2026-10-22
+
+The owner's rules for v3.44.0 override three 2026-10-19 decisions above.
+Automatic monitoring is OFF by default and only the person turns it on, in
+Settings › Radar ("Monitor automatically"). A fresh deck and one upgraded from
+3.43.4 discover nothing, start nothing and retry nothing; the switch lives in
+its own radar-settings-<port>.json and is on only where that says so. Off, the
+Monitor view is 3.43.4's: destination picker, Start/Stop, and the monitor's own
+radar-monitor-<port>.json opt-in that resumes a monitor the person started.
+Radar stays in the toolbar whatever the switch says, so Settings always shows
+its door. The File view stays as Radar's third tab, and the sessions a file
+names join the session filter as captured ones do ("Session · <short ID>").
+Everything else above is kept: the compact rows, prompt previews, highlights,
+the "With prompt" filter, the resizable list and the unified header.
