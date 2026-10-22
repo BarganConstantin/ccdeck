@@ -476,7 +476,7 @@ describe("which panels the UI draws for each machine", () => {
     // they cannot stand in for the accounts button either.
     expect(appSrc).toMatch(/<EdgeRail side="left" label="Left column" groups=\{\[rails\.leftStripe, rails\.integrations\]\}/);
     // And nowhere else: the right stripe and the utilities never carry it.
-    expect(appSrc).toMatch(/right: \[\[usage, machine\], \[history, \.\.\.\(openToolActivity \? \[\{[^}]*\}\] : \[\]\), browserWatch, \.\.\.\(setTrafficRadarOpen \? \[\{[^}]*\}\] : \[\]\)\], \.\.\.\(setRadioOpen/);
+    expect(appSrc).toMatch(/right: \[\[usage, machine\], \[history, \.\.\.activity, browserWatch, \.\.\.\(setTrafficRadarOpen \? \[\{[^}]*\}\] : \[\]\)\], \.\.\.\(setRadioOpen/);
     expect(appSrc).toMatch(/utilities: \[settings, feedback\]/);
   });
 

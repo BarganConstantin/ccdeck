@@ -19,8 +19,9 @@ function rowLabel(row: SkillRow) {
   return `${row.name}: ${count(row.uses, 'use')}, last used ${callTime(row.lastAt)}${row.failed ? `, ${row.failed.toLocaleString()} failed` : ''}`;
 }
 
-/** Skill activity (#2181): the Skills tab of the Tool activity modal. The period
- *  and agent filters are the modal's, so both tabs answer for the same slice. */
+/** Skill activity (#2181): the Skills view of the Tool activity modal, opened
+ *  from its own door on the stripe. The period and agent filters are the
+ *  modal's, so both views answer for the same slice. */
 export default function SkillActivity({ filters, provider, period, setPeriod, refresh, onStatus, sessionLabel, onOpenSession }: SessionLinks & {
   filters: ReactNode; provider: AuditProvider; period: string; setPeriod: (period: string) => void;
   refresh: number; onStatus: (status: ReportStatus) => void;
