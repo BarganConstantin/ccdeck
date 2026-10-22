@@ -50,6 +50,8 @@ describe("an item's top line", () => {
     expect(rule(".ig-ref-num")).toMatch(/flex:\s*none/);
     expect(rule(".ig-ref")).toMatch(/min-width:\s*0/);
     expect(rule(".ig-detail-bar-end")).toMatch(/flex:\s*none/);
+    // In a grid pane as much as in a block or a flex column.
+    expect(rule(".ig-detail-bar")).toMatch(/min-width:\s*0/);
   });
 
   it("sticks to the top of the pane, edge to edge across the panel's padding", () => {

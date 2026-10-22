@@ -173,7 +173,9 @@
 /* Freshness (IntegrationFreshness): the age of the answer, quiet, and Refresh
    at the end of a toolbar row. The sentence gives way with an ellipsis before
    Refresh moves; "Not updated" and its mark are in --warn. */
-.ig-freshness { margin-left: auto; min-width: 0; flex: 0 1 auto; display: flex; align-items: center; gap: 4px; }
+/* Never wider than its row, whatever lays the row out: the words give way
+   (ellipsis), Refresh does not. */
+.ig-freshness { margin-left: auto; min-width: 0; max-width: 100%; flex: 0 1 auto; display: flex; align-items: center; gap: 4px; }
 .ig-fresh {
   min-width: 0;
   overflow: hidden;
@@ -284,6 +286,9 @@
   align-items: center;
   gap: 12px;
   min-height: 36px;
+  /* Shrinks with its pane whatever lays the pane out: a grid parent would
+     otherwise size it to the whole reference. */
+  min-width: 0;
   margin-inline: calc(-1 * var(--ig-detail-pad, 20px));
   padding: 4px var(--ig-detail-pad, 20px);
   box-sizing: border-box;

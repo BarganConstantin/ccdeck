@@ -73,6 +73,8 @@ describe("the freshness line on screen", () => {
 
   it("says Not updated in --warn, mark and word, and keeps the rest of the line quiet", () => {
     expect(css).toMatch(/\.ig-freshness\[data-tone="stale"\] \.ig-fresh-word,\s*\.ig-freshness\[data-tone="stale"\] \.ig-mark\s*\{\s*color:\s*var\(--warn\)/);
+    // At larger text on a phone the words shorten; the line never runs past its row.
+    expect(css).toMatch(/\.ig-freshness\s*\{[^}]*min-width:\s*0;\s*max-width:\s*100%/);
     expect(css).toMatch(/\.ig-fresh\s*\{[^}]*color:\s*var\(--muted\)[^}]*text-overflow:\s*ellipsis|\.ig-fresh\s*\{[^}]*text-overflow:\s*ellipsis[^}]*color:\s*var\(--muted\)/);
   });
 });
