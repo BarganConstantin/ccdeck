@@ -5,7 +5,9 @@
 import { describe, expect, it } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
 import ForgePanel, { type ForgeSplitProps } from "../components/forge/ForgePanel";
+import { selectionKey } from "../components/forge/ForgeContext";
 import type { ForgePrefs } from "../forge-panel";
 import type { ForgeKind } from "../forge-types";
 
@@ -47,5 +49,28 @@ describe("the search over the list", () => {
     const html = draw("github");
     expect(html).toMatch(/<div class="ig-search"><svg[^>]*>.*?<\/svg><input type="search" class="ig-search-input" aria-label="Search by title or number, or paste a GitHub link"/);
     expect(html).not.toContain("fg-search\"");
+  });
+});
+
+describe("an open item and Escape", () => {
+  it("leaves Escape to the host's split, which closes the item before the modal at every width", () => {
+    // IntegrationSplit puts an open detail on the dismiss stack and calls the
+    // panel's onBack; a second entry of the panel's own would take two
+    // presses' worth of closing from one.
+    const panel = readFileSync(new URL("../components/forge/ForgePanel.tsx", import.meta.url), "utf8");
+    expect(panel).not.toMatch(/modalStack/);
+    expect(panel).toMatch(/onBack=\{\(\) => select\(null\)\}/);
+  });
+
+  it("names each item once for the host, so a new one arriving is marked as new", () => {
+    const keys = [
+      selectionKey({ type: "change", repo: "acme/web", number: 12 }),
+      selectionKey({ type: "issue", repo: "acme/web", number: 12 }),
+      selectionKey({ type: "change", repo: "acme/api", number: 12 }),
+      selectionKey({ type: "branch", repo: "acme/web", name: "12" }),
+      selectionKey({ type: "pipeline", repo: "acme/web", id: "12" }),
+    ];
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(selectionKey({ type: "change", repo: "acme/web", number: 12 })).toBe(keys[0]);
   });
 });

@@ -8,7 +8,8 @@
 // GitHub); a search over what is loaded that also opens a pasted link; and on
 // the right, the selected item the way the forge's own page shows it. The host's
 // split draws list and detail side by side, or the detail as its own screen
-// with Back on a narrow window.
+// with Back on a narrow window, and closes an open item on Escape at every
+// width before the modal; the panel registers no Escape of its own for it.
 //
 // The view — project, tab, filters, which groups are unfolded — is remembered
 // per connection through the host's prefs, so reopening the panel lands where
@@ -20,13 +21,12 @@ import {
   fetchForge, focusAfterSelect, forgeReadPath, ForgeReadError, loadForgeView, looksLikeRef, saveForgeView, tabAllowsAllProjects,
   type ForgeApi, type ForgePrefs, type ForgeTab, type ForgeView,
 } from "../../forge-panel";
-import { modalStack } from "../../modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../../panel-press";
 import { tabStripMove } from "../../tablist-keys";
 import { useForgeRead } from "../../use-forge-read";
 import IntegrationFreshness from "../IntegrationFreshness";
 import IntegrationSearch from "../IntegrationSearch";
-import { ForgeProvider, type ForgeConnectionInfo, type ForgeContextValue, type ForgeSelection, type Freshness } from "./ForgeContext";
+import { ForgeProvider, selectionKey, type ForgeConnectionInfo, type ForgeContextValue, type ForgeSelection, type Freshness } from "./ForgeContext";
 import { ReadFailure, useChosenInView } from "./ForgeParts";
 import RepoPicker from "./RepoPicker";
 import BranchesTab from "./BranchesTab";
@@ -46,6 +46,8 @@ export interface ForgeSplitProps {
   onBack: () => void;
   backLabel: string;
   storageKey: string;
+  /** Which item the detail shows, so the host can mark a new one arriving. */
+  detailKey?: string;
 }
 
 export interface ForgePanelProps {
@@ -140,15 +142,6 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
       else if (target === "page") panelRef.current?.querySelector<HTMLElement>(".ig-detail .fd")?.focus();
     });
   }, [narrow]);
-
-  // On the drill-in screen Escape is Back, before it closes the modal.
-  const open = selected != null;
-  const selectRef = useRef(select);
-  selectRef.current = select;
-  useEffect(() => {
-    if (!narrow || !open) return;
-    return modalStack.push(() => selectRef.current(null), 0, "popover");
-  }, [narrow, open]);
 
   const ctx = useMemo<ForgeContextValue>(() => ({
     kind, connection, scope, api,
@@ -280,7 +273,7 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   return (
     <ForgeProvider value={ctx}>
       <div ref={panelRef} className="fg-panel" data-kind={kind}>
-        <Split list={list} detail={detail} onBack={() => select(null)} backLabel={backLabel(kind, view.tab)} storageKey={kind} />
+        <Split list={list} detail={detail} onBack={() => select(null)} backLabel={backLabel(kind, view.tab)} storageKey={kind} detailKey={selected ? selectionKey(selected) : undefined} />
       </div>
     </ForgeProvider>
   );

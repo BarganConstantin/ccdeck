@@ -60,6 +60,19 @@ export function useForge(): ForgeContextValue {
 }
 
 /** Whether a selection is this one — for a row's selected fill. */
+/** One string per item, the same for the same item: "change:acme/web:12". */
+export function selectionKey(s: ForgeSelection): string {
+  switch (s.type) {
+    case "change":
+    case "issue":
+      return `${s.type}:${s.repo}:${s.number}`;
+    case "branch":
+      return `branch:${s.repo}:${s.name}`;
+    case "pipeline":
+      return `pipeline:${s.repo}:${s.id}`;
+  }
+}
+
 export function sameSelection(a: ForgeSelection | null, b: ForgeSelection): boolean {
   if (!a || a.type !== b.type || a.repo !== b.repo) return false;
   switch (b.type) {
