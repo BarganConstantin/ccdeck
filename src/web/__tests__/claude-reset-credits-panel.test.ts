@@ -6,7 +6,7 @@
 // component, because the panel fetches its own quota inside an effect and this
 // suite renders no DOM — the same trade wire-contract-1046.test.ts makes for
 // the pay-as-you-go fields beside it.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resetCreditsLine } from "../reset-credits";
@@ -14,16 +14,45 @@ import { sourceOf } from "./client-source";
 import { USAGE_FILES } from "./usage-surface";
 import { sheetText } from "./sheet-source";
 
-// Midday UTC, so the printed date is the same in every timezone a CI runner or
-// a contributor's machine might be in.
+// The expiry is printed in the reader's own zone, so the file pins one: the
+// strings below hold whatever zone a CI runner or a contributor's machine is in.
+const previousZone = process.env.TZ;
+process.env.TZ = "Europe/Berlin";
+afterAll(() => {
+  if (previousZone === undefined) delete process.env.TZ; else process.env.TZ = previousZone;
+});
+
+// Midday UTC: 2:00pm in Berlin (CEST), 8:00am in New York (EDT).
 const OCT_4 = Date.parse("2026-10-04T12:00:00Z");
 
+/** The sentence as it reads, with the expiry's no-break spaces as plain ones;
+ *  where it may wrap is its own test below. */
+const line = (noun: string, c: Parameters<typeof resetCreditsLine>[1]) => resetCreditsLine(noun, c).replace(/ /g, " ");
+
 describe("the sentence", () => {
-  it("counts, pluralises and gives the nearest expiry as a date", () => {
-    expect(resetCreditsLine("limit reset", { availableCount: 2, nextExpiryAt: OCT_4 }))
-      .toBe("2 limit resets available · expires Oct 4");
-    expect(resetCreditsLine("limit reset", { availableCount: 1, nextExpiryAt: OCT_4 }))
-      .toBe("1 limit reset available · expires Oct 4");
+  it("counts, pluralises and gives the nearest expiry as a date and a time", () => {
+    expect(line("limit reset", { availableCount: 2, nextExpiryAt: OCT_4 }))
+      .toBe("2 limit resets available · expires Oct 4, 2:00pm");
+    expect(line("limit reset", { availableCount: 1, nextExpiryAt: OCT_4 }))
+      .toBe("1 limit reset available · expires Oct 4, 2:00pm");
+    expect(line("limit reset", { availableCount: 1, nextExpiryAt: Date.parse("2026-10-04T21:05:00Z") }))
+      .toBe("1 limit reset available · expires Oct 4, 11:05pm");
+  });
+
+  it("gives the time in the reader's own zone, not one written into the deck", () => {
+    try {
+      process.env.TZ = "America/New_York";
+      expect(line("limit reset", { availableCount: 1, nextExpiryAt: OCT_4 }))
+        .toBe("1 limit reset available · expires Oct 4, 8:00am");
+      // Past midnight UTC is still the evening before here, and the date says so.
+      expect(line("limit reset", { availableCount: 1, nextExpiryAt: Date.parse("2026-10-05T00:30:00Z") }))
+        .toBe("1 limit reset available · expires Oct 4, 8:30pm");
+    } finally { process.env.TZ = "Europe/Berlin"; }
+  });
+
+  it("wraps before the expiry, never between its date and its time", () => {
+    const said = resetCreditsLine("rate-limit reset", { availableCount: 2, nextExpiryAt: OCT_4 });
+    expect(said).toBe("2 rate-limit resets available · expires Oct 4, 2:00pm");
   });
 
   it("says nothing about expiry when no reset has an end", () => {
@@ -32,8 +61,8 @@ describe("the sentence", () => {
   });
 
   it("is still the Codex card's sentence, word for word", () => {
-    expect(resetCreditsLine("rate-limit reset", { availableCount: 2, nextExpiryAt: OCT_4 }))
-      .toBe("2 rate-limit resets available · expires Oct 4");
+    expect(line("rate-limit reset", { availableCount: 2, nextExpiryAt: OCT_4 }))
+      .toBe("2 rate-limit resets available · expires Oct 4, 2:00pm");
   });
 });
 
