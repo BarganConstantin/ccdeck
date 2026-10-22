@@ -37,10 +37,12 @@ const isQuick = (v: unknown): v is { board: string; ids: string[] } =>
 
 interface BoardPage { boards: JiraBoardSummary[]; isLast: boolean; total: number | null; loading: boolean; error: IntegrationFailure | null }
 
-function BoardPicker({ api, current, anchorId, onPick, onClose }: {
+function BoardPicker({ api, current, layerId, onPick, onClose }: {
   api: IntegrationPanelProps["api"];
   current: string | null;
-  anchorId: string;
+  /** The span the picker is drawn in and hangs off: the popover's width,
+   *  with the board button at its start (see the toolbar). */
+  layerId: string;
   onPick: (board: JiraBoardSummary) => void;
   onClose: () => void;
 }) {
@@ -82,7 +84,7 @@ function BoardPicker({ api, current, anchorId, onPick, onClose }: {
   };
 
   return (
-    <AnchoredPopover anchorId={anchorId} portalRootId="integration-jira-modal" id="jira-board-picker" className="jr-board-pop" role="dialog"
+    <AnchoredPopover anchorId={layerId} portalRootId={layerId} id="jira-board-picker" className="jr-board-pop" role="dialog"
       labelledBy="jira-board-picker-title" focusRef={searchRef} onClose={onClose}>
       <div className="jr-board-pop-inner" onKeyDown={onKeyDown}>
         <p className="jr-board-pop-title" id="jira-board-picker-title">Boards</p>
@@ -285,13 +287,22 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
           board, search and filters are the list's: they wait behind Back. */}
       <div className="jr-toolbar" hidden={narrow && open}>
         <div className="jr-toolbar-row">
-          <button type="button" id="jira-board-button" className="btn jr-board-btn" aria-haspopup="dialog" aria-expanded={picker}
-            aria-controls={picker ? "jira-board-picker" : undefined} onClick={() => setPicker(p => !p)}>
-            <span className="jr-board-btn-label">Board</span>
-            <span className="jr-board-btn-name">{overview?.board.name || boardName || (board ? `Board ${board}` : "Choose a board")}</span>
-            <Chevron open={picker} />
-          </button>
-          {overview?.board.projectName && <span className="jr-board-project">{overview.board.projectName}</span>}
+          {/* The board picker is drawn inside this span and hangs off it, the
+              way the forges' project picker does: the deck's popovers line up
+              with their anchor's end, and the span is the popover's width with
+              the button at its start, so the list opens under the button
+              instead of running out past the panel's left edge. Being inside
+              the integration dialog keeps it within the dialog's modal
+              boundary too. */}
+          <span id="jira-board-layer" className="jr-board-layer">
+            <button type="button" id="jira-board-button" className="btn jr-board-btn" aria-haspopup="dialog" aria-expanded={picker}
+              aria-controls={picker ? "jira-board-picker" : undefined} onClick={() => setPicker(p => !p)}>
+              <span className="jr-board-btn-label">Board</span>
+              <span className="jr-board-btn-name">{overview?.board.name || boardName || (board ? `Board ${board}` : "Choose a board")}</span>
+              <Chevron open={picker} />
+            </button>
+            {overview?.board.projectName && <span className="jr-board-project">{overview.board.projectName}</span>}
+          </span>
           {/* After a refresh that failed the rows on screen are the last
               answer, and the line says "Not updated", never "Updated". */}
           <IntegrationFreshness loadedAt={snap.loadedAt || null} loading={loading} stale={Boolean(error)}
@@ -328,9 +339,15 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       />
 
       {picker && (
-        <BoardPicker api={api} current={board} anchorId="jira-board-button"
+        <BoardPicker api={api} current={board} layerId="jira-board-layer"
           onPick={b => { chooseBoard(b); setPicker(false); document.getElementById("jira-board-button")?.focus(); }}
-          onClose={() => setPicker(false)} />
+          onClose={() => {
+            // Escape, or a Tab out: focus was in the picker, so it goes back
+            // to the button that opened it. A press elsewhere keeps its own.
+            const inside = document.getElementById("jira-board-picker")?.contains(document.activeElement);
+            setPicker(false);
+            if (inside) document.getElementById("jira-board-button")?.focus();
+          }} />
       )}
     </div>
   );

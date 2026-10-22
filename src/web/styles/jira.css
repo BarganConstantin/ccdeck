@@ -18,6 +18,9 @@
   background: var(--panel);
 }
 .jr-toolbar-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+/* The board button and its project, in a span the board picker's width: the
+   picker is drawn in it and hangs off its end (JiraPanel). */
+.jr-board-layer { --jr-pop-w: min(360px, calc(100vw - 32px)); flex: 0 1 auto; width: var(--jr-pop-w); min-width: 0; display: inline-flex; align-items: center; gap: 12px; }
 .jr-board-btn { gap: 8px; min-width: 0; max-width: min(420px, 100%); }
 .jr-board-btn-label { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .jr-board-btn-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
@@ -84,7 +87,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-open:hover { border-color: var(--text); background: var(--ctl-fill); }
 
 /* The board picker, anchored under the board button. */
-.jr-board-pop { width: min(360px, calc(100vw - 32px)); }
+.jr-board-pop { width: var(--jr-pop-w); }
 .jr-board-pop-inner { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
 .jr-board-pop-title { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .jr-board-search { display: flex; }
