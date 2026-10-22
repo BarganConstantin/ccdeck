@@ -149,10 +149,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-group-dates, .jr-group-count { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .jr-group-facts { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; }
 .jr-mine { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.jr-stack { display: inline-flex; align-items: center; }
-.jr-stack .ig-avatar { box-shadow: 0 0 0 2px var(--bg); }
-.jr-stack .ig-avatar + .ig-avatar { margin-left: -6px; }
-.jr-stack-more { margin-left: 4px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .jr-totals { display: inline-flex; gap: 4px; }
 .jr-total, .jr-estimate {
   min-width: 24px;
@@ -252,8 +248,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
    estimate by weight. */
 .jr-remaining { color: var(--text-secondary); font-weight: 400; }
 .jr-assignee { flex: none; display: inline-flex; width: 20px; height: 20px; }
-.jr-unassigned, .jr-avatar-blank { border-radius: 50%; box-shadow: inset 0 0 0 1px var(--ctl-edge); background: var(--ctl-fill); }
-.jr-avatar-blank { width: 18px; height: 18px; }
 .jr-flagged { display: inline-flex; align-items: center; gap: 4px; color: var(--err); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .jr-flag { flex: none; }
 .jr-subnote { padding: 6px 12px 6px 40px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
@@ -398,7 +392,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-field { display: contents; }
 .jr-field dt { color: var(--muted); }
 .jr-field dd { margin: 0; min-width: 0; color: var(--text); overflow-wrap: anywhere; }
-.jr-person { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.jr-with-icon { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .jr-dim { color: var(--muted); }
 .jr-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .jr-detail-section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }

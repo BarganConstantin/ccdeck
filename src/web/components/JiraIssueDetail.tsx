@@ -11,7 +11,7 @@ import JiraHtml, { type HtmlContext } from "../jira-html";
 import { copyText } from "../copy-text";
 import { useJiraIssue } from "../use-jira-board";
 import { connectionHost } from "../integrations/client";
-import IntegrationAvatar from "./IntegrationAvatar";
+import IntegrationAvatar, { IntegrationPerson, UnassignedAvatar } from "./IntegrationAvatar";
 import IntegrationFailureNote from "./IntegrationFailureNote";
 import IntegrationSkeleton from "./IntegrationSkeleton";
 import { EpicChip, ExternalGlyph, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
@@ -36,9 +36,9 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div className="jr-field"><dt>{label}</dt><dd>{children}</dd></div>;
 }
 
-function Person({ person, fallback }: { person: { name: string; avatar: string | null } | null; fallback: string }) {
+function Person({ person, fallback, you = false }: { person: { name: string; avatar: string | null } | null; fallback: string; you?: boolean }) {
   if (!person) return <span className="jr-dim">{fallback}</span>;
-  return <span className="jr-person"><IntegrationAvatar src={person.avatar} name={person.name} size={18} />{person.name}</span>;
+  return <IntegrationPerson src={person.avatar} name={person.name} size={18} you={you} />;
 }
 
 function SubtaskList({ issues, onOpen }: { issues: JiraIssue[]; onOpen: (key: string) => void }) {
@@ -47,12 +47,12 @@ function SubtaskList({ issues, onOpen }: { issues: JiraIssue[]; onOpen: (key: st
       {issues.map(sub => (
         <li key={sub.key}>
           <button type="button" className="jr-detail-sub" data-mine={sub.mine || undefined} data-done={sub.status.category === "done" || undefined}
-            onClick={() => onOpen(sub.key)} aria-label={`${sub.key}: ${sub.summary}. ${sub.status.name}${sub.assignee ? `, ${sub.assignee.name}` : ", unassigned"}${sub.mine ? ", yours" : ""}`}>
+            onClick={() => onOpen(sub.key)} aria-label={`${sub.key}: ${sub.summary}. ${sub.status.name}${sub.assignee ? `, ${sub.assignee.name}${sub.mine ? ", assigned to you" : ""}` : ", unassigned"}`}>
             <TypeIcon type={sub.type} />
             <span className="jr-key">{sub.key}</span>
             <span className="jr-summary">{sub.summary}</span>
             <StatusLozenge status={sub.status} />
-            {sub.assignee ? <IntegrationAvatar src={sub.assignee.avatar} name={sub.assignee.name} size={18} /> : <span className="jr-avatar-blank" aria-hidden />}
+            {sub.assignee ? <IntegrationAvatar src={sub.assignee.avatar} name={sub.assignee.name} size={18} you={sub.mine} /> : <UnassignedAvatar size={18} />}
           </button>
         </li>
       ))}
@@ -119,7 +119,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
             <p className="jr-detail-state">
               <StatusLozenge status={issue.status} />
               {issue.resolution && <span className="jr-dim">{issue.resolution}</span>}
-              {issue.priority && <span className="jr-person"><PriorityIcon priority={issue.priority} />{issue.priority.name}</span>}
+              {issue.priority && <span className="jr-with-icon"><PriorityIcon priority={issue.priority} />{issue.priority.name}</span>}
               {issue.flagged && <span className="jr-flagged"><FlagGlyph /> Flagged</span>}
             </p>
             <div className="jr-detail-actions">
@@ -131,7 +131,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
           </header>
 
           <dl className="jr-fields">
-            <Field label="Assignee"><Person person={issue.assignee} fallback="Unassigned" /></Field>
+            <Field label="Assignee"><Person person={issue.assignee} fallback="Unassigned" you={issue.mine} /></Field>
             <Field label="Reporter">{issue.reporter ? <Person person={issue.reporter} fallback="" /> : null}</Field>
             <Field label="Sprint">{issue.sprint ? <>{issue.sprint.name}{issue.sprint.state ? <span className="jr-dim"> · {issue.sprint.state}</span> : null}</> : null}</Field>
             <Field label="Epic">{issue.epic ? <EpicChip epic={issue.epic} /> : null}</Field>

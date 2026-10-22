@@ -18,7 +18,7 @@ import {
 } from "../jira-board";
 import type { BoardSnapshot, GroupData } from "../use-jira-board";
 import { connectionHost } from "../integrations/client";
-import IntegrationAvatar from "./IntegrationAvatar";
+import IntegrationAvatar, { IntegrationAvatarStack, UnassignedAvatar } from "./IntegrationAvatar";
 import IntegrationFailureNote from "./IntegrationFailureNote";
 import IntegrationSkeleton from "./IntegrationSkeleton";
 import { Chevron, EpicChip, Estimate, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
@@ -45,12 +45,11 @@ export interface JiraBacklogProps {
   onReconnect: () => void;
 }
 
-const STACK = 5;
 const TOTAL_LABELS = { new: "To Do", indeterminate: "In Progress", done: "Done" } as const;
 
 /** A row's own label for a screen reader: what it is, not everything on it. */
 function rowLabel(issue: JiraIssue, extra = ""): string {
-  const who = issue.assignee ? issue.assignee.name : "unassigned";
+  const who = issue.assignee ? `${issue.assignee.name}${issue.mine ? ", assigned to you" : ""}` : "unassigned";
   return `${issue.key}: ${issue.summary}. ${issue.type.name}, ${issue.status.name}, ${who}${issue.flagged ? ", flagged" : ""}${extra}`;
 }
 
@@ -83,9 +82,13 @@ function IssueLine({ issue, estimation, time }: { issue: JiraIssue; estimation: 
         <Estimate issue={issue} estimation={estimation} time={time} />
         <span className="jr-status-cell"><StatusLozenge status={issue.status} /></span>
       </span>
-      {issue.assignee
-        ? <span className="jr-assignee" title={issue.assignee.name}><IntegrationAvatar src={issue.assignee.avatar} name={issue.assignee.name} size={20} /></span>
-        : <span className="jr-assignee jr-unassigned" title="Unassigned" aria-hidden />}
+      {/* The reader's own issues: their face ringed in the accent, and
+          "assigned to you" in the row's label. */}
+      <span className="jr-assignee" title={issue.assignee ? `${issue.assignee.name}${issue.mine ? " (you)" : ""}` : "Unassigned"}>
+        {issue.assignee
+          ? <IntegrationAvatar src={issue.assignee.avatar} name={issue.assignee.name} size={20} you={issue.mine} />
+          : <UnassignedAvatar size={20} />}
+      </span>
     </>
   );
 }
@@ -244,7 +247,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                     data-mine={sub.mine || undefined}>
                     <span className="jr-toggle-space" aria-hidden />
                     <button type="button" className="jr-row-main" data-nav={subNav} data-key={sub.key} data-parent={nav} tabIndex={tabStop(subNav)}
-                      aria-current={selected === sub.key || undefined} aria-label={rowLabel(sub, sub.mine ? ", yours" : "")}
+                      aria-current={selected === sub.key || undefined} aria-label={rowLabel(sub)}
                       onFocus={() => setCurrent(subNav)} onClick={() => onOpen(sub.key)}>
                       <IssueLine issue={sub} estimation={estimation} time={time} />
                     </button>
@@ -302,12 +305,8 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                 <div className="jr-group-facts">
                   {stats.mine > 0 && !mine && <span className="jr-mine" title="Yours, and how many of those are done">Mine {stats.mineDone}/{stats.mine}</span>}
                   {stats.mine > 0 && mine && <span className="jr-mine" title="How many of yours are done">{stats.mineDone}/{stats.mine} done</span>}
-                  {people.length > 0 && (
-                    <span className="jr-stack" role="img" title={people.map(p => p.name).join(", ")} aria-label={`Assigned to ${people.map(p => p.name).join(", ")}`}>
-                      {people.slice(0, STACK).map(p => <IntegrationAvatar key={p.id} src={p.avatar} name={p.name} size={20} />)}
-                      {people.length > STACK && <span className="jr-stack-more">+{people.length - STACK}</span>}
-                    </span>
-                  )}
+                  <IntegrationAvatarStack label="Assigned to"
+                    people={people.map(p => ({ key: p.id, name: p.name, src: p.avatar, you: p.id === stats.youId }))} />
                   <span className="jr-totals">
                     {(["new", "indeterminate", "done"] as const).map(c => (
                       <span key={c} className="jr-total" data-cat={c} title={`${TOTAL_LABELS[c]}: ${totalLabel(stats.totals[c], estimation, time)}`}>

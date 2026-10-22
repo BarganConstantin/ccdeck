@@ -93,3 +93,35 @@ describe("every row says what state its issue is in", () => {
   });
 });
 
+describe("the reader's own issues are marked as theirs", () => {
+  it("rings their face, says so in the row's label and title, and says nothing extra for someone else's", () => {
+    const html = drawBoard([
+      issue("MOCK-1", { assignee: ME, mine: true }),
+      issue("MOCK-2", { assignee: ALEX }),
+      issue("MOCK-3"),
+    ]);
+    const drawn = rows(html);
+    expect(drawn["MOCK-1"]).toMatch(/aria-label="MOCK-1: Summary of MOCK-1\. Story, To Do, Jane Doe, assigned to you"/);
+    expect(drawn["MOCK-1"]).toMatch(/<span class="jr-assignee" title="Jane Doe \(you\)"><span class="ig-avatar ig-avatar-initials"[^>]*data-you="true"/);
+    expect(drawn["MOCK-2"]).toMatch(/aria-label="MOCK-2: Summary of MOCK-2\. Story, To Do, Alex Kim"/);
+    expect(drawn["MOCK-2"]).not.toContain("data-you");
+    expect(drawn["MOCK-3"]).toMatch(/<span class="jr-assignee" title="Unassigned"><span class="ig-avatar ig-avatar-none"/);
+  });
+
+  it("rings the reader in the sprint's stack of people, which names everyone once", () => {
+    const html = drawBoard([issue("MOCK-1", { assignee: ME, mine: true }), issue("MOCK-2", { assignee: ALEX })]);
+    expect(html).toMatch(/<span class="ig-stack" role="img" aria-label="Assigned to (Jane Doe and Alex Kim|Alex Kim and Jane Doe)"/);
+    const stack = /<span class="ig-stack"[\s\S]*?<\/span><\/span>|<span class="ig-stack"[\s\S]*?(?=<span class="jr-totals")/.exec(html)![0];
+    expect(stack.match(/data-you="true"/g)).toHaveLength(1);
+  });
+
+  it("names a sub-task as the reader's once, not twice", () => {
+    // A sub-task whose parent is not in the list is drawn under that parent.
+    const theirs = issue("MOCK-10");
+    const html = drawBoard([subOf("MOCK-11", theirs, { assignee: ME, mine: true })]);
+    const label = /aria-label="(MOCK-11:[^"]*)"/.exec(html)?.[1] ?? "";
+    expect(label).not.toBe("");
+    expect(label.match(/assigned to you|yours/g) ?? []).toEqual(["assigned to you"]);
+  });
+});
+

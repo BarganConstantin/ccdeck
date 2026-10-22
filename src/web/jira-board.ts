@@ -169,6 +169,9 @@ export interface GroupStats {
    *  are done. */
   mine: number;
   mineDone: number;
+  /** The reader's own id among `assignees`, when one of their issues is
+   *  counted: their face is ringed as theirs. */
+  youId: string | null;
 }
 
 export function countedIssues(rows: readonly Row[]): JiraIssue[] {
@@ -181,6 +184,7 @@ export function groupStats(rows: readonly Row[], estimation: "time" | "points" |
   const people = new Map<string, { person: JiraPerson; n: number }>();
   let mine = 0;
   let mineDone = 0;
+  let youId: string | null = null;
   for (const issue of issues) {
     const value = estimation === "count" ? 1 : estimation === "points" ? issue.points ?? 0 : issue.estimate ?? 0;
     totals[issue.status.category] += value;
@@ -190,11 +194,12 @@ export function groupStats(rows: readonly Row[], estimation: "time" | "points" |
     }
     if (issue.mine) {
       mine++;
+      if (issue.assignee) youId = issue.assignee.id;
       if (isDone(issue)) mineDone++;
     }
   }
   const assignees = [...people.values()].sort((a, b) => b.n - a.n || a.person.name.localeCompare(b.person.name)).map(p => p.person);
-  return { count: issues.length, totals, assignees, mine, mineDone };
+  return { count: issues.length, totals, assignees, mine, mineDone, youId };
 }
 
 // ── durations and dates ─────────────────────────────────────────────────────
