@@ -502,6 +502,18 @@ describe("the Issues tab", () => {
     expect(html).toContain('<span class="ig-stack-more" aria-hidden="true">+1</span>');
   });
 
+  it("draws a GitLab scoped label in two parts, as the item's page does, the whole name on hover", () => {
+    const c = ctx("gitlab");
+    keep(c, "issues", { repo: undefined, state: "open" }, page([issue(8, {
+      labels: [{ name: "priority::high", color: "#d73a4a" }, { name: "team::platform::web", color: null }, { name: "bug", color: null }],
+    })]));
+    const html = draw(c, tab(IssuesTab, view({ tab: "issues" })));
+    expect(html).toContain('<span class="fgl-label" title="priority::high"><i class="fgl-label-dot" style="background:#d73a4a" aria-hidden="true"></i><span class="fgl-label-scope">priority<span class="fg-sr">::</span></span><span class="fgl-label-name">high</span></span>');
+    // The last "::" is the cut, as GitLab makes it.
+    expect(html).toContain('<span class="fgl-label-scope">team::platform<span class="fg-sr">::</span></span><span class="fgl-label-name">web</span>');
+    expect(html).toContain('<span class="fgl-label" title="bug"><span class="fgl-label-name">bug</span></span>');
+  });
+
   it("badges an issue GitHub closed as not planned", () => {
     const c = ctx("github");
     keep(c, "issues", { repo: "acme/web", state: "closed" }, page([issue(3, { kind: "github", state: "closed", stateReason: "not_planned", closedAt: Date.now() - 1000 })]));

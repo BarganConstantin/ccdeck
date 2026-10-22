@@ -56,6 +56,9 @@
 .fgl-labels { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 8px; vertical-align: 1px; }
 .fgl-label { display: inline-flex; align-items: center; gap: 5px; max-width: 24ch; padding: 0 8px 0 6px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 999px; font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 18px; color: var(--text-secondary); white-space: nowrap; }
 .fgl-label-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* A scoped label's scope, ruled off from its value as on the item's page; the
+   value gives way first. */
+.fgl-label-scope { flex: 0 1 auto; max-width: 12ch; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; border-right: 1px solid var(--line); }
 .fgl-label-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 18%, transparent); }
 
 /* People, comments, child items. */

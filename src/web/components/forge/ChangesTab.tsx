@@ -23,6 +23,7 @@ import {
   changeMoment, countWords, draftTitle, emptyChangesWords, itemLabel, labelColor, listPhase, moreLabel, noMatchWords,
   useReportFreshness,
 } from "../../forge-lists";
+import { labelParts } from "../../forge-detail";
 import { useForgePages, useForgeRead } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
 import { sameSelection, useForge } from "./ForgeContext";
@@ -301,10 +302,14 @@ export function Labels({ labels }: { labels: ForgeLabel[] }) {
     <span className="fgl-labels">
       {labels.slice(0, 4).map(l => {
         const color = labelColor(l.color);
+        // A GitLab scoped label in two parts, as the item's page draws it:
+        // "priority | high", the whole name on hover.
+        const { scope, value } = labelParts(l.name);
         return (
           <span key={l.name} className="fgl-label" title={l.name}>
             {color && <i className="fgl-label-dot" style={{ background: color }} aria-hidden="true" />}
-            <span className="fgl-label-name">{l.name}</span>
+            {scope && <span className="fgl-label-scope">{scope}<span className="fg-sr">::</span></span>}
+            <span className="fgl-label-name">{value}</span>
           </span>
         );
       })}
