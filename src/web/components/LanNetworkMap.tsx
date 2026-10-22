@@ -25,8 +25,8 @@ import { createPortal } from "react-dom";
 
 import {
   continuousAngle, deckNextStep, machineKey, mapHeadline, mapLayout, mapSummary, networkNextStep, nodeCaption,
-  nodeName, ownAddresses, presenceLine, troubleFirst, ZONE_LABEL_INSET, zoneLabel, type MapLayout, type MapNode,
-  type MapZone,
+  nodeName, ownAddresses, presenceLine, sharedLoginsTitle, troubleFirst, ZONE_LABEL_INSET, zoneLabel, type MapLayout,
+  type MapNode, type MapZone,
 } from "../lan-network-map";
 import { HERE_SAID, laneSaid, peerView, runsLine, sinceLabel, THERE_SAID } from "../lan-peer";
 import { rowSource, type DeckRow } from "../lan-roster";
@@ -692,10 +692,7 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
   // it", which is what a deck's panel is opened to see; the side scrolls.
   const lanes = troubleFirst(view.lanes);
   const total = lanes.length;
-  const fine = lanes.filter(l => l.tone === "ok").length;
-  const title = total === 0 ? "No shared logins"
-    : fine === total ? `${total} shared login${total === 1 ? ", fine" : "s, all fine"}`
-    : `${total} shared login${total === 1 ? "" : "s"} · ${fine} fine`;
+  const title = sharedLoginsTitle(lanes);
   // What that deck offers, when it has not said: one line, not a paragraph.
   const unknown = view.unknown && view.peer?.waiting && !view.peer.offers
     ? "Its side is not known until it next calls."

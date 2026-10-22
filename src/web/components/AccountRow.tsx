@@ -89,8 +89,9 @@ interface Props {
   a: Account;
   nowSec: number;
   /** What Local network knows about this account's copies on other decks, and
-   *  the paired decks this deck offers it to — null when it offers it to none. */
-  lan?: { noCopyWorksNearby?: boolean; sharedTo?: readonly string[] | null };
+   *  the paired decks this deck offers it to — null when it offers it to none —
+   *  and whether this deck is on it and so keeps it here (#2192). */
+  lan?: { noCopyWorksNearby?: boolean; sharedTo?: readonly string[] | null; sharedInUse?: boolean };
   /** The reader has opened this row's detail. */
   opened: boolean;
   /** Open this row's detail, or shut it. */
@@ -236,7 +237,7 @@ export default function AccountRow({
             over the door so the pointer gets it — and what a screen reader
             hears, on the row and in the door's description. */}
         {lan?.sharedTo && (
-          <span className="ap-shared" id={`ap-shared-${a.num}`} title={sharedLine(lan.sharedTo)}>
+          <span className="ap-shared" id={`ap-shared-${a.num}`} title={sharedLine(lan.sharedTo, lan.sharedInUse)}>
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
               strokeWidth="1.3" strokeLinecap="round" aria-hidden>
               <circle cx="10.5" cy="3.2" r="1.7" />
@@ -244,7 +245,7 @@ export default function AccountRow({
               <circle cx="10.5" cy="10.8" r="1.7" />
               <path d="M5.2 6.1 8.8 4.1M5.2 7.9l3.6 2" />
             </svg>
-            <span className="vis-hidden">{sharedLine(lan.sharedTo)}</span>
+            <span className="vis-hidden">{sharedLine(lan.sharedTo, lan.sharedInUse)}</span>
           </span>
         )}
         {/* A state, said in a word and not in a pill. It stands where

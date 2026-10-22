@@ -1433,9 +1433,13 @@ describe("what did not change", () => {
     // They live on each tickable row now — hover, and on the row the decision
     // is actually made on, rather than in a wall of warning ink over all of
     // them. Pinned by MEANING, so an honest rewording is not a regression.
-    const row = /className="ap-lan-pick" title=\{a\.alive\s*\?\s*"([^"]*)"/.exec(MODAL)?.[1] ?? "";
+    // Three titles since #2192, in this order: a copy that does not work here,
+    // the login this deck is on (which heals nobody while it is), every other.
+    const titles = /className="ap-lan-pick" title=\{!a\.alive\s*\?\s*"([^"]*)"[\s\S]*?:\s*a\.inUse\s*\?\s*"([^"]*)"\s*:\s*"([^"]*)"\}>/.exec(MODAL);
+    const row = titles?.[3] ?? "";
     expect(row).toMatch(/keeps its own copy|heal from yours/);
     expect(row).toMatch(/does not take back/);
+    expect(titles?.[2] ?? "").toMatch(/does not take back/);
   });
 
   it("has stopped explaining itself around the two fields it is made of", () => {
