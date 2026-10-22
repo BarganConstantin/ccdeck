@@ -221,6 +221,24 @@
 .ig-search-input::-webkit-search-cancel-button { appearance: none; display: none; }
 .ig-search-clear { position: absolute; right: 3px; margin: 0; }
 
+/* Rows on their way (IntegrationSkeleton): hidden for 300 ms so a quick read
+   never flashes them, then a 120 ms fade and the deck's one ambient pulse.
+   A transparent outline is what a Contrast theme draws, since it drops the
+   fill. */
+.ig-skeleton { display: flex; flex-direction: column; gap: 8px; padding: 12px; animation: fadeIn 120ms ease-out 300ms both; }
+.ig-skeleton i {
+  display: block;
+  height: 36px;
+  border-radius: var(--r-ctl);
+  background: var(--ctl-fill);
+  outline: 1px solid transparent;
+  animation: ta-pulse var(--pulse-live) infinite alternate;
+}
+.ig-skeleton i:nth-of-type(3n) { width: 86%; }
+.ig-skeleton[data-variant="lines"] { gap: 10px; }
+.ig-skeleton[data-variant="lines"] i { height: 14px; border-radius: var(--r-tag); }
+.ig-skeleton[data-variant="lines"] i:nth-of-type(3n) { width: 72%; }
+
 /* A person's or a project's picture, and the initials that stand in for it. */
 .ig-avatar { flex: none; display: block; border-radius: 50%; object-fit: cover; background: var(--ctl-fill); }
 .ig-avatar-initials {
@@ -290,4 +308,5 @@
   .ig-splitter::before, .ig-conn { transition: none; }
   .ig-back:active { transform: none; }
   .ig-refresh[data-loading] svg { animation: none; }
+  .ig-skeleton i { animation: none; }
 }
