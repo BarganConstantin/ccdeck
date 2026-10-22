@@ -49,9 +49,10 @@ describe("the freshness line on screen", () => {
 
   it("names Refresh for what it reads, and keeps it out of a second read while one is out", () => {
     const idle = render({ loadedAt: NOW - MIN });
-    expect(idle).toMatch(/<button type="button" class="glyph-btn ig-refresh" aria-label="Refresh the board" title="Refresh">/);
+    expect(idle).toMatch(/<button type="button" class="glyph-btn ig-refresh" aria-label="Refresh the board" title="Refresh" aria-busy="false">/);
+    // Busy, not disabled: focus stays on the button a press came from (#518).
     const busy = render({ loadedAt: NOW - MIN, loading: true });
-    expect(busy).toMatch(/aria-disabled="true" data-loading="true"/);
+    expect(busy).toMatch(/aria-busy="true" data-loading="true"/);
     expect(busy).not.toMatch(/ disabled=""/);
     expect(render({ disabled: true })).toMatch(/ disabled=""/);
   });
