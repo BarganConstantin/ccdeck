@@ -342,14 +342,16 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
 .jr-status[data-cat="done"] { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--text); }
 
 /* An issue type or a priority the panel draws itself, when Jira's icon is an
-   SVG (which the deck does not pass on) or does not load: Jira's shapes. */
+   SVG (which the deck does not pass on) or does not load: Jira's shapes. The
+   mark is cut in the panel's own colour, so it reads on a light theme's deep
+   tile and a dark theme's pastel one alike; every tile is a theme token. */
 .jr-glyph-tile { fill: var(--jr-type, var(--muted)); }
-.jr-glyph-mark { fill: #fff; }
-.jr-glyph-stroke { fill: none; stroke: #fff; }
+.jr-glyph-mark { fill: var(--panel); }
+.jr-glyph-stroke { fill: none; stroke: var(--panel); }
 .jr-type-glyph[data-shape="bug"] { --jr-type: var(--err); }
 .jr-type-glyph[data-shape="story"] { --jr-type: var(--ok); }
 .jr-type-glyph[data-shape="task"], .jr-type-glyph[data-shape="subtask"] { --jr-type: var(--accent); }
-.jr-type-glyph[data-shape="epic"] { --jr-type: #904ee2; }
+.jr-type-glyph[data-shape="epic"] { --jr-type: var(--cat-plan); }
 .jr-priority-glyph { color: var(--muted); }
 .jr-priority-glyph[data-level="highest"], .jr-priority-glyph[data-level="high"] { color: var(--err); }
 .jr-priority-glyph[data-level="low"], .jr-priority-glyph[data-level="lowest"] { color: var(--accent); }
