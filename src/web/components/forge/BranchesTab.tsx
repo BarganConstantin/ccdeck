@@ -109,7 +109,9 @@ function BranchRow({ kind, repo, branch: b, defaultBranch }: {
         {b.commit.committedAt != null && <><span className="fgl-dot" aria-hidden="true">·</span><Ago at={b.commit.committedAt} /></>}
       </span>
       <span className="fgl-stats" data-empty={(!diverge && !b.ci) || undefined}>
-        <span className="fgl-diverge" data-empty={!diverge || undefined}>
+        {/* The numbers in words for the pointer too, as GitLab's Branches
+            page explains them on hover; a screen reader hears the same words. */}
+        <span className="fgl-diverge" data-empty={!diverge || undefined} title={diverge ?? undefined}>
           {diverge && (
             <>
               <span className="fgl-behind" aria-hidden="true">{divergeCount(b.behind)}</span>

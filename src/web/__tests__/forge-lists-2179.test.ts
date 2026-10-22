@@ -285,6 +285,8 @@ describe("the Branches tab", () => {
   it("writes behind | ahead with GitLab's cap, and the pipeline as a mark and a word", () => {
     expect(html).toContain(">999+</span>");
     expect(html).toContain("1 commit behind, 999+ ahead of “main”");
+    // The same words on hover, for the two numbers that have no label of their own.
+    expect(html).toContain('<span class="fgl-diverge" title="1 commit behind, 999+ ahead of “main”">');
     expect(html).toMatch(/data-tone="bad"[^>]*><span aria-hidden="true">✕<\/span><span class="fg-mark-word">failed<\/span>/);
   });
 
