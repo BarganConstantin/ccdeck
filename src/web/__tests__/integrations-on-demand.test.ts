@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement, type ComponentType } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, sep, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // What the browser's import() does when the server no longer has the chunk.
@@ -47,6 +47,12 @@ function staticImports(file: string): string[] {
   return out;
 }
 
+/** A module's name relative to `root`, with "/" between its parts on every
+ *  system: Windows' relative() answers with "\", which no name below has. */
+function moduleName(root: string, file: string, path: { relative: typeof relative; sep: string } = { relative, sep }): string {
+  return path.relative(root, file).split(path.sep).join("/");
+}
+
 /** Every module the page's entry reaches through static imports, relative to
  *  src/web. */
 function firstLoad(): Set<string> {
@@ -58,11 +64,16 @@ function firstLoad(): Set<string> {
     seen.add(file);
     queue.push(...staticImports(file));
   }
-  return new Set([...seen].map(f => relative(WEB, f)));
+  return new Set([...seen].map(f => moduleName(WEB, f)));
 }
 
 describe("the page's first load carries no tracker's panel", () => {
   const reached = firstLoad();
+
+  it("names a module the same on Windows, or every name with a folder would be missed", () => {
+    expect(moduleName("D:\\a\\ccdeck\\src\\web", "D:\\a\\ccdeck\\src\\web\\components\\DeckDialogs.tsx", win32)).toBe("components/DeckDialogs.tsx");
+    expect(moduleName(WEB, join(WEB, "components", "DeckDialogs.tsx"))).toBe("components/DeckDialogs.tsx");
+  });
 
   it("walks the page from its entry", () => {
     // The walk finds what it must, or the negatives below would prove nothing.
