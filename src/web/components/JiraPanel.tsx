@@ -122,6 +122,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   const [boardName, setBoardName] = useState<string>(() => prefs.read("boardName", (v): v is string => typeof v === "string") ?? "");
   const [mine, setMine] = useState(() => prefs.read("mine", isBool) ?? true);
   const [hideDone, setHideDone] = useState(() => prefs.read("hideDone", isBool) ?? false);
+  const [attention, setAttention] = useState(() => prefs.read("attention", isBool) ?? false);
   const [quick, setQuick] = useState<string[]>(() => {
     const saved = prefs.read("quick", isQuick);
     return saved && saved.board === board ? saved.ids : [];
@@ -135,6 +136,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
 
   useEffect(() => { prefs.write("mine", mine); }, [prefs, mine]);
   useEffect(() => { prefs.write("hideDone", hideDone); }, [prefs, hideDone]);
+  useEffect(() => { prefs.write("attention", attention); }, [prefs, attention]);
   useEffect(() => { if (board) prefs.write("quick", { board, ids: quick }); }, [prefs, board, quick]);
   useEffect(() => { prefs.write("expanded", expanded); }, [prefs, expanded]);
 
@@ -176,9 +178,9 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   }, [groups, expanded, ensureGroup]);
 
   const toggleGroup = (group: GroupDef, open: boolean) => setExpanded(state => ({ ...state, [group.id]: open }));
-  const filtered = mine || hideDone || quick.length > 0 || search.trim() !== "";
-  const clearFilters = () => { setMine(false); setHideDone(false); setQuick([]); setSearch(""); };
-  const rowFilter = useMemo(() => ({ search, hideDone }), [search, hideDone]);
+  const filtered = mine || hideDone || attention || quick.length > 0 || search.trim() !== "";
+  const clearFilters = () => { setMine(false); setHideDone(false); setAttention(false); setQuick([]); setSearch(""); };
+  const rowFilter = useMemo(() => ({ search, hideDone, attention }), [search, hideDone, attention]);
 
   // The board's own quick filters, less its "Only My Issues" (the panel's
   // chip does that). A saved choice the board no longer draws, that one
@@ -316,6 +318,8 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
           <div className="jr-filter-chips">
             <button type="button" className="btn jr-chip" aria-pressed={mine} onClick={() => setMine(m => !m)}>Only my issues</button>
             <button type="button" className="btn jr-chip" aria-pressed={hideDone} onClick={() => setHideDone(h => !h)}>Hide done</button>
+            <button type="button" className="btn jr-chip" aria-pressed={attention} title="Flagged, or Highest, Blocker or Critical priority, and not done"
+              onClick={() => setAttention(a => !a)}>Needs attention</button>
             {quickFilters.map(q => (
               <button key={q.id} type="button" className="btn jr-chip" aria-pressed={quick.includes(q.id)} title={q.description || undefined}
                 onClick={() => setQuick(list => (list.includes(q.id) ? list.filter(x => x !== q.id) : [...list, q.id]))}>

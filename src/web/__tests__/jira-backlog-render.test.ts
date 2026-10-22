@@ -42,12 +42,13 @@ const OVERVIEW: JiraBoardOverview = {
 const CONN = { id: "c1", kind: "jira", name: "Jira", baseUrl: "https://jira.example.com", account: {}, meta: {}, allowedOrigins: [], createdAt: "", updatedAt: "", tokenSaved: true } as unknown as IntegrationConnection;
 
 /** The backlog of one active sprint holding `issues`, drawn. */
-function drawBoard(issues: JiraIssue[], props: Partial<JiraBacklogProps> = {}, overview: JiraBoardOverview = OVERVIEW): string {
+function drawBoard(issues: JiraIssue[], props: Partial<JiraBacklogProps> = {}, overview: JiraBoardOverview = OVERVIEW,
+  subtasks: BoardSnapshot["subtasks"] = {}): string {
   const groups = groupsFor(overview);
   const snap: BoardSnapshot = {
     overview,
     groups: { [groups[0].id]: { status: "ready", issues, next: "", total: issues.length, capped: false, error: null, more: false } },
-    subtasks: {},
+    subtasks,
     closed: { shown: false, sprints: [], total: 0, isLast: false, loading: false, error: null },
     loadedAt: 1,
   };
@@ -143,3 +144,17 @@ describe("the list is one Tab stop", () => {
   });
 });
 
+
+const HIGHEST = { name: "Highest", icon: null };
+
+describe("Needs attention keeps the issues to look at first", () => {
+  it("keeps a flagged issue and a parent drawn for a sub-task that needs attention, and only that sub-task under it", () => {
+    const theirs = issue("MOCK-10", { subtaskKeys: ["MOCK-11", "MOCK-12"] });
+    const urgent = subOf("MOCK-11", theirs, { assignee: ME, mine: true, priority: HIGHEST });
+    const calm = subOf("MOCK-12", theirs, { assignee: ME, mine: true });
+    const html = drawBoard([urgent, calm, issue("MOCK-20", { flagged: true }), issue("MOCK-30")],
+      { filter: { search: "", hideDone: false, attention: true }, filtered: true }, OVERVIEW,
+      { "MOCK-10": { status: "ready", issues: [urgent, calm], error: null } });
+    expect(Object.keys(rows(html)).sort()).toEqual(["MOCK-10", "MOCK-11", "MOCK-20"]);
+  });
+});

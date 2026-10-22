@@ -122,9 +122,36 @@ export interface RowFilter {
   /** Lower-case text to find in a key or a summary; empty for none. */
   search: string;
   hideDone: boolean;
+  /** Only what needs attention (needsAttention). */
+  attention?: boolean;
 }
 
 const isDone = (issue: { status: { category: StatusCategory } }) => issue.status.category === "done";
+
+export type PriorityLevel = "highest" | "high" | "medium" | "low" | "lowest";
+
+/** A priority's place on Jira's five-step scale, under either of the names
+ *  Jira has shipped (Highest…Lowest, and the older Blocker…Trivial). */
+export function priorityLevel(name: string): PriorityLevel | null {
+  const n = name.trim().toLowerCase();
+  if (/highest|blocker|critical|urgent/.test(n)) return "highest";
+  if (/high|major/.test(n)) return "high";
+  if (/medium|normal|moderate/.test(n)) return "medium";
+  if (/lowest|trivial/.test(n)) return "lowest";
+  if (/low|minor/.test(n)) return "low";
+  return null;
+}
+
+/** What a reader should look at first: an issue not done that is flagged,
+ *  or at the top of Jira's priority scale (Highest, Blocker, Critical). */
+export function needsAttention(issue: Pick<JiraIssue, "flagged" | "priority" | "status">): boolean {
+  return !isDone(issue) && (issue.flagged || (issue.priority != null && priorityLevel(issue.priority.name) === "highest"));
+}
+
+/** A sub-task stays under its row when Hide done and Needs attention allow. */
+export function subtaskShown(issue: JiraIssue, filter: RowFilter): boolean {
+  return (!filter.hideDone || !isDone(issue)) && (!filter.attention || needsAttention(issue));
+}
 
 /** Jira's default boards carry a quick filter named "Only My Issues", and the
  *  panel's own "Only my issues" chip already does what it does, so the
@@ -145,8 +172,8 @@ export function issueMatches(issue: { key: string; summary: string }, search: st
  *  subtasks they leave. A parent stays while a subtask under it does. */
 export function filterRows(rows: readonly Row[], filter: RowFilter, subtasks?: (key: string) => readonly JiraIssue[] | undefined): Row[] {
   const search = filter.search.trim().toLowerCase();
-  if (!search && !filter.hideDone) return rows.slice();
-  const keep = (issue: JiraIssue) => (!filter.hideDone || !isDone(issue)) && issueMatches(issue, search);
+  if (!search && !filter.hideDone && !filter.attention) return rows.slice();
+  const keep = (issue: JiraIssue) => subtaskShown(issue, filter) && issueMatches(issue, search);
   const out: Row[] = [];
   for (const row of rows) {
     const matched = row.matched.filter(keep);

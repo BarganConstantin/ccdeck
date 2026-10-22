@@ -3,7 +3,9 @@
 // estimate and a status. A failed read is the shared IntegrationFailureNote.
 import { useEffect, useState, type ReactNode } from "react";
 import type { JiraEpic, JiraIssue, JiraPriority, JiraStatus, JiraType, TimeTracking } from "../jira-api";
-import { jiraDuration } from "../jira-board";
+import { jiraDuration, priorityLevel, type PriorityLevel } from "../jira-board";
+
+export { priorityLevel };
 
 /** Icons that would not load, for the life of the page: a list of a hundred
  *  rows with the same broken icon asks the deck for it once. */
@@ -56,20 +58,6 @@ export function TypeGlyph({ type, subtask }: { type: JiraType; subtask?: boolean
       {TYPE_MARKS[shape]}
     </svg>
   );
-}
-
-type PriorityLevel = "highest" | "high" | "medium" | "low" | "lowest";
-
-/** A priority's place on Jira's five-step scale, under either of the names
- *  Jira has shipped (Highest…Lowest, and the older Blocker…Trivial). */
-export function priorityLevel(name: string): PriorityLevel | null {
-  const n = name.trim().toLowerCase();
-  if (/highest|blocker|critical|urgent/.test(n)) return "highest";
-  if (/high|major/.test(n)) return "high";
-  if (/medium|normal|moderate/.test(n)) return "medium";
-  if (/lowest|trivial/.test(n)) return "lowest";
-  if (/low|minor/.test(n)) return "low";
-  return null;
 }
 
 const PRIORITY_PATHS: Record<PriorityLevel, string> = {

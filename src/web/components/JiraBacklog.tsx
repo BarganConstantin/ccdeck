@@ -13,7 +13,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, typ
 import type { IntegrationConnection as Connection } from "../integrations/types";
 import type { JiraBoardOverview, JiraIssue } from "../jira-api";
 import {
-  buildRows, filterRows, groupOpen, groupStats, rowKey, shortDate, totalLabel,
+  buildRows, filterRows, groupOpen, groupStats, rowKey, shortDate, subtaskShown, totalLabel,
   type GroupDef, type Row, type RowFilter,
 } from "../jira-board";
 import type { BoardSnapshot, GroupData } from "../use-jira-board";
@@ -200,7 +200,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     const expandable = depth === 0 && (subtasksKnown > 0 || row.matched.length > 0 || row.kind === "context");
     const toggleId = `jr-toggle-${group.id.replace(/[^a-z0-9]/gi, "-")}-${key}`;
     const childList = all?.status === "ready"
-      ? all.issues.filter(sub => (!filter.hideDone || sub.status.category !== "done"))
+      ? all.issues.filter(sub => subtaskShown(sub, filter))
       : row.matched;
     const mineCount = (all?.status === "ready" ? all.issues : row.matched).filter(s => s.mine).length;
     const label = row.kind === "issue"
@@ -256,7 +256,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                 </li>
               );
             })}
-            {all?.status === "ready" && childList.length === 0 && <li className="jr-subnote">{filter.hideDone ? "Every sub-task is done." : "No sub-tasks."}</li>}
+            {all?.status === "ready" && childList.length === 0 && <li className="jr-subnote">{filter.attention ? "No sub-task needs attention." : filter.hideDone ? "Every sub-task is done." : "No sub-tasks."}</li>}
           </ul>
         )}
       </li>
@@ -282,7 +282,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
           ? `${shortDate(sprint.startDate) || "?"} – ${shortDate(sprint.completeDate ?? sprint.endDate) || "?"}`
           : "";
         const loaded = data?.status === "ready" || (data?.issues.length ?? 0) > 0;
-        const totalKnown = data?.total != null && def.paged && data.total > stats.count && !filter.search && !filter.hideDone;
+        const totalKnown = data?.total != null && def.paged && data.total > stats.count && !filter.search && !filter.hideDone && !filter.attention;
         const countText = !loaded ? (data?.status === "error" ? "" : "…")
           : totalKnown ? `${stats.count} of ${data!.total}` : `${stats.count}`;
         const people = stats.assignees;
