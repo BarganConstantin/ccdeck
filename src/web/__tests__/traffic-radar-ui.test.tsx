@@ -34,10 +34,10 @@ describe("Telemetry Radar evidence and navigation", () => {
     expect(renderToStaticMarkup(<TrafficRadarView snapshot={live} failed />)).not.toContain("Claude connections observed");
     expect(renderToStaticMarkup(<TrafficRadarView snapshot={{ ...live, status: "unavailable" }} />)).not.toContain("Claude connections observed");
   });
-  it("provides three focused views and defaults to all sessions", () => {
+  it("provides two focused views and defaults to all sessions", () => {
     const markup = renderToStaticMarkup(<TrafficRadarView snapshot={snapshot} sessions={[{ id: "test-session", label: "Test project" }]} />);
     expect(markup).toContain('aria-selected="true" aria-controls="tr-panel-monitor"');
-    expect(markup).toContain("Configuration"); expect(markup).toContain("File");
+    expect(markup).toContain("Configuration"); expect(markup).not.toContain("tr-tab-file");
     expect(markup).toContain("All sessions"); expect(markup).toContain("Test project");
     expect(markup).not.toContain("Observation history"); expect(markup).not.toContain("Live connections");
   });

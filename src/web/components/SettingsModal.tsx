@@ -39,6 +39,7 @@ import KeyboardSection from "./KeyboardSection";
 import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
+import RadarSettings from "./RadarSettings";
 import ToolAuditSettings from "./ToolAuditSettings";
 import ThemeSection from "./ThemeSection";
 import ReadingSection, { ReadingReset } from "./ReadingSection";
@@ -191,6 +192,8 @@ export default function SettingsModal({
 
   const pane = (() => {
     switch (section) {
+      case "radar":
+        return <RadarSettings />;
       case "appearance":
         return (
           <>
