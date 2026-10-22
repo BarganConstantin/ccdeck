@@ -26,33 +26,44 @@ deck sends a tracker is a GET.
     (a select once there are two or more), and Close.
   - **The toolbar:** the board, the board's project, when it was last read,
     and Refresh. Under them sit search (key or summary), *Only my issues*,
-    *Hide done*, the board's own quick filters, and *Clear filters*.
+    *Hide done*, *Needs attention* (flagged, or Highest, Blocker or Critical
+    priority, and not done), the board's own quick filters, and *Clear
+    filters*. A board's own "Only My Issues" filter is not drawn, since
+    *Only my issues* already does it.
   - **The backlog**, as Jira's Backlog page draws it:
     - The active sprints are open, and the future sprints and the backlog are
       closed. Closed sprints come on demand.
     - A kanban board gets To Do, In Progress and *Done in the last 14 days*,
       plus its backlog column when the board has one.
-    - Each sprint header shows its dates and count, how many of yours are
-      done, who is assigned, and its totals by status category: time, or story
-      points when the board estimates in points.
+    - Each sprint header shows its dates and count, then in words only what
+      is there: how many are yours, flagged and at Highest priority ("3 yours
+      · 1 flagged · 1 highest"). It also shows who is assigned, and its totals
+      by status category, named ("To do 3d", "Done 2h"): time, or story points
+      when the board estimates in points. An empty total is left out, a kanban
+      column has one total, and a board that counts issues has none.
   - **Each issue is drawn once.** A sub-task sits under its parent. When your
     sub-task's parent is not in the results, a muted context row ("not
     assigned to you") stands in for the parent.
   - **Rows show** the type and priority, the key (struck through when done),
     the summary, flagged, fix versions, the epic, the estimate and what is
-    left, and the assignee.
+    left, the status, and the assignee, ringed when it is you. On a phone a
+    row is three lines at most.
   - **The issue**, beside the list from 900px and its own screen with a Back
     under that:
-    - the path, key, status, flag, title, *Open in Jira*, *Copy key* and
-      *Copy link*;
-    - the fields;
+    - a bar with the key and a button that copies it, *Open in Jira*, and
+      Close (on a phone, Back stands in its place);
+    - the path, then the title, with the type, status, priority and flag
+      under it;
+    - the fields that have a value, and when it was created and updated;
     - the description, sub-tasks, links, attachments and the latest comments.
+    - Escape closes the issue first, with focus back on its row, and then
+      the panel. A search with text in it, or an open picker, comes first.
 - **Freshness.** A board older than five minutes is read again when the panel
   opens or the board changes. Nothing polls. A failed refresh keeps what was
   drawn and says what went wrong over it.
 - **Remembered per connection, in this browser:** the board, the open groups,
-  *Only my issues*, *Hide done* and the board's quick filters. The detail's
-  width is remembered per browser.
+  *Only my issues*, *Hide done*, *Needs attention* and the board's quick
+  filters. The detail's width is remembered per browser.
 
 ## Jira: what is supported
 
