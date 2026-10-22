@@ -181,23 +181,26 @@ export function useRovingRows(ref: RefObject<HTMLElement | null>) {
       return Array.from(item.querySelectorAll<HTMLElement>("button, a[href], input, select, textarea"))
         .filter(el => el !== row && !el.hasAttribute("data-nav") && el.closest("li") === item);
     };
+    // The row holding the stop now, so moving it touches two rows, not all.
+    let stop: HTMLElement | undefined;
+    const setStop = (row: HTMLElement, on: boolean) => {
+      for (const el of [row, ...controlsOf(row)]) {
+        if (on) el.removeAttribute("tabindex"); else if (el.tabIndex !== -1) el.tabIndex = -1;
+      }
+    };
     const apply = () => {
       const all = rows();
-      const stop = all[rovingStop(all.length, last.current ? all.indexOf(last.current) : -1,
+      stop = all[rovingStop(all.length, last.current ? all.indexOf(last.current) : -1,
         all.findIndex(el => el.getAttribute("aria-current") === "true"))];
-      for (const row of all) {
-        const on = row === stop;
-        if (on) row.removeAttribute("tabindex"); else if (row.tabIndex !== -1) row.tabIndex = -1;
-        for (const control of controlsOf(row)) {
-          if (on) control.removeAttribute("tabindex"); else if (control.tabIndex !== -1) control.tabIndex = -1;
-        }
-      }
+      for (const row of all) setStop(row, row === stop);
     };
     const onFocusIn = (event: FocusEvent) => {
       const row = event.target as HTMLElement;
-      if (!row.hasAttribute?.("data-nav") || row === last.current) return;
+      if (!row.hasAttribute?.("data-nav") || row === stop) return;
       last.current = row;
-      apply();
+      if (stop?.isConnected) setStop(stop, false);
+      setStop(row, true);
+      stop = row;
     };
     const onKeyDown = (event: KeyboardEvent) => {
       const row = event.target as HTMLElement;
