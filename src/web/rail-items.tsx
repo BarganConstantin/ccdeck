@@ -59,7 +59,6 @@ export function railItems({
   /** Findings nobody has looked at yet. */
   watchUnseen: number;
   setBrowserWatchOpen: Toggle;
-  /** Absent where Radar is not offered, or is turned off in Settings. */
   setTrafficRadarOpen?: Toggle;
   radioOpen?: boolean;
   setRadioOpen?: Toggle;

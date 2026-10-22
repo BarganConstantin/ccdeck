@@ -7,13 +7,12 @@ const { TelemetryFile } = await import("../components/TelemetryFile");
 const { useModalGate } = await import("../use-modal-gate");
 const snapshot: RadarSnapshot = { ok: true, sampledAt: 1700000000000, platform: "darwin", pollMs: 5000, status: "observing", processCount: 2, config: { sources: [], variables: [] }, alerts: [], connections: [] };
 describe("Telemetry Radar modal interactions", () => {
-  it("changes views without unmounting the monitor and has no file import", () => {
+  it("changes views without unmounting the monitor or imported file", () => {
     const view = mount(TrafficRadarView, { snapshot });
     (one(view.tree, e => e.props.id === "tr-tab-configuration")!.props.onClick as () => void)();
     expect(one(view.tree, e => e.props.id === "tr-panel-monitor")!.props.hidden).toBe(true);
     expect(one(view.tree, e => e.props.id === "tr-panel-configuration")!.props.hidden).toBe(false);
-    expect(one(view.tree, e => e.props.id === "tr-panel-file")).toBeNull();
-    expect(one(view.tree, e => e.props.id === "tr-tab-file")).toBeNull();
+    expect(one(view.tree, e => e.props.id === "tr-panel-file")).not.toBeNull();
     view.unmount();
   });
   it("keeps the File view: the third tab, after Configuration, opens the telemetry file reader", () => {

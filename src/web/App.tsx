@@ -39,7 +39,6 @@ import { useNodeDrag } from "./use-node-drag";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
-import { useRadarSettings } from "./use-radar-settings";
 import { railItems } from "./rail-items";
 import { useMediaQuery } from "./use-media-query";
 import { ReadoutGroup, WaitingNames } from "./components/TopbarReadouts";
@@ -263,8 +262,6 @@ function Inner() {
   // the reader last looked — lives in use-browser-watch-badge.ts.
   const watchBadge = useBrowserWatchBadge();
   const { watchOn, watchUnseen } = watchBadge;
-  const radarSettings = useRadarSettings();
-  useEffect(() => { if (radarSettings.enabled === false) dialogs.setTrafficRadarOpen(false); }, [radarSettings.enabled, dialogs.setTrafficRadarOpen]);
 
   // A LAN pairing request waiting on this deck — the poll that finds one, and
   // the one answer at a time the dialog over the canvas gives — lives in
@@ -588,10 +585,7 @@ function Inner() {
   const rails = railItems({
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
     usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
-    watchOn, watchUnseen, setBrowserWatchOpen,
-    // Radar turned off in Settings leaves the stripe as a deck without it has it.
-    setTrafficRadarOpen: radarSettings.enabled === true ? dialogs.setTrafficRadarOpen : undefined,
-    openSettings, onFeedback: dialogs.openFeedback,
+    watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, openSettings, onFeedback: dialogs.openFeedback,
     radioOpen, setRadioOpen,
     openToolActivity: () => setToolAuditOpen(true),
     toggles: panelReturn.toggles,
