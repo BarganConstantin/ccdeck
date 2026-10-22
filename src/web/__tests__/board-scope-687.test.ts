@@ -407,8 +407,11 @@ describe("every surface that prints one of these figures prints the shared label
     // the letters are off (WCAG 2.1.4).
     expect(panel).toContain('<div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
     expect(panel).toContain('<div className="up-tokens-row" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
-    // The unpriced deck: no headline renders there, so the strip says it itself.
-    expect(panel).toContain(`{!hasCost && <span className="up-tok up-scope">{BOARD_SCOPE_LABEL}</span>}`);
+    // The unpriced deck: no headline renders there, so the strip says it itself
+    // — on the same rule, the board word on the board branch only. Under
+    // ccusage it said "on this board" of the period's reading until
+    // usage-token-strip-scope.test.ts, which checks the rendered caption.
+    expect(panel).toContain(`{!hasCost && <span className="up-tok up-scope">{fromRange ? periodNoun : BOARD_SCOPE_LABEL}</span>}`);
   });
 
   it("prints no board figure at all under a ccusage headline", () => {
