@@ -352,6 +352,9 @@ export function lanApplyFields(prefs, { load = false, env = process.env } = {}) 
     pairingMode: lan.pairingMode === "invite" ? "invite" : "automatic",
     // Whether paired decks are told which shared account this one is on.
     shareActive: lan.shareActive !== false,
+    // Whether the account this deck is using right now may be sent to a paired
+    // deck. Off unless somebody turned it on (#2192).
+    sendInUse: lan.sendInUse === true,
     // Discovery over Tailscale, off unless somebody turned it on, and the two
     // permissions that answer for the owner's own machines there.
     tailscale: lan.tailscale === true,

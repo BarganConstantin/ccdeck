@@ -24,7 +24,7 @@ import AccountMenuPopover from "./AccountMenuPopover";
 import OtherAccounts from "./OtherAccounts";
 import ShareAccountsDialog from "./ShareAccountsDialog";
 import { isAutoArmed, pastThreshold, peersOf, reachable } from "../account-fold";
-import { lanAccounts } from "../account-lan";
+import { lanAccounts, type SharedMark } from "../account-lan";
 import { laneKey } from "../lane-open";
 import {
   allOpen, holdOrder, isOpen, orderChoices, orderKey, sortAccounts, toggleAll, toggleOne, trimOpenness, validOrder,
@@ -230,10 +230,11 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // And which logins this deck offers, to whom, for the share mark on their
   // rows (#2170): from the same status, so a row and the setup dialog's ticks
   // never disagree.
-  const [shared, setShared] = useState<ReadonlyMap<string, readonly string[]>>(() => new Map());
+  const [shared, setShared] = useState<ReadonlyMap<string, SharedMark>>(() => new Map());
   const lanFor = (a: Account) => {
     const key = lanAccounts([a])[0].key;
-    return { noCopyWorksNearby: noCopy.has(key), sharedTo: shared.get(key) ?? null };
+    const mark = shared.get(key);
+    return { noCopyWorksNearby: noCopy.has(key), sharedTo: mark?.to ?? null, sharedInUse: mark?.inUse === true };
   };
   const activeAcct = data?.accounts?.find(a => a.active);
   const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec, lanFor(activeAcct)) : null;

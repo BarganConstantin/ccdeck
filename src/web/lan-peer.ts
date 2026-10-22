@@ -38,12 +38,20 @@ export function runsLine(about: DeckAbout | null | undefined): string | null {
 
 /** What the two marks at the ends of a lane stand for, for a reader who cannot
  *  see them. The caption beside them only says what is not working. */
-export const HERE_SAID = { works: "works here", expired: "expired here", missing: "not on this deck", unavailable: "cannot share here" } as const;
-export const THERE_SAID = { works: "works there", broken: "broken there", unavailable: "cannot share there", unknown: "not offered by that deck" } as const;
+export const HERE_SAID = {
+  works: "works here", expired: "expired here", missing: "not on this deck", unavailable: "cannot share here",
+  inUse: "in use here",
+} as const;
+export const THERE_SAID = {
+  works: "works there", broken: "broken there", unavailable: "cannot share there", unknown: "not offered by that deck",
+  inUse: "in use there",
+} as const;
 export function laneSaid(l: Lane): string {
   const ways = l.in && l.out ? "offered both ways" : l.in ? "offered by that deck" : "offered by this deck";
-  // The accent and the ring say this to the eye; these words say it aloud.
-  return `${HERE_SAID[l.here]}, ${THERE_SAID[l.there]}, ${ways}${l.usedThere ? ", in use there" : ""}.`;
+  // The accent and the ring say this to the eye; these words say it aloud —
+  // once, when that end already says it is in use there.
+  const used = l.usedThere && l.there !== "inUse" ? ", in use there" : "";
+  return `${HERE_SAID[l.here]}, ${THERE_SAID[l.there]}, ${ways}${used}.`;
 }
 
 /**
@@ -157,8 +165,10 @@ export function peerView({ row, source, status, accounts, now }: {
     : [];
   // A login this deck advertises and cannot honour, with nothing coming the
   // other way to repair it: every paired deck is promised something that
-  // gives them nothing. A lane that already says `sign in again` is not one.
-  const spent = lanes.filter(l => l.in == null && l.out === "cut");
+  // gives them nothing. A lane that already says `sign in again` is not one,
+  // and nor is the login this deck is on (#2192): it works, it is kept here
+  // only while it is in use, and signing in again would not send it.
+  const spent = lanes.filter(l => l.in == null && l.out === "cut" && l.here !== "inUse");
   const taking = lanes.some(l => l.in != null);
   const giving = lanes.some(l => l.out != null);
   // WHO ELSE IS HANDED WHAT GOES OUT, for the key under the lanes. This deck's

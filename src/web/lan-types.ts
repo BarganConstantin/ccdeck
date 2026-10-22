@@ -13,8 +13,9 @@
 export interface DeckAbout { version: string | null; os: string | null; arch: string | null; at?: number }
 
 /** One account a paired deck offers, as its last manifest listed it. `alive`
- *  is that deck's verdict on its own copy, not this one's. */
-export interface OfferedAccount { key: string; email: string; alive: boolean; shareable?: boolean }
+ *  is that deck's verdict on its own copy, not this one's. `inUse` is that deck
+ *  being on it and keeping it there (#2192), only ever beside `shareable: false`. */
+export interface OfferedAccount { key: string; email: string; alive: boolean; shareable?: boolean; inUse?: boolean }
 
 /** One deck this one dials, as the status route reports it. */
 export interface Peer {
@@ -125,6 +126,9 @@ export interface LanStatus {
   /** Whether paired decks are told which shared account this one is on.
    *  Absent is on, which is what the engine does with a missing setting. */
   shareActive?: boolean;
+  /** Whether the account this deck is on may be sent to a paired deck that
+   *  asks (#2192). Absent is off, which is what the engine does. */
+  sendInUse?: boolean;
   tailscale?: LanTailscale | null;
   fp: string | null;
   port: number | null;
@@ -180,8 +184,12 @@ export interface LanReach {
   unsure?: string;
 }
 
-/** The accounts this deck holds, in the shape the panel already has them. */
-export interface LanAccount { key: string; email: string; alive: boolean; shareable?: boolean }
+/** The accounts this deck holds, in the shape the panel already has them.
+ *  `active` is the one this deck is on; `inUse` marks it as not sent — see
+ *  offeredHere. */
+export interface LanAccount {
+  key: string; email: string; alive: boolean; shareable?: boolean; active?: boolean; inUse?: boolean;
+}
 
 /** What this deck is offering, and until when. */
 export interface LanInvite { token: string; expiresAt: number }

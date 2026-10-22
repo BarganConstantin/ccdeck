@@ -152,6 +152,8 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["lan.name", { lan: { name: "studio" } }, p => p.lan.name, "studio"],
   ["lan.shared", { lan: { shared: ["acct-1", "acct-2", "acct-3"] } }, p => p.lan.shared, ["acct-1", "acct-2", "acct-3"]],
   ["lan.shareActive", { lan: { shareActive: false } }, p => p.lan.shareActive, false],
+  // Sending the login this deck is on, from its switch in the setup (#2192).
+  ["lan.sendInUse", { lan: { sendInUse: true } }, p => p.lan.sendInUse, true],
   ["lan.pairingMode", { lan: { pairingMode: "invite" } }, p => p.lan.pairingMode, "invite"],
   ["lan.autoAsk", { lan: { autoAsk: false } }, p => p.lan.autoAsk, false],
   ["lan.autoAccept", { lan: { autoAccept: false } }, p => p.lan.autoAccept, false],
@@ -189,7 +191,7 @@ describe("the fields a page may write", () => {
     expect(PAGE_FIELDS).toEqual({
       top: ["notifications", "notifySwap", "notifyQuota", "notifyReset", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions"],
       lan: [
-        "enabled", "name", "shared", "manual", "shareActive", "pairingMode",
+        "enabled", "name", "shared", "manual", "shareActive", "sendInUse", "pairingMode",
         "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
       ],
     });

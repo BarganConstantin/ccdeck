@@ -123,8 +123,8 @@ export {
 // wire — see lan-copies.mjs. Re-exported, so what imports them from here still
 // does.
 export {
-  accountKey, currentFor, heardCurrent, manifestFor, offered, onePerKey, peerWhy, plan, slotFor, syncAction,
-  HERE, SENDER_UNREADABLE,
+  accountKey, currentFor, heardCurrent, manifestFor, mayGiveInUse, offered, onePerKey, peerWhy, plan, slotFor,
+  syncAction, HERE, IN_USE, SENDER_UNREADABLE,
 } from "./lan-copies.mjs";
 
 /** Marks a packet as ours before anything reads a field of it. Four bytes of
