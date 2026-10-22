@@ -14,7 +14,7 @@
 //     seeded log
 //       final-tree1     <- …/696-697-sandbox/tree1
 //       final-tree2     <- …/696-697-sandbox/tree2
-//       final-elsewhere <- /Users/constantin/Desktop/agents-deck
+//       final-elsewhere <- /Users/u/Desktop/agents-deck
 //
 //     $ node bin/deck.js --no-codex --no-open --port 4474 --workspace …/tree1
 //       ✓  workspace       …/696-697-sandbox/tree1
@@ -22,7 +22,7 @@
 //     GET /api/events on the SCOPED deck
 //       final-tree1     <- …/696-697-sandbox/tree1
 //       final-tree2     <- …/696-697-sandbox/tree2
-//       final-elsewhere <- /Users/constantin/Desktop/agents-deck
+//       final-elsewhere <- /Users/u/Desktop/agents-deck
 //
 // The promise is made in three places and was broken in all three: the `--help`
 // line ("Only capture sessions whose cwd is inside <path>"), README.md

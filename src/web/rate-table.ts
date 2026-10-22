@@ -479,16 +479,9 @@ export const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) =>
 // Opus 4.6 is left out because it runs a fast request at standard speed and
 // reports `"standard"`; Opus 4.7 rejects the request.
 //
-// Codex has no rows here. OpenAI publishes a Fast column for every gpt-6 row
-// (Astra $20 / $100, both Sols $4 / $20, Luna $0.20 / $1, each model page
-// calling it 2x; read 2026-10-07), but the deck prices a Codex session from the
-// rollout's running total, which carries no tier, so there is no share of it
-// to apply the column to. The only tier a rollout records is the one the
-// session ASKED for, `thread_settings_applied`'s `service_tier`, and Codex's
-// own page (developers.openai.com/codex/speed) says Fast runs "where
-// available", depending on "plan, client, workspace settings, and rollout",
-// so the request is not evidence of the bill. Pricing it waits on a rollout
-// that shows the tier a request was actually served at (#1884).
+// Codex tier estimates use the recorded settings on observed usage deltas.
+// pricing.ts applies the published Fast/Flex multipliers only to supported
+// OpenAI families, separately from these Anthropic fast rate cards.
 export const FAST_RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelRates) }> = [
   // Opus 5.5 fast — $8 / $40, cache read $0.40 (0.05x). Above Opus 5, the
   // order the standard table keeps.

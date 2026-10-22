@@ -181,8 +181,8 @@ describe("swap, which is the reading a percentage cannot give you", () => {
 
 describe("the process list", () => {
   const PS = `  PID  %CPU %MEM    RSS     ELAPSED USER             COMM
-27993  56.6  2.4 2517368    03:14:15 constantin       dotnet
-54317  53.0  0.2  204800       12:30 constantin       node (vitest 8)
+27993  56.6  2.4 2517368    03:14:15 consultant       dotnet
+54317  53.0  0.2  204800       12:30 consultant       node (vitest 8)
 64025  51.9  1.9 1992704  2-01:00:00 root             claude
 `;
 
@@ -195,7 +195,7 @@ describe("the process list", () => {
       // nothing downstream has to know which unit it was handed.
       rssBytes: 2517368 * 1024,
       uptimeSec: 3 * 3600 + 14 * 60 + 15,
-      user: "constantin",
+      user: "consultant",
       name: "dotnet",
     });
     // `node (vitest 8)` has to survive intact — splitting on whitespace would

@@ -438,6 +438,9 @@ export const GUARDED_READS = new Set([
   "/api/system/traffic-radar/capture/event",
   "/events",
   "/api/events",
+  // The ring folded to one row per session (#2183): each project's path and a
+  // standing question's own words, which is the ring's secret in fewer bytes.
+  "/api/sessions",
   "/api/claude-accounts",
   "/api/claude-accounts/login",
   "/api/browser-watch",

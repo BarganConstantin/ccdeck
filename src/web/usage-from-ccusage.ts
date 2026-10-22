@@ -22,6 +22,8 @@ import { presetSince } from "./usage-range";
 export interface ModelRow {
   model: string;
   cost: number;
+  missingPricing?: boolean;
+  storedCost?: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -39,6 +41,9 @@ export interface SessionCostRow {
   label: string | null;
   agent: string;
   cost: number;
+  /** Every model the session ran on is one ccusage priced over the range, so a
+   *  cost of zero is a known zero rather than a missing price. */
+  priced: boolean;
   tokens: number;
   models: string[];
   lastActivityMs: number | null;
@@ -126,7 +131,7 @@ export function sinceFor(key: PeriodKey, now = new Date()): string {
  *  stdout two hops away, and a field that moved upstream must read as absent
  *  rather than throw inside a render. */
 interface RawModelBreakdown {
-  modelName?: unknown; cost?: unknown;
+  modelName?: unknown; cost?: unknown; missingPricing?: unknown; storedCost?: unknown;
   inputTokens?: unknown; outputTokens?: unknown;
   cacheReadTokens?: unknown; cacheCreationTokens?: unknown;
 }
@@ -177,6 +182,10 @@ export function modelRows(range: UsageRange | null | undefined): ModelRow[] {
         by.set(model, row);
       }
       row.cost += num(b?.cost);
+      if (typeof b?.missingPricing === "boolean") row.missingPricing = row.missingPricing === true || b.missingPricing;
+      if (typeof b?.storedCost === "number" && Number.isFinite(b.storedCost) && b.storedCost >= 0) {
+        row.storedCost = (row.storedCost ?? 0) + Math.min(b.storedCost, Math.max(0, num(b.cost)));
+      }
       row.inputTokens += num(b?.inputTokens);
       row.outputTokens += num(b?.outputTokens);
       row.cacheReadTokens += num(b?.cacheReadTokens);
@@ -233,6 +242,15 @@ export function sessionRows(
   names: ReadonlyMap<string, string> = new Map(),
 ): SessionCostRow[] {
   const raw = Array.isArray(range?.sessions) ? (range.sessions as RawSession[]) : [];
+  // A SESSION'S ZERO IS ONLY AS GOOD AS THE PRICES BEHIND IT. ccusage flags a
+  // missing price on the day's per-model breakdowns, never on a session row, so
+  // a session is read against those: its zero is known when every model it ran
+  // on was priced over the range. The test is the BY MODEL table's own, so the
+  // two lists never disagree about one model; a model the days do not mention
+  // is not known to be priced.
+  const pricedModels = new Set(modelRows(range)
+    .filter(m => !(m.missingPricing === true || (m.missingPricing === undefined && m.cost <= 0 && m.tokens > 0)))
+    .map(m => m.model));
   const rows: SessionCostRow[] = [];
   for (const s of raw) {
     const period = str(s?.period);
@@ -240,13 +258,15 @@ export function sessionRows(
     const sessionId = sessionIdFromPeriod(period);
     const meta = s?.metadata as { lastActivity?: unknown } | undefined;
     const last = typeof meta?.lastActivity === "string" ? Date.parse(meta.lastActivity) : NaN;
+    const models = Array.isArray(s?.modelsUsed) ? (s.modelsUsed as unknown[]).map(str).filter(Boolean) : [];
     rows.push({
       sessionId,
       label: names.get(sessionId) ?? null,
       agent: str(s?.agent) || "claude",
       cost: num(s?.totalCost),
+      priced: models.length > 0 && models.every(m => pricedModels.has(m)),
       tokens: num(s?.totalTokens),
-      models: Array.isArray(s?.modelsUsed) ? (s.modelsUsed as unknown[]).map(str).filter(Boolean) : [],
+      models,
       lastActivityMs: Number.isFinite(last) ? last : null,
     });
   }
@@ -387,6 +407,8 @@ export function rangeTotals(range: UsageRange | null | undefined): RangeTotals {
  *  types. */
 export interface SessionTotals {
   cost: number;
+  missingPricing?: boolean;
+  storedCost?: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -465,6 +487,8 @@ export function nounFor(shown: PeriodKey | null, pressed: PeriodKey): string {
  *  depend on the graph's types. */
 export interface Delta {
   cost: number;
+  missingPricing?: boolean;
+  storedCost?: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -488,6 +512,8 @@ export interface PanelFigures {
    *  whole contract, and the reason they are computed together. */
   fromRange: boolean;
   cost: number;
+  missingPricing?: boolean;
+  storedCost?: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;

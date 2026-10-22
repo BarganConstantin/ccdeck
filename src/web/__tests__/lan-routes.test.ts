@@ -30,7 +30,10 @@ process.env.USERPROFILE = DIR;
 process.env.CLAUDE_CONFIG_DIR = join(DIR, "claude");
 process.env.CODEX_HOME = join(DIR, "codex");
 process.env.XDG_CONFIG_HOME = join(DIR, "config");
-for (const p of [process.env.HOME, process.env.USERPROFILE, process.env.CLAUDE_CONFIG_DIR, process.env.CODEX_HOME, process.env.XDG_CONFIG_HOME]) {
+// CCDECK_HOME wins over every rule above for the deck's own data, so a caller's
+// own would put prefs.json outside DIR; the guard in beforeAll refused that.
+process.env.CCDECK_HOME = join(DIR, "deck");
+for (const p of [process.env.HOME, process.env.USERPROFILE, process.env.CLAUDE_CONFIG_DIR, process.env.CODEX_HOME, process.env.XDG_CONFIG_HOME, process.env.CCDECK_HOME]) {
   if (!resolve(p!).startsWith(resolve(DIR))) throw new Error(`sandbox escaped: ${p}`);
 }
 
@@ -59,7 +62,7 @@ afterAll(async () => {
     server.closeAllConnections?.();
     server.close(() => done());
   });
-  for (const k of ["HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME"]) {
+  for (const k of ["HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME", "CCDECK_HOME"]) {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }

@@ -12,7 +12,7 @@
 // original path) and matches the real ~/.claude/projects listing on the machine
 // this was found on, where /Users/…/vcrm-core/.claude/worktrees/agent-mail-mobile
 // is stored as -Users-…-vcrm-core--claude-worktrees-agent-mail-mobile and the
-// Windows entries read C--Users-cbargan-….
+// Windows entries read C--Users-captain-….
 import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
@@ -72,8 +72,8 @@ describe("ccProjectSlug", () => {
   // all three legs. Windows still reads it as a whole-string match for free,
   // because there the tail is the whole string.
   it("turns the drive colon and the backslashes into dashes", () => {
-    const slug = ccProjectSlug("C:\\Users\\cbargan\\Desktop\\agent-dag");
-    expect(slug.endsWith("C--Users-cbargan-Desktop-agent-dag")).toBe(true);
+    const slug = ccProjectSlug("C:\\Users\\captain\\Desktop\\agent-dag");
+    expect(slug.endsWith("C--Users-captain-Desktop-agent-dag")).toBe(true);
     // And nothing of the Windows punctuation survived anywhere in it: the
     // pre-fix rule replaced separators only and left the colon standing.
     expect(/^[a-zA-Z0-9-]+$/.test(slug)).toBe(true);

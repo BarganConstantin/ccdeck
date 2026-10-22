@@ -1,3 +1,4 @@
+import ReadActivity from "./ReadActivity";
 // The whole candidate list, because the panel's eight rows leave one question
 // unanswerable.
 //
@@ -290,7 +291,7 @@ export function ProcessListView({ read, sort, onSort, sys, onClose }: {
           // a read that came back with nothing look identical in the data and
           // are opposite things to tell somebody, and this dialog now opens
           // before its first read rather than inheriting the panel's.
-          <p className="pl-empty">Reading the process list…</p>
+          <ReadActivity kind="processes" title="Reading the process list…" delayed />
         ) : rows.length === 0 ? (
           // Only when no read has ever returned rows — a failure after a good
           // one keeps that table (nextProcRead). And not "on this platform":

@@ -159,6 +159,8 @@ describe("what was migrated to the secondary tier", () => {
       // and the heading carry the failure; the reason is prose, so it reads and does not
       // shout.
       ".aa-reason",
+      // Explains missing prices and recorded cost provenance.
+      ".uh-cost-note",
       ".ap-issue-hint",
       ".ap-lan-intro-text",
       // The shared text field's placeholder, in dark only: an example, not a
@@ -304,6 +306,16 @@ describe("what was migrated to the secondary tier", () => {
       ".ta-note",
       ".ta-search input::placeholder",
       ".ta-summary",
+      // The local reads' waits — Projects, session usage, usage history, and
+      // quota, process and sensor history: the one sentence under each title
+      // that says what is being read, and that the first run may download
+      // ccusage. Read once while waiting, as .bw-loading p is. Their drawings
+      // are decoration and sit on --muted.
+      ".ap-proj-loading > span",
+      ".read-activity > span",
+      ".su-loading > span",
+      ".uh-reading-hint",
+      ".uh-reading-note",
       // Radar's telemetry inspection adds more of the same utility labels: the
       // highlight and evidence terms, the project context's heading, the prompt
       // filter, the JSON search and its placeholder on --ctl-fill, the JSON

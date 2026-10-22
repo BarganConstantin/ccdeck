@@ -1003,7 +1003,7 @@ describe("where a beacon is sent", () => {
       { address: "192.168.1.82", netmask: "255.255.255.0", family: "IPv4", internal: false },
       { address: "fe80::1", netmask: "ffff:ffff:ffff:ffff::", family: "IPv6", internal: false },
     ],
-    utun4: [{ address: "100.67.32.58", netmask: "255.255.255.255", family: "IPv4", internal: false }],
+    utun4: [{ address: "100.64.0.100", netmask: "255.255.255.255", family: "IPv4", internal: false }],
   };
 
   it("computes an interface's own broadcast, and refuses a tunnel's", () => {
@@ -1013,7 +1013,7 @@ describe("where a beacon is sent", () => {
     // A /32 is a point-to-point link — a VPN tunnel, `utun` on macOS — whose
     // directed broadcast is its own address. Sending a beacon to ourselves down
     // a tunnel is a packet nobody wanted.
-    expect(directedBroadcast("100.67.32.58", "255.255.255.255")).toBeNull();
+    expect(directedBroadcast("100.64.0.100", "255.255.255.255")).toBeNull();
     expect(directedBroadcast("nonsense", "255.255.255.0")).toBeNull();
     expect(directedBroadcast("192.168.1.82", undefined as never)).toBeNull();
   });

@@ -115,11 +115,11 @@ describe("the parsers, if the environment is stripped anyway", () => {
     const text = [
       "  PID  %CPU %MEM    RSS     ELAPSED USER             COMM",
       "    1   0,2  0,0   12288    01:00:00 root             /sbin/launchd",
-      "69696  84,5  0,4  409600       05:00 constantin       Brave Browser Helper",
+      "69696  84,5  0,4  409600       05:00 consultant       Brave Browser Helper",
     ].join("\n");
     expect(parsePsProcesses(text)).toEqual([
       { pid: 1, cpu: 0.2, mem: 0, rssBytes: 12288 * 1024, uptimeSec: 3600, user: "root", name: "/sbin/launchd" },
-      { pid: 69696, cpu: 84.5, mem: 0.4, rssBytes: 409600 * 1024, uptimeSec: 300, user: "constantin", name: "Brave Browser Helper" },
+      { pid: 69696, cpu: 84.5, mem: 0.4, rssBytes: 409600 * 1024, uptimeSec: 300, user: "consultant", name: "Brave Browser Helper" },
     ]);
   });
 

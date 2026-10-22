@@ -11,12 +11,12 @@ import { syncAccounts } from "../../server/lan-accounts.mjs";
 import { SENDER_UNREADABLE } from "../../server/lan-sync.mjs";
 
 const row = (extra: Record<string, unknown> = {}) =>
-  ({ num: 3, email: "Claude1@Sapec.md", orgUuid: "org-1", alive: true, ...extra });
+  ({ num: 3, email: "Alice@Example.net", orgUuid: "org-1", alive: true, ...extra });
 
 describe("an account as the rules read it", () => {
   it("is keyed by its identity and keeps its slot number", () => {
     expect(syncAccounts({ accounts: [row()] })).toEqual([{
-      key: "claude1@sapec.md@@org-1", email: "Claude1@Sapec.md", org: "org-1",
+      key: "alice@example.net@@org-1", email: "Alice@Example.net", org: "org-1",
       alive: true, readable: true, unreadableWhy: "export failed", num: 3, active: false,
     }]);
   });

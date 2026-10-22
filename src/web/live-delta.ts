@@ -18,7 +18,7 @@
 // The two agree on every model either of them knows; where they do not, the
 // difference is a minute or two of one session's spend and it disappears at the
 // next true-up. That is the trade for a number that moves when the work happens.
-import { agentCost, type UsageBearing } from "./usage-models";
+import { agentCost, agentUnpricedTokens, type UsageBearing } from "./usage-models";
 
 /** One session's cumulative usage, as the canvas holds it. */
 export interface SessionUsage {
@@ -27,6 +27,9 @@ export interface SessionUsage {
   outputTokens: number;
   cacheReadTokens: number;
   cacheCreateTokens: number;
+  /** Tokens this build's table has no rate for (agentUnpricedTokens): counted
+   *  above, their dollars not in `cost`. Missing reads as none. */
+  unpricedTokens?: number;
 }
 
 /** What a delta adds to a reading. Same shape as the reading's own totals. */
@@ -38,7 +41,7 @@ export interface LiveDelta extends SessionUsage {
 }
 
 export const NO_DELTA: LiveDelta = {
-  cost: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, sessions: 0,
+  cost: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, unpricedTokens: 0, sessions: 0,
 };
 
 /** The agents this counts: session roots, which are the only nodes that carry
@@ -90,6 +93,7 @@ export function boardBySession(agents: Iterable<CountableAgent>, now?: number): 
       outputTokens: a.usage.outputTokens,
       cacheReadTokens: a.usage.cacheReadTokens,
       cacheCreateTokens: a.usage.cacheCreateTokens,
+      unpricedTokens: agentUnpricedTokens(a, now),
     });
   }
   return out;
@@ -158,6 +162,10 @@ export function liveDelta(
     out.outputTokens += Math.max(0, gained.outputTokens);
     out.cacheReadTokens += Math.max(0, gained.cacheReadTokens);
     out.cacheCreateTokens += Math.max(0, gained.cacheCreateTokens);
+    // The delta's dollars are this build's own prices, so tokens it has no rate
+    // for are in the strip with no dollars beside them: the headline is a floor
+    // until the next reading prices them or says it cannot.
+    out.unpricedTokens = (out.unpricedTokens ?? 0) + Math.max(0, (now.unpricedTokens ?? 0) - (was.unpricedTokens ?? 0));
     out.sessions += 1;
   }
   return out;

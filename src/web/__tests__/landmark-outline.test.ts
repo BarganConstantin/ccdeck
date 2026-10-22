@@ -722,7 +722,7 @@ describe("the usage-history chart stopped hiding the days inside it (#381)", () 
   });
 
   it("names each day with the figure its tooltip already carried", () => {
-    expect(code(history)).toMatch(/const dayLabel = `\$\{d\.period\}, \$\{fmtCost\(d\.totalCost\)\}`/);
+    expect(code(history)).toMatch(/const dayLabel = `\$\{d\.period\}, \$\{reportedCost\(d\.totalCost,/);
     expect(code(history)).toMatch(/aria-label=\{dayLabel\}/);
     expect(code(history)).toMatch(/aria-pressed=\{isSel\}/);
   });
