@@ -246,9 +246,9 @@ describe("the toolbar's quiet words on their fields", () => {
   for (const theme of THEMES) {
     it(`${theme}: the search placeholder and a pressed filter's word clear 4.5:1`, () => {
       const panel = over(color("var(--panel)", [rootOf(theme)]), [0, 0, 0, 1]);
-      const field = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]), el("div", ["jr-filters"]), el("label", ["jr-search"]), el("input", [])];
+      const field = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]), el("div", ["jr-filters"]), el("div", ["ig-search"]), el("input", ["ig-search-input"])];
       const fieldBed = over(color(prop(field, "background")!, field), panel);
-      const placeholder = [...field.slice(0, -1), el("input", [], { states: ["placeholder"] })];
+      const placeholder = [...field.slice(0, -1), el("input", ["ig-search-input"], { states: ["placeholder"] })];
       const ink = cascaded(field, "color", s => /::placeholder$/.test(s) ? selects(s.replace(/::placeholder$/, ""), field) : null);
       expect(ink).not.toBeNull();
       expect(contrast(over(color(ink!, placeholder), fieldBed), fieldBed), "placeholder").toBeGreaterThanOrEqual(BODY);

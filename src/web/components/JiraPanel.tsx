@@ -19,7 +19,7 @@ import { modalStack } from "../modal-dismiss";
 import { failureOf, useJiraBoard } from "../use-jira-board";
 import AnchoredPopover from "./AnchoredPopover";
 import IntegrationFreshness from "./IntegrationFreshness";
-import { SearchGlyph } from "./integration-glyphs";
+import IntegrationSearch from "./IntegrationSearch";
 import IntegrationSplit from "./IntegrationSplit";
 import JiraBacklog from "./JiraBacklog";
 import JiraIssueDetail from "./JiraIssueDetail";
@@ -89,11 +89,7 @@ function BoardPicker({ api, current, layerId, onPick, onClose }: {
       labelledBy="jira-board-picker-title" focusRef={searchRef} onClose={onClose}>
       <div className="jr-board-pop-inner" onKeyDown={onKeyDown}>
         <p className="jr-board-pop-title" id="jira-board-picker-title">Boards</p>
-        <label className="jr-search jr-board-search">
-          <SearchGlyph />
-          <input ref={searchRef} type="search" placeholder="Find a board by name" aria-label="Find a board by name" value={query}
-            onChange={e => setQuery(e.target.value)} />
-        </label>
+        <IntegrationSearch value={query} onChange={setQuery} label="Find a board by name" placeholder="Find a board by name" inputRef={searchRef} />
         <ul className="jr-board-list" role="list" ref={listRef} aria-label="Boards" aria-busy={page.loading || undefined}>
           {page.boards.map(b => (
             <li key={b.id}>
@@ -135,7 +131,6 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   const [trail, setTrail] = useState<string[]>([]);
   const [boardsError, setBoardsError] = useState<IntegrationFailure | null>(null);
   const [noBoards, setNoBoards] = useState(false);
-  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { prefs.write("mine", mine); }, [prefs, mine]);
   useEffect(() => { prefs.write("hideDone", hideDone); }, [prefs, hideDone]);
@@ -206,15 +201,6 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
     if (!narrow || !open) return;
     return modalStack.push(() => backRef.current(), 0, "popover");
   }, [narrow, open]);
-
-  // Escape in a search box with something in it empties it, before it
-  // leaves the detail or closes the modal: one more entry on the same stack.
-  const [searchFocused, setSearchFocused] = useState(false);
-  const searching = searchFocused && search !== "";
-  useEffect(() => {
-    if (!searching) return;
-    return modalStack.push(() => setSearch(""), 0, "popover");
-  }, [searching]);
 
   const host = connectionHost(conn);
   const blocking = !overview ? (error ?? boardsError) : null;
@@ -310,11 +296,9 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
             onRefresh={() => { if (board) jira.refresh(); else firstBoard(); }} label="Refresh the board" disabled={!board} />
         </div>
         <div className="jr-filters" role="group" aria-label="Filters">
-          <label className="jr-search">
-            <SearchGlyph />
-            <input ref={searchRef} type="search" placeholder="Search key or summary" aria-label="Search issues by key or summary"
-              value={search} onChange={e => setSearch(e.target.value)} onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)} />
-          </label>
+          {/* Escape empties it first (the shared field's own entry on the
+              dismiss stack), then leaves the issue, then closes the panel. */}
+          <IntegrationSearch value={search} onChange={setSearch} label="Search issues by key or summary" placeholder="Search key or summary" />
           {/* One row that scrolls sideways on a phone, rather than three rows
               of chips over the board. */}
           <div className="jr-filter-chips">

@@ -32,23 +32,9 @@
 .jr-toolbar[hidden] { display: none; }
 .jr-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .jr-filter-chips { display: contents; }
-.jr-search { position: relative; display: inline-flex; align-items: center; min-width: 0; color: var(--muted); }
-.jr-search svg { position: absolute; left: 6px; pointer-events: none; }
-.jr-search input {
-  width: 220px;
-  min-width: 0;
-  min-height: var(--ctl-h);
-  box-sizing: border-box;
-  padding: 0 8px 0 24px;
-  border: 1px solid var(--ctl-edge);
-  border-radius: var(--r-ctl);
-  background: var(--ctl-fill);
-  color: var(--text);
-  font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-}
-.jr-search input::placeholder { color: var(--text-secondary); }
-.jr-search input:hover { border-color: var(--text); }
+/* The shared search field (IntegrationSearch) beside the chips, at a width
+   that leaves them room, and a whole row on a phone (below). */
+.jr-filters > .ig-search { flex: 0 1 260px; }
 button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--accent-dim)); border-color: var(--accent); color: var(--text); }
 .jr-link-btn {
   padding: 0;
@@ -90,8 +76,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-board-pop { width: var(--jr-pop-w); }
 .jr-board-pop-inner { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
 .jr-board-pop-title { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; }
-.jr-board-search { display: flex; }
-.jr-board-search input { width: 100%; }
+.jr-board-pop-inner > .ig-search { flex: none; }
 .jr-board-list { margin: 0; padding: 0; list-style: none; max-height: min(360px, 50dvh); overflow-y: auto; scrollbar-color: var(--ctl-edge) transparent; }
 .jr-board-item {
   width: 100%;
@@ -499,8 +484,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   .jr-list-scroll { padding: 10px 12px 20px; }
   .jr-detail { padding: 12px 14px 24px; }
   .jr-board-project { display: none; }
-  .jr-search { flex: 1 1 100%; }
-  .jr-search input { width: 100%; }
+  .jr-filters > .ig-search { flex: 1 1 100%; }
   .jr-filter-chips {
     display: flex;
     flex: 1 1 100%;
