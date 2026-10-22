@@ -10,7 +10,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ForgeCommit, ForgeErrorInfo, ForgeLabel, ForgeUser } from "../../forge-types";
 import { parseForgeHtml, type ForgeNode } from "../../forge-html";
-import { labelColor, labelParts } from "../../forge-detail";
+import { labelColor, labelParts, referenceParts } from "../../forge-detail";
 import { useForge } from "./ForgeContext";
 import { Ago, Copyable, LoadingRows, OpenOnForge, Person, ReadFailure } from "./ForgeParts";
 
@@ -50,15 +50,19 @@ export function DetailFrame({ label, children }: { label: string; children: Reac
 }
 
 /** The page's top line: what it is (copyable), where it lives on the forge,
- *  and Close — which a narrow window replaces with the host's Back. */
+ *  and Close — which a narrow window replaces with the host's Back. On a
+ *  narrow pane the path gives way and the number stays: "platform/pay…!5144". */
 export function DetailBar({ reference, copyValue, copyLabel, href }: {
   reference: string; copyValue?: string; copyLabel: string; href: string | null;
 }) {
   const { select, narrow } = useForge();
+  const { path, number } = referenceParts(reference);
   return (
     <div className="fd-bar">
       <span className="fd-ref">
-        <Copyable value={copyValue ?? reference} label={copyLabel}><code>{reference}</code></Copyable>
+        <Copyable value={copyValue ?? reference} label={copyLabel}>
+          <code title={reference}><span className="fd-ref-path">{path}</span>{number && <span className="fd-ref-number">{number}</span>}</code>
+        </Copyable>
       </span>
       <span className="fd-bar-end">
         <OpenOnForge href={href} />

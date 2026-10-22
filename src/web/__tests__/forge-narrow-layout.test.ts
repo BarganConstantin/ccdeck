@@ -70,3 +70,12 @@ describe("a narrow list's rows", () => {
     expect(decls(blocks(lists, "@container fgl (max-width: 360px)").join("\n"), ".fgl-pipeline .fgl-when-verb")).toMatch(SR_HIDDEN);
   });
 });
+
+const detail = sheet("forge-detail.css");
+
+describe("an item page's top line", () => {
+  it("lets the path give way and keeps the number whole", () => {
+    expect(decls(detail, ".fd-ref-path")).toMatch(/min-width: 0;.*overflow: hidden;.*text-overflow: ellipsis/);
+    expect(decls(detail, ".fd-ref-number")).toMatch(/flex: none/);
+  });
+});

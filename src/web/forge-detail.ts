@@ -22,6 +22,14 @@ export function changeReference(kind: ForgeKind, repo: string, number: number): 
   return `${repo}${forgeWords[kind].changeSigil}${number}`;
 }
 
+/** A page's reference split where a narrow pane may cut it: the path, which
+ *  gives way first, and the sigil and number people quote ("!5144", "#463"),
+ *  which stay whole. A reference with no number is all path. */
+export function referenceParts(reference: string): { path: string; number: string | null } {
+  const m = /^(.*?)([#!]\d+)$/.exec(reference);
+  return m && m[1] ? { path: m[1], number: m[2] } : { path: reference, number: null };
+}
+
 /** The change a pipeline ran for, read from its ref: GitLab's merge request
  *  pipelines run on `refs/merge-requests/<iid>/head` (or `/merge`, `/train`),
  *  GitHub's pull request runs on `refs/pull/<n>/merge`. Null for a branch or a tag. */
