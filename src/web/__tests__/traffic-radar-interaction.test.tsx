@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { all, mount, one, textOf } from "./fake-react";
 import type { RadarSnapshot } from "../traffic-radar";
-vi.mock("react", async () => (await import("./fake-react")).react);
+vi.mock("react", async importOriginal => ({ ...await importOriginal<typeof import("react")>(), ...(await import("./fake-react")).react }));
 const { TrafficRadarView, Configuration } = await import("../components/TrafficRadar");
 const { TelemetryFile } = await import("../components/TelemetryFile");
 const { useModalGate } = await import("../use-modal-gate");

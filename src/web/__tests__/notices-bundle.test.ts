@@ -105,6 +105,16 @@ const FINGERPRINTS: { pkg: string; needle: string; note: string }[] = [
     note: "the manifest-parsed event's name",
   },
   {
+    pkg: "json-edit-react",
+    // A class name from the stylesheet it injects at runtime, so it is a string
+    // in its JavaScript: 4 times in Radar's lazy chunk, TrafficRadar-*.js, and
+    // nowhere else. Not `jer-editor-container` or `jer-copy-pulse`: ccdeck's
+    // own stylesheet names those to restyle the tree, so they would still be
+    // found if the package left the bundle.
+    needle: "jer-collection-item-count",
+    note: "the item-count class of its collapsed collections",
+  },
+  {
     pkg: "js-tokens",
     // The flags character class out of its single exported regex. Inside a
     // regex literal, so it survives minification exactly as written.

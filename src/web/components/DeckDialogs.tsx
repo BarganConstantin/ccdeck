@@ -12,6 +12,7 @@
 // used. Usage history and Browser Watch load when they open (#883), so their two
 // lazy imports came with them.
 import { Suspense, type MutableRefObject } from "react";
+import { sessionDisplay } from "../session-display";
 import { updateRestartFailureText } from "../desktop-update";
 import type { Providers } from "../providers";
 import { doorOut } from "../settings";
@@ -139,7 +140,7 @@ export default function DeckDialogs({
       )}
       {contextAgent && <ContextModal agent={contextAgent} onClose={() => setContextFor(null)} />}
       {trafficRadarOpen && <Suspense fallback={null}>
-        <TrafficRadar sessions={[...stateRef.current.agents.values()].filter(agent => agent.kind === "root" && agent.provider !== "codex").map(agent => ({ id: agent.sessionId, label: agent.cwdBasename ?? agent.label }))} onClose={() => setTrafficRadarOpen(false)} />
+        <TrafficRadar sessions={[...stateRef.current.agents.values()].filter(agent => agent.kind === "root" && agent.provider !== "codex").map(agent => ({ id: agent.sessionId, label: sessionDisplay(agent.sessionName, agent.sessionTitle).face ?? agent.cwdBasename ?? agent.label, project: agent.cwdBasename ?? agent.label, workspace: agent.cwd }))} onClose={() => setTrafficRadarOpen(false)} />
       </Suspense>}
       {feedbackOpen && (
         <FeedbackDialog
@@ -179,8 +180,8 @@ export default function DeckDialogs({
              shortcuts sheet hands over to it below, and each opens through
              the deck's own way in: the version chip's (What's new, and for a
              lit chip the banner put back too), the topbar's Feedback, the
-             tour's, Browser Watch's stripe button, and App's for the two
-             panels. */
+             tour's, Browser Watch's stripe button, Radar's toolbar button,
+             and App's for the two panels. */
           doors={{
             whatsNew: doorOut(closeSettings, openReleaseNotes),
             update: doorOut(closeSettings, () => { openReleaseNotes(); showNotice(); }),
@@ -189,6 +190,7 @@ export default function DeckDialogs({
             accounts: doorOut(closeSettings, panelDoors.accounts),
             localNetwork: doorOut(closeSettings, panelDoors.localNetwork),
             browserWatch: doorOut(closeSettings, () => setBrowserWatchOpen(true)),
+            radar: doorOut(closeSettings, () => setTrafficRadarOpen(true)),
           }}
         />
       )}
