@@ -562,7 +562,6 @@ const EXEMPT: string[] = [
   // Usage-history provider selection and native disclosure keep labels still.
   ".qh-provider",
   ".qh-readings summary",
-  ".ap-report-view",
   ".ap-reset-day-button",
   ".ap-reset-disclosure > summary",
   ".ap-reset-about summary",

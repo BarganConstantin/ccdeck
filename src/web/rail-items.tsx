@@ -13,8 +13,9 @@ import { platformName } from "./platform";
 import { settingsChordLabel, type SettingsSection } from "./settings";
 import type { RailItem } from "./components/EdgeRails";
 import type { IntegrationWebDef } from "./integrations/types";
+import type { CapacityView } from "./components/AccountsUsageReport";
 import {
-  AccountsGlyph, BrowserWatchGlyph, FeedbackGlyph, HistoryGlyph, MachineGlyph,
+  AccountsGlyph, BrowserWatchGlyph, CapacityGlyph, FeedbackGlyph, HistoryGlyph, MachineGlyph, ResetCalendarGlyph,
   SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph,
 } from "./components/rail-glyphs";
 
@@ -24,6 +25,13 @@ export interface RailItems {
   /** The left column's two, Accounts first: they share it, and opening one
    *  closes the other. */
   left: RailItem[];
+  /** The left stripe, top to bottom: Accounts, the two doors into its Account
+   *  capacity report, then Session list. */
+  leftStripe: RailItem[];
+  /** Account capacity and Reset calendar, each one press from the stripe and
+   *  their only door. On a phone they are rows under More, so the dock keeps
+   *  its five slots. Empty without Claude Code. */
+  capacity: RailItem[];
   /** The right stripe's two panels, then the two records that open as dialogs. */
   right: RailItem[][];
   /** Settings and Feedback, in the topbar's corner. */
@@ -55,7 +63,7 @@ export function railItems({
   providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, radioOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
-  integrations = [],
+  openCapacity, integrations = [],
 }: {
   providers: Providers;
   sessionListOpen: boolean;
@@ -81,6 +89,8 @@ export function railItems({
   onFeedback: () => void;
   /** Where a panel's own close hands keyboard focus back (use-panel-return.ts). */
   toggles: PanelToggles;
+  /** Open the Account capacity report on one of its two views. */
+  openCapacity?: (view: CapacityView) => void;
   /** The connected tracker kinds, in the registry's order (#2178). */
   integrations?: IntegrationRail[];
 }): RailItems {
@@ -102,6 +112,20 @@ export function railItems({
     ariaLabel: "Accounts", hint: "Claude accounts", glyph: <AccountsGlyph />, kind: "panel",
     open: accountsPanelOpen, controls: "accounts-panel", onPress: toggleAccountsPanel, buttonRef: toggles.accounts,
   };
+  // ACCOUNT CAPACITY AND RESET CALENDAR, ON THE STRIPE. Both lived behind the
+  // gauge in the accounts panel's header, the calendar a tab inside its dialog,
+  // and users said they could not find them. The gauge and the tabs are gone:
+  // each door opens its own view, over whatever is open, and the left column
+  // is not touched.
+  const capacity: RailItem[] = openCapacity ? [{
+    id: "account-capacity", label: "Account capacity", short: "Capacity", ariaLabel: "Account capacity",
+    detail: "How many accounts are ready, and what the 5h and 7d windows have left",
+    glyph: <CapacityGlyph />, kind: "dialog", onPress: () => openCapacity("accounts"),
+  }, {
+    id: "reset-calendar", label: "Reset calendar", short: "Calendar", ariaLabel: "Reset calendar",
+    detail: "When each account's 5h and 7d windows come back",
+    glyph: <ResetCalendarGlyph />, kind: "dialog", onPress: () => openCapacity("calendar"),
+  }] : [];
   const usage: RailItem = {
     id: "usage", label: "Usage", short: "Usage", key: { cap: "U", aria: "U", single: true },
     ariaLabel: "Usage", glyph: <UsageGlyph />, kind: "panel",
@@ -144,6 +168,10 @@ export function railItems({
     // owner's call (2026-10-08), the panel a first run opens and the one read
     // before choosing where to start a session.
     left: providers.claude ? [accounts, sessionList] : [sessionList],
+    // The owner's order (2026-10-22): Claude accounts, Account capacity,
+    // Reset calendar, Session list.
+    leftStripe: providers.claude ? [accounts, ...capacity, sessionList] : [sessionList],
+    capacity: providers.claude ? capacity : [],
     right: [[usage, machine], [history, ...(openToolActivity ? [{
       id: "tool-activity", label: "Tool activity", short: "Tools", ariaLabel: "Tool activity",
       glyph: <ToolActivityGlyph />, kind: "dialog" as const,

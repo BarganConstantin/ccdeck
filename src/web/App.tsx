@@ -10,6 +10,8 @@ import ToolAuditModal from "./components/ToolAuditModal";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
+import AccountCapacityDialog from "./components/AccountCapacityDialog";
+import type { CapacityView } from "./components/AccountsUsageReport";
 import LeftColumn from "./components/LeftColumn";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
@@ -622,12 +624,17 @@ function Inner() {
   }, []);
   const openToolAuditSession = useCallback((sessionId: string) => { setToolAuditOpen(false); openSession(sessionId); }, [openSession]);
   const closeRadio = useCallback(() => setRadioOpen(false), []);
+  // Account capacity from the left stripe, on the view its door names —
+  // components/AccountCapacityDialog.tsx.
+  const [capacityView, setCapacityView] = useState<CapacityView | null>(null);
+  const closeCapacity = useCallback(() => setCapacityView(null), []);
   const rails = railItems({
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
     usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
     watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, openSettings, onFeedback: dialogs.openFeedback,
     radioOpen, setRadioOpen,
     openToolActivity: () => setToolAuditOpen(true),
+    openCapacity: setCapacityView,
     toggles: panelReturn.toggles,
     integrations: connectedKinds.map(provider => ({ provider, onPress: () => setIntegrationOpen(provider.kind) })),
   });
@@ -716,8 +723,8 @@ function Inner() {
           control before the region it discloses — or, on a phone, the dock
           that stands in for both stripes and the utilities. */}
       {phone
-        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.right.slice(1).flat(), ...rails.integrations, rails.utilities[1]]} />
-        : <EdgeRail side="left" label="Left column" groups={[rails.left, rails.integrations]} />}
+        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, rails.utilities[1]]} />
+        : <EdgeRail side="left" label="Left column" groups={[rails.leftStripe, rails.integrations]} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -803,6 +810,7 @@ function Inner() {
       {!phone && <EdgeRail side="right" label="Right panels" groups={rails.right} />}
 
       {toolAuditOpen && <ToolAuditModal onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}
+      {capacityView && <AccountCapacityDialog view={capacityView} onClose={closeCapacity} />}
       {integrationOpen && (
         <IntegrationModal kind={integrationOpen} connections={kindOffered(integrations, integrationOpen) ? connectionsOf(integrations, integrationOpen) : []}
           onClose={closeIntegration} onReconnect={reconnectIntegration} />

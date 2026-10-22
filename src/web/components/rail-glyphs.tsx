@@ -114,6 +114,24 @@ export const ToolActivityGlyph = () => (
   <Glyph><path d="M8.8 1.5a3 3 0 0 0-3.7 3.7l-3 3a1.8 1.8 0 0 0 2.5 2.5l3-3a3 3 0 0 0 3.7-3.7L9.4 5.9 7 3.5z" /></Glyph>
 );
 
+/** Account capacity: the gauge the accounts panel's header carried before the
+ *  report moved to the stripe, the same two strokes (#1713's dial). */
+export const CapacityGlyph = () => (
+  <Glyph>
+    <path d="M2.5 10.9A5.2 5.2 0 1 1 11.5 10.9" />
+    <path d="M7 8.3l2.1-2.1" />
+  </Glyph>
+);
+
+/** Reset calendar: a page with its two rings and one day marked. */
+export const ResetCalendarGlyph = () => (
+  <Glyph>
+    <rect x="2.2" y="3.2" width="9.6" height="8.6" rx="1.4" />
+    <path d="M2.2 6.2h9.6M4.9 1.8v2.6M9.1 1.8v2.6" />
+    <path d="M8.6 9h.2" />
+  </Glyph>
+);
+
 /** Reported reset timing uses the same control-glyph geometry. */
 export const ClockGlyph = () => (
   <Glyph><circle cx="7" cy="7" r="5" /><path d="M7 3.8V7l2.2 1.4" /></Glyph>
