@@ -210,7 +210,7 @@
 .ig-search { position: relative; flex: 1 1 220px; min-width: 0; display: flex; align-items: center; color: var(--muted); }
 .ig-search > svg { position: absolute; left: 8px; pointer-events: none; }
 .ig-search-input {
-  width: 100%;
+  flex: 1;
   min-width: 0;
   min-height: var(--ctl-h);
   box-sizing: border-box;
