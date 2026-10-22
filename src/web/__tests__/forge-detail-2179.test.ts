@@ -21,7 +21,7 @@ import type {
 } from "../forge-types";
 import { forgeReadPath, keepRead } from "../forge-panel";
 import {
-  annotationMark, approvalWords, changeFromRef, changeReference, changeSections, changeStateMark, fileStatusWord,
+  annotationMark, approvalWords, changeFromRef, changeReference, changeRunsWord, changeSections, changeStateMark, commitsWords, fileStatusWord,
   issueMark, jobStartsOpen, labelColor, labelParts, logLineTone, MANY_JOBS, namesWords, newChangeUrl, nextLogLines,
   nodesWithoutDraftPrefix, pathParts, pipelineIdFromUrl, referenceParts, shortRef, sourceWords, splitDiscussions, stagesOf, stageStartsOpen,
   stageState, threadPlace, withoutDraftPrefix,
@@ -153,7 +153,17 @@ describe("a change's head", () => {
   it("has the forge's own tab names, each with its count", () => {
     const counts = { discussions: 3, commits: 4, pipelines: 2, files: 7 };
     expect(changeSections("gitlab", counts).map(s => `${s.label} ${s.count}`)).toEqual(["Overview 3", "Commits 4", "Pipelines 2", "Changes 7"]);
-    expect(changeSections("github", counts).map(s => s.label)).toEqual(["Conversation", "Commits", "Actions", "Files changed"]);
+    // GitHub's pull request page calls its workflow runs Checks.
+    expect(changeSections("github", counts).map(s => s.label)).toEqual(["Conversation", "Commits", "Checks", "Files changed"]);
+    expect(changeRunsWord("github")).toBe("Checks");
+    expect(changeRunsWord("gitlab")).toBe("Pipelines");
+  });
+
+  it("counts commits the way a byline says them, and leaves none out", () => {
+    expect(commitsWords(1)).toBe("1 commit");
+    expect(commitsWords(1250)).toBe("1,250 commits");
+    expect(commitsWords(0)).toBeNull();
+    expect(commitsWords(null)).toBeNull();
   });
 });
 
@@ -345,6 +355,19 @@ describe("the change page", () => {
     expect(words).toMatch(/priority\s+high/);
     expect(html).toContain('aria-label="Close details"');
     expect(html).toContain('aria-selected="true"');
+  });
+
+  it("says GitHub's own sentence on a pull request, and GitLab's on a merge request", () => {
+    const gh = change({ kind: "github", key: "acme/web#12", webUrl: "https://github.com/acme/web/pull/12", draft: false, title: "Add the login page" });
+    keep("change", { repo: "acme/web", number: 12 }, gh);
+    const open = text(page(createElement(ChangeDetailPage, { selection: sel }), { kind: "github" }));
+    expect(open).toMatch(/Alice Doe wants to merge 4 commits into main from feature\/login/);
+    expect(open).not.toContain("requested to merge");
+    expect(open).toMatch(/Conversation 3 Commits 4 Checks 2 Files changed 7/);
+    keep("change", { repo: "acme/web", number: 12 }, { ...gh, state: "merged", mergedAt: Date.now() - 60_000 });
+    const merged = text(page(createElement(ChangeDetailPage, { selection: sel }), { kind: "github" }));
+    expect(merged).toMatch(/Merged A Alice Doe · 4 commits merged into main from feature\/login/);
+    expect(merged).not.toContain("wants to merge");
   });
 
   it("leaves Close to the host's Back on a narrow window", () => {

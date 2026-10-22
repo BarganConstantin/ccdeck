@@ -75,9 +75,21 @@ export function changeSections(kind: ForgeKind, counts: ChangeDetail["counts"]):
   return [
     { id: "overview", label: github ? "Conversation" : "Overview", count: counts.discussions },
     { id: "commits", label: "Commits", count: counts.commits },
-    { id: "pipelines", label: forgeWords[kind].pipelines, count: counts.pipelines },
+    { id: "pipelines", label: changeRunsWord(kind), count: counts.pipelines },
     { id: "changes", label: github ? "Files changed" : "Changes", count: counts.files },
   ];
+}
+
+/** What a change's runs are called on its own page: GitHub's pull request
+ *  page calls its workflow runs Checks; GitLab's merge request says Pipelines. */
+export function changeRunsWord(kind: ForgeKind): string {
+  return kind === "github" ? "Checks" : forgeWords[kind].pipelines;
+}
+
+/** "1 commit", "7 commits"; null for none, which a byline leaves out. */
+export function commitsWords(n: number | null | undefined): string | null {
+  if (n == null || !Number.isFinite(n) || n <= 0) return null;
+  return `${n.toLocaleString("en-US")} ${n === 1 ? "commit" : "commits"}`;
 }
 
 /** The state badge beside the byline: Open, Draft, Merged or Closed. Approval
