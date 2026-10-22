@@ -355,6 +355,13 @@
 .tr-json-tree .jer-value-string { white-space: pre-wrap; overflow-wrap: anywhere; }
 .tr-json-tree .jer-collection-header-row, .tr-json-tree .jer-value-main-row { min-height: 28px; }
 .tr-json-tree .jer-collapse-icon, .tr-json-tree .jer-copy-pulse { color: var(--text-secondary); }
+/* json-edit-react's own stylesheet grows its icons on hover and rings the copy
+   button as it is released. Under reduced motion they only change colour. */
+@media (prefers-reduced-motion: reduce) {
+  .tr-json-tree :is(.jer-icon, .jer-copy-pulse), .tr-json-tree .jer-copy-pulse::after { transition: none; }
+  .tr-json-tree :is(.jer-icon, .jer-copy-pulse):hover { transform: none; }
+  .tr-json-tree .jer-copy-pulse::after { box-shadow: none; }
+}
 .tr-highlights { margin: 16px 0; }
 .tr-highlights > div { display: grid; grid-template-columns: minmax(120px, 150px) minmax(0, 1fr); gap: 8px 16px; padding-block: 8px; }
 .tr-highlights dt { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); }
