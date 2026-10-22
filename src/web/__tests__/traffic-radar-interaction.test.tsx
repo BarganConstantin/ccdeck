@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { all, mount, one } from "./fake-react";
+import { all, mount, one, textOf } from "./fake-react";
 import type { RadarSnapshot } from "../traffic-radar";
 vi.mock("react", async () => (await import("./fake-react")).react);
 const { TrafficRadarView, Configuration } = await import("../components/TrafficRadar");
+const { TelemetryFile } = await import("../components/TelemetryFile");
 const { useModalGate } = await import("../use-modal-gate");
 const snapshot: RadarSnapshot = { ok: true, sampledAt: 1700000000000, platform: "darwin", pollMs: 5000, status: "observing", processCount: 2, config: { sources: [], variables: [] }, alerts: [], connections: [] };
 describe("Telemetry Radar modal interactions", () => {
@@ -12,6 +13,22 @@ describe("Telemetry Radar modal interactions", () => {
     expect(one(view.tree, e => e.props.id === "tr-panel-monitor")!.props.hidden).toBe(true);
     expect(one(view.tree, e => e.props.id === "tr-panel-configuration")!.props.hidden).toBe(false);
     expect(one(view.tree, e => e.props.id === "tr-panel-file")).not.toBeNull();
+    view.unmount();
+  });
+  it("keeps the File view: the third tab, after Configuration, opens the telemetry file reader", () => {
+    const view = mount(TrafficRadarView, { snapshot });
+    expect(all(view.tree, e => e.props.role === "tab").map(tab => [tab.props.id, textOf(tab)])).toEqual([
+      ["tr-tab-monitor", "Monitor"], ["tr-tab-configuration", "Configuration"], ["tr-tab-file", "File"],
+    ]);
+    const tab = one(view.tree, e => e.props.id === "tr-tab-file")!;
+    expect(tab.props["aria-controls"]).toBe("tr-panel-file");
+    (tab.props.onClick as () => void)();
+    expect(one(view.tree, e => e.props.id === "tr-tab-file")!.props["aria-selected"]).toBe(true);
+    expect(one(view.tree, e => e.props.id === "tr-panel-file")!.props.hidden).toBe(false);
+    expect(one(view.tree, e => e.props.id === "tr-panel-monitor")!.props.hidden).toBe(true);
+    const reader = one(view.tree, e => e.type === TelemetryFile);
+    expect(reader).not.toBeNull();
+    expect(one(view.tree, e => e.props.id === "tr-panel-file")!.props.children).toBe(reader);
     view.unmount();
   });
   it("preserves the session filter between views without pretending settings are process-verified", () => {
