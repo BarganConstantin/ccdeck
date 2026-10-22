@@ -5,9 +5,11 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 
 // Only destinations and the opt-in survive a restart. Tokens and packets never do.
-export function capturePreferences(directory = join(homedir(), '.agents-deck')) {
+// `name` keeps a second store apart: Settings › Radar's automatic-monitoring
+// switch lives in radar-settings-<port>.json, beside the monitor's own opt-in.
+export function capturePreferences(directory = join(homedir(), '.agents-deck'), name = 'radar-monitor') {
   let writes = Promise.resolve();
-  const file = port => join(directory, `radar-monitor-${port}.json`);
+  const file = port => join(directory, `${name}-${port}.json`);
   return {
     async read(port) { try { return JSON.parse(await readFile(file(port), 'utf8')); } catch { return null; } },
     write(port, value) {

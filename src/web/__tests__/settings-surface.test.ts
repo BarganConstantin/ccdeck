@@ -55,7 +55,7 @@ function settingsProps(over: Partial<SettingsModalProps> = {}): SettingsModalPro
     versionCheck: { version: null, notice: null, noticeOpen: false, showNotice: noop, dismissNotice: noop, versionChecking: false, loadVersion: async () => null },
     desktopUpdate: { desktopUpdateRestarting: false, desktopUpdateFailure: null, readyAppUpdate: null, appUpdate: null, askDesktopUpdateRestart: asyncNoop, onDesktopUpdateEvent: noop },
     restart: { autoRestart: true, toggleAutoRestart: noop },
-    doors: { whatsNew: noop, update: noop, tour: noop, feedback: noop, accounts: noop, localNetwork: noop, browserWatch: noop },
+    doors: { whatsNew: noop, update: noop, tour: noop, feedback: noop, accounts: noop, localNetwork: noop, browserWatch: noop, radar: noop },
     ...over,
   } as unknown as SettingsModalProps;
 }
@@ -89,6 +89,7 @@ describe("a door into Settings opens it at the section it names", () => {
       ["notifications", />Notifications while closed</],
       ["sounds", />Custom sounds</],
       ["data", />Tool history<\/h3>/],
+      ["radar", />Monitor automatically</],
       ["about", />Version</],
     ];
     expect(cases.map(([id]) => id)).toEqual(SETTINGS_SECTIONS.map(s => s.id));
@@ -136,8 +137,8 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
-  it("names the eight sections in the nav, in order, About last", () => {
-    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Data", "About"];
+  it("names the nine sections in the nav, in order, About last", () => {
+    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Data", "Radar", "About"];
     expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(names);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all

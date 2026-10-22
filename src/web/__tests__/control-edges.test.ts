@@ -531,6 +531,12 @@ const CONTROLS: Control[] = [
   // edged in the row's own hue on the card's face, and in the text colour
   // under the pointer.
   { at: ".agent-node .stop-continue", states: [".agent-node .stop-continue:hover:not(:disabled)"], beds: ["--panel", "--bg-soft"] },
+  // Radar's Clear history, armed for its second press. At rest it is a glyph
+  // with no boundary; armed, its words and its edge take the error colour until
+  // the press lands or focus leaves. The activity list's ground is mixed from
+  // --panel and --bg, so it is measured on both.
+  { at: ".tr-history-toolbar .btn.armed", fillFrom: ".tr-history-toolbar .btn",
+    states: [".tr-history-toolbar .btn:hover:not(:disabled)"], beds: ["--panel", "--bg"] },
   // topbar
   // The up-to-date version chip draws no boundary any more: it is metadata
   // beside the wordmark, identified by its own text, and it wears the
@@ -928,7 +934,8 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // Its search adds one: the ring a keyboard-highlighted result wears.
     // Continue on a stopped background session's card (#2193) adds two: the
     // stop row's hue at rest, the text colour under the pointer.
-    expect(EDGED_CONTROLS.length).toBeLessThan(154);
+    // Radar's Clear history adds one: the error edge it takes while armed.
+    expect(EDGED_CONTROLS.length).toBeLessThan(155);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

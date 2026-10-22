@@ -48,9 +48,11 @@ describe("every switch is the one switch (#886)", () => {
     // Nineteen with the shared Codex/Claude startup-recovery switch markup.
     // Twenty with Local network's "Send the login this deck is using too"
     // (#2192), under the switch that says which one that is.
-    // Twenty-one with Claude sessions' "Continue stopped background sessions"
+    // Twenty-two with Settings › Radar's "Monitor automatically", and Radar's own "With
+    // prompt", an on/off filter over its activity list.
+    // Twenty-three with Claude sessions' "Continue stopped background sessions"
     // (#2193), off until it is turned on.
-    expect(switches, "the twenty-one switches in the source").toBe(21);
+    expect(switches, "the twenty-three switches in the source").toBe(23);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

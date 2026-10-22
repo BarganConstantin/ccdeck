@@ -3,7 +3,7 @@
 // ranking that turns what was typed into a short list — apart from React, so a
 // plain-node test can hold the index to the rows the sections draw.
 //
-// Settings has eight sections and some forty controls, and a reader who wants
+// Settings has nine sections and some forty controls, and a reader who wants
 // "dark mode" does not know it is called Theme or that it is under Appearance.
 // Every settings window this dialog follows answers that with a field at the
 // top of its nav: type, see the matching settings with where each one lives,
@@ -68,6 +68,7 @@ const SECTION_KEYWORDS: Record<SettingsSection, readonly string[]> = {
   notifications: ["alerts", "notify"],
   sounds: ["audio", "tones", "chimes"],
   data: ["privacy", "local data"],
+  radar: ["telemetry", "collector", "monitoring"],
   about: ["information"],
 };
 
@@ -160,6 +161,10 @@ function buildIndex(): SettingsEntry[] {
         keywords: ["storage", "disk", "size", "bytes"] },
       { id: "tool-history-clear", section: "data", group: "Tool history", label: "Clear history",
         keywords: ["delete history", "erase", "wipe", "remove"] },
+    ],
+    radar: [
+      { id: "radar-enabled", section: "radar", label: "Monitor automatically",
+        keywords: ["telemetry", "collector", "monitoring", "traffic", "background", "automatic", "radar"] },
     ],
     about: [
       { id: "version", section: "about", group: "ccdeck", label: "Version",

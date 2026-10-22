@@ -304,6 +304,19 @@ describe("what was migrated to the secondary tier", () => {
       ".ta-note",
       ".ta-search input::placeholder",
       ".ta-summary",
+      // Radar's telemetry inspection adds more of the same utility labels: the
+      // highlight and evidence terms, the project context's heading, the prompt
+      // filter, the JSON search and its placeholder on --ctl-fill, the JSON
+      // tree's controls, and the history toolbar's line and buttons.
+      ".tr-content-evidence dt",
+      ".tr-highlights dt",
+      ".tr-history-toolbar .btn",
+      ".tr-history-toolbar .tr-history",
+      ".tr-json-search",
+      ".tr-json-search input::placeholder",
+      ".tr-json-tree .jer-collapse-icon, .tr-json-tree .jer-copy-pulse",
+      ".tr-project-context h4",
+      ".tr-prompt-filter",
       ".tr-active-destinations > span",
       ".tr-event-top time",
       ".tr-history",
