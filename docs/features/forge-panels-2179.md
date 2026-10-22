@@ -44,7 +44,18 @@ query.
     button that resolves it and opens the item.
   - **The item page**, beside the list from 900px and its own screen with Back
     under that. A branch row opens its change when it has one, the branch
-    otherwise.
+    otherwise. Escape closes the item before the modal at every width (after
+    a menu or the search field, if one has it), and focus goes back to its
+    row.
+  - **The keyboard:** a list is one Tab stop. Up and Down move a row, Home
+    and End go to the ends, Right opens a folded group or steps into an open
+    one, Left folds it or goes from a row up to its group, and Enter opens
+    the item. A branch row's copy button and *Create merge request ↗* are
+    stops only on the row that holds the list's stop.
+  - **On a phone** the list keeps its first screen: the tabs are one row that
+    scrolls sideways, and a narrow list's filters are one row too, the state
+    strip, then All / Mine / Review requests as a menu button, then the sort
+    as its glyph.
 - **The lists:**
   - *Branches*, as GitLab's Branches page: Active branches open, Stale (no
     commits in 90 days) folded. A row has the name to copy, default and
@@ -55,23 +66,26 @@ query.
     Closed with the forge's counts, All / Mine / Review requests, sorted by
     created or last updated. Review requests split into *Waiting for my
     review* and *Approved by me* (folded). A row has the title (a draft
-    marked), labels, `!12 · created 3h ago by Author`, the pipeline, Approved,
-    the reviewers with how each stands, the comment count and when it moved.
+    marked), labels (a scoped one as `scope | value`), `!12 · created 3h ago
+    by Author`, the pipeline, Approved, the reviewers with how each stands,
+    the comment count and when it moved.
   - *Pipelines / Actions*: the state and how long it ran, the title (on
     GitHub the run's title, with the workflow under it), the ref, short sha,
     what started it, who, and when.
   - *Issues*: Open / Closed. The title with labels, `#12 · opened 3d ago by
     Author`, the milestone, child items done of how many, assignees, comments.
 - **The item pages:**
-  - *A merge request / pull request:* the title and state, "Author requested
-    to merge source into target", the pipeline line (a jump to it) and the
-    approvals; the side facts (assignees, reviewers with their state, labels,
-    milestone, participants); and four sections with counts:
+  - *A merge request / pull request:* the title and state, the forge's own
+    sentence for it (GitLab: "Author requested to merge source into target";
+    GitHub: "Author wants to merge 4 commits into target from source"), the
+    pipeline line (a jump to it) and the approvals; the side facts
+    (assignees, reviewers with their state, labels, milestone, participants);
+    and four sections with counts:
     - Overview (Conversation on GitHub): the description, then unresolved
       threads open, resolved threads and general comments folded. A thread
       says `path:line`, never a code snippet.
-    - Commits; Pipelines (Actions); Changes (Files changed): a file list with
-      its status and +/−, never a diff.
+    - Commits; Pipelines (Checks on GitHub); Changes (Files changed): a file
+      list with its status and +/−, never a diff.
   - *A branch:* name, default / protected / stale, the latest commit, behind
     and ahead of the default branch, the latest pipeline, the change (or
     *Create merge request*), and the commits not in the default branch (ten,
@@ -80,12 +94,23 @@ query.
     ref and sha it ran on; the change, when it ran for one; then the jobs by
     stage. A failed job shows its reason, its annotations (GitHub) and, on
     *Show log*, the end of its log: 80 lines, then 200, then 500, then
-    *Full log ↗* on the forge.
+    *Full log ↗* on the forge. The log keeps each line whole and scrolls
+    sideways, and the keyboard can reach it to scroll it.
   - *An issue:* title and state (with GitHub's reason), the side facts
     (assignees, labels, milestone, parent), the description, child items
     (GitLab's tasks, GitHub's sub-issues), and the comments behind *Show N
     comments*, read only when pressed.
-  - Every page has the reference to copy and *Open in GitHub / GitLab ↗*.
+  - Every page opens with the integrations' shared top line: the reference to
+    copy (on a narrow pane its path is cut, never its number), *Open in
+    GitHub / GitLab ↗*, and Close.
+- **States** are a small drawn mark beside a word, one family of the panel's
+  own: passed, failed, running, pending, canceled, skipped, manual, no
+  pipeline, open, draft, merged, closed, approved, changes requested,
+  commented and review pending. A GitLab job that failed but was allowed to
+  is in the warning tone, and a stage that passed only because of it says
+  "passed with warnings".
+- **The chosen row** takes the integrations' shared selection: a fill of its
+  own, distinct from the hover, with every word on it in the main ink.
 - **Freshness.** A read older than two minutes is asked again when it is drawn.
   Nothing polls, a running pipeline included; Refresh asks every read on
   screen again. A failed refresh keeps the last answer on screen and says
