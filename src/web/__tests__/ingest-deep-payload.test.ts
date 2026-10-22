@@ -82,13 +82,18 @@ const { startServer, hookToken } = await import("../../server/index.mjs");
 
 /** Deep enough that `JSON.stringify` refuses on every runner this suite meets,
  *  and the same depth api-events-streaming.test.ts pins the sibling defect at.
- *  The measured ceiling on the author's machine is 4,021; the margin is for the
- *  platforms whose stacks are not that one. */
-const DEPTH = 6000;
+ *  The ceiling is the engine's, not the platform's, and it moves between Node
+ *  majors: measured on Linux x64 for a parsed value, 6,861 on Node 18.20
+ *  (V8 10.2), 4,164 on Node 22.23, 4,458 on Node 24.21. 6,000 sat between
+ *  them, so on Node 18 the payload serialised and nothing here was tested.
+ *  16,000 is more than twice the deepest of them. */
+const DEPTH = 16_000;
 
 /** A value `depth` levels deep as JSON text, built by repetition rather than
- *  recursion — the shape overflows V8's stringifier, not this file's. */
-const nestedJson = (depth: number) => `${'{"a":'.repeat(depth)}1${"}".repeat(depth)}`;
+ *  recursion — the shape overflows V8's stringifier, not this file's. Arrays,
+ *  one byte a level, so the depth above still fits the small request the
+ *  report is about; V8 gives up on them at the same depth as on objects. */
+const nestedJson = (depth: number) => `${"[".repeat(depth)}1${"]".repeat(depth)}`;
 
 /** A hook payload the deck will accept and then be unable to serialise. */
 const deepBody = (sid: string) =>
