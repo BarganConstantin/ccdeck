@@ -202,6 +202,14 @@ describe("an issue's HTML, rebuilt from an allowlist", () => {
     expect(out).toContain('<div class="jr-table-wrap" tabindex="0" role="region" aria-label="Table"><table>');
   });
 
+  it("never skips a level, whatever heading a description opens on or jumps to", () => {
+    // Under the section's h3: an H2 first is an h4, and an H1 then an H3 are
+    // an h4 then an h5, never an h4 then an h6.
+    expect(draw(el("body", {}, el("h2", {}, "A"), el("h3", {}, "B")))).toBe("<div><h4>A</h4><h5>B</h5></div>");
+    expect(draw(el("body", {}, el("h1", {}, "A"), el("h3", {}, "B"), el("h1", {}, "C")))).toBe("<div><h4>A</h4><h5>B</h5><h4>C</h4></div>");
+    expect(draw(el("body", {}, el("div", {}, el("h5", {}, "Deep")), el("h2", {}, "After")))).toBe("<div><div><h4>Deep</h4></div><h5>After</h5></div>");
+  });
+
   it("stops at a depth no description needs, rather than recursing without end", () => {
     let node: HtmlNode = el("span", {}, "deep");
     for (let i = 0; i < 500; i++) node = el("div", {}, node);

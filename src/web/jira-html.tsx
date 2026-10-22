@@ -59,7 +59,8 @@ const DROP = new Set([
 
 /** Kept, as the element it is drawn as. Headings step down to h4-h6: the
  *  detail pane's own headings (the issue's h2, its sections' h3) sit above
- *  an issue's, and the outline never skips a level. */
+ *  an issue's. htmlToReact also keeps each heading at most one level under
+ *  the one before it, so the outline never skips a level. */
 const KEEP: Record<string, string> = {
   P: "p", BR: "br", HR: "hr", DIV: "div", SPAN: "span",
   STRONG: "strong", B: "strong", EM: "em", I: "em", U: "u", S: "s", STRIKE: "s", DEL: "del", INS: "ins",
@@ -131,6 +132,8 @@ export function htmlToReact(html: string, ctx: HtmlContext, parse: (html: string
   const root = parse(html);
   if (!root) return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
   let budget = MAX_NODES;
+  // The level of the last heading drawn: the section's own h3 to begin with.
+  let outline = 3;
 
   const walk = (node: HtmlNode, key: string, depth: number): ReactNode => {
     if (--budget < 0) return null;
@@ -148,7 +151,16 @@ export function htmlToReact(html: string, ctx: HtmlContext, parse: (html: string
       }
       return out;
     };
-    const tag = KEEP[name];
+    let tag = KEEP[name];
+    const heading = /^H([1-6])$/.exec(name);
+    if (heading) {
+      // H1 is an h4, H2 an h5, H3 and under an h6, but never more than one
+      // level under the heading before it: a description that opens on an
+      // H2 starts at h4, not at h5 under the section's h3.
+      const level = Math.min(Number(heading[1]) + 3, 6, outline + 1);
+      outline = level;
+      tag = `h${level}`;
+    }
     if (!tag) {
       // An element the deck does not draw keeps its text.
       const inner = children();
