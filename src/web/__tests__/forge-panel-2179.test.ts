@@ -11,7 +11,7 @@
 // focus goes when a page opens or closes.
 import { describe, expect, it } from "vitest";
 import {
-  changeBadge, ciMark, DEFAULT_VIEW, GLYPHS, reviewerMark, divergeCount, durationWords, fetchForge, focusAfterSelect, forgeErrorWords, forgeReadPath, FRESH_MS, stripScrollDelta,
+  changeBadge, ciMark, DEFAULT_VIEW, GLYPHS, reviewerMark, divergeCount, durationWords, fetchForge, focusAfterSelect, forgeErrorWords, forgeReadPath, FRESH_MS, rovingStop, rowMove, stripScrollDelta,
   isStale, loadForgeView, looksLikeRef, matchesQuery, normaliseView, readDue, splitBranches, splitReviews,
   tabAllowsAllProjects, type ForgePrefs,
 } from "../forge-panel";
@@ -186,6 +186,33 @@ describe("focus when a page opens or closes", () => {
 
   it("moves it onto the next page when a link on the last one opened it", () => {
     expect(focusAfterSelect(true, false, false)).toBe("page");
+  });
+});
+
+describe("a list walked with the arrow keys", () => {
+  it("moves one row with Up and Down and stays put at either end, never wrapping", () => {
+    expect(rowMove("ArrowDown", 0, 3)).toBe(1);
+    expect(rowMove("ArrowDown", 2, 3)).toBe(2);
+    expect(rowMove("ArrowUp", 2, 3)).toBe(1);
+    expect(rowMove("ArrowUp", 0, 3)).toBe(0);
+  });
+  it("goes to the ends with Home and End", () => {
+    expect(rowMove("Home", 2, 5)).toBe(0);
+    expect(rowMove("End", 0, 5)).toBe(4);
+  });
+  it("leaves every other key, and an empty list, alone", () => {
+    expect(rowMove("ArrowRight", 1, 3)).toBeNull();
+    expect(rowMove("Enter", 1, 3)).toBeNull();
+    expect(rowMove("a", 1, 3)).toBeNull();
+    expect(rowMove("ArrowDown", 0, 0)).toBeNull();
+  });
+  it("keeps its one Tab stop on the row last focused, else the open item's, else the first", () => {
+    expect(rovingStop(5, 3, 1)).toBe(3);
+    expect(rovingStop(5, -1, 1)).toBe(1);
+    expect(rovingStop(5, -1, -1)).toBe(0);
+    // A row last focused that a filter or a fold took away hands the stop on.
+    expect(rovingStop(2, 4, -1)).toBe(0);
+    expect(rovingStop(0, -1, -1)).toBe(-1);
   });
 });
 

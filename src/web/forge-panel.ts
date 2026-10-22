@@ -319,6 +319,31 @@ export function focusAfterSelect(opening: boolean, fromList: boolean, narrow: bo
   return narrow || !fromList ? "page" : "stay";
 }
 
+/** Where Up, Down, Home or End moves focus in a list of `count` rows from
+ *  row `at`, or null for any other key, which is not the list's. Up on the
+ *  first row and Down on the last stay put, as in GitLab's and GitHub's
+ *  lists, rather than wrapping round. */
+export function rowMove(key: string, at: number, count: number): number | null {
+  if (count <= 0) return null;
+  switch (key) {
+    case "ArrowDown": return Math.min(count - 1, at + 1);
+    case "ArrowUp": return Math.max(0, at - 1);
+    case "Home": return 0;
+    case "End": return count - 1;
+    default: return null;
+  }
+}
+
+/** Which row holds a list's one Tab stop: the row last focused while it is
+ *  still drawn, else the open item's row, else the first; -1 for no rows.
+ *  `last` and `chosen` are -1 when there is none. */
+export function rovingStop(count: number, last: number, chosen: number): number {
+  if (count <= 0) return -1;
+  if (last >= 0 && last < count) return last;
+  if (chosen >= 0 && chosen < count) return chosen;
+  return 0;
+}
+
 /** How far a strip that scrolls sideways (the tabs, a change's sections on
  *  a phone) must move so the chosen item is wholly in view, with `pad` to
  *  spare beyond it; 0 when it already is. Boxes in, a scroll delta out. */

@@ -2,10 +2,10 @@
 // a state's mark and word, a fold-able group with its count, a failure with
 // its recovery, the list's end, a person, a relative time, a copyable value.
 // Each draws a state as a mark AND a word (DESIGN.md), never a colour alone.
-import { useEffect, useLayoutEffect, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { ForgeErrorInfo, ForgeUser } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
-import { isReader, stripScrollDelta, type Mark } from "../../forge-panel";
+import { isReader, rovingStop, rowMove, stripScrollDelta, type Mark } from "../../forge-panel";
 import IntegrationAvatar, { IntegrationPerson } from "../IntegrationAvatar";
 import { IntegrationCopy } from "../IntegrationDetailBar";
 import { ExternalLinkGlyph } from "../action-glyphs";
@@ -47,7 +47,7 @@ export function FoldGroup({ id, title, count, defaultOpen, children, aside }: {
   return (
     <section className="fg-group" data-open={open || undefined}>
       <h3 className="fg-group-head">
-        <button type="button" className="fg-fold" aria-expanded={open} onClick={() => toggle(id)}>
+        <button type="button" className="fg-fold" data-nav="" aria-expanded={open} onClick={() => toggle(id)}>
           <span className="fg-fold-chevron" aria-hidden="true" />
           {title}
           {count != null && <span className="fg-count">{count.toLocaleString()}</span>}
@@ -158,6 +158,84 @@ export function OpenOnForge({ href, children }: { href: string | null; children?
       {children ?? `Open in ${forgeWords[kind].name}`}<ExternalLinkGlyph />
     </a>
   );
+}
+
+/** A list as one Tab stop, walked with the arrow keys, as Jira's backlog is.
+ *  Its rows are the elements marked data-nav (a change, pipeline or issue
+ *  row, a branch row, a group's fold) in the order drawn. Up and Down move a
+ *  row, Home and End go to the ends; Right opens a folded group or steps into
+ *  an open one, Left folds it, or goes from a row up to its group. The stop
+ *  is the row last focused while it is drawn, else the open item's row, else
+ *  the first; a row's own controls (a branch's copy button, its Create link)
+ *  are Tab stops on that row only. It is set here, on what is drawn, as rows
+ *  come and go, so the four tabs' rows need no state of their own for it. */
+export function useRovingRows(ref: RefObject<HTMLElement | null>) {
+  const last = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    const rows = () => Array.from(root.querySelectorAll<HTMLElement>("[data-nav]")).filter(el => el.getClientRects().length > 0);
+    const controlsOf = (row: HTMLElement) => {
+      const item = row.closest("li");
+      if (!item || !root.contains(item)) return [];
+      return Array.from(item.querySelectorAll<HTMLElement>("button, a[href], input, select, textarea"))
+        .filter(el => el !== row && !el.hasAttribute("data-nav") && el.closest("li") === item);
+    };
+    const apply = () => {
+      const all = rows();
+      const stop = all[rovingStop(all.length, last.current ? all.indexOf(last.current) : -1,
+        all.findIndex(el => el.getAttribute("aria-current") === "true"))];
+      for (const row of all) {
+        const on = row === stop;
+        if (on) row.removeAttribute("tabindex"); else if (row.tabIndex !== -1) row.tabIndex = -1;
+        for (const control of controlsOf(row)) {
+          if (on) control.removeAttribute("tabindex"); else if (control.tabIndex !== -1) control.tabIndex = -1;
+        }
+      }
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      const row = event.target as HTMLElement;
+      if (!row.hasAttribute?.("data-nav") || row === last.current) return;
+      last.current = row;
+      apply();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      const row = event.target as HTMLElement;
+      if (!row.hasAttribute?.("data-nav") || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      const all = rows();
+      const at = all.indexOf(row);
+      if (at < 0) return;
+      const expanded = row.getAttribute("aria-expanded");
+      const moved = rowMove(event.key, at, all.length);
+      let to: HTMLElement | null | undefined;
+      if (moved != null) to = all[moved];
+      else if (event.key === "ArrowRight" && expanded === "true") to = all[at + 1];
+      else if (event.key === "ArrowLeft" && expanded == null) to = row.closest(".fg-group")?.querySelector<HTMLElement>(".fg-group-head [data-nav]");
+      else if ((event.key === "ArrowRight" && expanded === "false") || (event.key === "ArrowLeft" && expanded === "true")) {
+        event.preventDefault();
+        row.click();
+        return;
+      } else return;
+      event.preventDefault();
+      if (to && to !== row) {
+        to.focus();
+        to.scrollIntoView?.({ block: "nearest" });
+      }
+    };
+    // Rows arrive with a read, leave with a filter or a fold, and change which
+    // is open: each of those moves the stop. Setting it touches only tabindex,
+    // which is not watched, so it never wakes itself.
+    const watch = new MutationObserver(apply);
+    watch.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-current", "aria-expanded", "hidden"] });
+    root.addEventListener("focusin", onFocusIn);
+    root.addEventListener("keydown", onKeyDown);
+    apply();
+    return () => {
+      watch.disconnect();
+      root.removeEventListener("focusin", onFocusIn);
+      root.removeEventListener("keydown", onKeyDown);
+    };
+  }, [ref]);
 }
 
 /** Keeps the chosen tab of a strip that scrolls sideways in view: on a phone

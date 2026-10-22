@@ -27,7 +27,7 @@ import { useForgeRead } from "../../use-forge-read";
 import IntegrationFreshness from "../IntegrationFreshness";
 import IntegrationSearch from "../IntegrationSearch";
 import { ForgeProvider, selectionKey, type ForgeConnectionInfo, type ForgeContextValue, type ForgeSelection, type Freshness } from "./ForgeContext";
-import { ReadFailure, useChosenInView } from "./ForgeParts";
+import { ReadFailure, useChosenInView, useRovingRows } from "./ForgeParts";
 import RepoPicker from "./RepoPicker";
 import BranchesTab from "./BranchesTab";
 import ChangesTab from "./ChangesTab";
@@ -100,6 +100,9 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   const [resolveError, setResolveError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  // The rows are one Tab stop, walked with the arrow keys.
+  useRovingRows(listRef);
   // The row a page was opened from. The split keeps the list mounted under the
   // drill-in screen, so Back and Close can hand focus back to it.
   const opener = useRef<HTMLElement | null>(null);
@@ -190,7 +193,7 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   const tabProps: ForgeTabProps = { view, setView, query };
 
   const list = (
-    <div className="fg-list">
+    <div ref={listRef} className="fg-list">
       <div className="fg-toolbar">
         <RepoPicker value={view.repo} allowAll={allowsAll} onChange={repo => setView({ repo })} />
         <IntegrationFreshness loadedAt={fresh.loadedAt} loading={fresh.loading} stale={fresh.stale}

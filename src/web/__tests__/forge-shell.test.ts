@@ -74,3 +74,19 @@ describe("an open item and Escape", () => {
     expect(selectionKey({ type: "change", repo: "acme/web", number: 12 })).toBe(keys[0]);
   });
 });
+
+describe("the list and the keyboard", () => {
+  it("is one Tab stop walked with the arrows: every kind of row is marked for it, and the panel walks them", () => {
+    const src = (name: string) => readFileSync(new URL(`../components/forge/${name}`, import.meta.url), "utf8");
+    for (const tab of ["ChangesTab.tsx", "PipelinesTab.tsx", "IssuesTab.tsx"]) {
+      expect(src(tab)).toMatch(/className="fg-row fgl-row[^"]*"\n\s+data-nav=""/);
+    }
+    expect(src("BranchesTab.tsx")).toMatch(/className="fgl-hit"\n\s+data-nav=""/);
+    expect(src("ForgeParts.tsx")).toMatch(/className="fg-fold" data-nav=""/);
+    expect(src("ForgePanel.tsx")).toMatch(/useRovingRows\(listRef\);[\s\S]*<div ref=\{listRef\} className="fg-list">/);
+    // No row is given a tab stop of its own in the markup: the walk moves it.
+    for (const name of ["ChangesTab.tsx", "PipelinesTab.tsx", "IssuesTab.tsx", "BranchesTab.tsx", "ForgeParts.tsx"]) {
+      expect(src(name)).not.toMatch(/tabIndex=/);
+    }
+  });
+});

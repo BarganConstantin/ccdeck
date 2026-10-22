@@ -95,6 +95,7 @@ function BranchRow({ kind, repo, branch: b, defaultBranch }: {
       <button
         type="button"
         className="fgl-hit"
+        data-nav=""
         aria-current={isSelected || undefined}
         aria-label={b.change ? `${b.name}, ${words.change.toLowerCase()} ${changeName}` : b.name}
         onClick={() => select(target)}

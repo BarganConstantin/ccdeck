@@ -298,7 +298,7 @@ describe("the Branches tab", () => {
   it("marks the selected row, which is the branch's merge request when it has one", () => {
     const selected: ForgeSelection = { type: "change", repo: "acme/web", number: 12 };
     const sel = draw({ ...c, selected }, tab(BranchesTab, view({ repo: "acme/web" })));
-    expect(sel).toMatch(/<li class="fgl-branch ig-row" data-selected="true"><button type="button" class="fgl-hit" aria-current="true" aria-label="feature\/login, merge request !12"/);
+    expect(sel).toMatch(/<li class="fgl-branch ig-row" data-selected="true"><button type="button" class="fgl-hit" data-nav="" aria-current="true" aria-label="feature\/login, merge request !12"/);
     expect(sel.match(/aria-current="true"/g)).toHaveLength(1);
   });
 
@@ -406,7 +406,7 @@ describe("the Merge requests tab", () => {
     keep(c, "changes", { repo: "acme/web", filter: "all", state: "open", sort: "created" }, page([change(3), change(4)]));
     const selected: ForgeSelection = { type: "change", repo: "acme/web", number: 4 };
     const html = draw({ ...c, selected }, tab(ChangesTab, view({ tab: "changes", repo: "acme/web" })));
-    expect(html).toContain('<button type="button" class="fg-row fgl-row ig-row" data-selected="true" aria-current="true">');
+    expect(html).toContain('<button type="button" class="fg-row fgl-row ig-row" data-nav="" data-selected="true" aria-current="true">');
     expect(html.match(/class="fg-row fgl-row ig-row"/g)).toHaveLength(2);
     expect(html.match(/data-selected="true"/g)).toHaveLength(1);
   });

@@ -206,6 +206,7 @@ function ChangeRow({ kind, change: c, acrossRepos }: { kind: ForgeKind; change: 
       <button
         type="button"
         className="fg-row fgl-row ig-row"
+        data-nav=""
         data-selected={isSelected || undefined}
         aria-current={isSelected || undefined}
         onClick={() => select(target)}
