@@ -29,10 +29,6 @@
   .fg-tabs .uh-range-btn { flex: 1 0 auto; padding: 4px 6px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 }
 .fg-searchbar { display: flex; gap: 8px; align-items: center; padding: 12px 20px 0; flex: none; }
-.fg-search { flex: 1; min-width: 0; display: flex; }
-.fg-search input { width: 100%; min-height: 32px; box-sizing: border-box; padding: 6px 10px; font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); caret-color: var(--accent); }
-.fg-search input:hover { border-color: var(--text); }
-.fg-search input::placeholder { color: var(--text-secondary); opacity: 1; }
 /* Open, beside the field once it holds a link: as wide as its word. */
 .fg-resolve { flex: none; }
 .fg-tab-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; padding: 8px 20px 32px; }

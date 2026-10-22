@@ -25,6 +25,7 @@ import { selfPressAccepted, selfPressProps } from "../../panel-press";
 import { tabStripMove } from "../../tablist-keys";
 import { useForgeRead } from "../../use-forge-read";
 import IntegrationFreshness from "../IntegrationFreshness";
+import IntegrationSearch from "../IntegrationSearch";
 import { ForgeProvider, type ForgeConnectionInfo, type ForgeContextValue, type ForgeSelection, type Freshness } from "./ForgeContext";
 import { ReadFailure, useChosenInView } from "./ForgeParts";
 import RepoPicker from "./RepoPicker";
@@ -234,16 +235,15 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
         ))}
       </div>
       <div className="fg-searchbar">
-        <label className="fg-search">
-          <span className="fg-sr">Search the list, or paste a link</span>
-          <input
-            type="search"
-            placeholder={view.tab === "branches" ? "Filter by branch name" : `Search by title or number, or paste a ${words.name} link`}
-            value={query}
-            onChange={e => { setQuery(e.target.value); setResolveError(null); }}
-            onKeyDown={e => { if (e.key === "Enter" && looksLikeRef(query)) void openRef(); }}
-          />
-        </label>
+        {/* The integrations' shared field: Escape empties it before it closes
+            anything. A phone gets the short hint; the name says it all. */}
+        <IntegrationSearch
+          value={query}
+          onChange={v => { setQuery(v); setResolveError(null); }}
+          label={view.tab === "branches" ? "Filter by branch name" : `Search by title or number, or paste a ${words.name} link`}
+          placeholder={view.tab === "branches" ? "Filter by branch name" : narrow ? `Search, or paste a ${words.name} link` : `Search by title or number, or paste a ${words.name} link`}
+          onKeyDown={e => { if (e.key === "Enter" && looksLikeRef(query)) void openRef(); }}
+        />
         {looksLikeRef(query) && (
           <button type="button" className="btn fg-resolve" onClick={() => void openRef()} {...selfPressProps(resolving)}>
             {resolving ? "Opening…" : "Open"}

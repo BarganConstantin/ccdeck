@@ -41,3 +41,11 @@ describe("the panel's toolbar", () => {
     expect(html).not.toContain("fg-refresh");
   });
 });
+
+describe("the search over the list", () => {
+  it("is the integrations' shared field, which Escape empties before it closes anything", () => {
+    const html = draw("github");
+    expect(html).toMatch(/<div class="ig-search"><svg[^>]*>.*?<\/svg><input type="search" class="ig-search-input" aria-label="Search by title or number, or paste a GitHub link"/);
+    expect(html).not.toContain("fg-search\"");
+  });
+});

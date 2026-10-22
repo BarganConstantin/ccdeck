@@ -257,10 +257,10 @@ describe("what was migrated to the secondary tier", () => {
       // pointer and while chosen, where --muted is 4.05:1 in dark (#1789) — a
       // state's word beside its mark or in its chip, a row's meta line, a
       // label, a branch's behind | ahead, and a project's group, there and in
-      // the picker's button. The search field's placeholder sits on the same
-      // fill.
+      // the picker's button. (Its search field is the integrations' shared
+      // one now, .ig-search-input.)
       ".fg-badge", ".fg-mark-word", ".fg-meta", ".fgl-label", ".fgl-diverge", ".fgl-repo-group",
-      ".fgl-repo-option-group", ".fg-search input::placeholder",
+      ".fgl-repo-option-group",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.
       ".nm-next",
