@@ -231,6 +231,16 @@ export function shortDate(iso: string | null | undefined): string {
   return Number.isNaN(at.getTime()) ? "" : at.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
+/** The work on an issue as one line: "3d estimated · 1d left · 2d logged",
+ *  each part only when Jira has it, and "left" only when it says more than
+ *  the estimate did. */
+export function timeLine(issue: { estimate: number | null; remaining: number | null; timeSpent: number | null }, time: TimeTracking): string {
+  const estimate = jiraDuration(issue.estimate, time);
+  const spent = jiraDuration(issue.timeSpent, time);
+  const left = issue.remaining != null && (issue.remaining !== issue.estimate || spent) ? jiraDuration(issue.remaining, time) : "";
+  return [estimate && `${estimate} estimated`, left && `${left} left`, spent && `${spent} logged`].filter(Boolean).join(" · ");
+}
+
 /** Jira's timestamps (`2026-10-14T09:12:33.000+0300`) as a readable date. */
 export function jiraDate(iso: string | null | undefined, withTime = false): string {
   if (!iso) return "";

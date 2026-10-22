@@ -57,15 +57,16 @@ const DROP = new Set([
   "TITLE", "HEAD", "BASE", "AUDIO", "VIDEO", "SOURCE", "TRACK", "PICTURE", "CANVAS", "MAP", "AREA", "DIALOG", "SLOT",
 ]);
 
-/** Kept, as the element it is drawn as. Headings step down to h5 and h6: the
- *  detail pane's own headings (h3, h4) sit above an issue's. */
+/** Kept, as the element it is drawn as. Headings step down to h4-h6: the
+ *  detail pane's own headings (the issue's h2, its sections' h3) sit above
+ *  an issue's, and the outline never skips a level. */
 const KEEP: Record<string, string> = {
   P: "p", BR: "br", HR: "hr", DIV: "div", SPAN: "span",
   STRONG: "strong", B: "strong", EM: "em", I: "em", U: "u", S: "s", STRIKE: "s", DEL: "del", INS: "ins",
   SUB: "sub", SUP: "sup", SMALL: "small", MARK: "mark", ABBR: "abbr", CITE: "cite", Q: "q", FONT: "span",
   CODE: "code", TT: "code", KBD: "kbd", SAMP: "samp", PRE: "pre", BLOCKQUOTE: "blockquote",
   UL: "ul", OL: "ol", LI: "li", DL: "dl", DT: "dt", DD: "dd",
-  H1: "h5", H2: "h6", H3: "h6", H4: "h6", H5: "h6", H6: "h6",
+  H1: "h4", H2: "h5", H3: "h6", H4: "h6", H5: "h6", H6: "h6",
   TABLE: "table", CAPTION: "caption", THEAD: "thead", TBODY: "tbody", TFOOT: "tfoot", TR: "tr", TH: "th", TD: "td",
   A: "a", IMG: "img",
 };
@@ -178,8 +179,13 @@ export function htmlToReact(html: string, ctx: HtmlContext, parse: (html: string
       if (rowSpan) props.rowSpan = rowSpan;
     }
     if (tag === "table") {
-      // A wide table scrolls inside its own frame, not the pane.
-      return <div key={key} className="jr-table-wrap">{createElement("table", { className }, ...children())}</div>;
+      // A wide table scrolls inside its own frame, not the pane, and a frame
+      // that scrolls takes focus, so the keyboard can scroll it too.
+      return <div key={key} className="jr-table-wrap" tabIndex={0} role="region" aria-label="Table">{createElement("table", { className }, ...children())}</div>;
+    }
+    if (tag === "pre") {
+      // Code keeps its lines and scrolls sideways; the same, for the keyboard.
+      Object.assign(props, { tabIndex: 0, role: "region", "aria-label": "Code" });
     }
     if (VOID.has(tag)) return createElement(tag, props);
     return createElement(tag, props, ...children());

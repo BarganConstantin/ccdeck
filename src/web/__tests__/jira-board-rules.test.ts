@@ -1,0 +1,24 @@
+// The Jira panel's rules apart from React: what an issue's detail says about
+// the work on it, and (as the panel grows) what a row and a sprint's header
+// say about the issues in them. No DOM: the helpers are pure.
+import { describe, it, expect } from "vitest";
+import { timeLine } from "../jira-board";
+
+const TIME = { hoursPerDay: 8, daysPerWeek: 5 };
+const DAY = 8 * 3600;
+
+describe("the detail's one line of time", () => {
+  it("names the estimate, what is left and what was logged, as Jira counts days", () => {
+    expect(timeLine({ estimate: 3 * DAY, remaining: DAY, timeSpent: 2 * DAY }, TIME)).toBe("3d estimated · 1d left · 2d logged");
+  });
+
+  it("leaves out what Jira does not have, and a 'left' that only repeats the estimate", () => {
+    expect(timeLine({ estimate: 3 * DAY, remaining: 3 * DAY, timeSpent: null }, TIME)).toBe("3d estimated");
+    expect(timeLine({ estimate: null, remaining: null, timeSpent: 4 * 3600 }, TIME)).toBe("4h logged");
+    expect(timeLine({ estimate: null, remaining: null, timeSpent: null }, TIME)).toBe("");
+  });
+
+  it("keeps 'left' once work was logged, even when it equals the estimate", () => {
+    expect(timeLine({ estimate: DAY, remaining: DAY, timeSpent: 3600 }, TIME)).toBe("1d estimated · 1d left · 1h logged");
+  });
+});

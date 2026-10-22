@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { IntegrationConnection as Connection } from "../integrations/types";
 import { jiraImage, type JiraApi, type JiraIssue, type TimeTracking } from "../jira-api";
-import { fileSize, jiraDate, jiraDuration } from "../jira-board";
+import { fileSize, jiraDate, timeLine } from "../jira-board";
 import JiraHtml, { type HtmlContext } from "../jira-html";
 import { copyText } from "../copy-text";
 import { useJiraIssue } from "../use-jira-board";
@@ -112,10 +112,16 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
             <div className="jr-detail-kicker">
               <TypeIcon type={issue.type} />
               <a className="jr-key jr-key-link" href={issue.url} target="_blank" rel="noreferrer noopener" data-done={issue.status.category === "done" || undefined}>{issue.key}</a>
-              <StatusLozenge status={issue.status} />
-              {issue.flagged && <span className="jr-flagged"><FlagGlyph /> Flagged</span>}
             </div>
-            <h3 id="jira-detail-title" tabIndex={-1} className="jr-detail-title">{issue.summary}</h3>
+            <h2 id="jira-detail-title" tabIndex={-1} className="jr-detail-title">{issue.summary}</h2>
+            {/* Where the issue stands, under its name: its status (and how it
+                was resolved), its priority, and the flag when it has one. */}
+            <p className="jr-detail-state">
+              <StatusLozenge status={issue.status} />
+              {issue.resolution && <span className="jr-dim">{issue.resolution}</span>}
+              {issue.priority && <span className="jr-person"><PriorityIcon priority={issue.priority} />{issue.priority.name}</span>}
+              {issue.flagged && <span className="jr-flagged"><FlagGlyph /> Flagged</span>}
+            </p>
             <div className="jr-detail-actions">
               <a className="jr-open" href={issue.url} target="_blank" rel="noreferrer noopener">Open in Jira <ExternalGlyph /></a>
               <button type="button" className="btn" onClick={() => void copy("key")}>{copied === "key" ? "Copied" : "Copy key"}</button>
@@ -125,40 +131,36 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
           </header>
 
           <dl className="jr-fields">
-            <Field label="Status">{issue.status.name}{issue.resolution ? <span className="jr-dim"> · {issue.resolution}</span> : null}</Field>
             <Field label="Assignee"><Person person={issue.assignee} fallback="Unassigned" /></Field>
-            <Field label="Reporter"><Person person={issue.reporter} fallback="Nobody" /></Field>
-            <Field label="Type">{issue.type.name}</Field>
-            <Field label="Priority">{issue.priority ? <span className="jr-person"><PriorityIcon priority={issue.priority} />{issue.priority.name}</span> : null}</Field>
+            <Field label="Reporter">{issue.reporter ? <Person person={issue.reporter} fallback="" /> : null}</Field>
             <Field label="Sprint">{issue.sprint ? <>{issue.sprint.name}{issue.sprint.state ? <span className="jr-dim"> · {issue.sprint.state}</span> : null}</> : null}</Field>
             <Field label="Epic">{issue.epic ? <EpicChip epic={issue.epic} /> : null}</Field>
             <Field label="Fix versions">{issue.fixVersions.length ? <span className="jr-chips">{issue.fixVersions.map(v => <span key={v} className="jr-version">{v}</span>)}</span> : null}</Field>
             <Field label="Labels">{issue.labels.length ? <span className="jr-chips">{issue.labels.map(l => <span key={l} className="jr-label">{l}</span>)}</span> : null}</Field>
             <Field label="Components">{issue.components.join(", ")}</Field>
-            {estimation === "points" && <Field label="Story points">{issue.points != null ? String(issue.points) : null}</Field>}
-            <Field label="Original estimate">{jiraDuration(issue.estimate, time)}</Field>
-            <Field label="Remaining">{jiraDuration(issue.remaining, time)}</Field>
-            <Field label="Time spent">{jiraDuration(issue.timeSpent, time)}</Field>
             <Field label="Due">{jiraDate(issue.dueDate)}</Field>
-            <Field label="Created">{jiraDate(issue.created, true)}</Field>
-            <Field label="Updated">{jiraDate(issue.updated, true)}</Field>
+            {estimation === "points" && <Field label="Estimate">{issue.points != null ? `${issue.points} ${issue.points === 1 ? "point" : "points"}` : null}</Field>}
+            <Field label="Time">{timeLine(issue, time)}</Field>
           </dl>
+          <p className="jr-detail-dates">
+            {[issue.created && `Created ${jiraDate(issue.created, true)}`, issue.updated && `Updated ${jiraDate(issue.updated, true)}`].filter(Boolean).join(" · ")}
+          </p>
 
           <section className="jr-detail-section" aria-labelledby="jira-detail-desc">
-            <h4 id="jira-detail-desc">Description</h4>
+            <h3 id="jira-detail-desc">Description</h3>
             <JiraHtml html={issue.descriptionHtml} ctx={ctx} empty={<p className="jr-dim">No description.</p>} />
           </section>
 
           {data!.subtasks.length > 0 && (
             <section className="jr-detail-section" aria-labelledby="jira-detail-subs">
-              <h4 id="jira-detail-subs">Sub-tasks <span className="jr-count">{data!.subtasks.length}</span></h4>
+              <h3 id="jira-detail-subs">Sub-tasks <span className="jr-count">{data!.subtasks.length}</span></h3>
               <SubtaskList issues={data!.subtasks} onOpen={k => onOpen(k, "push")} />
             </section>
           )}
 
           {data!.attachments.length > 0 && (
             <section className="jr-detail-section" aria-labelledby="jira-detail-files">
-              <h4 id="jira-detail-files">Attachments <span className="jr-count">{data!.attachments.length}</span></h4>
+              <h3 id="jira-detail-files">Attachments <span className="jr-count">{data!.attachments.length}</span></h3>
               <ul className="jr-files">
                 {data!.attachments.map(a => (
                   <li key={a.id}>
@@ -173,9 +175,9 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
           )}
 
           <section className="jr-detail-section" aria-labelledby="jira-detail-comments">
-            <h4 id="jira-detail-comments">
+            <h3 id="jira-detail-comments">
               Comments <span className="jr-count">{data!.comments.total > data!.comments.items.length ? `${data!.comments.items.length} of ${data!.comments.total}` : data!.comments.total}</span>
-            </h4>
+            </h3>
             {data!.comments.items.length === 0 && <p className="jr-dim">No comments.</p>}
             <ol className="jr-comments">
               {data!.comments.items.map(c => (
@@ -190,7 +192,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
               ))}
             </ol>
             {data!.comments.total > data!.comments.items.length && (
-              <p className="jr-dim"><a href={issue.url} target="_blank" rel="noreferrer noopener">The older comments are in Jira</a></p>
+              <p className="jr-dim"><a className="jr-more-link" href={issue.url} target="_blank" rel="noreferrer noopener">The older comments are in Jira <ExternalGlyph /></a></p>
             )}
           </section>
         </>

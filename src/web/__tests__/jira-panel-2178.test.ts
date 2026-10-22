@@ -186,7 +186,18 @@ describe("an issue's HTML, rebuilt from an allowlist", () => {
       el("div", { class: "panel" }, el("div", { class: "panelContent" }, "Note")),
       el("blink", {}, "kept text"),
     ));
-    expect(out).toBe('<div><h5>Title</h5><div class="jr-html-panel"><div class="jr-html-panel-body">Note</div></div>kept text</div>');
+    expect(out).toBe('<div><h4>Title</h4><div class="jr-html-panel"><div class="jr-html-panel-body">Note</div></div>kept text</div>');
+  });
+
+  it("keeps the outline whole under the issue's h2 and its sections' h3, and lets the keyboard reach a frame that scrolls", () => {
+    const out = draw(el("body", {},
+      el("h1", {}, "One"), el("h2", {}, "Two"), el("h3", {}, "Three"), el("h6", {}, "Six"),
+      el("pre", {}, "const a = 1;"),
+      el("table", {}, el("tbody", {}, el("tr", {}, el("td", {}, "cell")))),
+    ));
+    expect(out).toContain("<h4>One</h4><h5>Two</h5><h6>Three</h6><h6>Six</h6>");
+    expect(out).toContain('<pre tabindex="0" role="region" aria-label="Code">const a = 1;</pre>');
+    expect(out).toContain('<div class="jr-table-wrap" tabindex="0" role="region" aria-label="Table"><table>');
   });
 
   it("stops at a depth no description needs, rather than recursing without end", () => {
