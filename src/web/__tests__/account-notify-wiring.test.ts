@@ -167,6 +167,23 @@ describe("a switch the auto-switch loop made", () => {
     expect(said).toEqual([]);
   });
 
+  // What the organization of the account it moved to was last seen to turn on
+  // (org-telemetry.mjs), read from the deck's own records: never from Claude
+  // Code's settings file, which may still be the account the switch left.
+  it("carries the second line the deck's records hold for the new account's organization", async () => {
+    writeStore(3, { 2: 94, 3: 20 }, { 3: "work" });
+    mkdirSync(join(DIR, "deck"), { recursive: true });
+    writeFileSync(join(DIR, "deck", "org-telemetry.json"), JSON.stringify({
+      "org-3": { orgName: "Acme", level: "content", content: ["OTEL_LOG_USER_PROMPTS"], destinations: ["http://192.0.2.16:4317"], seenAt: Date.now() },
+      "org-2": { orgName: "Other", level: "metrics", content: [], destinations: [], seenAt: Date.now() },
+    }));
+    await tickOnce(SWITCHED);
+    expect(said).toEqual([{
+      title: "Claude auto-switch — ccdeck",
+      body: "Switched to work · account-2@b.c reached 90%\nAcme's telemetry is on for new sessions: it sends your prompts to 192.0.2.16:4317",
+    }]);
+  });
+
   it("costs the tick nothing when the notification cannot be raised", async () => {
     notify = () => { throw new Error("no notification daemon"); };
     writeStore(3, { 2: 94, 3: 20 });

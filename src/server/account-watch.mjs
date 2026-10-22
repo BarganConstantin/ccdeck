@@ -110,9 +110,21 @@ export function noteAutoTick(result, meta = {}) {
   if (!n || !result) return Promise.resolve();
   // A dead login with nowhere to go is named too, so its notice can say whose.
   const named = result.switched || result.reason === "login-expired";
-  return (named ? storeAccounts() : Promise.resolve(null))
-    .then(accounts => n.tick(result, accounts, meta))
+  return (named ? Promise.all([storeAccounts(), result.switched ? telemetryReader() : null]) : Promise.resolve([null, null]))
+    .then(([accounts, telemetryOf]) => n.tick(result, accounts, { ...meta, telemetryOf }))
     .catch(() => {});
+}
+
+/** What each organization's settings were last seen to turn on, as the
+ *  sentence a swap notice carries (org-telemetry.mjs), or null. */
+async function telemetryReader() {
+  try {
+    const { knownOrgTelemetry, telemetryClause } = await import(pathToFileURL(join(PKG_ROOT, "src/server/org-telemetry.mjs")).href);
+    const records = await knownOrgTelemetry();
+    return org => telemetryClause(records?.[org]);
+  } catch {
+    return null;
+  }
 }
 
 /** The loop's way to be asked for a tick now. Called once, as it loads. */
