@@ -24,13 +24,14 @@
 .fg-tabs .uh-range-btn[aria-selected="true"], .fd-sections .uh-range-btn[aria-selected="true"] { background: var(--accent); color: var(--bg); }
 /* A narrow list — the column beside an open item, or a phone — keeps the
    four tabs on one row across the list, each name whole: smaller words and
-   tighter cells, and when even that does not fit, the row scrolls sideways
-   and the chosen tab is scrolled into view (ForgePanel.tsx). One row, rather
+   tighter cells (all four fit a 360px phone), and when even that does not
+   fit, the row scrolls sideways, the last tab showing at the edge, and the
+   chosen tab is scrolled into view (ForgePanel.tsx). One row, rather
    than the two rows of two it was, leaves the phone's first screen to the
    list. */
 @container fg-list (max-width: 520px) {
   .fg-tabs { align-self: stretch; scrollbar-width: none; overscroll-behavior-x: contain; }
-  .fg-tabs .uh-range-btn { flex: 1 0 auto; padding: 4px 6px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
+  .fg-tabs .uh-range-btn { flex: 1 0 auto; padding: 4px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 }
 .fg-searchbar { display: flex; gap: 8px; align-items: center; padding: 12px 20px 0; flex: none; }
 /* Open, beside the field once it holds a link: as wide as its word. */

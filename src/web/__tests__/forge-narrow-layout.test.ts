@@ -93,6 +93,14 @@ describe("a phone's first screen goes to the list", () => {
     expect(panel).not.toMatch(/\.fg-tabs\s*\{[^}]*grid-template-columns/);
   });
 
+  it("pads a narrow list's tabs tightly enough that all four fit a 360px phone", () => {
+    // GitLab's four names need 288px at 4px a side, which a 360px phone's
+    // list has; at 6px a side Issues ran past the edge there, and at 320px
+    // it was out of sight altogether, not even a sliver to say it was there.
+    const narrow = blocks(panel, "@container fg-list (max-width: 520px)").join("\n");
+    expect(decls(narrow, ".fg-tabs .uh-range-btn")).toMatch(/(?:^|; )padding: 4px;/);
+  });
+
   it("keeps a change's sections on one row on a phone's pane, each label whole over its count", () => {
     const narrow = blocks(detail, "@container fd (max-width: 479px)").join("\n");
     expect(decls(narrow, ".fd-sections")).not.toMatch(/display: grid/);
