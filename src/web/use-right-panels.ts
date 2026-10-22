@@ -7,10 +7,12 @@
 // spread between the top of the file and three places in `Inner`. Unlike the
 // left column (use-left-column.ts) there is no rule between the three: each
 // opens and closes on its own, so the setters are React's own and go out as
-// they are.
-import { useEffect, useState } from "react";
+// they are. The one exception is a phone's load, where Usage keeps the machine
+// panel shut for that load alone (phone-load.ts).
+import { useEffect, useRef, useState } from "react";
 import { readStored, writeStored } from "./storage";
 import { useFeatureUse } from "./feature-use";
+import { loadsOnPhone } from "./phone-load";
 
 const DETAIL_OPEN_KEY = "agent-dag.detailOpen";
 const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
@@ -22,7 +24,8 @@ const MACHINE_PANEL_OPEN_KEY = "agent-dag.systemPanelOpen";
 // answer "how much have I got left, and on which account" — the questions you
 // have before you have a graph worth looking at. The session list and detail
 // panel are for navigating work that already exists, so they stay shut until
-// asked for, and the canvas gets the width.
+// asked for, and the canvas gets the width. A phone's load opens one sheet of
+// these at most, and stores nothing for the rest: phone-load.ts.
 //
 // All three panels read and write through storage.ts rather than
 // window.localStorage directly: the loaders run inside useState initialisers,
@@ -73,8 +76,20 @@ export function useRightPanels() {
   /** Usage panel visibility — persisted across refresh. */
   const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(loadUsagePanelOpen);
   useEffect(() => { saveUsagePanelOpen(usagePanelOpen); }, [usagePanelOpen]);
-  const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(loadMachinePanelOpen);
-  useEffect(() => { saveMachinePanelOpen(machinePanelOpen); }, [machinePanelOpen]);
+  /** Shut for this load, not by the reader: a phone's load opens one sheet, and
+   *  Usage is it (phone-load.ts). Never written as a close; the reader's own
+   *  open ends it. */
+  const machineHeldRef = useRef(false);
+  const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(() => {
+    const wanted = loadMachinePanelOpen();
+    if (wanted && usagePanelOpen && loadsOnPhone()) { machineHeldRef.current = true; return false; }
+    return wanted;
+  });
+  useEffect(() => {
+    if (machinePanelOpen) machineHeldRef.current = false;
+    else if (machineHeldRef.current) return;
+    saveMachinePanelOpen(machinePanelOpen);
+  }, [machinePanelOpen]);
   // A panel shown is one of the features the usage reports name (feature-use.ts).
   // Not the detail panel: its flag is kept and the selection is not, so after a
   // reload it is on with nothing drawn. DetailAside says it, when it mounts.
