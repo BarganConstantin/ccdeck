@@ -19,6 +19,7 @@ import {
 import { tmpdir } from "node:os";
 import { delimiter, join, relative, resolve } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
+import { parseWindowsArgv } from "./windows-command-line";
 
 // Resolved, because the version is read through the install's realpath and
 // macOS's temp directory is a link (/var → /private/var): the fakes have to be
@@ -141,6 +142,17 @@ function wrapper(output: string, { code = 0, sleep = 0 } = {}): { dir: string; a
   return { dir, argv };
 }
 
+/** The arguments a wrapper was started with, as the program itself reads them.
+ *  On POSIX printf wrote one per line. On Windows the .cmd echoed its `%*`, and
+ *  the deck reaches a .cmd through cmd.exe with every argument quoted (viaCmd
+ *  in exec.mjs), so that line still holds the quotes: parsing it the way a
+ *  program parses its command line takes them off, as Claude Code's own shim
+ *  does when it hands `%*` on to node. */
+function argvOf(w: { argv: string }): string[] {
+  const text = readFileSync(w.argv, "utf8").replace(/\r?\n$/, "");
+  return WIN ? parseWindowsArgv(text.trim()) : text.split("\n");
+}
+
 /** What the deck finds with exactly these directories on PATH, and nothing
  *  from the machine running the suite: the absolute candidates the deck also
  *  checks (/usr/local/bin/claude, ~/.local/bin/claude…) are only seen inside
@@ -243,7 +255,7 @@ describe("a claude whose layout does not say, asked --version", () => {
       const w = wrapper(out);
       const d = await skillHookDecision({ optedIn: true, installs: found(w.dir) });
       expect(d, out).toMatchObject({ install: true, state: "on" });
-      expect(readFileSync(w.argv, "utf8").trim()).toBe("--version");
+      expect(argvOf(w)).toEqual(["--version"]);
     }
   });
 
@@ -292,7 +304,7 @@ describe("the claude AGENTS_DECK_CLAUDE names", () => {
     const w = wrapper("2.1.116 (Claude Code)");
     const d = await skillHookDecision({ env: { AGENTS_DECK_CLAUDE: binOf(w.dir) }, optedIn: true, installs: [] });
     expect(d).toMatchObject({ install: true, state: "on", versions: ["2.1.116"] });
-    expect(readFileSync(w.argv, "utf8").trim()).toBe("--version");
+    expect(argvOf(w)).toEqual(["--version"]);
   });
 
   it("is not asked anything when the opt-in is off", async () => {
