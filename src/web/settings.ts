@@ -43,7 +43,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "keyboard", label: "Keyboard", note: "Every shortcut, and whether single keys answer." },
   { id: "notifications", label: "Notifications", note: "How the deck reaches you while you are not looking at it." },
   { id: "sounds", label: "Sounds", note: "What plays when a turn finishes and when Claude asks." },
-  { id: "integrations", label: "Integrations", note: "Trackers the deck reads your work from, such as Jira. Read only." },
+  { id: "integrations", label: "Integrations", note: "Where the deck reads your work from: Jira, GitHub and GitLab. Read only." },
   { id: "data", label: "Data", note: "What the deck keeps on this device." },
   { id: "radar", label: "Radar", note: "Automatic monitoring of Claude telemetry, off unless you turn it on." },
   { id: "about", label: "About", note: "The version you are running, and where to say what you think of it." },
