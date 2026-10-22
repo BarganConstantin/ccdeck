@@ -319,6 +319,8 @@
   .ig-splitter:hover::before, .ig-splitter:focus-visible::before { background: Highlight; }
   /* The chosen row of any integration panel: its fill is gone, its outline stays. */
   .ig-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
+  /* The reader's own face keeps its ring, in the highlight, apart from every other face's edge. */
+  .ig-avatar[data-you] { outline-color: Highlight; }
   .jr-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
   button.btn.jr-chip[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
 }
