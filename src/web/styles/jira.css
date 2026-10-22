@@ -463,12 +463,16 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 }
 /* A phone: three lines at most. The issue's type, priority, key, status and
    person on the first; its summary under them, up to two lines; its flag,
-   epic and estimate on the third, when it has any. */
+   epic and estimate on the third, when it has any. The key keeps its whole
+   width, since its number is what tells two issues apart; the status gives
+   way first, with its ellipsis and the whole name in its title. Only a key
+   longer than the line itself is cut. */
 @container jira-list (max-width: 360px) {
-  .jr-row-main { grid-template-columns: 16px 16px minmax(0, 1fr) auto 20px; }
+  .jr-row-main { grid-template-columns: 16px 16px minmax(0, max-content) minmax(0, 1fr) 20px; }
   .jr-row-main > .jr-key { grid-column: 3; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .jr-facts { display: contents; }
-  .jr-facts .jr-status-cell { grid-column: 4; grid-row: 1; min-width: 0; }
+  .jr-facts .jr-status-cell { grid-column: 4; grid-row: 1; justify-self: end; min-width: 0; max-width: 100%; overflow: hidden; }
+  .jr-facts .jr-status-cell > .jr-status { flex: 0 1 auto; min-width: 0; }
   .jr-row-main > .jr-assignee { grid-column: 5; grid-row: 1; }
   .jr-summary { grid-column: 1 / -1; grid-row: 2; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .jr-facts .jr-meta { grid-column: 1 / 4; grid-row: 3; justify-content: flex-start; flex-wrap: nowrap; }

@@ -282,4 +282,14 @@ describe("nothing on a narrow screen widens its pane or loses its words", () => 
     expect(narrow).toMatch(/\.jr-facts \.jr-meta > \.jr-version \{ display: none; \}/);
     expect(sheet).toMatch(/\.jr-meta > \* \{ min-width: 0; flex: 0 1 auto; \}/);
   });
+
+  it("on a phone, keeps an issue's key whole and lets its status give way", () => {
+    const narrow = block("@container jira-list (max-width: 360px)");
+    // The key's column takes its words' width first; the status's takes what
+    // is left. Only a key longer than the line is cut.
+    expect(narrow).toMatch(/\.jr-row-main \{ grid-template-columns: 16px 16px minmax\(0, max-content\) minmax\(0, 1fr\) 20px; \}/);
+    expect(narrow).toMatch(/\.jr-row-main > \.jr-key \{ grid-column: 3; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; \}/);
+    expect(narrow).toMatch(/\.jr-facts \.jr-status-cell > \.jr-status \{ flex: 0 1 auto; min-width: 0; \}/);
+    expect(sheet).toMatch(/\.jr-status \{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;/);
+  });
 });
