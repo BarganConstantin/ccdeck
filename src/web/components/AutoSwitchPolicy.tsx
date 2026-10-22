@@ -160,37 +160,35 @@ export default function AutoSwitchPolicy({
         <p key="hint" id={noteId} className="ap-threshold-note">{CUSTOM_HINT}</p>
       ) : null}
 
-      {/* WHERE IT GOES, only while it goes anywhere: with the switch off the
-          rule does nothing, and a row that does nothing is the clutter this
-          block was cut down to avoid. The same propose-then-save as the
+      {/* WHERE IT GOES, whether the switch is on or off: it is set up before
+          it is turned on, like the threshold above it, and the rule waits in
+          the store until a tick reads it. The same propose-then-save as the
           threshold (#516). Home is not here — it is a mark on its row and a
           word in that row's ⋯. */}
-      {auto.enabled && (
-        <div className="ap-policy ap-next">
-          <label className="ap-next-label" htmlFor={nextId}>Next account</label>
-          <span className="ap-field">
-            <select
-              id={nextId}
-              ref={nextRef}
-              value={nextPick}
-              aria-describedby={nextPick === "weekly" ? hintId : undefined}
-              {...pressProps("next")}
-              onChange={e => proposeNext(e.target.value)}
-            >
-              {NEXT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </span>
-          {(nextCtl.sends || nextSaved) && (
-            <button ref={nextSaveRef} type="button" className="ap-manage-btn" {...pressProps("next")}
-              title={nextCtl.title}
-              onClick={() => doNext()}
-            >{nextSaved && !nextCtl.sends ? nextCtl.done : nextCtl.label}</button>
-          )}
-        </div>
-      )}
+      <div className="ap-policy ap-next">
+        <label className="ap-next-label" htmlFor={nextId}>Next account</label>
+        <span className="ap-field">
+          <select
+            id={nextId}
+            ref={nextRef}
+            value={nextPick}
+            aria-describedby={nextPick === "weekly" ? hintId : undefined}
+            {...pressProps("next")}
+            onChange={e => proposeNext(e.target.value)}
+          >
+            {NEXT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </span>
+        {(nextCtl.sends || nextSaved) && (
+          <button ref={nextSaveRef} type="button" className="ap-manage-btn" {...pressProps("next")}
+            title={nextCtl.title}
+            onClick={() => doNext()}
+          >{nextSaved && !nextCtl.sends ? nextCtl.done : nextCtl.label}</button>
+        )}
+      </div>
       {/* The option that is not obvious says what it does, in one quiet
           line, and only while it is the one showing. */}
-      {auto.enabled && nextPick === "weekly" && (
+      {nextPick === "weekly" && (
         <p id={hintId} className="ap-threshold-note">{WEEKLY_HINT}</p>
       )}
 

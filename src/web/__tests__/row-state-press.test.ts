@@ -225,14 +225,14 @@ describe("three tiers, one per kind of thing a row says", () => {
     // trap in the same rule. The word stays on the row; the undo is in the ⋯,
     // offered whenever the account is out.
     expect(clientText()).toMatch(/\{a\.disabled && <span className="ap-held">held out<\/span>\}/);
-    // Two links since the menu became its own component: the panel says
-    // whether anything is rotating, and the popover offers the item on that or
-    // on the account being out.
-    expect(panelCode).toMatch(/rotating=\{!!\(auto\?\.enabled \|\| auto\?\.external\)\}/);
+    // The popover offers holding out on every account but the one in use,
+    // and putting back on any account that is out — whether anything is
+    // rotating or not, so it is set up before Auto-switch is turned on.
     const popoverCode = readFileSync(fileURLToPath(new URL("../components/AccountMenuPopover.tsx", import.meta.url)), "utf8")
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
-    expect(popoverCode).toMatch(/\(\(rotating && !a\.active\) \|\| a\.disabled\) && \(/);
+    expect(popoverCode).toMatch(/\(!a\.active \|\| a\.disabled\) && \(/);
+    expect(popoverCode).not.toMatch(/rotating/);
     expect(popoverCode).toMatch(/\{a\.disabled \? "Put back in rotation" : "Hold out of rotation"\}/);
     // The marker takes the slot `Switch` would have had, because a switch to a
     // held-out account is refused and a control that can never act is worse
