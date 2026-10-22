@@ -279,7 +279,9 @@ async function dismissReauth(raw) {
  * and nothing else will move them, since auto-switch does not touch a login
  * claude-swap no longer manages. The roster is read BEFORE the removal, because
  * after it the account is not on it to ask about; the move goes through the
- * switch route's own path, guard and bookkeeping included.
+ * switch route's own path, guard and bookkeeping included. Like Auto-switch's
+ * moves, it never lands on an account claude-swap set aside or one a local
+ * `cswap run` session is using (slotsHeldBack).
  */
 async function removeAccount(admin, num) {
   const accounts = await import(
@@ -289,6 +291,9 @@ async function removeAccount(admin, num) {
     roster: () => accounts.fetchClaudeAccounts({ force: true }),
     remove: n => admin.removeAccount(n),
     switchTo: async n => (await switchAndTell(n, accounts))[1],
+    heldBack: async rows => (await import(
+      pathToFileURL(join(PKG_ROOT, "src/server/cswap-auto-choice.mjs")).href
+    )).slotsHeldBack(rows),
   });
 }
 

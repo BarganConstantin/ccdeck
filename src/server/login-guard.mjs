@@ -117,11 +117,13 @@ export function activeLoginExpired(row) {
 
 /** The accounts Claude Code may be moved to, best first: working, not held
  *  out, and with nothing wrong on the row — the freshest reading first, then the
- *  most room. */
-export function liveTargets(accounts, leaving) {
+ *  most room. `held` is the slots no move the deck makes may land on: set aside
+ *  by claude-swap's engine, or in use by a local `cswap run` session
+ *  (cswap-auto-choice.mjs slotsHeldBack). */
+export function liveTargets(accounts, leaving, held = new Set()) {
   return (Array.isArray(accounts) ? accounts : [])
     .filter(a => a && a.num !== leaving && !a.active && !a.disabled && a.alive === true
-      && !a.staleCopy && !a.stopped && !a.error)
+      && !a.staleCopy && !a.stopped && !a.error && !held.has(a.num))
     .sort((a, b) => Number(a.stale === true) - Number(b.stale === true) || (b.headroom ?? -1) - (a.headroom ?? -1));
 }
 
@@ -136,17 +138,20 @@ const MOVE_TRIES = 3;
  *
  * `roster()` is the roster as it stood before the removal, `remove(num)` is
  * cswap-admin's removeAccount and `switchTo(num)` the switch route's own path,
- * guard included. Answers the removal's own answer, plus `movedTo` (the account
- * now active) or `stillExpired` (nothing could take over).
+ * guard included. `heldBack(accounts)` names the slots the move may not land
+ * on (liveTargets); one it cannot read holds nothing back. Answers the
+ * removal's own answer, plus `movedTo` (the account now active) or
+ * `stillExpired` (nothing could take over).
  */
-export async function removeLeavingLiveLogin(num, { roster, remove, switchTo }) {
+export async function removeLeavingLiveLogin(num, { roster, remove, switchTo, heldBack = async () => new Set() }) {
   const before = await Promise.resolve().then(roster).catch(() => null);
   const removed = await remove(num);
   if (!removed?.ok) return removed;
   const accounts = before?.ok && Array.isArray(before.accounts) ? before.accounts : [];
   const row = accounts.find(a => a?.num === Number(num));
   if (!activeLoginExpired(row)) return removed;
-  for (const target of liveTargets(accounts, row.num).slice(0, MOVE_TRIES)) {
+  const held = await Promise.resolve().then(() => heldBack(accounts)).catch(() => null);
+  for (const target of liveTargets(accounts, row.num, held instanceof Set ? held : new Set()).slice(0, MOVE_TRIES)) {
     const moved = await Promise.resolve().then(() => switchTo(target.num)).catch(() => null);
     if (moved?.ok) return { ...removed, movedTo: { num: target.num, email: target.email ?? null, alias: target.alias ?? null } };
     // Only a target refused for its own login is a reason to try the next one.

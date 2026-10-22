@@ -253,6 +253,34 @@ describe("a switch onto an account whose stored login is dead", () => {
   });
 });
 
+// The auto-switch failover (autoswitch-failover.mjs) switches with --force and
+// a `before` that stands down when Auto-switch was turned off meanwhile. The
+// guard binds that switch too: --force skips backing up the dead login being
+// left, never the check on the one being moved to.
+describe("the auto-switch failover's forced switch", () => {
+  it("is refused onto an expired target like any other, and claude-swap is not run", async () => {
+    seed({ 1: struck(1), 2: healthy(2), 3: struck(3) });
+    const out = await accounts.switchClaudeAccount(3, { force: true });
+    expect(out).toMatchObject({ ok: false, reason: "login_expired", account: { num: 3 } });
+    expect(ran("switch")).toEqual([]);
+  });
+
+  it("goes ahead onto a working target with --force", async () => {
+    seed({ 1: struck(1), 2: healthy(2), 3: struck(3) });
+    expect(await accounts.switchClaudeAccount(2, { force: true })).toMatchObject({ ok: true });
+    expect(ran("switch")).toEqual([["switch", "2", "--force"]]);
+  });
+
+  it("asks `before` first inside the lock: a stand-down moves nothing, whatever the target", async () => {
+    seed({ 1: struck(1), 2: healthy(2), 3: struck(3) });
+    const before = vi.fn(async () => "disabled");
+    expect(await accounts.switchClaudeAccount(3, { before, force: true })).toEqual({ ok: false, skipped: "disabled" });
+    expect(await accounts.switchClaudeAccount(2, { before, force: true })).toEqual({ ok: false, skipped: "disabled" });
+    expect(before).toHaveBeenCalledTimes(2);
+    expect(ran("switch")).toEqual([]);
+  });
+});
+
 describe("a switch the check cannot judge", () => {
   it("goes ahead on a transient failure", async () => {
     seed({ 1: healthy(1), 2: struck(2, { authDeadStrikes: 0, lastError: "http-429" }) });
@@ -387,6 +415,29 @@ describe("removing the active account", () => {
     const routes = readFileSync(new URL("../../server/account-routes.mjs", import.meta.url), "utf8");
     expect(routes).toMatch(/case "remove":\s+result = await removeAccount\(admin, parsed\.account\); break;/);
     expect(routes).toMatch(/switchTo: async n => \(await switchAndTell\(n, accounts\)\)\[1\]/);
+    expect(routes).toMatch(/heldBack: async rows => \(await import\(\s*pathToFileURL\(join\(PKG_ROOT, "src\/server\/cswap-auto-choice\.mjs"\)\)\.href\s*\)\)\.slotsHeldBack\(rows\)/);
+  });
+
+  // Like Auto-switch's own moves (#2201, #2202): an account claude-swap set
+  // aside is another dead login, and one a `cswap run` session is using would
+  // put one rotating refresh token in two places.
+  it("never moves onto an account claude-swap set aside, or one a `cswap run` session is using", async () => {
+    // @ts-expect-error — plain .mjs server module, no types
+    const { slotsHeldBack } = await import("../../server/cswap-auto-choice.mjs");
+    seed({});
+    writeFileSync(join(STORE, "autoswitch_state.json"), JSON.stringify({ quarantine: { 3: { email: "user3@example.test" } } }));
+    const sessions = join(STORE, "sessions", "2-user2_example.test", "sessions");
+    mkdirSync(sessions, { recursive: true });
+    writeFileSync(join(sessions, `${process.pid}.json`), JSON.stringify({ pid: process.pid }));
+    const d = deps(roster({ 1: { alive: false, error: "invalid_grant" }, 2: { headroom: 90 }, 3: { headroom: 80 }, 4: { headroom: 30 } }));
+    expect(await guard.removeLeavingLiveLogin(1, { ...d, heldBack: slotsHeldBack })).toMatchObject({ ok: true, movedTo: { num: 4 } });
+    expect(d.order).toEqual(["roster", "remove 1", "switch 4"]);
+  });
+
+  it("holds nothing back when it cannot tell which accounts are held, rather than leaving the dead login live", async () => {
+    const d = deps(roster({ 1: { alive: false, error: "invalid_grant" }, 2: { headroom: 90 }, 3: { headroom: 80 } }));
+    const heldBack = async () => { throw new Error("EIO"); };
+    expect(await guard.removeLeavingLiveLogin(1, { ...d, heldBack })).toMatchObject({ ok: true, movedTo: { num: 2 } });
   });
 });
 

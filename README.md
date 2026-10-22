@@ -383,7 +383,7 @@ An import adds what is missing and leaves a working account exactly as it is. Th
 > [!WARNING]
 > A share carries the **live login of every account in it, in the clear** — claude-swap's export format has no encryption, and five ticked boxes is five passwords on your clipboard. It expires ten minutes after it is made and imports refuse it after that. While it lives, treat it as those passwords: anything that can read your clipboard can read the accounts.
 
-**Rename**, **Move to slot…** and **Remove** are on the same row menu. Removal takes two clicks and cannot be undone. Removing the active account leaves Claude Code signed in as it; when that login is the expired one, the deck moves Claude Code to the working account with the most room left, or says that none could take over.
+**Rename**, **Move to slot…** and **Remove** are on the same row menu. Removal takes two clicks and cannot be undone. Removing the active account leaves Claude Code signed in as it; when that login is the expired one, the deck moves Claude Code to the working account with the most room left that claude-swap has not set aside and no local `cswap run` session is using, or says that none could take over.
 
 Step by step: [Switch between multiple Claude Code accounts](https://ccdeck.dev/guides/claude-accounts/) · [Copy your Claude Code login to another machine](https://ccdeck.dev/guides/move-an-account/)
 
