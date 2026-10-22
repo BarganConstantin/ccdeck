@@ -270,6 +270,14 @@ const { requestRestart, markBooted, runHeldRestart } = restartLatch({ shutdown, 
 let server = null;
 let discovery = null;
 let discoveryFile = null;
+// Whether a shutdown has begun, and what the boot awaits once one has. The
+// signals reach shutdown from just above the discovery record, while the boot
+// still has a browser to open, a login item to offer and a pulse to start —
+// none of which a deck on its way out should do. So from the record on, the
+// boot asks this after each of its awaits, and on a yes stops where it stands
+// on a promise that never settles: shutdown is what ends the process.
+let stopping = false;
+const STOPPED = new Promise(() => {});
 // The boot lock, for the same reason: taken at the gate below, given back once
 // this deck is registered, and given back by the exit handler on every way out
 // before that. See src/server/boot-lock.mjs.
@@ -300,8 +308,8 @@ process.on("exit", () => { bootLock?.release(); });
 
 // This worker does not outlive the supervisor that started it (#702).
 //
-// Armed HERE rather than beside the signal handlers at the bottom of the file,
-// for the reason the three `let`s above are where they are: this is the first
+// Armed HERE rather than beside the signal handlers further down, for the
+// reason the three `let`s above are where they are: this is the first
 // line from which `shutdown` can be called without dying of a temporal dead
 // zone, and the window that matters is the boot — the supervisor can be killed
 // while the report is still printing, and a worker orphaned in there is a
@@ -455,6 +463,28 @@ try { process.send?.({ type: "listening", port: realPort }); } catch { /* not su
 if (RESPAWN) reportRestarted({ url, flags });
 else reportReady({ url, persist, openBrowser, flags });
 
+// ── Ctrl+C, SIGTERM and a hangup ──────────────────────────────────────────────
+// Handed to shutdown HERE, before the discovery record below is written, and
+// not at the bottom of the file, which the boot reaches only after that
+// record's first write, the browser and the login item. A signal in between
+// found no handler, the deck died of it, and the record stayed for the hooks
+// to keep finding until the next boot swept it up. From this line on, every
+// way out takes the record with it, and a boot still running stops at its next
+// step: see `stopping`.
+process.on("SIGINT", () => shutdown(0));
+process.on("SIGTERM", () => shutdown(0));
+// A terminal closed under a `--foreground` deck, or a console window closed on
+// Windows, which Node reports as SIGHUP. Dying of it on the spot dropped every
+// append already acknowledged, left the discovery record for the hooks and
+// gave the LAN no goodbye, so it takes the way out the other two take. With
+// the hangup's own exit code, so the supervisor reads what it read before; and
+// with nothing written to the terminal that is gone — a write there fails, and
+// an unhandled 'error' on stdout would end the shutdown halfway.
+onHangup(() => {
+  for (const out of [process.stdout, process.stderr]) out.on("error", () => {});
+  shutdown(hangupCode());
+});
+
 // The discovery file is the whole of how a hook finds this deck: hook.js
 // enumerates that directory and nothing else. Writing it once at boot meant
 // anything that later took it away left a deck that listened, served, and
@@ -503,6 +533,9 @@ await discovery.check();
 // lock has done its job. Given back here rather than at exit, or a second
 // `ccdeck` would wait out this deck's whole life before attaching to it.
 bootLock?.release();
+// A shutdown begun during that write is taking the record away again, and the
+// boot stops here. After the release, not before it: see boot-lock.test.ts.
+if (stopping) await STOPPED;
 
 // Never on a respawn: the tab that asked for the restart is still open and
 // reconnecting on its own. A second one would be the deck talking over itself.
@@ -514,6 +547,8 @@ if (openBrowser && !RESPAWN) {
   // See src/server/open-url.mjs.
   try {
     const { openUrl } = await import(pathToFileURL(join(PKG_ROOT, "src/server/open-url.mjs")).href);
+    // No tab for a deck that began shutting down while that loaded.
+    if (stopping) await STOPPED;
     openUrl(url);
   } catch {}
 }
@@ -525,6 +560,8 @@ if (openBrowser && !RESPAWN) {
 // here the port is bound, the hooks are registered and the browser is open.
 // Never on a respawn, which is the same session continuing. See offerLoginItem.
 if (!RESPAWN) await offerLoginItem({ deckDataDir, deckLogDir });
+// Nor a pulse, a "booted" or a held restart for one that began during the offer.
+if (stopping) await STOPPED;
 
 // ── Pulse indicator ───────────────────────────────────────────────────────────
 // The last line on screen, still only while something is outstanding, and the
@@ -577,6 +614,9 @@ async function shutdown(code = 0) {
   // exit code and therefore, half the time, without the supervisor bringing the
   // deck back.
   try {
+    // First, so a boot still running beside this stops at its next step — see
+    // `stopping`. Inside the try, like everything that touches the boot's state.
+    stopping = true;
     // Before anything that can take time: a Ctrl+C the user has to watch for a
     // second and a half is a second and a half without a cursor.
     showCursor();
@@ -652,19 +692,8 @@ async function shutdown(code = 0) {
     process.exit(code);
   }
 }
-process.on("SIGINT", () => shutdown(0));
-process.on("SIGTERM", () => shutdown(0));
-// A terminal closed under a `--foreground` deck, or a console window closed on
-// Windows, which Node reports as SIGHUP. Dying of it on the spot dropped every
-// append already acknowledged, left the discovery record for the hooks and
-// gave the LAN no goodbye, so it takes the way out the other two take. With
-// the hangup's own exit code, so the supervisor reads what it read before; and
-// with nothing written to the terminal that is gone — a write there fails, and
-// an unhandled 'error' on stdout would end the shutdown halfway.
-onHangup(() => {
-  for (const out of [process.stdout, process.stderr]) out.on("error", () => {});
-  shutdown(hangupCode());
-});
+// SIGINT, SIGTERM and SIGHUP are handed to it above the discovery record — see
+// the note there.
 process.on("beforeExit", () => { discovery?.stop(); if (discoveryFile) removeDiscovery(discoveryFile); });
 // The boot lock's `exit` handler is NOT here with its siblings. It is armed up
 // beside `let bootLock = null;`, above the start gate, because the three ways
