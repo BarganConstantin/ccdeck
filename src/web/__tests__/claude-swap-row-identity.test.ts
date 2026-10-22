@@ -239,9 +239,11 @@ describe("activeAccountUsage, which the Usage panel's bars are made from", () =>
   });
 
   it("answers nothing, and draws no row as active, for a store that names no active slot", async () => {
-    // Both readers ask the store's active slot the same way (activeSlot), and
-    // a store whose activeAccountNumber is null names none: the Usage panel
-    // gets no bars rather than some account's, and the roster marks nobody.
+    // Both readers ask the active slot the same way (claude-login.mjs's
+    // activeFrom). With no Claude Code login to read, as in this sandbox, that
+    // is the store's number, and a store whose activeAccountNumber is null
+    // names none: the Usage panel gets no bars rather than some account's, and
+    // the roster marks nobody.
     seed({ accounts: { 2: ALICE, 3: CAROL }, usage: { 2: collected(ALICE), 3: collected(CAROL) }, active: null });
     const accounts = await freshAccounts();
     expect(await accounts.activeAccountUsage()).toBeNull();

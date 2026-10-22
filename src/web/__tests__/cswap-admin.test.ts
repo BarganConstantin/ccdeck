@@ -993,15 +993,19 @@ describe("cancelLogin and the store lock", () => {
     const claude = process.env.AGENTS_DECK_CLAUDE;
     const cswap = process.env.AGENTS_DECK_CSWAP;
     const backup = process.env.CLAUDE_SWAP_BACKUP;
+    const config = process.env.CLAUDE_CONFIG_DIR;
     const dir = mkdtempSync(join(tmpdir(), "ccdeck-cancel-"));
     const seq = join(dir, "sequence.json");
     const store = (active: number) =>
       writeFileSync(seq, JSON.stringify({ activeAccountNumber: active, accounts: { 1: { email: "a@b.c" }, 2: { email: "d@e.f" } } }));
     const switches = () => ranArgs.filter(a => a[0] === "switch");
-    // A store of our own, and two CLIs that are not there — nothing in here may
-    // touch the account the machine running the tests is signed in as.
+    // A store of our own, a Claude Code login of our own (slot 1's), and two
+    // CLIs that are not there — nothing in here may touch, or depend on, the
+    // account the machine running the tests is signed in as.
     store(1);
+    writeFileSync(join(dir, ".claude.json"), JSON.stringify({ oauthAccount: { emailAddress: "a@b.c" } }));
     process.env.CLAUDE_SWAP_BACKUP = dir;
+    process.env.CLAUDE_CONFIG_DIR = dir;
     process.env.AGENTS_DECK_CLAUDE = join(dir, "no-such-claude");
     process.env.AGENTS_DECK_CSWAP = join(dir, "no-such-cswap");
     const nth = fakeLogin.children.length;
@@ -1040,6 +1044,49 @@ describe("cancelLogin and the store lock", () => {
       else process.env.AGENTS_DECK_CSWAP = cswap;
       if (backup === undefined) delete process.env.CLAUDE_SWAP_BACKUP;
       else process.env.CLAUDE_SWAP_BACKUP = backup;
+      if (config === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = config;
+      rmTempDir(dir);
+    }
+  });
+
+  it("puts back the account Claude Code was signed in as, not the one the store last recorded", async () => {
+    // A /login made outside cswap: the store still says 2, Claude Code is on 1.
+    // The restore used to read the store, find 2 "already back", and leave the
+    // machine on 2 — an account the user was not on.
+    const claude = process.env.AGENTS_DECK_CLAUDE;
+    const cswap = process.env.AGENTS_DECK_CSWAP;
+    const backup = process.env.CLAUDE_SWAP_BACKUP;
+    const config = process.env.CLAUDE_CONFIG_DIR;
+    const dir = mkdtempSync(join(tmpdir(), "ccdeck-cancel-drift-"));
+    writeFileSync(join(dir, "sequence.json"),
+      JSON.stringify({ activeAccountNumber: 2, accounts: { 1: { email: "a@b.c" }, 2: { email: "d@e.f" } } }));
+    writeFileSync(join(dir, ".claude.json"), JSON.stringify({ oauthAccount: { emailAddress: "a@b.c" } }));
+    process.env.CLAUDE_SWAP_BACKUP = dir;
+    process.env.CLAUDE_CONFIG_DIR = dir;
+    process.env.AGENTS_DECK_CLAUDE = join(dir, "no-such-claude");
+    process.env.AGENTS_DECK_CSWAP = join(dir, "no-such-cswap");
+    const switches = () => ranArgs.filter(a => a[0] === "switch");
+    const nth = fakeLogin.children.length;
+    try {
+      const start = startLogin();
+      const child = await fakeLogin.child(nth);
+      child.say(`If the browser didn't open, visit: ${AUTHORIZE}`);
+      expect(await start).toMatchObject({ ok: true, state: "awaiting_code" });
+      const before = switches().length;
+      expect(await cancelLogin()).toMatchObject({ ok: true, state: "idle" });
+      expect(switches().slice(before)).toEqual([["switch", "1"]]);
+    } finally {
+      await cancelLogin();
+      for (const c of fakeLogin.children) c.end({ ok: false, killed: true });
+      if (claude === undefined) delete process.env.AGENTS_DECK_CLAUDE;
+      else process.env.AGENTS_DECK_CLAUDE = claude;
+      if (cswap === undefined) delete process.env.AGENTS_DECK_CSWAP;
+      else process.env.AGENTS_DECK_CSWAP = cswap;
+      if (backup === undefined) delete process.env.CLAUDE_SWAP_BACKUP;
+      else process.env.CLAUDE_SWAP_BACKUP = backup;
+      if (config === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = config;
       rmTempDir(dir);
     }
   });

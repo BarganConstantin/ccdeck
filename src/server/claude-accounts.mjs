@@ -59,6 +59,10 @@ import { observeOrgTelemetry } from "./org-telemetry.mjs";
 // Whether a switch target's stored login is known dead, and whether a
 // collection would read it first (#2184). Pure, and imports nothing.
 import { collectionWouldRead, deadLoginOf } from "./login-guard.mjs";
+// Which slot is active: the one Claude Code is signed in as, matched the way
+// `cswap list` matches it, rather than the number only cswap's own commands
+// move. See its header for the drift that made this a module.
+import { activeFrom, readLiveLogin } from "./claude-login.mjs";
 import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import { homedir, platform } from "node:os";
@@ -232,17 +236,12 @@ async function readJson(path) {
   }
 }
 
-/** claude-swap's sequence.json — the accounts, their order and which slot is
- *  active — or null when it is missing or will not parse. seedFirstAccount
- *  tells those two apart first, so it reads the file itself. */
+/** claude-swap's sequence.json — the accounts, their order and which slot
+ *  cswap last recorded as active (which is not always who is signed in: see
+ *  claude-login.mjs) — or null when it is missing or will not parse.
+ *  seedFirstAccount tells those two apart first, so it reads the file itself. */
 async function readSequence(root) {
   return readJson(join(root, "sequence.json"));
-}
-
-/** The slot a sequence.json names as active, as the string its `accounts` are
- *  keyed by, or null when it names none. */
-function activeSlot(seq) {
-  return seq?.activeAccountNumber != null ? String(seq.activeAccountNumber) : null;
 }
 
 /** The usage rows in claude-swap's cache/usage.json, keyed by slot — see
@@ -473,17 +472,25 @@ async function readRoster(now, gen) {
   const rows = await readUsageRows(root);
   const orgTelemetry = await observeOrgTelemetry({ seq }).catch(() => ({}));
 
+  // WHO IS ACTIVE IS WHO CLAUDE CODE IS SIGNED IN AS. sequence.json's
+  // activeAccountNumber moves only when a cswap command switches, so a
+  // `/login` made anywhere else left the panel on the previous account for
+  // good, and every decision taken from the roster — Switch, Auto-switch, the
+  // expired-login guard, the paired decks' in-use mark — with it. Read on every
+  // roster read; the stored number stands only when no login can be read.
+  const active = activeFrom(seq, await readLiveLogin());
+
   // Kick a collection for the NEXT poll if anything is due — either because
   // claude-swap's schedule says so, or because an account has never been
   // fetched at all.
-  nudgeCollector(rows, Object.keys(seq.accounts), now, seq.activeAccountNumber);
+  nudgeCollector(rows, Object.keys(seq.accounts), now, active.num);
 
   // Who the CLI says is signed in, asked ONLY when the store claims the active
   // account is in trouble — see authTrouble. That is the one case where the
   // stored verdict and the live truth can disagree, and it is rare: a healthy
   // machine never spends this subprocess. Never fatal, because a CLI that
   // cannot be reached is not evidence either way.
-  const activeNum = activeSlot(seq);
+  const activeNum = active.num;
   const activeRow = activeNum ? rows[activeNum] : null;
   const identity = (activeRow?.consecutiveFailures ?? 0) > 0
     ? await currentIdentity().catch(() => null)
@@ -505,7 +512,7 @@ async function readRoster(now, gen) {
     const row = rows[num];
     const key = accountKey(acct.email, acct.organizationUuid);
     const origin = Object.hasOwn(origins, key) ? origins[key] : null;
-    const shown = rosterRow({ seq, num, acct, row, identity, now, key, origin, telemetry: orgTelemetry[acct.organizationUuid] ?? null });
+    const shown = rosterRow({ activeNum, num, acct, row, identity, now, key, origin, telemetry: orgTelemetry[acct.organizationUuid] ?? null });
     accounts.push(shown);
     // A put-off incident is over once a read succeeds after it, and the
     // put-off goes with it (#1893) — said here, where the read is, rather than
@@ -514,7 +521,12 @@ async function readRoster(now, gen) {
   }
   tidyOrigins(origins, recovered, seq.accounts);
 
-  return finish({ ok: true, accounts, activeNum: seq.activeAccountNumber ?? null, fetchedAt: now });
+  // `unlistedLogin`: Claude Code is signed in as an account claude-swap does
+  // not hold, so no row is active and the panel says whose login it is.
+  return finish({
+    ok: true, accounts, activeNum: activeNum != null ? Number(activeNum) : null,
+    unlistedLogin: active.unlisted, fetchedAt: now,
+  });
 }
 
 /**
@@ -532,7 +544,7 @@ function observedMs(seconds) {
   return Number.isFinite(ms) && ms > 0 && Number.isFinite(new Date(ms).getTime()) ? ms : null;
 }
 
-function rosterRow({ seq, num, acct, row, identity, now, key, origin = null, telemetry = null }) {
+function rosterRow({ activeNum, num, acct, row, identity, now, key, origin = null, telemetry = null }) {
   const matches = rowIsFor(row, acct);
   const good = matches ? row.lastGood : null;
 
@@ -540,7 +552,8 @@ function rosterRow({ seq, num, acct, row, identity, now, key, origin = null, tel
   // When claude-swap last TRIED, well or not. A refusal counts against a login
   // only when it came after the deck last signed that login in (#1893).
   const attemptedAtMs = matches ? observedMs(row.lastAttemptAt) : null;
-  const isActive = String(seq.activeAccountNumber) === num;
+  // The slot Claude Code is signed in as, from readRoster (claude-login.mjs).
+  const isActive = activeNum === num;
   const trouble = authTrouble(row, {
     matches, isActive, identity, email: acct.email, fetchedAt: fetchedAtMs, now,
   });
@@ -713,12 +726,13 @@ export function authTrouble(row, {
  *
  * Returns null rather than a partial when anything about the row is unsure:
  * the caller's fallback is to fetch for itself, and a wrong number is worse
- * than a slow one.
+ * than a slow one. That includes a login claude-swap does not hold: there is
+ * no row for it, and the stored active slot's would be someone else's numbers.
  */
 export async function activeAccountUsage() {
   const root = backupRoot();
   const seq  = await readSequence(root);
-  const num  = activeSlot(seq);
+  const num  = activeFrom(seq, await readLiveLogin()).num;
   const acct = num ? seq?.accounts?.[num] : null;
   if (!acct) return null;
 
@@ -752,7 +766,7 @@ export async function requestCollection() {
   const seq   = await readSequence(root);
   if (!seq?.accounts) return false;
   const rows  = await readUsageRows(root);
-  return nudgeCollector(rows, Object.keys(seq.accounts), Date.now(), seq.activeAccountNumber);
+  return nudgeCollector(rows, Object.keys(seq.accounts), Date.now(), activeFrom(seq, await readLiveLogin()).num);
 }
 
 /**
@@ -827,7 +841,9 @@ async function switchTarget(num) {
   const acct = seq?.accounts?.[key];
   if (!acct) return null;
   const row = (await readUsageRows(root))[key];
-  return { acct, row, matches: rowIsFor(row, acct), active: activeSlot(seq) === key };
+  // Active the way cswap's switch decides "already on it": the slot Claude
+  // Code is signed in as, which is the switch that writes nothing live.
+  return { acct, row, matches: rowIsFor(row, acct), active: activeFrom(seq, await readLiveLogin()).num === key };
 }
 
 /**

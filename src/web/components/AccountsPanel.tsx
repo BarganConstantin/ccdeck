@@ -604,6 +604,22 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                 </div>
               )}
 
+              {/* SIGNED IN AS AN ACCOUNT THAT IS NOT HERE. Claude Code's live
+                  login is one claude-swap does not hold, so no row is the live
+                  one (claude-login.mjs) — said once, with the add that ends it,
+                  rather than leaving the list to look as if nobody were in. */}
+              {!activeAcct && data.unlistedLogin && (
+                <div className="ap-notice">
+                  <span className="ap-notice-text">
+                    Claude Code is signed in to <strong>{data.unlistedLogin}</strong>, which isn't in your accounts.
+                  </span>
+                  <button type="button" className="ap-notice-fix" onClick={() => setAddOpen(true)}
+                    title="Open the add dialog. Once this login is one of your accounts, the deck can switch to it and back.">
+                    Add account
+                  </button>
+                </div>
+              )}
+
               {/* A LIST, because it is one. The roster was a run of sibling divs, so
                   a reader on a screen reader had no way to learn how many accounts
                   exist or where one ends without walking every control on it — and
