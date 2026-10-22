@@ -240,6 +240,9 @@ describe("what was migrated to the secondary tier", () => {
       // the shared field's placeholder is — --muted is 4.05:1 on that fill
       // in dark.
       ".jr-label", ".jr-status", ".jr-total, .jr-estimate",
+      // And by the same bed: what is left of an estimate, inside the
+      // estimate's pill, and the board search's placeholder in its field.
+      ".jr-remaining", ".jr-search input::placeholder",
       // The GitHub and GitLab panel's sentences (#2179): why a list or a page
       // is empty, why a read failed and what to do, a note over the list, the
       // token's help in Settings, a project search that found nothing, and a
