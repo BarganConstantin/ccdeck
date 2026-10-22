@@ -27,14 +27,16 @@ import ForgeHtml, { renderForgeNodes } from "../ForgeHtml";
 import { useForge, type ForgeSelection } from "./ForgeContext";
 import { Ago, Badge, Copyable, FoldGroup, ListEnd, LoadingRows, OpenOnForge, Person, ReadFailure, StateMark, useChosenInView } from "./ForgeParts";
 import {
-  CommitRow, DetailBar, DetailFrame, DetailPending, Faces, LabelsFact, PathDir, PeopleFact, SideFact, SideFacts, useForgeNodes,
+  CommitRow, DetailFrame, DetailPending, Faces, LabelsFact, PathDir, PeopleFact, SideFact, SideFacts, useDetailBar, useForgeNodes,
 } from "./DetailParts";
 import { ThreadList } from "./DetailThreads";
+import IntegrationDetailBar from "../IntegrationDetailBar";
 
 type Selection = Extract<ForgeSelection, { type: "change" }>;
 
 export default function ChangeDetail({ selection }: { selection: Selection }) {
   const { kind, api, scope, refresh } = useForge();
+  const bar = useDetailBar();
   const words = forgeWords[kind];
   const params = { repo: selection.repo, number: selection.number };
   const read = useForgeRead<Change>(api, scope, "change", params, refresh);
@@ -54,7 +56,7 @@ export default function ChangeDetail({ selection }: { selection: Selection }) {
 
   return (
     <DetailFrame label={`${words.change} ${reference}`}>
-      <DetailBar reference={reference} copyLabel="reference" href={c?.webUrl ?? null} />
+      <IntegrationDetailBar {...bar} reference={reference} copyLabel="reference" href={c?.webUrl ?? null} />
       <DetailPending data={c} loading={read.loading} error={read.error} onRetry={read.reload} what={words.change.toLowerCase()} />
       {c && (
         <>

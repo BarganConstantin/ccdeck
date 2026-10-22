@@ -27,6 +27,7 @@ import type { ForgeTabProps } from "./ForgePanel";
 import { sameSelection, useForge, type ForgeSelection } from "./ForgeContext";
 import { Ago, Copyable, FoldGroup, ListEnd, LoadingRows, ReadFailure, StateMark } from "./ForgeParts";
 import { StateGlyph } from "./ForgeGlyphs";
+import { ExternalLinkGlyph } from "../action-glyphs";
 
 export default function BranchesTab({ view, query }: ForgeTabProps) {
   const { kind, api, scope, refresh, reportFreshness } = useForge();
@@ -132,8 +133,8 @@ function BranchRow({ kind, repo, branch: b, defaultBranch }: {
             </span>
           )
           : !b.isDefault && (
-            <a className="fg-open fgl-create" href={newChangeUrl(kind, b)} target="_blank" rel="noreferrer noopener">
-              Create {words.change.toLowerCase()} <span aria-hidden="true">↗</span>
+            <a className="ig-open fgl-create" href={newChangeUrl(kind, b)} target="_blank" rel="noreferrer noopener">
+              Create {words.change.toLowerCase()}<ExternalLinkGlyph />
             </a>
           )}
       </span>

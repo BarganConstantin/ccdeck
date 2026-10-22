@@ -7,14 +7,14 @@ import type { ForgeErrorInfo, ForgeUser } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
 import { isReader, stripScrollDelta, type Mark } from "../../forge-panel";
 import IntegrationAvatar, { IntegrationPerson } from "../IntegrationAvatar";
+import { IntegrationCopy } from "../IntegrationDetailBar";
+import { ExternalLinkGlyph } from "../action-glyphs";
 import IntegrationFailureNote from "../IntegrationFailureNote";
 import IntegrationSkeleton from "../IntegrationSkeleton";
 import { shortAgo } from "../../relative-time";
-import { copyText } from "../../copy-text";
 import { selfPressProps } from "../../panel-press";
 import type { ForgePagesState } from "../../use-forge-read";
 import { useForge } from "./ForgeContext";
-import { CheckGlyph, CopyGlyph } from "../integration-glyphs";
 import { StateGlyph } from "./ForgeGlyphs";
 
 /** A state: its mark, and its word (visually hidden when `quiet`). */
@@ -137,40 +137,25 @@ export function Ago({ at }: { at: number | null }) {
   return <time dateTime={new Date(at).toISOString()} title={new Date(at).toLocaleString()}>{shortAgo(Date.now() - at)}</time>;
 }
 
-/** A value with a copy button beside it (a branch name, a sha, a key). */
+/** A value with the integrations' shared copy button beside it (a branch
+ *  name, a sha). */
 export function Copyable({ value, label, children }: { value: string; label: string; children?: ReactNode }) {
-  const [done, setDone] = useState(false);
-  useEffect(() => {
-    if (!done) return;
-    const t = window.setTimeout(() => setDone(false), 1500);
-    return () => window.clearTimeout(t);
-  }, [done]);
   return (
     <span className="fg-copyable">
       {children ?? <code>{value}</code>}
-      <button
-        type="button"
-        className="fg-copy"
-        aria-label={done ? `${label} copied` : `Copy ${label}`}
-        title={done ? "Copied" : `Copy ${label}`}
-        onClick={event => {
-          event.stopPropagation();
-          void copyText(value).then(ok => setDone(!!ok));
-        }}
-      >
-        {done ? <CheckGlyph /> : <CopyGlyph />}
-      </button>
+      <IntegrationCopy value={value} label={label} />
     </span>
   );
 }
 
-/** A link out to the forge's own page for something. */
+/** A link out to the forge's own page for something, drawn as the detail
+ *  bar's "Open in …" is. */
 export function OpenOnForge({ href, children }: { href: string | null; children?: ReactNode }) {
   const { kind } = useForge();
   if (!href) return null;
   return (
-    <a className="fg-open" href={href} target="_blank" rel="noreferrer noopener">
-      {children ?? `Open in ${kind === "github" ? "GitHub" : "GitLab"}`} <span aria-hidden="true">↗</span>
+    <a className="ig-open" href={href} target="_blank" rel="noreferrer noopener">
+      {children ?? `Open in ${forgeWords[kind].name}`}<ExternalLinkGlyph />
     </a>
   );
 }

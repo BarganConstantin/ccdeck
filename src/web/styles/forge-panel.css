@@ -90,14 +90,8 @@
 .fg-panel .ig-failure[data-kind][data-stale] { margin-top: 8px; }
 .fg-more { margin-top: 12px; }
 
-/* Values to copy, links out. */
+/* A value with its copy button (the shared IntegrationCopy). */
 .fg-copyable { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
-.fg-copy { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--muted); font: inherit; cursor: pointer; flex: none; transition: background 120ms, color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
-.fg-copy:hover { background: var(--ctl-fill); color: var(--text); }
-/* A glyph in a 24px box: the icon-sized press. */
-.fg-copy:active { transform: scale(0.94); }
-.fg-open { color: var(--accent); text-decoration: none; white-space: nowrap; font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.fg-open:hover { text-decoration: underline; }
 
 /* A forge's rendered description (ForgeHtml.tsx), on the page's 13px. Its
    headings and code take steps on the deck's type ladder rather than the
@@ -147,5 +141,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .fg-row, .fg-fold-chevron { transition: none; }
-  .fg-row:active, .fg-fold:active, .fg-copy:active { transform: none; }
+  .fg-row:active, .fg-fold:active { transform: none; }
 }

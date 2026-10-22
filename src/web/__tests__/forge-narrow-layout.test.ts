@@ -103,9 +103,18 @@ describe("a phone's first screen goes to the list", () => {
 });
 
 describe("an item page's top line", () => {
-  it("lets the path give way and keeps the number whole", () => {
-    expect(decls(detail, ".fd-ref-path")).toMatch(/min-width: 0;.*overflow: hidden;.*text-overflow: ellipsis/);
-    expect(decls(detail, ".fd-ref-number")).toMatch(/flex: none/);
+  it("is the integrations' shared bar, spanning exactly the page's own side padding at every width", () => {
+    // The bar (IntegrationDetailBar) runs edge to edge by --ig-detail-pad; a
+    // page that pads otherwise than it says would leave the bar short or over.
+    const side = (body: string) => /(?:^|; )padding: \S+ (\d+px)/.exec(decls(body, ".fd"))?.[1];
+    const wide = topLevel(detail);
+    expect(side(wide)).toBe("20px");
+    expect(decls(wide, ".fd")).toContain(`--ig-detail-pad: ${side(wide)}`);
+    const phone = blocks(detail, "@media (max-width: 640px)").join("\n");
+    expect(side(phone)).toBe("16px");
+    expect(decls(phone, ".fd")).toContain(`--ig-detail-pad: ${side(phone)}`);
+    // No bar of the panel's own is left beside it.
+    expect(detail).not.toMatch(/\.fd-(?:bar|ref|close)\b/);
   });
 });
 

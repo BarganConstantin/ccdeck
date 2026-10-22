@@ -12,19 +12,21 @@ import { changeFromRef, changeReference, shortRef, sourceWords } from "../../for
 import { useForgeRead } from "../../use-forge-read";
 import { useForge, type ForgeSelection } from "./ForgeContext";
 import { Ago, Badge, Copyable, Person, ReadFailure, StateMark } from "./ForgeParts";
-import { DetailBar, DetailFrame, DetailHeading, DetailPending } from "./DetailParts";
+import { DetailFrame, DetailHeading, DetailPending, useDetailBar } from "./DetailParts";
 import { JobStages } from "./DetailJobs";
+import IntegrationDetailBar from "../IntegrationDetailBar";
 
 type Selection = Extract<ForgeSelection, { type: "pipeline" }>;
 
 export default function PipelineDetail({ selection }: { selection: Selection }) {
   const { kind, api, scope, refresh } = useForge();
+  const bar = useDetailBar();
   const words = forgeWords[kind];
   const read = useForgeRead<Pipeline>(api, scope, "pipeline", { repo: selection.repo, id: selection.id }, refresh);
   const p = read.data;
   return (
     <DetailFrame label={`${words.pipeline} #${selection.id}`}>
-      <DetailBar reference={`${selection.repo} #${selection.id}`} copyValue={selection.id} copyLabel={`${words.pipeline.toLowerCase()} id`} href={p?.webUrl ?? null} />
+      <IntegrationDetailBar {...bar} reference={`${selection.repo} #${selection.id}`} copyValue={selection.id} copyLabel={`${words.pipeline.toLowerCase()} id`} href={p?.webUrl ?? null} />
       <DetailPending data={p} loading={read.loading} error={read.error} onRetry={read.reload} what={words.pipeline.toLowerCase()} />
       {p && (
         <>

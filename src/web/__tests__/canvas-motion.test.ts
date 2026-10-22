@@ -470,13 +470,12 @@ const PRESSES: Press[] = [
   [".jr-link-btn:active", "0.97", "transform"],
   // The GitHub and GitLab panel (#2179): a list's row, a group's or a stage's
   // fold, a project in the picker and a link to another item on a page are
-  // labelled controls, 0.97; the copy button beside a value is a glyph in a
-  // 24px box, 0.94.
+  // labelled controls, 0.97. The copy button beside a value is the
+  // integrations' shared one, a .glyph-btn, and presses as one (0.94, above).
   [".fg-row:active", "0.97", "transform"],
   [".fg-fold:active", "0.97", "transform"],
   [".fgl-repo-option:active", "0.97", "transform"],
   [".fd-jump:active", "0.97", "transform"],
-  [".fg-copy:active", "0.94", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */

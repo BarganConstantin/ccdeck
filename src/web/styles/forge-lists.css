@@ -96,7 +96,7 @@
 .fgl-hit { position: absolute; inset: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: pointer; }
 .fgl-hit:focus-visible { outline-offset: -2px; border-radius: 0; }
 .fgl-branch > :not(.fgl-hit) { position: relative; pointer-events: none; }
-.fgl-branch .fg-copy, .fgl-branch .fgl-create { pointer-events: auto; }
+.fgl-branch .ig-copy, .fgl-branch .fgl-create { pointer-events: auto; }
 .fgl-branch-name { grid-area: name; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .fgl-branch-name .fg-copyable { min-width: 0; max-width: 100%; }
 .fgl-branch-code { min-width: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; color: var(--text); overflow-wrap: anywhere; }
@@ -203,7 +203,7 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
   .fgl-controls button.btn.fgl-sort, .fgl-controls button.btn.fgl-scope-trigger { min-height: 40px; min-width: 40px; }
   button.btn.fgl-repo-trigger { min-height: 40px; }
   .fgl-repo-option { min-height: 44px; }
-  .fgl-branch .fg-copy { width: 32px; height: 32px; }
+  .fgl-branch .ig-copy { width: 32px; height: 32px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .fgl-branch { transition: none; }

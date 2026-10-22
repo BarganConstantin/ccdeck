@@ -279,7 +279,7 @@ describe("the Branches tab", () => {
   it("shows the merge request's badge, or the way to create one", () => {
     expect(html).toContain("<code>!12</code> Draft");
     expect(html).toContain('href="https://gitlab.example.com/acme/web/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2Fsearch"');
-    expect(html).toMatch(/<a class="fg-open fgl-create" href="[^"]+" target="_blank" rel="noreferrer noopener">Create merge request/);
+    expect(html).toMatch(/<a class="ig-open fgl-create" href="[^"]+" target="_blank" rel="noreferrer noopener">Create merge request<svg/);
   });
 
   it("writes behind | ahead with GitLab's cap, and the pipeline as a mark and a word", () => {

@@ -8,24 +8,12 @@
    column) once the pane is wide enough to read both, the side column as a
    compact block above the page when it is not, and the section switch as four
    equal cells when the pane is phone-narrow. */
-.fd { container: fd / inline-size; min-width: 0; padding: 12px 20px 40px; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); }
+.fd { container: fd / inline-size; min-width: 0; padding: 12px 20px 40px; --ig-detail-pad: 20px; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); }
 .fd code { font-family: var(--font-mono); }
 
-/* The top line: the reference to copy, the link out, Close. It stays at the
-   top of the host's pane while the page scrolls under it, on the pane's own
-   --panel and across the page's side padding; the 4px it gains above and
-   below are given back by its margins, so at rest nothing moves. */
-.fd-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 12px; min-height: 32px; margin: -4px -20px; padding: 4px 20px; background: var(--panel); }
-.fd-ref { flex: 1; min-width: 0; display: flex; }
-.fd-ref .fg-copyable { min-width: 0; max-width: 100%; }
-/* Only the path gives way on a narrow pane; the sigil and number after it
-   are what people quote, so they keep their width. The path keeps its spaces
-   ("acme/web #1482231"). */
-.fd-ref code { display: inline-flex; min-width: 0; white-space: nowrap; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.fd-ref-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
-.fd-ref-number { flex: none; }
-.fd-bar-end { display: inline-flex; align-items: center; gap: 10px; flex: none; }
-.fd-close { width: 32px; height: 32px; padding: 0; margin: 0 -6px 0 0; }
+/* The top line is the integrations' shared detail bar (IntegrationDetailBar
+   in integrations.css), which spans the page's side padding: --ig-detail-pad
+   on .fd says how wide that is. */
 
 /* The head: title, then the byline with its state, then the status lines. */
 .fd-head { margin-top: 8px; }
@@ -255,8 +243,7 @@ button.btn.fd-show-comments { margin-top: 8px; }
 }
 
 @media (max-width: 640px) {
-  .fd { padding: 10px 16px 32px; }
-  .fd-bar { margin-inline: -16px; padding-inline: 16px; }
+  .fd { padding: 10px 16px 32px; --ig-detail-pad: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

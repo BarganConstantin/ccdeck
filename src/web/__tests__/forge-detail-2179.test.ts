@@ -23,7 +23,7 @@ import { forgeReadPath, keepRead } from "../forge-panel";
 import {
   annotationMark, approvalWords, changeFromRef, changeReference, changeRunsWord, changeSections, changeStateMark, commitsWords, fileStatusWord,
   issueMark, jobMark, jobStartsOpen, labelColor, labelParts, logLineTone, MANY_JOBS, namesWords, newChangeUrl, nextLogLines,
-  nodesWithoutDraftPrefix, pathParts, pipelineIdFromUrl, referenceParts, shortRef, sourceWords, splitDiscussions, stageMark, stagesOf, stageStartsOpen,
+  nodesWithoutDraftPrefix, pathParts, pipelineIdFromUrl, shortRef, sourceWords, splitDiscussions, stageMark, stagesOf, stageStartsOpen,
   stageState, threadPlace, withoutDraftPrefix,
 } from "../forge-detail";
 import { ForgeProvider, type ForgeContextValue, type ForgeSelection } from "../components/forge/ForgeContext";
@@ -76,14 +76,6 @@ function change(over: Partial<ChangeDetail> = {}): ChangeDetail {
 describe("references", () => {
   it("writes a change the way its forge does", () => {
     expect(changeReference("gitlab", "acme/web", 12)).toBe("acme/web!12");
-  });
-
-  it("splits a reference into the path that may be cut and the number that may not", () => {
-    expect(referenceParts("platform/payments/checkout-service!5144")).toEqual({ path: "platform/payments/checkout-service", number: "!5144" });
-    expect(referenceParts("acme/web#463")).toEqual({ path: "acme/web", number: "#463" });
-    expect(referenceParts("acme/web #1482231")).toEqual({ path: "acme/web ", number: "#1482231" });
-    expect(referenceParts("acme/web")).toEqual({ path: "acme/web", number: null });
-    expect(referenceParts("#12")).toEqual({ path: "#12", number: null });
     expect(changeReference("github", "acme/web", 12)).toBe("acme/web#12");
   });
 
@@ -347,8 +339,10 @@ describe("the change page", () => {
     keep("change", { repo: "acme/web", number: 12 }, change());
     const html = page(createElement(ChangeDetailPage, { selection: sel }));
     const words = text(html);
-    // The path may give way on a narrow pane; the number it ends on never does.
-    expect(html).toContain('<code title="acme/web!12"><span class="fd-ref-path">acme/web</span><span class="fd-ref-number">!12</span></code>');
+    // The integrations' shared top line: the path may give way on a narrow
+    // pane, the number it ends on never does.
+    expect(html).toContain('<code class="ig-ref-text" title="acme/web!12"><span class="ig-ref-path">acme/web</span><span class="ig-ref-num">!12</span></code>');
+    expect(html).toMatch(/<a class="ig-open" href="https:\/\/gitlab\.example\.com\/[^"]*" target="_blank" rel="noreferrer noopener">Open in GitLab<svg/);
     expect(words).toContain("Add the login page");
     expect(words).not.toContain("Draft: Add");
     expect(words).toContain("Draft");

@@ -1,5 +1,5 @@
 // What the four GitHub/GitLab item pages share (#2179): the frame that holds
-// one, its top bar (the reference to copy, the link out, Close), the states a
+// one, what its top bar (the integrations' shared one) takes, the states a
 // read can be in before there is anything to draw, the side column of facts,
 // a label chip, a commit row, a fold kept in the page's own state, and the
 // forge's HTML parsed once per answer.
@@ -9,18 +9,11 @@
 // `.fd`) rather than the window.
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ForgeCommit, ForgeErrorInfo, ForgeLabel, ForgeUser } from "../../forge-types";
+import { forgeWords } from "../../forge-types";
 import { parseForgeHtml, type ForgeNode } from "../../forge-html";
-import { labelColor, labelParts, referenceParts } from "../../forge-detail";
+import { labelColor, labelParts } from "../../forge-detail";
 import { useForge } from "./ForgeContext";
-import { Ago, Copyable, LoadingRows, OpenOnForge, Person, ReadFailure } from "./ForgeParts";
-
-function CloseGlyph() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  );
-}
+import { Ago, Copyable, LoadingRows, Person, ReadFailure } from "./ForgeParts";
 
 /** A file's folder, quiet, with a line break allowed after each slash, so a
  *  long path wraps between folders rather than inside one. */
@@ -49,31 +42,12 @@ export function DetailFrame({ label, children }: { label: string; children: Reac
   return <article ref={ref} className="fd" aria-label={label} tabIndex={-1}>{children}</article>;
 }
 
-/** The page's top line: what it is (copyable), where it lives on the forge,
- *  and Close — which a narrow window replaces with the host's Back. On a
- *  narrow pane the path gives way and the number stays: "platform/pay…!5144". */
-export function DetailBar({ reference, copyValue, copyLabel, href }: {
-  reference: string; copyValue?: string; copyLabel: string; href: string | null;
-}) {
-  const { select, narrow } = useForge();
-  const { path, number } = referenceParts(reference);
-  return (
-    <div className="fd-bar">
-      <span className="fd-ref">
-        <Copyable value={copyValue ?? reference} label={copyLabel}>
-          <code title={reference}><span className="fd-ref-path">{path}</span>{number && <span className="fd-ref-number">{number}</span>}</code>
-        </Copyable>
-      </span>
-      <span className="fd-bar-end">
-        <OpenOnForge href={href} />
-        {!narrow && (
-          <button type="button" className="glyph-btn fd-close" aria-label="Close details" title="Close" onClick={() => select(null)}>
-            <CloseGlyph />
-          </button>
-        )}
-      </span>
-    </div>
-  );
+/** What every page hands the integrations' shared detail bar besides its
+ *  reference: the forge's name for "Open in …", whether the host's Back
+ *  stands in for Close on a narrow window, and Close itself. */
+export function useDetailBar(): { openLabel: string; narrow: boolean; onClose: () => void } {
+  const { kind, narrow, select } = useForge();
+  return { openLabel: `Open in ${forgeWords[kind].name}`, narrow, onClose: () => select(null) };
 }
 
 /** Before there is anything to draw: loading, a failure, or an item that is

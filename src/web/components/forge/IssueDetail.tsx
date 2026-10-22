@@ -12,20 +12,22 @@ import ForgeHtml, { renderForgeNodes } from "../ForgeHtml";
 import { useForge, type ForgeSelection } from "./ForgeContext";
 import { Ago, Badge, ListEnd, LoadingRows, Person, ReadFailure, StateMark } from "./ForgeParts";
 import {
-  DetailBar, DetailFrame, DetailHeading, DetailPending, LabelsFact, PeopleFact, SideFact, SideFacts, useForgeNodes,
+  DetailFrame, DetailHeading, DetailPending, LabelsFact, PeopleFact, SideFact, SideFacts, useDetailBar, useForgeNodes,
 } from "./DetailParts";
 import { Comment } from "./DetailThreads";
+import IntegrationDetailBar from "../IntegrationDetailBar";
 
 type Selection = Extract<ForgeSelection, { type: "issue" }>;
 
 export default function IssueDetail({ selection }: { selection: Selection }) {
   const { api, scope, refresh } = useForge();
+  const bar = useDetailBar();
   const read = useForgeRead<Issue>(api, scope, "issue", { repo: selection.repo, number: selection.number }, refresh);
   const issue = read.data;
   const reference = issue?.key ?? `${selection.repo}#${selection.number}`;
   return (
     <DetailFrame label={`Issue ${reference}`}>
-      <DetailBar reference={reference} copyLabel="reference" href={issue?.webUrl ?? null} />
+      <IntegrationDetailBar {...bar} reference={reference} copyLabel="reference" href={issue?.webUrl ?? null} />
       <DetailPending data={issue} loading={read.loading} error={read.error} onRetry={read.reload} what="issue" />
       {issue && (
         <>
