@@ -89,7 +89,7 @@ export interface FaceSignal {
  * a face cannot call a session stuck that the chip beside it calls fine. A turn
  * that stopped on an error is next: it is on you too, a "continue" away. A
  * finished turn waiting for its next prompt is next, quietly. Then failures,
- * then what the branch is doing, then the step of its plan the card is on,
+ * then the step of its plan the card is on, then what the branch is doing,
  * then what the card itself is doing right now.
  * Nothing at all when none of those is true: a quiet card is a quiet face.
  *
@@ -130,18 +130,25 @@ export function faceSignal(
       short: `${failed} failed`,
     };
   }
-  if (branch && branch.total > 0) return { tone: "muted", long: branchLong(branch), short: branchShort(branch) };
   // The step of its own plan a running card is on (#2157), ahead of the call it
   // has open: the call changes every few seconds and says HOW, the step holds
   // for minutes and says WHAT — which is the question a board seen from a
   // distance is asked. Only while it runs, and only with a step to name: a
   // finished list is history, and the full card says it.
+  //
+  // And ahead of the branch. A session that keeps a plan is the one that fans
+  // out, so with the branch first a planning root's face said "3 subagents"
+  // for the whole run and its plan was on no surface a fitted board draws —
+  // the report was "release notes mentioned the agent's plan and progress but
+  // I don't see it anywhere". The branch is still on the cluster pill and in
+  // the subagents' own tiles beside this one.
   if (data.state === "active") {
     const plan = planSummary(data.plan);
     if (plan && plan.current && !plan.allDone) {
       return { tone: "muted", long: planLine(plan), short: `${plan.done}/${plan.total} done` };
     }
   }
+  if (branch && branch.total > 0) return { tone: "muted", long: branchLong(branch), short: branchShort(branch) };
   // The newest call still open, when the card is running one: the line a
   // bubble would have carried, now that the bubbles are not drawn.
   if (data.state === "active") {

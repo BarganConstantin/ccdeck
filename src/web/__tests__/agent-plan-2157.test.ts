@@ -13,7 +13,8 @@ import { applyEvent, initialState, type GraphState } from "../reducer";
 import type { AgentNodeData, HookEnvelope, HookPayload } from "../types";
 import { planLine, planSpoken, planSummary } from "../agent-plan";
 import { buildRows } from "../components/SessionList";
-import { faceSignal } from "../node-face";
+import { faceSignal, type BranchSummary } from "../node-face";
+import { clusterBounds } from "../cluster-bounds";
 import { agentAriaLabel } from "../agent-copy";
 import { MAX_TOOLS_PER_AGENT } from "../tool-calls";
 
@@ -273,6 +274,51 @@ describe("what the surfaces say", () => {
     send(s, { hook_event_name: "PostToolUse", tool_name: "Edit", tool_use_id: "open-edit", tool_response: {} });
     send(s, { hook_event_name: "Stop" } as Partial<HookPayload>);
     expect(faceSignal(root(s), undefined, words)).toBeNull();
+  });
+});
+
+describe("a plan a fitted board can read", () => {
+  // The report on 3.43.1: "Release notes mentioned visualization of the
+  // agent's plan and progress but I don't see it anywhere." The plan row is on
+  // the full card only, and a session that plans is the session that fans out
+  // — so the fit framed it at a face, and the face said "3 subagents".
+  const words = { sayWaiting: () => "", describeCall: () => ({ name: "Edit" }) };
+  const branch: BranchSummary = { total: 3, live: 3, done: 0, err: 0, failed: 0 };
+
+  function planning(): GraphState {
+    const s = board();
+    create(s, 1, "Reproduce the failing tests", "Reproducing the failing tests");
+    create(s, 2, "Fix the parser");
+    update(s, 1, { status: "in_progress" });
+    return s;
+  }
+
+  it("puts the step on a running root's face ahead of its subagents", () => {
+    expect(faceSignal(root(planning()), branch, words)).toEqual({
+      tone: "muted", long: "0/2 · Reproducing the failing tests", short: "0/2 done",
+    });
+  });
+
+  it("gives the subagents the face back once the plan is finished", () => {
+    const s = planning();
+    update(s, 1, { status: "completed" });
+    update(s, 2, { status: "completed" });
+    expect(faceSignal(root(s), branch, words)).toMatchObject({ short: "→ 3 · 3 live" });
+  });
+
+  it("carries the count on the session pill, which is drawn at every zoom", () => {
+    const s = planning();
+    const card = { type: "agent", position: { x: 0, y: 0 }, width: 240, height: 130 };
+    const [c] = clusterBounds([{ ...card, data: root(s) }]);
+    expect(c.plan).toBe("plan 0/2");
+    expect(c.title.split("\n")[0]).toBe("repo · plan 0/2 · Reproducing the failing tests");
+  });
+
+  it("leaves the pill as it was for a session that keeps no list", () => {
+    const s = board();
+    const [c] = clusterBounds([{ type: "agent", position: { x: 0, y: 0 }, width: 240, height: 130, data: root(s) }]);
+    expect(c.plan).toBeUndefined();
+    expect(c.title.split("\n")[0]).toBe("repo");
   });
 });
 

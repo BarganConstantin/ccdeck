@@ -212,6 +212,11 @@ export default function SessionClusters({ onFocusSession }: { onFocusSession?: (
                 separator lives inside the span so the two leave together.
                 The tooltip keeps all three fields. */}
             {c.label}
+            {/* The plan's count (#2157), first after the address: what the
+                session is FOR, and the one surface that still reads it once
+                the root card has shrunk to a face. Hidden at `detail`, where
+                the card's own plan row says it. */}
+            {c.plan ? <span className="cluster-label-plan">{SEP + c.plan}</span> : null}
             {/* The branch, between the address and the description: it is
                 about what the session is doing now, and at a distance that
                 is the question the pill is being read for. The sheet shows it
