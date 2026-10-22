@@ -20,6 +20,7 @@ import type { BoardSnapshot, GroupData } from "../use-jira-board";
 import { connectionHost } from "../integrations/client";
 import IntegrationAvatar from "./IntegrationAvatar";
 import IntegrationFailureNote from "./IntegrationFailureNote";
+import IntegrationSkeleton from "./IntegrationSkeleton";
 import { Chevron, EpicChip, Estimate, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
 
 export interface JiraBacklogProps {
@@ -325,7 +326,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                     onRetry={() => onRetryGroup(def)} onReconnect={onReconnect} />
                 )}
                 {(!data || data.status === "idle" || (data.status === "loading" && data.issues.length === 0)) && (
-                  <div className="jr-skeleton jr-skeleton-rows" role="status" aria-label={`Reading ${def.title}`}><i /><i /><i /></div>
+                  <IntegrationSkeleton label={`Reading ${def.title}`} rows={3} />
                 )}
                 {loaded && rows.length === 0 && (
                   <p className="jr-empty-group">

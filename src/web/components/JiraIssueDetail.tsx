@@ -13,6 +13,7 @@ import { useJiraIssue } from "../use-jira-board";
 import { connectionHost } from "../integrations/client";
 import IntegrationAvatar from "./IntegrationAvatar";
 import IntegrationFailureNote from "./IntegrationFailureNote";
+import IntegrationSkeleton from "./IntegrationSkeleton";
 import { EpicChip, ExternalGlyph, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
 
 export interface JiraIssueDetailProps {
@@ -102,7 +103,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
       {error && <IntegrationFailureNote error={error} provider="Jira" host={connectionHost(conn)} stale={Boolean(issue)} onRetry={reload} onReconnect={onReconnect} />}
 
       {!issue && loading && (
-        <div className="jr-skeleton" role="status" aria-label={`Reading ${key}`}><i /><i /><i /><i /></div>
+        <IntegrationSkeleton label={`Reading ${key}`} rows={4} variant="lines" />
       )}
 
       {issue && (

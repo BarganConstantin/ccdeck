@@ -20,6 +20,7 @@ import { failureOf, useJiraBoard } from "../use-jira-board";
 import AnchoredPopover from "./AnchoredPopover";
 import IntegrationFreshness from "./IntegrationFreshness";
 import IntegrationSearch from "./IntegrationSearch";
+import IntegrationSkeleton from "./IntegrationSkeleton";
 import IntegrationSplit from "./IntegrationSplit";
 import JiraBacklog from "./JiraBacklog";
 import JiraIssueDetail from "./JiraIssueDetail";
@@ -226,7 +227,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       );
     }
     if (!overview) {
-      return <div className="jr-skeleton jr-skeleton-board" role="status" aria-label="Reading the board"><i /><i /><i /><i /><i /><i /></div>;
+      return <IntegrationSkeleton label="Reading the board" rows={6} />;
     }
     return (
       <>

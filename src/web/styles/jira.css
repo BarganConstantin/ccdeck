@@ -363,13 +363,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-state .ig-failure { align-self: stretch; }
 .jr-panel .ig-failure[data-stale] { margin-bottom: 12px; }
 .jr-panel .jr-group-body > .ig-failure { margin: 8px; }
-.jr-skeleton { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
-.jr-skeleton i { display: block; height: 14px; border-radius: var(--r-tag); background: var(--ctl-fill); animation: ta-pulse 900ms ease-in-out infinite alternate; }
-.jr-skeleton i:nth-child(3n + 2) { width: 72%; }
-.jr-skeleton i:nth-child(3n) { width: 48%; }
-.jr-skeleton-board { padding: 0; gap: 12px; }
-.jr-skeleton-board i { height: 34px; border-radius: var(--r-panel); }
-.jr-skeleton-rows i { height: 18px; }
 
 /* ── an issue ────────────────────────────────────────────────────────────── */
 .jr-detail { min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 16px 20px 32px; }
@@ -513,7 +506,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   .jr-board-item:hover:not([aria-current="true"]), .jr-detail-sub:hover, .jr-group-toggle:hover { background: transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .jr-skeleton i { animation: none; }
   .jr-chevron, .jr-open { transition: none; }
   .jr-board-item:active, .jr-crumb:active, .jr-detail-sub:active, .jr-group-toggle:active,
   .jr-link-btn:active, .jr-row-main:active, .jr-toggle:active { transform: none; }
