@@ -27,11 +27,21 @@
 // it never counts as signed out.
 //
 // WHERE IT GOES. An account claude-swap can still use, not disabled, under the
-// threshold the tick ran with: the freshest reading first, then the most
-// headroom. A reading can be old — claude-swap collects idle accounts on its
-// own schedule — and an old reading is still better than staying on a login
-// that cannot answer at all; once the new account is active, the engine reads
-// it and moves on by its own rules if it is full.
+// threshold the tick ran with, and not one of the two the deck's own rules
+// never land on either: set aside by claude-swap's engine (its refresh token is
+// dead, the very thing being left) or in use by a local `cswap run` session.
+// The freshest reading first, then the most headroom. A reading can be old —
+// claude-swap collects idle accounts on its own schedule — and an old reading
+// is still better than staying on a login that cannot answer at all; once the
+// new account is active, the engine reads it and moves on by its own rules if
+// it is full.
+//
+// AND THE DECK'S RULES. With a home or the weekly rule set, the loop answers a
+// tick inside their cooldown without running the engine — except for an
+// emergency, and an active account the engine could not read is one: it is
+// the only way this failover hears of a dead login. The move it makes is
+// recorded as the tick's (noteEngineTick), so the rules do not mistake it for
+// a switch made by hand.
 //
 // HOW OFTEN. Once per FAILOVER_COOLDOWN_MS. A target whose login dies too is
 // found the same way a tick later, and the wait keeps that from becoming a walk
@@ -61,11 +71,15 @@ export function deadActiveRow(accounts) {
   return active;
 }
 
-/** The accounts a failover may land on, best first. */
-export function failoverTargets(accounts, threshold) {
+/** The accounts a failover may land on, best first. `held` is the slots no
+ *  move may land on whatever the rule (cswap-auto-choice.mjs slotsHeldBack):
+ *  ones claude-swap's engine set aside, and ones a local `cswap run` session
+ *  is using — the same two the deck's own rules skip. */
+export function failoverTargets(accounts, threshold, held = new Set()) {
   const limit = typeof threshold === "number" && Number.isFinite(threshold) ? threshold : 90;
   return (Array.isArray(accounts) ? accounts : [])
     .filter(a => a && !a.active && !a.disabled && a.alive === true && !a.staleCopy && !a.stopped
+      && !held.has(a.num)
       && typeof a.headroom === "number" && 100 - a.headroom < limit)
     .sort((a, b) => Number(a.stale === true) - Number(b.stale === true) || b.headroom - a.headroom);
 }
@@ -83,6 +97,8 @@ const refOf = a => ({ number: a.num, email: a.email ?? "" });
  *
  * `before` runs inside the store lock, ahead of the switch, so the loop can
  * stand down if it was turned off or a terminal engine started meanwhile.
+ * `heldBack(accounts)` names the slots no move may land on (failoverTargets);
+ * one it cannot read holds nothing back.
  */
 export async function failOver(tick, {
   lastAt = null,
@@ -91,6 +107,7 @@ export async function failOver(tick, {
   roster = () => fetchClaudeAccounts({ force: true }),
   signIn = cliSignIn,
   switchTo = switchClaudeAccount,
+  heldBack = async () => new Set(),
 } = {}) {
   if (!engineLostActive(tick)) return null;
   const read = await roster().catch(() => null);
@@ -103,7 +120,8 @@ export async function failOver(tick, {
   if (lastAt != null && now - lastAt < FAILOVER_COOLDOWN_MS) {
     return { event: "no-switch", reason: LOGIN_EXPIRED, detail: "waiting after the last switch away from an expired login", from };
   }
-  const [target] = failoverTargets(read.accounts, tick.threshold);
+  const held = await Promise.resolve().then(() => heldBack(read.accounts)).catch(() => null);
+  const [target] = failoverTargets(read.accounts, tick.threshold, held instanceof Set ? held : new Set());
   if (!target) {
     // `stuck`: the one answer the notifier says, and the panel shows.
     return { event: "no-switch", reason: LOGIN_EXPIRED, detail: "no other account is ready", stuck: true, from };

@@ -23,10 +23,10 @@ import { withStoreLock } from "./store-lock.mjs";
 import { connectEarlyTick, noteAutoSwitch, noteAutoTick } from "./account-watch.mjs";
 // The owner's two rules — a home account, and the soonest weekly reset — asked
 // before the engine, inside the same lock. With neither set, nothing.
-import { chooseBeforeEngine, forgetPicksByHand, noteEngineTick } from "./cswap-auto-choice.mjs";
+import { chooseBeforeEngine, forgetPicksByHand, noteEngineTick, slotsHeldBack } from "./cswap-auto-choice.mjs";
 // The one decision the engine cannot reach under `--once`: leaving an active
 // account whose login has died. See its header.
-import { failOver } from "./autoswitch-failover.mjs";
+import { engineLostActive, failOver } from "./autoswitch-failover.mjs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -126,9 +126,13 @@ async function runAutoTick() {
       // A deck-managed `cswap switch` does not advance the engine's own
       // lastSwitchAt. Its fallback must keep our cooldown too, or a manual
       // return to the full account can immediately escape the weekly rule
-      // through the engine's most-room choice. Still allow emergency exits.
+      // through the engine's most-room choice. Still allow emergency exits:
+      // the engine's own at-limit and failover, and an active account it could
+      // not read, which may be a login that has died — the deck's failover
+      // judges that one after the tick (autoswitch-failover.mjs).
       const decision = summarise(preview.stdout);
-      if (Date.now() < chose.cooldownUntil && decision.trigger !== "at-limit" && decision.trigger !== "failover") {
+      if (Date.now() < chose.cooldownUntil && decision.trigger !== "at-limit" && decision.trigger !== "failover"
+        && !engineLostActive({ ok: true, ...decision })) {
         return { chose: {
           ok: true, ...decision, event: "no-switch", switched: false,
           trigger: null, reason: "cooldown", from: null, to: null,
@@ -139,6 +143,7 @@ async function runAutoTick() {
     const out = await run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS });
     return { ...out, accounts: chose.accounts };
   });
+  _ruleAccounts = r.accounts ?? null;
   if (r.skipped) return { event: "skipped", reason: r.skipped };
   if (r.chose) return r.chose;
   // A KILLED RUN IS NOT A QUIET ONE. `run`'s timeout path deliberately keeps an
@@ -166,6 +171,9 @@ let _lastTick = null;
 let _enabled  = false;
 // When the deck last switched away from a dead login, for failOver's cooldown.
 let _lastFailoverAt = null;
+// The roster the home/weekly rules decided on in this tick, or null when none
+// is set: the failover's move is a tick's, and noteEngineTick records it so.
+let _ruleAccounts = null;
 // Set the instant startLoop is entered and cleared when it settles, because
 // `_timer` cannot do that job: it is assigned AFTER an await, and the window in
 // between is what #537 was. See startLoop.
@@ -262,10 +270,16 @@ async function runTick() {
   const failover = await failOver(result, {
     lastAt: _lastFailoverAt,
     before: async () => (!_enabled ? "disabled" : (await externalAutoRunning()) ? "external-engine" : null),
+    heldBack: slotsHeldBack,
   }).catch(() => null);
   if (failover) {
     result = { ...result, ...failover };
-    if (failover.switched) _lastFailoverAt = Date.now();
+    if (failover.switched) {
+      _lastFailoverAt = Date.now();
+      // Where the failover left the user is a tick's pick, not one made by
+      // hand, so the home/weekly rules and their cooldown go on from it.
+      await noteEngineTick(result, _ruleAccounts).catch(() => {});
+    }
   }
   // Before `_lastTick`, not after. This is the only path in the deck that moves
   // the live account without a click behind it, so nothing else is in a position

@@ -95,6 +95,12 @@ describe("where a failover may land", () => {
     expect(failoverTargets([row(3, { headroom: 25 })], 70)).toEqual([]);
     expect(failoverTargets([row(3, { headroom: 15 })], undefined).map(t => t.num)).toEqual([3]);
   });
+
+  it("is never a slot held back: set aside by claude-swap, or in use by a `cswap run` session", () => {
+    const rows = [DEAD, row(3, { headroom: 80 }), row(4, { headroom: 40 }), row(5, { headroom: 20 })];
+    expect(failoverTargets(rows, 90, new Set([3, 5])).map(t => t.num)).toEqual([4]);
+    expect(failoverTargets(rows, 90).map(t => t.num)).toEqual([3, 4, 5]);
+  });
 });
 
 describe("failing over", () => {
@@ -149,6 +155,26 @@ describe("failing over", () => {
       from: { number: 2, email: "a2@x.com" },
     });
     expect(switchTo).not.toHaveBeenCalled();
+  });
+
+  it("asks which slots are held back, and lands past them or says it is stuck", async () => {
+    const accounts = [DEAD, row(3, { headroom: 80 }), row(4, { headroom: 40 })];
+    const passed = deps({ accounts });
+    const heldBack = vi.fn(async (_rows: unknown) => new Set([3]));
+    expect(await failOver(lost(), { ...passed.opts, heldBack })).toMatchObject({ switched: true, to: { number: 4 } });
+    expect(heldBack).toHaveBeenCalledWith(accounts);
+    const stuck = deps({ accounts });
+    expect(await failOver(lost(), { ...stuck.opts, heldBack: async () => new Set([3, 4]) }))
+      .toMatchObject({ event: "no-switch", reason: "login-expired", stuck: true });
+    expect(stuck.switchTo).not.toHaveBeenCalled();
+  });
+
+  it("holds nothing back when it cannot tell which slots are held, rather than staying on a dead login", async () => {
+    const accounts = [DEAD, row(3, { headroom: 80 }), row(4, { headroom: 40 })];
+    for (const heldBack of [async () => { throw new Error("EIO"); }, async () => null, () => { throw new Error("sync"); }]) {
+      const { opts } = deps({ accounts });
+      expect(await failOver(lost(), { ...opts, heldBack: heldBack as never })).toMatchObject({ switched: true, to: { number: 3 } });
+    }
   });
 
   it("waits out the cooldown after its last failover, so dead targets are not walked through in a minute", async () => {
