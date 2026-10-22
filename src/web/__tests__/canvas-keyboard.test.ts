@@ -419,6 +419,9 @@ describe("nothing else in the deck invents a focus stop", () => {
     // pointer's twin of ArrowRight/ArrowLeft on the row itself, so it is not
     // a second stop; an issue's heading takes focus when its detail opens in
     // place of the list on a narrow window, the way Tool activity's does.
+    // The GitHub and GitLab lists (#2179) are one tab stop too, but the stop
+    // is moved from script on the rows as drawn (useRovingRows in
+    // forge/ForgeParts.tsx), so their markup carries no tabIndex at all.
     // The GitHub and GitLab panel's project picker (#2179) is the same
     // combobox shape again: focus stays in its search field and the options
     // are reached through aria-activedescendant (forge/RepoPicker.tsx). Its
