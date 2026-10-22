@@ -32,6 +32,17 @@ vi.mock("node:child_process", async importOriginal => {
   return { ...real, ...wrapped, default: { ...real, ...wrapped } };
 });
 
+// The deck's machine samplers start with the server and run for the life of the
+// process: on Windows the thermal one starts PowerShell and asks a local
+// LibreHardwareMonitor over fetch every ten seconds, and the network one runs
+// netstat. Counted here, they would land in whichever window was open. They are
+// not the integrations, so they are held off; the rest of system-metrics.mjs
+// stays real.
+vi.mock("../../server/system-metrics.mjs", async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  startSystemMetrics: () => {},
+}));
+
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-integrations-off-"));
 process.env.HOME = DIR;
 process.env.USERPROFILE = DIR;
