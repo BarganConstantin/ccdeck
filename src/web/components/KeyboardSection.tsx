@@ -13,6 +13,7 @@
 // does or by the key — the way Raycast's and VS Code's shortcut pages are
 // searched — because forty rows are a list somebody scans for one line.
 import { useId, useState } from "react";
+import { kindOffered, useIntegrations } from "../integrations/client";
 import { KEY_HELP_NOTE, keyHelpFor, type KeyHelpRow } from "../key-help";
 import { isEscapeKey } from "../modal-dismiss";
 import { isApplePlatform, platformName } from "../platform";
@@ -46,7 +47,8 @@ export default function KeyboardSection({ singleKeys, onToggleSingleKeys }: Prop
   const apple = isApplePlatform(platformName());
   const [query, setQuery] = useState("");
   const filterId = useId();
-  const groups = keyHelpFor(singleKeys)
+  const integrations = useIntegrations();
+  const groups = keyHelpFor(singleKeys, kind => kindOffered(integrations, kind))
     .map(group => ({ ...group, rows: group.rows.filter(row => shortcutMatches(row, query)) }))
     .filter(group => group.rows.length > 0);
 

@@ -1,0 +1,183 @@
+/* The GitHub and GitLab panel's tabs (#2179): Branches, Merge requests / Pull
+   requests, Pipelines / Actions, Issues, and the project picker above them.
+   The shared pieces — fg-rows, fg-row, fg-meta, fg-mark, fg-badge, fg-group —
+   are in forge-panel.css; this file lays the four kinds of row out and adds
+   what only a list needs.
+
+   A ROW ANSWERS TO ITS LIST'S WIDTH, NOT THE WINDOW'S. The list is a column
+   beside the open item at 1440px and the whole screen on a phone, so the
+   breakpoints are container queries on .fgl: two lines with the facts on the
+   right when there is room, and the facts on a line of their own when not. */
+.fgl { container: fgl / inline-size; }
+.fgl > .fg-group:first-child { margin-top: 4px; }
+.fgl-flat { margin-top: 10px; }
+.fgl-flat > .fg-rows { margin-top: 0; }
+.fgl-group-note { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; }
+.fgl-group-empty { margin: 6px 0 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
+
+/* ── the filters over a list ─────────────────────────────────────────────
+   The deck's own segmented strip (.uh-range), its chosen segment on the
+   accent as everywhere else, with each segment's count beside its word. A
+   segment is 24px so the strip stands at the control height, level with the
+   sort button beside it. */
+.fgl-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.fgl-seg { flex: none; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.fgl-seg .uh-range-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; white-space: nowrap; }
+.fgl-seg-count { font-variant-numeric: tabular-nums; }
+.fgl-controls button.btn.fgl-sort { gap: 6px; padding: 0 10px; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.fgl-controls-note { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+
+/* ── a row: title and facts on top, meta and time under it ───────────────── */
+.fg-row.fgl-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title side" "meta when"; gap: 3px 16px; }
+.fgl-row > .fgl-title { grid-area: title; }
+.fgl-row > .fgl-side { grid-area: side; justify-self: end; }
+.fgl-row > .fgl-meta { grid-area: meta; }
+.fgl-row > .fgl-when { grid-area: when; justify-self: end; }
+.fgl-title { line-height: 1.4; }
+.fgl-title > .fg-badge { margin-right: 6px; vertical-align: 1px; }
+.fgl-side { display: inline-flex; align-items: center; gap: 12px; min-width: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); white-space: nowrap; }
+.fgl-side:empty { display: none; }
+.fgl-when { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fgl-meta { font-variant-numeric: tabular-nums; }
+.fgl-meta .fgl-repo-ref { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.fgl-dot { color: var(--muted); }
+
+/* Labels: the forge's colour is a dot beside the name — data drawn small, so
+   a label coloured like a state never reads as one. */
+.fgl-labels { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 8px; vertical-align: 1px; }
+.fgl-label { display: inline-flex; align-items: center; gap: 5px; max-width: 24ch; padding: 0 8px 0 6px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 999px; font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 18px; color: var(--text-secondary); white-space: nowrap; }
+.fgl-label-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fgl-label-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 18%, transparent); }
+
+/* People, comments, child items. */
+.fgl-people { display: inline-flex; align-items: center; gap: 3px; }
+.fgl-people-more { margin-left: 2px; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.fgl-reviewer { position: relative; display: inline-flex; }
+.fgl-reviewer-mark { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; background: var(--panel); font-size: 9px; font-weight: 700; line-height: 1; color: var(--muted); }
+.fgl-reviewer[data-tone="ok"] .fgl-reviewer-mark { color: var(--ok); }
+.fgl-reviewer[data-tone="bad"] .fgl-reviewer-mark { color: var(--err); }
+.fgl-comments, .fgl-children { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; color: var(--muted); }
+
+/* ── Pipelines: status first, as GitLab's table has it ───────────────────── */
+.fg-row.fgl-pipeline { grid-template-columns: 8.5em minmax(0, 1fr) auto; grid-template-areas: "status title side" "duration meta when"; }
+.fgl-pipeline > .fgl-status { grid-area: status; min-width: 0; }
+.fgl-pipeline > .fgl-duration { grid-area: duration; }
+.fgl-duration { min-width: 0; color: var(--muted); font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fgl-duration:empty { visibility: hidden; }
+.fgl-pipeline .fgl-meta { display: block; }
+.fgl-ref-glyph { vertical-align: -2px; margin-right: 4px; color: var(--muted); }
+.fgl-pipeline .fgl-title-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ── Branches: one stretched button under the row, two controls above it ──
+   Three widths. Wide: name and commit, then the stats (behind | ahead and the
+   pipeline, fixed widths so they line up down the list), then the merge
+   request. Beside an open item: the merge request over the stats on the
+   right. Narrow: everything under the name. */
+.fg-rows > li.fgl-branch {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) auto minmax(10.5em, auto);
+  grid-template-areas: "name stats change" "commit stats change";
+  gap: 3px 20px;
+  align-items: center;
+  min-height: 48px;
+  padding: 8px 14px;
+  box-sizing: border-box;
+  transition: background 120ms;
+}
+.fgl-branch:hover, .fgl-branch[data-selected] { background: var(--ctl-fill); }
+.fgl-hit { position: absolute; inset: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: pointer; }
+.fgl-hit:focus-visible { outline-offset: -2px; border-radius: 0; }
+.fgl-branch > :not(.fgl-hit) { position: relative; pointer-events: none; }
+.fgl-branch .fg-copy, .fgl-branch .fgl-create { pointer-events: auto; }
+.fgl-branch-name { grid-area: name; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.fgl-branch-name .fg-copyable { min-width: 0; max-width: 100%; }
+.fgl-branch-code { min-width: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; color: var(--text); overflow-wrap: anywhere; }
+.fgl-branch[data-selected] .fgl-branch-code { font-weight: 600; }
+.fgl-branch-name .fg-badge { padding: 0 6px; line-height: 16px; }
+.fgl-commit { grid-area: commit; display: flex; align-items: baseline; gap: 6px; }
+.fgl-commit > * { flex: none; }
+.fgl-commit > .fgl-commit-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fgl-stats { grid-area: stats; display: grid; grid-template-columns: calc(8ch + 14px) 6.5em; align-items: center; gap: 12px; }
+.fgl-diverge { display: grid; grid-template-columns: 1fr 1px 1fr; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.fgl-behind { text-align: right; }
+.fgl-diverge-rule { height: 14px; background: var(--line); }
+.fgl-ci { min-width: 0; }
+.fgl-branch-change { grid-area: change; justify-self: end; min-width: 0; }
+.fgl-create { display: inline-flex; gap: 4px; padding: 4px 0; }
+
+/* ── the project picker ──────────────────────────────────────────────────── */
+/* The span is the popover's width, so the end-aligned popover starts under
+   the button (RepoPicker.tsx); the button inside it is only as wide as its words. */
+.fgl-repo { --fgl-pop-w: min(400px, calc(100vw - 24px)); display: inline-flex; flex: 0 1 auto; width: var(--fgl-pop-w); min-width: 0; }
+/* The button is the deck's .btn; this only lays its words out and keeps it
+   filled while its list is open. */
+button.btn.fgl-repo-trigger { justify-content: flex-start; gap: 8px; min-width: 0; max-width: 100%; padding: 0 10px; box-sizing: border-box; }
+button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill); }
+.fgl-glyph, .fgl-chevron { flex: none; color: var(--muted); }
+.fgl-repo-trigger[aria-expanded="true"] .fgl-chevron { transform: rotate(180deg); }
+.fgl-repo-path { display: inline-flex; min-width: 0; overflow: hidden; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); white-space: nowrap; }
+.fgl-repo-group { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary); }
+.fgl-repo-name { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: var(--text); }
+.fgl-repo-all { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+
+.fgl-repo-pop { width: var(--fgl-pop-w); padding: 6px; display: flex; flex-direction: column; overflow: hidden; }
+.fgl-repo-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.fgl-repo-search { display: flex; align-items: center; gap: 8px; flex: none; padding: 2px 6px 8px; border-bottom: 1px solid var(--line); }
+/* The field is the deck's text field (.ap-manage-input); this only sizes it. */
+.fgl-repo-search input { flex: 1; box-sizing: border-box; }
+.fgl-repo-scroll { flex: 1 1 auto; min-height: 0; max-height: min(380px, 52dvh); overflow-y: auto; overscroll-behavior: contain; padding: 4px 0 2px; }
+.fgl-repo-scroll .fg-loading { margin-top: 4px; gap: 6px; }
+.fgl-repo-scroll .fg-loading i { height: 32px; }
+.fgl-repo-scroll .fg-failure { margin: 4px 2px; }
+.fgl-repo-scroll .fg-more { width: 100%; margin-top: 4px; }
+.fgl-repo-options { display: grid; gap: 1px; }
+.fgl-repo-option { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 14px; align-items: center; gap: 8px; min-height: 38px; padding: 5px 8px; box-sizing: border-box; border: 0; border-radius: var(--r-ctl); background: none; color: var(--text); text-align: left; font: inherit; cursor: pointer; transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fgl-repo-option[data-active="true"] { background: var(--ctl-fill); }
+.fgl-repo-option:active { transform: scale(0.97); }
+.fgl-repo-option-text { display: flex; flex-direction: column; min-width: 0; }
+.fgl-repo-option-name, .fgl-repo-option-group { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fgl-repo-option-name { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; }
+.fgl-repo-option[aria-selected="true"] .fgl-repo-option-name { font-weight: 600; }
+.fgl-repo-option-group { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-secondary); }
+.fgl-repo-option-when { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fgl-repo-check { display: inline-flex; color: var(--accent); }
+.fgl-repo-none { margin: 10px 8px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
+
+/* ── a narrow list ───────────────────────────────────────────────────────── */
+@container fgl (max-width: 820px) {
+  .fg-rows > li.fgl-branch { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name change" "commit stats"; column-gap: 16px; }
+  .fgl-branch-change, .fgl-stats { justify-self: end; }
+}
+@container fgl (max-width: 520px) {
+  .fg-rows > li.fgl-branch { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name name" "commit commit" "stats change"; row-gap: 4px; }
+  .fgl-stats { justify-self: start; display: flex; gap: 14px; }
+  .fgl-stats[data-empty], .fgl-diverge[data-empty] { display: none; }
+  .fgl-branch:has(.fgl-stats[data-empty]) { grid-template-areas: "name name" "commit commit" "change change"; }
+}
+@container fgl (max-width: 520px) {
+  .fg-row.fgl-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title title" "meta meta" "side when"; }
+  .fgl-row > .fgl-side { justify-self: start; }
+  .fg-row.fgl-pipeline { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "status duration when" "title title title" "meta meta meta"; }
+  .fgl-pipeline > .fgl-side { display: none; }
+  .fgl-labels { margin-left: 0; display: flex; margin-top: 4px; }
+}
+/* A phone's list: the status line keeps the status and the duration, and the
+   time says only how long ago. */
+@container fgl (max-width: 300px) {
+  .fgl-pipeline .fgl-when-verb { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+@media (max-width: 420px) {
+  .fgl-repo-trigger > .fgl-glyph { display: none; }
+}
+
+@media (pointer: coarse) {
+  .fgl-seg .uh-range-btn { min-height: 34px; }
+  .fgl-controls button.btn.fgl-sort { min-height: 40px; }
+  button.btn.fgl-repo-trigger { min-height: 40px; }
+  .fgl-repo-option { min-height: 44px; }
+  .fgl-branch .fg-copy { width: 32px; height: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fgl-branch { transition: none; }
+  .fgl-repo-option:active { transform: none; }
+}

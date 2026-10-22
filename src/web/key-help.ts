@@ -30,6 +30,7 @@
 // `binds` is the honest half. It is the literal `e.key` values App.tsx compares
 // against, not a pretty spelling, because the test that keeps this table
 // complete has to compare like with like.
+import type { IntegrationKind } from "./integrations/types";
 import { isCharacterKey } from "./single-key-shortcuts";
 
 /** One line of the sheet: what you press, and what happens. */
@@ -56,6 +57,10 @@ export interface KeyHelpRow {
    *  character (","), but a chord is not a single-key shortcut, so the row
    *  stays on the sheet when those are turned off. */
   chord?: boolean;
+  /** The integration a row opens. The row is on the sheet only where the deck
+   *  offers that kind (integrations/client.ts, kindOffered): a deck that
+   *  offers none answers no such key. */
+  integration?: IntegrationKind;
 }
 
 export interface KeyHelpGroup {
@@ -107,6 +112,9 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // #826: the three topbar panels that were pointer-only.
       { cap: "S", action: "this machine — cores, memory, temperature", binds: ["s", "S"] },
       { cap: "B", action: "Browser Watch", binds: ["b", "B"] },
+      // Drawn once a Jira connection exists (#2178); the key does nothing before.
+      // On the sheet only where the deck offers Jira (keyHelpFor).
+      { cap: "I", action: "Jira, once it is connected in Settings › Integrations", binds: ["i", "I"], integration: "jira" },
       { cap: "?", action: "this sheet", binds: ["?"] },
     ],
   },
@@ -159,15 +167,19 @@ const SINGLE_KEY_ASIDE = / \([A-Z?]\)/g;
 /** The sheet as it stands with the single-key shortcuts off (Settings ›
  *  Keyboard, WCAG 2.1.4): only the rows that still do something — the chord,
  *  the named keys and the mouse — with a group that loses every row left out
- *  rather than drawn as an empty heading. With them on, the whole table. */
-export function keyHelpFor(singleKeys: boolean): readonly KeyHelpGroup[] {
-  if (singleKeys) return KEY_HELP;
+ *  rather than drawn as an empty heading. With them on, the whole table.
+ *  Either way less an integration's row where the deck does not offer its
+ *  kind (`offered`; every kind when it is not said). */
+export function keyHelpFor(singleKeys: boolean, offered: (kind: IntegrationKind) => boolean = () => true): readonly KeyHelpGroup[] {
+  const drawn = (row: KeyHelpRow) => row.integration === undefined || offered(row.integration);
+  if (singleKeys && KEY_HELP.every(group => group.rows.every(drawn))) return KEY_HELP;
   return KEY_HELP
     .map(group => ({
       ...group,
       rows: group.rows
-        .filter(row => row.chord || !row.binds.some(isCharacterKey))
-        .map(row => ({ ...row, action: row.action.replace(SINGLE_KEY_ASIDE, "") })),
+        .filter(drawn)
+        .filter(row => singleKeys || row.chord || !row.binds.some(isCharacterKey))
+        .map(row => (singleKeys ? row : { ...row, action: row.action.replace(SINGLE_KEY_ASIDE, "") })),
     }))
     .filter(group => group.rows.length > 0);
 }

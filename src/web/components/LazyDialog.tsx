@@ -21,15 +21,17 @@ interface Closable {
 }
 
 /** React.lazy over `load`, settling on a note naming `name` when the import
- *  fails, rather than on the error. */
+ *  fails, rather than on the error. A dialog that is one of several kinds (a
+ *  tracker's modal) names itself from its props. */
 export function lazyDialog<P extends Closable>(
   load: () => Promise<{ default: ComponentType<P> }>,
-  name: string,
+  name: string | ((props: P) => string),
 ) {
+  const nameOf = (props: P) => (typeof name === "string" ? name : name(props));
   return lazy(() =>
     load().catch((err: unknown) => {
-      console.warn(`ccdeck could not load ${name}`, err);
-      return { default: ({ onClose }: P) => <DialogDidNotLoad name={name} onClose={onClose} /> };
+      console.warn(`ccdeck could not load ${typeof name === "string" ? name : "a dialog"}`, err);
+      return { default: (props: P) => <DialogDidNotLoad name={nameOf(props)} onClose={props.onClose} /> };
     }),
   );
 }

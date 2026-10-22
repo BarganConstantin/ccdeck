@@ -147,6 +147,10 @@
   .react-flow__controls-button[aria-pressed="true"],
   .react-flow__controls-button[aria-pressed="true"]:hover,
   .aa-tab.on { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  /* The GitHub and GitLab panel's tabs and a change's sections are the same
+     chip, chosen by aria-selected because they are tabs (#2179). */
+  .fg-tabs .uh-range-btn[aria-selected="true"],
+  .fd-sections .uh-range-btn[aria-selected="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
   /* The sign-in's rings and stage marks carry where a sign-in is in their
      colour as well as their shape, so they are redrawn in system colours: the
      turning arc and the current stage in the highlight, a finished or failed
@@ -307,4 +311,12 @@
   .ta-row[data-selected], .ta-highlight[aria-expanded=true] { outline: 1px solid Highlight; }
   .ta-splitter::before { forced-color-adjust: none; background: CanvasText; }
   .ta-splitter:hover::before, .ta-splitter:focus-visible::before { background: Highlight; }
+
+  /* A tracker's panel (#2178): the line between the list and an issue in
+     system ink like Tool activity's, and the open issue and a pressed filter
+     outlined, since their fills are gone. */
+  .ig-splitter::before { forced-color-adjust: none; background: CanvasText; }
+  .ig-splitter:hover::before, .ig-splitter:focus-visible::before { background: Highlight; }
+  .jr-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
+  button.btn.jr-chip[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
 }
