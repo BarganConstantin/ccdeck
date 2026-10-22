@@ -180,7 +180,13 @@ phone. Three views keep configuration, observed traffic and saved files separate
   the list. Filter by session, destination or message type, then select a message for its
   readable overview or decoded **JSON**. Session attribution comes from IDs in
   the captured payload; absent IDs remain unidentified, and an export containing
-  multiple session IDs is shown under each matching session.
+  multiple session IDs is shown under each matching session. **With prompt**
+  narrows the list to exports carrying prompt fields, redacted ones included,
+  and their rows preview the exported text. The overview leads with what an
+  export holds — error, prompt, response, project, tool, model, tokens, cost —
+  and keeps the rest under **All record fields**; the JSON tree can be searched
+  and collapsed. Drag the divider, or focus it and use the arrow keys, to size
+  the list.
 - **Configuration** shows configured destinations, telemetry/content flags and
   their sources. Enabled flags are highlighted and recognized boolean values
   are shown as written. These are settings-file evidence, not confirmation of a
@@ -248,6 +254,13 @@ Closing the modal or browser does not stop capture. Only the opt-in and collecto
 destinations are saved, never packet contents, tokens or decoded messages.
 Capture contents are available through the local loopback UI, not LAN endpoints.
 Local clients of the same server share its capture.
+
+**Automatic monitoring** is off unless you turn it on in **Settings → Radar →
+Monitor automatically**. On, ccdeck finds the collector itself — from Claude's
+settings, a monitor you started, or an active IPv4 OTLP/gRPC connection on port
+4317 — monitors it without Radar open, and retries every five seconds while
+none is available; Monitor then hides Start and the destination picker. Off
+stops it, and nothing is looked for or retried.
 
 Configuration and connection sampling runs only while Radar is open and the
 browser page is visible. A connection does not prove an upload, and absence of
@@ -327,7 +340,7 @@ Opening Radio asks the public [Radio Browser](https://www.radio-browser.info/) d
 
 It never steers an agent or edits your code, but it is not read-only either — besides the hook entry and its own event log, it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does. It also reads your browser's history, because Browser Watch is on unless you switch it off; that is its own section below, because it is the one thing here that is about you rather than about an agent.
 
-Telemetry Radar's flag switches write to `~/.claude/settings.json` too: each puts the flag you set — `CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_LOG_USER_PROMPTS` and the other telemetry and content flags Radar lists — in that file's `env` block, as `"1"` or `"0"`. Switching a flag off writes `"0"` rather than removing it, and `--uninstall`, which removes ccdeck's hook entries, leaves these values as you set them. Starting Radar's monitoring writes `~/.agents-deck/radar-monitor-<port>.json`: the opt-in and the destinations a deck on that port resumes, never packets or decoded messages. And the quota readings the deck takes are kept in `quota-history.json`, in its data directory (see [Uninstall](#uninstall)), for 35 days and up to 2 MB, under a hash of the account rather than its address, for the Usage panel's quota history.
+Telemetry Radar's flag switches write to `~/.claude/settings.json` too: each puts the flag you set — `CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_LOG_USER_PROMPTS` and the other telemetry and content flags Radar lists — in that file's `env` block, as `"1"` or `"0"`. Switching a flag off writes `"0"` rather than removing it, and `--uninstall`, which removes ccdeck's hook entries, leaves these values as you set them. Starting Radar's monitoring writes `~/.agents-deck/radar-monitor-<port>.json`: the opt-in and the destinations a deck on that port resumes, never packets or decoded messages; turning on automatic monitoring writes `radar-settings-<port>.json` beside it, the switch and the collectors it found. And the quota readings the deck takes are kept in `quota-history.json`, in its data directory (see [Uninstall](#uninstall)), for 35 days and up to 2 MB, under a hash of the account rather than its address, for the Usage panel's quota history.
 
 Tool activity keeps its history in `tool-audit/`, in the same data directory: a file a day with a line per tool call — Claude Code or Codex, when it started and ended, whether it failed, and the tool's name or, for a shell command, its operation (`git push`, `npm run build`) — and a `settings.json` holding how long to keep it, when it started counting, and a random id for this device that nothing sends anywhere. The rest of a command line, the tool's arguments and output, paths and session ids are not saved, and nothing in the folder leaves the machine. It keeps 90 days unless you pick 30 or 60 under **Keep history** in **Settings › Data › Tool history**, which also shows the space it takes and has **Clear history…**; older days are deleted as they fall out. `--no-persist` does not stop it — that flag is about the events log — and `--uninstall` leaves it, `--purge` too (see [Uninstall](#uninstall)).
 
@@ -608,8 +621,10 @@ platform's **data** directory, and the platform's **log** directory.
 `prefs.json` is the one to delete deliberately: it holds this deck's **Local
 network private key**, the one every deck you paired with has pinned. Leaving it
 behind leaves that identity on the machine. (`~/.agents-deck/` holds the managed
-tools and the deck's records about them, and `radar-monitor-<port>.json` once
-Telemetry Radar has monitored — the destinations it resumes — but no key.)
+tools and the deck's records about them, `radar-monitor-<port>.json` once
+Telemetry Radar has monitored — the destinations it resumes — and
+`radar-settings-<port>.json` once its automatic monitoring has been switched,
+but no key.)
 
 The data directory also holds Tool activity's `tool-audit/` folder — up to 90
 days of which tools and commands your agents ran, and how long they took — and
