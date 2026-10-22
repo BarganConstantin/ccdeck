@@ -169,6 +169,8 @@
   .up-period .uh-range-btn[aria-pressed="true"],
   .up-period .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: auto; background: transparent; }
   .up-period .uh-range-btn[aria-pressed="true"]::after { forced-color-adjust: none; background: Highlight; }
+  /* Tool activity's open tab is marked the same way, by the bar under its word. */
+  .ta-view[aria-selected=true]::after { forced-color-adjust: none; background: Highlight; }
   /* Every session row's edge is repainted in the text colour, the chosen
      one's accent with them: it takes the highlight, twice as heavy. The edge
      is a term in the row's side padding, so the words stay put, and what it

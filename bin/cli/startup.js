@@ -216,6 +216,19 @@ export async function reportStartup(jobs, { workspace, wantClaude, wantCodex, CO
     process.exit(1);
   } else {
     write(row({ mark: G.ok, label: "Claude hooks", detail: fileLink(hooks.v.hookPath) }));
+    // Skill activity's typed-command entry, said only when it was asked for
+    // (AGENTS_DECK_SKILL_HOOK=1): installed, or why not. Not asked for, the
+    // boot prints what it always printed. See skill-hook.mjs.
+    const skill = hooks.v.skillHook;
+    if (skill && skill.state !== "off") {
+      const { skillHookStatus } = await import(pathToFileURL(join(PKG_ROOT, "src/server/skill-hook.mjs")).href);
+      const said = skillHookStatus(skill, G.dash);
+      if (said) {
+        write(row(said.ok
+          ? { mark: G.ok, label: "Skill hook", detail: said.detail }
+          : { mark: G.warn, tone: P.warn, label: "Skill hook", detail: said.detail, keep: true }));
+      }
+    }
   }
 
   // Codex CLI hooks never fire on Windows (sandbox refuses to spawn the hook

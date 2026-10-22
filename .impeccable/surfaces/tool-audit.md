@@ -81,3 +81,23 @@ No row stagger, counters, chart entrances or new dependencies are added.
 Reduced motion disables these spatial effects. The mobile sheet retains its
 existing arrival and focus handling. All report controls remain usable during
 transitions.
+
+## Skills tab — 2026-10-19 (#2181)
+
+Owner direction: skill usage beside Tool activity, for both Claude and Codex.
+Source: `SkillActivity.tsx`, `SkillInspector.tsx`, `src/web/skill-activity.ts`;
+the server side is `tool-audit-skills.mjs` and `codex-skills.mjs`.
+
+- A Tools | Skills tablist in the header switches views under the same filters;
+  the open tab is a fill bar under its word, never a border. Opening the modal
+  shows Tools, as before.
+- The Skills view is the Tools view's grammar again — summary sentence, one
+  list, details beside it — so nothing new has to be learned. Its thesis: which
+  skills ran, how often, how lately.
+- Repeats (`/loop` ticks) are named in the sentence and on the row, never
+  counted as uses. A period that starts before counting did says so instead of
+  showing quiet days as unused.
+- A latest use links to its session only while that session is on the canvas;
+  otherwise it says "not on the canvas" rather than linking to nothing.
+- The Tools view's `Skill` row offers "See which skills ran →", since the row
+  alone cannot say which.

@@ -6,7 +6,7 @@
 // running server still sees both CLIs. Re-runs are safe; entries are tagged
 // with __agent-dag and de-duped.
 import { hookRuntime } from "./app-host.mjs";
-import { readFile, mkdir } from "node:fs/promises";
+import { readFile, mkdir, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,7 +17,10 @@ import { CODEX_HOME } from "./codex-dir.mjs";
 import { shellQuoteArg } from "./exec.mjs";
 // The read-before-rewrite and the atomic replace every settings writer goes
 // through — see atomic-write.mjs.
-import { readSettingsForWrite, writeFileAtomic } from "./atomic-write.mjs";
+import { readSettingsForWrite, writeFileAtomic, createTemp, renameWithRetry } from "./atomic-write.mjs";
+// Skill activity's typed-command entry, its opt-in and its version gate — see
+// skill-hook.mjs for why it is not in CLAUDE_EVENTS.
+import { USER_PROMPT_EXPANSION, skillHookDecision } from "./skill-hook.mjs";
 // The discovery dir every deck registers in and every hook reads — see
 // discovery.mjs, which keeps this deck's record there.
 import { AGENT_DAG_DIR } from "./discovery.mjs";
@@ -84,6 +87,9 @@ const PROVIDERS = {
     hookInstallDir: join(CLAUDE_DIR, "agent-dag"),
     events: CLAUDE_EVENTS,
     versioned: VERSIONED_CLAUDE_EVENTS,
+    // UserPromptExpansion, for Skill activity (#2181): opt-in, and gated on
+    // every Claude Code found being 2.1.116 or newer (skill-hook.mjs).
+    skillHook: true,
     ensureDir: CLAUDE_DIR,
   },
   // Uninstall-only. Codex hooks do not fire reliably on Windows, so the deck
@@ -370,10 +376,82 @@ async function soundHookRetirement(provider, cfg, current) {
   return { retire, completeSoundHookRetirement };
 }
 
+/**
+ * Where the settings.json bytes from before the UserPromptExpansion entry was
+ * first added are kept: beside hook.js, in the directory that is ours. Written
+ * once per enabling — the pass that adds the entry where none of ours was —
+ * with mode 0600, because settings.json can hold API keys in its `env`.
+ * `--uninstall` leaves it, as it leaves hook.js: it is the user's own data.
+ */
+export const SKILL_HOOK_BACKUP = "settings.before-skill-hook.json";
+
+/** Whether a group list holds a forwarder of ours. */
+function holdsOurs(groups) {
+  return Array.isArray(groups) && groups.some(isOurEntry);
+}
+
+/** Whether the entry can be added without guessing: `hooks` absent or a plain
+ *  object, and any UserPromptExpansion already there a list. Anything else is
+ *  a file shaped in a way this deck did not write and Claude Code may not read,
+ *  and adding to it is not a decision to take on the user's behalf. */
+function skillHookFits(settings) {
+  const hooks = settings.hooks;
+  if (hooks === undefined) return true;
+  if (!hooks || typeof hooks !== "object" || Array.isArray(hooks)) return false;
+  const now = hooks[USER_PROMPT_EXPANSION];
+  return now === undefined || Array.isArray(now);
+}
+
+/** The backup, through a temp file and a rename like every settings write,
+ *  created 0600 and kept 0600. */
+async function writeBackup(path, text) {
+  const { tmp, handle } = await createTemp(path, { mode: 0o600 });
+  try {
+    try {
+      await handle.writeFile(text, "utf8");
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await renameWithRetry(tmp, path);
+  } catch (err) {
+    await unlink(tmp).catch(() => {});
+    throw err;
+  }
+}
+
+/**
+ * Whether this pass adds Skill activity's entry: the gate's decision
+ * (skill-hook.mjs), then two refusals of the installer's own — a settings file
+ * whose hooks are not in a shape to add to, and a backup that could not be
+ * written. Either leaves the entry out; neither stops the rest of the install.
+ * `options` is the suite's: skillHookDecision's options, in place of this
+ * machine's environment and disk.
+ */
+async function decideSkillHook(options, settings, before, backupPath) {
+  const decision = await skillHookDecision(options ?? {});
+  if (!decision.install) return decision;
+  if (!skillHookFits(settings)) return { ...decision, install: false, state: "skipped", reason: "settings-shape" };
+  // The bytes the write is about to replace, kept before anything is changed,
+  // the first time the entry goes in. Nothing to keep when there was no file.
+  if (before !== null && !holdsOurs(settings.hooks?.[USER_PROMPT_EXPANSION])) {
+    try {
+      await writeBackup(backupPath, before);
+    } catch {
+      return { ...decision, install: false, state: "skipped", reason: "backup-failed" };
+    }
+    return { ...decision, backup: backupPath };
+  }
+  return decision;
+}
+
 /** Install hooks for a single provider. Returns {settingsPath, hookPath, events, changed}.
  *  `claudeVersions` is the suite's: the Claude Code versions to gate the
- *  versioned events on, in place of the ones on this machine's disk. */
-export async function installHooks({ provider = "claude", beforeWrite = null, claudeVersions = null } = {}) {
+ *  versioned events on, in place of the ones on this machine's disk.
+ *  `skillHook` is the suite's too: skillHookDecision's options (the opt-in,
+ *  the installs found, the probe), in place of this machine's. The answer
+ *  carries the decision as `skillHook` for the claude provider. */
+export async function installHooks({ provider = "claude", beforeWrite = null, claudeVersions = null, skillHook = null } = {}) {
   const cfg = PROVIDERS[provider];
   if (!cfg) throw new Error(`unknown provider: ${provider}`);
   // An uninstall-only provider has no event list. Saying so beats the
@@ -393,22 +471,35 @@ export async function installHooks({ provider = "claude", beforeWrite = null, cl
   // Discovery dir is shared across providers — always make sure it exists.
   await ensureDir(AGENT_DAG_DIR);
 
+  // Decided before `hooks` is touched, so the shape check sees the file as read.
+  const skill = cfg.skillHook
+    ? await decideSkillHook(skillHook, current, before, join(cfg.hookInstallDir, SKILL_HOOK_BACKUP))
+    : null;
+
   current.hooks = current.hooks ?? {};
 
   const versioned = cfg.versioned ?? [];
   const known = versioned.length ? eventsKnownTo(claudeVersions ?? claudeCodeVersions(), versioned) : [];
+  if (skill?.install) known.push(USER_PROMPT_EXPANSION);
+  // Every event whose entry is ours only while a gate says so.
+  const gated = [...versioned.map(v => v.event), ...(skill ? [USER_PROMPT_EXPANSION] : [])];
   const events = [...cfg.events, ...known];
   for (const evt of events) {
     const cleaned = dedupeOurEntries(current.hooks[evt]);
     cleaned.push(buildHookEntry(command));
     current.hooks[evt] = cleaned;
   }
-  // A versioned event this machine's Claude Code does not know loses our entry,
-  // and the key goes with it when nothing of the user's is left under it: that
-  // key is the thing an older Claude Code cannot read.
-  for (const { event } of versioned) {
-    if (known.includes(event) || !Object.hasOwn(current.hooks, event)) continue;
-    const cleaned = dedupeOurEntries(current.hooks[event]);
+  // A gated event this machine's Claude Code does not know — or, for Skill
+  // activity's, one nobody asked for — loses our entry, and the key goes with
+  // it when nothing of the user's is left under it: that key is the thing an
+  // older Claude Code cannot read.
+  // A value under that key that is not a list, or a list with nothing of ours
+  // in it, is left exactly as it is: it is not this deck's to delete.
+  for (const event of gated) {
+    const was = current.hooks[event];
+    if (known.includes(event) || !Array.isArray(was)) continue;
+    const cleaned = dedupeOurEntries(was);
+    if (cleaned.length === was.length && cleaned.every((g, i) => g === was[i])) continue;
     if (cleaned.length === 0) delete current.hooks[event];
     else current.hooks[event] = cleaned;
   }
@@ -471,6 +562,8 @@ export async function installHooks({ provider = "claude", beforeWrite = null, cl
       return {
         settingsPath: cfg.settingsPath, hookPath, events, provider,
         changed: false, raced: true, retire: { ...retire, pending: false },
+        // Nothing was written, so an entry decided on is not on disk.
+        ...(skill ? { skillHook: skill.install ? { ...skill, install: false, state: "skipped", reason: "raced" } : skill } : {}),
       };
     }
     await writeFileAtomic(cfg.settingsPath, next);
@@ -479,7 +572,7 @@ export async function installHooks({ provider = "claude", beforeWrite = null, cl
   // is what a live session's cached command still names until the new entry is
   // on disk, and deleting it early turns a stale sound into a missing module.
   if (retire.pending) await completeSoundHookRetirement(retire, current);
-  return { settingsPath: cfg.settingsPath, hookPath, events, provider, changed, retire };
+  return { settingsPath: cfg.settingsPath, hookPath, events, provider, changed, retire, ...(skill ? { skillHook: skill } : {}) };
 }
 
 /**

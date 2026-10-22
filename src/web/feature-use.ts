@@ -15,7 +15,7 @@ export type PageFeature =
   | "usage-panel" | "machine-panel" | "detail-panel" | "accounts-panel"
   | "tool-detail" | "session-summary" | "context-window" | "usage-history" | "browser-watch"
   | "feedback" | "keyboard-help" | "share-accounts" | "account-projects" | "add-account"
-  | "process-list" | "lan-setup" | "claude-fm";
+  | "process-list" | "lan-setup" | "claude-fm" | "skill-activity";
 
 const said = new Set<string>();
 let saidDay = "";
