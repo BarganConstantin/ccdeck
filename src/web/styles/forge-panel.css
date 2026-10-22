@@ -89,8 +89,6 @@
 .fg-panel .ig-failure[data-kind] { margin-top: 16px; }
 .fg-panel .ig-failure[data-kind][data-stale] { margin-top: 8px; }
 .fg-more { margin-top: 12px; }
-.fg-loading { display: grid; gap: 10px; margin-top: 16px; }
-.fg-loading i { display: block; height: 36px; border-radius: var(--r-ctl); background: var(--ctl-fill); animation: ta-pulse 1200ms ease-in-out infinite alternate; }
 
 /* People, values to copy, links out. */
 .fg-person { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }

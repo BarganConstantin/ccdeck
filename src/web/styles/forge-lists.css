@@ -134,8 +134,8 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
 /* The field is the deck's text field (.ap-manage-input); this only sizes it. */
 .fgl-repo-search input { flex: 1; box-sizing: border-box; }
 .fgl-repo-scroll { flex: 1 1 auto; min-height: 0; max-height: min(380px, 52dvh); overflow-y: auto; overscroll-behavior: contain; padding: 4px 0 2px; }
-.fgl-repo-scroll .fg-loading { margin-top: 4px; gap: 6px; }
-.fgl-repo-scroll .fg-loading i { height: 32px; }
+.fgl-repo-scroll .ig-skeleton[data-variant] { padding: 4px 0; gap: 6px; }
+.fgl-repo-scroll .ig-skeleton[data-variant] i { height: 32px; }
 .fgl-repo-scroll .ig-failure[data-kind] { margin: 4px 2px; }
 .fgl-repo-scroll .fg-more { width: 100%; margin-top: 4px; }
 .fgl-repo-options { display: grid; gap: 1px; }

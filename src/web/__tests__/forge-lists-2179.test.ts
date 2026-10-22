@@ -311,7 +311,7 @@ describe("the Branches tab", () => {
   });
 
   it("shows loading rows before the first answer", () => {
-    expect(draw(ctx("gitlab"), tab(BranchesTab, view({ repo: "acme/web" })))).toContain('role="status" aria-label="Loading branches"');
+    expect(draw(ctx("gitlab"), tab(BranchesTab, view({ repo: "acme/web" })))).toContain('<div class="ig-skeleton" data-variant="rows" role="status"><span class="vis-hidden">Loading branches</span>');
   });
 });
 

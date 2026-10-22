@@ -7,6 +7,7 @@ import type { ForgeErrorInfo, ForgeUser } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
 import { stripScrollDelta, type Mark } from "../../forge-panel";
 import IntegrationFailureNote from "../IntegrationFailureNote";
+import IntegrationSkeleton from "../IntegrationSkeleton";
 import { shortAgo } from "../../relative-time";
 import { copyText } from "../../copy-text";
 import { selfPressProps } from "../../panel-press";
@@ -92,13 +93,10 @@ export function ListEnd({ pages, label = "Load more" }: {
   );
 }
 
-/** Rows that are on their way: grey bars, the deck's loading shape. */
+/** Rows that are on their way: the integrations' shared skeleton, which
+ *  stays out of sight for a read that answers at once. */
 export function LoadingRows({ rows = 6, label }: { rows?: number; label: string }) {
-  return (
-    <div className="fg-loading" role="status" aria-label={label}>
-      {Array.from({ length: rows }, (_, i) => <i key={i} />)}
-    </div>
-  );
+  return <IntegrationSkeleton label={label} rows={rows} />;
 }
 
 // Avatars the deck could not fetch — a self-managed GitLab may serve them only
