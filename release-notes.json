@@ -80,6 +80,12 @@
     "3.43.1",
     "3.43.3"
   ],
+  "3.45.1": [
+    {
+      "title": "🕒 Saved limit resets say when they expire, to the minute",
+      "body": "The Usage panel's line about saved resets now gives the time one expires as well as the day, in your own time zone. It applies to Claude's limit resets and Codex's rate-limit resets alike."
+    }
+  ],
   "3.45.0": [
     {
       "title": "🔗 Read-only Jira, GitHub and GitLab panels beside your agents",
