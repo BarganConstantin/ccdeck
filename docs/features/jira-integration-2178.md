@@ -196,6 +196,10 @@ Jira's rendered HTML is rebuilt into React elements from an allowlist
 
 - **The token stays on the machine.** It never reaches a log, the event log,
   reports, feedback, the LAN or prefs. The page only ever gets `tokenSaved`.
+- **An echoed token is taken out.** A tracker that sends the token back, in an
+  error's reason, the account it answers or a read, reaches the page, the
+  saved connection and the log as `[redacted]`; so does one an earlier build
+  saved in a connection's name, account or meta, when the list is read.
 - **Storage:** `<deck home>/integrations/` is a 0700 directory. Connection
   records and secrets are separate 0600 files, written atomically. Removing a
   connection deletes its secret.

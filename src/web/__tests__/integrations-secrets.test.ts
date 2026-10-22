@@ -5,7 +5,7 @@
 // error report, or any file but the secrets file. A booted deck in a sandbox
 // home, with fake providers this suite registers itself (integrations-fake.ts).
 import { describe, it, expect, afterAll, beforeAll, vi } from "vitest";
-import { mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { request } from "node:http";
@@ -196,6 +196,44 @@ describe("a tracker that echoes an HTTP Basic credential", () => {
     const broken = await page(`/api/integrations/tracker-basic/${id}/broken`);
     expect(broken.body.error.detail).toBe(`Refused, sent Basic ${REDACTED}`);
     expectNoSecret(broken.raw, "the error");
+  });
+});
+
+describe("a connection an earlier build saved with the echo in it", () => {
+  // Builds before the host took echoes out kept the account a tracker answered
+  // as it came. Such a connection is listed without its own secret, and
+  // Disconnect still takes it, and the secret, away.
+  const EARLIER = fakeToken("saved-earlier");
+
+  it("is listed with its own secret taken out of its name, account and meta", async () => {
+    const home = join(DIR, "deck", "integrations");
+    const metaPath = join(home, "integrations.json");
+    const secretsPath = join(home, "integrations-secrets.json");
+    const meta = JSON.parse(readFileSync(metaPath, "utf8"));
+    const secrets = JSON.parse(readFileSync(secretsPath, "utf8"));
+    meta.connections.push({
+      id: "saved-earlier", kind: "tracker", name: `Echo ${EARLIER}`, baseUrl: bearerSite.url,
+      account: { id: "7", login: "jdoe", name: `Jane Doe, sent Bearer ${EARLIER}`, avatarUrl: "" },
+      meta: { note: `sent ${EARLIER}` }, allowedOrigins: [new URL(bearerSite.url).origin],
+      createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z",
+    });
+    secrets.secrets["saved-earlier"] = EARLIER;
+    writeFileSync(metaPath, JSON.stringify(meta), { mode: 0o600 });
+    writeFileSync(secretsPath, JSON.stringify(secrets), { mode: 0o600 });
+
+    const list = await page("/api/integrations");
+    expect(list.status).toBe(200);
+    expect(list.raw.includes(EARLIER), "the list holds the earlier connection's secret").toBe(false);
+    const listed = list.body.connections.find((c: { id: string }) => c.id === "saved-earlier");
+    expect(listed).toMatchObject({
+      id: "saved-earlier", kind: "tracker", name: `Echo ${REDACTED}`, tokenSaved: true,
+      account: { login: "jdoe", name: `Jane Doe, sent Bearer ${REDACTED}` }, meta: { note: `sent ${REDACTED}` },
+    });
+
+    const gone = await call("DELETE", "/api/integrations/connections/saved-earlier");
+    expect(gone.status).toBe(200);
+    expect(readFileSync(metaPath, "utf8").includes(EARLIER)).toBe(false);
+    expect(readFileSync(secretsPath, "utf8").includes(EARLIER)).toBe(false);
   });
 });
 

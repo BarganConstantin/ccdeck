@@ -146,10 +146,13 @@ export function createIntegrationsStore({ dir = () => join(deckDataDir(), STORE_
   const publicOf = (conn, secrets) => ({ ...conn, tokenSaved: secrets.has(conn.id) });
 
   return {
-    /** Every connection, as a page may see it. */
-    async list() {
+    /** Every connection, as a page may see it. `own(conn, secret)`, when
+     *  given, is handed each connection that has a secret, with it, and
+     *  answers the connection to list: the routes take that secret out of what
+     *  an earlier build kept (routes.mjs). */
+    async list({ own } = {}) {
       const { connections, secrets } = await load();
-      return connections.map(c => publicOf(c, secrets));
+      return connections.map(c => publicOf(own && secrets.has(c.id) ? own(c, secrets.get(c.id)) : c, secrets));
     },
 
     /** One connection, as a page may see it, or null. */
