@@ -10,6 +10,9 @@ A log's stored cost is not evidence of an invoice.
 `missingPricing: true` survives aggregation across days, including days with
 nonzero cost for the same model. An entirely unpriced model says **not priced**;
 a partly priced model and its history total carry **+** and an explanation.
+A session row has no pricing flag of its own: a session that cost $0 shows a
+known zero (—) when every model it ran on was priced over the range, and
+**not priced** otherwise.
 Claude Code and Codex use the same report handling.
 
 ## Live Codex estimates

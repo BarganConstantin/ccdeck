@@ -150,7 +150,9 @@ export default function UsageSessionBreakdown({
                 title={s.label ? `${s.label}\n${s.sessionId}` : s.sessionId}
               >{s.label ?? idTail(s.sessionId, 8)}</span>
               <span className="up-session-tokens">{fmtTokens(s.tokens)}</span>
-              {s.cost > 0
+              {/* A known zero is a cost, the same as on the board's rows;
+                  "not priced" is for a session ccusage could not price. */}
+              {s.cost > 0 || s.priced
                 ? <span className="up-session-cost" title={s.models.join(", ") || undefined}>{fmtCost(s.cost)}</span>
                 : <span className="up-session-cost up-unpriced">{UNPRICED_LABEL}</span>}
             </SessionRow>
