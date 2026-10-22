@@ -3,18 +3,19 @@
 // backlog row had no room for, the description, its sub-tasks — each opens
 // here, with the way back in the breadcrumb — its attachments, which open in
 // Jira, and the last ten comments.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import type { IntegrationConnection as Connection } from "../integrations/types";
 import { jiraImage, type JiraApi, type JiraIssue, type TimeTracking } from "../jira-api";
 import { fileSize, jiraDate, timeLine } from "../jira-board";
 import JiraHtml, { type HtmlContext } from "../jira-html";
-import { copyText } from "../copy-text";
 import { useJiraIssue } from "../use-jira-board";
 import { connectionHost } from "../integrations/client";
 import IntegrationAvatar, { IntegrationPerson, UnassignedAvatar } from "./IntegrationAvatar";
+import IntegrationDetailBar from "./IntegrationDetailBar";
 import IntegrationFailureNote from "./IntegrationFailureNote";
 import IntegrationSkeleton from "./IntegrationSkeleton";
-import { EpicChip, ExternalGlyph, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
+import { ExternalLinkGlyph } from "./action-glyphs";
+import { EpicChip, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
 
 export interface JiraIssueDetailProps {
   conn: Connection;
@@ -29,6 +30,10 @@ export interface JiraIssueDetailProps {
   /** Go back along the trail to the issue at `index`. */
   onTrail: (index: number) => void;
   onReconnect: () => void;
+  /** The detail is a screen of its own, with the host's Back for a Close. */
+  narrow: boolean;
+  /** Close the issue: back to the row that opened it. */
+  onClose: () => void;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -60,23 +65,24 @@ function SubtaskList({ issues, onOpen }: { issues: JiraIssue[]; onOpen: (key: st
   );
 }
 
-export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation, time, onOpen, onTrail, onReconnect }: JiraIssueDetailProps) {
+export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation, time, onOpen, onTrail, onReconnect, narrow, onClose }: JiraIssueDetailProps) {
   const key = trail[trail.length - 1] ?? null;
   const { data, loading, error, reload } = useJiraIssue(api, conn.id, key);
-  const [copied, setCopied] = useState<"key" | "link" | null>(null);
   const ctx = useMemo<HtmlContext>(() => ({ baseUrl: conn.baseUrl, image: abs => jiraImage(conn, assetUrl, abs) }), [conn, assetUrl]);
-
-  useEffect(() => {
-    if (!copied) return;
-    const t = window.setTimeout(() => setCopied(null), 2_000);
-    return () => window.clearTimeout(t);
-  }, [copied]);
-
   const issue = data && data.issue.key === key ? data.issue : null;
-  const copy = async (what: "key" | "link") => {
-    if (!issue) return;
-    if (await copyText(what === "key" ? issue.key : issue.url)) setCopied(what);
-  };
+
+  // On a narrow screen the detail replaces the list, and the row that had
+  // focus is gone with it. The panel puts focus on Back while the issue is
+  // read; once its name is drawn, focus moves to the name, unless the reader
+  // has already moved it somewhere else.
+  const shownKey = issue?.key;
+  useEffect(() => {
+    if (!narrow || !shownKey) return;
+    const at = document.activeElement;
+    if (at === document.body || (at instanceof HTMLElement && at.matches("[data-ig-back]"))) {
+      document.getElementById("jira-detail-title")?.focus();
+    }
+  }, [narrow, shownKey]);
 
   // Where the issue sits: its project, its parent unless the trail already
   // passes through it, and every issue opened on the way here.
@@ -91,6 +97,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
   if (!key) return null;
   return (
     <article className="jr-detail" aria-busy={loading || undefined} aria-labelledby="jira-detail-title">
+      <IntegrationDetailBar reference={key} copyLabel="key" href={issue?.url ?? null} openLabel="Open in Jira" narrow={narrow} onClose={onClose} />
       <ol className="jr-crumbs" role="list" aria-label="Where this issue is">
         {crumbs.map((c, i) => (
           <li key={`${c.label}-${i}`}>
@@ -109,25 +116,17 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
       {issue && (
         <>
           <header className="jr-detail-head">
-            <div className="jr-detail-kicker">
-              <TypeIcon type={issue.type} />
-              <a className="jr-key jr-key-link" href={issue.url} target="_blank" rel="noreferrer noopener" data-done={issue.status.category === "done" || undefined}>{issue.key}</a>
-            </div>
             <h2 id="jira-detail-title" tabIndex={-1} className="jr-detail-title">{issue.summary}</h2>
-            {/* Where the issue stands, under its name: its status (and how it
-                was resolved), its priority, and the flag when it has one. */}
+            {/* Where the issue stands, under its name: what kind of issue it
+                is, its status (and how it was resolved), its priority, and
+                the flag when it has one. */}
             <p className="jr-detail-state">
+              <span className="jr-with-icon"><TypeIcon type={issue.type} />{issue.type.name}</span>
               <StatusLozenge status={issue.status} />
               {issue.resolution && <span className="jr-dim">{issue.resolution}</span>}
               {issue.priority && <span className="jr-with-icon"><PriorityIcon priority={issue.priority} />{issue.priority.name}</span>}
               {issue.flagged && <span className="jr-flagged"><FlagGlyph /> Flagged</span>}
             </p>
-            <div className="jr-detail-actions">
-              <a className="jr-open" href={issue.url} target="_blank" rel="noreferrer noopener">Open in Jira <ExternalGlyph /></a>
-              <button type="button" className="btn" onClick={() => void copy("key")}>{copied === "key" ? "Copied" : "Copy key"}</button>
-              <button type="button" className="btn" onClick={() => void copy("link")}>{copied === "link" ? "Copied" : "Copy link"}</button>
-              <span className="vis-hidden" role="status">{copied ? `Copied the ${copied === "key" ? "key" : "link"}` : ""}</span>
-            </div>
           </header>
 
           <dl className="jr-fields">
@@ -165,7 +164,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
                 {data!.attachments.map(a => (
                   <li key={a.id}>
                     {a.url
-                      ? <a href={a.url} target="_blank" rel="noreferrer noopener" title="Opens in Jira">{a.filename}<ExternalGlyph /></a>
+                      ? <a href={a.url} target="_blank" rel="noreferrer noopener" title="Opens in Jira">{a.filename}<ExternalLinkGlyph /></a>
                       : <span>{a.filename}</span>}
                     <span className="jr-dim">{[fileSize(a.size), jiraDate(a.created)].filter(Boolean).join(" · ")}</span>
                   </li>
@@ -192,7 +191,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
               ))}
             </ol>
             {data!.comments.total > data!.comments.items.length && (
-              <p className="jr-dim"><a className="jr-more-link" href={issue.url} target="_blank" rel="noreferrer noopener">The older comments are in Jira <ExternalGlyph /></a></p>
+              <p className="jr-dim"><a className="jr-more-link" href={issue.url} target="_blank" rel="noreferrer noopener">The older comments are in Jira <ExternalLinkGlyph /></a></p>
             )}
           </section>
         </>

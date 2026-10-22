@@ -17,6 +17,7 @@ import { readBoards, type JiraBoardSummary } from "../jira-api";
 import type { GroupDef } from "../jira-board";
 import { modalStack } from "../modal-dismiss";
 import { failureOf, useJiraBoard } from "../use-jira-board";
+import { ExternalLinkGlyph } from "./action-glyphs";
 import AnchoredPopover from "./AnchoredPopover";
 import IntegrationFreshness from "./IntegrationFreshness";
 import IntegrationSearch from "./IntegrationSearch";
@@ -184,7 +185,12 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   const open = trail.length > 0;
   const openIssue = (key: string) => {
     setTrail([key]);
-    if (narrow) requestAnimationFrame(() => document.getElementById("jira-detail-title")?.focus());
+    // On a narrow screen the row goes with the list: focus goes to the issue's
+    // name, or to Back until the name is read (JiraIssueDetail moves it on).
+    if (narrow) {
+      requestAnimationFrame(() => (document.getElementById("jira-detail-title")
+        ?? document.querySelector<HTMLElement>(".ig-detail [data-ig-back]"))?.focus());
+    }
   };
   const back = useCallback(() => {
     const key = trail[0];
@@ -196,12 +202,13 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   }, [trail]);
   const backRef = useRef(back);
   backRef.current = back;
-  // On a narrow screen the detail is a screen of its own, so Escape leaves it
-  // before it closes the modal.
+  // An open issue is the first thing Escape closes, at every width: one press
+  // leaves the issue (focus back on its row), the next closes the panel. A
+  // search with text in it, or an open picker, comes before both.
   useEffect(() => {
-    if (!narrow || !open) return;
+    if (!open) return;
     return modalStack.push(() => backRef.current(), 0, "popover");
-  }, [narrow, open]);
+  }, [open]);
 
   const host = connectionHost(conn);
   const blocking = !overview ? (error ?? boardsError) : null;
@@ -212,7 +219,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
         <div className="jr-state">
           <h3>No boards here</h3>
           <p>This account cannot see any board on {host}. A board appears here once you are given access to one in Jira.</p>
-          <p><a className="jr-open" href={`${conn.baseUrl}/secure/ManageRapidViews.jspa`} target="_blank" rel="noreferrer noopener">Open boards in Jira</a></p>
+          <p><a className="ig-open" href={`${conn.baseUrl}/secure/ManageRapidViews.jspa`} target="_blank" rel="noreferrer noopener">Open boards in Jira<ExternalLinkGlyph /></a></p>
         </div>
       );
     }
@@ -266,6 +273,8 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       onOpen={(key, how) => setTrail(t => (how === "push" ? [...t.filter(k => k !== key), key] : [key]))}
       onTrail={index => setTrail(t => t.slice(0, index + 1))}
       onReconnect={onReconnect}
+      narrow={narrow}
+      onClose={back}
     />
   ) : null;
 

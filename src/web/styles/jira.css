@@ -54,23 +54,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 
 /* A link that reads as a button: Open in Jira. A link still, so it can be
    middle-clicked, copied and opened in a new window. */
-.jr-open {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: var(--ctl-h);
-  box-sizing: border-box;
-  padding: 0 12px;
-  border: 1px solid var(--ctl-edge);
-  border-radius: var(--r-ctl);
-  background: transparent;
-  color: var(--text);
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  text-decoration: none;
-  transition: border-color 120ms, background 120ms;
-}
-.jr-open:hover { border-color: var(--text); background: var(--ctl-fill); }
 
 /* The board picker, anchored under the board button. */
 .jr-board-pop { width: var(--jr-pop-w); }
@@ -359,7 +342,9 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-panel .jr-group-body > .ig-failure { margin: 8px; }
 
 /* ── an issue ────────────────────────────────────────────────────────────── */
-.jr-detail { container: jira-detail / inline-size; min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 16px 20px 32px; }
+/* The shared detail bar (IntegrationDetailBar) sticks to the top of the
+   pane, edge to edge across this padding (--ig-detail-pad). */
+.jr-detail { --ig-detail-pad: 20px; container: jira-detail / inline-size; min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 0 var(--ig-detail-pad) 32px; }
 .jr-crumbs { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .jr-crumbs li { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
 .jr-crumbs li + li::before { content: "/"; color: var(--muted); }
@@ -370,9 +355,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-crumb-text { color: var(--muted); }
 .jr-crumb-here { color: var(--text); }
 .jr-detail-head { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.jr-detail-kicker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.jr-key-link { text-decoration: none; }
-.jr-key-link:hover { color: var(--text); text-decoration: underline; }
 .jr-detail-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
 .jr-detail-state { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .jr-detail-dates { margin: -8px 0 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
@@ -380,7 +362,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 /* An epic in the field list is a block of its own, so its ellipsis holds
    and a long name never pushes the pane sideways. */
 .jr-field .jr-epic { display: inline-block; max-width: 100%; vertical-align: middle; }
-.jr-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .jr-fields {
   margin: 0;
   display: grid;
@@ -476,7 +457,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 @media (max-width: 700px) {
   .jr-toolbar { padding: 8px 12px; }
   .jr-list-scroll { padding: 10px 12px 20px; }
-  .jr-detail { padding: 12px 14px 24px; }
+  .jr-detail { --ig-detail-pad: 14px; padding-bottom: 24px; }
   .jr-board-project { display: none; }
   .jr-filters > .ig-search { flex: 1 1 100%; }
   .jr-filter-chips {
@@ -514,7 +495,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   .jr-board-item:hover:not([aria-current="true"]), .jr-detail-sub:hover, .jr-group-toggle:hover { background: transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .jr-chevron, .jr-open { transition: none; }
+  .jr-chevron { transition: none; }
   .jr-board-item:active, .jr-crumb:active, .jr-detail-sub:active, .jr-group-toggle:active,
   .jr-link-btn:active, .jr-row-main:active, .jr-toggle:active { transform: none; }
 }

@@ -134,9 +134,3 @@ export function Chevron({ open }: { open: boolean }) {
   return <svg className="jr-chevron" data-open={open || undefined} width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
     strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m5.2 3 4 4-4 4" /></svg>;
 }
-
-export function ExternalGlyph() {
-  return <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M8 2.2h3.8V6M11.6 2.4 6.4 7.6" /><path d="M10.4 8.6v2.6a.8.8 0 0 1-.8.8H2.8a.8.8 0 0 1-.8-.8V4.4a.8.8 0 0 1 .8-.8h2.6" /></svg>;
-}
-
