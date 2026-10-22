@@ -532,12 +532,13 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
 
 ### Tool activity
 
-A full page, opened from the rail below Usage history (More → Tools on phones),
+A large modal (90vw × 90dvh on desktop), opened from the rail below Usage
+history (More → Tools on phones),
 that a person reads top to bottom in under a minute. Owner direction
 (2026-10-15): simple and useful for the people using it, nothing complicated.
 Plain words carry it; the earlier P95 / interval vocabulary is gone.
 
-- **Order of the page:** period and agent pills (the `uh-range` strip Usage
+- **Order of the report:** period and agent pills (the `uh-range` strip Usage
   history uses), one summary sentence with the numbers in `--text` weight 600
   and failures in `--err`, then *Worth a look* — at most three findings in one
   bordered list, each a button that opens its tool — then *Tools and commands*,
