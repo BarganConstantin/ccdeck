@@ -63,7 +63,7 @@ const { integrationsStore } = await import("../../server/integrations/store.mjs"
 const fakeToken = (seed: string) => ["fake", seed, "token", "0123456789abcdef"].join("-");
 
 // The kinds this deck's own providers serve, with their labels.
-const JS_KINDS = [["jira", "Jira"]] as const;
+const JS_KINDS = [["jira", "Jira"], ["github", "GitHub"], ["gitlab", "GitLab"]] as const;
 type JsKind = typeof JS_KINDS[number][0];
 // Every read the panels make, as the providers name them, with the parameters
 // each needs to reach its tracker.
@@ -211,9 +211,10 @@ describe("a connection the deck's own provider reads", () => {
           const sep = read.includes("?") ? "&" : "?";
           const r = await page(`/api/integrations/${kind}/${ids[kind]}/${read}${kind === "jira" ? "" : `${sep}${FORGE_QUERY}`}`);
           // The stub refuses every request: the provider says so in its own
-          // words, which is never the host's `unavailable`.
+          // words, which is never the host's `unavailable`. (GitLab reads a
+          // link to resolve without asking the forge at all.)
           expect(r.status, `${kind} ${read}`).not.toBe(503);
-          expect(r.body?.ok, `${kind} ${read}`).toBe(false);
+          if (read !== "resolve") expect(r.body?.ok, `${kind} ${read}`).toBe(false);
           expect(r.body?.error?.kind, `${kind} ${read}`).not.toBe("unavailable");
           expect(r.raw.includes(TOKENS[kind]), `${kind} ${read}`).toBe(false);
         }
