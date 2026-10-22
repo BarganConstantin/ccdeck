@@ -8,7 +8,7 @@
    column) once the pane is wide enough to read both, the side column as a
    compact block above the page when it is not, and the section switch as four
    equal cells when the pane is phone-narrow. */
-.fd { container: fd / inline-size; min-width: 0; padding: 12px 20px 40px; --ig-detail-pad: 20px; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); }
+.fd { position: relative; container: fd / inline-size; min-width: 0; padding: 12px 20px 40px; --ig-detail-pad: 20px; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); }
 .fd code { font-family: var(--font-mono); }
 
 /* The top line is the integrations' shared detail bar (IntegrationDetailBar

@@ -35,7 +35,11 @@
 .fg-searchbar { display: flex; gap: 8px; align-items: center; padding: 12px 20px 0; flex: none; }
 /* Open, beside the field once it holds a link: as wide as its word. */
 .fg-resolve { flex: none; }
-.fg-tab-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; padding: 8px 20px 32px; }
+/* The list's scroller is the box its screen-reader words are placed in
+   (position: relative), so those absolutely placed spans scroll and clip
+   with their rows. Placed in a box outside it, they ran on below the modal,
+   and a click or a focus scrolled the whole modal up to reach them. */
+.fg-tab-body { position: relative; flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; padding: 8px 20px 32px; }
 .fg-note { margin: 8px 20px 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.6; }
 /* A tab's content fades in as the tab is chosen (a hidden panel shown runs
    its animation again): 100ms of opacity, and nothing moves. */

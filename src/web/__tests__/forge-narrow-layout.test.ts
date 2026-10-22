@@ -102,6 +102,16 @@ describe("a phone's first screen goes to the list", () => {
   });
 });
 
+describe("the words kept for a screen reader", () => {
+  it("are placed inside the scroller they belong to, so they never run on below the modal", () => {
+    // .fg-sr and the shared .vis-hidden are absolutely placed; their box must
+    // be the list's scroller or the page inside the detail's.
+    expect(decls(topLevel(panel), ".fg-sr")).toMatch(/position: absolute/);
+    expect(decls(topLevel(panel), ".fg-tab-body")).toMatch(/position: relative;.*overflow-y: auto/);
+    expect(decls(topLevel(detail), ".fd")).toMatch(/^position: relative;/);
+  });
+});
+
 describe("the toolbar on a phone", () => {
   it("keeps the freshness line's words, and lets the picker cut its own name instead", () => {
     expect(decls(topLevel(panel), ".fg-toolbar > .ig-freshness")).toMatch(/flex-shrink: 0;.*max-width: 60%/);
