@@ -125,6 +125,13 @@ function envelope(seq: number, chars: number) {
   return { seq, epoch: "test-epoch", receivedAt: 1700000000000 + seq, source: "hook", payload: { blob: "x".repeat(chars) } };
 }
 
+/** Deeper than V8's stringifier goes on any Node this suite runs on. The
+ *  ceiling moves between majors — measured on Linux x64, 6,861 on Node 18.20
+ *  (V8 10.2), 4,164 on Node 22.23, 4,458 on Node 24.21 — and the 6,000 these
+ *  cases used serialised cleanly on Node 18. ingest-deep-payload.test.ts
+ *  uses the same depth. */
+const DEPTH = 16_000;
+
 /** A value `depth` levels deep, built iteratively — the shape that overflows
  *  V8's recursive stringifier without being large. */
 function nested(depth: number): unknown {
@@ -133,9 +140,11 @@ function nested(depth: number): unknown {
   return node;
 }
 
-/** The same thing as JSON text, for posting through ingest. */
+/** The same thing as JSON text, for posting through ingest: arrays, one byte a
+ *  level, so the depth stays a small request. V8 gives up on them at the same
+ *  depth as on objects. */
 function nestedJson(depth: number): string {
-  return `${'{"a":'.repeat(depth)}1${"}".repeat(depth)}`;
+  return `${"[".repeat(depth)}1${"]".repeat(depth)}`;
 }
 
 // ─── The server ──────────────────────────────────────────────────────────────
@@ -273,7 +282,7 @@ describe("GET /api/events writes the ring instead of stringifying it", () => {
   it("replaces an envelope that will not serialise instead of truncating the array", async () => {
     const items = [
       envelope(1, 8),
-      { seq: 2, epoch: "test-epoch", receivedAt: 42, source: "hook", payload: nested(6000) },
+      { seq: 2, epoch: "test-epoch", receivedAt: 42, source: "hook", payload: nested(DEPTH) },
       envelope(3, 8),
     ];
     const res = stubRes();
@@ -334,7 +343,7 @@ describe("the live route survives a ring it cannot stringify", () => {
   it("keeps serving after a payload the ring cannot stringify is posted to it", async () => {
     // 36 KB, and every byte of it accepted by the open ingest route. Before the
     // fix the GET below took the process with it.
-    const body = `{"hook_event_name":"PostToolUse","session_id":"sess-deep","cwd":"/repo","deep":${nestedJson(6000)}}`;
+    const body = `{"hook_event_name":"PostToolUse","session_id":"sess-deep","cwd":"/repo","deep":${nestedJson(DEPTH)}}`;
     expect(body.length).toBeLessThan(64 * 1024);
     expect((await post("/api/event", body)).status).toBe(200);
 
