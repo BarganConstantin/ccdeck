@@ -155,8 +155,8 @@
 .ig-freshness[data-tone="stale"] .ig-mark { color: var(--warn); }
 .ig-refresh { width: 36px; height: 36px; padding: 0; margin-block: 0; flex: none; }
 .ig-refresh:disabled { opacity: var(--dim-off); cursor: default; }
-.ig-refresh[aria-disabled="true"] { cursor: progress; }
-.ig-refresh[aria-disabled="true"]:active { transform: none; }
+.ig-refresh[aria-busy="true"] { cursor: progress; }
+.ig-refresh[aria-busy="true"]:active { transform: none; }
 .ig-refresh[data-loading] svg { animation: ta-spin 1000ms linear infinite; }
 
 /* A person's or a project's picture, and the initials that stand in for it. */
