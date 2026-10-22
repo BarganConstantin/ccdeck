@@ -58,7 +58,7 @@
 .fgl-label-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* A scoped label's scope, ruled off from its value as on the item's page; the
    value gives way first. */
-.fgl-label-scope { flex: 0 1 auto; max-width: 12ch; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; border-right: 1px solid var(--line); }
+.fgl-label-scope { flex: none; max-width: 12ch; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; border-right: 1px solid var(--line); }
 .fgl-label-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 18%, transparent); }
 
 /* People, comments, child items. */

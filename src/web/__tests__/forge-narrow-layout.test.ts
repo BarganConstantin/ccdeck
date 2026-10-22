@@ -109,6 +109,13 @@ describe("the toolbar on a phone", () => {
   });
 });
 
+describe("a scoped label on a row", () => {
+  it("keeps its scope, up to 12ch, and cuts its value first", () => {
+    expect(decls(topLevel(lists), ".fgl-label-scope")).toMatch(/flex: none; max-width: 12ch;/);
+    expect(decls(topLevel(lists), ".fgl-label-name")).toMatch(/min-width: 0; overflow: hidden; text-overflow: ellipsis/);
+  });
+});
+
 describe("an item page's top line", () => {
   it("is the integrations' shared bar, spanning exactly the page's own side padding at every width", () => {
     // The bar (IntegrationDetailBar) runs edge to edge by --ig-detail-pad; a
