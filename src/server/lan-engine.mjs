@@ -654,7 +654,7 @@ export function createEngine({
       // WHO IS ACTUALLY THERE. A typed address is a row that says `192.168.1.5:54340`
       // and nothing else until somebody answers it — and once one has, the deck
       // on the other end has told us what it calls itself. The row says that
-      // from then on, because "Constantin-PC" is what the person who typed the
+      // from then on, because "Consultant-PC" is what the person who typed the
       // address was trying to reach.
       //
       // A DIAL-BACK THAT ANSWERED IS AN ORDINARY PEER NOW. It was on trial only

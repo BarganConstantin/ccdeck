@@ -961,8 +961,8 @@ describe("how a deck names itself", () => {
   }, 20_000);
 
   it("shows the name the user chose to its peers", async () => {
-    const a = await deck(store([]), "Constantin-MacBook", []);
-    const b = await deck(store([]), "Constantin-PC", []);
+    const a = await deck(store([]), "Consultant-MacBook", []);
+    const b = await deck(store([]), "Consultant-PC", []);
     await point(a, b, b.port);
     // The address is what got us there; the NAME comes back from the deck
     // itself, over a handshake it had to prove its own key to complete.

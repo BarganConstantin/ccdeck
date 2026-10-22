@@ -15,7 +15,7 @@ import { beaconVerdict, formerHostId, hostId, machineName, machineSecret, readBe
 // @ts-expect-error — plain .mjs server module, no types
 import { createBeacon } from "../../server/lan-beacon.mjs";
 
-const HOST = "Petrus-MacBook-Pro";
+const HOST = "Oswald-MacBook-Pro";
 const HOME = "/Users/petru.ionescu";
 const NAMES = ["petru", "petru.ionescu", "pionescu", "ionescu", "admin", "user"];
 const GUESSES = NAMES.flatMap(n => [`/Users/${n}`, `/home/${n}`, `C:\\Users\\${n}`]);

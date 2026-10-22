@@ -85,17 +85,17 @@ describe("which way the traffic goes", () => {
   });
 
   it("names the exit node, and the relay only when the path goes through one", () => {
-    const relayed = { ExitNodeStatus: { ID: "n", Online: true }, Peer: { a: { HostName: "Constantin’s iMac", ExitNode: true, CurAddr: "", Relay: "nue" } } };
+    const relayed = { ExitNodeStatus: { ID: "n", Online: true }, Peer: { a: { HostName: "Consultant’s iMac", ExitNode: true, CurAddr: "", Relay: "nue" } } };
     const direct = { ExitNodeStatus: { ID: "n", Online: true }, Peer: { a: { HostName: "office-box", ExitNode: true, CurAddr: "203.0.113.4:41641", Relay: "fra" } } };
-    expect(tailscaleExitFromStatus(JSON.stringify(relayed))).toEqual({ node: "Constantin’s iMac", relay: "nue" });
+    expect(tailscaleExitFromStatus(JSON.stringify(relayed))).toEqual({ node: "Consultant’s iMac", relay: "nue" });
     expect(tailscaleExitFromStatus(direct)).toEqual({ node: "office-box", relay: null });
     expect(tailscaleExitFromStatus({ Peer: {} })).toBeNull();
     expect(tailscaleExitFromStatus("not json")).toBeNull();
   });
 
   it("says one sentence for a route, the same everywhere it is shown", () => {
-    expect(routeLabel({ kind: "tailscale-exit", node: "Constantin’s iMac", relay: "nue" }))
-      .toBe("through Tailscale exit node Constantin’s iMac, relayed via nue");
+    expect(routeLabel({ kind: "tailscale-exit", node: "Consultant’s iMac", relay: "nue" }))
+      .toBe("through Tailscale exit node Consultant’s iMac, relayed via nue");
     expect(routeLabel({ kind: "vpn", name: "WireGuard", iface: "wg0" })).toBe("through WireGuard VPN (wg0)");
     expect(routeLabel({ kind: "direct" })).toBe("direct");
   });
@@ -134,7 +134,7 @@ describe("reaching out only when asked", () => {
         run: async (file: string) => {
           calls.push(file);
           if (file === "ip") return "160.79.104.10 dev tailscale0 table 52 src 100.64.10.100 uid 1000";
-          if (file === "tailscale") return JSON.stringify({ ExitNodeStatus: {}, Peer: { a: { HostName: "Constantin’s iMac", ExitNode: true, CurAddr: "", Relay: "nue" } } });
+          if (file === "tailscale") return JSON.stringify({ ExitNodeStatus: {}, Peer: { a: { HostName: "Consultant’s iMac", ExitNode: true, CurAddr: "", Relay: "nue" } } });
           return null;
         },
         ...over,
@@ -163,14 +163,14 @@ describe("reaching out only when asked", () => {
     expect(calls.at(-1)).toBe("tailscale");
     const net = systemSnapshot().network;
     expect(net?.api).toEqual({ host: "api.anthropic.com", ms: 92 });
-    expect(net?.route).toMatchObject({ kind: "tailscale-exit", node: "Constantin’s iMac", relay: "nue", to: "claude" });
+    expect(net?.route).toMatchObject({ kind: "tailscale-exit", node: "Consultant’s iMac", relay: "nue", to: "claude" });
     const hist = historySnapshot("network").series;
     const api = hist.find((s: { key: string }) => s.key === "net:api");
     // 92 ms with 15% headroom is ~106, and the scale rounds up to the next
     // 1-2-5 step a person would choose.
     expect(api).toMatchObject({ unit: "ms", label: "Claude API latency", top: 200 });
     // The first route seen is where looking began (`from` null), not a change.
-    expect(api.changes).toEqual([{ t: expect.any(Number), label: "through Tailscale exit node Constantin’s iMac, relayed via nue", from: null }]);
+    expect(api.changes).toEqual([{ t: expect.any(Number), label: "through Tailscale exit node Consultant’s iMac, relayed via nue", from: null }]);
   });
 
   it("says the API did not answer rather than printing a number it has not measured", async () => {

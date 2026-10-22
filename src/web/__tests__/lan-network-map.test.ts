@@ -367,10 +367,10 @@ describe("the logins the panel has room for", () => {
 
 describe("a real office on the map", () => {
   const office = () => [
-    ...["Fiodor Linux", "Vitalie", "dave@example.net", "Deniss-MacBook-Pro"].map(name => row({ name, fp: `fp-${name}` })),
-    ...["Constantin Windows", "Home Ubuntu"].map(name => row({ name, fp: `fp-${name}`, via: "tailscale" })),
-    ...["Office Laptop", "Petrus-MacBook-Pro", "Songurovs-MacBook-Pro", "YMNIQUEPC", "Kobe-Macbook",
-      "Evghenis-MacBook-Pro", "denis linux", "Alex-PC"].map(name => row({ name, fp: `fp-${name}`, here: false, state: "last online 2h ago" })),
+    ...["Elliot Linux", "Terence", "dave@example.net", "Delias-MacBook-Pro"].map(name => row({ name, fp: `fp-${name}` })),
+    ...["Consultant Windows", "Home Ubuntu"].map(name => row({ name, fp: `fp-${name}`, via: "tailscale" })),
+    ...["Office Laptop", "Oswald-MacBook-Pro", "Peregrine-MacBook-Pro", "VALENTINA", "Ilse-Macbook",
+      "Eleonora-MacBook-Pro", "delia linux", "Abel-PC"].map(name => row({ name, fp: `fp-${name}`, here: false, state: "last online 2h ago" })),
     ...["55731", "59313", "52519"].map(port => row({
       kind: "dialling", here: false, name: `192.168.1.153:${port}`, addr: "192.168.1.153", fp: `fp-${port}`,
     })),
@@ -381,8 +381,8 @@ describe("a real office on the map", () => {
   it("lands no name on another deck, and none on this deck's own name, in a 900px window's stage", () => {
     // Captions as the map draws them: a live deck's is what it runs.
     const drawn = (r: DeckRow) => nodeCaption(r, "Windows 11");
-    const layout = mapLayout(office(), 828, 470, "Constantin iMac", drawn);
-    const { core, decks } = nodeBoxes(layout, "Constantin iMac", drawn);
+    const layout = mapLayout(office(), 828, 470, "Consultant iMac", drawn);
+    const { core, decks } = nodeBoxes(layout, "Consultant iMac", drawn);
     const clashes: string[] = [];
     decks.forEach((a, i) => {
       if (meet(a.disc, core) || meet(a.label, core)) clashes.push(`${a.key} x core`);
@@ -396,14 +396,14 @@ describe("a real office on the map", () => {
   });
 
   it("folds the away and unpaired rings into one where three cannot hold their names, and keeps three where they can", () => {
-    const short = mapLayout(office(), 828, 470, "Constantin iMac");
+    const short = mapLayout(office(), 828, 470, "Consultant iMac");
     expect(short.rings).toHaveLength(2);
     expect(new Set(short.nodes.filter(n => n.tier !== "online").map(n => n.ring))).toEqual(new Set([1]));
-    expect(mapLayout(office(), 864, 640, "Constantin iMac").rings).toHaveLength(3);
+    expect(mapLayout(office(), 864, 640, "Consultant iMac").rings).toHaveLength(3);
   });
 
   it("goes dense where the full names cannot be cleared", () => {
-    expect(mapLayout(office(), 560, 640, "Constantin iMac").dense).toBe(true);
+    expect(mapLayout(office(), 560, 640, "Consultant iMac").dense).toBe(true);
   });
 });
 

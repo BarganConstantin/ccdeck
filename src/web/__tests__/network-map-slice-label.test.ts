@@ -95,8 +95,8 @@ describe("the tailnet slice's name", () => {
 
   it("crosses no deck at any of the stages a window gives the map", () => {
     const networks: Array<() => DeckRow[]> = [
-      () => [row({}), row({ via: "tailscale", here: false, name: "Deniss-MacBook-Pro", state: "last online 9h ago" })],
-      () => [row({}), row({}), row({ here: false }), row({ kind: "nearby", via: "tailscale", name: "Evghenis-MacBook-Pro" })],
+      () => [row({}), row({ via: "tailscale", here: false, name: "Delias-MacBook-Pro", state: "last online 9h ago" })],
+      () => [row({}), row({}), row({ here: false }), row({ kind: "nearby", via: "tailscale", name: "Eleonora-MacBook-Pro" })],
       () => [
         ...Array.from({ length: 4 }, () => row({})), row({ via: "tailscale", name: "Home Ubuntu" }),
         ...Array.from({ length: 2 }, () => row({ here: false, state: "last online 2h ago" })),
@@ -105,11 +105,11 @@ describe("the tailnet slice's name", () => {
       ],
       () => [
         ...Array.from({ length: 6 }, (_, i) => row({ name: `Office-PC-${i}` })),
-        row({ via: "tailscale", name: "Constantin Windows" }), row({ via: "tailscale", name: "Vitalie" }),
+        row({ via: "tailscale", name: "Consultant Windows" }), row({ via: "tailscale", name: "Terence" }),
         ...Array.from({ length: 6 }, (_, i) => row({ name: `laptop-${i}`, here: false, state: "last online 4h ago" })),
-        row({ via: "tailscale", here: false, name: "Kobe-Macbook", state: "last online 1h ago" }),
+        row({ via: "tailscale", here: false, name: "Ilse-Macbook", state: "last online 1h ago" }),
         ...Array.from({ length: 3 }, (_, i) => row({ kind: "nearby", name: `nearby-${i}`, state: "not paired yet" })),
-        row({ kind: "nearby", via: "tailscale", name: "Vitalie-phone", state: "not paired yet" }),
+        row({ kind: "nearby", via: "tailscale", name: "Terence-phone", state: "not paired yet" }),
       ],
     ];
     const stages: Array<[number, number]> = [[862, 693], [862, 534], [1180, 900], [918, 406]];
