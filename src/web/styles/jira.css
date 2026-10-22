@@ -462,8 +462,8 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   .jr-group-facts { margin-left: 0; flex-basis: 100%; flex-wrap: wrap; }
 }
 /* A phone: three lines at most. The issue's type, priority, key, status and
-   person on the first; its summary under them, up to two lines; its epic,
-   versions and estimate on the third, when it has any. */
+   person on the first; its summary under them, up to two lines; its flag,
+   epic and estimate on the third, when it has any. */
 @container jira-list (max-width: 360px) {
   .jr-row-main { grid-template-columns: 16px 16px minmax(0, 1fr) auto 20px; }
   .jr-row-main > .jr-key { grid-column: 3; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -472,6 +472,9 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   .jr-row-main > .jr-assignee { grid-column: 5; grid-row: 1; }
   .jr-summary { grid-column: 1 / -1; grid-row: 2; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .jr-facts .jr-meta { grid-column: 1 / 4; grid-row: 3; justify-content: flex-start; flex-wrap: nowrap; }
+  /* Fix versions wait for the issue's own page: beside an epic on a phone's
+     line they were cut to a character or two each. */
+  .jr-facts .jr-meta > .jr-version { display: none; }
   .jr-facts .jr-meta:empty { display: none; }
   .jr-facts > .jr-estimate { grid-column: 4 / -1; grid-row: 3; justify-self: end; }
 }

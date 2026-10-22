@@ -275,9 +275,11 @@ describe("nothing on a narrow screen widens its pane or loses its words", () => 
     expect(phone).toMatch(/\.jr-toolbar-row > \.ig-freshness \{ flex: none; \}/);
   });
 
-  it("on a phone, keeps a row's epic, versions and estimate on its third line, the chips giving way", () => {
+  it("on a phone, keeps a row's flag, epic and estimate on its third line, the epic giving way", () => {
     const narrow = block("@container jira-list (max-width: 360px)");
     expect(narrow).toMatch(/\.jr-facts \.jr-meta \{[^}]*grid-row: 3;[^}]*flex-wrap: nowrap;/);
+    // Fix versions, cut to a character or two beside an epic, wait for the issue's page.
+    expect(narrow).toMatch(/\.jr-facts \.jr-meta > \.jr-version \{ display: none; \}/);
     expect(sheet).toMatch(/\.jr-meta > \* \{ min-width: 0; flex: 0 1 auto; \}/);
   });
 });
