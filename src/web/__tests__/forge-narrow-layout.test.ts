@@ -176,6 +176,17 @@ describe("a selected row", () => {
   });
 });
 
+describe("a state line on an item page", () => {
+  it("keeps its mark beside its words when the words wrap, the mark on their first line", () => {
+    // "Approved by" a long name used to drop the whole sentence under the
+    // mark, leaving the mark alone on a line of its own.
+    const led = ".fd-status-line:has(> .fg-mark:first-child)";
+    expect(decls(topLevel(detail), led)).toMatch(/flex-wrap: nowrap; align-items: flex-start; line-height: 1.5;/);
+    expect(decls(topLevel(detail), `${led} > :not(:first-child)`)).toMatch(/min-width: 0/);
+    expect(decls(topLevel(detail), ".fd-status-line > .fg-mark:first-child")).toMatch(/flex: none; height: 1.5em;/);
+  });
+});
+
 describe("a job's log", () => {
   it("never wraps a line, so a line number stays beside its line; it scrolls sideways instead", () => {
     expect(decls(detail, ".fd-log")).toMatch(/overflow: auto/);

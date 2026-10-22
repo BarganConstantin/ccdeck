@@ -39,6 +39,11 @@
 .fd-status > li { min-width: 0; max-width: 100%; }
 .fd-status-line { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; color: var(--text); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .fd-status-key { color: var(--muted); }
+/* A line led by a state's mark ("Approved by …") wraps its words beside the
+   mark, never under it: the mark is one line tall and stays on the first. */
+.fd-status-line:has(> .fg-mark:first-child) { flex-wrap: nowrap; align-items: flex-start; line-height: 1.5; }
+.fd-status-line:has(> .fg-mark:first-child) > :not(:first-child) { min-width: 0; }
+.fd-status-line > .fg-mark:first-child { flex: none; height: 1.5em; }
 
 /* A link to another item in the panel: a quiet button that fills on hover. Its
    fill reaches 8px past the text so the words line up with the column, and it
