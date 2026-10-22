@@ -87,7 +87,7 @@ describe("what the server sends, given the client decides the order", () => {
 describe("the parser stopped truncating, which is what made the above possible", () => {
   const PS = ["  PID  %CPU %MEM    RSS     ELAPSED USER             COMM",
     ...Array.from({ length: 30 }, (_, i) =>
-      `${100 + i}  ${30 - i}.0  0.${i} ${1024 * (i + 1)}       0${i % 6}:00 constantin       proc${i}`)].join("\n");
+      `${100 + i}  ${30 - i}.0  0.${i} ${1024 * (i + 1)}       0${i % 6}:00 consultant       proc${i}`)].join("\n");
 
   it("parses every row `ps` printed rather than the first eight", () => {
     // Selection belongs to pickCandidates, which cannot rank a column out of

@@ -80,7 +80,7 @@ function stdoutFor(file: string): string {
     // (`--sort=-pcpu` on Linux, `-r` on BSD) and parsePsProcesses keeps
     // whatever order it was given.
     return "  PID  %CPU %MEM    RSS     ELAPSED USER             COMMAND\n" +
-           "  777  99.0  1.2  204800       10:00 constantin       node\n" +
+           "  777  99.0  1.2  204800       10:00 consultant       node\n" +
            "    1  12.5  0.4   12288 3-00:00:00 root             launchd\n";
   }
   if (file.toLowerCase().includes("powershell")) {

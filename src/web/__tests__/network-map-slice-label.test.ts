@@ -79,10 +79,10 @@ describe("the tailnet slice's name", () => {
     // Two decks on the local network, and one laptop over Tailscale that is
     // away — the stage of a 1280x720 window.
     const rows = [row({}), row({}), row({ here: false, via: "tailscale", name: "work-laptop", state: "last online 2h ago" })];
-    const layout = mapLayout(rows, 864, 535, "constantin-thinkpad");
+    const layout = mapLayout(rows, 864, 535, "consultant-thinkpad");
     expect(layout.zone).not.toBeNull();
     expect(layout.zone!.labelAt).not.toBeNull();
-    expect(decksUnderName(rows, 864, 535, "constantin-thinkpad")).toEqual([]);
+    expect(decksUnderName(rows, 864, 535, "consultant-thinkpad")).toEqual([]);
   });
 
   it("does not run through a nearby tailnet deck's name", () => {
@@ -90,7 +90,7 @@ describe("the tailnet slice's name", () => {
       row({}), row({}), row({ here: false, state: "last online 3h ago" }),
       row({ kind: "nearby", via: "tailscale", name: "phone-tail", state: "not paired yet" }),
     ];
-    expect(decksUnderName(rows, 862, 534, "constantin-Venus-Series")).toEqual([]);
+    expect(decksUnderName(rows, 862, 534, "consultant-Venus-Series")).toEqual([]);
   });
 
   it("crosses no deck at any of the stages a window gives the map", () => {
@@ -116,7 +116,7 @@ describe("the tailnet slice's name", () => {
     const crossed: string[] = [];
     for (const network of networks) {
       for (const [w, h] of stages) {
-        const hit = decksUnderName(network(), w, h, "constantin-Venus-Series");
+        const hit = decksUnderName(network(), w, h, "consultant-Venus-Series");
         if (hit.length) crossed.push(`${w}x${h}: ${hit.join(", ")}`);
       }
     }

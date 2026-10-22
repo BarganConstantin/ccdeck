@@ -27,7 +27,7 @@ function row(over: Partial<DeckRow>): DeckRow {
   };
 }
 
-const status = { enabled: true, running: true, name: "constantin-thinkpad", fp: "fpSELF", port: 4317, addrs: [] } as unknown as LanStatus;
+const status = { enabled: true, running: true, name: "consultant-thinkpad", fp: "fpSELF", port: 4317, addrs: [] } as unknown as LanStatus;
 
 /** The panel's words with nothing pointed at, as the map draws it. */
 function panel(rows: DeckRow[], slice: boolean): string {

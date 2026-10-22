@@ -5,7 +5,7 @@
 // whatever width is left, so the other columns come down to their content —
 // and a Linux pid has seven digits as often as not (pid_max is 4194304). The
 // pid then filled its cell to the left edge, against the end of the user name:
-// `constantin1365092`, on most rows. The two boundaries where a number meets a
+// `consultant1365092`, on most rows. The two boundaries where a number meets a
 // name were given a fixed gap (18px); this one, where a name meets a number,
 // had none.
 //
