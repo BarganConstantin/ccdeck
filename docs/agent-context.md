@@ -3,6 +3,10 @@
 Updated: 2026-10-15. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
 
+The notes below that deliver work to `development` describe an earlier branch
+flow. Branches, pull requests and releases now follow
+[`release-workflow.md`](release-workflow.md).
+
 ## Tool activity redesign on Linux — 2026-10-15
 
 - Issue #2122, PR #2125, branch `feat/2122-tool-audit`, worktree
