@@ -16,8 +16,9 @@ import type { IntegrationWebDef } from "./integrations/types";
 import type { CapacityView } from "./components/AccountsUsageReport";
 import {
   AccountsGlyph, BrowserWatchGlyph, CapacityGlyph, FeedbackGlyph, HistoryGlyph, MachineGlyph, ResetCalendarGlyph,
-  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph,
+  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph, SkillActivityGlyph,
 } from "./components/rail-glyphs";
+import type { ToolActivityView } from "./components/ToolAuditModal";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
 
@@ -83,7 +84,8 @@ export function railItems({
   setTrafficRadarOpen?: Toggle;
   radioOpen?: boolean;
   setRadioOpen?: Toggle;
-  openToolActivity?: () => void;
+  /** Open Tool activity on one of its two views — each has its own door. */
+  openToolActivity?: (view: ToolActivityView) => void;
   /** The one door into Settings (use-settings-menus.ts). */
   openSettings: (section?: SettingsSection) => void;
   onFeedback: () => void;
@@ -163,6 +165,19 @@ export function railItems({
     id: "feedback", label: "Feedback", short: "Feedback", menu: "Send feedback",
     ariaLabel: "Send feedback", glyph: <FeedbackGlyph />, kind: "dialog", onPress: onFeedback,
   };
+  // TOOLS AND SKILLS, ONE DOOR EACH. Skills were a tab inside Tool activity,
+  // and users said they could not find them. Each door opens its own view,
+  // titled for itself, the way Account capacity and Reset calendar do; the
+  // tabs between them are gone.
+  const activity: RailItem[] = openToolActivity ? [{
+    id: "tool-activity", label: "Tool activity", short: "Tools", ariaLabel: "Tool activity",
+    glyph: <ToolActivityGlyph />, kind: "dialog",
+    detail: "Which tools your agents run, how long they take and what fails", onPress: () => openToolActivity("tools"),
+  }, {
+    id: "skill-activity", label: "Skill activity", short: "Skills", ariaLabel: "Skill activity",
+    glyph: <SkillActivityGlyph />, kind: "dialog",
+    detail: "Which skills your agents use, whether you typed them or the agent called them", onPress: () => openToolActivity("skills"),
+  }] : [];
   return {
     // Accounts first, at the top of the stripe and the start of the dock: the
     // owner's call (2026-10-08), the panel a first run opens and the one read
@@ -172,11 +187,7 @@ export function railItems({
     // Reset calendar, Session list.
     leftStripe: providers.claude ? [accounts, ...capacity, sessionList] : [sessionList],
     capacity: providers.claude ? capacity : [],
-    right: [[usage, machine], [history, ...(openToolActivity ? [{
-      id: "tool-activity", label: "Tool activity", short: "Tools", ariaLabel: "Tool activity",
-      glyph: <ToolActivityGlyph />, kind: "dialog" as const,
-      detail: "Which tools your agents run, how long they take and what fails", onPress: () => openToolActivity(),
-    }] : []), browserWatch, ...(setTrafficRadarOpen ? [{
+    right: [[usage, machine], [history, ...activity, browserWatch, ...(setTrafficRadarOpen ? [{
       id: "traffic-radar", label: "Telemetry Radar", short: "Radar", ariaLabel: "Telemetry Radar",
       glyph: <TrafficRadarGlyph />, kind: "dialog" as const,
       detail: "Claude telemetry configuration and observed connections", onPress: () => setTrafficRadarOpen(true),

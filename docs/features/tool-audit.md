@@ -1,10 +1,12 @@
 # Tool activity
 
-Issue [#2122](https://github.com/BarganConstantin/ccdeck/issues/2122); its Skills tab,
+Issue [#2122](https://github.com/BarganConstantin/ccdeck/issues/2122); its Skills view,
 [#2181](https://github.com/BarganConstantin/ccdeck/issues/2181).
 
-Open **Tool activity** from the rail button below Usage history (on narrow screens,
-**More → Tool activity**). It is a device-wide page across Claude and Codex, independent
+Open **Tool activity** from the rail button below Usage history, and **Skill activity**
+from the one right below it (on narrow screens, **More → Tool activity** and
+**More → Skill activity**). Each button opens its own view, titled for itself; there
+are no tabs between them. It is a device-wide page across Claude and Codex, independent
 of the sessions on the canvas. Collection starts with new events after this build
 starts; old sessions are not imported.
 
@@ -89,8 +91,8 @@ A use is a skill loaded into an agent:
   the model). The installer adds the hook unless the deck is started with
   `AGENTS_DECK_SKILL_HOOK=0`, and only when every Claude Code it finds is
   2.1.116 or newer (see "The typed-command hook and its gate" below);
-  otherwise only the skills Claude calls itself are counted, and the Skills
-  tab says so. The event is recorded and answered
+  otherwise only the skills Claude calls itself are counted, and Skill
+  activity says so. The event is recorded and answered
   before the canvas would see it, so it never becomes a canvas event. Built-in
   commands such as `/clear` do not send it; MCP prompts
   (`expansion_type: "mcp_prompt"`) are not counted. Every deck on the device hears
@@ -152,7 +154,7 @@ only when all of these hold:
   `UserPromptExpansion` is a list.
 
 When any of these fails, the entry is left out and the rest of the install goes
-on. Then the boot prints a `Skill hook` row saying why, and the Skills tab
+on. Then the boot prints a `Skill hook` row saying why, and Skill activity
 says typed commands are not counted (it reads `settings.json` for our entry on
 each report, as `typedCommands`: `on`, `off` or `skipped`). Installed, the boot
 prints nothing more. Turned off, the boot prints what it printed before and
