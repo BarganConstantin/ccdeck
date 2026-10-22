@@ -118,6 +118,10 @@
 .fgl-ci { min-width: 0; }
 .fgl-branch-change { grid-area: change; justify-self: end; min-width: 0; }
 .fgl-create { display: inline-flex; gap: 4px; padding: 4px 0; }
+/* On the chosen row the accent is under AA against the selection's fill, so
+   the link takes the row's ink, as every word on that row does, and keeps an
+   underline to stay a link. */
+.ig-row[data-selected] .fgl-create { color: var(--ig-sel-ink, var(--text)); text-decoration: underline; text-underline-offset: 2px; }
 
 /* ── the project picker ──────────────────────────────────────────────────── */
 /* The span is the popover's width, so the end-aligned popover starts under

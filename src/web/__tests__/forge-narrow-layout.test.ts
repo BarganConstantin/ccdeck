@@ -131,6 +131,10 @@ describe("a selected row", () => {
     expect(decls(panel, ".ig-row[data-selected] .fg-badge")).toMatch(/color: var\(--ig-sel-ink, var\(--text\)\)/);
     expect(decls(panel, ".ig-row[data-selected] .fg-badge[data-tone=bad] > [aria-hidden]")).toMatch(/color: var\(--err\)/);
   });
+
+  it("draws a branch's Create link in the row's ink, underlined, since the accent is under AA on the selection", () => {
+    expect(decls(lists, ".ig-row[data-selected] .fgl-create")).toMatch(/color: var\(--ig-sel-ink, var\(--text\)\);.*text-decoration: underline/);
+  });
 });
 
 describe("a job's log", () => {
