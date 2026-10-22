@@ -1,5 +1,5 @@
 // A merge request or pull request, drawn the way GitLab's merge request page
-// draws one (#2179) — the screen the owner reviews from every day.
+// draws one (#2179) — the page reviewers work from.
 //
 // The title with its state, "Author requested to merge source into target",
 // the pipeline and the approvals; then the page's four tabs with their counts

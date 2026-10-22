@@ -66,8 +66,8 @@ const jira: IntegrationWebDef = {
   tokenHelp: createElement(JiraTokenHelp),
 };
 
-// GitHub and GitLab (#2179): one panel, the screens the owner works through on
-// GitLab. Read-only, and no key of their own yet.
+// GitHub and GitLab (#2179): one panel, the screens a GitLab user works
+// through. Read-only, and no key of their own yet.
 const github: IntegrationWebDef = {
   kind: "github",
   label: "GitHub",

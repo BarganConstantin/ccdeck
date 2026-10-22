@@ -3,7 +3,7 @@
 // Both forges are read on the server — src/server/github-api.mjs and
 // src/server/gitlab-api.mjs, over the shared transport in forge-http.mjs — and
 // each answers in THESE shapes, so one panel draws either. The panel copies the
-// screens the owner already works in on their GitLab: the project's
+// screens a GitLab user already works in: the project's
 // Branches page, the Merge requests dashboard, and the merge request's own page
 // (Overview · Commits · Pipelines · Changes). GitHub's pull request, branch and
 // Actions pages carry the same facts, so they fill the same shapes.

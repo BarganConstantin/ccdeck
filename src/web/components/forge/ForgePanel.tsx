@@ -3,7 +3,7 @@
 // Drawn inside the integrations host's large modal (#2178), below its header
 // (the forge's glyph and name, the connection selector, Close). Everything
 // under that is here: a toolbar with the project or repository, how fresh the
-// list is and Refresh; the four tabs the owner works through on GitLab —
+// list is and Refresh; the four tabs a GitLab user works through —
 // Branches, Merge requests, Pipelines, Issues (Pull requests and Actions on
 // GitHub); a search over what is loaded that also opens a pasted link; and on
 // the right, the selected item the way the forge's own page shows it. The host's

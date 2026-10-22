@@ -1,6 +1,6 @@
 // What the GitHub and GitLab panels know besides the drawing (#2179).
 //
-// The panels copy screens the owner already works in: a project's Branches
+// The panels copy screens a GitLab user already works in: a project's Branches
 // page, the Merge requests dashboard, a merge request's own page. This file is
 // the part of that which is not layout — how a read is asked for and kept,
 // what each state is called on screen, how a list splits into the groups those

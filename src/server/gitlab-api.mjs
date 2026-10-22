@@ -1,7 +1,7 @@
 // GitLab, read for the GitHub and GitLab panels (#2179). READ-ONLY: every
 // call here is a REST GET or a GraphQL query — nothing is ever written.
 //
-// The panel copies the screens the owner works in on a GitLab instance (the
+// The panel copies the screens a GitLab user works in on an instance (the
 // project's Branches page, the Merge requests dashboard, the merge request's
 // own page, Pipelines and Issues) and this file answers in forge-types.ts's
 // shapes. The transport (forge-http.mjs) keeps the token on the instance's
