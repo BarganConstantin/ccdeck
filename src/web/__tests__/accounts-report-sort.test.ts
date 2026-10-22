@@ -30,7 +30,7 @@ function acct(num: number, email: string, p5: number | null, p7: number | null, 
 
 const PANEL = [
   acct(1, "dcorovin@x.io", 65, 45),
-  acct(2, "sapec2@x.io", 0, 83),
+  acct(2, "example2@x.io", 0, 83),
   acct(3, "claude4@x.io", 92, 24),
   acct(4, "cbargan@x.io", 0, 100),
   acct(5, "never@x.io", null, null, { fetchedAt: null } as Partial<Account>),
@@ -53,12 +53,12 @@ describe("what a press on a column header does", () => {
 
 describe("the rows in a column's order", () => {
   it("keeps the panel's order until a column is pressed", () => {
-    expect(rowsOf(null)).toEqual(["dcorovin", "sapec2", "claude4", "cbargan", "never"]);
+    expect(rowsOf(null)).toEqual(["dcorovin", "example2", "claude4", "cbargan", "never"]);
   });
 
   it("puts the least used first, and the most used first when turned round", () => {
-    expect(rowsOf({ key: "five_hour", dir: "asc" })).toEqual(["sapec2", "cbargan", "dcorovin", "claude4", "never"]);
-    expect(rowsOf({ key: "five_hour", dir: "desc" })).toEqual(["claude4", "dcorovin", "sapec2", "cbargan", "never"]);
+    expect(rowsOf({ key: "five_hour", dir: "asc" })).toEqual(["example2", "cbargan", "dcorovin", "claude4", "never"]);
+    expect(rowsOf({ key: "five_hour", dir: "desc" })).toEqual(["claude4", "dcorovin", "example2", "cbargan", "never"]);
   });
 
   it("puts a row with no reading for the column last, whichever way it points", () => {
@@ -67,11 +67,11 @@ describe("the rows in a column's order", () => {
   });
 
   it("keeps the panel's order between equal rows in both directions", () => {
-    // sapec2 and cbargan are both at 0% of 5h: sapec2 stands first in the panel.
+    // example2 and cbargan are both at 0% of 5h: example2 stands first in the panel.
     const asc = rowsOf({ key: "five_hour", dir: "asc" });
     const desc = rowsOf({ key: "five_hour", dir: "desc" });
-    expect(asc.indexOf("sapec2")).toBeLessThan(asc.indexOf("cbargan"));
-    expect(desc.indexOf("sapec2")).toBeLessThan(desc.indexOf("cbargan"));
+    expect(asc.indexOf("example2")).toBeLessThan(asc.indexOf("cbargan"));
+    expect(desc.indexOf("example2")).toBeLessThan(desc.indexOf("cbargan"));
   });
 
   it("orders names A to Z, ignoring case", () => {
@@ -81,14 +81,14 @@ describe("the rows in a column's order", () => {
   });
 
   it("puts Ready first, then Limited, then Stale", () => {
-    expect(rowsOf({ key: "status", dir: "asc" })).toEqual(["dcorovin", "sapec2", "claude4", "cbargan", "never"]);
-    expect(rowsOf({ key: "status", dir: "desc" })).toEqual(["never", "cbargan", "dcorovin", "sapec2", "claude4"]);
+    expect(rowsOf({ key: "status", dir: "asc" })).toEqual(["dcorovin", "example2", "claude4", "cbargan", "never"]);
+    expect(rowsOf({ key: "status", dir: "desc" })).toEqual(["never", "cbargan", "dcorovin", "example2", "claude4"]);
   });
 
   it("puts the newest reading first, and a row never read last", () => {
     const old = acct(6, "old@x.io", 10, 10, { fetchedAt: (NOW - 2 * HOUR) * 1000 } as Partial<Account>);
     const rows = sortReportRows(usageReport([old, ...PANEL], NOW).rows, { key: "updated", dir: "asc" }).map(r => r.name.split("@")[0]);
-    expect(rows).toEqual(["dcorovin", "sapec2", "claude4", "cbargan", "old", "never"]);
+    expect(rows).toEqual(["dcorovin", "example2", "claude4", "cbargan", "old", "never"]);
   });
 });
 

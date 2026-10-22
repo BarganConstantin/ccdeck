@@ -367,7 +367,7 @@ describe("the logins the panel has room for", () => {
 
 describe("a real office on the map", () => {
   const office = () => [
-    ...["Fiodor Linux", "Vitalie", "dtriboi@sapec.md", "Deniss-MacBook-Pro"].map(name => row({ name, fp: `fp-${name}` })),
+    ...["Fiodor Linux", "Vitalie", "dave@example.net", "Deniss-MacBook-Pro"].map(name => row({ name, fp: `fp-${name}` })),
     ...["Constantin Windows", "Home Ubuntu"].map(name => row({ name, fp: `fp-${name}`, via: "tailscale" })),
     ...["Office Laptop", "Petrus-MacBook-Pro", "Songurovs-MacBook-Pro", "YMNIQUEPC", "Kobe-Macbook",
       "Evghenis-MacBook-Pro", "denis linux", "Alex-PC"].map(name => row({ name, fp: `fp-${name}`, here: false, state: "last online 2h ago" })),

@@ -231,7 +231,7 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                     {bundle.failed.map(f => {
                       // claude-swap's own reasons already name the account -
                       // "no backup credentials found for account 3
-                      // (claude2@sapec.md)" - so printing the address above it
+                      // (bob@example.net)" - so printing the address above it
                       // says the same thing twice in three lines. The name line
                       // is for the reasons that do not carry one.
                       const named = Boolean(f.email && f.detail?.includes(f.email));

@@ -628,8 +628,8 @@ function rosterRow({ seq, num, acct, row, identity, now, key, origin = null }) {
  * It says nothing about whether the user is signed in. Measured on the machine
  * that reported this, at the same instant:
  *
- *   claude auth status --json  ->  loggedIn: true, claude3@sapec.md
- *   cswap list --json          ->  claude3@sapec.md: relogin_required
+ *   claude auth status --json  ->  loggedIn: true, carol@example.net
+ *   cswap list --json          ->  carol@example.net: relogin_required
  *   GET /api/quota             ->  source: cli, 5h 33%, 7d 37%
  *
  * The user had signed in again in a terminal, which refreshes the LIVE

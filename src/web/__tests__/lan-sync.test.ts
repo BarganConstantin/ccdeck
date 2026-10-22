@@ -43,7 +43,7 @@ describe("what a stranger on the same wifi learns", () => {
     const p = beaconPayload({ name: "MacBook", fp: FP, port: 4319, instance: "0badc0de" });
     expect(Object.keys(p).sort()).toEqual(["f", "i", "m", "n", "p", "v"]);
     const wire = JSON.stringify(p);
-    for (const secret of ["amber-canyon-forty-drift", "@", "claude", "sapec", "refresh", "oauth"]) {
+    for (const secret of ["amber-canyon-forty-drift", "@", "claude", "example", "refresh", "oauth"]) {
       expect(wire, `the beacon carries ${secret}`).not.toContain(secret);
     }
   });
