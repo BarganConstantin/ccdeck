@@ -346,6 +346,11 @@ describe("the deck's ten overlays", () => {
       // it with Enter can keep pressing Enter to the end, and the × is still
       // one Shift+Tab away and Escape closes it from any step.
       "GuideModal.tsx",
+      // A connected tracker's panel names its own first control (the board
+      // or project picker): the connection selector before it took the
+      // first focus and showed its ring after a pointer open, which read
+      // as an error (#2178).
+      "IntegrationModal.tsx",
       // The add-a-deck dialog names the address field, because the reader
       // pressed `+ add a deck` holding either an address or a token and only
       // one of the two is a field they can start typing into.
