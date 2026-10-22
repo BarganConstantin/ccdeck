@@ -125,3 +125,21 @@ describe("the reader's own issues are marked as theirs", () => {
   });
 });
 
+describe("the list is one Tab stop", () => {
+  const stops = (html: string) => [...html.matchAll(/<button[^>]*class="(jr-row-main|jr-group-toggle)"[^>]*>/g)]
+    .filter(m => !/tabindex="-1"/.test(m[0])).map(m => /data-nav="([^"]+)"/.exec(m[0])![1]);
+
+  it("puts the first row in the Tab order and every sprint header out of it", () => {
+    const html = drawBoard([issue("MOCK-1"), issue("MOCK-2")]);
+    expect(stops(html)).toHaveLength(1);
+    expect(stops(html)[0]).toMatch(/\/MOCK-1$/);
+    expect(html).toMatch(/class="jr-group-toggle"[^>]*tabindex="-1"/);
+  });
+
+  it("falls back to the first sprint header when no row is drawn", () => {
+    const html = drawBoard([]);
+    expect(stops(html)).toHaveLength(1);
+    expect(stops(html)[0]).toMatch(/^g:/);
+  });
+});
+

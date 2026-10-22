@@ -178,12 +178,13 @@ export default function JiraBacklog(props: JiraBacklogProps) {
       default:
     }
   };
-  // One row is in the Tab order: the last one focused, or, before any has
-  // been, the first row drawn. A row filtered away or folded hands the stop
+  // One item is in the Tab order, a sprint's header or a row: the last one
+  // focused, or, before any has been, the first row drawn, or the first
+  // header when no row is. An item filtered away or folded hands the stop
   // back to the first.
   const firstRow = useMemo(() => {
     for (const { def, rows } of built) if (groupOpen(def, expanded) && rows.length > 0) return `${def.id}/${rowKey(rows[0])}`;
-    return null;
+    return built.length ? `g:${built[0].def.id}` : null;
   }, [built, expanded]);
   useEffect(() => {
     if (current && !listRef.current?.querySelector(`[data-nav="${CSS.escape(current)}"]`)) setCurrent(null);
@@ -292,8 +293,8 @@ export default function JiraBacklog(props: JiraBacklogProps) {
             <div className="jr-group-head">
               <h3 className="jr-group-title" id={`${bodyId}-title`}>
                 <button type="button" id={`${bodyId}-toggle`} className="jr-group-toggle" data-nav={nav} data-toggle={`${bodyId}-toggle`}
-                  data-expanded={String(open)} aria-expanded={open} aria-controls={bodyId}
-                  onClick={() => onToggleGroup(def, !open)}>
+                  data-expanded={String(open)} aria-expanded={open} aria-controls={bodyId} tabIndex={tabStop(nav)}
+                  onFocus={() => setCurrent(nav)} onClick={() => onToggleGroup(def, !open)}>
                   <Chevron open={open} />
                   <span className="jr-group-name">{def.title}</span>
                   {def.kind === "active" && <span className="jr-badge">Active</span>}
