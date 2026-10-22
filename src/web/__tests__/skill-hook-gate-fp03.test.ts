@@ -13,10 +13,11 @@
 // stop-failure-install-2185 runs it.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
 import {
-  chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync,
+  chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync,
+  symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, join, resolve } from "node:path";
+import { delimiter, join, relative, resolve } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 
 // Resolved, because the version is read through the install's realpath and
@@ -390,6 +391,142 @@ describe("the default", () => {
     const r = await installHooks({ provider: "claude", claudeVersions: PINNED, skillHook: { installs: found(npmInstall("2.1.306")), runImpl: noSpawn() } });
     expect(r.skillHook).toMatchObject({ install: true, state: "on" });
     expect(forwarders(read().hooks!.UserPromptExpansion)).toHaveLength(1);
+  });
+});
+
+// The owner's call for v3.44.0: Skill activity stays opt-in through
+// AGENTS_DECK_SKILL_HOOK=1, and a deck started without it changes nothing in
+// Claude Code's settings. A deck's very first start writes its own standard
+// hooks — every version has, and that is not this setting's doing — so "no
+// change" is held two ways: on a first start the file comes out exactly as the
+// unset default writes it, and on every start after that, the steady state a
+// machine is in, nothing under the config dir is written at all. The one write
+// the disabled state makes is the opt-out: our own entry, taken back out.
+
+/** Every value that is not the opt-in; `undefined` is the variable unset. */
+const OFF_VALUES = [undefined, "", "0", "true"];
+/** Below 2.1.101, where the whole file was at stake; just below the gate; at
+ *  it; above it. */
+const VERSIONS = ["2.1.100", "2.1.115", "2.1.116", "2.1.306"];
+const SEEDS: Record<string, string> = { "the user's own hooks": ORIGINAL, "no hooks yet": canonical({ model: "opus" }) };
+
+function setFlag(value: string | undefined) {
+  if (value === undefined) delete process.env.AGENTS_DECK_SKILL_HOOK;
+  else process.env.AGENTS_DECK_SKILL_HOOK = value;
+}
+
+/** A start of the deck as bin/cli/startup.js makes one — the opt-in read from
+ *  the environment the deck was started with — on a machine whose only Claude
+ *  Code is `version`, with a probe that must never run. */
+function boot(version: string, runImpl = noSpawn()) {
+  return installHooks({ provider: "claude", claudeVersions: [version], skillHook: { installs: found(npmInstall(version)), runImpl } });
+}
+
+/** What any write under the Claude config dir would show: each entry's kind,
+ *  size, mode and mtime, and on POSIX its inode — a rename over a name gives it
+ *  a new one even with the same bytes. A directory's own mtime moves when a
+ *  file is created in it, even a temp file deleted again, so "." is in it too. */
+function tree(root = CLAUDE_DIR): Record<string, string> {
+  const out: Record<string, string> = {};
+  const add = (p: string) => {
+    const s = lstatSync(p);
+    out[relative(root, p) || "."] = [s.isDirectory() ? "dir" : "file", s.size, (s.mode & 0o777).toString(8), s.mtimeMs, WIN ? "-" : s.ino].join(" ");
+    if (s.isDirectory()) for (const name of readdirSync(p).sort()) add(join(p, name));
+  };
+  add(root);
+  return out;
+}
+
+const temps = () => Object.keys(tree()).filter(k => k.endsWith(".tmp"));
+
+describe("the disabled state", () => {
+  it("on a first start writes what the unset default writes, and nothing of Skill activity's, for every value but 1 and every Claude Code version", async () => {
+    for (const [seed, seedText] of Object.entries(SEEDS)) {
+      for (const version of VERSIONS) {
+        let unset: string | undefined;
+        for (const value of OFF_VALUES) {
+          const label = `${seed}, Claude Code ${version}, AGENTS_DECK_SKILL_HOOK=${JSON.stringify(value)}`;
+          rmSync(BACKUP, { force: true });
+          writeText(seedText);
+          setFlag(value);
+          const runImpl = noSpawn();
+          const r = await boot(version, runImpl);
+          expect(r.skillHook, label).toMatchObject({ install: false, state: "off", reason: "not-enabled" });
+          expect(r.events, label).not.toContain("UserPromptExpansion");
+          expect(runImpl, label).not.toHaveBeenCalled();
+          expect(forwarders(read().hooks?.UserPromptExpansion), label).toEqual([]);
+          // The user's own entry under that key, or its absence, is as it was.
+          expect(read().hooks?.UserPromptExpansion, label).toEqual(JSON.parse(seedText).hooks?.UserPromptExpansion);
+          expect(existsSync(BACKUP), label).toBe(false);
+          expect(temps(), label).toEqual([]);
+          // Every value that is not 1 is the default, byte for byte.
+          unset ??= text();
+          expect(text(), label).toBe(unset);
+        }
+      }
+    }
+  });
+
+  it("on every start after that writes nothing under the config dir: same bytes, mode and inode, no backup, no temp file", async () => {
+    for (const [seed, seedText] of Object.entries(SEEDS)) {
+      for (const version of VERSIONS) {
+        for (const value of OFF_VALUES) {
+          const label = `${seed}, Claude Code ${version}, AGENTS_DECK_SKILL_HOOK=${JSON.stringify(value)}`;
+          rmSync(BACKUP, { force: true });
+          writeText(seedText);
+          setFlag(value);
+          await boot(version); // the first start: the deck's own standard hooks
+          if (!WIN) chmodSync(SETTINGS, 0o640); // a mode of the user's, which a rewrite would have to carry
+          const bytes = readFileSync(SETTINGS);
+          const files = tree();
+          const runImpl = noSpawn();
+          const r = await boot(version, runImpl);
+          expect(r, label).toMatchObject({ changed: false });
+          expect(r.skillHook, label).toMatchObject({ install: false, state: "off" });
+          expect(runImpl, label).not.toHaveBeenCalled();
+          expect(readFileSync(SETTINGS).equals(bytes), label).toBe(true);
+          expect(tree(), label).toEqual(files);
+          expect(existsSync(BACKUP), label).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("turning it off is its one write: only our entry comes out, every other byte stays, nothing else is written", async () => {
+    await boot("2.1.306"); // unset: the deck's own standard hooks
+    const before = text();
+    setFlag("1");
+    expect((await boot("2.1.306")).skillHook).toMatchObject({ install: true, state: "on", backup: BACKUP });
+    const withEntry = text();
+    if (!WIN) chmodSync(SETTINGS, 0o640);
+    const files = tree();
+
+    setFlag(undefined);
+    const runImpl = noSpawn();
+    const r = await boot("2.1.306", runImpl);
+    expect(r).toMatchObject({ changed: true, skillHook: { install: false, state: "off" } });
+    expect(runImpl).not.toHaveBeenCalled();
+    // Lines are only taken out, and only ours: the comma after the user's own
+    // group, then our group. What is left is the file from before the opt-in.
+    const w = changedWindow(withEntry, text());
+    expect(w.b).toEqual([]);
+    expect(w.a[0]).toBe("      },");
+    expect(w.a.join("\n")).toContain('"__agent-dag": true');
+    expect(w.a.join("\n")).not.toContain("audit-deploy.sh");
+    expect(text()).toBe(before);
+    expect(read().hooks!.UserPromptExpansion).toEqual([MINE_UPE]);
+    if (!WIN) expect(statSync(SETTINGS).mode & 0o777).toBe(0o640);
+    // settings.json is the one thing written. (The config dir's own entry, ".",
+    // may move: the new file is renamed into it.) The backup the opt-in made is
+    // the user's data and stays exactly as it was; no temp file is left.
+    const now = tree();
+    expect(Object.keys({ ...files, ...now }).filter(k => k !== "." && files[k] !== now[k])).toEqual(["settings.json"]);
+    expect(existsSync(BACKUP)).toBe(true);
+    expect(temps()).toEqual([]);
+    // And the start after that writes nothing at all.
+    const settled = tree();
+    expect(await boot("2.1.306")).toMatchObject({ changed: false });
+    expect(tree()).toEqual(settled);
   });
 });
 
