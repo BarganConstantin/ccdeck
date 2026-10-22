@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { JsonInspector } from "./JsonInspector";
 import { radarMonitorState } from "../radar-monitor-state";
 import { armedPress, pressState } from "../panel-press";
-import type { RadarSnapshot } from "../traffic-radar";
+import { connectionLabel, type RadarSnapshot } from "../traffic-radar";
 import { captureAddress, configuredDestinations, observedDestinations, type RadarSession } from "../telemetry-inspection";
 import type { CaptureAction, CaptureSnapshot, CapturedExport } from "../use-telemetry-capture";
 import { readStored, writeStored } from "../storage";
@@ -210,7 +210,7 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
   action: (kind: CaptureAction, destination?: string | string[]) => Promise<void>;
   sessionFilter?: string; sessions?: RadarSession[];
 }) {
-  const configured = configuredDestinations(radar?.config?.variables ?? []);
+  const configured = configuredDestinations([...(radar?.config?.variables ?? []), ...(radar?.environment ?? [])]);
   const addresses = [...new Set(configured.map(captureAddress).filter((v): v is string => !!v))];
   const observed = observedDestinations(radar).filter(address => !addresses.includes(address) && captureAddress(`http://${address}`));
   const [destination, setDestination] = useState("all");
@@ -396,7 +396,7 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
           <p className="tr-note">{retained.length || capture?.observations?.length ? promptsOnly ? "No exports with prompt fields match your filters. Turn off With prompt to see all activity. Redacted prompts are included." : "Try another session, type or destination." : automatic ? "Radar monitors automatically when a collector is available. Keep using Claude while Radar listens." : running ? "New collector activity will appear here. Keep using Claude while Radar listens." : "Choose a destination and start monitoring. New collector activity will appear here."}</p>
         </div>}
         {activity.length > visibleCount && <button className="btn" onClick={() => setVisibleCount(count => count + 100)}>Show older messages</button>}
-        {connections.length > 0 && <details className="tr-details"><summary>Connections to these collectors ({connections.length})</summary><ul className="tr-live-connections">{connections.map(c => <li key={`${c.pid}:${c.destination}`}><code>{c.destination}</code><span>Claude · PID {c.pid} · {c.workspace ?? "Workspace unknown"}</span></li>)}</ul><p className="tr-note">A connection alone does not prove a telemetry message was sent. These connections are not filtered by session.</p></details>}
+        {connections.length > 0 && <details className="tr-details"><summary>Connections to these collectors ({connections.length})</summary><ul className="tr-live-connections">{connections.map(c => <li key={`${c.pid}:${c.destination}`}><code>{c.destination}</code><span>Claude · {c.connecting && <><span className="tr-attempt">{connectionLabel(c)}</span> · </>}PID {c.pid} · {c.workspace ?? "Workspace unknown"}</span></li>)}</ul><p className="tr-note">A connection alone does not prove a telemetry message was sent. These connections are not filtered by session.</p></details>}
       </section>
       {hasHistory && <RadarSplitter workspace={workspace} width={feedWidth} onCommit={saveFeedWidth} />}
       <section className="tr-inspector" hidden={!hasHistory} aria-label="Activity inspector" ref={inspector} tabIndex={-1}>

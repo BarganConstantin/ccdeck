@@ -2,15 +2,18 @@ import { CaptureSetupError } from './traffic-radar-platform.mjs';
 import { isIP } from 'node:net';
 
 export function radarTargets(snapshot) {
-  const configured = (snapshot?.config?.variables ?? []).filter(v => v.key.endsWith('ENDPOINT')).flatMap(({ value }) => {
+  // A running Claude's launch environment names a collector as settings do.
+  const variables = [...(snapshot?.config?.variables ?? []), ...(snapshot?.environment ?? [])];
+  const configured = variables.filter(v => v.key.endsWith('ENDPOINT')).flatMap(({ value }) => {
     try {
       const url = new URL(value);
       return ['http:', 'https:'].includes(url.protocol) && isIP(url.hostname) === 4
         ? [`${url.hostname}:${url.port || (url.protocol === 'https:' ? 443 : 80)}`] : [];
     } catch { return []; }
   });
-  // An arbitrary Claude HTTPS connection is not evidence of a collector.
-  const observed = (snapshot?.connections ?? []).filter(c => c.active === true && /:4317$/.test(c.destination) && isIP(c.destination.slice(0, c.destination.lastIndexOf(':'))) === 4).map(c => c.destination);
+  // An arbitrary Claude HTTPS connection is not evidence of a collector, nor an
+  // attempt nothing has answered.
+  const observed = (snapshot?.connections ?? []).filter(c => c.active === true && !c.connecting && /:4317$/.test(c.destination) && isIP(c.destination.slice(0, c.destination.lastIndexOf(':'))) === 4).map(c => c.destination);
   return { configured: [...new Set(configured)], observed: [...new Set(observed)] };
 }
 

@@ -58,6 +58,39 @@ export function radarVariables(settings, source) {
   }));
 }
 
+export const LAUNCH_SOURCE = "Process launch environment";
+
+/** Allowlisted telemetry variables from a NUL-separated /proc environ. Every
+ *  other variable, credentials included, is dropped while parsing. */
+export function environVariables(buffer) {
+  const env = {};
+  for (const entry of buffer.toString("utf8").split("\0")) {
+    const split = entry.indexOf("=");
+    const key = entry.slice(0, split);
+    if (split > 0 && RADAR_KEYS.includes(key)) env[key] = entry.slice(split + 1);
+  }
+  return radarVariables({ env }, LAUNCH_SOURCE);
+}
+
+/** One row per variable and value across running Claude processes, so sessions
+ *  launched alike read as one source; the lowest PID keeps rows for different
+ *  values of a variable apart. Launch values are evidence, never switches. */
+export function launchVariables(processes) {
+  const rows = new Map();
+  for (const { pid, variables } of [...processes].sort((a, b) => a.pid - b.pid)) {
+    for (const variable of variables) {
+      const id = JSON.stringify([variable.key, variable.value, variable.rawValue ?? null]);
+      const row = rows.get(id);
+      if (row) row.more++;
+      else rows.set(id, { variable, pid, more: 0 });
+    }
+  }
+  return [...rows.values()].map(({ variable, pid, more }) => ({
+    ...variable, source: `${LAUNCH_SOURCE} · PID ${pid}${more ? ` and ${more} more` : ""}`, launch: true,
+    ...(BOOLEAN_KEYS.includes(variable.key) ? { editable: false } : {}),
+  }));
+}
+
 async function readBoundedJson(path) {
   const file = await open(path, "r");
   try {

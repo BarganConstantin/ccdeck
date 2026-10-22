@@ -1,7 +1,7 @@
 import { RadarIcon } from "./RadarIcon";
 import { RadarSelect } from "./RadarSelect";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import type { RadarSnapshot, RadarVariable } from "../traffic-radar";
+import { connectionLabel, type RadarSnapshot, type RadarVariable } from "../traffic-radar";
 import { configuredDestinations, configuredState, observedDestinations, type RadarSession } from "../telemetry-inspection";
 import { pressAccepted, pressState } from "../panel-press";
 import { tabStripMove } from "../tablist-keys";
@@ -41,7 +41,7 @@ export function TrafficRadarView({ snapshot, failed = false, captureState, sessi
     setPage(next);
     document.getElementById(`tr-tab-${next}`)?.focus();
   };
-  const variables = snapshot?.config?.variables ?? [];
+  const variables = [...(snapshot?.config?.variables ?? []), ...(snapshot?.environment ?? [])];
   const destinations = configuredDestinations(variables);
   const state = configuredState(variables);
   const incomplete = snapshot?.config?.sources.some(source => source.status === "unavailable");
@@ -78,7 +78,7 @@ export function TrafficRadarView({ snapshot, failed = false, captureState, sessi
     </div>
     <div className="tr-page tr-configuration-page" id="tr-panel-configuration" role="tabpanel" aria-labelledby="tr-tab-configuration" hidden={page !== "configuration"}>
     <div className="tr-summary">
-      <div className="tr-summary-state"><span className={`tr-state ${failed || !snapshot || incomplete ? "tr-tone-unknown" : state === "Enabled in settings" ? "tr-tone-enabled" : "tr-tone-unknown"}`}>{failed ? "Configuration unavailable" : !snapshot ? "Reading settings…" : incomplete ? "Configuration incomplete" : state === "Unknown" ? "Configuration unknown" : state}</span>
+      <div className="tr-summary-state"><span className={`tr-state ${failed || !snapshot || incomplete ? "tr-tone-unknown" : state.startsWith("Enabled") ? "tr-tone-enabled" : "tr-tone-unknown"}`}>{failed ? "Configuration unavailable" : !snapshot ? "Reading settings…" : incomplete ? "Configuration incomplete" : state === "Unknown" ? "Configuration unknown" : state}</span>
         <span className="tr-note">{destinations.length ? `${destinations.length} configured destination${destinations.length === 1 ? "" : "s"}` : "No destination found in the settings files read. Telemetry may still be running."}</span></div>
       {destinations.length > 0 && <div className="tr-endpoints">{destinations.map(destination => <code key={destination}>{destination}</code>)}</div>}
       {!destinations.length && observed.length > 0 && <div className="tr-observed-summary"><span className="tr-state">Claude connections observed</span><div className="tr-endpoints">{observed.map(address => <code key={address}>{address}</code>)}</div><p className="tr-note">These are active connections, not confirmed telemetry messages. Choose an observed address below to inspect its traffic.</p></div>}
@@ -89,6 +89,8 @@ export function TrafficRadarView({ snapshot, failed = false, captureState, sessi
   </div>;
 }
 
+const LAUNCH_NOTE = "Set in the environment this Claude process started with. Change it where the session is launched.";
+
 export function Configuration({ snapshot, sessionLabel, stale = false, onConfigChange }: { snapshot: RadarSnapshot; sessionLabel?: string; stale?: boolean; onConfigChange?: (config: RadarSnapshot["config"]) => void }) {
   const [savedConfig, setSavedConfig] = useState<RadarSnapshot["config"]>(null);
   const [saving, setSaving] = useState<string | null>(null);
@@ -97,7 +99,8 @@ export function Configuration({ snapshot, sessionLabel, stale = false, onConfigC
   const [error, setError] = useState("");
   const incomplete = (savedConfig ?? snapshot.config)?.sources.some(source => source.status === "unavailable");
   useEffect(() => { setSavedConfig(null); }, [snapshot.config]);
-  const variables = (savedConfig ?? snapshot.config)?.variables ?? [];
+  const variables = [...((savedConfig ?? snapshot.config)?.variables ?? []), ...(snapshot.environment ?? [])];
+  const uninspected = snapshot.uninspected ?? 0;
   const toggle = async (key: string, enabled: boolean) => {
     if (!pressAccepted(savingRef.current) || stale) return;
     savingRef.current = key;
@@ -130,7 +133,8 @@ export function Configuration({ snapshot, sessionLabel, stale = false, onConfigC
     <h3>What Claude is configured to send</h3>
     {stale && <p className="tr-warning" role="status">Last successfully read settings. Current configuration could not be verified.</p>}
     {incomplete && <p className="tr-warning" role="status">Some settings sources could not be read. Editing is unavailable until they can be verified.</p>}
-    <p className="tr-note">Read from local Claude settings. The effective environment of a running session is not verified.</p>
+    <p className="tr-note">{snapshot.environment?.length ? "Read from local Claude settings and the launch environment of running Claude processes. A running session’s effective values can still differ." : "Read from local Claude settings. The effective environment of a running session is not verified."}</p>
+    {uninspected > 0 && <p className="tr-note">{`${uninspected} Claude ${uninspected === 1 ? "process" : "processes"} could not be inspected, such as one run by another user. ${uninspected === 1 ? "Its" : "Their"} connections and launch environment are not shown.`}</p>}
     {sessionLabel && <p className="tr-note">Selected session: {sessionLabel}. These shared settings are evidence; this session’s runtime values are unverified.</p>}
     <h4>Destinations</h4>
     {destinations.length ? <ul className="tr-destinations">{destinations.map(v => <li key={`${v.source}:${v.key}`}><code>{v.value}</code><span>{v.source} · {v.key}</span></li>)}</ul> : <p className="tr-note">No destination found in the sources read. This does not mean telemetry is off.</p>}
@@ -145,22 +149,24 @@ export function Configuration({ snapshot, sessionLabel, stale = false, onConfigC
       const control = pressState(saving, v.key);
       const source = v.unset ? "Not in any settings file" : v.source;
       const label = `${names[v.key] ?? v.key} (${v.unset ? "not set" : v.source})`;
-      const unavailable = stale || incomplete || (v.editable !== true && !v.blockedReason);
-      const managed = v.editable !== true && !unavailable;
+      // A launch value belongs to a running process: no settings state makes it editable or unavailable.
+      const launch = v.launch === true;
+      const unavailable = !launch && (stale || incomplete || (v.editable !== true && !v.blockedReason));
+      const managed = !launch && v.editable !== true && !unavailable;
       // A managed flag shows its state on a locked switch, so the switch is there but cannot be moved.
-      const flagSwitch = (locked: boolean) => <button type="button" className="switch" role="switch" data-tone="warn" aria-checked={enabled} aria-label={label} {...(locked ? { disabled: true, title: v.blockedReason } : { "aria-busy": control.busy, disabled: control.disabled, title: `Turn ${enabled ? "off" : "on"} for new Claude sessions`, onClick: () => void toggle(v.key, !enabled) })}><span className="switch-knob" /></button>;
+      const flagSwitch = (locked: boolean, reason = v.blockedReason) => <button type="button" className="switch" role="switch" data-tone="warn" aria-checked={enabled} aria-label={label} {...(locked ? { disabled: true, title: reason } : { "aria-busy": control.busy, disabled: control.disabled, title: `Turn ${enabled ? "off" : "on"} for new Claude sessions`, onClick: () => void toggle(v.key, !enabled) })}><span className="switch-knob" /></button>;
       return <div key={`${v.source}:${v.key}`}>
         <dt><strong>{names[v.key] ?? v.key}</strong><code>{v.key}</code><span>{source}</span>{v.blockedReason && !incomplete && <span>{v.blockedReason}</span>}</dt>
         <dd className="tr-flag-control">
           <span className="tr-flag-value"><span className={`tr-state ${enabled ? "tr-tone-enabled" : "tr-tone-unknown"}`}>{v.value}</span>{v.rawValue !== undefined && <code className="tr-raw-flag">{v.rawValue}</code>}</span>
           <span className="tr-flag-action">
-            {unavailable ? <span className="tr-control-note" title={v.blockedReason}>Unavailable</span> : managed ? <><span className="tr-control-note" title={v.blockedReason}>Managed</span>{known && flagSwitch(true)}</> : known ? flagSwitch(false) : <span className="tr-unknown-actions">{[true, false].map(value => <button type="button" key={String(value)} className="btn" aria-label={`${value ? "Enable" : "Disable"} ${label}`} aria-busy={control.busy} disabled={control.disabled} onClick={() => void toggle(v.key, value)}>{value ? "Enable" : "Disable"}</button>)}</span>}
+            {launch ? <><span className="tr-control-note" title={LAUNCH_NOTE}>Read-only</span>{known && flagSwitch(true, LAUNCH_NOTE)}</> : unavailable ? <span className="tr-control-note" title={v.blockedReason}>Unavailable</span> : managed ? <><span className="tr-control-note" title={v.blockedReason}>Managed</span>{known && flagSwitch(true)}</> : known ? flagSwitch(false) : <span className="tr-unknown-actions">{[true, false].map(value => <button type="button" key={String(value)} className="btn" aria-label={`${value ? "Enable" : "Disable"} ${label}`} aria-busy={control.busy} disabled={control.disabled} onClick={() => void toggle(v.key, value)}>{value ? "Enable" : "Disable"}</button>)}</span>}
             {saving === v.key && <span className="tr-control-note" role="status">Saving…</span>}
           </span>
         </dd>
       </div>;
     })}</dl> : <p className="tr-note">No telemetry flags found in the settings read.</p>}
-    {!destinations.length && snapshot.connections.length > 0 && <details className="tr-details"><summary>Observed Claude connections ({snapshot.connections.length})</summary><ul className="tr-live-connections">{snapshot.connections.map(c => <li key={`${c.pid}:${c.destination}`}><code>{c.destination}</code><span>{stale || c.active === null ? "Visibility unavailable" : c.active ? "Active connection" : "Previously observed"} · PID {c.pid} · {c.workspace ?? "Workspace unknown"}</span></li>)}</ul><p className="tr-note">A running process can keep previously loaded settings after a settings file disappears. Connections alone do not identify telemetry or prove a message was sent.</p></details>}
+    {!destinations.length && snapshot.connections.length > 0 && <details className="tr-details"><summary>Observed Claude connections ({snapshot.connections.length})</summary><ul className="tr-live-connections">{snapshot.connections.map(c => <li key={`${c.pid}:${c.destination}`}><code>{c.destination}</code><span>{c.connecting && !stale && c.active !== null ? <span className="tr-attempt">{connectionLabel(c)}</span> : connectionLabel(c, stale)} · PID {c.pid} · {c.workspace ?? "Workspace unknown"}</span></li>)}</ul><p className="tr-note">A running process can keep previously loaded settings after a settings file disappears. Connections alone do not identify telemetry or prove a message was sent.</p></details>}
     <details className="tr-details"><summary>All variables and sources</summary>
       <dl className="tr-variables">{variables.map(v => <div key={`${v.source}:${v.key}`}><dt><code>{v.key}</code><span>{v.source}</span></dt><dd>{v.value}</dd></div>)}</dl>
       <ul className="tr-sources">{snapshot.config?.sources.map(source => <li key={source.name}><span>{source.name}</span><span>{source.status === "read" ? "Read" : source.status === "absent" ? "Not found" : "Unavailable"}</span></li>)}</ul>
