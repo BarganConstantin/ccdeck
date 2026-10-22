@@ -1,6 +1,6 @@
 // OS-specific inspection stays here; the Radar history and decoder share one model.
 import { execFile } from 'node:child_process';
-import { readdir, readFile, readlink } from 'node:fs/promises';
+import { open, readdir, readlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { win32 } from 'node:path';
 
@@ -16,26 +16,67 @@ export function windowsSockets(pids) {
   return `$ids=@(${pids.join(',')}); Get-NetTCPConnection -ErrorAction Stop | Where-Object { $_.State -eq 'Established' -and $_.OwningProcess -in $ids } | ForEach-Object { $peer=$_.RemoteAddress; if($peer.Contains(':')){$peer='['+$peer+']'}; 'p'+$_.OwningProcess; 'nlocal->'+$peer+':'+$_.RemotePort }`;
 }
 
+// /proc files report size 0 and answer a page per read. Node 18's
+// fs.promises.readFile stops after that first page, which cut a busy machine's
+// socket table to its first ~27 rows, so /proc is read to EOF within a bound.
+export async function readProc(path, max, openFile = open) {
+  const file = await openFile(path, 'r');
+  try {
+    const chunks = [];
+    const chunk = Buffer.alloc(65_536);
+    let size = 0;
+    for (;;) {
+      const { bytesRead } = await file.read(chunk, 0, chunk.length, null);
+      if (!bytesRead) return Buffer.concat(chunks, size);
+      size += bytesRead;
+      if (size > max) return null;
+      chunks.push(Buffer.from(chunk.subarray(0, bytesRead)));
+    }
+  } finally { await file.close(); }
+}
+async function readTable(path) {
+  const table = await readProc(path, 67_108_864);
+  if (!table) throw Object.assign(new Error('Socket table too large.'), { code: 'EFBIG' });
+  return table.toString('utf8');
+}
+
 // /proc avoids an ss/lsof dependency and reads socket ownership only for selected Claude PIDs.
-export async function linuxSockets(pids, { read = readFile, list = readdir, link = readlink } = {}) {
+export async function linuxSockets(pids, { read = readTable, list = readdir, link = readlink } = {}) {
   const sockets = [], cwd = [];
   let unavailable = false;
+  // A namespace's table lists every socket on the machine (thousands of rows on
+  // a busy desktop) and Claude processes usually share one, so each table is
+  // parsed once per sample into peers by socket inode. A failed shared read is
+  // retried through the next process rather than reused.
+  const tables = new Map();
+  const peers = async (pid, family, ns) => {
+    const key = ns && `${ns}|${family}`;
+    if (key && tables.has(key)) { try { return await tables.get(key); } catch {} }
+    const parsed = read(`/proc/${pid}/net/${family}`, 'utf8').then(table => {
+      const byInode = new Map();
+      for (const row of table.trim().split('\n').slice(1)) {
+        const fields = row.trim().split(/\s+/);
+        if (fields[3] !== '01') continue;
+        const [hex, port] = fields[2].split(':');
+        const bytes = Buffer.from(hex, 'hex');
+        for (let i = 0; i < bytes.length; i += 4) bytes.subarray(i, i + 4).reverse();
+        const address = family === 'tcp' ? [...bytes].join('.') : '[' + Array.from({ length: 8 }, (_, i) => bytes.readUInt16BE(i * 2).toString(16)).join(':') + ']';
+        byInode.set(fields[9], `${address}:${parseInt(port, 16)}`);
+      }
+      return byInode;
+    });
+    if (key) tables.set(key, parsed);
+    return parsed;
+  };
   await Promise.all(pids.map(async pid => {
     try {
       const descriptors = await list(`/proc/${pid}/fd`);
       const owned = new Set((await Promise.all(descriptors.map(fd => link(`/proc/${pid}/fd/${fd}`).catch(() => ''))))
         .map(value => /^socket:\[(\d+)\]$/.exec(value)?.[1]).filter(Boolean));
+      const ns = await link(`/proc/${pid}/ns/net`).then(value => /^net:\[\d+\]$/.test(value) ? value : null, () => null);
       for (const family of ['tcp', 'tcp6']) {
-        const table = await read(`/proc/${pid}/net/${family}`, 'utf8');
-        for (const row of table.trim().split('\n').slice(1)) {
-          const fields = row.trim().split(/\s+/);
-          if (fields[3] !== '01' || !owned.has(fields[9])) continue;
-          const [hex, port] = fields[2].split(':');
-          const bytes = Buffer.from(hex, 'hex');
-          for (let i = 0; i < bytes.length; i += 4) bytes.subarray(i, i + 4).reverse();
-          const address = family === 'tcp' ? [...bytes].join('.') : '[' + Array.from({ length: 8 }, (_, i) => bytes.readUInt16BE(i * 2).toString(16)).join(':') + ']';
-          sockets.push(`p${pid}\nnlocal->${address}:${parseInt(port, 16)}`);
-        }
+        const byInode = await peers(pid, family, ns);
+        for (const inode of owned) if (byInode.has(inode)) sockets.push(`p${pid}\nnlocal->${byInode.get(inode)}`);
       }
       const path = await link(`/proc/${pid}/cwd`).catch(() => null);
       if (path) cwd.push(`p${pid}\nn${path}`);
