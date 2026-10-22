@@ -22,7 +22,7 @@
 // This file builds the layout on disk, deletes the nested package the way npm
 // does, and pins what each reader says afterwards. Nothing is installed and npm
 // is never spawned — every function under test answers from the filesystem.
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, vi } from "vitest";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
@@ -148,7 +148,14 @@ describe("what the deck reports after that upgrade", () => {
     // answered ENOENT. The user was told their prefix was read-only.
     const { host, pkgRoot } = nested("writable", "1.43.0");
     upgradeOverIt(host, "1.44.0");
-    expect(upgradeBlock(pkgRoot)).toBeNull();
+    // A caller's own AGENTS_DECK_NO_INSTALL=1 answers "opted_out" before the
+    // writable check is reached: cleared for the question, and put back.
+    vi.stubEnv("AGENTS_DECK_NO_INSTALL", undefined);
+    try {
+      expect(upgradeBlock(pkgRoot)).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("still names ccdeck as the package to install, before and after", () => {

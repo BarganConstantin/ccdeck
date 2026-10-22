@@ -289,6 +289,11 @@ describe("a percentage width under a horizontal margin", () => {
       // its own width back through a ResizeObserver. It enters the margin check
       // below by being named here, which is the point of the list.
       "hist-chart",
+      // Settings › Integrations' connect form's inputs, which fill the form's
+      // column (#2178), and two rows that are one button across their list —
+      // a board in the picker, a sub-task in an issue's detail. Named so they
+      // enter the margin check below; no rule gives any of them a margin.
+      "ig-input", "jr-board-item", "jr-detail-sub",
       // The process modal's name cell, which fills whatever the six fixed
       // columns leave and ellipsises the command line inside it. `max-width: 0`
       // with `width: 100%` is the table-cell idiom for that — the panel's own

@@ -28,6 +28,7 @@
 // the other spelling, the word another app uses.
 
 import { CHARACTERS } from "./character";
+import type { IntegrationsReach } from "./integrations/client";
 import { ACCOUNT_NOTIFY_SWITCHES } from "./notify-reach";
 import { SETTINGS_SECTIONS, type SettingsSection } from "./settings";
 import { CHIME_ORDER, type Chime } from "./sound";
@@ -67,6 +68,7 @@ const SECTION_KEYWORDS: Record<SettingsSection, readonly string[]> = {
   keyboard: ["shortcuts", "hotkeys", "keybindings", "keys"],
   notifications: ["alerts", "notify"],
   sounds: ["audio", "tones", "chimes"],
+  integrations: ["jira", "atlassian", "tracker", "issues", "connect", "token", "board", "sprint"],
   data: ["privacy", "local data"],
   radar: ["telemetry", "collector", "monitoring"],
   about: ["information"],
@@ -86,6 +88,7 @@ const ACCOUNT_KEYWORDS: Record<(typeof ACCOUNT_NOTIFY_SWITCHES)[number]["kind"],
   notifyQuota: ["quota", "limit", "rate limit", "usage", "alerts"],
   notifyReset: ["quota", "limit", "window", "available", "alerts"],
   notifyStopped: ["stopped", "login", "expired", "usage limit", "continue", "alerts"],
+  notifyElsewhere: ["login", "signed out", "local network", "another deck", "same account", "alerts"],
 };
 
 const sectionLabel = (section: SettingsSection) => SETTINGS_SECTIONS.find(s => s.id === section)?.label ?? section;
@@ -154,6 +157,12 @@ function buildIndex(): SettingsEntry[] {
       { id: "custom-record", section: "sounds", group: "Custom sounds", label: "Record a clip",
         keywords: ["record", "microphone", "mic", "clip"] },
     ],
+    integrations: [
+      { id: "integrations-add", section: "integrations", label: "Add integration",
+        keywords: ["connect", "jira", "jira cloud", "jira server", "data center", "api token", "personal access token", "pat"] },
+      { id: "integrations-connections", section: "integrations", label: "Connections",
+        keywords: ["disconnect", "reconnect", "test connection", "edit", "token", "expired", "jira"] },
+    ],
     data: [
       { id: "tool-history-retention", section: "data", group: "Tool history", label: "Keep history",
         keywords: ["retention", "delete history", "history", "days", "tool calls", "statistics"] },
@@ -186,9 +195,15 @@ export const SETTINGS_INDEX: readonly SettingsEntry[] = buildIndex();
 
 /** The entries a deck can land on: without Claude Code, General draws no door
  *  to the accounts panel, and a result for one would open a section with no
- *  such row in it. */
-export function indexFor(claudeHere: boolean): readonly SettingsEntry[] {
-  return claudeHere ? SETTINGS_INDEX : SETTINGS_INDEX.filter(entry => !entry.claudeOnly);
+ *  such row in it. A deck that offers no integration draws no Integrations
+ *  section, or only its stranded connections (integrationsReach), so it is
+ *  offered nothing there, or nothing but Connections. */
+export function indexFor(claudeHere: boolean, integrations: IntegrationsReach = "all"): readonly SettingsEntry[] {
+  if (claudeHere && integrations === "all") return SETTINGS_INDEX;
+  return SETTINGS_INDEX.filter(entry =>
+    (claudeHere || !entry.claudeOnly)
+    && (entry.section !== "integrations" || integrations === "all"
+      || (integrations === "connections" && entry.id !== "integrations-add")));
 }
 
 /** Where a result lives, as its line in the list says it: "Appearance › Theme".

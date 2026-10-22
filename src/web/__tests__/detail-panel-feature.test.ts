@@ -8,7 +8,7 @@
 // any deck that had once shown a card's details reported the panel every day it
 // loaded, an unattended desktop start included.
 //
-// The hooks are run on a React of two — state and an effect — against a
+// The hooks are run on a React of three — state, a ref and an effect — against a
 // stubbed store and beacon, plus the external-store read a component makes of
 // the single-key switch.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -25,6 +25,13 @@ const hooks = vi.hoisted(() => {
       const i = inst.cursor++;
       if (!(i in inst.slots)) inst.slots[i] = typeof init === "function" ? (init as () => T)() : init;
       return [inst.slots[i] as T, (v: T) => { inst.slots[i] = v; }] as const;
+    },
+    // The machine panel's hold on a phone's load (phone-load.ts) is one.
+    useRef<T>(init: T) {
+      const inst = current!;
+      const i = inst.cursor++;
+      if (!(i in inst.slots)) inst.slots[i] = { current: init };
+      return inst.slots[i] as { current: T };
     },
     // DetailAside reads Settings › General's single-key switch through one,
     // for the tooltip it hands Detail; a store read once is all this needs.

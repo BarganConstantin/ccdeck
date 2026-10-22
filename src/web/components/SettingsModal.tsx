@@ -19,7 +19,7 @@
 import SessionRecoverySettings from "./SessionRecoverySettings";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
-import { focusedTabToFollow, isFindChord, sectionIndex, SETTINGS_SECTIONS, type SettingsDoors, type SettingsSection } from "../settings";
+import { focusedTabToFollow, isFindChord, sectionsDrawn, type SettingsDoors, type SettingsSection } from "../settings";
 import { indexFor, isSectionEntry, searchSettings, type SettingsEntry } from "../settings-search";
 import { isTypingTarget } from "../shortcuts";
 import { tabStripMove } from "../tablist-keys";
@@ -41,6 +41,8 @@ import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
 import RadarSettings from "./RadarSettings";
 import ToolAuditSettings from "./ToolAuditSettings";
+import IntegrationsSection from "./IntegrationsSection";
+import { integrationsReach, useIntegrations } from "../integrations/client";
 import ThemeSection from "./ThemeSection";
 import ReadingSection, { ReadingReset } from "./ReadingSection";
 import AboutSection from "./AboutSection";
@@ -85,7 +87,13 @@ export default function SettingsModal({
   const dialogRef = useModalDismiss(onClose, { focusRef: selectedTabRef });
   const scrimPress = useScrimDismiss(onClose);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const at = sectionIndex(section);
+  // THE SECTIONS THIS DECK DRAWS (sectionsDrawn, settings.ts): every one, but
+  // Integrations only where the deck offers a kind or still holds a stranded
+  // connection, or while it is the section on show. The nav, its arrows and
+  // the pane's head all walk this list, so here it takes the table's name.
+  const integrationsReachHere = integrationsReach(useIntegrations());
+  const SETTINGS_SECTIONS = sectionsDrawn(integrationsReachHere, section);
+  const at = Math.max(0, SETTINGS_SECTIONS.findIndex(s => s.id === section));
 
   // THE SEARCH. While the field holds a query the pane shows what matches it
   // in place of the section; the section stays mounted under it, hidden, so a
@@ -97,7 +105,7 @@ export default function SettingsModal({
   const searchRef = useRef<HTMLInputElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
   const searching = query.trim() !== "";
-  const results = useMemo(() => searchSettings(query, indexFor(providers.claude)), [query, providers.claude]);
+  const results = useMemo(() => searchSettings(query, indexFor(providers.claude, integrationsReachHere)), [query, providers.claude, integrationsReachHere]);
   const jumpTo = useSettingsJump(paneRef, !searching, section);
   const changeQuery = (next: string) => { setQuery(next); setActive(0); };
 
@@ -243,6 +251,8 @@ export default function SettingsModal({
             onDeleteCustom={deleteCustomAsset}
           />
         );
+      case "integrations":
+        return <IntegrationsSection />;
       case "data":
         return <ToolAuditSettings />;
       case "about":

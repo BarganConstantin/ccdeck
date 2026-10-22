@@ -22,6 +22,11 @@ import ThemeSection from "../components/ThemeSection";
 import KeyboardSection, { SINGLE_KEYS_LABEL, SINGLE_KEYS_NOTE } from "../components/KeyboardSection";
 import { sourceOf } from "./client-source";
 import { isApplePlatform, platformName } from "../platform";
+import { deckOffersEveryKind } from "./integrations-offered";
+
+// Drawn as a deck with integrations draws it (integrations-offered.ts), before
+// anything below draws it.
+await deckOffersEveryKind();
 
 afterEach(() => {
   vi.unstubAllGlobals();

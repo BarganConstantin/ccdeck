@@ -468,7 +468,9 @@ describe("which panels the UI draws for each machine", () => {
     // Accounts only where Claude Code is; without it, Session list alone.
     expect(appSrc).toMatch(/left: providers\.claude \? \[accounts, sessionList\] : \[sessionList\]/);
     expect(appSrc).toMatch(/<EdgeDock items=\{\[\.\.\.rails\.left, /);
-    expect(appSrc).toMatch(/<EdgeRail side="left" label="Left column" groups=\{\[rails\.left\]\}/);
+    // The connected trackers (#2178) are a group of their own after it, so
+    // they cannot stand in for the accounts button either.
+    expect(appSrc).toMatch(/<EdgeRail side="left" label="Left column" groups=\{\[rails\.left, rails\.integrations\]\}/);
     // And nowhere else: the right stripe and the utilities never carry it.
     expect(appSrc).toMatch(/right: \[\[usage, machine\], \[history, \.\.\.\(openToolActivity \? \[\{[^}]*\}\] : \[\]\), browserWatch, \.\.\.\(setTrafficRadarOpen \? \[\{[^}]*\}\] : \[\]\)\], \.\.\.\(setRadioOpen/);
     expect(appSrc).toMatch(/utilities: \[settings, feedback\]/);

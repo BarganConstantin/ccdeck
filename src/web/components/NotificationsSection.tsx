@@ -38,9 +38,10 @@ export interface NotificationsProps {
    *  is still askable — a refusal cannot be re-asked by any page, which is why
    *  the row says where the switch is instead. */
   onAskNotify: () => void;
-  /** The four account notifications — the deck moved the live Claude account,
+  /** The five account notifications — the deck moved the live Claude account,
    *  a quota window reached 90% or 100%, a high window reset, sessions stopped
-   *  on an expired login or a usage limit — each its own
+   *  on an expired login or a usage limit, a paired deck on the login this one
+   *  is on — each its own
    *  switch, and none of them tied to the one above: they are raised whether a
    *  page is open or not, because no page says any of them. */
   accountNotify: AccountNotify;
@@ -139,10 +140,10 @@ export default function NotificationsSection({
         )}
       </SettingsGroup>
 
-      {/* FOUR MORE, AND NOT UNDER THE ONE ABOVE. That switch is about a deck
+      {/* FIVE MORE, AND NOT UNDER THE ONE ABOVE. That switch is about a deck
           nobody is looking at; these are said whether a page is open or not,
           so each is its own switch and none waits on it. One caption with one
-          note, because the note is the same for all four: whose accounts,
+          note, because the note is the same for all five: whose accounts,
           and that the deck need not be closed. What each one says, and when,
           is its own row's note — it was a tooltip, which a reader on a touch
           screen or a keyboard never saw. */}

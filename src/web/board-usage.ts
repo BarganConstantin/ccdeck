@@ -132,7 +132,8 @@ export const BOARD_SPEND_LABEL = "spend on this board";
 /** The same scope, as a bare qualifier. The panel prints this beside the token
  *  strip on a deck where every model is unpriced: there is no headline on that
  *  deck — the money block is gated on cost — so the strip is the only aggregate
- *  on screen and would otherwise stand with no scope stated anywhere. */
+ *  on screen and would otherwise stand with no scope stated anywhere. Only on
+ *  the board's own figures: under ccusage the strip takes the period's noun. */
 export const BOARD_SCOPE_LABEL = "on this board";
 
 /**
