@@ -67,12 +67,14 @@ describe("where the token goes", () => {
   });
 
   it("is dropped when a redirect leaves the allowed origin, and kept when it does not", async () => {
+    // A job log's tail, the one read that may follow a redirect off the
+    // connection's origins (forge-redirects: a JSON read refuses one).
     const { t, calls } = transport({
       "https://gitlab.example.com/a": () => new Response(null, { status: 302, headers: { location: "/b" } }),
       "https://gitlab.example.com/b": () => new Response(null, { status: 302, headers: { location: "https://blob.example.net/log?sig=1" } }),
-      "https://blob.example.net/log?sig=1": () => jsonRes({ ok: true }),
+      "https://blob.example.net/log?sig=1": () => new Response("ok\n", { status: 200, headers: { "content-type": "text/plain" } }),
     });
-    expect((await t.json("https://gitlab.example.com/a")).data).toEqual({ ok: true });
+    expect((await t.tail("https://gitlab.example.com/a")).lines).toEqual(["ok"]);
     expect(calls.map(c => c.url)).toEqual([
       "https://gitlab.example.com/a", "https://gitlab.example.com/b", "https://blob.example.net/log?sig=1",
     ]);

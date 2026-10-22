@@ -11,6 +11,11 @@
 // blob-storage URL) goes out WITHOUT it. A token never rides to a host the
 // user did not type.
 //
+// NOR DOES THE DECK GO WHERE A FORGE POINTS IT. A JSON or GraphQL read follows
+// a redirect only on the connection's own origins; a job log's tail may leave
+// them for a public https host only. No forge can send the deck to this
+// machine, the LAN or a cloud metadata address (off-origin redirects).
+//
 // NOTHING HERE SAYS THE TOKEN. Errors carry the forge's own words and the
 // status; never a header, never the request. The messages are diagnostic —
 // the panel picks its sentence from `kind`.
@@ -21,6 +26,7 @@
 // permission names the missing scope, unreachable and tls are about the
 // network or the instance, rate-limit says when to try again.
 import { cappedText } from "./provider-status.mjs";
+import { isPrivateHost } from "./integrations/proxy.mjs";
 
 const DEFAULT_TIMEOUT_MS = 20_000;
 // A page of fifty merge requests with their reviewers is ~200 KB; a GraphQL
@@ -265,11 +271,25 @@ export function createForgeTransport({
     return h;
   }
 
+  /** Whether a redirect may take a read to `next` (off-origin redirects): on the
+   *  connection's own origins, always; elsewhere only for `offOrigin:
+   *  "public"` (a job log's signed blob address), and then only a public
+   *  https host — never plain http, credentials in the address, this machine
+   *  or a private network. A forge can thus never point the deck at the
+   *  machine it runs on, the LAN or a cloud metadata address. */
+  function mayFollow(next, offOrigin) {
+    if (origins.has(next.origin)) return true;
+    if (offOrigin !== "public") return false;
+    return next.protocol === "https:" && !next.username && !next.password && !isPrivateHost(next.hostname);
+  }
+
   /** One request, redirects followed by hand: the token is re-decided at
    *  every hop, so a hop off the allowed origins drops it. `allow`, when
-   *  given, is asked about the address and every hop after it; `signal`
-   *  gives up early, as well as the timeout. */
-  async function send(url, { method = "GET", headers, body, timeout = timeoutMs, allow, signal: caller } = {}) {
+   *  given, is asked about the address and every hop after it; otherwise a
+   *  hop must pass mayFollow, which refuses any off the connection's origins
+   *  unless `offOrigin` is "public". `signal` gives up early, as well as the
+   *  timeout. */
+  async function send(url, { method = "GET", headers, body, timeout = timeoutMs, allow, offOrigin = "refuse", signal: caller } = {}) {
     let target = String(url);
     const signal = caller ? anySignal(caller, AbortSignal.timeout(timeout)) : AbortSignal.timeout(timeout);
     for (let hop = 0; ; hop++) {
@@ -286,7 +306,15 @@ export function createForgeTransport({
       if (!location) return res;
       res.body?.cancel?.().catch(() => {});
       if (hop >= MAX_REDIRECTS) throw new ForgeError("upstream", "too many redirects", { status: res.status });
-      target = new URL(location, target).toString();
+      const next = new URL(location, target);
+      if (!allow && !mayFollow(next, offOrigin)) {
+        // A read of the API sent off it is not the API answering (a sign-in
+        // page on another host, a proxy): as a 2xx that is not JSON reads.
+        throw offOrigin === "public"
+          ? new ForgeError("permission", `${next.origin} is not a host this connection reads from`, { status: 403 })
+          : new ForgeError("incompatible", `${new URL(target).origin} sent this read to ${next.origin}, not to this connection's address`, { status: res.status });
+      }
+      target = next.toString();
       // A redirect is a GET from here on (303, and what browsers do for 302).
       if (method !== "GET" && res.status !== 307 && res.status !== 308) {
         method = "GET";
@@ -337,7 +365,9 @@ export function createForgeTransport({
    * that is streamed with only the last lines kept, up to `maxBytes`.
    */
   async function tail(url, { lines = 80, tailBytes = 256 << 10, maxBytes: cap = 64 << 20, clean = cleanLogLine } = {}) {
-    const res = await send(url, { headers: { accept: "text/plain, */*", range: `bytes=-${tailBytes}` }, timeout: 60_000 });
+    // GitHub answers a job's log with a redirect to a signed blob address on
+    // another host: a tail may follow one, to a public https host only.
+    const res = await send(url, { headers: { accept: "text/plain, */*", range: `bytes=-${tailBytes}` }, timeout: 60_000, offOrigin: "public" });
     if (!res.ok) throw await httpError(res, now());
     const partial = res.status === 206;
     let kept = [];
