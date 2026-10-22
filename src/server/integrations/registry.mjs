@@ -58,9 +58,9 @@
 // provider that answers rather than throws.
 //
 // A provider may use the helpers here and in proxy.mjs — `createRouter` for
-// its paths, `fetchImage` for fetchAsset — and brings its own transport, which
-// signs only for the connection's origins and never follows a redirect
-// elsewhere. The public deck registers none (providers.mjs).
+// its paths, `createProxy` for a transport that signs only for its origins and
+// never follows a redirect elsewhere, `fetchImage` for fetchAsset — or bring
+// its own (#2179's forge-http). providers.mjs registers them.
 
 const providers = new Map();
 

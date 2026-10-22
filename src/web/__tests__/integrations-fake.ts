@@ -1,8 +1,9 @@
-// A fake tracker for the integrations host's suites (#2178). This deck
-// registers no provider (src/server/integrations/providers.mjs), so a suite
-// that needs one registers this one itself: a provider with the registry's
-// shape, and a small HTTP server on this machine that answers as a tracker
-// would and keeps a record of every request it was sent.
+// A fake tracker for the integrations host's suites (#2178). The host's cases
+// hold for any provider, so they are run against this one rather than the
+// deck's own (src/server/integrations/providers.mjs): a suite registers it
+// itself — a provider with the registry's shape, and a small HTTP server on
+// this machine that answers as a tracker would and keeps a record of every
+// request it was sent.
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 // @ts-expect-error — plain .mjs server module, no types
 import { errorBody, errorFromFetchFailure, errorFromStatus, errorResponse, integrationError } from "../../server/integrations/errors.mjs";
