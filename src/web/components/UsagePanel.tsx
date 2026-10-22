@@ -256,7 +256,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
   // usage-panel-rules.ts's, with why.
   const boardModelRows   = byModel.filter(worthALine);
   const boardSessionRows = bySessions.filter(worthALine);
-  const hasUnpriced = anyUnpriced(fromRange, rangeModelRows, boardModelRows);
+  const hasUnpriced = anyUnpriced(fromRange, rangeModelRows, boardModelRows, delta.unpricedTokens);
 
   const anyLoading = quotaLoading || codexLoading;
 

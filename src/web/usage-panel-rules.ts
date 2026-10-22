@@ -39,9 +39,17 @@ export function worthALine(row: BoardModelRow | BoardSessionRow): boolean {
  * words, two different questions — so it is asked of whichever source the
  * figures are from.
  */
-export function anyUnpriced(fromRange: boolean, rangeModelRows: ModelRow[], boardModelRows: BoardModelRow[]): boolean {
+export function anyUnpriced(
+  fromRange: boolean,
+  rangeModelRows: ModelRow[],
+  boardModelRows: BoardModelRow[],
+  // ccusage's figures carry the board's work since the reading on top
+  // (live-delta.ts), priced by this build: its unpriced tokens count too.
+  deltaUnpricedTokens = 0,
+): boolean {
   return fromRange
     ? rangeModelRows.some(m => m.missingPricing === true || (m.missingPricing === undefined && m.cost <= 0 && m.tokens > 0))
+      || deltaUnpricedTokens > 0
     : boardModelRows.some(m => !m.priced);
 }
 
