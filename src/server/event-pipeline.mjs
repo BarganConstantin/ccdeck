@@ -14,9 +14,10 @@ import { PRODUCT } from "./brand.mjs";
 import { createBlockNotifier } from "./block-notify.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
 import { accountNotifySettings, notificationsOn } from "./deck-prefs.mjs";
-// The account notifier — a switch, a quota threshold, a reset — connected below
-// to the same OS call the block notifier uses.
-import { connectAccountNotify } from "./account-watch.mjs";
+// The account notifier — a switch, a quota threshold, a reset, sessions stopped
+// on a dead login — connected below to the same OS call the block notifier
+// uses, and the door a stopped turn is reported through.
+import { connectAccountNotify, noteHookStop } from "./account-watch.mjs";
 // The settings as this process holds them — see prefs-state.mjs.
 import { heldPrefs } from "./prefs-state.mjs";
 // The deck's own token, taken back out of every event before the ring, the
@@ -204,6 +205,12 @@ export function pushEvent(raw, source, opts = {}) {
   // owns the case where none does; the two never both fire, and neither has to
   // know the other exists. block-notify.mjs holds the gates and the cooldown.
   blockNotifier.consider(raw, { clients: pageCount(), replay: !!opts.replay });
+
+  // A turn this machine's Claude Code ended on an expired login or a usage
+  // limit: one notification for the incident, and an auto-switch tick now
+  // rather than at the next interval (account-watch.mjs). A hook's own post
+  // only — a replay is history, and the scanners never send one.
+  if (source === "hook" && !opts.replay) noteHookStop(raw, evt.receivedAt);
 
   // Persisted history is not current activity. Fresh recovery snapshots are
   // current evidence even though they bypass replayed-tool accounting.

@@ -1,4 +1,5 @@
 // Shared types between client modules.
+import type { StopFacts } from "../server/stop-failure.mjs";
 
 export type AgentState = "active" | "done" | "err";
 
@@ -426,6 +427,16 @@ export interface AgentNodeData {
    *  reconstructs its stream from rollout files and emits no notification at
    *  all; absence of the signal there is not evidence of no block. */
   waiting?: WaitingBlock | null;
+  /** Why the root's newest turn stopped, when Claude Code ended it on an API
+   *  error — its `StopFailure`, which runs INSTEAD of `Stop` — rather than on
+   *  a finished reply: an expired login, a usage limit, or any other error
+   *  (src/server/stop-failure.mjs). Beside `state` for the reason `waiting` is:
+   *  the turn is over, so the card is `done`, and this is what that `done`
+   *  does not say. Null or absent once the session does anything again — its
+   *  next prompt, a tool call of the root's own, a `Stop`, a new start — and
+   *  never cleared by a subagent's traffic: a background Task working on does
+   *  not run the turn that failed again. Root only. */
+  stopFailure?: StopFacts | null;
   /** When this session was last heard from: the newest `receivedAt` of any
    *  event carrying its session id, whichever agent that event was attributed
    *  to. Only the root carries it, for the same reason only the root carries
@@ -664,6 +675,13 @@ export interface HookPayload {
   parent_tool_use_id?: string;
   subagent_type?: string;
   message?: string;
+  /** Claude-only, on `StopFailure`: Claude Code's value for the error that
+   *  ended the turn (`authentication_failed`, `rate_limit`, …), the details it
+   *  had, and the error line the terminal printed. Read through
+   *  src/server/stop-failure.mjs, never directly. */
+  error?: string;
+  error_details?: string;
+  last_assistant_message?: string;
   /** Claude-only, on `Notification`: which of the two blocks this is —
    *  "permission_prompt" or "idle_prompt". `message` beside it is the sentence
    *  CC would have printed in the terminal. */

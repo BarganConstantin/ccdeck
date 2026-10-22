@@ -120,3 +120,26 @@ export async function currentIdentity() {
     return null;
   }
 }
+
+/**
+ * Whether the CLI says anybody is signed in — the answer currentIdentity folds
+ * away: `{ loggedIn: true, email }`, `{ loggedIn: false }`, or null when there
+ * is no answer to read.
+ *
+ * `claude auth status --json` exits 1 when nobody is signed in and still prints
+ * `{"loggedIn": false, …}` (Claude Code 2.1.302), so `r.ok` cannot tell
+ * "signed out" from "could not ask". currentIdentity returns null for both,
+ * which is right for its callers. The auto-switch failover may only act on a
+ * CLI that has said the login is gone, so it reads the printed answer whatever
+ * the exit code, and a run that timed out or printed nothing is no answer.
+ */
+export async function cliSignIn() {
+  const r = await run(adminClaudeBin(), ["auth", "status", "--json"], { timeout: 20_000 });
+  if (r.timedOut) return null;
+  try {
+    const j = JSON.parse(r.stdout);
+    if (j?.loggedIn === true) return { loggedIn: true, email: j.email ?? "" };
+    if (j?.loggedIn === false) return { loggedIn: false };
+  } catch { /* nothing printed that could be read */ }
+  return null;
+}

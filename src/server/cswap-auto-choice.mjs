@@ -181,6 +181,23 @@ async function accountsInCswapRun(accounts) {
   return live;
 }
 
+/**
+ * The slots no move may land on, whatever the rule: the ones claude-swap's
+ * engine quarantined and the ones a local `cswap run` session is using — the
+ * two `landable` skips by key. For the failover away from an expired login
+ * (autoswitch-failover.mjs), which moves without asking the rules, so it
+ * never lands on another dead login or on a login a session already holds.
+ * Roster rows in, slot numbers out.
+ */
+export async function slotsHeldBack(roster) {
+  const accounts = (Array.isArray(roster) ? roster : [])
+    .filter(a => a && a.num != null)
+    .map(a => ({ ...a, key: accountKey(a.email, a.orgUuid) }));
+  const engine = await engineState(accounts);
+  const busy = await accountsInCswapRun(accounts);
+  return new Set(accounts.filter(a => engine.quarantined.has(a.key) || busy.has(a.key)).map(a => a.num));
+}
+
 const numberOr = (v, fallback) => {
   const n = Number(v);
   return v != null && v !== "" && Number.isFinite(n) ? n : fallback;
