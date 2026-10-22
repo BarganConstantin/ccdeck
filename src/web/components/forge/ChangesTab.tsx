@@ -27,7 +27,8 @@ import { useForgePages, useForgeRead } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
 import { sameSelection, useForge } from "./ForgeContext";
 import { Ago, Badge, FoldGroup, ListEnd, LoadingRows, Person, ReadFailure, StateMark } from "./ForgeParts";
-import { CheckGlyph, ChevronGlyph } from "./ForgeGlyphs";
+import { CheckGlyph } from "../integration-glyphs";
+import { ChevronGlyph, StateGlyph } from "./ForgeGlyphs";
 import AnchoredPopover from "../AnchoredPopover";
 
 const STATES: { state: ChangeState; label: string }[] = [
@@ -42,7 +43,7 @@ const FILTERS: { filter: ChangeFilter; label: string }[] = [
   { filter: "review", label: "Review requests" },
 ];
 
-const DRAFT: Mark = { mark: "◌", word: "Draft", tone: "idle" };
+const DRAFT: Mark = changeBadge({ state: "open", draft: true, approved: false });
 const APPROVED: Mark = changeBadge({ state: "open", draft: false, approved: true });
 
 export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
@@ -230,8 +231,9 @@ function ChangeRow({ kind, change: c, acrossRepos }: { kind: ForgeKind; change: 
   );
 }
 
-/** The reviewers' faces, each with how they stand: ✓ approved, ✕ changes
- *  requested, … commented. A pending review has no mark, only its word. A
+/** The reviewers' faces, each with how they stand: a check approved, a plus
+ *  over a minus for changes requested, a speech bubble commented. A pending
+ *  review has no mark, only its word. A
  *  screen reader hears the same list in words — "Reviewers: Bob, approved;
  *  Carol, pending" — because a plain span cannot carry a label of its own. */
 function Reviewers({ reviewers }: { reviewers: ForgeReviewer[] }) {
@@ -245,7 +247,7 @@ function Reviewers({ reviewers }: { reviewers: ForgeReviewer[] }) {
           <span key={r.login} className="fgl-reviewer" data-tone={m.tone} title={`${r.name || r.login}: ${m.word}`}>
             {i > 0 && <span className="fg-sr">; </span>}
             <Person user={r} size={20} nameless />
-            {r.state !== "pending" && <span className="fgl-reviewer-mark" aria-hidden="true">{m.mark}</span>}
+            {r.state !== "pending" && <span className="fgl-reviewer-mark" aria-hidden="true"><StateGlyph name={m.mark} size={9} weight={1.8} /></span>}
             <span className="fg-sr">, {m.word}</span>
           </span>
         );

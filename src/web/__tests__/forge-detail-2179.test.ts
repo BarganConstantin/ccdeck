@@ -22,8 +22,8 @@ import type {
 import { forgeReadPath, keepRead } from "../forge-panel";
 import {
   annotationMark, approvalWords, changeFromRef, changeReference, changeRunsWord, changeSections, changeStateMark, commitsWords, fileStatusWord,
-  issueMark, jobStartsOpen, labelColor, labelParts, logLineTone, MANY_JOBS, namesWords, newChangeUrl, nextLogLines,
-  nodesWithoutDraftPrefix, pathParts, pipelineIdFromUrl, referenceParts, shortRef, sourceWords, splitDiscussions, stagesOf, stageStartsOpen,
+  issueMark, jobMark, jobStartsOpen, labelColor, labelParts, logLineTone, MANY_JOBS, namesWords, newChangeUrl, nextLogLines,
+  nodesWithoutDraftPrefix, pathParts, pipelineIdFromUrl, referenceParts, shortRef, sourceWords, splitDiscussions, stageMark, stagesOf, stageStartsOpen,
   stageState, threadPlace, withoutDraftPrefix,
 } from "../forge-detail";
 import { ForgeProvider, type ForgeContextValue, type ForgeSelection } from "../components/forge/ForgeContext";
@@ -233,6 +233,18 @@ describe("words", () => {
       expect(m.mark).not.toBe("");
       expect(m.word).toBe(level);
     }
+    expect(annotationMark("warning")).toMatchObject({ mark: "warning", tone: "warn" });
+  });
+
+  it("draws a failure the pipeline allowed as a warning, as GitLab does, and its stage as passed with warnings", () => {
+    expect(jobMark({ state: "failed", allowFailure: true })).toEqual({ mark: "warning", word: "failed", tone: "warn" });
+    expect(jobMark({ state: "failed", allowFailure: false })).toMatchObject({ mark: "failed", tone: "bad" });
+    expect(jobMark({ state: "success", allowFailure: true })).toMatchObject({ mark: "passed", tone: "ok" });
+    const allowed = job("lint", { state: "failed", allowFailure: true });
+    const passed = job("test", { state: "success" });
+    expect(stageMark({ state: "success", jobs: [passed, allowed] })).toEqual({ mark: "warning", word: "passed with warnings", tone: "warn" });
+    expect(stageMark({ state: "success", jobs: [passed] })).toMatchObject({ mark: "passed", word: "passed" });
+    expect(stageMark({ state: "failed", jobs: [allowed, job("build", { state: "failed" })] })).toMatchObject({ mark: "failed" });
   });
 });
 

@@ -105,22 +105,40 @@ export function isStale(entry: Kept<unknown>): boolean {
 
 // ── words ────────────────────────────────────────────────────────────────
 
+/** The panel's state marks, each a small drawing of its own (ForgeGlyphs.tsx)
+ *  rather than a character, so it keeps its shape on every system's fonts.
+ *  A run's states are a ring with a sign in it; the others stand alone:
+ *  approved is a bare check where passed is a ringed one, and commented is a
+ *  speech bubble, never "…", which reads as text cut short. */
+export const GLYPHS = [
+  // a run (pipeline, job, workflow, check) and an issue closed as done
+  "passed", "done", "failed", "running", "pending", "canceled", "skipped", "manual", "none", "warning",
+  // a change or an issue
+  "open", "draft", "merged", "closed",
+  // a review, and a thread
+  "approved", "resolved", "changes-requested", "commented", "review-pending",
+  // an annotation's notice, and a link to the change a pipeline ran for
+  "info", "linked",
+] as const;
+export type GlyphName = (typeof GLYPHS)[number];
+
 export interface Mark {
-  mark: string;
+  /** The drawn mark (ForgeGlyphs.tsx); the word always stands beside it. */
+  mark: GlyphName;
   word: string;
-  /** The tone class: ok, bad, busy, idle. */
-  tone: "ok" | "bad" | "busy" | "idle";
+  /** The tone class: ok, bad, busy, warn, idle. */
+  tone: "ok" | "bad" | "busy" | "warn" | "idle";
 }
 
 const CI_MARKS: Record<CiState, Mark> = {
-  success: { mark: "✓", word: "passed", tone: "ok" },
-  failed: { mark: "✕", word: "failed", tone: "bad" },
-  running: { mark: "●", word: "running", tone: "busy" },
-  pending: { mark: "○", word: "pending", tone: "busy" },
-  canceled: { mark: "⊘", word: "canceled", tone: "idle" },
-  skipped: { mark: "»", word: "skipped", tone: "idle" },
-  manual: { mark: "▷", word: "manual", tone: "idle" },
-  none: { mark: "–", word: "no pipeline", tone: "idle" },
+  success: { mark: "passed", word: "passed", tone: "ok" },
+  failed: { mark: "failed", word: "failed", tone: "bad" },
+  running: { mark: "running", word: "running", tone: "busy" },
+  pending: { mark: "pending", word: "pending", tone: "busy" },
+  canceled: { mark: "canceled", word: "canceled", tone: "idle" },
+  skipped: { mark: "skipped", word: "skipped", tone: "idle" },
+  manual: { mark: "manual", word: "manual", tone: "idle" },
+  none: { mark: "none", word: "no pipeline", tone: "idle" },
 };
 
 export function ciMark(state: CiState | null | undefined): Mark {
@@ -130,19 +148,19 @@ export function ciMark(state: CiState | null | undefined): Mark {
 /** The badge a change carries on a branch row or in a list: Draft, Approved,
  *  Merged, Closed or Open, in that order of what matters. */
 export function changeBadge(c: { state: ChangeState; draft: boolean; approved: boolean }): Mark {
-  if (c.state === "merged") return { mark: "⇢", word: "Merged", tone: "ok" };
-  if (c.state === "closed") return { mark: "⊘", word: "Closed", tone: "idle" };
-  if (c.draft) return { mark: "◌", word: "Draft", tone: "idle" };
-  if (c.approved) return { mark: "✓", word: "Approved", tone: "ok" };
-  return { mark: "●", word: "Open", tone: "busy" };
+  if (c.state === "merged") return { mark: "merged", word: "Merged", tone: "ok" };
+  if (c.state === "closed") return { mark: "closed", word: "Closed", tone: "idle" };
+  if (c.draft) return { mark: "draft", word: "Draft", tone: "idle" };
+  if (c.approved) return { mark: "approved", word: "Approved", tone: "ok" };
+  return { mark: "open", word: "Open", tone: "busy" };
 }
 
 export function reviewerMark(state: "approved" | "changes_requested" | "commented" | "pending"): Mark {
   switch (state) {
-    case "approved": return { mark: "✓", word: "approved", tone: "ok" };
-    case "changes_requested": return { mark: "✕", word: "changes requested", tone: "bad" };
-    case "commented": return { mark: "…", word: "commented", tone: "idle" };
-    default: return { mark: "◌", word: "review pending", tone: "idle" };
+    case "approved": return { mark: "approved", word: "approved", tone: "ok" };
+    case "changes_requested": return { mark: "changes-requested", word: "changes requested", tone: "bad" };
+    case "commented": return { mark: "commented", word: "commented", tone: "idle" };
+    default: return { mark: "review-pending", word: "review pending", tone: "idle" };
   }
 }
 

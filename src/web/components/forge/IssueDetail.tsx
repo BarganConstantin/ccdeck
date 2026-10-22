@@ -6,6 +6,7 @@
 import { useState } from "react";
 import type { ForgeComment, IssueDetail as Issue, IssueRef } from "../../forge-types";
 import { issueMark } from "../../forge-detail";
+import type { Mark } from "../../forge-panel";
 import { useForgePages, useForgeRead } from "../../use-forge-read";
 import ForgeHtml, { renderForgeNodes } from "../ForgeHtml";
 import { useForge, type ForgeSelection } from "./ForgeContext";
@@ -95,8 +96,8 @@ function IssueBody({ selection, issue: i }: { selection: Selection; issue: Issue
   );
 }
 
-function childMark(state: IssueRef["state"]) {
-  return state === "open" ? { mark: "○", word: "open", tone: "busy" as const } : { mark: "✓", word: "closed", tone: "ok" as const };
+function childMark(state: IssueRef["state"]): Mark {
+  return state === "open" ? { mark: "open", word: "open", tone: "busy" } : { mark: "done", word: "closed", tone: "ok" };
 }
 
 function IssueRow({ item, onOpen }: { item: IssueRef; onOpen: () => void }) {

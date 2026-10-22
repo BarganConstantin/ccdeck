@@ -27,7 +27,8 @@ import { forgeWords } from "../../forge-types";
 import { allReposLabel, repoNounPlural, splitRepoPath } from "../../forge-lists";
 import { useForgePages } from "../../use-forge-read";
 import AnchoredPopover from "../AnchoredPopover";
-import { CheckGlyph, ChevronGlyph } from "./ForgeGlyphs";
+import { CheckGlyph } from "../integration-glyphs";
+import { ChevronGlyph } from "./ForgeGlyphs";
 import { useForge } from "./ForgeContext";
 import { Ago, ListEnd, LoadingRows, ReadFailure } from "./ForgeParts";
 

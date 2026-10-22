@@ -287,7 +287,7 @@ describe("the Branches tab", () => {
     expect(html).toContain("1 commit behind, 999+ ahead of “main”");
     // The same words on hover, for the two numbers that have no label of their own.
     expect(html).toContain('<span class="fgl-diverge" title="1 commit behind, 999+ ahead of “main”">');
-    expect(html).toMatch(/data-tone="bad"[^>]*><span aria-hidden="true">✕<\/span><span class="fg-mark-word">failed<\/span>/);
+    expect(html).toMatch(/data-tone="bad"[^>]*><svg class="fg-glyph" data-glyph="failed"[^>]*aria-hidden="true">(?:(?!<\/svg>).)*<\/svg><span class="fg-mark-word">failed<\/span>/);
   });
 
   it("keeps the copy button and the Create link out of the row's button", () => {
@@ -322,7 +322,7 @@ describe("the Merge requests tab", () => {
     keep(c, "changes", { repo: undefined, filter: "all", state: "open", sort: "created" }, page([change(5)]));
     const one = draw(c, tab(ChangesTab, view({ tab: "changes", repo: "acme/web" })));
     expect(one).toContain('<code>!5</code>');
-    expect(one).toContain("◌</span> Draft</span><span class=\"fgl-title-text\">Add login</span>");
+    expect(one).toMatch(/<span class="fg-badge" data-tone="idle"><svg class="fg-glyph" data-glyph="draft"[^>]*aria-hidden="true">(?:(?!<\/svg>).)*<\/svg> Draft<\/span><span class="fgl-title-text">Add login<\/span>/);
     const all = draw(c, tab(ChangesTab, view({ tab: "changes", repo: null })));
     expect(all).toContain('<code>acme/web!5</code>');
   });
@@ -375,7 +375,9 @@ describe("the Merge requests tab", () => {
     expect(html).toContain('<span class="fg-sr">Reviewer: </span>');
     expect(html).toContain('<span class="fg-sr">, approved</span>');
     expect(html).not.toMatch(/class="fgl-people"[^>]*aria-label/);
-    expect(html).toContain("✓</span> Approved");
+    expect(html).toMatch(/<span class="fg-badge" data-tone="ok"><svg class="fg-glyph" data-glyph="approved"[^>]*aria-hidden="true">(?:(?!<\/svg>).)*<\/svg> Approved<\/span>/);
+    // The reviewer's mark on their face is drawn from the same family.
+    expect(html).toMatch(/<span class="fgl-reviewer-mark" aria-hidden="true"><svg class="fg-glyph" data-glyph="approved"/);
     expect(html).toContain('title="4 comments"');
     expect(noNestedControls(html)).toBe(true);
   });

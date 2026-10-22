@@ -10,12 +10,14 @@ import { copyText } from "../../copy-text";
 import { selfPressProps } from "../../panel-press";
 import type { ForgePagesState } from "../../use-forge-read";
 import { useForge } from "./ForgeContext";
+import { CheckGlyph, CopyGlyph } from "../integration-glyphs";
+import { StateGlyph } from "./ForgeGlyphs";
 
 /** A state: its mark, and its word (visually hidden when `quiet`). */
 export function StateMark({ mark, quiet = false, className }: { mark: Mark; quiet?: boolean; className?: string }) {
   return (
     <span className={className ? `fg-mark ${className}` : "fg-mark"} data-tone={mark.tone} title={mark.word}>
-      <span aria-hidden="true">{mark.mark}</span>
+      <StateGlyph name={mark.mark} />
       <span className={quiet ? "fg-sr" : "fg-mark-word"}>{mark.word}</span>
     </span>
   );
@@ -25,7 +27,7 @@ export function StateMark({ mark, quiet = false, className }: { mark: Mark; quie
 export function Badge({ mark }: { mark: Mark }) {
   return (
     <span className="fg-badge" data-tone={mark.tone}>
-      <span aria-hidden="true">{mark.mark}</span> {mark.word}
+      <StateGlyph name={mark.mark} /> {mark.word}
     </span>
   );
 }
@@ -149,7 +151,7 @@ export function Copyable({ value, label, children }: { value: string; label: str
           void copyText(value).then(ok => setDone(!!ok));
         }}
       >
-        <span aria-hidden="true">{done ? "✓" : "⧉"}</span>
+        {done ? <CheckGlyph /> : <CopyGlyph />}
       </button>
     </span>
   );

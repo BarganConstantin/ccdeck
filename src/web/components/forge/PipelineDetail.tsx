@@ -67,7 +67,7 @@ function PipelineHead({ pipeline: p }: { pipeline: Pipeline }) {
         {changeNumber != null && (
           <li>
             <button type="button" className="fd-jump" onClick={() => select({ type: "change", repo: p.repo, number: changeNumber })}>
-              <StateMark mark={{ mark: "⇄", word: words.change, tone: "idle" }} quiet />
+              <StateMark mark={{ mark: "linked", word: words.change, tone: "idle" }} quiet />
               <span>{words.change} <code>{changeReference(kind, "", changeNumber)}</code></span>
               <span className="fd-jump-arrow" aria-hidden="true">›</span>
             </button>

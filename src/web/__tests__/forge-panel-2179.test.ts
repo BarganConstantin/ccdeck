@@ -11,7 +11,7 @@
 // focus goes when a page opens or closes.
 import { describe, expect, it } from "vitest";
 import {
-  changeBadge, ciMark, DEFAULT_VIEW, divergeCount, durationWords, fetchForge, focusAfterSelect, forgeErrorWords, forgeReadPath, FRESH_MS, stripScrollDelta,
+  changeBadge, ciMark, DEFAULT_VIEW, GLYPHS, reviewerMark, divergeCount, durationWords, fetchForge, focusAfterSelect, forgeErrorWords, forgeReadPath, FRESH_MS, stripScrollDelta,
   isStale, loadForgeView, looksLikeRef, matchesQuery, normaliseView, readDue, splitBranches, splitReviews,
   tabAllowsAllProjects, type ForgePrefs,
 } from "../forge-panel";
@@ -70,6 +70,21 @@ describe("words", () => {
     }
     expect(ciMark(null)).toEqual(ciMark("none"));
     expect(ciMark("failed")).toMatchObject({ word: "failed", tone: "bad" });
+  });
+
+  it("draws every state with a mark of its own family, never a character", () => {
+    const marks = [
+      ...(["success", "failed", "running", "pending", "canceled", "skipped", "manual", "none"] as CiState[]).map(ciMark),
+      ...(["approved", "changes_requested", "commented", "pending"] as const).map(reviewerMark),
+      changeBadge({ state: "open", draft: false, approved: false }), changeBadge({ state: "open", draft: true, approved: false }),
+      changeBadge({ state: "open", draft: false, approved: true }), changeBadge({ state: "merged", draft: false, approved: false }),
+      changeBadge({ state: "closed", draft: false, approved: false }),
+    ];
+    for (const m of marks) expect(GLYPHS, m.word).toContain(m.mark);
+    // Passed and Approved sit on one branch row: never the same drawing.
+    expect(ciMark("success").mark).not.toBe(changeBadge({ state: "open", draft: false, approved: true }).mark);
+    // "Commented" is a speech bubble, not an ellipsis that reads as text cut short.
+    expect(reviewerMark("commented").mark).toBe("commented");
   });
 
   it("badges a change by what matters most", () => {

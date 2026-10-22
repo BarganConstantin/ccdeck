@@ -62,7 +62,7 @@
 .fgl-people { display: inline-flex; align-items: center; gap: 3px; }
 .fgl-people-more { margin-left: 2px; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .fgl-reviewer { position: relative; display: inline-flex; }
-.fgl-reviewer-mark { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; background: var(--panel); font-size: 9px; font-weight: 700; line-height: 1; color: var(--muted); }
+.fgl-reviewer-mark { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; background: var(--panel); color: var(--muted); }
 .fgl-reviewer[data-tone="ok"] .fgl-reviewer-mark { color: var(--ok); }
 .fgl-reviewer[data-tone="bad"] .fgl-reviewer-mark { color: var(--err); }
 .fgl-comments, .fgl-children { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; color: var(--muted); }

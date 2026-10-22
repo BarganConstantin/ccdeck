@@ -230,7 +230,7 @@ function Overview({ change: c }: { change: Change }) {
           </FoldGroup>
         )}
         {!unresolved.length && resolved.length > 0 && (
-          <p className="fd-status-line fd-all-resolved"><StateMark mark={{ mark: "✓", word: "All threads resolved", tone: "ok" }} /></p>
+          <p className="fd-status-line fd-all-resolved"><StateMark mark={{ mark: "resolved", word: "All threads resolved", tone: "ok" }} /></p>
         )}
         {resolved.length > 0 && (
           <FoldGroup id="change:resolved" title="Resolved threads" count={resolved.length} defaultOpen={false}>

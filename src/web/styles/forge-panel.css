@@ -68,22 +68,25 @@
 
 /* A state: a mark and a word. Tones, never colour alone. */
 .fg-mark { display: inline-flex; align-items: center; gap: 4px; font-size: calc(12px + var(--ui-text-increase, 0px)); white-space: nowrap; }
-.fg-mark > [aria-hidden] { font-weight: 700; }
+.fg-glyph { flex: none; }
 .fg-mark[data-tone=ok] { color: var(--ok); }
 .fg-mark[data-tone=bad] { color: var(--err); }
 .fg-mark[data-tone=busy] { color: var(--accent); }
+.fg-mark[data-tone=warn] { color: var(--warn); }
 .fg-mark[data-tone=idle] { color: var(--muted); }
 .fg-mark-word { color: var(--text-secondary); }
 .fg-badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 500; white-space: nowrap; color: var(--text-secondary); }
 .fg-badge[data-tone=ok] { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
 .fg-badge[data-tone=bad] { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, var(--line)); }
 .fg-badge[data-tone=busy] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.fg-badge[data-tone=warn] { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
 /* On a selected row a badge's word is the row's ink, as every word there is;
    its mark keeps the state's colour. */
 .ig-row[data-selected] .fg-badge { color: var(--ig-sel-ink, var(--text)); }
 .ig-row[data-selected] .fg-badge[data-tone=ok] > [aria-hidden] { color: var(--ok); }
 .ig-row[data-selected] .fg-badge[data-tone=bad] > [aria-hidden] { color: var(--err); }
 .ig-row[data-selected] .fg-badge[data-tone=busy] > [aria-hidden] { color: var(--accent); }
+.ig-row[data-selected] .fg-badge[data-tone=warn] > [aria-hidden] { color: var(--warn); }
 
 /* A failed read, and the way out of it. */
 .fg-failure { margin: 16px 0 0; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--err) 35%, var(--line)); border-radius: var(--r-panel); background: var(--panel); color: var(--text-secondary); line-height: 1.6; }
