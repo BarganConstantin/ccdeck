@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
 import { readStored, writeStored } from "./storage";
 import { prefersReducedMotion } from "./viewport-motion";
+import { loadsOnPhone } from "./phone-load";
 
 /** The two panels' own widths, and so the only widths the column can take.
  *  The sheet draws each panel at its own (session-list.css, accounts-panel.css)
@@ -111,9 +112,22 @@ export interface LeftColumn {
 }
 
 export function useLeftColumn(): LeftColumn {
+  /** Shut for this load, not by the reader: on a phone the column is a drawer
+   *  over the canvas, and a load does not open it (phone-load.ts). Never
+   *  written as a close; the reader's own open ends it. */
+  const sessionListHeldRef = useRef(false);
+  const accountsHeldRef = useRef(false);
   /** Left sidebar (session list) visibility — persisted across refresh. */
-  const [sessionListOpen, setSessionListOpen] = useState<boolean>(loadSessionListOpen);
-  useEffect(() => { saveSessionListOpen(sessionListOpen); }, [sessionListOpen]);
+  const [sessionListOpen, setSessionListOpen] = useState<boolean>(() => {
+    const wanted = loadSessionListOpen();
+    if (wanted && loadsOnPhone()) { sessionListHeldRef.current = true; return false; }
+    return wanted;
+  });
+  useEffect(() => {
+    if (sessionListOpen) sessionListHeldRef.current = false;
+    else if (sessionListHeldRef.current) return;
+    saveSessionListOpen(sessionListOpen);
+  }, [sessionListOpen]);
   /** True while the session list holds the left column the accounts panel was
    *  open in (#824). Opening the list used to close the panel for good: the
    *  close was persisted as "0", so the panel stayed gone across reloads, and a
@@ -124,9 +138,13 @@ export function useLeftColumn(): LeftColumn {
     const wanted = loadAccountsPanelOpen();
     // The list holds the column on this load, so the panel waits behind it.
     if (wanted && sessionListOpen) { accountsEvictedRef.current = true; return false; }
+    // A phone's load leaves the drawer shut.
+    if (wanted && loadsOnPhone()) { accountsHeldRef.current = true; return false; }
     return wanted;
   });
   useEffect(() => {
+    if (accountsPanelOpen) accountsHeldRef.current = false;
+    else if (accountsHeldRef.current) return;
     // An eviction is not the reader closing the panel, so it is not stored as one.
     if (!accountsPanelOpen && accountsEvictedRef.current) return;
     writeStored(ACCOUNTS_PANEL_OPEN_KEY, accountsPanelOpen ? "1" : "0");

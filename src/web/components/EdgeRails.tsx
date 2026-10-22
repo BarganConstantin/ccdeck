@@ -307,5 +307,6 @@ export function UtilityRun({ items, side = "below" }: { items: RailItem[]; side?
 function noop() {}
 
 /** Whether the window is a phone's: the dock instead of the stripes, at the
- *  sheet's one narrow breakpoint. */
-export const PHONE_QUERY = "(max-width: 640px)";
+ *  sheet's one narrow breakpoint. Declared beside the rule for what a phone's
+ *  load opens, which asks the same question before anything is drawn. */
+export { PHONE_QUERY } from "../phone-load";
