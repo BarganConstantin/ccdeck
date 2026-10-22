@@ -246,3 +246,38 @@ describe("what the reader opens fades in, and nothing else does", () => {
     expect(reduced).toMatch(/\.jr-group-body\[data-fade\], \.jr-subrows\[data-fade\] \{ animation: none; \}/);
   });
 });
+
+describe("nothing on a narrow screen widens its pane or loses its words", () => {
+  const sheet = readFileSync(fileURLToPath(new URL("../styles/jira.css", import.meta.url)), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const block = (at: string) => {
+    const start = sheet.indexOf(at);
+    expect(start, at).toBeGreaterThan(-1);
+    let depth = 0;
+    for (let i = sheet.indexOf("{", start); i < sheet.length; i++) {
+      if (sheet[i] === "{") depth++;
+      else if (sheet[i] === "}" && --depth === 0) return sheet.slice(start, i + 1);
+    }
+    return "";
+  };
+
+  it("wraps a sprint's named totals rather than running them past a 320px list", () => {
+    expect(sheet).toMatch(/\.jr-totals \{[^}]*flex-wrap: wrap;[^}]*min-width: 0;/);
+  });
+
+  it("keeps a person in an issue's field to the field's width, so a long name ends in an ellipsis", () => {
+    expect(sheet).toMatch(/\.jr-field dd > \.ig-person \{ max-width: 100%; \}/);
+  });
+
+  it("on a phone, keeps the freshness line's words and lets it go under the board button", () => {
+    const phone = block("@media (max-width: 700px)");
+    expect(phone).toMatch(/\.jr-toolbar-row \{ flex-wrap: wrap;/);
+    expect(phone).toMatch(/\.jr-board-layer \{ width: auto; \}/);
+    expect(phone).toMatch(/\.jr-toolbar-row > \.ig-freshness \{ flex: none; \}/);
+  });
+
+  it("on a phone, keeps a row's epic, versions and estimate on its third line, the chips giving way", () => {
+    const narrow = block("@container jira-list (max-width: 360px)");
+    expect(narrow).toMatch(/\.jr-facts \.jr-meta \{[^}]*grid-row: 3;[^}]*flex-wrap: nowrap;/);
+    expect(sheet).toMatch(/\.jr-meta > \* \{ min-width: 0; flex: 0 1 auto; \}/);
+  });
+});

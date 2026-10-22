@@ -133,7 +133,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-group-dates, .jr-group-count { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .jr-group-facts { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; }
 .jr-tally { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.jr-totals { display: inline-flex; gap: 4px; }
+.jr-totals { display: inline-flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
 .jr-total, .jr-estimate {
   min-width: 24px;
   box-sizing: border-box;
@@ -384,6 +384,9 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-field { display: contents; }
 .jr-field dt { color: var(--muted); }
 .jr-field dd { margin: 0; min-width: 0; color: var(--text); overflow-wrap: anywhere; }
+/* A person keeps to the field's width, so a long name ends in an ellipsis
+   (the shared name already knows how) instead of widening the pane. */
+.jr-field dd > .ig-person { max-width: 100%; }
 .jr-with-icon { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .jr-dim { color: var(--muted); }
 .jr-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
@@ -468,7 +471,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   .jr-facts .jr-status-cell { grid-column: 4; grid-row: 1; min-width: 0; }
   .jr-row-main > .jr-assignee { grid-column: 5; grid-row: 1; }
   .jr-summary { grid-column: 1 / -1; grid-row: 2; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-  .jr-facts .jr-meta { grid-column: 1 / 4; grid-row: 3; justify-content: flex-start; flex-wrap: wrap; }
+  .jr-facts .jr-meta { grid-column: 1 / 4; grid-row: 3; justify-content: flex-start; flex-wrap: nowrap; }
   .jr-facts .jr-meta:empty { display: none; }
   .jr-facts > .jr-estimate { grid-column: 4 / -1; grid-row: 3; justify-self: end; }
 }
@@ -477,6 +480,13 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   .jr-list-scroll { padding: 10px 12px 20px; }
   .jr-detail { --ig-detail-pad: 14px; padding-bottom: 24px; }
   .jr-board-project { display: none; }
+  /* A phone's toolbar has no room for a span the picker's width: the button
+     keeps its own width, and the picker, wider than the button, is kept
+     inside the window by its placement. The freshness line keeps its words,
+     beside the button when they fit and under it when they do not. */
+  .jr-toolbar-row { flex-wrap: wrap; row-gap: 4px; }
+  .jr-board-layer { width: auto; }
+  .jr-toolbar-row > .ig-freshness { flex: none; }
   .jr-filters > .ig-search { flex: 1 1 100%; }
   .jr-filter-chips {
     display: flex;
