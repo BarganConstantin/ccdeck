@@ -376,9 +376,10 @@ calls the client's `fetchAsset`. The route's rules are #2178's:
   and never touches the connection. A failed image is not asked for again for
   a minute.
 
-On the page an avatar that fails is drawn as its initial and remembered for
-the page's life (`failedAvatars` in `ForgeParts.tsx`). An image in a
-description that fails becomes the link it stood for.
+On the page an avatar that fails is drawn as its initials and remembered for
+the page's life (the integrations' shared face, `IntegrationAvatar.tsx`, which
+Jira's panel uses too). An image in a description that fails becomes the link
+it stood for.
 
 ### A description's HTML
 
@@ -469,13 +470,17 @@ Pipelines, Repository / Project, `#` / `!`.
 ### List and detail
 
 - **The split** is the host's: from 900px the page is a column beside the list
-  (440px by default, 320–1600px by dragging, the list keeps 420px), its width
-  remembered per forge in this browser.
+  (42% of the workspace, between 320 and 440px, until it is dragged;
+  320–1600px by dragging, the list keeps 420px; Enter or a double click on the
+  splitter goes back to the automatic width), its width remembered per forge
+  in this browser.
 - **Under 900px** the page is its own screen with *Back to merge requests* (or
   *Back to Actions*, *Back to branches*…). The list stays mounted, hidden, so
-  its scroll and folds are where the reader left them. Escape on that screen
-  is Back, before it closes the modal.
-- **Close** is in the page's bar on a wide window only; a narrow one has Back.
+  its scroll and folds are where the reader left them.
+- **Escape** closes the page at every width, before it closes the modal, and
+  focus goes back to the row (the host's `IntegrationSplit`).
+- **Close** is in the page's top line (the shared `IntegrationDetailBar`) on a
+  wide window only; a narrow one has Back.
 - **Focus** (`focusAfterSelect` in `forge-panel.ts`):
   - Back and Close return focus to the row the page was opened from.
   - Opening a page from a row on a wide window leaves focus on the row, so the
@@ -640,10 +645,13 @@ real answers, with every name invented.
     GitLab instance, under its path), and links opening outside the deck.
 - Sweep tests that list forge surfaces:
   - `canvas-keyboard`: `forge/RepoPicker.tsx` and `forge/DetailParts.tsx` in
-    the `tabIndex={-1}` allow-list.
-  - `control-edges`: `.fg-search input` at rest and under the pointer.
-  - `canvas-motion`: the press on `.fg-row`, `.fg-fold`, `.fgl-repo-option`,
-    `.fd-jump` (0.97) and `.fg-copy` (0.94); `.fgl-hit` exempt.
+    the `tabIndex={-1}` allow-list; the job log (`forge/DetailJobs.tsx`) and a
+    description's code block (`ForgeHtml.tsx`) as keyboard-scrollable stops.
+  - `control-edges`: the shared search field `.ig-search-input` at rest and
+    under the pointer.
+  - `canvas-motion`: the press on `.fg-fold`, `.fgl-repo-option` and
+    `.fd-jump` (0.97); `.fg-row` (its tone deepens, nothing moves) and
+    `.fgl-hit` exempt.
   - `control-appearance`: `.fgl-hit` exempt as a hit area.
   - `text-tiers`: the panel's sentences and its words on row fills.
   - `reports-1853` and `process-detail-807`: GitHub and GitLab token shapes
