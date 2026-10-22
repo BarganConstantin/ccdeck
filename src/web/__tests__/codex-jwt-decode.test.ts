@@ -73,8 +73,8 @@ describe("decodeJwt on the tokens a real auth.json carries", () => {
   it("keeps non-ASCII claims intact, because a display name is one", () => {
     // The email and any name reach a panel the user reads. Decoding the bytes as
     // latin-1 — which is what `atob` and a missing "utf8" both give — turns
-    // "Constantin Bărgan" into mojibake on the one surface that names them.
-    const claims = { email: "ana@münchen.de", name: "Bărgan — 中文" };
+    // "Consultant Bărker" into mojibake on the one surface that names them.
+    const claims = { email: "ana@münchen.de", name: "Bărker — 中文" };
     expect(decodeJwt(jwt(claims))).toEqual(claims);
   });
 });

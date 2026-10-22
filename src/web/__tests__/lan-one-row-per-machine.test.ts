@@ -22,7 +22,7 @@ const TWINS = code("../components/LanPeerTwins.tsx");
 const CSS = sheetText();
 
 const peer = (fp: string, over: Record<string, unknown> = {}) => ({
-  fp, peerFp: fp, name: "Petrus-MacBook-Pro", paired: true,
+  fp, peerFp: fp, name: "Oswald-MacBook-Pro", paired: true,
   addr: "192.168.1.153", port: 57051, lastSeen: NOW, last: { at: NOW, done: [] }, ...over,
 });
 

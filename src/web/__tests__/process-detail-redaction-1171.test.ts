@@ -51,7 +51,7 @@ interface Proc { pid: number; name: string; cpu: number; mem: number; threads?: 
 /** One busy process, in the seven columns `psArgs` asks for. */
 const LIST = [
   "  PID  %CPU %MEM    RSS     ELAPSED USER             COMM",
-  " 4242  12.5  3.1  204800       05:00 constantin       node",
+  " 4242  12.5  3.1  204800       05:00 consultant       node",
 ].join("\n");
 
 /** The same pid in a `ps -M` listing: the process line carries argv, and every
@@ -62,7 +62,7 @@ const LIST = [
 const SECRET_ARGV = "node /srv/x.js --api-key sk-ant-api03-SECRET --password hunter2 https://u:pw@h/";
 const detailListing = (threads: number) => [
   "USER         PID   TT   %CPU STAT PRI     STIME     UTIME COMMAND",
-  `constantin  4242   ??   12.5 S    31T   1:02.03   9:10.11 ${SECRET_ARGV}`,
+  `consultant  4242   ??   12.5 S    31T   1:02.03   9:10.11 ${SECRET_ARGV}`,
   ...Array.from({ length: threads }, () => "            4242         0.0 S     4T   0:00.00   0:00.00 "),
 ].join("\n");
 

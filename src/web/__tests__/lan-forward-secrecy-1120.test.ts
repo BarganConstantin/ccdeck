@@ -201,14 +201,14 @@ function keysFromLongTermKeys(caller: Id, listener: Id, hello: Frame, challenge:
 }
 
 const MINE: Row[] = [
-  { num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true, active: true, collector: "ok" },
-  { num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: false },
+  { num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true, active: true, collector: "ok" },
+  { num: 2, email: "bob@example.net", orgUuid: "org-2", alive: false },
 ];
 const THEIRS: Row[] = [
-  { num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true, active: true, collector: "ok" },
-  { num: 6, email: "claude3@sapec.md", orgUuid: "org-3", alive: true },
+  { num: 5, email: "bob@example.net", orgUuid: "org-2", alive: true, active: true, collector: "ok" },
+  { num: 6, email: "carol@example.net", orgUuid: "org-3", alive: true },
 ];
-const SHARED = [K("claude1@sapec.md", "org-1"), K("claude2@sapec.md", "org-2"), K("claude3@sapec.md", "org-3")];
+const SHARED = [K("alice@example.net", "org-1"), K("bob@example.net", "org-2"), K("carol@example.net", "org-3")];
 const HEALED = [["heal", true], ["add", true]];
 const verdicts = (done: Array<{ action: string; ok: boolean }>) => done.map(d => [d.action, d.ok]);
 
@@ -216,7 +216,7 @@ describe("a recording of two decks of this version, once both long-term keys are
   it("opens under the key the connection used, and under nothing the two long-term keys give", async () => {
     const listener = sync.identityFrom("") as Id;
     const caller = sync.identityFrom("") as Id;
-    const ACCOUNT = K("claude2@sapec.md", "org-2");
+    const ACCOUNT = K("bob@example.net", "org-2");
     const s = socket.createSyncServer({
       fp: listener.fp, pub: listener.pub, secret: listener.secret, name: "Listener", host: "127.0.0.1",
       prefer: PORTS.listener,

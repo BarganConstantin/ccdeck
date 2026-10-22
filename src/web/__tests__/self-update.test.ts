@@ -533,8 +533,8 @@ describe("markerFileName", () => {
     // `/` would nest the marker in a directory that does not exist, and `\` and
     // `:` are illegal in a Windows file name — the same string has to be a
     // usable file name on all three platforms.
-    const n = markerFileName("@bargan/ccdeck");
-    expect(n).toBe(".self-update-check-bargan-ccdeck");
+    const n = markerFileName("@barker/ccdeck");
+    expect(n).toBe(".self-update-check-barker-ccdeck");
     expect(n).not.toMatch(/[\\/:]/);
   });
 
