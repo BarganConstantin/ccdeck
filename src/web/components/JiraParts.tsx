@@ -105,9 +105,10 @@ export function EpicChip({ epic }: { epic: JiraEpic }) {
   return <span className="jr-epic" data-color={epic.color ?? undefined} title={`Epic ${epic.key}: ${epic.name}`}>{epic.name}</span>;
 }
 
-/** Jira's status lozenge: grey for to do, blue for in progress, green for done. */
+/** Jira's status lozenge: grey for to do, blue for in progress, green for done,
+ *  in sentence case and cut at 16 characters, with the whole name on hover. */
 export function StatusLozenge({ status }: { status: JiraStatus }) {
-  return <span className="jr-status" data-cat={status.category}>{status.name}</span>;
+  return <span className="jr-status" data-cat={status.category} title={status.name}>{status.name}</span>;
 }
 
 /** What a row says about the work in it: the estimate and, when Jira has a

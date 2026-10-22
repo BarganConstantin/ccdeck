@@ -9,7 +9,7 @@
 // headers and the rows, Right opens (a group, a row's sub-tasks) and Left
 // closes or goes to the parent, Enter opens the issue, Home and End go to the
 // ends. One row at a time is a Tab stop, so Tab leaves the list in one press.
-import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import type { IntegrationConnection as Connection } from "../integrations/types";
 import type { JiraBoardOverview, JiraIssue } from "../jira-api";
 import {
@@ -18,7 +18,7 @@ import {
 } from "../jira-board";
 import type { BoardSnapshot, GroupData } from "../use-jira-board";
 import IntegrationAvatar from "./IntegrationAvatar";
-import { Chevron, EpicChip, Estimate, FailureNote, FlagGlyph, PriorityIcon, TypeIcon } from "./JiraParts";
+import { Chevron, EpicChip, Estimate, FailureNote, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
 
 export interface JiraBacklogProps {
   conn: Connection;
@@ -51,6 +51,17 @@ function rowLabel(issue: JiraIssue, extra = ""): string {
   return `${issue.key}: ${issue.summary}. ${issue.type.name}, ${issue.status.name}, ${who}${issue.flagged ? ", flagged" : ""}${extra}`;
 }
 
+/**
+ * One issue's row, in the order Jira's backlog reads it: type and priority,
+ * the key, the summary, then the facts at the end — flag, fix versions, epic,
+ * the estimate — its status, and who has it.
+ *
+ * The status sits in a cell as wide as the board's longest status name, next
+ * to the avatar, so the states line up down the list and can be read as a
+ * column. The cell is the row's grid item, not the lozenge, so a short status
+ * keeps a short lozenge. Narrow lists move the pieces between lines
+ * (jira.css, "narrow").
+ */
 function IssueLine({ issue, estimation, time }: { issue: JiraIssue; estimation: JiraBoardOverview["estimation"]["kind"]; time: JiraBoardOverview["timeTracking"] }) {
   const done = issue.status.category === "done";
   return (
@@ -59,18 +70,36 @@ function IssueLine({ issue, estimation, time }: { issue: JiraIssue; estimation: 
       <PriorityIcon priority={issue.priority} />
       <span className="jr-key" data-done={done || undefined}>{issue.key}</span>
       <span className="jr-summary">{issue.summary}</span>
-      <span className="jr-meta">
-        {issue.flagged && <span className="jr-flagged" title="Flagged"><FlagGlyph /></span>}
-        {issue.fixVersions.slice(0, 2).map(v => <span key={v} className="jr-version">{v}</span>)}
-        {issue.fixVersions.length > 2 && <span className="jr-version" title={issue.fixVersions.slice(2).join(", ")}>+{issue.fixVersions.length - 2}</span>}
-        {issue.epic && <EpicChip epic={issue.epic} />}
+      <span className="jr-facts">
+        <span className="jr-meta">
+          {issue.flagged && <span className="jr-flagged" title="Flagged"><FlagGlyph /></span>}
+          {issue.fixVersions.slice(0, 2).map(v => <span key={v} className="jr-version">{v}</span>)}
+          {issue.fixVersions.length > 2 && <span className="jr-version" title={issue.fixVersions.slice(2).join(", ")}>+{issue.fixVersions.length - 2}</span>}
+          {issue.epic && <EpicChip epic={issue.epic} />}
+        </span>
         <Estimate issue={issue} estimation={estimation} time={time} />
-        {issue.assignee
-          ? <span className="jr-assignee" title={issue.assignee.name}><IntegrationAvatar src={issue.assignee.avatar} name={issue.assignee.name} size={20} /></span>
-          : <span className="jr-assignee jr-unassigned" title="Unassigned" aria-hidden />}
+        <span className="jr-status-cell"><StatusLozenge status={issue.status} /></span>
       </span>
+      {issue.assignee
+        ? <span className="jr-assignee" title={issue.assignee.name}><IntegrationAvatar src={issue.assignee.avatar} name={issue.assignee.name} size={20} /></span>
+        : <span className="jr-assignee jr-unassigned" title="Unassigned" aria-hidden />}
     </>
   );
+}
+
+/** How wide the status cell is, in characters of the lozenge's own type: the
+ *  longest status name on the board, up to the lozenge's own cap (16). */
+function statusWidth(snap: BoardSnapshot): number {
+  let longest = 4;
+  const look = (name: string) => { if (name.length > longest) longest = name.length; };
+  for (const group of Object.values(snap.groups)) {
+    for (const issue of group.issues) {
+      look(issue.status.name);
+      if (issue.parent) look(issue.parent.status.name);
+    }
+  }
+  for (const sub of Object.values(snap.subtasks)) for (const issue of sub.issues) look(issue.status.name);
+  return Math.min(16, longest);
 }
 
 export default function JiraBacklog(props: JiraBacklogProps) {
@@ -184,13 +213,16 @@ export default function JiraBacklog(props: JiraBacklogProps) {
           <button type="button" className="jr-row-main" data-nav={nav} data-key={key} data-parent={parentNav} data-toggle={expandable ? toggleId : undefined}
             data-expanded={expandable ? String(open) : undefined} tabIndex={tabStop(nav)} aria-current={selected === key || undefined}
             aria-label={label} onFocus={() => setCurrent(nav)} onClick={() => onOpen(key)}>
-            {issue ? <IssueLine issue={issue} estimation={estimation} time={time} /> : (
+            {issue ? <IssueLine issue={issue} estimation={estimation} time={time} /> : row.kind === "context" && (
               <>
-                <TypeIcon type={row.kind === "context" ? row.parent.type : row.issue.type} />
-                <PriorityIcon priority={row.kind === "context" ? row.parent.priority : null} />
-                <span className="jr-key" data-done={row.kind === "context" && row.parent.status.category === "done" || undefined}>{row.kind === "context" ? row.parent.key : ""}</span>
-                <span className="jr-summary">{row.kind === "context" ? row.parent.summary : ""}</span>
-                <span className="jr-meta"><span className="jr-context-tag">{mine ? "not assigned to you" : "parent not in this list"}</span></span>
+                <TypeIcon type={row.parent.type} />
+                <PriorityIcon priority={row.parent.priority} />
+                <span className="jr-key" data-done={row.parent.status.category === "done" || undefined}>{row.parent.key}</span>
+                <span className="jr-summary">{row.parent.summary}</span>
+                <span className="jr-facts">
+                  <span className="jr-meta"><span className="jr-context-tag">{mine ? "not assigned to you" : "parent not in this list"}</span></span>
+                  <span className="jr-status-cell"><StatusLozenge status={row.parent.status} /></span>
+                </span>
               </>
             )}
           </button>
@@ -229,8 +261,10 @@ export default function JiraBacklog(props: JiraBacklogProps) {
   const closedState = snap.closed;
   const firstClosed = built.findIndex(b => b.def.kind === "closed");
 
+  const statusCh = useMemo(() => statusWidth(snap), [snap]);
+
   return (
-    <div className="jr-board" ref={listRef} onKeyDown={onKeyDown}>
+    <div className="jr-board" ref={listRef} onKeyDown={onKeyDown} style={{ "--jr-status-ch": statusCh } as CSSProperties}>
       {noActive && <p className="jr-board-note">No sprint is active on this board. The future sprints and the backlog are below.</p>}
       {built.map(({ def, data, rows, stats }, index) => {
         const open = groupOpen(def, expanded);

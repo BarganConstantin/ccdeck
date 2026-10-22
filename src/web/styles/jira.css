@@ -228,7 +228,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
   flex: 1;
   min-width: 0;
   display: grid;
-  grid-template-columns: 16px 16px auto minmax(0, 1fr) auto;
+  grid-template-columns: 16px 16px auto minmax(0, 1fr) auto 20px;
   align-items: center;
   column-gap: 8px;
   padding: 6px 12px 6px 0;
@@ -247,7 +247,18 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
 .jr-key[data-done] { text-decoration: line-through; }
 .jr-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .jr-item[data-context] > .jr-row .jr-summary { color: var(--muted); }
-.jr-meta { min-width: 0; display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; }
+/* The row's end: its facts (flag, versions, epic, estimate), then its status
+   in a cell as wide as the board's longest status name (--jr-status-ch, set
+   by JiraBacklog), so the states line up as a column beside the avatars. */
+.jr-facts, .jr-meta { min-width: 0; display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.jr-status-cell {
+  flex: none;
+  display: inline-flex;
+  box-sizing: border-box;
+  min-width: calc(var(--jr-status-ch, 0) * 1ch + 12px);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+}
 .jr-context-tag { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); font-style: italic; white-space: nowrap; }
 .jr-version, .jr-label {
   max-width: 140px;
@@ -309,17 +320,22 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
 .jr-panel[data-deployment="cloud"] .jr-epic[data-color="11"] { --jr-epic: #34c7e6; }
 .jr-panel[data-deployment="cloud"] .jr-epic[data-color="12"] { --jr-epic: #6b778c; }
 
-/* Jira's status lozenge: grey to do, blue in progress, green done. */
+/* Jira's status lozenge: grey to do, blue in progress, green done. Sentence
+   case, as Atlassian's lozenge is written now, and cut at 16 characters with
+   the whole name in its title, so a long workflow name never widens a row. */
 .jr-status {
   flex: none;
+  box-sizing: border-box;
+  max-width: calc(16ch + 12px);
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding: 0 6px;
   border-radius: var(--r-tag);
   background: var(--ctl-fill);
   color: var(--text-secondary);
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  font-weight: 700;
+  font-weight: 600;
   line-height: calc(18px + var(--ui-text-increase, 0px));
-  text-transform: uppercase;
   white-space: nowrap;
 }
 .jr-status[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); }
@@ -458,17 +474,22 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
 .jr-html-code-body, .jr-html-pre-body { padding: 0; }
 
 /* ── narrow ──────────────────────────────────────────────────────────────── */
-/* A list narrower than a row: the meta goes under the summary. */
+/* A list narrower than a row: the summary keeps the first line with the key
+   and the avatar, and the status leads the facts on a line under it. */
 @container jira-list (max-width: 560px) {
-  .jr-row-main { grid-template-columns: 16px 16px auto minmax(0, 1fr); row-gap: 4px; }
-  .jr-meta { grid-column: 3 / -1; justify-content: flex-start; flex-wrap: wrap; }
+  .jr-row-main { grid-template-columns: 16px 16px auto minmax(0, 1fr) 20px; row-gap: 4px; }
+  .jr-row-main > .jr-assignee { grid-column: 5; grid-row: 1; }
+  .jr-facts { grid-column: 3 / -1; grid-row: 2; justify-content: flex-start; flex-wrap: wrap; }
+  .jr-facts .jr-meta { justify-content: flex-start; flex-wrap: wrap; }
+  .jr-facts .jr-status-cell { order: -1; min-width: 0; }
   .jr-group-facts { margin-left: 0; flex-basis: 100%; flex-wrap: wrap; }
 }
 @container jira-list (max-width: 360px) {
-  .jr-row-main { grid-template-columns: 16px auto minmax(0, 1fr); }
+  .jr-row-main { grid-template-columns: 16px auto minmax(0, 1fr) 20px; }
   .jr-row-main > .jr-icon:nth-child(2) { display: none; }
+  .jr-row-main > .jr-assignee { grid-column: 4; }
   .jr-summary { white-space: normal; grid-column: 1 / -1; }
-  .jr-meta { grid-column: 1 / -1; }
+  .jr-facts { grid-column: 1 / -1; grid-row: auto; }
 }
 @media (max-width: 700px) {
   .jr-toolbar { padding: 8px 12px; }
