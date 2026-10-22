@@ -1,0 +1,72 @@
+// How the GitHub and GitLab panel lays itself out when it is narrow: a phone,
+// or the list column beside an open item. These are rules the browser applies
+// by the list's or the page's own width (container queries), so they are read
+// from the panel's stylesheets; the browser checks of the same screens are in
+// the QA runs, which a unit suite cannot draw.
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+
+const sheet = (name: string) =>
+  readFileSync(new URL(`../styles/${name}`, import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+
+/** The bodies of every block opened by exactly `prelude` (an at-rule). */
+function blocks(src: string, prelude: string): string[] {
+  const out: string[] = [];
+  let from = 0;
+  for (;;) {
+    const at = src.indexOf(`${prelude} {`, from);
+    if (at < 0) return out;
+    let i = src.indexOf("{", at);
+    const start = i + 1;
+    for (let depth = 0; i < src.length; i++) {
+      if (src[i] === "{") depth++;
+      else if (src[i] === "}" && --depth === 0) break;
+    }
+    out.push(src.slice(start, i));
+    from = i;
+  }
+}
+
+/** Every declaration the plain rules in `body` give `selector`, joined. */
+function decls(body: string, selector: string): string {
+  return [...body.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(m => m[1].split(",").map(s => s.trim()).includes(selector))
+    .map(m => m[2].trim())
+    .join("; ");
+}
+
+/** `src` with every at-rule block taken out: the rules that always apply. */
+function topLevel(src: string): string {
+  let out = src;
+  for (;;) {
+    const at = out.search(/@[a-z-]+[^{;]*\{/);
+    if (at < 0) return out;
+    let i = out.indexOf("{", at);
+    for (let depth = 0; i < out.length; i++) {
+      if (out[i] === "{") depth++;
+      else if (out[i] === "}" && --depth === 0) break;
+    }
+    out = out.slice(0, at) + out.slice(i + 1);
+  }
+}
+
+const lists = sheet("forge-lists.css");
+const SR_HIDDEN = /position: absolute;.*clip: rect\(0 0 0 0\)/;
+
+describe("a narrow list's rows", () => {
+  const narrow = blocks(lists, "@container fgl (max-width: 520px)").join("\n");
+
+  it("wraps a row's facts inside their column rather than under the time beside them", () => {
+    // The facts (pipeline, Approved, reviewers, comments) share a line with
+    // the time; a column that cannot hold them wraps them, never overlaps.
+    expect(decls(narrow, ".fg-row.fgl-row")).toContain('"side when"');
+    expect(decls(narrow, ".fgl-row > .fgl-side")).toMatch(/flex-wrap: wrap/);
+    expect(decls(topLevel(lists), ".fgl-side")).toMatch(/min-width: 0/);
+  });
+
+  it("keeps the time's verb for a screen reader only once the list is phone-narrow", () => {
+    expect(decls(blocks(lists, "@container fgl (max-width: 300px)").join("\n"), ".fgl-row .fgl-when-verb")).toMatch(SR_HIDDEN);
+    // A pipeline's status line has less room, so its verbs go from a phone's width.
+    expect(decls(blocks(lists, "@container fgl (max-width: 360px)").join("\n"), ".fgl-pipeline .fgl-when-verb")).toMatch(SR_HIDDEN);
+  });
+});

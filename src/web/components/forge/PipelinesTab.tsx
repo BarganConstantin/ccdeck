@@ -77,7 +77,7 @@ function PipelineRow({ kind, pipeline: p, acrossRepos }: { kind: ForgeKind; pipe
         <span className="fgl-duration">
           {duration
             ? <><span className="fg-sr">ran for </span>{duration}</>
-            : running && <>started <Ago at={p.startedAt} /></>}
+            : running && <><span className="fgl-when-verb">started </span><Ago at={p.startedAt} /></>}
         </span>
         <span className="fg-row-title fgl-title">
           <span className="fgl-title-text">{title ?? `${forgeWords[kind].pipeline} ${p.id}`}</span>

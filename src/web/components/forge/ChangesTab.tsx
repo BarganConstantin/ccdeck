@@ -167,7 +167,7 @@ function ChangeRow({ kind, change: c, acrossRepos }: { kind: ForgeKind; change: 
           {c.createdAt != null && <> · created <Ago at={c.createdAt} /></>}
           {author && <> by {author}</>}
         </span>
-        <span className="fgl-when">{moment.at != null && <>{moment.verb} <Ago at={moment.at} /></>}</span>
+        <span className="fgl-when">{moment.at != null && <><span className="fgl-when-verb">{moment.verb} </span><Ago at={moment.at} /></>}</span>
       </button>
     </li>
   );

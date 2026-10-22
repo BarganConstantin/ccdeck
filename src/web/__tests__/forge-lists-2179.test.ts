@@ -370,7 +370,7 @@ describe("the Merge requests tab", () => {
   it("ends a merged row on when it was merged", () => {
     const c = ctx("gitlab");
     keep(c, "changes", { repo: "acme/web", filter: "all", state: "merged", sort: "created" }, page([change(4, { state: "merged", mergedAt: Date.now() - 60_000 })]));
-    expect(draw(c, tab(ChangesTab, view({ tab: "changes", repo: "acme/web", state: "merged" })))).toContain("merged <time");
+    expect(draw(c, tab(ChangesTab, view({ tab: "changes", repo: "acme/web", state: "merged" })))).toContain('<span class="fgl-when-verb">merged </span><time');
   });
 
   it("says Pull requests and # on GitHub", () => {
@@ -398,7 +398,7 @@ describe("the Pipelines tab", () => {
     expect(html).toContain('<span class="fgl-title-text">Add login</span>');
     expect(html).toContain(" · ci · pull request");
     expect(html).toContain('<span class="fgl-repo-ref">acme/api</span> · ');
-    expect(html).toContain("started <time");
+    expect(html).toContain('<span class="fgl-when-verb">started </span><time');
   });
 
   it("says when nothing ran", () => {
@@ -441,7 +441,7 @@ describe("the Issues tab", () => {
     keep(c, "issues", { repo: "acme/web", state: "closed" }, page([issue(3, { kind: "github", state: "closed", stateReason: "not_planned", closedAt: Date.now() - 1000 })]));
     const html = draw(c, tab(IssuesTab, view({ tab: "issues", repo: "acme/web", issueState: "closed" })));
     expect(html).toContain("Not planned");
-    expect(html).toContain("closed <time");
+    expect(html).toContain('<span class="fgl-when-verb">closed </span><time');
     expect(html).not.toContain("Assigned to you");
   });
 });

@@ -154,17 +154,25 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
   .fgl-stats[data-empty], .fgl-diverge[data-empty] { display: none; }
   .fgl-branch:has(.fgl-stats[data-empty]) { grid-template-areas: "name name" "commit commit" "change change"; }
 }
+/* The facts go on a line of their own, beside the time. They wrap inside
+   their column rather than run under the time: the column is what is left
+   once the time has its words. */
 @container fgl (max-width: 520px) {
   .fg-row.fgl-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title title" "meta meta" "side when"; }
-  .fgl-row > .fgl-side { justify-self: start; }
+  .fgl-row > .fgl-side { justify-self: start; flex-wrap: wrap; row-gap: 4px; max-width: 100%; }
   .fg-row.fgl-pipeline { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "status duration when" "title title title" "meta meta meta"; }
   .fgl-pipeline > .fgl-side { display: none; }
   .fgl-labels { margin-left: 0; display: flex; margin-top: 4px; }
 }
-/* A phone's list: the status line keeps the status and the duration, and the
-   time says only how long ago. */
-@container fgl (max-width: 300px) {
+/* A phone's list: the time says only how long ago, its verb ("updated",
+   "finished", "started") left to a screen reader. A pipeline's status line
+   keeps the status and the whole time from a phone's width; a change or an
+   issue keeps its verb until the list is narrower than that. */
+@container fgl (max-width: 360px) {
   .fgl-pipeline .fgl-when-verb { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+@container fgl (max-width: 300px) {
+  .fgl-row .fgl-when-verb { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 @media (max-width: 420px) {
   .fgl-repo-trigger > .fgl-glyph { display: none; }
