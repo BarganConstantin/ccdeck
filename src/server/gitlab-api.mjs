@@ -272,6 +272,11 @@ export function createGitlabClient({ baseUrl = "https://gitlab.com", token, fetc
         if (!isSoft(err) && capsMemo === entry) capsMemo = null;
         return null;
       });
+    // An answer that cannot be read still rejects: a list with rows that waits
+    // for it fails as before. A list without rows never waits, so the
+    // rejection must not be left unhandled, which would end the deck's
+    // process.
+    entry.promise.catch(() => {});
     capsMemo = entry;
     return entry.promise;
   }
@@ -709,6 +714,10 @@ export function createGitlabClient({ baseUrl = "https://gitlab.com", token, fetc
       "query($p: ID!, $iid: String!) { project(fullPath: $p) { mergeRequest(iid: $iid) { diffStats { path additions deletions } } } }",
       { p: repo, iid: String(number) },
     ));
+    // Awaited only once /diffs has answered: a hard failure of the stats that
+    // comes back first must not be unhandled meanwhile, which would end the
+    // deck's process. The await below still fails the read with it.
+    statsPromise.catch(() => {});
     const file = (path, oldPath, status, s) => ({
       path,
       oldPath,

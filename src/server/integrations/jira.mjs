@@ -835,6 +835,11 @@ export function registerJiraRoutes(router) {
     let next = cursor;
     let total = null;
     const counting = paged && !cursor ? approximateCount(ctx, suffix, jql) : Promise.resolve(null);
+    // The count is awaited below only when the list has no total of its own,
+    // and not at all when the list fails first: its failure must not be left
+    // unhandled meanwhile, which would end the deck's process. Where it
+    // is awaited, it still fails the read as before.
+    counting.catch(() => {});
     for (let guard = 0; guard < 12 && issues.length < cap; guard++) {
       const page = await listPage(ctx, suffix, { jql, fields, cursor: next, max: Math.min(PAGE, cap - issues.length) });
       issues.push(...page.issues);
