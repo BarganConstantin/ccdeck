@@ -198,10 +198,14 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .jr-row-main:focus-visible { outline-offset: -2px; }
-.jr-row-main:active { transform: scale(0.97); }
+/* A row is the door to its issue, as a row in the GitHub and GitLab panel
+   is: a press deepens the row's tone a step and nothing moves, so the words
+   stay under the pointer while the issue opens. The row is :active while its
+   button or its disclosure triangle is pressed. (Inside a list, so it
+   outranks the shared row's hover and selection.) */
+.jr-rows .jr-row:active { background: color-mix(in srgb, var(--text) 10%, transparent); }
 .jr-icon { width: 16px; height: 16px; flex: none; display: block; border-radius: 2px; }
 .jr-key { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .jr-key[data-done] { text-decoration: line-through; }
@@ -410,9 +414,9 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   font-size: calc(12px + var(--ui-text-increase, 0px));
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background-color 120ms;
 }
-.jr-detail-sub:active { transform: scale(0.97); }
+.jr-detail-subtasks .jr-detail-sub:active { background: color-mix(in srgb, var(--text) 10%, transparent); }
 .jr-detail-sub:focus-visible { outline-offset: -2px; }
 .jr-files { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .jr-files li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; min-width: 0; }
@@ -532,6 +536,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 @media (prefers-reduced-motion: reduce) {
   .jr-chevron { transition: none; }
   .jr-group-body[data-fade], .jr-subrows[data-fade] { animation: none; }
-  .jr-board-item:active, .jr-crumb:active, .jr-detail-sub:active, .jr-group-toggle:active,
-  .jr-link-btn:active, .jr-row-main:active, .jr-toggle:active { transform: none; }
+  .jr-board-item:active, .jr-crumb:active, .jr-group-toggle:active,
+  .jr-link-btn:active, .jr-toggle:active { transform: none; }
 }
