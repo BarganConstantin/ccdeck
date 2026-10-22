@@ -22,9 +22,14 @@ process.env.HOME = DIR;
 process.env.USERPROFILE = DIR;
 process.env.CLAUDE_CONFIG_DIR = join(DIR, "claude");
 process.env.CODEX_HOME = join(DIR, "codex");
+// CCDECK_HOME wins over every other rule for where prefs.json lives, so a
+// caller's own (a suite run with a scratch deck home) would put the directory
+// this file makes there, outside DIR, and a prefs.json already in it made the
+// mkdir below throw EEXIST.
+process.env.CCDECK_HOME = join(DIR, "deck");
 process.env.AGENTS_DECK_NO_INSTALL = "1";
 process.env.AGENTS_DECK_NO_LAN = "1";
-for (const p of [process.env.HOME, process.env.USERPROFILE, process.env.CLAUDE_CONFIG_DIR, process.env.CODEX_HOME]) {
+for (const p of [process.env.HOME, process.env.USERPROFILE, process.env.CLAUDE_CONFIG_DIR, process.env.CODEX_HOME, process.env.CCDECK_HOME]) {
   if (!resolve(p!).startsWith(resolve(DIR))) throw new Error(`sandbox escaped: ${p}`);
 }
 
@@ -32,8 +37,9 @@ for (const p of [process.env.HOME, process.env.USERPROFILE, process.env.CLAUDE_C
 const { startServer } = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const { prefsPath, prefsWriteRefusal } = await import("../../server/deck-prefs.mjs");
+if (!resolve(prefsPath()).startsWith(resolve(DIR))) throw new Error(`sandbox escaped: ${prefsPath()}`);
 
-const ENV_KEYS = ["HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "AGENTS_DECK_NO_INSTALL", "AGENTS_DECK_NO_LAN"];
+const ENV_KEYS = ["HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "CCDECK_HOME", "AGENTS_DECK_NO_INSTALL", "AGENTS_DECK_NO_LAN"];
 
 describe("a settings write the deck cannot make", () => {
   let server: Server;
