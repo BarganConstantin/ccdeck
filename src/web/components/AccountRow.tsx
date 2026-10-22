@@ -90,8 +90,13 @@ interface Props {
   nowSec: number;
   /** What Local network knows about this account's copies on other decks, and
    *  the paired decks this deck offers it to — null when it offers it to none —
-   *  and whether this deck is on it and so keeps it here (#2192). */
-  lan?: { noCopyWorksNearby?: boolean; sharedTo?: readonly string[] | null; sharedInUse?: boolean };
+   *  and whether this deck is on it and so keeps it here (#2192); and the
+   *  paired decks that say they are on it right now, null when none does —
+   *  which the live row warns about (account-issue.ts elsewhereIssue). */
+  lan?: {
+    noCopyWorksNearby?: boolean; sharedTo?: readonly string[] | null; sharedInUse?: boolean;
+    elsewhere?: readonly string[] | null;
+  };
   /** The reader has opened this row's detail. */
   opened: boolean;
   /** Open this row's detail, or shut it. */

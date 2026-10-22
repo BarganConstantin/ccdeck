@@ -9,6 +9,9 @@
 import { type Account } from "./claude-accounts";
 import { isOnline, pairedDeckName } from "./lan-roster";
 import { type LanAccount, type LanStatus } from "./lan-types";
+// Which deck is on which login, one rule in plain JavaScript (#2192), so the
+// row and the server can never read the same status two ways.
+import { decksByAccount } from "../server/lan-elsewhere.mjs";
 
 export function lanAccounts(accounts: readonly Account[]): LanAccount[] {
   return accounts.map(a => ({
@@ -160,6 +163,37 @@ export function sharedTo(
     .filter(p => p.paired && !(p.notOffered ?? []).includes(key))
     .map(p => pairedDeckName(p, status.aliases ?? {}))
     .filter(Boolean);
+  return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * The paired decks that say they are on this login right now, by the names
+ * Local network's list gives them — or null when none does (#2192).
+ *
+ * ONE LOGIN, LIVE IN ONE PLACE. A Claude login renews once: the copy that
+ * renews it first keeps it, and every other copy of it is refused from then on,
+ * so two machines on one copied login race each other at every renewal and the
+ * loser is signed out. Each paired deck says which shared login it is on in its
+ * last list, and lan-elsewhere.mjs holds that word for five minutes.
+ *
+ * ONLY WHAT A DECK SAID. The login this deck is on is marked `inUse` in its own
+ * list (offeredHere) and that is not a deck saying anything; a paired deck that
+ * hides which login it is on leaves that login out of its list and says
+ * `hidden`, and one on a login it does not share says `other` — none of which
+ * names a login, so none of them is drawn as a deck on one.
+ *
+ * NOT `isOnline`, which is a deck answering this minute: a deck that missed a
+ * round or two is still signed in where it was, and a warning that went out and
+ * came back with each round would be two warnings for one fact.
+ */
+export function activeElsewhere(
+  key: string,
+  status: Pick<LanStatus, "enabled" | "peers" | "aliases" | "addrs"> | null,
+  now: number,
+): string[] | null {
+  const rows = decksByAccount(status, now).get(key);
+  if (!rows?.length) return null;
+  const names = rows.map(p => pairedDeckName(p, status?.aliases ?? {})).filter(Boolean);
   return [...new Set(names)].sort((a, b) => a.localeCompare(b));
 }
 
