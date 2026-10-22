@@ -14,11 +14,18 @@
 // for an older Enterprise server; ForgeErrors leaving as they came; and what a
 // pasted URL or key resolves to.
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   cleanGithubLogLine, createGithubClient, githubCheckState, githubRollupState,
   // @ts-expect-error — plain JS module, no types
 } from "../../server/github-api.mjs";
+import { notARead } from "./forge-read-only";
+
+// Every request any case sends that is not a read, checked after each.
+const notReads: string[] = [];
+afterEach(() => {
+  expect(notReads.splice(0)).toEqual([]);
+});
 
 const NOW = Date.parse("2026-10-19T12:00:00Z");
 const API = "https://api.github.com";
@@ -40,6 +47,8 @@ function client(handler: Handler, opts: Record<string, unknown> = {}) {
     const parsed = init.body ? JSON.parse(init.body) : {};
     const req = { url, method: init.method ?? "GET", headers: init.headers, query: parsed.query ?? "", variables: parsed.variables ?? {} };
     calls.push(req);
+    const why = notARead(url, req.method, req.query);
+    if (why) notReads.push(why);
     const res = handler(req);
     if (!res) throw new Error(`unexpected ${req.method} ${url} ${req.query.slice(0, 120)}`);
     return res;

@@ -41,7 +41,7 @@ const { GUARDED_READS, isGuardedRead } = await import("../../server/request-gate
 // @ts-expect-error — plain .mjs script, no types
 const { startMockJira, MOCK_CREDENTIALS } = await import("../../../scripts/mock-jira.mjs");
 
-type Mock = { url: string; apiUrl: string | null; setMode: (m: string) => void; close: () => Promise<void>; requests: Array<{ path: string; auth: string }> };
+type Mock = { url: string; apiUrl: string | null; setMode: (m: string) => void; close: () => Promise<void>; requests: Array<{ method: string; path: string; auth: string }> };
 const SECRETS = [MOCK_CREDENTIALS.server.bearer, MOCK_CREDENTIALS.cloud.classicToken, MOCK_CREDENTIALS.cloud.scopedToken] as string[];
 
 let server: Server;
@@ -343,5 +343,15 @@ describe("what the deck said while it ran", () => {
   it("never once named a token", () => {
     expect(said.length).toBeGreaterThanOrEqual(0);
     for (const line of said) for (const s of SECRETS) expect(line.includes(s), line.slice(0, 120)).toBe(false);
+  });
+});
+
+// Read-only: the panel reads Jira and never writes to it.
+// Last, so it sees every request the cases above made the deck send.
+describe("what the deck asked the mock Jira", () => {
+  it("asked it only GETs", () => {
+    const asked = [jiraServer, jiraCloud, jiraOld].flatMap(j => j.requests);
+    expect(asked.length).toBeGreaterThan(20);
+    expect(asked.filter(q => q.method !== "GET").map(q => `${q.method} ${q.path}`)).toEqual([]);
   });
 });

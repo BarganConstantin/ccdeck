@@ -11,11 +11,18 @@
 // install's path prefix too; the forge's failures leave as they came; and a
 // pasted URL or key is read without asking the forge.
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 // @ts-expect-error — plain JS module, no types
 import { createGitlabClient, gitlabCiState, humanFailureReason } from "../../server/gitlab-api.mjs";
 // @ts-expect-error — plain JS module, no types
 import { ForgeError } from "../../server/forge-http.mjs";
+import { notARead } from "./forge-read-only";
+
+// Every request any case sends that is not a read, checked after each.
+const notReads: string[] = [];
+afterEach(() => {
+  expect(notReads.splice(0)).toEqual([]);
+});
 
 const BASE = "https://gitlab.example.com";
 const NOW = Date.parse("2026-10-19T12:00:00Z");
@@ -56,6 +63,8 @@ function fakeGitlab({ base = BASE, rest = {}, graphql = [], caps = CE_CAPS }: {
   const fetchImpl = async (url: string, init: { method?: string; headers: Record<string, string>; body?: string }) => {
     const u = new URL(url);
     const method = init.method ?? "GET";
+    const why = notARead(url, method, init.body ? (JSON.parse(init.body).query ?? "") : "");
+    if (why) notReads.push(why);
     if (u.pathname.endsWith("/api/graphql")) {
       const { query, variables } = JSON.parse(init.body ?? "{}");
       calls.push({ url: u, method, headers: init.headers, query, variables });
