@@ -27,6 +27,9 @@ import { chooseBeforeEngine, forgetPicksByHand, noteEngineTick, slotsHeldBack } 
 // The one decision the engine cannot reach under `--once`: leaving an active
 // account whose login has died. See its header.
 import { engineLostActive, failOver } from "./autoswitch-failover.mjs";
+// And the automatic continue of stopped background sessions (#2193), which a
+// tick that moved the account is the likeliest moment for. Returns at once.
+import { noteContinueTick } from "./stop-continue.mjs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -327,7 +330,7 @@ function tick() {
   // Not awaited, and caught inside: a notification never delays a tick.
   const startedAt = Date.now();
   _tickStartedAt = startedAt;
-  _ticking = runTick().then(() => { noteAutoTick(_lastTick, { startedAt }); }).finally(() => { _ticking = null; });
+  _ticking = runTick().then(() => { noteAutoTick(_lastTick, { startedAt }); noteContinueTick(_lastTick); }).finally(() => { _ticking = null; });
   return _ticking;
 }
 

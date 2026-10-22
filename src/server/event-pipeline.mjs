@@ -18,6 +18,9 @@ import { accountNotifySettings, notificationsOn } from "./deck-prefs.mjs";
 // on a dead login — connected below to the same OS call the block notifier
 // uses, and the door a stopped turn is reported through.
 import { connectAccountNotify, noteHookStop } from "./account-watch.mjs";
+// The same stops, and what shows each session working again, for the Continue
+// action and the automatic continue of background sessions (#2193).
+import { noteStopContinue } from "./stop-continue.mjs";
 // The settings as this process holds them — see prefs-state.mjs.
 import { heldPrefs } from "./prefs-state.mjs";
 // The deck's own token, taken back out of every event before the ring, the
@@ -210,7 +213,10 @@ export function pushEvent(raw, source, opts = {}) {
   // limit: one notification for the incident, and an auto-switch tick now
   // rather than at the next interval (account-watch.mjs). A hook's own post
   // only — a replay is history, and the scanners never send one.
-  if (source === "hook" && !opts.replay) noteHookStop(raw, evt.receivedAt);
+  if (source === "hook" && !opts.replay) {
+    noteHookStop(raw, evt.receivedAt);
+    noteStopContinue(raw, evt.receivedAt);
+  }
 
   // Persisted history is not current activity. Fresh recovery snapshots are
   // current evidence even though they bypass replayed-tool accounting.
