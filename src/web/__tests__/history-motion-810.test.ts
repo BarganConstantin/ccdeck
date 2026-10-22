@@ -12,13 +12,10 @@
 // the range buttons. That is not a missing flourish, it is a layout jump with a
 // four-second fuse.
 //
-// The thesis: the axis arrives before the days, and the days land on it oldest
-// first. The wait stands in the room the chart will need and draws only the
-// hairline the columns are measured against — furniture, which is honest before
-// there is data, rather than a skeleton of grey bars, which stands in for
-// CONTENT nobody has yet. Then the columns rise from that same line, left to
-// right, because left to right is not a decorative sweep on this chart: it is
-// the order the days were lived in.
+// The wait reserves the chart room and keeps its baseline. Its decorative
+// file-to-report illustration shows activity, never sample values or measured
+// progress. When data arrives, the actual columns rise from that baseline in
+// chronological order.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -68,7 +65,7 @@ describe("the wait stands in the room the answer needs", () => {
     expect(css).not.toMatch(/\.uh-(totals|legend|agents)-skeleton/);
     // Asked of the modal and every file lifted out of it.
     expect(withoutComments(usageHistorySurface())).not.toMatch(/skeleton|shimmer|placeholder-bar/i);
-    // And the wait draws exactly one thing: the axis.
+    // The wait keeps a word group and a baseline; its SVG is decorative.
     const wait = modal.slice(modal.indexOf('className="uh-status uh-status-wait"'), modal.indexOf('view.phase === "error"'));
     expect([...wait.matchAll(/className="uh-wait-/g)]).toHaveLength(2);
   });
@@ -83,13 +80,13 @@ describe("the wait stands in the room the answer needs", () => {
   it("travels rather than fills, because no progress was measured", () => {
     // The deck knows a subprocess is running and does not know how far through
     // the logs it is. A bar that filled would be claiming a number nobody has.
-    const axis = block(".uh-wait-axis");
-    expect(axis).toMatch(/animation: uh-wait-sweep 1600ms/);
-    expect(axis).toMatch(/infinite/);
-    // Paint on a 1px strip: a background position, never a width.
-    const sweep = frames("uh-wait-sweep");
-    expect(sweep).toMatch(/background-position/);
-    expect(sweep).not.toMatch(/width|height|transform|margin/);
+    const packets = block(".uh-reading-packets rect");
+    expect(packets).toMatch(/animation: uh-reading-transfer 1800ms/);
+    expect(packets).toMatch(/infinite/);
+    // Packets travel along the connection without changing layout.
+    const sweep = frames("uh-reading-transfer");
+    expect(sweep).toMatch(/translateX/);
+    expect(sweep).not.toMatch(/width|height|margin/);
   });
 });
 
@@ -165,7 +162,7 @@ function reducedMotion(): string {
 describe("reduced motion keeps the meaning and drops the movement", () => {
   it("stops both loops and both entrances", () => {
     const rm = reducedMotion();
-    expect(rm).toContain(".uh-wait-axis { animation: none; }");
+    expect(rm).toContain(".uh-reading-packets rect { animation: none;");
     expect(rm).toContain(".uh-bar { animation: none; }");
   });
 
