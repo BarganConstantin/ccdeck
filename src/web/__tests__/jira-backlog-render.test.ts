@@ -75,8 +75,8 @@ describe("every row says what state its issue is in", () => {
       issue("MOCK-30", { status: status("Done", "done") }),
     ]);
     const drawn = rows(html);
-    expect(drawn["MOCK-10"]).toContain('<span class="jr-status" data-cat="indeterminate" title="In Progress">In Progress</span>');
-    expect(drawn["MOCK-30"]).toContain('<span class="jr-status" data-cat="done" title="Done">Done</span>');
+    expect(drawn["MOCK-10"]).toContain('<span class="jr-status ig-chip" data-cat="indeterminate" title="In Progress">In Progress</span>');
+    expect(drawn["MOCK-30"]).toContain('<span class="jr-status ig-chip" data-cat="done" title="Done">Done</span>');
     // A done issue keeps its struck-through key as well.
     expect(drawn["MOCK-30"]).toMatch(/class="jr-key" data-done="true"/);
   });

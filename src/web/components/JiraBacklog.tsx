@@ -202,7 +202,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     const issue = row.kind === "issue" ? row.issue : null;
     return (
       <li key={key} className="jr-item" data-context={row.kind === "context" || undefined}>
-        <div className="jr-row" data-selected={selected === key || undefined} data-done={issue?.status.category === "done" || undefined}
+        <div className="jr-row ig-row" data-selected={selected === key || undefined} data-done={issue?.status.category === "done" || undefined}
           data-mine={issue?.mine || undefined}>
           {expandable ? (
             <button type="button" id={toggleId} className="jr-toggle" tabIndex={-1} aria-expanded={open}
@@ -237,7 +237,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               const subNav = `${group.id}/${sub.key}/${nav}`;
               return (
                 <li key={sub.key} className="jr-item">
-                  <div className="jr-row jr-subrow" data-selected={selected === sub.key || undefined} data-done={sub.status.category === "done" || undefined}
+                  <div className="jr-row jr-subrow ig-row" data-selected={selected === sub.key || undefined} data-done={sub.status.category === "done" || undefined}
                     data-mine={sub.mine || undefined}>
                     <span className="jr-toggle-space" aria-hidden />
                     <button type="button" className="jr-row-main" data-nav={subNav} data-key={sub.key} data-parent={nav} tabIndex={tabStop(subNav)}

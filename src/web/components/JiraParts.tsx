@@ -102,26 +102,26 @@ export const PriorityIcon = ({ priority }: { priority: JiraPriority | null }) =>
 
 /** An epic, in the colour Jira gave it (1-14), or neutral when it gave none. */
 export function EpicChip({ epic }: { epic: JiraEpic }) {
-  return <span className="jr-epic" data-color={epic.color ?? undefined} title={`Epic ${epic.key}: ${epic.name}`}>{epic.name}</span>;
+  return <span className="jr-epic ig-chip" data-color={epic.color ?? undefined} title={`Epic ${epic.key}: ${epic.name}`}>{epic.name}</span>;
 }
 
 /** Jira's status lozenge: grey for to do, blue for in progress, green for done,
  *  in sentence case and cut at 16 characters, with the whole name on hover. */
 export function StatusLozenge({ status }: { status: JiraStatus }) {
-  return <span className="jr-status" data-cat={status.category} title={status.name}>{status.name}</span>;
+  return <span className="jr-status ig-chip" data-cat={status.category} title={status.name}>{status.name}</span>;
 }
 
 /** What a row says about the work in it: the estimate and, when Jira has a
  *  different one, what remains — or story points on a board that counts them. */
 export function Estimate({ issue, estimation, time }: { issue: JiraIssue; estimation: "time" | "points" | "count"; time: TimeTracking }) {
   if (estimation === "points") {
-    return issue.points == null ? null : <span className="jr-estimate" title="Story points">{Number.isInteger(issue.points) ? issue.points : issue.points.toFixed(1)}</span>;
+    return issue.points == null ? null : <span className="jr-estimate ig-chip" title="Story points">{Number.isInteger(issue.points) ? issue.points : issue.points.toFixed(1)}</span>;
   }
   const estimate = jiraDuration(issue.estimate, time);
   const remaining = issue.remaining != null && issue.remaining !== issue.estimate ? jiraDuration(issue.remaining, time) : "";
   if (!estimate && !remaining) return null;
   return (
-    <span className="jr-estimate" title={`${estimate ? `Original estimate ${estimate}` : "No original estimate"}${remaining ? ` · ${remaining} remaining` : ""}`}>
+    <span className="jr-estimate ig-chip" title={`${estimate ? `Original estimate ${estimate}` : "No original estimate"}${remaining ? ` · ${remaining} remaining` : ""}`}>
       {estimate || "–"}{remaining && <span className="jr-remaining"> · {remaining} left</span>}
     </span>
   );

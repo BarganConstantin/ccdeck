@@ -52,9 +52,9 @@
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
 }
-.jr-search input::placeholder { color: var(--muted); }
+.jr-search input::placeholder { color: var(--text-secondary); }
 .jr-search input:hover { border-color: var(--text); }
-button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-color: var(--accent); color: var(--text); }
+button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--accent-dim)); border-color: var(--accent); color: var(--text); }
 .jr-link-btn {
   padding: 0;
   border: 0;
@@ -114,9 +114,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
   cursor: pointer;
   transition: background-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.jr-board-item:hover { background: var(--ctl-fill); }
 .jr-board-item:active { transform: scale(0.97); }
-.jr-board-item[aria-current="true"] { background: var(--accent-dim); }
 .jr-board-item-name { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; overflow-wrap: anywhere; }
 .jr-board-item-meta { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .jr-board-pop-note { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
@@ -156,7 +154,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
   cursor: pointer;
   transition: background-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.jr-group-toggle:hover { background: var(--ctl-fill); }
 .jr-group-toggle:active { transform: scale(0.97); }
 .jr-group-name { overflow-wrap: anywhere; }
 .jr-badge {
@@ -191,8 +188,8 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.jr-total[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); }
-.jr-total[data-cat="done"] { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--text); }
+.jr-total[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); color: var(--text); }
+.jr-total[data-cat="done"] { background: color-mix(in srgb, var(--ok) 14%, var(--panel)); color: var(--text); }
 .jr-goal { margin: 0 0 8px 6px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; }
 .jr-group-body { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); }
 .jr-empty-group { margin: 0; padding: 12px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
@@ -207,8 +204,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
 .jr-item + .jr-item { border-top: 1px solid var(--line-soft); }
 .jr-subrows { border-top: 1px solid var(--line-soft); background: color-mix(in srgb, var(--bg) 35%, transparent); }
 .jr-row { display: flex; align-items: stretch; min-width: 0; min-height: 34px; }
-.jr-row:hover { background: var(--ctl-fill); }
-.jr-row[data-selected] { background: var(--accent-dim); }
 .jr-subrow { padding-left: 20px; }
 .jr-toggle, .jr-toggle-space { flex: none; width: 28px; }
 .jr-toggle {
@@ -272,17 +267,21 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
 }
 .jr-version { box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
 .jr-label { background: var(--ctl-fill); color: var(--text-secondary); }
-.jr-remaining { color: var(--muted); font-weight: 400; }
+/* What is left of an estimate, inside its --ctl-fill pill: the bed takes
+   --muted to 4.05:1 in dark, so it reads a tier up and stays quieter than the
+   estimate by weight. */
+.jr-remaining { color: var(--text-secondary); font-weight: 400; }
 .jr-assignee { flex: none; display: inline-flex; width: 20px; height: 20px; }
-.jr-unassigned, .jr-avatar-blank { border-radius: 50%; box-shadow: inset 0 0 0 1px var(--line); background: var(--ctl-fill); }
+.jr-unassigned, .jr-avatar-blank { border-radius: 50%; box-shadow: inset 0 0 0 1px var(--ctl-edge); background: var(--ctl-fill); }
 .jr-avatar-blank { width: 18px; height: 18px; }
 .jr-flagged { display: inline-flex; align-items: center; gap: 4px; color: var(--err); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .jr-flag { flex: none; }
 .jr-subnote { padding: 6px 12px 6px 40px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 
 /* Jira's epic colours, by the number Jira stores (ghx-label-N / color_N): Data
-   Center's palette, then Cloud's where it differs. A tint under the deck's own
-   text, so the words read the same in every theme. */
+   Center's palette, then Cloud's where it differs. A 14 % tint over the panel
+   under the deck's own text, so the words clear AA in every theme (Gruvbox
+   Material's --text is the tightest, 4.6:1 on the brightest epic). */
 .jr-epic {
   --jr-epic: var(--muted);
   max-width: 180px;
@@ -290,7 +289,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
   text-overflow: ellipsis;
   padding: 0 6px;
   border-radius: var(--r-tag);
-  background: color-mix(in srgb, var(--jr-epic) 26%, transparent);
+  background: color-mix(in srgb, var(--jr-epic) 14%, var(--panel));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jr-epic) 55%, transparent);
   color: var(--text);
   font-size: calc(11px + var(--ui-text-increase, 0px));
@@ -322,7 +321,8 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
 
 /* Jira's status lozenge: grey to do, blue in progress, green done. Sentence
    case, as Atlassian's lozenge is written now, and cut at 16 characters with
-   the whole name in its title, so a long workflow name never widens a row. */
+   the whole name in its title, so a long workflow name never widens a row.
+   The tints are 14 %: at 22 % Gruvbox Material's --text sat at 3.96:1. */
 .jr-status {
   flex: none;
   box-sizing: border-box;
@@ -338,8 +338,25 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
   line-height: calc(18px + var(--ui-text-increase, 0px));
   white-space: nowrap;
 }
-.jr-status[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); }
-.jr-status[data-cat="done"] { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--text); }
+.jr-status[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); color: var(--text); }
+.jr-status[data-cat="done"] { background: color-mix(in srgb, var(--ok) 14%, var(--panel)); color: var(--text); }
+
+/* A backlog row is the host's .ig-row: its hover and its selection, and
+   every quiet word in it lifted with it. A sprint's header, a board in the
+   picker and a sub-task in the detail are buttons of their own and borrow
+   the same fills and the same lift. A tinted pill is mixed over the panel
+   rather than over whatever is under it, so the hover's fill never stacks
+   under its words (Gruvbox Material's --text fell to 4.1:1 on a hovered
+   lozenge); a pill on the neutral fill writes in --text under the pointer
+   for the same reason. On a selected row a status pill gives up its tint
+   (.ig-chip) and keeps an edge in its category's colour, so the state
+   still shows. */
+.ig-row:hover :is(.jr-estimate, .jr-remaining, .jr-status, .jr-total) { color: var(--text); }
+.jr-group-toggle:hover, .jr-board-item:hover, .jr-detail-sub:hover { background: var(--ig-hover-fill, var(--ctl-fill)); --muted: var(--text-secondary); }
+.jr-group-toggle:hover :is(.jr-estimate, .jr-status, .jr-total), .jr-detail-sub:hover .jr-status { color: var(--text); }
+.jr-board-item[aria-current="true"] { background: var(--ig-sel-fill, var(--accent-dim)); --muted: var(--text); }
+.ig-row[data-selected] .jr-status[data-cat="indeterminate"] { box-shadow: inset 0 0 0 1px var(--accent); }
+.ig-row[data-selected] .jr-status[data-cat="done"] { box-shadow: inset 0 0 0 1px var(--ok); }
 
 /* An issue type or a priority the panel draws itself, when Jira's icon is an
    SVG (which the deck does not pass on) or does not load: Jira's shapes. The
@@ -437,7 +454,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
   cursor: pointer;
   transition: background-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.jr-detail-sub:hover { background: var(--ctl-fill); }
 .jr-detail-sub:active { transform: scale(0.97); }
 .jr-detail-sub:focus-visible { outline-offset: -2px; }
 .jr-files { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
@@ -528,7 +544,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--accent-dim); border-
   .jr-group-toggle, .jr-board-item, .jr-detail-sub { min-height: 44px; }
 }
 @media (hover: none) {
-  .jr-row:hover:not([data-selected]), .jr-board-item:hover:not([aria-current="true"]), .jr-detail-sub:hover, .jr-group-toggle:hover { background: transparent; }
+  .jr-board-item:hover:not([aria-current="true"]), .jr-detail-sub:hover, .jr-group-toggle:hover { background: transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
   .jr-refresh[data-loading] svg, .jr-skeleton i { animation: none; }

@@ -7,13 +7,15 @@
 // computed here from each theme's tokens, and a palette or rule edit that
 // walks one back under its floor fails the build.
 import { describe, expect, it } from "vitest";
-import { cascade, el, selects, splitTop, type El } from "./sheet-cascade";
+import { declared, el, mediaApplies, selects, sheetRules, splitTop, type El } from "./sheet-cascade";
 import { sheetText } from "./sheet-source";
 
 type Rgba = [number, number, number, number];
 const WIDTH = 1440;
 /** WCAG 1.4.11: a mark that carries meaning, and its tile against the row. */
 const NON_TEXT = 3;
+/** WCAG 1.4.3: the panel's words are 11-13px. */
+const BODY = 4.5;
 
 const THEMES = [...new Set([...sheetText().matchAll(/:root\[data-theme="([\w-]+)"\]\s*\{/g)].map(m => m[1]))];
 const LIGHT = new Set(["light", "white-contrast", "gruvbox-light"]);
@@ -21,13 +23,53 @@ const LIGHT = new Set(["light", "white-contrast", "gruvbox-light"]);
 const rootOf = (theme: string) =>
   el("html", [], { attrs: { "data-theme": theme, "data-color-scheme": LIGHT.has(theme) ? "light" : "dark" }, states: ["root"] });
 
-/** A property as `chain`'s last element gets it. Custom properties inherit,
- *  so a name the element does not set is asked of its ancestors in turn. */
+/** The sheet's declarations of one property at WIDTH, one entry per selector,
+ *  with the classes its last compound demands (outside any `:is()`), so the
+ *  many thousand rules that name another element are passed over unread. */
+const declarations = new Map<string, { selector: string; order: number; value: string; needs: string[] }[]>();
+function declarationsOf(name: string) {
+  let list = declarations.get(name);
+  if (!list) {
+    list = [];
+    for (const r of sheetRules()) {
+      if (!mediaApplies(r.media, WIDTH)) continue;
+      const value = declared(r.body, name);
+      if (value == null) continue;
+      for (const selector of r.selectors) {
+        let flat = selector;
+        while (/\([^()]*\)/.test(flat)) flat = flat.replace(/\([^()]*\)/g, "");
+        const last = flat.trim().split(/\s*[\s>+~]\s*/).pop() ?? "";
+        list.push({ selector, order: r.order, value, needs: last.match(/\.[\w-]+/g)?.map(c => c.slice(1)) ?? [] });
+      }
+    }
+    declarations.set(name, list);
+  }
+  return list;
+}
+
+/** What the cascade gives `name` on `chain`'s last element: specificity, then
+ *  source order, as sheet-cascade's own `cascade` weighs them. */
+function cascaded(chain: El[], name: string, match = (selector: string) => selects(selector, chain)): string | null {
+  const own = chain[chain.length - 1].classes;
+  let best: { spec: number; order: number; value: string } | null = null;
+  for (const d of declarationsOf(name)) {
+    if (d.needs.some(c => !own.includes(c))) continue;
+    const spec = match(d.selector);
+    if (spec == null) continue;
+    if (!best || spec > best.spec || (spec === best.spec && d.order > best.order)) best = { spec, order: d.order, value: d.value };
+  }
+  return best?.value ?? null;
+}
+
+/** A property as `chain`'s last element gets it. Custom properties and
+ *  `color` inherit, so a name the element does not set (or sets to
+ *  `inherit`) is asked of its ancestors in turn. */
 function prop(chain: El[], name: string): string | null {
-  const inherits = name.startsWith("--");
+  const inherits = name.startsWith("--") || name === "color";
   for (let i = chain.length; i > 0; i--) {
     const sub = chain.slice(0, i);
-    const value = cascade(selector => selects(selector, sub), name, WIDTH);
+    const value = cascaded(sub, name);
+    if (value === "inherit") continue;
     if (value != null || !inherits) return value;
   }
   return null;
@@ -113,5 +155,106 @@ describe("the issue type the panel draws itself", () => {
         expect(contrast(tile, panel)).toBeGreaterThanOrEqual(NON_TEXT);
       });
     }
+  }
+});
+
+/** A row of the backlog, from the panel down: `row` describes the row's own
+ *  state (selected, under the pointer), `item` whether it is a parent drawn
+ *  only for its sub-tasks. */
+function rowChain(theme: string, row: { selected?: boolean; hover?: boolean; context?: boolean; cloud?: boolean } = {}): El[] {
+  return [
+    rootOf(theme),
+    el("div", ["modal", "ig-modal"]),
+    el("div", ["jr-panel"], { attrs: { "data-deployment": row.cloud ? "cloud" : "server" } }),
+    el("div", ["jr-group-body"]),
+    el("ul", ["jr-rows"]),
+    el("li", ["jr-item"], { attrs: row.context ? { "data-context": "true" } : {} }),
+    el("div", ["jr-row", "ig-row"], { attrs: row.selected ? { "data-selected": "true" } : {}, states: row.hover ? ["hover"] : [] }),
+    el("button", ["jr-row-main"]),
+  ];
+}
+
+/** What a word in `chain` is written on: --panel, then every fill from the
+ *  row down to the word's own pill, composited. */
+function bedOf(chain: El[]): Rgba {
+  let bed = over(color("var(--panel)", chain.slice(0, 1)), [0, 0, 0, 1]);
+  const from = chain.findIndex(e => e.classes.includes("jr-row"));
+  for (let i = Math.max(from, 1); i <= chain.length; i++) {
+    const fill = prop(chain.slice(0, i), "background");
+    if (fill && fill !== "none") bed = over(color(fill, chain.slice(0, i)), bed);
+  }
+  return bed;
+}
+
+function inkOn(chain: El[]): number {
+  const bed = bedOf(chain);
+  return contrast(over(color(prop(chain, "color")!, chain), bed), bed);
+}
+
+/** The words a row can hold, each as the elements under the row's button. */
+const WORDS: Record<string, El[]> = {
+  key: [el("span", ["jr-key"])],
+  summary: [el("span", ["jr-summary"])],
+  version: [el("span", ["jr-facts"]), el("span", ["jr-meta"]), el("span", ["jr-version"])],
+  "context tag": [el("span", ["jr-facts"]), el("span", ["jr-meta"]), el("span", ["jr-context-tag"])],
+  estimate: [el("span", ["jr-facts"]), el("span", ["jr-estimate", "ig-chip"])],
+  "estimate's remaining": [el("span", ["jr-facts"]), el("span", ["jr-estimate", "ig-chip"]), el("span", ["jr-remaining"])],
+  ...Object.fromEntries(["new", "indeterminate", "done"].map(cat => [`status ${cat}`,
+    [el("span", ["jr-facts"]), el("span", ["jr-status-cell"]), el("span", ["jr-status", "ig-chip"], { attrs: { "data-cat": cat } })]])),
+};
+/** Jira's epic colours, by number, as the sheet writes them for both deployments. */
+const EPIC_COLOURS = Array.from({ length: 14 }, (_, i) => String(i + 1));
+
+describe("every word on a backlog row reads, at rest, under the pointer and selected", () => {
+  for (const theme of THEMES) {
+    it(`${theme}: each word clears 4.5:1 on what it is written on`, () => {
+      const failures: string[] = [];
+      for (const [state, row] of Object.entries({ "at rest": {}, hovered: { hover: true }, selected: { selected: true }, "selected and hovered": { selected: true, hover: true } })) {
+        for (const context of [false, true]) {
+          for (const [word, tail] of Object.entries(WORDS)) {
+            const r = inkOn([...rowChain(theme, { ...row, context }), ...tail]);
+            if (r < BODY) failures.push(`${word} ${state}${context ? " (context row)" : ""}: ${r.toFixed(2)}`);
+          }
+        }
+        for (const cloud of [false, true]) {
+          for (const n of EPIC_COLOURS) {
+            const r = inkOn([...rowChain(theme, { ...row, cloud }), el("span", ["jr-facts"]), el("span", ["jr-meta"]), el("span", ["jr-epic", "ig-chip"], { attrs: { "data-color": n } })]);
+            if (r < BODY) failures.push(`epic ${n}${cloud ? " cloud" : ""} ${state}: ${r.toFixed(2)}`);
+          }
+        }
+      }
+      expect(failures).toEqual([]);
+    });
+
+    it(`${theme}: a selected row's pills drop their fill, and its marks still stand off it`, () => {
+      const sel = rowChain(theme, { selected: true });
+      for (const tail of [WORDS.estimate, WORDS["status indeterminate"], WORDS["status done"]]) {
+        expect(prop([...sel, ...tail], "background")).toBe("transparent");
+      }
+      const bed = bedOf(sel);
+      const flag = [...sel, el("span", ["jr-facts"]), el("span", ["jr-meta"]), el("span", ["jr-flagged"])];
+      expect(contrast(over(color(prop(flag, "color")!, flag), bed), bed), "the flag").toBeGreaterThanOrEqual(NON_TEXT);
+      for (const level of ["highest", "high", "medium", "low", "lowest"]) {
+        const glyph = [...sel, el("svg", ["jr-icon", "jr-priority-glyph"], { attrs: { "data-level": level } })];
+        expect(contrast(over(color(prop(glyph, "color")!, glyph), bed), bed), `priority ${level}`).toBeGreaterThanOrEqual(NON_TEXT);
+      }
+    });
+  }
+});
+
+describe("the toolbar's quiet words on their fields", () => {
+  for (const theme of THEMES) {
+    it(`${theme}: the search placeholder and a pressed filter's word clear 4.5:1`, () => {
+      const panel = over(color("var(--panel)", [rootOf(theme)]), [0, 0, 0, 1]);
+      const field = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]), el("div", ["jr-filters"]), el("label", ["jr-search"]), el("input", [])];
+      const fieldBed = over(color(prop(field, "background")!, field), panel);
+      const placeholder = [...field.slice(0, -1), el("input", [], { states: ["placeholder"] })];
+      const ink = cascaded(field, "color", s => /::placeholder$/.test(s) ? selects(s.replace(/::placeholder$/, ""), field) : null);
+      expect(ink).not.toBeNull();
+      expect(contrast(over(color(ink!, placeholder), fieldBed), fieldBed), "placeholder").toBeGreaterThanOrEqual(BODY);
+      const chip = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]), el("button", ["btn", "jr-chip"], { attrs: { "aria-pressed": "true" } })];
+      const chipBed = over(color(prop(chip, "background")!, chip), panel);
+      expect(contrast(over(color(prop(chip, "color")!, chip), chipBed), chipBed), "pressed chip").toBeGreaterThanOrEqual(BODY);
+    });
   }
 });
