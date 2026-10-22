@@ -5,6 +5,32 @@
    panel's list and its detail is the same splitter Tool activity has; under
    900px the detail is a screen of its own with a Back (integrations/layout.ts). */
 
+/* A selected row in a panel's list, one rule for Jira and the forges: a quiet
+   accent fill, distinct from the neutral --ctl-fill a hover lifts a row with,
+   and never an edge stripe. The fill is the theme's --accent-dim, which in
+   Rider Black and VS Code Black is the IDE's own list selection, except where
+   that wash would sink the words on it: the two dark Gruvbox palettes take a
+   lighter accent mix of their own below. Every word inside a selected row is
+   --text (--ig-sel-ink); a status keeps its colour in its mark, and its word
+   goes to --text too. integrations-selection.test.ts measures all of it in
+   every theme. A panel puts `ig-row` and `data-selected` on its row, or reads
+   the properties in its own rules; a pill in a row takes `ig-chip` and gives
+   up its fill when the row is chosen. */
+.ig-modal {
+  --ig-hover-fill: var(--ctl-fill);
+  --ig-sel-fill: var(--accent-dim);
+  --ig-sel-ink: var(--text);
+  --ig-sel-muted: var(--text);
+}
+/* Their --accent-dim puts --text at 3.76:1 (Gruvbox Material) and the error
+   mark at 2.88:1 (Gruvbox Dark) on the selection; 14 % accent over the panel
+   keeps --text at 4.6 and 7.0, every status mark over 3:1, and still twice as
+   far from the resting row as the hover is. */
+:root[data-theme="gruvbox-dark"] .ig-modal,
+:root[data-theme="gruvbox-material"] .ig-modal {
+  --ig-sel-fill: color-mix(in srgb, var(--accent) 14%, var(--panel));
+}
+
 .modal.ig-modal {
   width: 90vw;
   height: 90dvh;
@@ -93,6 +119,20 @@
 .ig-back:hover { color: var(--text); background: var(--ctl-fill); }
 .ig-back:active { transform: scale(0.97); }
 
+/* A row: the hover lifts it and brings its quietest words up a tier (--muted
+   on the hover's fill is 4.06:1 in Dark); the selection keeps its own fill
+   under the pointer, and every quiet tier inside it reads as --text, so a
+   key, a time or a facts line needs no rule of its own. */
+.ig-row:hover { background: var(--ig-hover-fill); --muted: var(--text-secondary); --text-dim: var(--text-secondary); }
+.ig-row[data-selected] {
+  background: var(--ig-sel-fill);
+  color: var(--ig-sel-ink);
+  --text-secondary: var(--ig-sel-muted);
+  --muted: var(--ig-sel-muted);
+  --text-dim: var(--ig-sel-muted);
+}
+.ig-row[data-selected] .ig-chip { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--ig-sel-ink); }
+
 /* A person's or a project's picture, and the initials that stand in for it. */
 .ig-avatar { flex: none; display: block; border-radius: 50%; object-fit: cover; background: var(--ctl-fill); }
 .ig-avatar-initials {
@@ -152,6 +192,10 @@
 }
 @media (pointer: coarse) {
   .ig-close, .ig-back { min-width: 44px; min-height: 44px; }
+}
+/* A touch leaves :hover on the row it pressed; only the selection may stay. */
+@media (hover: none) {
+  .ig-row:hover:not([data-selected]) { background: transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ig-splitter::before, .ig-conn { transition: none; }
