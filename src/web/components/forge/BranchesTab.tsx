@@ -1,5 +1,5 @@
 // The Branches tab (#2179): GitLab's own Branches page for one project, which
-// is where the owner starts — Active branches, then the Stale ones folded.
+// is where a GitLab user starts — Active branches, then the Stale ones folded.
 //
 // A row is the page's row: the branch name in mono with its copy button and
 // its default / protected tags; under it the last commit, short sha · title ·

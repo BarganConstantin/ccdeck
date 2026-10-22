@@ -10,7 +10,7 @@
 // the reviewers with how each one stands, the comment count, and when it last
 // moved — or was merged or closed.
 //
-// REVIEW REQUESTS ARE SPLIT THE WAY THE OWNER READS THEM: still waiting for
+// REVIEW REQUESTS ARE SPLIT THE WAY A REVIEWER READS THEM: still waiting for
 // me first, the ones I already approved folded under them.
 //
 // The comment count, the labels and the people stack are drawn the same way

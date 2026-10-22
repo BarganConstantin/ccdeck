@@ -207,7 +207,7 @@ export function splitBranches(items: ForgeBranch[]): { active: ForgeBranch[]; st
   return { active, stale };
 }
 
-/** Review requests split the way the owner reads them: still waiting on me,
+/** Review requests split the way a reviewer reads them: still waiting on me,
  *  and already approved by me (folded). */
 export function splitReviews(items: ForgeChange[]): { waiting: ForgeChange[]; approved: ForgeChange[] } {
   const waiting: ForgeChange[] = [];

@@ -6,7 +6,7 @@
 // wiping the stored login, and every session on that machine stops with "Login
 // expired · Please run /login". Two machines that hold one copied login hold one
 // expiry too, so both reach for the renewal within minutes of each other and
-// the slower one loses — which is what the owner measured: three of seven
+// the slower one loses. Measured on one pair of decks: three of seven
 // interruptions in a month landed on the 8-hour renewal with nothing on that
 // machine renewing in between.
 //

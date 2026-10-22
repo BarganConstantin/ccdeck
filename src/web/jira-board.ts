@@ -3,9 +3,9 @@
 // parent, a parent nobody asked for drawn as context, no issue twice — what a
 // group's header counts, and how Jira writes a duration.
 //
-// It is a replica of Jira's Backlog page, which is the screen the owner reads
-// "99% of the time": every active sprint open, the future sprints and the
-// backlog folded below them, closed sprints on demand, issues in Rank order.
+// It is a replica of Jira's Backlog page, the screen a Jira user reads most:
+// every active sprint open, the future sprints and the backlog folded below
+// them, closed sprints on demand, issues in Rank order.
 
 import type { JiraBoardOverview, JiraIssue, JiraParent, JiraPerson, JiraSprint, StatusCategory, TimeTracking } from "./jira-api";
 

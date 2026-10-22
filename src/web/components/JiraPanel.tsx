@@ -1,7 +1,7 @@
-// The Jira panel (#2178): a replica of Jira's Backlog page, the screen the
-// owner reads, under the host's header (IntegrationModal) — a board picker,
-// the filters Jira's own page has, the board's groups and their issues, and
-// one issue in full beside them.
+// The Jira panel (#2178): a replica of Jira's Backlog page, the screen a Jira
+// user reads most, under the host's header (IntegrationModal) — a board
+// picker, the filters Jira's own page has, the board's groups and their
+// issues, and one issue in full beside them.
 //
 // WHAT IT REMEMBERS, per connection (the host's `prefs`): the board on show,
 // "Only my issues" (on the first time, then as left), "Hide done", the board's

@@ -1,6 +1,6 @@
 // A merge request's discussions and an issue's comments, as the forge's page
 // shows them (#2179): a review thread says where it is — `path:line`, no code
-// snippet, the owner reads the code in the editor — then its comments, each
+// snippet, since the code is read in the editor — then its comments, each
 // with who wrote it, when, and the forge's own rendering of what they said.
 import type { ForgeComment, ForgeKind, ReviewThread } from "../../forge-types";
 import { forgeWords } from "../../forge-types";

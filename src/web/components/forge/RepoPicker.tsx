@@ -6,8 +6,8 @@
 // It opens a popover the way the radio's filters do (AnchoredPopover, with
 // RadioFilter's combobox-and-listbox keys): a search the forge answers, so a
 // project on the fourth page is one word away; the unfiltered list by recent
-// activity, which is what the owner opens most; "All projects" first where the
-// tab allows it; the current one marked; Load more for the next page.
+// activity, the projects most likely to be opened; "All projects" first where
+// the tab allows it; the current one marked; Load more for the next page.
 //
 // PORTALLED INTO ITS OWN SPAN, AND HUNG OFF IT. The panel lives in the
 // integrations host's modal, so the popover is drawn inside that dialog —
