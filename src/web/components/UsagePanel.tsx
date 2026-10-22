@@ -34,6 +34,7 @@ import { useCountUp } from "../use-count-up";
 import { useBoardSpend } from "../use-board-spend";
 import { usePanelClock } from "../use-panel-clock";
 import { anyUnpriced, quotaRefreshLabel, worthALine } from "../usage-panel-rules";
+import { reportedCost } from "../reported-cost";
 import { boardSessionNames, boardSessionStates, distinctSessionLabels } from "../usage-session-join";
 import { withKey } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
@@ -385,12 +386,28 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               The label carries the scope and the tooltip carries the rest: why
               the figure falls, and that H opens the one surface which answers
               "what has today cost me" from the logs on disk. */}
+          {/* THE HEADLINE IS ALWAYS THERE, in one of four states, by the rule
+              History's total and the model table's rows print with
+              (reportedCost), on the note's own test (hasUnpriced):
+              - every cost known: exact, no "+";
+              - some unknown: the known part as a floor, "$4.20+";
+              - no cost, all of it known: a known zero, "—" as on the rows;
+              - no cost and some unknown: "not priced", never a bare zero.
+              It used to be drawn only when the reading had a cost, so the last
+              two had no figure at all, and the second printed a floor as if it
+              were the whole. `hasCost` is the source's own, not the counted
+              figure, so a count passing through zero cannot flip the state.
+              Without money the value stands alone: the strip below says the
+              board's scope there. "not priced" takes the rows' muted italic
+              (.up-unpriced), not the money green. */}
+          <div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>
+            <span className={!hasCost && hasUnpriced ? "up-total-value up-unpriced" : "up-total-value"}>
+              {hasCost ? <>{fmtCost(shownCost)}{hasUnpriced && "+"}</> : reportedCost(0, hasUnpriced)}
+            </span>
+            {hasCost && <span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>}
+          </div>
           {hasCost && (
             <>
-              <div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>
-                <span className="up-total-value">{fmtCost(shownCost)}</span>
-                <span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>
-              </div>
               <p className="up-source">Local estimate · {fromRange ? "ccusage" : "live sessions"}</p>
               {/* NO BAR OVER A ccusage HEADLINE, and it is not an omission.
                   The bar splits a total across input / output / cache, and

@@ -13,6 +13,10 @@ a partly priced model and its history total carry **+** and an explanation.
 A session row has no pricing flag of its own: a session that cost $0 shows a
 known zero (—) when every model it ran on was priced over the range, and
 **not priced** otherwise.
+The usage panel's headline total follows the same rule, under ccusage and on
+the live board alike: exact when every cost is known, a known zero included
+(—); the known part with **+** when some cost is not; and **not priced** when
+none is.
 Claude Code and Codex use the same report handling.
 
 ## Live Codex estimates
