@@ -29,6 +29,8 @@ export { MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, payloadChars } from "./
 // The ring itself — what it holds, how it numbers them, and the eviction that
 // keeps those bounds — private behind its operations. See event-ring.mjs.
 import { eventsSince } from "./event-ring.mjs";
+// The same ring folded to one row per session, for `ccdeck sessions` (#2183).
+import { summarizeSessions } from "./session-summary.mjs";
 // Exported from this file before they moved, and still.
 export { eventBufferStats, eventsSince } from "./event-ring.mjs";
 // The one door every event comes through, and what it does to each on the way
@@ -408,6 +410,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // `send` would build all of it as a single string. See writeJsonArray.
     if (req.method === "GET" && url.pathname === "/api/events") {
       return guard(writeJsonArray(res, eventsSince(url.searchParams.get("since") ?? 0)), res);
+    }
+    // GET /api/sessions — which sessions this deck is watching and which of
+    // them waits on a human, without the ring itself. See session-summary.mjs.
+    if (req.method === "GET" && url.pathname === "/api/sessions") {
+      return send(res, 200, { ok: true, now: Date.now(), sessions: summarizeSessions(eventsSince(0)) });
     }
 
     // GET /api/clear — what a POST to this path would do, and to whose log.
