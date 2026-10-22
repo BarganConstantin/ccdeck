@@ -89,8 +89,10 @@
 .fd-label-scope { padding-right: 6px; border-right: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .fd-label-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* The section switch: the merge request page's tabs, with their counts. */
-.fd-sections { display: flex; width: max-content; max-width: 100%; box-sizing: border-box; overflow-x: auto; scrollbar-width: none; }
+/* The section switch: the merge request page's tabs, with their counts. A
+   pane too narrow for all four wraps the last onto a second row, whole,
+   rather than cutting its label at the edge. */
+.fd-sections { display: flex; flex-wrap: wrap; width: max-content; max-width: 100%; box-sizing: border-box; }
 .fd-sections .uh-range-btn { display: inline-flex; align-items: baseline; gap: 6px; min-height: 28px; padding: 4px 12px; font-size: calc(12px + var(--ui-text-increase, 0px)); white-space: nowrap; }
 .fd-section-count { font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 .fd-section-label { min-width: 0; }
@@ -226,12 +228,12 @@ button.btn.fd-show-comments { margin-top: 8px; }
 }
 
 /* NARROW: the sections stay one row across the pane, each a label over its
-   count so all four fit a phone's pane whole; on a pane narrower still the
-   row scrolls sideways, the chosen section scrolled into view. No indents to
-   spend width on. */
+   count so all four fit a phone's pane whole; on a pane narrower still (a
+   360px phone, the pane beside the list at 900px) the last wraps to a
+   second row. No indents to spend width on. */
 @container fd (max-width: 479px) {
-  .fd-sections { width: 100%; border-radius: var(--r-panel); overscroll-behavior-x: contain; }
-  .fd-sections .uh-range-btn { flex: 1 0 auto; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 4px 6px; border-radius: var(--r-ctl); line-height: 1.3; text-align: center; }
+  .fd-sections { width: 100%; border-radius: var(--r-panel); }
+  .fd-sections .uh-range-btn { flex: 1 0 auto; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 4px; border-radius: var(--r-ctl); line-height: 1.3; text-align: center; }
   .fd-section-label { font-size: calc(11px + var(--ui-text-increase, 0px)); }
   .fd-fact { grid-template-columns: 84px minmax(0, 1fr); }
   .fd-comment-body { margin-left: 0; }

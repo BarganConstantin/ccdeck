@@ -13,7 +13,7 @@
 // and asked for when their tab is first shown; the change's pipelines are read
 // with the page, because the pipeline line under the title links to the
 // latest one.
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import type { ChangedFile, ChangeDetail as Change, ForgeCommit, ForgePipeline, ForgeReviewer } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
 import { ciMark, durationWords, reviewerMark } from "../../forge-panel";
@@ -25,7 +25,7 @@ import { tabStripMove } from "../../tablist-keys";
 import { useForgePages, useForgeRead, type ForgeReadState } from "../../use-forge-read";
 import ForgeHtml, { renderForgeNodes } from "../ForgeHtml";
 import { useForge, type ForgeSelection } from "./ForgeContext";
-import { Ago, Badge, Copyable, FoldGroup, ListEnd, LoadingRows, OpenOnForge, Person, ReadFailure, StateMark, useChosenInView } from "./ForgeParts";
+import { Ago, Badge, Copyable, FoldGroup, ListEnd, LoadingRows, OpenOnForge, Person, ReadFailure, StateMark } from "./ForgeParts";
 import {
   CommitRow, DetailFrame, DetailPending, Faces, LabelsFact, PathDir, PeopleFact, SideFact, SideFacts, useDetailBar, useForgeNodes,
 } from "./DetailParts";
@@ -46,8 +46,6 @@ export default function ChangeDetail({ selection }: { selection: Selection }) {
   const wantsPipelines = !!c && (c.ci != null || c.counts.pipelines > 0);
   const pipelines = useForgeRead<ForgePipeline[]>(api, scope, wantsPipelines ? "change/pipelines" : null, params, refresh);
   const [section, setSection] = useState<ChangeSection>("overview");
-  const sectionsRef = useRef<HTMLDivElement>(null);
-  useChosenInView(sectionsRef, section);
   const reference = c?.key ?? changeReference(kind, selection.repo, selection.number);
   const uid = useId();
   const sectionTabId = (id: ChangeSection) => `${uid}-tab-${id}`;
@@ -67,7 +65,6 @@ export default function ChangeDetail({ selection }: { selection: Selection }) {
             <div className="fd-main">
               {/* The page's tabs: one tab stop, the arrows between them (#581). */}
               <div
-                ref={sectionsRef}
                 className="uh-range fd-sections"
                 role="tablist"
                 aria-label={`${words.change} sections`}

@@ -137,7 +137,8 @@ screens with its own nouns, so nothing has to be learned twice.
   - Side facts: a 216px column with 11px uppercase labels from a 700px pane;
     under that, a bordered box above the page with a 104px label column
     (84px under 480px).
-  - Sections: under a 480px pane one row, each label over its count.
+  - Sections: under a 480px pane one row, each label over its count; a
+    pane too narrow for all four wraps the last to a second row, whole.
   - A link inside a title is underlined.
 - **Threads:** bordered `--panel` cards; the head on `--ctl-fill` with
   `path:line` and an *outdated* badge, its quiet words lifted to

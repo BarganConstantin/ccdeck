@@ -100,6 +100,13 @@ describe("a phone's first screen goes to the list", () => {
     expect(decls(narrow, ".fd-sections .uh-range-btn")).not.toMatch(/white-space: normal/);
     expect(detail).not.toMatch(/\.fd-sections\s*\{[^}]*grid-template-columns/);
   });
+
+  it("wraps a change's sections on a pane too narrow for all four, rather than cutting the last label", () => {
+    // A pane beside the list at 900px, or a 360px phone, has less room than
+    // the four labels; the last one goes to a second row, whole.
+    expect(decls(topLevel(detail), ".fd-sections")).toMatch(/flex-wrap: wrap/);
+    expect(decls(topLevel(detail), ".fd-sections")).not.toMatch(/overflow-x: auto/);
+  });
 });
 
 describe("the words kept for a screen reader", () => {
