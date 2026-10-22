@@ -148,7 +148,10 @@ only when all of these hold:
 
 When any of these fails, the entry is left out and the rest of the install goes
 on. Opted in, the boot prints a `Skill hook` row: on, or why not. Not opted in,
-the boot prints what it printed before. Every start decides again: removing the
+the boot prints what it printed before and writes nothing for the entry: no
+`settings.json` change, no backup, no temp file, whatever Claude Code is
+installed (the "the disabled state" tests in `skill-hook-gate-fp03`). There is
+no Settings switch for it. Every start decides again: removing the
 opt-in, rolling Claude Code back, or adding an older one takes our entry back
 out on the next start. The user's own `UserPromptExpansion` hooks stay, and the
 key goes only when nothing of theirs is left under it.
