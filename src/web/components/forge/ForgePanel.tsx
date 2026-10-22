@@ -24,9 +24,9 @@ import { modalStack } from "../../modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../../panel-press";
 import { tabStripMove } from "../../tablist-keys";
 import { useForgeRead } from "../../use-forge-read";
-import { RefreshGlyph } from "../action-glyphs";
+import IntegrationFreshness from "../IntegrationFreshness";
 import { ForgeProvider, type ForgeConnectionInfo, type ForgeContextValue, type ForgeSelection, type Freshness } from "./ForgeContext";
-import { Ago, ReadFailure, useChosenInView } from "./ForgeParts";
+import { ReadFailure, useChosenInView } from "./ForgeParts";
 import RepoPicker from "./RepoPicker";
 import BranchesTab from "./BranchesTab";
 import ChangesTab from "./ChangesTab";
@@ -194,28 +194,13 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
 
   const words = forgeWords[kind];
   const tabProps: ForgeTabProps = { view, setView, query };
-  const freshness = fresh.loading
-    ? (fresh.loadedAt ? "Updating…" : "Loading…")
-    : fresh.loadedAt
-      ? <>{fresh.stale ? "Not updated · last answer " : "Updated "}<Ago at={fresh.loadedAt} /></>
-      : null;
 
   const list = (
     <div className="fg-list">
       <div className="fg-toolbar">
         <RepoPicker value={view.repo} allowAll={allowsAll} onChange={repo => setView({ repo })} />
-        <span className="fg-fresh" role="status" data-stale={fresh.stale || undefined}>{freshness}</span>
-        <button
-          type="button"
-          className="glyph-btn fg-refresh"
-          aria-label={`Refresh ${words.name}`}
-          title="Refresh"
-          data-loading={fresh.loading || undefined}
-          aria-busy={fresh.loading}
-          onClick={() => setRefresh(n => n + 1)}
-        >
-          <RefreshGlyph />
-        </button>
+        <IntegrationFreshness loadedAt={fresh.loadedAt} loading={fresh.loading} stale={fresh.stale}
+          onRefresh={() => setRefresh(n => n + 1)} label={`Refresh ${words.name}`} />
       </div>
       {/* One tab stop for the strip, the arrows between its tabs (#581). */}
       <div
