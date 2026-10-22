@@ -86,7 +86,11 @@
   color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
 }
-.ig-conn-select { min-width: 0; display: inline-flex; }
+/* The connection selector is the deck's shared select, whose edge is 2.44 to
+   2.79:1 on this header's ground in six dark themes. Here, where it is the
+   header's only control with a boundary, it takes the control edge instead
+   (3:1 or better everywhere), without changing the select anywhere else. */
+.ig-conn-select { min-width: 0; display: inline-flex; --sm-edge: var(--ctl-edge); }
 .ig-conn-select .sm-select { max-width: 280px; min-width: 0; }
 .ig-close {
   margin-left: auto;
@@ -101,7 +105,7 @@
 /* The list and its detail, each with its own scroll. From 900px the detail sits
    beside the list at the width the reader dragged it to, and never takes so
    much that the list goes under 420px. */
-.ig-split { flex: 1; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.ig-split { position: relative; flex: 1; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .ig-split[data-detail]:not([data-drill-in]) { grid-template-columns: minmax(0, 1fr) 8px min(var(--ig-detail-w), calc(100% - 428px)); }
 .ig-split[data-resizing] { cursor: col-resize; user-select: none; }
 .ig-list, .ig-detail { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
@@ -129,6 +133,24 @@
 }
 .ig-back:hover { color: var(--text); background: var(--ctl-fill); }
 .ig-back:active { transform: scale(0.97); }
+
+/* Moving between the list and a thing in it (IntegrationSplit). Side by side
+   the pane stays where it is and only what is in it changes: each new thing
+   fades in over 120ms, and no width animates. Drilled in, the detail is a
+   screen that comes in from 8px over 160ms, and Back takes it out the same
+   way in 120ms, laid over the list as the list returns. The attribute flips
+   between two names so a new thing restarts the entrance without remounting
+   the panel's detail. */
+.ig-split:not([data-drill-in]) .ig-detail[data-flip="a"] > * { animation: ig-detail-in-a 120ms ease-out both; }
+.ig-split:not([data-drill-in]) .ig-detail[data-flip="b"] > * { animation: ig-detail-in-b 120ms ease-out both; }
+.ig-split[data-drill-in] .ig-detail[data-flip="a"] { animation: ig-drill-in-a 160ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.ig-split[data-drill-in] .ig-detail[data-flip="b"] { animation: ig-drill-in-b 160ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.ig-split[data-drill-in] .ig-detail[data-leaving] { position: absolute; inset: 0; z-index: 1; pointer-events: none; animation: ig-drill-out 120ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+@keyframes ig-detail-in-a { from { opacity: 0; } }
+@keyframes ig-detail-in-b { from { opacity: 0; } }
+@keyframes ig-drill-in-a { from { opacity: 0; transform: translateX(8px); } }
+@keyframes ig-drill-in-b { from { opacity: 0; transform: translateX(8px); } }
+@keyframes ig-drill-out { to { opacity: 0; transform: translateX(8px); } }
 
 /* A row: the hover lifts it and brings its quietest words up a tier (--muted
    on the hover's fill is 4.06:1 in Dark); the selection keeps its own fill
@@ -380,4 +402,9 @@ img.ig-avatar + img.ig-avatar {
   .ig-back:active { transform: none; }
   .ig-refresh[data-loading] svg { animation: none; }
   .ig-skeleton i { animation: none; }
+  .ig-split:not([data-drill-in]) .ig-detail[data-flip="a"] > *,
+  .ig-split:not([data-drill-in]) .ig-detail[data-flip="b"] > * { animation: none; }
+  .ig-split[data-drill-in] .ig-detail[data-flip="a"],
+  .ig-split[data-drill-in] .ig-detail[data-flip="b"] { animation: fadeIn 120ms ease-out; }
+  .ig-split[data-drill-in] .ig-detail[data-leaving] { animation: ig-fade-out 120ms ease-out both; }
 }
