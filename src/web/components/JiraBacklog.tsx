@@ -17,8 +17,10 @@ import {
   type GroupDef, type Row, type RowFilter,
 } from "../jira-board";
 import type { BoardSnapshot, GroupData } from "../use-jira-board";
+import { connectionHost } from "../integrations/client";
 import IntegrationAvatar from "./IntegrationAvatar";
-import { Chevron, EpicChip, Estimate, FailureNote, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
+import IntegrationFailureNote from "./IntegrationFailureNote";
+import { Chevron, EpicChip, Estimate, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
 
 export interface JiraBacklogProps {
   conn: Connection;
@@ -319,7 +321,8 @@ export default function JiraBacklog(props: JiraBacklogProps) {
             {open && (
               <div id={bodyId} className="jr-group-body">
                 {data?.status === "error" && data.error && (
-                  <FailureNote error={data.error} conn={conn} stale={data.issues.length > 0} onRetry={() => onRetryGroup(def)} onReconnect={onReconnect} compact />
+                  <IntegrationFailureNote error={data.error} provider="Jira" host={connectionHost(conn)} stale={data.issues.length > 0}
+                    onRetry={() => onRetryGroup(def)} onReconnect={onReconnect} />
                 )}
                 {(!data || data.status === "idle" || (data.status === "loading" && data.issues.length === 0)) && (
                   <div className="jr-skeleton jr-skeleton-rows" role="status" aria-label={`Reading ${def.title}`}><i /><i /><i /></div>

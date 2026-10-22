@@ -23,7 +23,8 @@ import { SearchGlyph } from "./integration-glyphs";
 import IntegrationSplit from "./IntegrationSplit";
 import JiraBacklog from "./JiraBacklog";
 import JiraIssueDetail from "./JiraIssueDetail";
-import { Chevron, FailureNote } from "./JiraParts";
+import IntegrationFailureNote from "./IntegrationFailureNote";
+import { Chevron } from "./JiraParts";
 
 const isString = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 40;
 const isBool = (v: unknown): v is boolean => typeof v === "boolean";
@@ -231,7 +232,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
     if (blocking) {
       return (
         <div className="jr-state">
-          <FailureNote error={blocking} conn={conn} onRetry={board ? jira.refresh : firstBoard} onReconnect={onReconnect} />
+          <IntegrationFailureNote error={blocking} provider="Jira" host={host} onRetry={board ? jira.refresh : firstBoard} onReconnect={onReconnect} />
           {blocking.kind === "not-found" && board && (
             <p><button type="button" className="btn" onClick={() => setPicker(true)}>Choose another board</button></p>
           )}
@@ -243,7 +244,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
     }
     return (
       <>
-        {error && <FailureNote error={error} conn={conn} stale onRetry={jira.refresh} onReconnect={onReconnect} compact />}
+        {error && <IntegrationFailureNote error={error} provider="Jira" host={host} stale onRetry={jira.refresh} onReconnect={onReconnect} />}
         <JiraBacklog
           conn={conn}
           overview={overview}

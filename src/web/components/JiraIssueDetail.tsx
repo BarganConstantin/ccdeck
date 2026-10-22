@@ -10,8 +10,10 @@ import { fileSize, jiraDate, jiraDuration } from "../jira-board";
 import JiraHtml, { type HtmlContext } from "../jira-html";
 import { copyText } from "../copy-text";
 import { useJiraIssue } from "../use-jira-board";
+import { connectionHost } from "../integrations/client";
 import IntegrationAvatar from "./IntegrationAvatar";
-import { EpicChip, ExternalGlyph, FailureNote, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
+import IntegrationFailureNote from "./IntegrationFailureNote";
+import { EpicChip, ExternalGlyph, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
 
 export interface JiraIssueDetailProps {
   conn: Connection;
@@ -97,7 +99,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
         <li aria-current="page"><span className="jr-crumb-text jr-crumb-here">{key}</span></li>
       </ol>
 
-      {error && <FailureNote error={error} conn={conn} stale={Boolean(issue)} onRetry={reload} onReconnect={onReconnect} compact />}
+      {error && <IntegrationFailureNote error={error} provider="Jira" host={connectionHost(conn)} stale={Boolean(issue)} onRetry={reload} onReconnect={onReconnect} />}
 
       {!issue && loading && (
         <div className="jr-skeleton" role="status" aria-label={`Reading ${key}`}><i /><i /><i /><i /></div>

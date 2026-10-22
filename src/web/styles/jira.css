@@ -372,22 +372,12 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-state { max-width: 520px; margin: 48px auto; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
 .jr-state h3 { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .jr-state p { margin: 0; color: var(--text-secondary); line-height: 1.5; text-wrap: pretty; }
-.jr-state .jr-failure { align-self: stretch; }
-.jr-failure {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: var(--r-panel);
-  background: color-mix(in srgb, var(--err) 10%, var(--panel));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--err) 40%, transparent);
-  text-align: left;
-}
-.jr-failure-compact { margin-bottom: 12px; padding: 8px 12px; }
-.jr-failure-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.jr-failure-text strong { font-weight: 600; }
-.jr-failure-text span { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; overflow-wrap: anywhere; }
-.jr-failure-actions { display: flex; flex: none; flex-wrap: wrap; gap: 8px; }
+/* Where the shared failure note (IntegrationFailureNote) sits: across a
+   state's column, over the rows it is the last answer for, and inside a
+   sprint's frame with room around it. */
+.jr-state .ig-failure { align-self: stretch; }
+.jr-panel .ig-failure[data-stale] { margin-bottom: 12px; }
+.jr-panel .jr-group-body > .ig-failure { margin: 8px; }
 .jr-skeleton { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
 .jr-skeleton i { display: block; height: 14px; border-radius: var(--r-tag); background: var(--ctl-fill); animation: ta-pulse 900ms ease-in-out infinite alternate; }
 .jr-skeleton i:nth-child(3n + 2) { width: 72%; }

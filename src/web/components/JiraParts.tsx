@@ -1,9 +1,7 @@
 // The small pieces the Jira panel draws in more than one place (#2178): an
 // issue's type and priority icons, its epic chip in Jira's own colour, an
-// estimate, a status, and what to say when Jira could not be read.
+// estimate and a status. A failed read is the shared IntegrationFailureNote.
 import { useEffect, useState, type ReactNode } from "react";
-import { connectionHost, type IntegrationFailure } from "../integrations/client";
-import type { IntegrationConnection as Connection } from "../integrations/types";
 import type { JiraEpic, JiraIssue, JiraPriority, JiraStatus, JiraType, TimeTracking } from "../jira-api";
 import { jiraDuration } from "../jira-board";
 
@@ -142,60 +140,3 @@ export function ExternalGlyph() {
     <path d="M8 2.2h3.8V6M11.6 2.4 6.4 7.6" /><path d="M10.4 8.6v2.6a.8.8 0 0 1-.8.8H2.8a.8.8 0 0 1-.8-.8V4.4a.8.8 0 0 1 .8-.8h2.6" /></svg>;
 }
 
-/** The heading and the sentence for a failure, by kind, about this connection. */
-export function failureCopy(error: IntegrationFailure, conn: Connection): { title: string; body: string; reconnect: boolean } {
-  const host = connectionHost(conn);
-  switch (error.kind) {
-    case "auth":
-      return { title: "Jira did not accept the saved token", body: error.message, reconnect: true };
-    case "expired":
-      return { title: "The saved token no longer works", body: `${error.message} Make a new token and paste it in Settings.`, reconnect: true };
-    case "permission":
-      return { title: "Your account cannot read this", body: error.message, reconnect: false };
-    case "unreachable":
-      return { title: `${host} did not answer`, body: error.message, reconnect: false };
-    case "tls":
-      return {
-        title: `${host}'s certificate is not trusted here`,
-        body: `${error.message} The deck checks every certificate and has no way to skip it: add the issuing authority to this machine's trust store, then try again.`,
-        reconnect: false,
-      };
-    case "rate-limit":
-      return { title: "Jira asked the deck to slow down", body: error.retryAfter ? `Try again in ${error.retryAfter} seconds.` : "Try again in a minute.", reconnect: false };
-    case "incompatible":
-      return { title: "This Jira cannot be read this way", body: error.message, reconnect: false };
-    case "not-found":
-      return { title: "Not there any more", body: error.message, reconnect: false };
-    case "network":
-      return { title: "The deck could not be reached", body: error.message, reconnect: false };
-    case "unavailable":
-      return { title: "Jira is unavailable on this deck", body: "The deck cannot read Jira right now. Try again in a moment.", reconnect: false };
-    default:
-      return { title: "Jira could not be read", body: error.message, reconnect: false };
-  }
-}
-
-/** A failure, with the way out it has: Reconnect for a token, Try again for
- *  the rest. `stale` says the board under it is the last one read. */
-export function FailureNote({ error, conn, stale, onRetry, onReconnect, compact }: {
-  error: IntegrationFailure;
-  conn: Connection;
-  stale?: boolean;
-  onRetry?: () => void;
-  onReconnect: () => void;
-  compact?: boolean;
-}) {
-  const copy = failureCopy(error, conn);
-  return (
-    <div className={compact ? "jr-failure jr-failure-compact" : "jr-failure"} role="alert" data-kind={error.kind}>
-      <div className="jr-failure-text">
-        <strong>{copy.title}</strong>
-        <span>{copy.body}{error.detail && error.kind !== "auth" && error.kind !== "expired" ? ` Jira said: ${error.detail}` : ""}{stale ? " Showing what was read last." : ""}</span>
-      </div>
-      <div className="jr-failure-actions">
-        {copy.reconnect && <button type="button" className="btn primary" onClick={onReconnect}>Reconnect</button>}
-        {onRetry && error.kind !== "auth" && error.kind !== "expired" && <button type="button" className="btn" onClick={onRetry}>Try again</button>}
-      </div>
-    </div>
-  );
-}
