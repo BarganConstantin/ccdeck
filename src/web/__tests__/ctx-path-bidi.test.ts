@@ -3,7 +3,7 @@
 // The usual bug came with it: in an RTL paragraph the leading '/' of a POSIX
 // path is a bidi-neutral sitting at the boundary, so the bidi algorithm hands
 // it the paragraph's level and reorders it to the far end —
-// /Users/constantin/project/CLAUDE.md drew as Users/constantin/project/CLAUDE.md/
+// /Users/consultant/project/CLAUDE.md drew as Users/consultant/project/CLAUDE.md/
 // on every mac and Linux box, and correctly on Windows, where the drive letter
 // gives the line a strong-LTR first character. The head is cut in TypeScript
 // now, so the rendered string is a literal suffix of the real path in every
@@ -14,8 +14,8 @@ import { fileURLToPath } from "node:url";
 import { truncatePathStart } from "../components/ContextModal";
 import { sheetText } from "./sheet-source";
 
-const POSIX = "/Users/constantin/Desktop/agents-deck/src/web/components/CLAUDE.md";
-const WINDOWS = "C:\\Users\\constantin\\Desktop\\agents-deck\\src\\web\\CLAUDE.md";
+const POSIX = "/Users/consultant/Desktop/agents-deck/src/web/components/CLAUDE.md";
+const WINDOWS = "C:\\Users\\consultant\\Desktop\\agents-deck\\src\\web\\CLAUDE.md";
 
 describe("truncatePathStart", () => {
   it("leaves a path that already fits exactly as it was written", () => {

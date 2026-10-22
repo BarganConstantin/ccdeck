@@ -22,7 +22,7 @@ const K = (email: string, org: string): string => sync.accountKey(email, org);
 
 /** The list lan-sealed-frames-810.test.ts checks a round against. */
 const SECRETS = [
-  "claude1@sapec.md", "claude2@sapec.md", "claude3@sapec.md", "org-1", "org-2", "org-3",
+  "alice@example.net", "bob@example.net", "carol@example.net", "org-1", "org-2", "org-3",
   "manifest", "want", "have", "accounts", "current", "ccdeck2:slot",
 ];
 
@@ -33,7 +33,7 @@ function channel(seed: string) {
   return { caller: sync.frameChannel(key, "caller"), listener: sync.frameChannel(key, "listener") };
 }
 
-const WANT = { t: "want", key: K("claude2@sapec.md", "org-2") };
+const WANT = { t: "want", key: K("bob@example.net", "org-2") };
 
 describe("a sealed frame whose ciphertext happens to spell a word", () => {
   it("is not read as that word", () => {
@@ -52,7 +52,7 @@ describe("what the check still reads", () => {
   it("a frame sent in the clear", () => {
     const found = readableOnWire([JSON.stringify(WANT)], SECRETS);
     expect(found.join("\n")).toMatch(/want/);
-    expect(found.join("\n")).toMatch(/claude2@sapec\.md/);
+    expect(found.join("\n")).toMatch(/bob@example\.net/);
   });
 
   it("a plain field beside the seal", () => {

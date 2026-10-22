@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { accountIssue } from "../account-issue";
 import { noCopyWorksNearby } from "../account-lan";
 
-const KEY = "porbu@sapec.md@@63c917ff";
+const KEY = "oscar@example.net@@63c917ff";
 const NOW = 1_790_000_000_000;
 
 function status(offers: Array<{ alive: boolean } | null>, over: Record<string, unknown> = {}) {
@@ -19,7 +19,7 @@ function status(offers: Array<{ alive: boolean } | null>, over: Record<string, u
     shared: [KEY],
     peers: offers.map((o, i) => ({
       fp: `peer-${i}`, name: `peer-${i}`, addr: "192.168.1.2", port: 1, paired: true, lastSeen: NOW - 10_000,
-      offers: o ? { at: 0, accounts: [{ key: KEY, email: "porbu@sapec.md", ...o }] } : { at: 0, accounts: [] },
+      offers: o ? { at: 0, accounts: [{ key: KEY, email: "oscar@example.net", ...o }] } : { at: 0, accounts: [] },
     })),
     ...over,
   } as unknown as Parameters<typeof noCopyWorksNearby>[1];

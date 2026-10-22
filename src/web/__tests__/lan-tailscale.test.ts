@@ -355,9 +355,9 @@ const TS_ON = { tailscale: true, tailscaleAsk: true, tailscaleAccept: true };
 
 describe("the owner's own machines over Tailscale", () => {
   it("pair and heal with nobody pressing anything", async () => {
-    const acct = K("claude1@example.com", "org-1");
-    const a = await deck([{ num: 3, email: "claude1@example.com", orgUuid: "org-1", alive: true }], "Home", [acct], loopbackTailnet(true), TS_ON);
-    const b = await deck([{ num: 1, email: "claude1@example.com", orgUuid: "org-1", alive: false }], "Office", [acct], loopbackTailnet(true), TS_ON);
+    const acct = K("alice@example.com", "org-1");
+    const a = await deck([{ num: 3, email: "alice@example.com", orgUuid: "org-1", alive: true }], "Home", [acct], loopbackTailnet(true), TS_ON);
+    const b = await deck([{ num: 1, email: "alice@example.com", orgUuid: "org-1", alive: false }], "Office", [acct], loopbackTailnet(true), TS_ON);
 
     announce(b, a, "Home");
     // B asked A on its own; A said yes for its owner; B, reaching a deck it

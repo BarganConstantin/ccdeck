@@ -18,9 +18,9 @@ const NOW = 1_700_000_000_000;
 const HOURS_3 = 3 * 3_600_000;
 const ON = { enabled: true, running: true };
 
-/** One of Petrus's decks — lan-one-row-per-machine.test.ts's fixture. */
+/** One of Oswald's decks — lan-one-row-per-machine.test.ts's fixture. */
 const peer = (fp: string, over: Partial<Peer> = {}): Peer => ({
-  fp, peerFp: fp, name: "Petrus-MacBook-Pro", paired: true,
+  fp, peerFp: fp, name: "Oswald-MacBook-Pro", paired: true,
   addr: "192.168.1.153", port: 57051, lastSeen: NOW, last: { at: NOW, done: [] }, ...over,
 });
 /** A key the machine held before: paired, no address here, never calls again. */
@@ -75,7 +75,7 @@ describe("the line under the switch counts machines, as the list does (#1802)", 
       ["calling", peer("k-calling", { addr: "", port: 0, waiting: true, lastSeen: NOW - 10_000, last: null })],
     ];
     const other = peer("o-live", { name: "Ana-PC", addr: "192.168.1.20" });
-    // Every non-empty mix of Petrus's keys, beside one machine of Ana's that
+    // Every non-empty mix of Oswald's keys, beside one machine of Ana's that
     // is there, so the count is never only about one row.
     for (let mask = 1; mask < 1 << keys.length; mask++) {
       const mine = keys.filter((_, k) => mask & (1 << k));

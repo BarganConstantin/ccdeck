@@ -218,7 +218,7 @@ describe("the thread count, per platform, out of the call that also has argv", (
       "root         105   ??    0.0 S     4T   0:00.17   0:00.08 /usr/sbin/systemstats --daemon",
       "             105         0.2 S     4T   0:00.00   0:00.00 ",
       "             105         0.2 S     4T   0:00.00   0:00.00 ",
-      "constantin  7885   ??    9.1 S    31T   1:02.03   9:10.11 /usr/local/bin/claude --print",
+      "consultant  7885   ??    9.1 S    31T   1:02.03   9:10.11 /usr/local/bin/claude --print",
       "            7885         0.0 S     4T   0:00.00   0:00.00 ",
     ].join("\n");
     const map = parsePsThreadsBsd(out);

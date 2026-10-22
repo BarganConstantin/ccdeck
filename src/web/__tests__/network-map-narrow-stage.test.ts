@@ -63,13 +63,13 @@ describe("this deck's name at the centre of a narrow map", () => {
       row({ via: "tailscale", name: "office-box" }), row({ via: "tailscale", name: "home-mini" }),
       row({ here: false, name: "old-tower", state: "last online 4h ago" }),
     ];
-    expect(clashes(rows, ...NARROW_WINDOW, "constantin-thinkpad")).toEqual([]);
+    expect(clashes(rows, ...NARROW_WINDOW, "consultant-thinkpad")).toEqual([]);
   });
 
   it("has no deck under it at phone width, when that deck is the only one", () => {
-    expect(clashes([row({ name: "work-laptop" })], ...PHONE, "constantin-Venus-Series")).toEqual([]);
+    expect(clashes([row({ name: "work-laptop" })], ...PHONE, "consultant-Venus-Series")).toEqual([]);
     expect(clashes([row({ name: "work-laptop", via: "tailscale", here: false, state: "last online 2h ago" })], ...PHONE,
-      "constantin-Venus-Series")).toEqual([]);
+      "consultant-Venus-Series")).toEqual([]);
   });
 
   it("has no deck under it, and no deck on another, at phone width with a deck over Tailscale", () => {
@@ -101,10 +101,10 @@ describe("this deck's name at the centre of a narrow map", () => {
       declined: [{ fp: "fpX", name: "intruder", addr: "192.168.1.99", port: 4317, at: NOW - 86_400_000 }],
     }, NOW);
     expect(rows.filter(r => r.via === "tailscale").map(r => r.name)).toEqual(["Studio Mac", "phone-tail"]);
-    expect(clashes(rows, ...PHONE, "constantin-Venus-Series")).toEqual([]);
+    expect(clashes(rows, ...PHONE, "consultant-Venus-Series")).toEqual([]);
     // The slice is only left out where it costs the names their room: the
     // same network in a desktop window keeps it.
-    expect(mapLayout(rows, 862, 693, "constantin-Venus-Series", captionOf).zone).not.toBeNull();
+    expect(mapLayout(rows, 862, 693, "consultant-Venus-Series", captionOf).zone).not.toBeNull();
   });
 
   it("leaves a lone deck where it stands when its name is clear of the centre", () => {

@@ -29,6 +29,8 @@ export { MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, payloadChars } from "./
 // The ring itself — what it holds, how it numbers them, and the eviction that
 // keeps those bounds — private behind its operations. See event-ring.mjs.
 import { eventsSince } from "./event-ring.mjs";
+// The same ring folded to one row per session, for `ccdeck sessions` (#2183).
+import { summarizeSessions } from "./session-summary.mjs";
 // Exported from this file before they moved, and still.
 export { eventBufferStats, eventsSince } from "./event-ring.mjs";
 // The one door every event comes through, and what it does to each on the way
@@ -36,6 +38,7 @@ export { eventBufferStats, eventsSince } from "./event-ring.mjs";
 // routes below: it connects pushEvent to event-sink.mjs as it loads, and the
 // boot replay pushes through that sink before any route has run.
 import "./event-pipeline.mjs";
+import { stopCodexEnrichment } from "./codex-enrichment.mjs";
 // POST /api/event, GET /events and GET /api/events — see event-routes.mjs.
 import { handleEventIngest, handleSse, writeJsonArray } from "./event-routes.mjs";
 // Exported from this file before it moved, and still.
@@ -408,6 +411,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET" && url.pathname === "/api/events") {
       return guard(writeJsonArray(res, eventsSince(url.searchParams.get("since") ?? 0)), res);
     }
+    // GET /api/sessions — which sessions this deck is watching and which of
+    // them waits on a human, without the ring itself. See session-summary.mjs.
+    if (req.method === "GET" && url.pathname === "/api/sessions") {
+      return send(res, 200, { ok: true, now: Date.now(), sessions: summarizeSessions(eventsSince(0)) });
+    }
 
     // GET /api/clear — what a POST to this path would do, and to whose log.
     // See handleClearPreview.
@@ -514,7 +522,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       void trafficCapture.resume(boundPort).catch(() => {});
       server.once("close", () => trafficCapture.dispose());
       // Codex has no working hooks on Windows — tail its rollout files instead.
-      if (codex) startCodexWatcher(workspace);
+      if (codex) {
+        startCodexWatcher(workspace);
+        server.once("close", stopCodexEnrichment);
+      }
       if (claude) {
         const recovery = createClaudeRecovery({ workspace });
         const recover = () => { void recovery.scan().catch(() => {}); };

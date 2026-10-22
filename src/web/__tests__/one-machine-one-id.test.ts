@@ -2,7 +2,7 @@
 // same address, two fingerprints. Two decks on one computer share a key, and
 // they tell a copied ~/.claude on ANOTHER computer from a twin on this one by a
 // machine id hashed from the hostname — which macOS reports as
-// `Petrus-MacBook-Pro.local` at one moment and `Petrus-MacBook-Pro` at another.
+// `Oswald-MacBook-Pro.local` at one moment and `Oswald-MacBook-Pro` at another.
 // Two decks started either side of that change read each other as an id-clash,
 // and one took a new key.
 //
@@ -35,11 +35,11 @@ const DECK = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.m
 describe("one machine keeps one machine id", () => {
   it("does not care whether the hostname came with a network on the end", () => {
     const home = "/Users/petru";
-    const id = hostId({ hostname: "Petrus-MacBook-Pro", home });
-    for (const hostname of ["Petrus-MacBook-Pro.local", "petrus-macbook-pro", "Petrus-MacBook-Pro.lan", "Petrus-MacBook-Pro.fritz.box", "Petrus-MacBook-Pro."]) {
+    const id = hostId({ hostname: "Oswald-MacBook-Pro", home });
+    for (const hostname of ["Oswald-MacBook-Pro.local", "oswald-macbook-pro", "Oswald-MacBook-Pro.lan", "Oswald-MacBook-Pro.fritz.box", "Oswald-MacBook-Pro."]) {
       expect(hostId({ hostname, home }), hostname).toBe(id);
     }
-    expect(machineName("Petrus-MacBook-Pro.local")).toBe("petrus-macbook-pro");
+    expect(machineName("Oswald-MacBook-Pro.local")).toBe("oswald-macbook-pro");
   });
 
   it("still tells two machines apart, and two users on one machine", () => {

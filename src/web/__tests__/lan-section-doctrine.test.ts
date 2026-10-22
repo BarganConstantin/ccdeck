@@ -141,7 +141,7 @@ describe("a round says which of the three things it was", () => {
     // The address and the code are not lost — they are on the row's hover.
     const [row] = deckRows({
       peers: [{
-        fp: "a", peerFp: "a", name: "Deniss", paired: true, addr: "192.168.1.229", port: 65059,
+        fp: "a", peerFp: "a", name: "Delias", paired: true, addr: "192.168.1.229", port: 65059,
         lastSeen: NOW - 5 * 60_000, last: { at: NOW, error: "connect ECONNREFUSED 192.168.1.229:65059" },
       }] as never,
     }, NOW);
@@ -1175,13 +1175,13 @@ describe("who is here, which is what the panel is for now", () => {
 describe("the invite, which is one piece of text and every address", () => {
   it("carries all of them, because nobody knows which one routes", async () => {
     const { mintInvite, readInvite } = await import("../../server/lan-invite.mjs");
-    const made = mintInvite({ addrs: ["100.67.32.58:49336", "192.168.1.82:49336"], name: "Constantins-iMac" });
+    const made = mintInvite({ addrs: ["100.64.0.100:49336", "192.168.1.82:49336"], name: "Consultants-iMac" });
     const read = readInvite(made.token);
     expect(read.addrs).toEqual([
-      { addr: "100.67.32.58", port: 49336 },
+      { addr: "100.64.0.100", port: 49336 },
       { addr: "192.168.1.82", port: 49336 },
     ]);
-    expect(read.name).toBe("Constantins-iMac");
+    expect(read.name).toBe("Consultants-iMac");
     expect(read.code).toBe(made.code);
   });
 
@@ -1398,11 +1398,11 @@ describe("the list of decks nearby, which was a wall of ghosts", () => {
     // Reported from a screenshot — "why myself appear here in list".
     const { pairable } = await import("../../server/lan-sync.mjs");
     const rows = [
-      heard({ fp: "self", name: "Constantins-iMac", addr: "192.168.1.82" }),
-      heard({ fp: "vpn", name: "Constantins-iMac", addr: "100.67.32.58" }),
-      heard({ fp: "them", name: "cbargan-windows", addr: "192.168.88.41" }),
+      heard({ fp: "self", name: "Consultants-iMac", addr: "192.168.1.82" }),
+      heard({ fp: "vpn", name: "Consultants-iMac", addr: "100.64.0.100" }),
+      heard({ fp: "them", name: "captain-windows", addr: "192.168.88.41" }),
     ];
-    const out = pairable(rows, T, { mine: ["192.168.1.82", "100.67.32.58"] });
+    const out = pairable(rows, T, { mine: ["192.168.1.82", "100.64.0.100"] });
     expect(out.shown.map((p: { fp: string }) => p.fp)).toEqual(["them"]);
     // And with no addresses to compare against, it does not silently drop
     // everything — a machine that cannot name its own addresses still has

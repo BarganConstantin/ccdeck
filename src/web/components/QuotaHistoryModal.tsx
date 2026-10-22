@@ -4,6 +4,7 @@ import type { Providers } from "../providers";
 import { captureAge, quotaPlot, quotaSeriesKey, type QuotaHistory, type QuotaSeries } from "../quota-history";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
+import ReadActivity from "./ReadActivity";
 import { RefreshGlyph } from "./action-glyphs";
 
 const timestamp = (t: number) => new Date(t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -108,7 +109,7 @@ export default function QuotaHistoryModal({ providers, accounts, onClose, instan
           </label>}
         </div>
         {error && <p className="qh-message" role="status">Could not read saved quota history. Use Refresh to try again.{data && " Showing the last loaded history."}</p>}
-        {picked && latest ? <>
+        {picked && latest ? <div className="qh-result read-result">
           <div className="qh-summary"><strong>{Math.round(100 - latest.pct)}% remaining</strong>
             <span title={timestamp(latest.t)}>Captured {captureAge(latest.t, now)}{picked.resetAt * 1000 <= now && " · window ended"}</span>
           </div>
@@ -120,9 +121,11 @@ export default function QuotaHistoryModal({ providers, accounts, onClose, instan
               <tbody>{picked.points.slice(-50).reverse().map(p => <tr key={p.t}><td>{timestamp(p.t)}</td><td>{(100 - p.pct).toLocaleString(undefined, { maximumFractionDigits: 1 })}%</td></tr>)}</tbody>
             </table>
           </details>
-        </> : !error && <p className="qh-message" role="status">{loading ? "Reading quota history…" : !account
-          ? "History starts when a quota reading can be matched to your active account."
-          : "No recorded readings yet. History fills in as ccdeck receives quota updates."}</p>}
+        </div> : !error && (loading && account
+          ? <ReadActivity kind="quota" title="Reading quota history…" note="Loading this account’s saved quota readings." />
+          : <p className="qh-message" role="status">{!account
+            ? "History starts when a quota reading can be matched to your active account."
+            : "No recorded readings yet. History fills in as ccdeck receives quota updates."}</p>)}
         {data?.storageOk === false && <p className="qh-note" role="status">History is available for this run, but could not be saved to disk.</p>}
         <footer className="qh-note qh-footer">Recorded on this machine from existing quota reads. No extra provider requests. Account changes and resets are kept separate.</footer>
       </div>

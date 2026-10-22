@@ -165,19 +165,19 @@ async function paired(dialler: Awaited<ReturnType<typeof deck>>, answerer: Await
 }
 
 const MINE: Row[] = [
-  { num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true, active: true, collector: "ok" },
-  { num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: false },
+  { num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true, active: true, collector: "ok" },
+  { num: 2, email: "bob@example.net", orgUuid: "org-2", alive: false },
 ];
 const THEIRS: Row[] = [
-  { num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true, active: true, collector: "ok" },
-  { num: 6, email: "claude3@sapec.md", orgUuid: "org-3", alive: true },
+  { num: 5, email: "bob@example.net", orgUuid: "org-2", alive: true, active: true, collector: "ok" },
+  { num: 6, email: "carol@example.net", orgUuid: "org-3", alive: true },
 ];
-const SHARED = [K("claude1@sapec.md", "org-1"), K("claude2@sapec.md", "org-2"), K("claude3@sapec.md", "org-3")];
+const SHARED = [K("alice@example.net", "org-1"), K("bob@example.net", "org-2"), K("carol@example.net", "org-3")];
 /** What must not be readable on the wire once the handshake is done: every
  *  address, every org, the verbs and fields that name what is being asked for,
  *  and the credential's own marker. */
 const SECRETS = [
-  "claude1@sapec.md", "claude2@sapec.md", "claude3@sapec.md", "org-1", "org-2", "org-3",
+  "alice@example.net", "bob@example.net", "carol@example.net", "org-1", "org-2", "org-3",
   "manifest", "want", "have", "accounts", "current", "ccdeck2:slot",
 ];
 const HEALED = [["heal", true], ["add", true]];
@@ -211,8 +211,8 @@ describe("a round between two decks of this version, as the network sees it", ()
 
     // And what the frames carry still arrives, both ways: the account each
     // deck is on (#914's own check), from the answer and from the question.
-    expect(peerRow(a, b.id.fp)?.offers?.current).toEqual({ key: K("claude2@sapec.md", "org-2") });
-    expect(peerRow(b, a.id.fp)?.offers?.current).toEqual({ key: K("claude1@sapec.md", "org-1") });
+    expect(peerRow(a, b.id.fp)?.offers?.current).toEqual({ key: K("bob@example.net", "org-2") });
+    expect(peerRow(b, a.id.fp)?.offers?.current).toEqual({ key: K("alice@example.net", "org-1") });
   }, 20_000);
 });
 
@@ -246,7 +246,7 @@ describe("a deck of this version and one from before it", () => {
     const { up, down } = afterHandshake(r.wire);
     expect([...up, ...down].map(l => JSON.parse(l).t)).toEqual(["manifest", "want", "want", "manifest", "have", "have"]);
     // And the newer deck still learned what the older one offers and is on.
-    expect(peerRow(a, b.id.fp)?.offers?.current).toEqual({ key: K("claude1@sapec.md", "org-1") });
+    expect(peerRow(a, b.id.fp)?.offers?.current).toEqual({ key: K("alice@example.net", "org-1") });
   }, 20_000);
 });
 

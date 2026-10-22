@@ -370,7 +370,7 @@ describe("which connection counts as proof", () => {
   // The second deck on this computer is the ordinary case on a developer machine and
   // says nothing about the network.
   it("does not count this machine talking to itself", () => {
-    const mine = ["192.168.1.82", "100.67.32.58"];
+    const mine = ["192.168.1.82", "100.64.0.100"];
     expect(anotherMachine("127.0.0.1", mine)).toBe(false);
     expect(anotherMachine("::1", mine)).toBe(false);
     expect(anotherMachine("192.168.1.82", mine)).toBe(false);

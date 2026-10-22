@@ -11,6 +11,8 @@ import { dayAgentSummary } from "./usage-agents";
 export interface ModelBreakdown {
   modelName: string;
   cost: number;
+  missingPricing?: boolean;
+  storedCost?: number;
   inputTokens: number;
   outputTokens: number;
   cacheCreationTokens: number;
@@ -72,6 +74,9 @@ function asBreakdown(v: unknown): ModelBreakdown {
   return {
     modelName: str(o.modelName),
     cost: num(o.cost),
+    ...(typeof o.missingPricing === "boolean" ? { missingPricing: o.missingPricing } : {}),
+    ...(typeof o.storedCost === "number" && Number.isFinite(o.storedCost) && o.storedCost >= 0
+      ? { storedCost: Math.min(o.storedCost, Math.max(0, num(o.cost))) } : {}),
     inputTokens: num(o.inputTokens),
     outputTokens: num(o.outputTokens),
     cacheCreationTokens: num(o.cacheCreationTokens),
@@ -175,12 +180,16 @@ export interface HistoryTotals {
   inOut: number;
   cacheRead: number;
   modelCosts: Map<string, number>;
+  missingModels: Set<string>;
+  storedCost: number | null;
 }
 
 /** Aggregate totals + per-model cost across the range. */
 export function historyTotals(days: readonly DayEntry[]): HistoryTotals {
   let totalCost = 0, totalTok = 0, inOut = 0, cacheRead = 0;
   const modelCosts = new Map<string, number>();
+  const missingModels = new Set<string>();
+  let storedCost: number | null = null;
   for (const d of days) {
     totalCost += d.totalCost;
     totalTok  += d.totalTokens;
@@ -188,9 +197,11 @@ export function historyTotals(days: readonly DayEntry[]): HistoryTotals {
     cacheRead += d.cacheReadTokens;
     for (const mb of d.modelBreakdowns) {
       modelCosts.set(mb.modelName, (modelCosts.get(mb.modelName) ?? 0) + mb.cost);
+      if (mb.missingPricing) missingModels.add(mb.modelName);
+      if (mb.storedCost !== undefined) storedCost = (storedCost ?? 0) + mb.storedCost;
     }
   }
-  return { totalCost, totalTok, inOut, cacheRead, modelCosts };
+  return { totalCost, totalTok, inOut, cacheRead, modelCosts, missingModels, storedCost };
 }
 
 /** The legend under the chart: every model the range ran, dearest first. */

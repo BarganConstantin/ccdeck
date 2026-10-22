@@ -34,7 +34,7 @@
 /* Spend is a quantity, rather than a success state. Keep the chart's colours
    and status marks; give the repeated figures the page's warm reading ink.
    Unpriced labels retain their own muted treatment. */
-:root[data-theme^="gruvbox-"] .up-total-value,
+:root[data-theme^="gruvbox-"] .up-total-value:not(.up-unpriced),
 :root[data-theme^="gruvbox-"] .detail-hero .hero-cost-value {
   color: var(--text);
 }

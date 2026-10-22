@@ -43,7 +43,7 @@ describe("what a stranger on the same wifi learns", () => {
     const p = beaconPayload({ name: "MacBook", fp: FP, port: 4319, instance: "0badc0de" });
     expect(Object.keys(p).sort()).toEqual(["f", "i", "m", "n", "p", "v"]);
     const wire = JSON.stringify(p);
-    for (const secret of ["amber-canyon-forty-drift", "@", "claude", "sapec", "refresh", "oauth"]) {
+    for (const secret of ["amber-canyon-forty-drift", "@", "claude", "example", "refresh", "oauth"]) {
       expect(wire, `the beacon carries ${secret}`).not.toContain(secret);
     }
   });
@@ -674,9 +674,9 @@ describe("one row per machine, not one per key it has held", () => {
     // column of itself on everybody else's panel.
     const now = 1_700_000_000_000;
     const { shown, more } = pairable([
-      { fp: "aaa", name: "Constantins-iMac", addr: "192.168.1.82", port: 5001, host: "abc123abc123", at: now - 40_000 },
-      { fp: "bbb", name: "Constantins-iMac", addr: "192.168.1.82", port: 5002, host: "abc123abc123", at: now - 1_000 },
-      { fp: "ccc", name: "Constantins-iMac", addr: "100.67.32.58", port: 5003, host: "abc123abc123", at: now - 20_000 },
+      { fp: "aaa", name: "Consultants-iMac", addr: "192.168.1.82", port: 5001, host: "abc123abc123", at: now - 40_000 },
+      { fp: "bbb", name: "Consultants-iMac", addr: "192.168.1.82", port: 5002, host: "abc123abc123", at: now - 1_000 },
+      { fp: "ccc", name: "Consultants-iMac", addr: "100.64.0.100", port: 5003, host: "abc123abc123", at: now - 20_000 },
       { fp: "ddd", name: "Someone-Else", addr: "192.168.1.90", port: 5004, host: "ffffffffffff", at: now - 5_000 },
     ], now);
     expect(shown.map(p => p.fp)).toEqual(["bbb", "ddd"]);
