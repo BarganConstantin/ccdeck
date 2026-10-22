@@ -86,7 +86,11 @@
   color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
 }
-.ig-conn-select { min-width: 0; display: inline-flex; }
+/* The connection selector is the deck's shared select, whose edge is 2.44 to
+   2.79:1 on this header's ground in six dark themes. Here, where it is the
+   header's only control with a boundary, it takes the control edge instead
+   (3:1 or better everywhere), without changing the select anywhere else. */
+.ig-conn-select { min-width: 0; display: inline-flex; --sm-edge: var(--ctl-edge); }
 .ig-conn-select .sm-select { max-width: 280px; min-width: 0; }
 .ig-close {
   margin-left: auto;
