@@ -119,19 +119,20 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 }
 .jr-group-toggle:active { transform: scale(0.97); }
 .jr-group-name { overflow-wrap: anywhere; }
+/* The active sprint's lozenge, in sentence case like the status ones. The
+   group's header sits on the modal's --bg, so its tint is mixed over that. */
 .jr-badge {
   padding: 0 6px;
   border-radius: var(--r-tag);
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg));
   color: var(--text);
-  font-size: calc(10px + var(--ui-text-increase, 0px));
-  font-weight: 700;
-  line-height: calc(16px + var(--ui-text-increase, 0px));
-  text-transform: uppercase;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: calc(18px + var(--ui-text-increase, 0px));
 }
 .jr-group-dates, .jr-group-count { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .jr-group-facts { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; }
-.jr-mine { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jr-tally { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .jr-totals { display: inline-flex; gap: 4px; }
 .jr-total, .jr-estimate {
   min-width: 24px;
@@ -147,8 +148,8 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.jr-total[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); color: var(--text); }
-.jr-total[data-cat="done"] { background: color-mix(in srgb, var(--ok) 14%, var(--panel)); color: var(--text); }
+.jr-total[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--text); }
+.jr-total[data-cat="done"] { background: color-mix(in srgb, var(--ok) 14%, var(--bg)); color: var(--text); }
 .jr-goal { margin: 0 0 8px 6px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; }
 .jr-group-body { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); }
 .jr-empty-group { margin: 0; padding: 12px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }

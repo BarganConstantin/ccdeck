@@ -2,7 +2,7 @@
 // the work on it, and (as the panel grows) what a row and a sprint's header
 // say about the issues in them. No DOM: the helpers are pure.
 import { describe, it, expect } from "vitest";
-import { buildRows, filterRows, needsAttention, rowKey, shownQuickFilters, subtaskShown, timeLine } from "../jira-board";
+import { buildRows, filterRows, groupStats, needsAttention, rowKey, shownQuickFilters, subtaskShown, timeLine } from "../jira-board";
 import type { JiraIssue, StatusCategory } from "../jira-api";
 
 const TIME = { hoursPerDay: 8, daysPerWeek: 5 };
@@ -72,6 +72,20 @@ describe("what needs attention", () => {
     expect(subtaskShown(subOf("A-3", parent, { flagged: true, status: status("done") }), filter)).toBe(false);
     expect(subtaskShown(subOf("A-4", parent), filter)).toBe(false);
     expect(subtaskShown(subOf("A-5", parent, { status: status("done") }), { search: "", hideDone: false })).toBe(true);
+  });
+});
+
+describe("what a sprint's header counts as needing attention", () => {
+  it("counts the flagged and the highest that are not done, an issue that is both in each", () => {
+    const rows = buildRows([
+      issue("B-1", { flagged: true }),
+      issue("B-2", { flagged: true, priority: priority("Highest") }),
+      issue("B-3", { priority: priority("Critical") }),
+      issue("B-4", { flagged: true, priority: priority("Blocker"), status: status("done") }),
+      issue("B-5", { priority: priority("High") }),
+    ]);
+    const stats = groupStats(rows, "count");
+    expect([stats.flagged, stats.highest]).toEqual([2, 2]);
   });
 });
 

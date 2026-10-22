@@ -1,9 +1,10 @@
 // The Jira panel's list (#2178): a board's groups the way Jira's Backlog page
-// draws them — each sprint's header with its count, dates, the people on it
-// and its three estimate totals, then its issues in Rank order, one dense row
-// each. A row's chevron opens every sub-task under it, the reader's own
-// marked; a sub-task of the reader's whose parent is somebody else's is drawn
-// under that parent, greyed and labelled, so it is never an orphan.
+// draws them — each sprint's header with its count, dates, the people on it,
+// what in it is the reader's or needs attention, and its estimate totals in
+// words, then its issues in Rank order, one dense row each. A row's chevron
+// opens every sub-task under it, the reader's own marked; a sub-task of the
+// reader's whose parent is somebody else's is drawn under that parent, greyed
+// and labelled, so it is never an orphan.
 //
 // THE KEYBOARD walks it as one list: Up and Down move between the group
 // headers and the rows, Right opens (a group, a row's sub-tasks) and Left
@@ -11,10 +12,10 @@
 // ends. One row at a time is a Tab stop, so Tab leaves the list in one press.
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import type { IntegrationConnection as Connection } from "../integrations/types";
-import type { JiraBoardOverview, JiraIssue } from "../jira-api";
+import type { JiraBoardOverview, JiraIssue, TimeTracking } from "../jira-api";
 import {
   buildRows, filterRows, groupOpen, groupStats, rowKey, shortDate, subtaskShown, totalLabel,
-  type GroupDef, type Row, type RowFilter,
+  type GroupDef, type GroupStats, type Row, type RowFilter,
 } from "../jira-board";
 import type { BoardSnapshot, GroupData } from "../use-jira-board";
 import { connectionHost } from "../integrations/client";
@@ -45,7 +46,57 @@ export interface JiraBacklogProps {
   onReconnect: () => void;
 }
 
-const TOTAL_LABELS = { new: "To Do", indeterminate: "In Progress", done: "Done" } as const;
+const TOTAL_LABELS = { new: "To do", indeterminate: "In progress", done: "Done" } as const;
+const CATEGORIES = ["new", "indeterminate", "done"] as const;
+
+/** A group's estimate totals, each named in words ("To do 3d") and drawn
+ *  only when there is something in it. A kanban column holds one status
+ *  already, so it has one total; a board that counts issues has its count in
+ *  the header, so it has none. */
+function Totals({ def, totals, estimation, time }: {
+  def: GroupDef; totals: GroupStats["totals"]; estimation: "time" | "points" | "count"; time: TimeTracking;
+}) {
+  if (estimation === "count") return null;
+  const unit = estimation === "points" ? "story points" : "estimated";
+  if (def.kind === "column") {
+    const sum = totals.new + totals.indeterminate + totals.done;
+    if (sum <= 0) return null;
+    const value = totalLabel(sum, estimation, time);
+    return <span className="jr-totals"><span className="jr-total" title={`Total: ${value} ${unit}`}>Total {value}</span></span>;
+  }
+  const shown = CATEGORIES.filter(c => totals[c] > 0);
+  if (shown.length === 0) return null;
+  return (
+    <span className="jr-totals">
+      {shown.map(c => {
+        const value = totalLabel(totals[c], estimation, time);
+        return <span key={c} className="jr-total" data-cat={c} title={`${TOTAL_LABELS[c]}: ${value} ${unit}`}>{TOTAL_LABELS[c]} {value}</span>;
+      })}
+    </span>
+  );
+}
+
+/** What a group holds that a reader looks for first, in words and only when
+ *  it is there: "3 yours · 1 flagged · 1 highest". With Only my issues on,
+ *  every issue is the reader's, so theirs reads as how many are done. */
+function Tally({ stats, mine }: { stats: GroupStats; mine: boolean }) {
+  const parts: { key: string; text: string; title: string }[] = [];
+  if (stats.mine > 0) {
+    parts.push(mine
+      ? { key: "mine", text: `${stats.mineDone} of ${stats.mine} done`, title: `${stats.mineDone} of your ${stats.mine} done` }
+      : { key: "mine", text: `${stats.mine} yours`, title: `${stats.mineDone} of ${stats.mine} yours done` });
+  }
+  if (stats.flagged > 0) parts.push({ key: "flagged", text: `${stats.flagged} flagged`, title: "Flagged and not done" });
+  if (stats.highest > 0) parts.push({ key: "highest", text: `${stats.highest} highest`, title: "Highest priority (or Blocker, Critical) and not done" });
+  if (parts.length === 0) return null;
+  return (
+    <span className="jr-tally">
+      {parts.map((part, i) => (
+        <Fragment key={part.key}>{i > 0 && <span aria-hidden> · </span>}<span title={part.title}>{part.text}</span></Fragment>
+      ))}
+    </span>
+  );
+}
 
 /** A row's own label for a screen reader: what it is, not everything on it. */
 function rowLabel(issue: JiraIssue, extra = ""): string {
@@ -283,6 +334,9 @@ export default function JiraBacklog(props: JiraBacklogProps) {
           : "";
         const loaded = data?.status === "ready" || (data?.issues.length ?? 0) > 0;
         const totalKnown = data?.total != null && def.paged && data.total > stats.count && !filter.search && !filter.hideDone && !filter.attention;
+        // A closed sprint is read when it is opened, so until then there is
+        // no count to give, and nothing is on its way either.
+        const onDemand = def.kind === "closed" && (!data || data.status === "idle");
         const countText = !loaded ? (data?.status === "error" ? "" : "…")
           : totalKnown ? `${stats.count} of ${data!.total}` : `${stats.count}`;
         const people = stats.assignees;
@@ -299,22 +353,19 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                   <span className="jr-group-name">{def.title}</span>
                   {def.kind === "active" && <span className="jr-badge">Active</span>}
                   {dates && <span className="jr-group-dates">{dates}</span>}
-                  <span className="jr-group-count">{countText} {loaded ? (stats.count === 1 && !totalKnown ? "issue" : "issues") : <span className="vis-hidden">issues, not read yet</span>}</span>
+                  {onDemand ? (
+                    <span className="jr-group-count" title="Counted when you open it"><span aria-hidden>—</span><span className="vis-hidden">issues counted when opened</span></span>
+                  ) : (
+                    <span className="jr-group-count">{countText} {loaded ? (stats.count === 1 && !totalKnown ? "issue" : "issues") : <span className="vis-hidden">issues, not read yet</span>}</span>
+                  )}
                 </button>
               </h3>
               {loaded && (
                 <div className="jr-group-facts">
-                  {stats.mine > 0 && !mine && <span className="jr-mine" title="Yours, and how many of those are done">Mine {stats.mineDone}/{stats.mine}</span>}
-                  {stats.mine > 0 && mine && <span className="jr-mine" title="How many of yours are done">{stats.mineDone}/{stats.mine} done</span>}
+                  <Tally stats={stats} mine={mine} />
                   <IntegrationAvatarStack label="Assigned to"
                     people={people.map(p => ({ key: p.id, name: p.name, src: p.avatar, you: p.id === stats.youId }))} />
-                  <span className="jr-totals">
-                    {(["new", "indeterminate", "done"] as const).map(c => (
-                      <span key={c} className="jr-total" data-cat={c} title={`${TOTAL_LABELS[c]}: ${totalLabel(stats.totals[c], estimation, time)}`}>
-                        <span className="vis-hidden">{TOTAL_LABELS[c]} </span>{totalLabel(stats.totals[c], estimation, time)}
-                      </span>
-                    ))}
-                  </span>
+                  <Totals def={def} totals={stats.totals} estimation={estimation} time={time} />
                 </div>
               )}
             </div>

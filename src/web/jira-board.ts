@@ -209,6 +209,10 @@ export interface GroupStats {
   /** The reader's own id among `assignees`, when one of their issues is
    *  counted: their face is ringed as theirs. */
   youId: string | null;
+  /** Of the counted issues not done, how many are flagged, and how many sit
+   *  at the top of Jira's priority scale (what Needs attention keeps). */
+  flagged: number;
+  highest: number;
 }
 
 export function countedIssues(rows: readonly Row[]): JiraIssue[] {
@@ -222,6 +226,8 @@ export function groupStats(rows: readonly Row[], estimation: "time" | "points" |
   let mine = 0;
   let mineDone = 0;
   let youId: string | null = null;
+  let flagged = 0;
+  let highest = 0;
   for (const issue of issues) {
     const value = estimation === "count" ? 1 : estimation === "points" ? issue.points ?? 0 : issue.estimate ?? 0;
     totals[issue.status.category] += value;
@@ -234,9 +240,13 @@ export function groupStats(rows: readonly Row[], estimation: "time" | "points" |
       if (issue.assignee) youId = issue.assignee.id;
       if (isDone(issue)) mineDone++;
     }
+    if (!isDone(issue)) {
+      if (issue.flagged) flagged++;
+      if (issue.priority && priorityLevel(issue.priority.name) === "highest") highest++;
+    }
   }
   const assignees = [...people.values()].sort((a, b) => b.n - a.n || a.person.name.localeCompare(b.person.name)).map(p => p.person);
-  return { count: issues.length, totals, assignees, mine, mineDone, youId };
+  return { count: issues.length, totals, assignees, mine, mineDone, youId, flagged, highest };
 }
 
 // ── durations and dates ─────────────────────────────────────────────────────

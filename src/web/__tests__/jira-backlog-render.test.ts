@@ -6,7 +6,7 @@ import { describe, it, expect } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import JiraBacklog, { type JiraBacklogProps } from "../components/JiraBacklog";
-import { groupsFor } from "../jira-board";
+import { groupsFor, type GroupDef } from "../jira-board";
 import type { JiraBoardOverview, JiraIssue, JiraSprint, StatusCategory } from "../jira-api";
 import type { BoardSnapshot } from "../use-jira-board";
 import type { IntegrationConnection } from "../integrations/types";
@@ -145,7 +145,72 @@ describe("the list is one Tab stop", () => {
 });
 
 
+/** The header of the board's first group, from its name to its totals. */
+const headOf = (html: string) => /<div class="jr-group-head">[\s\S]*?(?=<div id="jr-group-|<\/section>)/.exec(html)![0];
+const words = (html: string) => html.replace(/<span class="vis-hidden">[^<]*<\/span>/g, "").replace(/<[^>]+>/g, "").replace(/&#x27;/g, "'");
+const DAY = 8 * 3600;
 const HIGHEST = { name: "Highest", icon: null };
+
+describe("a sprint's header says what it holds in words", () => {
+  it("names the reader's issues, the flagged and the highest that are not done, and nothing that is zero", () => {
+    const head = headOf(drawBoard([
+      issue("MOCK-1", { assignee: ME, mine: true, flagged: true }),
+      issue("MOCK-2", { assignee: ME, mine: true, status: status("Done", "done") }),
+      issue("MOCK-3", { priority: HIGHEST }),
+      issue("MOCK-4", { flagged: true, status: status("Done", "done") }),
+    ]));
+    expect(words(/<span class="jr-tally">[\s\S]*?<\/span><\/span>/.exec(head)![0])).toBe("2 yours · 1 flagged · 1 highest");
+    expect(head).toContain('title="1 of 2 yours done">2 yours</span>');
+    expect(head).not.toMatch(/Mine \d/);
+    expect(headOf(drawBoard([issue("MOCK-5")]))).not.toContain("jr-tally");
+  });
+
+  it("with Only my issues on, says how many of the reader's are done", () => {
+    const head = headOf(drawBoard([
+      issue("MOCK-1", { assignee: ME, mine: true }),
+      issue("MOCK-2", { assignee: ME, mine: true, status: status("Done", "done") }),
+    ], { mine: true }));
+    expect(words(/<span class="jr-tally">[\s\S]*?<\/span><\/span>/.exec(head)![0])).toBe("1 of 2 done");
+  });
+
+  it("names each estimate total in words and leaves out the empty ones", () => {
+    const head = headOf(drawBoard([
+      issue("MOCK-1", { estimate: 3 * DAY }),
+      issue("MOCK-2", { estimate: 2 * 3600, status: status("Done", "done") }),
+      issue("MOCK-3", { status: status("In Progress", "indeterminate") }),
+    ]));
+    expect(head).toContain('<span class="jr-total" data-cat="new" title="To do: 3d estimated">To do 3d</span>');
+    expect(head).toContain('<span class="jr-total" data-cat="done" title="Done: 2h estimated">Done 2h</span>');
+    expect(head).not.toContain('data-cat="indeterminate"');
+    expect(head).not.toMatch(/>0m<|In progress 0/);
+  });
+
+  it("names story points as such, and gives a board that counts issues no totals at all", () => {
+    const points = { ...OVERVIEW, estimation: { kind: "points" as const, fieldId: "f", label: "Story points" } };
+    expect(headOf(drawBoard([issue("MOCK-1", { points: 5 })], {}, points))).toContain('title="To do: 5 story points">To do 5</span>');
+    const count = { ...OVERVIEW, estimation: { kind: "count" as const, fieldId: null, label: "Issue count" } };
+    expect(headOf(drawBoard([issue("MOCK-1"), issue("MOCK-2")], {}, count))).not.toContain("jr-totals");
+  });
+
+  it("gives a kanban column, one status already, a single total", () => {
+    const kanban = { ...OVERVIEW, board: { ...OVERVIEW.board, type: "kanban" }, hasSprints: false, sprints: { active: [], future: [] } };
+    const head = headOf(drawBoard([issue("MOCK-1", { estimate: DAY }), issue("MOCK-2", { estimate: 2 * DAY })], {}, kanban));
+    expect(head.match(/class="jr-total"/g)).toHaveLength(1);
+    expect(head).toContain('<span class="jr-total" title="Total: 3d estimated">Total 3d</span>');
+  });
+
+  it("marks the active sprint in sentence case", () => {
+    expect(headOf(drawBoard([issue("MOCK-1")]))).toContain('<span class="jr-badge">Active</span>');
+  });
+
+  it("gives a closed sprint not yet opened a dash, not a count on its way", () => {
+    const closed: GroupDef = { id: "sprint:9", kind: "closed", title: "Sprint 9", sprint: { ...SPRINT, id: 9, name: "Sprint 9", state: "closed" }, defaultOpen: false, paged: true };
+    const html = drawBoard([issue("MOCK-1")], { groups: [...groupsFor(OVERVIEW), closed] });
+    const head = /<section class="jr-group" data-kind="closed"[\s\S]*?<\/section>/.exec(html)![0];
+    expect(head).toContain('<span class="jr-group-count" title="Counted when you open it"><span aria-hidden="true">—</span><span class="vis-hidden">issues counted when opened</span></span>');
+    expect(head).not.toContain("…");
+  });
+});
 
 describe("Needs attention keeps the issues to look at first", () => {
   it("keeps a flagged issue and a parent drawn for a sub-task that needs attention, and only that sub-task under it", () => {
