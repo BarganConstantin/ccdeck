@@ -33,6 +33,9 @@
 .fg-resolve { flex: none; }
 .fg-tab-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; padding: 8px 20px 32px; }
 .fg-note { margin: 8px 20px 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.6; }
+/* A tab's content fades in as the tab is chosen (a hidden panel shown runs
+   its animation again): 100ms of opacity, and nothing moves. */
+.fg-tab-body:not([hidden]) { animation: fadeIn 100ms ease-out; }
 .fg-tab-body .fg-note { margin: 12px 0 0; }
 .fg-empty { margin: 24px 0 0; color: var(--text-secondary); line-height: 1.6; max-width: 60ch; }
 
@@ -145,4 +148,5 @@
 @media (prefers-reduced-motion: reduce) {
   .fg-row, .fg-fold-chevron { transition: none; }
   .fg-fold:active { transform: none; }
+  .fg-tab-body:not([hidden]) { animation: none; }
 }

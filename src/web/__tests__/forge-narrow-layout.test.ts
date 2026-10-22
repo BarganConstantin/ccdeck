@@ -161,3 +161,17 @@ describe("words an item page draws on a filled bed", () => {
     expect(decls(detail, ".fd-title a")).toMatch(/text-decoration: underline/);
   });
 });
+
+describe("choosing a tab or a section", () => {
+  const reduced = (src: string) => blocks(src, "@media (prefers-reduced-motion: reduce)").join("\n");
+
+  it("fades the chosen one's content in over 100ms, moving nothing", () => {
+    expect(decls(topLevel(panel), ".fg-tab-body:not([hidden])")).toBe("animation: fadeIn 100ms ease-out;");
+    expect(decls(topLevel(detail), ".fd-section:not([hidden])")).toBe("animation: fadeIn 100ms ease-out;");
+  });
+
+  it("does not fade at all under reduced motion", () => {
+    expect(decls(reduced(panel), ".fg-tab-body:not([hidden])")).toBe("animation: none;");
+    expect(decls(reduced(detail), ".fd-section:not([hidden])")).toBe("animation: none;");
+  });
+});

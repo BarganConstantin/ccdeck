@@ -95,6 +95,8 @@
 .fd-section-count { font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 .fd-section-label { min-width: 0; }
 .fd-section { margin-top: 14px; min-width: 0; }
+/* A section fades in as it is chosen, as the panel's tabs do. */
+.fd-section:not([hidden]) { animation: fadeIn 100ms ease-out; }
 
 /* Blocks and headings on a page. */
 .fd-block { margin-top: 20px; }
@@ -253,4 +255,5 @@ button.btn.fd-show-comments { margin-top: 8px; }
 @media (prefers-reduced-motion: reduce) {
   .fd-jump { transition: none; }
   .fd-jump:active { transform: none; }
+  .fd-section:not([hidden]) { animation: none; }
 }
