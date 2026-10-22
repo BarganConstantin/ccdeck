@@ -167,7 +167,7 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
    say which order it is). */
 @container fgl (max-width: 520px) {
   .fgl-controls { gap: 6px; }
-  .fgl-seg .uh-range-btn { gap: 4px; padding-inline: 7px; }
+  .fgl-seg .uh-range-btn { gap: 4px; padding-inline: 6px; }
   .fgl-scope-seg { display: none; }
   .fgl-scope { display: inline-flex; }
   .fgl-controls button.btn.fgl-scope-trigger { padding: 0 8px; }
