@@ -135,15 +135,18 @@ describe("searchSettings ranks what was typed", () => {
   });
 
   it("puts a keyword match before a setting found only by its section's name", () => {
-    // Notifications while closed starts with the word; the four account
+    // Notifications while closed starts with the word; the five account
     // switches are found by their section alone, and come after it.
     expect(ids(searchSettings("notifications"))).toEqual([
       "section:notifications", "notify-closed", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped",
+      "notifyElsewhere",
     ]);
-    // "alerts" is a keyword of the five switches and of the section.
+    // "alerts" is a keyword of the six switches and of the section.
     const alerts = ids(searchSettings("alerts"));
     expect(alerts[0]).toBe("section:notifications");
-    expect(alerts).toEqual(expect.arrayContaining(["notify-closed", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped"]));
+    expect(alerts).toEqual(expect.arrayContaining([
+      "notify-closed", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "notifyElsewhere",
+    ]));
   });
 
   it("answers the words people type for a setting", () => {

@@ -88,6 +88,10 @@ export const DEFAULTS = Object.freeze({
   // incident (account-notify.mjs). ON for the swap's reason: it is rare, every
   // running session is stopped when it happens, and nothing else says so.
   notifyStopped: true,
+  // A login this deck is on, live on another deck too (#2192). ON, like the
+  // swap: it is rare, it is said once per incident, and nothing else on the
+  // desktop says it before one of the two machines is signed out.
+  notifyElsewhere: true,
   // Continue a BACKGROUND session whose turn stopped on an expired login or a
   // usage limit, once a working login with room is active again — once per
   // stop (stop-continue.mjs, #2193). OFF: it stops and restarts a session's
@@ -344,6 +348,7 @@ export function normalise(raw) {
     notifyQuota: flagOr(src.notifyQuota, DEFAULTS.notifyQuota),
     notifyReset: flagOr(src.notifyReset, DEFAULTS.notifyReset),
     notifyStopped: flagOr(src.notifyStopped, DEFAULTS.notifyStopped),
+    notifyElsewhere: flagOr(src.notifyElsewhere, DEFAULTS.notifyElsewhere),
     continueStopped: flagOr(src.continueStopped, DEFAULTS.continueStopped),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
@@ -729,7 +734,10 @@ export function publicPrefs(prefs) {
  * here — prefs-route-fields.test.ts lists them.
  */
 export const PAGE_FIELDS = Object.freeze({
-  top: Object.freeze(["notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "continueStopped", "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions"]),
+  top: Object.freeze([
+    "notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "notifyElsewhere", "continueStopped",
+    "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions",
+  ]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "sendInUse", "pairingMode",
     "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
@@ -763,15 +771,17 @@ export function notificationsOn(prefs, env = process.env) {
 }
 
 /**
- * Which account notifications may go out right now: the four switches, each
- * on its own, and all four off when the machine vetoed notifications at
+ * Which account notifications may go out right now: the five switches, each
+ * on its own, and all five off when the machine vetoed notifications at
  * launch — AGENTS_DECK_NO_NOTIFY=1 keeps the deck off the desktop whatever
  * else it was told, and these are desktop notifications too.
  */
 export function accountNotifySettings(prefs, env = process.env) {
-  if (notificationsVetoed(env)) return { swap: false, quota: false, reset: false, stopped: false };
+  if (notificationsVetoed(env)) return { swap: false, quota: false, reset: false, stopped: false, elsewhere: false };
   const p = normalise(prefs);
-  return { swap: p.notifySwap, quota: p.notifyQuota, reset: p.notifyReset, stopped: p.notifyStopped };
+  return {
+    swap: p.notifySwap, quota: p.notifyQuota, reset: p.notifyReset, stopped: p.notifyStopped, elsewhere: p.notifyElsewhere,
+  };
 }
 
 /**
