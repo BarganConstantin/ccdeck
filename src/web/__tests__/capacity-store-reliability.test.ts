@@ -11,6 +11,10 @@ import { fetchClaudeAccounts, invalidateClaudeAccountsCache, usageRows } from ".
 const root = mkdtempSync(join(tmpdir(), "ccdeck-capacity-store-"));
 const previous = process.env.CLAUDE_SWAP_BACKUP;
 process.env.CLAUDE_SWAP_BACKUP = root;
+// No Claude Code login in here, so the store's active slot is the active one,
+// whatever the machine running the suite is signed in as (claude-login.mjs).
+const previousConfig = process.env.CLAUDE_CONFIG_DIR;
+process.env.CLAUDE_CONFIG_DIR = root;
 mkdirSync(join(root, "cache"));
 const now = Date.now();
 const identity = { email: "sample@example.test", organizationUuid: "org-a", organizationName: "Display" };
@@ -19,7 +23,11 @@ const seed = (seq: unknown, usage: unknown) => {
   writeFileSync(join(root, "cache", "usage.json"), typeof usage === "string" ? usage : JSON.stringify(usage));
 };
 beforeEach(() => invalidateClaudeAccountsCache());
-afterAll(() => { if (previous == null) delete process.env.CLAUDE_SWAP_BACKUP; else process.env.CLAUDE_SWAP_BACKUP = previous; rmTempDir(root); });
+afterAll(() => {
+  if (previous == null) delete process.env.CLAUDE_SWAP_BACKUP; else process.env.CLAUDE_SWAP_BACKUP = previous;
+  if (previousConfig == null) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = previousConfig;
+  rmTempDir(root);
+});
 
 describe("persisted account capacity contract", () => {
   it("returns every existing slot once even when stored order is incomplete or repeats slots", async () => {

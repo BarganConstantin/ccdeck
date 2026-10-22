@@ -240,8 +240,15 @@ describe("what the panel is allowed to offer", () => {
     expect((row.match(/onSignIn\(/g) ?? []).length, "the row signs in from somewhere other than a refusal").toBe(1);
     expect(panel).toMatch(/const signInAgain = \(email: string \| null\) => \{ setSignInAs\(email\); setAddOpen\(true\); \};/);
     expect(panel).toMatch(/<AccountRow[\s\S]*?onSignIn=\{signInAgain\}/);
+    //
+    // The fifth is the notice for a login claude-swap does not hold: Claude
+    // Code is signed in as an account that is not in the list, and the add is
+    // what ends that. It claims no login is broken, and it cannot be about an
+    // account the user is signed in as: it renders only when no row is active,
+    // which is exactly when the live login is in no row.
+    expect(panel).toMatch(/\{!activeAcct && data\.unlistedLogin && \(\s*<div className="ap-notice">[\s\S]*?<button type="button" className="ap-notice-fix" onClick=\{\(\) => setAddOpen\(true\)\}/);
     const openers = (accountsSurface().match(/setAddOpen\(true\)/g) ?? []).length;
-    expect(openers, "something opens the sign-in dialog outside the gated fixes and the header's +").toBe(4);
+    expect(openers, "something opens the sign-in dialog outside the gated fixes and the header's +").toBe(5);
   });
 
   it("offers nothing for a silence it will not explain, and the fix when it will", () => {

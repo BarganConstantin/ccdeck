@@ -83,6 +83,9 @@ export interface AccountsData {
   ok: boolean;
   accounts?: Account[];
   activeNum?: number | null;
+  /** The address Claude Code is signed in to when claude-swap holds no such
+   *  account, so no row is active; null otherwise (claude-login.mjs). */
+  unlistedLogin?: string | null;
   reason?: string;
   hint?: string;
   /** `cswap_refused` only: the version that answered, and what was asked for. */

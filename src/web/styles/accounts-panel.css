@@ -509,6 +509,10 @@
 /* The sentence wraps rather than clipping: "needs att…" is the one word a
    notice cannot lose, and a wider system font on Windows is all it takes. */
 .ap-notice .ap-issue-text { white-space: normal; text-align: left; }
+/* A plain sentence, for a notice with nothing behind it to open. An address
+   has no spaces to wrap at, so it breaks anywhere rather than widening the
+   column at 320px. */
+.ap-notice-text { flex: 1 1 auto; min-width: 0; padding: 3px 0; line-height: 1.4; overflow-wrap: anywhere; }
 .ap-notice-fix {
   flex: none;
   min-height: 24px;
