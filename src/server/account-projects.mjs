@@ -538,6 +538,26 @@ export function createProjectRollup({
     state.sourceRoots = canonicalRoots;
   }
 
+  /** The swap-log entries that speak for any of `scope`, a list of canonical
+   *  roots. An entry written before swaps recorded their projects root has
+   *  none, and cannot prove which config directory it controlled — unless
+   *  only one is known: a single configured root (two configured paths are two
+   *  candidates, even when they resolve to one directory today), and no other
+   *  root anywhere in the log. Then it can only have spoken for that root, and
+   *  its history stays the account's, as it was before the upgrade. Otherwise
+   *  it is left out, and the usage it covered stays unattributed. The log is
+   *  the record asked because it only grows, so the answer cannot change back
+   *  from one boot to the next. */
+  function timelineFor(timeline, scope) {
+    let legacyRoot = null;
+    if (new Set(roots.map(r => resolve(r))).size === 1) {
+      const known = new Set(canonicalRoots);
+      for (const e of timeline) if (e.projectsRoot !== undefined) known.add(e.projectsRoot);
+      if (known.size === 1) legacyRoot = canonicalRoots[0];
+    }
+    return timeline.filter(e => scope.includes(e.projectsRoot === undefined ? legacyRoot : e.projectsRoot));
+  }
+
   async function persist() {
     if (!dirty) return;
     dirty = false;
@@ -592,11 +612,10 @@ export function createProjectRollup({
       await seedActive({ now, path: swapLog, root: storeRoot, projectsRoot: canonicalRoots[0] });   // anchor the current account, once, deduped
       const timeline = await readSwapLog(swapLog);
       const files = await listTranscripts(canonicalRoots);
-      // Legacy entries cannot prove which config directory they controlled.
-      // Keep their usage unattributed; only scoped history identifies an account.
-      const timelines = new Map(canonicalRoots.map(root => [root,
-        timeline.filter(e => e.projectsRoot === root),
-      ]));
+      // Each root is attributed only by the entries that speak for it; an
+      // unscoped legacy entry speaks for none unless its root is unambiguous
+      // (timelineFor).
+      const timelines = new Map(canonicalRoots.map(root => [root, timelineFor(timeline, [root])]));
       for (const [path, { slug, root }] of files) await foldFile(path, slug, timelines.get(root), root);
       // Forget the cursors and request ledgers of files that are gone, and
       // the folders of project directories with no transcript left, so none of
@@ -628,7 +647,7 @@ export function createProjectRollup({
     async report(key, days) {
       await load();
       const timeline = await readSwapLog(swapLog);
-      return reportFrom(state.tally, timeline.filter(e => canonicalRoots.includes(e.projectsRoot)), key, days, now());
+      return reportFrom(state.tally, timelineFor(timeline, canonicalRoots), key, days, now());
     },
     _state: () => state,
   };

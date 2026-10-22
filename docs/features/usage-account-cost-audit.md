@@ -13,9 +13,12 @@ Auto-review tokens were incorrectly described as having unknown prices.
 - Rebuild version 7 and earlier rollups, preserving downtime fences. Changing
   configured roots invalidates cached cursors/tallies, without moving history
   onto the new primary root. Folder recovery is isolated by root too.
-- Old swap records contain no directory identity. Their historical usage must
-  become unattributed on rebuild; do not guess their directory from the current
-  process environment. New scoped anchors resume attribution going forward.
+- Old swap records contain no directory identity. With one configured root and
+  no other root anywhere in the swap log, they can only have controlled that
+  root, so they keep attributing its history, as before the upgrade. Otherwise
+  their historical usage must become unattributed on rebuild; do not guess
+  their directory from the current process environment. New scoped anchors
+  resume attribution going forward.
 - Recognize only `codex-auto-review` with nonempty `creator_account_id` and
   eligible timestamps as no-charge. Keep tokens, and keep uncertain models,
   authentication and historical intervals unpriced. Mixed free/unknown usage
@@ -41,6 +44,7 @@ normal model and speed prices are unchanged.
 ## Validation
 
 Regression coverage exercises independent roots, root order changes, scoped
-switches, legacy cache rebuilds, root aliases, missing authentication, the
-historical boundary, and mixed free/unknown model rows. Existing incremental,
-streaming/replay, pricing and card suites remain required, with typecheck/build.
+switches, legacy cache rebuilds, root aliases, single-root legacy history,
+missing authentication, the historical boundary, and mixed free/unknown model
+rows. Existing incremental, streaming/replay, pricing and card suites remain
+required, with typecheck/build.
