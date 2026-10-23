@@ -7,6 +7,7 @@ import type { ForgeErrorInfo, ForgeUser } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
 import { isReader, rovingStop, rowMove, stripScrollDelta, type Mark } from "../../forge-panel";
 import IntegrationAvatar, { IntegrationPerson } from "../IntegrationAvatar";
+import { trackerImageUrl } from "../../integrations/client";
 import { IntegrationCopy } from "../IntegrationDetailBar";
 import { ExternalLinkGlyph } from "../action-glyphs";
 import IntegrationFailureNote from "../IntegrationFailureNote";
@@ -101,12 +102,14 @@ export function LoadingRows({ rows = 6, label }: { rows?: number; label: string 
 }
 
 /** What the integrations' shared face needs from a forge user: the picture
- *  through the deck's proxy, the name its initials come from, and whether it
- *  is the reader's own face. */
-export function useFaceOf(): (user: ForgeUser) => { src: string | null; name: string; you: boolean } {
+ *  through the deck's proxy, then at the forge itself when it is on the
+ *  connection's own host, the name its initials come from, and whether it is
+ *  the reader's own face. */
+export function useFaceOf(): (user: ForgeUser) => { src: string | null; direct: string | null; name: string; you: boolean } {
   const { asset, connection } = useForge();
   return user => ({
     src: user.avatarUrl ? asset(user.avatarUrl) : null,
+    direct: trackerImageUrl(connection, user.avatarUrl),
     name: user.name || user.login,
     you: isReader(user, connection.account),
   });
