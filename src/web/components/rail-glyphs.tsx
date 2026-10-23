@@ -23,7 +23,9 @@ export const SessionListGlyph = () => (
 /** Discovery, distinct from a provider shortcut or a generic Add action. */
 export const IntegrationsGlyph = () => (
   <Glyph>
-    <path d="M5 1.5v3M9 1.5v3M3.5 4.5h7v2.3A3.5 3.5 0 0 1 7 10.3V13M2.5 4.5h9" />
+    <g transform="rotate(45 7 7)">
+      <path d="M7 1v1.5M4.5 2.5h5v1.3a2.5 2.5 0 0 1-5 0zM5.5 7v1.5M8.5 7v1.5M4.5 8.5h5v1.3a2.5 2.5 0 0 1-5 0zM7 12.3V14" />
+    </g>
   </Glyph>
 );
 

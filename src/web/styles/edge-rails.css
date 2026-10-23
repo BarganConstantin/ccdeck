@@ -142,7 +142,9 @@
   transform: scaleY(0.3);
   transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), opacity 120ms ease-out;
 }
-.edge-rail-left .rail-btn-stripe::before { right: -3px; }
+/* Keep the left indicator inside its scrollable rail. Even while transparent,
+   the old -3px seam extended scrollWidth and created a horizontal scrollbar. */
+.edge-rail-left .rail-btn-stripe::before { right: -1px; }
 .edge-rail-right .rail-btn-stripe::before { left: -3px; }
 .rail-btn-stripe[aria-expanded="true"]::before { opacity: 1; transform: none; }
 
