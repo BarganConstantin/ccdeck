@@ -1,12 +1,13 @@
 // Release selection and seen-state stay upstream; this sheet only presents them.
-import { useId, useState } from "react";
-import { compareVersions, groupReleaseNotes, presentReleaseNotes, splitNoteTitle, versionRangeLabel, type ReleaseNote, type VersionNotes } from "../release-notes";
+import { useEffect, useId, useState } from "react";
+import { compareVersions, groupReleaseNotes, presentReleaseNotes, splitNoteTitle, versionRangeLabel, isVersion, type ReleaseNote, type VersionNotes } from "../release-notes";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { parseInline, type Inline } from "../inline-markdown";
 import { RESTART_TO_UPDATE } from "../desktop-update";
 import ReleaseActions, { useReleaseUpdateCheck, type UpdateCheckWiring, RESTART_WHY } from "./ReleaseActions";
+import { ownRow } from "../own-row";
 import AnchoredPopover from "./AnchoredPopover";
-import { RestartGlyph } from "./rail-glyphs";
+import { AccountsGlyph, SessionListGlyph, SkillActivityGlyph, UpdateCheckGlyph, RestartGlyph } from "./rail-glyphs";
 
 interface Props {
   entries: VersionNotes[];
@@ -33,7 +34,10 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
   const canRestart = onRestart && !updateVersion && !updating;
   const { latest, visiblePrevious, history } = presentReleaseNotes(entries, since !== null);
   const historyId = `${id}-history`;
-  const range = versionRangeLabel(since !== null ? entries : entries.slice(0, 1));
+  const hasMenu = !!canRestart || (!!update?.state.canCheck && !updateVersion);
+  // A new available update can remove the menu's last action while it is open.
+  useEffect(() => { if (!hasMenu) setMenu(null); }, [hasMenu]);
+  const range = isVersion(running) ? `v${running}` : versionRangeLabel(entries.slice(0, 1));
   const earlier = running && entries[0] && compareVersions(entries[0].version, running) < 0;
   const context = earlier ? `Running v${running}. Earlier release notes are shown below.`
     : firstRun && running ? `New in v${running}.`
@@ -48,7 +52,7 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
           {range && <span className="modal-tool-id">{range}</span>}
         </div>
         <div className="modal-actions">
-          {canRestart && <button id={`${id}-options`} type="button" className="glyph-btn" aria-label="More options"
+          {hasMenu && <button id={`${id}-options`} type="button" className="glyph-btn" aria-label="More options"
             aria-haspopup="menu" aria-expanded={menu !== null} aria-controls={menu ? `${id}-menu` : undefined}
             onClick={() => setMenu(menu ? null : "first")}
             onKeyDown={e => { if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); setMenu(e.key === "ArrowUp" ? "last" : "first"); } }}>
@@ -57,11 +61,12 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
           <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
         </div>
       </header>
+      <span className="rn-live-status" role="status">{updateVersion ? `ccdeck v${updateVersion} is downloaded and verified.` : update?.state.line.said}</span>
       <section className="modal-body" role="region" aria-label="Release notes" tabIndex={0}>
         {updateVersion ? <div className="rn-ready">
           <p>ccdeck v{updateVersion} is downloaded and verified.</p>
           <p className="rn-update-said" role="status">{updateFailure}</p>
-        </div> : <><ReleaseActions update={update} />
+        </div> : <>{update?.needsAttention && <ReleaseActions update={update} />}
           <p className="rn-update-said" role="status">{updateFailure}</p></>}
         {context && <p className="rn-context">{context}</p>}
         {!entries.some(entry => entry.notes.length > 0) && <p className="rn-empty">No release notes for this build.</p>}
@@ -71,9 +76,7 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
           {visiblePrevious.map(entry => <ReleaseSection key={entry.version} entry={entry} showVersion />)}
         </section>}
         {history.length > 0 && <details className="rn-history">
-          <summary aria-controls={historyId}>{since !== null ? "Other changes in this upgrade" : "Previous releases"}
-            <span>{history.length} {history.length === 1 ? "release" : "releases"}</span>
-          </summary>
+          <summary aria-controls={historyId}>{since !== null ? "Other changes in this upgrade" : "Previous releases"}</summary>
           <div id={historyId}>{history.map(entry => <ReleaseSection key={entry.version} entry={entry} showVersion />)}</div>
         </details>}
       </section>
@@ -86,9 +89,17 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
           {updateBusy ? "Restarting…" : RESTART_TO_UPDATE}
         </button> : <button className="btn primary" type="button" onClick={onClose}>Done</button>}
       </footer>
-      {menu && canRestart && <AnchoredPopover anchorId={`${id}-options`} portalRootId={`${id}-dialog`} id={`${id}-menu`}
+      {menu && hasMenu && <AnchoredPopover anchorId={`${id}-options`} portalRootId={`${id}-dialog`} id={`${id}-menu`}
         role="menu" labelledBy={`${id}-options`} start={menu} className="ap-pop rn-options-menu" onClose={() => setMenu(null)}>
-        <button type="button" className="ap-menu-item" role="menuitem" title={RESTART_WHY} aria-describedby={`${id}-restart-why`} onClick={() => { setMenu(null); onRestart?.(); }}><RestartGlyph />Restart ccdeck</button>
+        {update && <p className="rn-menu-status" id={`${id}-check-status`}>{update.state.line.said}
+          {update.state.line.age && <span>{update.state.line.age}</span>}
+        </p>}
+        {update?.state.canCheck && <button type="button" className="ap-menu-item rn-act" role="menuitem"
+          title={update.checkWhy} aria-describedby={`${id}-check-status`} aria-busy={update.state.checking || undefined}
+          onClick={() => void update.check()}><UpdateCheckGlyph />Check for updates</button>}
+        {update?.state.canCheck && canRestart && <div className="rn-menu-separator" role="separator" />}
+        {canRestart && <button type="button" className="ap-menu-item" role="menuitem" title={RESTART_WHY} aria-describedby={`${id}-restart-why`}
+          onClick={() => { setMenu(null); onRestart?.(); }}><RestartGlyph />Restart ccdeck</button>}
         <span hidden id={`${id}-restart-why`}>{RESTART_WHY}</span>
       </AnchoredPopover>}
     </div>
@@ -101,7 +112,6 @@ function ReleaseSection({ entry, showVersion }: { entry: VersionNotes; showVersi
   return <section className="rn-release">
     {showVersion && <h2 className="rn-version">v{entry.version}</h2>}
     {entry.summary && <h2 className="rn-summary">{entry.summary}</h2>}
-    {highlights.length > 0 && <h3 className="rn-group-title">Highlights</h3>}
     <ul className="rn-notes">
       {highlights.map((note, i) => <Note key={`h${i}`} note={note} highlight />)}
       {visible.map((note, i) => <Note key={`v${i}`} note={note} />)}
@@ -113,10 +123,13 @@ function ReleaseSection({ entry, showVersion }: { entry: VersionNotes; showVersi
   </section>;
 }
 
+const NOTE_ICONS = { plans: SessionListGlyph, accounts: AccountsGlyph, skills: SkillActivityGlyph };
+
 function Note({ note, highlight }: { note: ReleaseNote; highlight?: boolean }) {
   const { rest } = splitNoteTitle(note.title);
+  const Icon = note.icon ? ownRow(NOTE_ICONS, note.icon) : undefined;
   return <li className="rn-note" data-highlight={highlight || undefined} data-required={note.priority === "required" || undefined}>
-    <div><h3 className="rn-note-title">{rest.trimStart()}</h3>
+    <div><h3 className="rn-note-title">{Icon && <span className="rn-title-icon" aria-hidden="true"><Icon /></span>}{rest.trimStart()}</h3>
       <p className="rn-note-body">{renderInline(parseInline(note.body))}</p>
       {note.notice && <p className="rn-note-notice"><strong>Important: </strong>{renderInline(parseInline(note.notice))}</p>}
     </div>

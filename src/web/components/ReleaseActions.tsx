@@ -5,13 +5,12 @@ import { useEffect, useId, useRef, useState } from "react";
 import { desktopAppVersion, trayMenuName } from "../desktop-update";
 import { inDesktopApp } from "../in-app";
 import { selfPressAccepted } from "../panel-press";
-import { CHECK_LABEL, CHECK_WHY, runDesktopUpdateCheck, runUpdateCheck, updateCheckState, type UpdateLine, type UpdateLineAction } from "../update-check";
+import { CHECK_WHY, runDesktopUpdateCheck, runUpdateCheck, updateCheckState, type UpdateLine, type UpdateLineAction } from "../update-check";
 import type { useAutoRestart } from "../use-auto-restart";
 import type { useDeckUpgrade } from "../use-deck-upgrade";
 import type { useDesktopUpdate } from "../use-desktop-update";
 import { useNow } from "../use-now";
 import type { useVersionCheck } from "../use-version-check";
-import { UpdateCheckGlyph } from "./rail-glyphs";
 import { useHint } from "./use-hint";
 import { UPGRADE_BLOCK_TEXT } from "./VersionBanner";
 
@@ -84,7 +83,9 @@ export function useReleaseUpdateCheck(wiring: UpdateCheckWiring | undefined) {
     if (action.kind === "install") void upgrade.startUpgrade();
     else void restart.askRestart({ upgrade: true });
   };
-  return { state, check, act, checkWhy };
+  const needsAttention = state.checking || state.line.tone === "warn" || !!state.line.action
+    || !!versionCheck.version?.notice || desktopUpdate.appUpdate?.status === "downloading";
+  return { state, check, act, checkWhy, needsAttention };
 }
 
 /** Update state and the existing check action, without competing navigation buttons. */
@@ -94,12 +95,8 @@ export default function ReleaseActions({ update }: {
   const hint = useHint("above", "dialog");
   const id = useId();
   return <div className="rn-status-row">
-    {update ? <UpdateLineView line={update.state.line} onAct={update.act} bindHint={hint.bind} whyId={`${id}-action`} />
+    {update ? <UpdateLineView line={update.state.line} onAct={update.act} bindHint={hint.bind} whyId={`${id}-action`} announce={false} />
       : <p className="rn-update-line"><span role="status">Update status unavailable.</span></p>}
-    {update?.state.canCheck && <button type="button" className="btn rn-act rn-check" onClick={() => void update.check()}
-      aria-busy={update.state.checking || undefined} title={update.checkWhy}>
-      <UpdateCheckGlyph />{CHECK_LABEL}
-    </button>}
     {hint.node}
   </div>;
 }
@@ -110,8 +107,9 @@ type BindHint = ReturnType<typeof useHint>["bind"];
  *  live region, mounted empty with the dialog so an answer is news rather
  *  than part of the opening. When it was had sits outside that region: read
  *  where it stands, never read out as a minute goes by. */
-export function UpdateLineView({ line, onAct, bindHint, whyId }: {
+export function UpdateLineView({ line, onAct, bindHint, whyId, announce = true }: {
   line: UpdateLine;
+  announce?: boolean;
   onAct: (action: UpdateLineAction) => void;
   bindHint?: BindHint;
   /** The id the update action's sentence is drawn under, for its description. */
@@ -121,7 +119,7 @@ export function UpdateLineView({ line, onAct, bindHint, whyId }: {
   const act = action && <LineAction action={action} onAct={onAct} bindHint={bindHint} whyId={whyId} />;
   return (
     <p className="rn-update-line" data-tone={line.tone}>
-      <span className="rn-update-what" role="status">{line.said}</span>
+      <span className="rn-update-what" role={announce ? "status" : undefined}>{line.said}</span>
       {line.age && <span className="rn-update-age">{line.age}</span>}
       {line.command ? (
         // The command and its Copy wrap as one, so Copy never lands alone on

@@ -27,6 +27,7 @@ import {
 import * as useNowClock from "../use-now";
 import type { VersionInfo } from "../use-version-check";
 import { UPGRADE_BLOCK_TEXT } from "../components/VersionBanner";
+import ReleaseNotesModal from "../components/ReleaseNotesModal";
 import ReleaseActions, { useReleaseUpdateCheck, RESTART_WHY, TOUR_WHY, UpdateLineView } from "../components/ReleaseActions";
 
 const { homeRef } = vi.hoisted(() => ({ homeRef: { dir: null as string | null } }));
@@ -292,7 +293,7 @@ const wiring = (v: VersionInfo | null, over: { versionChecking?: boolean } = {})
 }) as never;
 function StatusFixture({ updateCheck }: { updateCheck?: never }) {
   const update = useReleaseUpdateCheck(updateCheck);
-  return createElement(ReleaseActions, { update });
+  return createElement("div", { "data-attention": update?.needsAttention, "data-check-why": update?.checkWhy }, createElement(ReleaseActions, { update }));
 }
 const draw = (props: Record<string, unknown>) => renderToStaticMarkup(createElement(StatusFixture, props));
 const buttons = (html: string) => [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(m => m[0]);
@@ -313,20 +314,26 @@ describe("the compact status row", () => {
     expect(html).toContain('Runs npm i -g ccdeck@latest here, then restarts once nothing is running.');
   });
 
-  it("keeps only the update check beside status, preserving the accessible name", () => {
-    const html = draw({ updateCheck: wiring(version({ checkedAt: Date.now() })) });
-    expect(buttons(html).map(text)).toEqual(["Check for updates"]);
-    expect(html).toContain('role="status"');
+  it("keeps routine checking out of the reading area", () => {
+    const html = renderToStaticMarkup(createElement(ReleaseNotesModal, {
+      entries: [{ version: "3.38.6", summary: "Read the useful changes", notes: [{title:"A concrete benefit",body:"Useful details",priority:"highlight"}] }],
+      since: null, running: "3.38.6", firstRun: false, onClose: noop,
+      updateCheck: wiring(version({checkedAt: Date.now()})),
+    }));
+    expect(html).not.toContain('class="rn-status-row"');
+    expect(html).not.toContain('>Highlights<');
+    expect(html).toContain('aria-label="More options"');
+    expect(html).toContain('class="rn-live-status" role="status"');
   });
-  it("keeps an unavailable check out of the row and explains why", () => {
-    const html = draw({ updateCheck: wiring(version({ checkDisabled: true })) });
-    expect(buttons(html)).toEqual([]);
+  it("marks checks in progress as attention-worthy while preserving the existing check controller", () => {
+    const html = draw({ updateCheck: wiring(version({}), {versionChecking:true}) });
+    expect(html).toContain('data-attention="true"');
+    expect(html).toContain('Checking…');
+  });
+  it("keeps a disabled-check explanation truthful", () => {
+    const html = draw({ updateCheck: wiring(version({checkDisabled:true})) });
     expect(html).toContain(CHECKS_OFF);
-  });
-  it("retains the busy check without disabling keyboard focus", () => {
-    const html = draw({ updateCheck: wiring(version({}), { versionChecking: true }) });
-    expect(html).toContain('aria-busy="true"');
-    expect(buttons(html)[0]).not.toContain('disabled');
+    expect(buttons(html)).toEqual([]);
   });
 });
 
@@ -378,11 +385,11 @@ describe('desktop update check from the dialog', () => {
   it('keeps the native check visible and busy while Electron is checking', () => {
     expect(updateCheckState(inApp({ status: 'checking', version: null }), UPGRADE_BLOCK_TEXT)).toMatchObject({ canCheck: true, checking: true });
   });
-  it('draws the check inside Electron even when npm checks are disabled', () => {
+  it('retains the native check controller when npm checks are disabled', () => {
     vi.stubGlobal('navigator', { userAgent: 'ccdeck-desktop/3.39.1' });
     try {
       const html = draw({ onTour: noop, onRestart: noop, updateCheck: wiring(version({ checkDisabled: true })) });
-      expect(buttons(html).map(text)).toEqual(['Check for updates']);
+      expect(buttons(html)).toEqual([]);
       expect(html).toContain('Ask the desktop app whether a newer ccdeck is out.');
     } finally { vi.unstubAllGlobals(); }
   });
