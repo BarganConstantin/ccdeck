@@ -86,7 +86,7 @@ interface Track { min: number; max: number; flex: boolean }
 /** Each track's floor and ceiling, the way grid sizing reads them. */
 function tracks(template: string, left: Left, width: number): Track[] {
   const list = splitTop(template.replace(/\s+(?![^(]*\))/g, ","));
-  return list.map(t => {
+  return list.map((t, i) => {
     const mm = /^minmax\((.*)\)$/.exec(t);
     if (mm) {
       const [lo, hi] = splitTop(mm[1]);
@@ -95,6 +95,11 @@ function tracks(template: string, left: Left, width: number): Track[] {
     // A bare `1fr` is `minmax(auto, 1fr)`: the canvas in it has no minimum of
     // its own, and the topbar has one only where this is its only track.
     if (/fr$/.test(t)) return { min: list.length === 1 ? topbarMinContent(width) : 0, max: Infinity, flex: true };
+    // The last `auto` of several is the right dock (rail-dock.css), which
+    // holds nothing here: Usage and the machine panel are shut, or float where
+    // the window has no room for them. Docked, rail-dock.ts keeps the canvas
+    // its least width beside them (rail-dock.test.ts).
+    if (t === "auto" && i > 0 && i === list.length - 1) return { min: 0, max: 0, flex: false };
     if (t === "auto") {
       expect(left, "an auto track with no left panel to size it").not.toBe("none");
       const column = left === "accounts" ? ACCOUNTS_PANEL : SESSION_LIST;
@@ -146,16 +151,17 @@ describe("no sideways scroll at any width from 320px up (#1840)", () => {
     for (const width of [641, 644, 647, 648]) {
       const r = row("accounts", true, width);
       expect(r.overlay, `at ${width}px`).toBe(false);
-      // Panel, canvas, detail: the detail column is the last track.
-      expect(r.sizes.at(-1), `the detail column at ${width}px`).toBe(Math.min(DETAIL, width - ACCOUNTS_PANEL));
+      // Panel, canvas, detail, the empty dock: the detail column is the last
+      // track but one.
+      expect(r.sizes.at(-2), `the detail column at ${width}px`).toBe(Math.min(DETAIL, width - ACCOUNTS_PANEL));
     }
   });
 
   it("leaves the desktop row alone from 648px up", () => {
     for (const width of [648, 900, 1280]) {
-      expect(row("accounts", true, width).template).toBe("auto 1fr 360px");
-      expect(row("accounts", false, width).template).toBe("auto 1fr");
-      expect(row("none", false, width).template).toBe("1fr");
+      expect(row("accounts", true, width).template).toBe("auto 1fr 360px auto");
+      expect(row("accounts", false, width).template).toBe("auto 1fr auto");
+      expect(row("none", false, width).template).toBe("1fr auto");
     }
   });
 });

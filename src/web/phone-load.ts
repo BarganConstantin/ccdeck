@@ -37,8 +37,10 @@ export const BOARD_MIN_W = 600;
 
 /** The ground the two right panels take side by side, from the window's right
  *  edge: the rail's 8px, Usage's 280, the 20 between them and the machine
- *  panel's 280 (machine-panel.css, usage-panel.css). And a stripe's width on
- *  each side of the window (tokens.css --edge-w). */
+ *  panel's 280 (machine-panel.css, usage-panel.css). Docked beside the stripe
+ *  (rail-dock.ts) they take 28px less, which this load-time guess does not
+ *  need to tell apart. And a stripe's width on each side of the window
+ *  (tokens.css --edge-w). */
 const RIGHT_PANELS_W = 8 + 280 + 20 + 280;
 const EDGE_W = 40;
 

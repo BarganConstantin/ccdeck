@@ -1,0 +1,38 @@
+/* ---------------- the right dock ----------------
+   Usage and the machine panel, in a column beside the right stripe
+   (rail-dock.ts says when, and why). The grid keeps a last track for it in
+   every desktop row (tokens.css, detail-panel.css): `auto`, so with nothing in
+   it, or with the two floating, it is no width at all.
+
+   FLOATING, the dock is no box: `display: contents` hands the two panels to
+   their own fixed rules (usage-panel.css, machine-panel.css), the layout they
+   had before, which a window too narrow for the column and a phone keep. */
+.rail-dock { display: contents; }
+
+/* DOCKED, a column from under the topbar to the foot of the window, in the
+   last track: the machine panel, then Usage against the stripe, side by side.
+   Under the one question the deck asks, as the left column and the detail
+   panel are (rating.css). */
+.rail-dock.docked {
+  display: flex;
+  grid-column: -2;
+  grid-row: 2 / -1;
+  min-height: 0;
+}
+.app:has(.rating-banner) .rail-dock.docked { grid-row: 3 / -1; }
+
+/* Each panel a column, drawn the way the detail panel is: the panel's ground
+   to the foot of the window and a rule on the edge it shares with what is
+   beside it. No card corners and no inset: a column does not float. */
+.rail-dock.docked > .usage-panel,
+.rail-dock.docked > .sysdetail {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  height: 100%;
+  max-height: none;
+  box-sizing: border-box;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+}

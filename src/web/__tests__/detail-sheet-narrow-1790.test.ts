@@ -94,8 +94,12 @@ function length(v: string, width: number): number {
 
 /** How much of the row the fixed tracks take, `auto` being the Accounts panel. */
 function fixedTracks(template: string, left: Left): number {
-  return splitTop(template.replace(/\s+(?![^(]*\))/g, ",")).reduce((sum, t) => {
+  const list = splitTop(template.replace(/\s+(?![^(]*\))/g, ","));
+  return list.reduce((sum, t, i) => {
     if (/fr\)?$/.test(t)) return sum;
+    // The last `auto` of several is the right dock (rail-dock.css): empty
+    // here, where Usage and the machine panel are shut or float.
+    if (t === "auto" && i > 0 && i === list.length - 1) return sum;
     if (t === "auto") {
       expect(left, "an auto track with no left panel to size it").not.toBe("none");
       return sum + (left === "accounts" ? ACCOUNTS_PANEL : SESSION_LIST);
@@ -175,16 +179,18 @@ describe("a selected session on a narrow window (#1790)", () => {
 
   it("keeps the wide layout exactly as it was: a 360px column beside the canvas", () => {
     for (const width of [648, 900, 1280]) {
-      expect(layout("none", width)).toMatchObject({ template: "1fr 360px", overlay: false });
+      // The last `auto` since 2026-10-23 is the right dock's (rail-dock.css),
+      // no width with nothing docked in it.
+      expect(layout("none", width)).toMatchObject({ template: "1fr 360px auto", overlay: false });
       // `auto` since 2026-10-08: the track is the left column's, which is the
       // session list's 288px while the list is in it (styles/left-column.css).
-      expect(layout("sessions", width)).toMatchObject({ template: "auto 1fr 360px", overlay: false });
+      expect(layout("sessions", width)).toMatchObject({ template: "auto 1fr 360px auto", overlay: false });
     }
     // With Accounts open the panel and the column are 648px between them, so
     // from 641 to 647px the column gives up what the window lacks (#1840) —
     // still a column, never the sheet.
     for (const width of [648, 900, 1280]) {
-      expect(layout("accounts", width)).toMatchObject({ template: "auto 1fr 360px", overlay: false });
+      expect(layout("accounts", width)).toMatchObject({ template: "auto 1fr 360px auto", overlay: false });
     }
     expect(resolve("detail", "position", "accounts", 641) ?? "static").toBe("relative");
   });

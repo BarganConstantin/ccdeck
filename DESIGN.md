@@ -379,9 +379,13 @@ Sessions and Accounts share the left slot and are mutually exclusive; accounts
 takes `auto` because it has to fit bars and email addresses.
 
 **The panel buttons live on the window's edges** (`edge-rails.css`): a stripe
-`--edge-w` wide (one control height), with upright icon buttons on the left for the session list and the
-accounts panel, and one on the right for Usage, the machine panel, Usage history
-and Browser Watch; `.app` keeps their width free with its inline padding. They
+`--edge-w` wide (one control height), with upright icon buttons; `.app` keeps
+their width free with its inline padding. Both stripes follow one rule
+(`rail-items.tsx`): runs of doors that answer one question each, three at most,
+between the same rules, and every run of two or more is a named group. The left
+stripe holds Claude accounts, the session list, integrations and Explore; the
+right one holds Usage and the machine, activity history, watchers, and Radio.
+A door says what it opens: a panel is a toggle, a dialog is a dialog. They
 are show/hide toggles, not tabs — several panels can be open at once and the
 canvas never leaves — so an open one is a `--text` line on the stripe's inner
 edge, never a tab joined to a page. The topbar keeps the identity, the stream's
@@ -394,10 +398,17 @@ when single-key shortcuts are disabled; mobile dock labels remain visible.
 right offset the floating panels position against: `368px` (the rail plus an 8px
 gap), or `8px` when no detail is open. Setting the rail to 368 would be wrong.
 
+**Usage and the machine panel dock beside the right stripe** (`rail-dock.ts`,
+`rail-dock.css`): a column each in the grid's last `auto` track, side by side,
+Usage against the stripe, and the canvas narrows by them, the way it narrows
+for the left column. Where the window would leave the board less than 360px of
+canvas beside every open column, they float over the canvas against
+`--rail-r` as before; on a phone they are sheets. They never cover the minimap
+while docked.
+
 **Breakpoints,** and there are deliberately few: `520px`, `640px`, `1039/1040px`,
 `1200px`, `1439/1440px`, plus `1139px` and `1632px` for the topbar ribbon's
-sub-bands only. Below ~1100px the floating panels cover most of the canvas — a
-known defect tracked in #847, not a pattern to copy. **The full three-column layout
+sub-bands only. **The full three-column layout
 wants 1040px or more**; 640 and 520 narrow the panels rather than offering a phone
 layout.
 

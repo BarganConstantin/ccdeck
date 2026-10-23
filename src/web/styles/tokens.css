@@ -376,9 +376,12 @@ optgroup {
 }
 button:focus-visible { outline-offset: 1px; }
 
+/* The last `auto` track in every desktop row is the right dock's: Usage and
+   the machine panel beside the stripe, no width when nothing is docked
+   (rail-dock.css). */
 .app {
   display: grid;
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: 1fr 360px auto;
   grid-template-rows: var(--topbar-h) auto 1fr;
   height: 100vh;
 }
@@ -397,7 +400,7 @@ button:focus-visible { outline-offset: 1px; }
    track went `auto` around a session list with no width of its own, and it
    opened to the list's longest row before snapping to 240px. */
 .app:has(.left-column) {
-  grid-template-columns: auto 1fr 360px;
+  grid-template-columns: auto 1fr 360px auto;
 }
 .app:has(.session-list) .canvas-wrap,
 .app:has(.accounts-panel) .canvas-wrap { grid-column: 2; }
