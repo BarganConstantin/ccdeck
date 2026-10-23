@@ -160,7 +160,7 @@ describe("a door into Settings opens it at the section it names", () => {
     const html = drawSettings();
     expect(html).toMatch(/role="dialog" aria-modal="true" aria-labelledby="settings-title"/);
     expect(html).toMatch(/id="settings-title"[^>]*>Settings</);
-    expect(sourceOf("components/SettingsModal.tsx")).toMatch(/useModalDismiss\(onClose, \{ focusRef: selectedTabRef \}\)/);
+    expect(sourceOf("components/SettingsModal.tsx")).toMatch(/useModalDismiss\(dismissSettings, \{ focusRef: selectedTabRef \}\)/);
   });
 
   it("is opened at Sounds by V, and by nothing else in particular", () => {

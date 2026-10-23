@@ -140,3 +140,17 @@ describe("Settings › Radar (#2186)", () => {
     expect(sourceOf("components/RadarSettings.tsx")).not.toMatch(/enabled === true &&/);
   });
 });
+
+describe("secondary setting explanations", () => {
+  it("keeps the original label activation and puts the disclosure outside it", () => {
+    const html = draw(createElement(SettingRow, {
+      name: "Restore sessions", note: "On the next start.", details: "The complete recovery behavior.",
+      control: createElement("button", { role: "switch", "aria-label": "Restore sessions" }),
+    }));
+    expect(html).toContain('<div class="settings-row-with-details"><label class="settings-row"');
+    expect(html).toContain('</label><details class="settings-row-details">');
+    expect(html).toContain('about Restore sessions');
+    expect(html).toContain('The complete recovery behavior.');
+    expect(html).not.toMatch(/<label[^>]*>[^]*<summary[^]*<\/label>/);
+  });
+});

@@ -36,6 +36,7 @@ export interface IntegrationConnectionFormProps {
   error: IntegrationFailure | null;
   onSubmit: (input: Record<string, string>, name: string) => void;
   onCancel: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 /** A field as it reads with the values typed so far. */
@@ -47,7 +48,7 @@ function resolved(field: FieldDef, values: Readonly<Record<string, string>>): Fi
 const shown = (field: FieldDef, values: Readonly<Record<string, string>>) =>
   !field.when || field.when.is.includes(values[field.when.field] ?? "");
 
-export default function IntegrationConnectionForm({ def, existing, busy, error, onSubmit, onCancel }: IntegrationConnectionFormProps) {
+export default function IntegrationConnectionForm({ def, existing, busy, error, onSubmit, onCancel, onDirtyChange }: IntegrationConnectionFormProps) {
   const uid = useId();
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(def.fields.map(f => [
     f.name, f.secret ? "" : f.initial?.(existing) ?? (f.type === "choice" ? f.options?.[0]?.value ?? "" : ""),
@@ -59,6 +60,10 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
   // The choices a saved secret was made under: switching one (Cloud to
   // Server) means the saved token no longer fits, so the form says so.
   const startValues = useRef(values);
+  const startName = useRef(name);
+  useEffect(() => {
+    onDirtyChange?.(name !== startName.current || Object.keys(values).some(key => values[key] !== startValues.current[key]));
+  }, [name, values, onDirtyChange]);
   const choicesKept = def.fields.filter(f => f.type === "choice").every(f => values[f.name] === startValues.current[f.name]);
   const keepsSecret = editing && existing!.tokenSaved && choicesKept;
 
@@ -105,7 +110,7 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
   return (
     <FormContext.Provider value={context}>
       <form ref={formRef} className="ig-form" onSubmit={submit} aria-labelledby={`${uid}-title`} noValidate>
-        <h4 className="ig-form-title" id={`${uid}-title`}>{editing ? `Edit ${existing!.name}` : `Connect ${def.label}`}</h4>
+        <h3 className="ig-form-title" id={`${uid}-title`}>{editing ? `Edit ${existing!.name}` : `Connect ${def.label}`}</h3>
 
         {visible.map(raw => {
           const field = resolved(raw, values);
@@ -158,10 +163,10 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
         {error && !errorField && <p className="ig-form-error" id={errorId} role="alert">{errorWords}</p>}
 
         <div className="ig-form-actions">
-          <button type="button" className="btn" disabled={busy} onClick={onCancel}>Cancel</button>
           <button type="submit" className="btn primary" aria-disabled={busy} aria-busy={busy}>
             {busy ? "Checking…" : editing ? "Save" : "Connect"}
           </button>
+          <button type="button" className="btn" disabled={busy} onClick={onCancel}>Cancel</button>
         </div>
       </form>
     </FormContext.Provider>
