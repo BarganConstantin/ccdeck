@@ -5,7 +5,7 @@ import { connectionsOf, kindOffered, kindOpenable, type IntegrationsState } from
 import { integrationDefs } from "../integrations/registry";
 import type { IntegrationKind } from "../integrations/types";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
-import "../styles/explore-integrations.css";
+import { ExternalLinkGlyph } from "./action-glyphs";
 
 export interface ExploreIntegrationsProps {
   integrations: IntegrationsState;
@@ -72,7 +72,7 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
                     </div>
                     <div className="explore-actions">
                       {openable ? <>
-                        <button type="button" className="btn" aria-label={`Open ${def.label}`} onClick={() => go(() => onOpen(def.kind))}>Open <span aria-hidden>↗</span></button>
+                        <button type="button" className="btn" aria-label={`Open ${def.label}`} onClick={() => go(() => onOpen(def.kind))}>Open <ExternalLinkGlyph /></button>
                         <button type="button" className="explore-text-action" aria-label={`Manage ${def.label}`} onClick={() => go(() => onManage(first?.id))}>Manage</button>
                       </> : offered ? (
                         <button type="button" className="btn primary" aria-label={`Connect ${def.label}`} onClick={() => go(() => onConnect(def.kind))}>Connect</button>
@@ -88,7 +88,7 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
         </div>
         <div className="explore-footer">
           <span>Read only · Tokens stay on this machine</span>
-          <button type="button" className="explore-text-action" onClick={() => go(() => onManage())}>Manage in Settings <span aria-hidden>↗</span></button>
+          <button type="button" className="explore-text-action" onClick={() => go(() => onManage())}>Manage in Settings <ExternalLinkGlyph /></button>
         </div>
       </div>
     </div>, document.body,
