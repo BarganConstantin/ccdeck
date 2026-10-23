@@ -855,6 +855,11 @@ Use 20px bold headlines, 13px semibold row titles and 13px secondary description
 Notices have a quiet 2px neutral left rule, 10px inset and 11px top spacing.
 Secondary highlight details share the improvements disclosure; essential notices never do.
 Its label counts other improvements, with Show details / Hide details on the right.
+Hover emphasizes the label and chevron rather than painting a structural surface;
+keyboard focus keeps an inset ring. Expanded content clears that ring, and extra
+highlight details have a visible group title. Long headlines wrap without truncation.
+Coarse-pointer actions use local 44px targets; short narrow viewports compact the
+footer spacing so the reading region stays usable.
 Manual opening shows only the running release. Upgrade notices keep required changes and unclassified legacy
 notes visible, while optional earlier changes remain discoverable in a disclosure.
 Release history links to the complete public changelog; no manual history explorer

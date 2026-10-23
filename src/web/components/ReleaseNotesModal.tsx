@@ -128,13 +128,14 @@ function ReleaseSection({ entry, showVersion }: { entry: VersionNotes; showVersi
     {(more.length > 0 || extraHighlights.length > 0) && <details className="rn-more">
       <summary aria-controls={moreId}>
         <span className="rn-more-start"><span className="rn-chevron" aria-hidden="true">›</span>
-          {more.length ? `${more.length} more ${more.length === 1 ? "improvement" : "improvements"}` : "More details"}
+          <span className="rn-more-label">{more.length ? `${more.length} more ${more.length === 1 ? "improvement" : "improvements"}` : "More details"}</span>
         </span>
         <span className="rn-more-hint"><span className="rn-show-details">Show details</span><span className="rn-hide-details">Hide details</span></span>
       </summary>
       <div id={moreId}>
         <ul className="rn-notes">{more.map((note, i) => <Note key={i} note={note} />)}</ul>
-        {extraHighlights.length > 0 && <div className="rn-highlight-details" role="group" aria-label="More about the highlights">
+        {extraHighlights.length > 0 && <div className="rn-highlight-details" role="group" aria-labelledby={`${moreId}-highlights`}>
+          <h3 id={`${moreId}-highlights`} className="rn-details-title">More about the highlights</h3>
           {extraHighlights.map((note, i) => <p key={i} className="rn-note-body"><strong className="rn-strong">{splitNoteTitle(note.title).rest.trimStart()}: </strong>{renderInline(parseInline(note.details!))}</p>)}
         </div>}
       </div>

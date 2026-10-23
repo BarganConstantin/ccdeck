@@ -103,6 +103,12 @@ describe('release editorial contract',()=>{
   const legacy=draw([{version:'3.46.0',notes:[{...n,priority:undefined}]}]);
   expect(legacy).not.toContain('<details');expect(legacy).toContain('Secondary behavior.');
  });
+ it('gives expanded highlight details a visible heading and matching accessible name',()=>{
+  const html=draw([{version:'3.46.0',notes:[{...note('highlight'),details:'Supporting context.'},note()]}]);
+  const group=html.match(/role="group" aria-labelledby="([^"]+)"/);
+  expect(group).not.toBeNull();
+  expect(html).toContain(`id="${group![1]}" class="rn-details-title">More about the highlights</h3>`);
+ });
  it('retains secondary highlight details across subsequent upgrades',()=>{
   const extra={...note('highlight','An earlier benefit'),details:'Further context.'};
   const html=draw([{version:'9.0.0',notes:[note('highlight')]},{version:'8.0.0',notes:[extra]}],{running:'9.0.0',since:'7.0.0'});
@@ -134,6 +140,6 @@ describe('release editorial contract',()=>{
  it('keeps all seven current changes and hook qualifications visible with highlights',()=>{
   const current=RELEASE_NOTES.find(e=>e.version==='3.46.0')!;expect(current.notes).toHaveLength(7);
   const html=draw([current]);const visible=html.slice(0,html.indexOf('<details'));
-  for(const s of ['UserPromptExpansion','settings.json','2.1.116','AGENTS_DECK_SKILL_HOOK=0'])expect(visible).toContain(s);
+  for(const s of ['UserPromptExpansion','settings.json','2.1.116','AGENTS_DECK_SKILL_HOOK=0','right sidebar'])expect(visible).toContain(s);
  });
 });
