@@ -881,3 +881,17 @@ variant and status treatments before paint.
 Catppuccin Mocha uses violet neutrals, a mauve accent and pastel semantic colors
 from the official palette, with secondary text lifted for monitoring density.
 All three remain versioned JSON definitions; references are in the themes README.
+
+### What’s new
+
+A 650px reading sheet using the shared modal shell, a fixed header/footer and
+one internal scroller. Keep update status and its check compact; ordinary
+Restart lives in the shared anchored menu and retains the existing handoff.
+Verified desktop updates replace Done with Restart to update.
+
+Release summaries and at most three highlights come from explicit editorial
+metadata in release-notes.json. Required changes remain visible; other notes
+use native More improvements disclosures. Legacy notes stay visible, all
+versions remain available, and Full changelog links to the public history.
+Use 13px minimum prose, theme tokens, wrap inline code and honor text scaling.
+The JSON file’s author instructions own the metadata contract.
