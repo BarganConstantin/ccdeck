@@ -80,8 +80,10 @@ export interface KeysBarProps {
   onAnswerArrival?(): void;
 }
 
-const Kbd = ({ children, label }: { children: string; label?: string }) =>
-  <kbd className="ts-kbd" aria-label={label}>{children}</kbd>;
+/** `control`: the chip names one of the stage's own controls (✕), not a key,
+ *  so a fingertip has it too (touch-and-forced-colours.css). */
+const Kbd = ({ children, label, control }: { children: string; label?: string; control?: boolean }) =>
+  <kbd className="ts-kbd" aria-label={label} data-control={control || undefined}>{children}</kbd>;
 
 /** The track: hollow for an ask still to come, filled for the one on stage,
  *  green for one answered. Drawn, so hidden from the reader; the count and
@@ -154,11 +156,14 @@ export default function KeysBar(p: KeysBarProps) {
       </div>
     );
   } else if (p.firstRun && p.canType) {
-    // The first-run line lives here so it never costs the terminal a row.
+    // The first-run line lives here so it never costs the terminal a row. On
+    // a stage too narrow for it on one line (a phone) it wraps, and Got it
+    // stays in reach. A fingertip has no Esc, so the clause that names it goes
+    // whole under a coarse pointer; ✕, the header's control, stays.
     left = (
       <div className="ts-keys" data-owner={p.owner}>
         <i className="ts-lamp" aria-hidden="true" />
-        <span>Typing goes to the session — <Kbd>Esc</Kbd> included. <Kbd>✕</Kbd> closes the Command Panel; the session keeps running.</span>
+        <span className="ts-first">Typing goes to the session<span className="ts-first-keys"> — <Kbd>Esc</Kbd> included</span>. <Kbd control>✕</Kbd> closes the Command Panel; the session keeps running.</span>
         <button type="button" className="btn" onClick={p.onFirstRunDone}>Got it</button>
       </div>
     );

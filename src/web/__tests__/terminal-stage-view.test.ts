@@ -386,6 +386,25 @@ describe("the keys bar", () => {
     expect(props.onFirstRunDone).toHaveBeenCalled();
   });
 
+  it("says the first-run line whole without its key names, for a fingertip", () => {
+    // On a phone the coarse-pointer sheet drops the bar's key chips, and the
+    // line read "Typing goes to the session — included. closes the Command
+    // Panel…". The clause that names Esc is its own element, so it goes
+    // whole (the sheet's side is "the keys bar under a fingertip"), and ✕,
+    // the header's control rather than a key, is marked to stay.
+    const out = html(createElement(KeysBar, barProps({ owner: "pane", firstRun: true })));
+    const line = out.match(/<span class="ts-first">([\s\S]*?)<\/span><button/)?.[1];
+    expect(line, "the sentence is its own element, before Got it").toBeTruthy();
+    const words = (s: string) => s.replace(/<[^>]+>/g, "");
+    expect(words(line!)).toBe("Typing goes to the session — Esc included. ✕ closes the Command Panel; the session keeps running.");
+    const keys = line!.match(/<span class="ts-first-keys">([\s\S]*?)<\/span>/)?.[0];
+    expect(keys && words(keys)).toBe(" — Esc included");
+    expect(words(line!.replace(keys!, ""))).toBe("Typing goes to the session. ✕ closes the Command Panel; the session keeps running.");
+    expect(line).toContain('<kbd class="ts-kbd" data-control="true">✕</kbd>');
+    expect(line).toContain('<kbd class="ts-kbd">Esc</kbd>');
+    expect(out.indexOf(">Got it</button>"), "Got it follows the sentence").toBeGreaterThan(out.indexOf("keeps running."));
+  });
+
   it("turns into the end bar for a finished session, with Reopen here", () => {
     const onAction = vi.fn();
     const props = barProps({ end: { sentence: "The session ended 14m ago — this is its last frame.", action: "Reopen here", onAction } });
@@ -601,6 +620,32 @@ describe("the keys bar under a fingertip", () => {
     const coarse = [...css.matchAll(/@media \(pointer: coarse\) \{([\s\S]*?)\n\}/g)].map(m => m[1]).join("\n");
     expect(coarse).toContain(".ts-keys .ts-hint:not(:has(button)) { display: none; }");
     expect(coarse).toContain(".ts-keys .ts-kbd { display: none; }");
+  });
+
+  it("drops the first-run line's Esc clause whole, and keeps ✕ there", () => {
+    const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
+    const coarse = [...css.matchAll(/@media \(pointer: coarse\) \{([\s\S]*?)\n\}/g)].map(m => m[1]).join("\n");
+    expect(coarse).toContain(".ts-keys .ts-first-keys { display: none; }");
+    // Outranks the chips' own rule above: one attribute more.
+    const keep = coarse.indexOf(".ts-keys .ts-kbd[data-control] { display: inline-flex; }");
+    expect(keep).toBeGreaterThan(coarse.indexOf(".ts-keys .ts-kbd { display: none; }"));
+  });
+
+  it("wraps the first-run line on a narrow stage, so Got it is never pushed off the end", () => {
+    // The bar is nowrap, and the sentence kept its one line's width: at 390px
+    // it ran past the bar, and Got it was drawn off screen, out of reach.
+    const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
+    const at = css.indexOf(".ts-first {");
+    expect(at, ".ts-first has a rule").toBeGreaterThan(-1);
+    const first = css.slice(at, css.indexOf("}", at));
+    expect(first).toContain("min-width: 0");
+    expect(first).toContain("white-space: normal");
+    // In the takeover two lines of 15px fit the bar's 36px; past that the bar
+    // grows rather than spilling the line over the terminal. Beside the board
+    // the one line keeps the type it had.
+    expect(first).not.toContain("line-height");
+    expect(css).toContain(".ts-stage[data-takeover] .ts-first { line-height: 15px; }");
+    expect(css).toMatch(/\.ts-bar:has\(\.ts-first\) \{ height: auto; min-height: 36px;/);
   });
 });
 

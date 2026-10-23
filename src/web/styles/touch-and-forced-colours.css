@@ -43,6 +43,11 @@
      button it is. */
   .ts-keys .ts-hint:not(:has(button)) { display: none; }
   .ts-keys .ts-kbd { display: none; }
+  /* Its first-run line then reads whole without them: the clause that names
+     Esc goes with the key, and ✕, the header's own control, which a
+     fingertip presses too, stays (KeysBar). */
+  .ts-keys .ts-first-keys { display: none; }
+  .ts-keys .ts-kbd[data-control] { display: inline-flex; }
   /* What's new's update line: its one button takes the floor, and the line
      keeps that height whether the button is there or not, so an answer that
      brings one still moves nothing. */

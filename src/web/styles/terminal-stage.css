@@ -382,6 +382,15 @@
    it. */
 .ts-keys .btn { min-height: 26px; padding: 0 10px; }
 .ts-keys .ts-type { padding: 0 6px; border-color: transparent; font-weight: 600; color: var(--accent); }
+/* The first-run line is said whole wherever it shows: on a stage too narrow
+   for it on one line (the takeover: a phone, a narrow window) it wraps in the
+   bar rather than pushing Got it off the end. There, two lines of 15px fit
+   the bar's own 36px; only a third, on the narrowest screens, grows the bar,
+   for as long as the line is said. A stage beside the board keeps its one
+   line exactly as it was. */
+.ts-first { min-width: 0; white-space: normal; }
+.ts-stage[data-takeover] .ts-first { line-height: 15px; }
+.ts-bar:has(.ts-first) { height: auto; min-height: 36px; padding-block: 1px; }
 .ts-end { display: flex; align-items: center; gap: 10px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ts-end-mark { flex: none; width: 7px; height: 7px; border-radius: 2px; background: var(--muted); }
 
