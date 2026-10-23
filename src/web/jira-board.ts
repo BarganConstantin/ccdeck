@@ -155,6 +155,20 @@ export function shownResolution(issue: { status: { name: string }; resolution: s
   return resolution && resolution.toLowerCase() !== issue.status.name.trim().toLowerCase() ? resolution : null;
 }
 
+/** Whether an issue the detail has just drawn takes focus on its name.
+ *
+ *  An issue opened from inside the detail — a sub-task, the parent, an issue
+ *  on the trail — replaces the button that opened it, and focus falls to the
+ *  page: the name takes it, at any width, unless the reader has moved it
+ *  since. On a narrow screen the detail also replaces the list, so the same
+ *  holds for a row; and there the panel holds focus on Back while the issue
+ *  is read, so the name takes it from Back too. */
+export function detailNameTakesFocus({ handedOff, narrow, focusLost, focusOnBack }: {
+  handedOff: boolean; narrow: boolean; focusLost: boolean; focusOnBack: boolean;
+}): boolean {
+  return focusLost ? handedOff || narrow : narrow && focusOnBack;
+}
+
 /** A sub-task stays under its row when Hide done and Needs attention allow. */
 export function subtaskShown(issue: JiraIssue, filter: RowFilter): boolean {
   return (!filter.hideDone || !isDone(issue)) && (!filter.attention || needsAttention(issue));

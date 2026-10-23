@@ -3,10 +3,10 @@
 // backlog row had no room for, the description, its sub-tasks — each opens
 // here, with the way back in the breadcrumb — its attachments, which open in
 // Jira, and the last ten comments.
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import type { IntegrationConnection as Connection } from "../integrations/types";
 import { jiraImage, type JiraApi, type JiraIssue, type TimeTracking } from "../jira-api";
-import { fileSize, jiraDate, shownResolution, timeLine } from "../jira-board";
+import { detailNameTakesFocus, fileSize, jiraDate, shownResolution, timeLine } from "../jira-board";
 import JiraHtml, { type HtmlContext } from "../jira-html";
 import { useJiraIssue } from "../use-jira-board";
 import { connectionHost } from "../integrations/client";
@@ -75,16 +75,24 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
   const issue = data && data.issue.key === key ? data.issue : null;
   const resolution = issue ? shownResolution(issue) : null;
 
-  // On a narrow screen the detail replaces the list, and the row that had
-  // focus is gone with it. The panel puts focus on Back while the issue is
-  // read; once its name is drawn, focus moves to the name, unless the reader
-  // has already moved it somewhere else. An issue the panel put back moves
+  // Where focus goes once an issue's name is drawn (detailNameTakesFocus). A
+  // sub-task, the parent or an issue on the trail, opened from here, replaces
+  // the button that opened it, so those buttons hand focus off first. On a
+  // narrow screen the detail replaces the list too, and the panel puts focus
+  // on Back while the issue is read. An issue the panel put back moves
   // nothing: the modal has put focus where it starts.
+  const handedOff = useRef(false);
+  const openHere = (go: () => void) => { handedOff.current = true; go(); };
   const shownKey = issue?.key;
   useEffect(() => {
-    if (!narrow || !shownKey || auto) return;
+    if (!shownKey) return;
+    const handed = handedOff.current;
+    handedOff.current = false;
+    if (auto) return;
     const at = document.activeElement;
-    if (at === document.body || (at instanceof HTMLElement && at.matches("[data-ig-back]"))) {
+    const focusLost = at == null || at === document.body;
+    const focusOnBack = at instanceof HTMLElement && at.matches("[data-ig-back]");
+    if (detailNameTakesFocus({ handedOff: handed, narrow, focusLost, focusOnBack })) {
       document.getElementById("jira-detail-title")?.focus();
     }
   }, [narrow, shownKey, auto]);
@@ -95,9 +103,9 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
   if (issue?.project.name) crumbs.push({ label: issue.project.name, title: issue.project.key });
   const parentKey = issue?.parent?.key;
   if (parentKey && !trail.slice(0, -1).includes(parentKey)) {
-    crumbs.push({ label: parentKey, title: issue!.parent!.summary, go: () => onOpen(parentKey, "replace") });
+    crumbs.push({ label: parentKey, title: issue!.parent!.summary, go: () => openHere(() => onOpen(parentKey, "replace")) });
   }
-  trail.slice(0, -1).forEach((k, i) => crumbs.push({ label: k, title: `Back to ${k}`, go: () => onTrail(i) }));
+  trail.slice(0, -1).forEach((k, i) => crumbs.push({ label: k, title: `Back to ${k}`, go: () => openHere(() => onTrail(i)) }));
 
   if (!key) return null;
   return (
@@ -158,7 +166,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
           {data!.subtasks.length > 0 && (
             <section className="jr-detail-section" aria-labelledby="jira-detail-subs">
               <h3 id="jira-detail-subs">Sub-tasks <span className="jr-count">{data!.subtasks.length}</span></h3>
-              <SubtaskList issues={data!.subtasks} onOpen={k => onOpen(k, "push")} />
+              <SubtaskList issues={data!.subtasks} onOpen={k => openHere(() => onOpen(k, "push"))} />
             </section>
           )}
 
