@@ -52,7 +52,9 @@ describe("every switch is the one switch (#886)", () => {
     // prompt", an on/off filter over its activity list.
     // Twenty-three with Claude sessions' "Continue stopped background sessions"
     // (#2193), off until it is turned on.
-    expect(switches, "the twenty-three switches in the source").toBe(23);
+    // Twenty-two again since Settings › Radar's "Monitor automatically" went
+    // (2026-10-23): Radar monitors by itself, always.
+    expect(switches, "the twenty-two switches in the source").toBe(22);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

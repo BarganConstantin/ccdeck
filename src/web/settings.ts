@@ -45,7 +45,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "sounds", label: "Sounds", note: "Notification tones and custom audio." },
   { id: "integrations", label: "Integrations", note: "Manage connections to your developer tools." },
   { id: "data", label: "Data", note: "What the deck keeps on this device." },
-  { id: "radar", label: "Radar", note: "Automatic monitoring of Claude telemetry, off unless you turn it on." },
+  { id: "radar", label: "Radar", note: "What Claude Code sends to its telemetry collector, watched all the time." },
   { id: "about", label: "About", note: "The version you are running, and where to say what you think of it." },
 ];
 

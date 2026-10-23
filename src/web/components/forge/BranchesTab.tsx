@@ -24,13 +24,18 @@ import {
 } from "../../forge-lists";
 import { useForgePages } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
-import { sameSelection, useForge, type ForgeSelection } from "./ForgeContext";
+import { sameSelection, useForge, useReportRows, type ForgeSelection } from "./ForgeContext";
 import { Ago, Copyable, FoldGroup, ListEnd, LoadingRows, ReadFailure, StateMark } from "./ForgeParts";
 import { StateGlyph } from "./ForgeGlyphs";
 import { ExternalLinkGlyph } from "../action-glyphs";
 
+/** What a branch row opens: its merge request when it has one, else itself. */
+function branchTarget(repo: string, b: ForgeBranch): ForgeSelection {
+  return b.change ? { type: "change", repo, number: b.change.number } : { type: "branch", repo, name: b.name };
+}
+
 export default function BranchesTab({ view, query }: ForgeTabProps) {
-  const { kind, api, scope, refresh, reportFreshness } = useForge();
+  const { kind, api, scope, refresh, reportFreshness, isOpen } = useForge();
   // The panel picks a project before this tab draws; until then it reads nothing.
   const repo = view.repo ?? "";
   const read = useForgePages<ForgeBranch>(api, scope, repo ? "branches" : null, { repo }, refresh);
@@ -41,6 +46,15 @@ export default function BranchesTab({ view, query }: ForgeTabProps) {
   const groups = useMemo(() => splitBranches(defaultFirst(shown)), [shown]);
   const defaultBranch = items.find(b => b.isDefault)?.name ?? null;
   const phase = listPhase(read, items.length, shown.length);
+  // The rows on screen, as FoldGroup draws them: Active open and Stale
+  // folded until the reader says otherwise.
+  const drawn = useMemo(() => {
+    if (phase !== "rows") return [];
+    const open = (id: string, byDefault: boolean) => (isOpen(id) ? !byDefault : byDefault);
+    return [...(open("branches-active", true) ? groups.active : []), ...(open("branches-stale", false) ? groups.stale : [])]
+      .map(b => branchTarget(repo, b));
+  }, [phase, groups, isOpen, repo]);
+  useReportRows(drawn, phase !== "loading");
 
   const rows = (list: ForgeBranch[]) => (
     <ul className="fg-rows">
@@ -82,9 +96,7 @@ function BranchRow({ kind, repo, branch: b, defaultBranch }: {
 }) {
   const { selected, select } = useForge();
   const words = forgeWords[kind];
-  const target: ForgeSelection = b.change
-    ? { type: "change", repo, number: b.change.number }
-    : { type: "branch", repo, name: b.name };
+  const target = branchTarget(repo, b);
   const isSelected = sameSelection(selected, target);
   const diverge = b.isDefault ? null : divergeWords(b.behind, b.ahead, defaultBranch);
   const changeName = b.change ? `${words.changeSigil}${b.change.number}` : null;

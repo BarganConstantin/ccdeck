@@ -29,10 +29,13 @@ const stopAtExit = () => { for (const stop of activeMonitors) stop(); };
 
 // A child per destination keeps pcap headers and TCP decoders independent.
 // Retry after a crash or adapter change; an explicit stop cancels every retry.
-export function monitorDestination({ platform, tool, host, port, resolveInterface, reset, ingest, status, launch = spawn, retryMs = 3000 }) {
+// A refused permission is retried less often: monitoring is always on, and
+// granting it restarts capture at once (traffic-radar-permission.mjs).
+const PERMISSION = 'Packet capture permission is required.';
+export function monitorDestination({ platform, tool, host, port, resolveInterface, reset, ingest, status, launch = spawn, retryMs = 3000, permissionRetryMs = 30_000 }) {
   let stopped = false, child = null, retry = null, heartbeat = null, ready = false;
   const stopHeartbeat = () => { clearInterval(heartbeat); heartbeat = null; };
-  const retryLater = () => { if (!stopped) { retry = setTimeout(start, retryMs); retry.unref?.(); } };
+  const retryLater = (ms = retryMs) => { if (!stopped) { retry = setTimeout(start, ms); retry.unref?.(); } };
   async function start() {
     if (stopped) return;
     try {
@@ -53,11 +56,11 @@ export function monitorDestination({ platform, tool, host, port, resolveInterfac
       };
       const end = () => {
         if (ended) return; ended = true; stopHeartbeat(); capturing.stdout.destroy(); capturing.kill();
-        if (!stopped) { status(error || 'Capture disconnected. Retrying automatically.'); retryLater(); }
+        if (!stopped) { status(error || 'Capture disconnected. Retrying automatically.'); retryLater(error === PERMISSION ? permissionRetryMs : retryMs); }
       };
       child.stderr.on('data', bytes => {
         stderr = (stderr + bytes.toString()).slice(-4096);
-        if (/permission|access.*denied|not permitted|administrator/i.test(stderr)) error = 'Packet capture permission is required.';
+        if (/permission|access.*denied|not permitted|administrator/i.test(stderr)) error = PERMISSION;
         if (/listening on|Capturing on/i.test(stderr)) listening();
       });
       child.stdout.on('data', bytes => {
@@ -66,7 +69,7 @@ export function monitorDestination({ platform, tool, host, port, resolveInterfac
         for (let i = 0; i < bytes.length; i += 65536) ingest(bytes.subarray(i, i + 65536));
       });
       child.stdout.on('error', end);
-      child.once('error', reason => { if (['EACCES', 'EPERM'].includes(reason.code)) error = 'Packet capture permission is required.'; end(); }); child.once('exit', end);
+      child.once('error', reason => { if (['EACCES', 'EPERM'].includes(reason.code)) error = PERMISSION; end(); }); child.once('exit', end);
     } catch { if (!stopped) { status('Capture interface unavailable. Retrying automatically.'); retryLater(); } }
   }
   const stop = () => {

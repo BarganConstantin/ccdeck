@@ -13,7 +13,11 @@
 //
 // The view — project, tab, filters, which groups are unfolded — is remembered
 // per connection through the host's prefs, so reopening the panel lands where
-// the user left it.
+// the user left it. For the page's life it also keeps the search, and each
+// project and tab keeps the item open there and both scrolls
+// (integrations/view-memory.ts): reopening the panel, or coming back to a tab,
+// puts that item back when it is still in the list, and opens the first row
+// beside the list when there is none to put back.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import type { ForgeKind, ForgeRefTarget, Page, ForgeRepo } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
@@ -24,9 +28,13 @@ import {
 import { selfPressAccepted, selfPressProps } from "../../panel-press";
 import { tabStripMove } from "../../tablist-keys";
 import { useForgeRead } from "../../use-forge-read";
+import { useListView } from "../../integrations/use-list-view";
+import { keepList, keepSearch, listKey as listKeyOf, recallList, recallSearch, type Drawn } from "../../integrations/view-memory";
 import IntegrationFreshness from "../IntegrationFreshness";
 import IntegrationSearch from "../IntegrationSearch";
-import { ForgeProvider, selectionKey, type ForgeConnectionInfo, type ForgeContextValue, type ForgeSelection, type Freshness } from "./ForgeContext";
+import {
+  ForgeProvider, sameSelection, selectionKey, type ForgeConnectionInfo, type ForgeContextValue, type ForgeRows, type ForgeSelection, type Freshness,
+} from "./ForgeContext";
 import { ReadFailure, useChosenInView, useRovingRows } from "./ForgeParts";
 import RepoPicker from "./RepoPicker";
 import BranchesTab from "./BranchesTab";
@@ -86,12 +94,15 @@ function backLabel(kind: ForgeKind, tab: ForgeTab): string {
   return `Back to ${label === "Actions" ? label : label.toLowerCase()}`;
 }
 
+/** The list's scroller: the chosen tab's body. */
+const LIST_SCROLLER = ".fg-tab-body:not([hidden])";
+
 export default function ForgePanel({ kind, connection, api, assetUrl, prefs, narrow, onReconnect, Split }: ForgePanelProps) {
   const scope = `${kind}:${connection.id}`;
   const [view, setViewState] = useState<ForgeView>(() => loadForgeView(prefs));
   const [refresh, setRefresh] = useState(0);
-  const [selected, setSelected] = useState<ForgeSelection | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQueryState] = useState(() => recallSearch(scope));
+  const setQuery = useCallback((text: string) => { setQueryState(text); keepSearch(scope, text); }, [scope]);
   const [fresh, setFresh] = useState<Freshness>({ loadedAt: null, loading: false, stale: false });
   const [resolving, setResolving] = useState(false);
   // Open stays pressable while it resolves (#620); Enter in the field and a
@@ -110,12 +121,29 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   const tabDomId = (tab: ForgeTab) => `${uid}-tab-${tab}`;
   const panelDomId = (tab: ForgeTab) => `${uid}-panel-${tab}`;
 
-  // Another connection is another place: its own view, nothing selected.
+  // Another connection is another place: its own view and its own search.
+  // What is open is the list's, whose key names the connection.
+  const place = useRef(scope);
   useEffect(() => {
+    if (place.current === scope) return;
+    place.current = scope;
     setViewState(loadForgeView(prefs));
-    setSelected(null);
-    setQuery("");
+    setQueryState(recallSearch(scope));
   }, [scope, prefs]);
+
+  // The item open beside the list, kept per project and tab. The tab on show
+  // says which rows it drew (useReportRows): a remembered item still among
+  // them is put back, else the first row opens. Quietly: no focus moves.
+  const listKey = listKeyOf(scope, view.repo, view.tab);
+  const [rows, setRows] = useState<ForgeRows | null>(null);
+  const drawn = useMemo<Drawn<ForgeSelection> | null>(() => (rows && rows.key === listKey ? {
+    complete: rows.complete,
+    has: item => rows.items.some(row => sameSelection(row, item)),
+    first: rows.items[0] ?? null,
+  } : null), [rows, listKey]);
+  const shown = useListView<ForgeSelection>({ listKey, drawn, same: sameSelection, sideBySide: !narrow, root: panelRef, listScroller: LIST_SCROLLER });
+  const { choose } = shown;
+  const selected = shown.selection;
 
   const setView = useCallback((patch: Partial<ForgeView>) => {
     setViewState(v => {
@@ -138,13 +166,16 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
     const active = document.activeElement;
     const fromList = active instanceof HTMLElement && active.closest(".ig-list") != null;
     if (next && fromList) opener.current = active;
-    setSelected(next);
+    choose(next);
     const target = focusAfterSelect(next != null, fromList, narrow);
     requestAnimationFrame(() => {
       if (target === "opener" && opener.current?.isConnected) opener.current.focus();
       else if (target === "page") panelRef.current?.querySelector<HTMLElement>(".ig-detail .fd")?.focus();
     });
-  }, [narrow]);
+  }, [narrow, choose]);
+
+  const recallSection = useCallback(() => recallList<ForgeSelection>(listKey)?.section ?? null, [listKey]);
+  const keepSection = useCallback((section: string) => keepList<ForgeSelection>(listKey, { section }), [listKey]);
 
   const ctx = useMemo<ForgeContextValue>(() => ({
     kind, connection, scope, api,
@@ -157,7 +188,11 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
     reportFreshness: setFresh,
     onReconnect,
     narrow,
-  }), [kind, connection, scope, api, assetUrl, refresh, selected, select, view.open, toggle, onReconnect, narrow]);
+    listKey,
+    reportRows: setRows,
+    recallSection,
+    keepSection,
+  }), [kind, connection, scope, api, assetUrl, refresh, selected, select, view.open, toggle, onReconnect, narrow, listKey, recallSection, keepSection]);
 
   // A tab that reads one project needs one: the most recently active, until
   // the user picks another.
@@ -186,6 +221,8 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
     }
   };
 
+  // Each tab is a list of its own, with its own item open; the search is
+  // for the list it was typed over, so a new tab starts without it.
   const chooseTab = (tab: ForgeTab) => { setView({ tab }); setQuery(""); };
   useChosenInView(tabsRef, view.tab);
 

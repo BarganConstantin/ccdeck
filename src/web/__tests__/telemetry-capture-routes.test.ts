@@ -8,8 +8,7 @@ const cleanup: (() => Promise<void> | void)[] = [];
 afterEach(async () => { for (const close of cleanup.splice(0)) await close(); });
 describe('telemetry capture route authorization', () => {
   it('guards content reads and setup mutations instead of making capture a public mutation', () => {
-    expect(GUARDED_READS.has('/api/system/traffic-radar/settings')).toBe(true);
-    expect(OPEN_MUTATIONS.has('/api/system/traffic-radar/settings')).toBe(false);
+    expect(OPEN_MUTATIONS.has('/api/system/traffic-radar/capture/permission')).toBe(false);
     expect(GUARDED_READS.has('/api/system/traffic-radar/capture')).toBe(true);
     expect(GUARDED_READS.has('/api/system/traffic-radar/capture/event')).toBe(true);
     expect(OPEN_MUTATIONS.has('/api/system/traffic-radar/ingest')).toBe(false);
@@ -42,43 +41,64 @@ describe('telemetry capture route authorization', () => {
   });
 });
 
-it('validates the Settings switch and returns its saved state', async () => {
-  let enabled = true;
-  const settings = { settings: async () => ({ ok: true, enabled }), setEnabled: async (value: boolean) => { enabled = value; return { ok: true, enabled }; } };
-  const server = createServer((req, res) => void handleTrafficCapture(req, res, new URL(req.url!, 'http://localhost'), settings));
+// Monitoring is always on (2026-10-23): the Settings switch, Start and Stop are
+// gone from the server too, so nothing on the page or off it can turn it off.
+it('answers the removed switch, Start and Stop routes with 404', async () => {
+  const calls: string[] = [];
+  const capture = { settings: async () => { calls.push('settings'); return {}; }, setEnabled: async () => { calls.push('setEnabled'); return {}; },
+    prepare: async () => { calls.push('prepare'); return {}; }, stop: async () => { calls.push('stop'); } };
+  const server = createServer((req, res) => void handleTrafficCapture(req, res, new URL(req.url!, 'http://localhost'), capture as never));
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   cleanup.push(() => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }));
-  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/system/traffic-radar/settings`;
-  expect((await fetch(url).then(r => r.json())).enabled).toBe(true);
-  expect((await fetch(url, { method: 'POST', body: JSON.stringify({ enabled: 'false' }) })).status).toBe(400);
-  expect(enabled).toBe(true);
-  expect((await fetch(url, { method: 'POST', body: JSON.stringify({ enabled: false }) }).then(r => r.json())).enabled).toBe(false);
-  expect((await fetch(url).then(r => r.json())).enabled).toBe(false);
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/system/traffic-radar`;
+  expect((await fetch(base + '/settings')).status).toBe(404);
+  for (const action of ['/settings', '/capture/prepare', '/capture/stop'])
+    expect((await fetch(base + action, { method: 'POST', body: '{"enabled":false,"destination":"192.0.2.16:4317"}' })).status, action).toBe(404);
+  expect(GUARDED_READS.has('/api/system/traffic-radar/settings')).toBe(false);
+  expect(calls).toEqual([]);
 });
 
-it('takes the switch alone: a body naming anything more, or not an object, is refused whole', async () => {
-  const writes: unknown[] = [];
-  const settings = { settings: async () => ({ ok: true, enabled: false }), setEnabled: async (value: boolean) => { writes.push(value); return { ok: true, enabled: value }; } };
-  const server = createServer((req, res) => void handleTrafficCapture(req, res, new URL(req.url!, 'http://localhost'), settings));
+// Allow capture: the system's own password prompt, once. A grant starts capture
+// again at once; any other answer leaves capture to its own retries.
+it('asks for capture permission and starts capture again only when it was granted', async () => {
+  const outcomes = [
+    { outcome: 'granted' },
+    { outcome: 'cancelled' },
+    { outcome: 'unavailable', message: 'No password prompt can open in this session.', command: "sudo sh '/tmp/x/radar-capture-setup.sh'" },
+    { outcome: 'failed', message: 'The password was not accepted.', command: "sudo sh '/tmp/x/radar-capture-setup.sh'" },
+  ];
+  let next = 0, retries = 0, asks = 0;
+  const capture = { retry: async () => { retries++; } };
+  const permission = async () => { asks++; return outcomes[next++]; };
+  const server = createServer((req, res) => void handleTrafficCapture(req, res, new URL(req.url!, 'http://localhost'), capture as never, permission as never));
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   cleanup.push(() => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }));
-  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/system/traffic-radar/settings`;
-  for (const body of ['{"enabled":true,"destinations":["192.0.2.1:4317"]}', '{"enabled":true,"__proto__":{"x":1}}', '{"automatic":true}', '{}',
-    '[true]', 'true', 'null', '"enabled"', '{"enabled":true', '{"enabled":null}']) {
-    const res = await fetch(url, { method: 'POST', body });
-    expect(res.status, body).toBe(400);
-    expect(await res.json(), body).toHaveProperty('error');
+  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/system/traffic-radar/capture/permission`;
+  for (const expected of outcomes) {
+    const res = await fetch(url, { method: 'POST', body: '{}' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, ...expected });
   }
-  expect(writes).toEqual([]);
-  expect((await fetch(url, { method: 'POST', body: '{"enabled":true}' })).status).toBe(200);
-  expect(writes).toEqual([true]);
+  expect(asks).toBe(4);
+  expect(retries).toBe(1);
+  // A read is not a request for the prompt.
+  expect((await fetch(url)).status).toBe(404);
+  expect(asks).toBe(4);
 });
 
-it("holds the switch behind the deck's own page: no anonymous read, no anonymous write", () => {
+it("holds the permission prompt behind the deck's own page: no anonymous or cross-site press", () => {
   const anonymous = { headers: { host: '127.0.0.1:4329' } };
-  expect(GUARDED_READS.has('/api/system/traffic-radar/settings')).toBe(true);
-  expect(isAuthorizedDataRead(anonymous as never)).toBe(false);
+  expect(OPEN_MUTATIONS.has('/api/system/traffic-radar/capture/permission')).toBe(false);
   expect(isAuthorizedMutation(anonymous as never)).toBe(false);
-  expect(isAuthorizedDataRead({ headers: { host: '127.0.0.1:4329', 'sec-fetch-site': 'cross-site' } } as never)).toBe(false);
   expect(isAuthorizedMutation({ headers: { host: '127.0.0.1:4329', origin: 'http://192.0.2.9:4329' } } as never)).toBe(false);
+  expect(isAuthorizedDataRead({ headers: { host: '127.0.0.1:4329', 'sec-fetch-site': 'cross-site' } } as never)).toBe(false);
+});
+
+it('refuses the permission prompt to a remote client before asking anything', async () => {
+  let asks = 0, status = 0;
+  await handleTrafficCapture({ method: 'POST', headers: {}, socket: { remoteAddress: '192.0.2.10' } } as never,
+    { writeHead: (s: number) => { status = s; }, end: () => {} } as never, new URL('http://localhost/api/system/traffic-radar/capture/permission'),
+    { retry: async () => {} } as never, (async () => { asks++; return { outcome: 'granted' }; }) as never);
+  expect(status).toBe(403);
+  expect(asks).toBe(0);
 });

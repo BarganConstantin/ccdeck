@@ -22,7 +22,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import type { Providers } from "../providers";
 import { focusedTabToFollow, isFindChord, sectionsDrawn, type SettingsDoors, type SettingsSection } from "../settings";
 import { indexFor, isSectionEntry, searchSettings, type SettingsEntry } from "../settings-search";
-import { isTypingTarget } from "../shortcuts";
 import { tabStripMove } from "../tablist-keys";
 import type { useAppearance } from "../use-appearance";
 import type { useAutoRestart } from "../use-auto-restart";
@@ -32,7 +31,7 @@ import type { useOsNotifications } from "../use-os-notifications";
 import type { useSoundSwitch } from "../use-sound-switch";
 import type { useTonePrefs } from "../use-tone-prefs";
 import type { useVersionCheck } from "../use-version-check";
-import { characterKeyMuted, setSingleKeyShortcuts } from "../single-key-shortcuts";
+import { setSingleKeyShortcuts } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import BoardSection from "./BoardSection";
 import ElsewhereSection from "./ElsewhereSection";
@@ -49,7 +48,6 @@ import ReadingSection, { ReadingReset } from "./ReadingSection";
 import AboutSection from "./AboutSection";
 import UpdatesSection from "./UpdatesSection";
 import CharacterSection from "./CharacterSection";
-import { nextTheme } from "../theme";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SettingsSearchField, SettingsSearchResults, SettingsSearchStatus } from "./SettingsSearch";
 import { useSettingsJump } from "./use-settings-jump";
@@ -182,30 +180,16 @@ export default function SettingsModal({
     });
   };
 
-  // THE DIALOG'S OWN KEYS, answered here and stopped here.
+  // THE DIALOG'S OWN KEY, answered here and stopped here.
   // Space belongs to the control it is pressed on. React Flow reads Space on
   // the document as its pan key and cancels it wherever focus is, so a Space on
   // a switch never pressed it; stopped at this edge, the way AnchoredPopover
   // stops its keys, it reaches the control.
-  // T is the key Appearance's theme caption advertises. App answers it anywhere on the
-  // deck, but not past an open dialog, so the hint would have named a dead key
-  // in the one place it is shown. A field somebody is typing into keeps every
-  // letter, and so does a <select>, whose letters pick an option. And T is a
-  // single-key shortcut like the deck's others, so the switch in Keyboard
-  // silences it here too (WCAG 2.1.4).
+  // T, which Appearance's theme caption advertises, is not answered here any
+  // more: the deck's handler takes it through every dialog, this one included,
+  // under the same gates this one kept (use-deck-shortcuts.ts, keepsThemeKey).
   const onDialogKey = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === " ") { event.stopPropagation(); return; }
-    if (characterKeyMuted(event.key, singleKeys)) return;
-    const target = event.target as HTMLElement;
-    if (isTypingTarget(target) || target.tagName === "SELECT") return;
-    if ((event.key !== "t" && event.key !== "T") || event.ctrlKey || event.metaKey || event.altKey) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const next = nextTheme((target.dataset.themeChoice as typeof theme | undefined) ?? theme);
-    setTheme(nextTheme);
-    if (target.getAttribute("role") === "radio") {
-      event.currentTarget.querySelector<HTMLButtonElement>(`[role="radio"][data-theme-choice="${next}"]`)?.focus();
-    }
+    if (event.key === " ") event.stopPropagation();
   };
 
   const { soundOn, toggleSound } = sound;

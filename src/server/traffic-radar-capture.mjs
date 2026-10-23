@@ -167,9 +167,9 @@ export function createTrafficCapture({ now = Date.now, platform = process.platfo
   };
   return api;
 }
-// The monitor keeps its own opt-in (radar-monitor-<port>.json), as it always
-// has; Settings › Radar's automatic monitoring, off unless switched on, keeps
-// its own beside it (traffic-radar-service.mjs).
+// The monitor keeps its own record (radar-monitor-<port>.json), as it always
+// has; the service that keeps it on Claude's collector, always on, keeps the
+// collectors it found beside it (traffic-radar-service.mjs).
 export const trafficCapture = createRadarService({
   capture: createTrafficCapture({ managed: true, preferences: capturePreferences() }),
   preferences: capturePreferences(undefined, 'radar-settings'),
