@@ -1,16 +1,15 @@
-// Whether Usage and the machine panel stand in a column of their own beside the
+// Whether Usage and the machine panel stand in a lane of their own beside the
 // canvas, or float over it.
 //
-// DOCKED BESIDE THE RIGHT STRIPE (owner, 2026-10-23). The two right panels were
-// the only ones that floated: the session list, Accounts and the detail panel
-// each take a column, and Usage and the machine panel lay over the canvas and
-// its minimap, so the same stripe press gave a column on one edge and a card
-// over the board on the other. They stand in a column now, next to the stripe
-// their buttons are on, the way Sessions and Accounts stand beside the left
-// one, and the canvas narrows by them. Side by side when both are open, as
-// #910 kept them: #847 had stacked the two in one column, and on 2026-09-14
-// the owner chose the pair side by side over that. Shown that history on
-// 2026-10-23, the owner chose this.
+// DOCKED BESIDE THE RIGHT STRIPE (owner, 2026-10-23). The two right panels lay
+// over the canvas and its minimap, so the board ran under them. They stand in
+// a lane now, next to the stripe their buttons are on, and the canvas narrows
+// by it, so they cover nothing. Side by side when both are open, as #910 kept
+// them: #847 had stacked the two in one column, and on 2026-09-14 the owner
+// chose the pair side by side over that. Shown that history on 2026-10-23, the
+// owner chose this. Still the cards they were, as tall as what they hold: a
+// full-height column was tried first, and the owner turned it down the same
+// day, since most of it was empty panel.
 //
 // A window that cannot keep the board DOCK_MIN_CANVAS of canvas beside every
 // column that is open floats the two over the canvas as before, rather than
@@ -27,10 +26,14 @@ const DETAIL_W = 360;
 /** Usage's and the machine panel's width before larger text widens them
  *  (usage-panel.css, machine-panel.css). */
 const PANEL_W = 280;
+/** The lane's inset on each side of the cards, and the gap between the two
+ *  (rail-dock.css). */
+export const DOCK_INSET = 8;
+export const DOCK_GAP = 8;
 
-/** Whether the docked column leaves the board its canvas. Every width is the
+/** Whether the docked lane leaves the board its canvas. Every width is the
  *  one drawn: `leftW` is the left column's, 0 when it is shut, and `dockW` the
- *  panels' in the dock together. */
+ *  lane's, the panels in it with its inset and gap. */
 export function railDocks({ windowW, leftW, detailShown, dockW }: {
   windowW: number;
   leftW: number;
@@ -61,9 +64,10 @@ export function useRailDock({ phone, leftW, detailShown, usage, machine }: {
     const dock = ref.current;
     if (!dock || phone) { setDocked(false); return; }
     const measure = () => {
-      let dockW = 0;
+      const panels = Array.from(dock.children) as HTMLElement[];
+      let dockW = 2 * DOCK_INSET + DOCK_GAP * Math.max(0, panels.length - 1);
       let grow = 0;
-      for (const panel of Array.from(dock.children) as HTMLElement[]) {
+      for (const panel of panels) {
         dockW += panel.offsetWidth;
         grow = Math.max(grow, panel.offsetWidth - PANEL_W);
       }

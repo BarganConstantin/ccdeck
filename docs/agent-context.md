@@ -115,9 +115,10 @@ it but is not organized; branch `feature/ui-organization`):
   answer one question each, every run of two or more a named group, all 13
   doors kept in the owner's order. Radio is a dialog door now, with no blur.
 - Usage and the machine panel dock beside the right stripe (`rail-dock.ts`),
-  side by side, and the canvas narrows by them; below 360px of canvas they
-  float as before. This reverses #910's floating pair with the owner's
-  informed choice, made after seeing #847/#910's history.
+  side by side in a lane, and the canvas narrows by it; below 360px of canvas
+  they float as before. This reverses #910's floating pair with the owner's
+  informed choice, made after seeing #847/#910's history. They stay cards as
+  tall as their content: the owner turned a full-height column down.
 - Every dialog is `--dialog-s` 560, `--dialog-m` 820 or `--dialog-l` 1120
   and has the one `.modal-head`. The integration trackers' full-page panel
   stays 90vw by the owner's own spec for it.

@@ -3,14 +3,16 @@
 // They were the only panels that floated: the session list, Accounts and the
 // detail panel each take a column, and these two lay over the canvas and its
 // minimap, so the same stripe press gave a column on one edge and a card over
-// the board on the other. They take a column now, beside the stripe their
+// the board on the other. They take a lane now, beside the stripe their
 // buttons are on, side by side when both are open (#910's pair, not #847's
-// stack), and the canvas narrows by them. A window that cannot keep the board
-// its least canvas beside every open column floats them as before.
+// stack), and the canvas narrows by them. Still cards as tall as what they
+// hold: the owner turned a full-height column down the same day. A window
+// that cannot keep the board its least canvas beside every open column floats
+// them as before.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { DOCK_MIN_CANVAS, railDocks } from "../rail-dock";
+import { DOCK_GAP, DOCK_INSET, DOCK_MIN_CANVAS, railDocks } from "../rail-dock";
 import { sheetText } from "./sheet-source";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
@@ -50,9 +52,31 @@ describe("the dock in the page", () => {
     expect(app.indexOf("<MachinePanel", dock)).toBeLessThan(app.indexOf("<UsagePanel", dock));
   });
 
-  it("is no box while floating, and a column in the grid's last track when docked", () => {
+  it("is no box while floating, and a lane in the grid's last track when docked", () => {
     expect(sheet).toMatch(/\.rail-dock\s*\{\s*display:\s*contents;\s*\}/);
     expect(sheet).toMatch(/\.rail-dock\.docked\s*\{[^}]*grid-column:\s*-2;[^}]*grid-row:\s*2 \/ -1;/);
+  });
+
+  it("keeps the panels cards as tall as what they hold, not full-height columns", () => {
+    // The owner turned the full-height column down on 2026-10-23: most of it
+    // was empty panel. Top-aligned in the lane, capped by it, scrolling inside.
+    const lane = /\.rail-dock\.docked\s*\{([^}]*)\}/.exec(sheet)?.[1] ?? "";
+    expect(lane).toMatch(/align-items:\s*flex-start/);
+    expect(lane).toMatch(/gap:\s*8px/);
+    expect(lane).toMatch(/padding:\s*8px 8px 16px/);
+    const card = /\.rail-dock\.docked > \.usage-panel,\s*\.rail-dock\.docked > \.sysdetail\s*\{([^}]*)\}/.exec(sheet)?.[1] ?? "";
+    expect(card).toMatch(/max-height:\s*100%/);
+    expect(card).not.toMatch(/(?:^|[;\s])height:/);
+    expect(card).not.toMatch(/border-radius/);
+  });
+
+  it("counts the lane's inset and gap when it decides", () => {
+    // Usage alone in a 1024px window, no left column: 1024 - 80 - (280 + 16).
+    expect(DOCK_INSET).toBe(8);
+    expect(DOCK_GAP).toBe(8);
+    const lane = 2 * DOCK_INSET + 280;
+    expect(railDocks({ windowW: 1024, leftW: 0, detailShown: false, dockW: lane })).toBe(true);
+    expect(railDocks({ windowW: 80 + lane + DOCK_MIN_CANVAS - 1, leftW: 0, detailShown: false, dockW: lane })).toBe(false);
   });
 
   it("keeps a last track for it in every desktop grid, and none on a phone", () => {

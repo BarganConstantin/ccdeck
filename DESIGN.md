@@ -399,12 +399,14 @@ right offset the floating panels position against: `368px` (the rail plus an 8px
 gap), or `8px` when no detail is open. Setting the rail to 368 would be wrong.
 
 **Usage and the machine panel dock beside the right stripe** (`rail-dock.ts`,
-`rail-dock.css`): a column each in the grid's last `auto` track, side by side,
-Usage against the stripe, and the canvas narrows by them, the way it narrows
-for the left column. Where the window would leave the board less than 360px of
-canvas beside every open column, they float over the canvas against
-`--rail-r` as before; on a phone they are sheets. They never cover the minimap
-while docked.
+`rail-dock.css`): a lane in the grid's last `auto` track, the two side by side
+in it, Usage against the stripe, and the canvas narrows by it. They stay the
+cards they are, as tall as their content, 8px in from the lane's edges and 8px
+apart; the lane has no ground of its own, so the canvas's shows around them.
+A full-height column was tried and turned down by the owner (2026-10-23).
+Where the window would leave the board less than 360px of canvas beside every
+open column, they float over the canvas against `--rail-r` as before; on a
+phone they are sheets. Docked, they never cover the board or the minimap.
 
 **Breakpoints,** and there are deliberately few: `520px`, `640px`, `1039/1040px`,
 `1200px`, `1439/1440px`, plus `1139px` and `1632px` for the topbar ribbon's

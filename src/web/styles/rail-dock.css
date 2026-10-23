@@ -9,30 +9,33 @@
    had before, which a window too narrow for the column and a phone keep. */
 .rail-dock { display: contents; }
 
-/* DOCKED, a column from under the topbar to the foot of the window, in the
-   last track: the machine panel, then Usage against the stripe, side by side.
-   Under the one question the deck asks, as the left column and the detail
-   panel are (rating.css). */
+/* DOCKED, a lane from under the topbar to the foot of the window, in the last
+   track: the machine panel, then Usage against the stripe, side by side. The
+   lane has no ground of its own, so what shows around the two is the page's,
+   which is the canvas's. Under the one question the deck asks, as the left
+   column and the detail panel are (rating.css). The inset and the gap are
+   rail-dock.ts's DOCK_INSET and DOCK_GAP. */
 .rail-dock.docked {
   display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 8px 16px;
+  box-sizing: border-box;
   grid-column: -2;
   grid-row: 2 / -1;
   min-height: 0;
 }
 .app:has(.rating-banner) .rail-dock.docked { grid-row: 3 / -1; }
 
-/* Each panel a column, drawn the way the detail panel is: the panel's ground
-   to the foot of the window and a rule on the edge it shares with what is
-   beside it. No card corners and no inset: a column does not float. */
+/* Each panel the card it is when it floats, as tall as what it holds and no
+   taller (owner, 2026-10-23: a full-height column was mostly empty panel),
+   in a lane of its own so it covers nothing on the board. It scrolls inside
+   once the lane is shorter than it. */
 .rail-dock.docked > .usage-panel,
 .rail-dock.docked > .sysdetail {
   position: relative;
   inset: auto;
   z-index: auto;
-  height: 100%;
-  max-height: none;
-  box-sizing: border-box;
-  border: 0;
-  border-left: 1px solid var(--line);
-  border-radius: 0;
+  max-height: 100%;
+  flex: none;
 }
