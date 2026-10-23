@@ -173,7 +173,7 @@ describe("before the deck has answered", () => {
     drawsNoIntegration();
     const html = draw(createElement(IntegrationsSection));
     expect(html).not.toContain(">Add integration<");
-    expect(html).toContain('role="alert">The deck could not be reached.</p>');
+    expect(html).toContain('role="alert"><p>The deck could not be reached.</p>');
   });
 
   it("nor when the answer is not the list: not JSON, or a field of it missing", async () => {
@@ -300,36 +300,39 @@ describe("Settings draws Integrations only where it holds something", () => {
     expect(searchSettings("disconnect", indexFor(true, "connections")).map(e => e.id)).toContain("integrations-connections");
     // And Claude Code's own filter still applies alongside.
     expect(indexFor(false, "none").some(e => e.claudeOnly)).toBe(false);
-    expect(sourceOf("components/SettingsModal.tsx")).toContain("indexFor(providers.claude, integrationsReachHere)");
+    expect(sourceOf("components/SettingsModal.tsx")).toContain("indexFor(providers.claude, integrationsReachHere, offeredKinds(integrations))");
   });
 });
 
 describe("Settings › Integrations on a deck that cannot read a kind", () => {
-  it("lists a stranded connection with the line that says why, and Disconnect alone", async () => {
+  it("keeps a stranded registered provider manageable without creation or unavailable capabilities", async () => {
     await deckSays([conn("j1", "jira", "Work Jira")], []);
     const html = draw(createElement(IntegrationsSection));
     expect(html).not.toContain('id="integrations-add-title"');
-    expect(html).not.toContain(">Add integration<");
-    expect(html).toContain('<span class="ig-stranded">Jira is not available on this deck. Disconnect deletes this connection and its saved token.</span>');
-    expect(html).toContain('aria-label="Disconnect Work Jira"');
-    expect(html).not.toContain('aria-label="Test Work Jira"');
-    expect(html).not.toContain('aria-label="Edit Work Jira"');
-    // Disconnect is a button with a name and no disabled state: Tab reaches it.
+    expect(html).toContain('id="ig-provider-jira"');
+    expect(html).toContain('<span class="ig-stranded">Jira is not available on this deck.</span>');
+    expect(html).toContain('aria-label="Manage Jira"');
+    expect(html.match(/<button\b/g)).toHaveLength(1);
+    expect(html).not.toMatch(/aria-label="(?:Connect|Add|Test|Edit|Disconnect)\b/);
+    expect(html).not.toMatch(/>Add(?: integration| connection)?<|>Test(?: connection)?<|>Edit(?: connection)?<|>Disconnect</);
+    // Manage remains focusable and enabled so cleanup can be reached.
     expect(html).not.toMatch(/<button[^>]*disabled/);
   });
 
-  it("keeps Test and Edit for the kinds it offers, beside a stranded one", async () => {
+  it("keeps available and stranded registered providers reachable through one Manage entry each", async () => {
     await deckSays([conn("j1", "jira", "Work Jira"), conn("g1", "github", "Code")], [GITHUB]);
     const html = draw(createElement(IntegrationsSection));
     expect(html).toContain('id="integrations-add-title"');
-    expect(html).toContain('aria-label="Test Code"');
-    expect(html).toContain('aria-label="Edit Code"');
-    expect(html).toContain('aria-label="Disconnect Code"');
-    expect(html).not.toContain('aria-label="Test Work Jira"');
+    expect(html).toContain('aria-label="Manage GitHub"');
+    expect(html).toContain('aria-label="Manage Jira"');
+    expect(html.match(/<button\b/g)).toHaveLength(2);
+    expect(html).not.toMatch(/aria-label="(?:Connect|Add|Test|Edit|Disconnect)\b/);
+    expect(html).not.toMatch(/>Add(?: integration| connection)?<|>Test(?: connection)?<|>Edit(?: connection)?<|>Disconnect</);
     expect(html).toContain("Jira is not available on this deck.");
     expect(html).not.toContain("GitHub is not available on this deck.");
-    // Add integration names only the kinds the deck offers.
-    expect(html).toMatch(/Connect a tracker<\/span><span class="settings-row-note">GitHub<\/span>/);
+    // A saved registered kind keeps its provider entry even when not offered.
+    expect(html).toContain('id="ig-provider-jira"');
+    expect(html).not.toMatch(/<button[^>]*disabled/);
   });
 
   it("says nothing is connected, with no Add integration, once the last stranded one is gone", async () => {
@@ -341,7 +344,7 @@ describe("Settings › Integrations on a deck that cannot read a kind", () => {
 
   it("hands focus to the section's tab after a Disconnect where nothing can be added", () => {
     expect(sourceOf("components/IntegrationsSection.tsx"))
-      .toContain('(addRef.current ?? document.getElementById("settings-tab-integrations"))?.focus();');
+      .toContain('document.getElementById("settings-tab-integrations")');
   });
 });
 
@@ -378,7 +381,7 @@ describe("a provider the deck lists as not available now", () => {
     expect(tabsOf(draw(createElement(SettingsModal, settingsProps())))).toContain("Integrations");
     expect(searchSettings("integrations", indexFor(true, integrationsReach(state))).length).toBeGreaterThan(0);
     expect(draw(createElement(KeyboardHelp, { onClose: noop }))).toContain("<kbd>I</kbd>");
-    expect(draw(createElement(IntegrationsSection))).toContain(">Add integration<");
+    expect(draw(createElement(IntegrationsSection))).toContain('aria-label="Connect Jira"');
     // No connection yet, so still no rail control.
     expect(railFor(state)).toEqual([]);
   });

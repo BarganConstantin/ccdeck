@@ -16,8 +16,9 @@
 // no portal is needed (panel-modal-portal.test.ts). Each section is its own
 // component, lifted whole out of the menu it used to live in; this file is
 // only the frame, the nav and the search above it (SettingsSearch.tsx).
+import { useMediaQuery } from "../use-media-query";
 import SessionRecoverySettings from "./SessionRecoverySettings";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
 import { focusedTabToFollow, isFindChord, sectionsDrawn, type SettingsDoors, type SettingsSection } from "../settings";
 import { indexFor, isSectionEntry, searchSettings, type SettingsEntry } from "../settings-search";
@@ -41,8 +42,8 @@ import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
 import RadarSettings from "./RadarSettings";
 import ToolAuditSettings from "./ToolAuditSettings";
-import IntegrationsSection from "./IntegrationsSection";
-import { integrationsReach, useIntegrations } from "../integrations/client";
+import IntegrationsSection, { type SettingsLeaveGuard } from "./IntegrationsSection";
+import { integrationsReach, offeredKinds, useIntegrations } from "../integrations/client";
 import ThemeSection from "./ThemeSection";
 import ReadingSection, { ReadingReset } from "./ReadingSection";
 import AboutSection from "./AboutSection";
@@ -83,15 +84,26 @@ export default function SettingsModal({
   // Focus starts on the section's own tab, not on the ×: the nav is what this
   // dialog is walked by, and a door that opened it at Sounds lands the reader
   // on "Sounds", which says where they are.
+  const leaveGuardRef = useRef<SettingsLeaveGuard | null>(null);
+  const registerLeaveGuard = useCallback((guard: SettingsLeaveGuard | null) => { leaveGuardRef.current = guard; }, []);
+  function requestLeave(action: () => void, back = false) {
+    if (leaveGuardRef.current) {
+      changeQuery(""); leaveGuardRef.current(action, back);
+      requestAnimationFrame(() => selectedTabRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" }));
+    }
+    else action();
+  }
+  const dismissSettings = () => requestLeave(onClose, true);
   const selectedTabRef = useRef<HTMLButtonElement | null>(null);
-  const dialogRef = useModalDismiss(onClose, { focusRef: selectedTabRef });
-  const scrimPress = useScrimDismiss(onClose);
+  const dialogRef = useModalDismiss(dismissSettings, { focusRef: selectedTabRef });
+  const scrimPress = useScrimDismiss(() => requestLeave(onClose));
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // THE SECTIONS THIS DECK DRAWS (sectionsDrawn, settings.ts): every one, but
   // Integrations only where the deck offers a kind or still holds a stranded
   // connection, or while it is the section on show. The nav, its arrows and
   // the pane's head all walk this list, so here it takes the table's name.
-  const integrationsReachHere = integrationsReach(useIntegrations());
+  const integrations = useIntegrations();
+  const integrationsReachHere = integrationsReach(integrations);
   const SETTINGS_SECTIONS = sectionsDrawn(integrationsReachHere, section);
   const at = Math.max(0, SETTINGS_SECTIONS.findIndex(s => s.id === section));
 
@@ -100,28 +112,32 @@ export default function SettingsModal({
   // half-filled field in it — Keyboard's filter, a voice's words — is where it
   // was when the query is cleared. Not kept across opening and closing: an
   // open dialog is a thing being done.
+  const narrowNav = useMediaQuery("(max-width: 640px)");
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
   const searching = query.trim() !== "";
-  const results = useMemo(() => searchSettings(query, indexFor(providers.claude, integrationsReachHere)), [query, providers.claude, integrationsReachHere]);
+  const results = useMemo(() => searchSettings(query, indexFor(providers.claude, integrationsReachHere, offeredKinds(integrations))), [query, providers.claude, integrationsReachHere, integrations]);
   const jumpTo = useSettingsJump(paneRef, !searching, section);
   const changeQuery = (next: string) => { setQuery(next); setActive(0); };
 
   // A section chosen in the nav ends the search: a press on a tab is "take me
   // there", and the results would otherwise stand over the page it asked for.
   const chooseSection = (next: SettingsSection) => {
-    changeQuery("");
-    onSection(next);
+    requestLeave(() => {
+      changeQuery(""); onSection(next);
+      requestAnimationFrame(() => document.getElementById(`settings-tab-${next}`)?.focus());
+    });
   };
 
   // A result opens its section, and lands on its row once the section is
   // drawn (use-settings-jump.ts). A section's own result only opens it.
   const openResult = (entry: SettingsEntry) => {
-    changeQuery("");
-    onSection(entry.section);
-    if (!isSectionEntry(entry)) jumpTo(entry.id);
+    requestLeave(() => {
+      changeQuery(""); onSection(entry.section);
+      if (!isSectionEntry(entry)) jumpTo(entry.id);
+    });
   };
 
   // Cmd/Ctrl+F goes to the field, and the browser's find bar does not open:
@@ -160,9 +176,10 @@ export default function SettingsModal({
     if (move.kind === "pass") return;
     event.preventDefault();
     // An arrow that chooses a section ends the search, as a press does.
-    changeQuery("");
-    onSection(SETTINGS_SECTIONS[move.index].id);
-    tabRefs.current[move.index]?.focus();
+    requestLeave(() => {
+      changeQuery(""); onSection(SETTINGS_SECTIONS[move.index].id);
+      tabRefs.current[move.index]?.focus();
+    });
   };
 
   // THE DIALOG'S OWN KEYS, answered here and stopped here.
@@ -252,7 +269,7 @@ export default function SettingsModal({
           />
         );
       case "integrations":
-        return <IntegrationsSection />;
+        return <IntegrationsSection onBeforeLeaveChange={registerLeaveGuard} />;
       case "data":
         return <ToolAuditSettings />;
       case "about":
@@ -286,7 +303,9 @@ export default function SettingsModal({
   // undoes the whole section and so belongs to its head, not to a group.
   const paneAction = section === "reading"
     ? <ReadingReset textSize={appearance.textSize} density={appearance.density} onTextSize={appearance.setTextSize} onDensity={appearance.setDensity} />
-    : null;
+    : section === "integrations" && integrations.connections !== null
+      ? <span className="ig-total">{integrations.connections.length} saved connection{integrations.connections.length === 1 ? "" : "s"}</span>
+      : null;
 
   return (
     <div className="modal-backdrop" {...scrimPress} role="presentation">
@@ -308,7 +327,7 @@ export default function SettingsModal({
             <button
               type="button"
               className="glyph-btn"
-              onClick={onClose}
+              onClick={() => requestLeave(onClose)}
               aria-label="Close settings"
               title="Close (Esc)"
             >×</button>
@@ -338,7 +357,7 @@ export default function SettingsModal({
               className="settings-nav"
               role="tablist"
               aria-label="Settings sections"
-              aria-orientation="vertical"
+              aria-orientation={narrowNav ? "horizontal" : "vertical"}
               onKeyDown={moveSection}
             >
               {SETTINGS_SECTIONS.map((choice, index) => (
