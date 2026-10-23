@@ -178,6 +178,29 @@ export async function respawnHooks({ wantClaude, installHooks, bootVersion }) {
   }
 }
 
+/**
+ * What a respawn that found Claude Code says about the setup it then ran.
+ *
+ * That respawn is the restart src/server/cli-arrival.mjs asks for when Claude
+ * Code is installed while the deck runs, and it does the first boot's
+ * startupWork, which the first boot skipped for want of a Claude Code. It is
+ * reported here rather than by reportStartup because the deck is already in
+ * use: reportStartup ends the process over hooks it cannot install, which on a
+ * first boot is a deck that never started, and here would be a deck that went
+ * away from under an open window. A failure is said, and the deck keeps
+ * serving everything else, as a respawn that cannot update the hooks does.
+ */
+export async function reportClaudeArrived(jobs) {
+  write(row({ mark: G.ok, label: "Claude Code", detail: `found ${G.dash} setting it up` }));
+  const hooks = await step(`installing Claude hooks${G.ellipsis}`, jobs.hooks);
+  if (hooks?.ok) {
+    write(row({ mark: G.ok, label: "Claude hooks", detail: fileLink(hooks.v.hookPath) }));
+    return;
+  }
+  write(row({ mark: G.fail, tone: P.err, label: "Claude hooks", detail: "not installed" }));
+  console.error(`\n  ${PRODUCT}: ${String(hooks?.err?.message ?? hooks?.err ?? "the hooks could not be installed")}\n`);
+}
+
 /** The same work, said out loud, in a fixed order — a boot whose rows arrive in
  *  whatever order the network settled is a boot nobody can scan twice. */
 export async function reportStartup(jobs, { workspace, wantClaude, wantCodex, CODEX_SESSIONS_DIR }) {

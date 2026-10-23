@@ -268,6 +268,10 @@ export const CCUSAGE_REASONS: Record<string, string> = {
   // server puts the path in `error`, which is where a value from the user's own
   // environment belongs.
   bad_override: "AGENTS_DECK_CCUSAGE names a file that is not there — correct it to the full path of your ccusage, or unset it to let the deck find its own",
+  // A machine with no npm, where the deck downloads ccusage from the registry
+  // itself (ccusage-registry.mjs) and that download failed. The server puts the
+  // download's own reason in `error`.
+  fetch_failed: "ccusage could not be downloaded — this machine has no npm, so the deck fetches ccusage from registry.npmjs.org itself. Check this computer can reach that site, then try again",
   timeout: "ccusage took more than 90 seconds and was stopped — a narrower range usually finishes",
   bad_output: "ccusage ran but printed no usage data — try again, and run ccusage daily --json in a terminal if it keeps happening",
   run_failed: "ccusage could not report usage — try again",

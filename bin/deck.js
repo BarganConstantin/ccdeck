@@ -15,6 +15,7 @@ import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
 import { RESTART_CODE, UPGRADE_CODE, dieWithParent, signalExitAction } from "../src/server/supervisor.mjs";
 import { parseArgs, startPort, wantsCli } from "../src/server/args.mjs";
+import { watchForClis } from "../src/server/cli-arrival.mjs";
 import { unregisteredDetail } from "../src/server/pulse-line.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 // A leaf — fs, path and claude-dir.mjs, nothing else — so it is imported here
@@ -36,7 +37,9 @@ import {
   G, P, fileLink, onHangup, printBanner, showCursor, step, takeCursor, tty, write,
 } from "./cli/screen.js";
 // The once-per-session work and the rows that report it.
-import { reportReady, reportRestarted, reportStartup, respawnHooks, startupWork } from "./cli/startup.js";
+import {
+  reportClaudeArrived, reportReady, reportRestarted, reportStartup, respawnHooks, startupWork,
+} from "./cli/startup.js";
 import { restartLatch } from "./cli/restart.js";
 import { startPulse } from "./cli/pulse.js";
 import { settleSecondStart } from "./cli/second-start.js";
@@ -252,6 +255,13 @@ const wantCodex = wantsCli({ off: flags.noCodex, on: flags.codex, installed: has
 // with a settings.json the installer refuses to rewrite needs, since that
 // refusal is fatal at boot on a component they do not use.
 const wantClaude = wantsCli({ off: flags.noClaude, on: flags.claude, installed: hasClaudeInstalled });
+// A respawn that finds Claude Code where the session's first boot did not:
+// installed while the deck ran, which is the restart src/server/cli-arrival.mjs
+// asks for. The supervisor hands down how the first boot's hooks went, and
+// "off" is "not attempted, no Claude Code". Such a respawn owes everything the
+// first boot skipped for it — the hooks, claude-swap, the ccusage prime — so it
+// runs the first boot's work rather than a respawn's. See reportClaudeArrived.
+const claudeArrived = RESPAWN && wantClaude && process.env.AGENTS_DECK_BOOT_HOOKS === "off";
 // The Codex tree this deck would tail, spelled the way its discovery record will
 // spell it — the one field of a start's shape that is not a flag. Resolved here,
 // with the other three, because the second-start question below is asked of
@@ -429,6 +439,11 @@ if (!RESPAWN) {
   jobs.cswapQuiet.then(settleCswap);
   await printBanner();
   await reportStartup(jobs, { workspace, wantClaude, wantCodex, CODEX_SESSIONS_DIR });
+} else if (claudeArrived) {
+  const jobs = startupWork({ wantClaude, installHooks, leftoverCodexHooks });
+  handDownSetup(noteSetup({ claude: jobs.hooks, codex: wantCodex }));
+  jobs.cswapQuiet.then(settleCswap);
+  await reportClaudeArrived(jobs);
 } else {
   settleCswap();
   // What a respawn says about the hooks is what it saw: its own re-install when
@@ -598,6 +613,22 @@ markDeckReady();
 // Inert when nothing is supervising us.
 try { process.send?.({ type: "booted" }); } catch { /* no channel; nothing waiting */ }
 runHeldRestart();
+
+// A CLI installed while this deck runs is served from the restart this asks for
+// — see src/server/cli-arrival.mjs. Only under a supervisor, which is the only
+// thing that can bring the deck back.
+if (SUPERVISED) {
+  watchForClis({
+    clis: [
+      { name: "Claude Code", want: wantClaude, off: flags.noClaude, installed: hasClaudeInstalled },
+      { name: "Codex", want: wantCodex, off: flags.noCodex, installed: hasCodexInstalled },
+    ],
+    onArrive: (name) => {
+      write(`\n  ${P.ok}${G.ok}${P.reset}  ${P.muted}${name} found ${G.dash} restarting to serve it${P.reset}\n`);
+      requestRestart();
+    },
+  });
+}
 
 /**
  * A declaration, not the `const` arrow this was for eight months.
