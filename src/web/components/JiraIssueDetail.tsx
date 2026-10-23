@@ -6,7 +6,7 @@
 import { useEffect, useMemo, type ReactNode } from "react";
 import type { IntegrationConnection as Connection } from "../integrations/types";
 import { jiraImage, type JiraApi, type JiraIssue, type TimeTracking } from "../jira-api";
-import { fileSize, jiraDate, timeLine } from "../jira-board";
+import { fileSize, jiraDate, shownResolution, timeLine } from "../jira-board";
 import JiraHtml, { type HtmlContext } from "../jira-html";
 import { useJiraIssue } from "../use-jira-board";
 import { connectionHost } from "../integrations/client";
@@ -73,6 +73,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
   const { data, loading, error, reload } = useJiraIssue(api, conn.id, key);
   const ctx = useMemo<HtmlContext>(() => ({ baseUrl: conn.baseUrl, image: abs => jiraImage(conn, assetUrl, abs) }), [conn, assetUrl]);
   const issue = data && data.issue.key === key ? data.issue : null;
+  const resolution = issue ? shownResolution(issue) : null;
 
   // On a narrow screen the detail replaces the list, and the row that had
   // focus is gone with it. The panel puts focus on Back while the issue is
@@ -122,12 +123,12 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
           <header className="jr-detail-head">
             <h2 id="jira-detail-title" tabIndex={-1} className="jr-detail-title">{issue.summary}</h2>
             {/* Where the issue stands, under its name: what kind of issue it
-                is, its status (and how it was resolved), its priority, and
-                the flag when it has one. */}
+                is, its status (and how it was resolved, unless that is the
+                status again), its priority, and the flag when it has one. */}
             <p className="jr-detail-state">
               <span className="jr-with-icon"><TypeIcon type={issue.type} />{issue.type.name}</span>
               <StatusLozenge status={issue.status} />
-              {issue.resolution && <span className="jr-dim">{issue.resolution}</span>}
+              {resolution && <span className="jr-dim">{resolution}</span>}
               {issue.priority && <span className="jr-with-icon"><PriorityIcon priority={issue.priority} />{issue.priority.name}</span>}
               {issue.flagged && <span className="jr-flagged"><FlagGlyph /> Flagged</span>}
             </p>

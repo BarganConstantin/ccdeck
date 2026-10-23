@@ -148,6 +148,13 @@ export function needsAttention(issue: Pick<JiraIssue, "flagged" | "priority" | "
   return !isDone(issue) && (issue.flagged || (issue.priority != null && priorityLevel(issue.priority.name) === "highest"));
 }
 
+/** How an issue was resolved, when that says more than its status: an issue
+ *  Done and resolved "Done" says it once, beside a status it repeats. */
+export function shownResolution(issue: { status: { name: string }; resolution: string | null }): string | null {
+  const resolution = issue.resolution?.trim() ?? "";
+  return resolution && resolution.toLowerCase() !== issue.status.name.trim().toLowerCase() ? resolution : null;
+}
+
 /** A sub-task stays under its row when Hide done and Needs attention allow. */
 export function subtaskShown(issue: JiraIssue, filter: RowFilter): boolean {
   return (!filter.hideDone || !isDone(issue)) && (!filter.attention || needsAttention(issue));

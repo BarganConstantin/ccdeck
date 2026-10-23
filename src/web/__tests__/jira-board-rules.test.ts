@@ -4,7 +4,7 @@
 // DOM: the helpers are pure.
 import { describe, it, expect } from "vitest";
 import {
-  boardRows, buildRows, drawnIssues, filterRows, groupsFor, groupStats, needsAttention, rowKey, shownQuickFilters, subtaskShown, timeLine,
+  boardRows, buildRows, drawnIssues, filterRows, groupsFor, groupStats, needsAttention, rowKey, shownQuickFilters, shownResolution, subtaskShown, timeLine,
   type GroupRead,
 } from "../jira-board";
 import type { JiraBoardOverview, JiraIssue, JiraSprint, StatusCategory } from "../jira-api";
@@ -104,6 +104,21 @@ describe("the board's own quick filters", () => {
   it("keep a filter that only starts the same way, or is named in another language", () => {
     const kept = [{ id: "a", name: "Only my issues in review", description: "" }, { id: "b", name: "Nur meine Vorgänge", description: "" }];
     expect(shownQuickFilters(kept)).toEqual(kept);
+  });
+});
+
+describe("how an issue was resolved, in its detail", () => {
+  const done = { name: "Done" };
+  it("is not said when it is the status again, in any case or spacing", () => {
+    expect(shownResolution({ status: done, resolution: "Done" })).toBeNull();
+    expect(shownResolution({ status: { name: "DONE" }, resolution: " done " })).toBeNull();
+  });
+
+  it("is said when it adds something to the status, and not when there is none", () => {
+    expect(shownResolution({ status: done, resolution: "Won't Do" })).toBe("Won't Do");
+    expect(shownResolution({ status: { name: "Closed" }, resolution: "Duplicate" })).toBe("Duplicate");
+    expect(shownResolution({ status: done, resolution: null })).toBeNull();
+    expect(shownResolution({ status: done, resolution: "  " })).toBeNull();
   });
 });
 
