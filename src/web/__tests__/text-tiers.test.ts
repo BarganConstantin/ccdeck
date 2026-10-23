@@ -350,6 +350,13 @@ describe("what was migrated to the secondary tier", () => {
       ".ta-note",
       ".ta-search input::placeholder",
       ".ta-summary",
+      // Its Where the time went, by bed as well: a lane's key is raised on
+      // --ctl-fill while its level is open, with its time beside the name, and
+      // the parts that are not a command — the hooks starting tools, the rest
+      // of the list — sit in rows raised the same way under the pointer.
+      ".tt-key",
+      ".tt-part[data-rest]",
+      ".tt-part[data-static]",
       // The local reads' waits — Projects, session usage, usage history, and
       // quota, process and sensor history: the one sentence under each title
       // that says what is being read, and that the first run may download

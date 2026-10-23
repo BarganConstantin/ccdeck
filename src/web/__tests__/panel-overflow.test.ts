@@ -301,7 +301,12 @@ describe("a percentage width under a horizontal margin", () => {
       // its rule is scoped rather than bare.
       // Quota history SVG fills its grid track without outer margins.
       "pl-name", "qh-chart", "radio-daily", "radio-filter-option", "radio-filter-trigger", "radio-map-canvas",
-      "tool-bursts-svg", "tr-event-bottom", "tr-event-top", "tr-message", "tr-search", "uh-bar", "uh-bar-seg", "up-session-open", "up-table",
+      "tool-bursts-svg", "tr-event-bottom", "tr-event-top", "tr-message", "tr-search",
+      // Tool activity's Where the time went: the drawing that ties a level to
+      // its lane, an SVG stretched across the row, and a part, one button
+      // across its list row. No rule gives either a margin.
+      "tt-link", "tt-part",
+      "uh-bar", "uh-bar-seg", "up-session-open", "up-table",
     ]);
 
     const violations: string[] = [];
