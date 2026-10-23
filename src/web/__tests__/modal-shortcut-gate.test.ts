@@ -24,14 +24,19 @@
 // the clear prompt. Over every one of them R still wiped the layout. Escape
 // had never had that hole, because it asks modalStack, which every dialog
 // joins; the gate asks it now too.
+//
+// T left the list on 2026-10-23, by the owner's call: the next theme acts on
+// nothing behind the scrim, so it goes through every dialog — answered above
+// this gate, and kept only by a field being typed in or a <select>
+// (keepsThemeKey). What it does over a dialog is theme-key-in-dialogs.test.ts's.
 import { describe, it, expect } from "vitest";
-import { canvasModalOpen, shortcutBlocked } from "../shortcuts";
+import { canvasModalOpen, keepsThemeKey, ownsKeystroke, shortcutBlocked, type FocusTarget } from "../shortcuts";
 import { createDismissStack, escapeOutcome } from "../modal-dismiss";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { withoutComments } from "./tsx-scan";
 
-const CANVAS_KEYS = [" ", "c", "r", "f", "l", "h", "u", "a", "j", "k", "t", "m"];
+const CANVAS_KEYS = [" ", "c", "r", "f", "l", "h", "u", "a", "j", "k", "m"];
 
 describe("a canvas shortcut while a modal is open", () => {
   it("is blocked for every key that acts on what the scrim is covering", () => {
@@ -83,6 +88,48 @@ describe("the handler actually consults it", () => {
   it("still has a key table to gate, so this is not vacuous", () => {
     expect(handler).toContain('e.key === "r" || e.key === "R"');
     expect(handler).toContain("handleRelayout()");
+  });
+
+  it("answers T above both gates, and nowhere under them", () => {
+    // Under the focused-control gate T would be the dialog's first control's,
+    // and under the modal gate it would be dropped like every other letter.
+    const code = withoutComments(handler);
+    const t = code.indexOf('if (e.key === "t" || e.key === "T") {');
+    expect(t).toBeGreaterThan(-1);
+    expect(t).toBeLessThan(code.indexOf("ownsKeystroke(target, e.key)"));
+    expect(t).toBeLessThan(code.indexOf("shortcutBlocked({"));
+    expect(code.slice(t)).toMatch(/^if \(e\.key === "t" \|\| e\.key === "T"\) \{\s*const modalOpen = canvasModalOpen\(\{ appModal: modalOpenRef\.current, dialogDepth: modalStack\.dialogDepth\(\) \}\);\s*if \(intent\.nodeId == null && keepsThemeKey\(\{ target, modalOpen \}\)\) return;\s*if \(!e\.repeat\) setTheme\(nextTheme\);\s*return;\s*\}/);
+    expect(code.match(/setTheme\(/g)).toHaveLength(1);
+  });
+});
+
+describe("T goes through a dialog (2026-10-23)", () => {
+  const text: FocusTarget[] = [
+    { tagName: "INPUT" }, { tagName: "INPUT", type: "text" }, { tagName: "INPUT", type: "search" },
+    { tagName: "INPUT", type: "url" }, { tagName: "TEXTAREA" }, { tagName: "DIV", isContentEditable: true },
+  ];
+  const controls: FocusTarget[] = [
+    { tagName: "BODY" }, { tagName: "BUTTON" }, { tagName: "BUTTON", role: "tab" }, { tagName: "BUTTON", role: "radio" },
+    { tagName: "A" }, { tagName: "SUMMARY" }, { tagName: "INPUT", type: "checkbox" }, { tagName: "DIV", role: "switch" },
+  ];
+  const label = (t: FocusTarget) => `${t.tagName}${t.type ? `[${t.type}]` : ""}${t.role ? ` ${t.role}` : ""}${t.isContentEditable ? " editable" : ""}`;
+
+  it("is kept over a dialog only by a field being typed in, or a <select>", () => {
+    for (const target of [...text, { tagName: "SELECT" }]) expect(keepsThemeKey({ target, modalOpen: true }), label(target)).toBe(true);
+    // A button, a tab or a radio has no use for the letter, and a dialog
+    // puts focus on its first control by program.
+    for (const target of [...controls, null, undefined]) {
+      expect(keepsThemeKey({ target, modalOpen: true }), label(target ?? { tagName: "none" })).toBe(false);
+    }
+  });
+
+  it("is kept on the board on the focused-control gate's terms, as before", () => {
+    for (const target of [...text, { tagName: "SELECT" }, ...controls]) {
+      expect(keepsThemeKey({ target, modalOpen: false }), label(target)).toBe(ownsKeystroke(target, "t"));
+    }
+    // A button the keyboard reached keeps it there; one the pointer pressed does not (#851).
+    expect(keepsThemeKey({ target: { tagName: "BUTTON" }, modalOpen: false })).toBe(true);
+    expect(keepsThemeKey({ target: { tagName: "BUTTON", pointerFocused: true }, modalOpen: false })).toBe(false);
   });
 });
 

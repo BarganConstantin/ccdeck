@@ -7,8 +7,8 @@
 // The core's, not a provider's: every tracker panel is a list of things and
 // the one thing chosen, and each gets the same split and the same memory of
 // its width (integrations/layout.ts). Until the reader drags it the detail
-// takes 42 % of the room between 320 and 440px, so under a 1100px modal the
-// list keeps the wider share and its rows stay on one line.
+// takes half the room, never under 320px nor so much that the list goes
+// under 420px.
 //
 // What the host does for every panel, so none has to:
 // - Escape closes an open detail before it closes the modal, at every width:
@@ -151,13 +151,15 @@ export default function IntegrationSplit({ list, detail, onBack, backLabel, stor
   }, [open, detailKey]);
 
   // Focus: remember what opened the detail, and on the drill-in screen never
-  // leave focus on the hidden list.
+  // leave focus on the hidden list, or on what the panel hid with it (Jira's
+  // toolbar, where the modal put focus before an issue was put back).
   const opener = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (!open) return;
     const active = document.activeElement;
     if (active instanceof HTMLElement && listRef.current?.contains(active)) opener.current = active;
-    if (drillIn && (!active || active === document.body || listRef.current?.contains(active))) {
+    const hidden = active instanceof HTMLElement && !(active.checkVisibility?.() ?? true);
+    if (drillIn && (!active || active === document.body || hidden || listRef.current?.contains(active))) {
       backRef.current?.focus({ preventScroll: true });
     }
   }, [open, drillIn, detailKey]);

@@ -16,7 +16,7 @@ import {
 } from "../../forge-lists";
 import { useForgePages } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
-import { sameSelection, useForge } from "./ForgeContext";
+import { sameSelection, useForge, useReportRows } from "./ForgeContext";
 import { Ago, Face, ListEnd, LoadingRows, ReadFailure, StateMark } from "./ForgeParts";
 
 export default function PipelinesTab({ view, query }: ForgeTabProps) {
@@ -32,6 +32,8 @@ export default function PipelinesTab({ view, query }: ForgeTabProps) {
   );
   const phase = listPhase(read, items.length, shown.length);
   const noun = `${forgeWords[kind].pipeline.toLowerCase()}s`;
+  const drawn = useMemo(() => (phase === "rows" ? shown.map(p => ({ type: "pipeline" as const, repo: p.repo, id: p.id })) : []), [phase, shown]);
+  useReportRows(drawn, phase !== "loading");
 
   return (
     <div className="fgl">

@@ -60,6 +60,8 @@ export async function startFakeTracker({ token }: { token: string }): Promise<Fa
     if (mode === "401") return json(res, 401, { message: "Unauthorized" });
     if (mode === "429") return json(res, 429, { message: "Slow down" }, { "Retry-After": "30" });
     if (path === "/avatar.png") { res.writeHead(200, { "Content-Type": "image/png" }); return res.end(PNG); }
+    // Jira Data Center serves an uploaded avatar's PNG under the JPEG label.
+    if (path === "/useravatar") { res.writeHead(200, { "Content-Type": "image/jpeg;charset=UTF-8" }); return res.end(PNG); }
     if (path === "/icon.svg") { res.writeHead(200, { "Content-Type": "image/svg+xml" }); return res.end(SVG); }
     if (path === "/fake.png") { res.writeHead(200, { "Content-Type": "image/png" }); return res.end("<!doctype html><title>Log in</title>"); }
     if (path === "/redirect-foreign") { res.writeHead(302, { Location: "https://evil.example/a.png" }); return res.end(); }
