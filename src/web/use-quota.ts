@@ -27,6 +27,12 @@ export interface QuotaData {
   week7dWindowSec?: number;
   weekSonnetPct?: number;
   weekOpusPct?: number;
+  /** The signed-in account's plan ("max-20x", "pro"…) and its name as the
+   *  section title prints it ("Max 20x"), as the Codex card has `plan` and
+   *  `planLabel`. Absent when Claude Code's config does not say one, or the
+   *  reading may be another account's. */
+  plan?: string | null;
+  planLabel?: string | null;
   source?: string;
   /** Why there is nothing to show, when `ok` is false. The server has always
    *  sent this and the panel used to drop it, so every failure printed the one

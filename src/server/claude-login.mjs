@@ -23,6 +23,7 @@ import { readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { posix, win32 } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
+import { claudePlanToken } from "./depth-facts.mjs";
 
 async function exists(path, statFile) {
   try { await statFile(path); return true; } catch { return false; }
@@ -52,9 +53,25 @@ export async function claudeGlobalConfigPath({
 let _last = null;
 
 /**
+ * The plan of a signed-in account, as claudePlanToken names it ("max-20x",
+ * "pro"…), or null when `oauthAccount` does not say one it knows.
+ *
+ * Claude Code keeps the plan in two places: `subscriptionType` and
+ * `rateLimitTier` beside the token in .credentials.json, and
+ * `organizationType` ("claude_max") and `organizationRateLimitTier`
+ * ("default_claude_max_20x") here. This is the one every platform has: on
+ * macOS the token, and the two fields beside it, are in the Keychain.
+ */
+export function planOfAccount(oauth) {
+  const type = typeof oauth?.organizationType === "string" ? oauth.organizationType.trim().replace(/^claude_/i, "") : "";
+  return claudePlanToken({ subscriptionType: type, rateLimitTier: oauth?.organizationRateLimitTier }) ?? null;
+}
+
+/**
  * Who Claude Code is signed in as — `{ email, orgUuid }` from the config's
- * `oauthAccount` — or null when that cannot be read. `orgUuid` is "" for a
- * login with no organization, as claude-swap normalises it.
+ * `oauthAccount`, and `plan` when planOfAccount can say it — or null when that
+ * cannot be read. `orgUuid` is "" for a login with no organization, as
+ * claude-swap normalises it.
  */
 export async function readLiveLogin({
   env = process.env, home = homedir(), platform = process.platform, statFile = stat, read = readFile,
@@ -65,8 +82,9 @@ export async function readLiveLogin({
     if (_last?.path === path && _last.mtimeMs === st.mtimeMs && _last.size === st.size) return _last.login;
     const oauth = JSON.parse(String(await read(path, "utf8")).replace(/^﻿/, ""))?.oauthAccount;
     const email = typeof oauth?.emailAddress === "string" ? oauth.emailAddress : "";
+    const plan = planOfAccount(oauth);
     const login = email
-      ? { email, orgUuid: typeof oauth.organizationUuid === "string" ? oauth.organizationUuid : "" }
+      ? { email, orgUuid: typeof oauth.organizationUuid === "string" ? oauth.organizationUuid : "", ...(plan && { plan }) }
       : null;
     _last = { path, mtimeMs: st.mtimeMs, size: st.size, login };
     return login;

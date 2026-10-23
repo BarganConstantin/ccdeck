@@ -28,13 +28,13 @@ const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
  * carries on behind it and publishes for the next poll.
  */
 export async function handleQuota(req, res) {
-  const { fetchClaudeQuota, QUOTA_DEADLINE_MS } = await import(
+  const { fetchClaudeQuota, withClaudePlan, QUOTA_DEADLINE_MS } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/quota.mjs")).href
   );
   const url = new URL(req.url, "http://localhost");
   const force = url.searchParams.get("refresh") === "1";
   const quota = await fetchClaudeQuota({ force, deadlineMs: QUOTA_DEADLINE_MS });
-  send(res, 200, quota);
+  send(res, 200, await withClaudePlan(quota));
 }
 
 export async function handleCodexUsage(req, res) {
