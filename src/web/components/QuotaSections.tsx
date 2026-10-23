@@ -94,6 +94,9 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident }: {
     <section className="up-section up-quota-section">
       <h3 className="up-section-title">
         Claude quota
+        {quota?.ok && quota.planLabel && (
+          <span className="up-plan-badge">{quota.planLabel}</span>
+        )}
         {/* Where the numbers came from, on hover. Anthropic's usage endpoint
             allows ~28-30 calls an hour per account, shared by every tool on
             the machine, so when claude-swap is already collecting them the
