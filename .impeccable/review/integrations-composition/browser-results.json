@@ -1,0 +1,294 @@
+[
+  {
+    "themeCatalog": [
+      "light",
+      "dark",
+      "rider-black",
+      "vscode-black",
+      "omarchy",
+      "matrix",
+      "black-contrast",
+      "white-contrast",
+      "catppuccin-mocha",
+      "gruvbox-dark",
+      "gruvbox-light",
+      "gruvbox-material"
+    ],
+    "accessibility": "pass"
+  },
+  {
+    "copiedBefore": [
+      "before-overview-1440x1000-rider-black.png",
+      "before-overview-multiple-1440x1000-rider-black.png",
+      "before-general-buttons-1440x1000-rider-black.png",
+      "before-github-1440x1000-rider-black.png",
+      "before-overview-390x844-light.png",
+      "before-overview-multiple-390x844-light.png",
+      "before-general-buttons-390x844-light.png",
+      "before-github-390x844-light.png"
+    ],
+    "styleFailures": [
+      {
+        "width": 1440,
+        "height": 1000,
+        "theme": "rider-black",
+        "label": "Manage GitLab",
+        "expected": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+        "actual": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "width": 1440,
+        "height": 1000,
+        "theme": "rider-black",
+        "label": "Manage Jira",
+        "expected": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+        "actual": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "width": 1440,
+        "height": 1000,
+        "theme": "rider-black",
+        "label": "Manage GitHub",
+        "expected": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+        "actual": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "width": 1440,
+        "height": 1000,
+        "theme": "rider-black",
+        "label": "Manage GitLab",
+        "expected": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+        "actual": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "width": 1440,
+        "height": 1000,
+        "theme": "rider-black",
+        "label": "Manage Jira",
+        "expected": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+        "actual": "rgba(0, 0, 0, 0)"
+      }
+    ],
+    "width": 1440,
+    "height": 1000,
+    "theme": "rider-black",
+    "tasks": "A–G pass",
+    "overview": "pass",
+    "manage": "pass",
+    "multipleConnections": "one provider entry, explicit collection, context Add/Cancel/Back and deletion focus pass",
+    "focusedForms": "pass",
+    "unsavedDrafts": "pass",
+    "management": "pass",
+    "disconnect": "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass",
+    "duplicateRequests": {
+      "test": "pass",
+      "delete": "pass",
+      "calls": {
+        "test": 3,
+        "delete": 5
+      }
+    },
+    "keyboard": "pass",
+    "focusTargets": "not separately measured",
+    "zoomTechnique": "200% browser-zoom reflow equivalent: CSS viewport halved to 720x500; browser zoom preference unchanged",
+    "overflow": "none",
+    "accessibility": "pass",
+    "mutations": 13,
+    "errors": []
+  },
+  {
+    "copiedBefore": [
+      "before-overview-1440x1000-rider-black.png",
+      "before-overview-multiple-1440x1000-rider-black.png",
+      "before-general-buttons-1440x1000-rider-black.png",
+      "before-github-1440x1000-rider-black.png",
+      "before-overview-390x844-light.png",
+      "before-overview-multiple-390x844-light.png",
+      "before-general-buttons-390x844-light.png",
+      "before-github-390x844-light.png"
+    ],
+    "styleFailures": [],
+    "width": 1440,
+    "height": 1000,
+    "theme": "light",
+    "tasks": "A–G pass",
+    "overview": "pass",
+    "manage": "pass",
+    "multipleConnections": "one provider entry, explicit collection, context Add/Cancel/Back and deletion focus pass",
+    "focusedForms": "pass",
+    "unsavedDrafts": "pass",
+    "management": "pass",
+    "disconnect": "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass",
+    "duplicateRequests": {
+      "test": "pass",
+      "delete": "pass",
+      "calls": {
+        "test": 3,
+        "delete": 5
+      }
+    },
+    "keyboard": "pass",
+    "focusTargets": "not separately measured",
+    "zoomTechnique": "not run in this case",
+    "overflow": "none",
+    "accessibility": "pass",
+    "mutations": 13,
+    "errors": []
+  },
+  {
+    "copiedBefore": [
+      "before-overview-1440x1000-rider-black.png",
+      "before-overview-multiple-1440x1000-rider-black.png",
+      "before-general-buttons-1440x1000-rider-black.png",
+      "before-github-1440x1000-rider-black.png",
+      "before-overview-390x844-light.png",
+      "before-overview-multiple-390x844-light.png",
+      "before-general-buttons-390x844-light.png",
+      "before-github-390x844-light.png"
+    ],
+    "styleFailures": [],
+    "width": 900,
+    "height": 760,
+    "theme": "rider-black",
+    "tasks": "A–G pass",
+    "overview": "pass",
+    "manage": "pass",
+    "multipleConnections": "one provider entry, explicit collection, context Add/Cancel/Back and deletion focus pass",
+    "focusedForms": "pass",
+    "unsavedDrafts": "pass",
+    "management": "pass",
+    "disconnect": "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass",
+    "duplicateRequests": {
+      "test": "pass",
+      "delete": "pass",
+      "calls": {
+        "test": 3,
+        "delete": 5
+      }
+    },
+    "keyboard": "pass",
+    "focusTargets": "not separately measured",
+    "zoomTechnique": "not run in this case",
+    "overflow": "none",
+    "accessibility": "pass",
+    "mutations": 13,
+    "errors": []
+  },
+  {
+    "copiedBefore": [
+      "before-overview-1440x1000-rider-black.png",
+      "before-overview-multiple-1440x1000-rider-black.png",
+      "before-general-buttons-1440x1000-rider-black.png",
+      "before-github-1440x1000-rider-black.png",
+      "before-overview-390x844-light.png",
+      "before-overview-multiple-390x844-light.png",
+      "before-general-buttons-390x844-light.png",
+      "before-github-390x844-light.png"
+    ],
+    "styleFailures": [],
+    "width": 900,
+    "height": 540,
+    "theme": "rider-black",
+    "tasks": "A–G pass",
+    "overview": "pass",
+    "manage": "pass",
+    "multipleConnections": "one provider entry, explicit collection, context Add/Cancel/Back and deletion focus pass",
+    "focusedForms": "pass",
+    "unsavedDrafts": "pass",
+    "management": "pass",
+    "disconnect": "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass",
+    "duplicateRequests": {
+      "test": "pass",
+      "delete": "pass",
+      "calls": {
+        "test": 3,
+        "delete": 5
+      }
+    },
+    "keyboard": "pass",
+    "focusTargets": ">=24px, visible and unobscured",
+    "zoomTechnique": "not run in this case",
+    "overflow": "none",
+    "accessibility": "pass",
+    "mutations": 13,
+    "errors": []
+  },
+  {
+    "copiedBefore": [
+      "before-overview-1440x1000-rider-black.png",
+      "before-overview-multiple-1440x1000-rider-black.png",
+      "before-general-buttons-1440x1000-rider-black.png",
+      "before-github-1440x1000-rider-black.png",
+      "before-overview-390x844-light.png",
+      "before-overview-multiple-390x844-light.png",
+      "before-general-buttons-390x844-light.png",
+      "before-github-390x844-light.png"
+    ],
+    "styleFailures": [],
+    "width": 390,
+    "height": 844,
+    "theme": "light",
+    "tasks": "A–G pass",
+    "overview": "pass",
+    "manage": "pass",
+    "multipleConnections": "one provider entry, explicit collection, context Add/Cancel/Back and deletion focus pass",
+    "focusedForms": "pass",
+    "unsavedDrafts": "pass",
+    "management": "pass",
+    "disconnect": "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass",
+    "duplicateRequests": {
+      "test": "pass",
+      "delete": "pass",
+      "calls": {
+        "test": 3,
+        "delete": 5
+      }
+    },
+    "keyboard": "pass",
+    "focusTargets": ">=24px, visible and unobscured",
+    "zoomTechnique": "not run in this case",
+    "overflow": "none",
+    "accessibility": "pass",
+    "mutations": 13,
+    "errors": []
+  },
+  {
+    "copiedBefore": [
+      "before-overview-1440x1000-rider-black.png",
+      "before-overview-multiple-1440x1000-rider-black.png",
+      "before-general-buttons-1440x1000-rider-black.png",
+      "before-github-1440x1000-rider-black.png",
+      "before-overview-390x844-light.png",
+      "before-overview-multiple-390x844-light.png",
+      "before-general-buttons-390x844-light.png",
+      "before-github-390x844-light.png"
+    ],
+    "styleFailures": [],
+    "width": 320,
+    "height": 740,
+    "theme": "rider-black",
+    "tasks": "A–G pass",
+    "overview": "pass",
+    "manage": "pass",
+    "multipleConnections": "one provider entry, explicit collection, context Add/Cancel/Back and deletion focus pass",
+    "focusedForms": "pass",
+    "unsavedDrafts": "pass",
+    "management": "pass",
+    "disconnect": "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass",
+    "duplicateRequests": {
+      "test": "pass",
+      "delete": "pass",
+      "calls": {
+        "test": 3,
+        "delete": 5
+      }
+    },
+    "keyboard": "pass",
+    "focusTargets": ">=24px, visible and unobscured",
+    "zoomTechnique": "not run in this case",
+    "overflow": "none",
+    "accessibility": "pass",
+    "mutations": 13,
+    "errors": []
+  }
+]

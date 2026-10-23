@@ -1,0 +1,35 @@
+{
+  "method": "Native browser new isolated page; mutable script injection succeeded; owned page closed and helper stopped.",
+  "agent_b_initialization": "Unavailable in sub-agent environment; retried successfully by parent.",
+  "views": {
+    "overview": [
+      {
+        "rule": "gpt-thin-border-wide-shadow",
+        "scope": "existing shared modal",
+        "retained": true
+      }
+    ],
+    "manage": [
+      {
+        "rule": "gpt-thin-border-wide-shadow",
+        "scope": "existing shared modal",
+        "retained": true
+      }
+    ],
+    "connect": [
+      {
+        "rule": "gpt-thin-border-wide-shadow",
+        "scope": "existing shared modal",
+        "retained": true
+      },
+      {
+        "rule": "line-length",
+        "count": 2,
+        "visible": false,
+        "scope": "existing closed token-help content",
+        "retained": true
+      }
+    ]
+  },
+  "scope": "Settings only; underlying canvas findings were not treated as Settings defects."
+}

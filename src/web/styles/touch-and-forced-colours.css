@@ -321,4 +321,7 @@
   /* The project the arrows are on in the forge's picker, whose fill is gone. */
   .fgl-repo-option[data-active="true"] { outline: 1px solid Highlight; outline-offset: -1px; }
   button.btn.jr-chip[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
+  /* Integration discovery follows the same final forced-colors layer. */
+  .explore-connection[data-connected] { color: CanvasText; }
+  .explore-text-action { color: LinkText; text-decoration-color: LinkText; }
 }

@@ -1,0 +1,1049 @@
+{
+  "engine": {
+    "name": "axe-core",
+    "version": "4.13.0"
+  },
+  "reports": 104,
+  "results": [
+    {
+      "state": "github-320x740-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "connection-error-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "long-manage-900x540-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "overview-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "overview-1440x1000-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-gitlab-1440x1000-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "disconnect-error-390x844-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "jira-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "connection-error-390x844-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "unsaved-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-jira-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "edit-900x760-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "disconnect-confirm-900x760-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "jira-900x760-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "unsaved-900x540-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "long-manage-390x844-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "theme-light-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "connection-error-900x760-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "zoom-200-long-manage-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-jira-900x540-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-theme-gruvbox-dark-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "edit-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "github-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-theme-light-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-theme-vscode-black-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-jira-390x844-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-gitlab-390x844-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "disconnect-error-900x760-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "field-error-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "disconnect-error-1440x1000-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-theme-white-contrast-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "gitlab-1440x1000-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-theme-omarchy-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-theme-matrix-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "connection-error-320x740-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "theme-black-contrast-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "long-manage-1440x1000-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "gitlab-900x540-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-theme-gruvbox-material-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "overview-900x540-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-gitlab-900x540-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-theme-catppuccin-mocha-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "zoom-200-overview-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "disconnect-error-320x740-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "theme-dark-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-jira-1440x1000-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "theme-omarchy-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "disconnect-confirm-390x844-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-theme-gruvbox-light-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "field-error-390x844-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "theme-matrix-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-gitlab-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "gitlab-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "field-error-900x540-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "github-900x760-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "disconnect-confirm-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "jira-320x740-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "disconnect-confirm-320x740-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "jira-390x844-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "edit-320x740-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "theme-vscode-black-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "long-manage-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "edit-900x540-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "disconnect-confirm-900x540-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "jira-900x540-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "unsaved-900x760-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "disconnect-confirm-1440x1000-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "field-error-320x740-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "field-error-1440x1000-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "long-manage-900x760-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "connection-error-1440x1000-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "theme-gruvbox-dark-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "disconnect-error-900x540-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "edit-390x844-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-gitlab-320x740-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "jira-1440x1000-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "github-1440x1000-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "gitlab-320x740-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "overview-320x740-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "connection-error-900x540-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "github-390x844-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-jira-900x760-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-gitlab-900x760-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "gitlab-390x844-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "overview-390x844-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-jira-320x740-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-theme-dark-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "theme-rider-black-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "overview-900x760-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "unsaved-1440x1000-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "gitlab-900x760-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "disconnect-error-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "unsaved-320x740-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-theme-black-contrast-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "manage-theme-rider-black-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "theme-gruvbox-light-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "theme-gruvbox-material-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "theme-white-contrast-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "unsaved-390x844-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "long-manage-320x740-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "edit-1440x1000-light",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "theme-catppuccin-mocha-1440x1000-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "github-900x540-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    },
+    {
+      "state": "field-error-900x760-rider-black",
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21aa",
+        "wcag22aa"
+      ],
+      "violationCount": 0
+    }
+  ]
+}

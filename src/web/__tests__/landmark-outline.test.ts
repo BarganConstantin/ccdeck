@@ -389,9 +389,6 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       "components/BrowserWatchFindings.tsx",
       "components/BrowserWatchOverview.tsx",
       "components/BrowserWatchProfiles.tsx",
-      // Settings › Integrations' connect form, inside a group whose caption is
-      // the h3 under the pane's h2 (#2178).
-      "components/IntegrationConnectionForm.tsx",
       "components/RemoteControl.tsx",
       "components/SessionSummary.tsx",
       "components/ShareAccountsDialog.tsx",
