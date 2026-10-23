@@ -54,7 +54,9 @@ describe("every switch is the one switch (#886)", () => {
     // (#2193), off until it is turned on.
     // Twenty-two again since Settings › Radar's "Monitor automatically" went
     // (2026-10-23): Radar monitors by itself, always.
-    expect(switches, "the twenty-two switches in the source").toBe(22);
+    // Twenty-three with Settings › Claude Code, whose on/off rows are drawn by
+    // one `role="switch"` from its short list of Claude Code settings.
+    expect(switches, "the twenty-three switches in the source").toBe(23);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

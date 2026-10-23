@@ -27,6 +27,7 @@
 // and cannot drift from it. Keywords are what people type instead: synonyms,
 // the other spelling, the word another app uses.
 
+import { CLAUDE_SETTING_GROUPS, CLAUDE_SETTINGS } from "../server/claude-settings-catalog.mjs";
 import { CHARACTERS } from "./character";
 import type { IntegrationsReach } from "./integrations/client";
 import { ACCOUNT_NOTIFY_SWITCHES } from "./notify-reach";
@@ -70,6 +71,7 @@ const SECTION_KEYWORDS: Record<SettingsSection, readonly string[]> = {
   sounds: ["audio", "tones", "chimes"],
   integrations: ["github", "gitlab", "pull requests", "merge requests", "pipelines", "jira", "atlassian", "tracker", "issues", "connect", "token", "board", "sprint"],
   data: ["privacy", "local data"],
+  claude: ["claude", "claude code", "cli", "settings.json", "config", "configuration"],
   radar: ["telemetry", "collector", "monitoring"],
   about: ["information"],
 };
@@ -94,7 +96,11 @@ const ACCOUNT_KEYWORDS: Record<(typeof ACCOUNT_NOTIFY_SWITCHES)[number]["kind"],
 const sectionLabel = (section: SettingsSection) => SETTINGS_SECTIONS.find(s => s.id === section)?.label ?? section;
 
 function sectionEntry(section: SettingsSection): SettingsEntry {
-  return { id: `${SECTION_PREFIX}${section}`, section, label: sectionLabel(section), keywords: SECTION_KEYWORDS[section] };
+  return {
+    id: `${SECTION_PREFIX}${section}`, section, label: sectionLabel(section), keywords: SECTION_KEYWORDS[section],
+    // Drawn only where Claude Code is (sectionsDrawn, settings.ts).
+    ...(section === "claude" ? { claudeOnly: true as const } : {}),
+  };
 }
 
 /** Every entry, in nav order, each section's own entry first in its block. */
@@ -173,6 +179,16 @@ function buildIndex(): SettingsEntry[] {
         keywords: ["storage", "disk", "size", "bytes"] },
       { id: "tool-history-clear", section: "data", group: "Tool history", label: "Clear history",
         keywords: ["delete history", "erase", "wipe", "remove"] },
+    ],
+    // From the table the rows are drawn from (claude-settings-catalog.mjs), in
+    // its words, so a result and its row cannot drift apart.
+    claude: [
+      ...CLAUDE_SETTINGS.map((entry): SettingsEntry => ({
+        id: `claude-${entry.id}`, claudeOnly: true, section: "claude",
+        group: CLAUDE_SETTING_GROUPS.find(g => g.id === entry.group)?.title, label: entry.label, keywords: entry.keywords,
+      })),
+      { id: "claude-all-settings", claudeOnly: true, section: "claude", label: "All Claude Code settings",
+        keywords: ["every setting", "all keys", "reference", "documentation", "lookup", "settings.json"] },
     ],
     radar: [
       { id: "radar-open", section: "radar", label: "Radar",
