@@ -1,12 +1,13 @@
 // Release selection and seen-state stay upstream; this sheet only presents them.
-import { useEffect, useId, useState } from "react";
-import { compareVersions, groupReleaseNotes, presentReleaseNotes, splitNoteTitle, versionRangeLabel, isVersion, type ReleaseNote, type VersionNotes } from "../release-notes";
+import { useEffect, useId, useRef, useState } from "react";
+import { groupReleaseNotes, presentReleaseNotes, splitNoteTitle, versionRangeLabel, isVersion, type ReleaseNote, type VersionNotes } from "../release-notes";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { parseInline, type Inline } from "../inline-markdown";
 import { RESTART_TO_UPDATE } from "../desktop-update";
 import ReleaseActions, { useReleaseUpdateCheck, type UpdateCheckWiring, RESTART_WHY } from "./ReleaseActions";
 import { ownRow } from "../own-row";
 import AnchoredPopover from "./AnchoredPopover";
+import { ExternalLinkGlyph } from "./action-glyphs";
 import { AccountsGlyph, SessionListGlyph, SkillActivityGlyph, UpdateCheckGlyph, RestartGlyph } from "./rail-glyphs";
 
 interface Props {
@@ -26,22 +27,28 @@ interface Props {
 
 export default function ReleaseNotesModal({ entries, since, running, firstRun, onClose, onTour, updateVersion, updateBusy, onUpdateRestart, updateFailure, onRestart, updateCheck }: Props) {
   const dialogRef = useModalDismiss(onClose);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const scrimPress = useScrimDismiss(onClose);
   const id = useId();
   const [menu, setMenu] = useState<"first" | "last" | null>(null);
   const update = useReleaseUpdateCheck(updateCheck);
   const updating = update?.state.line.action?.kind === "install" || update?.state.line.action?.kind === "npx";
   const canRestart = onRestart && !updateVersion && !updating;
-  const { latest, visiblePrevious, history } = presentReleaseNotes(entries, since !== null);
+  const { latest, visiblePrevious, history } = presentReleaseNotes(entries, since !== null, running);
   const historyId = `${id}-history`;
   const hasMenu = !!canRestart || (!!update?.state.canCheck && !updateVersion);
   // A new available update can remove the menu's last action while it is open.
-  useEffect(() => { if (!hasMenu) setMenu(null); }, [hasMenu]);
+  useEffect(() => {
+    if (!hasMenu && menu) {
+      setMenu(null);
+      // The removed trigger cannot receive the popover's restored focus.
+      if (document.activeElement === document.body) closeRef.current?.focus();
+    }
+  }, [hasMenu, menu]);
   const range = isVersion(running) ? `v${running}` : versionRangeLabel(entries.slice(0, 1));
-  const earlier = running && entries[0] && compareVersions(entries[0].version, running) < 0;
-  const context = earlier ? `Running v${running}. Earlier release notes are shown below.`
-    : firstRun && running ? `New in v${running}.`
+  const context = firstRun && running ? `New in v${running}.`
     : since ? `Changes since v${since}.` : null;
+  const hasLegacyUpgrade = visiblePrevious.some(entry => entry.notes.some(note => !note.priority && !note.notice));
 
   return <div className="modal-backdrop" {...scrimPress} role="presentation">
     <div ref={dialogRef} className="modal release-notes" id={`${id}-dialog`} onClick={e => e.stopPropagation()}
@@ -58,7 +65,7 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
             onKeyDown={e => { if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); setMenu(e.key === "ArrowUp" ? "last" : "first"); } }}>
             <svg className="glyph" viewBox="0 0 14 14" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="3" cy="7" r="1"/><circle cx="7" cy="7" r="1"/><circle cx="11" cy="7" r="1"/></svg>
           </button>}
-          <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+          <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
         </div>
       </header>
       <span className="rn-live-status" role="status">{updateVersion ? `ccdeck v${updateVersion} is downloaded and verified.` : update?.state.line.said}</span>
@@ -69,20 +76,21 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
         </div> : <>{update?.needsAttention && <ReleaseActions update={update} />}
           <p className="rn-update-said" role="status">{updateFailure}</p></>}
         {context && <p className="rn-context">{context}</p>}
-        {!entries.some(entry => entry.notes.length > 0) && <p className="rn-empty">No release notes for this build.</p>}
+        {!latest?.notes.length && !visiblePrevious.length && <p className="rn-empty">No release notes for this build.</p>}
         {latest && <ReleaseSection key={latest.version} entry={latest} showVersion={since !== null && entries.length > 1} />}
         {visiblePrevious.length > 0 && <section className="rn-upgrade-history" aria-label="Earlier changes in this upgrade">
           <h2 className="rn-group-title">Earlier in this upgrade</h2>
+          {hasLegacyUpgrade && <p className="rn-context">Older notes are shown in full so setup and other important changes stay visible.</p>}
           {visiblePrevious.map(entry => <ReleaseSection key={entry.version} entry={entry} showVersion />)}
         </section>}
         {history.length > 0 && <details className="rn-history">
-          <summary aria-controls={historyId}>{since !== null ? "Other changes in this upgrade" : "Previous releases"}</summary>
+          <summary aria-controls={historyId}>Other changes since v{since}</summary>
           <div id={historyId}>{history.map(entry => <ReleaseSection key={entry.version} entry={entry} showVersion />)}</div>
         </details>}
       </section>
       <footer className="rn-footer">
         <div className="rn-footer-links">
-          <a href="https://ccdeck.dev/changelog/" target="_blank" rel="noopener noreferrer" aria-label="Full changelog (opens in a new tab)">Full changelog</a>
+          <a href="https://ccdeck.dev/changelog/" target="_blank" rel="noopener noreferrer" aria-label="Release history (opens in a new tab)">Release history <ExternalLinkGlyph /></a>
           {onTour && !updateVersion && <button className="rn-text-button" type="button" onClick={onTour}>Take the tour</button>}
         </div>
         {updateVersion && onUpdateRestart ? <button className="btn primary" type="button" onClick={onUpdateRestart} aria-busy={updateBusy || undefined}>
@@ -128,10 +136,11 @@ const NOTE_ICONS = { plans: SessionListGlyph, accounts: AccountsGlyph, skills: S
 function Note({ note, highlight }: { note: ReleaseNote; highlight?: boolean }) {
   const { rest } = splitNoteTitle(note.title);
   const Icon = note.icon ? ownRow(NOTE_ICONS, note.icon) : undefined;
-  return <li className="rn-note" data-highlight={highlight || undefined} data-required={note.priority === "required" || undefined}>
-    <div><h3 className="rn-note-title">{Icon && <span className="rn-title-icon" aria-hidden="true"><Icon /></span>}{rest.trimStart()}</h3>
+  return <li className="rn-note" data-highlight={highlight || undefined} data-required={note.priority === "required" || undefined} data-has-icon={!!Icon || undefined}>
+    {Icon && <span className="rn-title-icon" aria-hidden="true"><Icon /></span>}
+    <div><h3 className="rn-note-title">{rest.trimStart()}</h3>
       <p className="rn-note-body">{renderInline(parseInline(note.body))}</p>
-      {note.notice && <p className="rn-note-notice"><strong>Important: </strong>{renderInline(parseInline(note.notice))}</p>}
+      {note.notice && <p className="rn-note-notice"><strong>{note.noticeLabel ?? "Important"}: </strong>{renderInline(parseInline(note.notice))}</p>}
     </div>
   </li>;
 }

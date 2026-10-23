@@ -838,7 +838,7 @@ All three remain versioned JSON definitions; references are in the themes README
 
 ### What’s new
 
-A 650px reading sheet using the shared modal shell, a fixed header/footer and
+A 620px editorial digest using the shared modal shell, a fixed header/footer and
 one internal scroller. Routine update checking and status live in the shared
 anchored menu; only a check in progress, failure or actionable update interrupts
 reading. Announcements stay accessible. Ordinary Restart keeps its existing handoff.
@@ -847,14 +847,15 @@ correctly anchored even during entry.
 Verified desktop updates replace Done with Restart to update.
 
 Release summaries and at most three highlights come from explicit editorial
-metadata in release-notes.json. Required changes remain visible; other notes
+metadata in release-notes.json. Required changes remain visible without card outlines; other notes
 use native More improvements disclosures. Benefit descriptions and always-visible
-technical notices are separate; optional semantic icons use distinct native glyphs. Manual browsing folds
-previous releases. Upgrade notices keep required changes and unclassified legacy
+technical notices are separate; optional factual notice labels default to Important.
+Semantic icons use distinct native glyphs in a narrow column aligned with titles.
+Manual opening shows only the running release. Upgrade notices keep required changes and unclassified legacy
 notes visible, while optional earlier changes remain discoverable in a disclosure.
-All versions remain available, and Full changelog links to the public history.
+Release history links to the complete public changelog; no manual history explorer
+is duplicated inside the digest. Upgrade-only disclosures cover the actual upgrade range.
 Use 13px minimum prose, theme tokens, wrap inline code and honor text scaling.
-Disclosures use quiet separators rather than rectangular field borders. Previous
-releases are secondary, without a collapsed history count. Footer links use readable
+Disclosures use quiet separators rather than rectangular field borders. Footer links use readable
 secondary ink with underlines and clear hover/focus; Done anchors the same action area.
 The JSON file’s author instructions own the metadata contract.
