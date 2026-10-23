@@ -65,6 +65,8 @@ import raw from "../../release-notes.json";
 export interface ReleaseNote {
   title: string;
   body: string;
+  /** Optional supporting detail; consequential qualifications belong in notice. */
+  details?: string;
   /** Explicit choice; required changes stay visible in current/upgrade notes. */
   priority?: "highlight" | "required";
   /** Essential details, visible with the current release and across upgrades. */
@@ -184,6 +186,7 @@ export function readNotes(source: unknown): VersionNotes[] {
     // Malformed optional metadata must not discard the original change.
     const notes = value.filter(isNote).map(n => ({
       title: n.title, body: n.body,
+      ...(typeof n.details === "string" && n.details.trim() ? { details: n.details } : {}),
       ...(n.priority === "highlight" || n.priority === "required" ? { priority: n.priority } : {}),
       ...(typeof n.notice === "string" && n.notice.trim() ? { notice: n.notice } : {}),
       ...(typeof n.notice === "string" && n.notice.trim() && typeof n.noticeLabel === "string" && n.noticeLabel.trim() && n.noticeLabel.length <= 32 ? { noticeLabel: n.noticeLabel } : {}),
@@ -235,7 +238,8 @@ export function validateReleaseEditorial(source: Record<string, unknown>): strin
     let highlights = 0;
     for (const [i, item] of value.entries()) {
       if (!item || typeof item !== "object") continue;
-      for (const key of Object.keys(item)) if (!["title", "body", "priority", "notice", "noticeLabel", "icon"].includes(key)) errors.push(`${version}[${i}]: unknown ${key}`);
+      for (const key of Object.keys(item)) if (!["title", "body", "details", "priority", "notice", "noticeLabel", "icon"].includes(key)) errors.push(`${version}[${i}]: unknown ${key}`);
+      if (item.details !== undefined && (typeof item.details !== "string" || !item.details.trim())) errors.push(`${version}[${i}]: details must be non-empty text`);
       if (item.priority !== undefined && !["highlight", "required"].includes(item.priority)) errors.push(`${version}[${i}]: invalid priority`);
       if (item.icon !== undefined && !["plans", "accounts", "skills"].includes(item.icon)) errors.push(`${version}[${i}]: invalid semantic icon`);
       if (item.notice !== undefined && (typeof item.notice !== "string" || !item.notice.trim())) errors.push(`${version}[${i}]: notice must be non-empty text`);

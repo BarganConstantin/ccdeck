@@ -116,6 +116,7 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
 
 function ReleaseSection({ entry, showVersion }: { entry: VersionNotes; showVersion: boolean }) {
   const { highlights, visible, more } = groupReleaseNotes(entry.notes);
+  const extraHighlights = highlights.filter(note => note.details);
   const moreId = useId();
   return <section className="rn-release">
     {showVersion && <h2 className="rn-version">v{entry.version}</h2>}
@@ -124,9 +125,19 @@ function ReleaseSection({ entry, showVersion }: { entry: VersionNotes; showVersi
       {highlights.map((note, i) => <Note key={`h${i}`} note={note} highlight />)}
       {visible.map((note, i) => <Note key={`v${i}`} note={note} />)}
     </ul>
-    {more.length > 0 && <details className="rn-more">
-      <summary aria-controls={moreId}>More improvements <span>{more.length} {more.length === 1 ? "update" : "updates"}</span></summary>
-      <ul className="rn-notes" id={moreId}>{more.map((note, i) => <Note key={i} note={note} />)}</ul>
+    {(more.length > 0 || extraHighlights.length > 0) && <details className="rn-more">
+      <summary aria-controls={moreId}>
+        <span className="rn-more-start"><span className="rn-chevron" aria-hidden="true">›</span>
+          {more.length ? `${more.length} more ${more.length === 1 ? "improvement" : "improvements"}` : "More details"}
+        </span>
+        <span className="rn-more-hint"><span className="rn-show-details">Show details</span><span className="rn-hide-details">Hide details</span></span>
+      </summary>
+      <div id={moreId}>
+        <ul className="rn-notes">{more.map((note, i) => <Note key={i} note={note} />)}</ul>
+        {extraHighlights.length > 0 && <div className="rn-highlight-details" role="group" aria-label="More about the highlights">
+          {extraHighlights.map((note, i) => <p key={i} className="rn-note-body"><strong className="rn-strong">{splitNoteTitle(note.title).rest.trimStart()}: </strong>{renderInline(parseInline(note.details!))}</p>)}
+        </div>}
+      </div>
     </details>}
   </section>;
 }
@@ -140,6 +151,7 @@ function Note({ note, highlight }: { note: ReleaseNote; highlight?: boolean }) {
     {Icon && <span className="rn-title-icon" aria-hidden="true"><Icon /></span>}
     <div><h3 className="rn-note-title">{rest.trimStart()}</h3>
       <p className="rn-note-body">{renderInline(parseInline(note.body))}</p>
+      {!highlight && note.details && <p className="rn-note-body rn-extra-detail">{renderInline(parseInline(note.details))}</p>}
       {note.notice && <p className="rn-note-notice"><strong>{note.noticeLabel ?? "Important"}: </strong>{renderInline(parseInline(note.notice))}</p>}
     </div>
   </li>;

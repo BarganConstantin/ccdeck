@@ -63,7 +63,7 @@ describe('release editorial contract',()=>{
   const p=presentReleaseNotes(entries,true);expect(p.visiblePrevious[0].notes).toEqual(entries[1].notes);expect(p.history).toEqual([]);
  });
  it('validates notice types and editorial scan limits',()=>{
-  for(const n of [{...note(),notice:3},{...note(),notice:''},{...note(),noticeLabel:'Setup change'},{...note(),notice:'Detail',noticeLabel:''},{...note(),notice:'Detail',noticeLabel:'x'.repeat(33)},{...note('highlight'),title:'x'.repeat(73)},{...note('highlight'),body:'x'.repeat(241)}]){
+  for(const n of [{...note(),details:''},{...note(),details:4},{...note(),notice:3},{...note(),notice:''},{...note(),noticeLabel:'Setup change'},{...note(),notice:'Detail',noticeLabel:''},{...note(),notice:'Detail',noticeLabel:'x'.repeat(33)},{...note('highlight'),title:'x'.repeat(73)},{...note('highlight'),body:'x'.repeat(241)}]){
    expect(validateReleaseEditorial({'3.46.0':[n]}).length).toBeGreaterThan(0);
   }
  });
@@ -76,7 +76,7 @@ describe('release editorial contract',()=>{
   expect(readNotes({'9.9.9':[{...n,noticeLabel:4}]})[0].notes[0]).toEqual({...n,noticeLabel:undefined});
  });
  it('keeps original notes when optional runtime metadata is malformed',()=>{
-  expect(readNotes({'3.46.0':[{...note(),notice:7,priority:'oops'}]})[0].notes).toEqual([note()]);
+  expect(readNotes({'3.46.0':[{...note(),notice:7,priority:'oops',details:7}]})[0].notes).toEqual([note()]);
  });
  it('fails open if too many highlights reach runtime',()=>{
   const notes=Array.from({length:4},()=>note('highlight'));
@@ -89,9 +89,24 @@ describe('release editorial contract',()=>{
  it('keeps required notes outside closed improvements and uses a fixed footer',()=>{
   const html=draw([{version:'3.46.0',notes:[note('highlight'),note('required','Required action'),note(undefined,'Extra detail')]}]);
   expect(html.indexOf('Required action')).toBeLessThan(html.indexOf('<details'));
-  expect(html).toContain('More improvements');expect(html).toContain('1 update');
+  expect(html).toContain('1 more improvement');expect(html).toContain('Show details');expect(html).toContain('Hide details');
   expect(html).toContain('<footer class="rn-footer">');expect(html).toContain('>Done</button>');
   expect(html).toContain('https://ccdeck.dev/changelog/');expect(html).toContain('rel="noopener noreferrer"');
+ });
+ it('keeps short benefits separate from optional detail without hiding notices',()=>{
+  const n={...note('highlight','A benefit'),details:'Secondary behavior.',notice:'Required setup.'};
+  expect(validateReleaseEditorial({'9.9.9':[n]})).toEqual([]);
+  expect(readNotes({'9.9.9':[n]})[0].notes[0]).toEqual(n);
+  const html=draw([{version:'3.46.0',notes:[n]}]);
+  expect(html).toContain('More details');expect(html.indexOf('Required setup.')).toBeLessThan(html.indexOf('<details'));
+  expect(html.indexOf('Secondary behavior.')).toBeGreaterThan(html.indexOf('<details'));
+  const legacy=draw([{version:'3.46.0',notes:[{...n,priority:undefined}]}]);
+  expect(legacy).not.toContain('<details');expect(legacy).toContain('Secondary behavior.');
+ });
+ it('retains secondary highlight details across subsequent upgrades',()=>{
+  const extra={...note('highlight','An earlier benefit'),details:'Further context.'};
+  const html=draw([{version:'9.0.0',notes:[note('highlight')]},{version:'8.0.0',notes:[extra]}],{running:'9.0.0',since:'7.0.0'});
+  expect(html).toContain('An earlier benefit');expect(html).toContain('Further context.');
  });
  it('keeps empty manual releases honest instead of substituting historical content',()=>{
   expect(draw()).toContain('No release notes for this build.');
