@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { groupReleaseNotes, readNotes, validateReleaseEditorial, RELEASE_NOTES, type ReleaseNote } from '../release-notes';
+import { groupReleaseNotes, presentReleaseNotes, readNotes, validateReleaseEditorial, RELEASE_NOTES, type ReleaseNote } from '../release-notes';
 import ReleaseNotesModal from '../components/ReleaseNotesModal';
 const note=(priority?: ReleaseNote['priority'],title='Change'):ReleaseNote=>({title,body:'The behavior changed.',...(priority?{priority}:{})});
 const draw=(entries:any[]=[],extra:Record<string,unknown>={})=>renderToStaticMarkup(createElement(ReleaseNotesModal,{entries,since:null,running:'3.46.0',firstRun:false,onClose:()=>{},...extra}));
@@ -27,6 +27,31 @@ describe('release editorial contract',()=>{
    {'3.46.0':[note()],'//summaries':{'3.46.0':3}},
   ]) expect(validateReleaseEditorial(source).length).toBeGreaterThan(0);
  });
+ it('keeps technical notices visible even without required priority',()=>{
+  const important={...note(undefined,'Configuration'),notice:'Changes settings.json.'};
+  const groups=groupReleaseNotes([note('highlight'),important,note()]);
+  expect(groups.visible).toContain(important);expect(groups.more).not.toContain(important);
+ });
+ it('folds manual history without losing older required changes',()=>{
+  const entries=[{version:'3.46.0',notes:[note('highlight')]},{version:'3.45.0',notes:[note('required','Required'),note()]}];
+  const p=presentReleaseNotes(entries,false);expect(p.visiblePrevious).toEqual([]);expect(p.history).toEqual(entries.slice(1));
+ });
+ it('surfaces required and noticed changes across a skipped upgrade',()=>{
+  const entries=[{version:'3.46.0',notes:[note('highlight')]},{version:'3.45.0',notes:[note('required','Required'),{...note(),notice:'Compatible versions only.'},note(undefined,'Optional')]}];
+  const p=presentReleaseNotes(entries,true);expect(p.visiblePrevious[0].notes).toHaveLength(2);expect(p.history[0].notes.map(n=>n.title)).toEqual(['Optional']);
+ });
+ it('fails open for unclassified legacy upgrades instead of hiding possible warnings',()=>{
+  const entries=[{version:'3.46.0',notes:[]},{version:'3.45.0',notes:[note(undefined,'Legacy warning')]}];
+  const p=presentReleaseNotes(entries,true);expect(p.visiblePrevious[0].notes).toEqual(entries[1].notes);expect(p.history).toEqual([]);
+ });
+ it('validates notice types and editorial scan limits',()=>{
+  for(const n of [{...note(),notice:3},{...note(),notice:''},{...note('highlight'),title:'x'.repeat(73)},{...note('highlight'),body:'x'.repeat(241)}]){
+   expect(validateReleaseEditorial({'3.46.0':[n]}).length).toBeGreaterThan(0);
+  }
+ });
+ it('keeps original notes when optional runtime metadata is malformed',()=>{
+  expect(readNotes({'3.46.0':[{...note(),notice:7,priority:'oops'}]})[0].notes).toEqual([note()]);
+ });
  it('fails open if too many highlights reach runtime',()=>{
   const notes=Array.from({length:4},()=>note('highlight'));
   const g=groupReleaseNotes(notes);expect(g.highlights).toHaveLength(3);expect(g.visible).toHaveLength(1);
@@ -45,7 +70,7 @@ describe('release editorial contract',()=>{
  it('renders empty releases and multi-version history without losing content',()=>{
   expect(draw()).toContain('No release notes for this build.');
   const html=draw([{version:'3.46.0',notes:[]},{version:'3.45.0',notes:[note(undefined,'Historical detail')]}]);
-  expect(html).toContain('Historical detail');expect(html).toContain('v3.45.0 – v3.46.0');
+  expect(html).toContain('Historical detail');expect(html).toContain('class="rn-history"');expect(html).toContain('Previous releases');
  });
  it('keeps verified desktop updates primary, without a second restart or tour',()=>{
   const html=draw([], {updateVersion:'3.47.0',onUpdateRestart:()=>{},onRestart:()=>{},onTour:()=>{},updateBusy:true,updateFailure:'Could not restart.'});

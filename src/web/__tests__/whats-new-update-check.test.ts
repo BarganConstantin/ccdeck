@@ -24,6 +24,7 @@ import {
   CHECK_MIN_BUSY_MS, CHECKS_OFF, DECK_UNREACHABLE, NPM_UNREACHABLE, runUpdateCheck, runDesktopUpdateCheck, updateCheckState,
   type UpdateCheckFacts,
 } from "../update-check";
+import * as useNowClock from "../use-now";
 import type { VersionInfo } from "../use-version-check";
 import { UPGRADE_BLOCK_TEXT } from "../components/VersionBanner";
 import ReleaseActions, { useReleaseUpdateCheck, RESTART_WHY, TOUR_WHY, UpdateLineView } from "../components/ReleaseActions";
@@ -298,6 +299,14 @@ const buttons = (html: string) => [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/b
 const text = (tag: string) => tag.replace(/<[^>]+>/g, "");
 
 describe("the compact status row", () => {
+  it("uses the current clock after a check, before the 30-second ticker catches up", () => {
+    const at = Date.now();
+    const clock = vi.spyOn(useNowClock, "useNow").mockReturnValue(at - 20_000);
+    try {
+      expect(draw({ updateCheck: wiring(version({ checkedAt: at })) })).toContain("You&#x27;re on the latest");
+    } finally { clock.mockRestore(); }
+  });
+
   it("retains the update handoff explanation as an accessible description", () => {
     const html = draw({ updateCheck: wiring(version(OUT)) });
     expect(html).toContain('aria-describedby=');

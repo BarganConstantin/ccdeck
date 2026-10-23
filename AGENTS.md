@@ -102,7 +102,9 @@ instructions. Use its optional release summary and explicit note priorities:
 no more than three verified highlights, other improvements disclosed, and all
 breaking changes, settings changes, safety/privacy impact and mandatory actions
 visible. Keep titles specific and bodies to one or two useful sentences, retaining
-compatibility conditions and opt-outs. Historical notes remain intact.
+compatibility conditions and opt-outs. Separate essential technical details into
+always-visible `notice` text; the schema validates highlight length and metadata.
+Historical notes remain intact.
 
 For a release with no meaningful change the user would notice, use exactly
 `🐛 Bug fixes and performance improvements.` as the annotated tag message and

@@ -65,8 +65,10 @@ import raw from "../../release-notes.json";
 export interface ReleaseNote {
   title: string;
   body: string;
-  /** Explicit editorial choice; required notes are never collapsed. */
+  /** Explicit choice; required changes stay visible in current/upgrade notes. */
   priority?: "highlight" | "required";
+  /** Essential details, visible with the current release and across upgrades. */
+  notice?: string;
 }
 
 /** Everything one release had to say, and the version it shipped in. */
@@ -175,7 +177,12 @@ export function readNotes(source: unknown): VersionNotes[] {
   const out: VersionNotes[] = [];
   for (const [version, value] of Object.entries(source as Record<string, unknown>)) {
     if (!isVersion(version) || !Array.isArray(value)) continue;
-    const notes = value.filter(isNote);
+    // Malformed optional metadata must not discard the original change.
+    const notes = value.filter(isNote).map(n => ({
+      title: n.title, body: n.body,
+      ...(n.priority === "highlight" || n.priority === "required" ? { priority: n.priority } : {}),
+      ...(typeof n.notice === "string" && n.notice.trim() ? { notice: n.notice } : {}),
+    }));
     const summaries = (source as Record<string, unknown>)["//summaries"];
     const summary = summaries && typeof summaries === "object" && Object.hasOwn(summaries, version)
       ? (summaries as Record<string, unknown>)[version] : undefined;
@@ -190,9 +197,24 @@ export function groupReleaseNotes(notes: ReleaseNote[]) {
   const highlights = notes.filter(n => n.priority === "highlight").slice(0, 3);
   const hasEditorialChoice = highlights.length > 0;
   const visible = notes.filter(n => !highlights.includes(n) &&
-    (!hasEditorialChoice || n.priority === "required" || n.priority === "highlight"));
+    (!hasEditorialChoice || n.priority === "required" || n.priority === "highlight" || !!n.notice));
   const more = notes.filter(n => !highlights.includes(n) && !visible.includes(n));
   return { highlights, visible, more };
+}
+
+/** Compact manual history; upgrades fail open for unclassified legacy changes. */
+export function presentReleaseNotes(entries: VersionNotes[], upgrading: boolean) {
+  const [latest, ...previous] = entries;
+  const visiblePrevious: VersionNotes[] = [];
+  const history: VersionNotes[] = [];
+  for (const entry of previous) {
+    const classified = entry.notes.some(n => n.priority === "highlight" || n.priority === "required" || !!n.notice);
+    const visible = upgrading ? entry.notes.filter(n => !classified || n.priority === "required" || !!n.notice) : [];
+    if (visible.length) visiblePrevious.push({ version: entry.version, notes: visible });
+    const remaining = entry.notes.filter(n => !visible.includes(n));
+    if (remaining.length) history.push({ ...entry, notes: remaining });
+  }
+  return { latest, visiblePrevious, history };
 }
 
 /** Strict authoring gate; reading old title/body arrays remains backward compatible. */
@@ -203,9 +225,14 @@ export function validateReleaseEditorial(source: Record<string, unknown>): strin
     let highlights = 0;
     for (const [i, item] of value.entries()) {
       if (!item || typeof item !== "object") continue;
-      for (const key of Object.keys(item)) if (!["title", "body", "priority"].includes(key)) errors.push(`${version}[${i}]: unknown ${key}`);
+      for (const key of Object.keys(item)) if (!["title", "body", "priority", "notice"].includes(key)) errors.push(`${version}[${i}]: unknown ${key}`);
       if (item.priority !== undefined && !["highlight", "required"].includes(item.priority)) errors.push(`${version}[${i}]: invalid priority`);
-      if (item.priority === "highlight") highlights++;
+      if (item.notice !== undefined && (typeof item.notice !== "string" || !item.notice.trim())) errors.push(`${version}[${i}]: notice must be non-empty text`);
+      if (item.priority === "highlight") {
+        highlights++;
+        if (typeof item.title === "string" && splitNoteTitle(item.title).rest.trim().length > 72) errors.push(`${version}[${i}]: highlight title exceeds 72 characters`);
+        if (typeof item.body === "string" && item.body.length > 240) errors.push(`${version}[${i}]: highlight description exceeds 240 characters; move essential qualifications to notice`);
+      }
     }
     if (highlights > 3) errors.push(`${version}: at most 3 highlights`);
   }

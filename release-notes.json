@@ -43,13 +43,25 @@
     "specific, verified headline (1–120 characters). No generic marketing claims.",
     "A note may have priority: highlight or required. Choose at most 3 highlights,",
     "only when warranted. Unmarked notes go under More improvements when highlights",
-    "exist. Legacy releases without highlights stay fully visible.",
+    "exist. Legacy notes stay unabridged; legacy upgrade notes stay visible.",
     "Use required for breaking changes, changed settings, privacy/security impact,",
     "compatibility requirements or mandatory actions unless the entire note is",
     "already a highlight. Never hide essential qualifications in a closed section.",
     "Write concrete short titles and 1–2 useful sentences; preserve opt-outs and",
     "limits. Verify each claim against the released diff and tests. No promotion",
-    "for invisible fixes. Do not rewrite historical releases to fit the layout."
+    "for invisible fixes. Do not rewrite historical releases to fit the layout.",
+    "",
+    "Keep highlight titles within 72 characters (excluding a leading emoji) and",
+    "benefit descriptions within 240 characters. These limits are validated.",
+    "Put essential compatibility, privacy or configuration details in optional",
+    "notice text, outside More improvements. Current/upgrade notices stay visible and",
+    "have no truncation limit. A notice also keeps its change visible across upgrades.",
+    "Mark any other mandatory action as required. Manual browsing folds previous",
+    "releases; upgrade notes surface required/noticed changes from earlier releases.",
+    "Unclassified legacy upgrade notes stay visible rather than guessing safety.",
+    "Before adding editorial metadata to a release, review every note: unmarked",
+    "changes will be treated as optional in later upgrades. Never infer safety",
+    "from a title, keyword, emoji, position or a shortened description."
   ],
   "//summaries": {
     "3.46.0": "Plans, accounts and skills at a glance"
@@ -162,8 +174,8 @@
       "body": "It now sees Claude Code started from its versioned install folder, plus connection attempts that got no reply and the telemetry variables it was launched with."
     },
     {
-      "title": "🗺️ Follow plan progress at every zoom level",
-      "body": "A session's plan now shows on its note and as “plan 2/5” at every zoom. Subagents line up in one column, closer to their parent.",
+      "title": "🗺️ Follow plans at any zoom",
+      "body": "See plan progress on session notes and “plan 2/5” at every zoom. Subagents stay in one column beside their parent.",
       "priority": "highlight"
     },
     {
@@ -176,9 +188,10 @@
       "body": "Both open from the left stripe, under Claude accounts, instead of from the small gauge in the accounts panel's header."
     },
     {
-      "title": "🧩 Track skills from the right sidebar",
-      "body": "Skill activity has its own button on the right stripe. Counting typed slash commands adds a `UserPromptExpansion` hook to Claude Code's `settings.json` on version 2.1.116 or newer; `AGENTS_DECK_SKILL_HOOK=0` leaves it out.",
-      "priority": "highlight"
+      "title": "🧩 See which skills your agents use",
+      "body": "Open Skill activity from the right sidebar to review skill usage, including typed slash commands.",
+      "priority": "highlight",
+      "notice": "Counting typed slash commands adds a `UserPromptExpansion` hook to Claude Code's `settings.json` on version 2.1.116 or newer; `AGENTS_DECK_SKILL_HOOK=0` leaves it out."
     },
     {
       "title": "📈 Load history keeps the reading you click",
