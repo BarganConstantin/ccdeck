@@ -610,7 +610,9 @@ installers put it), or when its config dir carries traces of having been used;
 Codex counts as present when `~/.codex/` exists. On a machine with only one of
 them, the other one's hooks, installs and panels are skipped rather than shown
 empty — the boot banner says which way it went, and `--claude` / `--codex`
-override it if the guess is wrong.
+override it if the guess is wrong. A CLI installed while the deck is running is
+noticed within about fifteen seconds, and the deck restarts itself to serve it
+(unless you started it with `--no-claude` / `--no-codex`).
 
 `--workspace` is a filter this deck applies to itself, not a claim on the sessions it matches: **every** running deck whose workspace contains a session's directory draws that session. That is not a way to keep a machine-wide deck and one scoped to `~/proj` side by side: in one Claude config directory the second start stops the first and takes its place, as above. The filter reads the same way on all three paths a session can reach the canvas by — Claude Code's hook, Codex's rollout files, and the boot replay of the events log — and the events log still gets exactly one copy of each event, whichever decks are up. A relative path is resolved against the directory you start the deck in, and once, so every path scopes to the same tree. The log is machine-wide by default and shared by every deck on the box, so a scoped deck replays only the part of it that is inside its own workspace: it comes up showing what it will go on to capture, and nothing else.
 
@@ -643,7 +645,7 @@ Environment:
 
 `AGENTS_DECK_NO_MUSIC=1` turns Radio off: no station directory requests, no play reports and no playback. It is not in the table because, unlike the variables above, the login item does not carry it and the desktop app does not take it from your login shell: it holds for a deck started where it is set.
 
-Usage history is read with `ccusage`, and the deck takes the first of these that answers: `AGENTS_DECK_CCUSAGE` if you set it, then the copy it installed for itself under `~/.agents-deck/ccusage`, then a `ccusage` on your PATH, then `npx -y ccusage@latest`. So installing ccusage yourself is enough — the deck will not fetch a second copy, and it works under `AGENTS_DECK_NO_INSTALL=1`, which is the combination that variable is for. When something fails, the modal names which of those four it was.
+Usage history is read with `ccusage`, and the deck takes the first of these that answers: `AGENTS_DECK_CCUSAGE` if you set it, then the copy it installed for itself under `~/.agents-deck/ccusage`, then a `ccusage` on your PATH, then `npx -y ccusage@latest`. On a machine with no npm at all, such as the desktop app on a computer without Node, the deck downloads its copy from the npm registry itself, checked against the sha512 the registry publishes, and there is no npx step. So installing ccusage yourself is enough — the deck will not fetch a second copy, and it works under `AGENTS_DECK_NO_INSTALL=1`, which is the combination that variable is for. When something fails, the modal names which of those four it was.
 
 Open **Usage → By session** and select a Claude Code or Codex row to inspect its whole-session cost estimate, input/output and cache tokens, model breakdown and activity dates. This also works for historical sessions no longer on the canvas. The whole session may extend beyond the period selected in Usage; logs missing from this machine cannot be recovered by the inspector. Its token breakdown also shows **Cached input reuse**, the share of the session's measured input that was read from cache.
 
