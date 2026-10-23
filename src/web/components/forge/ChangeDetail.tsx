@@ -34,8 +34,11 @@ import IntegrationDetailBar from "../IntegrationDetailBar";
 
 type Selection = Extract<ForgeSelection, { type: "change" }>;
 
+const SECTIONS: readonly string[] = ["overview", "commits", "pipelines", "changes"] satisfies ChangeSection[];
+const isSection = (v: string | null): v is ChangeSection => v != null && SECTIONS.includes(v);
+
 export default function ChangeDetail({ selection }: { selection: Selection }) {
-  const { kind, api, scope, refresh } = useForge();
+  const { kind, api, scope, refresh, recallSection, keepSection } = useForge();
   const bar = useDetailBar();
   const words = forgeWords[kind];
   const params = { repo: selection.repo, number: selection.number };
@@ -45,7 +48,13 @@ export default function ChangeDetail({ selection }: { selection: Selection }) {
   // latest one's id, and the Pipelines tab draws the same answer.
   const wantsPipelines = !!c && (c.ci != null || c.counts.pipelines > 0);
   const pipelines = useForgeRead<ForgePipeline[]>(api, scope, wantsPipelines ? "change/pipelines" : null, params, refresh);
-  const [section, setSection] = useState<ChangeSection>("overview");
+  // The section it was left on, when this is the page put back on reopening
+  // the panel; a page the reader opens starts on the Overview.
+  const [section, setSectionState] = useState<ChangeSection>(() => {
+    const kept = recallSection();
+    return isSection(kept) ? kept : "overview";
+  });
+  const setSection = (next: ChangeSection) => { setSectionState(next); keepSection(next); };
   const reference = c?.key ?? changeReference(kind, selection.repo, selection.number);
   const uid = useId();
   const sectionTabId = (id: ChangeSection) => `${uid}-tab-${id}`;

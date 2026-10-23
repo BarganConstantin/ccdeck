@@ -14,7 +14,7 @@ import {
 } from "../../forge-lists";
 import { useForgePages } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
-import { sameSelection, useForge } from "./ForgeContext";
+import { sameSelection, useForge, useReportRows } from "./ForgeContext";
 import { Ago, Badge, ListEnd, LoadingRows, ReadFailure } from "./ForgeParts";
 import { CommentCount, Labels, People } from "./ChangesTab";
 
@@ -32,6 +32,8 @@ export default function IssuesTab({ view, setView, query }: ForgeTabProps) {
   const items = useMemo(() => read.data?.items ?? [], [read.data]);
   const shown = useMemo(() => items.filter(i => matchesQuery({ key: i.key, title: i.title, number: i.number }, query)), [items, query]);
   const phase = listPhase(read, items.length, shown.length);
+  const drawn = useMemo(() => (phase === "rows" ? shown.map(i => ({ type: "issue" as const, repo: i.repo, number: i.number })) : []), [phase, shown]);
+  useReportRows(drawn, phase !== "loading");
   // GitLab's list is the user's own, so their face on every row says nothing.
   const me = kind === "gitlab" ? connection.account?.login ?? null : null;
 

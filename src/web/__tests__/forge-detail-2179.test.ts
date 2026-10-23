@@ -313,6 +313,10 @@ function page(node: ReactNode, over: Partial<ForgeContextValue> = {}): string {
     reportFreshness: () => {},
     onReconnect: () => {},
     narrow: false,
+    listKey: "test",
+    reportRows: () => {},
+    recallSection: () => null,
+    keepSection: () => {},
     ...over,
   };
   return renderToStaticMarkup(createElement(ForgeProvider, { value, children: node }));
