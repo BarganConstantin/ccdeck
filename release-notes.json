@@ -80,10 +80,34 @@
     "3.43.1",
     "3.43.3"
   ],
-  "3.45.1": [
+  "3.46.0": [
     {
-      "title": "🕒 Saved limit resets say when they expire, to the minute",
-      "body": "The Usage panel's line about saved resets now gives the time one expires as well as the day, in your own time zone. It applies to Claude's limit resets and Codex's rate-limit resets alike."
+      "title": "🔗 Jira, GitHub and GitLab panels are easier to read and navigate",
+      "body": "Jira rows show each issue's status, lists answer the arrow keys and fit a phone, and a failed refresh says “Not updated”."
+    },
+    {
+      "title": "📡 Radar finds more Claude Code processes on Linux",
+      "body": "It now sees Claude Code started from its versioned install folder, plus connection attempts that got no reply and the telemetry variables it was launched with."
+    },
+    {
+      "title": "🗺️ Plans are easier to follow on the session canvas",
+      "body": "A session's plan now shows on its note and as “plan 2/5” at every zoom. Subagents line up in one column, closer to their parent."
+    },
+    {
+      "title": "✅ The active account follows your Claude Code login",
+      "body": "After a /login, the accounts panel, Switch, Auto-switch and Usage use the account Claude Code is signed in to. Auto-switch can now be set up while it is off."
+    },
+    {
+      "title": "📊 Account capacity and the Reset calendar have their own buttons",
+      "body": "Both open from the left stripe, under Claude accounts, instead of from the small gauge in the accounts panel's header."
+    },
+    {
+      "title": "🧩 Skill activity has its own button and counts typed skills",
+      "body": "It opens from the right stripe. To count skills you start with a slash command, the deck now adds a UserPromptExpansion hook to Claude Code's settings.json (2.1.116 or newer); AGENTS_DECK_SKILL_HOOK=0 leaves it out."
+    },
+    {
+      "title": "📈 Load history keeps the reading you click",
+      "body": "Click a minute on a chart to keep its reading. Saved limit resets now show their expiry time, and Tool activity has a clearer icon."
     }
   ],
   "3.45.0": [
