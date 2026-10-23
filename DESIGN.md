@@ -840,8 +840,8 @@ All three remain versioned JSON definitions; references are in the themes README
 
 A 620px editorial digest using the shared modal shell, a fixed header/footer and
 one internal scroller. Routine update checking and status live in the shared
-anchored menu; only a check in progress, failure or actionable update interrupts
-reading. Announcements stay accessible. Ordinary Restart keeps its existing handoff.
+anchored menu, including checks in progress; only a failure or actionable update
+interrupts reading. Announcements stay accessible. Ordinary Restart keeps its existing handoff.
 The modal fades without a transform so its modal-owned fixed popover remains
 correctly anchored even during entry.
 Verified desktop updates replace Done with Restart to update.
