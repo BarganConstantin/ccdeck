@@ -51,8 +51,9 @@ Rules for every branch:
 - `main` changes only by merging a release or hotfix pull request, as a merge
   commit.
 - `development` is never reset, rebased, force-pushed or deleted. It never
-  holds private code or private data. Work goes into it only after review and
-  tests, with the owner's approval of the exact commit.
+  holds private code or private data. Work goes into it only through a pull
+  request, after the required CI checks pass and the lead has reviewed it,
+  merged as a merge commit. Nobody pushes to `development` directly.
 - `development` is created fresh from a published release commit on `main`.
   It never restores or reuses the earlier development history, which stays
   archived outside this repository. Until it exists, the lead uses a local
@@ -81,9 +82,9 @@ A coordinated feature release goes through these steps:
 7. One approved merge into `main`, as a merge commit.
 8. An approved release tag on that merge commit. The tag's automated workflow
    publishes to npm and creates the GitHub release.
-9. After publication, `main` is merged into `development`, so `development`
-   is in sync without losing unreleased work. Never reset or force-push
-   `development`.
+9. After publication, `main` is merged into `development` through a pull
+   request, so `development` is in sync without losing unreleased work.
+   Never reset or force-push `development`.
 
 One release pull request does not mean one commit. Keep meaningful, logically
 separate commits; never squash the whole release into one.
@@ -132,16 +133,18 @@ blocks normal use. Everything else waits for the next release.
 5. Batch 1, then Batch 2 (section 4): one public `hotfix/` branch, one pull
    request to `main`, a merge commit, the tree check, the tag on that merge
    commit, and the automated publication.
-6. After publication, merge `main` into `development` with a merge commit.
-   Resolve conflicts so that `development` keeps its own work and gains the
-   fix, then run the regression test and the tests around the fix on the
-   result. If a `release/` branch is open, merge `main` into it as well and
-   revalidate it. The CLI workstream takes the fix at its next sync.
+6. After publication, bring the fix into `development` through a validated
+   pull request: a branch from `development` that merges `main`, with
+   conflicts resolved so that `development` keeps its own work and gains the
+   fix, the regression test and the tests around the fix passing, the
+   required CI checks green and the lead's review. If a `release/` branch is
+   open, merge `main` into it as well and revalidate it. The CLI workstream
+   takes the fix at its next sync.
 
-Never merge `development` into a hotfix, tag a hotfix branch before its merge,
-skip a gate or an approval because the fix is urgent, or reuse a hotfix
-branch for a second fix. The branch stays until the owner approves deleting
-it.
+A hotfix branch never receives unfinished `development` work. Never merge
+`development` into a hotfix, tag a hotfix branch before its merge, skip a
+gate or an approval because the fix is urgent, or reuse a hotfix branch for a
+second fix. The branch stays until the owner approves deleting it.
 
 ## 6. The CLI workstream
 
@@ -159,7 +162,8 @@ of this rule.
 - The CLI agent never merges unfinished CLI work into `development`, never
   adds it to a release or hotfix branch, never pushes to `main`, never
   changes another feature's worktree, and never publishes unfinished
-  functionality.
+  functionality. Unfinished CLI work is not pushed to the public repository
+  at all.
 - From time to time the CLI branch takes the latest published release:
   merge `main` into it with a merge commit, then run the CLI tests. Never
   rebase or reset it, never drop its commits, and never merge `development`
@@ -175,8 +179,8 @@ Before the CLI work goes into `development`, all of these are required:
 - documentation for users;
 - the owner's explicit approval of the exact commit.
 
-It is then merged into `development` with a merge commit and released
-through the normal flow.
+It then goes into `development` through a pull request, merged as a merge
+commit, and is released through the normal flow.
 
 ## 7. Release candidate integrity
 
