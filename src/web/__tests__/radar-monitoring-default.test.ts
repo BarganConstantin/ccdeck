@@ -20,10 +20,12 @@ vi.mock('../../server/traffic-radar-monitor.mjs', async importOriginal => ({
   ...await importOriginal<Record<string, unknown>>(),
   monitorDestination: (options: { host: string; port: number }) => { seen.monitors.push({ host: options.host, port: options.port }); return () => {}; },
 }));
+// The deck's own capture runs on the host's platform, and Windows accepts only
+// an Npcap device name.
 vi.mock('../../server/traffic-radar-platform.mjs', async importOriginal => ({
   ...await importOriginal<Record<string, unknown>>(),
   captureTool: async () => { seen.tools++; return '/usr/sbin/tcpdump'; },
-  captureInterface: async () => { seen.interfaces++; return 'lo'; },
+  captureInterface: async (_host: string, platform: string) => { seen.interfaces++; return platform === 'win32' ? '\\Device\\NPF_Loopback' : 'lo'; },
 }));
 // A collector in the settings and on the wire, for a deck that went looking —
 // and a count of every time one did (automatic monitoring's discovery).
