@@ -69,6 +69,8 @@ export interface ReleaseNote {
   priority?: "highlight" | "required";
   /** Essential details, visible with the current release and across upgrades. */
   notice?: string;
+  /** Short factual notice heading; omitted labels retain the legacy default. */
+  noticeLabel?: string;
   /** Optional semantic anchor, independent of title wording and release version. */
   icon?: "plans" | "accounts" | "skills";
 }
@@ -184,6 +186,7 @@ export function readNotes(source: unknown): VersionNotes[] {
       title: n.title, body: n.body,
       ...(n.priority === "highlight" || n.priority === "required" ? { priority: n.priority } : {}),
       ...(typeof n.notice === "string" && n.notice.trim() ? { notice: n.notice } : {}),
+      ...(typeof n.notice === "string" && n.notice.trim() && typeof n.noticeLabel === "string" && n.noticeLabel.trim() && n.noticeLabel.length <= 32 ? { noticeLabel: n.noticeLabel } : {}),
       ...(n.icon === "plans" || n.icon === "accounts" || n.icon === "skills" ? { icon: n.icon } : {}),
     }));
     const summaries = (source as Record<string, unknown>)["//summaries"];
@@ -205,14 +208,18 @@ export function groupReleaseNotes(notes: ReleaseNote[]) {
   return { highlights, visible, more };
 }
 
-/** Compact manual history; upgrades fail open for unclassified legacy changes. */
-export function presentReleaseNotes(entries: VersionNotes[], upgrading: boolean) {
+/** Manual digest only; upgrades retain their range and fail open for legacy changes. */
+export function presentReleaseNotes(entries: VersionNotes[], upgrading: boolean, running?: string | null) {
   const [latest, ...previous] = entries;
+  if (!upgrading) return {
+    latest: isVersion(running) ? entries.find(entry => compareVersions(entry.version, running) === 0) : latest,
+    visiblePrevious: [], history: [],
+  };
   const visiblePrevious: VersionNotes[] = [];
   const history: VersionNotes[] = [];
   for (const entry of previous) {
     const classified = entry.notes.some(n => n.priority === "highlight" || n.priority === "required" || !!n.notice);
-    const visible = upgrading ? entry.notes.filter(n => !classified || n.priority === "required" || !!n.notice) : [];
+    const visible = entry.notes.filter(n => !classified || n.priority === "required" || !!n.notice);
     if (visible.length) visiblePrevious.push({ version: entry.version, notes: visible });
     const remaining = entry.notes.filter(n => !visible.includes(n));
     if (remaining.length) history.push({ ...entry, notes: remaining });
@@ -228,10 +235,11 @@ export function validateReleaseEditorial(source: Record<string, unknown>): strin
     let highlights = 0;
     for (const [i, item] of value.entries()) {
       if (!item || typeof item !== "object") continue;
-      for (const key of Object.keys(item)) if (!["title", "body", "priority", "notice", "icon"].includes(key)) errors.push(`${version}[${i}]: unknown ${key}`);
+      for (const key of Object.keys(item)) if (!["title", "body", "priority", "notice", "noticeLabel", "icon"].includes(key)) errors.push(`${version}[${i}]: unknown ${key}`);
       if (item.priority !== undefined && !["highlight", "required"].includes(item.priority)) errors.push(`${version}[${i}]: invalid priority`);
       if (item.icon !== undefined && !["plans", "accounts", "skills"].includes(item.icon)) errors.push(`${version}[${i}]: invalid semantic icon`);
       if (item.notice !== undefined && (typeof item.notice !== "string" || !item.notice.trim())) errors.push(`${version}[${i}]: notice must be non-empty text`);
+      if (item.noticeLabel !== undefined && (typeof item.noticeLabel !== "string" || !item.noticeLabel.trim() || item.noticeLabel.length > 32 || typeof item.notice !== "string" || !item.notice.trim())) errors.push(`${version}[${i}]: noticeLabel needs a notice and 1–32 characters`);
       if (item.priority === "highlight") {
         highlights++;
         if (typeof item.title === "string" && splitNoteTitle(item.title).rest.trim().length > 72) errors.push(`${version}[${i}]: highlight title exceeds 72 characters`);
