@@ -268,6 +268,11 @@
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .settings-row-said:empty { position: absolute; }
+/* A reason the row says under itself rather than a result of a press: why
+   its control is off (Settings › Claude Code), in the note's quieter ink. */
+.settings-row-said-quiet { color: var(--text-secondary); }
+/* A Claude Code settings key, as it is spelled in settings.json. */
+.claude-key { font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); overflow-wrap: anywhere; }
 /* A way out of the deck from a row: About's Source. A link, so it is drawn as
    one — the accent's words, underlined under the pointer, the look the deck's
    other links out (.film-link) wear — and a control's height tall, so the

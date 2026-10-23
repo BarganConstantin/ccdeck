@@ -91,6 +91,10 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
     name: "how auto-switch picks the next account",
     chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-policy-block"]), el("div", ["ap-policy", "ap-setting", "ap-next"]), el("span", ["ap-field"]), el("select")],
   }],
+  "components/ClaudeCodeSettings.tsx": [{
+    name: "a Claude Code setting's value",
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["settings-list"]), el("label", ["settings-row"]), el("span", ["settings-row-control"]), el("select", ["sm-select"])],
+  }],
   "components/AccountMenuPopover.tsx": [{
     name: "an account's slot",
     chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-pop"]), el("div", ["ap-pop-form"]), el("span", ["ap-field"]), el("select")],

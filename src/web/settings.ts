@@ -15,7 +15,7 @@ import { isApplePlatform } from "./platform";
 
 /** A section of Settings, in nav order. */
 export type SettingsSection =
-  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "integrations" | "data" | "radar" | "about";
+  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "integrations" | "data" | "claude" | "radar" | "about";
 
 /** One section's nav entry: the word on its tab, and the line under its name
  *  at the head of the pane, saying what the section holds before anything in
@@ -45,6 +45,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "sounds", label: "Sounds", note: "Notification tones and custom audio." },
   { id: "integrations", label: "Integrations", note: "Manage connections to your developer tools." },
   { id: "data", label: "Data", note: "What the deck keeps on this device." },
+  { id: "claude", label: "Claude Code", note: "Claude Code settings, saved to your settings.json. Most changes reach running sessions." },
   { id: "radar", label: "Radar", note: "What Claude Code sends to its telemetry collector, watched all the time." },
   { id: "about", label: "About", note: "The version you are running, and where to say what you think of it." },
 ];
@@ -58,10 +59,14 @@ export function sectionIndex(section: SettingsSection): number {
  *  something (integrationsReach: a kind the deck offers, or a stranded
  *  connection to disconnect), or while it is the section on show, so the last
  *  Disconnect does not pull the page from under the reader. A deck that offers
- *  no integration draws the eight sections a deck without them always drew. */
-export function sectionsDrawn(integrations: IntegrationsReach, onShow: SettingsSection): readonly SettingsSectionEntry[] {
-  if (integrations !== "none" || onShow === "integrations") return SETTINGS_SECTIONS;
-  return SETTINGS_SECTIONS.filter(s => s.id !== "integrations");
+ *  no integration draws the sections a deck without them always drew. Claude
+ *  Code only where Claude Code is: on a Codex-only machine there is no
+ *  settings.json for it to change. */
+export function sectionsDrawn(integrations: IntegrationsReach, onShow: SettingsSection, claudeHere = true): readonly SettingsSectionEntry[] {
+  const hidden = new Set<SettingsSection>();
+  if (integrations === "none" && onShow !== "integrations") hidden.add("integrations");
+  if (!claudeHere && onShow !== "claude") hidden.add("claude");
+  return hidden.size ? SETTINGS_SECTIONS.filter(s => !hidden.has(s.id)) : SETTINGS_SECTIONS;
 }
 
 const TAB_ID_PREFIX = "settings-tab-";

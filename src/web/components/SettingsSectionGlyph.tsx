@@ -21,6 +21,8 @@
 // follow Lucide's (ISC licence) redrawn on this grid, so the set reads as one
 // family with the icons a reader already knows from other settings windows.
 // Integrations (#2178) is a plug: what connects the deck to a tracker.
+// Claude Code is a terminal prompt, the place Claude Code runs: never the
+// Claude mark, which is not the deck's to draw (AGENTS.md, Brand).
 // A dot is a zero-length stroke, which the round cap draws as a dot.
 import type { SettingsSection } from "../settings";
 
@@ -28,6 +30,7 @@ export default function SettingsSectionGlyph({ section }: { section: SettingsSec
   return (
     <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       {section === "radar" && <><path d="M11.8 7a4.8 4.8 0 1 1-4.8-4.8M9.7 7A2.7 2.7 0 1 1 7 4.3M7 7l4.8-4.8" /></>}
+      {section === "claude" && <><rect x="1.8" y="2.6" width="10.4" height="8.8" rx="1.6" /><path d="M4.4 5.6 6 7l-1.6 1.4M7.4 8.6h2.2" /></>}
       {section === "reading" && <><path d="M2 11 5.5 3 9 11M3.3 8h4.4M10.5 4h2M10.5 7h2M10.5 10h2" /></>}
       {section === "sounds" && (
         <>
