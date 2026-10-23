@@ -203,7 +203,7 @@ describe("the New session popover's projects", () => {
 
   it("cuts a long path from the front, keeping the part that tells two projects apart", () => {
     expect(elidePath("/srv/app")).toBe("/srv/app");
-    expect(elidePath("/home/constantin/Desktop/personal/ccdeck")).toBe("…/personal/ccdeck");
+    expect(elidePath("/home/u/Desktop/personal/ccdeck")).toBe("…/personal/ccdeck");
     expect(elidePath("/home/u/travel-portal-with-an-unusually-long-name", 24)).toMatch(/^…\/travel-portal.*…$/);
     expect(elidePath("/home/u/travel-portal-with-an-unusually-long-name", 24).length).toBeLessThanOrEqual(24);
   });
