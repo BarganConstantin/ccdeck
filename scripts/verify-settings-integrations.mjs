@@ -1,16 +1,30 @@
 // Uses an existing external Playwright installation, with no project dependency.
 // Integration requests use fixtures: no real credentials or connections change.
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 const modulePath = process.env.PLAYWRIGHT_MODULE;
 if (!modulePath) throw new Error("Set PLAYWRIGHT_MODULE to an existing Playwright module.");
 const { chromium } = await import(modulePath.startsWith("/") ? pathToFileURL(modulePath).href : modulePath);
 const base = process.argv[2] || "http://127.0.0.1:5186";
-const output = process.env.SETTINGS_ARTIFACTS || "/tmp/ccdeck-settings-iteration5/after";
+const output = process.env.SETTINGS_ARTIFACTS || "/tmp/ccdeck-integrations-composition/after";
 await mkdir(output, { recursive: true });
+// Copy image evidence only; never consume another assessment or its detector output.
+const before = process.env.SETTINGS_BEFORE_ARTIFACTS || "/tmp/ccdeck-integrations-composition/before";
+const copiedBefore = [];
+for (const dimensions of ["1440x1000-rider-black", "390x844-light"]) {
+  for (const view of ["overview", "overview-multiple", "general-buttons", "github"]) {
+    const name = `before-${view}-${dimensions}.png`;
+    await copyFile(`${before}/${name}`, `${output}/${name}`);
+    copiedBefore.push(name);
+  }
+}
 const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE } : {}) });
-const results = [];
+const finalStyleOnly = process.env.SETTINGS_FINAL_STYLE_ONLY === "1";
+const evidenceOnly = finalStyleOnly || process.env.SETTINGS_EVIDENCE_ONLY === "1";
+const resumeCases = !evidenceOnly && process.env.SETTINGS_RESUME_CASES?.split(",");
+const results = resumeCases ? JSON.parse(await readFile(`${output}/browser-results.json`, "utf8")) : [];
+const styleFailures = [];
 const providers = ["github", "gitlab", "jira"].map(kind => ({ kind, label: { github: "GitHub", gitlab: "GitLab", jira: "Jira" }[kind], available: true }));
 const connection = (kind, id, name) => ({
   id, kind, name, baseUrl: `https://${kind}.example.com`, tokenSaved: true,
@@ -19,7 +33,11 @@ const connection = (kind, id, name) => ({
   allowedOrigins: [], createdAt: "2026-10-23T08:00:00Z", updatedAt: "2026-10-23T08:00:00Z",
 });
 try {
-  for (const [width, height, theme] of [[1440, 1000, "rider-black"], [1440, 1000, "light"], [900, 760, "rider-black"], [900, 540, "rider-black"], [390, 844, "light"], [320, 740, "rider-black"]]) {
+  const cases = finalStyleOnly ? [[1440, 1000, "rider-black"], [1440, 1000, "light"]] : evidenceOnly
+    ? [[900, 540, "rider-black"], [1440, 1000, "rider-black"], [1440, 1000, "light"], [390, 844, "light"], [320, 740, "rider-black"]]
+    : [[1440, 1000, "rider-black"], [1440, 1000, "light"], [900, 760, "rider-black"], [900, 540, "rider-black"], [390, 844, "light"], [320, 740, "rider-black"]];
+  for (const [width, height, theme] of cases) {
+    if (resumeCases && !resumeCases.includes(`${width}x${height}-${theme}`)) continue;
     const context = await browser.newContext({ viewport: { width, height }, reducedMotion: "reduce" });
     await context.addInitScript(theme => {
       localStorage.setItem("agent-dag.theme", theme);
@@ -88,7 +106,7 @@ try {
       await page.locator(".settings-modal").screenshot({ path: `${output}/after-${name}-${width}x${height}-${theme}.png` });
     };
     const noOverflow = async () => {
-      const overflow = await page.locator(".settings-modal").evaluate(root => [...root.querySelectorAll(".settings-pane, .settings-list, .ig-form, .ig-summary-row, .ig-detail-facts, .ig-leave-confirm")].filter(el => el.checkVisibility()).some(el => el.scrollWidth > el.clientWidth + 1));
+      const overflow = await page.locator(".settings-modal").evaluate(root => [...root.querySelectorAll(".settings-pane, .settings-list, .ig-form, .ig-summary-row, .ig-provider-view, .ig-detail-facts, .ig-leave-confirm")].filter(el => el.checkVisibility()).some(el => el.scrollWidth > el.clientWidth + 1));
       assert.equal(overflow, false, "Content must fit the Settings pane");
       const bounds = await page.locator(".settings-modal").boundingBox();
       const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
@@ -111,10 +129,95 @@ try {
     };
     const checkFocus = async label => page.waitForFunction(label => document.activeElement?.getAttribute("aria-label") === label, label);
     const providerLabels = { github: "GitHub", gitlab: "GitLab", jira: "Jira" };
-    const manage = (kind, name) => page.getByRole("button", { name: `Manage ${providerLabels[kind]}: ${name} (reviewer)`, exact: true });
-    const back = () => page.getByRole("button", { name: "All integrations", exact: true }).click();
-    const toolbarAdd = kind => page.locator(".ig-manage-navigation").getByRole("button", { name: `Add ${providerLabels[kind]} connection`, exact: true });
-    const overviewAdd = kind => page.getByRole("button", { name: `Add connection to ${providerLabels[kind]}`, exact: true });
+    // Provider entry points are distinct from the fully named collection rows.
+    const providerManage = kind => page.locator(".ig-overview").getByRole("button", { name: `Manage ${providerLabels[kind]}`, exact: true });
+    const manage = (kind, name) => page.locator(".ig-provider-view").getByRole("button", { name: `Manage ${providerLabels[kind]}: ${name} (reviewer)`, exact: true });
+    const collection = page.locator('.ig-provider-view:visible');
+    const collectionBack = kind => page.getByRole("button", { name: `Back to ${providerLabels[kind]} connections`, exact: true });
+    const enterCollectionWithScroll = async kind => {
+      const beforeClick = await page.locator(".settings-pane").evaluate(el => el.scrollTop);
+      await providerManage(kind).evaluate(el => el.addEventListener("click", () => {
+        window.__settingsFixtureOverviewScroll = el.closest(".settings-pane").scrollTop;
+      }, { once: true, capture: true }));
+      await providerManage(kind).click();
+      return { beforeClick, atClick: await page.evaluate(() => window.__settingsFixtureOverviewScroll) };
+    };
+    const openConnection = async (kind, name) => {
+      await providerManage(kind).click();
+      if (saved.filter(c => c.kind === kind).length > 1) {
+        await collection.waitFor();
+        await manage(kind, name).click();
+      }
+      await page.locator('.ig-settings[data-view="connection"]').waitFor();
+    };
+    const back = async () => {
+      const toCollection = page.getByRole("button", { name: /^Back to .+ connections$/ });
+      if (await toCollection.isVisible()) await toCollection.click();
+      await page.getByRole("button", { name: "All integrations", exact: true }).click();
+      await page.locator('.ig-settings[data-view="overview"]').waitFor();
+    };
+    const toolbarAdd = kind => page.locator(".ig-provider-view:visible, .ig-manage-view:visible").getByRole("button", { name: `Add ${providerLabels[kind]} connection`, exact: true });
+    const cancelAdd = async (kind, origin) => {
+      await toolbarAdd(kind).click();
+      await page.getByRole("form", { name: `Connect ${providerLabels[kind]}`, exact: true }).getByRole("button", { name: "Cancel", exact: true }).click();
+      await page.locator(".ig-config-view").waitFor({ state: "detached" });
+      await page.locator(`.ig-settings[data-view="${origin}"]`).waitFor();
+      assert.equal(await toolbarAdd(kind).evaluate(el => el === document.activeElement), true, "Cancel Add must restore its origin toolbar focus");
+    };
+    const collectionLayout = async kind => {
+      await page.locator('.ig-settings[data-view="provider"]').waitFor();
+      const heading = collection.getByRole("heading", { name: `${providerLabels[kind]} connections`, exact: true, level: 2 });
+      await heading.waitFor();
+      assert.equal(await page.locator(".ig-overview").isVisible(), false);
+      assert.equal(await collection.getByRole("button", { name: "All integrations", exact: true }).isVisible(), true);
+      assert.equal(await toolbarAdd(kind).isVisible(), true);
+      for (const conn of saved.filter(c => c.kind === kind)) assert.equal(await manage(kind, conn.name).isVisible(), true);
+      await noOverflow();
+    };
+    const controlGeometry = locator => locator.evaluate(el => {
+      const style = getComputedStyle(el);
+      return { height: el.getBoundingClientRect().height, radius: style.borderTopLeftRadius,
+        paddingStart: style.paddingInlineStart, paddingEnd: style.paddingInlineEnd };
+    });
+    const overviewContract = async () => {
+      await page.locator('.ig-settings[data-view="overview"]').waitFor();
+      await page.mouse.move(0, 0);
+      assert.deepEqual(await page.locator(".ig-provider h3").allTextContents(), ["GitHub", "GitLab", "Jira"]);
+      assert.equal(await page.locator('.ig-overview').getByRole('button', { name: /Add/i }).count(), 0, "Add belongs only inside management");
+      for (const kind of ["github", "gitlab", "jira"]) {
+        const row = page.locator(`#ig-provider-${kind}`), button = row.getByRole("button");
+        assert.equal(await button.count(), 1, `${kind}: exactly one provider action`);
+        const label = `${saved.some(c => c.kind === kind) ? "Manage" : "Connect"} ${providerLabels[kind]}`;
+        assert.equal(await button.getAttribute("aria-label"), label);
+        const geometry = await row.evaluate(el => {
+          const button = el.querySelector("button"), glyph = el.querySelector(".ig-provider-glyph"), text = el.querySelector(".ig-summary-text");
+          const b = button.getBoundingClientRect(), g = glyph?.getBoundingClientRect(), t = text?.getBoundingClientRect();
+          return { glyph: Boolean(glyph?.querySelector("svg")), stack: Boolean(text?.querySelector("h3")),
+            centered: t && Math.abs(b.y + b.height / 2 - t.y - t.height / 2) <= 2 };
+        });
+        assert.ok(geometry.glyph && geometry.stack && geometry.centered, `${kind}: glyph and text stack must exist, with the action centered on the text stack (${JSON.stringify(geometry)})`);
+        assert.equal(await button.evaluate(el => el.classList.contains("primary")), label.startsWith("Connect"));
+        if (label.startsWith("Manage")) {
+          assert.equal(await button.evaluate(el => el.matches('.btn.ig-manage')), true);
+          const neutral = await button.evaluate(async el => {
+            await Promise.all(el.getAnimations().filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {})));
+            const probe = document.createElement("span"); probe.style.backgroundColor = "var(--ctl-fill)"; el.append(probe);
+            const expected = getComputedStyle(probe).backgroundColor; probe.remove();
+            return { expected, actual: getComputedStyle(el).backgroundColor };
+          });
+          // Keep the final gate strict while collecting all flow evidence in one pass.
+          if (neutral.actual !== neutral.expected) styleFailures.push({ width, height, theme, label, ...neutral });
+        }
+        assert.deepEqual(await controlGeometry(button), { height: 30, radius: "6px", paddingStart: "12px", paddingEnd: "12px" });
+      }
+      const actionWidths = await page.locator('.ig-provider > button').evaluateAll(nodes => nodes.map(el => ({ label: el.getAttribute("aria-label"), width: el.getBoundingClientRect().width })));
+      assert.ok(actionWidths.length === 3 && Math.max(...actionWidths.map(b => b.width)) - Math.min(...actionWidths.map(b => b.width)) <= 0.5,
+        `Provider actions must share the intrinsic column width: ${JSON.stringify(actionWidths)}`);
+      assert.equal(await page.locator('.settings-pane-head .ig-total').count(), 1);
+      assert.equal(await page.locator('.ig-overview-info .ig-total').count(), 0, "Count must be detached from security help");
+      assert.equal((await page.locator('.settings-pane-head .ig-total').innerText()).trim(), `${saved.length} saved connection${saved.length === 1 ? "" : "s"}`);
+      await noOverflow();
+    };
     const disconnect = () => page.getByRole("button", { name: "Disconnect Work sources", exact: true });
     const confirmDisconnect = () => page.getByRole("button", { name: "Confirm disconnecting Work sources", exact: true });
     const cancelDisconnect = () => page.getByRole("button", { name: "Cancel disconnect", exact: true });
@@ -147,9 +250,126 @@ try {
       assert.ok(focus.width >= 24 && focus.height >= 24, `${focus.name}: target must be at least 24px`);
       assert.ok(focus.visible && focus.hit && focus.ring, `${focus.name}: keyboard focus must be visible and unobscured`);
     };
-    // Task A — stable Settings shell, compact overview, direct provider Add.
+    if (finalStyleOnly) {
+      // Read-only computed proof for the final corrected CSS. No gallery or flows rerun.
+      const samples = [];
+      const sample = async (locator, state, fillToken, borderToken) => {
+        const computed = await locator.evaluate(async (el, tokens) => {
+          await Promise.all(el.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => {})));
+          const style = getComputedStyle(el);
+          const resolve = (property, token) => {
+            const probe = document.createElement("span"); probe.style[property] = `var(${token})`; el.append(probe);
+            const value = getComputedStyle(probe)[property]; probe.remove(); return value;
+          };
+          return { label: el.getAttribute("aria-label") || el.textContent.trim(), classes: el.className,
+            fill: style.backgroundColor, expectedFill: resolve("backgroundColor", tokens.fill),
+            border: style.borderTopColor, expectedBorder: resolve("color", tokens.border),
+            width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height,
+            radius: style.borderTopLeftRadius, padding: [style.paddingInlineStart, style.paddingInlineEnd], fontWeight: style.fontWeight,
+            runningAnimations: el.getAnimations().filter(a => a.playState === "running" || a.playState === "pending").length,
+            focused: el === document.activeElement, focusVisible: el.matches(":focus-visible"), outline: style.outlineStyle };
+        }, { fill: fillToken, border: borderToken });
+        assert.equal(computed.runningAnimations, 0, `${state}: sample must be settled`);
+        assert.equal(computed.fill, computed.expectedFill, `${state}: correct settled fill`);
+        assert.equal(computed.border, computed.expectedBorder, `${state}: correct settled border`);
+        assert.equal(computed.height, 30); assert.equal(computed.radius, "6px");
+        assert.deepEqual(computed.padding, ["12px", "12px"]);
+        samples.push({ state, ...computed }); return computed;
+      };
+      await page.goto(base, { waitUntil: "domcontentloaded" });
+      await page.getByRole("button", { name: "Settings", exact: true }).click(); await tab("Integrations").click();
+      await page.getByRole("heading", { name: "Integrations", exact: true, level: 2 }).click(); await page.mouse.move(0, 0);
+      await overviewContract();
+      const connect = page.getByRole("button", { name: "Connect GitHub", exact: true });
+      const rest = await sample(connect, "Connect GitHub rest", "--accent-dim", "--accent");
+      await sample(providerManage("gitlab"), "Manage GitLab rest", "--ctl-fill", "--ctl-edge");
+      await sample(providerManage("jira"), "Manage Jira rest", "--ctl-fill", "--ctl-edge");
+      await connect.hover();
+      const hover = await sample(connect, "Connect GitHub hover", "--accent-dim", "--text");
+      assert.notEqual(hover.border, rest.border); assert.equal(hover.fill, rest.fill);
+      await providerManage("gitlab").hover(); await sample(providerManage("gitlab"), "Manage GitLab hover", "--ctl-fill", "--text");
+      await page.mouse.move(0, 0); await providerManage("gitlab").focus(); await page.keyboard.press("Shift+Tab"); await page.keyboard.press("Tab");
+      await keyboardFocusVisible();
+      const focus = await sample(providerManage("gitlab"), "Manage GitLab keyboard focus", "--ctl-fill", "--ctl-edge");
+      assert.ok(focus.focused && focus.focusVisible && focus.outline !== "none");
+      // Fixture-only GET refresh reproduces primary -> neutral without submitting a form.
+      saved.push(connection("github", "github-settled-proof", "Read-only fixture GitHub"));
+      await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+      await providerManage("github").waitFor(); await overviewContract();
+      await sample(providerManage("github"), "Manage GitHub after Connect-to-Manage transition settled", "--ctl-fill", "--ctl-edge");
+      assert.equal(mutations, 0); assert.deepEqual(errors, []);
+      results.push({ width, height, theme, status: "pass", samples, styleFailures: styleFailures.filter(f => f.width === width && f.theme === theme), mutations, errors });
+      console.log(JSON.stringify({ phase: "final settled desktop styles", theme, status: "pass", samples: samples.length, mutations }));
+      await context.close(); continue;
+    }
+    if (evidenceOnly) {
+      // One bounded refresh after the final CSS batch; do not repeat all mutations.
+      await page.goto(base, { waitUntil: "domcontentloaded" });
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page.getByRole("button", { name: "Open Browser Watch", exact: true }).scrollIntoViewIfNeeded();
+      await shot("general-buttons"); await tab("Integrations").click();
+      await overviewContract();
+      await page.getByRole("heading", { name: "Integrations", exact: true, level: 2 }).click();
+      await page.mouse.move(0, 0);
+      assert.equal(await page.locator('.ig-provider > button').evaluateAll(nodes => nodes.some(el => el === document.activeElement)), false);
+      await shot("overview-rest"); await shot("overview");
+      const connect = page.getByRole("button", { name: "Connect GitHub", exact: true });
+      const geometry = await controlGeometry(connect);
+      const rest = await connect.evaluate(el => ({ border: getComputedStyle(el).borderTopColor, fill: getComputedStyle(el).backgroundColor }));
+      await connect.hover();
+      await page.waitForFunction(previous => {
+        const el = document.querySelector('[aria-label="Connect GitHub"]');
+        return getComputedStyle(el).borderTopColor !== previous;
+      }, rest.border);
+      await shot("connect-hover");
+      const hovered = await connect.evaluate(el => ({ border: getComputedStyle(el).borderTopColor, fill: getComputedStyle(el).backgroundColor }));
+      assert.notEqual(hovered.border, rest.border, "Primary Connect hover must visibly change its border");
+      assert.equal(hovered.fill, rest.fill, "Primary Connect hover keeps its accent wash");
+      await providerManage("gitlab").hover(); await shot("manage-hover");
+      await providerManage("gitlab").focus(); await page.keyboard.press("Shift+Tab"); await page.keyboard.press("Tab");
+      await keyboardFocusVisible(); await checkFocus("Manage GitLab"); await shot("manage-keyboard-focus");
+      await connect.click();
+      const connectForm = page.getByRole("form", { name: "Connect GitHub", exact: true });
+      assert.deepEqual(await controlGeometry(connectForm.getByRole("button", { name: "Connect", exact: true })), geometry);
+      await shot("github"); await connectForm.getByRole("button", { name: "Cancel", exact: true }).click();
+      await openConnection("gitlab", "Work projects"); await managementLayout("Work projects");
+      await shot("gitlab-manage-add"); await shot("manage-gitlab"); await back();
+      const extra = connection("gitlab", "gitlab-photo-extra", longName);
+      extra.baseUrl = "https://source-control.engineering-and-platform-development.example.com";
+      extra.account.name = longAccount; saved.push(extra, connection("github", "github-photo", "Review github"));
+      await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+      await page.locator("#ig-provider-gitlab").getByText("2 saved connections", { exact: true }).waitFor();
+      await overviewContract(); await shot("multiple-overview");
+      const scroll = await enterCollectionWithScroll("gitlab");
+      await collectionLayout("gitlab"); await shot("multiple-collection");
+      await cancelAdd("gitlab", "provider"); await back(); await checkFocus("Manage GitLab");
+      const restored = await page.locator(".settings-pane").evaluate(el => ({ top: el.scrollTop, max: el.scrollHeight - el.clientHeight }));
+      scroll.afterBack = restored.top; scroll.maxAfterBack = restored.max;
+      console.log(JSON.stringify({ phase: "collection-scroll", width, height, theme, ...scroll }));
+      assert.ok(Math.abs(scroll.afterBack - Math.min(scroll.atClick, scroll.maxAfterBack)) <= 1, `Collection Back must preserve click-time overview scroll within the remaining content bounds: ${JSON.stringify(scroll)}`);
+      await providerManage("gitlab").click(); await manage("gitlab", longName).click(); await managementLayout(longName); await shot("long-manage");
+      const themeCatalogScreenshots = [];
+      if (width === 1440 && theme === "rider-black") {
+        await back(); await tab("Appearance").click();
+        const ids = await page.locator("[data-theme-choice]").evaluateAll(nodes => nodes.map(node => node.dataset.themeChoice));
+        for (const id of ids) {
+          await tab("Appearance").click(); await page.locator(`[data-theme-choice="${id}"]`).click();
+          await page.waitForFunction(id => document.documentElement.dataset.theme === id, id);
+          await tab("Integrations").click();
+          await page.getByRole("heading", { name: "Integrations", exact: true, level: 2 }).click();
+          await page.mouse.move(0, 0); await noOverflow(); await shot(`overview-theme-${id}`);
+          themeCatalogScreenshots.push(id);
+        }
+      }
+      assert.deepEqual(errors, []);
+      results.push({ evidenceOnly: true, themeCatalogScreenshots, width, height, theme, overview: "one action/provider; equal intrinsic widths; primary/neutral geometry checked", connectHover: { rest, hovered }, nativeBrowser: "unavailable this turn (parent-reported timeout)", styleFailures: styleFailures.filter(f => f.width === width && f.height === height && f.theme === theme), mutations });
+      console.log(JSON.stringify(results.at(-1))); await context.close(); continue;
+    }
+    // Task A — stable shell and exactly one contextual action per provider.
     await page.goto(base, { waitUntil: "domcontentloaded" });
     await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("button", { name: "Open Browser Watch", exact: true }).scrollIntoViewIfNeeded();
+    await shot("general-buttons");
     const frame = await page.locator(".settings-modal").boundingBox();
     const labels = await nav.getByRole("tab").allTextContents();
     assert.deepEqual(labels, ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Data", "Radar", "About"]);
@@ -162,28 +382,31 @@ try {
     assert.equal(await page.getByText("Not connected", { exact: true }).count(), 1);
     assert.equal(await page.locator(".settings-pane-head").isVisible(), true);
     assert.equal(await page.getByRole("heading", { name: "Integrations", exact: true, level: 2 }).isVisible(), true);
-    for (const kind of ["gitlab", "jira"]) {
-      assert.equal(await overviewAdd(kind).innerText(), "Add connection");
-      assert.equal(await overviewAdd(kind).isEnabled(), true);
-    }
+    await page.getByRole("heading", { name: "Integrations", exact: true, level: 2 }).click(); await page.mouse.move(0, 0);
+    await shot("overview-rest"); await shot("overview");
+    await overviewContract();
+    const overviewConnectGeometry = await controlGeometry(page.getByRole("button", { name: "Connect GitHub", exact: true }));
+    await page.getByRole("button", { name: "Connect GitHub", exact: true }).hover();
+    await shot("connect-hover");
+    await providerManage("gitlab").hover(); await shot("manage-hover");
+    // Enter keyboard modality through actual traversal, not a synthetic CSS class.
+    await providerManage("gitlab").focus(); await page.keyboard.press("Shift+Tab"); await page.keyboard.press("Tab");
+    await keyboardFocusVisible(); await checkFocus("Manage GitLab"); await shot("manage-keyboard-focus");
+    await page.mouse.move(0, 0);
     const providerBounds = await page.locator(".ig-providers").boundingBox();
     const securityBounds = await page.locator(".ig-access").boundingBox();
     assert.ok(securityBounds.y >= providerBounds.y + providerBounds.height, "Security help belongs below the full provider list");
-    await shot("overview"); await accessibility("overview");
-    // Direct Add is provider-level, and a clean cancel returns to its overview trigger.
-    await overviewAdd("gitlab").click();
-    await page.getByRole("form", { name: "Connect GitLab", exact: true }).getByRole("button", { name: "Cancel", exact: true }).click();
-    await page.locator(".ig-config-view").waitFor({ state: "detached" });
-    assert.equal(await page.locator(".ig-overview").isVisible(), true);
-    assert.equal(await page.locator(".settings-pane-head").isVisible(), true);
-    await checkFocus("Add connection to GitLab");
-
+    await accessibility("overview");
     // Task B — focused Manage title, shared geometry and factual metadata.
-    await manage("gitlab", "Work projects").click();
+    await openConnection("gitlab", "Work projects");
     const details = page.locator(".ig-connection-details");
     await managementLayout("Work projects");
+    assert.equal(await collection.count(), 0, "One saved connection must open details without a chooser");
+    assert.equal(await page.getByRole("button", { name: "All integrations", exact: true }).isVisible(), true);
+    await shot("gitlab-manage-add");
     assert.equal(await page.locator(".ig-overview").isVisible(), false);
     assert.equal(await page.getByRole("heading", { name: "Work projects", exact: true }).evaluate(el => el === document.activeElement), true);
+    await cancelAdd("gitlab", "connection");
     assert.match(await details.innerText(), /Review Developer.*reviewer/);
     assert.equal(await details.getByRole("button", { name: "Edit connection", exact: true }).evaluate(el => el.classList.contains("primary")), false);
     assert.equal(await details.locator(":scope > .ig-manage-actions").getByRole("button").allTextContents().then(labels => labels.join(",")), "Test connection,Edit connection");
@@ -195,18 +418,20 @@ try {
     assert.match(await fact("Server").innerText(), /GitLab.*17\.5\.1/);
     await shot("manage-gitlab"); await accessibility("manage-gitlab");
     await back();
-    await checkFocus("Manage GitLab: Work projects (reviewer)");
-    await manage("jira", "Engineering").click();
+    await checkFocus("Manage GitLab");
+    await openConnection("jira", "Engineering");
     await managementLayout("Engineering");
     await shot("manage-jira"); await accessibility("manage-jira");
     assert.match(await details.innerText(), /Jira Data Center 9.0/);
     await page.keyboard.press("Escape");
-    await checkFocus("Manage Jira: Engineering (reviewer)");
+    await checkFocus("Manage Jira");
 
     // Task C — empty Connect, validation, unsaved inputs, and creation.
     await page.getByRole("button", { name: "Connect GitHub", exact: true }).click();
     let form = page.getByRole("form", { name: "Connect GitHub", exact: true });
     assert.equal(await form.getByLabel("Personal access token", { exact: true }).evaluate(el => el === document.activeElement), true);
+    assert.equal(await form.getByRole("button", { name: "Connect", exact: true }).evaluate(el => el.matches('.btn.primary')), true);
+    assert.deepEqual(await controlGeometry(form.getByRole("button", { name: "Connect", exact: true })), overviewConnectGeometry, "Overview Connect must share form control geometry");
     await shot("github"); await accessibility("github");
     await form.getByLabel("Personal access token", { exact: true }).fill("review-fixture");
     await tab("General").click();
@@ -223,14 +448,14 @@ try {
     await form.getByLabel("Personal access token", { exact: true }).fill("review-fixture");
     await form.getByRole("button", { name: "Connect", exact: true }).click();
     assert.equal(await form.getByRole("button", { name: "Cancel", exact: true }).isDisabled(), true);
-    await manage("github", "Review github").waitFor();
-    await checkFocus("Manage GitHub: Review github (reviewer)");
-    await manage("github", "Review github").click();
+    await providerManage("github").waitFor();
+    await checkFocus("Manage GitHub");
+    await openConnection("github", "Review github");
     await details.getByRole("status").filter({ hasText: "Connection saved and tested as Review Developer." }).waitFor();
     await back();
 
     // Task D — toolbar Add, multiple connections, long names and Edit.
-    await manage("gitlab", "Work projects").click();
+    await openConnection("gitlab", "Work projects");
     await toolbarAdd("gitlab").click();
     form = page.getByRole("form", { name: "Connect GitLab", exact: true });
     await form.getByLabel("Self-managed", { exact: true }).focus(); await page.keyboard.press("Space");
@@ -239,14 +464,27 @@ try {
     await form.getByLabel("Name", { exact: false }).fill(longName);
     await shot("gitlab"); await noOverflow(); await accessibility("gitlab");
     await form.getByRole("button", { name: "Connect", exact: true }).click();
-    await manage("gitlab", longName).waitFor();
+    await providerManage("gitlab").waitFor();
+    await checkFocus("Manage GitLab");
     assert.equal(saved.filter(c => c.kind === "gitlab").length, 2);
-    await shot("multiple"); await noOverflow();
-    await manage("gitlab", longName).click();
+    await overviewContract(); await shot("multiple-overview");
+    const overviewScroll = await enterCollectionWithScroll("gitlab");
+    await collectionLayout("gitlab");
+    assert.equal(await collection.getByRole("heading", { name: "GitLab connections", exact: true }).evaluate(el => el === document.activeElement), true);
+    await shot("multiple-collection"); await accessibility("multiple-collection");
+    await cancelAdd("gitlab", "provider");
+    await back(); await checkFocus("Manage GitLab");
+    // Entering management clears the transient success notice; the shorter
+    // overview may legitimately clamp the saved scroll to its new maximum.
+    const restoredScroll = await page.locator(".settings-pane").evaluate(el => ({ top: el.scrollTop, max: el.scrollHeight - el.clientHeight }));
+    assert.ok(Math.abs(restoredScroll.top - Math.min(overviewScroll.atClick, restoredScroll.max)) <= 1,
+      `Collection Back preserves click-time overview scroll within content bounds: ${JSON.stringify({ ...overviewScroll, restoredScroll })}`);
+    await providerManage("gitlab").click(); await manage("gitlab", longName).click();
     await managementLayout(longName);
     assert.match(await fact("Account").innerText(), new RegExp(`${longAccount}.*reviewer`));
     await noOverflow(); await shot("long-manage"); await accessibility("long-manage");
-    await back();
+    await collectionBack("gitlab").click(); await collectionLayout("gitlab");
+    await checkFocus(`Manage GitLab: ${longName} (reviewer)`);
     await manage("gitlab", "Work projects").click();
     await page.getByRole("button", { name: "Edit connection", exact: true }).click();
     form = page.getByRole("form", { name: "Edit Work projects", exact: true });
@@ -356,11 +594,17 @@ try {
     await page.locator(".ig-manage-view").waitFor({ state: "detached" });
     assert.equal(calls.delete, deletesBefore + 2, "Repeated retry clicks must issue only one DELETE");
     assert.equal(saved.length, 3);
+    await collection.waitFor();
+    await page.locator('.ig-settings[data-view="provider"]').waitFor();
+    assert.equal(await manage("gitlab", longName).isVisible(), true);
     await checkFocus(`Manage GitLab: ${longName} (reviewer)`);
+    assert.equal(await collection.getByRole("button", { name: /^Manage GitLab:/ }).count(), 1);
+    await shot("multiple-after-delete");
+    await back(); await checkFocus("Manage GitLab");
     requestDelay = 180;
 
     // Task G — Jira variants, search, leave guards, unavailable providers and adaptation.
-    await manage("jira", "Engineering").click();
+    await openConnection("jira", "Engineering");
     await toolbarAdd("jira").click();
     form = page.getByRole("form", { name: "Connect Jira", exact: true });
     await shot("jira-server");
@@ -374,16 +618,16 @@ try {
     await page.keyboard.press("Escape");
     assert.equal(await page.locator(".ig-manage-view").isVisible(), true);
     await page.keyboard.press("Escape");
-    await checkFocus("Manage Jira: Engineering (reviewer)");
+    await checkFocus("Manage Jira");
     const search = page.getByRole("combobox", { name: "Search settings" });
     for (const label of ["GitHub", "GitLab", "Jira"]) {
       await search.fill(label); await search.press("ArrowDown"); await search.press("ArrowUp"); await search.press("Enter");
       assert.equal(await page.locator(".ig-overview").isVisible(), true);
     }
-    await manage("jira", "Engineering").click();
+    await openConnection("jira", "Engineering");
     await page.keyboard.press("Control+f"); await search.fill("GitLab"); await search.press("Enter");
     assert.equal(await page.locator(".ig-overview").isVisible(), true);
-    await manage("jira", "Engineering").click();
+    await openConnection("jira", "Engineering");
     await page.getByRole("button", { name: "Edit connection", exact: true }).click();
     await page.getByRole("form").getByLabel("Name", { exact: false }).fill("Unsaved name");
     await tab("General").click();
@@ -402,20 +646,33 @@ try {
     providers.find(p => p.kind === "jira").available = false;
     await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
     await page.getByText("Jira is not available on this deck.", { exact: false }).waitFor();
-    await manage("jira", "Engineering").click();
+    await openConnection("jira", "Engineering");
     assert.equal(await page.getByRole("button", { name: "Edit connection", exact: true }).count(), 0);
     assert.equal(await toolbarAdd("jira").count(), 0);
     assert.equal(await page.getByRole("button", { name: "Test connection", exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "Disconnect Engineering", exact: true }).isVisible(), true);
     await noOverflow(); await shot("unavailable");
     await back();
+    // Known unavailable providers keep one overview entry and safe collection access.
+    saved.push(connection("jira", "jira-unavailable-extra", "Archived Jira"));
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await page.locator("#ig-provider-jira").getByText("2 saved connections", { exact: true }).waitFor();
+    assert.equal(await page.locator("#ig-provider-jira").getByRole("button").count(), 1);
+    await providerManage("jira").click(); await collection.waitFor();
+    assert.equal(await toolbarAdd("jira").count(), 0);
+    await manage("jira", "Archived Jira").click();
+    assert.equal(await details.getByRole("button", { name: "Test connection", exact: true }).count(), 0);
+    assert.equal(await details.getByRole("button", { name: "Edit connection", exact: true }).count(), 0);
+    assert.equal(await toolbarAdd("jira").count(), 0);
+    await back();
+    saved = saved.filter(c => c.id !== "jira-unavailable-extra");
     providers.find(p => p.kind === "jira").available = true;
     await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
     await page.locator("#ig-provider-jira").waitFor();
     await tab("Text & density").click(); await page.getByRole("radio", { name: /Largest/ }).click();
     await tab("Integrations").click(); await noOverflow(); await shot("large-text");
     await tab("Text & density").click(); await page.getByRole("radio", { name: /^Default/ }).first().click(); await tab("Integrations").click();
-    await manage("jira", "Engineering").click();
+    await openConnection("jira", "Engineering");
     if (width <= 390 || height <= 540) {
       // Walk buttons using the keyboard so native scroll-into-view and the focus ring are tested.
       const buttons = page.locator(".ig-manage-view button:visible");
@@ -434,7 +691,7 @@ try {
       try {
         await page.setViewportSize({ width: width / 2, height: height / 2 });
         await noOverflow(); await shot("zoom-200-overview"); await accessibility("zoom-200-overview");
-        await manage("gitlab", longName).click();
+        await openConnection("gitlab", longName);
         await noOverflow();
         assert.equal(await page.getByRole("heading", { name: longName, level: 2, exact: true }).isVisible(), true);
         await page.getByRole("button", { name: "Edit connection", exact: true }).focus();
@@ -450,18 +707,59 @@ try {
         await tab("Appearance").click(); await page.locator(`[data-theme-choice="${id}"]`).click();
         await page.waitForFunction(id => document.documentElement.dataset.theme === id, id);
         await tab("Integrations").click(); await noOverflow(); await accessibility(`theme-${id}`);
-        await manage("jira", "Engineering").click(); await accessibility(`manage-theme-${id}`); await back();
+        await openConnection("jira", "Engineering"); await accessibility(`manage-theme-${id}`); await back();
       }
       results.push({ themeCatalog: themes, accessibility: process.env.AXE_SCRIPT ? "pass" : "not run" });
     }
+    // Removal after entering a collection must preserve that context until empty.
+    saved.push(connection("gitlab", "gitlab-final-extra", "Temporary GitLab"));
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await page.locator("#ig-provider-gitlab").getByText("2 saved connections", { exact: true }).waitFor();
+    await providerManage("gitlab").click(); await collectionLayout("gitlab");
+    for (const name of ["Temporary GitLab", longName]) {
+      await manage("gitlab", name).click();
+      await details.getByRole("button", { name: `Disconnect ${name}`, exact: true }).click();
+      await page.waitForTimeout(450);
+      await details.getByRole("button", { name: `Confirm disconnecting ${name}`, exact: true }).press("Enter");
+      await page.locator(".ig-manage-view").waitFor({ state: "detached" });
+      if (name === "Temporary GitLab") {
+        await collection.waitFor(); await checkFocus(`Manage GitLab: ${longName} (reviewer)`);
+      } else {
+        await checkFocus("Connect GitLab");
+        assert.equal(await page.locator('.ig-settings[data-view="overview"]').isVisible(), true);
+      }
+    }
+    await openConnection("github", "Review github");
+    await details.getByRole("button", { name: "Disconnect Review github", exact: true }).click();
+    await page.waitForTimeout(450);
+    await details.getByRole("button", { name: "Confirm disconnecting Review github", exact: true }).press("Space");
+    await checkFocus("Connect GitHub"); await overviewContract();
+    // Unknown, stranded kinds retain their full per-connection fallback name.
+    saved.push(connection("legacy", "legacy-review", "Legacy tracker"));
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    const legacy = page.getByRole("button", { name: "Manage legacy: Legacy tracker (reviewer)", exact: true });
+    await legacy.click();
+    assert.equal(await details.getByRole("button", { name: "Disconnect Legacy tracker", exact: true }).isVisible(), true);
+    assert.equal(await details.getByRole("button", { name: /Test connection|Edit connection|Add / }).count(), 0);
+    await back();
     await page.keyboard.press("Escape"); await page.locator(".settings-modal").waitFor({ state: "detached" });
     assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).evaluate(el => el === document.activeElement), true);
     assert.deepEqual(errors, []);
-    results.push({ width, height, theme, tasks: "A–G pass", overview: "pass", manage: "pass", multipleConnections: "pass", focusedForms: "pass", unsavedDrafts: "pass", management: "pass", disconnect: "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass", duplicateRequests: { test: "pass", delete: "pass", calls }, keyboard: "pass", focusTargets: width <= 390 || height <= 540 ? ">=24px, visible and unobscured" : "not separately measured", zoomTechnique, overflow: "none", accessibility: process.env.AXE_SCRIPT ? "pass" : "not run", mutations, errors });
+    results.push({ copiedBefore, styleFailures: styleFailures.filter(f => f.width === width && f.height === height && f.theme === theme), width, height, theme, tasks: "A–G pass", overview: "pass", manage: "pass", multipleConnections: "one provider entry, explicit collection, context Add/Cancel/Back and deletion focus pass", focusedForms: "pass", unsavedDrafts: "pass", management: "pass", disconnect: "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass", duplicateRequests: { test: "pass", delete: "pass", calls }, keyboard: "pass", focusTargets: width <= 390 || height <= 540 ? ">=24px, visible and unobscured" : "not separately measured", zoomTechnique, overflow: "none", accessibility: process.env.AXE_SCRIPT ? "pass" : "not run", mutations, errors });
     console.log(JSON.stringify(results.at(-1)));
     await context.close();
   }
+  assert.deepEqual(styleFailures, [], "Manage resting backgrounds must resolve to --ctl-fill; see per-case evidence");
 } finally {
-  await writeFile(`${output}/browser-results.json`, JSON.stringify(results, null, 2));
+  const report = finalStyleOnly ? {
+    phase: "FINAL corrected CSS: settled read-only desktop computed styles",
+    capturedAt: new Date().toISOString(), status: results.length === 2 && styleFailures.length === 0 ? "pass" : "partial or failed",
+    method: "Await target finite animations; verify zero running animations before computed-style comparison. Fixture GET refresh only; no screenshots or functional flows rerun.",
+    historicalReports: {
+      "browser-results.json": "HISTORY: combined six functional passes; first dark case retains pre-cascade-fix transparent-background samples. Unchanged by this verification.",
+      "evidence-refresh-results.json": "HISTORY: gallery refresh sampled intermediate primary-to-neutral interpolation frames before settled-helper correction. Unchanged by this verification."
+    }, cases: results, styleFailures
+  } : results;
+  await writeFile(`${output}/${finalStyleOnly ? "final-style-evidence" : evidenceOnly ? "evidence-refresh-results" : "browser-results"}.json`, JSON.stringify(report, null, 2));
   await browser.close();
 }

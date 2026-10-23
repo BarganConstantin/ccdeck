@@ -358,24 +358,22 @@ img.ig-avatar + img.ig-avatar {
 .ig-stack-more { margin-left: 2px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 
 /* The overview introduction yields to the selected connection's own heading. */
-.settings-pane:has(> .ig-settings[data-view="connection"]) > .settings-pane-head { display: none; }
+.settings-pane:has(> .ig-settings[data-view="connection"], > .ig-settings[data-view="provider"]) > .settings-pane-head { display: none; }
 /* Compact provider list: one contextual action per saved connection. */
 .ig-settings, .ig-overview { display: flex; flex-direction: column; min-width: 0; gap: 16px; }
-.ig-overview[hidden], .ig-manage-view[hidden] { display: none; }
-.ig-overview-info { padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: baseline; justify-content: space-between; gap: 12px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.ig-overview[hidden], .ig-manage-view[hidden], .ig-provider-view[hidden] { display: none; }
+.ig-overview-info { padding-top: 12px; border-top: 1px solid var(--line); color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .ig-access { min-width: 0; line-height: 1.5; }
 .ig-access summary { cursor: pointer; width: fit-content; }
 .ig-access p { margin: 8px 0 0; max-width: 65ch; }
-.ig-total { flex: none; font-variant-numeric: tabular-nums; }
-.ig-providers { display: flex; flex-direction: column; min-width: 0; }
-.ig-provider { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; column-gap: 12px; padding-block: 16px; }
+.ig-total { flex: none; align-self: center; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
+.ig-providers { display: grid; grid-template-columns: 16px minmax(0, 1fr) max-content; column-gap: 12px; min-width: 0; }
+.ig-provider { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; column-gap: 12px; padding-block: 16px; }
 .ig-provider:first-child { padding-top: 0; }
 .ig-provider + .ig-provider { border-top: 1px solid var(--line); }
-.ig-provider > .ig-provider-glyph { padding-top: 2px; }
+.ig-provider > .ig-provider-glyph { align-self: start; padding-top: 2px; }
 .ig-provider-content { min-width: 0; }
-.ig-provider-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 8px; }
 .ig-provider-content h3 { margin: 0; color: var(--text); font-size: calc(14px + var(--ui-text-increase, 0px)); line-height: 1.4; font-weight: 600; }
-.ig-connection-count { margin: 0 0 8px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .ig-connection-list { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .ig-connections { display: flex; flex-direction: column; gap: 12px; }
 .ig-summary-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-width: 0; }
@@ -383,9 +381,14 @@ img.ig-avatar + img.ig-avatar {
 .ig-summary-text .ig-conn-name { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; overflow-wrap: anywhere; }
 .ig-provider .ig-conn-line { color: var(--text-secondary); line-height: 1.5; }
 .ig-manage { min-width: 80px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+button.btn.ig-manage { font-weight: 500; }
+button.btn.ig-manage:not(.primary) { background: var(--ctl-fill); }
+button.btn.ig-manage.primary:hover { border-color: var(--text); }
 .ig-list-error { display: flex; align-items: center; gap: 12px; color: var(--err); }
 .ig-list-error p { flex: 1; margin: 0; overflow-wrap: anywhere; }
-.ig-config-view, .ig-manage-view { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.ig-provider-connections { display: flex; flex-direction: column; gap: 16px; }
+.ig-provider-connections > .ig-conn + .ig-conn { border-top: 1px solid var(--line); padding-top: 16px; }
+.ig-config-view, .ig-manage-view, .ig-provider-view { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .ig-settings button.ig-back-to-overview, .ig-settings button.ig-back-to-overview:hover { border: 0; }
 .ig-back-to-overview { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding-inline: 0; color: var(--text-secondary); }
 .ig-config-view .ig-form { max-width: 100%; gap: 16px; }
@@ -417,7 +420,7 @@ img.ig-avatar + img.ig-avatar {
 @media (max-width: 360px) {
   .ig-overview-info { flex-wrap: wrap; gap: 4px; }
   .ig-summary-row { column-gap: 8px; }
-  .ig-manage { min-width: 70px; padding-inline: 8px; }
+  .ig-manage { min-width: 70px; }
 }
 
 /* Settings › Integrations: the connect form, and one row per connection. */

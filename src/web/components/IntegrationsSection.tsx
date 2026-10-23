@@ -36,6 +36,11 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
 } = {}) {
   const integrations = useIntegrations();
   const { connections, error: listError } = integrations;
+  const [managingKind, setManagingKind] = useState<IntegrationKind | null>(null);
+  const providerHeadingRef = useRef<HTMLHeadingElement>(null);
+  const providerRefs = useRef(new Map<IntegrationKind, HTMLButtonElement>());
+  const collectionTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const collectionScroll = useRef(0);
   const [managedId, setManagedId] = useState<string | null>(null);
   const [overviewNotice, setOverviewNotice] = useState("");
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -110,12 +115,12 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
       setEditing(null);
       setPendingLeave(null);
       setDirty(false);
-      setManagedId(null);
+      setManagedId(null); setManagingKind(null);
       setOverviewNotice("Connection added.");
       note(conn.id, "ok", `Connection saved and tested as ${conn.account.name || conn.account.login}.`);
       setFocused(conn.id);
       focusAfterChange.current = () => {
-        const target = manageRefs.current.get(conn.id);
+        const target = providerRefs.current.get(conn.kind) ?? manageRefs.current.get(conn.id);
         target?.scrollIntoView?.({ block: "nearest" });
         return target;
       };
@@ -163,13 +168,17 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
         clearNote(conn.id);
         if (editing?.mode === "edit" && editing.id === conn.id) setEditing(null);
         setManagedId(null);
+        const remaining = (connections ?? []).filter(c => c.kind === conn.kind && c.id !== conn.id);
+        if (!managingKind || remaining.length === 0) setManagingKind(null);
         setOverviewNotice("Connection disconnected.");
         const active = document.activeElement;
         // Restore focus after the overview has actually committed. A frame
         // callback can run while its controls still have a hidden ancestor.
         if (active === pressed || focusDropped(active?.tagName ?? null)) focusAfterChange.current = () => {
-          const remaining = (connections ?? []).find(c => c.kind === conn.kind && c.id !== conn.id);
-          return remaining && manageRefs.current.get(remaining.id) || addRefs.current.get(conn.kind) || document.getElementById("settings-tab-integrations");
+          const target = (managingKind && remaining[0] ? manageRefs.current.get(remaining[0].id) : providerRefs.current.get(conn.kind))
+            ?? addRefs.current.get(conn.kind) ?? document.getElementById("settings-tab-integrations");
+          target?.scrollIntoView?.({ block: "nearest" });
+          return target;
         };
       } catch (err) {
         note(conn.id, "err", err instanceof Error ? err.message : "The connection could not be removed. Try again.", "disconnect");
@@ -184,18 +193,18 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
     if (target?.isConnected && (target.checkVisibility ? target.checkVisibility() : target.getClientRects().length > 0)) {
       target.focus({ preventScroll: true });
     }
-  }, [connections, managedId, editing, busy, pendingLeave]);
+  }, [connections, managedId, managingKind, editing, busy, pendingLeave]);
 
   const list = connections ?? [];
-  // The kinds this deck offers, and nothing until the list is read: a deck
-  // that offers none must not be asked to connect one.
+  // Offered providers plus known saved providers, which remain manageable
+  // when unavailable. Creation and configuration still require an offered kind.
   const offered = offeredKinds(integrations);
   const order = ["github", "gitlab", "jira"];
-  const known = integrationDefs().filter(p => offered.has(p.kind)).sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
+  const known = integrationDefs().filter(p => offered.has(p.kind) || list.some(conn => conn.kind === p.kind)).sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
   const reach = integrationsReach(integrations);
 
   const backToOverview = useCallback(() => {
-    setEditing(null); setManagedId(null); setDirty(false); setPendingLeave(null); setFormError(null); setArmed(null);
+    setEditing(null); setManagedId(null); setManagingKind(null); setDirty(false); setPendingLeave(null); setFormError(null); setArmed(null);
     focusAfterChange.current = () => {
       const trigger = triggerRef.current;
       const pane = trigger?.closest<HTMLElement>(".settings-pane");
@@ -204,11 +213,22 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
     };
   }, []);
 
+  const backToCollection = useCallback(() => {
+    if (!managingKind) { backToOverview(); return; }
+    setManagedId(null); setEditing(null); setDirty(false); setPendingLeave(null); setFormError(null); setArmed(null);
+    focusAfterChange.current = () => {
+      const target = collectionTriggerRef.current?.isConnected ? collectionTriggerRef.current : providerHeadingRef.current;
+      const pane = target?.closest<HTMLElement>(".settings-pane");
+      if (pane) pane.scrollTop = target === providerHeadingRef.current ? 0 : collectionScroll.current;
+      return target;
+    };
+  }, [managingKind, backToOverview]);
+
   const closeForm = useCallback(() => {
-    if (!managedId) { backToOverview(); return; }
+    if (!managedId && !managingKind) { backToOverview(); return; }
     setEditing(null); setDirty(false); setPendingLeave(null); setFormError(null);
-    focusAfterChange.current = () => formTriggerRef.current ?? detailHeadingRef.current;
-  }, [managedId, backToOverview]);
+    focusAfterChange.current = () => formTriggerRef.current ?? (managedId ? detailHeadingRef.current : providerHeadingRef.current);
+  }, [managedId, managingKind, backToOverview]);
 
   const leave = useCallback<SettingsLeaveGuard>((action, back = false) => {
     if (busyRef.current) return;
@@ -217,23 +237,24 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
       requestAnimationFrame(() => document.querySelector<HTMLInputElement>(".ig-config-view input:not([disabled])")?.focus());
       return;
     }
-    const accepted = back ? (editing ? closeForm : backToOverview) : () => { setEditing(null); setManagedId(null); action(); };
+    const accepted = back ? (editing ? closeForm : managedId ? backToCollection : backToOverview) : () => { setEditing(null); setManagedId(null); setManagingKind(null); action(); };
     if (dirty) setPendingLeave(() => accepted);
     else { setDirty(false); accepted(); }
-  }, [dirty, pendingLeave, editing, closeForm, backToOverview]);
+  }, [dirty, pendingLeave, editing, managedId, closeForm, backToCollection, backToOverview]);
 
   useEffect(() => {
-    onBeforeLeaveChange?.(editing || managedId ? leave : null);
+    onBeforeLeaveChange?.(editing || managedId || managingKind ? leave : null);
     return () => onBeforeLeaveChange?.(null);
-  }, [editing, managedId, leave, onBeforeLeaveChange]);
+  }, [editing, managedId, managingKind, leave, onBeforeLeaveChange]);
   useEffect(() => { if (pendingLeave) keepRef.current?.focus(); }, [pendingLeave]);
   useEffect(() => { if (managedId) detailHeadingRef.current?.focus(); }, [managedId]);
+  useEffect(() => { if (managingKind) providerHeadingRef.current?.focus(); }, [managingKind]);
 
   const begin = (next: NonNullable<Editing>, trigger: HTMLButtonElement) => {
     if (busyRef.current) return;
     focusAfterChange.current = null;
     setPendingLeave(null); setOverviewNotice(""); setArmed(null);
-    if (managedId) formTriggerRef.current = trigger;
+    if (managedId || managingKind) formTriggerRef.current = trigger;
     else {
       overviewScroll.current = trigger.closest<HTMLElement>(".settings-pane")?.scrollTop ?? 0;
       triggerRef.current = trigger;
@@ -247,9 +268,28 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
   const openManage = (conn: Connection, trigger: HTMLButtonElement) => {
     if (busyRef.current) return;
     focusAfterChange.current = null;
-    overviewScroll.current = trigger.closest<HTMLElement>(".settings-pane")?.scrollTop ?? 0;
-    triggerRef.current = trigger; formTriggerRef.current = null;
+    if (managingKind) {
+      collectionTriggerRef.current = trigger;
+      collectionScroll.current = trigger.closest<HTMLElement>(".settings-pane")?.scrollTop ?? 0;
+    } else {
+      overviewScroll.current = trigger.closest<HTMLElement>(".settings-pane")?.scrollTop ?? 0;
+      triggerRef.current = trigger;
+    }
+    formTriggerRef.current = null;
     setOverviewNotice(""); setArmed(null); setManagedId(conn.id);
+    const pane = trigger.closest<HTMLElement>(".settings-pane");
+    if (pane) pane.scrollTop = 0;
+  };
+
+  const openProvider = (kind: IntegrationKind, trigger: HTMLButtonElement) => {
+    const saved = list.filter(conn => conn.kind === kind);
+    if (saved.length === 1) { openManage(saved[0], trigger); return; }
+    if (busyRef.current) return;
+    focusAfterChange.current = null;
+    overviewScroll.current = trigger.closest<HTMLElement>(".settings-pane")?.scrollTop ?? 0;
+    triggerRef.current = trigger;
+    collectionTriggerRef.current = null; collectionScroll.current = 0;
+    setOverviewNotice(""); setArmed(null); setManagingKind(kind);
     const pane = trigger.closest<HTMLElement>(".settings-pane");
     if (pane) pane.scrollTop = 0;
   };
@@ -263,8 +303,8 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
     return <div key={conn.id} className="ig-conn" ref={el => { if (el) rowRefs.current.set(conn.id, el); else rowRefs.current.delete(conn.id); }}>
       <div className="ig-summary-row">
         <div className="ig-summary-text">
-          <span className="ig-conn-name">{connectionHost(conn)}</span>
-          <span className="ig-conn-line">{[showName && conn.name !== connectionHost(conn) ? conn.name : "", account, server || (verified ? `Last verified ${verified}` : "Not verified yet")].filter(Boolean).join(" · ") || "No account read yet"}</span>
+          <span className="ig-conn-name">{showName ? conn.name || connectionHost(conn) : connectionHost(conn)}</span>
+          <span className="ig-conn-line">{[showName && conn.name !== connectionHost(conn) ? connectionHost(conn) : "", account, server || (verified ? `Last verified ${verified}` : "Not verified yet")].filter(Boolean).join(" · ") || "No account read yet"}</span>
           {!conn.tokenSaved && <span className="ig-bad">No token saved</span>}
           {unavailable && <span className="ig-stranded">{provider?.label ?? conn.kind} is not available on this deck. Manage this connection to disconnect it.</span>}
         </div>
@@ -275,17 +315,19 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
   };
 
   const stranded = list.filter(conn => !known.some(provider => provider.kind === conn.kind));
+  const collectionProvider = managingKind ? integrationDef(managingKind) : null;
+  const collectionConnections = list.filter(conn => conn.kind === managingKind);
   const managedConnection = list.find(conn => conn.id === managedId);
   const editedConnection = editing?.mode === "edit" ? list.find(conn => conn.id === editing.id) : undefined;
-  const formProvider = editing?.mode === "add" ? known.find(provider => provider.kind === editing.kind)
-    : editedConnection && known.find(provider => provider.kind === editedConnection.kind);
+  const formProvider = editing?.mode === "add" ? known.find(provider => offered.has(provider.kind) && provider.kind === editing.kind)
+    : editedConnection && known.find(provider => offered.has(provider.kind) && provider.kind === editedConnection.kind);
 
   return (
-    <div className="ig-settings" data-view={editing ? "form" : managedId ? "connection" : "overview"}>
+    <div className="ig-settings" data-view={editing ? "form" : managedId ? "connection" : managingKind ? "provider" : "overview"}>
       {editing && <div className="ig-config-view">
         <button type="button" className="btn ig-back-to-overview" disabled={busy !== null} onClick={() => leave(closeForm, true)}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 3-5 5 5 5M2 8h12" /></svg>
-          {managedId ? "Back to connection" : "All integrations"}
+          {managedId ? "Back to connection" : managingKind ? `Back to ${collectionProvider?.label ?? managingKind} connections` : "All integrations"}
         </button>
         {pendingLeave && <div className="ig-leave-confirm" role="group" aria-labelledby="ig-leave-title">
           <strong id="ig-leave-title">Discard unsaved changes?</strong>
@@ -303,10 +345,23 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
           : <div role="status"><p>This provider or connection is no longer available.</p><button type="button" className="btn" onClick={closeForm}>Back to integrations</button></div>}
         </div>
       </div>}
+      {managingKind && <div className="ig-provider-view" hidden={editing !== null || managedId !== null}>
+        <div className="ig-manage-navigation">
+          <button type="button" className="btn ig-back-to-overview" disabled={busy !== null} onClick={() => leave(backToOverview, true)}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 3-5 5 5 5M2 8h12" /></svg>All integrations
+          </button>
+          {kindOffered(integrations, managingKind) && <button type="button" className="btn" disabled={busy !== null}
+            onClick={event => begin({ mode: "add", kind: managingKind }, event.currentTarget)}>Add {collectionProvider?.label ?? managingKind} connection</button>}
+        </div>
+        <h2 ref={providerHeadingRef} tabIndex={-1} className="ig-managed-title">{collectionProvider?.label ?? managingKind} connections</h2>
+        {overviewNotice && <p className="ig-note" role="status">{overviewNotice}</p>}
+        {collectionConnections.length ? <div className="ig-provider-connections">{collectionConnections.map(conn => renderConnection(conn, true))}</div>
+          : <p role="status">No saved connections.</p>}
+      </div>}
       {managedId && <div className="ig-manage-view" hidden={editing !== null}>
         <div className="ig-manage-navigation">
-        <button type="button" className="btn ig-back-to-overview" disabled={busy !== null} onClick={() => leave(backToOverview, true)}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 3-5 5 5 5M2 8h12" /></svg>All integrations
+        <button type="button" className="btn ig-back-to-overview" disabled={busy !== null} onClick={() => leave(backToCollection, true)}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 3-5 5 5 5M2 8h12" /></svg>{managingKind ? `Back to ${collectionProvider?.label ?? managingKind} connections` : "All integrations"}
         </button>
         {managedConnection && kindOffered(integrations, managedConnection.kind) && <button type="button" className="btn" disabled={busy !== null}
           onClick={event => begin({ mode: "add", kind: managedConnection.kind }, event.currentTarget)}>Add {integrationDef(managedConnection.kind)?.label ?? managedConnection.kind} connection</button>}
@@ -318,34 +373,45 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
           onDisconnect={button => disconnect(managedConnection, button)} onCancelDisconnect={() => setArmed(null)} />
           : <p role="status">This connection is no longer saved.</p>}
       </div>}
-      <div className="ig-overview" hidden={editing !== null || managedId !== null}>
+      <div className="ig-overview" hidden={editing !== null || managedId !== null || managingKind !== null}>
         {listError && <div className="ig-list-error" role="alert">
           <p>{listError}</p><button type="button" className="btn" onClick={() => void refreshIntegrations()}>Retry</button>
         </div>}
         {connections === null && !listError && <p role="status">Reading connections…</p>}
         {overviewNotice && <p className="ig-note" role="status">{overviewNotice}</p>}
         <div className="ig-connection-list" data-setting="integrations-connections">
-        {reach === "all" && <div className="ig-providers" data-setting="integrations-add" id="integrations-add-title">
-            {known.map(provider => {
-              const saved = list.filter(conn => conn.kind === provider.kind);
-              return <section key={provider.kind} className="ig-provider" id={`ig-provider-${provider.kind}`} aria-labelledby={`ig-provider-name-${provider.kind}`} data-setting={`integration-${provider.kind}`}>
-                <span className="ig-provider-glyph" aria-hidden><provider.Glyph /></span>
-                <div className="ig-provider-content">
-                  {saved.length > 0 && <div className="ig-provider-heading">
-                    <h3 id={`ig-provider-name-${provider.kind}`}>{provider.label}</h3>
-                    <button type="button" className="btn" disabled={busy !== null} aria-label={`Add connection to ${provider.label}`}
-                      ref={el => { if (el) addRefs.current.set(provider.kind, el); else addRefs.current.delete(provider.kind); }}
-                      onClick={event => begin({ mode: "add", kind: provider.kind }, event.currentTarget)}>Add connection</button>
-                  </div>}
-                  {saved.length === 0 ? <div className="ig-summary-row"><div className="ig-summary-text"><h3 id={`ig-provider-name-${provider.kind}`}>{provider.label}</h3><span className="ig-conn-line">Not connected</span></div>
-                    <button type="button" className="btn ig-manage" ref={el => { if (el) addRefs.current.set(provider.kind, el); else addRefs.current.delete(provider.kind); }}
-                      aria-label={`Connect ${provider.label}`} onClick={event => begin({ mode: "add", kind: provider.kind }, event.currentTarget)}>Connect</button></div>
-                    : <>{saved.length > 1 && <p className="ig-connection-count">{saved.length} connections</p>}<div className="ig-connections">{saved.map(conn => renderConnection(conn, saved.length > 1))}</div></>}
-                </div>
-              </section>;
-            })}
-          </div>}
-        {(stranded.length > 0 || (reach !== "all" && connections !== null)) && <SettingsGroup
+        {connections !== null && <div className="ig-providers" data-setting="integrations-add" id={reach === "all" ? "integrations-add-title" : undefined}>
+          {known.map(provider => {
+            const saved = list.filter(conn => conn.kind === provider.kind);
+            const single = saved.length === 1 ? saved[0] : null;
+            const hosts = [...new Set(saved.map(connectionHost))];
+            const verified = single && verificationTime(single);
+            const server = single?.kind === "jira" ? connectionServer(single) : null;
+            return <section key={provider.kind} className="ig-provider" id={`ig-provider-${provider.kind}`} aria-labelledby={`ig-provider-name-${provider.kind}`} data-setting={`integration-${provider.kind}`}>
+              <span className="ig-provider-glyph" aria-hidden><provider.Glyph /></span>
+              <div className="ig-summary-text ig-provider-content">
+                <h3 id={`ig-provider-name-${provider.kind}`}>{provider.label}</h3>
+                {saved.length === 0 ? <span className="ig-conn-line">Not connected</span>
+                  : single ? <>
+                    <span className="ig-conn-name">{connectionHost(single)}</span>
+                    <span className="ig-conn-line">{[single.account.login || single.account.name, server || (verified ? `Last verified ${verified}` : "Not verified yet")].filter(Boolean).join(" · ")}</span>
+                    {!single.tokenSaved && <span className="ig-bad">No token saved</span>}
+                  </> : <>
+                    <span className="ig-conn-name">{saved.length} saved connections</span>
+                    <span className="ig-conn-line">{hosts.slice(0, 2).join(" · ")}{hosts.length > 2 ? ` · +${hosts.length - 2} more instances` : ""}</span>
+                  </>}
+                {!offered.has(provider.kind) && <span className="ig-stranded">{provider.label} is not available on this deck.</span>}
+              </div>
+              <button type="button" className={`btn ig-manage${saved.length ? "" : " primary"}`} disabled={busy !== null}
+                ref={el => { const refs = saved.length ? providerRefs.current : addRefs.current; if (el) refs.set(provider.kind, el); else refs.delete(provider.kind); }}
+                aria-label={`${saved.length ? "Manage" : "Connect"} ${provider.label}`}
+                onClick={event => saved.length ? openProvider(provider.kind, event.currentTarget) : begin({ mode: "add", kind: provider.kind }, event.currentTarget)}>
+                {saved.length ? <>Manage <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 4 4 4-4 4" /></svg></> : "Connect"}
+              </button>
+            </section>;
+          })}
+        </div>}
+        {(stranded.length > 0 || (known.length === 0 && reach !== "all" && connections !== null)) && <SettingsGroup
           id="integrations-list-title" title="Connections"
           aside={<span className="settings-caption-count">{stranded.length}</span>}>
           {stranded.map(conn => renderConnection(conn, true))}
@@ -355,7 +421,6 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
         {reach === "all" && <>
           <div className="ig-overview-info">
             <details className="ig-access"><summary>Access and token storage</summary><p>ccdeck only reads from connected services. Tokens stay on this machine and are never shown again or shared with paired decks.</p></details>
-            <span className="ig-total">{list.length} saved connection{list.length === 1 ? "" : "s"}</span>
           </div>
         </>}
       </div>

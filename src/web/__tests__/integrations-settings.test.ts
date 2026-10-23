@@ -22,63 +22,104 @@ async function draw(connections: IntegrationConnection[], offered = providers) {
 }
 afterEach(() => vi.unstubAllGlobals());
 
+function providerEntry(html: string, kind: IntegrationKind) {
+  const entry = new RegExp(`<section[^>]*id="ig-provider-${kind}"[\\s\\S]*?</section>`).exec(html)?.[0];
+  expect(entry, `Missing provider entry: ${kind}`).toBeDefined();
+  return entry!;
+}
+
+function expectProviderAction(html: string, kind: IntegrationKind, label: string, primary?: boolean) {
+  const entry = providerEntry(html, kind);
+  const buttons = entry.match(/<button\b[^>]*>/g) ?? [];
+  expect(buttons).toHaveLength(1);
+  expect(buttons[0]).toContain(`aria-label="${label}"`);
+  const classes = /class="([^"]*)"/.exec(buttons[0])?.[1].split(/\s+/) ?? [];
+  expect(classes).toContain("btn");
+  if (primary !== undefined) expect(classes.includes("primary")).toBe(primary);
+  return entry;
+}
+
+function expectOverviewActionsOnly(html: string) {
+  expect(html).not.toMatch(/aria-label="(?:Add|Test|Edit|Disconnect)\b/);
+  expect(html).not.toMatch(/>Add(?: connection| [^<]* connection)?<|>Test(?: connection)?<|>Edit(?: connection)?<|>Disconnect</);
+  expect(html).not.toContain("<form");
+  expect(html).not.toMatch(/role="tab(?:list)?"/);
+}
+
 describe("Settings provider entries", () => {
-  it("shows each provider and a direct Connect action before opening a form", async () => {
+  it("shows providers in order with one Connect action each and primary GitHub Connect", async () => {
     const html = await draw([]);
     expect(html.indexOf('id="ig-provider-github"')).toBeLessThan(html.indexOf('id="ig-provider-gitlab"'));
     expect(html.indexOf('id="ig-provider-gitlab"')).toBeLessThan(html.indexOf('id="ig-provider-jira"'));
-    for (const label of ["GitHub", "GitLab", "Jira"]) expect(html).toContain(`aria-label="Connect ${label}"`);
+    for (const [kind, label] of [["github", "GitHub"], ["gitlab", "GitLab"], ["jira", "Jira"]] as const) {
+      expectProviderAction(html, kind, `Connect ${label}`, kind === "github" ? true : undefined);
+    }
     expect(html.match(/Not connected/g)).toHaveLength(3);
-    expect(html).not.toContain("<form");
-    expect(html).not.toContain('aria-label="Add connection to');
+    expectOverviewActionsOnly(html);
     expect(html).not.toContain("More trackers");
   });
 
-  it("groups multiple connections with their provider, preserving their management actions", async () => {
-    const html = await draw([connection("a", "github"), connection("b", "jira"), connection("c", "github")]);
-    expect(html).toContain("2 connections");
-    for (const [id, label] of [["a", "GitHub"], ["b", "Jira"], ["c", "GitHub"]]) {
-      expect(html).toContain(`aria-label="Manage ${label}: Review ${id} (review)"`);
+  it("offers primary Connect for GitHub and one neutral Manage action for each connected provider", async () => {
+    const html = await draw([connection("work", "gitlab"), connection("tracker", "jira")]);
+    expectProviderAction(html, "github", "Connect GitHub", true);
+    for (const [kind, label] of [["gitlab", "GitLab"], ["jira", "Jira"]] as const) {
+      const entry = expectProviderAction(html, kind, `Manage ${label}`, false);
+      expect(entry).toContain(`${kind}.example.com`);
+      expect(entry).not.toContain(`aria-label="Connect ${label}"`);
     }
-    expect(html).not.toMatch(/>Test(?: connection)?<|>Edit(?: connection)?<|>Disconnect</);
-    expect(html).toContain('aria-label="Add connection to GitHub"');
-    expect(html).toContain('aria-label="Add connection to Jira"');
-    expect(html).not.toContain('aria-label="Add connection to GitLab"');
-    expect(html.match(/>Add connection<\/button>/g)).toHaveLength(2);
-    expect(html.indexOf("Review c")).toBeLessThan(html.indexOf('id="ig-provider-gitlab"'));
-    expect(html.indexOf('id="ig-provider-jira"')).toBeLessThan(html.indexOf("Review b"));
+    expectOverviewActionsOnly(html);
+    expect(html.match(/<button\b/g)).toHaveLength(3);
     expect(html).not.toMatch(/Healthy|Online|Working:/);
   });
 
-  it("offers a direct Add connection beside a connected provider while preserving its alias and Manage path", async () => {
-    const html = await draw([connection("work", "gitlab")]);
-    const provider = html.slice(html.indexOf('id="ig-provider-gitlab"'), html.indexOf('id="ig-provider-jira"'));
-    expect(provider).toContain('id="ig-provider-name-gitlab">GitLab</h3>');
-    expect(provider).toMatch(/<button[^>]*aria-label="Add connection to GitLab"[^>]*>Add connection<\/button>/);
-    expect(provider).toContain('aria-label="Manage GitLab: Review work (review)"');
-    expect(provider).toContain("gitlab.example.com");
-    expect(provider).not.toContain('aria-label="Connect GitLab"');
-    expect(provider).not.toMatch(/>Test(?: connection)?<|>Edit(?: connection)?<|>Disconnect</);
+  it("summarizes multiple accounts with their count and distinct hosts behind one provider Manage action", async () => {
+    const work = connection("work", "gitlab");
+    const personal = { ...connection("personal", "gitlab"), baseUrl: "https://personal.gitlab.example.com" };
+    const html = await draw([work, connection("tracker", "jira"), personal]);
+    const entry = expectProviderAction(html, "gitlab", "Manage GitLab", false);
+    expect(entry).toMatch(/2 (?:saved )?connections/);
+    expect(entry).toContain("gitlab.example.com");
+    expect(entry).toContain("personal.gitlab.example.com");
+    expect(entry.match(/gitlab\.example\.com/g)).toHaveLength(2);
+    expect(entry.match(/aria-label="Manage GitLab"/g)).toHaveLength(1);
+    expect(html).not.toContain('aria-label="Manage GitLab:');
+    expectProviderAction(html, "github", "Connect GitHub", true);
+    expectProviderAction(html, "jira", "Manage Jira", false);
+    expectOverviewActionsOnly(html);
   });
 
-  it("keeps unavailable saved connections manageable without offering Add or Connect for that provider", async () => {
-    const html = await draw([connection("work", "gitlab"), connection("tracker", "jira")],
+  it("keeps an unavailable registered provider in its provider entry with one neutral Manage action", async () => {
+    const html = await draw([connection("work", "gitlab"), connection("personal", "gitlab"), connection("tracker", "jira")],
       providers.map(provider => ({ ...provider, available: provider.kind !== "gitlab" })));
-    expect(html).toContain('aria-label="Manage GitLab: Review work (review)"');
-    expect(html).toContain("GitLab is not available on this deck.");
-    expect(html).not.toContain('aria-label="Add connection to GitLab"');
+    const entry = expectProviderAction(html, "gitlab", "Manage GitLab", false);
+    expect(entry).toContain('id="ig-provider-name-gitlab">GitLab</h3>');
+    expect(entry).toMatch(/2 (?:saved )?connections/);
     expect(html).not.toContain('aria-label="Connect GitLab"');
-    expect(html).toContain('aria-label="Add connection to Jira"');
-    expect(html).toContain('aria-label="Connect GitHub"');
-    expect(html).not.toMatch(/>Test(?: connection)?<|>Edit(?: connection)?<|>Disconnect</);
+    expectProviderAction(html, "jira", "Manage Jira", false);
+    expectProviderAction(html, "github", "Connect GitHub", true);
+    expectOverviewActionsOnly(html);
   });
 
-  it("offers no creation controls when only unavailable saved connections remain", async () => {
+  it("keeps only saved registered providers when the API offers no providers, without creation controls", async () => {
     const html = await draw([connection("work", "gitlab")], []);
-    expect(html).toContain('aria-label="Manage GitLab: Review work (review)"');
-    expect(html).toContain("GitLab is not available on this deck.");
-    expect(html).not.toMatch(/aria-label="(?:Add connection to|Connect) /);
-    expect(html).not.toMatch(/>Add connection<|<form|>Test(?: connection)?<|>Edit(?: connection)?<|>Disconnect</);
+    expectProviderAction(html, "gitlab", "Manage GitLab", false);
+    expect(html).not.toContain('id="ig-provider-github"');
+    expect(html).not.toContain('id="ig-provider-jira"');
+    expect(html).not.toMatch(/aria-label="Connect /);
+    expectOverviewActionsOnly(html);
+    expect(html.match(/<button\b/g)).toHaveLength(1);
+  });
+
+  it("retains a name-accessible legacy Manage row for an unknown saved provider", async () => {
+    // A saved server payload can outlive the client's registered provider kinds.
+    const legacy = { ...connection("legacy", "gitlab"), kind: "legacy-tracker" as IntegrationKind, name: "Archived tracker" };
+    const html = await draw([legacy], []);
+    expect(html).toContain('aria-label="Manage legacy-tracker: Archived tracker (review)"');
+    expect(html).toContain("Archived tracker");
+    expect(html).not.toContain('id="ig-provider-legacy-tracker"');
+    expect(html).not.toMatch(/aria-label="Connect /);
+    expectOverviewActionsOnly(html);
+    expect(html.match(/<button\b/g)).toHaveLength(1);
   });
 
   it("searches providers directly and excludes provider anchors the deck cannot offer", () => {

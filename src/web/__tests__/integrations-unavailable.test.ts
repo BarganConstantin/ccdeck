@@ -305,29 +305,34 @@ describe("Settings draws Integrations only where it holds something", () => {
 });
 
 describe("Settings › Integrations on a deck that cannot read a kind", () => {
-  it("lists a stranded connection with a focused management path", async () => {
+  it("keeps a stranded registered provider manageable without creation or unavailable capabilities", async () => {
     await deckSays([conn("j1", "jira", "Work Jira")], []);
     const html = draw(createElement(IntegrationsSection));
     expect(html).not.toContain('id="integrations-add-title"');
-    expect(html).not.toContain(">Add integration<");
-    expect(html).toContain('<span class="ig-stranded">Jira is not available on this deck. Manage this connection to disconnect it.</span>');
-    expect(html).toContain('aria-label="Manage Jira: Work Jira (jdoe)"');
-    expect(html).not.toContain('aria-label="Test Work Jira"');
-    expect(html).not.toContain('aria-label="Edit Work Jira"');
-    // Disconnect is a button with a name and no disabled state: Tab reaches it.
+    expect(html).toContain('id="ig-provider-jira"');
+    expect(html).toContain('<span class="ig-stranded">Jira is not available on this deck.</span>');
+    expect(html).toContain('aria-label="Manage Jira"');
+    expect(html.match(/<button\b/g)).toHaveLength(1);
+    expect(html).not.toMatch(/aria-label="(?:Connect|Add|Test|Edit|Disconnect)\b/);
+    expect(html).not.toMatch(/>Add(?: integration| connection)?<|>Test(?: connection)?<|>Edit(?: connection)?<|>Disconnect</);
+    // Manage remains focusable and enabled so cleanup can be reached.
     expect(html).not.toMatch(/<button[^>]*disabled/);
   });
 
-  it("keeps available and stranded connections reachable through Manage", async () => {
+  it("keeps available and stranded registered providers reachable through one Manage entry each", async () => {
     await deckSays([conn("j1", "jira", "Work Jira"), conn("g1", "github", "Code")], [GITHUB]);
     const html = draw(createElement(IntegrationsSection));
     expect(html).toContain('id="integrations-add-title"');
-    expect(html).toContain('aria-label="Manage GitHub: Code (jdoe)"');
-    expect(html).not.toContain('aria-label="Test Work Jira"');
+    expect(html).toContain('aria-label="Manage GitHub"');
+    expect(html).toContain('aria-label="Manage Jira"');
+    expect(html.match(/<button\b/g)).toHaveLength(2);
+    expect(html).not.toMatch(/aria-label="(?:Connect|Add|Test|Edit|Disconnect)\b/);
+    expect(html).not.toMatch(/>Add(?: integration| connection)?<|>Test(?: connection)?<|>Edit(?: connection)?<|>Disconnect</);
     expect(html).toContain("Jira is not available on this deck.");
     expect(html).not.toContain("GitHub is not available on this deck.");
-    // Add integration names only the kinds the deck offers.
-    expect(html).not.toContain('id="ig-provider-jira"');
+    // A saved registered kind keeps its provider entry even when not offered.
+    expect(html).toContain('id="ig-provider-jira"');
+    expect(html).not.toMatch(/<button[^>]*disabled/);
   });
 
   it("says nothing is connected, with no Add integration, once the last stranded one is gone", async () => {

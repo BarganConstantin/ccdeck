@@ -553,7 +553,9 @@ const CONTROLS: Control[] = [
   { at: ".topbar .brand button.v.ready", states: [".topbar .brand button.v.ready:hover"], beds: TOPBAR },
   { at: ".selected-ribbon", states: [".selected-ribbon:hover"], beds: TOPBAR },
   { at: "button.btn", states: ["button.btn:hover"], beds: [...TOPBAR, "--panel"] },
+  { at: "button.btn", fillFrom: "button.btn.ig-manage:not(.primary)", states: ["button.btn:hover"], beds: ["--panel"] },
   { at: "button.btn.primary", fillFrom: "button.btn.primary", beds: [...TOPBAR, "--panel"] },
+  { at: "button.btn.primary", fillFrom: "button.btn.primary", states: ["button.btn.ig-manage.primary:hover"], beds: ["--panel"] },
   // The on state of an icon toggle (#370) and a toolbar button that was open,
   // the resting edge on the control fill, were swept here until the topbar's
   // panel toggles left for the window's edges (2026-10-08) and `.icon-btn` left
