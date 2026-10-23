@@ -75,8 +75,9 @@ describe("the split between a list and its detail", () => {
     expect(split).not.toMatch(/["']Escape["']/);
   });
 
-  it("gives focus to Back when a phone's detail opens with focus on the hidden list or nowhere", () => {
-    expect(split).toMatch(/if \(drillIn && \(!active \|\| active === document\.body \|\| listRef\.current\?\.contains\(active\)\)\) \{\s*backRef\.current\?\.focus\(/);
+  it("gives focus to Back when a phone's detail opens with focus on the hidden list, on what it hid, or nowhere", () => {
+    expect(split).toMatch(/const hidden = active instanceof HTMLElement && !\(active\.checkVisibility\?\.\(\) \?\? true\);/);
+    expect(split).toMatch(/if \(drillIn && \(!active \|\| active === document\.body \|\| hidden \|\| listRef\.current\?\.contains\(active\)\)\) \{\s*backRef\.current\?\.focus\(/);
   });
 
   it("fades a new thing in beside the list and never animates a width", () => {

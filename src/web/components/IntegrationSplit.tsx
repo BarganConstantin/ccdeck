@@ -151,13 +151,15 @@ export default function IntegrationSplit({ list, detail, onBack, backLabel, stor
   }, [open, detailKey]);
 
   // Focus: remember what opened the detail, and on the drill-in screen never
-  // leave focus on the hidden list.
+  // leave focus on the hidden list, or on what the panel hid with it (Jira's
+  // toolbar, where the modal put focus before an issue was put back).
   const opener = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (!open) return;
     const active = document.activeElement;
     if (active instanceof HTMLElement && listRef.current?.contains(active)) opener.current = active;
-    if (drillIn && (!active || active === document.body || listRef.current?.contains(active))) {
+    const hidden = active instanceof HTMLElement && !(active.checkVisibility?.() ?? true);
+    if (drillIn && (!active || active === document.body || hidden || listRef.current?.contains(active))) {
       backRef.current?.focus({ preventScroll: true });
     }
   }, [open, drillIn, detailKey]);
