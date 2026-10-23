@@ -169,7 +169,9 @@ export function ownsKeystroke(t: FocusTarget | null | undefined, key?: string): 
  * `?` is the single exception and only for the sheet itself, because it is
  * advertised as a toggle and has to be able to close what it opened. Over any
  * other modal it would stack a second one, which is the thing being prevented.
- * Escape is not on this path at all — it is answered through modalStack.
+ * Escape is not on this path at all — it is answered through modalStack — and
+ * nor is T, which goes through a dialog and is answered before this gate (see
+ * keepsThemeKey).
  */
 export function shortcutBlocked(
   { key, modalOpen, sheetOpen }: { key: string; modalOpen: boolean; sheetOpen: boolean },
@@ -194,6 +196,32 @@ export function closesKeySheet(
   { key, sheetOpen, target }: { key: string; sheetOpen: boolean; target: FocusTarget | null | undefined },
 ): boolean {
   return sheetOpen && key === "?" && !isTypingTarget(target);
+}
+
+/**
+ * Whether the focused control keeps T, the next theme, from the deck.
+ *
+ * T is the one letter a dialog does not stop (the owner's call, 2026-10-23).
+ * It acts on nothing behind the scrim: the theme is the page's, the dialog
+ * repaints with the deck and stays open. Until then it was dead in every
+ * dialog but Settings, which answered it itself — the Jira and GitLab panels
+ * among them.
+ *
+ * Over a dialog only a control that takes the letter as text keeps it: a
+ * field being typed in, or a `<select>`, whose letters pick an option.
+ * A button, a tab or a radio does not. A dialog hands focus to its first
+ * control by program, so `ownsKeystroke` would have kept T for that control
+ * in nearly every dialog, the way it kept `?` for the sheet's × (see
+ * closesKeySheet).
+ *
+ * On the board T is a letter like the others, and the focused control keeps
+ * it on `ownsKeystroke`'s terms.
+ */
+export function keepsThemeKey(
+  { target, modalOpen }: { target: FocusTarget | null | undefined; modalOpen: boolean },
+): boolean {
+  if (!modalOpen) return ownsKeystroke(target, "t");
+  return isTypingTarget(target) || (target != null && tagOf(target) === "SELECT");
 }
 
 /**

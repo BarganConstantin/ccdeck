@@ -4,6 +4,13 @@ All color themes share a 180 ms palette fade, whether chosen in Settings,
 with the radio group's arrow keys, or with T. Layout and focus stay in place.
 The first paint and a click on the already requested theme do not animate.
 
+T moves to the next theme on the board and inside any dialog alike:
+it is the one single-key shortcut a dialog does not stop. A field being typed
+in, or a `<select>`, keeps the letter, and Ctrl, Cmd or Alt with T stays the
+browser's. The deck's one keydown handler answers it in every dialog,
+Settings included (`keepsThemeKey` in `shortcuts.ts`), and the theme radios
+move focus to the theme T selected.
+
 The browser captures the old deck and reveals the complete new deck above it.
 This keeps the canvas, SVG, controls and CSS colors together rather than
 interpolating their palettes independently. No animation library is added.

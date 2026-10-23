@@ -16,12 +16,12 @@
 // no portal is needed (panel-modal-portal.test.ts). Each section is its own
 // component, lifted whole out of the menu it used to live in; this file is
 // only the frame, the nav and the search above it (SettingsSearch.tsx).
+import { useMediaQuery } from "../use-media-query";
 import SessionRecoverySettings from "./SessionRecoverySettings";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
 import { focusedTabToFollow, isFindChord, sectionsDrawn, type SettingsDoors, type SettingsSection } from "../settings";
 import { indexFor, isSectionEntry, searchSettings, type SettingsEntry } from "../settings-search";
-import { isTypingTarget } from "../shortcuts";
 import { tabStripMove } from "../tablist-keys";
 import type { useAppearance } from "../use-appearance";
 import type { useAutoRestart } from "../use-auto-restart";
@@ -31,7 +31,7 @@ import type { useOsNotifications } from "../use-os-notifications";
 import type { useSoundSwitch } from "../use-sound-switch";
 import type { useTonePrefs } from "../use-tone-prefs";
 import type { useVersionCheck } from "../use-version-check";
-import { characterKeyMuted, setSingleKeyShortcuts } from "../single-key-shortcuts";
+import { setSingleKeyShortcuts } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import BoardSection from "./BoardSection";
 import ElsewhereSection from "./ElsewhereSection";
@@ -41,14 +41,13 @@ import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
 import RadarSettings from "./RadarSettings";
 import ToolAuditSettings from "./ToolAuditSettings";
-import IntegrationsSection from "./IntegrationsSection";
-import { integrationsReach, useIntegrations } from "../integrations/client";
+import IntegrationsSection, { type SettingsLeaveGuard } from "./IntegrationsSection";
+import { integrationsReach, offeredKinds, useIntegrations } from "../integrations/client";
 import ThemeSection from "./ThemeSection";
 import ReadingSection, { ReadingReset } from "./ReadingSection";
 import AboutSection from "./AboutSection";
 import UpdatesSection from "./UpdatesSection";
 import CharacterSection from "./CharacterSection";
-import { nextTheme } from "../theme";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SettingsSearchField, SettingsSearchResults, SettingsSearchStatus } from "./SettingsSearch";
 import { useSettingsJump } from "./use-settings-jump";
@@ -83,15 +82,26 @@ export default function SettingsModal({
   // Focus starts on the section's own tab, not on the ×: the nav is what this
   // dialog is walked by, and a door that opened it at Sounds lands the reader
   // on "Sounds", which says where they are.
+  const leaveGuardRef = useRef<SettingsLeaveGuard | null>(null);
+  const registerLeaveGuard = useCallback((guard: SettingsLeaveGuard | null) => { leaveGuardRef.current = guard; }, []);
+  function requestLeave(action: () => void, back = false) {
+    if (leaveGuardRef.current) {
+      changeQuery(""); leaveGuardRef.current(action, back);
+      requestAnimationFrame(() => selectedTabRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" }));
+    }
+    else action();
+  }
+  const dismissSettings = () => requestLeave(onClose, true);
   const selectedTabRef = useRef<HTMLButtonElement | null>(null);
-  const dialogRef = useModalDismiss(onClose, { focusRef: selectedTabRef });
-  const scrimPress = useScrimDismiss(onClose);
+  const dialogRef = useModalDismiss(dismissSettings, { focusRef: selectedTabRef });
+  const scrimPress = useScrimDismiss(() => requestLeave(onClose));
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // THE SECTIONS THIS DECK DRAWS (sectionsDrawn, settings.ts): every one, but
   // Integrations only where the deck offers a kind or still holds a stranded
   // connection, or while it is the section on show. The nav, its arrows and
   // the pane's head all walk this list, so here it takes the table's name.
-  const integrationsReachHere = integrationsReach(useIntegrations());
+  const integrations = useIntegrations();
+  const integrationsReachHere = integrationsReach(integrations);
   const SETTINGS_SECTIONS = sectionsDrawn(integrationsReachHere, section);
   const at = Math.max(0, SETTINGS_SECTIONS.findIndex(s => s.id === section));
 
@@ -100,28 +110,32 @@ export default function SettingsModal({
   // half-filled field in it — Keyboard's filter, a voice's words — is where it
   // was when the query is cleared. Not kept across opening and closing: an
   // open dialog is a thing being done.
+  const narrowNav = useMediaQuery("(max-width: 640px)");
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
   const searching = query.trim() !== "";
-  const results = useMemo(() => searchSettings(query, indexFor(providers.claude, integrationsReachHere)), [query, providers.claude, integrationsReachHere]);
+  const results = useMemo(() => searchSettings(query, indexFor(providers.claude, integrationsReachHere, offeredKinds(integrations))), [query, providers.claude, integrationsReachHere, integrations]);
   const jumpTo = useSettingsJump(paneRef, !searching, section);
   const changeQuery = (next: string) => { setQuery(next); setActive(0); };
 
   // A section chosen in the nav ends the search: a press on a tab is "take me
   // there", and the results would otherwise stand over the page it asked for.
   const chooseSection = (next: SettingsSection) => {
-    changeQuery("");
-    onSection(next);
+    requestLeave(() => {
+      changeQuery(""); onSection(next);
+      requestAnimationFrame(() => document.getElementById(`settings-tab-${next}`)?.focus());
+    });
   };
 
   // A result opens its section, and lands on its row once the section is
   // drawn (use-settings-jump.ts). A section's own result only opens it.
   const openResult = (entry: SettingsEntry) => {
-    changeQuery("");
-    onSection(entry.section);
-    if (!isSectionEntry(entry)) jumpTo(entry.id);
+    requestLeave(() => {
+      changeQuery(""); onSection(entry.section);
+      if (!isSectionEntry(entry)) jumpTo(entry.id);
+    });
   };
 
   // Cmd/Ctrl+F goes to the field, and the browser's find bar does not open:
@@ -160,35 +174,22 @@ export default function SettingsModal({
     if (move.kind === "pass") return;
     event.preventDefault();
     // An arrow that chooses a section ends the search, as a press does.
-    changeQuery("");
-    onSection(SETTINGS_SECTIONS[move.index].id);
-    tabRefs.current[move.index]?.focus();
+    requestLeave(() => {
+      changeQuery(""); onSection(SETTINGS_SECTIONS[move.index].id);
+      tabRefs.current[move.index]?.focus();
+    });
   };
 
-  // THE DIALOG'S OWN KEYS, answered here and stopped here.
+  // THE DIALOG'S OWN KEY, answered here and stopped here.
   // Space belongs to the control it is pressed on. React Flow reads Space on
   // the document as its pan key and cancels it wherever focus is, so a Space on
   // a switch never pressed it; stopped at this edge, the way AnchoredPopover
   // stops its keys, it reaches the control.
-  // T is the key Appearance's theme caption advertises. App answers it anywhere on the
-  // deck, but not past an open dialog, so the hint would have named a dead key
-  // in the one place it is shown. A field somebody is typing into keeps every
-  // letter, and so does a <select>, whose letters pick an option. And T is a
-  // single-key shortcut like the deck's others, so the switch in Keyboard
-  // silences it here too (WCAG 2.1.4).
+  // T, which Appearance's theme caption advertises, is not answered here any
+  // more: the deck's handler takes it through every dialog, this one included,
+  // under the same gates this one kept (use-deck-shortcuts.ts, keepsThemeKey).
   const onDialogKey = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === " ") { event.stopPropagation(); return; }
-    if (characterKeyMuted(event.key, singleKeys)) return;
-    const target = event.target as HTMLElement;
-    if (isTypingTarget(target) || target.tagName === "SELECT") return;
-    if ((event.key !== "t" && event.key !== "T") || event.ctrlKey || event.metaKey || event.altKey) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const next = nextTheme((target.dataset.themeChoice as typeof theme | undefined) ?? theme);
-    setTheme(nextTheme);
-    if (target.getAttribute("role") === "radio") {
-      event.currentTarget.querySelector<HTMLButtonElement>(`[role="radio"][data-theme-choice="${next}"]`)?.focus();
-    }
+    if (event.key === " ") event.stopPropagation();
   };
 
   const { soundOn, toggleSound } = sound;
@@ -252,7 +253,7 @@ export default function SettingsModal({
           />
         );
       case "integrations":
-        return <IntegrationsSection />;
+        return <IntegrationsSection onBeforeLeaveChange={registerLeaveGuard} />;
       case "data":
         return <ToolAuditSettings />;
       case "about":
@@ -286,7 +287,9 @@ export default function SettingsModal({
   // undoes the whole section and so belongs to its head, not to a group.
   const paneAction = section === "reading"
     ? <ReadingReset textSize={appearance.textSize} density={appearance.density} onTextSize={appearance.setTextSize} onDensity={appearance.setDensity} />
-    : null;
+    : section === "integrations" && integrations.connections !== null
+      ? <span className="ig-total">{integrations.connections.length} saved connection{integrations.connections.length === 1 ? "" : "s"}</span>
+      : null;
 
   return (
     <div className="modal-backdrop" {...scrimPress} role="presentation">
@@ -308,7 +311,7 @@ export default function SettingsModal({
             <button
               type="button"
               className="glyph-btn"
-              onClick={onClose}
+              onClick={() => requestLeave(onClose)}
               aria-label="Close settings"
               title="Close (Esc)"
             >×</button>
@@ -338,7 +341,7 @@ export default function SettingsModal({
               className="settings-nav"
               role="tablist"
               aria-label="Settings sections"
-              aria-orientation="vertical"
+              aria-orientation={narrowNav ? "horizontal" : "vertical"}
               onKeyDown={moveSection}
             >
               {SETTINGS_SECTIONS.map((choice, index) => (

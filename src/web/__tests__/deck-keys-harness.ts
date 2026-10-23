@@ -34,6 +34,7 @@ export interface KeyTarget {
   tagName: string;
   role?: string;
   type?: string;
+  isContentEditable?: boolean;
   blur?: () => void;
 }
 

@@ -1,0 +1,187 @@
+[
+  {
+    "themeCatalog": [
+      "light",
+      "dark",
+      "rider-black",
+      "vscode-black",
+      "omarchy",
+      "matrix",
+      "black-contrast",
+      "white-contrast",
+      "catppuccin-mocha",
+      "gruvbox-dark",
+      "gruvbox-light",
+      "gruvbox-material"
+    ],
+    "accessibility": "pass"
+  },
+  {
+    "width": 1440,
+    "height": 1000,
+    "theme": "rider-black",
+    "tasks": "A–G pass",
+    "overview": "pass",
+    "manage": "pass",
+    "multipleConnections": "pass",
+    "focusedForms": "pass",
+    "unsavedDrafts": "pass",
+    "management": "pass",
+    "disconnect": "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass",
+    "duplicateRequests": {
+      "test": "pass",
+      "delete": "pass",
+      "calls": {
+        "test": 3,
+        "delete": 2
+      }
+    },
+    "keyboard": "pass",
+    "focusTargets": "not separately measured",
+    "zoomTechnique": "200% browser-zoom reflow equivalent: CSS viewport halved to 720x500; browser zoom preference unchanged",
+    "overflow": "none",
+    "accessibility": "pass",
+    "mutations": 10,
+    "errors": []
+  },
+  {
+    "width": 1440,
+    "height": 1000,
+    "theme": "light",
+    "tasks": "A–G pass",
+    "overview": "pass",
+    "manage": "pass",
+    "multipleConnections": "pass",
+    "focusedForms": "pass",
+    "unsavedDrafts": "pass",
+    "management": "pass",
+    "disconnect": "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass",
+    "duplicateRequests": {
+      "test": "pass",
+      "delete": "pass",
+      "calls": {
+        "test": 3,
+        "delete": 2
+      }
+    },
+    "keyboard": "pass",
+    "focusTargets": "not separately measured",
+    "zoomTechnique": "not run in this case",
+    "overflow": "none",
+    "accessibility": "pass",
+    "mutations": 10,
+    "errors": []
+  },
+  {
+    "width": 900,
+    "height": 760,
+    "theme": "rider-black",
+    "tasks": "A–G pass",
+    "overview": "pass",
+    "manage": "pass",
+    "multipleConnections": "pass",
+    "focusedForms": "pass",
+    "unsavedDrafts": "pass",
+    "management": "pass",
+    "disconnect": "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass",
+    "duplicateRequests": {
+      "test": "pass",
+      "delete": "pass",
+      "calls": {
+        "test": 3,
+        "delete": 2
+      }
+    },
+    "keyboard": "pass",
+    "focusTargets": "not separately measured",
+    "zoomTechnique": "not run in this case",
+    "overflow": "none",
+    "accessibility": "pass",
+    "mutations": 10,
+    "errors": []
+  },
+  {
+    "width": 900,
+    "height": 540,
+    "theme": "rider-black",
+    "tasks": "A–G pass",
+    "overview": "pass",
+    "manage": "pass",
+    "multipleConnections": "pass",
+    "focusedForms": "pass",
+    "unsavedDrafts": "pass",
+    "management": "pass",
+    "disconnect": "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass",
+    "duplicateRequests": {
+      "test": "pass",
+      "delete": "pass",
+      "calls": {
+        "test": 3,
+        "delete": 2
+      }
+    },
+    "keyboard": "pass",
+    "focusTargets": ">=24px, visible and unobscured",
+    "zoomTechnique": "not run in this case",
+    "overflow": "none",
+    "accessibility": "pass",
+    "mutations": 10,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "height": 844,
+    "theme": "light",
+    "tasks": "A–G pass",
+    "overview": "pass",
+    "manage": "pass",
+    "multipleConnections": "pass",
+    "focusedForms": "pass",
+    "unsavedDrafts": "pass",
+    "management": "pass",
+    "disconnect": "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass",
+    "duplicateRequests": {
+      "test": "pass",
+      "delete": "pass",
+      "calls": {
+        "test": 3,
+        "delete": 2
+      }
+    },
+    "keyboard": "pass",
+    "focusTargets": ">=24px, visible and unobscured",
+    "zoomTechnique": "not run in this case",
+    "overflow": "none",
+    "accessibility": "pass",
+    "mutations": 10,
+    "errors": []
+  },
+  {
+    "width": 320,
+    "height": 740,
+    "theme": "rider-black",
+    "tasks": "A–G pass",
+    "overview": "pass",
+    "manage": "pass",
+    "multipleConnections": "pass",
+    "focusedForms": "pass",
+    "unsavedDrafts": "pass",
+    "management": "pass",
+    "disconnect": "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass",
+    "duplicateRequests": {
+      "test": "pass",
+      "delete": "pass",
+      "calls": {
+        "test": 3,
+        "delete": 2
+      }
+    },
+    "keyboard": "pass",
+    "focusTargets": ">=24px, visible and unobscured",
+    "zoomTechnique": "not run in this case",
+    "overflow": "none",
+    "accessibility": "pass",
+    "mutations": 10,
+    "errors": []
+  }
+]

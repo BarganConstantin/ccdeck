@@ -112,14 +112,12 @@ describe("Settings keeps one height across sections", () => {
     expect(onNav("overflow-y", DESKTOP)).toBe("auto");
   });
 
-  it("fades only the padding at each edge, so a section at rest shows nothing faded", () => {
+  it("keeps text and controls fully opaque at scroll boundaries", () => {
     for (const width of [DESKTOP, PHONE]) {
+      expect(onPane("mask-image", width)).toBeNull();
+      expect(onPane("-webkit-mask-image", width)).toBeNull();
       const [top, , bottom] = onPane("padding", width)!.split(" ");
-      const mask = onPane("mask-image", width);
-      expect(mask, `${width}`).toBe(`linear-gradient(transparent, #000 ${top}, #000 calc(100% - ${bottom}), transparent)`);
-      expect(onPane("-webkit-mask-image", width), `${width}`).toBe(mask);
-      // A control the keyboard scrolls to stops clear of both fades.
-      expect(onPane("scroll-padding", width), `${width}`).toBe(`${top} 0 ${bottom}`);
+      expect(onPane("scroll-padding", width)).toBe(`${top} 0 ${bottom}`);
     }
   });
 

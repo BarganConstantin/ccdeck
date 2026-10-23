@@ -134,7 +134,10 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // dialog in the way: the switch it flips is in Settings › Sounds, the
       // row above.
       { cap: "M", action: "sound on or off", binds: ["m", "M"] },
-      { cap: "T", action: "light or dark theme", binds: ["t", "T"] },
+      // Every theme in turn, in Settings › Appearance's order, not a
+      // light/dark pair — and from inside a dialog too, the one letter that
+      // goes through one (use-deck-shortcuts.ts).
+      { cap: "T", action: "next theme", binds: ["t", "T"] },
     ],
   },
   {
