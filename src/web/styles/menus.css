@@ -10,25 +10,24 @@
    the header and the nav stay. No floor and no ceiling besides it, so nothing
    a section draws reaches the frame. Centred like every dialog: a height that
    never changes keeps it in one place.
-   800px holds a 196px nav and a section four theme previews wide (#2176). */
+   800px holds a 184px nav and a section four theme previews wide (#2176). */
 .modal.settings-modal {
   width: min(800px, calc(100vw - 32px));
   height: min(720px, calc(100dvh - 80px));
   max-height: none;
-  --settings-group-gap: 24px;
+  --settings-group-gap: 20px;
 }
 .settings-body {
   display: grid;
-  grid-template-columns: 196px minmax(0, 1fr);
+  grid-template-columns: 184px minmax(0, 1fr);
   flex: 1;
   min-height: 0;
 }
 /* The nav's column sits a surface down, as the modal's header does, so the
    section beside it reads as the page and the nav as the thing that turns it.
    It holds the search field and, under it, the tab strip, which scrolls on
-   its own on a window too short for eight tabs while the field stays. About
-   stands at the strip's foot, apart from the subjects above it, the way the
-   desktop settings windows this follows keep their About (#2176). */
+   its own on a window too short for eight tabs while the field stays. About follows the other sections; small gaps separate behavior,
+   feedback, integrations/data, and application information. */
 .settings-side {
   display: flex;
   flex-direction: column;
@@ -46,28 +45,16 @@
   padding: 8px 8px 12px;
   overflow-y: auto;
 }
-.settings-tab#settings-tab-about { margin-top: auto; }
-/* A row a reader presses, at the one control height. Hover is neutral, as
-   every control's is. The section on show is RAISED, the way the feedback
-   dialog's chosen kind is (.fb-kind): onto the panel the section is drawn on,
-   with the control edge round it, which carries the choice at 3:1 without a
-   hue (1.4.1) and leaves the accent to the focus ring. It was an accent wash
-   and a 2px bar on the leading edge; the wash measured 1.26:1 against the nav,
-   so the bar carried the state alone, and a coloured edge bar is the one mark
-   the rest of the deck does not use for "chosen". The edge is on every tab,
-   transparent until chosen, so choosing one moves nothing.
-   A glyph before each name (SettingsSectionGlyph.tsx), drawn in currentColor
-   so it is the tab's own ink: --muted at rest, --text pointed at or chosen,
-   the system's colours under a Contrast theme. 13px, the body's size: the
-   nav is the dialog's way round, and at 12px its eight names read as the
-   captions under them. */
+.settings-tab#settings-tab-notifications, .settings-tab#settings-tab-integrations, .settings-tab#settings-tab-about { margin-top: 8px; }
+/* Selection uses a quiet fill and text weight. Borders belong only to
+   keyboard focus, never to a pointer hover or the selected section. */
 .settings-tab {
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: var(--ctl-h);
   padding: 0 10px;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: var(--r-ctl);
   background: transparent;
   color: var(--muted);
@@ -84,13 +71,13 @@
 .settings-tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .settings-tab:hover { background: var(--ctl-fill); color: var(--text); }
 .settings-tab[aria-selected="true"] {
-  border-color: var(--ctl-edge);
-  background: var(--panel);
+  background: var(--ctl-fill);
   color: var(--text);
+  font-weight: 600;
 }
-.settings-tab:active { transform: scale(0.97); }
 /* Drawn inside, so the nav's own edge does not clip the ring. */
 .settings-tab:focus-visible { outline-offset: -2px; }
+.settings-tab:active { transform: scale(0.97); }
 /* THE ONE THING IN THE DIALOG THAT SCROLLS, and only when a window is too
    short for its section; a scroll that reaches either end stays here rather
    than handing on to the page behind the scrim. Keyed by its section in the
@@ -101,23 +88,20 @@
    the right only, the gutter set the controls 10px further from the right
    edge than from the nav. Kept on both, the section sits centred and still,
    and where scrollbars overlay the content nothing is reserved on either side.
-   SOFT EDGES, as a macOS pane fades content under its bars: the top 16px and
-   the bottom 32px fade out, each exactly the padding there, so a section at
-   rest shows nothing faded and only content passing under an edge dissolves
-   into it, which is the sign there is more. scroll-padding keeps a control the
-   keyboard scrolls to clear of the fade, focus ring and all. */
+   Content stays fully opaque at scroll boundaries: clipping controls or
+   fading warnings makes long sections harder to operate. Padding and a
+   stable scrollbar identify the viewport without changing text contrast. */
 .settings-pane {
   display: flex;
   flex-direction: column;
   gap: var(--settings-group-gap);
   min-height: 0;
-  padding: 16px 20px 32px;
+  padding: 20px 24px 24px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable both-edges;
-  scroll-padding: 16px 0 32px;
-  -webkit-mask-image: linear-gradient(transparent, #000 16px, #000 calc(100% - 32px), transparent);
-  mask-image: linear-gradient(transparent, #000 16px, #000 calc(100% - 32px), transparent);
+  scroll-padding: 20px 0 24px;
+
 }
 /* THE PANE'S HEAD: the section's name, the one 16px line in the dialog, and
    under it the line saying what the section holds (#2176), with the
@@ -149,6 +133,11 @@
   line-height: calc(17px + var(--ui-text-increase, 0px));
 }
 .settings-pane-head > .btn { flex: none; }
+
+.settings-row-with-details > .settings-row { padding-bottom: 0; }
+.settings-row-details { padding: 0 14px calc(8px * var(--ui-space, 1)); color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; min-width: 0; }
+.settings-row-details summary { width: fit-content; cursor: pointer; padding-block: 4px; }
+.settings-row-details[open] > div { padding-top: 4px; max-width: 65ch; overflow-wrap: anywhere; }
 
 /* ONE SHAPE FOR EVERY GROUP (SettingsParts.tsx, #2176): a caption, then one
    bordered list of rows with a hairline between each, the boxed list macOS
@@ -496,12 +485,11 @@
   }
   .settings-nav::-webkit-scrollbar { display: none; }
   .settings-tab { flex: none; }
-  .settings-tab#settings-tab-about { margin-top: 0; }
+  .settings-tab#settings-tab-notifications, .settings-tab#settings-tab-integrations, .settings-tab#settings-tab-about { margin-top: 0; }
   .settings-pane {
     padding: 14px 14px 32px;
     scroll-padding: 14px 0 32px;
-    -webkit-mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 32px), transparent);
-    mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 32px), transparent);
+
   }
   .settings-row { padding-inline: 12px; }
   .settings-list > .sm-row { grid-template-columns: minmax(64px, auto) minmax(0, 1fr) 40px; padding-inline: 12px; }
@@ -523,7 +511,8 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .settings-tab, .settings-result { transition: none; }
-  .settings-tab:active, .settings-result:active { transform: none; }
+  .settings-tab:active { transform: none; }
+  .settings-result:active { transform: none; }
   .settings-link:active { transform: none; }
 }
 

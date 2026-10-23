@@ -1,0 +1,329 @@
+{
+  "phase": "FINAL corrected CSS: settled read-only desktop computed styles",
+  "capturedAt": "2026-10-23T12:31:58.317Z",
+  "status": "pass",
+  "method": "Await target finite animations; verify zero running animations before computed-style comparison. Fixture GET refresh only; no screenshots or functional flows rerun.",
+  "historicalReports": {
+    "browser-results.json": "HISTORY: combined six functional passes; first dark case retains pre-cascade-fix transparent-background samples. Unchanged by this verification.",
+    "evidence-refresh-results.json": "HISTORY: gallery refresh sampled intermediate primary-to-neutral interpolation frames before settled-helper correction. Unchanged by this verification."
+  },
+  "cases": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "theme": "rider-black",
+      "status": "pass",
+      "samples": [
+        {
+          "state": "Connect GitHub rest",
+          "label": "Connect GitHub",
+          "classes": "btn ig-manage primary",
+          "fill": "rgba(53, 116, 240, 0.314)",
+          "expectedFill": "rgba(53, 116, 240, 0.314)",
+          "border": "rgb(131, 172, 252)",
+          "expectedBorder": "rgb(131, 172, 252)",
+          "width": 89.78125,
+          "height": 30,
+          "radius": "6px",
+          "padding": [
+            "12px",
+            "12px"
+          ],
+          "fontWeight": "500",
+          "runningAnimations": 0,
+          "focused": false,
+          "focusVisible": false,
+          "outline": "none"
+        },
+        {
+          "state": "Manage GitLab rest",
+          "label": "Manage GitLab",
+          "classes": "btn ig-manage",
+          "fill": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+          "expectedFill": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+          "border": "color(srgb 0.87451 0.882353 0.898039 / 0.5)",
+          "expectedBorder": "color(srgb 0.87451 0.882353 0.898039 / 0.5)",
+          "width": 89.78125,
+          "height": 30,
+          "radius": "6px",
+          "padding": [
+            "12px",
+            "12px"
+          ],
+          "fontWeight": "500",
+          "runningAnimations": 0,
+          "focused": false,
+          "focusVisible": false,
+          "outline": "none"
+        },
+        {
+          "state": "Manage Jira rest",
+          "label": "Manage Jira",
+          "classes": "btn ig-manage",
+          "fill": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+          "expectedFill": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+          "border": "color(srgb 0.87451 0.882353 0.898039 / 0.5)",
+          "expectedBorder": "color(srgb 0.87451 0.882353 0.898039 / 0.5)",
+          "width": 89.78125,
+          "height": 30,
+          "radius": "6px",
+          "padding": [
+            "12px",
+            "12px"
+          ],
+          "fontWeight": "500",
+          "runningAnimations": 0,
+          "focused": false,
+          "focusVisible": false,
+          "outline": "none"
+        },
+        {
+          "state": "Connect GitHub hover",
+          "label": "Connect GitHub",
+          "classes": "btn ig-manage primary",
+          "fill": "rgba(53, 116, 240, 0.314)",
+          "expectedFill": "rgba(53, 116, 240, 0.314)",
+          "border": "rgb(223, 225, 229)",
+          "expectedBorder": "rgb(223, 225, 229)",
+          "width": 89.78125,
+          "height": 30,
+          "radius": "6px",
+          "padding": [
+            "12px",
+            "12px"
+          ],
+          "fontWeight": "500",
+          "runningAnimations": 0,
+          "focused": false,
+          "focusVisible": false,
+          "outline": "none"
+        },
+        {
+          "state": "Manage GitLab hover",
+          "label": "Manage GitLab",
+          "classes": "btn ig-manage",
+          "fill": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+          "expectedFill": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+          "border": "rgb(223, 225, 229)",
+          "expectedBorder": "rgb(223, 225, 229)",
+          "width": 89.78125,
+          "height": 30,
+          "radius": "6px",
+          "padding": [
+            "12px",
+            "12px"
+          ],
+          "fontWeight": "500",
+          "runningAnimations": 0,
+          "focused": false,
+          "focusVisible": false,
+          "outline": "none"
+        },
+        {
+          "state": "Manage GitLab keyboard focus",
+          "label": "Manage GitLab",
+          "classes": "btn ig-manage",
+          "fill": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+          "expectedFill": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+          "border": "color(srgb 0.87451 0.882353 0.898039 / 0.5)",
+          "expectedBorder": "color(srgb 0.87451 0.882353 0.898039 / 0.5)",
+          "width": 89.78125,
+          "height": 30,
+          "radius": "6px",
+          "padding": [
+            "12px",
+            "12px"
+          ],
+          "fontWeight": "500",
+          "runningAnimations": 0,
+          "focused": true,
+          "focusVisible": true,
+          "outline": "solid"
+        },
+        {
+          "state": "Manage GitHub after Connect-to-Manage transition settled",
+          "label": "Manage GitHub",
+          "classes": "btn ig-manage",
+          "fill": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+          "expectedFill": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+          "border": "color(srgb 0.87451 0.882353 0.898039 / 0.5)",
+          "expectedBorder": "color(srgb 0.87451 0.882353 0.898039 / 0.5)",
+          "width": 89.78125,
+          "height": 30,
+          "radius": "6px",
+          "padding": [
+            "12px",
+            "12px"
+          ],
+          "fontWeight": "500",
+          "runningAnimations": 0,
+          "focused": false,
+          "focusVisible": false,
+          "outline": "none"
+        }
+      ],
+      "styleFailures": [],
+      "mutations": 0,
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "status": "pass",
+      "samples": [
+        {
+          "state": "Connect GitHub rest",
+          "label": "Connect GitHub",
+          "classes": "btn ig-manage primary",
+          "fill": "rgba(3, 105, 161, 0.22)",
+          "expectedFill": "rgba(3, 105, 161, 0.22)",
+          "border": "rgb(3, 105, 161)",
+          "expectedBorder": "rgb(3, 105, 161)",
+          "width": 89.78125,
+          "height": 30,
+          "radius": "6px",
+          "padding": [
+            "12px",
+            "12px"
+          ],
+          "fontWeight": "500",
+          "runningAnimations": 0,
+          "focused": false,
+          "focusVisible": false,
+          "outline": "none"
+        },
+        {
+          "state": "Manage GitLab rest",
+          "label": "Manage GitLab",
+          "classes": "btn ig-manage",
+          "fill": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.07)",
+          "expectedFill": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.07)",
+          "border": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.5)",
+          "expectedBorder": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.5)",
+          "width": 89.78125,
+          "height": 30,
+          "radius": "6px",
+          "padding": [
+            "12px",
+            "12px"
+          ],
+          "fontWeight": "500",
+          "runningAnimations": 0,
+          "focused": false,
+          "focusVisible": false,
+          "outline": "none"
+        },
+        {
+          "state": "Manage Jira rest",
+          "label": "Manage Jira",
+          "classes": "btn ig-manage",
+          "fill": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.07)",
+          "expectedFill": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.07)",
+          "border": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.5)",
+          "expectedBorder": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.5)",
+          "width": 89.78125,
+          "height": 30,
+          "radius": "6px",
+          "padding": [
+            "12px",
+            "12px"
+          ],
+          "fontWeight": "500",
+          "runningAnimations": 0,
+          "focused": false,
+          "focusVisible": false,
+          "outline": "none"
+        },
+        {
+          "state": "Connect GitHub hover",
+          "label": "Connect GitHub",
+          "classes": "btn ig-manage primary",
+          "fill": "rgba(3, 105, 161, 0.22)",
+          "expectedFill": "rgba(3, 105, 161, 0.22)",
+          "border": "rgb(13, 17, 23)",
+          "expectedBorder": "rgb(13, 17, 23)",
+          "width": 89.78125,
+          "height": 30,
+          "radius": "6px",
+          "padding": [
+            "12px",
+            "12px"
+          ],
+          "fontWeight": "500",
+          "runningAnimations": 0,
+          "focused": false,
+          "focusVisible": false,
+          "outline": "none"
+        },
+        {
+          "state": "Manage GitLab hover",
+          "label": "Manage GitLab",
+          "classes": "btn ig-manage",
+          "fill": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.07)",
+          "expectedFill": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.07)",
+          "border": "rgb(13, 17, 23)",
+          "expectedBorder": "rgb(13, 17, 23)",
+          "width": 89.78125,
+          "height": 30,
+          "radius": "6px",
+          "padding": [
+            "12px",
+            "12px"
+          ],
+          "fontWeight": "500",
+          "runningAnimations": 0,
+          "focused": false,
+          "focusVisible": false,
+          "outline": "none"
+        },
+        {
+          "state": "Manage GitLab keyboard focus",
+          "label": "Manage GitLab",
+          "classes": "btn ig-manage",
+          "fill": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.07)",
+          "expectedFill": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.07)",
+          "border": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.5)",
+          "expectedBorder": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.5)",
+          "width": 89.78125,
+          "height": 30,
+          "radius": "6px",
+          "padding": [
+            "12px",
+            "12px"
+          ],
+          "fontWeight": "500",
+          "runningAnimations": 0,
+          "focused": true,
+          "focusVisible": true,
+          "outline": "solid"
+        },
+        {
+          "state": "Manage GitHub after Connect-to-Manage transition settled",
+          "label": "Manage GitHub",
+          "classes": "btn ig-manage",
+          "fill": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.07)",
+          "expectedFill": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.07)",
+          "border": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.5)",
+          "expectedBorder": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.5)",
+          "width": 89.78125,
+          "height": 30,
+          "radius": "6px",
+          "padding": [
+            "12px",
+            "12px"
+          ],
+          "fontWeight": "500",
+          "runningAnimations": 0,
+          "focused": false,
+          "focusVisible": false,
+          "outline": "none"
+        }
+      ],
+      "styleFailures": [],
+      "mutations": 0,
+      "errors": []
+    }
+  ],
+  "styleFailures": []
+}

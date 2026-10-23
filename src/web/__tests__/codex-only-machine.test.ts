@@ -474,7 +474,7 @@ describe("which panels the UI draws for each machine", () => {
     expect(appSrc).toMatch(/capacity: providers\.claude \? capacity : \[\]/);
     // The connected trackers (#2178) are a group of their own after it, so
     // they cannot stand in for the accounts button either.
-    expect(appSrc).toMatch(/<EdgeRail side="left" label="Left column" groups=\{\[rails\.leftStripe, rails\.integrations\]\}/);
+    expect(appSrc).toMatch(/<EdgeRail side="left" label="Left column" groups=\{\[rails\.leftStripe, rails\.integrations, rails\.explore\]\}/);
     // And nowhere else: the right stripe and the utilities never carry it.
     expect(appSrc).toMatch(/right: \[\[usage, machine\], \[history, \.\.\.activity, browserWatch, \.\.\.\(setTrafficRadarOpen \? \[\{[^}]*\}\] : \[\]\)\], \.\.\.\(setRadioOpen/);
     expect(appSrc).toMatch(/utilities: \[settings, feedback\]/);

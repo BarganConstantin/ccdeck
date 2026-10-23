@@ -340,9 +340,23 @@ export function initials(name: string): string {
 /** The connection Settings → Integrations should open at, set by a panel's
  *  Reconnect just before it opens Settings, and taken once. */
 let focusRequest: string | null = null;
+let addRequest: IntegrationKind | null = null;
 
 export function requestIntegrationFocus(connId: string) {
+  addRequest = null;
   focusRequest = connId;
+}
+
+/** One-shot provider-targeted Settings navigation, never connection state. */
+export function requestIntegrationAdd(kind: IntegrationKind) {
+  focusRequest = null;
+  addRequest = kind;
+}
+
+export function takeIntegrationAdd(): IntegrationKind | null {
+  const kind = addRequest;
+  addRequest = null;
+  return kind;
 }
 
 export function takeIntegrationFocus(): string | null {

@@ -376,8 +376,9 @@ describe("the open state, as the sheet draws it now", () => {
       expect(at(LINE_SHOWN[line], "opacity"), `${line} open`).toBe("1");
     }
     // The stripe's line stands on the inner edge — the right of the left
-    // stripe, the left of the right one — over the stripe's own border.
-    expect(decl(".edge-rail-left .rail-btn-stripe::before", "right")).toBe("-3px");
+    // stripe, the left of the right one. Keep the scrollable left rail's
+    // indicator inside its viewport so it does not create horizontal overflow.
+    expect(decl(".edge-rail-left .rail-btn-stripe::before", "right")).toBe("-1px");
     expect(decl(".edge-rail-right .rail-btn-stripe::before", "left")).toBe("-3px");
     expect(decl(".rail-btn-stripe::before", "width")).toBe("2px");
     expect(declIn(mediaBodyOf(PHONE, ".rail-btn-dock::before"), "height")).toBe("2px");
