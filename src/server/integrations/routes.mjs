@@ -33,7 +33,7 @@
 import { createHash } from "node:crypto";
 import { readBody, send } from "../http-io.mjs";
 import { errorBody, errorResponse, integrationError, isTypedError } from "./errors.mjs";
-import { fetchImage, IMAGE_MAX_BYTES, isSafeTarget, normaliseBaseUrl, originOf, RASTER_TYPES, rasterMatches } from "./proxy.mjs";
+import { fetchImage, IMAGE_MAX_BYTES, isSafeTarget, normaliseBaseUrl, originOf, RASTER_TYPES, rasterTypeOf } from "./proxy.mjs";
 import { getProvider, isAvailable, providerList } from "./registry.mjs";
 import { integrationsStore } from "./store.mjs";
 import "./providers.mjs";
@@ -160,10 +160,12 @@ async function serveAsset(res, conn, client, raw, { signal, method, fetchImpl })
       const got = typeof client.fetchAsset === "function"
         ? await client.fetchAsset(target.href, { maxBytes: IMAGE_MAX_BYTES, signal })
         : await genericAsset(client, target.href, { maxBytes: IMAGE_MAX_BYTES, signal, fetchImpl });
-      const contentType = String(got?.contentType ?? "").split(";")[0].trim().toLowerCase();
+      const declared = String(got?.contentType ?? "").split(";")[0].trim().toLowerCase();
       const bytes = got?.bytes;
-      // The route checks again what every client promised.
-      if (!RASTER_TYPES.has(contentType) || !Buffer.isBuffer(bytes) || bytes.length > IMAGE_MAX_BYTES || !rasterMatches(contentType, bytes)) {
+      // The route checks again what every client promised, and serves the
+      // image as the type its bytes are, whichever raster type it was labelled.
+      const contentType = Buffer.isBuffer(bytes) ? rasterTypeOf(bytes) : null;
+      if (!RASTER_TYPES.has(declared) || !contentType || bytes.length > IMAGE_MAX_BYTES) {
         throw integrationError("not-found", "Not an image the deck shows.");
       }
       image = { at: Date.now(), contentType, bytes };
