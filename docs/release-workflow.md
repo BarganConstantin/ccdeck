@@ -48,20 +48,34 @@ The three flows:
 
 Rules for every branch:
 
-- `main` changes only by merging a release or hotfix pull request, as a merge
-  commit.
+- `main` changes only through a pull request merged as a merge commit: a
+  release or hotfix pull request, or a separate pull request of a kind listed
+  in section 3.
 - `development` is never reset, rebased, force-pushed or deleted. It never
   holds private code or private data. Work goes into it only through a pull
   request, after the required CI checks pass and the lead has reviewed it,
   merged as a merge commit. Nobody pushes to `development` directly.
-- `development` is created fresh from a published release commit on `main`.
-  It never restores or reuses the earlier development history, which stays
-  archived outside this repository. Until it exists, the lead uses a local
-  integration branch in its place.
+- `development` was created fresh from the published v3.46.0 commit on
+  `main`. It never restores or reuses the earlier development history, which
+  stays archived outside this repository.
 - There is no permanent `hotfix` branch. A `hotfix/vX.Y.Z` branch exists for
   one fix only.
 - New branches use the `feature/` and `fix/` prefixes. Older branches keep
   their names.
+
+Repository rules enforce the parts GitHub can check:
+
+- **`main`:** changes only through pull requests, merged as merge commits.
+  It cannot be deleted or force-pushed.
+- **`development`:** the same, plus:
+  - the required CI checks: the type check, the Node 18 floor, the tests on
+    Linux, macOS and Windows, and the three desktop builds;
+  - the branch must be up to date with `development` before the merge;
+  - every review thread must be resolved.
+- **`release/v*` and `hotfix/v*`:** cannot be force-pushed.
+- **`v*` tags:** once created, never moved or deleted.
+
+The lead's review is a step of this workflow, not a GitHub rule.
 
 ## 3. The default public release
 
