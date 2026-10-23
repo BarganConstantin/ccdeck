@@ -52,7 +52,8 @@ describe("every switch is the one switch (#886)", () => {
     // prompt", an on/off filter over its activity list.
     // Twenty-three with Claude sessions' "Continue stopped background sessions"
     // (#2193), off until it is turned on.
-    expect(switches, "the twenty-three switches in the source").toBe(23);
+    // Twenty-four with the terminal's Beta switch in General (TerminalSection.tsx).
+    expect(switches, "the twenty-four switches in the source").toBe(24);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

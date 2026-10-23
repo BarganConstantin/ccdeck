@@ -418,6 +418,16 @@ describe("what was migrated to the secondary tier", () => {
       ".ig-provider .ig-conn-line",
       ".ig-total",
       ".settings-row-details",
+      // The terminal stage. Its keys bar says in a sentence who has the
+      // keyboard — "Keys on the board", "Typing into paycore", the first-run
+      // line, "The session ended 14m ago — this is its last frame" — on the
+      // bar's --chrome-bg; the keys and hints beside it stay on --muted.
+      ".ts-bar",
+      // And its state cards: the one sentence that says why there is no pane
+      // (the deck's describeTarget, tmux missing, an error), and the note that
+      // answers a refused Reopen here in place. Prose read once and acted on.
+      ".ts-note",
+      ".ts-text",
     ].sort());
   });
 

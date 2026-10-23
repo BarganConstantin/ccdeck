@@ -103,6 +103,8 @@ describe("which sessions leave the board", () => {
   it("leaves the selected session, and what is already off the board", () => {
     const state = board();
     expect(due(state, T + 60 * MIN, { keep: "s1" })).toEqual(["s2"]);
+    expect(due(state, T + 60 * MIN, { keep: ["s1", "s2"] }), "the selected card's and the stage's").toEqual([]);
+    expect(due(state, T + 60 * MIN, { keep: [null, "s2"] })).toEqual(["s1"]);
     expect(due(state, T + 60 * MIN, { removed: new Set(["s2"]) })).toEqual(["s1"]);
   });
 });
@@ -225,9 +227,11 @@ describe("the setting and its wiring", () => {
     expect(clientText("components/SettingsModal.tsx")).toMatch(/<BoardSection \/>/);
   });
 
-  it("waits for the history before it hides anything, and spares the selected card", () => {
+  it("waits for the history before it hides anything, and spares the selected card and the stage's session", () => {
     const app = clientText("App.tsx");
     expect(app).toMatch(/useHideFinished\(\{[\s\S]*?ready: historyReplayed/);
     expect(app).toMatch(/keepSessionId: primarySelectedId/);
+    expect(app).toMatch(/stageSessionId: stage\.enabled && stage\.shell\.phase !== "closed" \? targetSession\(stage\.shell\.target\)/);
+    expect(app.indexOf("useHideFinished({"), "after the stage it reads").toBeGreaterThan(app.indexOf("const stage = useStage("));
   });
 });

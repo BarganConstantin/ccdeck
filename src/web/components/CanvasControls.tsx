@@ -20,7 +20,7 @@ const zoomAtMin = (s: ReactFlowState) => s.transform[2] <= s.minZoom;
 
 export default function CanvasControls({
   autoFitDisabled, enableAutoFitAndRefit, paused, pauseGate, togglePause,
-  handleRelayout, requestClear, setKeyHelpOpen,
+  handleRelayout, requestClear, setKeyHelpOpen, onTerminal,
 }: {
   autoFitDisabled: boolean;
   enableAutoFitAndRefit: () => void;
@@ -30,6 +30,10 @@ export default function CanvasControls({
   handleRelayout: () => void;
   requestClear: (source: ClearSource) => void;
   setKeyHelpOpen: Dispatch<SetStateAction<boolean>>;
+  /** The terminal stage's way in from the canvas (use-stage.ts
+   *  openFromButton), or absent — and with it the button — while the hidden
+   *  terminal flag is off. */
+  onTerminal?: (button: Element | null) => void;
 }) {
   const rf = useReactFlow();
   // Whether the canvas's own zoom buttons can go any further, which is the
@@ -183,6 +187,27 @@ export default function CanvasControls({
           <path d="M10.3 10.6v6.8M13.7 10.6v6.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
         </svg>
       </ControlButton>
+      {/* The terminal, behind its hidden flag: the selected session on the
+          stage, else the one the stage showed last, else the empty stage,
+          whose one action is New session. A group of its own — it does not
+          act on the canvas like the verbs above it, it opens a session —
+          and only there at all when the flag is on. The stage grows out of
+          the session's card when it is on screen, else out of this button,
+          which is why the press hands the button over. */}
+      {onTerminal && (
+        <ControlButton
+          data-group-start=""
+          onClick={e => onTerminal(e.currentTarget)}
+          title="Open the terminal — the selected session, or the last one"
+          aria-label="Open the terminal"
+        >
+          {/* a prompt: a chevron and the cursor's underline */}
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
+            <path d="M5 7l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            <path d="M12.5 18h6.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+          </svg>
+        </ControlButton>
+      )}
       {/* The one thing on screen that says the keyboard exists.
           It is here and not in the topbar, deliberately. The bar was cut
           back to identity, status and settings this week and the canvas

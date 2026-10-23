@@ -29,6 +29,8 @@ import { presentsDeckToken } from "./request-gates.mjs";
 // The version this process runs, read at boot by a leaf so that the LAN
 // engine's card and /api/version give one answer — see running-version.mjs.
 import { RUNNING_VERSION } from "./running-version.mjs";
+// How many terminal panels have a socket open on this deck — see deckPresence.
+import { openTerminalCount } from "./terminal-socket.mjs";
 
 // Resolved the way pinned-build.mjs resolves it, from a file in the same
 // directory, so every lazy import below is the URL the pin has already evaluated.
@@ -345,14 +347,46 @@ async function handleStop(req, res) {
   send(res, 200, { ok: true, pid: process.pid });
 }
 
+/**
+ * Presence as the away-update reads it: the tabs' own claims (presence.mjs,
+ * fed by POST /api/presence), and every terminal socket open on this deck
+ * counted as one more tab that is being looked at.
+ *
+ * A terminal panel is somebody at an agent's keyboard. A tab claims presence
+ * only while it is visible AND holds focus (src/web/presence.ts), so a person
+ * reading a running agent in the panel while their keyboard is in another
+ * window, or one whose tab sits behind the window they are typing a reply in,
+ * is not "looking" by that rule — and a restart then cuts their terminal: the
+ * socket closes with `server-shutdown`, the tickets die with the process, and
+ * whatever they type before the panel has reconnected goes nowhere. The tmux
+ * session survives all of it; the person's attention is what the away-update
+ * promises not to interrupt.
+ *
+ * The cost is that a panel left open holds the away-update off until it is
+ * closed. That is bounded: four sockets at most (MAX_TERMINALS); a tab that
+ * is closed takes its socket with it at once, and one that loses its network
+ * is dropped after two unanswered pings, about a minute (ws-frames.mjs) —
+ * which is when this stops counting it.
+ *
+ * `report` is the tabs' own; `openTerminals` answers how many sockets are
+ * open (terminal-socket's openTerminalCount).
+ */
+export function deckPresence(tabs, openTerminals) {
+  return {
+    report: (tab, looking, now) => tabs.report(tab, looking, now),
+    looking: (now) => tabs.looking(now) || openTerminals() > 0,
+  };
+}
+
 // The two facts the away-update waits on (awayUpdateTick): whether a turn is
-// running, fed from pushEvent, and whether a tab is being looked at, fed from
-// POST /api/presence. They sat at the top of index.mjs while pushEvent was
-// that file's, because pushEvent can run before the module holding it has
-// finished evaluating; made here, they exist before event-pipeline.mjs's own
-// body runs at all.
+// running, fed from pushEvent, and whether anybody is at the deck — a tab
+// being looked at, fed from POST /api/presence, or a terminal panel open on
+// it. They sat at the top of index.mjs while pushEvent was that file's,
+// because pushEvent can run before the module holding it has finished
+// evaluating; made here, they exist before event-pipeline.mjs's own body runs
+// at all.
 const activity = createActivity();
-const presence = createPresence();
+const presence = deckPresence(createPresence(), openTerminalCount);
 
 // ── updating while nobody is looking ────────────────────────────────────────
 //

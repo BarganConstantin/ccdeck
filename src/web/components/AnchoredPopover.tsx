@@ -50,7 +50,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { menuMove } from "../menu-keys";
-import { placePopover } from "../popover-place";
+import { placePopover, type PopoverAlign } from "../popover-place";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { useOutsidePress } from "./use-outside-press";
 
@@ -84,6 +84,9 @@ interface Props {
    *  anchor if it was inside — or to fallbackFocus, when the anchor is no
    *  longer drawn — so the caller only has to stop rendering it. */
   onClose: () => void;
+  /** Which edge lines up with the anchor's (popover-place.ts). "end" unless
+   *  the anchor sits at the left end of the surface the popover belongs to. */
+  align?: PopoverAlign;
   children: ReactNode;
 }
 
@@ -97,7 +100,7 @@ function itemsIn(root: HTMLElement | null): HTMLButtonElement[] {
 }
 
 export default function AnchoredPopover({
-  anchorId, boundaryId, portalRootId, id, className, role, labelledBy, start = "first", focusRef, fallbackFocus, onClose, children,
+  anchorId, boundaryId, portalRootId, id, className, role, labelledBy, start = "first", focusRef, fallbackFocus, onClose, align = "end", children,
 }: Props) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -143,12 +146,12 @@ export default function AnchoredPopover({
     // is allowed to grow back when there is room again.
     el.style.maxHeight = "";
     const p = placePopover(box, { width: el.offsetWidth, height: el.offsetHeight },
-      { width: window.innerWidth, height: window.innerHeight });
+      { width: window.innerWidth, height: window.innerHeight }, align);
     el.style.top = `${p.top}px`;
     el.style.left = `${p.left}px`;
     el.style.maxHeight = p.maxHeight == null ? "" : `${p.maxHeight}px`;
     el.dataset.side = p.side;
-  }, [anchorId, boundaryId, ref]);
+  }, [anchorId, boundaryId, ref, align]);
 
   // Before paint, every render: the first one is what puts it beside the
   // anchor at all, and the rest follow a row that moved.

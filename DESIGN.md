@@ -672,6 +672,13 @@ on a panel this dense:
 - **`cubic-bezier(0.23, 1, 0.32, 1)`** is the ease-out — 59 uses, where the next
   most common custom curve has 11. Use this one.
 - **`scale(0.97)`** on press, 36 uses. Not a translate, not a shadow change.
+- **The one exception is distance.** The terminal stage growing out of a card and
+  the board folding into its navigator cross most of the screen, and on the house
+  ease-out their first frame covered a third of the way: a jump, then a settle.
+  They ride `cubic-bezier(0.32, 0.72, 0, 1)` (iOS's sheet curve) for 280ms open
+  and 200ms close, on the page's own frames, where a late frame postpones the
+  motion rather than skipping it (`navigator-flip.ts`). Anything that moves a
+  few pixels stays on the house curve.
 - **The pulse is the one ambient loop** (`--pulse-live: 1.2s ease-in-out`), reserved
   for *still asking*.
 - **`prefers-reduced-motion: reduce` is honoured in 25 blocks**, and the motion
