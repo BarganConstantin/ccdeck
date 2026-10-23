@@ -57,6 +57,8 @@ deck sends a tracker is a GET.
       Do*, not a second *Done*);
     - the fields that have a value, and when it was created and updated;
     - the description, sub-tasks, links, attachments and the latest comments.
+    - A sub-task, the parent or an issue on the path opens in its place, and
+      focus moves to the new issue's title once it is drawn, at any width.
     - Escape closes the issue first, with focus back on its row, and then
       the panel. A search with text in it, or an open picker, comes first.
 - **Freshness.** A board older than five minutes is read again when the panel

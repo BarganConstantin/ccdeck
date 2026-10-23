@@ -4,7 +4,7 @@
 // DOM: the helpers are pure.
 import { describe, it, expect } from "vitest";
 import {
-  boardRows, buildRows, drawnIssues, filterRows, groupsFor, groupStats, needsAttention, rowKey, shownQuickFilters, shownResolution, subtaskShown, timeLine,
+  boardRows, buildRows, detailNameTakesFocus, drawnIssues, filterRows, groupsFor, groupStats, needsAttention, rowKey, shownQuickFilters, shownResolution, subtaskShown, timeLine,
   type GroupRead,
 } from "../jira-board";
 import type { JiraBoardOverview, JiraIssue, JiraSprint, StatusCategory } from "../jira-api";
@@ -119,6 +119,37 @@ describe("how an issue was resolved, in its detail", () => {
     expect(shownResolution({ status: { name: "Closed" }, resolution: "Duplicate" })).toBe("Duplicate");
     expect(shownResolution({ status: done, resolution: null })).toBeNull();
     expect(shownResolution({ status: done, resolution: "  " })).toBeNull();
+  });
+});
+
+describe("where focus goes once the detail draws an issue", () => {
+  const focus = (over: Partial<Parameters<typeof detailNameTakesFocus>[0]>) =>
+    detailNameTakesFocus({ handedOff: false, narrow: false, focusLost: false, focusOnBack: false, ...over });
+
+  it("gives the name focus when an issue opened from the detail took the button that opened it, at any width", () => {
+    // A sub-task, the parent or an issue on the trail: the button is gone with
+    // the issue it was on, and focus fell to the page.
+    expect(focus({ handedOff: true, focusLost: true })).toBe(true);
+    expect(focus({ handedOff: true, focusLost: true, narrow: true })).toBe(true);
+  });
+
+  it("leaves focus where the reader has moved it since", () => {
+    expect(focus({ handedOff: true })).toBe(false);
+    expect(focus({ handedOff: true, narrow: true })).toBe(false);
+  });
+
+  it("moves nothing on a wide screen for a row of the list, which stays beside the detail", () => {
+    expect(focus({ focusLost: true })).toBe(false);
+    expect(focus({ focusOnBack: true })).toBe(false);
+  });
+
+  it("takes focus from the page or from Back on a narrow screen, where the detail replaced the list", () => {
+    expect(focus({ narrow: true, focusLost: true })).toBe(true);
+    expect(focus({ narrow: true, focusOnBack: true })).toBe(true);
+    expect(focus({ narrow: true })).toBe(false);
+    // There the panel holds focus on Back while a sub-task is read, which is
+    // not the reader moving it.
+    expect(focus({ narrow: true, focusOnBack: true, handedOff: true })).toBe(true);
   });
 });
 
