@@ -67,7 +67,7 @@ describe("the shape of release-notes.json", () => {
     // meant is an entry that renders with half its content and no complaint.
     for (const key of versionKeys) {
       for (const note of raw[key] as Array<Record<string, unknown>>) {
-        expect(Object.keys(note).filter(k => k !== "priority").sort(), key).toEqual(["body", "title"]);
+        expect(Object.keys(note).filter(k => k !== "priority" && k !== "notice").sort(), key).toEqual(["body", "title"]);
         expect(typeof note.title, key).toBe("string");
         expect(typeof note.body, key).toBe("string");
         expect(String(note.title).trim(), key).not.toBe("");

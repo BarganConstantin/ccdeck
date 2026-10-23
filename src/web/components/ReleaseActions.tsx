@@ -52,8 +52,9 @@ export function useReleaseUpdateCheck(wiring: UpdateCheckWiring | undefined) {
   if (!wiring) return null;
 
   const { versionCheck, upgrade, restart, desktopUpdate, running, onHandOff } = wiring;
+  // A new response may arrive before the 30-second display ticker advances.
   const state = updateCheckState({
-    version: versionCheck.version, running, checking: pressing || versionChecking, answered, unreachable, now,
+    version: versionCheck.version, running, checking: pressing || versionChecking, answered, unreachable, now: Math.max(now, Date.now()),
     upgradeState: upgrade.upgradeState, copied: upgrade.cmdCopied, restarting: restart.restarting,
     app: { inApp: inDesktopApp(), update: desktopUpdate.appUpdate, version: desktopAppVersion(), menu: trayMenuName() },
   }, UPGRADE_BLOCK_TEXT);

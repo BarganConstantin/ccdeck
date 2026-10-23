@@ -845,7 +845,10 @@ Verified desktop updates replace Done with Restart to update.
 
 Release summaries and at most three highlights come from explicit editorial
 metadata in release-notes.json. Required changes remain visible; other notes
-use native More improvements disclosures. Legacy notes stay visible, all
-versions remain available, and Full changelog links to the public history.
+use native More improvements disclosures. Benefit descriptions and always-visible
+technical notices are separate; omit generic repeated icons. Manual browsing folds
+previous releases. Upgrade notices keep required changes and unclassified legacy
+notes visible, while optional earlier changes remain discoverable in a disclosure.
+All versions remain available, and Full changelog links to the public history.
 Use 13px minimum prose, theme tokens, wrap inline code and honor text scaling.
 The JSON file’s author instructions own the metadata contract.

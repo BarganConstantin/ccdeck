@@ -1,12 +1,12 @@
 // Release selection and seen-state stay upstream; this sheet only presents them.
 import { useId, useState } from "react";
-import { compareVersions, groupReleaseNotes, splitNoteTitle, versionRangeLabel, type ReleaseNote, type VersionNotes } from "../release-notes";
+import { compareVersions, groupReleaseNotes, presentReleaseNotes, splitNoteTitle, versionRangeLabel, type ReleaseNote, type VersionNotes } from "../release-notes";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { parseInline, type Inline } from "../inline-markdown";
 import { RESTART_TO_UPDATE } from "../desktop-update";
 import ReleaseActions, { useReleaseUpdateCheck, type UpdateCheckWiring, RESTART_WHY } from "./ReleaseActions";
 import AnchoredPopover from "./AnchoredPopover";
-import { RestartGlyph, SessionListGlyph } from "./rail-glyphs";
+import { RestartGlyph } from "./rail-glyphs";
 
 interface Props {
   entries: VersionNotes[];
@@ -31,7 +31,9 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
   const update = useReleaseUpdateCheck(updateCheck);
   const updating = update?.state.line.action?.kind === "install" || update?.state.line.action?.kind === "npx";
   const canRestart = onRestart && !updateVersion && !updating;
-  const range = versionRangeLabel(entries);
+  const { latest, visiblePrevious, history } = presentReleaseNotes(entries, since !== null);
+  const historyId = `${id}-history`;
+  const range = versionRangeLabel(since !== null ? entries : entries.slice(0, 1));
   const earlier = running && entries[0] && compareVersions(entries[0].version, running) < 0;
   const context = earlier ? `Running v${running}. Earlier release notes are shown below.`
     : firstRun && running ? `New in v${running}.`
@@ -55,7 +57,7 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
           <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
         </div>
       </header>
-      <section className="modal-body">
+      <section className="modal-body" role="region" aria-label="Release notes" tabIndex={0}>
         {updateVersion ? <div className="rn-ready">
           <p>ccdeck v{updateVersion} is downloaded and verified.</p>
           <p className="rn-update-said" role="status">{updateFailure}</p>
@@ -63,7 +65,17 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
           <p className="rn-update-said" role="status">{updateFailure}</p></>}
         {context && <p className="rn-context">{context}</p>}
         {!entries.length && <p className="rn-empty">No release notes for this build.</p>}
-        {entries.map(entry => <ReleaseSection key={entry.version} entry={entry} showVersion={entries.length > 1} />)}
+        {latest && <ReleaseSection key={latest.version} entry={latest} showVersion={since !== null && entries.length > 1} />}
+        {visiblePrevious.length > 0 && <section className="rn-upgrade-history" aria-label="Earlier changes in this upgrade">
+          <h2 className="rn-group-title">Earlier in this upgrade</h2>
+          {visiblePrevious.map(entry => <ReleaseSection key={entry.version} entry={entry} showVersion />)}
+        </section>}
+        {history.length > 0 && <details className="rn-history">
+          <summary aria-controls={historyId}>{since !== null ? "Other changes in this upgrade" : "Previous releases"}
+            <span>{history.length} {history.length === 1 ? "release" : "releases"}</span>
+          </summary>
+          <div id={historyId}>{history.map(entry => <ReleaseSection key={entry.version} entry={entry} showVersion />)}</div>
+        </details>}
       </section>
       <footer className="rn-footer">
         <div className="rn-footer-links">
@@ -104,9 +116,10 @@ function ReleaseSection({ entry, showVersion }: { entry: VersionNotes; showVersi
 function Note({ note, highlight }: { note: ReleaseNote; highlight?: boolean }) {
   const { rest } = splitNoteTitle(note.title);
   return <li className="rn-note" data-highlight={highlight || undefined} data-required={note.priority === "required" || undefined}>
-    {highlight && <span className="rn-feature-icon" aria-hidden="true"><SessionListGlyph /></span>}
     <div><h3 className="rn-note-title">{rest.trimStart()}</h3>
-      <p className="rn-note-body">{renderInline(parseInline(note.body))}</p></div>
+      <p className="rn-note-body">{renderInline(parseInline(note.body))}</p>
+      {note.notice && <p className="rn-note-notice"><strong>Important: </strong>{renderInline(parseInline(note.notice))}</p>}
+    </div>
   </li>;
 }
 
