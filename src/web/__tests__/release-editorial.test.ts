@@ -40,6 +40,13 @@ describe('release editorial contract',()=>{
   const entries=[{version:'3.46.0',notes:[note('highlight')]},{version:'3.45.0',notes:[note('required','Required'),{...note(),notice:'Compatible versions only.'},note(undefined,'Optional')]}];
   const p=presentReleaseNotes(entries,true);expect(p.visiblePrevious[0].notes).toHaveLength(2);expect(p.history[0].notes.map(n=>n.title)).toEqual(['Optional']);
  });
+ it('validates semantic icons independently of release versions',()=>{
+  expect(validateReleaseEditorial({'9.9.9':[{...note('highlight'),icon:'plans'}]})).toEqual([]);
+  expect(validateReleaseEditorial({'9.9.9':[{...note('highlight'),icon:'unknown'}]}).length).toBeGreaterThan(0);
+  const html=draw([{version:'9.9.9',notes:['plans','accounts','skills'].map(icon=>({...note('highlight'),icon}))}]);
+  const icons=[...html.matchAll(/<span class="rn-title-icon"[^>]*>([\s\S]*?)<\/span>/g)].map(m=>m[1]);
+  expect(icons).toHaveLength(3);expect(new Set(icons).size).toBe(3);
+ });
  it('fails open for unclassified legacy upgrades instead of hiding possible warnings',()=>{
   const entries=[{version:'3.46.0',notes:[]},{version:'3.45.0',notes:[note(undefined,'Legacy warning')]}];
   const p=presentReleaseNotes(entries,true);expect(p.visiblePrevious[0].notes).toEqual(entries[1].notes);expect(p.history).toEqual([]);

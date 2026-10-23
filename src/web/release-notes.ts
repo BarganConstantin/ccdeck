@@ -69,6 +69,8 @@ export interface ReleaseNote {
   priority?: "highlight" | "required";
   /** Essential details, visible with the current release and across upgrades. */
   notice?: string;
+  /** Optional semantic anchor, independent of title wording and release version. */
+  icon?: "plans" | "accounts" | "skills";
 }
 
 /** Everything one release had to say, and the version it shipped in. */
@@ -182,6 +184,7 @@ export function readNotes(source: unknown): VersionNotes[] {
       title: n.title, body: n.body,
       ...(n.priority === "highlight" || n.priority === "required" ? { priority: n.priority } : {}),
       ...(typeof n.notice === "string" && n.notice.trim() ? { notice: n.notice } : {}),
+      ...(n.icon === "plans" || n.icon === "accounts" || n.icon === "skills" ? { icon: n.icon } : {}),
     }));
     const summaries = (source as Record<string, unknown>)["//summaries"];
     const summary = summaries && typeof summaries === "object" && Object.hasOwn(summaries, version)
@@ -225,8 +228,9 @@ export function validateReleaseEditorial(source: Record<string, unknown>): strin
     let highlights = 0;
     for (const [i, item] of value.entries()) {
       if (!item || typeof item !== "object") continue;
-      for (const key of Object.keys(item)) if (!["title", "body", "priority", "notice"].includes(key)) errors.push(`${version}[${i}]: unknown ${key}`);
+      for (const key of Object.keys(item)) if (!["title", "body", "priority", "notice", "icon"].includes(key)) errors.push(`${version}[${i}]: unknown ${key}`);
       if (item.priority !== undefined && !["highlight", "required"].includes(item.priority)) errors.push(`${version}[${i}]: invalid priority`);
+      if (item.icon !== undefined && !["plans", "accounts", "skills"].includes(item.icon)) errors.push(`${version}[${i}]: invalid semantic icon`);
       if (item.notice !== undefined && (typeof item.notice !== "string" || !item.notice.trim())) errors.push(`${version}[${i}]: notice must be non-empty text`);
       if (item.priority === "highlight") {
         highlights++;

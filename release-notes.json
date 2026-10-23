@@ -61,7 +61,11 @@
     "Unclassified legacy upgrade notes stay visible rather than guessing safety.",
     "Before adding editorial metadata to a release, review every note: unmarked",
     "changes will be treated as optional in later upgrades. Never infer safety",
-    "from a title, keyword, emoji, position or a shortened description."
+    "from a title, keyword, emoji, position or a shortened description.",
+    "",
+    "Optional icon is a semantic key: plans, accounts or skills. Use it only when",
+    "it matches the change; do not infer icons from versions, titles or emoji.",
+    "The modal uses native monochrome glyphs, so titles need no decorative emoji."
   ],
   "//summaries": {
     "3.46.0": "Plans, accounts and skills at a glance"
@@ -176,12 +180,14 @@
     {
       "title": "🗺️ Follow plans at any zoom",
       "body": "See plan progress on session notes and “plan 2/5” at every zoom. Subagents stay in one column beside their parent.",
-      "priority": "highlight"
+      "priority": "highlight",
+      "icon": "plans"
     },
     {
       "title": "✅ Keep your active Claude account in sync",
       "body": "After `/login`, Accounts, Switch, Auto-switch and Usage follow the account Claude Code is signed in to. Auto-switch can also be configured while it is off.",
-      "priority": "highlight"
+      "priority": "highlight",
+      "icon": "accounts"
     },
     {
       "title": "📊 Account capacity and the Reset calendar have their own buttons",
@@ -191,7 +197,8 @@
       "title": "🧩 See which skills your agents use",
       "body": "Open Skill activity from the right sidebar to review skill usage, including typed slash commands.",
       "priority": "highlight",
-      "notice": "Counting typed slash commands adds a `UserPromptExpansion` hook to Claude Code's `settings.json` on version 2.1.116 or newer; `AGENTS_DECK_SKILL_HOOK=0` leaves it out."
+      "notice": "Counting typed slash commands adds a `UserPromptExpansion` hook to Claude Code's `settings.json` on version 2.1.116 or newer; `AGENTS_DECK_SKILL_HOOK=0` leaves it out.",
+      "icon": "skills"
     },
     {
       "title": "📈 Load history keeps the reading you click",
