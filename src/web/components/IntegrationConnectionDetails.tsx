@@ -66,10 +66,10 @@ export default function IntegrationConnectionDetails({ connection, provider, ava
     <div className="ig-disconnect-section">
       <h3>Remove connection</h3>
       <p>Remove this connection and its saved token from this machine.</p>
-      <div className="ig-manage-actions ig-disconnect-actions" onBlur={event => {
+      <div className="ig-manage-actions" data-integration-disconnect-actions onBlur={event => {
         if (armed && !event.currentTarget.contains(event.relatedTarget)) onCancelDisconnect();
       }}>
-      <button ref={disconnectRef} type="button" className={`btn danger ig-disconnect${armed ? " armed" : ""}`} disabled={busy !== null && !deleting}
+      <button ref={disconnectRef} type="button" data-integration-disconnect className={`btn danger${armed ? " armed" : ""}`} disabled={busy !== null && !deleting}
         aria-busy={deleting} aria-disabled={deleting || undefined}
         onKeyDown={event => { if (event.repeat) event.preventDefault(); }}
         aria-label={armed ? `Confirm disconnecting ${connection.name}` : `Disconnect ${connection.name}`}

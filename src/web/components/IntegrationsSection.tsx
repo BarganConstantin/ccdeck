@@ -79,7 +79,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
     const cancel = () => {
       // Cancel can disappear while the window loses focus; retain its return target.
       if (document.activeElement?.getAttribute("aria-label") === "Cancel disconnect") {
-        document.querySelector<HTMLButtonElement>(".ig-manage-view .ig-disconnect")?.focus();
+        document.querySelector<HTMLButtonElement>(".ig-manage-view [data-integration-disconnect]")?.focus();
       }
       setArmed(null);
     };
@@ -87,7 +87,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
     const t = window.setTimeout(() => {
       // Reading an engaged confirmation has no deadline. Leaving its action
       // cancels immediately; four seconds remains an unfocused safety fallback.
-      if (!document.querySelector(".ig-disconnect-actions")?.contains(document.activeElement)) cancel();
+      if (!document.querySelector("[data-integration-disconnect-actions]")?.contains(document.activeElement)) cancel();
     }, 4_000);
     window.addEventListener("blur", cancel);
     document.addEventListener("visibilitychange", onVisibility);
