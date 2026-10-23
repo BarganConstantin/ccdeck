@@ -9,7 +9,8 @@
 // (integrations/view-memory.ts) it also keeps the search, and each board keeps
 // the issue open beside it with its breadcrumb, the rows whose sub-tasks are
 // shown, and both scrolls: reopening the panel, or going back to a board,
-// puts that issue back when it is still on the board as drawn.
+// puts that issue back when it is still on the board as drawn, and opens the
+// first issue of the first open group beside the list when there is none.
 //
 // WHEN IT READS: when it opens on a board read more than five minutes ago, and
 // when Refresh is pressed. Never on a timer (use-jira-board.ts).
@@ -222,12 +223,12 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
     [overview, groups, snap.groups, snap.subtasks, rowFilter]);
   const drawn = useMemo<Drawn<string[]> | null>(() => {
     if (!overview) return null;
-    const { complete, keys } = drawnIssues(built, expanded, rowsOpen, snap.subtasks, rowFilter, filtered);
+    const { complete, keys, first } = drawnIssues(built, expanded, rowsOpen, snap.subtasks, rowFilter, filtered);
     // The issue opened from the list is the trail's first.
-    return { complete, has: trail => keys.has(trail[0]) };
+    return { complete, has: trail => keys.has(trail[0]), first: first == null ? null : [first] };
   }, [overview, built, expanded, rowsOpen, snap.subtasks, rowFilter, filtered]);
   const rootRef = useRef<HTMLDivElement>(null);
-  const view = useListView<string[]>({ listKey, drawn, same: sameIssue, root: rootRef, listScroller: ".jr-list-scroll" });
+  const view = useListView<string[]>({ listKey, drawn, same: sameIssue, sideBySide: !narrow, root: rootRef, listScroller: ".jr-list-scroll" });
   const { choose } = view;
   const trail = useMemo(() => view.selection ?? [], [view.selection]);
 

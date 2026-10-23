@@ -241,15 +241,19 @@ export function readsSubtasks(row: Row, filtered: boolean): boolean {
 
 /** The issues a board has on screen, by key: the rows of its open groups,
  *  and the sub-tasks under their open rows. `complete` once nothing drawn is
- *  still being read — an open group, or an open row's sub-tasks. */
+ *  still being read — an open group, or an open row's sub-tasks. `first` is
+ *  the top row of the first open group with any, in the board's order; null
+ *  while an open group above it is still being read, or there is none. */
 export function drawnIssues(built: readonly BuiltGroup[], expanded: Readonly<Record<string, boolean>>, open: Readonly<Record<string, boolean>>,
-  subtasks: Readonly<Record<string, GroupRead | undefined>>, filter: RowFilter, filtered: boolean): { complete: boolean; keys: Set<string> } {
+  subtasks: Readonly<Record<string, GroupRead | undefined>>, filter: RowFilter, filtered: boolean): { complete: boolean; keys: Set<string>; first: string | null } {
   const keys = new Set<string>();
   let complete = true;
+  let first: string | null = null;
   for (const { def, data, rows } of built) {
     if (!groupOpen(def, expanded)) continue;
     // Drawn: read, failed, or showing what it had while it is read again.
     if (!data || (data.status !== "ready" && data.status !== "error" && data.issues.length === 0)) { complete = false; continue; }
+    if (first == null && complete && rows.length > 0) first = rowKey(rows[0]);
     for (const row of rows) {
       const key = rowKey(row);
       keys.add(key);
@@ -259,7 +263,7 @@ export function drawnIssues(built: readonly BuiltGroup[], expanded: Readonly<Rec
       if (all ? all.status === "loading" : readsSubtasks(row, filtered)) complete = false;
     }
   }
-  return { complete, keys };
+  return { complete, keys, first };
 }
 
 // ── what a header counts ────────────────────────────────────────────────────

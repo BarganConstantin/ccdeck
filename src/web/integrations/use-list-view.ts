@@ -1,9 +1,10 @@
 // An integration panel's chosen item and its two scrolls, kept per list in
 // view-memory.ts (#2178, #2179): the Jira panel and the forges' share it.
 //
-//   const view = useListView({ listKey, drawn, same, root, listScroller });
+//   const view = useListView({ listKey, drawn, same, sideBySide, root, listScroller });
 //   view.selection     what the detail shows, or null
-//   view.auto          put there by the panel (the remembered item put back)
+//   view.auto          put there by the panel (the remembered item put back,
+//                      or the list's first row)
 //   view.choose(next)  the reader's own choice: a row, a link, or null (Close)
 //
 // ON ARRIVAL at a list — the panel mounting as the modal opens, or another
@@ -12,10 +13,10 @@
 // empty, never a wrong item for a moment. Decided before the browser paints
 // (layout effects), so a list drawn from what was kept opens as it was left.
 //
-// THE PANEL'S CHOICE IS QUIET. An item put back moves no focus and is not the
-// reader's: a panel draws it like any other selection and leaves focus where
-// the modal put it. `auto` says which, for a detail that would otherwise
-// move focus once its item is read.
+// THE PANEL'S CHOICE IS QUIET. An item put back, or a first row opened, moves
+// no focus and is not the reader's: a panel draws it like any other selection
+// and leaves focus where the modal put it. `auto` says which, for a detail
+// that would otherwise move focus once its item is read.
 //
 // SCROLLS are recorded as the reader scrolls (one listener on the panel,
 // catching both scrollers' scroll events) and put back on arrival, waiting
@@ -88,6 +89,9 @@ export interface ListViewOptions<S> {
   drawn: Drawn<S> | null;
   /** Whether two selections are the same item. */
   same: (a: S, b: S) => boolean;
+  /** The detail opens beside the list (not a screen of its own, below
+   *  900px), so a first row can open without hiding the list. */
+  sideBySide: boolean;
   /** The panel's own box: the scrollers are found inside it. */
   root: RefObject<HTMLElement | null>;
   /** The list's scroller inside `root`: ".jr-list-scroll". The detail's is
@@ -106,7 +110,7 @@ export interface ListView<S> {
 
 const DETAIL_SCROLLER = ".ig-detail";
 
-export function useListView<S>({ listKey, drawn, same, root, listScroller }: ListViewOptions<S>): ListView<S> {
+export function useListView<S>({ listKey, drawn, same, sideBySide, root, listScroller }: ListViewOptions<S>): ListView<S> {
   const [state, setState] = useState<ViewState<S>>(() => enter<S>(listKey, true));
   // Another list: its own memory, decided afresh. Set while rendering, so the
   // other list's item is never drawn beside this list's rows.
@@ -142,9 +146,9 @@ export function useListView<S>({ listKey, drawn, same, root, listScroller }: Lis
 
   // Decide, once the list has drawn enough to.
   useBeforePaint(() => {
-    const next = settle(current, drawn);
+    const next = settle(current, drawn, sideBySide);
     if (next !== current) setState(next);
-  }, [current, drawn]);
+  }, [current, drawn, sideBySide]);
 
   // Record both scrolls as the reader scrolls. A scroll event does not
   // bubble, so one listener catches them on their way down.

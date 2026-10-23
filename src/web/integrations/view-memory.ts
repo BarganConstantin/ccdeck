@@ -17,7 +17,7 @@
 // WHAT A LIST SHOWS WHEN THE READER ARRIVES — the modal opened, another tab,
 // project or board chosen — is `arrive`'s: the remembered item when it is
 // still in the list as drawn; nothing when the reader closed the detail
-// there.
+// there; else the list's first row, beside the list, once there is one.
 
 /** What one list remembers. `S` is the panel's selection: a Jira trail, a
  *  forge item. */
@@ -90,28 +90,40 @@ export interface Drawn<S> {
   complete: boolean;
   /** Whether this item has a row on screen. */
   has: (selection: S) => boolean;
+  /** The list's first row, or null while there is none, or none known yet:
+   *  a Jira board's first open group still being read. */
+  first: S | null;
 }
 
 /** What to do on arriving at a list, and where its two scrolls go. */
 export type Arrival<S> =
-  /** Not yet: the rows that could hold the remembered item are on their way. */
+  /** Not yet: the rows that could hold the remembered item are on their way,
+   *  or the list has no row to open yet (loading, empty, failed). */
   | { kind: "wait" }
-  /** Nothing to open: the reader closed the detail here, or the item
-   *  remembered is gone (merged, out of the sprint, filtered out). */
+  /** Nothing to open: the reader closed the detail here, or the detail is a
+   *  screen of its own (a narrow window), which opens only when asked. */
   | { kind: "none"; listTop: number }
   /** The remembered item, still in the list. */
-  | { kind: "restore"; selection: S; listTop: number; detailTop: number };
+  | { kind: "restore"; selection: S; listTop: number; detailTop: number }
+  /** The list's first row: nothing was open here, or what was is gone
+   *  (merged, out of the sprint, filtered out). The list goes to its top,
+   *  where that row is. */
+  | { kind: "first"; selection: S };
 
 /**
- * What a list shows on arrival, once its rows are drawn. A remembered item
- * still drawn comes back, with both scrolls; one that is gone leaves the
- * list at its top with nothing open. A detail the reader closed stays closed,
- * the list where it was.
+ * What a list shows on arrival, once its rows are drawn. A detail the reader
+ * closed stays closed, the list where it was. A remembered item still drawn
+ * comes back, with both scrolls. Otherwise the first row opens beside the
+ * list — when there is one, and the detail has room beside it.
  */
-export function arrive<S>(memory: ListMemory<S> | null, drawn: Drawn<S>): Arrival<S> {
-  if (memory?.selection == null) return { kind: "none", listTop: memory?.listTop ?? 0 };
-  if (drawn.has(memory.selection)) return { kind: "restore", selection: memory.selection, listTop: memory.listTop, detailTop: memory.detailTop };
-  return drawn.complete ? { kind: "none", listTop: 0 } : { kind: "wait" };
+export function arrive<S>(memory: ListMemory<S> | null, drawn: Drawn<S>, sideBySide: boolean): Arrival<S> {
+  if (memory?.closed) return { kind: "none", listTop: memory.listTop };
+  if (memory?.selection != null) {
+    if (drawn.has(memory.selection)) return { kind: "restore", selection: memory.selection, listTop: memory.listTop, detailTop: memory.detailTop };
+    if (!drawn.complete) return { kind: "wait" };
+  }
+  if (!sideBySide) return { kind: "none", listTop: memory?.selection != null ? 0 : memory?.listTop ?? 0 };
+  return drawn.first != null ? { kind: "first", selection: drawn.first } : { kind: "wait" };
 }
 
 // ── a list's view, from arrival on ─────────────────────────────────────────
@@ -125,9 +137,10 @@ export interface ViewState<S> {
   selection: S | null;
   /** The panel put `selection` there, not the reader. */
   auto: boolean;
-  /** Arrival is decided: something was put back, or nothing is to be. Until
-   *  then `settle` is asked again as rows are drawn; after it, what the list
-   *  draws changes nothing (a filter that hides the item leaves it open). */
+  /** Arrival is decided: something was opened, or nothing is to be. Until
+   *  then `settle` is asked again as rows are drawn — an empty list opens its
+   *  first row when one arrives; after it, what the list draws changes
+   *  nothing (a filter that hides the item leaves it open). */
   settled: boolean;
   /** The scrolls to put back once this state is drawn. */
   plan: ScrollPlan | null;
@@ -135,26 +148,28 @@ export interface ViewState<S> {
 
 /**
  * Arriving at a list: as the panel mounts, or on another board, project or
- * tab. With nothing open here, by the reader's choice or because nothing
- * was, there are no rows to wait for, and the list goes back to where it
- * was. A remembered item waits for them; a scroller another list left
- * behind starts at the top meanwhile.
+ * tab. A detail the reader closed here has no rows to wait for, and the list
+ * goes back to where it was. Anything else waits for them; a scroller
+ * another list left behind starts at the top meanwhile.
  */
 export function enter<S>(key: string, mounting: boolean): ViewState<S> {
   const memory = recallList<S>(key);
-  if (memory?.selection == null) {
-    return { key, selection: null, auto: false, settled: true, plan: memory || !mounting ? { list: memory?.listTop ?? 0, detail: null } : null };
-  }
+  if (memory?.closed) return { key, selection: null, auto: false, settled: true, plan: { list: memory.listTop, detail: null } };
   return { key, selection: null, auto: false, settled: false, plan: mounting ? null : { list: 0, detail: null } };
 }
 
 /** The list has drawn rows: decide, if it is still to be. The same state
- *  back means nothing changed. */
-export function settle<S>(state: ViewState<S>, drawn: Drawn<S> | null): ViewState<S> {
+ *  back means nothing changed. A first row opened is the list's view from
+ *  then on, as the reader's choice would be, so the next arrival finds it. */
+export function settle<S>(state: ViewState<S>, drawn: Drawn<S> | null, sideBySide: boolean): ViewState<S> {
   if (state.settled || !drawn) return state;
-  const next = arrive(recallList<S>(state.key), drawn);
+  const next = arrive(recallList<S>(state.key), drawn, sideBySide);
   if (next.kind === "wait") return state;
   if (next.kind === "none") return { key: state.key, selection: null, auto: false, settled: true, plan: { list: next.listTop, detail: null } };
+  if (next.kind === "first") {
+    keepList<S>(state.key, { selection: next.selection, closed: false, section: null, listTop: 0, detailTop: 0 });
+    return { key: state.key, selection: next.selection, auto: true, settled: true, plan: { list: 0, detail: 0 } };
+  }
   return { key: state.key, selection: next.selection, auto: true, settled: true, plan: { list: next.listTop, detail: next.detailTop } };
 }
 

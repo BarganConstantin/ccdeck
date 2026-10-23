@@ -16,7 +16,8 @@
 // the user left it. For the page's life it also keeps the search, and each
 // project and tab keeps the item open there and both scrolls
 // (integrations/view-memory.ts): reopening the panel, or coming back to a tab,
-// puts that item back when it is still in the list.
+// puts that item back when it is still in the list, and opens the first row
+// beside the list when there is none to put back.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import type { ForgeKind, ForgeRefTarget, Page, ForgeRepo } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
@@ -131,15 +132,16 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   }, [scope, prefs]);
 
   // The item open beside the list, kept per project and tab. The tab on show
-  // says which rows it drew (useReportRows), and a remembered item still
-  // among them is put back, quietly: no focus moves for it.
+  // says which rows it drew (useReportRows): a remembered item still among
+  // them is put back, else the first row opens. Quietly: no focus moves.
   const listKey = listKeyOf(scope, view.repo, view.tab);
   const [rows, setRows] = useState<ForgeRows | null>(null);
   const drawn = useMemo<Drawn<ForgeSelection> | null>(() => (rows && rows.key === listKey ? {
     complete: rows.complete,
     has: item => rows.items.some(row => sameSelection(row, item)),
+    first: rows.items[0] ?? null,
   } : null), [rows, listKey]);
-  const shown = useListView<ForgeSelection>({ listKey, drawn, same: sameSelection, root: panelRef, listScroller: LIST_SCROLLER });
+  const shown = useListView<ForgeSelection>({ listKey, drawn, same: sameSelection, sideBySide: !narrow, root: panelRef, listScroller: LIST_SCROLLER });
   const { choose } = shown;
   const selected = shown.selection;
 

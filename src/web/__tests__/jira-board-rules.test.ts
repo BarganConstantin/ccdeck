@@ -109,7 +109,8 @@ describe("the board's own quick filters", () => {
 
 describe("which issues a board has on screen", () => {
   // The panel puts a remembered issue back only when the board, as drawn,
-  // still shows it: an open group's rows, and the sub-tasks under open rows.
+  // still shows it: an open group's rows, and the sub-tasks under open rows;
+  // with nothing to put back it opens the board's first issue.
   const sprint = (id: number, name: string): JiraSprint => ({ id, name, state: "active", startDate: null, endDate: null, completeDate: null, goal: "" });
   const overview = {
     hasSprints: true, hasBacklog: true, sprints: { active: [sprint(13, "Sprint 13")], future: [sprint(14, "Sprint 14")] },
@@ -152,7 +153,23 @@ describe("which issues a board has on screen", () => {
 
   it("follows the filters: an issue the search hides is not on screen", () => {
     const search = { search: "c-20", hideDone: false };
-    const { keys } = drawnIssues(boardRows(groups, data, () => undefined, search), {}, {}, {}, search, true);
+    const { keys, first } = drawnIssues(boardRows(groups, data, () => undefined, search), {}, {}, {}, search, true);
     expect([...keys]).toEqual(["C-20"]);
+    expect(first).toBe("C-20");
+  });
+
+  it("names the first issue of the first open group, in the board's order", () => {
+    expect(drawnIssues(boardRows(groups, data, () => undefined, none), {}, {}, {}, none, false).first).toBe("C-10");
+    // A folded group is passed over, and so is an open one with no rows.
+    expect(drawnIssues(boardRows(groups, data, () => undefined, none), { "sprint:13": false, backlog: true }, {}, {}, none, false).first).toBe("C-50");
+    const emptySprint = { ...data, "sprint:13": ready() };
+    expect(drawnIssues(boardRows(groups, emptySprint, () => undefined, none), { "sprint:14": true }, {}, {}, none, false).first).toBe("C-40");
+  });
+
+  it("names no first issue while an open group above it is being read, or the board shows none", () => {
+    const loading = { ...data, "sprint:13": { status: "loading" as const, issues: [] } };
+    expect(drawnIssues(boardRows(groups, loading, () => undefined, none), { "sprint:14": true }, {}, {}, none, false).first).toBeNull();
+    const empty = { "sprint:13": ready(), "sprint:14": ready(), backlog: ready() };
+    expect(drawnIssues(boardRows(groups, empty, () => undefined, none), {}, {}, {}, none, false)).toMatchObject({ complete: true, first: null });
   });
 });
