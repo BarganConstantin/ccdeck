@@ -811,7 +811,7 @@
 .release-notes .rn-ready p { margin: 0; }
 .release-notes .rn-release + .rn-release { padding-top: 18px; border-top: 1px solid var(--line); }
 .release-notes .rn-version { margin: 0 0 10px; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--muted); }
-.release-notes .rn-summary { margin: 0 0 18px; font-size: calc(20px + var(--ui-text-increase, 0px)); font-weight: 700; line-height: 1.28; letter-spacing: -0.025em; color: var(--text); }
+.release-notes .rn-summary { margin: 0 0 18px; font-size: calc(20px + var(--ui-text-increase, 0px)); font-weight: 700; line-height: 1.28; letter-spacing: -0.025em; color: var(--text); overflow-wrap: anywhere; }
 .release-notes .rn-group-title { margin: 0 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); font-weight: 600; }
 .release-notes .rn-notes { list-style: none; margin: 0; padding: 0; }
 .release-notes .rn-note { padding: 13px 0; border-top: 1px solid var(--line); min-width: 0; }
@@ -832,8 +832,15 @@
 .release-notes .rn-more-hint { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; color: var(--muted); text-align: right; }
 .release-notes .rn-hide-details, .release-notes .rn-more[open] .rn-show-details { display: none; }
 .release-notes .rn-more[open] .rn-hide-details { display: inline; }
-.release-notes .rn-more > div, .release-notes .rn-history > div { padding: 0; }
-.release-notes .rn-more > summary:hover, .release-notes .rn-history > summary:hover { color: var(--text); background: var(--bg-soft); }
+.release-notes .rn-more > div { padding-top: 8px; }
+.release-notes .rn-history > div { padding: 0; }
+/* Keep the full reading row clickable; structural surfaces are not hover fills. */
+.release-notes .rn-more > summary:is(:hover, :focus-visible) .rn-more-label,
+.release-notes .rn-history > summary:is(:hover, :focus-visible) { text-decoration: underline; text-decoration-color: var(--ctl-edge); text-underline-offset: 3px; }
+.release-notes .rn-more > summary:is(:hover, :focus-visible) :is(.rn-chevron, .rn-more-hint),
+.release-notes .rn-history > summary:is(:hover, :focus-visible) { color: var(--text); }
+.release-notes .rn-more > summary:focus-visible, .release-notes .rn-history > summary:focus-visible { outline-offset: -2px; }
+.release-notes .rn-more > summary:active .rn-more-label { text-decoration-color: currentColor; text-decoration-thickness: 2px; }
 .release-notes .rn-history > summary { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; color: var(--muted); }
 .release-notes .rn-more > div > .rn-notes > .rn-note:first-child { border-top: 0; padding-top: 0; }
 .release-notes .rn-history .rn-release { padding-top: 12px; }
@@ -842,18 +849,20 @@
 .release-notes .rn-note-notice .rn-code { font-size: inherit; }
 .release-notes .rn-extra-detail { margin-top: 6px; }
 .release-notes .rn-highlight-details { padding: 8px 0 11px 22px; }
+.release-notes .rn-details-title { margin: 0 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 1.5; color: var(--text-secondary); }
 .release-notes .rn-highlight-details .rn-note-body + .rn-note-body { margin-top: 8px; }
 .release-notes .rn-upgrade-history { border-top: 1px solid var(--line); padding-top: 16px; }
 .release-notes .rn-upgrade-history > .rn-context { margin-bottom: 12px; }
 .release-notes .rn-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 11px 23px; border-top: 1px solid var(--line); background: var(--bg-soft); }
 .release-notes .rn-footer-links { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; font-size: calc(13px + var(--ui-text-increase, 0px)); }
-.release-notes .rn-text-button { border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer; }
-.release-notes .rn-footer a, .release-notes .rn-text-button { display: inline-flex; align-items: center; gap: 4px; min-height: var(--ctl-h); color: var(--text-secondary); text-decoration: underline; text-decoration-color: var(--ctl-edge); text-underline-offset: 3px; white-space: nowrap; }
+.release-notes .rn-text-button { border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer; text-decoration: none; }
+.release-notes .rn-footer a, .release-notes .rn-text-button { display: inline-flex; align-items: center; gap: 4px; min-height: var(--ctl-h); color: var(--text-secondary); text-decoration-color: var(--ctl-edge); text-underline-offset: 3px; white-space: nowrap; }
+.release-notes .rn-footer a { text-decoration-line: underline; }
 .release-notes .rn-footer a:hover, .release-notes .rn-text-button:hover,
 .release-notes .rn-footer a:focus-visible, .release-notes .rn-text-button:focus-visible { color: var(--text); text-decoration-color: currentColor; }
 .release-notes .rn-footer > .primary { min-width: 70px; margin-left: auto; height: auto; padding: 6px 18px; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 1.4; }
-.release-notes .rn-text-button { text-decoration: none; }
 .release-notes .rn-text-button:hover, .release-notes .rn-text-button:focus-visible { text-decoration: underline; }
+.release-notes .rn-footer a:active, .release-notes .rn-text-button:active { color: var(--text); text-decoration: underline; text-decoration-thickness: 2px; }
 /* Keep native placement above body content and its complete item hit areas. */
 .rn-options-menu { width: 224px; max-width: calc(100vw - 16px); }
 .rn-options-menu .ap-menu-item { gap: 8px; }
@@ -867,7 +876,14 @@
   .release-notes .rn-status-row { gap: 4px; }
 }
 @media (pointer: coarse) {
-  .release-notes .rn-options-menu .ap-menu-item, .release-notes .rn-text-button, .release-notes .rn-footer a { min-height: 40px; display: inline-flex; align-items: center; }
+  .release-notes .modal-actions .glyph-btn { min-width: 44px; min-height: 44px; }
+  .release-notes .modal-actions .glyph-btn::after { inset: 0; }
+  .release-notes .rn-options-menu .ap-menu-item, .release-notes .rn-text-button, .release-notes .rn-footer a, .release-notes .rn-footer > .primary { min-height: 44px; }
+}
+/* Keep a reading area when the on-screen keyboard or landscape limits height. */
+@media (max-width: 600px) and (max-height: 400px) {
+  .release-notes .rn-footer { padding: 8px 12px; gap: 8px; }
+  .release-notes .rn-footer-links { gap: 8px 12px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .release-notes .rn-act[aria-busy="true"] .glyph { animation: none; }

@@ -210,12 +210,11 @@
     },
     {
       "title": "🧩 See which skills your agents use",
-      "body": "Review your agents' skill activity, including typed slash commands.",
+      "body": "Review skill activity from the right sidebar, including typed slash commands.",
       "priority": "highlight",
       "notice": "Counting typed slash commands adds a `UserPromptExpansion` hook to Claude Code's `settings.json` on supported versions (2.1.116+). Set `AGENTS_DECK_SKILL_HOOK=0` to opt out.",
       "icon": "skills",
-      "noticeLabel": "Setup change",
-      "details": "Open Skill activity from the right sidebar."
+      "noticeLabel": "Setup change"
     },
     {
       "title": "📈 Load history keeps the reading you click",
