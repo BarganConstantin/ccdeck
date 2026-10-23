@@ -68,7 +68,7 @@ const SECTION_KEYWORDS: Record<SettingsSection, readonly string[]> = {
   keyboard: ["shortcuts", "hotkeys", "keybindings", "keys"],
   notifications: ["alerts", "notify"],
   sounds: ["audio", "tones", "chimes"],
-  integrations: ["jira", "atlassian", "tracker", "issues", "connect", "token", "board", "sprint"],
+  integrations: ["github", "gitlab", "pull requests", "merge requests", "pipelines", "jira", "atlassian", "tracker", "issues", "connect", "token", "board", "sprint"],
   data: ["privacy", "local data"],
   radar: ["telemetry", "collector", "monitoring"],
   about: ["information"],
@@ -158,10 +158,13 @@ function buildIndex(): SettingsEntry[] {
         keywords: ["record", "microphone", "mic", "clip"] },
     ],
     integrations: [
-      { id: "integrations-add", section: "integrations", label: "Add integration",
-        keywords: ["connect", "jira", "jira cloud", "jira server", "data center", "api token", "personal access token", "pat"] },
+      { id: "integration-github", section: "integrations", label: "GitHub", keywords: ["connect", "repositories", "pull requests", "actions", "personal access token"] },
+      { id: "integration-gitlab", section: "integrations", label: "GitLab", keywords: ["connect", "projects", "merge requests", "pipelines", "self-managed", "personal access token"] },
+      { id: "integration-jira", section: "integrations", label: "Jira", keywords: ["connect", "boards", "sprints", "issues", "atlassian", "cloud", "server", "data center", "api token"] },
+      { id: "integrations-add", section: "integrations", label: "Connect development tools",
+        keywords: ["connect", "add integration", "github", "gitlab", "jira", "jira cloud", "jira server", "data center", "api token", "personal access token", "pat"] },
       { id: "integrations-connections", section: "integrations", label: "Connections",
-        keywords: ["disconnect", "reconnect", "test connection", "edit", "token", "expired", "jira"] },
+        keywords: ["disconnect", "reconnect", "test connection", "edit", "token", "expired", "github", "gitlab", "jira"] },
     ],
     data: [
       { id: "tool-history-retention", section: "data", group: "Tool history", label: "Keep history",
@@ -198,12 +201,13 @@ export const SETTINGS_INDEX: readonly SettingsEntry[] = buildIndex();
  *  such row in it. A deck that offers no integration draws no Integrations
  *  section, or only its stranded connections (integrationsReach), so it is
  *  offered nothing there, or nothing but Connections. */
-export function indexFor(claudeHere: boolean, integrations: IntegrationsReach = "all"): readonly SettingsEntry[] {
-  if (claudeHere && integrations === "all") return SETTINGS_INDEX;
+export function indexFor(claudeHere: boolean, integrations: IntegrationsReach = "all", kinds?: ReadonlySet<string>): readonly SettingsEntry[] {
+  if (claudeHere && integrations === "all" && !kinds) return SETTINGS_INDEX;
   return SETTINGS_INDEX.filter(entry =>
     (claudeHere || !entry.claudeOnly)
+    && (!kinds || !entry.id.startsWith("integration-") || kinds.has(entry.id.slice("integration-".length)))
     && (entry.section !== "integrations" || integrations === "all"
-      || (integrations === "connections" && entry.id !== "integrations-add")));
+      || (integrations === "connections" && (isSectionEntry(entry) || entry.id === "integrations-connections"))));
 }
 
 /** Where a result lives, as its line in the list says it: "Appearance › Theme".

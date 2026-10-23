@@ -173,7 +173,7 @@ describe("before the deck has answered", () => {
     drawsNoIntegration();
     const html = draw(createElement(IntegrationsSection));
     expect(html).not.toContain(">Add integration<");
-    expect(html).toContain('role="alert">The deck could not be reached.</p>');
+    expect(html).toContain('role="alert"><p>The deck could not be reached.</p>');
   });
 
   it("nor when the answer is not the list: not JSON, or a field of it missing", async () => {
@@ -300,7 +300,7 @@ describe("Settings draws Integrations only where it holds something", () => {
     expect(searchSettings("disconnect", indexFor(true, "connections")).map(e => e.id)).toContain("integrations-connections");
     // And Claude Code's own filter still applies alongside.
     expect(indexFor(false, "none").some(e => e.claudeOnly)).toBe(false);
-    expect(sourceOf("components/SettingsModal.tsx")).toContain("indexFor(providers.claude, integrationsReachHere)");
+    expect(sourceOf("components/SettingsModal.tsx")).toContain("indexFor(providers.claude, integrationsReachHere, offeredKinds(integrations))");
   });
 });
 
@@ -329,7 +329,8 @@ describe("Settings › Integrations on a deck that cannot read a kind", () => {
     expect(html).toContain("Jira is not available on this deck.");
     expect(html).not.toContain("GitHub is not available on this deck.");
     // Add integration names only the kinds the deck offers.
-    expect(html).toMatch(/Connect a tracker<\/span><span class="settings-row-note">GitHub<\/span>/);
+    expect(html).toContain('aria-label="Add another GitHub connection"');
+    expect(html).not.toContain('id="ig-provider-jira"');
   });
 
   it("says nothing is connected, with no Add integration, once the last stranded one is gone", async () => {
@@ -341,7 +342,7 @@ describe("Settings › Integrations on a deck that cannot read a kind", () => {
 
   it("hands focus to the section's tab after a Disconnect where nothing can be added", () => {
     expect(sourceOf("components/IntegrationsSection.tsx"))
-      .toContain('(addRef.current ?? document.getElementById("settings-tab-integrations"))?.focus();');
+      .toContain('requestAnimationFrame(() => (addRefs.current.get(conn.kind) ?? document.getElementById("settings-tab-integrations"))?.focus());');
   });
 });
 
@@ -378,7 +379,7 @@ describe("a provider the deck lists as not available now", () => {
     expect(tabsOf(draw(createElement(SettingsModal, settingsProps())))).toContain("Integrations");
     expect(searchSettings("integrations", indexFor(true, integrationsReach(state))).length).toBeGreaterThan(0);
     expect(draw(createElement(KeyboardHelp, { onClose: noop }))).toContain("<kbd>I</kbd>");
-    expect(draw(createElement(IntegrationsSection))).toContain(">Add integration<");
+    expect(draw(createElement(IntegrationsSection))).toContain('aria-label="Connect Jira"');
     // No connection yet, so still no rail control.
     expect(railFor(state)).toEqual([]);
   });

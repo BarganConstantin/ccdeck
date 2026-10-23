@@ -357,6 +357,28 @@ img.ig-avatar + img.ig-avatar {
 }
 .ig-stack-more { margin-left: 2px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 
+/* Provider entries stay visible; their forms expand inside the same section. */
+.ig-settings, .ig-providers { display: flex; flex-direction: column; min-width: 0; gap: var(--settings-group-gap); }
+.ig-provider { gap: 8px; }
+.ig-provider + .ig-provider { border-top: 1px solid var(--line); padding-top: 20px; }
+.ig-provider .settings-caption { align-items: flex-start; padding: 0; }
+.ig-provider .settings-caption h3 { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); }
+.ig-provider .settings-caption-note { color: var(--text-secondary); margin-top: 4px; }
+.ig-provider-status, .ig-storage-note { margin: 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; overflow-wrap: anywhere; }
+.ig-storage-note { border-top: 1px solid var(--line); padding-top: 16px; }
+.ig-list-error { display: flex; align-items: center; gap: 12px; color: var(--err); }
+.ig-list-error p { flex: 1; margin: 0; overflow-wrap: anywhere; }
+.ig-provider .ig-form { margin-top: 8px; }
+.ig-provider .ig-conn-head { flex-wrap: wrap; }
+.ig-provider .ig-conn-actions { flex-basis: 100%; justify-content: flex-start; padding-left: 44px; }
+.ig-provider .ig-conn-actions .btn { font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.ig-form-actions .btn[aria-disabled="true"], .ig-conn-actions .btn[aria-disabled="true"] { cursor: progress; }
+.ig-form-actions .btn[aria-disabled="true"]:active, .ig-conn-actions .btn[aria-disabled="true"]:active { transform: none; }
+@media (max-width: 400px) {
+  .ig-provider .settings-caption { flex-wrap: wrap; gap: 8px; }
+  .ig-provider .ig-conn-actions { padding-left: 0; gap: 6px; }
+}
+
 /* Settings › Integrations: the connect form, and one row per connection. */
 .ig-form-row { grid-template-columns: minmax(0, 1fr); }
 .ig-form { display: flex; flex-direction: column; gap: 12px; max-width: 560px; min-width: 0; padding: 4px 0; }
@@ -366,6 +388,8 @@ img.ig-avatar + img.ig-avatar {
 .ig-mono { font-family: var(--font-mono); }
 .ig-hint { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; }
 .ig-help { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; text-wrap: pretty; }
+.ig-token-help summary { cursor: pointer; color: var(--accent); padding-block: 4px; }
+.ig-token-help[open] summary { margin-bottom: 8px; }
 .ig-help p { margin: 0 0 6px; }
 .ig-help a { color: var(--accent); text-underline-offset: 2px; }
 .ig-scopes { margin: 0 0 8px; padding-left: 18px; display: grid; gap: 2px; }

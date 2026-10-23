@@ -53,6 +53,7 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
     f.name, f.secret ? "" : f.initial?.(existing) ?? (f.type === "choice" ? f.options?.[0]?.value ?? "" : ""),
   ])));
   const [name, setName] = useState(existing?.name ?? "");
+  const formRef = useRef<HTMLFormElement>(null);
   const inputs = useRef(new Map<string, HTMLInputElement>());
   const editing = Boolean(existing);
   // The choices a saved secret was made under: switching one (Cloud to
@@ -85,8 +86,9 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
 
   useEffect(() => {
     // Reconnect lands on an edit for a refused token: the token is what to change.
-    const first = editing ? firstSecret : firstText;
+    const first = editing ? firstSecret : firstText ?? firstSecret;
     if (first) inputs.current.get(first)?.focus();
+    formRef.current?.scrollIntoView?.({ block: "nearest" });
     // On mount only: the fields on show then.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
@@ -102,7 +104,7 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
 
   return (
     <FormContext.Provider value={context}>
-      <form className="ig-form" onSubmit={submit} aria-labelledby={`${uid}-title`} noValidate>
+      <form ref={formRef} className="ig-form" onSubmit={submit} aria-labelledby={`${uid}-title`} noValidate>
         <h4 className="ig-form-title" id={`${uid}-title`}>{editing ? `Edit ${existing!.name}` : `Connect ${def.label}`}</h4>
 
         {visible.map(raw => {
@@ -116,7 +118,7 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
                 {(field.options ?? []).map(option => (
                   <label key={option.value} className="fb-kind">
                     <input type="radio" name={`${uid}-${field.name}`} value={option.value} checked={values[field.name] === option.value}
-                      onChange={() => set(field.name, option.value)}
+                      disabled={busy} onChange={() => set(field.name, option.value)}
                       onKeyDown={e => { if (isPlainEnter(e.nativeEvent)) e.preventDefault(); }} />
                     {option.label}
                   </label>
@@ -135,26 +137,29 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
                 autoComplete={field.autoComplete ?? "off"} spellCheck={false}
                 value={values[field.name] ?? ""} onChange={e => set(field.name, e.target.value)}
                 placeholder={keeps ? "Saved. Leave blank to keep it" : field.placeholder}
-                aria-invalid={invalid || undefined} aria-describedby={describedBy} />
+                disabled={busy} aria-invalid={invalid || undefined} aria-describedby={describedBy} aria-required={!field.optional && !keeps || undefined} />
               {field.hint && <span className="ig-hint" id={`${uid}-${field.name}-hint`}>{field.hint}</span>}
               {invalid && errorField === field.name && <span className="ig-form-error" id={errorId} role="alert">{errorWords}</span>}
             </div>
           );
         })}
 
-        <div className="ig-help">{def.tokenHelp}</div>
+        <details className="ig-help ig-token-help">
+          <summary>How to create a {def.label} token</summary>
+          {def.tokenHelp}
+        </details>
 
         <div className="fb-field">
           <label className="fb-field-label" htmlFor={`${uid}-name`}>Name <span className="fb-optional">optional</span></label>
           <input id={`${uid}-name`} className="ap-manage-input ig-input" type="text" autoComplete="off" maxLength={120}
-            value={name} onChange={e => setName(e.target.value)} placeholder={host || def.label} />
+            disabled={busy} value={name} onChange={e => setName(e.target.value)} placeholder={host || def.label} />
         </div>
 
         {error && !errorField && <p className="ig-form-error" id={errorId} role="alert">{errorWords}</p>}
 
         <div className="ig-form-actions">
-          <button type="button" className="btn" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="btn primary" aria-busy={busy}>
+          <button type="button" className="btn" disabled={busy} onClick={onCancel}>Cancel</button>
+          <button type="submit" className="btn primary" aria-disabled={busy} aria-busy={busy}>
             {busy ? "Checking…" : editing ? "Save" : "Connect"}
           </button>
         </div>

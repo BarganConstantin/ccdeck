@@ -93,7 +93,7 @@ describe("a door into Settings opens it at the section it names", () => {
       ["keyboard", />Single-key shortcuts</],
       ["notifications", />Notifications while closed</],
       ["sounds", />Custom sounds</],
-      ["integrations", />Add integration</],
+      ["integrations", />GitHub</],
       ["data", />Tool history<\/h3>/],
       ["radar", />Monitor automatically</],
       ["about", />Version</],

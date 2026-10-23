@@ -129,9 +129,8 @@ describe("the detail's width before the reader drags it", () => {
 });
 
 describe("Settings › Integrations", () => {
-  it("names every provider it offers, not only Jira", () => {
+  it("introduces the development tools section", () => {
     const note = SETTINGS_SECTIONS.find(s => s.id === "integrations")?.note ?? "";
-    expect(note).toMatch(/Jira, GitHub and GitLab/);
-    expect(note).toMatch(/Read only\.$/);
+    expect(note).toBe("Connect your development tools to ccdeck.");
   });
 });

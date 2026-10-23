@@ -16,6 +16,7 @@
 // no portal is needed (panel-modal-portal.test.ts). Each section is its own
 // component, lifted whole out of the menu it used to live in; this file is
 // only the frame, the nav and the search above it (SettingsSearch.tsx).
+import { useMediaQuery } from "../use-media-query";
 import SessionRecoverySettings from "./SessionRecoverySettings";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
@@ -42,7 +43,7 @@ import SoundsSection from "./SoundsSection";
 import RadarSettings from "./RadarSettings";
 import ToolAuditSettings from "./ToolAuditSettings";
 import IntegrationsSection from "./IntegrationsSection";
-import { integrationsReach, useIntegrations } from "../integrations/client";
+import { integrationsReach, offeredKinds, useIntegrations } from "../integrations/client";
 import ThemeSection from "./ThemeSection";
 import ReadingSection, { ReadingReset } from "./ReadingSection";
 import AboutSection from "./AboutSection";
@@ -91,7 +92,8 @@ export default function SettingsModal({
   // Integrations only where the deck offers a kind or still holds a stranded
   // connection, or while it is the section on show. The nav, its arrows and
   // the pane's head all walk this list, so here it takes the table's name.
-  const integrationsReachHere = integrationsReach(useIntegrations());
+  const integrations = useIntegrations();
+  const integrationsReachHere = integrationsReach(integrations);
   const SETTINGS_SECTIONS = sectionsDrawn(integrationsReachHere, section);
   const at = Math.max(0, SETTINGS_SECTIONS.findIndex(s => s.id === section));
 
@@ -100,12 +102,13 @@ export default function SettingsModal({
   // half-filled field in it — Keyboard's filter, a voice's words — is where it
   // was when the query is cleared. Not kept across opening and closing: an
   // open dialog is a thing being done.
+  const narrowNav = useMediaQuery("(max-width: 640px)");
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
   const searching = query.trim() !== "";
-  const results = useMemo(() => searchSettings(query, indexFor(providers.claude, integrationsReachHere)), [query, providers.claude, integrationsReachHere]);
+  const results = useMemo(() => searchSettings(query, indexFor(providers.claude, integrationsReachHere, offeredKinds(integrations))), [query, providers.claude, integrationsReachHere, integrations]);
   const jumpTo = useSettingsJump(paneRef, !searching, section);
   const changeQuery = (next: string) => { setQuery(next); setActive(0); };
 
@@ -338,7 +341,7 @@ export default function SettingsModal({
               className="settings-nav"
               role="tablist"
               aria-label="Settings sections"
-              aria-orientation="vertical"
+              aria-orientation={narrowNav ? "horizontal" : "vertical"}
               onKeyDown={moveSection}
             >
               {SETTINGS_SECTIONS.map((choice, index) => (
