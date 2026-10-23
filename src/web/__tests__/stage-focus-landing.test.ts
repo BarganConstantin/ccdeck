@@ -102,6 +102,8 @@ describe("landing the keys on the stage's answer", () => {
       { kind: "live", sizeOwner: "dock", readOnly: false },
       // Check again: the request it makes waits for what the check finds.
       { kind: "tmux-missing", reason: "missing", busy: true },
+      // Reopen here on the card: the request waits for the pane it reopens.
+      { kind: "not-attachable", target: { kind: "gone", label: "x", adoptable: true } as never, stillRunning: false, busy: true },
     ];
     for (const phase of off) expect(settlesFocus(phase), phase.kind).toBe(false);
   });

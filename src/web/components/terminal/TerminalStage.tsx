@@ -68,10 +68,11 @@ const NOTICE_MS = 6000;
 /** The phases whose card is the stage's answer, which a request for the keys
  *  lands on: not the ones on their way to a pane. tmux missing while it
  *  checks again is on its way too: Check again asks for the keys, which its
- *  own card would otherwise answer at once, before the check had. */
+ *  own card would otherwise answer at once, before the check had. So is a
+ *  card's Reopen here while it works. */
 export function settlesFocus(phase: StagePhase): boolean {
   return phase.kind !== "attaching" && phase.kind !== "starting" && phase.kind !== "tmux-installing"
-    && !((phase.kind === "tmux-missing" || phase.kind === "error") && phase.busy)
+    && !((phase.kind === "tmux-missing" || phase.kind === "error" || phase.kind === "not-attachable") && phase.busy)
     && !(phase.kind === "live" && !phase.readOnly);
 }
 
@@ -347,7 +348,17 @@ export default function TerminalStage(p: TerminalStageProps) {
     p.onWantKeys?.();
   };
 
-  const end = endView(phase, p.show, { reopen: session.adopt, launchAgain: p.onLaunchAgain, attachAgain: retry });
+  // Reopen here asks for the keys too, as a launch or an open does: the end
+  // bar's button goes as the pane comes back, and with it the focus, so the
+  // reopened pane was live with the keys on the board and the next letters
+  // ran the deck's shortcuts. A second press while it works asks for nothing.
+  const reopen = () => {
+    if (phase.kind === "not-attachable" && phase.busy) return;
+    session.adopt();
+    p.onWantKeys?.();
+  };
+
+  const end = endView(phase, p.show, { reopen, launchAgain: p.onLaunchAgain, attachAgain: retry });
 
   const style = {
     "--session-hue": p.show.kind === "session" ? p.show.session.hue : p.show.kind === "launch" ? p.show.hue : 200,
@@ -412,7 +423,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         phase={phase}
         ghostLine={p.show.kind === "session" ? p.show.session.ghostLine : null}
         context={p.show.kind === "session" ? p.show.session.context : null}
-        onAdopt={session.adopt}
+        onAdopt={reopen}
         onNotNow={p.onClose}
         onRetry={retry}
         onNewSession={p.onNewSession}
