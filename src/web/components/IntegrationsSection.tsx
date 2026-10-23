@@ -12,7 +12,7 @@
 // saying so and Disconnect alone, which deletes it and its saved token with
 // no provider asked. A deck offering none shows only such connections, and
 // Settings draws no section at all once they are gone (sectionsDrawn).
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   connectionHost, createConnection, deleteConnection, IntegrationFailure, integrationsReach, kindOffered, offeredKinds, refreshIntegrations,
   takeIntegrationFocus, testConnection, updateConnection, useIntegrations,
@@ -235,7 +235,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
     if (pane) pane.scrollTop = 0;
   };
 
-  const renderConnection = (conn: Connection, showName = false) => {
+  const renderConnection = (conn: Connection, showName = false, heading?: ReactNode) => {
     const provider = integrationDef(conn.kind);
     const unavailable = !kindOffered(integrations, conn.kind);
     const verified = verificationTime(conn);
@@ -244,8 +244,9 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
     return <div key={conn.id} className="ig-conn" ref={el => { if (el) rowRefs.current.set(conn.id, el); else rowRefs.current.delete(conn.id); }}>
       <div className="ig-summary-row">
         <div className="ig-summary-text">
+          {heading}
           <span className="ig-conn-name">{connectionHost(conn)}</span>
-          <span className="ig-conn-line">{[showName && conn.name !== connectionHost(conn) ? conn.name : "", account, server || (verified ? `Last verified ${verified}` : "")].filter(Boolean).join(" · ") || "No account read yet"}</span>
+          <span className="ig-conn-line">{[showName && conn.name !== connectionHost(conn) ? conn.name : "", account, server || (verified ? `Last verified ${verified}` : "Not verified yet")].filter(Boolean).join(" · ") || "No account read yet"}</span>
           {!conn.tokenSaved && <span className="ig-bad">No token saved</span>}
           {unavailable && <span className="ig-stranded">{provider?.label ?? conn.kind} is not available on this deck. Manage this connection to disconnect it.</span>}
         </div>
@@ -301,12 +302,6 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
         </div>}
         {connections === null && !listError && <p role="status">Reading connections…</p>}
         {overviewNotice && <p className="ig-note" role="status">{overviewNotice}</p>}
-        {reach === "all" && <>
-          <div className="ig-overview-info">
-            <details className="ig-access"><summary>Access and token storage</summary><p>Read-only access. Tokens stay on this machine and are never shown again or shared with paired decks.</p></details>
-            <span className="ig-total">{list.length} connection{list.length === 1 ? "" : "s"}</span>
-          </div>
-        </>}
         <div className="ig-connection-list" data-setting="integrations-connections">
         {reach === "all" && <div className="ig-providers" data-setting="integrations-add" id="integrations-add-title">
             {known.map(provider => {
@@ -314,11 +309,11 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
               return <section key={provider.kind} className="ig-provider" id={`ig-provider-${provider.kind}`} aria-labelledby={`ig-provider-name-${provider.kind}`} data-setting={`integration-${provider.kind}`}>
                 <span className="ig-provider-glyph" aria-hidden><provider.Glyph /></span>
                 <div className="ig-provider-content">
-                  <h3 id={`ig-provider-name-${provider.kind}`}>{provider.label}</h3>
-                  {saved.length === 0 ? <div className="ig-summary-row"><span className="ig-conn-line">Not connected</span>
+                  {saved.length > 1 && <h3 id={`ig-provider-name-${provider.kind}`}>{provider.label}</h3>}
+                  {saved.length === 0 ? <div className="ig-summary-row"><div className="ig-summary-text"><h3 id={`ig-provider-name-${provider.kind}`}>{provider.label}</h3><span className="ig-conn-line">Not connected</span></div>
                     <button type="button" className="btn ig-manage" ref={el => { if (el) addRefs.current.set(provider.kind, el); else addRefs.current.delete(provider.kind); }}
                       aria-label={`Connect ${provider.label}`} onClick={event => begin({ mode: "add", kind: provider.kind }, event.currentTarget)}>Connect</button></div>
-                    : <>{saved.length > 1 && <p className="ig-connection-count">{saved.length} connections</p>}<div className="ig-connections">{saved.map(conn => renderConnection(conn, saved.length > 1))}</div></>}
+                    : <>{saved.length > 1 && <p className="ig-connection-count">{saved.length} connections</p>}<div className="ig-connections">{saved.map(conn => renderConnection(conn, saved.length > 1, saved.length === 1 ? <h3 id={`ig-provider-name-${provider.kind}`}>{provider.label}</h3> : undefined))}</div></>}
                 </div>
               </section>;
             })}
@@ -330,6 +325,12 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
           {list.length === 0 && <p className="settings-row settings-row-status">Nothing connected.</p>}
         </SettingsGroup>}
         </div>
+        {reach === "all" && <>
+          <div className="ig-overview-info">
+            <details className="ig-access"><summary>Access and token storage</summary><p>Read-only access. Tokens stay on this machine and are never shown again or shared with paired decks.</p></details>
+            <span className="ig-total">{list.length} saved connection{list.length === 1 ? "" : "s"}</span>
+          </div>
+        </>}
       </div>
     </div>
   );

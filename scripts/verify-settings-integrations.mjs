@@ -7,7 +7,7 @@ const modulePath = process.env.PLAYWRIGHT_MODULE;
 if (!modulePath) throw new Error("Set PLAYWRIGHT_MODULE to an existing Playwright module.");
 const { chromium } = await import(modulePath.startsWith("/") ? pathToFileURL(modulePath).href : modulePath);
 const base = process.argv[2] || "http://127.0.0.1:5186";
-const output = process.env.SETTINGS_ARTIFACTS || "/tmp/ccdeck-settings-iteration3";
+const output = process.env.SETTINGS_ARTIFACTS || "/tmp/ccdeck-settings-iteration4";
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE } : {}) });
 const results = [];
@@ -107,13 +107,20 @@ try {
     assert.equal(await page.getByRole("button", { name: "Edit connection", exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: /^Disconnect / }).count(), 0);
     assert.equal(await page.getByText("Not connected", { exact: true }).count(), 1);
+    const providerBounds = await page.locator(".ig-providers").boundingBox();
+    const securityBounds = await page.locator(".ig-access").boundingBox();
+    assert.ok(securityBounds.y >= providerBounds.y + providerBounds.height, "Security help belongs below the full provider list");
     await shot("overview"); await accessibility("overview");
     await manage("gitlab", "Work projects").click();
     const details = page.locator(".ig-connection-details");
-    await page.getByRole("heading", { name: "GitLab connection", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Work projects", exact: true }).waitFor();
     assert.equal(await page.locator(".ig-overview").isVisible(), false);
-    assert.equal(await page.getByRole("heading", { name: "GitLab connection", exact: true }).evaluate(el => el === document.activeElement), true);
+    assert.equal(await page.getByRole("heading", { name: "Work projects", exact: true }).evaluate(el => el === document.activeElement), true);
     assert.match(await details.innerText(), /Review Developer.*reviewer/);
+    assert.equal(await details.getByRole("button", { name: "Edit connection", exact: true }).evaluate(el => el.classList.contains("primary")), false);
+    assert.equal(await details.locator(".ig-manage-actions").getByRole("button").allTextContents().then(labels => labels.join(",")), "Test connection,Edit connection");
+    assert.equal(await details.getByRole("button", { name: "Disconnect Work projects", exact: true }).isEnabled(), true);
+    assert.equal(await details.locator(".ig-add-another").getByRole("button").count(), 1);
     await shot("manage-gitlab"); await accessibility("manage-gitlab");
     await back();
     await checkFocus("Manage GitLab: Work projects (reviewer)");
@@ -159,6 +166,9 @@ try {
     await manage("gitlab", "Platform engineering and developer productivity services").waitFor();
     assert.equal(saved.filter(c => c.kind === "gitlab").length, 2);
     await shot("multiple"); await noOverflow();
+    await manage("gitlab", "Platform engineering and developer productivity services").click();
+    await noOverflow(); await shot("long-manage"); await accessibility("long-manage");
+    await back();
     await manage("gitlab", "Work projects").click();
     await page.getByRole("button", { name: "Edit connection", exact: true }).click();
     form = page.getByRole("form", { name: "Edit Work projects", exact: true });
@@ -179,6 +189,7 @@ try {
     await page.getByRole("status").filter({ hasText: "Verified as" }).waitFor();
     await page.getByRole("button", { name: "Disconnect Work sources", exact: true }).click();
     assert.equal(saved.length, 4);
+    await shot("disconnect-confirm"); await accessibility("disconnect-confirm");
     await page.waitForTimeout(450);
     await page.getByRole("button", { name: "Confirm disconnecting Work sources", exact: true }).click();
     await page.locator(".ig-manage-view").waitFor({ state: "detached" });
@@ -246,6 +257,7 @@ try {
         await tab("Appearance").click(); await page.locator(`[data-theme-choice="${id}"]`).click();
         await page.waitForFunction(id => document.documentElement.dataset.theme === id, id);
         await tab("Integrations").click(); await noOverflow(); await accessibility(`theme-${id}`);
+        await manage("jira", "Engineering").click(); await accessibility(`manage-theme-${id}`); await back();
       }
       results.push({ themeCatalog: themes, accessibility: process.env.AXE_SCRIPT ? "pass" : "not run" });
     }

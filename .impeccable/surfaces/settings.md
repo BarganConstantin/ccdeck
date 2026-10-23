@@ -12,12 +12,15 @@ Integrations stays one navigation entry with a compact provider list. An
 unconfigured provider offers Connect; each saved connection offers Manage.
 Show host/account and concise historical metadata, with no live-health badge.
 Aliases distinguish multiple connections. The common access/token disclosure
-belongs above the list, not below the final provider.
+belongs in a separate footer below the complete provider list, never inside a
+provider entry. Counts describe saved connections.
 
 Manage opens a focused connection detail view in the existing pane. Keep full
 name, host, account, server information, last verification and saved-token state.
-Test/Edit/Add connection live here; Disconnect is secondary and retains the
-two-press safety guard. Per-connection Manage avoids a separate account picker.
+The connection name (or instance URL) heads Manage, with provider and Saved
+connection secondary. Test/Edit are neutral peers. Add connection has a separate
+area; the final Remove connection area uses the shared outlined danger button
+and retains the two-press safety guard. Per-connection Manage avoids a separate account picker.
 Additional connections deliberately cost Manage → Add connection.
 
 Connect saves back to the overview; Edit saves/cancels back to its selected
@@ -41,3 +44,5 @@ Evidence:
 - [Iteration 2](../review/settings-iteration-2/README.md)
 
 - [Iteration 3](../review/settings-iteration-3/README.md)
+
+- [Iteration 4](../review/settings-iteration-4/README.md)

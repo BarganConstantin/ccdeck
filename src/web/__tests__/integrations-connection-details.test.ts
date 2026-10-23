@@ -19,8 +19,11 @@ const draw = (available = true, armed = false, value = connection) => renderToSt
 describe("focused connection management", () => {
   it("shows complete account/instance facts and historical verification without implying current health", () => {
     const html = draw();
-    for (const fact of ["Jira connection", "Work tracker", "https://jira.example.com", "Review Developer (reviewer)", "Jira Data Center 9.0", "Last verified", "Saved on this machine"]) expect(html).toContain(fact);
+    for (const fact of ["Jira · Saved connection", "Work tracker", "https://jira.example.com", "Review Developer (reviewer)", "Jira Data Center 9.0", "Last verified", "Saved on this machine"]) expect(html).toContain(fact);
     for (const action of ["Test connection", "Edit connection", "Add connection", "Disconnect"]) expect(html).toContain(`>${action}</button>`);
+    expect(html).toContain('id="ig-managed-title" class="ig-managed-title">Work tracker</h3>');
+    expect(html).not.toContain('class="btn primary"');
+    expect(html).toContain('class="btn danger ig-disconnect"');
     expect(html).not.toMatch(/Healthy|Online|<input|type="password"/);
   });
 
@@ -36,6 +39,11 @@ describe("focused connection management", () => {
     expect(html).toContain('aria-label="Confirm disconnecting Work tracker"');
     expect(html).toContain('role="status">Press Confirm disconnect to delete this connection and its saved token.');
     expect(html).toContain('>Confirm disconnect</button>');
+  });
+
+  it("identifies a connection without an alias by its instance URL", () => {
+    const html = draw(true, false, { ...connection, name: "" });
+    expect(html).toContain('id="ig-managed-title" class="ig-managed-title">https://jira.example.com</h3>');
   });
 
   it("does not turn absent or malformed metadata into an invented verification", () => {
