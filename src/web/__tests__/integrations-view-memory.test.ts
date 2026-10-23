@@ -276,7 +276,12 @@ describe("the panels", () => {
     // place focus moves for a selection; the view's own choice never calls it.
     expect(forge).toMatch(/const select = useCallback\(\(next: ForgeSelection \| null\) => \{[\s\S]*?choose\(next\);[\s\S]*?focusAfterSelect/);
     const detail = source("components/JiraIssueDetail.tsx");
-    expect(detail).toMatch(/if \(!narrow \|\| !shownKey \|\| auto\) return;/);
+    expect(detail).toMatch(/handedOff\.current = false;\s*if \(auto\) return;/);
+    // A sub-task, the parent and an issue on the trail are the reader's too:
+    // each hands focus off before the detail draws the issue it opens.
+    expect(detail).toMatch(/onOpen=\{k => openHere\(\(\) => onOpen\(k, "push"\)\)\}/);
+    expect(detail).toMatch(/go: \(\) => openHere\(\(\) => onOpen\(parentKey, "replace"\)\)/);
+    expect(detail).toMatch(/go: \(\) => openHere\(\(\) => onTrail\(i\)\)/);
     expect(jira).toMatch(/auto=\{view\.auto\}/);
   });
 
