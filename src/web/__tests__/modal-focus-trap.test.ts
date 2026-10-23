@@ -290,7 +290,8 @@ describe("the deck's ten overlays", () => {
     // Appearance modal it replaced was never counted here: its backdrop wore
     // two classes, which the sweep's one-class pattern does not match.
     // Quota history (#2121) shares the same trap and named close focus.
-    expect(MODALS.length).toBe(29);
+    // The thirtieth is a connected tracker's panel (#2178).
+    expect(MODALS.length).toBe(30);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -345,6 +346,11 @@ describe("the deck's ten overlays", () => {
       // it with Enter can keep pressing Enter to the end, and the × is still
       // one Shift+Tab away and Escape closes it from any step.
       "GuideModal.tsx",
+      // A connected tracker's panel names its own first control (the board
+      // or project picker): the connection selector before it took the
+      // first focus and showed its ring after a pointer open, which read
+      // as an error (#2178).
+      "IntegrationModal.tsx",
       // The add-a-deck dialog names the address field, because the reader
       // pressed `+ add a deck` holding either an address or a token and only
       // one of the two is a field they can start typing into.

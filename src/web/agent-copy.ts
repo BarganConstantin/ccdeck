@@ -14,6 +14,7 @@ import { shortModel } from "./model-label";
 import { guessLine } from "./notify";
 import { isAlarming } from "./ambient-counts";
 import { planSpoken, planSummary } from "./agent-plan";
+import { stopSpoken } from "./stop-failure-copy";
 
 /** A Codex child remains its own session, wherever its kind is displayed. */
 export function agentKindLabel(a: Pick<AgentNodeData, "provider" | "parentId" | "kind">): string {
@@ -98,7 +99,10 @@ export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), se
   return [
     data.label,
     agentKindLabel(data),
-    stateLabel(data.state),
+    // A turn that stopped on an error is said as that, with what to type, in
+    // place of "done": the card's pill draws it as a failure and its row says
+    // which one.
+    data.kind === "root" && data.stopFailure ? stopSpoken(data.stopFailure, data.job != null) : stateLabel(data.state),
     isAlarming(data.waiting) ? waitingSentence(data.waiting!) : null,
     data.model ? shortModel(data.model) : null,
     // The card's plan row, where a screen reader hears it (#2157): this name,

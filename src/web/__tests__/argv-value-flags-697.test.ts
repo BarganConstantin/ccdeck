@@ -360,6 +360,9 @@ const ENV = {
   CLAUDE_CONFIG_DIR: join(DIR, "claude"),
   CODEX_HOME: join(DIR, "codex"),
   XDG_CONFIG_HOME: join(DIR, "config"),
+  // CCDECK_HOME wins over CLAUDE_CONFIG_DIR for the deck's data and its log, so
+  // a caller's own would take both out of DIR. Undefined, spawn leaves it out.
+  CCDECK_HOME: undefined,
   // Otherwise a machine with this set would drag the deck onto a real port.
   AGENT_DAG_PORT: "",
 };

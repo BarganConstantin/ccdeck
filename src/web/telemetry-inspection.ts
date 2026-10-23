@@ -1,12 +1,12 @@
 import type { RadarSnapshot, RadarVariable } from "./traffic-radar";
-export interface RadarSession { id: string; label: string }
+export interface RadarSession { id: string; label: string; workspace?: string; project?: string }
 export function configuredDestinations(variables: RadarVariable[]) {
   return [...new Set(variables.filter(v => v.key.endsWith("ENDPOINT")).map(v => v.value).filter(v => /^https?:\/\//.test(v)))];
 }
 /** Socket evidence is independent of settings and never identifies telemetry. */
 export function observedDestinations(snapshot: RadarSnapshot | null) {
   if (snapshot?.status !== "observing") return [];
-  return [...new Set(snapshot.connections.filter(c => c.active === true).map(c => c.destination))];
+  return [...new Set(snapshot.connections.filter(c => c.active === true && !c.connecting).map(c => c.destination))];
 }
 export function captureAddress(endpoint: string): string | null {
   try {
@@ -16,10 +16,13 @@ export function captureAddress(endpoint: string): string | null {
   } catch { return null; }
 }
 export function configuredState(variables: RadarVariable[]) {
-  const values = variables.filter(v => v.key === "CLAUDE_CODE_ENABLE_TELEMETRY").map(v => v.value);
+  const rows = variables.filter(v => v.key === "CLAUDE_CODE_ENABLE_TELEMETRY");
+  const values = rows.map(v => v.value);
   if (!values.length) return "Unknown";
   if (new Set(values).size > 1) return "Conflicting settings";
-  return values[0] === "Enabled" ? "Enabled in settings" : values[0] === "Disabled" ? "Disabled in settings" : "Unknown";
+  // Settings wording whenever a settings file names the flag.
+  const where = rows.every(v => v.launch) ? "in launch environment" : "in settings";
+  return values[0] === "Enabled" ? `Enabled ${where}` : values[0] === "Disabled" ? `Disabled ${where}` : "Unknown";
 }
 export interface TelemetryFileRow { line: number; raw: string; label: string; sessionId: string | null; sessionIds: string[]; timestamp: string | null; valid: boolean }
 export function parseTelemetryFile(text: string): TelemetryFileRow[] {

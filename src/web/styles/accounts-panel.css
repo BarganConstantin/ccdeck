@@ -208,7 +208,7 @@
    the door while the hover tint still promised the row would open. The door
    carries the whole identity itself instead, in its title and its
    description, so a clipped name is recoverable from anywhere on the row. */
-.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note, .ap-lane-pct[data-reset], .ap-shared, .ap-home) {
+.ap-account :is(.ap-q-age, .ap-issue-age, .ap-age, .ap-swap-note, .ap-lane-pct[data-reset], .ap-shared, .ap-home, .ap-telemetry) {
   position: relative;
   z-index: 1;
 }
@@ -499,6 +499,23 @@
 .ap-warn-glyph { flex: none; }
 .ap-issue-age { margin-left: auto; color: var(--muted); white-space: nowrap; }
 
+/* WHAT THE ACCOUNT'S ORGANIZATION RECORDS, under its name, in the issue line's
+   size and indent. Quiet for usage data alone; the warning ink once prompts,
+   responses or tool data go out with it. One line, clipped: the whole sentence
+   is its title, and the line is raised over the door with the other titled
+   labels — only as wide as its words, so the door keeps the row. */
+.ap-telemetry {
+  width: fit-content;
+  max-width: calc(100% - 20px);
+  margin: 2px 0 0 20px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ap-telemetry[data-tone="warn"] { color: var(--warn); }
+
 /* THE LIVE ACCOUNT'S TROUBLE, over the list. Every session this deck starts
    runs on that login, so it earns one line with a wash of its own ink — the
    only colour spent on a surface in this column — and the one press that fixes
@@ -517,6 +534,10 @@
 /* The sentence wraps rather than clipping: "needs att…" is the one word a
    notice cannot lose, and a wider system font on Windows is all it takes. */
 .ap-notice .ap-issue-text { white-space: normal; text-align: left; }
+/* A plain sentence, for a notice with nothing behind it to open. An address
+   has no spaces to wrap at, so it breaks anywhere rather than widening the
+   column at 320px. */
+.ap-notice-text { flex: 1 1 auto; min-width: 0; padding: 3px 0; line-height: 1.4; overflow-wrap: anywhere; }
 .ap-notice-fix {
   flex: none;
   min-height: 24px;
@@ -584,6 +605,10 @@
    pill the accounts panel offers for its one unwaitable failure, kept on the
    message's first line rather than squeezed by it. */
 .ap-failure .ap-give-back { flex: none; margin: -1px 0 0; }
+/* And the sign-in a switch refused for an expired login offers (#2184), in the
+   same place for the same reason: the one press that makes the refusal go away
+   by fixing it rather than by dismissing it. */
+.ap-failure .ap-failure-fix { flex: none; margin: -1px 0 0; }
 /* The same box once the folder is given back: the good news where the refusal
    was, so the reader's eye does not have to move to find it. */
 .ap-failure-done {
@@ -659,12 +684,14 @@
   color: var(--text-dim);
 }
 /* ── the policy rows ──
-   ONE POLICY, ONE ROW: its name, its setting, and its switch. Auto-switch was a
-   section — a caption, a line of controls under it, a readout repeating the
-   active row's percentage, a clock of its last check under a rule — for what is
-   one decision and one number. Local network's switch takes the same row in its
-   own view. The name pushes, so the setting and the switch sit together at the
-   far edge whatever else is on the row. */
+   A POLICY'S NAME AND ITS SWITCH ON ONE ROW, and each of its settings on a row
+   of its own under it: a label, then the control. Auto-switch was a section — a
+   caption, a line of controls under it, a readout repeating the active row's
+   percentage, a clock of its last check under a rule — and then one row that
+   held the name, the threshold and the switch together, with the next-account
+   picker under it running past both. Local network's switch takes the same
+   name row in its own view. The name or label pushes, so every control on
+   every row ends at the same far edge. */
 .ap-policy {
   display: flex;
   align-items: center;
@@ -757,13 +784,16 @@
   text-align: right;
 }
 .ap-threshold-note[data-tone="err"] { color: var(--err); }
-/* WHERE AUTO-SWITCH GOES, the policy's second line and only while the switch
-   is on. Quieter than the policy's name: it is a detail of that policy, not a
-   second one. The label pushes, like the title above it, so the picker lines up
-   under the threshold's; the picker is as wide as its words, which the
-   threshold's fixed 64px is not. */
-.ap-next { margin-top: 4px; }
-.ap-next-label {
+/* A SETTING OF THE POLICY: where it trips, and where it goes. Under the name,
+   close enough to read as its own, and the same with the switch on or off —
+   they are set up before it is turned on. The label is a label, so it is the
+   metadata tier, as Browser Watch's settings labels are; both settings say
+   their names that way, so neither reads as switched off beside the other. It
+   pushes, like the title above it, so both pickers end where the switch does.
+   The next-account picker is as wide as its words, which the threshold's fixed
+   64px is not. */
+.ap-setting { margin-top: 2px; }
+.ap-setting-label {
   margin-right: auto;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);

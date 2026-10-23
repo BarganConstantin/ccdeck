@@ -24,23 +24,20 @@ import { type Edge, type Node } from "reactflow";
 import { canvasSessions } from "./canvas-session";
 import { agentAriaLabel } from "./agent-copy";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
-import { NODE_W, sessionOfNode } from "./layout-geometry";
+import { footprint, NODE_W, RECAP_NOTE_GAP, RECAP_NOTE_H, RECAP_NOTE_W, sessionOfNode } from "./layout-geometry";
 import { branchSummaries, type BranchSummary } from "./node-face";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
 import { liveNodeIds, measuredNodeIds, pruneStaleEntries } from "./prune";
 import { isRecapDismissed, isRecapNoteId, recapNoteId } from "./recap-note";
 import { sessionHue, type GraphState } from "./reducer";
-import { noteTag, sessionNoteShown } from "./session-note";
+import { boardNote, noteTag } from "./session-note";
 import type { AgentNodeData } from "./types";
 import type React from "react";
 
-/** A recap note's size before React Flow has measured it — the sheet's width,
- *  and about a card's height — and the gap it keeps to the left of its card:
- *  dagre's rank gap in layout.ts, so a note placed on arrival sits where R
- *  would put it. */
-export const RECAP_NOTE_W = 300;
-export const RECAP_NOTE_H = 130;
-export const RECAP_NOTE_GAP = 160;
+// A recap note's size before React Flow has measured it, and the gap it keeps
+// to its card: layout-geometry.ts's, since the gap pass reserves the note's
+// room for a session that is still arriving.
+export { RECAP_NOTE_GAP, RECAP_NOTE_H, RECAP_NOTE_W } from "./layout-geometry";
 
 /** `branch` is on a root only, and only while it has subagents on the canvas:
  *  what they add up to, for the faces too small to show them one by one. */
@@ -304,9 +301,12 @@ export function snapshotToFlow(
     // only while there is something to say and nobody has put it away, and tied
     // to the root by an edge FROM the note, which is also what makes dagre rank
     // it to the left of the card.
-    const note = a.kind === "root" ? sessionNoteShown(a) : null;
-    const noteKey = note ? note.key : null;
-    if (note && noteKey && !isRecapDismissed(noteKey)) {
+    // The session's plan rides on the same note, or holds one of its own while
+    // there is nothing else to say (session-note.ts, boardNote).
+    const board = a.kind === "root" ? boardNote(a) : null;
+    const note = board?.note ?? null;
+    const noteKey = board ? board.key : null;
+    if (board && noteKey && !isRecapDismissed(noteKey)) {
       const noteId = recapNoteId(a.id);
       const hue = sessionHue(a.sessionId);
       const mn = measured.get(noteId);
@@ -317,14 +317,14 @@ export function snapshotToFlow(
         id: noteId,
         type: "recapNote",
         position: { x: 0, y: 0 },
-        data: { sessionId: a.sessionId, canvasSessionId: dataFor(a).canvasSessionId, parentId: a.id, note, noteKey, hue },
+        data: { sessionId: a.sessionId, canvasSessionId: dataFor(a).canvasSessionId, parentId: a.id, note, plan: board.plan, noteKey, hue },
         className: spotlitOut ? "rf-spotlit-out" : undefined,
         selectable: false,
         // Not a keyboard stop either, like the session drag handles: Enter on a
         // focused node selects its id, and a note's id is not an agent's. Its ×
         // is still a button, and still reached by Tab.
         focusable: false,
-        ariaLabel: note.kind === "recap" ? `Claude Code's recap for ${a.label}` : `${a.label}: ${noteTag(note.kind)}`,
+        ariaLabel: !note ? `${a.label}: plan` : note.kind === "recap" ? `Claude Code's recap for ${a.label}` : `${a.label}: ${noteTag(note.kind)}`,
         ...(mn ? { width: mn.width, height: mn.height } : null),
       } as unknown as (typeof nodes)[number]);
       edges.push({
@@ -411,11 +411,13 @@ export function snapshotToFlow(
       // its place — so this page's arrangement, not the stored board's.
       for (const n of missing) restored.delete(n.id);
       // A card joining a session already on the canvas goes beside that session
-      // as it sits now, not where a layout from scratch would have it.
+      // as it sits now, not where a layout from scratch would have it — and a
+      // subagent under the siblings its parent already has there.
       const laidOut = joinSessions(
         autoLayout(nodes, edges, { direction: "LR", pinned, measured, availableWidth, availableHeight, lanes }),
         pinned,
         id => (isUnplaced(id, positions, provisional) ? undefined : positions.get(id)),
+        id => footprint(id, measured, lanes),
       );
       for (const n of laidOut) if (isUnplaced(n.id, positions, provisional)) recordPlacement(n.id, n.position, positions, provisional);
       // Finished sessions are pruned as they complete, so the column they were

@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
-import { systemCommand, powershell, WINDOWS_PROCESSES, windowsSockets, linuxSockets } from './traffic-radar-platform.mjs';
-import { readRadarConfig } from "./traffic-radar-config.mjs";
+import { systemCommand, powershell, WINDOWS_PROCESSES, windowsSockets, linuxSockets, linuxVersionedClaude } from './traffic-radar-platform.mjs';
+import { launchVariables, readRadarConfig } from "./traffic-radar-config.mjs";
 
 export function claudePids(text) {
   const pids = [];
@@ -15,14 +15,20 @@ export function claudePids(text) {
   return [...new Set(pids)];
 }
 
+// A TST=SYN_SENT line (only Linux /proc rows carry one) marks the socket before
+// it as an attempt still awaiting a reply. A destination is connecting only
+// while every socket to it is such an attempt.
 export function parseRadarSockets(text, pids) {
   const allowed = new Set(pids);
   const sockets = new Map();
   let pid = null;
+  let last = null;
   for (const rawLine of String(text ?? "").split("\n")) {
     const line = rawLine.trimEnd();
-    if (/^p\d+$/.test(line)) pid = Number(line.slice(1));
+    if (/^p\d+$/.test(line)) { pid = Number(line.slice(1)); last = null; }
+    if (line === "TST=SYN_SENT" && last) { last.attempts++; continue; }
     if (!allowed.has(pid) || !line.startsWith("n")) continue;
+    last = null;
     const peer = line.slice(1).split("->")[1];
     if (!peer) continue;
     const match = /^(\[[0-9a-fA-F:.%]+\]|[0-9.]+):(\d+)$/.exec(peer);
@@ -30,9 +36,12 @@ export function parseRadarSockets(text, pids) {
     const port = Number(match[2]);
     if (port < 1 || port > 65535) continue;
     const destination = `${match[1]}:${port}`;
-    sockets.set(`${pid}|${destination}`, { pid, destination });
+    const key = `${pid}|${destination}`;
+    last = sockets.get(key) ?? { pid, destination, count: 0, attempts: 0 };
+    last.count++;
+    sockets.set(key, last);
   }
-  return [...sockets.values()];
+  return [...sockets.values()].map(({ pid, destination, count, attempts }) => attempts === count ? { pid, destination, connecting: true } : { pid, destination });
 }
 
 export function parseRadarWorkspaces(text, pids, home = homedir()) {
@@ -50,7 +59,7 @@ export function parseRadarWorkspaces(text, pids, home = homedir()) {
   return workspaces;
 }
 
-export function createTrafficRadar({ platform = process.platform, now = Date.now, run = systemCommand, config = readRadarConfig, readLinuxSockets = linuxSockets } = {}) {
+export function createTrafficRadar({ platform = process.platform, now = Date.now, run = systemCommand, config = readRadarConfig, readLinuxSockets = linuxSockets, findLinuxClaude = linuxVersionedClaude } = {}) {
   let pending = null;
   let cached = null;
   let previousAt = null;
@@ -84,11 +93,15 @@ export function createTrafficRadar({ platform = process.platform, now = Date.now
         if (/^OTEL_LOG_/.test(variable) && value.startsWith("Enabled")) addAlert("Content capture configuration changed to enabled. Review settings below.", sampledAt);
       }
     }
-    const pids = claudePids(processes);
+    const pids = platform === "linux" && processes !== null
+      ? [...new Set([...claudePids(processes), ...await findLinuxClaude(processes)])].sort((a, b) => a - b)
+      : claudePids(processes);
     const selected = pids.slice(0, 64);
     let sockets = "";
     let cwd = "";
-    if (selected.length && platform === "linux") ({ sockets, cwd } = await readLinuxSockets(selected));
+    let denied = 0;
+    let launch = [];
+    if (selected.length && platform === "linux") ({ sockets, cwd, denied = 0, launch = [] } = await readLinuxSockets(selected));
     else if (selected.length && platform === "win32") sockets = await run("powershell.exe", powershell(windowsSockets(selected)));
     else if (selected.length) [sockets, cwd] = await Promise.all([
       run("/usr/sbin/lsof", ["-nP", "-a", "-p", selected.join(","), "-iTCP", "-sTCP:ESTABLISHED", "-Fpn"]),
@@ -106,13 +119,23 @@ export function createTrafficRadar({ platform = process.platform, now = Date.now
         if (previousAt !== null && previousConfig && !destinations.has(connection.destination)) addAlert(`New Claude connection destination: ${connection.destination}`, sampledAt);
         destinations.add(connection.destination);
         seen.set(key, { ...connection, workspace: workspaces.get(connection.pid) ?? null, firstSeenAt: sampledAt, lastSeenAt: sampledAt });
-      } else seen.get(key).lastSeenAt = sampledAt;
+      } else {
+        const entry = seen.get(key);
+        entry.lastSeenAt = sampledAt;
+        if (connection.connecting) entry.connecting = true;
+        else delete entry.connecting;
+      }
     }
     for (const [key, connection] of seen) if (sampledAt - connection.lastSeenAt > 300_000) seen.delete(key);
     while (seen.size > 100) seen.delete(seen.keys().next().value);
     previousAt = sampledAt;
     previousConfig = nextConfig;
+    // Launch values sit beside the settings, not in them: processes starting
+    // and stopping are not configuration changes, and a saved switch replaces
+    // only the settings.
+    const environment = launchVariables(launch);
     return { ...base, status, config: configuration, processCount: pids.length, limited: pids.length > selected.length,
+      ...(denied ? { uninspected: denied } : {}), ...(environment.length ? { environment } : {}),
       connections: [...seen.entries()].map(([key, value]) => ({ ...value, active: status === "observing" ? active.has(key) : null }))
         .sort((a, b) => b.lastSeenAt - a.lastSeenAt), alerts };
   }

@@ -29,3 +29,8 @@ describe("Radar monitoring evidence", () => {
     expect(radarMonitorState({ ...partial, sources: partial.sources.map(source => ({ ...source, active: true })) })).toMatchObject({ title: "Listening for telemetry", active: 2, tone: "ok" });
   });
 });
+
+it('shows automatic collection waiting independently of the feature preference', () => {
+  expect(radarMonitorState({ ok: true, automatic: true, featureEnabled: true, enabled: false, state: 'idle', sources: [], events: [] } as any)).toMatchObject({ enabled: true, title: 'Waiting for a collector…', tone: 'neutral' });
+  expect(radarMonitorState({ ok: true, automatic: true, featureEnabled: true, enabled: false, state: 'error', setupError: 'Packet capture permission is required.', sources: [], events: [] } as any)).toMatchObject({ enabled: true, title: 'Capture permission needed', tone: 'attention' });
+});

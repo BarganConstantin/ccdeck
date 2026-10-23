@@ -264,6 +264,10 @@ function loadSeries(at, coreCount) {
     warnAt: coreCount,
     critAt: null,
     restsAtZero: false,
+    // What the chart's reading divides by, so a point read after the fact says
+    // how many times over the cores it was — the live note's figure, for a
+    // minute that is no longer live.
+    cores: coreCount,
     points,
   }];
 }

@@ -13,7 +13,8 @@
  * A per-session read gate with a window of `ms`.
  *
  * `run(sid, read)` calls `read()` unless a read for `sid` is still in flight or
- * the last one began less than `ms` ago. The stamp is taken as the read starts,
+ * the last one began less than `ms` ago. Returns whether a read started, so
+ * a caller that needs a final snapshot can keep refused work pending. The stamp is taken as the read starts,
  * so a read that fails or finds nothing still holds the next one back for the
  * window — that is the throttle. `read` is called before `run` returns, as
  * every copy called it, and returns a promise. Whatever that rejects with is
@@ -29,15 +30,16 @@ export function sessionReadGate(ms) {
   const pending = new Set();      // sid currently being read
   return {
     run(sid, read) {
-      if (pending.has(sid)) return;
+      if (pending.has(sid)) return false;
       const now = Date.now();
       const last = lastReadAt.get(sid) ?? 0;
-      if (now - last < ms) return;
+      if (now - last < ms) return false;
       lastReadAt.set(sid, now);
       pending.add(sid);
       read()
         .catch(() => {})
         .finally(() => pending.delete(sid));
+      return true;
     },
     forget(sid) {
       lastReadAt.delete(sid);

@@ -32,9 +32,9 @@ import { sessionDisplay } from "../session-display";
 import { ContextDonut } from "./ContextModal";
 import type { AgentNodeData, PlanItem, ToolCall, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
-import { noteTag, sessionNoteShown } from "../session-note";
+import { boardNote, noteTag } from "../session-note";
 import { toggleRecapDismissed, useRecapDismissed } from "../recap-note";
-import { faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
+import { drawnState, faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
 // The agent's own checklist, as one line (#2157). See agent-plan.ts.
 import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
 import { primaryDisplayFor, toolSubject } from "../tool-skin";
@@ -42,6 +42,12 @@ import { primaryDisplayFor, toolSubject } from "../tool-skin";
 import { barHeight, BUCKETS, SPARK_H, SPARK_W, sparkWindow } from "../tool-spark";
 import { AlertMark, StateMark } from "./StateMark";
 import { NoteMark } from "./RecapMark";
+// The words for a turn that stopped on an error. See stop-failure-copy.ts.
+import { stopRowLabel, stopTooltip } from "../stop-failure-copy";
+import type { StopFacts } from "../../server/stop-failure.mjs";
+// Continue on a stopped background session, and the line a continue leaves
+// (#2193). See StopContinue.tsx.
+import { CardContinue, ContinuedRow } from "./StopContinue";
 
 /** A card re-renders when its agent changes, not when the clock does (#873).
  *  Time reaches it through the three leaves that print it — the elapsed clock,
@@ -56,9 +62,12 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // No `selected` here. React Flow's prop is never true on this canvas, so the
   // class it set matched nothing; the frame marks a selected card's wrapper
   // with `rf-selected` instead (canvas-flow.ts) and the ring is drawn from that.
+  // The state the card draws: a turn that stopped on an error rings as a
+  // failure, as its pill and mark say (drawnState, #2185).
+  const shown = drawnState(data);
   const cls = [
     "agent-node",
-    `state-${data.state}`,
+    `state-${shown}`,
     data.synthetic ? "synthetic" : "",
   ].filter(Boolean).join(" ");
 
@@ -147,16 +156,18 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // carries a name without a title. See session-display.ts for the sweep.
   const naming = sessionDisplay(data.sessionName, data.sessionTitle);
   // What the session's note says — what it is doing, what came of it, or
-  // Claude Code's recap once that arrives — or null when it says nothing. See
-  // session-note.ts for the whole rule.
-  const note = sessionNoteShown(data);
+  // Claude Code's recap once that arrives — and the plan on it, or null when it
+  // says nothing. A note can hold the plan alone. See session-note.ts for the
+  // whole rule.
+  const board = boardNote(data);
+  const note = board?.note ?? null;
   // The note opens by itself the moment there is one, and stays shut once it
   // has been closed — for THAT note: a recap, or one turn's line of one kind;
   // the next one opens again. Asked of every card, because a hook cannot wait
   // for the note (recap-note.ts).
-  const noteKey = note ? note.key : null;
+  const noteKey = board ? board.key : null;
   const noteDismissed = useRecapDismissed(noteKey);
-  const noteOpen = note != null && !noteDismissed;
+  const noteOpen = board != null && !noteDismissed;
   const isRecap = note?.kind === "recap";
   // The cost slot at the end of the meta row, decided once (card-cost.ts).
   const cost = costChip(data);
@@ -171,7 +182,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
 
       <div className="head">
         <div className="title">
-          <StatePill state={data.state} />
+          <StatePill state={shown} />
           <span className="label" title={cardTooltip}>{data.label}</span>
           {data.restoredFromLog && <span className="synth-tag" title={data.provider === "claude" ? "Restored from Claude’s busy-session registry after verifying the process identity. Earlier tool history is partial." : "Restored from a log with no recorded ending. Process status is not confirmed."}>restored</span>}
           {data.synthetic && <span className="synth-tag" title="No SessionStart captured — synthesised">?</span>}
@@ -180,15 +191,17 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
               note. The note opens by itself, so this is how it is put away
               and brought back. The click stops here, so it does not also
               select the card. */}
-          {note && noteKey && (
+          {board && noteKey && (
             <button
               type="button"
               className="glyph-btn recap-pin"
-              aria-label={isRecap ? "Claude Code's recap" : `Session note: ${noteTag(note.kind)}`}
+              aria-label={isRecap ? "Claude Code's recap" : note ? `Session note: ${noteTag(note.kind)}` : "Session note: plan"}
               aria-expanded={noteOpen}
               title={isRecap
                 ? (noteOpen ? "Hide the recap" : "Show Claude Code's recap")
-                : (noteOpen ? "Hide this note" : "Show what this session is doing")}
+                : note
+                  ? (noteOpen ? "Hide this note" : "Show what this session is doing")
+                  : (noteOpen ? "Hide the plan" : "Show the plan")}
               onClick={e => { e.stopPropagation(); toggleRecapDismissed(noteKey); }}
             ><NoteMark recap={isRecap} /></button>
           )}
@@ -292,11 +305,21 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         </div>
       )}
 
+      {/* The turn ended on an error and has to be run again by hand (#2185):
+          the state pill says "done", and this says what that done is not. Above
+          the waiting row, which a stopped turn makes redundant when it is only
+          the idle "your turn" — Claude Code's idle reminder a minute later is
+          about the same turn. */}
+      {data.kind === "root" && data.stopFailure && <StopRow data={data} stop={data.stopFailure} />}
+      {/* What a continue did, once the session is no longer stopped (#2193):
+          "Continued automatically 2m ago", for half an hour. */}
+      {data.kind === "root" && !data.stopFailure && <ContinuedRow data={data} />}
+
       {/* A row of its own rather than a chip in the title. The card is 260px
           wide and the header already spends it on the state pill, the workspace
           name and the elapsed clock; a fourth item there pushed the label to an
           ellipsis and still overflowed. A blocked session has earned a line. */}
-      {data.waiting && <WaitingRow waiting={data.waiting} />}
+      {data.waiting && !(data.stopFailure && data.waiting.kind === "idle") && <WaitingRow waiting={data.waiting} />}
 
       {/* The same slot, for the sessions that can never fill it (#398). A Codex
           session emits no notification and its rollout carries no approval
@@ -433,7 +456,7 @@ function NodeFace({ data, title }: { data: AgentNodeData & { branch?: BranchSumm
       aria-hidden
     >
       <div className="lod-id">
-        <StateMark kind={stateMarkKind(data.state)} />
+        <StateMark kind={stateMarkKind(drawnState(data))} />
         <span className="lod-name">{data.label}</span>
         {signal && <span className="lod-inline" data-tone={signal.tone}>{signal.short}</span>}
         {alarm && <AlertMark />}
@@ -458,6 +481,23 @@ function Elapsed({ start, end }: { start: number; end?: number }) {
 
 function StatePill({ state }: { state: AgentNodeData["state"] }) {
   return <span className={`state-pill state-${state}`}>{stateLabel(state)}</span>;
+}
+
+/** The turn stopped on an error: which one, in the row's words, with what
+ *  Claude Code said and what to do in the tooltip. The card's accessible name
+ *  carries the same (agentAriaLabel), which is where a reader on the node hears
+ *  it — a title is not announced there. The still dot is the waiting row's:
+ *  nothing here is still happening. A background session's row carries its
+ *  Continue button at the end (#2193); an interactive one's says to type
+ *  "continue" in its terminal. */
+function StopRow({ data, stop }: { data: AgentNodeData; stop: StopFacts }) {
+  return (
+    <div className="stop-row" title={stopTooltip(stop, data.job != null)} data-kind={stop.kind}>
+      <span className="waiting-dot" aria-hidden />
+      <span className="stop-said">{stopRowLabel(stop)}</span>
+      <CardContinue data={data} />
+    </div>
+  );
 }
 
 /** The session is blocked on a human — and on which of the two chores that is.

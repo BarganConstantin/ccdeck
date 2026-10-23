@@ -7,10 +7,17 @@ React, TypeScript and React Flow; the local server uses Node.js ES modules.
 This repository is separate from VacationCRM / `vcrm-core`, even when the agent
 starts its session there. Locate the ccdeck checkout before making changes.
 
+Before changing anything, read
+[`docs/release-workflow.md`](docs/release-workflow.md). It is the authoritative
+workflow for branches, parallel agents, public pull requests, approvals and
+releases, and it wins over any other instruction file that disagrees. When you
+delegate work to another agent, pass its rules on in that agent's instructions.
+
 For continuation of the owner's UI and telemetry work, read
-[`docs/agent-context.md`](docs/agent-context.md). It records the current worktree,
-branch workflow, decisions and verification pitfalls. Recheck its dated runtime
-details before using them; update it when those details change.
+[`docs/agent-context.md`](docs/agent-context.md). It records dated worktrees,
+decisions and verification pitfalls; its older branch notes predate the current
+release workflow. Recheck its dated runtime details before using them; update
+it when those details change.
 
 ## Owner preferences and delivery
 
@@ -18,15 +25,15 @@ details before using them; update it when those details change.
   results plainly and keep progress updates useful.
 - Work autonomously within the requested scope. Finish implementation, local
   execution and verification; a proposal alone does not complete a change.
-- Make regular, focused commits and push completed changes to `development` when
-  authorized. Inspect branch, worktree and remote state first, and preserve
-  unrelated work. Merge `main` into `development` when requested; this is not
-  permission to publish development changes to `main`.
+- Make regular, focused commits on your own branch and worktree. Inspect branch,
+  worktree and remote state first, and preserve unrelated work. Pushing,
+  opening a pull request, merging, tagging and publishing follow the approvals
+  in [`docs/release-workflow.md`](docs/release-workflow.md).
 - Clean up after a merge without being asked. Once a branch's PR is merged,
-  remove the worktree you made for it and delete the branch locally and on
-  `origin` (`gh pr merge --delete-branch` takes both branches). First confirm
-  that the PR is merged and the worktree has nothing uncommitted or unpushed.
-  Leave every other worktree and branch alone.
+  remove the worktree you made for it and delete the local branch. First
+  confirm that the PR is merged and the worktree has nothing uncommitted or
+  unpushed. Delete a branch on `origin` only with the owner's approval. Leave
+  every other worktree and branch alone.
 - The unfinished Git View and separate CLI work are protected from unrelated UI
   edits until the owner explicitly requests work on those features.
 - Aim for the clarity and comfort of Rider / VS Code: compact icon rails with

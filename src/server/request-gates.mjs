@@ -433,10 +433,14 @@ export const GUARDED_READS = new Set([
   "/api/tool-audit",
   "/api/tool-audit/storage",
   "/api/system/traffic-radar",
+  "/api/system/traffic-radar/settings",
   "/api/system/traffic-radar/capture",
   "/api/system/traffic-radar/capture/event",
   "/events",
   "/api/events",
+  // The ring folded to one row per session (#2183): each project's path and a
+  // standing question's own words, which is the ring's secret in fewer bytes.
+  "/api/sessions",
   "/api/claude-accounts",
   // Reveals the local machine's Codex profile roster, even though paths and
   // credentials are deliberately omitted from the response.
@@ -468,6 +472,9 @@ export const GUARDED_READS = new Set([
   "/api/ccusage/session",
   "/api/codex-usage",
   "/api/cswap-auto",
+  // Which sessions stopped, and the active account's quota reading the
+  // Continue button is gated on (stop-continue.mjs) — the quota route's class.
+  "/api/stop-continue",
   // Not a secret, and here for the other reason a read can be dangerous: it is
   // the one route where the caller names what the deck goes and fetches
   // (#1208). fm-station.mjs holds that to YouTube, but a page on another site
@@ -477,7 +484,26 @@ export const GUARDED_READS = new Set([
   "/api/fm-station",
   "/api/radio-stations",
   "/api/radio-click",
+  // The trackers this deck is connected to (#2178): the list of connections
+  // with their accounts, and below it every read a provider adds.
+  "/api/integrations",
 ]);
+
+/** Whole namespaces of guarded reads, for routes whose path carries an id —
+ *  /api/integrations/<kind>/<connId>/… (#2178). A connected tracker's boards,
+ *  issues, comments and the images the asset route signs for are the user's
+ *  work, read with the user's own token; every one of them is fetched by the
+ *  deck's own page and nothing else. A prefix rather than a list because a
+ *  provider adds its routes without touching this file, and a read it adds
+ *  must be covered from the moment it exists. */
+export const GUARDED_READ_PREFIXES = Object.freeze(["/api/integrations/"]);
+
+/** Whether a GET to `pathname` must come from the deck's page or carry the
+ *  token: listed in GUARDED_READS, or under one of GUARDED_READ_PREFIXES. */
+export function isGuardedRead(pathname) {
+  const path = String(pathname ?? "");
+  return GUARDED_READS.has(path) || GUARDED_READ_PREFIXES.some(prefix => path.startsWith(prefix));
+}
 
 export function isAuthorizedMutation(req) {
   const headers = req?.headers ?? {};

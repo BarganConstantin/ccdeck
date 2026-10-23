@@ -48,7 +48,7 @@ export async function oneShot(flags) {
 }
 
 /** The screen's glyphs and palette, by the names the one-shots use, and `say`. */
-function oneShotVoice() {
+export function oneShotVoice() {
   const { dash, ok: gOk, warn: gWarn, bullet, arrow, ellipsis: gEllipsis } = G;
   const tone = P;
   const say = (line) => process.stdout.write(`${line}\n`);
@@ -72,7 +72,7 @@ const pidOf = (d) => (d.restarting ? d.parent : d.pid);
 // line is reported as an unknown option and then ignored" — held for a boot
 // and for none of the nine one-shots: `ccdeck --status --prot 4317` printed
 // the status and never mentioned the flag.
-function reportFlagRows(flags, { tone, gWarn, dash }) {
+export function reportFlagRows(flags, { tone, gWarn, dash }) {
   for (const token of flags.unknown ?? []) {
     process.stderr.write(`  ${tone.warn}${gWarn}  unknown option${tone.reset}  ${token} ${dash} see \`${COMMAND} --help\`\n`);
   }

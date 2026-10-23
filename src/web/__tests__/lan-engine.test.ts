@@ -327,23 +327,23 @@ describe("the account that is dead here and alive there", () => {
   }, 20_000);
 
   it("is healed, which is the whole feature", async () => {
-    // The owner's own case, in a fixture: claude2 is quarantined on this
+    // The owner's own case, in a fixture: bob is quarantined on this
     // machine and works on the other one.
     const mine = store([
-      { num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true },
-      { num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: false },
+      { num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true },
+      { num: 2, email: "bob@example.net", orgUuid: "org-2", alive: false },
     ]);
     const theirs = store([
-      { num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true },
+      { num: 5, email: "bob@example.net", orgUuid: "org-2", alive: true },
     ]);
-    const shared = [K("claude1@sapec.md", "org-1"), K("claude2@sapec.md", "org-2")];
+    const shared = [K("alice@example.net", "org-1"), K("bob@example.net", "org-2")];
     const a = await deck(mine, "Deck-A", shared);
     const b = await deck(theirs, "Deck-B", shared);
     await point(a, b, b.port);
 
     const done = await a.e.round();
     expect(done).toEqual([{
-      key: K("claude2@sapec.md", "org-2"), email: "claude2@sapec.md",
+      key: K("bob@example.net", "org-2"), email: "bob@example.net",
       action: "heal", ok: true, why: null,
     }]);
     // The peer exported exactly the slot it holds that account in — which is a
@@ -357,10 +357,10 @@ describe("the account that is dead here and alive there", () => {
     // The safety property, from the outside: nothing is imported at all when
     // both copies work, so `cswap import --force` is never reached because it
     // is never wanted.
-    const rows = [{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }];
+    const rows = [{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }];
     const mine = store([...rows]);
-    const theirs = store([{ num: 9, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
-    const shared = [K("claude1@sapec.md", "org-1")];
+    const theirs = store([{ num: 9, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
+    const shared = [K("alice@example.net", "org-1")];
     const a = await deck(mine, "Deck-A", shared);
     const b = await deck(theirs, "Deck-B", shared);
     await point(a, b, b.port);
@@ -371,10 +371,10 @@ describe("the account that is dead here and alive there", () => {
   }, 20_000);
 
   it("takes an account it has never seen", async () => {
-    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
-    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
-    const a = await deck(mine, "Deck-A", [K("claude1@sapec.md", "org-1")]);
-    const b = await deck(theirs, "Deck-B", [K("new@sapec.md", "org-9")]);
+    const mine = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@example.net", orgUuid: "org-9", alive: true }]);
+    const a = await deck(mine, "Deck-A", [K("alice@example.net", "org-1")]);
+    const b = await deck(theirs, "Deck-B", [K("new@example.net", "org-9")]);
     await point(a, b, b.port);
     const done = await a.e.round();
     expect(done.map((d: { action: string }) => d.action)).toEqual(["add"]);
@@ -382,9 +382,9 @@ describe("the account that is dead here and alive there", () => {
   }, 20_000);
 
   it("cannot be healed from a copy that is dead there too", async () => {
-    const mine = store([{ num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: false }]);
-    const theirs = store([{ num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: false }]);
-    const shared = [K("claude2@sapec.md", "org-2")];
+    const mine = store([{ num: 2, email: "bob@example.net", orgUuid: "org-2", alive: false }]);
+    const theirs = store([{ num: 5, email: "bob@example.net", orgUuid: "org-2", alive: false }]);
+    const shared = [K("bob@example.net", "org-2")];
     const a = await deck(mine, "Deck-A", shared);
     const b = await deck(theirs, "Deck-B", shared);
     await point(a, b, b.port);
@@ -409,7 +409,9 @@ describe("the account that is dead here and alive there", () => {
     const mine = store([{ num: 2, email: "s@x", orgUuid: "org", alive: false }]);
     const theirs = store([{ num: 5, email: "s@x", orgUuid: "org", alive: true, active: true, collector: null }]);
     const a = await deck(mine, "Deck-A", [key]);
-    const b = await deck(theirs, "Deck-B", [key]);
+    // Sending the login it is on is the owner's choice (#2192); this is what
+    // holds even then.
+    const b = await deck(theirs, "Deck-B", [key], {}, { sendInUse: true });
     await point(a, b, b.port);
     await a.e.round();
     expect(theirs.exported).toEqual([]);
@@ -424,7 +426,7 @@ describe("the account that is dead here and alive there", () => {
       { num: 7, email: "s@x", orgUuid: "org", alive: true, active: false, collector: "ok" },
     ]);
     const a = await deck(mine, "Deck-A", [key]);
-    const b = await deck(theirs, "Deck-B", [key]);
+    const b = await deck(theirs, "Deck-B", [key], {}, { sendInUse: true });
     await point(a, b, b.port);
     await a.e.round();
     expect(theirs.exported).toEqual([7]);
@@ -461,9 +463,9 @@ describe("what a peer is refused", () => {
     // so nothing is ever asked for. The other half — the tick read again at the
     // moment of sending, because the list can change between the two — is
     // "what the holder checks when a credential is asked for", below.
-    const mine = store([{ num: 2, email: "secret@sapec.md", orgUuid: "org-2", alive: false }]);
-    const theirs = store([{ num: 5, email: "secret@sapec.md", orgUuid: "org-2", alive: true }]);
-    const a = await deck(mine, "Deck-A", [K("secret@sapec.md", "org-2")]);
+    const mine = store([{ num: 2, email: "secret@example.net", orgUuid: "org-2", alive: false }]);
+    const theirs = store([{ num: 5, email: "secret@example.net", orgUuid: "org-2", alive: true }]);
+    const a = await deck(mine, "Deck-A", [K("secret@example.net", "org-2")]);
     // The holder shares nothing.
     const b = await deck(theirs, "Deck-B", []);
     await point(a, b, b.port);
@@ -476,12 +478,12 @@ describe("what a peer is refused", () => {
     // Not "listed as withheld" — the existence of the account is itself the
     // fact being kept back.
     const theirs = store([
-      { num: 5, email: "shared@sapec.md", orgUuid: "org-5", alive: true },
-      { num: 6, email: "private@sapec.md", orgUuid: "org-6", alive: true },
+      { num: 5, email: "shared@example.net", orgUuid: "org-5", alive: true },
+      { num: 6, email: "private@example.net", orgUuid: "org-6", alive: true },
     ]);
     const mine = store([]);
     const a = await deck(mine, "Deck-A", []);
-    const b = await deck(theirs, "Deck-B", [K("shared@sapec.md", "org-5")]);
+    const b = await deck(theirs, "Deck-B", [K("shared@example.net", "org-5")]);
     await point(a, b, b.port);
     await a.e.round();
     expect(mine.imported).toEqual(["ccdeck2:slot-5"]);
@@ -581,7 +583,7 @@ describe("what the holder checks when a credential is asked for", () => {
     const a = await deck(mine, "Deck-A", [S]);
     const b = await deck(theirs, "Deck-B", [S], {
       readAccounts: async () => ({ accounts: [{ ...row, collector: ++reads === 1 ? "ok" : null }] }),
-    });
+    }, { sendInUse: true });
     await point(a, b, b.port);
     expect(await a.e.round()).toEqual([
       { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
@@ -593,7 +595,7 @@ describe("what the holder checks when a credential is asked for", () => {
     const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
     const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
     const a = await deck(mine, "Deck-A", [S]);
-    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => ({ email: "other@x", orgId: "o" }) });
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => ({ email: "other@x", orgId: "o" }) }, { sendInUse: true });
     await point(a, b, b.port);
     expect(await a.e.round()).toEqual([
       { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
@@ -605,7 +607,7 @@ describe("what the holder checks when a credential is asked for", () => {
     const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
     const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
     const a = await deck(mine, "Deck-A", [S]);
-    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => null });
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => null }, { sendInUse: true });
     await point(a, b, b.port);
     expect(await a.e.round()).toEqual([
       { key: S, email: "s@x", action: "heal", ok: false, why: "export failed" },
@@ -613,14 +615,32 @@ describe("what the holder checks when a credential is asked for", () => {
     expect(theirs.exported).toEqual([]);
   }, 20_000);
 
-  it("gives the active login when the CLI is signed in as that account", async () => {
+  it("gives the active login when the CLI is signed in as that account, once its owner sends it", async () => {
+    const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
+    const a = await deck(mine, "Deck-A", [S]);
+    const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => ({ email: "S@x", orgId: "o" }) }, { sendInUse: true });
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(theirs.exported).toEqual([5]);
+  }, 20_000);
+
+  it("keeps the login it is on by default, says so, and is not asked for it", async () => {
+    // #2192: the same pair with "Send the login this deck is using too" left
+    // off. Deck-B lists the login — it is what `current` names — as in use and
+    // not offered, so Deck-A's round does not ask, and nothing is exported.
     const mine = store([{ num: 2, email: "s@x", orgUuid: "o", alive: false }]);
     const theirs = store([{ num: 5, email: "s@x", orgUuid: "o", alive: true, active: true, collector: "ok" }]);
     const a = await deck(mine, "Deck-A", [S]);
     const b = await deck(theirs, "Deck-B", [S], { liveLogin: async () => ({ email: "S@x", orgId: "o" }) });
     await point(a, b, b.port);
-    await a.e.round();
-    expect(theirs.exported).toEqual([5]);
+    expect(await a.e.round()).toEqual([]);
+    expect(theirs.exported).toEqual([]);
+    const offers = peerRow(a, b.id.fp)?.offers;
+    expect(offers?.accounts).toEqual([{ key: S, email: "s@x", alive: true, shareable: false, inUse: true }]);
+    // And still says which one it is on — what the warning on Deck-A reads.
+    expect(offers?.current).toEqual({ key: S });
+    expect(b.e.status().sendInUse).toBe(false);
   }, 20_000);
 
   it("never asks the CLI who is signed in for an inactive login", async () => {
@@ -941,8 +961,8 @@ describe("how a deck names itself", () => {
   }, 20_000);
 
   it("shows the name the user chose to its peers", async () => {
-    const a = await deck(store([]), "Constantin-MacBook", []);
-    const b = await deck(store([]), "Constantin-PC", []);
+    const a = await deck(store([]), "Consultant-MacBook", []);
+    const b = await deck(store([]), "Consultant-PC", []);
     await point(a, b, b.port);
     // The address is what got us there; the NAME comes back from the deck
     // itself, over a handshake it had to prove its own key to complete.
@@ -1034,8 +1054,8 @@ describe("the address a person reads out to a colleague", () => {
     expect(localAddresses({
       lo: [{ internal: true, family: "IPv4", address: "127.0.0.1" }],
       en1: [{ internal: false, family: "IPv4", address: "192.168.1.82" }],
-      utun4: [{ internal: false, family: "IPv4", address: "100.67.32.58" }],
-    })).toEqual(["192.168.1.82", "100.67.32.58"]);
+      utun4: [{ internal: false, family: "IPv4", address: "100.64.0.100" }],
+    })).toEqual(["192.168.1.82", "100.64.0.100"]);
   });
 
   it("says the same address once, however many interfaces claim it", () => {
@@ -1104,7 +1124,7 @@ describe("a deck that could not start", () => {
     // on, the beacon never comes up — and the panel drew `starting…` for as
     // long as the process lived. Reported from a real run: `listen EADDRINUSE:
     // address already in use`.
-    const rows = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const rows = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
     const first = await deck(rows, "Deck-A", []);
     const taken = first.port;
     expect(taken).toBeGreaterThan(0);
@@ -1132,7 +1152,7 @@ describe("a deck that could not start", () => {
   }, 20_000);
 
   it("says nothing about a deck that is simply switched off", async () => {
-    const rows = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const rows = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
     const a = await deck(rows, "Deck-A", []);
     a.e.stop();
     await a.e.apply({ enabled: false });
@@ -1147,8 +1167,8 @@ describe("saying no, and meaning it", () => {
     // took a row off a list the next round put straight back, and the machine
     // that asked could not tell "no" from "not yet": both are one refusal on
     // the wire, and only one of them ever comes right by waiting.
-    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
-    const theirs = store([{ num: 2, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const mine = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 2, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
     const a = await deck(mine, "Deck-A", []);
     const b = await deck(theirs, "Deck-B", []);
 
@@ -1172,8 +1192,8 @@ describe("saying no, and meaning it", () => {
 
   it("takes the no back, so the next dial is a request again", async () => {
     // A refusal nobody can undo is a refusal that outlives the reason for it.
-    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
-    const theirs = store([{ num: 2, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const mine = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 2, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
     const a = await deck(mine, "Deck-A", []);
     const b = await deck(theirs, "Deck-B", []);
     a.e.addPeer("127.0.0.1", b.port);
@@ -1190,7 +1210,7 @@ describe("saying no, and meaning it", () => {
   }, 20_000);
 
   it("answers a name it never declined with false rather than with a change", () => {
-    const only = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const only = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
     return deck(only, "Deck-A", []).then(a => {
       expect(a.e.allow("00:00:00:00:00:00")).toBe(false);
       expect(a.e.dismiss("00:00:00:00:00:00")).toBe(false);
@@ -1528,8 +1548,8 @@ describe("pairing that nobody presses", () => {
   // exactly what the two labels say and nothing next to it.
 
   it("says yes to a deck that asks, without anybody being asked", async () => {
-    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
-    const theirs = store([{ num: 2, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const mine = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 2, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
     const a = await deck(mine, "Deck-A", []);
     const b = await deck(theirs, "Deck-B", []);
     await b.e.apply({ autoAccept: true });
@@ -1554,8 +1574,8 @@ describe("pairing that nobody presses", () => {
   it("does not say yes to a deck its owner already turned away", async () => {
     // A no is a decision about a machine, and a switch called "every deck that
     // asks" must not be a way for that machine to come back through the side.
-    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
-    const theirs = store([{ num: 2, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const mine = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 2, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
     const a = await deck(mine, "Deck-A", []);
     const b = await deck(theirs, "Deck-B", []);
     a.e.addPeer("127.0.0.1", b.port);
@@ -1572,8 +1592,8 @@ describe("pairing that nobody presses", () => {
   it("answers what was already waiting when the switch goes on", async () => {
     // Somebody who turns this on with two rows sitting in the panel means those
     // two as much as the next one.
-    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
-    const theirs = store([{ num: 2, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const mine = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 2, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
     const a = await deck(mine, "Deck-A", []);
     const b = await deck(theirs, "Deck-B", []);
     a.e.addPeer("127.0.0.1", b.port);
@@ -1586,7 +1606,7 @@ describe("pairing that nobody presses", () => {
   }, 20_000);
 
   it("reports both switches, so the dialog draws what the engine is doing", async () => {
-    const only = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const only = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
     const a = await deck(only, "Deck-A", []);
     expect(a.e.status()).toMatchObject({ autoAsk: false, autoAccept: false });
     await a.e.apply({ autoAsk: true, autoAccept: true });
@@ -1664,7 +1684,7 @@ describe("a heal that healed nothing", () => {
     // result of the last round, so that is what is asserted — for the plain
     // `true` the suite hands it everywhere else, the verdict the route
     // returns, and a verdict that says nothing.
-    const key = K("claude2@sapec.md", "org-2");
+    const key = K("bob@example.net", "org-2");
     for (const [got, verdict] of [
       [true, { ok: true, why: null }],
       [{ ok: true }, { ok: true, why: null }],
@@ -1672,14 +1692,14 @@ describe("a heal that healed nothing", () => {
       [{}, { ok: false, why: "import failed" }],
     ] as Array<[unknown, { ok: boolean; why: string | null }]>) {
       const steps: unknown[] = [];
-      const mine = store([{ num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: false }]);
-      const theirs = store([{ num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true }]);
+      const mine = store([{ num: 2, email: "bob@example.net", orgUuid: "org-2", alive: false }]);
+      const theirs = store([{ num: 5, email: "bob@example.net", orgUuid: "org-2", alive: true }]);
       const a = await deck(mine, "Deck-A", [key], {
         importAccount: async (_blob: string, step: unknown) => { steps.push(step); return got; },
       });
       const b = await deck(theirs, "Deck-B", [key]);
       await point(a, b, b.port);
-      const step = { key, email: "claude2@sapec.md", action: "heal" };
+      const step = { key, email: "bob@example.net", action: "heal" };
       expect(await a.e.round(), JSON.stringify(got)).toEqual([{ ...step, ...verdict }]);
       // The step goes down with the blob: the route has to know WHICH account
       // it is placing before it may treat a decline as an empty slot.
@@ -2166,7 +2186,7 @@ describe("a deck this one heard rather than reached for", () => {
   })), "127.0.0.1");
 
   it("is asked about rather than pinned, however the deck came to dial it", async () => {
-    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const mine = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
     const theirs = store([{ num: 2, email: "stranger@elsewhere.test", orgUuid: "org-9", alive: true }]);
     // The shipped defaults on the deck under test, and nothing ticked.
     const a = await deck(mine, "Deck-A", [], {}, { autoAsk: true });
@@ -2199,9 +2219,9 @@ describe("a deck this one heard rather than reached for", () => {
     // The other half, and the reason this is a gate rather than a refusal: the
     // automatic path still walks somebody up to the one press, and that press
     // is worth exactly what it always was.
-    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: false }]);
-    const theirs = store([{ num: 7, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
-    const shared = [K("claude1@sapec.md", "org-1")];
+    const mine = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: false }]);
+    const theirs = store([{ num: 7, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
+    const shared = [K("alice@example.net", "org-1")];
     const a = await deck(mine, "Deck-A", shared, {}, { autoAsk: true });
     const b = await deck(theirs, "Deck-B", shared, {}, { autoAccept: true });
 
@@ -2213,7 +2233,7 @@ describe("a deck this one heard rather than reached for", () => {
 
     // And then it is an ordinary paired deck: the round it was blocking runs.
     expect(await a.e.round()).toEqual([{
-      key: K("claude1@sapec.md", "org-1"), email: "claude1@sapec.md",
+      key: K("alice@example.net", "org-1"), email: "alice@example.net",
       action: "heal", ok: true, why: null,
     }]);
   }, 20_000);
@@ -2652,9 +2672,9 @@ describe("what the engine hands its caller to keep", () => {
 // slow one.
 describe("two rounds at once", () => {
   it("is one round, and the press joins the one already running", async () => {
-    const mine = store([{ num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: false }]);
-    const theirs = store([{ num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true }]);
-    const shared = [K("claude2@sapec.md", "org-2")];
+    const mine = store([{ num: 2, email: "bob@example.net", orgUuid: "org-2", alive: false }]);
+    const theirs = store([{ num: 5, email: "bob@example.net", orgUuid: "org-2", alive: true }]);
+    const shared = [K("bob@example.net", "org-2")];
 
     // The import is held open, because that is the part of a round that takes
     // real time on a real machine — `cswap import` is a subprocess — and it is
@@ -2683,7 +2703,7 @@ describe("two rounds at once", () => {
     const [byTimer, byPress] = await Promise.all([timer, press]);
     expect(byPress).toEqual(byTimer);
     expect(byTimer).toEqual([{
-      key: K("claude2@sapec.md", "org-2"), email: "claude2@sapec.md",
+      key: K("bob@example.net", "org-2"), email: "bob@example.net",
       action: "heal", ok: true, why: null,
     }]);
     // One dial, one export, one import — for one account that needed repairing
@@ -2695,9 +2715,9 @@ describe("two rounds at once", () => {
   it("runs again once the first has finished, since the guard is not a latch", async () => {
     // A guard that never cleared would make every later round a no-op for the
     // life of the deck, which is the same feature broken the other way.
-    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
-    const theirs = store([{ num: 9, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
-    const shared = [K("claude1@sapec.md", "org-1")];
+    const mine = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 9, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
+    const shared = [K("alice@example.net", "org-1")];
     const a = await deck(mine, "Deck-A", shared);
     const b = await deck(theirs, "Deck-B", shared);
     await point(a, b, b.port);
@@ -2769,9 +2789,9 @@ describe("two rounds at once", () => {
   }
 
   it("is one round when the press is a check of the deck the round is already asking", async () => {
-    const mine = store([{ num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: false }]);
-    const theirs = store([{ num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true }]);
-    const shared = [K("claude2@sapec.md", "org-2")];
+    const mine = store([{ num: 2, email: "bob@example.net", orgUuid: "org-2", alive: false }]);
+    const theirs = store([{ num: 5, email: "bob@example.net", orgUuid: "org-2", alive: true }]);
+    const shared = [K("bob@example.net", "org-2")];
     const held = heldImports(mine);
     const a = await deck(mine, "Deck-A", shared, { host: LOOPBACK, importAccount: held.importAccount }, { port: 4640 });
     const b = await deck(theirs, "Deck-B", shared, { host: LOOPBACK }, { port: 4641 });
@@ -2789,7 +2809,7 @@ describe("two rounds at once", () => {
     // Its answer is what the round found at that deck, which here is the round.
     expect(byPress).toEqual(byTimer);
     expect(byPress).toEqual([{
-      key: K("claude2@sapec.md", "org-2"), email: "claude2@sapec.md",
+      key: K("bob@example.net", "org-2"), email: "bob@example.net",
       action: "heal", ok: true, why: null,
     }]);
     // This store never learns that the import worked — there is no claude-swap
@@ -2808,10 +2828,10 @@ describe("two rounds at once", () => {
     // deck, and a round was asked to ask all of them.
     // Alive while the two are introduced, so the round that teaches this deck
     // who answers at that address has nothing to move; then it dies.
-    const row = { num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: true };
+    const row = { num: 2, email: "bob@example.net", orgUuid: "org-2", alive: true };
     const mine = store([row]);
-    const theirs = store([{ num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true }]);
-    const shared = [K("claude2@sapec.md", "org-2")];
+    const theirs = store([{ num: 5, email: "bob@example.net", orgUuid: "org-2", alive: true }]);
+    const shared = [K("bob@example.net", "org-2")];
     const held = heldImports(mine);
     const a = await deck(mine, "Deck-A", shared, {
       host: LOOPBACK,
@@ -2841,7 +2861,7 @@ describe("two rounds at once", () => {
     const [byPress, byTimer] = await Promise.all([press, timer]);
     expect(beside, "a round ran beside the check that was writing a credential").toEqual([5]);
     expect(byPress).toEqual([{
-      key: K("claude2@sapec.md", "org-2"), email: "claude2@sapec.md",
+      key: K("bob@example.net", "org-2"), email: "bob@example.net",
       action: "heal", ok: true, why: null,
     }]);
     // Held, not dropped and not merged into the check: the round ran once the
@@ -2857,9 +2877,9 @@ describe("two rounds at once", () => {
     // press is on Deck-B while the round is writing Deck-C's credential, so the
     // round already running holds an answer from Deck-B that is older than the
     // press — and handing that back would be a check that checked nothing.
-    const mine = store([{ num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: false }]);
-    const theirs = store([{ num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true }]);
-    const shared = [K("claude2@sapec.md", "org-2")];
+    const mine = store([{ num: 2, email: "bob@example.net", orgUuid: "org-2", alive: false }]);
+    const theirs = store([{ num: 5, email: "bob@example.net", orgUuid: "org-2", alive: true }]);
+    const shared = [K("bob@example.net", "org-2")];
     const held = heldImports(mine);
     const a = await deck(mine, "Deck-A", shared, { host: LOOPBACK, importAccount: held.importAccount }, { port: 4644 });
     // Deck-B reads its own store every time it is asked what it has, so the
@@ -2896,7 +2916,7 @@ describe("two rounds at once", () => {
 // new is exposed by holding it out; what IS the person's decision — an untick
 // afterwards, and whether a tailnet counts — is left to them.
 describe("an account that arrives over the network", () => {
-  const NEW = K("new@sapec.md", "org-9");
+  const NEW = K("new@example.net", "org-9");
 
   /** A deck whose tick list is written back the way index.mjs writes it. */
   async function receiver(s: ReturnType<typeof store>, shared: string[], over = {}) {
@@ -2916,23 +2936,23 @@ describe("an account that arrives over the network", () => {
     // A landed login with a problem found after it is a warning, not a failure:
     // the credential is in the store, so the onward tick (#1188) is not lost,
     // and the row says what is wrong with it rather than that it never came.
-    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
-    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
-    const a = await receiver(mine, [K("claude1@sapec.md", "org-1")], {
+    const mine = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@example.net", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [K("alice@example.net", "org-1")], {
       checkArrivals: async (steps: unknown[]) => steps.map(() => "unreadable_here"),
     });
     const b = await deck(theirs, "Deck-B", [NEW]);
     await point(a, b, b.port);
     expect(await a.e.round()).toEqual([
-      { key: NEW, email: "new@sapec.md", action: "add", ok: true, why: "unreadable_here" },
+      { key: NEW, email: "new@example.net", action: "add", ok: true, why: "unreadable_here" },
     ]);
     expect(a.ticked).toEqual([NEW]);
   }, 20_000);
 
   it("is ticked for sharing here, so this deck can heal the next one", async () => {
-    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
-    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
-    const a = await receiver(mine, [K("claude1@sapec.md", "org-1")]);
+    const mine = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@example.net", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [K("alice@example.net", "org-1")]);
     const b = await deck(theirs, "Deck-B", [NEW]);
     await point(a, b, b.port);
 
@@ -2945,9 +2965,9 @@ describe("an account that arrives over the network", () => {
   }, 20_000);
 
   it("is not ticked when the import failed, because nothing arrived", async () => {
-    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
-    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
-    const a = await receiver(mine, [K("claude1@sapec.md", "org-1")], {
+    const mine = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@example.net", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [K("alice@example.net", "org-1")], {
       importAccount: async () => ({ ok: false, why: "import refused" }),
     });
     const b = await deck(theirs, "Deck-B", [NEW]);
@@ -2963,7 +2983,7 @@ describe("an account that arrives over the network", () => {
     const importing = new Promise<void>(resolve => { started = resolve; });
     const gate = new Promise<void>(resolve => { release = resolve; });
     const mine = store([]);
-    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@example.net", orgUuid: "org-9", alive: true }]);
     const a = await receiver(mine, [], {
       importAccount: async (blob: string) => {
         started();
@@ -2994,7 +3014,7 @@ describe("an account that arrives over the network", () => {
     const importing = new Promise<void>(resolve => { started = resolve; });
     const gate = new Promise<void>(resolve => { release = resolve; });
     const mine = store([]);
-    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@example.net", orgUuid: "org-9", alive: true }]);
     const a = await receiver(mine, [], {
       importAccount: async (blob: string) => {
         started();
@@ -3017,15 +3037,15 @@ describe("an account that arrives over the network", () => {
     // The account is here after the first round, so `syncAction` answers
     // nothing for it in the second — which is what makes the default a
     // one-time decision rather than a fight with whoever unticked it.
-    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
-    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
-    const a = await receiver(mine, [K("claude1@sapec.md", "org-1")]);
+    const mine = store([{ num: 1, email: "alice@example.net", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@example.net", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [K("alice@example.net", "org-1")]);
     const b = await deck(theirs, "Deck-B", [NEW]);
     await point(a, b, b.port);
     await a.e.round();
 
     // The person unticks it, as they may untick any account.
-    mine.rows.push({ num: 2, email: "new@sapec.md", orgUuid: "org-9", alive: true });
+    mine.rows.push({ num: 2, email: "new@example.net", orgUuid: "org-9", alive: true });
     const kept = a.shared.filter(k => k !== NEW);
     await a.e.apply({ shared: kept });
     a.ticked.length = 0;

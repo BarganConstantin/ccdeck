@@ -80,6 +80,94 @@
     "3.43.1",
     "3.43.3"
   ],
+  "3.46.0": [
+    {
+      "title": "🔗 Jira, GitHub and GitLab panels are easier to read and navigate",
+      "body": "Jira rows show each issue's status, lists answer the arrow keys and fit a phone, and a failed refresh says “Not updated”."
+    },
+    {
+      "title": "📡 Radar finds more Claude Code processes on Linux",
+      "body": "It now sees Claude Code started from its versioned install folder, plus connection attempts that got no reply and the telemetry variables it was launched with."
+    },
+    {
+      "title": "🗺️ Plans are easier to follow on the session canvas",
+      "body": "A session's plan now shows on its note and as “plan 2/5” at every zoom. Subagents line up in one column, closer to their parent."
+    },
+    {
+      "title": "✅ The active account follows your Claude Code login",
+      "body": "After a /login, the accounts panel, Switch, Auto-switch and Usage use the account Claude Code is signed in to. Auto-switch can now be set up while it is off."
+    },
+    {
+      "title": "📊 Account capacity and the Reset calendar have their own buttons",
+      "body": "Both open from the left stripe, under Claude accounts, instead of from the small gauge in the accounts panel's header."
+    },
+    {
+      "title": "🧩 Skill activity has its own button and counts typed skills",
+      "body": "It opens from the right stripe. To count skills you start with a slash command, the deck now adds a UserPromptExpansion hook to Claude Code's settings.json (2.1.116 or newer); AGENTS_DECK_SKILL_HOOK=0 leaves it out."
+    },
+    {
+      "title": "📈 Load history keeps the reading you click",
+      "body": "Click a minute on a chart to keep its reading. Saved limit resets now show their expiry time, and Tool activity has a clearer icon."
+    }
+  ],
+  "3.45.0": [
+    {
+      "title": "🔗 Read-only Jira, GitHub and GitLab panels beside your agents",
+      "body": "Settings › Integrations connects Jira (Cloud, Server or Data Center), GitHub, and GitLab.com or your own GitLab, each with a token, and a control on the left stripe opens its panel: a Jira board's backlog in Jira's own order, or a project's branches, pull or merge requests, pipelines and issues, with the item beside the list. The panels only read: they never comment, merge, re-run a job or change an issue. The token stays on this machine, in a file only you can read, and goes only to that connection's own API. Nothing is read until you connect a tracker, and then only while its panel is open."
+    },
+    {
+      "title": "📤 Each account says what its organization's telemetry sends",
+      "body": "A Team or Enterprise organization can turn on Claude Code's telemetry for every member, and Claude Code applies it without asking. Each account of such an organization now carries a line under its name: “Telemetry · usage data”, or “Telemetry · prompts, tool details” in the warning colour when your prompts and tool details are sent too. Its tooltip names the organization and where the data goes. After a switch, Auto-switch's notification and the row's “Now active” note say it too. The deck changes nothing; it learns what the organization turns on from a Claude Code session run on one of its accounts, and until then that account shows no line."
+    },
+    {
+      "title": "⚠️ A warning when a paired deck is on the same Claude login",
+      "body": "A Claude login renews once, so when two machines use one copied login, the one that renews second is signed out. When a paired deck on Local network says it is on the login this deck is using, the live account's row now says “Also active on” and names that deck, with what to do: use a different account on one of the machines, or sign in on each one separately. A switch onto such a login says so too, and so does one desktop notification per incident, “Login active on another deck” in Settings › Notifications, which is on by default."
+    },
+    {
+      "title": "📱 A phone opens one panel at most when the deck loads",
+      "body": "On a window 640 px wide or less, a reload used to open Accounts, Usage and the machine panel on top of each other, with none of the board in sight. It now opens at most one of them, preferring Usage over the machine panel, and Accounts and the session list open from the dock. A wider window loads exactly as before, and nothing you chose is forgotten."
+    }
+  ],
+  "3.44.0": [
+    {
+      "title": "⛔ A turn that stops on an error now shows as stopped",
+      "body": "When Claude Code ends a turn on an API error, such as an expired login or a usage limit, it sends StopFailure instead of Stop. The deck now adds StopFailure to the hooks it writes in Claude Code's settings.json, but only when every Claude Code it finds is 2.1.78 or newer; with an older one, or one whose version it cannot read, nothing changes. The card then says “Stopped · login expired”, “Stopped · usage limit” or “Stopped · API error”, and the sessions one expired login stops together arrive as one notification that names them. Each needs a “continue” once a working login is active."
+    },
+    {
+      "title": "🔑 Auto-switch leaves an expired login, and nothing switches onto one",
+      "body": "When Claude Code has signed a login out and claude-swap's saved copy is dead too, Auto-switch now moves to another account under your home and weekly-reset rules, and its notification says why. Neither Auto-switch nor Switch moves onto a login that is already known to be expired: that account's row says its login expired, with Sign in again, and nothing moves."
+    },
+    {
+      "title": "💲 Usage totals say how complete they are",
+      "body": "The usage headline is always shown now, by the rule History and the model table already used: an exact total when every cost is known, a known $0 included; the known part with “+” when some tokens could not be priced; and “not priced”, never a bare $0, when no cost is known. Sessions whose cost is a known zero show it too."
+    },
+    {
+      "title": "📡 Radar: a resizable inspector, prompt previews and a JSON view",
+      "body": "Radar's inspector can be resized and shows prompt previews, highlights and each record as a JSON tree, beside the File view. Settings › Radar has a new Monitor automatically switch. It is off, so Radar still watches only after you press Start, as before; turn it on to have the deck start monitoring by itself."
+    },
+    {
+      "title": "🧰 Tool activity opens over the deck, with the first tool's details open",
+      "body": "Tool activity now opens as a dialog over the deck instead of a page of its own, with the first tool selected and its details beside the list. Escape closes the details first, then the dialog. On a phone the details open as a sheet."
+    },
+    {
+      "title": "🧩 Tool activity counts skills, and the slash commands you type if you opt in",
+      "body": "Tool activity's Skills tab ranks the skills your Claude Code and Codex agents used. Counting the slash commands you type needs Claude Code's UserPromptExpansion hook, which the deck adds to settings.json only when you start it with AGENTS_DECK_SKILL_HOOK=1 and every Claude Code it finds is 2.1.116 or newer. Without that variable nothing in settings.json changes."
+    },
+    {
+      "title": "▶️ Continue a background session that stopped",
+      "body": "A background session that stopped on an error has a Continue button on its card and panel: the deck stops it if Claude Code still lists it, then resumes it in its own folder with “Continue from where you left off.” Continue stopped background sessions, in Settings › General, presses it for you once per stop. It is off until you turn it on."
+    },
+    {
+      "title": "⌨️ ccdeck commands for your terminal",
+      "body": "ccdeck accounts, ccdeck switch, ccdeck usage, ccdeck sessions and ccdeck open work from any terminal. ccdeck switch --best goes where Auto-switch would, and every switch follows the deck's own rules. Over SSH, ccdeck open prints the line that opens the deck on your own computer. Each command takes --json for scripts."
+    }
+  ],
+  "3.43.4": [
+    {
+      "title": "🔐 Local network no longer sends the login a deck is signed in to",
+      "body": "Two machines on one Claude login race to renew it, and the one that renews second is signed out with “Login expired”. So paired decks no longer receive the login a deck is signed in to right now. Every other login you tick is shared as before, and this one goes out once the deck switches to another account.\n\nUpdate every paired deck: an older deck still sends the login it is using, and the decks paired with it still take it. To send it anyway, as before, turn on Send the login this deck is using too in the Local network dialog. Not covered yet: a paired deck that already holds a copy of that login, from before this deck switched to it, can still renew it first and sign this deck out. Auto-switch can also still move a deck onto a login another paired deck is using, if the deck already holds a copy of it."
+    }
+  ],
   "3.43.0": [
     {
       "title": "🏠 Auto-switch can come back to a home account",

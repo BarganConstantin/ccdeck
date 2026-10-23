@@ -35,7 +35,9 @@ describe("the atomic-write helpers", () => {
       "codex-auth.mjs": ["createTemp", "renameWithRetry", "resolveWriteTarget"],
       "deck-home.mjs": ["renameWithRetry"],
       "deck-prefs.mjs": ["createTemp", "renameWithRetry", "stripBom"],
-      "installer.mjs": ["readSettingsForWrite", "writeFileAtomic"],
+      // createTemp and renameWithRetry for the 0600 backup of settings.json
+      // taken before Skill activity's entry first goes in (FP-03).
+      "installer.mjs": ["createTemp", "readSettingsForWrite", "renameWithRetry", "writeFileAtomic"],
       "macmon.mjs": ["renameWithRetry"],
       "retire-sound-hook.mjs": ["readSettingsForWrite", "writeFileAtomic"],
       "uv-bootstrap.mjs": ["renameWithRetry"],

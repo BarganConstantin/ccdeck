@@ -889,3 +889,15 @@ export function troubleFirst<T extends { tone: "ok" | "wait" | "bad" | "idle" }>
   const rank = { bad: 0, wait: 1, idle: 2, ok: 3 } as const;
   return lanes.map((l, i) => ({ l, i })).sort((a, b) => rank[a.l.tone] - rank[b.l.tone] || a.i - b.i).map(({ l }) => l);
 }
+
+/** A deck's logins, as the title over them in its panel says them: how many
+ *  the two share and how many of those are fine — once for all of them when
+ *  every one is. Lifted out of LanNetworkMap.tsx unchanged, so what counts as
+ *  fine can be held to a test (#2192). */
+export function sharedLoginsTitle(lanes: ReadonlyArray<{ tone: "ok" | "wait" | "bad" | "idle" }>): string {
+  const total = lanes.length;
+  const fine = lanes.filter(l => l.tone === "ok").length;
+  return total === 0 ? "No shared logins"
+    : fine === total ? `${total} shared login${total === 1 ? ", fine" : "s, all fine"}`
+    : `${total} shared login${total === 1 ? "" : "s"} · ${fine} fine`;
+}

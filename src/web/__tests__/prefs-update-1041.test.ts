@@ -99,21 +99,21 @@ const shareArrived = (key: string) => updatePrefs(withShared(key), DIR);
 describe("the tick an account gets when it arrives", () => {
   it("adds the key once, and says nothing to write when it is already there", async () => {
     await writePrefs({ lan: { shared: [] } }, DIR);
-    await shareArrived("new@sapec.md@@org-9");
-    expect(((await read()) as Prefs & { lan: { shared: string[] } }).lan.shared).toEqual(["new@sapec.md@@org-9"]);
+    await shareArrived("new@example.net@@org-9");
+    expect(((await read()) as Prefs & { lan: { shared: string[] } }).lan.shared).toEqual(["new@example.net@@org-9"]);
 
     // The second arrival of the same account — or a retry — writes nothing, so
     // the list cannot grow a duplicate that the manifest would then offer twice.
     const before = readFileSync(join(DIR, "prefs.json"), "utf8");
-    await shareArrived("new@sapec.md@@org-9");
+    await shareArrived("new@example.net@@org-9");
     expect(readFileSync(join(DIR, "prefs.json"), "utf8")).toBe(before);
   });
 
   it("keeps what is already ticked, rather than replacing the list with one key", async () => {
-    await writePrefs({ lan: { shared: ["claude1@sapec.md@@org-1"] } }, DIR);
-    await shareArrived("new@sapec.md@@org-9");
+    await writePrefs({ lan: { shared: ["alice@example.net@@org-1"] } }, DIR);
+    await shareArrived("new@example.net@@org-9");
     expect(((await read()) as Prefs & { lan: { shared: string[] } }).lan.shared)
-      .toEqual(["claude1@sapec.md@@org-1", "new@sapec.md@@org-9"]);
+      .toEqual(["alice@example.net@@org-1", "new@example.net@@org-9"]);
   });
 
   it("is the write the deck's own onShared makes, and the engine is told", () => {
@@ -134,9 +134,9 @@ describe("the tick an account gets when it arrives", () => {
   });
 
   it("writes nothing for an account with no key", async () => {
-    await writePrefs({ lan: { shared: ["claude1@sapec.md@@org-1"] } }, DIR);
+    await writePrefs({ lan: { shared: ["alice@example.net@@org-1"] } }, DIR);
     await shareArrived("");
-    expect(((await read()) as Prefs & { lan: { shared: string[] } }).lan.shared).toEqual(["claude1@sapec.md@@org-1"]);
+    expect(((await read()) as Prefs & { lan: { shared: string[] } }).lan.shared).toEqual(["alice@example.net@@org-1"]);
   });
 });
 
@@ -259,6 +259,8 @@ describe("the fields the engine authors", () => {
       // A page owns the pairing mode too (#1236); absent is automatic.
       pairingMode: "automatic",
       shareActive: true,
+      // Absent is off (#2192): the login this deck is on stays here.
+      sendInUse: false,
       tailscale: false,
       tailscaleAsk: true,
       tailscaleAccept: true,

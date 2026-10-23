@@ -25,6 +25,11 @@ import { THEME_KEY } from "../theme";
 import { DEFAULTS } from "../../server/deck-prefs.mjs";
 import { sheetText } from "./sheet-source";
 import { sourceOf } from "./client-source";
+import { deckOffersEveryKind } from "./integrations-offered";
+
+// Drawn as a deck with integrations draws it (integrations-offered.ts), before
+// anything below draws it.
+await deckOffersEveryKind();
 
 const noop = () => {};
 const asyncNoop = async () => {};
@@ -55,7 +60,7 @@ function settingsProps(over: Partial<SettingsModalProps> = {}): SettingsModalPro
     versionCheck: { version: null, notice: null, noticeOpen: false, showNotice: noop, dismissNotice: noop, versionChecking: false, loadVersion: async () => null },
     desktopUpdate: { desktopUpdateRestarting: false, desktopUpdateFailure: null, readyAppUpdate: null, appUpdate: null, askDesktopUpdateRestart: asyncNoop, onDesktopUpdateEvent: noop },
     restart: { autoRestart: true, toggleAutoRestart: noop },
-    doors: { whatsNew: noop, update: noop, tour: noop, feedback: noop, accounts: noop, localNetwork: noop, browserWatch: noop },
+    doors: { whatsNew: noop, update: noop, tour: noop, feedback: noop, accounts: noop, localNetwork: noop, browserWatch: noop, radar: noop },
     ...over,
   } as unknown as SettingsModalProps;
 }
@@ -88,7 +93,9 @@ describe("a door into Settings opens it at the section it names", () => {
       ["keyboard", />Single-key shortcuts</],
       ["notifications", />Notifications while closed</],
       ["sounds", />Custom sounds</],
+      ["integrations", />Add integration</],
       ["data", />Tool history<\/h3>/],
+      ["radar", />Monitor automatically</],
       ["about", />Version</],
     ];
     expect(cases.map(([id]) => id)).toEqual(SETTINGS_SECTIONS.map(s => s.id));
@@ -136,8 +143,9 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
-  it("names the eight sections in the nav, in order, About last", () => {
-    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Data", "About"];
+  it("names the ten sections in the nav, in order, About last", () => {
+    // Integrations since #2178: the trackers this deck reads, between Sounds and Data.
+    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Data", "Radar", "About"];
     expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(names);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all

@@ -397,9 +397,9 @@ export function credentialAad(fromFp, toFp, key) {
 // two engines of the version before this, the round that healed one account
 // and added another read, after `ok`:
 //
-//   {"t":"manifest","accounts":[{"key":"claude1@sapec.md@@org-1","email":"claude1@sapec.md","alive":true},…],"current":{"key":"claude1@sapec.md@@org-1"}}
-//   {"t":"want","key":"claude2@sapec.md@@org-2","nonce":"…","proof":"…"}
-//   {"t":"have","key":"claude2@sapec.md@@org-2","sealed":{…}}
+//   {"t":"manifest","accounts":[{"key":"alice@example.net@@org-1","email":"alice@example.net","alive":true},…],"current":{"key":"alice@example.net@@org-1"}}
+//   {"t":"want","key":"bob@example.net@@org-2","nonce":"…","proof":"…"}
+//   {"t":"have","key":"bob@example.net@@org-2","sealed":{…}}
 //
 // So anybody on the same network segment could read every address a deck
 // shares, which of its copies are broken, which one the machine is on, and

@@ -3,10 +3,14 @@
 Updated: 2026-10-15. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
 
+The notes below that deliver work to `development` describe an earlier branch
+flow. Branches, pull requests and releases now follow
+[`release-workflow.md`](release-workflow.md).
+
 ## Tool activity redesign on Linux — 2026-10-15
 
 - Issue #2122, PR #2125, branch `feat/2122-tool-audit`, worktree
-  `/home/constantin/Desktop/personal/ccdeck-wt/tool-audit`, merged with
+  `~/Desktop/personal/ccdeck-wt/tool-audit`, merged with
   development `87137340`.
 - The owner asked for a much simpler, more useful page, allowing a full UI
   redo. The report was rebuilt: one summary sentence, up to three "Worth a look"
@@ -26,7 +30,7 @@ branches still have the same state. Verify them at the start of a new session.
 
 - Owner authorized merging the completed reliability audit and `product-ui-craft`
   skill into development. Integration checkout:
-  `/Users/constantin/Desktop/ccdeck-capacity-integration`, branch
+  `~/Desktop/ccdeck-capacity-integration`, branch
   `integrate/capacity-reliability`, based on development `a07b7202`.
 - Subsequently synchronized development `f0641fcb`, including its shared
   quality-gate corrections and 3.41.0 version preparation. Delivery and final CI:
@@ -46,7 +50,7 @@ branches still have the same state. Verify them at the start of a new session.
 ## Usage insights preview on Mac — 2026-10-13
 
 - Issue #2121: quota history and session cached input reuse.
-- Worktree: `/Users/constantin/Desktop/ccdeck-usage-insights`, branch
+- Worktree: `~/Desktop/ccdeck-usage-insights`, branch
   `feat/2121-usage-insights`, based on development `a467d552`.
 - Vite serves `http://127.0.0.1:4525/`, with `CCDECK_DEV_SERVER_PORT=4526`.
   The direct Node backend listens on 4526 with
@@ -61,9 +65,9 @@ branches still have the same state. Verify them at the start of a new session.
 
 ## Current Linux preview — 2026-10-12
 
-- Primary checkout: `/home/constantin/Desktop/personal/ccdeck`, on `development`.
+- Primary checkout: `~/Desktop/personal/ccdeck`, on `development`.
 - Published `main` and `development` are synchronized at 3.40.2.
-- Country-flag fix preview: `/home/constantin/Desktop/personal/ccdeck-wt/radio-svg-flags`,
+- Country-flag fix preview: `~/Desktop/personal/ccdeck-wt/radio-svg-flags`,
   branch `fix/radio-svg-flags`, targeting `development` by PR.
 - Vite runs at `http://localhost:5174/`, proxying this worktree's backend on 4318
   (`CCDECK_DEV_SERVER_PORT=4318`, `AGENT_DAG_PORT=4318`). Keep the installed
@@ -72,16 +76,16 @@ branches still have the same state. Verify them at the start of a new session.
 
 ## Checkout and running app
 
-- Original checkout: `/Users/constantin/Desktop/agents-deck`, with separate
+- Original checkout: `~/Desktop/agents-deck`, with separate
   unfinished Git View work. Preserve that checkout and its changes.
-- Current Radar worktree: `/Users/constantin/.cache/ccdeck-wt/radar-cross-platform`.
-  Earlier UI worktree: `/Users/constantin/.cache/ccdeck-wt/finish-left-column`.
+- Current Radar worktree: `~/.cache/ccdeck-wt/radar-cross-platform`.
+  Earlier UI worktree: `~/.cache/ccdeck-wt/finish-left-column`.
 - Working branch: `feat/radar-cross-platform`; delivery branch: `origin/development`.
   Completed commits have been delivered with `git push origin HEAD:development`.
   Fetch and inspect divergence before pushing; integrate remote work rather than
   force-pushing. Other worktrees also exist, so inspect `git worktree list`.
 - The owner's local app has been served at `http://127.0.0.1:4317` from the Radar
-  worktree, using `/Users/constantin/.nvm/versions/node/v22.14.0/bin/node`.
+  worktree, using `~/.nvm/versions/node/v22.14.0/bin/node`.
   Inspect the actual listener and process before assuming this is still true.
 - Launch the built UI with `node bin/agent-dag.js --port 4317 --no-open` from the
   intended checkout. Consult `--help` before changing server lifecycle behavior.
@@ -238,7 +242,7 @@ the entire conversation.
 
 ## Radar flag controls — Linux handoff, 2026-10-12
 
-- Radar implementation worktree: `/home/constantin/Desktop/personal/ccdeck-wt/radar-setting-toggles`,
+- Radar implementation worktree: `~/Desktop/personal/ccdeck-wt/radar-setting-toggles`,
   branch `feat/radar-setting-toggles`. The separate `electron-polish` worktree
   remains on `codex/release-3.39.3-live`.
 - Preview: `http://127.0.0.1:4329`, started with
@@ -255,7 +259,7 @@ the entire conversation.
   build passed. A subsequently added BOM regression also passed. Chrome DevTools
   checked light/dark desktop and 320/390px layouts, saving, failure/retry, focus,
   duplicate presses, unknown values, policy rejection and file-view retention.
-- The installed `/home/constantin/Applications/ccdeck-linux-x86_64.AppImage`
+- The installed `~/Applications/ccdeck-linux-x86_64.AppImage`
   has not been replaced with this branch. These preview checks do not prove
   capture of a real external Claude telemetry stream.
 
@@ -277,7 +281,7 @@ disposable settings; this does not establish real Claude traffic capture.
 ## Next-session starting point — 2026-10-12
 
 The Radar flag controls and simplified Monitor are integrated into local
-`development` in `/home/constantin/Desktop/personal/ccdeck`.
+`development` in `~/Desktop/personal/ccdeck`.
 Continue modal work from that checkout (or create a new branch/worktree from
 `development`). The feature worktree remains available. Port 4329 now serves the
 merged development checkout with the same disposable Radar settings. Rebuild `dist/web` in the checkout being served after

@@ -36,6 +36,7 @@ export const ACCOUNTS_FILES = [
   "components/AccountsHeader.tsx",
   "use-account-roster.ts",
   "use-account-switching.ts",
+  "expired-switch.ts",
   "account-fold.ts",
   "account-lan.ts",
   "use-threshold-draft.ts",

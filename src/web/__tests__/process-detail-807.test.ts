@@ -76,6 +76,11 @@ describe("what the command column may carry", () => {
     for (const secret of [
       "sk-abcdefghijklmnopqrstuvwx",
       "ghp_abcdefghijklmnopqrstuvwxyz01",
+      // GitHub's fine-grained and GitLab's prefixed tokens (found with #2179),
+      // joined at run time so no line here reads as a live token to a scanner.
+      "github_pat_" + "11ABCDEFG0abcdefghijkl_mnopqrstuvwxyz0123456789",
+      "glpat-" + "abcdefghij0123456789",
+      "gldt-" + "abcdefghij0123456789",
       "xoxb-1234567890-abcdefghijkl",
       "AKIAIOSFODNN7EXAMPLE",
       "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U",
@@ -213,7 +218,7 @@ describe("the thread count, per platform, out of the call that also has argv", (
       "root         105   ??    0.0 S     4T   0:00.17   0:00.08 /usr/sbin/systemstats --daemon",
       "             105         0.2 S     4T   0:00.00   0:00.00 ",
       "             105         0.2 S     4T   0:00.00   0:00.00 ",
-      "constantin  7885   ??    9.1 S    31T   1:02.03   9:10.11 /usr/local/bin/claude --print",
+      "consultant  7885   ??    9.1 S    31T   1:02.03   9:10.11 /usr/local/bin/claude --print",
       "            7885         0.0 S     4T   0:00.00   0:00.00 ",
     ].join("\n");
     const map = parsePsThreadsBsd(out);

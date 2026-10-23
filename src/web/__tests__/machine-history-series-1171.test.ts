@@ -220,6 +220,9 @@ describe("the load chart, whose scale is the only one that is computed", () => {
       // Where the queue exceeds the cores there are to run it, which is the
       // line the section's own note already draws.
       expect(s.warnAt, what).toBe(warnAt);
+      // And the count itself, so a minute read after the fact can say how
+      // many times over the cores it was.
+      expect(s.cores, what).toBe(cores);
     }
   });
 });

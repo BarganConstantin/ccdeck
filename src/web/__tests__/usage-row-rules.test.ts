@@ -98,8 +98,9 @@ describe("rowIsFor", () => {
 
   it("is the only place the guard is written", () => {
     expect(code.match(/\(row\??\.organizationUuid \?\? ""\)/g) ?? []).toHaveLength(1);
-    // Called by both readers — the roster and activeAccountUsage.
-    expect(code.match(/(?<!function )rowIsFor\(row, acct\)/g) ?? []).toHaveLength(2);
+    // Called by the three readers — the roster, activeAccountUsage, and the
+    // switch's check that its target's login has not expired (#2184).
+    expect(code.match(/(?<!function )rowIsFor\(row, acct\)/g) ?? []).toHaveLength(3);
   });
 });
 

@@ -17,7 +17,6 @@ import AccountRow from "./AccountRow";
 import CodexProfilesSection from "./CodexProfilesSection";
 import AccountsEmptyState from "./AccountsEmptyState";
 import AccountsHeader from "./AccountsHeader";
-import AccountsUsageReport from "./AccountsUsageReport";
 import AutoSwitchPolicy from "./AutoSwitchPolicy";
 import FilmLink from "./FilmLink";
 import AddAccountDialog from "./AddAccountDialog";
@@ -25,7 +24,8 @@ import AccountMenuPopover from "./AccountMenuPopover";
 import OtherAccounts from "./OtherAccounts";
 import ShareAccountsDialog from "./ShareAccountsDialog";
 import { isAutoArmed, pastThreshold, peersOf, reachable } from "../account-fold";
-import { lanAccounts } from "../account-lan";
+import { lanAccounts, type SharedMark } from "../account-lan";
+import { deckList } from "../../server/lan-elsewhere.mjs";
 import { laneKey } from "../lane-open";
 import {
   allOpen, holdOrder, isOpen, orderChoices, orderKey, sortAccounts, toggleAll, toggleOne, trimOpenness, validOrder,
@@ -39,6 +39,7 @@ import LanSyncSection from "./LanSyncSection";
 import { useRequestSlot } from "../use-request-slot";
 import { useAccountMenu } from "../use-account-menu";
 import { useAccountSwitching } from "../use-account-switching";
+import { afterRemoval, type RemoveAnswer } from "../expired-switch";
 import { useThresholdDraft } from "../use-threshold-draft";
 import { useNextDraft } from "../use-next-draft";
 import { homeTitle, isHome } from "../auto-choice";
@@ -103,11 +104,9 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
   const issueRef = useRef(issueOpen);
   issueRef.current = issueOpen;
   const [addOpen, setAddOpen] = useState(false);
-  // The Usage report (#1707): every account's 5h and 7d added up, and the
-  // order the panel listed them in when it was opened — its rows keep that
-  // order through the polls, as the panel's own list does under a reader.
-  const [reportOpen, setReportOpen] = useState(false);
-  const [reportOrder, setReportOrder] = useState<string[]>([]);
+  // The address the sign-in dialog opens filled in with, when a refused switch
+  // asked for that account's sign-in (#2184). Null is the ordinary + → Add.
+  const [signInAs, setSignInAs] = useState<string | null>(null);
   // The panel-level share, which is a different job from the one on a row:
   // moving your own set between your own machines rather than sending one
   // account to somebody else. Its own dialog, so the row keeps its one-click
@@ -199,15 +198,30 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
   // The ⋯ popover, what it is holding and the requests pressed in it — see
   // use-account-menu.ts. The panel reads which menu is open and the note a swap
   // leaves on a row; the popover gets the whole of it.
-  const accountMenu = useAccountMenu({ claim, release, load, clearFailure, rescueFocus });
+  // What a removal did after it landed, said by the hooks below it: the menu
+  // is built before the switching hook whose confirmation it may need (#2184).
+  const afterRemoveRef = useRef<((out: RemoveAnswer) => void) | null>(null);
+  const accountMenu = useAccountMenu({
+    claim, release, load, clearFailure, rescueFocus, afterRemove: out => afterRemoveRef.current?.(out),
+  });
   const { menu, menuFor, swapNote, showMenu, dropMenu, closeMenu, sayInMenu } = accountMenu;
 
   // Switching to an account, every auto-switch control's POST, and the
   // confirmation a switch that took leaves on its row — see
   // use-account-switching.ts.
-  const { switched, post, doSwitch } = useAccountSwitching({
+  const { switched, post, doSwitch, noteSwitched } = useAccountSwitching({
     data, claim, release, load, sayFailure, clearFailure, sayInMenu, rescueFocus,
   });
+  // Removing the live account with its login expired moves Claude Code to a
+  // working one, said on that row as a switch is; when none could take over,
+  // said at the foot, because the live account is no longer a row to say it on.
+  afterRemoveRef.current = out => {
+    const said = afterRemoval(out);
+    if (said && "switched" in said) noteSwitched(said.switched.num, said.switched.name);
+    else if (said) sayFailure(said.failure);
+  };
+  /** The sign-in dialog, filled in with this account's address. */
+  const signInAgain = (email: string | null) => { setSignInAs(email); setAddOpen(true); };
 
   // Where auto-switch trips, what the picker proposes instead, and the press
   // that stores it — see use-threshold-draft.ts.
@@ -243,13 +257,28 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
   // And which logins this deck offers, to whom, for the share mark on their
   // rows (#2170): from the same status, so a row and the setup dialog's ticks
   // never disagree.
-  const [shared, setShared] = useState<ReadonlyMap<string, readonly string[]>>(() => new Map());
+  const [shared, setShared] = useState<ReadonlyMap<string, SharedMark>>(() => new Map());
+  // And which of them a paired deck is on right now, for the live row that says
+  // one login is live in two places (#2192). From the same status again.
+  const [elsewhere, setElsewhere] = useState<ReadonlyMap<string, readonly string[]>>(() => new Map());
   const lanFor = (a: Account) => {
     const key = lanAccounts([a])[0].key;
-    return { noCopyWorksNearby: noCopy.has(key), sharedTo: shared.get(key) ?? null };
+    const mark = shared.get(key);
+    return {
+      noCopyWorksNearby: noCopy.has(key), sharedTo: mark?.to ?? null, sharedInUse: mark?.inUse === true,
+      elsewhere: elsewhere.get(key) ?? null,
+    };
   };
   const activeAcct = data?.accounts?.find(a => a.active);
   const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec, lanFor(activeAcct)) : null;
+  // A switch that took onto a login a paired deck is on, said with the switch
+  // (#2192): the live row's warning says it to the eye, and this is the region
+  // that says the switch at all to a screen reader.
+  const switchedTo = switched ? data?.accounts?.find(a => a.num === switched.num) : undefined;
+  const switchedElsewhere = switchedTo ? lanFor(switchedTo).elsewhere : null;
+  const switchedRisk = switchedElsewhere?.length
+    ? `. Also active on ${deckList(switchedElsewhere)}: when one machine renews this login, the other is signed out.`
+    : "";
 
   // ── the fold ──
   // WHO THE COLUMN DRAWS AT ONCE, and who stands behind one row. The live
@@ -465,11 +494,12 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
         opened={opened} onToggleLanes={() => setOpenness(o => toggleOne(o, a))}
         busy={busy} pressProps={pressProps} onSwitch={doSwitch}
         menuOpen={menuOpen} onOpenMenu={openMenu} onCloseMenu={closeMenu}
-        refusal={refusal} onDismissRefusal={() => clearFailure()}
+        refusal={refusal} onDismissRefusal={() => clearFailure()} onSignIn={signInAgain}
         switchedHere={switchedHere} swapped={swapped} displaced={displaced}
         issueExpanded={issueExpanded} onOpenIssue={openIssue}
         sortKey={a.active ? null : orderKey(shownOrder)}
-        home={isHome(a, auto?.choice?.home) ? homeTitle(a, !!auto?.enabled) : null} />
+        home={isHome(a, auto?.choice?.home) ? homeTitle(a, !!auto?.enabled) : null}
+        rotating={!!(auto?.enabled || auto?.external)} />
     );
   };
 
@@ -512,12 +542,7 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
       onFocus={rosterFocus.onFocus} onBlur={rosterFocus.onBlur}>
       {view === "accounts" && (
         <AccountsHeader canShare={(data?.accounts?.length ?? 0) > 0}
-          // Two or more: one account's report is the row above it again. And
-          // kept while the report is open, so a poll that empties the roster
-          // does not take away the control focus goes back to.
-          canReport={(data?.accounts?.length ?? 0) > 1 || reportOpen}
           onAdd={() => setAddOpen(true)}
-          onReport={() => { setReportOrder([...head, ...rest].map(laneKey)); setReportOpen(true); }}
           onShareSet={() => setShareSetOpen(true)} onReload={() => load(true)}
           pressProps={pressProps} reloading={reloading} closeButton={closeBtn} />
       )}
@@ -589,6 +614,22 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
                       Sign in
                     </button>
                   )}
+                </div>
+              )}
+
+              {/* SIGNED IN AS AN ACCOUNT THAT IS NOT HERE. Claude Code's live
+                  login is one claude-swap does not hold, so no row is the live
+                  one (claude-login.mjs) — said once, with the add that ends it,
+                  rather than leaving the list to look as if nobody were in. */}
+              {!activeAcct && data.unlistedLogin && (
+                <div className="ap-notice">
+                  <span className="ap-notice-text">
+                    Claude Code is signed in to <strong>{data.unlistedLogin}</strong>, which isn't in your accounts.
+                  </span>
+                  <button type="button" className="ap-notice-fix" onClick={() => setAddOpen(true)}
+                    title="Open the add dialog. Once this login is one of your accounts, the deck can switch to it and back.">
+                    Add account
+                  </button>
                 </div>
               )}
 
@@ -665,15 +706,10 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
                     slots={(data.accounts ?? []).map(x => x.num)}
                     boundaryId={rowBoundary(a.num)} nowSec={nowSec}
                     busy={busy} pressProps={pressProps}
-                    rotating={!!(auto?.enabled || auto?.external)}
                     onProjects={() => { setProjectsFor({ num: a.num, name: a.alias ?? a.email ?? `account ${a.num}` }); closeMenu(a.num); }}
                     onRotation={() => post({ action: "account", account: a.num, enabled: a.disabled }, `rot-${a.num}`, "menu")
                       .then(out => { load(true); if (out?.ok) closeMenu(a.num); })}
                     home={isHome(a, auto?.choice?.home)}
-                    // The deck's own loop, not a terminal's: home is the
-                    // deck's rule, and a `cswap auto` running elsewhere never
-                    // asks it.
-                    canSetHome={!!auto?.enabled && !auto?.external}
                     onHome={() => post({ action: "home", account: isHome(a, auto?.choice?.home) ? null : a.num }, `home-${a.num}`, "menu")
                       .then(out => { load(true); if (out?.ok) closeMenu(a.num); })} />
                 );
@@ -719,7 +755,7 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
           appears already holding its text is one a screen reader may never
           read. */}
       <div className="vis-hidden" role="status" aria-atomic="true">
-        {switched ? `Now active: ${switched.name}` : ""}
+        {switched ? `Now active: ${switched.name}` : ""}{switched ? switchedRisk : ""}
       </div>
 
       {/* LOCAL NETWORK: A WAY IN AT THE FOOT, AND A VIEW OF ITS OWN. It is not
@@ -736,6 +772,7 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
           onChanged={() => load(true)}
           onNoCopy={takeNoCopy}
           onShared={setShared}
+          onElsewhere={setElsewhere}
           view={view === "lan"}
           onOpen={openLan}
           onBack={() => setView("accounts")}
@@ -745,7 +782,8 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
 
       {addOpen && (
         <AddAccountDialog
-          onClose={() => setAddOpen(false)}
+          email={signInAs}
+          onClose={() => { setAddOpen(false); setSignInAs(null); }}
           onChanged={() => load(true)}
         />
       )}
@@ -780,16 +818,6 @@ function ClaudeAccountsPanel({ onClose, leaving, onReport, onRoster, codexEnable
           />
         );
       })()}
-      {/* The Usage report (#1707) — components/AccountsUsageReport.tsx. The
-          panel's roster, handed in on every poll, in the order the panel had
-          when it opened, and read on the panel's clock: an open report moves
-          with the panel and starts no poll. A reload that failed is said
-          there too, because the report stands over the line that says it. */}
-      {reportOpen && (
-        <AccountsUsageReport accounts={data?.accounts ?? null} order={reportOrder}
-          failed={failure?.reload ? failure.text : null}
-          nowSec={nowSec} onClose={() => setReportOpen(false)} />
-      )}
     </aside>
   );
 }

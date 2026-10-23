@@ -1,0 +1,50 @@
+// How wide an integration panel's detail column is (#2178), per storage key
+// (a panel names its own: "jira"), the way
+// Tool activity keeps its details width (tool-audit-layout.ts): dragged on the
+// splitter, remembered per browser, and never so wide the list goes under its
+// floor.
+import { readStored, removeStored, writeStored } from "../storage";
+
+/** The detail column's bounds, in CSS pixels. */
+export const DETAIL_WIDTH = { min: 320, standard: 440, max: 1600 } as const;
+/** Until the reader drags it, the detail takes this share of the workspace,
+ *  between DETAIL_WIDTH.min and .standard: under a 1100px modal a fixed 440
+ *  left the list about 400px and its rows wrapped, so the list keeps 55 % or
+ *  more there, and from about 1050px the detail is its standard 440 again. */
+export const DETAIL_SHARE = 0.42;
+/** The CSS for that share, which the split uses until a width is stored. */
+export const AUTO_DETAIL_CSS = `clamp(${DETAIL_WIDTH.min}px, ${DETAIL_SHARE * 100}%, ${DETAIL_WIDTH.standard}px)`;
+/** The list always keeps this much beside the detail. */
+export const LIST_MIN = 420;
+/** The draggable line between them. */
+export const SPLITTER = 8;
+/** Below this the detail is a screen of its own with a Back, not a column. */
+export const DRILL_IN_QUERY = "(max-width: 899px)";
+
+const key = (storageKey: string) => `agent-dag.integrations.${storageKey}.detail-width`;
+
+/** A width the detail can take in a workspace `room` pixels wide. */
+export function clampDetail(width: number, room: number): number {
+  const most = Math.max(DETAIL_WIDTH.min, Math.min(DETAIL_WIDTH.max, room - LIST_MIN - SPLITTER));
+  return Math.round(Math.min(most, Math.max(DETAIL_WIDTH.min, Number.isFinite(width) ? width : DETAIL_WIDTH.standard)));
+}
+
+/** The width the detail takes in a workspace `room` pixels wide before the
+ *  reader has dragged it: the share, kept between min and standard. */
+export function autoDetail(room: number): number {
+  return clampDetail(Math.min(DETAIL_WIDTH.standard, Math.max(DETAIL_WIDTH.min, room * DETAIL_SHARE)), room);
+}
+
+/** The width the reader dragged the detail to, or null while it is automatic. */
+export function readDetailWidth(storageKey: string): number | null {
+  const raw = readStored(key(storageKey));
+  if (raw == null) return null;
+  const stored = Number(raw);
+  return Number.isFinite(stored) && stored >= DETAIL_WIDTH.min && stored <= DETAIL_WIDTH.max ? Math.round(stored) : null;
+}
+
+/** Remembers a dragged width, or, given null, goes back to the automatic one. */
+export function writeDetailWidth(storageKey: string, width: number | null): void {
+  if (width == null) removeStored(key(storageKey));
+  else writeStored(key(storageKey), String(Math.round(width)));
+}

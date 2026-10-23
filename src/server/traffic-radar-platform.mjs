@@ -1,8 +1,9 @@
 // OS-specific inspection stays here; the Radar history and decoder share one model.
 import { execFile } from 'node:child_process';
-import { readdir, readFile, readlink } from 'node:fs/promises';
+import { open, readdir, readlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { win32 } from 'node:path';
+import { environVariables } from './traffic-radar-config.mjs';
 
 export function systemCommand(file, args) {
   return new Promise(resolve => execFile(file, args, { timeout: 8000, maxBuffer: 262144, encoding: 'utf8', windowsHide: true }, (error, stdout, stderr) => {
@@ -16,32 +17,98 @@ export function windowsSockets(pids) {
   return `$ids=@(${pids.join(',')}); Get-NetTCPConnection -ErrorAction Stop | Where-Object { $_.State -eq 'Established' -and $_.OwningProcess -in $ids } | ForEach-Object { $peer=$_.RemoteAddress; if($peer.Contains(':')){$peer='['+$peer+']'}; 'p'+$_.OwningProcess; 'nlocal->'+$peer+':'+$_.RemotePort }`;
 }
 
-// /proc avoids an ss/lsof dependency and reads socket ownership only for selected Claude PIDs.
-export async function linuxSockets(pids, { read = readFile, list = readdir, link = readlink } = {}) {
-  const sockets = [], cwd = [];
-  let unavailable = false;
+// The native installer runs ~/.local/share/claude/versions/<version>. Started by
+// that path rather than the `claude` link, a process's comm is its version, so
+// only those candidates have their executable read: no full /proc scan, no argv.
+export async function linuxVersionedClaude(text, { link = readlink } = {}) {
+  const candidates = [];
+  for (const line of String(text ?? '').split('\n')) {
+    const match = /^\s*(\d+)\s+\d+\.\d+\.\d+\s*$/.exec(line);
+    if (match) candidates.push(Number(match[1]));
+  }
+  const confirmed = await Promise.all(candidates.slice(0, 256).map(async pid =>
+    /\/claude\/versions\/\d+\.\d+\.\d+(?: \(deleted\))?$/.test(await link(`/proc/${pid}/exe`).catch(() => '')) ? pid : null));
+  return confirmed.filter(pid => pid !== null);
+}
+
+// /proc files report size 0 and answer a page per read. Node 18's
+// fs.promises.readFile stops after that first page, which cut a busy machine's
+// socket table to its first ~27 rows, so /proc is read to EOF within a bound.
+export async function readProc(path, max, openFile = open) {
+  const file = await openFile(path, 'r');
+  try {
+    const chunks = [];
+    const chunk = Buffer.alloc(65_536);
+    let size = 0;
+    for (;;) {
+      const { bytesRead } = await file.read(chunk, 0, chunk.length, null);
+      if (!bytesRead) return Buffer.concat(chunks, size);
+      size += bytesRead;
+      if (size > max) return null;
+      chunks.push(Buffer.from(chunk.subarray(0, bytesRead)));
+    }
+  } finally { await file.close(); }
+}
+export const readEnviron = path => readProc(path, 262_144);
+async function readTable(path) {
+  const table = await readProc(path, 67_108_864);
+  if (!table) throw Object.assign(new Error('Socket table too large.'), { code: 'EFBIG' });
+  return table.toString('utf8');
+}
+
+// /proc avoids an ss/lsof dependency and reads socket ownership, cwd and the
+// launch environment only for selected Claude PIDs. Established sockets and
+// attempts still awaiting a reply (SYN-SENT, as lsof's TST field) are kept. A
+// process this user may not inspect, such as another user's Claude, is counted
+// instead of hiding every other process; with none readable the sample is unavailable.
+export async function linuxSockets(pids, { read = readTable, list = readdir, link = readlink, readEnv = readEnviron } = {}) {
+  const sockets = [], cwd = [], launch = [];
+  let unavailable = false, inspected = 0, denied = 0;
+  // A namespace's table lists every socket on the machine (thousands of rows on
+  // a busy desktop) and Claude processes usually share one, so each table is
+  // parsed once per sample into peers by socket inode. A failed shared read is
+  // retried through the next process rather than reused.
+  const tables = new Map();
+  const peers = async (pid, family, ns) => {
+    const key = ns && `${ns}|${family}`;
+    if (key && tables.has(key)) { try { return await tables.get(key); } catch {} }
+    const parsed = read(`/proc/${pid}/net/${family}`, 'utf8').then(table => {
+      const byInode = new Map();
+      for (const row of table.trim().split('\n').slice(1)) {
+        const fields = row.trim().split(/\s+/);
+        if (!['01', '02'].includes(fields[3])) continue;
+        const [hex, port] = fields[2].split(':');
+        const bytes = Buffer.from(hex, 'hex');
+        for (let i = 0; i < bytes.length; i += 4) bytes.subarray(i, i + 4).reverse();
+        const address = family === 'tcp' ? [...bytes].join('.') : '[' + Array.from({ length: 8 }, (_, i) => bytes.readUInt16BE(i * 2).toString(16)).join(':') + ']';
+        byInode.set(fields[9], `${address}:${parseInt(port, 16)}${fields[3] === '02' ? '\nTST=SYN_SENT' : ''}`);
+      }
+      return byInode;
+    });
+    if (key) tables.set(key, parsed);
+    return parsed;
+  };
   await Promise.all(pids.map(async pid => {
     try {
       const descriptors = await list(`/proc/${pid}/fd`);
       const owned = new Set((await Promise.all(descriptors.map(fd => link(`/proc/${pid}/fd/${fd}`).catch(() => ''))))
         .map(value => /^socket:\[(\d+)\]$/.exec(value)?.[1]).filter(Boolean));
+      const ns = await link(`/proc/${pid}/ns/net`).then(value => /^net:\[\d+\]$/.test(value) ? value : null, () => null);
       for (const family of ['tcp', 'tcp6']) {
-        const table = await read(`/proc/${pid}/net/${family}`, 'utf8');
-        for (const row of table.trim().split('\n').slice(1)) {
-          const fields = row.trim().split(/\s+/);
-          if (fields[3] !== '01' || !owned.has(fields[9])) continue;
-          const [hex, port] = fields[2].split(':');
-          const bytes = Buffer.from(hex, 'hex');
-          for (let i = 0; i < bytes.length; i += 4) bytes.subarray(i, i + 4).reverse();
-          const address = family === 'tcp' ? [...bytes].join('.') : '[' + Array.from({ length: 8 }, (_, i) => bytes.readUInt16BE(i * 2).toString(16)).join(':') + ']';
-          sockets.push(`p${pid}\nnlocal->${address}:${parseInt(port, 16)}`);
-        }
+        const byInode = await peers(pid, family, ns);
+        for (const inode of owned) if (byInode.has(inode)) sockets.push(`p${pid}\nnlocal->${byInode.get(inode)}`);
       }
       const path = await link(`/proc/${pid}/cwd`).catch(() => null);
       if (path) cwd.push(`p${pid}\nn${path}`);
-    } catch (error) { if (error.code !== 'ENOENT' && error.code !== 'ESRCH') unavailable = true; }
+      const environ = await readEnv(`/proc/${pid}/environ`).catch(() => null);
+      if (environ) launch.push({ pid, variables: environVariables(environ) });
+      inspected++;
+    } catch (error) {
+      if (error.code === 'EACCES' || error.code === 'EPERM') denied++;
+      else if (error.code !== 'ENOENT' && error.code !== 'ESRCH') unavailable = true;
+    }
   }));
-  return { sockets: unavailable ? null : sockets.join('\n'), cwd: cwd.join('\n') };
+  return { sockets: unavailable || (denied && !inspected) ? null : sockets.join('\n'), cwd: cwd.join('\n'), denied, launch };
 }
 export function captureInterfaceValid(name, platform) {
   return typeof name === 'string' && (platform === 'win32'

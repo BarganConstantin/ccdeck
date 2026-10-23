@@ -311,7 +311,7 @@ describe("the modal itself", () => {
 
   it("gates Loading… and aria-busy on the report alone", () => {
     expect(src).toContain("const loading = reportLoading(load);");
-    expect(src).toContain('{loading && !report && <div className="ap-proj-state">Loading…</div>}');
+    expect(src).toContain('{loading && !report && <AccountProjectsLoading />}');
     expect(src).toContain("aria-busy={loading}");
   });
 

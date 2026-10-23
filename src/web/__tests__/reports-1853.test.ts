@@ -840,6 +840,15 @@ describe("scrubbing", () => {
     ["C:\\Users\\Bob Smith\\AppData\\ccdeck", "~\\<path>"],
     ["mail bob@example.org now", "mail <email> now"],
     ["ghp_abcdefghijklmnopqrstuvwxyz0123", "<secret>"],
+    // A GitLab token is 26 characters, under the 48-character catch-all
+    // (#2179). Joined at run time so no line here reads as a live token.
+    ["auth glpat-" + "abcdefghij0123456789 failed", "auth <secret> failed"],
+    ["github_pat_" + "11ABCDEFG0abcdefghij", "<secret>"],
+    // An Authorization header's value is a secret whatever its scheme and
+    // length, and so is an Atlassian API token.
+    ["Authorization: Bearer abcdefghij0123456789", "Authorization: Bearer <secret>"],
+    ["header Basic dXNlcjpwYXNzd29yZA== sent", "header Basic <secret> sent"],
+    ["token ATATT3xFfGF0abcdef rejected", "token <secret> rejected"],
     ["a plain message 42", "a plain message 42"],
   ])("%s → %s", (input, output) => {
     expect(scrub(input, "/nowhere")).toBe(output);

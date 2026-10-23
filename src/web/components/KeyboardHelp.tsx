@@ -29,6 +29,7 @@
 // stray "c" from truncating the event log. The sheet says so in one line under
 // its keys (#852), and Esc is the documented way back.
 import { Fragment } from "react";
+import { kindOffered, useIntegrations } from "../integrations/client";
 import { KEY_HELP_NOTE, KEY_HELP_OFF_TITLE, KEY_HELP_SWITCH_NOTE, keyHelpFor, SINGLE_KEYS_PLACE } from "../key-help";
 import { isApplePlatform, platformName } from "../platform";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
@@ -48,7 +49,8 @@ export default function KeyboardHelp({ onClose, onTour, onSettings }: Props) {
   const scrimPress = useScrimDismiss(onClose);
   const apple = isApplePlatform(platformName());
   const singleKeys = useSingleKeyShortcuts();
-  const groups = keyHelpFor(singleKeys);
+  const integrations = useIntegrations();
+  const groups = keyHelpFor(singleKeys, kind => kindOffered(integrations, kind));
 
   return (
     <div className="modal-backdrop" {...scrimPress} role="presentation">

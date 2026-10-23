@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fmtCost } from "../pricing";
+import AccountProjectsLoading from "./AccountProjectsLoading";
 import { fmtTokens } from "../token-format";
 import { ccCellsFrom, projectCostLabel, reconcile, unpricedNote, unpricedTitle, type Counters } from "../account-projects-reconcile";
 import { INITIAL_LOAD, loadProjects, projectsLoad, reportLoading } from "../account-projects-load";
@@ -279,11 +280,11 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
             a minute and a half, and assistive technology may hold a busy
             region back until it clears (#1317). */}
         <div className={`ap-proj-body${refreshing ? " refreshing" : ""}`} aria-busy={loading}>
-          {loading && !report && <div className="ap-proj-state">Loading…</div>}
+          {loading && !report && <AccountProjectsLoading />}
           {!loading && error && <div className="ap-proj-state ap-proj-error">Couldn’t load this report: {error}</div>}
 
           {!error && view && (
-            <>
+            <div className="ap-proj-ready">
               {view.rows.length === 0 ? (
                 <div className="ap-proj-state">
                   {/* No mark here to dim while the next window loads, so the
@@ -493,7 +494,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                   </div>
                 </>
               )}
-            </>
+            </div>
           )}
         </div>
       </div>

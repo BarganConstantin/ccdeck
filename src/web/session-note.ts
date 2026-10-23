@@ -18,21 +18,30 @@
 //   is, rather than going blank for the minutes before the recap.
 // - WHEN THE RECAP COMES: it takes the note's place. The newer of the two
 //   speaks, and Claude Code writes its recap after the turn it summarises.
+// - WHEN THE TURN STOPPED ON AN ERROR (StopFailure): why, and what to do —
+//   "Login expired. Type “continue” …". This one outranks everything else,
+//   the recap included, until the session does something again: it is the one
+//   note that asks for a keystroke, and a recap of the turn before it would
+//   bury the fact that this one never ran.
 //
 // The note is never about a turn a newer prompt has started: the prompt's hook
 // reaches the deck before the model has written a word of the next reply, and
 // a line from the last turn would describe a session that has moved on. Until
 // the model answers, the note says the prompt itself, as Claude Code's agent
 // view does — see statusNote.
+import { planSummary } from "./agent-plan";
 import { recapShown } from "./session-recap";
 import { recapKey } from "./recap-note";
 import { injectedPrompt } from "./injected-prompt";
-import type { AgentNodeData, BackgroundJob, PromptEntry } from "./types";
+import { stopNoteSource, stopNoteText } from "./stop-failure-copy";
+import type { AgentNodeData, AgentPlan, BackgroundJob, PromptEntry } from "./types";
+import type { StopFacts } from "../server/stop-failure.mjs";
 
 /** What a note can be saying. `recap` is Claude Code's recap; `now` a running
- *  turn; `last` the last thing a finished interactive turn did; the other three
- *  a background job's verdict. */
-export type NoteKind = "recap" | "now" | "last" | "needs" | "done" | "failed";
+ *  turn; `last` the last thing a finished interactive turn did; `needs`, `done`
+ *  and `failed` a background job's verdict; `stopped` a turn Claude Code ended
+ *  on an API error. */
+export type NoteKind = "recap" | "now" | "last" | "needs" | "done" | "failed" | "stopped";
 
 export interface SessionNote {
   kind: NoteKind;
@@ -46,7 +55,9 @@ export interface SessionNote {
    *  the deck reading the newest reply, or the prompt that opened a turn the
    *  model has not answered yet. Said in the tooltip, because how far to trust
    *  a line depends on it. */
-  source: "recap" | "job" | "activity" | "prompt";
+  source: "recap" | "job" | "activity" | "prompt" | "stop";
+  /** A stop note's facts, for the tooltip's line on what Claude Code said. */
+  stop?: StopFacts;
   /** A prompt note on a Codex session. The reply's line is read off Claude
    *  Code's transcript alone (src/server/event-pipeline.mjs), so a Codex
    *  session keeps its prompt as the note for the whole turn, and its tooltip
@@ -71,6 +82,7 @@ export function noteTag(kind: NoteKind): string {
     case "needs": return "needs you";
     case "done": return "done";
     case "failed": return "failed";
+    case "stopped": return "stopped";
     case "last": return "last";
     default: return "now";
   }
@@ -99,7 +111,7 @@ export function jobLine(job: BackgroundJob): NoteLine | null {
 }
 
 type NoteBearing = Pick<AgentNodeData,
-  "kind" | "sessionId" | "state" | "closedAt" | "startedAt" | "prompts" | "recap" | "activity" | "job" | "provider">;
+  "kind" | "sessionId" | "state" | "closedAt" | "startedAt" | "prompts" | "recap" | "activity" | "job" | "provider" | "stopFailure">;
 
 /** The session's newest prompt, or null when the deck has seen none. */
 function newestPrompt(a: NoteBearing): PromptEntry | null {
@@ -135,6 +147,16 @@ export function promptLine(text: string): string {
  * card each time.
  */
 function statusNote(a: NoteBearing): SessionNote | null {
+  // The stop first: whatever a job file or the newest reply says is about the
+  // work, and this is about the turn not having run. Keyed by the stop itself,
+  // so a second stop opens a note somebody put away for the first.
+  const stop = a.stopFailure;
+  if (stop) {
+    return {
+      kind: "stopped", text: stopNoteText(stop, a.job != null), at: stop.at, source: "stop", stop,
+      key: `${a.sessionId}@stopped:${stop.at}`,
+    };
+  }
   const prompt = newestPrompt(a);
   const turn = prompt?.at ?? a.startedAt;
   // "now" and "last" are one note seen before and after the turn ended: put
@@ -164,12 +186,14 @@ function statusNote(a: NoteBearing): SessionNote | null {
  * A session root only, and not one that has closed — by its own SessionEnd, or
  * by the sweep that settles a session silent for ninety minutes. The waiting
  * badge comes down on the same grounds, and the note explains the same things
- * it does. Then the newer of the status line and the recap (session-recap.ts
+ * it does. A turn that stopped on an error speaks over everything (see the
+ * header). Then the newer of the status line and the recap (session-recap.ts
  * holds the recap's own rule), with the status line taking a tie.
  */
 export function sessionNoteShown(a: NoteBearing): SessionNote | null {
   if (a.kind !== "root" || a.closedAt != null) return null;
   const status = statusNote(a);
+  if (status?.kind === "stopped") return status;
   const r = recapShown(a);
   const recap: SessionNote | null = r
     ? { kind: "recap", text: r.text, at: r.at, source: "recap", key: recapKey(a.sessionId, r.at) }
@@ -178,11 +202,46 @@ export function sessionNoteShown(a: NoteBearing): SessionNote | null {
   return status ?? recap;
 }
 
+/** The note the canvas draws beside a session's card: its note, with the
+ *  session's plan under it, or the plan alone. */
+export interface BoardNote {
+  note: SessionNote | null;
+  plan: AgentPlan | null;
+  /** What putting it away remembers: the note's own key when there is a note,
+   *  so the plan goes with it; the session's when the plan is alone. */
+  key: string;
+}
+
+/**
+ * The note beside the card, with the plan on it (#2157).
+ *
+ * The plan was on the full card's row, the session list and the details panel,
+ * and a user who had read about it in the release notes found it on none of
+ * them: a fitted board draws the card as a face. The note is the one thing
+ * beside a card that is meant to be read from a distance, so the plan goes on
+ * it — every step, the way the details panel lists them.
+ *
+ * A session with a plan and nothing else to say gets a note holding the plan
+ * alone, while some step is still to do; a finished plan stays on a note that
+ * is there anyway, and does not hold one open by itself. Closed sessions draw
+ * no note at all, as before.
+ */
+export function boardNote(a: NoteBearing & Pick<AgentNodeData, "plan">): BoardNote | null {
+  const note = sessionNoteShown(a);
+  if (a.kind !== "root" || a.closedAt != null) return null;
+  const summary = planSummary(a.plan);
+  const plan = summary ? a.plan! : null;
+  if (note) return { note, plan, key: note.key };
+  if (plan && !summary!.allDone) return { note: null, plan, key: `${a.sessionId}@plan` };
+  return null;
+}
+
 /** Who wrote the note, in words, for its tooltip and its peek. */
 export function noteSource(note: SessionNote): string {
   switch (note.source) {
     case "recap": return "Claude Code's recap";
     case "job": return "Claude Code's own line for this background session";
+    case "stop": return stopNoteSource(note.stop);
     case "prompt": return note.codex
       ? "The prompt this turn began with — the deck takes no line from a Codex reply"
       : "The prompt this turn began with — the model has not answered yet";

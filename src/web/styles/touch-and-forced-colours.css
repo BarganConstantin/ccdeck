@@ -70,7 +70,6 @@
   .tr-tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; border-bottom-color: Highlight; }
   .tr-message[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
   .tr-detail-tabs .btn[aria-pressed="true"],
-  .ap-report-view[aria-pressed="true"],
   .ap-reset-coverage-link[aria-pressed="true"],
   .ap-reset-day-button[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
   .ap-reset-meter > span { forced-color-adjust: none; background: CanvasText; }
@@ -147,6 +146,10 @@
   .react-flow__controls-button[aria-pressed="true"],
   .react-flow__controls-button[aria-pressed="true"]:hover,
   .aa-tab.on { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  /* The GitHub and GitLab panel's tabs and a change's sections are the same
+     chip, chosen by aria-selected because they are tabs (#2179). */
+  .fg-tabs .uh-range-btn[aria-selected="true"],
+  .fd-sections .uh-range-btn[aria-selected="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
   /* The sign-in's rings and stage marks carry where a sign-in is in their
      colour as well as their shape, so they are redrawn in system colours: the
      turning arc and the current stage in the highlight, a finished or failed
@@ -305,4 +308,17 @@
   .ta-row[data-selected], .ta-highlight[aria-expanded=true] { outline: 1px solid Highlight; }
   .ta-splitter::before { forced-color-adjust: none; background: CanvasText; }
   .ta-splitter:hover::before, .ta-splitter:focus-visible::before { background: Highlight; }
+
+  /* A tracker's panel (#2178): the line between the list and an issue in
+     system ink like Tool activity's, and the open issue and a pressed filter
+     outlined, since their fills are gone. */
+  .ig-splitter::before { forced-color-adjust: none; background: CanvasText; }
+  .ig-splitter:hover::before, .ig-splitter:focus-visible::before { background: Highlight; }
+  /* The chosen row of any integration panel: its fill is gone, its outline stays. */
+  .ig-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
+  /* The reader's own face keeps its ring, in the highlight, apart from every other face's edge. */
+  .ig-avatar[data-you] { outline-color: Highlight; }
+  /* The project the arrows are on in the forge's picker, whose fill is gone. */
+  .fgl-repo-option[data-active="true"] { outline: 1px solid Highlight; outline-offset: -1px; }
+  button.btn.jr-chip[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
 }

@@ -254,3 +254,26 @@ export function planSpoken(s: PlanSummary): string {
 export function planTitle(items: readonly PlanItem[]): string {
   return items.map(i => `${i.status === "completed" ? "✓" : i.status === "in_progress" ? "▸" : "○"} ${i.text}`).join("\n");
 }
+
+/** The steps a note has room for, around the one under way. */
+export interface PlanWindow {
+  shown: readonly PlanItem[];
+  /** Steps above the window, and below it. */
+  before: number;
+  after: number;
+}
+
+/**
+ * At most `max` steps of a plan, for a surface with a few lines to give it:
+ * the step under way (or the next one waiting) with the one done before it
+ * above, and what follows below. A plan that fits is shown whole; past that the
+ * window slides with the work, so the step being done is always on it.
+ */
+export function planWindow(items: readonly PlanItem[], max = 5): PlanWindow {
+  if (items.length <= max) return { shown: items, before: 0, after: 0 };
+  let cur = items.findIndex(i => i.status === "in_progress");
+  if (cur < 0) cur = items.findIndex(i => i.status === "pending");
+  if (cur < 0) cur = items.length - 1;
+  const start = Math.max(0, Math.min(cur - 1, items.length - max));
+  return { shown: items.slice(start, start + max), before: start, after: items.length - start - max };
+}

@@ -90,6 +90,10 @@ describe("a deck the app hosts", () => {
   it("never installs a global copy of itself, whatever else is true of the install", () => {
     const pkgRoot = newTemp("pkg-root");
     writeFileSync(join(pkgRoot, "package.json"), JSON.stringify({ name: "ccdeck", version: "3.0.0" }));
+    // The documented opt-out answers "opted_out" too, so a caller's own
+    // AGENTS_DECK_NO_INSTALL=1 would make the line below fail for a reason
+    // that is not the app's. afterEach puts it back.
+    vi.stubEnv("AGENTS_DECK_NO_INSTALL", undefined);
     expect(upgradeBlock(pkgRoot)).not.toBe("opted_out");
     vi.stubEnv("CCDECK_APP", "1");
     expect(upgradeBlock(pkgRoot)).toBe("opted_out");

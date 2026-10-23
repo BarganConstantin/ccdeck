@@ -23,6 +23,11 @@ import SettingsModal, { type SettingsModalProps } from "../components/SettingsMo
 import { DEFAULT_PREFS } from "../sound";
 import { ACCOUNT_NOTIFY_DEFAULTS } from "../use-os-notifications";
 import { clientPairs, clientText } from "./client-source";
+import { deckOffersEveryKind } from "./integrations-offered";
+
+// Drawn as a deck with integrations draws it (integrations-offered.ts), before
+// anything below draws it.
+await deckOffersEveryKind();
 
 const labels = (results: readonly SettingsEntry[]) => results.map(r => r.label);
 const ids = (results: readonly SettingsEntry[]) => results.map(r => r.id);
@@ -135,15 +140,18 @@ describe("searchSettings ranks what was typed", () => {
   });
 
   it("puts a keyword match before a setting found only by its section's name", () => {
-    // Notifications while closed starts with the word; the three account
+    // Notifications while closed starts with the word; the five account
     // switches are found by their section alone, and come after it.
     expect(ids(searchSettings("notifications"))).toEqual([
-      "section:notifications", "notify-closed", "notifySwap", "notifyQuota", "notifyReset",
+      "section:notifications", "notify-closed", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped",
+      "notifyElsewhere",
     ]);
-    // "alerts" is a keyword of the four switches and of the section.
+    // "alerts" is a keyword of the six switches and of the section.
     const alerts = ids(searchSettings("alerts"));
     expect(alerts[0]).toBe("section:notifications");
-    expect(alerts).toEqual(expect.arrayContaining(["notify-closed", "notifySwap", "notifyQuota", "notifyReset"]));
+    expect(alerts).toEqual(expect.arrayContaining([
+      "notify-closed", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "notifyElsewhere",
+    ]));
   });
 
   it("answers the words people type for a setting", () => {
@@ -299,7 +307,7 @@ const drawSettings = () => renderToStaticMarkup(createElement(SettingsModal, {
   versionCheck: { version: null, notice: null, noticeOpen: false, showNotice: noop, dismissNotice: noop, versionChecking: false, loadVersion: async () => null },
   desktopUpdate: { desktopUpdateRestarting: false, desktopUpdateFailure: null, readyAppUpdate: null, appUpdate: null, askDesktopUpdateRestart: asyncNoop, onDesktopUpdateEvent: noop },
   restart: { autoRestart: true, toggleAutoRestart: noop },
-  doors: { whatsNew: noop, update: noop, tour: noop, feedback: noop, accounts: noop, localNetwork: noop, browserWatch: noop },
+  doors: { whatsNew: noop, update: noop, tour: noop, feedback: noop, accounts: noop, localNetwork: noop, browserWatch: noop, radar: noop },
 } as unknown as SettingsModalProps));
 
 describe("the field stands above the nav, which stays a tablist", () => {

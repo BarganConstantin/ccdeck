@@ -28,7 +28,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
 
@@ -120,8 +120,10 @@ function sandbox(name: string): Box {
   for (const d of [server, box.home]) mkdirSync(d, { recursive: true });
   // A real copy rather than export-star shims onto the repo: every server
   // module that imports by URL computes PKG_ROOT from its own location, and it
-  // is PKG_ROOT that has to be swapped.
-  for (const f of readdirSync(REAL_SERVER).filter(n => n.endsWith(".mjs"))) {
+  // is PKG_ROOT that has to be swapped. The whole tree, folders included:
+  // src/server/integrations/ is imported by index.mjs at boot (#2178).
+  for (const f of (readdirSync(REAL_SERVER, { recursive: true }) as string[]).filter(n => n.endsWith(".mjs"))) {
+    mkdirSync(dirname(join(server, f)), { recursive: true });
     copyFileSync(join(REAL_SERVER, f), join(server, f));
   }
   copyFileSync(REAL_MANIFEST, join(box.pkg, "package.json"));
@@ -138,7 +140,7 @@ function sandbox(name: string): Box {
     `import { readdirSync, writeFileSync } from "node:fs";`,
     `import { join } from "node:path";`,
     `const SERVER = ${JSON.stringify(server)};`,
-    `for (const f of readdirSync(SERVER)) if (f.endsWith(".mjs")) writeFileSync(join(SERVER, f), ${JSON.stringify(trap)});`,
+    `for (const f of readdirSync(SERVER, { recursive: true })) if (f.endsWith(".mjs")) writeFileSync(join(SERVER, f), ${JSON.stringify(trap)});`,
     `writeFileSync(${JSON.stringify(box.swapped)}, "swapped\\n");`,
   ].join("\n"));
 

@@ -181,6 +181,23 @@ async function accountsInCswapRun(accounts) {
   return live;
 }
 
+/**
+ * The slots no move may land on, whatever the rule: the ones claude-swap's
+ * engine quarantined and the ones a local `cswap run` session is using — the
+ * two `landable` skips by key. For the failover away from an expired login
+ * (autoswitch-failover.mjs), which moves without asking the rules, so it
+ * never lands on another dead login or on a login a session already holds.
+ * Roster rows in, slot numbers out.
+ */
+export async function slotsHeldBack(roster) {
+  const accounts = (Array.isArray(roster) ? roster : [])
+    .filter(a => a && a.num != null)
+    .map(a => ({ ...a, key: accountKey(a.email, a.orgUuid) }));
+  const engine = await engineState(accounts);
+  const busy = await accountsInCswapRun(accounts);
+  return new Set(accounts.filter(a => engine.quarantined.has(a.key) || busy.has(a.key)).map(a => a.num));
+}
+
 const numberOr = (v, fallback) => {
   const n = Number(v);
   return v != null && v !== "" && Number.isFinite(n) ? n : fallback;
@@ -293,4 +310,40 @@ export async function noteEngineTick(result, accounts) {
   if (!accounts || !result?.switched) return;
   const to = accounts.find(a => String(a.num) === String(result.to?.number));
   await updateChoice(c => ({ ...c, manual: false, lastActive: to?.key ?? null, lastMoveAt: Date.now() }));
+}
+
+/**
+ * The two rules as `ccdeck switch --best` asks them (#2183): what
+ * account-pick.mjs bestAccount hands chooseAccount, read the way
+ * chooseBeforeEngine reads it — the threshold, the counted models and the
+ * engine's strategy from claude-swap's config, the accounts its engine
+ * quarantined and the ones a local `cswap run` session holds. Null when
+ * neither rule is set, before anything else is read: `--best` is then the
+ * engine's own choice, as every tick is.
+ *
+ * `choice` and `settings` are the deck's (GET /api/cswap-auto) when a deck
+ * answered, so the rules are the ones its panel shows; with no deck they are
+ * read here. Only reads: nothing in auto-choice.json or claude-swap's store
+ * changes, so it needs no lock and takes none.
+ */
+export async function bestRules(rows, { choice = null, settings = null, now = Date.now() } = {}) {
+  const c = choice ?? await choiceStatus();
+  const next = c?.next === "weekly" ? "weekly" : "room";
+  const home = text(c?.home?.email) ? accountKey(c.home.email, c.home.orgUuid) : null;
+  if (next === "room" && !home) return null;
+  const cfg = (settings ?? await readCswapConfig()) ?? {};
+  const accounts = (Array.isArray(rows) ? rows : [])
+    .filter(a => a && a.num != null)
+    .map(a => ({ ...a, key: accountKey(a.email, a.orgUuid) }));
+  const engine = await engineState(accounts);
+  return {
+    next,
+    home,
+    threshold: numberOr(cfg["autoswitch.threshold"]?.value, 90),
+    models: countedModels(cfg["autoswitch.model"]?.value),
+    busy: await accountsInCswapRun(accounts),
+    quarantined: engine.quarantined,
+    optional: (cfg["autoswitch.strategy"]?.value ?? "best") === "best",
+    now,
+  };
 }

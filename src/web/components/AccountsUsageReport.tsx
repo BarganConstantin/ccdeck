@@ -1,21 +1,21 @@
-// The accounts panel's Account capacity report (#1707, reworked in #1713): how
-// many Claude accounts are ready now, what the 5-hour and the 7-day windows
-// have left across them, and each account's own reading and state.
+// The Account capacity report (#1707, reworked in #1713): how many Claude
+// accounts are ready now, what the 5-hour and the 7-day windows have left
+// across them, and each account's own reading and state. And its Reset
+// calendar: when those windows come back. Each is its own door on the left
+// stripe and opens alone, titled for itself (AccountCapacityDialog.tsx).
 //
 // What counts, how it is averaged, why a reading is left out and what a row's
 // state is are accounts-usage-report.ts's. This file draws it, in the order a
 // glance needs: the accounts ready, then the two windows' capacity, then the
 // rows, then — folded away — how it is worked out. It keeps the Projects
 // report's dialog shell — the same × that takes focus on open, the same portal
-// out of the panel — so the two reports opened from this panel read as one
-// family.
+// to <body> — so the two account reports read as one family.
 //
-// NOTHING HERE FETCHES. The rows are the panel's own roster, handed in on
-// every poll, and the countdowns run on the panel's clock, so an open report
-// moves with the panel and a second polling loop never starts. Its rows keep
-// the order the panel had when it was opened — a poll does not move them under
-// the reader, the rule #1579 gave the panel's own list — and an account that
-// arrives after that goes at the end. A column header orders them once, when
+// NOTHING HERE FETCHES. The rows are a roster handed in on every poll, and the
+// countdowns run on the caller's clock — AccountCapacityDialog reads both the
+// way the accounts panel does. Its rows keep the panel's order at opening — a
+// poll does not move them under the reader, the rule #1579 gave the panel's
+// own list — and an account that arrives after that goes at the end. A column header orders them once, when
 // it is pressed, and that order is held the same way until the next press. A
 // poll that fails keeps the last roster on screen and says so, and so does one
 // that comes back empty, rather than the report emptying under the reader (the
@@ -279,7 +279,14 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
   );
 }
 
-export default function AccountsUsageReport({ accounts, order, failed, nowSec, onClose }: {
+/** The dialog's two views: the accounts' rows, or when their windows reset. */
+export type CapacityView = "accounts" | "calendar";
+
+/** Each view's title. One view per opening, from its own door on the stripe:
+ *  no tabs between them. */
+const VIEW_TITLE: Record<CapacityView, string> = { accounts: "Account capacity", calendar: "Reset calendar" };
+
+export default function AccountsUsageReport({ accounts, order, failed, nowSec, onClose, view }: {
   /** The panel's roster, or null while a poll could not read it. */
   accounts: readonly Account[] | null;
   /** The panel's order when the report opened, by laneKey. */
@@ -289,11 +296,12 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
   /** The panel's clock, in seconds. */
   nowSec: number;
   onClose: () => void;
+  /** Which of the left stripe's two doors opened it. */
+  view: CapacityView;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
   const scrimPress = useScrimDismiss(onClose);
-  const [view, setView] = useState<"accounts" | "calendar">("accounts");
   const [resetScope, setResetScope] = useState<ResetScope>("upcoming");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   // Retain a missing/failed snapshot, but accept an authoritative empty roster. Keyed on the
@@ -312,8 +320,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
     setSorted({ sort: next, order: sortReportRows(byPanel, next).map(r => r.key) });
   };
 
-  // Portalled to <body>: opened from inside AccountsPanel, and a dialog left in
-  // the panel's subtree is laid out by it (panel-modal-portal).
+  // Portalled to <body>, like the panel's other reports (panel-modal-portal).
   return createPortal(
     <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal ap-report-modal" data-view={view} onClick={e => e.stopPropagation()}
@@ -322,11 +329,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
           {/* No subtitle: the count it carried is the lead's, one line down, and
               "Claude" moved into the lead with it (#1713). */}
           <div className="ap-proj-titlewrap">
-            <h2 className="ap-proj-title" id="ap-report-title">Account capacity</h2>
-          </div>
-          <div className="ap-report-views" role="group" aria-label="Capacity view">
-            <button type="button" className="ap-report-view" aria-pressed={view === "accounts"} onClick={() => setView("accounts")}>Accounts</button>
-            <button type="button" className="ap-report-view" aria-pressed={view === "calendar"} onClick={() => setView("calendar")}>Reset calendar</button>
+            <h2 className="ap-proj-title" id="ap-report-title">{VIEW_TITLE[view]}</h2>
           </div>
           <button ref={closeRef} type="button" className="glyph-btn ap-proj-close" onClick={onClose} aria-label="Close">×</button>
         </header>

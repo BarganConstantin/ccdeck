@@ -10,15 +10,26 @@
  *  milliseconds — null when none of them has an end. */
 export interface ResetCredits { availableCount: number; nextExpiryAt: number | null }
 
+/** en-US like every other date on the panel; the zone is left to the browser,
+ *  so the time is the reader's own. */
+const EXPIRY: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true };
+
 /**
- * "2 limit resets available · expires Oct 4".
+ * "2 limit resets available · expires Oct 4, 2:00pm".
  *
- * The date only, and in en-US like every other date on the panel: a grant lasts
- * weeks, and a date is how both products' own settings pages show it.
+ * The date AND the time, in the reader's local zone. A grant ends at an
+ * instant, not on a day: the date alone left open whether a reset could still
+ * be spent that evening, and a user asked for the time. The meridiem is
+ * lower-cased the way the windows' own reset label writes it
+ * (server/reset-label.mjs), so the two read alike in one panel.
+ *
+ * The expiry is joined with no-break spaces: the Codex sentence is longer than
+ * the panel is wide, and wrapped freely it put "Oct 24," on one line and
+ * "3:30pm" on the next. Now the line breaks before "expires", if at all.
  */
 export function resetCreditsLine(noun: string, c: ResetCredits): string {
   const expiry = c.nextExpiryAt != null
-    ? ` · expires ${new Date(c.nextExpiryAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+    ? ` · ${`expires ${new Date(c.nextExpiryAt).toLocaleString("en-US", EXPIRY).replace(/\s+(AM|PM)/, (_, p: string) => p.toLowerCase())}`.replace(/\s/g, " ")}`
     : "";
   return `${c.availableCount} ${noun}${c.availableCount !== 1 ? "s" : ""} available${expiry}`;
 }

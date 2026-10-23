@@ -3,10 +3,10 @@
 //
 // MEASURED ON THE MACHINE THAT REPORTED IT, in one instant:
 //
-//   claude auth status --json  ->  loggedIn: true, claude3@sapec.md
-//   cswap list --json          ->  claude3@sapec.md: relogin_required
+//   claude auth status --json  ->  loggedIn: true, carol@example.net
+//   cswap list --json          ->  carol@example.net: relogin_required
 //   GET /api/quota             ->  source: cli, 5h 33%, 7d 37%
-//   GET /api/claude-accounts   ->  claude3@sapec.md: error "invalid_grant"
+//   GET /api/claude-accounts   ->  carol@example.net: error "invalid_grant"
 //
 // Two facts had been shipped as one. claude-swap keeps its own COPY of each
 // account's credentials, captured when the slot was added; when that copy's
@@ -34,14 +34,14 @@ const src = (rel: string) =>
   readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
 const DEAD = { consecutiveFailures: 1, lastError: "invalid_grant" };
-const HERE = { email: "claude3@sapec.md", orgId: "c42" };
+const HERE = { email: "carol@example.net", orgId: "c42" };
 
 describe("an account the collector cannot read", () => {
   it("says nothing red when the CLI says the user is signed in as it", () => {
     // The whole bug in one case. The row is genuinely quarantined and the user
     // genuinely has nothing to fix.
     const out = authTrouble(DEAD, {
-      matches: true, isActive: true, identity: HERE, email: "claude3@sapec.md",
+      matches: true, isActive: true, identity: HERE, email: "carol@example.net",
     });
     expect(out?.kind).toBe("stale-copy");
     expect(out?.error).toBeNull();
@@ -51,7 +51,7 @@ describe("an account the collector cannot read", () => {
     // A dead slot the user is NOT signed in as is a real expiry, and the badge
     // is the correct thing to show — this is the case #37 was written for.
     const out = authTrouble(DEAD, {
-      matches: true, isActive: true, identity: HERE, email: "claude1@sapec.md",
+      matches: true, isActive: true, identity: HERE, email: "alice@example.net",
     });
     expect(out?.kind).toBe("auth");
     expect(out?.error).toBe("invalid_grant");
@@ -62,7 +62,7 @@ describe("an account the collector cannot read", () => {
     // active slot. It says nothing about any other row, so no other row may
     // borrow its answer.
     const out = authTrouble(DEAD, {
-      matches: true, isActive: false, identity: HERE, email: "claude3@sapec.md",
+      matches: true, isActive: false, identity: HERE, email: "carol@example.net",
     });
     expect(out?.kind).toBe("auth");
   });
@@ -73,7 +73,7 @@ describe("an account the collector cannot read", () => {
     // and the more dangerous one: it hides a failure the user must act on.
     for (const identity of [null, undefined]) {
       const out = authTrouble(DEAD, {
-        matches: true, isActive: true, identity, email: "claude3@sapec.md",
+        matches: true, isActive: true, identity, email: "carol@example.net",
       });
       expect(out?.kind, String(identity)).toBe("auth");
     }
@@ -82,19 +82,19 @@ describe("an account the collector cannot read", () => {
   it("compares the addresses case-insensitively", () => {
     const out = authTrouble(DEAD, {
       matches: true, isActive: true,
-      identity: { email: "Claude3@Sapec.MD", orgId: "c42" },
-      email: "claude3@sapec.md",
+      identity: { email: "Carol@Example.NET", orgId: "c42" },
+      email: "carol@example.net",
     });
     expect(out?.kind).toBe("stale-copy");
   });
 
   it("says nothing at all about a healthy row", () => {
     expect(authTrouble({ consecutiveFailures: 0 }, {
-      matches: true, isActive: true, identity: HERE, email: "claude3@sapec.md",
+      matches: true, isActive: true, identity: HERE, email: "carol@example.net",
     })).toBeNull();
     // And nothing about a row that belongs to a previous occupant of the slot.
     expect(authTrouble(DEAD, {
-      matches: false, isActive: true, identity: HERE, email: "claude3@sapec.md",
+      matches: false, isActive: true, identity: HERE, email: "carol@example.net",
     })).toBeNull();
   });
 });
@@ -117,7 +117,7 @@ describe("a collector that has simply stopped", () => {
 
   it("is trouble after half a day, whatever the counter says", () => {
     const out = authTrouble(QUIET, {
-      matches: true, isActive: false, email: "claude2@sapec.md",
+      matches: true, isActive: false, email: "bob@example.net",
       fetchedAt: 0, now: 21 * HOURS,
     });
     expect(out?.kind).toBe("stopped");
@@ -149,7 +149,7 @@ describe("a collector that has simply stopped", () => {
     // collector that stopped is `stale-copy` — quiet, and no offer to sign them
     // in again — rather than a silence of unknown cause.
     const out = authTrouble(QUIET, {
-      matches: true, isActive: true, identity: HERE, email: "claude3@sapec.md",
+      matches: true, isActive: true, identity: HERE, email: "carol@example.net",
       fetchedAt: 0, now: 21 * HOURS,
     });
     expect(out?.kind).toBe("stale-copy");
@@ -225,8 +225,30 @@ describe("what the panel is allowed to offer", () => {
     expect((popover.match(/onSignIn\(\)/g) ?? []).length, "the popover signs in from somewhere other than its fix").toBe(1);
     expect(panel).toMatch(/<AccountIssuePopover[^>]*onSignIn=\{\(\) => setAddOpen\(true\)\}/);
     expect(panel).toMatch(/\{activeIssue\.fix && \(\s*<button type="button" className="ap-notice-fix" onClick=\{\(\) => setAddOpen\(true\)\}/);
+    //
+    // The fourth opener is a refused switch's remedy (#2184): the deck would
+    // not put an expired login live and says so on the row pressed. That is a
+    // claim about an account too, and it cannot be about the one the user is
+    // signed in as: the server refuses only a switch to another account, the
+    // refusal is drawn only for that answer, and the row offers the dialog
+    // only under that refusal.
+    expect(src("../../server/claude-accounts.mjs")).toMatch(/export async function expiredSwitchTarget[\s\S]*?if \(!t \|\| t\.active\) return null;/);
+    expect(src("../expired-switch.ts")).toMatch(/if \(body\?\.reason !== LOGIN_EXPIRED\) return null;\s*return \{[^\n]*, signIn: true \};/);
+    expect((accountsSurface().match(/signIn: true/g) ?? []).length, "a refusal offers the dialog from somewhere other than the expired login's").toBe(1);
+    const row = src("../components/AccountRow.tsx");
+    expect(row).toMatch(/\{refusal\.signIn && onSignIn && \(\s*<button type="button" className="ap-fix ap-failure-fix" onClick=\{\(\) => onSignIn\(a\.email\)\}/);
+    expect((row.match(/onSignIn\(/g) ?? []).length, "the row signs in from somewhere other than a refusal").toBe(1);
+    expect(panel).toMatch(/const signInAgain = \(email: string \| null\) => \{ setSignInAs\(email\); setAddOpen\(true\); \};/);
+    expect(panel).toMatch(/<AccountRow[\s\S]*?onSignIn=\{signInAgain\}/);
+    //
+    // The fifth is the notice for a login claude-swap does not hold: Claude
+    // Code is signed in as an account that is not in the list, and the add is
+    // what ends that. It claims no login is broken, and it cannot be about an
+    // account the user is signed in as: it renders only when no row is active,
+    // which is exactly when the live login is in no row.
+    expect(panel).toMatch(/\{!activeAcct && data\.unlistedLogin && \(\s*<div className="ap-notice">[\s\S]*?<button type="button" className="ap-notice-fix" onClick=\{\(\) => setAddOpen\(true\)\}/);
     const openers = (accountsSurface().match(/setAddOpen\(true\)/g) ?? []).length;
-    expect(openers, "something opens the sign-in dialog outside the gated fix and the header's +").toBe(3);
+    expect(openers, "something opens the sign-in dialog outside the gated fixes and the header's +").toBe(5);
   });
 
   it("offers nothing for a silence it will not explain, and the fix when it will", () => {
@@ -540,8 +562,8 @@ describe("asking claude-swap about one account, now", () => {
   };
   const LIST = JSON.stringify({
     accounts: [
-      { number: 2, email: "claude1@sapec.md", organizationUuid: "bfaf", usageStatus: "ok" },
-      { number: 5, email: "claude2@sapec.md", organizationUuid: "d8a2", usageStatus: "no_credentials" },
+      { number: 2, email: "alice@example.net", organizationUuid: "bfaf", usageStatus: "ok" },
+      { number: 5, email: "bob@example.net", organizationUuid: "d8a2", usageStatus: "no_credentials" },
     ],
   });
   const answering = (out: Record<string, unknown>) => ({
@@ -552,11 +574,11 @@ describe("asking claude-swap about one account, now", () => {
     // A number is a position in one machine's store; the caller is holding an
     // account. The same email under two organisations is two accounts.
     return Promise.all([
-      expect(verdictNow("claude2@sapec.md", "d8a2", answering({ ok: true, stdout: LIST })))
+      expect(verdictNow("bob@example.net", "d8a2", answering({ ok: true, stdout: LIST })))
         .resolves.toBe("no_credentials"),
-      expect(verdictNow("CLAUDE2@SAPEC.MD", "d8a2", answering({ ok: true, stdout: LIST })))
+      expect(verdictNow("BOB@EXAMPLE.NET", "d8a2", answering({ ok: true, stdout: LIST })))
         .resolves.toBe("no_credentials"),
-      expect(verdictNow("claude2@sapec.md", "wrong-org", answering({ ok: true, stdout: LIST })))
+      expect(verdictNow("bob@example.net", "wrong-org", answering({ ok: true, stdout: LIST })))
         .resolves.toBeNull(),
     ]);
   });

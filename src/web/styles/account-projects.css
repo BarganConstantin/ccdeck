@@ -226,10 +226,6 @@
 .ap-report-modal .ap-proj-head { flex-wrap: wrap; flex-shrink: 0; padding: 16px 24px; background: none; }
 .ap-report-modal h2.ap-proj-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); }
 .ap-report-body { display: flex; flex-direction: column; gap: 24px; padding: 20px 24px 24px; min-height: 0; }
-.ap-report-views { display: flex; align-items: center; gap: 4px; }
-.ap-report-view { padding: 6px 8px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--report-meta); white-space: nowrap; cursor: pointer; }
-.ap-report-view[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--accent); }
-.ap-report-view:hover { color: var(--text); background: var(--ctl-fill); }
 
 /* One planning instrument: next event, data coverage and day navigation. */
 .ap-report-overview { display: flex; flex-direction: column; gap: 6px; }
@@ -631,8 +627,6 @@
 /* Narrow: tighten the frame, preserving all columns in the table scroller. */
 @media (max-width: 520px) {
   .ap-report-modal .ap-proj-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 12px 16px; }
-  .ap-report-views { grid-row: 2; grid-column: 1 / -1; }
-  .ap-report-view { min-height: 36px; }
   .ap-report-sums { gap: 16px; }
   .ap-report-reset { flex-wrap: wrap; white-space: normal; }
   .ap-report-reset > span:first-child { min-width: 0; flex-shrink: 1; white-space: normal; }
@@ -679,7 +673,6 @@
 }
 @media (max-width: 520px) and (max-height: 620px) {
   .ap-report-modal .ap-proj-head { gap: 4px; padding: 8px 12px; }
-  .ap-report-view { min-height: 28px; padding-block: 4px; }
   .ap-reset-overview { padding-block: 8px; }
   .ap-reset-next { padding-block: 6px; }
   .ap-reset-command { gap: 8px; }
@@ -713,6 +706,25 @@
 }
 
 @media (max-width: 680px) {
-  .ap-report-views .ap-report-view { min-height: 44px; }
   .ap-reset-about > summary { min-height: 44px; padding-block: 12px; }
+}
+
+/* Initial report read: explain grouping work into projects, not fake totals. */
+.ap-proj-loading { min-height: 176px; padding: 12px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; }
+.ap-proj-loading-art { width: 210px; height: 98px; max-width: 100%; color: var(--muted); margin-bottom: 4px; }
+.ap-proj-loading strong { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.ap-proj-loading > span { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
+.ap-proj-loading-links { stroke: var(--line); }
+.ap-proj-loading-scan { stroke: var(--accent); animation: ap-project-read 1600ms cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.ap-proj-loading[data-paused] .ap-proj-loading-scan { animation-play-state: paused; }
+.ap-proj-ready { animation: ap-project-report-in 140ms cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes ap-project-read {
+  0% { opacity: 0.3; transform: translateY(0); }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; transform: translateY(12px); }
+}
+@keyframes ap-project-report-in { from { opacity: 0.65; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .ap-proj-loading-scan { animation: none; transform: translateY(6px); }
+  .ap-proj-ready { animation: none; }
 }

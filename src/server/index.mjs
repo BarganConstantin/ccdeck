@@ -19,7 +19,7 @@ import { challengeDeck, challengeProof, isProcessAlive } from "./deck-probe.mjs"
 export { challengeDeck, challengeProof, isProcessAlive };
 // The gates in front of the route table — see src/server/request-gates.mjs,
 // which also holds the per-process token the strictest of them checks.
-import { GUARDED_READS, OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isTrustedMutation, isTrustedRead } from "./request-gates.mjs";
+import { OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isGuardedRead, isTrustedMutation, isTrustedRead } from "./request-gates.mjs";
 import { trafficCapture } from "./traffic-radar-capture.mjs";
 import { trafficRadar } from "./traffic-radar.mjs";
 import { handleTrafficCapture, isAuthorizedTrafficIngest } from "./traffic-radar-routes.mjs";
@@ -29,6 +29,8 @@ export { MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, payloadChars } from "./
 // The ring itself — what it holds, how it numbers them, and the eviction that
 // keeps those bounds — private behind its operations. See event-ring.mjs.
 import { eventsSince } from "./event-ring.mjs";
+// The same ring folded to one row per session, for `ccdeck sessions` (#2183).
+import { summarizeSessions } from "./session-summary.mjs";
 // Exported from this file before they moved, and still.
 export { eventBufferStats, eventsSince } from "./event-ring.mjs";
 // The one door every event comes through, and what it does to each on the way
@@ -36,6 +38,7 @@ export { eventBufferStats, eventsSince } from "./event-ring.mjs";
 // routes below: it connects pushEvent to event-sink.mjs as it loads, and the
 // boot replay pushes through that sink before any route has run.
 import "./event-pipeline.mjs";
+import { stopCodexEnrichment } from "./codex-enrichment.mjs";
 // POST /api/event, GET /events and GET /api/events — see event-routes.mjs.
 import { handleEventIngest, handleSse, writeJsonArray } from "./event-routes.mjs";
 // Exported from this file before it moved, and still.
@@ -159,6 +162,7 @@ import { send, sendInternalError } from "./http-io.mjs";
 export { sendInternalError };
 // The accounts surface's routes — see account-routes.mjs. The boot wires the
 // stale-copy repair and starts auto-switch through the same module.
+import { handleStopContinue, handleStopContinueRead } from "./stop-continue.mjs";
 import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCodexProfiles, handleCodexProfileQuota, handleCodexProfileLaunch, handleCodexProfileMutation, handleCodexProfileLogin, handleCodexTerminalCommand, handleCswapAuto, handleCswapAutoAction, wireAccountOrigins, wireStaleCopyRepair } from "./account-routes.mjs";
 // Browser Watch's three routes — see browser-watch-routes.mjs.
 import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettings } from "./browser-watch-routes.mjs";
@@ -169,6 +173,9 @@ import { startToolAudit } from "./tool-audit.mjs";
 import { handleToolAudit } from "./tool-audit-routes.mjs";
 import { startQuotaHistory } from "./quota-history.mjs";
 import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota, handleQuotaHistory } from "./usage-routes.mjs";
+// Connected trackers (#2178) and each provider's own reads. See
+// integrations/routes.mjs; nothing in it is shared with paired decks.
+import { handleIntegrations } from "./integrations/routes.mjs";
 // The port fallback, one listen attempt, and the words for a failed one — see
 // listen.mjs. The loop that uses them is startServer's.
 import { listenFailure, portRetryable, randomPort, tryListen } from "./listen.mjs";
@@ -297,7 +304,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // gate above was written for a sandboxed subprocess with loopback egress,
     // and that caller was reading the ring through a GET the whole time.
     if ((req.method === "GET" || req.method === "HEAD")
-      && GUARDED_READS.has(url.pathname) && !isAuthorizedDataRead(req)) {
+      && isGuardedRead(url.pathname) && !isAuthorizedDataRead(req)) {
       return send(res, 401, { error: "unauthenticated" });
     }
 
@@ -396,6 +403,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/switch") return guard(handleClaudeAccountSwitch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts/login")  return guard(handleAccountLoginState(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/admin")  return guard(handleClaudeAccountAdmin(req, res), res);
+    // Continue a session whose turn stopped on a login or a usage limit (#2193):
+    // the gate's evidence and each session's outcome, and the press itself.
+    if (req.method === "GET"  && url.pathname === "/api/stop-continue") return guard(handleStopContinueRead(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/stop-continue") return guard(handleStopContinue(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/cswap-auto")  return guard(handleCswapAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/cswap-auto")  return guard(handleCswapAutoAction(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-fm")   return guard(handleClaudeFm(req, res), res);
@@ -408,12 +419,18 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/best-of-nostalgia") return guard(handleBestOfNostalgia(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/good-life-radio") return guard(handleGoodLifeRadio(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/cafe-music-bgm") return guard(handleCafeMusicBgm(req, res), res);
+    if (url.pathname === "/api/integrations" || url.pathname.startsWith("/api/integrations/")) return guard(handleIntegrations(req, res, url), res);
 
     // Through writeJsonArray rather than `send`, and through `guard` like every
     // route above it: this is the one answer whose size is the ring's size, and
     // `send` would build all of it as a single string. See writeJsonArray.
     if (req.method === "GET" && url.pathname === "/api/events") {
       return guard(writeJsonArray(res, eventsSince(url.searchParams.get("since") ?? 0)), res);
+    }
+    // GET /api/sessions — which sessions this deck is watching and which of
+    // them waits on a human, without the ring itself. See session-summary.mjs.
+    if (req.method === "GET" && url.pathname === "/api/sessions") {
+      return send(res, 200, { ok: true, now: Date.now(), sessions: summarizeSessions(eventsSince(0)) });
     }
 
     // GET /api/clear — what a POST to this path would do, and to whose log.
@@ -521,7 +538,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       void trafficCapture.resume(boundPort).catch(() => {});
       server.once("close", () => trafficCapture.dispose());
       // Codex has no working hooks on Windows — tail its rollout files instead.
-      if (codex) startCodexWatcher(workspace);
+      if (codex) {
+        startCodexWatcher(workspace);
+        server.once("close", stopCodexEnrichment);
+      }
       if (claude) {
         const recovery = createClaudeRecovery({ workspace });
         const recover = () => { void recovery.scan().catch(() => {}); };

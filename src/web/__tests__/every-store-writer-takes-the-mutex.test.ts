@@ -231,14 +231,23 @@ describe("the first-run seed", () => {
     // The marker file is written before the add, so this runs once per temp
     // HOME; that is the seed's own contract and it is why the assertion below
     // is about the one run rather than about repetition.
-    let seeding!: Promise<unknown>;
-    await whileTheStoreIsBusy(async () => {
-      seeding = seedFirstAccount();
-      await rest(60);
-      expect(ran("add"), "the seed added to the store beside an in-flight mutation").toEqual([]);
-    });
-    await seeding;
-    expect(ran("add")).toEqual([["add"]]);
+    //
+    // The seed is skipped under the documented opt-out, so a caller's own
+    // AGENTS_DECK_NO_INSTALL=1 would leave nothing to observe: cleared here,
+    // and put back after.
+    vi.stubEnv("AGENTS_DECK_NO_INSTALL", undefined);
+    try {
+      let seeding!: Promise<unknown>;
+      await whileTheStoreIsBusy(async () => {
+        seeding = seedFirstAccount();
+        await rest(60);
+        expect(ran("add"), "the seed added to the store beside an in-flight mutation").toEqual([]);
+      });
+      await seeding;
+      expect(ran("add")).toEqual([["add"]]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 

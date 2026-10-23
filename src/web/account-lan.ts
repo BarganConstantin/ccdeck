@@ -9,6 +9,9 @@
 import { type Account } from "./claude-accounts";
 import { isOnline, pairedDeckName } from "./lan-roster";
 import { type LanAccount, type LanStatus } from "./lan-types";
+// The rule the notifier reads on the server, so the row cannot say a deck is on
+// a login while the notification thinks it is not (#2192).
+import { decksByAccount } from "../server/lan-elsewhere.mjs";
 
 export function lanAccounts(accounts: readonly Account[]): LanAccount[] {
   return accounts.map(a => ({
@@ -24,7 +27,28 @@ export function lanAccounts(accounts: readonly Account[]): LanAccount[] {
     // The active slot needs a verdict, as on the server: its export is
     // the live login — see cachedExportReadable.
     shareable: a.collector === "ok" || (a.collector == null && !a.active),
+    // The one this deck is on, which Local network does not send unless its
+    // owner said to — see offeredHere.
+    ...(a.active ? { active: true } : {}),
   }));
+}
+
+/**
+ * This deck's accounts as Local network hands them out: every one but the one
+ * it is on, unless its owner turned on sending that too (#2192) — the rule
+ * manifestFor and the `want` answer hold on the server. The one in use stays
+ * in the list, marked, so the setup dialog and a deck's lanes say why it is not
+ * going anywhere rather than drawing a copy that will not cross.
+ *
+ * BY LOGIN, NOT BY SLOT, as the server keeps it: claude-swap can hold one login
+ * in two slots, and the slot this deck is not on is the same login. Marking
+ * only the active slot drew the other as going out, and left the share mark to
+ * whichever slot came last.
+ */
+export function offeredHere(accounts: LanAccount[], status: Pick<LanStatus, "sendInUse"> | null): LanAccount[] {
+  if (status?.sendInUse === true) return accounts;
+  const live = new Set(accounts.filter(a => a.active).map(a => a.key));
+  return accounts.map(a => (live.has(a.key) ? { ...a, shareable: false, inUse: true } : a));
 }
 
 /**
@@ -54,12 +78,19 @@ export function noCopyWorksNearby(
   now: number,
 ): boolean {
   if (!status?.enabled) return false;
-  const copies = (status.peers ?? [])
-    .filter(p => p.paired && isOnline(p, now))
+  const online = (status.peers ?? []).filter(p => p.paired && isOnline(p, now));
+  // A DECK THAT HIDES WHICH ACCOUNT IT IS ON leaves exactly that login out of
+  // its list (#2192), so its silence about this one may be a copy that works:
+  // no evidence either way, and the row says no more than it knows.
+  if (online.some(p => hidesCurrent(p.offers?.current) && !p.offers?.accounts?.some(o => o.key === key))) return false;
+  const copies = online
     .map(p => p.offers?.accounts?.find(o => o.key === key))
     .filter((o): o is NonNullable<typeof o> => o != null);
   return copies.length > 0 && copies.every(o => !o.alive);
 }
+
+const hidesCurrent = (current: unknown) =>
+  !!current && typeof current === "object" && (current as { hidden?: unknown }).hidden === true;
 
 /**
  * Whether Local network is about to repair this dead login on its own (#1893).
@@ -135,9 +166,66 @@ export function sharedTo(
   return [...new Set(names)].sort((a, b) => a.localeCompare(b));
 }
 
-/** What the share mark says, in its title and to a screen reader. */
-export function sharedLine(to: readonly string[]): string {
-  if (!to.length) return "Shared on Local network: offered to every deck you pair with. None is paired yet.";
+/**
+ * The paired decks that say they are on this login right now, by the names
+ * Local network's list gives them — or null when none does (#2192).
+ *
+ * ONE LOGIN, LIVE IN ONE PLACE. A Claude login renews once: the copy that
+ * renews it first keeps it, and every other copy of it is refused from then on,
+ * so two machines on one copied login race each other at every renewal and the
+ * loser is signed out. Each paired deck says which shared login it is on in its
+ * last list, and lan-elsewhere.mjs holds that word for five minutes — the same
+ * rule the notification reads.
+ *
+ * ONLY WHAT A DECK SAID. The login this deck is on is marked `inUse` in its own
+ * list (offeredHere) and that is not a deck saying anything; a paired deck that
+ * hides which login it is on leaves that login out of its list and says
+ * `hidden`, and one on a login it does not share says `other` — none of which
+ * names a login, so none of them is drawn as a deck on one.
+ *
+ * NOT `isOnline`, which is a deck answering this minute: a deck that missed a
+ * round or two is still signed in where it was, and a warning that went out and
+ * came back with each round would be two warnings for one fact.
+ */
+export function activeElsewhere(
+  key: string,
+  status: Pick<LanStatus, "enabled" | "peers" | "aliases" | "addrs"> | null,
+  now: number,
+): string[] | null {
+  const rows = decksByAccount(status, now).get(key);
+  if (!rows?.length) return null;
+  const names = rows.map(p => pairedDeckName(p, status?.aliases ?? {})).filter(Boolean);
+  return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+}
+
+/** What an account's row is told about its share mark: the decks it is offered
+ *  to (sharedTo), and whether this deck is on it and so keeps it here (#2192). */
+export interface SharedMark { to: readonly string[]; inUse: boolean }
+
+/** The share marks of this deck's accounts, keyed as the rows find them: one
+ *  for every account sharedTo offers, from the list offeredHere marked. */
+export function sharedMarks(
+  accounts: readonly LanAccount[],
+  status: Pick<LanStatus, "enabled" | "shared" | "peers" | "aliases"> | null,
+): Array<[string, SharedMark]> {
+  return accounts.flatMap(a => {
+    const to = sharedTo(a.key, status);
+    return to ? [[a.key, { to, inUse: a.inUse === true }] as [string, SharedMark]] : [];
+  });
+}
+
+/** What the share mark says, in its title and to a screen reader.
+ *
+ *  THE LOGIN THIS DECK IS ON is still ticked, and still marked, but it is not
+ *  sent while this deck is on it (#2192) — so its line says that, in the setup
+ *  dialog's own words, instead of naming decks it is not going to. */
+export function sharedLine(to: readonly string[], inUse = false): string {
   const names = to.length === 1 ? to[0] : `${to.slice(0, -1).join(", ")} and ${to[to.length - 1]}`;
+  if (inUse) {
+    return to.length
+      ? `Shared on Local network: in use here · not sent to ${names} while this deck is on it.`
+      : "Shared on Local network: in use here · not sent while this deck is on it. None is paired yet.";
+  }
+  if (!to.length) return "Shared on Local network: offered to every deck you pair with. None is paired yet.";
   return `Shared on Local network: offered to ${names}.`;
 }

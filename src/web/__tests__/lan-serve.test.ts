@@ -18,7 +18,7 @@ const ME = "fp-me";
 const PEER = "fp-peer";
 const KEY = "a@x|org-1";
 
-type Cfg = { enabled: boolean; trusted: Array<{ fp: string }>; shared: string[] };
+type Cfg = { enabled: boolean; trusted: Array<{ fp: string }>; shared: string[]; sendInUse?: boolean; shareActive?: boolean };
 type Slot = { key: string; num: number; alive: boolean; readable?: boolean; unreadableWhy?: string; active?: boolean; email?: string; org?: string };
 
 function rig(over: { accounts?: Slot[]; live?: unknown; blob?: string | null } = {}) {
@@ -141,12 +141,36 @@ describe("a login", () => {
     expect(r.log.filter(l => l.startsWith("export"))).toEqual([]);
   });
 
-  it("on the active slot is asked of the live login first", async () => {
+  it("on the active slot is not given — this deck is on it — unless its owner said to send that too", async () => {
+    // #2192: a copy of the login this deck is signed in to is one login live on
+    // two machines, and the next renewal signs one of them out. The manifest
+    // marks it not to be asked for; this is the answer to a deck too old to
+    // read the mark, and it is given before anything is asked or exported.
+    const active = { key: KEY, num: 3, alive: true, readable: true, active: true, email: "a@x", org: "org-1" };
+    let asked = 0;
+    const r = rig({ accounts: [active], live: { email: "a@x", orgId: "org-1" } });
+    expect(await r.ask(r.want())).toEqual({ t: "no", why: "in use" });
+    expect(r.log.filter(l => l.startsWith("export"))).toEqual([]);
+    // Read after the store, like every other rung: a switch turned off while
+    // the store was read is the refusal.
+    const late = rig({ accounts: [active], live: { email: "a@x", orgId: "org-1" } });
+    late.st.cfg = { ...late.st.cfg, sendInUse: true };
+    late.st.duringRead = () => { asked++; late.st.cfg = { ...late.st.cfg, sendInUse: false }; };
+    expect(await late.ask(late.want())).toEqual({ t: "no", why: "in use" });
+    expect(asked).toBe(1);
+    // Another slot of the same login is the same login.
+    const twin = rig({ accounts: [{ ...active, num: 4, active: false }, active], live: { email: "a@x", orgId: "org-1" } });
+    expect(await twin.ask(twin.want())).toEqual({ t: "no", why: "in use" });
+  });
+
+  it("on the active slot is asked of the live login first, once its owner sends it", async () => {
     const active = { key: KEY, num: 3, alive: true, readable: true, active: true, email: "a@x", org: "org-1" };
     const other = rig({ accounts: [active], live: { email: "b@x", orgId: "org-1" } });
+    other.st.cfg = { ...other.st.cfg, sendInUse: true };
     expect(await other.ask(other.want())).toEqual({ t: "no", why: "export failed" });
     expect(other.log.filter(l => l.startsWith("export"))).toEqual([]);
     const same = rig({ accounts: [active], live: { email: "A@x", orgId: "org-1" } });
+    same.st.cfg = { ...same.st.cfg, sendInUse: true };
     expect(await same.ask(same.want())).toMatchObject({ t: "have" });
   });
 
@@ -172,5 +196,48 @@ describe("a failure while answering", () => {
     r.st.readError = new Error("store gone");
     expect(await r.ask(r.want())).toEqual({ t: "no", why: "error" });
     expect(r.errors.map(([where, err]) => [where, (err as Error).message])).toEqual([["serve", "store gone"]]);
+  });
+});
+
+// #2192: while its owner hides which account this deck is on, the login it is
+// on is left out of the list and refused "not shared", as a login not ticked
+// is. So a paired deck's request is answered in one order whatever it names —
+// its proof, then the store, then whether that deck may have it — or how the
+// refusal comes, and how late, would tell the two apart.
+describe("a want, in the order it is answered", () => {
+  const reads = (r: ReturnType<typeof rig>) => r.log.filter(l => l === "read").length;
+
+  it("from a deck that is not paired, or while the deck is off or not listening, is refused before its proof or the store", async () => {
+    for (const change of [
+      (r: ReturnType<typeof rig>) => { r.st.cfg = { ...r.st.cfg, trusted: [] }; },
+      (r: ReturnType<typeof rig>) => { r.st.cfg = { ...r.st.cfg, enabled: false }; },
+      (r: ReturnType<typeof rig>) => { r.st.server = null; },
+    ]) {
+      const r = rig();
+      change(r);
+      expect(await r.ask(r.want(KEY, "0".repeat(64)))).toEqual({ t: "no", why: "not paired" });
+      expect(await r.ask(r.want("b@x|org-1"))).toEqual({ t: "no", why: "not paired" });
+      expect(reads(r)).toBe(0);
+    }
+  });
+
+  it("for a login not ticked here is held to its proof and read against the store, like one that is", async () => {
+    const r = rig();
+    expect(await r.ask(r.want("b@x|org-1", "0".repeat(64)))).toEqual({ t: "no", why: "proof" });
+    expect(await r.ask({ ...r.want("b@x|org-1"), proof: undefined })).toEqual({ t: "no", why: "proof" });
+    expect(reads(r)).toBe(0);
+    expect(await r.ask(r.want("b@x|org-1"))).toEqual({ t: "no", why: "not shared" });
+    expect(reads(r)).toBe(1);
+  });
+
+  it("for the login this deck is on, while its owner hides which that is, reads like one not ticked", async () => {
+    const active = { key: KEY, num: 3, alive: true, readable: true, active: true, email: "a@x", org: "org-1" };
+    const r = rig({ accounts: [active], live: { email: "a@x", orgId: "org-1" } });
+    r.st.cfg = { ...r.st.cfg, shareActive: false };
+    expect(await r.ask(r.want(KEY, "0".repeat(64)))).toEqual({ t: "no", why: "proof" });
+    expect(await r.ask(r.want(KEY))).toEqual({ t: "no", why: "not shared" });
+    expect(await r.ask(r.want("b@x|org-1"))).toEqual({ t: "no", why: "not shared" });
+    expect(reads(r)).toBe(2);
+    expect(r.log.filter(l => l.startsWith("export"))).toEqual([]);
   });
 });

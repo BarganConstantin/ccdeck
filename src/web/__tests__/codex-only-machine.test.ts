@@ -465,12 +465,18 @@ describe("which panels the UI draws for each machine", () => {
 
   it("hides the accounts button too, rather than opening onto nothing", () => {
     // The left stripe — and the phone's dock, which draws the same list — holds
-    // Accounts only where Claude Code is; without it, Session list alone.
+    // Accounts only where Claude Code or Codex is; without either, Session list alone.
     expect(appSrc).toMatch(/left: \(providers\.claude \|\| providers\.codex\) \? \[accounts, sessionList\] : \[sessionList\]/);
     expect(appSrc).toMatch(/<EdgeDock items=\{\[\.\.\.rails\.left, /);
-    expect(appSrc).toMatch(/<EdgeRail side="left" label="Left column" groups=\{\[rails\.left\]\}/);
+    // Account capacity and Reset calendar open the accounts' report, so they
+    // follow the accounts button off a Codex-only stripe and out of More.
+    expect(appSrc).toMatch(/leftStripe: providers\.claude \? \[accounts, \.\.\.capacity, sessionList\] : providers\.codex \? \[accounts, sessionList\] : \[sessionList\]/);
+    expect(appSrc).toMatch(/capacity: providers\.claude \? capacity : \[\]/);
+    // The connected trackers (#2178) are a group of their own after it, so
+    // they cannot stand in for the accounts button either.
+    expect(appSrc).toMatch(/<EdgeRail side="left" label="Left column" groups=\{\[rails\.leftStripe, rails\.integrations\]\}/);
     // And nowhere else: the right stripe and the utilities never carry it.
-    expect(appSrc).toMatch(/right: \[\[usage, machine\], \[history, \.\.\.\(openToolActivity \? \[\{[^}]*\}\] : \[\]\), browserWatch, \.\.\.\(setTrafficRadarOpen \? \[\{[^}]*\}\] : \[\]\)\], \.\.\.\(setRadioOpen/);
+    expect(appSrc).toMatch(/right: \[\[usage, machine\], \[history, \.\.\.activity, browserWatch, \.\.\.\(setTrafficRadarOpen \? \[\{[^}]*\}\] : \[\]\)\], \.\.\.\(setRadioOpen/);
     expect(appSrc).toMatch(/utilities: \[settings, feedback\]/);
   });
 

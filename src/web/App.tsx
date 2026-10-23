@@ -6,10 +6,12 @@ import { usePanelPresence, isMounted, isDrawn, isLeaving } from "./panel-exit";
 import BoardFlow from "./components/BoardFlow";
 import DesktopTitlebar from "./components/DesktopTitlebar";
 import SessionList from "./components/SessionList";
-import ToolAuditModal from "./components/ToolAuditModal";
+import ToolAuditModal, { type ToolActivityView } from "./components/ToolAuditModal";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
+import AccountCapacityDialog from "./components/AccountCapacityDialog";
+import type { CapacityView } from "./components/AccountsUsageReport";
 import LeftColumn from "./components/LeftColumn";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
@@ -40,6 +42,12 @@ import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { railItems } from "./rail-items";
+// The modal and its panels load on demand; this is the light wrapper that
+// fetches them (IntegrationModalOnDemand.tsx).
+import IntegrationModal, { preloadIntegrationModal } from "./components/IntegrationModalOnDemand";
+import { connectionsOf, kindOffered, kindOpenable, requestIntegrationFocus, useIntegrations } from "./integrations/client";
+import { integrationDefs } from "./integrations/registry";
+import type { IntegrationKind } from "./integrations/types";
 import { useMediaQuery } from "./use-media-query";
 import { ReadoutGroup, WaitingNames } from "./components/TopbarReadouts";
 import SelectedRibbon from "./components/SelectedRibbon";
@@ -66,6 +74,7 @@ import { leftColumnWidth, useColumnSettle, useLeftColumn } from "./use-left-colu
 import { useRightPanels } from "./use-right-panels";
 import { useLiveAnnouncements } from "./use-live-announcements";
 import { useOsNotifications } from "./use-os-notifications";
+import { useStopContinueFeed } from "./use-stop-continue";
 import { useMirroredRef } from "./use-mirrored-ref";
 import { useDialogs } from "./use-dialogs";
 import { useClearFlow } from "./use-clear-flow";
@@ -113,19 +122,20 @@ function Inner() {
   const stateRef = useRef(initialGraph);
   const [, force] = useState(0);
   const rerender = useCallback(() => force(x => x + 1), []);
+  // The left column: the session list and the accounts panel share one slot,
+  // and opening one evicts the other (#824). Both panels' state, persistence and
+  // the eviction live in use-left-column.ts; only its toggles can open either.
+  // Restored first, because the right-hand panels' room depends on its width.
+  const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
+          openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel } = useLeftColumn();
   // The detail, Usage and Machine panels' open flags, each kept in the browser
   // across a refresh — use-right-panels.ts. Called ahead of the selection
   // below, because a plain selection opens the detail panel (#814).
   const { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen }
-    = useRightPanels();
+    = useRightPanels(leftColumnWidth(leftPanel));
 
   const { selectedIds, primarySelectedId, selectAgent, clearSelection, pruneSelectionToBoard } =
     useSelection(stateRef, setDetailOpen);
-  // The left column: the session list and the accounts panel share one slot,
-  // and opening one evicts the other (#824). Both panels' state, persistence and
-  // the eviction live in use-left-column.ts; only its toggles can open either.
-  const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
-          openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel } = useLeftColumn();
   /** Both panels outlive their own `false` by the length of their exit: a
    *  close slides the panel out with the column's edge, and a switch fades the
    *  one leaving under the one arriving. Must match `--side-exit` in the sheet. */
@@ -262,6 +272,28 @@ function Inner() {
   // the reader last looked — lives in use-browser-watch-badge.ts.
   const watchBadge = useBrowserWatchBadge();
   const { watchOn, watchUnseen } = watchBadge;
+  // The trackers this deck is connected to (#2178): one rail button per kind
+  // with a connection, which opens that kind's large modal. The list is the
+  // one Settings › Integrations edits, so a connection added there puts the
+  // button up at once and the last one removed takes it away. A kind this deck
+  // does not offer has no button, no key and no modal, connected or not: its
+  // connections wait in Settings, where Disconnect removes them.
+  const integrations = useIntegrations();
+  const [integrationOpen, setIntegrationOpen] = useState<IntegrationKind | null>(null);
+  const closeIntegration = useCallback(() => setIntegrationOpen(null), []);
+  const connectedKinds = integrationDefs().filter(p => kindOpenable(integrations, p.kind));
+  const openIntegrationRef = useMirroredRef((kind: string) => {
+    const def = connectedKinds.find(p => p.kind === kind);
+    if (def) setIntegrationOpen(def.kind);
+  });
+  const reconnectIntegration = useCallback((connId: string) => {
+    requestIntegrationFocus(connId);
+    openSettings("integrations");
+  }, [openSettings]);
+  // The modal's chunk, fetched the moment a rail control is up, so the first
+  // press opens it at once; a deck with none to show never fetches it.
+  const integrationShown = connectedKinds.length > 0;
+  useEffect(() => { if (integrationShown) preloadIntegrationModal(); }, [integrationShown]);
 
   // A LAN pairing request waiting on this deck — the poll that finds one, and
   // the one answer at a time the dialog over the canvas gives — lives in
@@ -290,6 +322,11 @@ function Inner() {
 
   // The deck's 250ms clock, and the sweeps that run on it — use-board-tick.ts.
   const now = useBoardTick({ stateRef, rerender, pruneSelectionToBoard, setContextFor, setSummaryFor });
+
+  // Continue for turns that stopped on a login or a usage limit (#2193): asks
+  // the server while a card is stopped, for the store the cards and the
+  // detail panel read (use-stop-continue.ts).
+  useStopContinueFeed({ stateRef, now, enabled: providers.claude });
 
   // What the providers' status pages report (#1311): use-provider-status.ts
   // asks, provider-status.ts decides which lines are an incident. Read against
@@ -528,7 +565,7 @@ function Inner() {
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
     handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
-    setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings,
+    setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef,
   });
 
   /** Not a topbar readout any more — the "agents" counter went with the
@@ -579,16 +616,29 @@ function Inner() {
   // the two stripes and the utilities are one dock along the bottom.
   const phone = useMediaQuery(PHONE_QUERY);
   const [radioOpen, setRadioOpen] = useState(false);
-  const [toolAuditOpen, setToolAuditOpen] = useState(false);
-  const closeToolAudit = useCallback(() => setToolAuditOpen(false), []);
+  // Tool activity, on the view its door names: tools or skills.
+  const [toolAuditView, setToolAuditView] = useState<ToolActivityView | null>(null);
+  const closeToolAudit = useCallback(() => setToolAuditView(null), []);
+  // Skill activity names a session by its card, and opens it there, while the card is still drawn.
+  const toolAuditSessionLabel = useCallback((sessionId: string) => {
+    const card = stateRef.current.agents.get(sessionId);
+    return card ? card.label || card.cwdBasename || "session" : null;
+  }, []);
+  const openToolAuditSession = useCallback((sessionId: string) => { setToolAuditView(null); openSession(sessionId); }, [openSession]);
   const closeRadio = useCallback(() => setRadioOpen(false), []);
+  // Account capacity from the left stripe, on the view its door names —
+  // components/AccountCapacityDialog.tsx.
+  const [capacityView, setCapacityView] = useState<CapacityView | null>(null);
+  const closeCapacity = useCallback(() => setCapacityView(null), []);
   const rails = railItems({
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
     usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
     watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, openSettings, onFeedback: dialogs.openFeedback,
     radioOpen, setRadioOpen,
-    openToolActivity: () => setToolAuditOpen(true),
+    openToolActivity: setToolAuditView,
+    openCapacity: setCapacityView,
     toggles: panelReturn.toggles,
+    integrations: connectedKinds.map(provider => ({ provider, onPress: () => setIntegrationOpen(provider.kind) })),
   });
   // How many of the waiting sessions the topbar names, for the count's hint,
   // which lists the rest.
@@ -675,8 +725,8 @@ function Inner() {
           control before the region it discloses — or, on a phone, the dock
           that stands in for both stripes and the utilities. */}
       {phone
-        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.right.slice(1).flat(), rails.utilities[1]]} />
-        : <EdgeRail side="left" label="Left column" groups={[rails.left]} />}
+        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, rails.utilities[1]]} />
+        : <EdgeRail side="left" label="Left column" groups={[rails.leftStripe, rails.integrations]} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -756,7 +806,12 @@ function Inner() {
           control before the region it discloses. */}
       {!phone && <EdgeRail side="right" label="Right panels" groups={rails.right} />}
 
-      {toolAuditOpen && <ToolAuditModal onClose={closeToolAudit} />}
+      {toolAuditView && <ToolAuditModal view={toolAuditView} onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}
+      {capacityView && <AccountCapacityDialog view={capacityView} onClose={closeCapacity} />}
+      {integrationOpen && (
+        <IntegrationModal kind={integrationOpen} connections={kindOffered(integrations, integrationOpen) ? connectionsOf(integrations, integrationOpen) : []}
+          onClose={closeIntegration} onReconnect={reconnectIntegration} />
+      )}
 
       {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
           fixed, so where they sit in the DOM changes nothing on screen — only

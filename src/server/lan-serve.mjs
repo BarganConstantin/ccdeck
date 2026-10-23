@@ -5,7 +5,7 @@
 // answered at all. It keeps nothing of its own: every check reads the
 // engine's settings, listener and key at the moment it is made, because any
 // of them can change while the store is read.
-import { credentialAad, seal, sharedWith, slotFor, transferChallenge, trustedPeer } from "./lan-sync.mjs";
+import { credentialAad, IN_USE, mayGiveInUse, seal, sharedWith, slotFor, transferChallenge, trustedPeer } from "./lan-sync.mjs";
 import { liveLoginIs } from "./account-health.mjs";
 
 /**
@@ -62,7 +62,12 @@ export function createServe({
         // paired is less than everything ticked — see sharedWith.
         const maySend = () => settings().enabled && !!serverNow() && !!trustedPeer(settings().trusted, ctx.peerFp)
           && sharedWith(settings(), ctx.peerFp).includes(msg.key);
-        if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
+        // ONE ORDER, WHATEVER IS ASKED FOR: the proof, then the store, then
+        // whether that deck may have it (#2192). While its owner hides which
+        // account this deck is on, the login it is on is refused "not shared",
+        // as one not ticked is; refused before the proof and before the store,
+        // an unticked one answered a bad proof differently and sooner, which
+        // told the two apart.
         // A SECOND PROOF, for the one operation that moves a credential. The
         // session says who connected; this says they are asking for this
         // account, now. A long-lived connection authenticated an hour ago is
@@ -83,6 +88,16 @@ export function createServe({
         // live one behind it.
         const mine = slotFor(accounts, msg.key);
         if (!mine) return ctx.send({ t: "no", why: "not mine to give" });
+        // NOT THE LOGIN THIS DECK IS ON, unless its owner said so (#2192). The
+        // manifest already marked it not to be asked for, and a peer older than
+        // that mark asks anyway; this is the answer that does not depend on the
+        // asker's version, read off the same store read as everything below.
+        // While its owner hides which account this deck is on, the manifest
+        // leaves that login out, and the refusal is the one an unticked login
+        // gets: "in use" would name it.
+        if (!mayGiveInUse(accounts, msg.key, settings().sendInUse)) {
+          return ctx.send({ t: "no", why: settings().shareActive === false ? "not shared" : IN_USE });
+        }
         // A LOGIN THIS DECK CANNOT READ IS SAID SO, from state rather than from
         // a failed export: no subprocess, and nothing the CLI printed. The
         // asking deck prints it under the account, so the person learns which

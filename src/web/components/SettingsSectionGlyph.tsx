@@ -20,12 +20,14 @@
 // deck keeps — and the circled i every platform uses for About. Their shapes
 // follow Lucide's (ISC licence) redrawn on this grid, so the set reads as one
 // family with the icons a reader already knows from other settings windows.
+// Integrations (#2178) is a plug: what connects the deck to a tracker.
 // A dot is a zero-length stroke, which the round cap draws as a dot.
 import type { SettingsSection } from "../settings";
 
 export default function SettingsSectionGlyph({ section }: { section: SettingsSection }) {
   return (
     <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {section === "radar" && <><path d="M11.8 7a4.8 4.8 0 1 1-4.8-4.8M9.7 7A2.7 2.7 0 1 1 7 4.3M7 7l4.8-4.8" /></>}
       {section === "reading" && <><path d="M2 11 5.5 3 9 11M3.3 8h4.4M10.5 4h2M10.5 7h2M10.5 10h2" /></>}
       {section === "sounds" && (
         <>
@@ -59,6 +61,13 @@ export default function SettingsSectionGlyph({ section }: { section: SettingsSec
           <ellipse cx="7" cy="3.6" rx="4.6" ry="1.7" />
           <path d="M2.4 3.6v6.8c0 .9 2.1 1.7 4.6 1.7s4.6-.8 4.6-1.7V3.6" />
           <path d="M2.4 7c0 .9 2.1 1.7 4.6 1.7s4.6-.8 4.6-1.7" />
+        </>
+      )}
+      {section === "integrations" && (
+        <>
+          <path d="M5.1 1.6v2.6M8.9 1.6v2.6" />
+          <path d="M3.4 4.2h7.2v2.3a3.6 3.6 0 0 1-7.2 0z" />
+          <path d="M7 10.1v2.3" />
         </>
       )}
       {section === "about" && (

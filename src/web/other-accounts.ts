@@ -76,7 +76,7 @@ export const FOLD_NAMES = 6;
  * the number rather than offering a choice that has already been delegated.
  *
  * AND WHAT IT WILL NOT SAY IS WHICH ONE. The deck does not choose: a tick shells
- * out to `cswap auto --once` and claude-swap picks the target. `claude1 is next`
+ * out to `cswap auto --once` and claude-swap picks the target. `alice is next`
  * would be a prediction this side of the wire cannot make, and a summary that
  * guesses once is a summary nobody reads twice.
  *

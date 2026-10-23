@@ -3,9 +3,11 @@ export async function buildToolAuditReport({ files, query, now, meta }, { create
 const DAY = 86400000;
 const finite = n => typeof n === 'number' && Number.isFinite(n);
 const valid = r => /^[a-f0-9]{64}$/.test(r?.id ?? '') && ['claude', 'codex'].includes(r.provider)
-  && ['start', 'end'].includes(r.kind) && finite(r.t) && (r.at === null || finite(r.at))
+  && ['start', 'end', 'skill'].includes(r.kind) && finite(r.t) && (r.at === null || finite(r.at))
   && ['hook', 'rollout'].includes(r.clock)
-  && (r.kind === 'end' ? typeof r.failed === 'boolean' : typeof r.tool === 'string' && r.tool.length <= 100
+  // A typed or detected skill is not a tool call; Skill activity reads it.
+  && (r.kind === 'skill' ? typeof r.skill === 'string'
+    : r.kind === 'end' ? typeof r.failed === 'boolean' : typeof r.tool === 'string' && r.tool.length <= 100
     && Array.isArray(r.operations) && r.operations.length > 0 && r.operations.length <= 16
     && r.operations.every(s => typeof s === 'string' && s.length <= 150));
 const percentile = (sorted, p) => sorted.length ? sorted[Math.max(0, Math.ceil(sorted.length * p) - 1)] : null;
@@ -60,7 +62,7 @@ const percentile = (sorted, p) => sorted.length ? sorted[Math.max(0, Math.ceil(s
   const providers = { claude: { calls: 0, measured: 0, failed: 0 }, codex: { calls: 0, measured: 0, failed: 0 } };
   for (const [id, call] of calls) {
     const start = call.start, end = call.end;
-    if (!start) { orphaned++; continue; }
+    if (!start) { if (!call.skill) orphaned++; continue; }
     if (start.t < since || start.t > until || query.provider !== 'all' && start.provider !== query.provider) continue;
     total++; providers[start.provider].calls++;
     observedSince = observedSince === null ? start.t : Math.min(observedSince, start.t);

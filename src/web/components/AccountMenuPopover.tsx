@@ -34,23 +34,19 @@ interface Props {
   accountMenu: AccountMenuState;
   busy: RequestSlot["busy"];
   pressProps: RequestSlot["pressProps"];
-  /** Whether anything is rotating accounts — the deck's loop or a terminal's. */
-  rotating: boolean;
   /** Open this account's Projects report, closing the menu behind it. */
   onProjects: () => void;
   /** Hold this account out of rotation, or put it back. */
   onRotation: () => void;
   /** This account is Auto-switch's home. */
   home: boolean;
-  /** Whether a home may be set from here: the deck's own loop is on. */
-  canSetHome: boolean;
   /** Make this account home, or stop it being home. */
   onHome: () => void;
 }
 
 export default function AccountMenuPopover({
-  a, slots, nowSec, boundaryId, accountMenu, busy, pressProps, rotating, onProjects, onRotation,
-  home, canSetHome, onHome,
+  a, slots, nowSec, boundaryId, accountMenu, busy, pressProps, onProjects, onRotation,
+  home, onHome,
 }: Props) {
   const {
     menu, menuError, aliasDraft, confirmRemove, share, shareCopied, slotDraft,
@@ -106,13 +102,14 @@ export default function AccountMenuPopover({
             title="See how much this account worked in each project"
             onClick={() => onProjects()}
           >Projects</button>
-          {/* Holding an account out only matters while something is
-              rotating, so it is offered with it. Putting one BACK is
-              offered whenever an account is out (#519): the row says
-              `held out`, and this is the one way to undo it. A menu
-              item rather than a word on every row — it is a
-              preference flipped a few times a year. */}
-          {((rotating && !a.active) || a.disabled) && (
+          {/* Holding an account out is offered on every account but the
+              one in use, with Auto-switch on or off: it is set up before
+              the switch is turned on, and claude-swap keeps it either way.
+              Putting one BACK is offered whenever an account is out
+              (#519): the row says `held out`, and this is the one way to
+              undo it. A menu item rather than a word on every row — it is
+              a preference flipped a few times a year. */}
+          {(!a.active || a.disabled) && (
             <button type="button" role="menuitem" className="ap-menu-item"
               {...pressProps(`rot-${a.num}`)}
               title={a.disabled
@@ -121,12 +118,12 @@ export default function AccountMenuPopover({
               onClick={() => onRotation()}
             >{a.disabled ? "Put back in rotation" : "Hold out of rotation"}</button>
           )}
-          {/* Home, by the rotation item's rule: set it while the deck's
-              Auto-switch is on, which is the only time it does anything,
-              and remove it whenever there is one — the row's ⌂ says so, and
-              this is the one way to undo it. A preference set once, so a
-              word here rather than a control on every row. */}
-          {(home || (canSetHome && a.email)) && (
+          {/* Home, by the rotation item's rule: set it with Auto-switch on
+              or off — a tick only reads it while the switch is on — and
+              remove it whenever there is one: the row's ⌂ says so, and this
+              is the one way to undo it. A preference set once, so a word
+              here rather than a control on every row. */}
+          {(home || a.email) && (
             <button type="button" role="menuitem" className="ap-menu-item"
               {...pressProps(`home-${a.num}`)}
               title={home

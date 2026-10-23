@@ -29,6 +29,7 @@ import { HERE } from "./lan-sync.mjs";
 import { withStoreLock } from "./store-lock.mjs";
 import { adminClaudeBin, currentIdentity } from "./claude-identity.mjs";
 import { claudeCliCandidates } from "./claude-dir.mjs";
+import { activeFrom, readLiveLogin } from "./claude-login.mjs";
 import { cswapBin } from "./cswap-install.mjs";
 import { PRODUCT } from "./brand.mjs";
 
@@ -249,7 +250,12 @@ async function claudeBin() {
   return adminClaudeBin();
 }
 
-/** Slot → email for everything currently in the store, plus the active slot. */
+/**
+ * Slot → email for everything currently in the store, plus the active slot
+ * twice over: `activeNum` as the store records it, which is what a cswap
+ * command moves and what a verdict on one reads back, and `liveNum`, the slot
+ * Claude Code is signed in as (claude-login.mjs), which is who the user is on.
+ */
 export async function readStore() {
   try {
     const seq = JSON.parse(await readFile(join(backupRoot(), "sequence.json"), "utf8"));
@@ -262,9 +268,10 @@ export async function readStore() {
       // bundle carrying both must not report them as one - see identityKey.
       orgs: Object.fromEntries(Object.entries(accounts).map(([k, v]) => [k, v?.organizationUuid ?? ""])),
       activeNum: seq?.activeAccountNumber ?? null,
+      liveNum: activeFrom(seq, await readLiveLogin()).num,
     };
   } catch {
-    return { slots: [], emails: {}, orgs: {}, activeNum: null };
+    return { slots: [], emails: {}, orgs: {}, activeNum: null, liveNum: null };
   }
 }
 
@@ -608,7 +615,9 @@ async function spawnLogin(email) {
   _login = {
     state: "awaiting_url",
     child,
-    previousActive: before.activeNum,
+    // Who the user is on, which a /login made outside cswap can make another
+    // account than the store records: the restore puts THAT one back.
+    previousActive: before.liveNum,
     previousEmail: identity?.email ?? null,
     before,
     url: null,

@@ -27,9 +27,22 @@
    figure needs; the sheet un-italicises it because the slant would be the only
    slanted text in the panel. */
 .hist-stats i { font-style: normal; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); margin-right: 8px; }
+/* The peak, pressable: it pins its own minute under the chart. Drawn exactly
+   as the figure beside it, because it is the same kind of figure — only the
+   pointer and the underline on hover say it does something. */
+.hist-peak {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.hist-peak:hover > span { text-decoration: underline; text-underline-offset: 2px; }
+.hist-peak:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .hist-peak:active { transform: none; }
+}
 
 .hist-plot { position: relative; }
-.hist-chart { display: block; width: 100%; overflow: visible; touch-action: none; }
+.hist-chart { display: block; width: 100%; overflow: visible; touch-action: none; cursor: crosshair; }
 .hist-area { fill: var(--accent); opacity: 0.14; }
 .hist-line { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
 .hist-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 1.5; }
@@ -68,6 +81,15 @@
    sentences a reader reads; this is a clock and a figure they glance at, and
    text-tiers.test.ts is the rule that says so. */
 .hist-at b { color: var(--text); font-weight: 600; }
+/* Lets go of a pinned reading: a `.glyph-btn`, with its 24px target, ring and
+   press, drawn at the strip's size and handing the box back as margin so the
+   strip is no taller with it than without. */
+.hist-axis .hist-unpin {
+  /* Two pixels more above than below: the × is drawn low in its em box, and
+     centred by the box it sat under the readout's baseline. */
+  margin: -8px -4px -4px 8px;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+}
 .hist-note { margin-top: 5px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); }
 .hist-load-summary { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; margin: 16px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text); line-height: 1.5; }
 .hist-load-summary > span { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
@@ -241,7 +263,7 @@
    column, which is plenty for a short one — but the name column takes every
    pixel the table has, the others come down to their content, and a Linux pid
    has seven digits as often as not. Then the pid filled its cell and ran into
-   the user name: `constantin1365092`. A floor on the user's side, at (0,3,1)
+   the user name: `consultant1365092`. A floor on the user's side, at (0,3,1)
    over the table's `padding: 2px 0`. */
 .pl-body .pl-table th:nth-child(5),
 .pl-body .pl-table td:nth-child(5) { padding-right: 12px; }

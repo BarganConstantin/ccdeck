@@ -79,10 +79,10 @@ describe("the tailnet slice's name", () => {
     // Two decks on the local network, and one laptop over Tailscale that is
     // away — the stage of a 1280x720 window.
     const rows = [row({}), row({}), row({ here: false, via: "tailscale", name: "work-laptop", state: "last online 2h ago" })];
-    const layout = mapLayout(rows, 864, 535, "constantin-thinkpad");
+    const layout = mapLayout(rows, 864, 535, "consultant-thinkpad");
     expect(layout.zone).not.toBeNull();
     expect(layout.zone!.labelAt).not.toBeNull();
-    expect(decksUnderName(rows, 864, 535, "constantin-thinkpad")).toEqual([]);
+    expect(decksUnderName(rows, 864, 535, "consultant-thinkpad")).toEqual([]);
   });
 
   it("does not run through a nearby tailnet deck's name", () => {
@@ -90,13 +90,13 @@ describe("the tailnet slice's name", () => {
       row({}), row({}), row({ here: false, state: "last online 3h ago" }),
       row({ kind: "nearby", via: "tailscale", name: "phone-tail", state: "not paired yet" }),
     ];
-    expect(decksUnderName(rows, 862, 534, "constantin-Venus-Series")).toEqual([]);
+    expect(decksUnderName(rows, 862, 534, "consultant-Venus-Series")).toEqual([]);
   });
 
   it("crosses no deck at any of the stages a window gives the map", () => {
     const networks: Array<() => DeckRow[]> = [
-      () => [row({}), row({ via: "tailscale", here: false, name: "Deniss-MacBook-Pro", state: "last online 9h ago" })],
-      () => [row({}), row({}), row({ here: false }), row({ kind: "nearby", via: "tailscale", name: "Evghenis-MacBook-Pro" })],
+      () => [row({}), row({ via: "tailscale", here: false, name: "Delias-MacBook-Pro", state: "last online 9h ago" })],
+      () => [row({}), row({}), row({ here: false }), row({ kind: "nearby", via: "tailscale", name: "Eleonora-MacBook-Pro" })],
       () => [
         ...Array.from({ length: 4 }, () => row({})), row({ via: "tailscale", name: "Home Ubuntu" }),
         ...Array.from({ length: 2 }, () => row({ here: false, state: "last online 2h ago" })),
@@ -105,18 +105,18 @@ describe("the tailnet slice's name", () => {
       ],
       () => [
         ...Array.from({ length: 6 }, (_, i) => row({ name: `Office-PC-${i}` })),
-        row({ via: "tailscale", name: "Constantin Windows" }), row({ via: "tailscale", name: "Vitalie" }),
+        row({ via: "tailscale", name: "Consultant Windows" }), row({ via: "tailscale", name: "Terence" }),
         ...Array.from({ length: 6 }, (_, i) => row({ name: `laptop-${i}`, here: false, state: "last online 4h ago" })),
-        row({ via: "tailscale", here: false, name: "Kobe-Macbook", state: "last online 1h ago" }),
+        row({ via: "tailscale", here: false, name: "Ilse-Macbook", state: "last online 1h ago" }),
         ...Array.from({ length: 3 }, (_, i) => row({ kind: "nearby", name: `nearby-${i}`, state: "not paired yet" })),
-        row({ kind: "nearby", via: "tailscale", name: "Vitalie-phone", state: "not paired yet" }),
+        row({ kind: "nearby", via: "tailscale", name: "Terence-phone", state: "not paired yet" }),
       ],
     ];
     const stages: Array<[number, number]> = [[862, 693], [862, 534], [1180, 900], [918, 406]];
     const crossed: string[] = [];
     for (const network of networks) {
       for (const [w, h] of stages) {
-        const hit = decksUnderName(network(), w, h, "constantin-Venus-Series");
+        const hit = decksUnderName(network(), w, h, "consultant-Venus-Series");
         if (hit.length) crossed.push(`${w}x${h}: ${hit.join(", ")}`);
       }
     }

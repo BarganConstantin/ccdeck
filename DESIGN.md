@@ -532,12 +532,13 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
 
 ### Tool activity
 
-A full page, opened from the rail below Usage history (More → Tools on phones),
+A large modal (90vw × 90dvh on desktop), opened from the rail below Usage
+history (More → Tools on phones),
 that a person reads top to bottom in under a minute. Owner direction
 (2026-10-15): simple and useful for the people using it, nothing complicated.
 Plain words carry it; the earlier P95 / interval vocabulary is gone.
 
-- **Order of the page:** period and agent pills (the `uh-range` strip Usage
+- **Order of the report:** period and agent pills (the `uh-range` strip Usage
   history uses), one summary sentence with the numbers in `--text` weight 600
   and failures in `--err`, then *Worth a look* — at most three findings in one
   bordered list, each a button that opens its tool — then *Tools and commands*,
@@ -568,6 +569,16 @@ Plain words carry it; the earlier P95 / interval vocabulary is gone.
   and what is saved are each one plain line under *How this is counted*.
   Findings appear only above their sample floors, so a handful of calls never
   becomes a headline.
+- **Tools | Skills (#2181):** two tabs at the head of the header (a `tablist`
+  with the shared roving keys), the open one marked by a 2px `--accent` bar
+  under its word — a fill, like the period strip's, and `Highlight` under a
+  Contrast theme. Both views share the filters. Skills reuses the Tools
+  vocabulary rather than adding its own: one summary sentence, one list (Most
+  used, Latest, Name) whose bright column is the sort, the same details column
+  and splitter. A plugin's namespace is `--muted` weight 400 before the short
+  name. Failed appears as a column, and in the details facts, only when
+  something failed. Latest uses are two lines — when and who, then the project
+  and a quiet link to the session — with the project and its counts `--muted`.
 
 ### Canvas objects
 

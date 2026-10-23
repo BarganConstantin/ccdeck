@@ -70,7 +70,7 @@ arrives with its own licence beside it. They are named for completeness, so that
 "what ccdeck ships" and "what ccdeck can run" are not confused. Every one of them
 is off under `AGENTS_DECK_NO_INSTALL=1`.
 
-## Bundled packages (26)
+## Bundled packages (27)
 
 | Package | Version | Licence | Copyright |
 | --- | --- | --- | --- |
@@ -92,6 +92,7 @@ is off under `AGENTS_DECK_NO_INSTALL=1`.
 | `dagre` | 0.8.5 | MIT | Copyright (c) 2012-2014 Chris Pettitt |
 | `graphlib` | 2.1.8 | MIT | Copyright (c) 2012-2014 Chris Pettitt |
 | `hls.js` | 1.7.3 | Apache-2.0 | Copyright (c) 2017 Dailymotion (http://www.dailymotion.com) |
+| `json-edit-react` | 2.0.4 | MIT | Copyright (c) 2024 Carl Smith |
 | `lodash` | 4.18.1 | MIT | Copyright OpenJS Foundation and other contributors <https://openjsf.org/> |
 | `react` | 18.3.1 | MIT | Copyright (c) Facebook, Inc. and its affiliates. |
 | `react-dom` | 18.3.1 | MIT | Copyright (c) Facebook, Inc. and its affiliates. |
@@ -109,12 +110,16 @@ for more than a notice — a copy of the licence itself travels with the work �
 and it is compatible with version 3 of the GNU licences, which is the version
 ccdeck is under.
 
-`hls.js` is the one entry that is not in the page every visit loads. It is its
-own chunk, `dist/web/assets/hls-*.js`, fetched only when somebody plays an HLS
-custom station in a browser without native HLS (#1208) — but that chunk is in
-`dist/web` like every other, and so in the tarball. None of these licences is
-changed by ccdeck's relicensing, and no copyleft obligation flows back to
-their authors.
+`hls.js` and `json-edit-react` are the two entries that are not in the page
+every visit loads. `hls.js` is its own chunk, `dist/web/assets/hls-*.js`,
+fetched only when somebody plays an HLS custom station in a browser without
+native HLS (#1208). `json-edit-react` is the JSON tree in Radar's event
+inspector and is compiled into Radar's chunk,
+`dist/web/assets/TrafficRadar-*.js`, fetched only when somebody opens Radar; it
+adds its own stylesheet from that JavaScript the first time it renders, so it
+has no CSS file of its own. Both chunks are in `dist/web` like every other, and
+so in the tarball. None of these licences is changed by ccdeck's relicensing,
+and no copyleft obligation flows back to their authors.
 
 ### Declared but not emitted (3)
 
@@ -655,6 +660,37 @@ If the Work includes a "NOTICE" text file as part of its distribution, then any 
 END OF TERMS AND CONDITIONS
 ```
 
+### 15. `json-edit-react` 2.0.4
+
+Reproduced verbatim from `node_modules/json-edit-react/LICENSE`:
+
+```text
+MIT License
+
+Copyright (c) 2024 Carl Smith
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+Source: https://github.com/CarlosNZ/json-edit-react. The package has no
+dependencies of its own; React, its one peer, is §1.
+
 ## Radio world map
 
 The radio map includes simplified country geometry from Natural Earth
@@ -691,3 +727,30 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Jira mark — Simple Icons
+
+The monochrome Jira glyph on the left stripe and in Settings › Integrations
+(`JiraGlyph` in `src/web/components/rail-glyphs.tsx`, #2178) is the path data
+of the Jira icon from Simple Icons, https://github.com/simple-icons/simple-icons,
+drawn in the stripe's own ink and never in Atlassian's colours. Simple Icons
+releases its icon data under CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/.
+
+Jira and Atlassian are trademarks of Atlassian Pty Ltd. ccdeck is not
+affiliated with or endorsed by Atlassian; the mark is used only to name the
+service a connection reaches.
+
+## GitHub and GitLab marks — Simple Icons
+
+The monochrome GitHub and GitLab glyphs on the left stripe and in Settings ›
+Integrations (`GithubGlyph` and `GitlabGlyph` in
+`src/web/components/rail-glyphs.tsx`, #2179) are the path data of the GitHub
+and GitLab icons from Simple Icons, https://github.com/simple-icons/simple-icons,
+drawn in the stripe's own ink and never in either company's colours. Simple
+Icons releases its icon data under CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/.
+
+GitHub is a trademark of GitHub, Inc., and GitLab of GitLab Inc. ccdeck is not
+affiliated with or endorsed by either; the marks are used only to name the
+service a connection reaches.

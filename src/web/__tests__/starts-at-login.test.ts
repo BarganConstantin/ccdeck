@@ -343,12 +343,14 @@ describe("offering it exactly once", () => {
   it("does not put back what the user just took away", () => {
     // Without the record an uninstall is undone by the next start, which is not
     // an uninstall — it is a tool arguing with its user.
-    expect(shouldOfferService({ record: null })).toBe(true);
-    expect(shouldOfferService({ record: { installed: "3.19.0" } })).toBe(false);
-    expect(shouldOfferService({ record: { removed: "2026-01-01" } })).toBe(false);
+    // `env: {}` here and below: the opt-out is its own case further down, and a
+    // caller's AGENTS_DECK_NO_INSTALL=1 (or CCDECK_APP) must not answer for these.
+    expect(shouldOfferService({ record: null, env: {} })).toBe(true);
+    expect(shouldOfferService({ record: { installed: "3.19.0" }, env: {} })).toBe(false);
+    expect(shouldOfferService({ record: { removed: "2026-01-01" }, env: {} })).toBe(false);
     // Even a failed attempt counts: trying again on every boot forever is the
     // same noise as succeeding on every boot forever.
-    expect(shouldOfferService({ record: { failed: "EPERM" } })).toBe(false);
+    expect(shouldOfferService({ record: { failed: "EPERM" }, env: {} })).toBe(false);
   });
 
   it("never offers from a checkout, which is somebody's working tree", () => {
@@ -357,8 +359,8 @@ describe("offering it exactly once", () => {
     // directory gets renamed, moved, branch-switched and deleted, and none of
     // those are events a login item survives — and nobody working in a checkout
     // asked to be given one.
-    expect(shouldOfferService({ record: null, checkout: true })).toBe(false);
-    expect(shouldOfferService({ record: null, checkout: false })).toBe(true);
+    expect(shouldOfferService({ record: null, checkout: true, env: {} })).toBe(false);
+    expect(shouldOfferService({ record: null, checkout: false, env: {} })).toBe(true);
     // The explicit command still writes one — someone may genuinely want it —
     // but says what it is about to name first.
     expect(LOGIN_ITEM).toContain("this is a checkout, so the login item would name");
@@ -368,7 +370,7 @@ describe("offering it exactly once", () => {
     // The item would name a path inside ~/.npm/_npx/<hash>/, which npm deletes
     // whenever it feels like it: a login item pointing at nothing, forever, on
     // a machine where nothing was ever installed.
-    expect(shouldOfferService({ record: null, npx: true })).toBe(false);
+    expect(shouldOfferService({ record: null, npx: true, env: {} })).toBe(false);
     expect(LOGIN_ITEM).toContain("an npx run cannot start at login");
   });
 

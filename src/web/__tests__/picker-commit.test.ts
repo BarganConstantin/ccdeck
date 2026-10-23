@@ -277,7 +277,7 @@ describe("both commit controls are reachable and named", () => {
     // Visible now. The row's block had no room for a label and hid it; the
     // popover's form has a title, and the title is the label.
     expect(popoverCode).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>Move to slot<\/label>/);
-    expect(clientText()).toMatch(/aria-label="Switch threshold"/);
+    expect(clientText()).toMatch(/htmlFor=\{thresholdId\}[^>]*>Switch at<\/label>/);
   });
 
   it("dims both only while a request is out, never at rest", () => {

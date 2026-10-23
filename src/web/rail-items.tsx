@@ -12,10 +12,13 @@ import type { PanelToggles } from "./use-panel-return";
 import { platformName } from "./platform";
 import { settingsChordLabel, type SettingsSection } from "./settings";
 import type { RailItem } from "./components/EdgeRails";
+import type { IntegrationWebDef } from "./integrations/types";
+import type { CapacityView } from "./components/AccountsUsageReport";
 import {
-  AccountsGlyph, BrowserWatchGlyph, FeedbackGlyph, HistoryGlyph, MachineGlyph,
-  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph,
+  AccountsGlyph, BrowserWatchGlyph, CapacityGlyph, FeedbackGlyph, HistoryGlyph, MachineGlyph, ResetCalendarGlyph,
+  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph, SkillActivityGlyph,
 } from "./components/rail-glyphs";
+import type { ToolActivityView } from "./components/ToolAuditModal";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
 
@@ -23,10 +26,28 @@ export interface RailItems {
   /** The left column's two, Accounts first: they share it, and opening one
    *  closes the other. */
   left: RailItem[];
+  /** The left stripe, top to bottom: Accounts, the two doors into its Account
+   *  capacity report, then Session list. */
+  leftStripe: RailItem[];
+  /** Account capacity and Reset calendar, each one press from the stripe and
+   *  their only door. On a phone they are rows under More, so the dock keeps
+   *  its five slots. Empty without Claude Code. */
+  capacity: RailItem[];
   /** The right stripe's two panels, then the two records that open as dialogs. */
   right: RailItem[][];
   /** Settings and Feedback, in the topbar's corner. */
   utilities: RailItem[];
+  /** One per connected tracker kind (#2178) — Jira — under the left column's
+   *  two, after a divider; on a phone, under More. Empty until a connection
+   *  of that kind exists. */
+  integrations: RailItem[];
+}
+
+/** A tracker kind with at least one connection, and the press that opens its
+ *  panel. */
+export interface IntegrationRail {
+  provider: Pick<IntegrationWebDef, "kind" | "label" | "Glyph" | "shortcut" | "detail">;
+  onPress: () => void;
 }
 
 /** What Browser watch's hint adds under its name: whether it is watching, and
@@ -43,6 +64,7 @@ export function railItems({
   providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, radioOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
+  openCapacity, integrations = [],
 }: {
   providers: Providers;
   sessionListOpen: boolean;
@@ -62,12 +84,17 @@ export function railItems({
   setTrafficRadarOpen?: Toggle;
   radioOpen?: boolean;
   setRadioOpen?: Toggle;
-  openToolActivity?: () => void;
+  /** Open Tool activity on one of its two views — each has its own door. */
+  openToolActivity?: (view: ToolActivityView) => void;
   /** The one door into Settings (use-settings-menus.ts). */
   openSettings: (section?: SettingsSection) => void;
   onFeedback: () => void;
   /** Where a panel's own close hands keyboard focus back (use-panel-return.ts). */
   toggles: PanelToggles;
+  /** Open the Account capacity report on one of its two views. */
+  openCapacity?: (view: CapacityView) => void;
+  /** The connected tracker kinds, in the registry's order (#2178). */
+  integrations?: IntegrationRail[];
 }): RailItems {
   const settingsCap = settingsChordLabel(platformName());
   // aria-expanded, not aria-pressed, on the four panels: each shows and
@@ -86,6 +113,20 @@ export function railItems({
     ariaLabel: "Accounts", hint: "Agent accounts", glyph: <AccountsGlyph />, kind: "panel",
     open: accountsPanelOpen, controls: "accounts-panel", onPress: toggleAccountsPanel, buttonRef: toggles.accounts,
   };
+  // ACCOUNT CAPACITY AND RESET CALENDAR, ON THE STRIPE. Both lived behind the
+  // gauge in the accounts panel's header, the calendar a tab inside its dialog,
+  // and users said they could not find them. The gauge and the tabs are gone:
+  // each door opens its own view, over whatever is open, and the left column
+  // is not touched.
+  const capacity: RailItem[] = openCapacity ? [{
+    id: "account-capacity", label: "Account capacity", short: "Capacity", ariaLabel: "Account capacity",
+    detail: "How many accounts are ready, and what the 5h and 7d windows have left",
+    glyph: <CapacityGlyph />, kind: "dialog", onPress: () => openCapacity("accounts"),
+  }, {
+    id: "reset-calendar", label: "Reset calendar", short: "Calendar", ariaLabel: "Reset calendar",
+    detail: "When each account's 5h and 7d windows come back",
+    glyph: <ResetCalendarGlyph />, kind: "dialog", onPress: () => openCapacity("calendar"),
+  }] : [];
   const usage: RailItem = {
     id: "usage", label: "Usage", short: "Usage", key: { cap: "U", aria: "U", single: true },
     ariaLabel: "Usage", glyph: <UsageGlyph />, kind: "panel",
@@ -123,16 +164,29 @@ export function railItems({
     id: "feedback", label: "Feedback", short: "Feedback", menu: "Send feedback",
     ariaLabel: "Send feedback", glyph: <FeedbackGlyph />, kind: "dialog", onPress: onFeedback,
   };
+  // TOOLS AND SKILLS, ONE DOOR EACH. Skills were a tab inside Tool activity,
+  // and users said they could not find them. Each door opens its own view,
+  // titled for itself, the way Account capacity and Reset calendar do; the
+  // tabs between them are gone.
+  const activity: RailItem[] = openToolActivity ? [{
+    id: "tool-activity", label: "Tool activity", short: "Tools", ariaLabel: "Tool activity",
+    glyph: <ToolActivityGlyph />, kind: "dialog",
+    detail: "Which tools your agents run, how long they take and what fails", onPress: () => openToolActivity("tools"),
+  }, {
+    id: "skill-activity", label: "Skill activity", short: "Skills", ariaLabel: "Skill activity",
+    glyph: <SkillActivityGlyph />, kind: "dialog",
+    detail: "Which skills your agents use, whether you typed them or the agent called them", onPress: () => openToolActivity("skills"),
+  }] : [];
   return {
     // Accounts first, at the top of the stripe and the start of the dock: the
     // owner's call (2026-10-08), the panel a first run opens and the one read
     // before choosing where to start a session.
     left: (providers.claude || providers.codex) ? [accounts, sessionList] : [sessionList],
-    right: [[usage, machine], [history, ...(openToolActivity ? [{
-      id: "tool-activity", label: "Tool activity", short: "Tools", ariaLabel: "Tool activity",
-      glyph: <ToolActivityGlyph />, kind: "dialog" as const,
-      detail: "Which tools your agents run, how long they take and what fails", onPress: () => openToolActivity(),
-    }] : []), browserWatch, ...(setTrafficRadarOpen ? [{
+    // The owner's order (2026-10-22): Claude accounts, Account capacity,
+    // Reset calendar, Session list.
+    leftStripe: providers.claude ? [accounts, ...capacity, sessionList] : providers.codex ? [accounts, sessionList] : [sessionList],
+    capacity: providers.claude ? capacity : [],
+    right: [[usage, machine], [history, ...activity, browserWatch, ...(setTrafficRadarOpen ? [{
       id: "traffic-radar", label: "Telemetry Radar", short: "Radar", ariaLabel: "Telemetry Radar",
       glyph: <TrafficRadarGlyph />, kind: "dialog" as const,
       detail: "Claude telemetry configuration and observed connections", onPress: () => setTrafficRadarOpen(true),
@@ -142,5 +196,12 @@ export function railItems({
       detail: "Explore stations around the world", onPress: () => setRadioOpen(open => !open),
     }]] : [])],
     utilities: [settings, feedback],
+    // Each opens its large modal, so a dialog: aria-haspopup and no state.
+    integrations: integrations.map(({ provider, onPress }): RailItem => ({
+      id: `integration-${provider.kind}`, label: provider.label, short: provider.label,
+      ariaLabel: provider.label, detail: provider.detail,
+      key: provider.shortcut ? { cap: provider.shortcut.toUpperCase(), aria: provider.shortcut.toUpperCase(), single: true } : undefined,
+      glyph: <provider.Glyph />, kind: "dialog", onPress,
+    })),
   };
 }

@@ -10,11 +10,12 @@
 // now. The speaker kept a quick popover for the things pressed often until it
 // left the topbar (2026-10-07); V opens this at Sounds instead.
 
+import type { IntegrationsReach } from "./integrations/client";
 import { isApplePlatform } from "./platform";
 
 /** A section of Settings, in nav order. */
 export type SettingsSection =
-  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "data" | "about";
+  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "integrations" | "data" | "radar" | "about";
 
 /** One section's nav entry: the word on its tab, and the line under its name
  *  at the head of the pane, saying what the section holds before anything in
@@ -42,13 +43,25 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "keyboard", label: "Keyboard", note: "Every shortcut, and whether single keys answer." },
   { id: "notifications", label: "Notifications", note: "How the deck reaches you while you are not looking at it." },
   { id: "sounds", label: "Sounds", note: "What plays when a turn finishes and when Claude asks." },
+  { id: "integrations", label: "Integrations", note: "Where the deck reads your work from: Jira, GitHub and GitLab. Read only." },
   { id: "data", label: "Data", note: "What the deck keeps on this device." },
+  { id: "radar", label: "Radar", note: "Automatic monitoring of Claude telemetry, off unless you turn it on." },
   { id: "about", label: "About", note: "The version you are running, and where to say what you think of it." },
 ];
 
 /** Where a section sits in the nav; General for anything that is not one. */
 export function sectionIndex(section: SettingsSection): number {
   return Math.max(0, SETTINGS_SECTIONS.findIndex(s => s.id === section));
+}
+
+/** The nav a deck draws: every section, but Integrations only while it holds
+ *  something (integrationsReach: a kind the deck offers, or a stranded
+ *  connection to disconnect), or while it is the section on show, so the last
+ *  Disconnect does not pull the page from under the reader. A deck that offers
+ *  no integration draws the eight sections a deck without them always drew. */
+export function sectionsDrawn(integrations: IntegrationsReach, onShow: SettingsSection): readonly SettingsSectionEntry[] {
+  if (integrations !== "none" || onShow === "integrations") return SETTINGS_SECTIONS;
+  return SETTINGS_SECTIONS.filter(s => s.id !== "integrations");
 }
 
 const TAB_ID_PREFIX = "settings-tab-";
@@ -95,6 +108,8 @@ export interface SettingsDoors {
   /** The accounts panel, at its Local network view. */
   localNetwork: () => void;
   browserWatch: () => void;
+  /** Radar, as its toolbar button opens it. */
+  radar: () => void;
 }
 
 /** A door out of Settings: close it, then open what the door names.

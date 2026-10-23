@@ -8,6 +8,7 @@
 //
 // Run on fake-react.ts's React: the images hook and the send hook together,
 // as the dialog holds them, with the fit of each image answered by the test.
+import "./web-globals";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { flush, mount } from "./fake-react";

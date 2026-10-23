@@ -362,7 +362,7 @@
 .ap-peek-rest { margin-top: 7px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
 
 /* THE FOLD'S PEEK is Local network's card carrying a number per name. Wider,
-   because `claude1@sapec.md` and `96% free` on one line is more than 208px of
+   because `alice@example.net` and `96% free` on one line is more than 208px of
    text, and a name that ellipsised away would defeat the one thing the card is
    for. The name takes the room; the state is measured off `not read yet`, the
    longest thing it can say. */
@@ -527,6 +527,7 @@
   color: var(--text);
   overflow-wrap: anywhere;
 }
+.recap-peek-plan { white-space: pre-line; }
 .node-peek-hint {
   margin-top: 2px;
   font-size: calc(11px + var(--ui-text-increase, 0px));

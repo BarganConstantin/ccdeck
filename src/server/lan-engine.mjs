@@ -107,7 +107,7 @@ export function defaultName() {
  *
  * It returned the first one, and that was wrong the first time somebody
  * checked: on this machine the first is 192.168.1.82 and the deck it needs to
- * reach is on Tailscale at 100.67.32.58, so the panel would have offered an
+ * reach is on Tailscale at 100.64.0.100, so the panel would have offered an
  * address that peer cannot route to and left them to work out why.
  *
  * WHICH ONE IS RIGHT DEPENDS ON WHERE THE PEER IS, which this side cannot
@@ -307,6 +307,9 @@ export function createEngine({
     autoAsk: true, autoAccept: true, pairingMode: "automatic", aliases: {},
     // Tell paired decks which shared account this one is on — see currentFor.
     shareActive: true,
+    // Send the account this deck is on to a paired deck that asks — off, so
+    // one login is live in one place (#2192). See manifestFor and lan-serve.mjs.
+    sendInUse: false,
     // DISCOVERY OVER TAILSCALE, off until somebody turns it on, and its own
     // pair of permissions. They are separate from the two above because the
     // tailnet is a different audience: the local switches answer for whoever
@@ -651,7 +654,7 @@ export function createEngine({
       // WHO IS ACTUALLY THERE. A typed address is a row that says `192.168.1.5:54340`
       // and nothing else until somebody answers it — and once one has, the deck
       // on the other end has told us what it calls itself. The row says that
-      // from then on, because "Constantin-PC" is what the person who typed the
+      // from then on, because "Consultant-PC" is what the person who typed the
       // address was trying to reach.
       //
       // A DIAL-BACK THAT ANSWERED IS AN ORDINARY PEER NOW. It was on trial only
@@ -1474,6 +1477,8 @@ export function createEngine({
         pairingMode: cfg.pairingMode === "invite" ? "invite" : "automatic",
         // Whether paired decks are told which shared account this one is on.
         shareActive: cfg.shareActive !== false,
+        // Whether the account this deck is on may be sent to one (#2192).
+        sendInUse: cfg.sendInUse === true,
         // Discovery over Tailscale: whether this machine has it at all, which
         // decides whether the dialog shows the switch, and what it can see.
         tailscale: tailnet ? tailnetStatus() : null,

@@ -53,9 +53,11 @@ describe("the deck's modals", () => {
     // The twenty-fourth is Settings, behind the gear and Cmd/Ctrl+,. The
     // Appearance modal it replaced was never counted here: its backdrop wore
     // two classes, which the sweep's one-class pattern does not match.
-    // The twenty-eighth and twenty-ninth are Tool activity: the page itself,
-    // and its details as a sheet on phones.
-    expect(MODALS.length).toBe(29);
+    // The twenty-eighth and twenty-ninth are Tool activity: the report, on the
+    // shared scrim alone since it stopped being a page, and its details as a
+    // sheet on phones. The thirtieth is a connected tracker's panel — Jira's
+    // backlog and its issues — opened from its stripe control or I (#2178).
+    expect(MODALS.length).toBe(30);
   });
 
   it("never calls the dismiss scrim a dialog", () => {

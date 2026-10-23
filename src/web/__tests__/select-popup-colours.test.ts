@@ -68,6 +68,10 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
     name: "how long tool history is kept",
     chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group", "ta-settings"]), el("div", ["ta-storage-row"]), el("label"), el("select", ["sm-select"])],
   }],
+  "components/IntegrationModal.tsx": [{
+    name: "which tracker connection is on show",
+    chain: [el("body"), el("div", ["modal-backdrop"]), el("div", ["modal", "ig-modal"]), el("div", ["ig-head"]), el("label", ["ig-conn-select"]), el("select", ["sm-select"])],
+  }],
   "components/BoardSection.tsx": [{
     name: "how long a finished session stays on the board",
     chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["appearance-controls"]), el("label", ["appearance-row"]), el("select", ["sm-select"])],
@@ -82,10 +86,10 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
   }],
   "components/AutoSwitchPolicy.tsx": [{
     name: "the auto-switch threshold",
-    chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-policy-block"]), el("div", ["ap-policy"]), el("span", ["ap-field"]), el("select")],
+    chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-policy-block"]), el("div", ["ap-policy", "ap-setting"]), el("span", ["ap-field"]), el("select")],
   }, {
     name: "how auto-switch picks the next account",
-    chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-policy-block"]), el("div", ["ap-policy", "ap-next"]), el("span", ["ap-field"]), el("select")],
+    chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-policy-block"]), el("div", ["ap-policy", "ap-setting", "ap-next"]), el("span", ["ap-field"]), el("select")],
   }],
   "components/AccountMenuPopover.tsx": [{
     name: "an account's slot",

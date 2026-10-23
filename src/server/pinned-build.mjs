@@ -85,6 +85,9 @@ const PINNED_MODULES = [
   // import() from the report's route.
   "account-projects.mjs",
   "swap-log.mjs",
+  // account-watch.mjs reads what each organization's telemetry was last seen
+  // to turn on, for the swap notice, only once a tick has switched.
+  "org-telemetry.mjs",
   "lan-sync.mjs",
   // The providers' status pages (#1311), reached only from their route.
   "provider-status.mjs",
@@ -100,6 +103,11 @@ const PINNED_MODULES = [
   // (cswap-auto-choice.mjs). Already in memory through prefs-routes.mjs; named
   // here because the tick reaches it through import().
   "lan-deck.mjs",
+  // The accounts Auto-switch's own moves never land on (slotsHeldBack), which
+  // the move after removing an expired active login skips too. Already in
+  // memory through cswap-auto.mjs; named here because account-routes.mjs
+  // reaches it through import().
+  "cswap-auto-choice.mjs",
 ];
 
 let _pinned = null;

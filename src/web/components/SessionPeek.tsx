@@ -9,9 +9,10 @@ import { elapsed } from "../duration";
 import { modelChipText } from "../model-label";
 import { sessionDisplay } from "../session-display";
 import { useNow } from "../use-now";
-import { branchLong, stateMarkKind, type BranchSummary } from "../node-face";
+import { branchLong, drawnState, stateMarkKind, type BranchSummary } from "../node-face";
 import { promptTime } from "../relative-time";
-import type { AgentNodeData } from "../types";
+import type { AgentNodeData, AgentPlan } from "../types";
+import { planLine, planSummary, planTitle } from "../agent-plan";
 import { stateLabel, waitingLabel } from "../agent-copy";
 import { codexApprovalTell } from "../codex-approval";
 import { noteSource, noteTag, type SessionNote } from "../session-note";
@@ -87,10 +88,12 @@ export function hidePeek(id?: string): void {
 }
 
 /** What a session note's peek needs: the note — Claude Code's recap, or what
- *  the session is doing or did (session-note.ts) — the session's hue for its
- *  mark, and the name of the session it speaks for. */
+ *  the session is doing or did (session-note.ts) — and the session's plan, the
+ *  session's hue for its mark, and the name of the session it speaks for. The
+ *  note is null on a note that holds the plan alone. */
 export interface PeekRecap {
-  note: SessionNote;
+  note: SessionNote | null;
+  plan?: AgentPlan | null;
   hue: number;
   sessionLabel?: string;
 }
@@ -173,18 +176,20 @@ function RecapPeek({ r, anchor, bounds }: { r: PeekRecap; anchor: Element; bound
   const ref = usePlacedBeside(anchor, bounds);
   const now = useNow(30_000);
   const note = r.note;
-  const isRecap = note.kind === "recap";
-  const written = promptTime(note.at, now);
+  const plan = planSummary(r.plan);
+  const isRecap = note?.kind === "recap";
+  const written = promptTime(note?.at ?? r.plan?.at ?? now, now);
   return createPortal(
     <div ref={ref} className="ap-peek node-peek recap-peek" role="tooltip" id="node-peek"
       style={{ "--session-hue": r.hue } as React.CSSProperties}>
       <div className="node-peek-head">
-        <span className="recap-peek-mark"><NoteMark recap={isRecap} />{noteTag(note.kind)}</span>
+        <span className="recap-peek-mark"><NoteMark recap={isRecap} />{note ? noteTag(note.kind) : "plan"}</span>
         <span className="node-peek-time" title={written.title}>{written.label}</span>
       </div>
-      {r.sessionLabel && <div className="node-peek-kind"><span>{noteSource(note)} · {r.sessionLabel}</span></div>}
-      <p className="recap-peek-text">{note.text}</p>
-      {note.reply && <p className="recap-peek-text">Suggested reply: “{note.reply}”</p>}
+      {r.sessionLabel && <div className="node-peek-kind"><span>{note ? `${noteSource(note)} · ` : ""}{r.sessionLabel}</span></div>}
+      {note && <p className="recap-peek-text">{note.text}</p>}
+      {note?.reply && <p className="recap-peek-text">Suggested reply: “{note.reply}”</p>}
+      {plan && r.plan && <p className="recap-peek-text recap-peek-plan">Plan {planLine(plan)}{plan.allDone ? "" : `\n${planTitle(r.plan.items)}`}</p>}
       <p className="node-peek-hint">Click to go to the session · double-click for its details</p>
     </div>,
     document.body,
@@ -226,8 +231,8 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
         <span className="node-peek-time">{a.synthetic ? "≥ " : ""}{elapsed(a.startedAt, a.endedAt, now)}</span>
       </div>
       <div className="node-peek-kind">
-        <span className="node-peek-state" data-kind={stateMarkKind(a.state)}>
-          <StateMark kind={stateMarkKind(a.state)} />{stateLabel(a.state)}
+        <span className="node-peek-state" data-kind={stateMarkKind(drawnState(a))}>
+          <StateMark kind={stateMarkKind(drawnState(a))} />{stateLabel(drawnState(a))}
         </span>
         <span>{kind}</span>
         {a.model ? <span>{modelChipText(a.model, a.effort)}</span> : null}

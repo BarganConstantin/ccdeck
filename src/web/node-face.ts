@@ -2,6 +2,7 @@ import { canvasSessions } from "./canvas-session";
 import type { AgentNodeData, ToolCall, WaitingBlock } from "./types";
 import { isAlarming } from "./ambient-counts";
 import { planLine, planSummary } from "./agent-plan";
+import { stopRowLabel, stopShortLabel } from "./stop-failure-copy";
 
 /**
  * WHAT A SESSION'S SUBAGENTS ADD UP TO, for the faces that are too small to
@@ -85,9 +86,10 @@ export interface FaceSignal {
  *
  * A session blocked on a human comes first, and only the two kinds `isAlarming`
  * names — the same set the topbar count, the minimap and the waiting row use, so
- * a face cannot call a session stuck that the chip beside it calls fine. A
+ * a face cannot call a session stuck that the chip beside it calls fine. A turn
+ * that stopped on an error is next: it is on you too, a "continue" away. A
  * finished turn waiting for its next prompt is next, quietly. Then failures,
- * then what the branch is doing, then the step of its plan the card is on,
+ * then the step of its plan the card is on, then what the branch is doing,
  * then what the card itself is doing right now.
  * Nothing at all when none of those is true: a quiet card is a quiet face.
  *
@@ -99,7 +101,7 @@ export interface FaceSignal {
  * or the same call, two ways.
  */
 export function faceSignal(
-  data: Pick<AgentNodeData, "kind" | "waiting" | "tools" | "state" | "toolErrorCount" | "plan">,
+  data: Pick<AgentNodeData, "kind" | "waiting" | "tools" | "state" | "toolErrorCount" | "plan" | "stopFailure">,
   branch: BranchSummary | undefined,
   words: {
     sayWaiting: (w: WaitingBlock) => string;
@@ -114,6 +116,8 @@ export function faceSignal(
       short: w.kind === "permission" ? "Needs you" : "Asked you",
     };
   }
+  const stop = data.kind === "root" ? data.stopFailure : null;
+  if (stop) return { tone: "err", long: stopRowLabel(stop), short: stopShortLabel(stop) };
   if (w && w.kind === "idle") {
     const said = words.sayWaiting(w);
     return { tone: "idle", long: said, short: said };
@@ -126,18 +130,25 @@ export function faceSignal(
       short: `${failed} failed`,
     };
   }
-  if (branch && branch.total > 0) return { tone: "muted", long: branchLong(branch), short: branchShort(branch) };
   // The step of its own plan a running card is on (#2157), ahead of the call it
   // has open: the call changes every few seconds and says HOW, the step holds
   // for minutes and says WHAT — which is the question a board seen from a
   // distance is asked. Only while it runs, and only with a step to name: a
   // finished list is history, and the full card says it.
+  //
+  // And ahead of the branch. A session that keeps a plan is the one that fans
+  // out, so with the branch first a planning root's face said "3 subagents"
+  // for the whole run and its plan was on no surface a fitted board draws —
+  // the report was "release notes mentioned the agent's plan and progress but
+  // I don't see it anywhere". The branch is still on the cluster pill and in
+  // the subagents' own tiles beside this one.
   if (data.state === "active") {
     const plan = planSummary(data.plan);
     if (plan && plan.current && !plan.allDone) {
       return { tone: "muted", long: planLine(plan), short: `${plan.done}/${plan.total} done` };
     }
   }
+  if (branch && branch.total > 0) return { tone: "muted", long: branchLong(branch), short: branchShort(branch) };
   // The newest call still open, when the card is running one: the line a
   // bubble would have carried, now that the bubbles are not drawn.
   if (data.state === "active") {
@@ -167,6 +178,17 @@ export function faceTitle(text: string, tooltip?: string): string {
 }
 
 export type StateMarkKind = "live" | "done" | "err";
+
+/**
+ * The state a card DRAWS, in its pill and its mark. A root whose last turn
+ * stopped on an error (StopFailure, #2185) is drawn as a failure — the cross,
+ * not done's tick beside a red "Stopped · login expired". Its `state` stays
+ * "done", because the turn did end, and everything that counts live and done
+ * sessions reads that.
+ */
+export function drawnState(data: Pick<AgentNodeData, "kind" | "state" | "stopFailure">): AgentNodeData["state"] {
+  return data.kind === "root" && data.stopFailure && data.state === "done" ? "err" : data.state;
+}
 
 export function stateMarkKind(state: AgentNodeData["state"]): StateMarkKind {
   return state === "active" ? "live" : state === "done" ? "done" : "err";

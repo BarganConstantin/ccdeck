@@ -123,8 +123,8 @@ export {
 // wire — see lan-copies.mjs. Re-exported, so what imports them from here still
 // does.
 export {
-  accountKey, currentFor, heardCurrent, manifestFor, offered, onePerKey, peerWhy, plan, slotFor, syncAction,
-  HERE, SENDER_UNREADABLE,
+  accountKey, currentFor, heardCurrent, manifestFor, mayGiveInUse, offered, onePerKey, peerWhy, plan, slotFor,
+  syncAction, HERE, IN_USE, SENDER_UNREADABLE,
 } from "./lan-copies.mjs";
 
 /** Marks a packet as ours before anything reads a field of it. Four bytes of
@@ -288,8 +288,8 @@ function machineKey() {
  * The part of a hostname that names the machine, rather than the network it is
  * on at the moment.
  *
- * macOS answers `os.hostname()` with `Petrus-MacBook-Pro.local` at one moment
- * and `Petrus-MacBook-Pro` at another, and a DHCP server can hang its own
+ * macOS answers `os.hostname()` with `Oswald-MacBook-Pro.local` at one moment
+ * and `Oswald-MacBook-Pro` at another, and a DHCP server can hang its own
  * domain on the end — `.lan`, `.home`, `.fritz.box`. hostId hashed whatever it
  * was handed, so two decks on one computer started either side of such a change
  * disagreed about which machine they were on. Sharing a key, each read the other
@@ -418,7 +418,7 @@ export function beaconVerdict(beacon, { selfFp, selfInstance, selfHost, formerHo
     // taking a new key is the engine's to do.
     //
     // AND ONE MACHINE'S OWN TWIN IS NOT A CLASH, which is the whole of a defect
-    // reported as "Fiodor pressed yes ten times and it keeps asking". Several
+    // reported as "Elliot pressed yes ten times and it keeps asking". Several
     // decks on one computer share a config directory, so they start with one
     // key; each read the others' beacons as somebody wearing its name, each
     // took a fresh key, each wrote that key to the file the others read — and

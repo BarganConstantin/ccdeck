@@ -161,17 +161,119 @@ export const ONE_SHOT = Object.freeze([
   "purge",
 ]);
 
+/**
+ * The words the deck answers as commands (#2183), by every spelling it takes.
+ *
+ * Two kinds. A COMMAND is something the flags never did — read the accounts,
+ * switch one, list the sessions — and lands in `command`, answered by
+ * bin/cli/commands.js. A FLAG WORD is a flag that already existed under a
+ * second spelling: `ccdeck stop` is `ccdeck --stop`, set as that very flag, so
+ * the one-shot that answers it cannot tell the two apart and there is one
+ * implementation of each. `start` is the bare start, spelled out by people who
+ * type a verb first, and sets nothing at all.
+ *
+ * `swap` is a switch here, not claude-swap's "exchange two slots": that is the
+ * word the people asking for this used, and a switch is what they meant. Two
+ * account operands are answered with where the slot exchange lives instead
+ * (see bin/cli/commands.js).
+ */
+export const COMMANDS = Object.freeze({
+  accounts: "accounts", account: "accounts", ls: "accounts",
+  switch: "switch", swap: "switch", use: "switch",
+  usage: "usage", quota: "usage",
+  sessions: "sessions", ps: "sessions",
+  open: "open",
+});
+const FLAG_WORDS = Object.freeze({
+  status: "status", stop: "stop", logs: "logs", help: "help", version: "version",
+});
+const BARE_START = "start";
+
+/**
+ * The flags only a START reads. A line carrying one is a deck being started,
+ * whatever else is on it, and its bare words are what they always were —
+ * unknown options, named, and the deck starts — rather than commands.
+ *
+ * Two lines need that and neither can say so any other way. An unquoted path
+ * with a space in it: `--workspace /home/ana/Face Swap` is `--workspace
+ * /home/ana/Face` and a bare `Swap`, which is a switch to whoever reads words
+ * as commands. And the npx relaunch of an upgrade (npxRelaunchArgs in
+ * supervisor.mjs), which replays the user's own argv with `--no-open` added —
+ * an argv an older deck booted on, where `ccdeck myproj` was a warning and a
+ * start, and where a newer parser reading `myproj` as a misspelled command
+ * would end the deck it was upgrading.
+ */
+const START_FLAGS = new Set([
+  "--no-open", "--new", "--foreground", "--at-login", "--workspace", "--scope",
+  "--no-persist", "--history", "--codex", "--no-codex", "--claude", "--no-claude", "--ref",
+]);
+
+/**
+ * Could this token have been meant as a command?
+ *
+ * A word — letters, digits and dashes, starting with a letter. Anything with a
+ * separator, a dot or a tilde in it is a path, and a path in first position is
+ * the old mistake `ccdeck ~/proj`, reported the old way: an unknown option, and
+ * the deck still starts.
+ */
+function wordShaped(token) {
+  return /^[a-z][a-z0-9-]*$/i.test(token);
+}
+
 /** Is this a command line that answers and leaves? */
 export function isOneShot(flags = {}) {
+  // A command, and a word that was not one, answer and leave too: a command
+  // that detached would print its answer into deck.log, and a misspelled one
+  // that started a deck would leave a server behind on a machine reached over
+  // SSH, where there is no tab to show it in.
+  if (typeof flags.command === "string" || typeof flags.unknownCommand === "string") return true;
   return ONE_SHOT.some((k) => flags[k] === true);
 }
 
-export function parseArgs(args) {
+/**
+ * `commands: false` reads every bare word the way the parser did before there
+ * were commands, which is how a RESPAWNED worker reads its argv (bin/deck.js):
+ * the line is one a deck already booted on — perhaps an older deck, for which
+ * `ccdeck serve` was a warning and a start — and a worker that answered it as
+ * a command would exit, and the supervisor would count each exit as a crash.
+ */
+export function parseArgs(args, { commands = true } = {}) {
   const out = { unknown: [], incomplete: [] };
   // END OF OPTIONS. A bare `--` is the POSIX separator, and reporting it as an
-  // unknown option warned about a token the user typed on purpose.
+  // unknown option warned about a token the user typed on purpose. After a
+  // command, what follows it is operands — `ccdeck switch -- -odd-alias` —
+  // which is the separator's whole purpose.
   const end = args.indexOf("--");
   const argv = end === -1 ? args : args.slice(0, end);
+  const afterEnd = end === -1 ? [] : args.slice(end + 1);
+  const words = commands && !argv.some(t => START_FLAGS.has(t.startsWith("--") ? t.split("=")[0] : t));
+  // A bare word, sorted by where it stands. Only the FIRST bare word on a line
+  // can be a command, and it can be one wherever it stands among the flags, so
+  // `ccdeck --json accounts` reads the same as `ccdeck accounts --json`; every
+  // bare word after it is one of its operands. A word-shaped token in first
+  // position that is not a command is a command misspelled — `ccdeck acounts` —
+  // and is refused rather than starting a deck. Any other bare word is what it
+  // always was: an unknown option, named, and the deck starts — so is every
+  // bare word on a start line (START_FLAGS) and behind a word that was not a
+  // command (`ccdeck ~/my swap`).
+  let bare = 0;
+  const positional = (token, first) => {
+    if (out.command) { out.operands.push(token); return; }
+    const word = String(token).toLowerCase();
+    const lead = bare++ === 0;
+    if (lead && word === BARE_START) return;
+    if (lead && words) {
+      if (Object.hasOwn(COMMANDS, word)) {
+        out.command = COMMANDS[word];
+        out.commandWord = word;
+        out.operands = [];
+        return;
+      }
+      if (Object.hasOwn(FLAG_WORDS, word)) { out[FLAG_WORDS[word]] = true; return; }
+      if (first && wordShaped(token)) { out.unknownCommand = token; return; }
+    }
+    out.unknown.push(token);
+  };
   for (let i = 0; i < argv.length; i++) {
     // `--port=4400`, split here so the dispatch below sees the two halves it
     // already knows how to read.
@@ -248,7 +350,15 @@ export function parseArgs(args) {
     // The ccdeck.dev page the command was copied from, for the first install
     // report (install-ref.mjs). A value that is not a ref is dropped there.
     else if (a === "--ref") set("ref", "a page name");
+    // What the commands read (#2183): machine-readable output on stdout, and
+    // the account with the most room rather than a named one.
+    else if (a === "--json") out.json = true;
+    else if (a === "--best") out.best = true;
+    else if (!looksLikeFlag(argv[i])) positional(argv[i], i === 0);
     else out.unknown.push(argv[i]);   // the token as typed, `=` half included
+  }
+  for (const token of afterEnd) {
+    if (out.command) out.operands.push(token);
   }
   return out;
 }

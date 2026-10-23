@@ -376,7 +376,24 @@ describe("nothing else in the deck invents a focus stop", () => {
     // Radio results is a focusable tabpanel, allowing keyboard scrolling.
     // Tool activity's details splitter is the ARIA window splitter: a focusable
     // separator whose value is the panel's width, moved with the arrow keys.
-    expect(offenders).toEqual(["components/RadioMap.tsx", "components/RadioPanel.tsx", "components/ToolAuditSplitter.tsx"]);
+    // Radar's activity list splitter is the same widget, its value the list's
+    // share of the workspace.
+    // The integrations modal's splitter, between a tracker's list and its
+    // detail (#2178), is the same widget, its value the list's share.
+    // A Jira issue's code block and wide table, the GitHub and GitLab panel's
+    // job log and a description's code block (#2178, #2179) scroll sideways
+    // inside their own frame, as Radio's results scroll, so each is a stop
+    // the keyboard can reach and scroll (WCAG 2.1.1; axe's
+    // scrollable-region-focusable); the log and the table are named regions.
+    // Sorted, so the order is the paths' and not the file system's.
+    expect([...offenders].sort()).toEqual([
+      "components/ForgeHtml.tsx", "components/IntegrationSplit.tsx", "components/RadarSplitter.tsx", "components/RadioMap.tsx",
+      "components/RadioPanel.tsx", "components/ToolAuditSplitter.tsx", "components/forge/DetailJobs.tsx", "jira-html.tsx",
+    ]);
+    expect(code(readFileSync(`${web}jira-html.tsx`, "utf8"))).toMatch(/tabIndex=\{0\} role="region" aria-label="Table"/);
+    expect(code(readFileSync(`${web}components/forge/DetailJobs.tsx`, "utf8"))).toMatch(/<pre[^>]*className="fd-log" tabIndex=\{0\} role="region" aria-label=/);
+    expect(code(readFileSync(`${web}components/ForgeHtml.tsx`, "utf8"))).toMatch(/<pre key=\{i\} tabIndex=\{0\}/);
+    expect(code(readFileSync(`${web}components/IntegrationSplit.tsx`, "utf8"))).toMatch(/role="separator"[\s\S]*?tabIndex=\{0\}/);
     expect(code(readFileSync(`${web}components/RadioPanel.tsx`, "utf8"))).toMatch(/role="tabpanel"[^>]*tabIndex=\{0\}/);
     const map = code(readFileSync(`${web}components/RadioMap.tsx`, "utf8"));
     expect(map).toContain("tabIndex={0}");
@@ -389,14 +406,35 @@ describe("nothing else in the deck invents a focus stop", () => {
     // The skip link's <main> and Radar's mobile inspector are deliberate
     // destinations, not extra tab stops. Selecting an export on a phone
     // moves focus to its contents, so the newly revealed details are announced.
+    // Sorted: readdir answers in the file system's order, and NTFS lists the
+    // forge/ folder among the capitals where ext4 and APFS list it after them.
     const negatives = components(web)
       .flatMap(p => [...code(readFileSync(p, "utf8")).matchAll(/tabIndex=\{-\d+\}/g)]
-        .map(() => p.slice(web.length).replaceAll("\\", "/")));
+        .map(() => p.slice(web.length).replaceAll("\\", "/")))
+      .sort();
     // Combobox options use aria-activedescendant; focus stays on the input.
     // Tool activity's details heading takes focus when a tool is opened from
     // the keyboard, so the panel that appeared is announced by its name.
     // Settings' search results are the same combobox shape (SettingsSearch.tsx).
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx"]);
+    // Skill activity's details heading does what Tool activity's does (#2181).
+    // The Jira backlog (#2178) is one tab stop, its rows a roving tabindex
+    // moved with the arrow keys, and each row's disclosure triangle is the
+    // pointer's twin of ArrowRight/ArrowLeft on the row itself, so it is not
+    // a second stop; an issue's heading takes focus when its detail opens in
+    // place of the list on a narrow window, the way Tool activity's does.
+    // The GitHub and GitLab lists (#2179) are one tab stop too, but the stop
+    // is moved from script on the rows as drawn (useRovingRows in
+    // forge/ForgeParts.tsx), so their markup carries no tabIndex at all.
+    // The GitHub and GitLab panel's project picker (#2179) is the same
+    // combobox shape again: focus stays in its search field and the options
+    // are reached through aria-activedescendant (forge/RepoPicker.tsx). Its
+    // item page takes focus when the row that opened it goes out of sight —
+    // behind the drill-in screen, or on the page a link replaced
+    // (forge/DetailParts.tsx).
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
+    expect(code(readFileSync(join(web, "components/forge/RepoPicker.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
+    expect(code(readFileSync(join(web, "components/forge/DetailParts.tsx"), "utf8"))).toMatch(/<article ref=\{ref\} className="fd"[^>]*tabIndex=\{-1\}/);
+    expect(code(readFileSync(join(web, "components/JiraIssueDetail.tsx"), "utf8"))).toMatch(/<h2 id="jira-detail-title" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/RadioFilter.tsx"), "utf8"))).toMatch(/role="option" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/SettingsSearch.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/CanvasMain.tsx"), "utf8"))).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);

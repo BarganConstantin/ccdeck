@@ -23,6 +23,8 @@ import type { AgentNodeData, PlanStatus, PromptEntry, ToolCall } from "../types"
 import { planSummary } from "../agent-plan";
 import { agentCost, otherModelIds } from "../usage-models";
 import { withKey } from "../single-key-shortcuts";
+// Continue, for a turn that stopped on a login or a usage limit (#2193).
+import { StopContinueSection } from "./StopContinue";
 
 export default function Detail({
   agent,
@@ -160,6 +162,12 @@ export default function Detail({
           )}
         </div>
       </header>
+
+      {/* Continue a turn that stopped on an expired login or a usage limit
+          (#2193): the button for a background session, what to type for one
+          in a terminal, and what the last continue did. Above the note, which
+          says why it stopped. */}
+      <StopContinueSection agent={agent} />
 
       {/* The session's note, whole — the one surface with the room for all of
           it. The note on the canvas clamps it and the session list cuts it to

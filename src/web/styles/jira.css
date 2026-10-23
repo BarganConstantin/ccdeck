@@ -1,0 +1,541 @@
+/* The Jira panel (#2178): a board's backlog the way Jira draws it — sprints
+   first, then the backlog — dense enough to read a sprint at a glance, and an
+   issue's detail beside it. Everything here is drawn from the deck's tokens, so
+   it follows every theme; the one exception is Jira's own epic palette, which
+   is information (the same epic is the same colour in Jira and here) and is
+   only ever a tint under the deck's own text. */
+
+.jr-panel { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+
+/* ── the toolbar ─────────────────────────────────────────────────────────── */
+.jr-toolbar {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.jr-toolbar-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+/* The board button and its project, in a span the board picker's width: the
+   picker is drawn in it and hangs off its end (JiraPanel). */
+.jr-board-layer { --jr-pop-w: min(360px, calc(100vw - 32px)); flex: 0 1 auto; width: var(--jr-pop-w); min-width: 0; display: inline-flex; align-items: center; gap: 12px; }
+.jr-board-btn { gap: 8px; min-width: 0; max-width: min(420px, 100%); }
+.jr-board-btn-label { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.jr-board-btn-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.jr-chevron { flex: none; transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.jr-chevron[data-open] { transform: rotate(90deg); }
+.jr-board-btn .jr-chevron { transform: rotate(90deg); color: var(--muted); }
+.jr-board-btn .jr-chevron[data-open] { transform: rotate(-90deg); }
+.jr-board-project { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-toolbar[hidden] { display: none; }
+.jr-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.jr-filter-chips { display: contents; }
+/* The shared search field (IntegrationSearch) beside the chips, at a width
+   that leaves them room, and a whole row on a phone (below). */
+.jr-filters > .ig-search { flex: 0 1 260px; }
+button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--accent-dim)); border-color: var(--accent); color: var(--text); }
+.jr-link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.jr-link-btn:hover { color: var(--text); }
+.jr-link-btn:active { transform: scale(0.97); }
+.jr-clear { margin-left: 4px; }
+
+/* A link that reads as a button: Open in Jira. A link still, so it can be
+   middle-clicked, copied and opened in a new window. */
+
+/* The board picker, anchored under the board button. */
+.jr-board-pop { width: var(--jr-pop-w); }
+.jr-board-pop-inner { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+.jr-board-pop-title { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.jr-board-pop-inner > .ig-search { flex: none; }
+.jr-board-list { margin: 0; padding: 0; list-style: none; max-height: min(360px, 50dvh); overflow-y: auto; scrollbar-color: var(--ctl-edge) transparent; }
+.jr-board-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.jr-board-item:active { transform: scale(0.97); }
+.jr-board-item-name { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; overflow-wrap: anywhere; }
+.jr-board-item-meta { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.jr-board-pop-note { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-board-more { align-self: stretch; }
+
+/* ── the backlog ─────────────────────────────────────────────────────────── */
+.jr-list-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-color: var(--ctl-edge) transparent;
+  padding: 12px 16px 24px;
+  container: jira-list / inline-size;
+}
+.jr-board { display: flex; flex-direction: column; min-width: 0; }
+.jr-board-note { margin: 0 0 12px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; }
+.jr-group-body .jr-board-note { margin: 0; padding: 8px 12px; }
+.jr-closed-title { margin: 8px 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.jr-group { margin: 0 0 16px; min-width: 0; }
+.jr-group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 2px 0 6px; min-width: 0; }
+.jr-group-title { margin: 0; flex: 1 1 auto; min-width: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.jr-group-toggle {
+  max-width: 100%;
+  min-height: var(--ctl-h);
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.jr-group-toggle:active { transform: scale(0.97); }
+.jr-group-name { overflow-wrap: anywhere; }
+/* The active sprint's lozenge, in sentence case like the status ones. The
+   group's header sits on the modal's --bg, so its tint is mixed over that. */
+.jr-badge {
+  padding: 0 6px;
+  border-radius: var(--r-tag);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg));
+  color: var(--text);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+}
+.jr-group-dates, .jr-group-count { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jr-group-facts { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; }
+.jr-tally { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jr-totals { display: inline-flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.jr-total, .jr-estimate {
+  min-width: 24px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.jr-total[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--text); }
+.jr-total[data-cat="done"] { background: color-mix(in srgb, var(--ok) 14%, var(--bg)); color: var(--text); }
+.jr-goal { margin: 0 0 8px 6px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; }
+.jr-group-body { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); }
+/* A group or a row's sub-tasks the reader has just opened fade in, once, as
+   they mount; nothing moves, and a long list (JiraBacklog: over 30 rows)
+   appears at once. */
+.jr-group-body[data-fade], .jr-subrows[data-fade] { animation: jr-open 120ms ease-out; }
+@keyframes jr-open { from { opacity: 0; } }
+.jr-empty-group { margin: 0; padding: 12px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-more { margin: 8px 12px; }
+.jr-closed-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 0; }
+.jr-closed-foot .jr-subnote { flex-basis: 100%; padding: 0; }
+
+/* One row per issue, each drawn once. A row is one button — the issue — with
+   its disclosure triangle beside it when it has sub-tasks. */
+.jr-rows, .jr-subrows { margin: 0; padding: 0; list-style: none; }
+.jr-item { min-width: 0; }
+.jr-item + .jr-item { border-top: 1px solid var(--line-soft); }
+.jr-subrows { border-top: 1px solid var(--line-soft); background: color-mix(in srgb, var(--bg) 35%, transparent); }
+.jr-row { display: flex; align-items: stretch; min-width: 0; min-height: 34px; }
+.jr-subrow { padding-left: 20px; }
+.jr-toggle, .jr-toggle-space { flex: none; width: 28px; }
+.jr-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.jr-toggle:hover { color: var(--text); }
+.jr-toggle:active { transform: scale(0.94); }
+.jr-row-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 16px 16px auto minmax(0, 1fr) auto 20px;
+  align-items: center;
+  column-gap: 8px;
+  padding: 6px 12px 6px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.jr-row-main:focus-visible { outline-offset: -2px; }
+/* A row is the door to its issue, as a row in the GitHub and GitLab panel
+   is: a press deepens the row's tone a step and nothing moves, so the words
+   stay under the pointer while the issue opens. The row is :active while its
+   button or its disclosure triangle is pressed. (Inside a list, so it
+   outranks the shared row's hover and selection.) */
+.jr-rows .jr-row:active { background: color-mix(in srgb, var(--text) 10%, transparent); }
+.jr-icon { width: 16px; height: 16px; flex: none; display: block; border-radius: 2px; }
+.jr-key { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jr-key[data-done] { text-decoration: line-through; }
+.jr-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.jr-item[data-context] > .jr-row .jr-summary { color: var(--muted); }
+/* The row's end: its facts (flag, versions, epic, estimate), then its status
+   in a cell as wide as the board's longest status name (--jr-status-ch, set
+   by JiraBacklog), so the states line up as a column beside the avatars. */
+.jr-facts, .jr-meta { min-width: 0; display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; }
+/* The estimate never shrinks under its own words; a long epic or version
+   gives way first, with its ellipsis. */
+.jr-facts > .jr-estimate { flex: none; }
+.jr-meta > * { min-width: 0; flex: 0 1 auto; }
+.jr-meta > .jr-flagged { flex: none; }
+.jr-status-cell {
+  flex: none;
+  display: inline-flex;
+  box-sizing: border-box;
+  min-width: calc(var(--jr-status-ch, 0) * 1ch + 12px);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+}
+.jr-context-tag { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); font-style: italic; white-space: nowrap; }
+.jr-version, .jr-label {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 6px;
+  border-radius: var(--r-tag);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  white-space: nowrap;
+}
+.jr-version { box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
+.jr-label { background: var(--ctl-fill); color: var(--text-secondary); }
+/* What is left of an estimate, inside its --ctl-fill pill: the bed takes
+   --muted to 4.05:1 in dark, so it reads a tier up and stays quieter than the
+   estimate by weight. */
+.jr-remaining { color: var(--text-secondary); font-weight: 400; }
+.jr-assignee { flex: none; display: inline-flex; width: 20px; height: 20px; }
+.jr-flagged { display: inline-flex; align-items: center; gap: 4px; color: var(--err); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-flag { flex: none; }
+.jr-subnote { padding: 6px 12px 6px 40px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+
+/* Jira's epic colours, by the number Jira stores (ghx-label-N / color_N): Data
+   Center's palette, then Cloud's where it differs. A 14 % tint over the panel
+   under the deck's own text, so the words clear AA in every theme (Gruvbox
+   Material's --text is the tightest, 4.6:1 on the brightest epic). */
+.jr-epic {
+  --jr-epic: var(--muted);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 6px;
+  border-radius: var(--r-tag);
+  background: color-mix(in srgb, var(--jr-epic) 14%, var(--panel));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jr-epic) 55%, transparent);
+  color: var(--text);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  white-space: nowrap;
+}
+.jr-epic[data-color="1"] { --jr-epic: #8d542e; }
+.jr-epic[data-color="2"] { --jr-epic: #ff8b00; }
+.jr-epic[data-color="3"] { --jr-epic: #ffc400; }
+.jr-epic[data-color="4"] { --jr-epic: #0747a6; }
+.jr-epic[data-color="5"] { --jr-epic: #253858; }
+.jr-epic[data-color="6"] { --jr-epic: #57d9a3; }
+.jr-epic[data-color="7"] { --jr-epic: #b93d9e; }
+.jr-epic[data-color="8"] { --jr-epic: #5243aa; }
+.jr-epic[data-color="9"] { --jr-epic: #ff8f73; }
+.jr-epic[data-color="10"] { --jr-epic: #0065ff; }
+.jr-epic[data-color="11"] { --jr-epic: #008299; }
+.jr-epic[data-color="12"] { --jr-epic: #5e6c84; }
+.jr-epic[data-color="13"] { --jr-epic: #00875a; }
+.jr-epic[data-color="14"] { --jr-epic: #de350b; }
+.jr-panel[data-deployment="cloud"] .jr-epic[data-color="1"] { --jr-epic: #243859; }
+.jr-panel[data-deployment="cloud"] .jr-epic[data-color="4"] { --jr-epic: #2a53cc; }
+.jr-panel[data-deployment="cloud"] .jr-epic[data-color="5"] { --jr-epic: #2aa3bf; }
+.jr-panel[data-deployment="cloud"] .jr-epic[data-color="7"] { --jr-epic: #8677d9; }
+.jr-panel[data-deployment="cloud"] .jr-epic[data-color="10"] { --jr-epic: #3884ff; }
+.jr-panel[data-deployment="cloud"] .jr-epic[data-color="11"] { --jr-epic: #34c7e6; }
+.jr-panel[data-deployment="cloud"] .jr-epic[data-color="12"] { --jr-epic: #6b778c; }
+
+/* Jira's status lozenge: grey to do, blue in progress, green done. Sentence
+   case, as Atlassian's lozenge is written now, and cut at 16 characters with
+   the whole name in its title, so a long workflow name never widens a row.
+   The tints are 14 %: at 22 % Gruvbox Material's --text sat at 3.96:1. */
+.jr-status {
+  flex: none;
+  box-sizing: border-box;
+  max-width: calc(16ch + 12px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 6px;
+  border-radius: var(--r-tag);
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  white-space: nowrap;
+}
+.jr-status[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); color: var(--text); }
+.jr-status[data-cat="done"] { background: color-mix(in srgb, var(--ok) 14%, var(--panel)); color: var(--text); }
+
+/* A backlog row is the host's .ig-row: its hover and its selection, and
+   every quiet word in it lifted with it. A sprint's header, a board in the
+   picker and a sub-task in the detail are buttons of their own and borrow
+   the same fills and the same lift. A tinted pill is mixed over the panel
+   rather than over whatever is under it, so the hover's fill never stacks
+   under its words (Gruvbox Material's --text fell to 4.1:1 on a hovered
+   lozenge); a pill on the neutral fill writes in --text under the pointer
+   for the same reason. On a selected row a status pill gives up its tint
+   (.ig-chip) and keeps an edge in its category's colour, so the state
+   still shows. */
+.ig-row:hover :is(.jr-estimate, .jr-remaining, .jr-status, .jr-total) { color: var(--text); }
+.jr-group-toggle:hover, .jr-board-item:hover, .jr-detail-sub:hover { background: var(--ig-hover-fill, var(--ctl-fill)); --muted: var(--text-secondary); }
+.jr-group-toggle:hover :is(.jr-estimate, .jr-status, .jr-total), .jr-detail-sub:hover .jr-status { color: var(--text); }
+.jr-board-item[aria-current="true"] { background: var(--ig-sel-fill, var(--accent-dim)); --muted: var(--text); }
+.ig-row[data-selected] .jr-status[data-cat="indeterminate"] { box-shadow: inset 0 0 0 1px var(--accent); }
+.ig-row[data-selected] .jr-status[data-cat="done"] { box-shadow: inset 0 0 0 1px var(--ok); }
+
+/* An issue type or a priority the panel draws itself, when Jira's icon is an
+   SVG (which the deck does not pass on) or does not load: Jira's shapes. The
+   mark is cut in the panel's own colour, so it reads on a light theme's deep
+   tile and a dark theme's pastel one alike; every tile is a theme token. */
+.jr-glyph-tile { fill: var(--jr-type, var(--muted)); }
+.jr-glyph-mark { fill: var(--panel); }
+.jr-glyph-stroke { fill: none; stroke: var(--panel); }
+.jr-type-glyph[data-shape="bug"] { --jr-type: var(--err); }
+.jr-type-glyph[data-shape="story"] { --jr-type: var(--ok); }
+.jr-type-glyph[data-shape="task"], .jr-type-glyph[data-shape="subtask"] { --jr-type: var(--accent); }
+.jr-type-glyph[data-shape="epic"] { --jr-type: var(--cat-plan); }
+.jr-priority-glyph { color: var(--muted); }
+.jr-priority-glyph[data-level="highest"], .jr-priority-glyph[data-level="high"] { color: var(--err); }
+.jr-priority-glyph[data-level="low"], .jr-priority-glyph[data-level="lowest"] { color: var(--accent); }
+
+/* ── states ──────────────────────────────────────────────────────────────── */
+.jr-state { max-width: 520px; margin: 48px auto; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.jr-state h3 { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.jr-state p { margin: 0; color: var(--text-secondary); line-height: 1.5; text-wrap: pretty; }
+/* Where the shared failure note (IntegrationFailureNote) sits: across a
+   state's column, over the rows it is the last answer for, and inside a
+   sprint's frame with room around it. */
+.jr-state .ig-failure { align-self: stretch; }
+.jr-panel .ig-failure[data-stale] { margin-bottom: 12px; }
+.jr-panel .jr-group-body > .ig-failure { margin: 8px; }
+
+/* ── an issue ────────────────────────────────────────────────────────────── */
+/* The shared detail bar (IntegrationDetailBar) sticks to the top of the
+   pane, edge to edge across this padding (--ig-detail-pad). */
+.jr-detail { --ig-detail-pad: 20px; container: jira-detail / inline-size; min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 0 var(--ig-detail-pad) 32px; }
+.jr-crumbs { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-crumbs li { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.jr-crumbs li + li::before { content: "/"; color: var(--muted); }
+.jr-crumb, .jr-crumb-text { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jr-crumb { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.jr-crumb:hover { color: var(--text); text-decoration: underline; }
+.jr-crumb:active { transform: scale(0.97); }
+.jr-crumb-text { color: var(--muted); }
+.jr-crumb-here { color: var(--text); }
+.jr-detail-head { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.jr-detail-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.jr-detail-state { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-detail-dates { margin: -8px 0 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-detail-dates:empty { display: none; }
+/* An epic in the field list is a block of its own, so its ellipsis holds
+   and a long name never pushes the pane sideways. */
+.jr-field .jr-epic { display: inline-block; max-width: 100%; vertical-align: middle; }
+.jr-fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+  gap: 6px 16px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 1.45;
+}
+.jr-field { display: contents; }
+.jr-field dt { color: var(--muted); }
+.jr-field dd { margin: 0; min-width: 0; color: var(--text); overflow-wrap: anywhere; }
+/* A person keeps to the field's width, so a long name ends in an ellipsis
+   (the shared name already knows how) instead of widening the pane. */
+.jr-field dd > .ig-person { max-width: 100%; }
+.jr-with-icon { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.jr-dim { color: var(--muted); }
+.jr-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.jr-detail-section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.jr-detail-section h3 { margin: 0; display: flex; align-items: baseline; gap: 6px; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.jr-detail-section > p { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-count { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; }
+.jr-detail-subtasks { margin: 0; padding: 0; list-style: none; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-panel); }
+.jr-detail-subtasks li + li { border-top: 1px solid var(--line-soft); }
+.jr-detail-sub {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 16px auto minmax(0, 1fr) auto 18px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms;
+}
+.jr-detail-subtasks .jr-detail-sub:active { background: color-mix(in srgb, var(--text) 10%, transparent); }
+.jr-detail-sub:focus-visible { outline-offset: -2px; }
+.jr-files { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-files li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; min-width: 0; }
+.jr-more-link { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); }
+.jr-files a { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); overflow-wrap: anywhere; }
+.jr-comments { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.jr-comment { min-width: 0; padding: 10px 12px; border-radius: var(--r-panel); box-shadow: inset 0 0 0 1px var(--line-soft); }
+.jr-comment-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+
+/* An issue's description and comments, sanitised (jira-html.tsx): only the
+   elements and the handful of Jira's own classes that are drawn here. */
+.jr-html { min-width: 0; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 1.55; overflow-wrap: anywhere; }
+.jr-html p, .jr-html ul, .jr-html ol, .jr-html blockquote, .jr-html pre { margin: 0 0 8px; }
+.jr-html > :last-child { margin-bottom: 0; }
+.jr-html ul, .jr-html ol { padding-left: 20px; }
+.jr-html a { color: var(--accent); text-underline-offset: 2px; }
+.jr-html h4, .jr-html h5, .jr-html h6 { margin: 12px 0 6px; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.jr-html blockquote { padding-left: 12px; box-shadow: inset 2px 0 0 var(--line); color: var(--text-secondary); }
+.jr-html code { padding: 0 4px; border-radius: var(--r-tag); background: var(--ctl-fill); font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-html pre { padding: 8px 10px; overflow-x: auto; border-radius: var(--r-ctl); background: var(--bg); font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; white-space: pre; overflow-wrap: normal; }
+.jr-html pre code { padding: 0; background: none; }
+.jr-html hr { margin: 12px 0; border: 0; border-top: 1px solid var(--line); }
+.jr-html table { border-collapse: collapse; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-html th, .jr-html td { padding: 4px 8px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+.jr-html th { background: var(--ctl-fill); font-weight: 600; }
+.jr-table-wrap { margin: 0 0 8px; overflow-x: auto; }
+.jr-image { display: block; max-width: 100%; height: auto; border-radius: var(--r-tag); }
+.jr-emoticon { width: 16px; height: 16px; vertical-align: -3px; }
+.jr-image-link { color: var(--accent); }
+.jr-mention { color: var(--accent); font-weight: 500; }
+.jr-html-error { color: var(--err); }
+.jr-html-panel { margin: 0 0 8px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-ctl); }
+.jr-html-panel-head { padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--ctl-fill); font-weight: 600; }
+.jr-html-panel-body { padding: 8px 10px; }
+.jr-html-code pre, .jr-html-pre pre { margin: 0; border-radius: 0; }
+.jr-html-code-body, .jr-html-pre-body { padding: 0; }
+
+/* ── narrow ──────────────────────────────────────────────────────────────── */
+/* A list narrower than a row: the summary keeps the first line with the key
+   and the avatar, and the status leads the facts on a line under it. */
+@container jira-list (max-width: 560px) {
+  .jr-row-main { grid-template-columns: 16px 16px auto minmax(0, 1fr) 20px; row-gap: 4px; }
+  .jr-row-main > .jr-assignee { grid-column: 5; grid-row: 1; }
+  .jr-facts { grid-column: 3 / -1; grid-row: 2; justify-content: flex-start; flex-wrap: wrap; }
+  .jr-facts .jr-meta { justify-content: flex-start; flex-wrap: wrap; }
+  .jr-facts .jr-status-cell { order: -1; min-width: 0; }
+  .jr-group-facts { margin-left: 0; flex-basis: 100%; flex-wrap: wrap; }
+}
+/* A phone: three lines at most. The issue's type, priority, key, status and
+   person on the first; its summary under them, up to two lines; its flag,
+   epic and estimate on the third, when it has any. The key keeps its whole
+   width, since its number is what tells two issues apart; the status gives
+   way first, with its ellipsis and the whole name in its title. Only a key
+   longer than the line itself is cut. */
+@container jira-list (max-width: 360px) {
+  .jr-row-main { grid-template-columns: 16px 16px minmax(0, max-content) minmax(0, 1fr) 20px; }
+  .jr-row-main > .jr-key { grid-column: 3; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .jr-facts { display: contents; }
+  .jr-facts .jr-status-cell { grid-column: 4; grid-row: 1; justify-self: end; min-width: 0; max-width: 100%; overflow: hidden; }
+  .jr-facts .jr-status-cell > .jr-status { flex: 0 1 auto; min-width: 0; }
+  .jr-row-main > .jr-assignee { grid-column: 5; grid-row: 1; }
+  .jr-summary { grid-column: 1 / -1; grid-row: 2; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .jr-facts .jr-meta { grid-column: 1 / 4; grid-row: 3; justify-content: flex-start; flex-wrap: nowrap; }
+  /* Fix versions wait for the issue's own page: beside an epic on a phone's
+     line they were cut to a character or two each. */
+  .jr-facts .jr-meta > .jr-version { display: none; }
+  .jr-facts .jr-meta:empty { display: none; }
+  .jr-facts > .jr-estimate { grid-column: 4 / -1; grid-row: 3; justify-self: end; }
+}
+@media (max-width: 700px) {
+  .jr-toolbar { padding: 8px 12px; }
+  .jr-list-scroll { padding: 10px 12px 20px; }
+  .jr-detail { --ig-detail-pad: 14px; padding-bottom: 24px; }
+  .jr-board-project { display: none; }
+  /* A phone's toolbar has no room for a span the picker's width: the button
+     keeps its own width, and the picker, wider than the button, is kept
+     inside the window by its placement. The freshness line keeps its words,
+     beside the button when they fit and under it when they do not. */
+  .jr-toolbar-row { flex-wrap: wrap; row-gap: 4px; }
+  .jr-board-layer { width: auto; }
+  .jr-toolbar-row > .ig-freshness { flex: none; }
+  .jr-filters > .ig-search { flex: 1 1 100%; }
+  .jr-filter-chips {
+    display: flex;
+    flex: 1 1 100%;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    /* Room for a chip's focus ring, which the scroller would clip. */
+    padding: 3px;
+    margin: -3px;
+  }
+  .jr-filter-chips > * { flex: none; }
+}
+/* A sub-task in a narrow detail: its key, status and person on the first
+   line and its summary under them, rather than cut at the frame's edge. */
+@container jira-detail (max-width: 440px) {
+  .jr-detail-sub { grid-template-columns: 16px minmax(0, 1fr) auto 18px; row-gap: 2px; }
+  .jr-detail-sub > .jr-icon { grid-column: 1; grid-row: 1; }
+  .jr-detail-sub > .jr-key { grid-column: 2; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .jr-detail-sub > .jr-status { grid-column: 3; grid-row: 1; }
+  .jr-detail-sub > :last-child { grid-column: 4; grid-row: 1; }
+  .jr-detail-sub > .jr-summary { grid-column: 2 / -1; grid-row: 2; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .jr-fields { grid-template-columns: minmax(72px, max-content) minmax(0, 1fr); gap: 6px 12px; }
+}
+@media (pointer: coarse) {
+  .jr-row { min-height: 44px; }
+  .jr-toggle, .jr-toggle-space { width: 40px; }
+  .jr-group-toggle, .jr-board-item, .jr-detail-sub { min-height: 44px; }
+}
+@media (hover: none) {
+  .jr-board-item:hover:not([aria-current="true"]), .jr-detail-sub:hover, .jr-group-toggle:hover { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jr-chevron { transition: none; }
+  .jr-group-body[data-fade], .jr-subrows[data-fade] { animation: none; }
+  .jr-board-item:active, .jr-crumb:active, .jr-group-toggle:active,
+  .jr-link-btn:active, .jr-toggle:active { transform: none; }
+}

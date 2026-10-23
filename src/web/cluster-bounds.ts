@@ -11,6 +11,7 @@ import { sessionOfNode } from "./layout-geometry";
 import type React from "react";
 import { isAlarming } from "./ambient-counts";
 import { clusterHeader, type ClusterHeader } from "./cluster-header";
+import { planLine, planSummary } from "./agent-plan";
 import { branchShort, type BranchSummary } from "./node-face";
 import { HEADER_H, LABEL_LIFT, PAD } from "./session-chrome";
 import { sessionDisplay } from "./session-display";
@@ -27,6 +28,14 @@ export interface Cluster extends ClusterHeader {
    *  the overview distance, where the tiles are a column of marks too small to
    *  count by eye. Absent for a session with no subagent on the canvas. */
   branch?: string;
+  /** How far the session is through its own plan, `plan 2/5` (#2157) — drawn
+   *  wherever the root card is a face rather than the full card, so the plan
+   *  is on the board at every zoom a fit can land on. Absent for a session
+   *  that keeps no list. */
+  plan?: string;
+  /** The same plan as one whole line, `2/5 · Writing the migration`, for the
+   *  pill's tooltip. */
+  planLine?: string;
 }
 
 /** The part of a React Flow node the cluster geometry reads. */
@@ -181,7 +190,7 @@ export function clusterLabelStyle(c: Cluster, zoom: number, hue: number, maxWidt
  * bug came from, not the arithmetic.
  */
 export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
-  const bySession = new Map<string, { minX: number; minY: number; maxX: number; maxY: number; label: string; name?: string; alarm?: boolean; branch?: string }>();
+  const bySession = new Map<string, { minX: number; minY: number; maxX: number; maxY: number; label: string; name?: string; alarm?: boolean; branch?: string; plan?: string; planLine?: string }>();
   for (const n of nodes) {
     // Only agent cards define a session's bounds. The invisible per-session
     // drag handle is a React Flow node like any other and its data carries the
@@ -217,6 +226,8 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
         name: root?.name,
         alarm: root?.alarm ?? false,
         branch: root?.branch,
+        plan: root?.plan,
+        planLine: root?.planLine,
       });
     } else {
       existing.minX = Math.min(existing.minX, x1);
@@ -228,6 +239,8 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
         existing.name = root.name;
         existing.alarm = root.alarm;
         existing.branch = root.branch;
+        existing.plan = root.plan;
+        existing.planLine = root.planLine;
       }
     }
   }
@@ -250,13 +263,14 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
     const needsSuffix = peers.length > 1;
     out.push({
       sessionId,
-      ...clusterHeader(b.label, b.name, sessionId, needsSuffix, peers, { branch: b.branch, alarm: b.alarm }),
+      ...clusterHeader(b.label, b.name, sessionId, needsSuffix, peers, { branch: b.branch, plan: b.planLine, alarm: b.alarm }),
       x: b.minX - PAD,
       y: b.minY - PAD - HEADER_H,
       w: b.maxX - b.minX + PAD * 2,
       h: b.maxY - b.minY + PAD * 2 + HEADER_H,
       ...(b.alarm ? { alarm: true } : null),
       ...(b.branch ? { branch: b.branch } : null),
+      ...(b.plan ? { plan: b.plan, planLine: b.planLine } : null),
     });
   }
   return out;
@@ -273,9 +287,10 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
  * field off whichever node arrived first would leave the header waiting on
  * iteration order for a field the root has had all along.
  */
-function rootFields(d: AgentNodeData): { label?: string; name?: string; alarm: boolean; branch?: string } | null {
+function rootFields(d: AgentNodeData): { label?: string; name?: string; alarm: boolean; branch?: string; plan?: string; planLine?: string } | null {
   if (d.kind !== "root") return null;
   const b = (d as AgentNodeData & { branch?: BranchSummary }).branch;
+  const plan = planSummary(d.plan);
   return {
     label: d.label,
     // The header reads the SAME field the card does — the name when the
@@ -293,6 +308,9 @@ function rootFields(d: AgentNodeData): { label?: string; name?: string; alarm: b
     // The summary App puts on a root's node data (FlowNodeData.branch), in the
     // card's own `→ N` notation. Only the root carries one.
     branch: b && b.total > 0 ? branchShort(b) : undefined,
+    // The root's plan, which for the Task tools is the session's (agent-plan.ts).
+    plan: plan ? `plan ${plan.done}/${plan.total}` : undefined,
+    planLine: plan ? planLine(plan) : undefined,
   };
 }
 
@@ -311,6 +329,8 @@ export function shallowEqualClusters(a: Cluster[], b: Cluster[]): boolean {
       x.shortId !== y.shortId ||
       x.alarm !== y.alarm ||
       x.branch !== y.branch ||
+      x.plan !== y.plan ||
+      x.planLine !== y.planLine ||
       x.fullLabel !== y.fullLabel ||
       x.title !== y.title ||
       x.x !== y.x || x.y !== y.y ||

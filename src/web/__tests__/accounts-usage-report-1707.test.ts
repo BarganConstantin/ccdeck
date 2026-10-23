@@ -398,25 +398,31 @@ describe("when the readings are the last ones rather than this poll's", () => {
 });
 
 describe("where it opens from", () => {
-  const header = (canReport: boolean) => renderToStaticMarkup(createElement(AccountsHeader, {
-    canShare: canReport, canReport, onAdd: () => {}, onReport: () => {}, onShareSet: () => {}, onReload: () => {},
+  const header = () => renderToStaticMarkup(createElement(AccountsHeader, {
+    canShare: true, onAdd: () => {}, onShareSet: () => {}, onReload: () => {},
     pressProps: () => ({}), reloading: false, closeButton: null,
   } as never));
 
-  it("is a named button in the panel's header", () => {
-    expect(header(true)).toMatch(/<button type="button" class="glyph-btn" aria-label="Account capacity" aria-haspopup="dialog"/);
-    expect(header(false)).not.toContain('aria-label="Account capacity"');
+  it("is the left stripe's two doors, not a gauge in the panel's header", () => {
+    // Users could not find it behind the header's gauge, nor the calendar
+    // behind a tab inside it; both moved to the stripe (rail-capacity-doors).
+    expect(header()).not.toContain('aria-label="Account capacity"');
+    expect(sourceOf("components/AccountsPanel.tsx")).not.toContain("AccountsUsageReport");
+    expect(sourceOf("App.tsx")).toContain("{capacityView && <AccountCapacityDialog view={capacityView} onClose={closeCapacity} />}");
   });
 
-  it("is offered for two accounts or more, and kept while the report is open", () => {
-    const panel = sourceOf("components/AccountsPanel.tsx");
-    expect(panel).toContain("canReport={(data?.accounts?.length ?? 0) > 1 || reportOpen}");
+  it("opens one view, titled for itself, with no tabs between the two", () => {
+    const modal = sourceOf("components/AccountsUsageReport.tsx");
+    expect(modal).toContain('const VIEW_TITLE: Record<CapacityView, string> = { accounts: "Account capacity", calendar: "Reset calendar" };');
+    expect(modal).toContain('<h2 className="ap-proj-title" id="ap-report-title">{VIEW_TITLE[view]}</h2>');
+    expect(modal).not.toMatch(/ap-report-views?\b|setView\(/);
   });
 
-  it("is handed the panel's own roster, the order it had on opening, and its clock — no poll of its own", () => {
-    const panel = sourceOf("components/AccountsPanel.tsx");
-    expect(panel).toContain("onReport={() => { setReportOrder([...head, ...rest].map(laneKey)); setReportOpen(true); }}");
-    expect(panel).toMatch(/<AccountsUsageReport accounts=\{data\?\.accounts \?\? null\} order=\{reportOrder\}\s+failed=\{failure\?\.reload \? failure\.text : null\}\s+nowSec=\{nowSec\}/);
+  it("is handed a roster read the panel's way, the panel's order at opening, and a clock — no poll of its own", () => {
+    const dialog = sourceOf("components/AccountCapacityDialog.tsx");
+    expect(dialog).toContain("const { data, failure } = useAccountRoster(ignoreRoster);");
+    expect(dialog).toContain("const nowSec = usePanelClock();");
+    expect(dialog).toMatch(/<AccountsUsageReport accounts=\{data\?\.accounts \?\? null\} order=\{order \?\? \[\]\}\s+failed=\{failure\?\.reload \? failure\.text : null\}\s+nowSec=\{nowSec\}/);
     const modal = sourceOf("components/AccountsUsageReport.tsx");
     expect(modal).not.toMatch(/\bfetch\(|setInterval|useAccountRoster|usePanelClock/);
     // The panel's order, until a column is pressed; then that column's, taken
@@ -432,7 +438,7 @@ describe("where it opens from", () => {
     expect(modal).toContain('role="dialog" aria-modal="true" aria-labelledby="ap-report-title"');
     expect(modal).not.toContain("ap-proj-sub");
     expect(modal).toMatch(/return createPortal\(\s*(?:\/\/[^\n]*\n\s*)*<div className="modal-backdrop"/);
-    expect(modal).toContain('<h2 className="ap-proj-title" id="ap-report-title">Account capacity</h2>');
+    expect(modal).toContain('<h2 className="ap-proj-title" id="ap-report-title">{VIEW_TITLE[view]}</h2>');
   });
 });
 

@@ -1,4 +1,5 @@
 // Shared types between client modules.
+import type { StopFacts } from "../server/stop-failure.mjs";
 
 export type AgentState = "active" | "done" | "err";
 
@@ -98,11 +99,11 @@ export interface TokenUsage {
    *  models. Carried separately so the UI can surface it without polluting
    *  Claude usage math (Claude doesn't emit this bucket). */
   reasoningOutputTokens?: number;
-  /** Claude-only: the share of these tokens billed at a speed other than
-   *  standard, keyed by the transcript's `usage.speed` (`"fast"`). A subset of
+  /** The share of these tokens estimated at a speed other than
+   *  standard, keyed by Claude usage.speed or recorded Codex settings. A subset of
    *  the counts above, never an addition to them, the way the TTL split is a
    *  subset of `cacheCreateTokens`. Present only on a per-model bucket whose
-   *  transcript ran at such a speed; pricing.ts prices each share at its own
+   *  transcript recorded such a speed; pricing.ts prices each share at its own
    *  speed's rates (#754). */
   bySpeed?: Record<string, TokenUsage>;
   /** Haiku 5.5 tokens from individual requests whose full prompt exceeded
@@ -426,6 +427,16 @@ export interface AgentNodeData {
    *  reconstructs its stream from rollout files and emits no notification at
    *  all; absence of the signal there is not evidence of no block. */
   waiting?: WaitingBlock | null;
+  /** Why the root's newest turn stopped, when Claude Code ended it on an API
+   *  error — its `StopFailure`, which runs INSTEAD of `Stop` — rather than on
+   *  a finished reply: an expired login, a usage limit, or any other error
+   *  (src/server/stop-failure.mjs). Beside `state` for the reason `waiting` is:
+   *  the turn is over, so the card is `done`, and this is what that `done`
+   *  does not say. Null or absent once the session does anything again — its
+   *  next prompt, a tool call of the root's own, a `Stop`, a new start — and
+   *  never cleared by a subagent's traffic: a background Task working on does
+   *  not run the turn that failed again. Root only. */
+  stopFailure?: StopFacts | null;
   /** When this session was last heard from: the newest `receivedAt` of any
    *  event carrying its session id, whichever agent that event was attributed
    *  to. Only the root carries it, for the same reason only the root carries
@@ -664,6 +675,13 @@ export interface HookPayload {
   parent_tool_use_id?: string;
   subagent_type?: string;
   message?: string;
+  /** Claude-only, on `StopFailure`: Claude Code's value for the error that
+   *  ended the turn (`authentication_failed`, `rate_limit`, …), the details it
+   *  had, and the error line the terminal printed. Read through
+   *  src/server/stop-failure.mjs, never directly. */
+  error?: string;
+  error_details?: string;
+  last_assistant_message?: string;
   /** Claude-only, on `Notification`: which of the two blocks this is —
    *  "permission_prompt" or "idle_prompt". `message` beside it is the sentence
    *  CC would have printed in the terminal. */
@@ -714,7 +732,7 @@ export interface HookPayload {
    *  arriving as its own event because it is measured by the same record at the
    *  same instant as the usage totals beside it (#399). */
   context_tokens?: number;
-  /** Claude-only, on the synthetic `UsageObserved`: the transcript's totals
+  /** On the synthetic `UsageObserved`: the transcript's totals
    *  broken out by the model that produced them, in the same snake_case shape
    *  as `usage` beside it. Null when the scan attributed nothing, and null
    *  CLEARS whatever the root already held — both fields are cumulative, so a

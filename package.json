@@ -1,6 +1,6 @@
 {
   "name": "ccdeck",
-  "version": "3.43.3",
+  "version": "3.46.0",
   "description": "Local dashboard for Claude Code and Codex CLI sessions: which Claude Code session needs input, every tool call and Claude Code subagent live, token cost and quota, several Claude accounts. Run npx ccdeck.",
   "type": "module",
   "bin": {
@@ -82,6 +82,7 @@
     "esbuild": "0.25.12",
     "hls.js": "^1.7.3",
     "hpack.js": "2.1.6",
+    "json-edit-react": "2.0.4",
     "long": "5.3.2",
     "protobufjs": "8.8.0",
     "react": "^18.3.1",
