@@ -1,6 +1,9 @@
 /* Radio is an explorer in the existing ccdeck surface system. */
-.edge-rail-right .rail-group:has([data-rail-item="radio"]) { margin-top: auto; margin-bottom: 144px; padding-top: 0; border-top: 0; }
-.radio-backdrop { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); padding: 24px; }
+/* Beside the character, under the same rule every other group on the stripes
+   stands under. The scrim is the deck's own: no blur (#882), so the waiting
+   chip and the canvas still read through it. */
+.edge-rail-right .rail-group:has([data-rail-item="radio"]) { margin-top: auto; margin-bottom: 144px; }
+.radio-backdrop { padding: 24px; }
 .radio-panel, .radio-loading { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-2); }
 .radio-panel { width: min(1200px, 100%); height: min(800px, calc(100dvh - 48px)); display: flex; flex-direction: column; overflow: hidden; font-size: calc(12px + var(--ui-text-increase, 0px)); animation: radioOpen 180ms cubic-bezier(.22, 1, .36, 1); }
 .radio-loading { position: relative; width: min(400px, 100%); padding: 24px; }

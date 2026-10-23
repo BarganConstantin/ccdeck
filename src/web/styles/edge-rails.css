@@ -29,8 +29,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* 14px between the two groups on the right — the panels, then the records
-     that open as dialogs — and 4px between two buttons of one group. */
+  /* 14px between two groups — each a run of doors that answer one question
+     (rail-items.tsx) — and 4px between two buttons of one group. */
   gap: 14px;
   padding: 8px 0;
   background: var(--bg-soft);
@@ -44,11 +44,10 @@
   align-items: center;
   gap: 4px;
 }
-/* The right stripe's two groups — panels that open beside the canvas, then
-   records that open as a dialog over it — with a rule between them. The 14px
-   gap alone measured 26px of ink to ink against 22 inside a group, which read
-   as one run, and a press on History then dropped a dialog where the stripe
-   had promised a panel. */
+/* A rule between two groups, the same on both stripes. The 14px gap alone
+   measured 26px of ink to ink against 22 inside a group, which read as one
+   run, and a press on History then dropped a dialog where the stripe had
+   promised a panel. */
 .edge-rail .rail-group + .rail-group {
   padding-top: 14px;
   border-top: 1px solid var(--line);

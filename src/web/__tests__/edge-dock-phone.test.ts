@@ -49,7 +49,7 @@ function rails({ claude = true, usageOpen = false, unread = 0, onHistory = noop 
 
 /** The dock exactly as App.tsx composes it from the rails. */
 function dockFor(r: ReturnType<typeof rails>) {
-  return mount(EdgeDock, { items: [...r.left, ...r.right[0], r.utilities[0]], more: [...r.right[1], r.utilities[1]] });
+  return mount(EdgeDock, { items: [...r.left, ...r.right[0], r.utilities[0]], more: [...r.right.slice(1).flat(), r.utilities[1]] });
 }
 
 /** The control elements the dock draws: its RailButtons, then its More. */

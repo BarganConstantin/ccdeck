@@ -75,6 +75,7 @@ describe("Radar stays in the toolbar whatever Settings › Radar says", () => {
     const app = sourceOf("App.tsx");
     expect(app).toMatch(/setTrafficRadarOpen: dialogs\.setTrafficRadarOpen,/);
     expect(app).not.toContain("use-radar-settings");
-    expect(sourceOf("rail-items.tsx")).toMatch(/\.\.\.\(setTrafficRadarOpen \? \[\{\s*id: "traffic-radar"/);
+    expect(sourceOf("rail-items.tsx")).toMatch(/const radar: RailItem\[\] = setTrafficRadarOpen \? \[\{\s*id: "traffic-radar"/);
+    expect(sourceOf("rail-items.tsx")).toMatch(/named\("Watchers", \[browserWatch, \.\.\.radar\]\)/);
   });
 });

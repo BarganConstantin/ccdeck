@@ -334,7 +334,7 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     expect(app).toMatch(/<div className="actions"><UtilityRun items=\{rails\.utilities\} \/><\/div>/);
     expect(app).toMatch(/utilities: \[settings, feedback\]/);
     expect(app).toMatch(/ariaLabel: "Settings"/);
-    expect(app).toMatch(/<EdgeRail side="right" label="Right panels" groups=\{rails\.right\} \/>/);
+    expect(app).toMatch(/<EdgeRail side="right" label="Usage and activity" groups=\{rails\.right\} \/>/);
     expect(app).toMatch(/ariaLabel: "Usage"/);
     expect(app).not.toMatch(/Sound settings/);
     expect(app, "Pause came back as a chrome control").not.toMatch(/id: "pause"|ariaLabel: "Pause/);
