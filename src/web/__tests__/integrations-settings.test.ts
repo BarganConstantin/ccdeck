@@ -35,12 +35,11 @@ describe("Settings provider entries", () => {
 
   it("groups multiple connections with their provider, preserving their management actions", async () => {
     const html = await draw([connection("a", "github"), connection("b", "jira"), connection("c", "github")]);
-    expect(html).toContain("2 saved connections");
-    expect(html).toContain("1 saved connection");
-    expect(html).toContain('aria-label="Add another GitHub connection"');
-    for (const id of ["a", "b", "c"]) for (const action of ["Test", "Edit", "Disconnect"]) {
-      expect(html).toContain(`aria-label="${action} Review ${id}"`);
+    expect(html).toContain("2 connections");
+    for (const [id, label] of [["a", "GitHub"], ["b", "Jira"], ["c", "GitHub"]]) {
+      expect(html).toContain(`aria-label="Manage ${label}: Review ${id} (review)"`);
     }
+    expect(html).not.toMatch(/>Test<|>Edit<|>Disconnect</);
     expect(html.indexOf("Review c")).toBeLessThan(html.indexOf('id="ig-provider-gitlab"'));
     expect(html.indexOf('id="ig-provider-jira"')).toBeLessThan(html.indexOf("Review b"));
     expect(html).not.toMatch(/Healthy|Online|Working:/);

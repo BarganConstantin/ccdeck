@@ -131,6 +131,6 @@ describe("the detail's width before the reader drags it", () => {
 describe("Settings › Integrations", () => {
   it("introduces the development tools section", () => {
     const note = SETTINGS_SECTIONS.find(s => s.id === "integrations")?.note ?? "";
-    expect(note).toBe("Connect and manage your development tools.");
+    expect(note).toBe("Manage connections to your developer tools.");
   });
 });

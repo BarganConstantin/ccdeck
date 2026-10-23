@@ -43,7 +43,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "keyboard", label: "Keyboard", note: "Keyboard shortcuts and single-key controls." },
   { id: "notifications", label: "Notifications", note: "How the deck reaches you while you are not looking at it." },
   { id: "sounds", label: "Sounds", note: "Notification tones and custom audio." },
-  { id: "integrations", label: "Integrations", note: "Connect and manage your development tools." },
+  { id: "integrations", label: "Integrations", note: "Manage connections to your developer tools." },
   { id: "data", label: "Data", note: "What the deck keeps on this device." },
   { id: "radar", label: "Radar", note: "Automatic monitoring of Claude telemetry, off unless you turn it on." },
   { id: "about", label: "About", note: "The version you are running, and where to say what you think of it." },

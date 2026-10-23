@@ -305,31 +305,28 @@ describe("Settings draws Integrations only where it holds something", () => {
 });
 
 describe("Settings › Integrations on a deck that cannot read a kind", () => {
-  it("lists a stranded connection with the line that says why, and Disconnect alone", async () => {
+  it("lists a stranded connection with a focused management path", async () => {
     await deckSays([conn("j1", "jira", "Work Jira")], []);
     const html = draw(createElement(IntegrationsSection));
     expect(html).not.toContain('id="integrations-add-title"');
     expect(html).not.toContain(">Add integration<");
-    expect(html).toContain('<span class="ig-stranded">Jira is not available on this deck. Disconnect deletes this connection and its saved token.</span>');
-    expect(html).toContain('aria-label="Disconnect Work Jira"');
+    expect(html).toContain('<span class="ig-stranded">Jira is not available on this deck. Manage this connection to disconnect it.</span>');
+    expect(html).toContain('aria-label="Manage Jira: Work Jira (jdoe)"');
     expect(html).not.toContain('aria-label="Test Work Jira"');
     expect(html).not.toContain('aria-label="Edit Work Jira"');
     // Disconnect is a button with a name and no disabled state: Tab reaches it.
     expect(html).not.toMatch(/<button[^>]*disabled/);
   });
 
-  it("keeps Test and Edit for the kinds it offers, beside a stranded one", async () => {
+  it("keeps available and stranded connections reachable through Manage", async () => {
     await deckSays([conn("j1", "jira", "Work Jira"), conn("g1", "github", "Code")], [GITHUB]);
     const html = draw(createElement(IntegrationsSection));
     expect(html).toContain('id="integrations-add-title"');
-    expect(html).toContain('aria-label="Test Code"');
-    expect(html).toContain('aria-label="Edit Code"');
-    expect(html).toContain('aria-label="Disconnect Code"');
+    expect(html).toContain('aria-label="Manage GitHub: Code (jdoe)"');
     expect(html).not.toContain('aria-label="Test Work Jira"');
     expect(html).toContain("Jira is not available on this deck.");
     expect(html).not.toContain("GitHub is not available on this deck.");
     // Add integration names only the kinds the deck offers.
-    expect(html).toContain('aria-label="Add another GitHub connection"');
     expect(html).not.toContain('id="ig-provider-jira"');
   });
 
@@ -342,7 +339,7 @@ describe("Settings › Integrations on a deck that cannot read a kind", () => {
 
   it("hands focus to the section's tab after a Disconnect where nothing can be added", () => {
     expect(sourceOf("components/IntegrationsSection.tsx"))
-      .toContain('requestAnimationFrame(() => (addRefs.current.get(conn.kind) ?? document.getElementById("settings-tab-integrations"))?.focus());');
+      .toContain('document.getElementById("settings-tab-integrations")');
   });
 });
 

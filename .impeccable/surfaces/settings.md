@@ -8,26 +8,28 @@ The sidebar's selected section uses a quiet fill and text weight; pointer hover
 and selection have no border. Preserve the keyboard-only focus ring. About
 follows the other subjects rather than standing alone at the bottom.
 
-Integrations stays one navigation entry. GitHub, GitLab, and Jira each present
-provider identity, saved connection count, instance/account, historical
-verification, and contextual actions. Connections are plain rows rather than
-nested cards. Desktop actions use the right side of the same row; below 640px
-they follow the account details. Long names and hosts wrap.
+Integrations stays one navigation entry with a compact provider list. An
+unconfigured provider offers Connect; each saved connection offers Manage.
+Show host/account and concise historical metadata, with no live-health badge.
+Aliases distinguish multiple connections. The common access/token disclosure
+belongs above the list, not below the final provider.
 
-Connect/Add connection/Edit open a focused view inside the same Settings pane.
-All integrations returns to the overview; completion/cancellation restores a
-useful focus target and overview scroll position. Search can hide a draft
-without losing it. Navigation, result selection and dismissal guard unsaved
-changes with an inline choice, never a second modal. The shared modal mechanism
-owns Escape: back from configuration, close from overview, keep editing from an
-unsaved-change confirmation. Pending requests finish or reach the existing
-timeout before navigation proceeds.
+Manage opens a focused connection detail view in the existing pane. Keep full
+name, host, account, server information, last verification and saved-token state.
+Test/Edit/Add connection live here; Disconnect is secondary and retains the
+two-press safety guard. Per-connection Manage avoids a separate account picker.
+Additional connections deliberately cost Manage → Add connection.
 
-Saved counts describe configuration, not health. Last verified refers only to
-backend-provided checkedAt evidence; no timestamp means no invented assertion.
-Never populate saved secrets into forms or place them in connection objects.
-Unavailable providers cannot gain Connect/Edit/Test actions, but saved stranded
-connections retain Disconnect and its two-press guard.
+Connect saves back to the overview; Edit saves/cancels back to its selected
+connection. Back/Escape go up one level before closing Settings. Search, dirty
+confirmation and modal focus still use the shared mechanisms. Restore focus
+only after the target view and request state have committed, not merely after
+an animation frame. Overview scroll position is retained on return.
+
+Saved counts describe configuration, not health. Verification uses only valid
+backend checkedAt evidence; absent time stays explicitly unknown. Never populate
+saved secrets into forms or connection objects. Unavailable providers remain
+manageable for Disconnect but offer no unusable Test/Edit/Add actions.
 
 General uses concise notes with complete technical explanations in native
 Details disclosures. Keep essential warnings visible. Place the disclosure
@@ -37,3 +39,5 @@ Content remains opaque at scroll boundaries, with stable gutters and padding.
 Evidence:
 - [Iteration 1](../review/settings-integrations/README.md)
 - [Iteration 2](../review/settings-iteration-2/README.md)
+
+- [Iteration 3](../review/settings-iteration-3/README.md)
