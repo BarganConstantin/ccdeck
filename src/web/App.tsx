@@ -122,19 +122,20 @@ function Inner() {
   const stateRef = useRef(initialGraph);
   const [, force] = useState(0);
   const rerender = useCallback(() => force(x => x + 1), []);
+  // The left column: the session list and the accounts panel share one slot,
+  // and opening one evicts the other (#824). Both panels' state, persistence and
+  // the eviction live in use-left-column.ts; only its toggles can open either.
+  // Restored first, because the right-hand panels' room depends on its width.
+  const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
+          openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel } = useLeftColumn();
   // The detail, Usage and Machine panels' open flags, each kept in the browser
   // across a refresh — use-right-panels.ts. Called ahead of the selection
   // below, because a plain selection opens the detail panel (#814).
   const { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen }
-    = useRightPanels();
+    = useRightPanels(leftColumnWidth(leftPanel));
 
   const { selectedIds, primarySelectedId, selectAgent, clearSelection, pruneSelectionToBoard } =
     useSelection(stateRef, setDetailOpen);
-  // The left column: the session list and the accounts panel share one slot,
-  // and opening one evicts the other (#824). Both panels' state, persistence and
-  // the eviction live in use-left-column.ts; only its toggles can open either.
-  const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
-          openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel } = useLeftColumn();
   /** Both panels outlive their own `false` by the length of their exit: a
    *  close slides the panel out with the column's edge, and a switch fades the
    *  one leaving under the one arriving. Must match `--side-exit` in the sheet. */

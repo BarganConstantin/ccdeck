@@ -7,12 +7,13 @@
 // spread between the top of the file and three places in `Inner`. Unlike the
 // left column (use-left-column.ts) there is no rule between the three: each
 // opens and closes on its own, so the setters are React's own and go out as
-// they are. The one exception is a phone's load, where Usage keeps the machine
-// panel shut for that load alone (phone-load.ts).
+// they are. The one exception is a load with no room for both, a phone's or a
+// narrow desktop window's, where Usage keeps the machine panel shut for that
+// load alone (phone-load.ts).
 import { useEffect, useRef, useState } from "react";
 import { readStored, writeStored } from "./storage";
 import { useFeatureUse } from "./feature-use";
-import { loadsOnPhone } from "./phone-load";
+import { loadsOnPhone, rightPanelsCrowd } from "./phone-load";
 
 const DETAIL_OPEN_KEY = "agent-dag.detailOpen";
 const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
@@ -69,7 +70,10 @@ function saveMachinePanelOpen(open: boolean): void {
   writeStored(MACHINE_PANEL_OPEN_KEY, open ? "1" : "0");
 }
 
-export function useRightPanels() {
+/** `leftColumnW` is the left column's width on this load (use-left-column.ts):
+ *  whether the window has room for Usage and the machine panel side by side
+ *  depends on it. */
+export function useRightPanels(leftColumnW = 0) {
   /** Right detail panel visibility — persisted across refresh. */
   const [detailOpen, setDetailOpen] = useState<boolean>(loadDetailOpen);
   useEffect(() => { saveDetailOpen(detailOpen); }, [detailOpen]);
@@ -77,12 +81,16 @@ export function useRightPanels() {
   const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(loadUsagePanelOpen);
   useEffect(() => { saveUsagePanelOpen(usagePanelOpen); }, [usagePanelOpen]);
   /** Shut for this load, not by the reader: a phone's load opens one sheet, and
-   *  Usage is it (phone-load.ts). Never written as a close; the reader's own
-   *  open ends it. */
+   *  Usage is it, and a desktop window too narrow for both panels beside the
+   *  board opens Usage alone (phone-load.ts). Never written as a close; the
+   *  reader's own open ends it. */
   const machineHeldRef = useRef(false);
   const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(() => {
     const wanted = loadMachinePanelOpen();
-    if (wanted && usagePanelOpen && loadsOnPhone()) { machineHeldRef.current = true; return false; }
+    if (wanted && usagePanelOpen && (loadsOnPhone() || rightPanelsCrowd(leftColumnW))) {
+      machineHeldRef.current = true;
+      return false;
+    }
     return wanted;
   });
   useEffect(() => {

@@ -82,6 +82,14 @@ export function columnGap(
  */
 export const TOOL_LANE_W = 420;
 
+/** A recap note's size before React Flow has measured it — the sheet's width,
+ *  and about a card's height — and the gap it keeps to the left of its card:
+ *  dagre's rank gap in layout.ts, so a note placed on arrival sits where R
+ *  would put it. */
+export const RECAP_NOTE_W = 300;
+export const RECAP_NOTE_H = 130;
+export const RECAP_NOTE_GAP = 160;
+
 /**
  * The closest a fit ever frames the board — fitLeft's MAX_ZOOM. Cards are drawn
  * at their natural size, so two arrangements that both show them 1:1 are
