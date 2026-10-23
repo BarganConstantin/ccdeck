@@ -256,7 +256,7 @@ describe("how the modal renders them", () => {
     // Bold at the same tone as its paragraph is a difference you have to
     // already know is there.
     const body = css.slice(css.indexOf(".release-notes .rn-note-body {"));
-    expect(body.slice(0, body.indexOf("}"))).toContain("color: var(--muted)");
+    expect(body.slice(0, body.indexOf("}"))).toContain("color: var(--text-secondary)");
     const strong = css.slice(css.indexOf(".release-notes .rn-strong {"));
     expect(strong.slice(0, strong.indexOf("}"))).toContain("color: var(--text)");
   });

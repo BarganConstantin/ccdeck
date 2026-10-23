@@ -65,12 +65,15 @@ import raw from "../../release-notes.json";
 export interface ReleaseNote {
   title: string;
   body: string;
+  /** Explicit editorial choice; required notes are never collapsed. */
+  priority?: "highlight" | "required";
 }
 
 /** Everything one release had to say, and the version it shipped in. */
 export interface VersionNotes {
   version: string;
   notes: ReleaseNote[];
+  summary?: string;
 }
 
 /** Where the last-seen version is remembered. In the `agent-dag.*` namespace
@@ -173,10 +176,48 @@ export function readNotes(source: unknown): VersionNotes[] {
   for (const [version, value] of Object.entries(source as Record<string, unknown>)) {
     if (!isVersion(version) || !Array.isArray(value)) continue;
     const notes = value.filter(isNote);
-    if (notes.length) out.push({ version, notes });
+    const summaries = (source as Record<string, unknown>)["//summaries"];
+    const summary = summaries && typeof summaries === "object" && Object.hasOwn(summaries, version)
+      ? (summaries as Record<string, unknown>)[version] : undefined;
+    if (notes.length) out.push({ version, notes, ...(typeof summary === "string" && summary.trim() ? { summary } : {}) });
   }
   // Newest first: the reason someone opens this is the release they just took.
   return out.sort((a, b) => compareVersions(b.version, a.version));
+}
+
+/** Explicit highlights only. Legacy notes remain fully visible: no guessed priorities. */
+export function groupReleaseNotes(notes: ReleaseNote[]) {
+  const highlights = notes.filter(n => n.priority === "highlight").slice(0, 3);
+  const hasEditorialChoice = highlights.length > 0;
+  const visible = notes.filter(n => !highlights.includes(n) &&
+    (!hasEditorialChoice || n.priority === "required" || n.priority === "highlight"));
+  const more = notes.filter(n => !highlights.includes(n) && !visible.includes(n));
+  return { highlights, visible, more };
+}
+
+/** Strict authoring gate; reading old title/body arrays remains backward compatible. */
+export function validateReleaseEditorial(source: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+  for (const [version, value] of Object.entries(source)) {
+    if (version.startsWith("//") || !Array.isArray(value)) continue;
+    let highlights = 0;
+    for (const [i, item] of value.entries()) {
+      if (!item || typeof item !== "object") continue;
+      for (const key of Object.keys(item)) if (!["title", "body", "priority"].includes(key)) errors.push(`${version}[${i}]: unknown ${key}`);
+      if (item.priority !== undefined && !["highlight", "required"].includes(item.priority)) errors.push(`${version}[${i}]: invalid priority`);
+      if (item.priority === "highlight") highlights++;
+    }
+    if (highlights > 3) errors.push(`${version}: at most 3 highlights`);
+  }
+  const summaries = source["//summaries"];
+  if (summaries !== undefined) {
+    if (!summaries || typeof summaries !== "object" || Array.isArray(summaries)) errors.push("//summaries: expected version-to-summary object");
+    else for (const [version, summary] of Object.entries(summaries)) {
+      if (!isVersion(version) || !Object.hasOwn(source, version)) errors.push(`//summaries: unknown release ${version}`);
+      if (typeof summary !== "string" || !summary.trim() || summary.length > 120) errors.push(`${version}: summary must be 1–120 characters`);
+    }
+  }
+  return errors;
 }
 
 /** The notes that shipped in this build. */
