@@ -680,6 +680,8 @@ const CONTROLS: Control[] = [
   ], beds: ACCOUNTS },
   { at: ".ap-proj-copy", states: [".ap-proj-copy:hover"], beds: ["--panel"] },
   { at: ".ap-manage-btn", states: [".ap-manage-btn:hover:not(:disabled)"], beds: ACCOUNTS },
+  { at: ".ap-codex-check", states: [".ap-codex-check:hover:not(:disabled)"], beds: ACCOUNTS },
+  { at: ".ap-codex-label", beds: ACCOUNTS },
   { at: ".ap-manage-btn.danger", fillFrom: ".ap-manage-btn",
     states: [".ap-manage-btn.danger:hover:not(:disabled)", ".ap-manage-btn.danger.armed"], beds: ACCOUNTS },
   { at: ".ap-share-foot .ap-manage-btn", fillFrom: ".ap-share-foot .ap-manage-btn",
@@ -953,7 +955,8 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // field, are now the integrations' shared ones: the shared search field
     // adds two, at rest and under the pointer, and the link to the tracker
     // draws no edge.
-    expect(EDGED_CONTROLS.length).toBeLessThan(161);
+    // Codex profile actions add three: the check at rest and under the pointer, and the label.
+    expect(EDGED_CONTROLS.length).toBeLessThan(164);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

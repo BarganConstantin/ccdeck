@@ -300,7 +300,7 @@ describe("the report, drawn", () => {
     for (const label of ["Account", "5h used", "7d used", "Status"]) {
       expect(out).toContain(`<th scope="col" aria-sort="none"><button type="button" class="sd-sort" title="Sort by ${label}">${label}<span class="sd-sort-dir" aria-hidden="true"></span></button></th>`);
     }
-    expect(out).toContain('<th scope="col" aria-sort="none" class="ap-report-upd-h"><button type="button" class="sd-sort" title="Sort by Updated">Updated<span');
+    expect(out).toContain('<th scope="col" aria-sort="none"><button type="button" class="sd-sort" title="Sort by Updated">Updated<span');
     expect(out).toContain('<td class="ap-report-upd">now</td>');
   });
 

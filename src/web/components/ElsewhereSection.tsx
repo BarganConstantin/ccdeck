@@ -18,15 +18,16 @@
 // Appearance draws T beside the themes: a cap for a key that does nothing
 // would be a promise the deck breaks, so it is not drawn while they are off.
 //
-// CLAUDE'S ROWS ARE CLAUDE'S. The accounts panel, and Local network inside it,
-// are not drawn on a machine without Claude Code (rail-items.tsx), and A does
-// nothing there (use-deck-shortcuts.ts); a row pointing at them would be a
-// door to a wall.
+// ROWS FOLLOW THEIR DOORS. The accounts panel is drawn wherever Claude Code or
+// Codex is (rail-items.tsx, and A in use-deck-shortcuts.ts); Local network
+// shares Claude logins, so it stays Claude's. A row pointing at a panel that is
+// not drawn would be a door to a wall.
 import type { SettingsDoors } from "../settings";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 
 export const ACCOUNTS_ROW = "Accounts and auto-switch";
 export const ACCOUNTS_ROW_NOTE = "Your Claude accounts, and Auto-switch, which moves Claude Code to another one before the account in use runs out.";
+export const ACCOUNTS_ROW_NOTE_CODEX = "Your Codex profiles, their quota, and which one new sessions start on.";
 export const LAN_ROW = "Local network";
 export const LAN_ROW_NOTE = "Pairing with the decks on your other machines, so a login that expires on one is repaired from another.";
 export const WATCH_ROW = "Browser Watch";
@@ -36,16 +37,18 @@ interface Props {
   /** Whether Claude Code is on this machine — the condition the accounts
    *  panel's own stripe button is drawn under. */
   claudeHere: boolean;
+  /** Whether the accounts panel is drawn at all: Claude Code or Codex is here. */
+  accountsHere?: boolean;
   /** Whether single keys answer, so whether a cap is drawn. */
   singleKeys: boolean;
   doors: Pick<SettingsDoors, "accounts" | "localNetwork" | "browserWatch">;
 }
 
-export default function ElsewhereSection({ claudeHere, singleKeys, doors }: Props) {
+export default function ElsewhereSection({ claudeHere, accountsHere = claudeHere, singleKeys, doors }: Props) {
   return (
     <SettingsGroup id="settings-elsewhere-caption" title="Elsewhere on the deck">
-      {claudeHere && (
-        <DoorRow settingId="accounts" name={ACCOUNTS_ROW} note={ACCOUNTS_ROW_NOTE} onOpen={doors.accounts}
+      {accountsHere && (
+        <DoorRow settingId="accounts" name={ACCOUNTS_ROW} note={claudeHere ? ACCOUNTS_ROW_NOTE : ACCOUNTS_ROW_NOTE_CODEX} onOpen={doors.accounts}
           cap={singleKeys ? { key: "A", title: "Press A anywhere to show or hide the accounts panel" } : null} />
       )}
       {claudeHere && (

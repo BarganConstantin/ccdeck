@@ -188,7 +188,7 @@ describe("the deck's five regions are five landmarks (#381)", () => {
     // complementary, complementary" is a list nobody can navigate.
     const named: Array<[string, string, string]> = [
       ["UsagePanel.tsx", "usage-panel", "Usage"],
-      ["AccountsPanel.tsx", "accounts-panel", "Claude accounts"],
+      ["AccountsPanel.tsx", "accounts-panel", "Agent accounts"],
       ["SessionList.tsx", "session-list", "Sessions"],
     ];
     for (const [file, cls, label] of named) {

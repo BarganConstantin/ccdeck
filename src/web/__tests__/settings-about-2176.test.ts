@@ -25,7 +25,7 @@ import UpdatesSection, {
   APP_UPDATES_NOTE, AUTO_UPDATE_CHECKS_OFF_NOTE, AUTO_UPDATE_LABEL, AUTO_UPDATE_NO_RESTART_NOTE, AUTO_UPDATE_NOTE, updatesShape,
 } from "../components/UpdatesSection";
 import ElsewhereSection, {
-  ACCOUNTS_ROW, ACCOUNTS_ROW_NOTE, LAN_ROW, LAN_ROW_NOTE, WATCH_ROW, WATCH_ROW_NOTE,
+  ACCOUNTS_ROW, ACCOUNTS_ROW_NOTE, ACCOUNTS_ROW_NOTE_CODEX, LAN_ROW, LAN_ROW_NOTE, WATCH_ROW, WATCH_ROW_NOTE,
 } from "../components/ElsewhereSection";
 import { TOUR_WHY } from "../components/ReleaseActions";
 import { doorOut, SETTINGS_SECTIONS, type SettingsDoors, type SettingsSection } from "../settings";
@@ -353,24 +353,28 @@ describe("Settings › General › Updates is the update banner's switch", () =>
 // ── General › Elsewhere on the deck ──────────────────────────────────────────
 
 describe("Settings › General › Elsewhere on the deck", () => {
-  const draw = (claudeHere: boolean, singleKeys: boolean) =>
-    renderToStaticMarkup(createElement(ElsewhereSection, { claudeHere, singleKeys, doors: doors() }));
+  const draw = (claudeHere: boolean, singleKeys: boolean, accountsHere = claudeHere) =>
+    renderToStaticMarkup(createElement(ElsewhereSection, { claudeHere, accountsHere, singleKeys, doors: doors() }));
 
-  it("lists the accounts panel and Local network only where Claude Code is, as the stripe does", () => {
+  it("lists the accounts panel wherever the stripe draws it, and Local network only where Claude Code is", () => {
     const here = draw(true, true);
     for (const said of [ACCOUNTS_ROW, ACCOUNTS_ROW_NOTE, LAN_ROW, LAN_ROW_NOTE, WATCH_ROW, WATCH_ROW_NOTE]) {
       expect(here, said).toContain(said);
     }
-    const codexOnly = draw(false, true);
-    expect(codexOnly).not.toContain(ACCOUNTS_ROW);
+    const codexOnly = draw(false, true, true);
+    expect(codexOnly).toContain(ACCOUNTS_ROW);
+    expect(codexOnly).toContain(ACCOUNTS_ROW_NOTE_CODEX);
+    expect(codexOnly).not.toContain(ACCOUNTS_ROW_NOTE);
     expect(codexOnly).not.toContain(LAN_ROW);
     expect(codexOnly).toContain(WATCH_ROW);
+    expect(draw(false, true, false)).not.toContain(ACCOUNTS_ROW);
     // The stripe's condition, and A's.
-    expect(read("../rail-items.tsx")).toContain("left: providers.claude ? [accounts, sessionList] : [sessionList],");
-    expect(read("../use-deck-shortcuts.ts")).toContain('if (e.key === "a" || e.key === "A") { if (providersRef.current.claude) toggleAccountsPanel(); }');
+    expect(read("../rail-items.tsx")).toContain("left: (providers.claude || providers.codex) ? [accounts, sessionList] : [sessionList],");
+    expect(read("../use-deck-shortcuts.ts")).toContain('if (e.key === "a" || e.key === "A") { if (providersRef.current.claude || providersRef.current.codex) toggleAccountsPanel(); }');
     // And Settings hands it the deck's providers.
-    expect(read("../components/SettingsModal.tsx")).toContain("<ElsewhereSection claudeHere={providers.claude} singleKeys={singleKeys} doors={doors} />");
-    expect(drawSettings({ section: "general", providers: { kind: "reported", claude: false, codex: true } })).not.toContain(ACCOUNTS_ROW);
+    expect(read("../components/SettingsModal.tsx")).toContain("<ElsewhereSection claudeHere={providers.claude} accountsHere={providers.claude || providers.codex} singleKeys={singleKeys} doors={doors} />");
+    expect(drawSettings({ section: "general", providers: { kind: "reported", claude: false, codex: true } })).toContain(ACCOUNTS_ROW);
+    expect(drawSettings({ section: "general", providers: { kind: "reported", claude: false, codex: false } })).not.toContain(ACCOUNTS_ROW);
   });
 
   it("is a row with a door on the right, never a switch, and each opens its own panel", () => {
@@ -426,7 +430,7 @@ describe("the new copy keeps the deck's voice", () => {
   it("has no exclamation, no minimising word, no capital C, and no claim about telemetry", () => {
     const copy = [
       WHATS_NEW_NOTE, FEEDBACK_NOTE, LICENCE_NOTE, pageBehindNote("3.40.0"), AUTO_UPDATE_LABEL, AUTO_UPDATE_NOTE,
-      AUTO_UPDATE_CHECKS_OFF_NOTE, AUTO_UPDATE_NO_RESTART_NOTE, APP_UPDATES_NOTE, ACCOUNTS_ROW, ACCOUNTS_ROW_NOTE,
+      AUTO_UPDATE_CHECKS_OFF_NOTE, AUTO_UPDATE_NO_RESTART_NOTE, APP_UPDATES_NOTE, ACCOUNTS_ROW, ACCOUNTS_ROW_NOTE, ACCOUNTS_ROW_NOTE_CODEX,
       LAN_ROW, LAN_ROW_NOTE, WATCH_ROW, WATCH_ROW_NOTE, SETTINGS_SECTIONS.find(s => s.id === "general")!.note,
     ];
     for (const line of copy) {

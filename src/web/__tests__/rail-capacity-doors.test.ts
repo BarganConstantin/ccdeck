@@ -28,9 +28,9 @@ const noop = () => {};
 const ref = () => ({ current: null });
 const toggles = { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() };
 
-function rails({ claude = true, openCapacity = noop as (view: string) => void } = {}) {
+function rails({ claude = true, codex = true, openCapacity = noop as (view: string) => void } = {}) {
   return railItems({
-    providers: { kind: "reported", claude, codex: true },
+    providers: { kind: "reported", claude, codex },
     sessionListOpen: false, toggleSessionList: noop, accountsPanelOpen: false, toggleAccountsPanel: noop,
     usagePanelOpen: false, setUsagePanelOpen: noop, machinePanelOpen: false, setMachinePanelOpen: noop,
     setUsageHistoryOpen: noop, watchOn: false, watchUnseen: 0, setBrowserWatchOpen: noop,
@@ -45,8 +45,14 @@ describe("the left stripe's two doors into Account capacity", () => {
     expect(ids(rails().leftStripe)).toEqual(["accounts", "account-capacity", "reset-calendar", "session-list"]);
   });
 
-  it("go with the accounts button on a machine without Claude Code", () => {
+  it("go with Claude Code: a Codex-only machine keeps the accounts button without them", () => {
     const r = rails({ claude: false });
+    expect(ids(r.leftStripe)).toEqual(["accounts", "session-list"]);
+    expect(r.capacity).toEqual([]);
+  });
+
+  it("go with the accounts button on a machine with neither provider", () => {
+    const r = rails({ claude: false, codex: false });
     expect(ids(r.leftStripe)).toEqual(["session-list"]);
     expect(r.capacity).toEqual([]);
   });

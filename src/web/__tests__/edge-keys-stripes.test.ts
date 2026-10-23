@@ -136,7 +136,7 @@ describe("the keys did not move with the buttons", () => {
   const rails = sourceOf("rail-items.tsx");
   const pairs: Array<[string, RegExp, RegExp]> = [
     ["L", /if \(e\.key === "l" \|\| e\.key === "L"\) toggleSessionList\(\);/, /onPress: toggleSessionList,/],
-    ["A", /if \(e\.key === "a" \|\| e\.key === "A"\) \{ if \(providersRef\.current\.claude\) toggleAccountsPanel\(\); \}/, /onPress: toggleAccountsPanel,/],
+    ["A", /if \(e\.key === "a" \|\| e\.key === "A"\) \{ if \(providersRef\.current\.claude \|\| providersRef\.current\.codex\) toggleAccountsPanel\(\); \}/, /onPress: toggleAccountsPanel,/],
     ["U", /if \(e\.key === "u" \|\| e\.key === "U"\) setUsagePanelOpen\(o => !o\);/, /onPress: \(\) => setUsagePanelOpen\(o => !o\),/],
     ["S", /if \(e\.key === "s" \|\| e\.key === "S"\) setMachinePanelOpen\(o => !o\);/, /onPress: \(\) => setMachinePanelOpen\(o => !o\),/],
     ["H", /if \(e\.key === "h" \|\| e\.key === "H"\) setUsageHistoryOpen\(o => !o\);/, /onPress: \(\) => setUsageHistoryOpen\(o => !o\),/],
@@ -152,8 +152,8 @@ describe("the keys did not move with the buttons", () => {
 
 describe("Accounts, and the left column it shares", () => {
   it("is gone without Claude Code — from the stripe and from the dock — rather than present and inert", () => {
-    expect(ids(left({ claude: false }))).toEqual(["session-list"]);
-    expect(ids(dock({ claude: false }))).not.toContain("accounts");
+    expect(ids(left({ claude: false, codex: false }))).toEqual(["session-list"]);
+    expect(ids(dock({ claude: false, codex: false }))).not.toContain("accounts");
     expect(ids(dock({ claude: true }))).toContain("accounts");
   });
 
