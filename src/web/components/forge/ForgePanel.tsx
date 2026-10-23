@@ -8,7 +8,8 @@
 // GitHub); a search over what is loaded that also opens a pasted link; and on
 // the right, the selected item the way the forge's own page shows it. The host's
 // split draws list and detail side by side, or the detail as its own screen
-// with Back on a narrow window.
+// with Back on a narrow window, and closes an open item on Escape at every
+// width before the modal; the panel registers no Escape of its own for it.
 //
 // The view — project, tab, filters, which groups are unfolded — is remembered
 // per connection through the host's prefs, so reopening the panel lands where
@@ -20,13 +21,13 @@ import {
   fetchForge, focusAfterSelect, forgeReadPath, ForgeReadError, loadForgeView, looksLikeRef, saveForgeView, tabAllowsAllProjects,
   type ForgeApi, type ForgePrefs, type ForgeTab, type ForgeView,
 } from "../../forge-panel";
-import { modalStack } from "../../modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../../panel-press";
 import { tabStripMove } from "../../tablist-keys";
 import { useForgeRead } from "../../use-forge-read";
-import { RefreshGlyph } from "../action-glyphs";
-import { ForgeProvider, type ForgeConnectionInfo, type ForgeContextValue, type ForgeSelection, type Freshness } from "./ForgeContext";
-import { Ago, ReadFailure } from "./ForgeParts";
+import IntegrationFreshness from "../IntegrationFreshness";
+import IntegrationSearch from "../IntegrationSearch";
+import { ForgeProvider, selectionKey, type ForgeConnectionInfo, type ForgeContextValue, type ForgeSelection, type Freshness } from "./ForgeContext";
+import { ReadFailure, useChosenInView, useRovingRows } from "./ForgeParts";
 import RepoPicker from "./RepoPicker";
 import BranchesTab from "./BranchesTab";
 import ChangesTab from "./ChangesTab";
@@ -45,6 +46,8 @@ export interface ForgeSplitProps {
   onBack: () => void;
   backLabel: string;
   storageKey: string;
+  /** Which item the detail shows, so the host can mark a new one arriving. */
+  detailKey?: string;
 }
 
 export interface ForgePanelProps {
@@ -96,6 +99,10 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   const resolvingRef = useRef(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  // The rows are one Tab stop, walked with the arrow keys.
+  useRovingRows(listRef);
   // The row a page was opened from. The split keeps the list mounted under the
   // drill-in screen, so Back and Close can hand focus back to it.
   const opener = useRef<HTMLElement | null>(null);
@@ -139,15 +146,6 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
     });
   }, [narrow]);
 
-  // On the drill-in screen Escape is Back, before it closes the modal.
-  const open = selected != null;
-  const selectRef = useRef(select);
-  selectRef.current = select;
-  useEffect(() => {
-    if (!narrow || !open) return;
-    return modalStack.push(() => selectRef.current(null), 0, "popover");
-  }, [narrow, open]);
-
   const ctx = useMemo<ForgeContextValue>(() => ({
     kind, connection, scope, api,
     asset: (url: string) => assetUrl(url),
@@ -189,34 +187,21 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   };
 
   const chooseTab = (tab: ForgeTab) => { setView({ tab }); setQuery(""); };
+  useChosenInView(tabsRef, view.tab);
 
   const words = forgeWords[kind];
   const tabProps: ForgeTabProps = { view, setView, query };
-  const freshness = fresh.loading
-    ? (fresh.loadedAt ? "Updating…" : "Loading…")
-    : fresh.loadedAt
-      ? <>{fresh.stale ? "Not updated · last answer " : "Updated "}<Ago at={fresh.loadedAt} /></>
-      : null;
 
   const list = (
-    <div className="fg-list">
+    <div ref={listRef} className="fg-list">
       <div className="fg-toolbar">
         <RepoPicker value={view.repo} allowAll={allowsAll} onChange={repo => setView({ repo })} />
-        <span className="fg-fresh" role="status" data-stale={fresh.stale || undefined}>{freshness}</span>
-        <button
-          type="button"
-          className="glyph-btn fg-refresh"
-          aria-label={`Refresh ${words.name}`}
-          title="Refresh"
-          data-loading={fresh.loading || undefined}
-          aria-busy={fresh.loading}
-          onClick={() => setRefresh(n => n + 1)}
-        >
-          <RefreshGlyph />
-        </button>
+        <IntegrationFreshness loadedAt={fresh.loadedAt} loading={fresh.loading} stale={fresh.stale}
+          onRefresh={() => setRefresh(n => n + 1)} label={`Refresh ${words.name}`} />
       </div>
       {/* One tab stop for the strip, the arrows between its tabs (#581). */}
       <div
+        ref={tabsRef}
         className="uh-range fg-tabs"
         role="tablist"
         aria-label={`${words.name} views`}
@@ -246,16 +231,15 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
         ))}
       </div>
       <div className="fg-searchbar">
-        <label className="fg-search">
-          <span className="fg-sr">Search the list, or paste a link</span>
-          <input
-            type="search"
-            placeholder={view.tab === "branches" ? "Filter by branch name" : `Search by title or number, or paste a ${words.name} link`}
-            value={query}
-            onChange={e => { setQuery(e.target.value); setResolveError(null); }}
-            onKeyDown={e => { if (e.key === "Enter" && looksLikeRef(query)) void openRef(); }}
-          />
-        </label>
+        {/* The integrations' shared field: Escape empties it before it closes
+            anything. A phone gets the short hint; the name says it all. */}
+        <IntegrationSearch
+          value={query}
+          onChange={v => { setQuery(v); setResolveError(null); }}
+          label={view.tab === "branches" ? "Filter by branch name" : `Search by title or number, or paste a ${words.name} link`}
+          placeholder={view.tab === "branches" ? "Filter by branch name" : narrow ? `Search, or paste a ${words.name} link` : `Search by title or number, or paste a ${words.name} link`}
+          onKeyDown={e => { if (e.key === "Enter" && looksLikeRef(query)) void openRef(); }}
+        />
         {looksLikeRef(query) && (
           <button type="button" className="btn fg-resolve" onClick={() => void openRef()} {...selfPressProps(resolving)}>
             {resolving ? "Opening…" : "Open"}
@@ -292,7 +276,7 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   return (
     <ForgeProvider value={ctx}>
       <div ref={panelRef} className="fg-panel" data-kind={kind}>
-        <Split list={list} detail={detail} onBack={() => select(null)} backLabel={backLabel(kind, view.tab)} storageKey={kind} />
+        <Split list={list} detail={detail} onBack={() => select(null)} backLabel={backLabel(kind, view.tab)} storageKey={kind} detailKey={selected ? selectionKey(selected) : undefined} />
       </div>
     </ForgeProvider>
   );

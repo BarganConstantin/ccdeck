@@ -70,7 +70,7 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
   }],
   "components/IntegrationModal.tsx": [{
     name: "which tracker connection is on show",
-    chain: [el("body"), el("div", ["modal-backdrop"]), el("div", ["modal", "ig-modal"]), el("header", ["ig-head"]), el("label", ["ig-conn-select"]), el("select", ["sm-select"])],
+    chain: [el("body"), el("div", ["modal-backdrop"]), el("div", ["modal", "ig-modal"]), el("div", ["ig-head"]), el("label", ["ig-conn-select"]), el("select", ["sm-select"])],
   }],
   "components/BoardSection.tsx": [{
     name: "how long a finished session stays on the board",

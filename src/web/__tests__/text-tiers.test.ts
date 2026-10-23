@@ -231,30 +231,40 @@ describe("what was migrated to the secondary tier", () => {
       // stranded connection's sentence: why Disconnect is all it
       // offers, and what Disconnect deletes.
       ".ig-form-detail", ".ig-help", ".ig-note", ".ig-stranded", ".ig-warnings",
+      // The integrations' shared failure note (#2178, #2179): the sentence
+      // under a failed read's heading, what to do about it, and the
+      // provider's own words below it, which then step down to --muted. And
+      // the shared search field's placeholder, by its bed: the field's
+      // --ctl-fill takes --muted to 4.05:1 in dark, as the forge field's did.
+      ".ig-failure-body, .ig-failure-said", ".ig-search-input::placeholder",
       // The Jira panel's sentences: a note over the board (no active sprint,
-      // the first 600 shown), a sprint's goal, why a read failed and what to
-      // do, the empty board's explanation, and a quote inside an issue.
-      ".jr-board-note", ".jr-failure-text span", ".jr-goal", ".jr-html blockquote", ".jr-state p",
+      // the first 600 shown), a sprint's goal, the empty board's explanation,
+      // and a quote inside an issue. Why a read failed is the integrations'
+      // shared failure note's.
+      ".jr-board-note", ".jr-goal", ".jr-html blockquote", ".jr-state p",
       // Jira's labels, status lozenges and sprint totals: words on a
       // --ctl-fill pill, kept here by their bed rather than their role, as
       // the shared field's placeholder is — --muted is 4.05:1 on that fill
       // in dark.
       ".jr-label", ".jr-status", ".jr-total, .jr-estimate",
+      // And by the same bed: what is left of an estimate, inside the
+      // estimate's pill. The search field is the integrations' shared one.
+      ".jr-remaining",
       // The GitHub and GitLab panel's sentences (#2179): why a list or a page
-      // is empty, why a read failed and what to do, a note over the list, the
-      // token's help in Settings, a project search that found nothing, and a
-      // quote inside a description.
-      ".fg-empty", ".fg-failure", ".fg-note", ".fg-token-help", ".fgl-group-empty", ".fgl-repo-none",
+      // is empty, a note over the list, the token's help in Settings, a
+      // project search that found nothing, and a quote inside a description.
+      // Why a read failed is the integrations' shared note now (.ig-failure).
+      ".fg-empty", ".fg-note", ".fg-token-help", ".fgl-group-empty", ".fgl-repo-none",
       ".forge-html blockquote",
       // And its words on rows by their bed, as Tool activity's are: a list's
       // row, a branch row and a project in the picker take --ctl-fill under the
       // pointer and while chosen, where --muted is 4.05:1 in dark (#1789) — a
       // state's word beside its mark or in its chip, a row's meta line, a
       // label, a branch's behind | ahead, and a project's group, there and in
-      // the picker's button. The search field's placeholder sits on the same
-      // fill.
+      // the picker's button. (Its search field is the integrations' shared
+      // one now, .ig-search-input.)
       ".fg-badge", ".fg-mark-word", ".fg-meta", ".fgl-label", ".fgl-diverge", ".fgl-repo-group",
-      ".fgl-repo-option-group", ".fg-search input::placeholder",
+      ".fgl-repo-option-group",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.
       ".nm-next",

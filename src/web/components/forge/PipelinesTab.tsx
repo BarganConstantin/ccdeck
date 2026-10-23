@@ -17,7 +17,7 @@ import {
 import { useForgePages } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
 import { sameSelection, useForge } from "./ForgeContext";
-import { Ago, ListEnd, LoadingRows, Person, ReadFailure, StateMark } from "./ForgeParts";
+import { Ago, Face, ListEnd, LoadingRows, ReadFailure, StateMark } from "./ForgeParts";
 
 export default function PipelinesTab({ view, query }: ForgeTabProps) {
   const { kind, api, scope, refresh, reportFreshness } = useForge();
@@ -68,7 +68,8 @@ function PipelineRow({ kind, pipeline: p, acrossRepos }: { kind: ForgeKind; pipe
     <li>
       <button
         type="button"
-        className="fg-row fgl-row fgl-pipeline"
+        className="fg-row fgl-row fgl-pipeline ig-row"
+        data-nav=""
         data-selected={isSelected || undefined}
         aria-current={isSelected || undefined}
         onClick={() => select(target)}
@@ -77,7 +78,7 @@ function PipelineRow({ kind, pipeline: p, acrossRepos }: { kind: ForgeKind; pipe
         <span className="fgl-duration">
           {duration
             ? <><span className="fg-sr">ran for </span>{duration}</>
-            : running && <>started <Ago at={p.startedAt} /></>}
+            : running && <><span className="fgl-when-verb">started </span><Ago at={p.startedAt} /></>}
         </span>
         <span className="fg-row-title fgl-title">
           <span className="fgl-title-text">{title ?? `${forgeWords[kind].pipeline} ${p.id}`}</span>
@@ -91,7 +92,7 @@ function PipelineRow({ kind, pipeline: p, acrossRepos }: { kind: ForgeKind; pipe
           {source && <> · {source}</>}
         </span>
         <span className="fgl-side">
-          {p.triggeredBy && <span title={who ?? undefined}><Person user={p.triggeredBy} size={20} nameless /></span>}
+          {p.triggeredBy && <span title={who ?? undefined}><Face user={p.triggeredBy} /><span className="fg-sr">{who}</span></span>}
         </span>
         <span className="fgl-when">{at != null && <><span className="fgl-when-verb">{p.finishedAt != null ? "finished" : "created"} </span><Ago at={at} /></>}</span>
       </button>

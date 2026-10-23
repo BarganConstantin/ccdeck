@@ -122,9 +122,46 @@ export interface RowFilter {
   /** Lower-case text to find in a key or a summary; empty for none. */
   search: string;
   hideDone: boolean;
+  /** Only what needs attention (needsAttention). */
+  attention?: boolean;
 }
 
 const isDone = (issue: { status: { category: StatusCategory } }) => issue.status.category === "done";
+
+export type PriorityLevel = "highest" | "high" | "medium" | "low" | "lowest";
+
+/** A priority's place on Jira's five-step scale, under either of the names
+ *  Jira has shipped (Highest…Lowest, and the older Blocker…Trivial). */
+export function priorityLevel(name: string): PriorityLevel | null {
+  const n = name.trim().toLowerCase();
+  if (/highest|blocker|critical|urgent/.test(n)) return "highest";
+  if (/high|major/.test(n)) return "high";
+  if (/medium|normal|moderate/.test(n)) return "medium";
+  if (/lowest|trivial/.test(n)) return "lowest";
+  if (/low|minor/.test(n)) return "low";
+  return null;
+}
+
+/** What a reader should look at first: an issue not done that is flagged,
+ *  or at the top of Jira's priority scale (Highest, Blocker, Critical). */
+export function needsAttention(issue: Pick<JiraIssue, "flagged" | "priority" | "status">): boolean {
+  return !isDone(issue) && (issue.flagged || (issue.priority != null && priorityLevel(issue.priority.name) === "highest"));
+}
+
+/** A sub-task stays under its row when Hide done and Needs attention allow. */
+export function subtaskShown(issue: JiraIssue, filter: RowFilter): boolean {
+  return (!filter.hideDone || !isDone(issue)) && (!filter.attention || needsAttention(issue));
+}
+
+/** Jira's default boards carry a quick filter named "Only My Issues", and the
+ *  panel's own "Only my issues" chip already does what it does, so the
+ *  board's copy is not drawn. Only that exact name (any case) is left out: a
+ *  board that renamed or translated it keeps it, which is harmless, two ways
+ *  to the same list. */
+const BOARD_MINE_FILTER = /^only my issues$/i;
+export function shownQuickFilters<T extends { name: string }>(filters: readonly T[]): T[] {
+  return filters.filter(q => !BOARD_MINE_FILTER.test(q.name.trim()));
+}
 
 export function issueMatches(issue: { key: string; summary: string }, search: string): boolean {
   if (!search) return true;
@@ -135,8 +172,8 @@ export function issueMatches(issue: { key: string; summary: string }, search: st
  *  subtasks they leave. A parent stays while a subtask under it does. */
 export function filterRows(rows: readonly Row[], filter: RowFilter, subtasks?: (key: string) => readonly JiraIssue[] | undefined): Row[] {
   const search = filter.search.trim().toLowerCase();
-  if (!search && !filter.hideDone) return rows.slice();
-  const keep = (issue: JiraIssue) => (!filter.hideDone || !isDone(issue)) && issueMatches(issue, search);
+  if (!search && !filter.hideDone && !filter.attention) return rows.slice();
+  const keep = (issue: JiraIssue) => subtaskShown(issue, filter) && issueMatches(issue, search);
   const out: Row[] = [];
   for (const row of rows) {
     const matched = row.matched.filter(keep);
@@ -169,6 +206,13 @@ export interface GroupStats {
    *  are done. */
   mine: number;
   mineDone: number;
+  /** The reader's own id among `assignees`, when one of their issues is
+   *  counted: their face is ringed as theirs. */
+  youId: string | null;
+  /** Of the counted issues not done, how many are flagged, and how many sit
+   *  at the top of Jira's priority scale (what Needs attention keeps). */
+  flagged: number;
+  highest: number;
 }
 
 export function countedIssues(rows: readonly Row[]): JiraIssue[] {
@@ -181,6 +225,9 @@ export function groupStats(rows: readonly Row[], estimation: "time" | "points" |
   const people = new Map<string, { person: JiraPerson; n: number }>();
   let mine = 0;
   let mineDone = 0;
+  let youId: string | null = null;
+  let flagged = 0;
+  let highest = 0;
   for (const issue of issues) {
     const value = estimation === "count" ? 1 : estimation === "points" ? issue.points ?? 0 : issue.estimate ?? 0;
     totals[issue.status.category] += value;
@@ -190,11 +237,16 @@ export function groupStats(rows: readonly Row[], estimation: "time" | "points" |
     }
     if (issue.mine) {
       mine++;
+      if (issue.assignee) youId = issue.assignee.id;
       if (isDone(issue)) mineDone++;
+    }
+    if (!isDone(issue)) {
+      if (issue.flagged) flagged++;
+      if (issue.priority && priorityLevel(issue.priority.name) === "highest") highest++;
     }
   }
   const assignees = [...people.values()].sort((a, b) => b.n - a.n || a.person.name.localeCompare(b.person.name)).map(p => p.person);
-  return { count: issues.length, totals, assignees, mine, mineDone };
+  return { count: issues.length, totals, assignees, mine, mineDone, youId, flagged, highest };
 }
 
 // ── durations and dates ─────────────────────────────────────────────────────
@@ -231,6 +283,16 @@ export function shortDate(iso: string | null | undefined): string {
   return Number.isNaN(at.getTime()) ? "" : at.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
+/** The work on an issue as one line: "3d estimated · 1d left · 2d logged",
+ *  each part only when Jira has it, and "left" only when it says more than
+ *  the estimate did. */
+export function timeLine(issue: { estimate: number | null; remaining: number | null; timeSpent: number | null }, time: TimeTracking): string {
+  const estimate = jiraDuration(issue.estimate, time);
+  const spent = jiraDuration(issue.timeSpent, time);
+  const left = issue.remaining != null && (issue.remaining !== issue.estimate || spent) ? jiraDuration(issue.remaining, time) : "";
+  return [estimate && `${estimate} estimated`, left && `${left} left`, spent && `${spent} logged`].filter(Boolean).join(" · ");
+}
+
 /** Jira's timestamps (`2026-10-14T09:12:33.000+0300`) as a readable date. */
 export function jiraDate(iso: string | null | undefined, withTime = false): string {
   if (!iso) return "";
@@ -240,16 +302,6 @@ export function jiraDate(iso: string | null | undefined, withTime = false): stri
   return withTime
     ? at.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
     : at.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-}
-
-/** "5m ago" — how old the panel's data is. */
-export function agoLabel(at: number, now = Date.now()): string {
-  const s = Math.max(0, Math.round((now - at) / 1000));
-  if (s < 45) return "just now";
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
 }
 
 /** Bytes as a file list says them. */

@@ -44,7 +44,18 @@ query.
     button that resolves it and opens the item.
   - **The item page**, beside the list from 900px and its own screen with Back
     under that. A branch row opens its change when it has one, the branch
-    otherwise.
+    otherwise. Escape closes the item before the modal at every width (after
+    a menu or the search field, if one has it), and focus goes back to its
+    row.
+  - **The keyboard:** a list is one Tab stop. Up and Down move a row, Home
+    and End go to the ends, Right opens a folded group or steps into an open
+    one, Left folds it or goes from a row up to its group, and Enter opens
+    the item. A branch row's copy button and *Create merge request ↗* are
+    stops only on the row that holds the list's stop.
+  - **On a phone** the list keeps its first screen: the tabs are one row that
+    scrolls sideways, and a narrow list's filters are one row too, the state
+    strip, then All / Mine / Review requests as a menu button, then the sort
+    as its glyph.
 - **The lists:**
   - *Branches*, as GitLab's Branches page: Active branches open, Stale (no
     commits in 90 days) folded. A row has the name to copy, default and
@@ -55,23 +66,26 @@ query.
     Closed with the forge's counts, All / Mine / Review requests, sorted by
     created or last updated. Review requests split into *Waiting for my
     review* and *Approved by me* (folded). A row has the title (a draft
-    marked), labels, `!12 · created 3h ago by Author`, the pipeline, Approved,
-    the reviewers with how each stands, the comment count and when it moved.
+    marked), labels (a scoped one as `scope | value`), `!12 · created 3h ago
+    by Author`, the pipeline, Approved, the reviewers with how each stands,
+    the comment count and when it moved.
   - *Pipelines / Actions*: the state and how long it ran, the title (on
     GitHub the run's title, with the workflow under it), the ref, short sha,
     what started it, who, and when.
   - *Issues*: Open / Closed. The title with labels, `#12 · opened 3d ago by
     Author`, the milestone, child items done of how many, assignees, comments.
 - **The item pages:**
-  - *A merge request / pull request:* the title and state, "Author requested
-    to merge source into target", the pipeline line (a jump to it) and the
-    approvals; the side facts (assignees, reviewers with their state, labels,
-    milestone, participants); and four sections with counts:
+  - *A merge request / pull request:* the title and state, the forge's own
+    sentence for it (GitLab: "Author requested to merge source into target";
+    GitHub: "Author wants to merge 4 commits into target from source"), the
+    pipeline line (a jump to it) and the approvals; the side facts
+    (assignees, reviewers with their state, labels, milestone, participants);
+    and four sections with counts:
     - Overview (Conversation on GitHub): the description, then unresolved
       threads open, resolved threads and general comments folded. A thread
       says `path:line`, never a code snippet.
-    - Commits; Pipelines (Actions); Changes (Files changed): a file list with
-      its status and +/−, never a diff.
+    - Commits; Pipelines (Checks on GitHub); Changes (Files changed): a file
+      list with its status and +/−, never a diff.
   - *A branch:* name, default / protected / stale, the latest commit, behind
     and ahead of the default branch, the latest pipeline, the change (or
     *Create merge request*), and the commits not in the default branch (ten,
@@ -80,12 +94,23 @@ query.
     ref and sha it ran on; the change, when it ran for one; then the jobs by
     stage. A failed job shows its reason, its annotations (GitHub) and, on
     *Show log*, the end of its log: 80 lines, then 200, then 500, then
-    *Full log ↗* on the forge.
+    *Full log ↗* on the forge. The log keeps each line whole and scrolls
+    sideways, and the keyboard can reach it to scroll it.
   - *An issue:* title and state (with GitHub's reason), the side facts
     (assignees, labels, milestone, parent), the description, child items
     (GitLab's tasks, GitHub's sub-issues), and the comments behind *Show N
     comments*, read only when pressed.
-  - Every page has the reference to copy and *Open in GitHub / GitLab ↗*.
+  - Every page opens with the integrations' shared top line: the reference to
+    copy (on a narrow pane its path is cut, never its number), *Open in
+    GitHub / GitLab ↗*, and Close.
+- **States** are a small drawn mark beside a word, one family of the panel's
+  own: passed, failed, running, pending, canceled, skipped, manual, no
+  pipeline, open, draft, merged, closed, approved, changes requested,
+  commented and review pending. A GitLab job that failed but was allowed to
+  is in the warning tone, and a stage that passed only because of it says
+  "passed with warnings".
+- **The chosen row** takes the integrations' shared selection: a fill of its
+  own, distinct from the hover, with every word on it in the main ink.
 - **Freshness.** A read older than two minutes is asked again when it is drawn.
   Nothing polls, a running pipeline included; Refresh asks every read on
   screen again. A failed refresh keeps the last answer on screen and says
@@ -351,9 +376,10 @@ calls the client's `fetchAsset`. The route's rules are #2178's:
   and never touches the connection. A failed image is not asked for again for
   a minute.
 
-On the page an avatar that fails is drawn as its initial and remembered for
-the page's life (`failedAvatars` in `ForgeParts.tsx`). An image in a
-description that fails becomes the link it stood for.
+On the page an avatar that fails is drawn as its initials and remembered for
+the page's life (the integrations' shared face, `IntegrationAvatar.tsx`, which
+Jira's panel uses too). An image in a description that fails becomes the link
+it stood for.
 
 ### A description's HTML
 
@@ -444,13 +470,17 @@ Pipelines, Repository / Project, `#` / `!`.
 ### List and detail
 
 - **The split** is the host's: from 900px the page is a column beside the list
-  (440px by default, 320–1600px by dragging, the list keeps 420px), its width
-  remembered per forge in this browser.
+  (42% of the workspace, between 320 and 440px, until it is dragged;
+  320–1600px by dragging, the list keeps 420px; Enter or a double click on the
+  splitter goes back to the automatic width), its width remembered per forge
+  in this browser.
 - **Under 900px** the page is its own screen with *Back to merge requests* (or
   *Back to Actions*, *Back to branches*…). The list stays mounted, hidden, so
-  its scroll and folds are where the reader left them. Escape on that screen
-  is Back, before it closes the modal.
-- **Close** is in the page's bar on a wide window only; a narrow one has Back.
+  its scroll and folds are where the reader left them.
+- **Escape** closes the page at every width, before it closes the modal, and
+  focus goes back to the row (the host's `IntegrationSplit`).
+- **Close** is in the page's top line (the shared `IntegrationDetailBar`) on a
+  wide window only; a narrow one has Back.
 - **Focus** (`focusAfterSelect` in `forge-panel.ts`):
   - Back and Close return focus to the row the page was opened from.
   - Opening a page from a row on a wide window leaves focus on the row, so the
@@ -615,10 +645,13 @@ real answers, with every name invented.
     GitLab instance, under its path), and links opening outside the deck.
 - Sweep tests that list forge surfaces:
   - `canvas-keyboard`: `forge/RepoPicker.tsx` and `forge/DetailParts.tsx` in
-    the `tabIndex={-1}` allow-list.
-  - `control-edges`: `.fg-search input` at rest and under the pointer.
-  - `canvas-motion`: the press on `.fg-row`, `.fg-fold`, `.fgl-repo-option`,
-    `.fd-jump` (0.97) and `.fg-copy` (0.94); `.fgl-hit` exempt.
+    the `tabIndex={-1}` allow-list; the job log (`forge/DetailJobs.tsx`) and a
+    description's code block (`ForgeHtml.tsx`) as keyboard-scrollable stops.
+  - `control-edges`: the shared search field `.ig-search-input` at rest and
+    under the pointer.
+  - `canvas-motion`: the press on `.fg-fold`, `.fgl-repo-option` and
+    `.fd-jump` (0.97); `.fg-row` (its tone deepens, nothing moves) and
+    `.fgl-hit` exempt.
   - `control-appearance`: `.fgl-hit` exempt as a hit area.
   - `text-tiers`: the panel's sentences and its words on row fills.
   - `reports-1853` and `process-detail-807`: GitHub and GitLab token shapes

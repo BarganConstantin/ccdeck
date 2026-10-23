@@ -6,25 +6,28 @@
 import { useState } from "react";
 import type { ForgeComment, IssueDetail as Issue, IssueRef } from "../../forge-types";
 import { issueMark } from "../../forge-detail";
+import type { Mark } from "../../forge-panel";
 import { useForgePages, useForgeRead } from "../../use-forge-read";
 import ForgeHtml, { renderForgeNodes } from "../ForgeHtml";
 import { useForge, type ForgeSelection } from "./ForgeContext";
 import { Ago, Badge, ListEnd, LoadingRows, Person, ReadFailure, StateMark } from "./ForgeParts";
 import {
-  DetailBar, DetailFrame, DetailHeading, DetailPending, LabelsFact, PeopleFact, SideFact, SideFacts, useForgeNodes,
+  DetailFrame, DetailHeading, DetailPending, LabelsFact, PeopleFact, SideFact, SideFacts, useDetailBar, useForgeNodes,
 } from "./DetailParts";
 import { Comment } from "./DetailThreads";
+import IntegrationDetailBar from "../IntegrationDetailBar";
 
 type Selection = Extract<ForgeSelection, { type: "issue" }>;
 
 export default function IssueDetail({ selection }: { selection: Selection }) {
   const { api, scope, refresh } = useForge();
+  const bar = useDetailBar();
   const read = useForgeRead<Issue>(api, scope, "issue", { repo: selection.repo, number: selection.number }, refresh);
   const issue = read.data;
   const reference = issue?.key ?? `${selection.repo}#${selection.number}`;
   return (
     <DetailFrame label={`Issue ${reference}`}>
-      <DetailBar reference={reference} copyLabel="reference" href={issue?.webUrl ?? null} />
+      <IntegrationDetailBar {...bar} reference={reference} copyLabel="reference" href={issue?.webUrl ?? null} />
       <DetailPending data={issue} loading={read.loading} error={read.error} onRetry={read.reload} what="issue" />
       {issue && (
         <>
@@ -95,15 +98,15 @@ function IssueBody({ selection, issue: i }: { selection: Selection; issue: Issue
   );
 }
 
-function childMark(state: IssueRef["state"]) {
-  return state === "open" ? { mark: "○", word: "open", tone: "busy" as const } : { mark: "✓", word: "closed", tone: "ok" as const };
+function childMark(state: IssueRef["state"]): Mark {
+  return state === "open" ? { mark: "open", word: "open", tone: "busy" } : { mark: "done", word: "closed", tone: "ok" };
 }
 
 function IssueRow({ item, onOpen }: { item: IssueRef; onOpen: () => void }) {
   const { selected } = useForge();
   const current = selected?.type === "issue" && selected.repo === item.repo && selected.number === item.number;
   return (
-    <button type="button" className="fg-row fd-child-row" onClick={onOpen} aria-current={current || undefined} data-selected={current || undefined}>
+    <button type="button" className="fg-row fd-child-row ig-row" onClick={onOpen} aria-current={current || undefined} data-selected={current || undefined}>
       <StateMark mark={childMark(item.state)} />
       <span className="fd-child-title">{item.title}</span>
       <span className="fd-child-meta">

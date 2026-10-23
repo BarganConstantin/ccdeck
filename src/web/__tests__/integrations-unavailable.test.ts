@@ -25,7 +25,8 @@ import { KEY_HELP, keyHelpFor } from "../key-help";
 import { railItems } from "../rail-items";
 import { fetchForge, forgeErrorWords, ForgeReadError } from "../forge-panel";
 import { FATAL_KINDS } from "../use-jira-board";
-import { failureCopy, FailureNote } from "../components/JiraParts";
+import IntegrationFailureNote from "../components/IntegrationFailureNote";
+import { failureAction, failureWords } from "../integrations/failure";
 import IntegrationsSection from "../components/IntegrationsSection";
 import KeyboardHelp from "../components/KeyboardHelp";
 import KeyboardSection from "../components/KeyboardSection";
@@ -406,12 +407,13 @@ describe("a read the deck cannot serve: 503, kind unavailable", () => {
   });
 
   it("is named in Jira's words, with Try again and no Reconnect, and ends a refresh at the first", () => {
-    const jira = conn("j1", "jira", "Work Jira");
     const error = new IntegrationFailure("unavailable", "Jira is not available on this deck.");
     // The deck's own sentence ("Jira is not available on this deck.") would
-    // repeat the heading, so the body says what to do instead.
-    expect(failureCopy(error, jira)).toEqual({ title: "Jira is unavailable on this deck", body: "The deck cannot read Jira right now. Try again in a moment.", reconnect: false });
-    const html = draw(createElement(FailureNote, { error, conn: jira, onRetry: noop, onReconnect: noop }));
+    // repeat the heading, so the body says what to do instead. The Jira panel
+    // draws its failures with the integrations' shared note.
+    expect(failureWords(error, "Jira")).toEqual({ title: "Jira is unavailable on this deck", body: "The deck cannot read it right now. Try again in a moment." });
+    expect(failureAction(error.kind)).toBe("retry");
+    const html = draw(createElement(IntegrationFailureNote, { error, provider: "Jira", onRetry: noop, onReconnect: noop }));
     expect(html).toContain(">Try again</button>");
     expect(html).not.toContain(">Reconnect</button>");
     expect(html).toContain('data-kind="unavailable"');

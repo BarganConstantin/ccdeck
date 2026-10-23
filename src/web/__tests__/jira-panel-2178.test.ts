@@ -4,6 +4,8 @@
 // what a sprint header counts, how Jira writes a duration, and the sanitiser
 // an issue's HTML goes through, fed by a parser written here.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { buildRows, filterRows, groupOpen, groupsFor, groupStats, jiraDuration, rowKey } from "../jira-board";
@@ -186,7 +188,26 @@ describe("an issue's HTML, rebuilt from an allowlist", () => {
       el("div", { class: "panel" }, el("div", { class: "panelContent" }, "Note")),
       el("blink", {}, "kept text"),
     ));
-    expect(out).toBe('<div><h5>Title</h5><div class="jr-html-panel"><div class="jr-html-panel-body">Note</div></div>kept text</div>');
+    expect(out).toBe('<div><h4>Title</h4><div class="jr-html-panel"><div class="jr-html-panel-body">Note</div></div>kept text</div>');
+  });
+
+  it("keeps the outline whole under the issue's h2 and its sections' h3, and lets the keyboard reach a frame that scrolls", () => {
+    const out = draw(el("body", {},
+      el("h1", {}, "One"), el("h2", {}, "Two"), el("h3", {}, "Three"), el("h6", {}, "Six"),
+      el("pre", {}, "const a = 1;"),
+      el("table", {}, el("tbody", {}, el("tr", {}, el("td", {}, "cell")))),
+    ));
+    expect(out).toContain("<h4>One</h4><h5>Two</h5><h6>Three</h6><h6>Six</h6>");
+    expect(out).toContain('<pre tabindex="0" role="region" aria-label="Code">const a = 1;</pre>');
+    expect(out).toContain('<div class="jr-table-wrap" tabindex="0" role="region" aria-label="Table"><table>');
+  });
+
+  it("never skips a level, whatever heading a description opens on or jumps to", () => {
+    // Under the section's h3: an H2 first is an h4, and an H1 then an H3 are
+    // an h4 then an h5, never an h4 then an h6.
+    expect(draw(el("body", {}, el("h2", {}, "A"), el("h3", {}, "B")))).toBe("<div><h4>A</h4><h5>B</h5></div>");
+    expect(draw(el("body", {}, el("h1", {}, "A"), el("h3", {}, "B"), el("h1", {}, "C")))).toBe("<div><h4>A</h4><h5>B</h5><h4>C</h4></div>");
+    expect(draw(el("body", {}, el("div", {}, el("h5", {}, "Deep")), el("h2", {}, "After")))).toBe("<div><div><h4>Deep</h4></div><h5>After</h5></div>");
   });
 
   it("stops at a depth no description needs, rather than recursing without end", () => {
@@ -227,5 +248,18 @@ describe("Settings › Integrations, and the rail control a connection adds", ()
       integrations: connected.map(provider => ({ provider, onPress: () => {} })),
     } as Parameters<typeof railItems>[0]);
     expect(rails.integrations.map(r => [r.id, r.label, r.kind, r.key?.cap])).toEqual([["integration-jira", "Jira", "dialog", "I"]]);
+  });
+});
+
+describe("an open issue, closed by Escape once", () => {
+  // The shared split puts an open detail on the deck's dismiss stack at every
+  // width and calls the panel's Back. A second entry of the panel's own would
+  // spend a second Escape on the same issue before the modal could close.
+  const panel = readFileSync(fileURLToPath(new URL("../components/JiraPanel.tsx", import.meta.url)), "utf8")
+    .replace(/^\s*\/\/.*$/gm, "");
+
+  it("leaves Escape to the split, and names the open issue for the split's motion", () => {
+    expect(panel).not.toMatch(/modalStack/);
+    expect(panel).toMatch(/<IntegrationSplit[\s\S]*?onBack=\{back\}[\s\S]*?detailKey=\{trail\[trail\.length - 1\]\}[\s\S]*?\/>/);
   });
 });

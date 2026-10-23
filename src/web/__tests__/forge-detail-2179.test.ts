@@ -21,9 +21,9 @@ import type {
 } from "../forge-types";
 import { forgeReadPath, keepRead } from "../forge-panel";
 import {
-  annotationMark, approvalWords, changeFromRef, changeReference, changeSections, changeStateMark, fileStatusWord,
-  issueMark, jobStartsOpen, labelColor, labelParts, logLineTone, MANY_JOBS, namesWords, newChangeUrl, nextLogLines,
-  nodesWithoutDraftPrefix, pathParts, pipelineIdFromUrl, shortRef, sourceWords, splitDiscussions, stagesOf, stageStartsOpen,
+  annotationMark, approvalWords, changeFromRef, changeReference, changeRunsWord, changeSections, changeStateMark, commitsWords, fileStatusWord,
+  issueMark, jobMark, jobStartsOpen, labelColor, labelParts, logLineTone, MANY_JOBS, namesWords, newChangeUrl, nextLogLines,
+  nodesWithoutDraftPrefix, pathParts, pipelineIdFromUrl, shortRef, sourceWords, splitDiscussions, stageMark, stagesOf, stageStartsOpen,
   stageState, threadPlace, withoutDraftPrefix,
 } from "../forge-detail";
 import { ForgeProvider, type ForgeContextValue, type ForgeSelection } from "../components/forge/ForgeContext";
@@ -145,7 +145,17 @@ describe("a change's head", () => {
   it("has the forge's own tab names, each with its count", () => {
     const counts = { discussions: 3, commits: 4, pipelines: 2, files: 7 };
     expect(changeSections("gitlab", counts).map(s => `${s.label} ${s.count}`)).toEqual(["Overview 3", "Commits 4", "Pipelines 2", "Changes 7"]);
-    expect(changeSections("github", counts).map(s => s.label)).toEqual(["Conversation", "Commits", "Actions", "Files changed"]);
+    // GitHub's pull request page calls its workflow runs Checks.
+    expect(changeSections("github", counts).map(s => s.label)).toEqual(["Conversation", "Commits", "Checks", "Files changed"]);
+    expect(changeRunsWord("github")).toBe("Checks");
+    expect(changeRunsWord("gitlab")).toBe("Pipelines");
+  });
+
+  it("counts commits the way a byline says them, and leaves none out", () => {
+    expect(commitsWords(1)).toBe("1 commit");
+    expect(commitsWords(1250)).toBe("1,250 commits");
+    expect(commitsWords(0)).toBeNull();
+    expect(commitsWords(null)).toBeNull();
   });
 });
 
@@ -215,6 +225,18 @@ describe("words", () => {
       expect(m.mark).not.toBe("");
       expect(m.word).toBe(level);
     }
+    expect(annotationMark("warning")).toMatchObject({ mark: "warning", tone: "warn" });
+  });
+
+  it("draws a failure the pipeline allowed as a warning, as GitLab does, and its stage as passed with warnings", () => {
+    expect(jobMark({ state: "failed", allowFailure: true })).toEqual({ mark: "warning", word: "failed", tone: "warn" });
+    expect(jobMark({ state: "failed", allowFailure: false })).toMatchObject({ mark: "failed", tone: "bad" });
+    expect(jobMark({ state: "success", allowFailure: true })).toMatchObject({ mark: "passed", tone: "ok" });
+    const allowed = job("lint", { state: "failed", allowFailure: true });
+    const passed = job("test", { state: "success" });
+    expect(stageMark({ state: "success", jobs: [passed, allowed] })).toEqual({ mark: "warning", word: "passed with warnings", tone: "warn" });
+    expect(stageMark({ state: "success", jobs: [passed] })).toMatchObject({ mark: "passed", word: "passed" });
+    expect(stageMark({ state: "failed", jobs: [allowed, job("build", { state: "failed" })] })).toMatchObject({ mark: "failed" });
   });
 });
 
@@ -317,7 +339,10 @@ describe("the change page", () => {
     keep("change", { repo: "acme/web", number: 12 }, change());
     const html = page(createElement(ChangeDetailPage, { selection: sel }));
     const words = text(html);
-    expect(words).toContain("acme/web!12");
+    // The integrations' shared top line: the path may give way on a narrow
+    // pane, the number it ends on never does.
+    expect(html).toContain('<code class="ig-ref-text" title="acme/web!12"><span class="ig-ref-path">acme/web</span><span class="ig-ref-num">!12</span></code>');
+    expect(html).toMatch(/<a class="ig-open" href="https:\/\/gitlab\.example\.com\/[^"]*" target="_blank" rel="noreferrer noopener">Open in GitLab<svg/);
     expect(words).toContain("Add the login page");
     expect(words).not.toContain("Draft: Add");
     expect(words).toContain("Draft");
@@ -336,6 +361,20 @@ describe("the change page", () => {
     expect(words).toMatch(/priority\s+high/);
     expect(html).toContain('aria-label="Close details"');
     expect(html).toContain('aria-selected="true"');
+  });
+
+  it("says GitHub's own sentence on a pull request, and GitLab's on a merge request", () => {
+    const gh = change({ kind: "github", key: "acme/web#12", webUrl: "https://github.com/acme/web/pull/12", draft: false, title: "Add the login page" });
+    keep("change", { repo: "acme/web", number: 12 }, gh);
+    const open = text(page(createElement(ChangeDetailPage, { selection: sel }), { kind: "github" }));
+    expect(open).toMatch(/Alice Doe wants to merge 4 commits into main from feature\/login/);
+    expect(open).not.toContain("requested to merge");
+    expect(open).toMatch(/Conversation 3 Commits 4 Checks 2 Files changed 7/);
+    keep("change", { repo: "acme/web", number: 12 }, { ...gh, state: "merged", mergedAt: Date.now() - 60_000 });
+    const merged = text(page(createElement(ChangeDetailPage, { selection: sel }), { kind: "github" }));
+    // "AD" is the face's initials, which the text of the page includes.
+    expect(merged).toMatch(/Merged AD Alice Doe · 4 commits merged into main from feature\/login/);
+    expect(merged).not.toContain("wants to merge");
   });
 
   it("leaves Close to the host's Back on a narrow window", () => {
@@ -359,7 +398,7 @@ describe("the change page", () => {
     keep("change", { repo: "acme/web", number: 404 }, null, { kind: "not-found", message: "gone" });
     const words = text(page(createElement(ChangeDetailPage, { selection: { ...sel, number: 404 } })));
     expect(words).toContain("This merge request no longer exists, or this token cannot see it.");
-    expect(words).toContain("acme/web!404");
+    expect(words).toContain("acme/web !404");
   });
 });
 

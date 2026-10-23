@@ -12,7 +12,7 @@ import type {
   ChangeDetail, ChangedFile, CiState, ForgeComment, ForgeJob, ForgeKind, ForgeUser, JobAnnotation, ReviewThread,
 } from "./forge-types";
 import { forgeWords } from "./forge-types";
-import { changeBadge, type Mark } from "./forge-panel";
+import { changeBadge, ciMark, type Mark } from "./forge-panel";
 import type { ForgeNode } from "./forge-html";
 
 // ── references ───────────────────────────────────────────────────────────
@@ -67,9 +67,21 @@ export function changeSections(kind: ForgeKind, counts: ChangeDetail["counts"]):
   return [
     { id: "overview", label: github ? "Conversation" : "Overview", count: counts.discussions },
     { id: "commits", label: "Commits", count: counts.commits },
-    { id: "pipelines", label: forgeWords[kind].pipelines, count: counts.pipelines },
+    { id: "pipelines", label: changeRunsWord(kind), count: counts.pipelines },
     { id: "changes", label: github ? "Files changed" : "Changes", count: counts.files },
   ];
+}
+
+/** What a change's runs are called on its own page: GitHub's pull request
+ *  page calls its workflow runs Checks; GitLab's merge request says Pipelines. */
+export function changeRunsWord(kind: ForgeKind): string {
+  return kind === "github" ? "Checks" : forgeWords[kind].pipelines;
+}
+
+/** "1 commit", "7 commits"; null for none, which a byline leaves out. */
+export function commitsWords(n: number | null | undefined): string | null {
+  if (n == null || !Number.isFinite(n) || n <= 0) return null;
+  return `${n.toLocaleString("en-US")} ${n === 1 ? "commit" : "commits"}`;
 }
 
 /** The state badge beside the byline: Open, Draft, Merged or Closed. Approval
@@ -156,10 +168,10 @@ export function namesWords(names: string[]): string {
 /** The approvals line under a change's title: who approved it, or how many
  *  approvals it still needs; null when the forge says neither. */
 export function approvalWords(c: Pick<ChangeDetail, "approvedBy" | "approvalsLeft">): { mark: Mark; text: string } | null {
-  if (c.approvedBy.length) return { mark: { mark: "✓", word: "approved", tone: "ok" }, text: `Approved by ${namesWords(c.approvedBy.map(personName))}` };
+  if (c.approvedBy.length) return { mark: { mark: "approved", word: "approved", tone: "ok" }, text: `Approved by ${namesWords(c.approvedBy.map(personName))}` };
   if (c.approvalsLeft != null && c.approvalsLeft > 0) {
     return {
-      mark: { mark: "◌", word: "approval required", tone: "idle" },
+      mark: { mark: "pending", word: "approval required", tone: "idle" },
       text: `Requires ${c.approvalsLeft} more approval${c.approvalsLeft === 1 ? "" : "s"}`,
     };
   }
@@ -189,10 +201,10 @@ export function labelColor(color: string | null | undefined): string | null {
 
 /** An issue's state as a mark and a word, GitHub's reason included. */
 export function issueMark(state: "open" | "closed", reason?: string | null): Mark {
-  if (state === "open") return { mark: "●", word: "Open", tone: "busy" };
-  if (reason === "not_planned") return { mark: "⊘", word: "Closed · not planned", tone: "idle" };
-  if (reason === "duplicate") return { mark: "⊘", word: "Closed · duplicate", tone: "idle" };
-  return { mark: "✓", word: "Closed", tone: "idle" };
+  if (state === "open") return { mark: "open", word: "Open", tone: "busy" };
+  if (reason === "not_planned") return { mark: "closed", word: "Closed · not planned", tone: "idle" };
+  if (reason === "duplicate") return { mark: "closed", word: "Closed · duplicate", tone: "idle" };
+  return { mark: "done", word: "Closed", tone: "idle" };
 }
 
 /** What started a pipeline, in words. */
@@ -270,12 +282,28 @@ export function jobStartsOpen(job: ForgeJob): boolean {
   return job.state === "failed" && !job.allowFailure;
 }
 
+/** A job's state as a mark and a word. A failure the pipeline was told to
+ *  allow is a warning, as GitLab draws it, not a red failure: the run went on. */
+export function jobMark(job: Pick<ForgeJob, "state" | "allowFailure">): Mark {
+  if (job.state === "failed" && job.allowFailure) return { mark: "warning", word: "failed", tone: "warn" };
+  return ciMark(job.state);
+}
+
+/** A stage's state as a mark and a word: GitLab's "passed with warnings" when
+ *  it passed only because its failures were allowed. */
+export function stageMark(stage: Pick<Stage, "state" | "jobs">): Mark {
+  if (stage.state === "success" && stage.jobs.some(j => j.state === "failed" && j.allowFailure)) {
+    return { mark: "warning", word: "passed with warnings", tone: "warn" };
+  }
+  return ciMark(stage.state);
+}
+
 /** An annotation's level as a mark and a word. */
 export function annotationMark(level: JobAnnotation["level"]): Mark {
   switch (level) {
-    case "failure": return { mark: "✕", word: "failure", tone: "bad" };
-    case "warning": return { mark: "!", word: "warning", tone: "busy" };
-    default: return { mark: "i", word: "notice", tone: "idle" };
+    case "failure": return { mark: "failed", word: "failure", tone: "bad" };
+    case "warning": return { mark: "warning", word: "warning", tone: "warn" };
+    default: return { mark: "info", word: "notice", tone: "idle" };
   }
 }
 

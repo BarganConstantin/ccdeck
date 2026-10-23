@@ -15,7 +15,7 @@
 //
 // The comment count, the labels and the people stack are drawn the same way
 // on the Issues tab, which takes them from here.
-import { Fragment, useMemo } from "react";
+import { useId, useMemo, useState } from "react";
 import type { ChangeCounts, ChangeFilter, ChangeState, ForgeChange, ForgeKind, ForgeLabel, ForgeReviewer, ForgeUser } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
 import { changeBadge, ciMark, matchesQuery, reviewerMark, splitReviews, type Mark } from "../../forge-panel";
@@ -23,10 +23,15 @@ import {
   changeMoment, countWords, draftTitle, emptyChangesWords, itemLabel, labelColor, listPhase, moreLabel, noMatchWords,
   useReportFreshness,
 } from "../../forge-lists";
+import { labelParts } from "../../forge-detail";
 import { useForgePages, useForgeRead } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
 import { sameSelection, useForge } from "./ForgeContext";
-import { Ago, Badge, FoldGroup, ListEnd, LoadingRows, Person, ReadFailure, StateMark } from "./ForgeParts";
+import { IntegrationAvatarStack } from "../IntegrationAvatar";
+import { Ago, Badge, Face, FoldGroup, ListEnd, LoadingRows, ReadFailure, StateMark, useFaceOf } from "./ForgeParts";
+import { CheckGlyph } from "../integration-glyphs";
+import { ChevronGlyph, StateGlyph } from "./ForgeGlyphs";
+import AnchoredPopover from "../AnchoredPopover";
 
 const STATES: { state: ChangeState; label: string }[] = [
   { state: "open", label: "Open" },
@@ -40,7 +45,7 @@ const FILTERS: { filter: ChangeFilter; label: string }[] = [
   { filter: "review", label: "Review requests" },
 ];
 
-const DRAFT: Mark = { mark: "◌", word: "Draft", tone: "idle" };
+const DRAFT: Mark = changeBadge({ state: "open", draft: true, approved: false });
 const APPROVED: Mark = changeBadge({ state: "open", draft: false, approved: true });
 
 export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
@@ -80,13 +85,18 @@ export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
             );
           })}
         </div>
-        <div className="uh-range fgl-seg" role="group" aria-label={`Which ${noun}`}>
+        {/* Which ones: a strip where the list has room, one menu button named
+            by the current choice where it does not (a phone, or the column
+            beside an open item). Both are drawn and the list's width shows
+            one, so the choice never moves when the pane is resized. */}
+        <div className="uh-range fgl-seg fgl-scope-seg" role="group" aria-label={`Which ${noun}`}>
           {FILTERS.map(({ filter, label }) => (
             <button key={filter} type="button" className="uh-range-btn" aria-pressed={view.filter === filter} onClick={() => setView({ filter })}>
               {label}
             </button>
           ))}
         </div>
+        <ScopeMenu filter={view.filter} noun={noun} onChange={filter => setView({ filter })} />
         <SortToggle sort={view.sort} onChange={sort => setView({ sort })} />
       </div>
 
@@ -118,6 +128,56 @@ export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
   );
 }
 
+/** All / Mine / Review requests as one button and its menu, for a narrow
+ *  list: the button says the current choice, the menu checks it. */
+function ScopeMenu({ filter, noun, onChange }: { filter: ChangeFilter; noun: string; onChange: (filter: ChangeFilter) => void }) {
+  const id = useId();
+  const [menu, setMenu] = useState<"first" | "last" | null>(null);
+  const current = FILTERS.find(f => f.filter === filter) ?? FILTERS[0];
+  const trigger = `${id}-trigger`;
+  const pick = (next: ChangeFilter) => {
+    onChange(next);
+    setMenu(null);
+    document.getElementById(trigger)?.focus({ preventScroll: true });
+  };
+  return (
+    <span className="fgl-scope" id={`${id}-layer`}>
+      <button
+        id={trigger}
+        type="button"
+        className="btn fgl-scope-trigger"
+        aria-label={`Which ${noun}: ${current.label}`}
+        aria-haspopup="menu"
+        aria-expanded={menu != null}
+        aria-controls={menu ? `${id}-menu` : undefined}
+        onClick={() => setMenu(m => (m ? null : "first"))}
+        onKeyDown={e => {
+          if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+          e.preventDefault();
+          setMenu(e.key === "ArrowUp" ? "last" : "first");
+        }}
+      >
+        {current.label}
+        <ChevronGlyph />
+      </button>
+      {menu && (
+        <AnchoredPopover anchorId={trigger} portalRootId={`${id}-layer`} id={`${id}-menu`} className="ap-pop fgl-scope-pop" role="menu"
+          labelledBy={trigger} start={menu} onClose={() => setMenu(null)}>
+          {FILTERS.map(f => (
+            <button key={f.filter} type="button" role="menuitem" className="ap-menu-item fgl-scope-item"
+              aria-current={f.filter === filter || undefined} onClick={() => pick(f.filter)}>
+              <span className="fgl-scope-check" aria-hidden="true">{f.filter === filter && <CheckGlyph />}</span>
+              {f.label}
+            </button>
+          ))}
+        </AnchoredPopover>
+      )}
+    </span>
+  );
+}
+
+/** Created or Updated, newest first. On a narrow list only its glyph shows;
+ *  its name says the rest, and its tooltip says it to the pointer. */
 function SortToggle({ sort, onChange }: { sort: "created" | "updated"; onChange: (sort: "created" | "updated") => void }) {
   const next = sort === "created" ? "updated" : "created";
   return (
@@ -131,7 +191,7 @@ function SortToggle({ sort, onChange }: { sort: "created" | "updated"; onChange:
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true">
         <path d="M2 3h8M3.5 6h5M5 9h2" />
       </svg>
-      {sort === "created" ? "Created" : "Updated"}
+      <span className="fgl-sort-word">{sort === "created" ? "Created" : "Updated"}</span>
     </button>
   );
 }
@@ -146,7 +206,8 @@ function ChangeRow({ kind, change: c, acrossRepos }: { kind: ForgeKind; change: 
     <li>
       <button
         type="button"
-        className="fg-row fgl-row"
+        className="fg-row fgl-row ig-row"
+        data-nav=""
         data-selected={isSelected || undefined}
         aria-current={isSelected || undefined}
         onClick={() => select(target)}
@@ -167,14 +228,15 @@ function ChangeRow({ kind, change: c, acrossRepos }: { kind: ForgeKind; change: 
           {c.createdAt != null && <> · created <Ago at={c.createdAt} /></>}
           {author && <> by {author}</>}
         </span>
-        <span className="fgl-when">{moment.at != null && <>{moment.verb} <Ago at={moment.at} /></>}</span>
+        <span className="fgl-when">{moment.at != null && <><span className="fgl-when-verb">{moment.verb} </span><Ago at={moment.at} /></>}</span>
       </button>
     </li>
   );
 }
 
-/** The reviewers' faces, each with how they stand: ✓ approved, ✕ changes
- *  requested, … commented. A pending review has no mark, only its word. A
+/** The reviewers' faces, each with how they stand: a check approved, a plus
+ *  over a minus for changes requested, a speech bubble commented. A pending
+ *  review has no mark, only its word. A
  *  screen reader hears the same list in words — "Reviewers: Bob, approved;
  *  Carol, pending" — because a plain span cannot carry a label of its own. */
 function Reviewers({ reviewers }: { reviewers: ForgeReviewer[] }) {
@@ -187,8 +249,9 @@ function Reviewers({ reviewers }: { reviewers: ForgeReviewer[] }) {
         return (
           <span key={r.login} className="fgl-reviewer" data-tone={m.tone} title={`${r.name || r.login}: ${m.word}`}>
             {i > 0 && <span className="fg-sr">; </span>}
-            <Person user={r} size={20} nameless />
-            {r.state !== "pending" && <span className="fgl-reviewer-mark" aria-hidden="true">{m.mark}</span>}
+            <Face user={r} />
+            <span className="fg-sr">{r.name || r.login}</span>
+            {r.state !== "pending" && <span className="fgl-reviewer-mark" aria-hidden="true"><StateGlyph name={m.mark} size={9} weight={1.8} /></span>}
             <span className="fg-sr">, {m.word}</span>
           </span>
         );
@@ -198,22 +261,13 @@ function Reviewers({ reviewers }: { reviewers: ForgeReviewer[] }) {
   );
 }
 
-/** A few faces in a row (assignees), then "+N"; in words, "Assignees: Alice,
- *  Bob and 2 more". */
+/** A few faces in a row (assignees), then "+N": the integrations' shared
+ *  stack, which a screen reader hears as one picture named with every name,
+ *  "Assigned to Alice, Bob and Carol". */
 export function People({ users, label }: { users: ForgeUser[]; label: string }) {
+  const faceOf = useFaceOf();
   if (!users.length) return null;
-  return (
-    <span className="fgl-people">
-      <span className="fg-sr">{label}: </span>
-      {users.slice(0, 3).map((u, i) => (
-        <Fragment key={u.login}>
-          {i > 0 && <span className="fg-sr">, </span>}
-          <Person user={u} size={20} nameless />
-        </Fragment>
-      ))}
-      <More count={users.length - 3} />
-    </span>
-  );
+  return <IntegrationAvatarStack label={label} people={users.map(u => ({ key: u.login, ...faceOf(u) }))} />;
 }
 
 /** "+2" for the eye, "and 2 more" for the ear. */
@@ -248,10 +302,14 @@ export function Labels({ labels }: { labels: ForgeLabel[] }) {
     <span className="fgl-labels">
       {labels.slice(0, 4).map(l => {
         const color = labelColor(l.color);
+        // A GitLab scoped label in two parts, as the item's page draws it:
+        // "priority | high", the whole name on hover.
+        const { scope, value } = labelParts(l.name);
         return (
           <span key={l.name} className="fgl-label" title={l.name}>
             {color && <i className="fgl-label-dot" style={{ background: color }} aria-hidden="true" />}
-            <span className="fgl-label-name">{l.name}</span>
+            {scope && <span className="fgl-label-scope">{scope}<span className="fg-sr">::</span></span>}
+            <span className="fgl-label-name">{value}</span>
           </span>
         );
       })}

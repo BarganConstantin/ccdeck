@@ -18,7 +18,7 @@ import type { ChangedFile, ChangeDetail as Change, ForgeCommit, ForgePipeline, F
 import { forgeWords } from "../../forge-types";
 import { ciMark, durationWords, reviewerMark } from "../../forge-panel";
 import {
-  approvalWords, changeReference, changeSections, changeStateMark, fileStatusWord, nodesWithoutDraftPrefix, pathParts,
+  approvalWords, changeReference, changeRunsWord, changeSections, changeStateMark, commitsWords, fileStatusWord, nodesWithoutDraftPrefix, pathParts,
   pipelineIdFromUrl, shortRef, splitDiscussions, withoutDraftPrefix, type ChangeSection,
 } from "../../forge-detail";
 import { tabStripMove } from "../../tablist-keys";
@@ -27,14 +27,16 @@ import ForgeHtml, { renderForgeNodes } from "../ForgeHtml";
 import { useForge, type ForgeSelection } from "./ForgeContext";
 import { Ago, Badge, Copyable, FoldGroup, ListEnd, LoadingRows, OpenOnForge, Person, ReadFailure, StateMark } from "./ForgeParts";
 import {
-  CommitRow, DetailBar, DetailFrame, DetailPending, Faces, LabelsFact, PathDir, PeopleFact, SideFact, SideFacts, useForgeNodes,
+  CommitRow, DetailFrame, DetailPending, Faces, LabelsFact, PathDir, PeopleFact, SideFact, SideFacts, useDetailBar, useForgeNodes,
 } from "./DetailParts";
 import { ThreadList } from "./DetailThreads";
+import IntegrationDetailBar from "../IntegrationDetailBar";
 
 type Selection = Extract<ForgeSelection, { type: "change" }>;
 
 export default function ChangeDetail({ selection }: { selection: Selection }) {
   const { kind, api, scope, refresh } = useForge();
+  const bar = useDetailBar();
   const words = forgeWords[kind];
   const params = { repo: selection.repo, number: selection.number };
   const read = useForgeRead<Change>(api, scope, "change", params, refresh);
@@ -52,7 +54,7 @@ export default function ChangeDetail({ selection }: { selection: Selection }) {
 
   return (
     <DetailFrame label={`${words.change} ${reference}`}>
-      <DetailBar reference={reference} copyLabel="reference" href={c?.webUrl ?? null} />
+      <IntegrationDetailBar {...bar} reference={reference} copyLabel="reference" href={c?.webUrl ?? null} />
       <DetailPending data={c} loading={read.loading} error={read.error} onRetry={read.reload} what={words.change.toLowerCase()} />
       {c && (
         <>
@@ -122,16 +124,34 @@ function ChangeHead({ change: c, pipelines }: { change: Change; pipelines: Forge
   const pipelineId = pipelineIdFromUrl(c.ci?.webUrl) ?? latest?.id ?? null;
   const pipelineState = c.ci?.state ?? latest?.state ?? null;
   const approvals = approvalWords(c);
+  const commits = commitsWords(c.counts.commits);
   return (
     <header className="fd-head">
       <h2 className="fd-title">{title}</h2>
       <p className="fd-byline">
         <Badge mark={changeStateMark(c)} />
         {c.author && <Person user={c.author} size={18} />}
-        <span>requested to merge</span>
-        <Copyable value={c.sourceBranch} label="source branch"><code className="fd-branch">{c.sourceBranch}</code></Copyable>
-        <span>into</span>
-        <code className="fd-branch">{c.targetBranch}</code>
+        {kind === "github"
+          ? (
+            // GitHub's own sentence: "wants to merge 7 commits into main from
+            // feature/login", and once merged, that the commits were merged.
+            <>
+              {c.state === "merged"
+                ? <span>{commits ? `· ${commits} merged into` : "· merged into"}</span>
+                : <span>{commits ? `wants to merge ${commits} into` : "wants to merge into"}</span>}
+              <code className="fd-branch">{c.targetBranch}</code>
+              <span>from</span>
+              <Copyable value={c.sourceBranch} label="source branch"><code className="fd-branch">{c.sourceBranch}</code></Copyable>
+            </>
+          )
+          : (
+            <>
+              <span>requested to merge</span>
+              <Copyable value={c.sourceBranch} label="source branch"><code className="fd-branch">{c.sourceBranch}</code></Copyable>
+              <span>into</span>
+              <code className="fd-branch">{c.targetBranch}</code>
+            </>
+          )}
         {c.createdAt != null && <span className="fd-when">· created <Ago at={c.createdAt} /></span>}
         {c.state === "merged" && c.mergedAt != null && <span className="fd-when">· merged <Ago at={c.mergedAt} /></span>}
         {c.state === "closed" && c.closedAt != null && <span className="fd-when">· closed <Ago at={c.closedAt} /></span>}
@@ -209,7 +229,7 @@ function Overview({ change: c }: { change: Change }) {
           </FoldGroup>
         )}
         {!unresolved.length && resolved.length > 0 && (
-          <p className="fd-status-line fd-all-resolved"><StateMark mark={{ mark: "✓", word: "All threads resolved", tone: "ok" }} /></p>
+          <p className="fd-status-line fd-all-resolved"><StateMark mark={{ mark: "resolved", word: "All threads resolved", tone: "ok" }} /></p>
         )}
         {resolved.length > 0 && (
           <FoldGroup id="change:resolved" title="Resolved threads" count={resolved.length} defaultOpen={false}>
@@ -248,11 +268,12 @@ function Commits({ selection }: { selection: Selection }) {
 function Pipelines({ repo, read }: { repo: string; read: ForgeReadState<ForgePipeline[]> & { reload: () => void } }) {
   const { kind, select, selected } = useForge();
   const words = forgeWords[kind];
+  const runs = changeRunsWord(kind).toLowerCase();
   if (!read.data) {
     if (read.error) return <ReadFailure error={read.error} onRetry={read.reload} />;
-    return read.loading ? <LoadingRows rows={3} label={`Loading ${words.pipelines.toLowerCase()}`} /> : <p className="fg-empty">No {words.pipelines.toLowerCase()} ran for this {words.change.toLowerCase()}.</p>;
+    return read.loading ? <LoadingRows rows={3} label={`Loading ${runs}`} /> : <p className="fg-empty">No {runs} ran for this {words.change.toLowerCase()}.</p>;
   }
-  if (!read.data.length) return <p className="fg-empty">No {words.pipelines.toLowerCase()} ran for this {words.change.toLowerCase()}.</p>;
+  if (!read.data.length) return <p className="fg-empty">No {runs} ran for this {words.change.toLowerCase()}.</p>;
   return (
     <>
       {read.error && <ReadFailure error={read.error} onRetry={read.reload} compact />}

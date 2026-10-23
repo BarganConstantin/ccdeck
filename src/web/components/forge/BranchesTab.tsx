@@ -26,6 +26,8 @@ import { useForgePages } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
 import { sameSelection, useForge, type ForgeSelection } from "./ForgeContext";
 import { Ago, Copyable, FoldGroup, ListEnd, LoadingRows, ReadFailure, StateMark } from "./ForgeParts";
+import { StateGlyph } from "./ForgeGlyphs";
+import { ExternalLinkGlyph } from "../action-glyphs";
 
 export default function BranchesTab({ view, query }: ForgeTabProps) {
   const { kind, api, scope, refresh, reportFreshness } = useForge();
@@ -89,10 +91,11 @@ function BranchRow({ kind, repo, branch: b, defaultBranch }: {
   const badge = b.change ? changeBadge(b.change) : null;
 
   return (
-    <li className="fgl-branch" data-selected={isSelected || undefined}>
+    <li className="fgl-branch ig-row" data-selected={isSelected || undefined}>
       <button
         type="button"
         className="fgl-hit"
+        data-nav=""
         aria-current={isSelected || undefined}
         aria-label={b.change ? `${b.name}, ${words.change.toLowerCase()} ${changeName}` : b.name}
         onClick={() => select(target)}
@@ -109,7 +112,9 @@ function BranchRow({ kind, repo, branch: b, defaultBranch }: {
         {b.commit.committedAt != null && <><span className="fgl-dot" aria-hidden="true">·</span><Ago at={b.commit.committedAt} /></>}
       </span>
       <span className="fgl-stats" data-empty={(!diverge && !b.ci) || undefined}>
-        <span className="fgl-diverge" data-empty={!diverge || undefined}>
+        {/* The numbers in words for the pointer too, as GitLab's Branches
+            page explains them on hover; a screen reader hears the same words. */}
+        <span className="fgl-diverge" data-empty={!diverge || undefined} title={diverge ?? undefined}>
           {diverge && (
             <>
               <span className="fgl-behind" aria-hidden="true">{divergeCount(b.behind)}</span>
@@ -125,12 +130,12 @@ function BranchRow({ kind, repo, branch: b, defaultBranch }: {
         {badge && changeName
           ? (
             <span className="fg-badge" data-tone={badge.tone} title={`${words.change} ${changeName}: ${badge.word}`}>
-              <span aria-hidden="true">{badge.mark}</span> <code>{changeName}</code> {badge.word}
+              <StateGlyph name={badge.mark} /> <code>{changeName}</code> {badge.word}
             </span>
           )
           : !b.isDefault && (
-            <a className="fg-open fgl-create" href={newChangeUrl(kind, b)} target="_blank" rel="noreferrer noopener">
-              Create {words.change.toLowerCase()} <span aria-hidden="true">↗</span>
+            <a className="ig-open fgl-create" href={newChangeUrl(kind, b)} target="_blank" rel="noreferrer noopener">
+              Create {words.change.toLowerCase()}<ExternalLinkGlyph />
             </a>
           )}
       </span>

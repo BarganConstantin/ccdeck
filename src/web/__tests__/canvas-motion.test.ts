@@ -455,27 +455,24 @@ const PRESSES: Press[] = [
   [".agent-node .stop-continue:active:not(:disabled)", "0.97", "transform"],
   [".detail-continue-how > summary:active", "0.97", "transform"],
   // The integrations modal (#2178): Back to the list on a narrow window, and
-  // the Jira panel's controls — a sprint's header, an issue's row and its
-  // disclosure triangle (0.94: a 12px glyph), a board in the picker, a
-  // sub-task in an issue's detail, a crumb back up its path, and the
-  // worded links (Clear filters, Try again).
+  // the Jira panel's controls — a sprint's header, an issue's disclosure
+  // triangle (0.94: a 12px glyph), a board in the picker, a crumb back up its
+  // path, and the worded links (Clear filters, Try again). Its rows are
+  // exempt, below.
   [".ig-back:active", "0.97", "transform"],
   [".jr-group-toggle:active", "0.97", "transform"],
-  [".jr-row-main:active", "0.97", "transform"],
   [".jr-toggle:active", "0.94", "transform"],
   [".jr-board-item:active", "0.97", "transform"],
-  [".jr-detail-sub:active", "0.97", "transform"],
   [".jr-crumb:active", "0.97", "transform"],
   [".jr-link-btn:active", "0.97", "transform"],
-  // The GitHub and GitLab panel (#2179): a list's row, a group's or a stage's
-  // fold, a project in the picker and a link to another item on a page are
-  // labelled controls, 0.97; the copy button beside a value is a glyph in a
-  // 24px box, 0.94.
-  [".fg-row:active", "0.97", "transform"],
+  // The GitHub and GitLab panel (#2179): a group's or a stage's fold, a
+  // project in the picker and a link to another item on a page are labelled
+  // controls, 0.97. The copy button beside a value is the integrations'
+  // shared one, a .glyph-btn, and presses as one (0.94, above). Its rows are
+  // exempt, below.
   [".fg-fold:active", "0.97", "transform"],
   [".fgl-repo-option:active", "0.97", "transform"],
   [".fd-jump:active", "0.97", "transform"],
-  [".fg-copy:active", "0.94", "transform"],
   // A history chart's peak figure, which keeps that minute's reading under the
   // chart: a number and its word, a labelled control, so 0.97.
   [".hist-peak:active", "0.97", "transform"],
@@ -607,11 +604,23 @@ const EXEMPT: string[] = [
   // the frame moving to it; a 118px preview scaled by 3% lurches rather than
   // clicks, and the hover plate under it already deepens.
   ".appearance-theme",
+  // A row in the GitHub and GitLab panel (#2179) — a change, pipeline or
+  // issue in a list, a job or a pipeline on an item's page — is the door to
+  // its item, answered the way an account's row is: its tone deepens a step
+  // and nothing moves. A full-width row that scaled slid its title and facts
+  // out from under the pointer in the instant the item opened.
+  ".fg-row",
   // A branch row's hit area in the GitHub and GitLab panel (#2179): an empty
   // button stretched over the row so the copy button and Create merge request
   // inside it stay controls of their own. Scaling it would move only the
   // invisible hit target; the row answers with its fill, as the LAN list's do.
   ".fgl-hit",
+  // A row in the Jira panel (#2178) — an issue or a sub-task in the backlog,
+  // a sub-task on an issue's page — is the door to its issue, answered as the
+  // GitHub and GitLab panel's rows are: its tone deepens a step and nothing
+  // moves.
+  ".jr-row-main",
+  ".jr-detail-sub",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {

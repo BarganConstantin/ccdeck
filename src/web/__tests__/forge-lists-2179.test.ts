@@ -279,13 +279,15 @@ describe("the Branches tab", () => {
   it("shows the merge request's badge, or the way to create one", () => {
     expect(html).toContain("<code>!12</code> Draft");
     expect(html).toContain('href="https://gitlab.example.com/acme/web/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2Fsearch"');
-    expect(html).toMatch(/<a class="fg-open fgl-create" href="[^"]+" target="_blank" rel="noreferrer noopener">Create merge request/);
+    expect(html).toMatch(/<a class="ig-open fgl-create" href="[^"]+" target="_blank" rel="noreferrer noopener">Create merge request<svg/);
   });
 
   it("writes behind | ahead with GitLab's cap, and the pipeline as a mark and a word", () => {
     expect(html).toContain(">999+</span>");
     expect(html).toContain("1 commit behind, 999+ ahead of “main”");
-    expect(html).toMatch(/data-tone="bad"[^>]*><span aria-hidden="true">✕<\/span><span class="fg-mark-word">failed<\/span>/);
+    // The same words on hover, for the two numbers that have no label of their own.
+    expect(html).toContain('<span class="fgl-diverge" title="1 commit behind, 999+ ahead of “main”">');
+    expect(html).toMatch(/data-tone="bad"[^>]*><svg class="fg-glyph" data-glyph="failed"[^>]*aria-hidden="true">(?:(?!<\/svg>).)*<\/svg><span class="fg-mark-word">failed<\/span>/);
   });
 
   it("keeps the copy button and the Create link out of the row's button", () => {
@@ -296,7 +298,7 @@ describe("the Branches tab", () => {
   it("marks the selected row, which is the branch's merge request when it has one", () => {
     const selected: ForgeSelection = { type: "change", repo: "acme/web", number: 12 };
     const sel = draw({ ...c, selected }, tab(BranchesTab, view({ repo: "acme/web" })));
-    expect(sel).toMatch(/<li class="fgl-branch" data-selected="true"><button type="button" class="fgl-hit" aria-current="true" aria-label="feature\/login, merge request !12"/);
+    expect(sel).toMatch(/<li class="fgl-branch ig-row" data-selected="true"><button type="button" class="fgl-hit" data-nav="" aria-current="true" aria-label="feature\/login, merge request !12"/);
     expect(sel.match(/aria-current="true"/g)).toHaveLength(1);
   });
 
@@ -309,7 +311,7 @@ describe("the Branches tab", () => {
   });
 
   it("shows loading rows before the first answer", () => {
-    expect(draw(ctx("gitlab"), tab(BranchesTab, view({ repo: "acme/web" })))).toContain('role="status" aria-label="Loading branches"');
+    expect(draw(ctx("gitlab"), tab(BranchesTab, view({ repo: "acme/web" })))).toContain('<div class="ig-skeleton" data-variant="rows" role="status"><span class="vis-hidden">Loading branches</span>');
   });
 });
 
@@ -320,7 +322,7 @@ describe("the Merge requests tab", () => {
     keep(c, "changes", { repo: undefined, filter: "all", state: "open", sort: "created" }, page([change(5)]));
     const one = draw(c, tab(ChangesTab, view({ tab: "changes", repo: "acme/web" })));
     expect(one).toContain('<code>!5</code>');
-    expect(one).toContain("◌</span> Draft</span><span class=\"fgl-title-text\">Add login</span>");
+    expect(one).toMatch(/<span class="fg-badge" data-tone="idle"><svg class="fg-glyph" data-glyph="draft"[^>]*aria-hidden="true">(?:(?!<\/svg>).)*<\/svg> Draft<\/span><span class="fgl-title-text">Add login<\/span>/);
     const all = draw(c, tab(ChangesTab, view({ tab: "changes", repo: null })));
     expect(all).toContain('<code>acme/web!5</code>');
   });
@@ -334,6 +336,17 @@ describe("the Merge requests tab", () => {
     expect(html).toContain('aria-pressed="false">Merged</button>');
     expect(html).toContain('<span class="fgl-seg-count">1,868</span>');
     expect(html).toContain('aria-pressed="true">All</button>');
+  });
+
+  it("draws the scope as a menu button too, named by the current choice, for a narrow list", () => {
+    const c = ctx("gitlab");
+    keep(c, "changes", { repo: undefined, filter: "mine", state: "open", sort: "created" }, page([change(1)]));
+    const html = draw(c, tab(ChangesTab, view({ tab: "changes", filter: "mine" })));
+    expect(html).toMatch(/<div class="uh-range fgl-seg fgl-scope-seg" role="group" aria-label="Which merge requests">/);
+    expect(html).toMatch(/<button id="[^"]+" type="button" class="btn fgl-scope-trigger" aria-label="Which merge requests: Mine" aria-haspopup="menu" aria-expanded="false">Mine<svg/);
+    // The sort keeps its name whole when only its glyph shows.
+    expect(html).toMatch(/class="btn fgl-sort"[^>]*aria-label="Sorted by date created, newest first\. Sort by last updated instead\."/);
+    expect(html).toContain('<span class="fgl-sort-word">Created</span>');
   });
 
   it("splits review requests: waiting for me open, approved by me folded", () => {
@@ -362,15 +375,67 @@ describe("the Merge requests tab", () => {
     expect(html).toContain('<span class="fg-sr">Reviewer: </span>');
     expect(html).toContain('<span class="fg-sr">, approved</span>');
     expect(html).not.toMatch(/class="fgl-people"[^>]*aria-label/);
-    expect(html).toContain("✓</span> Approved");
+    expect(html).toMatch(/<span class="fg-badge" data-tone="ok"><svg class="fg-glyph" data-glyph="approved"[^>]*aria-hidden="true">(?:(?!<\/svg>).)*<\/svg> Approved<\/span>/);
+    // The reviewer's mark on their face is drawn from the same family.
+    expect(html).toMatch(/<span class="fgl-reviewer-mark" aria-hidden="true"><svg class="fg-glyph" data-glyph="approved"/);
+    // The face is the integrations' shared one, with no tooltip of its own to
+    // cover "Bob: approved".
+    expect(html).toMatch(/<span class="fgl-reviewer" data-tone="ok" title="Bob: approved"><span class="ig-avatar ig-avatar-initials"[^>]*>BO?<\/span><span class="fg-sr">Bob<\/span>/);
     expect(html).toContain('title="4 comments"');
     expect(noNestedControls(html)).toBe(true);
+  });
+
+  it("rings the reader's own face, whatever the case of the login", () => {
+    const reviewers = [
+      { login: "bob", name: "Bob", avatarUrl: null, webUrl: null, state: "approved" as const },
+      { login: "carol", name: "Carol", avatarUrl: null, webUrl: null, state: "pending" as const },
+    ];
+    const c = ctx("gitlab", { connection: { id: "c1", name: "Test", baseUrl: "https://gitlab.example.com", account: { login: "Bob", name: "Bob", avatarUrl: null } } });
+    keep(c, "changes", { repo: "acme/web", filter: "all", state: "open", sort: "created" }, page([change(3, { reviewers })]));
+    const html = draw(c, tab(ChangesTab, view({ tab: "changes", repo: "acme/web" })));
+    expect(html.match(/data-you="true"/g)).toHaveLength(1);
+    expect(html).toMatch(/title="Bob: approved"><span class="ig-avatar ig-avatar-initials"[^>]*data-you="true"/);
+    // Without an account to compare with, nobody is ringed.
+    const none = ctx("gitlab");
+    keep(none, "changes", { repo: "acme/web", filter: "all", state: "open", sort: "created" }, page([change(3, { reviewers })]));
+    expect(draw(none, tab(ChangesTab, view({ tab: "changes", repo: "acme/web" })))).not.toContain("data-you");
+  });
+
+  it("draws the selected row as the integrations' shared selected row, distinct from a hover", () => {
+    const c = ctx("gitlab");
+    keep(c, "changes", { repo: "acme/web", filter: "all", state: "open", sort: "created" }, page([change(3), change(4)]));
+    const selected: ForgeSelection = { type: "change", repo: "acme/web", number: 4 };
+    const html = draw({ ...c, selected }, tab(ChangesTab, view({ tab: "changes", repo: "acme/web" })));
+    expect(html).toContain('<button type="button" class="fg-row fgl-row ig-row" data-nav="" data-selected="true" aria-current="true">');
+    expect(html.match(/class="fg-row fgl-row ig-row"/g)).toHaveLength(2);
+    expect(html.match(/data-selected="true"/g)).toHaveLength(1);
+  });
+
+  it("says a failed read with the integrations' shared note, its way out chosen by the failure", () => {
+    const c = ctx("gitlab");
+    const params = { repo: "acme/web", filter: "all", state: "open", sort: "created" };
+    keepRead(`${c.scope}\n${forgeReadPath("changes", params)}`, { data: null, loadedAt: null, error: { kind: "unreachable", message: "x" } });
+    const html = draw(c, tab(ChangesTab, view({ tab: "changes", repo: "acme/web" })));
+    expect(html).toContain('<div class="ig-failure" data-kind="unreachable">');
+    expect(html).toContain("gitlab.example.com did not answer");
+    expect(html).toContain(">Try again</button>");
+    // A refused token is fixed by reconnecting, not by asking again.
+    const c2 = ctx("github");
+    keepRead(`${c2.scope}\n${forgeReadPath("changes", params)}`, { data: null, loadedAt: null, error: { kind: "auth", message: "x" } });
+    const auth = draw(c2, tab(ChangesTab, view({ tab: "changes", repo: "acme/web" })));
+    expect(auth).toContain("GitHub did not accept the saved token");
+    expect(auth).toContain(">Reconnect</button>");
+    expect(auth).not.toContain("Try again");
+    // The scope the token lacks leads the sentence.
+    const c3 = ctx("gitlab");
+    keepRead(`${c3.scope}\n${forgeReadPath("changes", params)}`, { data: null, loadedAt: null, error: { kind: "permission", message: "The token lacks the read_api scope." } });
+    expect(draw(c3, tab(ChangesTab, view({ tab: "changes", repo: "acme/web" })))).toContain("The token lacks the read_api scope. Check the token&#x27;s scopes in the connection&#x27;s settings.");
   });
 
   it("ends a merged row on when it was merged", () => {
     const c = ctx("gitlab");
     keep(c, "changes", { repo: "acme/web", filter: "all", state: "merged", sort: "created" }, page([change(4, { state: "merged", mergedAt: Date.now() - 60_000 })]));
-    expect(draw(c, tab(ChangesTab, view({ tab: "changes", repo: "acme/web", state: "merged" })))).toContain("merged <time");
+    expect(draw(c, tab(ChangesTab, view({ tab: "changes", repo: "acme/web", state: "merged" })))).toContain('<span class="fgl-when-verb">merged </span><time');
   });
 
   it("says Pull requests and # on GitHub", () => {
@@ -398,7 +463,7 @@ describe("the Pipelines tab", () => {
     expect(html).toContain('<span class="fgl-title-text">Add login</span>');
     expect(html).toContain(" · ci · pull request");
     expect(html).toContain('<span class="fgl-repo-ref">acme/api</span> · ');
-    expect(html).toContain("started <time");
+    expect(html).toContain('<span class="fgl-when-verb">started </span><time');
   });
 
   it("says when nothing ran", () => {
@@ -430,10 +495,23 @@ describe("the Issues tab", () => {
     expect(html).toContain('style="background:#d73a4a"');
     expect(html).not.toContain("red;x\"");
     expect(html).toContain("2/5");
-    // Three faces, then +1 — and the same list in words.
-    expect(html).toContain('<span class="fg-sr">Assigned to: </span>');
-    expect(html).toContain('<span class="fgl-people-more" aria-hidden="true">+1</span><span class="fg-sr"> and 1 more</span>');
-    expect(html).not.toMatch(/class="fgl-people"[^>]*aria-label/);
+    // Three faces, then +1: the integrations' shared stack, one picture to a
+    // screen reader, named with every assignee (the fourth included).
+    expect(html).toContain('<span class="ig-stack" role="img" aria-label="Assigned to bob, carol, dave and erin"');
+    expect(html.match(/class="ig-stack"(?:(?!<\/span><\/span>).)*/)?.[0].match(/class="ig-avatar /g)).toHaveLength(3);
+    expect(html).toContain('<span class="ig-stack-more" aria-hidden="true">+1</span>');
+  });
+
+  it("draws a GitLab scoped label in two parts, as the item's page does, the whole name on hover", () => {
+    const c = ctx("gitlab");
+    keep(c, "issues", { repo: undefined, state: "open" }, page([issue(8, {
+      labels: [{ name: "priority::high", color: "#d73a4a" }, { name: "team::platform::web", color: null }, { name: "bug", color: null }],
+    })]));
+    const html = draw(c, tab(IssuesTab, view({ tab: "issues" })));
+    expect(html).toContain('<span class="fgl-label" title="priority::high"><i class="fgl-label-dot" style="background:#d73a4a" aria-hidden="true"></i><span class="fgl-label-scope">priority<span class="fg-sr">::</span></span><span class="fgl-label-name">high</span></span>');
+    // The last "::" is the cut, as GitLab makes it.
+    expect(html).toContain('<span class="fgl-label-scope">team::platform<span class="fg-sr">::</span></span><span class="fgl-label-name">web</span>');
+    expect(html).toContain('<span class="fgl-label" title="bug"><span class="fgl-label-name">bug</span></span>');
   });
 
   it("badges an issue GitHub closed as not planned", () => {
@@ -441,7 +519,7 @@ describe("the Issues tab", () => {
     keep(c, "issues", { repo: "acme/web", state: "closed" }, page([issue(3, { kind: "github", state: "closed", stateReason: "not_planned", closedAt: Date.now() - 1000 })]));
     const html = draw(c, tab(IssuesTab, view({ tab: "issues", repo: "acme/web", issueState: "closed" })));
     expect(html).toContain("Not planned");
-    expect(html).toContain("closed <time");
+    expect(html).toContain('<span class="fgl-when-verb">closed </span><time');
     expect(html).not.toContain("Assigned to you");
   });
 });

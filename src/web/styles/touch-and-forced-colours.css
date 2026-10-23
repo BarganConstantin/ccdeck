@@ -314,6 +314,11 @@
      outlined, since their fills are gone. */
   .ig-splitter::before { forced-color-adjust: none; background: CanvasText; }
   .ig-splitter:hover::before, .ig-splitter:focus-visible::before { background: Highlight; }
-  .jr-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
+  /* The chosen row of any integration panel: its fill is gone, its outline stays. */
+  .ig-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
+  /* The reader's own face keeps its ring, in the highlight, apart from every other face's edge. */
+  .ig-avatar[data-you] { outline-color: Highlight; }
+  /* The project the arrows are on in the forge's picker, whose fill is gone. */
+  .fgl-repo-option[data-active="true"] { outline: 1px solid Highlight; outline-offset: -1px; }
   button.btn.jr-chip[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
 }
