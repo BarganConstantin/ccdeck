@@ -109,20 +109,21 @@ export const RadioGlyph = () => (
   <Glyph><path d="M2 5h10v7H2z M4 5l6-3 M4 8h3 M9 8h1 M4 10h1 M8 10h2" /></Glyph>
 );
 
-/** Tool activity: a hammer and a wrench crossed — the toolbox sign, read as
- *  "tools" at a glance where the wrench alone sat one stroke from Settings'
- *  gear. */
+/** Tool activity: a toolbox — a wide handle, a lid line and the latch on it.
+ *  Straight strokes only: the crossed hammer and wrench it replaced was all
+ *  diagonals, which a 13px glyph at 1x rendered as a blur. The wide handle and
+ *  the latch keep it from reading as a briefcase. */
 export const ToolActivityGlyph = () => (
   <Glyph>
-    <path d="M2.4 11.6 7.6 6.4" />
-    <path d="M7.6 6.4a2.4 2.4 0 0 0 3.3-3.1L9.6 4.6 8.4 3.4l1.3-1.3a2.4 2.4 0 0 0-3.1 3.3" />
-    <path d="M11.6 11.6 6.2 6.2" />
-    <path d="M2.3 4.1 4.1 2.3 6.6 4.8 4.8 6.6Z" />
+    <rect x="1.6" y="5.4" width="10.8" height="6.4" rx="1.2" />
+    <path d="M4 5.4V3h6v2.4" />
+    <path d="M1.6 8.4h4.2M8.2 8.4h4.2" />
+    <path d="M5.8 7.6h2.4v1.6H5.8z" />
   </Glyph>
 );
 
 /** Skill activity: two sparks, the sign for an ability the agent can call on,
- *  and nothing like the crossed tools beside it. */
+ *  and nothing like the toolbox beside it. */
 export const SkillActivityGlyph = () => (
   <Glyph>
     <path d="M6 2.4c.4 2.5 1.5 3.6 4 4-2.5.4-3.6 1.5-4 4-.4-2.5-1.5-3.6-4-4 2.5-.4 3.6-1.5 4-4Z" />
