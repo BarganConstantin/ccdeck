@@ -191,8 +191,8 @@ export function EdgeRail({ side, label, groups }: { side: "left" | "right"; labe
   return (
     <div ref={ref} className={RAIL_CLASS[side]} role="toolbar" aria-label={label}
       aria-orientation="vertical" onKeyDown={roving.onKeyDown}>
-      {items.map((group, g) => (
-        <div className="rail-group" key={g} data-rail-group={group[0]?.id === "explore-integrations" ? "explore" : undefined}>
+      {items.map(group => (
+        <div className="rail-group" key={group[0].id} data-rail-group={group[0].id === "explore-integrations" ? "explore" : undefined}>
           {group.map(item => {
             const i = index++;
             return (
