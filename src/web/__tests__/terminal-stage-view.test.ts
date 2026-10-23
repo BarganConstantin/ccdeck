@@ -146,8 +146,8 @@ describe("the header", () => {
     const tree = StageHeader(headerProps({ takeover: true }));
     expect(button(tree, BACK_LABEL)).not.toBeNull();
     expect(BACK_LABEL).toMatch(/keeps running/);
-    expect(button(tree, "Give the stage the width")).toBeNull();
-    expect(button(StageHeader(headerProps()), "Give the stage the width")).not.toBeNull();
+    expect(button(tree, "Give the Command Panel the width")).toBeNull();
+    expect(button(StageHeader(headerProps()), "Give the Command Panel the width")).not.toBeNull();
     expect(button(StageHeader(headerProps({ expanded: true })), "Give the board its room back")).not.toBeNull();
   });
 
@@ -162,7 +162,7 @@ describe("the header", () => {
   });
 
   it("keeps the pane's keys across ⤢, so typing carries on in the wider stage", () => {
-    const expand = button(StageHeader(headerProps({ keysOwner: "pane" })), "Give the stage the width")!;
+    const expand = button(StageHeader(headerProps({ keysOwner: "pane" })), "Give the Command Panel the width")!;
     const down = { preventDefault: vi.fn() };
     (expand.props.onMouseDown as (e: unknown) => void)(down);
     expect(down.preventDefault).toHaveBeenCalled();
@@ -358,7 +358,7 @@ describe("the keys bar", () => {
     const props = barProps({ firstRun: true });
     const out = html(createElement(KeysBar, props));
     expect(out).toContain("Typing goes to the session");
-    expect(out).toContain("closes the stage; the session keeps running");
+    expect(out).toContain("closes the Command Panel; the session keeps running");
     press(button(KeysBar(props), "Got it"));
     expect(props.onFirstRunDone).toHaveBeenCalled();
   });
@@ -415,18 +415,18 @@ describe("the stage as a whole", () => {
 
   it("is a region named for its session, its hue on the spine, sized from the geometry", () => {
     const out = html(createElement(TerminalStage, stageProps(session)));
-    expect(out).toMatch(/^<section class="ts-stage" role="region" aria-label="Terminal — paycore" data-kind="empty"/);
+    expect(out).toMatch(/^<section class="ts-stage" role="region" aria-label="Command Panel — paycore" data-kind="empty"/);
     expect(out).toContain("--session-hue:270");
     expect(out).toContain("--ts-term-top:14px");
     expect(out).toContain("--ts-head-h:64px");
-    expect(out, "the divider is a separator with a value").toMatch(/role="separator" aria-orientation="vertical" aria-label="Stage width" aria-valuemin="80" aria-valuemax="134" aria-valuenow="120" aria-valuetext="120 columns"/);
+    expect(out, "the divider is a separator with a value").toMatch(/role="separator" aria-orientation="vertical" aria-label="Command Panel width" aria-valuemin="80" aria-valuemax="134" aria-valuenow="120" aria-valuetext="120 columns"/);
   });
 
   it("calls the empty stage what it is, with nothing on the spine", () => {
     const out = html(createElement(TerminalStage, stageProps({ kind: "empty" })));
-    expect(out).toContain('aria-label="Terminal — Nothing on the stage"');
+    expect(out).toContain('aria-label="Command Panel — No session open"');
     expect(out).toContain("data-empty");
-    expect(stageName({ kind: "empty" })).toBe("Nothing on the stage");
+    expect(stageName({ kind: "empty" })).toBe("No session open");
   });
 
   it("draws no divider in the takeover, where there is no board to divide from", () => {

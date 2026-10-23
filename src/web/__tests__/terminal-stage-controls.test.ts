@@ -30,7 +30,7 @@ describe("the divider", () => {
   it("is a separator a screen reader can read as a number of columns", () => {
     const sep = separator(mount(Divider, props()).tree);
     expect(sep.props).toMatchObject({
-      "aria-orientation": "vertical", "aria-label": "Stage width", tabIndex: 0,
+      "aria-orientation": "vertical", "aria-label": "Command Panel width", tabIndex: 0,
       "aria-valuemin": 80, "aria-valuemax": range.max, "aria-valuenow": 120, "aria-valuetext": "120 columns",
     });
   });
@@ -180,7 +180,7 @@ describe("the New session form", () => {
 
   it("says in one sentence that the session joins the board and outlives the stage", () => {
     const text = textOf(mount(NewSessionForm, props()).tree);
-    expect(text).toContain("It joins the board as its own cluster and opens here, inside the deck's tmux — closing the stage never stops it.");
+    expect(text).toContain("It joins the board as its own cluster and opens here, inside the deck's tmux — closing the Command Panel never stops it.");
   });
 
   it("offers only the path when the board has no projects yet", () => {

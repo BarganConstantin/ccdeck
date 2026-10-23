@@ -74,7 +74,7 @@ describe("the stage beside the board", () => {
 
   it("holds the session's stage, named for the session, with the parts the morph moves", () => {
     const out = dock(stageOn({ kind: "session", id: "s1" }));
-    expect(out).toContain('aria-label="Terminal — paycore"');
+    expect(out).toContain('aria-label="Command Panel — paycore"');
     expect(out).toMatch(/<div class="stage-in">/);
     expect(out).toMatch(/<span class="stage-edge" aria-hidden="true"><\/span>/);
     expect(out).toMatch(/<span class="stage-rider" aria-hidden="true">paycore<\/span>/);
@@ -97,7 +97,7 @@ describe("the stage beside the board", () => {
 
   it("is the empty stage, with New session its one action, when nothing is on it", () => {
     const out = dock(stageOn({ kind: "empty" }));
-    expect(out).toContain('aria-label="Terminal — Nothing on the stage"');
+    expect(out).toContain('aria-label="Command Panel — No session open"');
     expect(out).toContain('id="ts-empty-new-session"');
   });
 });

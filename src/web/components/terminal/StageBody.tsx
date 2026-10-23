@@ -172,7 +172,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
         <div className="ts-card">
           <div className="ts-ctx ts-fact"><i className="ts-fact-mark" data-kind="tmux" aria-hidden="true" />tmux · setting up</div>
           <p className="ts-text">
-            This machine has no tmux the stage can use, so the deck is fetching its own: about a megabyte, once. It
+            This machine has no tmux the Command Panel can use, so the deck is fetching its own: about a megabyte, once. It
             stays in the deck's folder; nothing is installed on the system.
           </p>
           <div className="ts-setup">
@@ -197,8 +197,8 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
           <div className="ts-ctx ts-fact"><i className="ts-fact-mark" data-kind="tmux" aria-hidden="true" /><span className="ts-fact-text">{tmuxFact(phase.reason)}</span></div>
           {phase.download && <p className="ts-note">{downloadNote(phase.download)}</p>}
           <p className="ts-text">
-            The stage runs each session inside the deck's own tmux, which is what lets it keep running when you close
-            the stage or the deck restarts. {phase.reason === "too-old" ? "Update it" : "Install it"}, then check again.
+            The Command Panel runs each session inside the deck's own tmux, which is what lets it keep running when you
+            close the panel or the deck restarts. {phase.reason === "too-old" ? "Update it" : "Install it"}, then check again.
           </p>
           {phase.install && <InstallPlate line={phase.install} />}
           <div className="ts-acts">

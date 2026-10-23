@@ -100,7 +100,7 @@ export default function Divider(p: DividerProps) {
         className="ts-divider"
         role="separator"
         aria-orientation="vertical"
-        aria-label="Stage width"
+        aria-label="Command Panel width"
         aria-valuemin={p.range.min}
         aria-valuemax={p.range.max}
         aria-valuenow={p.cols}

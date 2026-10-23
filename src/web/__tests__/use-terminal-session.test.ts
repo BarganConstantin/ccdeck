@@ -313,10 +313,10 @@ describe("opening a session: write before reveal", () => {
 
   it("draws a refusal as a sentence the deck wrote", async () => {
     const { r, ctl } = rig();
-    r.open.mockResolvedValueOnce(failure(404, "The terminal is not switched on for this deck."));
+    r.open.mockResolvedValueOnce(failure(404, "The Command Panel is not switched on for this deck."));
     ctl.show({ kind: "session", ref: REF });
     await flush();
-    expect(r.last().phase).toEqual({ kind: "error", message: "The terminal is not switched on for this deck." });
+    expect(r.last().phase).toEqual({ kind: "error", message: "The Command Panel is not switched on for this deck." });
   });
 });
 

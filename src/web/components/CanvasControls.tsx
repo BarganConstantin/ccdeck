@@ -198,8 +198,8 @@ export default function CanvasControls({
         <ControlButton
           data-group-start=""
           onClick={e => onTerminal(e.currentTarget)}
-          title="Open the terminal — the selected session, or the last one"
-          aria-label="Open the terminal"
+          title="Open the Command Panel — the selected session, or the last one"
+          aria-label="Open the Command Panel"
         >
           {/* a prompt: a chevron and the cursor's underline */}
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>

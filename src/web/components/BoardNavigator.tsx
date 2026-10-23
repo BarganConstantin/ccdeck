@@ -421,7 +421,7 @@ function faceLabel(cluster: Cluster, root: NavAgent | null, attached: boolean): 
   return [
     root ? agentAriaLabel(root) : cluster.fullLabel,
     cluster.name,
-    attached ? "on the stage" : null,
+    attached ? "open in the Command Panel" : null,
   ].filter(Boolean).join(", ");
 }
 

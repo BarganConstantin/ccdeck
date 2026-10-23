@@ -197,7 +197,7 @@ export function subjectOf(show: StageShow): StageSubject {
 
 /** The stage's name for itself: the session's, or the empty stage's title. */
 export function stageName(show: StageShow): string {
-  return show.kind === "session" ? show.session.name : show.kind === "launch" ? show.name : "Nothing on the stage";
+  return show.kind === "session" ? show.session.name : show.kind === "launch" ? show.name : "No session open";
 }
 
 /**
@@ -360,7 +360,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       ref={rootRef}
       className="ts-stage"
       role="region"
-      aria-label={`Terminal — ${name}`}
+      aria-label={`Command Panel — ${name}`}
       data-kind={phase.kind}
       data-empty={p.show.kind === "empty" || undefined}
       data-live={live || undefined}

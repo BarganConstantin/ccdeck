@@ -29,7 +29,7 @@ import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, Provi
 /** ✕'s name and tooltip, word for word (DESIGN.md: never "stop"/"end"/"quit"). */
 export const CLOSE_LABEL = "Close — the session keeps running";
 /** ✕ and ‹ on a stage with no session on it, where there is nothing to keep. */
-export const CLOSE_EMPTY_LABEL = "Close the stage";
+export const CLOSE_EMPTY_LABEL = "Close the Command Panel";
 export const BACK_EMPTY_LABEL = "Back to the board";
 export const BACK_LABEL = "Back to the board — the session keeps running";
 
@@ -83,7 +83,7 @@ export function chipLabel(provider: TerminalProvider | null | undefined, text: s
 /** ⤢'s name: what a press will do. Full screen is named for what it is for. */
 export function expandLabelFor(expanded: boolean, canFull: boolean, full: boolean): string {
   if (expanded) return full ? FULL_LEAVE_LABEL : "Give the board its room back";
-  return canFull ? FULL_LABEL : "Give the stage the width";
+  return canFull ? FULL_LABEL : "Give the Command Panel the width";
 }
 
 export const FULL_LABEL = "Full screen — Ctrl+W, Ctrl+T and Ctrl+N go to the session";

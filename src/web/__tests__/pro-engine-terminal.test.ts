@@ -599,7 +599,7 @@ describe.skipIf(process.platform === "win32")("the terminal socket relayed to th
     const d = await deck(e);
     const a = await d.dial(await d.ticket()), b = await d.dial(await d.ticket());
     await a.next(); await b.next();
-    const text = "The terminal was turned off in Settings. The session is still running.";
+    const text = "The Command Panel was turned off in Settings. The session is still running.";
     expect(ts.closeOpenTerminals("error", text)).toBe(2);
     for (const c of [a, b]) {
       expect(json(await c.next())).toEqual({ t: "exit", reason: "error", message: text });

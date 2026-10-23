@@ -71,7 +71,7 @@ export const loadStageShell = () => import("./components/terminal/StageShell");
 
 /** What is said when the lazy chunk will not load — a tab left open across an
  *  upgrade asks for a file the new build no longer has. */
-export const SHELL_UNAVAILABLE = "The terminal could not be loaded. Reload the page to use it.";
+export const SHELL_UNAVAILABLE = "The Command Panel could not be loaded. Reload the page to use it.";
 
 const pageRect = (r: DOMRect | { left: number; top: number; width: number; height: number }): ShellRect =>
   ({ x: r.left, y: r.top, w: r.width, h: r.height });

@@ -208,7 +208,7 @@ describe("failures are values, never throws", () => {
       for (const body of [{ error: "not found" }, "Not Found", {}]) {
         const { fetchFn } = answering(404, body);
         expect(await make()({ fetchFn }), JSON.stringify(body))
-          .toEqual({ ok: false, status: 404, error: "The terminal is not switched on for this deck." });
+          .toEqual({ ok: false, status: 404, error: "The Command Panel is not switched on for this deck." });
       }
     }
     const server = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");

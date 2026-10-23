@@ -109,7 +109,7 @@ describe("what the stage knows better than the board", () => {
 
   it("says it is setting up tmux while the deck fetches its own", () => {
     expect(headerStatus(working, { kind: "tmux-installing" })).toEqual({ state: "starting", phrase: "setting up tmux…" });
-    expect(stageAnnouncement("paycore", { kind: "tmux-installing" })).toBe("Setting up tmux for the stage.");
+    expect(stageAnnouncement("paycore", { kind: "tmux-installing" })).toBe("Setting up tmux for the Command Panel.");
   });
 
   it("does not say 'just now' for a pane that had already ended when the stage opened it", () => {
@@ -163,11 +163,11 @@ describe("what the stage knows better than the board", () => {
 
 describe("what the live region is told", () => {
   it("says a change of what the stage shows once, and never that a closed session stopped", () => {
-    expect(stageAnnouncement("paycore", live)).toBe("paycore is on the stage.");
+    expect(stageAnnouncement("paycore", live)).toBe("paycore is open in the Command Panel.");
     expect(stageAnnouncement("paycore", { kind: "ended" })).toMatch(/ended/);
     expect(stageAnnouncement("paycore", { kind: "attaching", reconnect: false })).toBeNull();
-    expect(closedAnnouncement("paycore")).toBe("Stage closed. paycore keeps running.");
-    expect(closedAnnouncement(null)).toBe("Stage closed.");
+    expect(closedAnnouncement("paycore")).toBe("Command Panel closed. paycore keeps running.");
+    expect(closedAnnouncement(null)).toBe("Command Panel closed.");
   });
 });
 

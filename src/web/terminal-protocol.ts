@@ -298,8 +298,8 @@ export const pasteTooLarge = (text: string) =>
 
 /** What the panel is told when the socket ends without an `exit`. Plain
  *  sentences, because the panel may show them as they are. */
-const REFUSED = "The deck did not accept the terminal connection.";
-const LOST = "The connection to the terminal was lost.";
+const REFUSED = "The deck did not accept the Command Panel's connection.";
+const LOST = "The connection to the Command Panel was lost.";
 
 /**
  * Open the panel's socket and speak the protocol above over it.

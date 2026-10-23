@@ -217,7 +217,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", onStart, onC
           </label>
         </>
       )}
-      <p className="ns-note">It joins the board as its own cluster and opens here, inside the deck's tmux — closing the stage never stops it.</p>
+      <p className="ns-note">It joins the board as its own cluster and opens here, inside the deck's tmux — closing the Command Panel never stops it.</p>
       <div className="ns-acts">
         <button type="button" className="btn" onClick={onCancel}>Cancel</button>
         <button type="button" className="btn primary" disabled={!target} onClick={start}>{startLabel(agent, target)}</button>

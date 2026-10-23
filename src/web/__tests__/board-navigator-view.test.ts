@@ -218,7 +218,7 @@ describe("the socket", () => {
     expect(socket).toContain("data-attached");
     expect(socket).toContain('aria-current="true"');
     expect(socket).toContain('class="nav-socket"');
-    expect(socket).toMatch(/aria-label="[^"]*, on the stage"/);
+    expect(socket).toMatch(/aria-label="[^"]*, open in the Command Panel"/);
     for (const other of ["pay", "read", "quiet"]) {
       const t = tile(html, other);
       expect(t, other).not.toContain("data-attached");

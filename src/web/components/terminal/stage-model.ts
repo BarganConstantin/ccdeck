@@ -267,12 +267,12 @@ export function spineLive(status: StageStatus, phase: StagePhase, streaming: boo
  *  say. The integrator hands it to the deck's announcement reducer. */
 export function stageAnnouncement(name: string, phase: StagePhase): string | null {
   switch (phase.kind) {
-    case "live": return `${name} is on the stage.`;
-    case "ended": return `${name} ended. The stage shows its last frame.`;
-    case "detached": return `${name} was detached from the stage. It keeps running.`;
+    case "live": return `${name} is open in the Command Panel.`;
+    case "ended": return `${name} ended. The Command Panel shows its last frame.`;
+    case "detached": return `${name} was detached from the Command Panel. It keeps running.`;
     case "not-attachable": return phase.stillRunning ? `${name} is still running in another terminal.` : `${name} has no pane to attach to.`;
-    case "tmux-installing": return "Setting up tmux for the stage.";
-    case "tmux-missing": return "tmux is not installed, so the stage cannot attach.";
+    case "tmux-installing": return "Setting up tmux for the Command Panel.";
+    case "tmux-missing": return "tmux is not installed, so the Command Panel cannot attach.";
     case "error": return phase.message;
     default: return null;
   }
@@ -280,7 +280,7 @@ export function stageAnnouncement(name: string, phase: StagePhase): string | nul
 
 /** What is said when the stage closes. Never "stopped": it did not stop. */
 export function closedAnnouncement(name: string | null): string {
-  return name ? `Stage closed. ${name} keeps running.` : "Stage closed.";
+  return name ? `Command Panel closed. ${name} keeps running.` : "Command Panel closed.";
 }
 
 // ---------------------------------------------------------------------------

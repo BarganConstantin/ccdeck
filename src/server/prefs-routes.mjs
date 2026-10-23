@@ -56,7 +56,7 @@ function prefsPayload() {
 }
 
 /** What a panel that was open says once the switch in Settings has closed it. */
-export const TERMINAL_TURNED_OFF = "The terminal was turned off in Settings. The session is still running.";
+export const TERMINAL_TURNED_OFF = "The Command Panel was turned off in Settings. The session is still running.";
 
 export function handlePrefsRead(req, res) {
   return send(res, 200, prefsPayload());

@@ -158,7 +158,7 @@ export default function KeysBar(p: KeysBarProps) {
     left = (
       <div className="ts-keys" data-owner={p.owner}>
         <i className="ts-lamp" aria-hidden="true" />
-        <span>Typing goes to the session — <Kbd>Esc</Kbd> included. <Kbd>✕</Kbd> closes the stage; the session keeps running.</span>
+        <span>Typing goes to the session — <Kbd>Esc</Kbd> included. <Kbd>✕</Kbd> closes the Command Panel; the session keeps running.</span>
         <button type="button" className="btn" onClick={p.onFirstRunDone}>Got it</button>
       </div>
     );

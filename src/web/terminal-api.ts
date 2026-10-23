@@ -175,7 +175,7 @@ export interface ApiOptions {
 
 const UNREACHABLE = "The deck did not answer.";
 const CANCELLED = "The request was cancelled.";
-const SWITCHED_OFF = "The terminal is not switched on for this deck.";
+const SWITCHED_OFF = "The Command Panel is not switched on for this deck.";
 const REFUSED = "The deck refused the request from this page.";
 const UNREADABLE = "The deck answered in a form this page cannot read.";
 

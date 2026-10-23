@@ -398,14 +398,14 @@ describe("how it ends — exactly once", () => {
     const { ws, told } = connect();
     ws.open();
     ws.fail(1006);
-    expect(told).toEqual([["error", { kind: "lost", code: 1006, message: "The connection to the terminal was lost." }]]);
+    expect(told).toEqual([["error", { kind: "lost", code: 1006, message: "The connection to the Command Panel was lost." }]]);
   });
 
   it("calls a socket that never opened refused — an expired ticket, the flag off, too many terminals", () => {
     const { conn, ws, told } = connect();
     conn.sendSize(80, 24);
     ws.fail(1006);
-    expect(told).toEqual([["error", { kind: "refused", code: 1006, message: "The deck did not accept the terminal connection." }]]);
+    expect(told).toEqual([["error", { kind: "refused", code: 1006, message: "The deck did not accept the Command Panel's connection." }]]);
     expect(ws.sent, "the queued size must not be flushed into a socket that failed").toEqual([]);
   });
 

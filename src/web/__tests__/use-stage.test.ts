@@ -713,9 +713,9 @@ describe("closing", () => {
     now().stage.reveal();
     now().stage.revealed();
     now().stage.close();
-    now().stage.closed("Stage closed. s1 keeps running.");
+    now().stage.closed("Command Panel closed. s1 keeps running.");
     expect(now().stage.shell.phase).toBe("closed");
-    expect(now().stage.said).toBe("Stage closed. s1 keeps running.");
+    expect(now().stage.said).toBe("Command Panel closed. s1 keeps running.");
     expect(focused).toBe('.react-flow__node[data-id="s1"]');
   });
 

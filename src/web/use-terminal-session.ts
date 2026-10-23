@@ -494,7 +494,7 @@ const sameProgress = (a?: TmuxProgress, b?: TmuxProgress) =>
   a?.stage === b?.stage
   && (a?.stage !== "downloading" || b?.stage !== "downloading" || (a.received === b.received && a.total === b.total));
 
-const STOPPED = "The terminal stopped. The session may still be running.";
+const STOPPED = "The Command Panel stopped. The session may still be running.";
 const NO_RETURN = "The deck did not come back. The session is still running in tmux; try again once the deck is up.";
 const NOT_REOPENABLE = "This session started without a name the deck can find it by yet. Open it from the board.";
 const TMUX_SETUP_SLOW = "The deck is still setting up tmux. Try again in a minute.";
@@ -921,7 +921,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         measure();
       }, () => {
         mounting = false;
-        if (!disposed) setPhase({ kind: "error", message: "The terminal could not be loaded. Reload the page to try again." });
+        if (!disposed) setPhase({ kind: "error", message: "The Command Panel could not be loaded. Reload the page to try again." });
       });
     },
 
