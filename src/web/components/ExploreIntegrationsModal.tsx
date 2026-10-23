@@ -73,11 +73,11 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
                     <div className="explore-actions">
                       {openable ? <>
                         <button type="button" className="btn" aria-label={`Open ${def.label}`} onClick={() => go(() => onOpen(def.kind))}>Open <ExternalLinkGlyph /></button>
-                        <button type="button" className="explore-text-action" aria-label={`Manage ${def.label}`} onClick={() => go(() => onManage(first?.id))}>Manage</button>
+                        <button type="button" className="btn explore-text-action" aria-label={`Manage ${def.label}`} onClick={() => go(() => onManage(first?.id))}>Manage</button>
                       </> : offered ? (
                         <button type="button" className="btn primary" aria-label={`Connect ${def.label}`} onClick={() => go(() => onConnect(def.kind))}>Connect</button>
                       ) : first ? (
-                        <button type="button" className="explore-text-action" aria-label={`Manage ${def.label}`} onClick={() => go(() => onManage(first.id))}>Manage</button>
+                        <button type="button" className="btn explore-text-action" aria-label={`Manage ${def.label}`} onClick={() => go(() => onManage(first.id))}>Manage</button>
                       ) : <span className="explore-unavailable">Not available</span>}
                     </div>
                   </li>
@@ -88,7 +88,7 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
         </div>
         <div className="explore-footer">
           <span>Read only · Tokens stay on this machine</span>
-          <button type="button" className="explore-text-action" onClick={() => go(() => onManage())}>Manage in Settings <ExternalLinkGlyph /></button>
+          <button type="button" className="btn explore-text-action" onClick={() => go(() => onManage())}>Manage in Settings <ExternalLinkGlyph /></button>
         </div>
       </div>
     </div>, document.body,

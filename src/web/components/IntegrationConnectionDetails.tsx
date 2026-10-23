@@ -59,8 +59,8 @@ export default function IntegrationConnectionDetails({ connection, provider, ava
     {!available && <p className="ig-stranded">{label} is not available on this deck. Disconnect deletes this connection and its saved token.</p>}
     {warnings.length > 0 && <ul className="ig-warnings">{warnings.map(w => <li key={w}>{w}</li>)}</ul>}
     {available && <div className="ig-manage-actions">
-      <button type="button" className="btn" disabled={busy !== null && !testing} aria-busy={testing} aria-disabled={testing || undefined} onClick={onTest}>{testing ? "Testing…" : "Test connection"}</button>
-      <button type="button" className="btn" disabled={busy !== null} onClick={event => onEdit(event.currentTarget)}>Edit connection</button>
+      <button type="button" className="btn" aria-busy={testing} aria-disabled={busy !== null || undefined} onClick={onTest}>{testing ? "Testing…" : "Test connection"}</button>
+      <button type="button" className="btn" aria-disabled={busy !== null || undefined} onClick={event => { if (busy === null) onEdit(event.currentTarget); }}>Edit connection</button>
     </div>}
     {note && note.scope !== "disconnect" && <p className="ig-note" data-tone={note.tone} role={note.tone === "err" ? "alert" : "status"}>{note.text}</p>}
     <div className="ig-disconnect-section">
@@ -69,12 +69,12 @@ export default function IntegrationConnectionDetails({ connection, provider, ava
       <div className="ig-manage-actions" data-integration-disconnect-actions onBlur={event => {
         if (armed && !event.currentTarget.contains(event.relatedTarget)) onCancelDisconnect();
       }}>
-      <button ref={disconnectRef} type="button" data-integration-disconnect className={`btn danger${armed ? " armed" : ""}`} disabled={busy !== null && !deleting}
-        aria-busy={deleting} aria-disabled={deleting || undefined}
+      <button ref={disconnectRef} type="button" data-integration-disconnect className={`btn danger${armed ? " armed" : ""}`}
+        aria-busy={deleting} aria-disabled={busy !== null || undefined}
         onKeyDown={event => { if (event.repeat) event.preventDefault(); }}
         aria-label={armed ? `Confirm disconnecting ${connection.name}` : `Disconnect ${connection.name}`}
         onClick={event => onDisconnect(event.currentTarget)}>{deleting ? "Disconnecting…" : armed ? "Confirm disconnect" : "Disconnect"}</button>
-      {armed && <button type="button" className="btn" disabled={busy !== null} aria-label="Cancel disconnect" onClick={() => { onCancelDisconnect(); disconnectRef.current?.focus(); }}>Cancel</button>}
+      {armed && <button type="button" className="btn" aria-disabled={busy !== null || undefined} aria-label="Cancel disconnect" onClick={() => { if (busy !== null) return; onCancelDisconnect(); disconnectRef.current?.focus(); }}>Cancel</button>}
       </div>
       {armed && <p className="ig-note" role="status">Press Confirm disconnect to delete this connection and its saved token, or Cancel to keep it.</p>}
       {note?.scope === "disconnect" && <p className="ig-note" data-tone={note.tone} role={note.tone === "err" ? "alert" : "status"}>{note.text}</p>}

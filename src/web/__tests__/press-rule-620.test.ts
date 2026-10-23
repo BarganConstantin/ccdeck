@@ -86,10 +86,10 @@ function valueAt(code: string, open: number): { expr: string; end: number } | nu
 interface Site { rel: string; line: number; expr: string; text: string; }
 
 /** Every `disabled={…}` in the client, wherever it is. */
-function disabledSites(): Site[] {
+function disabledSites(sources = SOURCES): Site[] {
   const out: Site[] = [];
-  for (const { rel, raw, code } of SOURCES) {
-    for (const m of code.matchAll(/disabled=\{/g)) {
+  for (const { rel, raw, code } of sources) {
+    for (const m of code.matchAll(/(?<![-\w])disabled=\{/g)) {
       const open = m.index! + "disabled=".length;
       const value = valueAt(code, open);
       expect(value, `${rel}: unbalanced braces after disabled=`).not.toBeNull();
@@ -194,6 +194,13 @@ describe("the boolean spelling is the tagged rule, not a second one", () => {
 // ── the sweep ───────────────────────────────────────────────────────────────
 
 describe("no control in the client disables itself on press (#620)", () => {
+  it("distinguishes native disabling from accessible pending-state announcements", () => {
+    const code = '<button aria-disabled={busy} disabled={unavailable} />';
+    expect(disabledSites([{ rel: "fixture.tsx", raw: code, code }]).map(site => site.expr)).toEqual(["unavailable"]);
+    const native = '<button disabled={busy} />';
+    expect(disabledSites([{ rel: "fixture.tsx", raw: native, code: native }]).map(site => site.expr)).toEqual(["busy"]);
+  });
+
   it("sweeps every .tsx, not the four the report happened to name", () => {
     // Cheap, and the reason the sweep is worth more than the nine fixes: if
     // this ever reads 0 or 1 the walk has stopped finding the components and

@@ -403,6 +403,21 @@ describe("what was migrated to the secondary tier", () => {
       ".tr-tab",
       ".tr-tone-unknown",
       ".tr-variables dt > span, .tr-variables dt > code",
+          // Readable descriptions in integration discovery and focused Settings.
+      ".explore-glyph",
+      ".explore-head p",
+      ".explore-info p",
+      ".explore-status",
+      ".explore-text-action",
+      ".ig-back-to-overview",
+      ".ig-detail-facts dt",
+      ".ig-disconnect-section > p",
+      ".ig-leave-confirm p",
+      ".ig-managed-identity p",
+      ".ig-overview-info",
+      ".ig-provider .ig-conn-line",
+      ".ig-total",
+      ".settings-row-details",
     ].sort());
   });
 

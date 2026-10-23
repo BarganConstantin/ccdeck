@@ -327,7 +327,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
   return (
     <div className="ig-settings" data-view={editing ? "form" : managedId ? "connection" : managingKind ? "provider" : "overview"}>
       {editing && <div className="ig-config-view">
-        <button type="button" className="btn ig-back-to-overview" disabled={busy !== null} onClick={() => leave(closeForm, true)}>
+        <button type="button" className="btn ig-back-to-overview" aria-disabled={busy !== null || undefined} onClick={() => leave(closeForm, true)}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 3-5 5 5 5M2 8h12" /></svg>
           {managedId ? "Back to connection" : managingKind ? `Back to ${collectionProvider?.label ?? managingKind} connections` : "All integrations"}
         </button>
@@ -349,10 +349,10 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
       </div>}
       {managingKind && <div className="ig-provider-view" hidden={editing !== null || managedId !== null}>
         <div className="ig-manage-navigation">
-          <button type="button" className="btn ig-back-to-overview" disabled={busy !== null} onClick={() => leave(backToOverview, true)}>
+          <button type="button" className="btn ig-back-to-overview" aria-disabled={busy !== null || undefined} onClick={() => leave(backToOverview, true)}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 3-5 5 5 5M2 8h12" /></svg>All integrations
           </button>
-          {kindOffered(integrations, managingKind) && <button type="button" className="btn" disabled={busy !== null}
+          {kindOffered(integrations, managingKind) && <button type="button" className="btn" aria-disabled={busy !== null || undefined}
             onClick={event => begin({ mode: "add", kind: managingKind }, event.currentTarget)}>Add {collectionProvider?.label ?? managingKind} connection</button>}
         </div>
         <h2 ref={providerHeadingRef} tabIndex={-1} className="ig-managed-title">{collectionProvider?.label ?? managingKind} connections</h2>
@@ -362,10 +362,10 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
       </div>}
       {managedId && <div className="ig-manage-view" hidden={editing !== null}>
         <div className="ig-manage-navigation">
-        <button type="button" className="btn ig-back-to-overview" disabled={busy !== null} onClick={() => leave(backToCollection, true)}>
+        <button type="button" className="btn ig-back-to-overview" aria-disabled={busy !== null || undefined} onClick={() => leave(backToCollection, true)}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 3-5 5 5 5M2 8h12" /></svg>{managingKind ? `Back to ${collectionProvider?.label ?? managingKind} connections` : "All integrations"}
         </button>
-        {managedConnection && kindOffered(integrations, managedConnection.kind) && <button type="button" className="btn" disabled={busy !== null}
+        {managedConnection && kindOffered(integrations, managedConnection.kind) && <button type="button" className="btn" aria-disabled={busy !== null || undefined}
           onClick={event => begin({ mode: "add", kind: managedConnection.kind }, event.currentTarget)}>Add {integrationDef(managedConnection.kind)?.label ?? managedConnection.kind} connection</button>}
         </div>
         {managedConnection ? <IntegrationConnectionDetails connection={managedConnection} provider={integrationDef(managedConnection.kind)}
@@ -404,7 +404,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
                   </>}
                 {!offered.has(provider.kind) && <span className="ig-stranded">{provider.label} is not available on this deck.</span>}
               </div>
-              <button type="button" className={`btn ig-manage${saved.length ? "" : " primary"}`} disabled={busy !== null}
+              <button type="button" className={`btn ig-manage${saved.length ? "" : " primary"}`} aria-disabled={busy !== null || undefined}
                 ref={el => { const refs = saved.length ? providerRefs.current : addRefs.current; if (el) refs.set(provider.kind, el); else refs.delete(provider.kind); }}
                 aria-label={`${saved.length ? "Manage" : "Connect"} ${provider.label}`}
                 onClick={event => saved.length ? openProvider(provider.kind, event.currentTarget) : begin({ mode: "add", kind: provider.kind }, event.currentTarget)}>

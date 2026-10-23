@@ -10,29 +10,29 @@
   display: flex;
   align-items: flex-start;
   gap: 16px;
-  padding: 22px 24px 18px;
+  padding: 24px 24px 18px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
 .explore-head > div { flex: 1; min-width: 0; }
-.explore-head h2 { margin: 0; font-size: calc(20px + var(--ui-text-increase, 0px)); line-height: 1.25; overflow-wrap: anywhere; }
+.explore-head h2 { margin: 0; font-size: calc(18px + var(--ui-text-increase, 0px)); line-height: 1.25; overflow-wrap: anywhere; }
 .explore-head p { margin: 8px 0 0; color: var(--text-secondary); line-height: 1.55; }
 .explore-head .glyph-btn { flex-shrink: 0; }
 .explore-body { min-height: 0; overflow-y: auto; padding: 16px; }
 .explore-caption { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 0 8px 12px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .explore-caption > :first-child { font-weight: 600; }
 .explore-providers { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.explore-provider { display: flex; align-items: center; gap: 12px; padding: 15px 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); }
+.explore-provider { display: flex; align-items: center; gap: 12px; padding: 16px 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); }
 .explore-glyph { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; color: var(--text-secondary); }
 .explore-glyph .glyph { width: 22px; height: 22px; }
 .explore-info { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.explore-info h3 { font-size: inherit; line-height: 1.4; margin: 0; font-weight: 600; }
+.explore-info h3 { font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 1.4; margin: 0; font-weight: 600; }
 .explore-info p { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; margin: 4px 0 6px; }
 .explore-connection, .explore-unavailable { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .explore-connection[data-connected] { color: var(--ok); }
 .explore-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .explore-actions .btn { gap: 4px; }
-.explore-text-action { display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text-secondary); font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); padding: 6px 4px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--ctl-edge); }
+.explore-text-action { display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text-secondary); font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); padding: 6px 4px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--ctl-edge); }
 @media (hover: hover) {
   .explore-text-action:hover { color: var(--text); text-decoration-color: currentColor; }
 }
@@ -56,10 +56,6 @@
   .explore-provider { flex-wrap: wrap; }
   .explore-info { flex-basis: calc(100% - 36px); }
   .explore-actions { width: 100%; flex-direction: row; justify-content: flex-end; }
-}
-@media (forced-colors: active) {
-  .explore-connection[data-connected] { color: CanvasText; }
-  .explore-text-action { color: LinkText; text-decoration-color: LinkText; }
 }
 /* A fixed header/footer would leave only a few pixels of reading space in a
    very short window. Scroll the whole dialog there, keeping every row reachable. */

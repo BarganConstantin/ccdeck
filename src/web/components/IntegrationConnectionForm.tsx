@@ -67,7 +67,7 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
   const choicesKept = def.fields.filter(f => f.type === "choice").every(f => values[f.name] === startValues.current[f.name]);
   const keepsSecret = editing && existing!.tokenSaved && choicesKept;
 
-  const set = (key: string, value: string) => setValues(state => ({ ...state, [key]: value }));
+  const set = (key: string, value: string) => { if (!busy) setValues(state => ({ ...state, [key]: value })); };
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (busy) return;
@@ -132,7 +132,7 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
                 {(field.options ?? []).map(option => (
                   <label key={option.value} className="fb-kind">
                     <input type="radio" name={`${uid}-${field.name}`} value={option.value} checked={values[field.name] === option.value}
-                      disabled={busy} onChange={() => set(field.name, option.value)}
+                      aria-disabled={busy || undefined} onChange={() => set(field.name, option.value)}
                       onKeyDown={e => { if (isPlainEnter(e.nativeEvent)) e.preventDefault(); }} />
                     {option.label}
                   </label>
@@ -151,7 +151,7 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
                 autoComplete={field.autoComplete ?? "off"} spellCheck={false}
                 value={values[field.name] ?? ""} onChange={e => set(field.name, e.target.value)}
                 placeholder={keeps ? "Saved. Leave blank to keep it" : field.placeholder}
-                disabled={busy} aria-invalid={invalid || undefined} aria-describedby={describedBy} aria-required={!field.optional && !keeps || undefined} />
+                readOnly={busy} aria-invalid={invalid || undefined} aria-describedby={describedBy} aria-required={!field.optional && !keeps || undefined} />
               {field.hint && <span className="ig-hint" id={`${uid}-${field.name}-hint`}>{field.hint}</span>}
               {invalid && errorField === field.name && <span className="ig-form-error" id={errorId} role="alert">{errorWords}</span>}
             </div>
@@ -166,7 +166,7 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
         <div className="fb-field">
           <label className="fb-field-label" htmlFor={`${uid}-name`}>Name <span className="fb-optional">optional</span></label>
           <input id={`${uid}-name`} className="ap-manage-input ig-input" type="text" autoComplete="off" maxLength={120}
-            disabled={busy} value={name} onChange={e => setName(e.target.value)} placeholder={host || def.label} />
+            readOnly={busy} value={name} onChange={e => setName(e.target.value)} placeholder={host || def.label} />
         </div>
 
         {error && !errorField && <p className="ig-form-error" id={errorId} role="alert">{errorWords}</p>}
@@ -175,7 +175,7 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
           <button type="submit" className="btn primary" aria-disabled={busy} aria-busy={busy}>
             {busy ? "Checking…" : editing ? "Save" : "Connect"}
           </button>
-          <button type="button" className="btn" disabled={busy} onClick={onCancel}>Cancel</button>
+          <button type="button" className="btn" aria-disabled={busy || undefined} onClick={() => { if (!busy) onCancel(); }}>Cancel</button>
         </div>
       </form>
     </FormContext.Provider>
