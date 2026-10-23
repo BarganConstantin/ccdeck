@@ -12,7 +12,9 @@
 // socket, never a 101 — and never spend the ticket of somebody who was turned
 // away for something else.
 //
-// THE BRIDGE IS DRIVEN WITH A STAND-IN tmux CLIENT. The protocol is the
+// THE BRIDGE IS DRIVEN WITH A STAND-IN tmux CLIENT. The bridge is the JS
+// backend's (terminal-bridge.mjs), which a test hands the upgrade; the
+// product relays the socket to the engine instead. The protocol is the
 // contract with src/web/terminal-protocol.ts, and the interesting orders —
 // a %pause in the middle of a seed, a pane that dies before the panel has a
 // frame, a socket that falls 4 MiB behind — are hard to provoke on demand in
@@ -22,6 +24,8 @@ import { createServer, type Server } from "node:http";
 import { EventEmitter } from "node:events";
 // @ts-expect-error — plain .mjs server module, no types
 import * as ts from "../../server/terminal-socket.mjs";
+// @ts-expect-error — plain .mjs server module, no types
+import * as tb from "../../server/terminal-bridge.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { acceptKey } from "../../server/ws-frames.mjs";
 import { TERMINAL_ATTACH_PATH } from "../terminal-protocol";
@@ -489,7 +493,7 @@ function bridge(binding: Record<string, unknown> = {}, opts: Record<string, unkn
   const conn = new FakeConn();
   const socket = new EventEmitter();
   let control!: FakeControl;
-  const handle = ts.terminalBridge({
+  const handle = tb.terminalBridge({
     conn,
     socket,
     binding: { kind: "A", tmux: "/bin/tmux", socket: { name: "ccdeck" }, target: "ccdeck-claude-0a1b2c3d", pane: "%4", ignoreSize: false, ...binding },
@@ -804,11 +808,11 @@ describe("the bridge, in the order the panel expects", () => {
   });
 
   it("stops forwarding past 4 MiB unsent, and re-seeds once the socket drains", async () => {
-    expect(ts.HIGH_WATER_BYTES).toBe(4 * 1024 * 1024);
+    expect(tb.HIGH_WATER_BYTES).toBe(4 * 1024 * 1024);
     const { conn, socket, control, text } = bridge();
     text({ t: "size", cols: 80, rows: 24 });
     await vi.waitFor(() => expect(control().seeds).toBe(1));
-    conn.bufferedAmount = ts.HIGH_WATER_BYTES + 1;
+    conn.bufferedAmount = tb.HIGH_WATER_BYTES + 1;
     const before = conn.sent.length;
     control().emit("output", Buffer.from("lost"));
     control().emit("output", Buffer.from("lost too"));
@@ -823,7 +827,7 @@ describe("the bridge, in the order the panel expects", () => {
   });
 
   it("keeps no more than a window in flight past what the panel parsed, and re-seeds it once it catches up", async () => {
-    expect(ts.ACK_WINDOW_BYTES).toBe(512 * 1024);
+    expect(tb.ACK_WINDOW_BYTES).toBe(512 * 1024);
     const { conn, control, text } = bridge({}, { ackWindow: 100 });
     text({ t: "size", cols: 80, rows: 24 });
     await vi.waitFor(() => expect(control().seeds).toBe(1));
@@ -911,7 +915,7 @@ describe("the bridge, in the order the panel expects", () => {
 
   it("ends with an error, not a throw, when the tmux client cannot be opened", () => {
     const conn = new FakeConn();
-    ts.terminalBridge({ conn, socket: new EventEmitter(), binding: { kind: "A" }, open: () => { throw new TypeError("openControl needs the tmux binary"); } });
+    tb.terminalBridge({ conn, socket: new EventEmitter(), binding: { kind: "A" }, open: () => { throw new TypeError("openControl needs the tmux binary"); } });
     expect(conn.texts().map(m => m.t)).toEqual(["hello", "exit"]);
     expect(conn.texts()[1]).toEqual({ t: "exit", reason: "error", message: "The deck lost its connection to tmux." });
   });

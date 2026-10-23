@@ -1,13 +1,18 @@
 // With no engine — the default, and always so in the free product — the
-// terminal panel's six routes are the JS routes they always were: a deck given
+// Command Panel's six routes have nothing behind them, and say so: a deck given
 // no `terminal.engine`, a null one, or one that is switched off answers every
-// route with the same status and the same bytes, asks the engine nothing, and
-// loads nothing of the engine's.
+// route with the same status and the same bytes, `{ ok: false, error, code:
+// "not-installed" }`, asks the engine nothing, asks nothing of any other
+// terminal, and loads no engine client.
 //
-// The three engine modules are replaced by stand-ins that record being loaded,
+// The two client modules are replaced by stand-ins that record being loaded,
 // so "loads nothing" is a fact about this run of a real deck rather than about
 // the source; the scan below says the same of the source, for an import added
 // later that this run would not reach.
+//
+// And how the engine's failures become refusals (routeThroughEngine), against
+// stand-in clients, on every leg: the signed double that answers for real is
+// pro-engine-routes.test.ts's, on the two platforms an engine is installed on.
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { request, type Server } from "node:http";
@@ -15,8 +20,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 
-const loads = vi.hoisted(() => ({ terminal: 0, client: 0, install: 0 }));
-vi.mock("../../server/pro-engine-terminal.mjs", () => { loads.terminal += 1; return {}; });
+const loads = vi.hoisted(() => ({ client: 0, install: 0 }));
 vi.mock("../../server/pro-engine-client.mjs", () => { loads.client += 1; return {}; });
 vi.mock("../../server/pro-engine-install.mjs", () => { loads.install += 1; return {}; });
 
@@ -38,12 +42,12 @@ mkdirSync(PROJECT);
 const mod = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { createTicketStore } = await import("../../server/terminal-socket.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const { engineRefusal, routeThroughEngine } = await import("../../server/pro-engine-terminal.mjs");
 
 const SID = "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f";
-const SOCKET = { name: "ccdeck-test-engine-routes-off" };
 const tickets = createTicketStore();
 let asked: string[];
-let downloads: number;
 
 /** An engine's terminal as engineTerminals shapes it for a client that is
  *  switched off, recording anything asked of it. */
@@ -51,27 +55,19 @@ const off = {
   get enabled() { return false; },
   attach: (...args: unknown[]) => { asked.push(`attach ${args.length}`); return { ok: false, status: 503 }; },
   route: (method: string) => { asked.push(method); return null; },
-  forgetTmux: () => { asked.push("forgetTmux"); },
 };
 
 // The deck's `terminal` option, edited per case: terminalDeps reads it again
-// on every request.
+// on every request. The JS backend's stand-ins are there to be ignored: with
+// no backend handed in, nothing may ask them anything.
+const record = (name: string) => (..._args: unknown[]) => { asked.push(name); return new Promise(() => {}); };
 const options: Record<string, unknown> = {
   enabled: () => true,
-  deckSocket: SOCKET,
   tickets,
-  findTmux: async () => ({ ok: true, path: "/secret/bin/tmux", version: [3, 6], raw: "tmux 3.6a" }),
-  resolveTarget: async () => ({ kind: "A", socket: SOCKET, pane: "%12", name: "ccdeck-claude-0a1b2c3d", launchKey: "k-1" }),
-  launchSession: async () => ({ name: "ccdeck-claude-feedf00d", sessionId: SID, pane: "%40" }),
-  listDeckSessions: async () => [],
-  labelDeckSession: async () => true,
-  killDeckSession: async () => true,
-  pruneDeadDeckSessions: async () => [],
-  downloadBlocked: () => null,
-  downloadTmux: () => { downloads += 1; return new Promise(() => {}); },
-  downloadProgress: () => null,
-  recentDownloadFailure: () => null,
-  forgetTmux: () => {},
+  findTmux: record("findTmux"),
+  resolveTarget: record("resolveTarget"),
+  launchSession: record("launchSession"),
+  downloadTmux: record("downloadTmux"),
 };
 
 let server: Server;
@@ -82,7 +78,6 @@ beforeAll(async () => {
 }, 30_000);
 beforeEach(() => {
   asked = [];
-  downloads = 0;
 });
 afterAll(async () => {
   await new Promise(r => server.close(r));
@@ -119,18 +114,18 @@ const ROUTES: Array<[string, string, string?]> = [
   ["POST", "/api/terminal/launch", JSON.stringify({ agent: "claude", cwd: PROJECT, pad: "x".repeat(9 * 1024) })],
 ];
 
-/** Every route's answer, a minted ticket written as <ticket>. */
+/** Every route's answer. */
 async function answers() {
   const out: string[] = [];
   for (const [method, path, body] of ROUTES) {
     const got = await ask(method, path, body);
-    out.push(`${method} ${path.slice(0, 40)} → ${got.status} ${got.headers} ${got.raw.replace(/"ticket":"[A-Za-z0-9_-]{43}"/, '"ticket":"<ticket>"')}`);
+    out.push(`${method} ${path.slice(0, 40)} → ${got.status} ${got.headers} ${got.raw}`);
   }
   return out;
 }
 
-describe("the terminal routes with no engine", () => {
-  it("answer byte for byte the same with no engine, a null one, or one switched off, and ask it nothing", async () => {
+describe("the Command Panel's routes with no engine", () => {
+  it("answer not-installed, byte for byte the same with no engine, a null one, or one switched off, and ask nothing of anyone", async () => {
     delete options.engine;
     const none = await answers();
     options.engine = null;
@@ -140,28 +135,96 @@ describe("the terminal routes with no engine", () => {
     delete options.engine;
     expect(empty).toEqual(none);
     expect(disabled).toEqual(none);
-    expect(asked, "nothing was asked of the engine").toEqual([]);
+    expect(asked, "nothing was asked of the engine, nor of any other terminal").toEqual([]);
     // What those answers are, so the comparison is not of three empty lists.
+    const notInstalled = JSON.stringify(engineRefusal("not-installed").body);
+    expect(JSON.parse(notInstalled)).toMatchObject({ ok: false, code: "not-installed" });
     expect(none).toHaveLength(ROUTES.length);
-    expect(none[0]).toContain('→ 200 ["application/json; charset=utf-8","no-store"] {"ok":true,"platform":');
-    expect(none[0]).toContain('"tmux":{"ok":true,"version":"3.6"}}');
-    expect(none.filter(a => a.includes('"ticket":"<ticket>"')), "an open and a launch").toHaveLength(2);
+    for (const line of none.slice(0, -1)) expect(line).toContain(`→ 409 ["application/json; charset=utf-8","no-store"] ${notInstalled}`);
+    // The body's cap is the deck's, in front of any engine.
     expect(none.at(-1)).toContain("→ 413");
-    expect(downloads, "a tmux that works is not fetched").toBe(0);
+    expect(none.join("\n"), "no ticket of any kind").not.toContain('"ticket"');
   });
 
-  it("loads nothing of the engine's, on a deck that answered every route", async () => {
+  it("loads no engine client, on a deck that answered every route", async () => {
     await answers();
-    expect(loads).toEqual({ terminal: 0, client: 0, install: 0 });
+    expect(loads).toEqual({ client: 0, install: 0 });
   });
 
-  it("import nothing of the engine's, statically or on demand", () => {
+  it("import no engine client, statically or on demand", () => {
     for (const file of ["terminal-routes.mjs", "terminal-socket.mjs", "index.mjs"]) {
       const source = readFileSync(new URL(`../../server/${file}`, import.meta.url), "utf8");
       const imports = source.split("\n").filter(line => /^import\b/.test(line));
       expect(imports.length, `the scan sees ${file}'s imports`).toBeGreaterThan(0);
-      expect(imports.filter(line => line.includes("pro-engine")), file).toEqual([]);
+      expect(imports.filter(line => /pro-engine-(client|install)/.test(line)), file).toEqual([]);
       expect(source.match(/import\([^)]*pro-engine/g), file).toBeNull();
+    }
+  });
+});
+
+describe("routeThroughEngine's refusals", () => {
+  const fail = (code?: string) => Object.assign(new Error("fixture"), code === undefined ? {} : { code });
+  /** A client that starts (or not) and answers every request with `error`. */
+  const client = ({ start, error, backend = "tmux" }: { start?: string | null; error?: string; backend?: string }) => {
+    const requests: string[] = [];
+    return {
+      requests,
+      start: async () => { if (start !== undefined) throw fail(start ?? undefined); },
+      capabilities: { terminal: { backend } },
+      request: async (method: string) => { requests.push(method); if (error !== undefined) throw fail(error); return { status: 200, body: { ok: true } }; },
+    };
+  };
+  const code = async (c: object, method = "status") => {
+    const said = await routeThroughEngine(c, method, null);
+    return [said.status, said.body.code];
+  };
+
+  it("says why an engine would not start, and asks it nothing", async () => {
+    expect(await code(client({ start: "backoff" }))).toEqual([503, "restarting"]);
+    expect(await code(client({ start: "closed" }))).toEqual([503, "restarting"]);
+    expect(await code(client({ start: "timeout" }))).toEqual([503, "no-answer"]);
+    expect(await code(client({ start: null })), "a verification failure carries no code").toEqual([409, "not-verified"]);
+    for (const c of ["disabled", "startup", "exited", "incompatible", "protocol"]) expect(await code(client({ start: c }), "launch"), c).toEqual([409, "failed"]);
+    const none = client({ backend: "unavailable" });
+    expect(await code(none, "launch")).toEqual([409, "no-terminal"]);
+    expect(none.requests).toEqual([]);
+  });
+
+  it("refuses what the engine never ran, for every route", async () => {
+    const table: Array<[string, number, string]> = [
+      ["unavailable", 409, "no-terminal"], ["busy", 503, "busy"], ["invalid_request", 400, "bad-request"],
+      ["bad_params", 400, "bad-request"], ["backoff", 503, "restarting"], ["disabled", 409, "failed"],
+    ];
+    for (const [error, status, refusal] of table) {
+      for (const method of ["status", "target", "claim", "open", "adopt", "launch"]) {
+        expect(await code(client({ error }), method), `${method} ${error}`).toEqual([status, refusal]);
+      }
+    }
+  });
+
+  it("refuses a read that went unanswered, and never a mutation that may have run: that throws, once", async () => {
+    for (const method of ["status", "target"]) {
+      expect(await code(client({ error: "timeout" }), method)).toEqual([503, "no-answer"]);
+      for (const error of ["exited", "closed", "transport", "heartbeat", "protocol", "startup"]) expect(await code(client({ error }), method), error).toEqual([503, "restarting"]);
+      await expect(routeThroughEngine(client({ error: "internal" }), method, null)).rejects.toMatchObject({ code: "internal" });
+    }
+    for (const method of ["claim", "open", "adopt", "launch"]) {
+      for (const error of ["timeout", "exited", "closed", "transport", "heartbeat", "internal", "cancelled"]) {
+        const c = client({ error });
+        await expect(routeThroughEngine(c, method, null), `${method} ${error}`).rejects.toMatchObject({ code: error });
+        expect(c.requests, "asked once, and not again").toEqual([`terminal.${method}`]);
+      }
+    }
+  });
+
+  it("answers an unknown refusal code as failed, and every refusal in one shape", () => {
+    expect(engineRefusal("no-such-code")).toEqual(engineRefusal("failed"));
+    for (const c of ["unsupported", "not-installed", "not-verified", "no-terminal", "failed", "restarting", "busy", "no-answer", "bad-request"]) {
+      const { status, body } = engineRefusal(c);
+      expect(Object.keys(body).sort(), c).toEqual(["code", "error", "ok"]);
+      expect([body.ok, body.code, typeof body.error], c).toEqual([false, c, "string"]);
+      expect(body.error, "one short sentence, no path").toMatch(/^[A-Z][^/\n]{10,90}\.$/);
+      expect([400, 409, 503], c).toContain(status);
     }
   });
 });

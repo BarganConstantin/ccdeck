@@ -684,7 +684,7 @@ describe("keys, paste and the pane's size", () => {
     const sessions = read("../../server/terminal-sessions.mjs");
     expect(lines(sessions, /export const PANE_HISTORY = ([\d_]+);/), "the deck's tmux history-limit").toBe(kept);
     expect(sessions).toMatch(/\["set-option", "-g", "history-limit", String\(PANE_HISTORY\)\]/);
-    const socket = read("../../server/terminal-socket.mjs");
+    const socket = read("../../server/terminal-bridge.mjs");
     expect(lines(socket, /export const SEED_HISTORY = ([\d_]+);/), "a reattach's seed fits in what the pane keeps").toBeLessThan(kept);
   });
 

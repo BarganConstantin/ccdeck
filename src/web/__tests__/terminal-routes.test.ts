@@ -1,4 +1,6 @@
-// What the terminal panel's five routes take and answer, with the panel on.
+// What the Command Panel's routes take and answer, with the panel on, on the
+// JS backend (terminal-js-routes.mjs) — the parity oracle a test hands
+// startServer as `terminal.jsBackend`; the product runs the engine instead.
 //
 // The page names a session — an id, a provider, a folder — and never a pane.
 // So every case here is about one of three things: a question that is not a
@@ -9,8 +11,7 @@
 // draw, not as an error.
 //
 // tmux, the target resolver and the session launcher are stand-ins passed
-// through startServer's `terminal` option, the seam the product leaves at its
-// defaults. terminal-target.test.ts and terminal-sessions.test.ts pin those
+// through startServer's `terminal` option, beside the backend itself. terminal-target.test.ts and terminal-sessions.test.ts pin those
 // modules; terminal-socket-tmux.test.ts runs the whole path on real tmux.
 import { describe, it, expect, afterAll, beforeAll, beforeEach, vi } from "vitest";
 import { mkdirSync, mkdtempSync } from "node:fs";
@@ -39,6 +40,8 @@ mkdirSync(PROJECT);
 const mod = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const routes = await import("../../server/terminal-routes.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const js = await import("../../server/terminal-js-routes.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { createTicketStore } = await import("../../server/terminal-socket.mjs");
 // @ts-expect-error — plain .mjs server module, no types
@@ -114,8 +117,8 @@ beforeEach(() => {
   clock = 1_000_000_000;
   sized = [];
   ttyAnswer = null;
-  routes.resetPruneClock();
-  routes.resetWrappers();
+  js.resetPruneClock();
+  js.resetWrappers();
 });
 
 let server: Server;
@@ -125,6 +128,7 @@ beforeAll(async () => {
     port: 0, persist: false, claude: false, codex: false,
     terminal: {
       enabled: () => true,
+      jsBackend: js.jsTerminalBackend,
       deckSocket: DECK_SOCKET,
       tickets,
       findTmux: async () => tmuxAnswer,
@@ -615,7 +619,7 @@ describe("POST /api/terminal/adopt", () => {
       expect(got.body).toEqual({ ok: false, error: "still-running" });
     }
     expect(launches).toEqual([]);
-    expect(routes.STILL_RUNNING).toBe("still-running");
+    expect(js.STILL_RUNNING).toBe("still-running");
   });
 
   it("says why it cannot when the folder is gone or tmux is missing", async () => {
@@ -976,8 +980,8 @@ describe("what a launch is started with", () => {
     } finally {
       console.error = was;
     }
-    expect(routes.tmuxFailureHint("server exited unexpectedly")).toBeNull();
-    expect(routes.tmuxFailureHint("protocol version mismatch (client 8, server 7)")).toMatch(/Another version of tmux/);
+    expect(js.tmuxFailureHint("server exited unexpectedly")).toBeNull();
+    expect(js.tmuxFailureHint("protocol version mismatch (client 8, server 7)")).toMatch(/Another version of tmux/);
   });
 });
 
@@ -993,7 +997,7 @@ describe("clearing old dead sessions off the deck's server", () => {
     await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: PROJECT });
     await settle();
     expect(pruned, "not again within the hour").toHaveLength(1);
-    clock += routes.PRUNE_EVERY_MS;
+    clock += js.PRUNE_EVERY_MS;
     await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: PROJECT });
     await settle();
     expect(pruned, "a launch an hour later prunes").toHaveLength(2);
@@ -1010,10 +1014,10 @@ describe("clearing old dead sessions off the deck's server", () => {
 
 describe("tmuxStatus", () => {
   it("drops the path and the raw text, and keeps a warning", () => {
-    expect(routes.tmuxStatus({ ok: true, path: "/x/tmux", version: null, raw: "tmux master", warning: "unknown-version" }))
+    expect(js.tmuxStatus({ ok: true, path: "/x/tmux", version: null, raw: "tmux master", warning: "unknown-version" }))
       .toEqual({ ok: true, warning: "unknown-version" });
-    expect(routes.tmuxStatus(undefined)).toEqual({ ok: false, reason: "missing" });
-    expect(routes.tmuxStatus({ ok: false, reason: "unsupported-platform" })).toEqual({ ok: false, reason: "unsupported-platform" });
+    expect(js.tmuxStatus(undefined)).toEqual({ ok: false, reason: "missing" });
+    expect(js.tmuxStatus({ ok: false, reason: "unsupported-platform" })).toEqual({ ok: false, reason: "unsupported-platform" });
   });
 });
 
@@ -1023,6 +1027,7 @@ describe("a background session's attach wrapper", () => {
   const BINDING = { kind: "D", socket: DECK_SOCKET, target: "ccdeck-att-0b9f3c1e", pane: "%21", ignoreSize: true, tmux: "/secret/bin/tmux" };
   const conn = () => ({ sendText() {}, sendBinary() {}, close() {}, bufferedAmount: 0 });
   const options = () => routes.terminalUpgradeOptions({
+    jsBackend: js.jsTerminalBackend,
     killDeckSession: async (o: any) => { killed.push(o); return true; },
     openControl: (o: any) => new FakeControl(o),
   });
@@ -1034,15 +1039,15 @@ describe("a background session's attach wrapper", () => {
       const o = options();
       const a = show(o), b = show(o);
       a.closed(1000, "");
-      vi.advanceTimersByTime(routes.WRAPPER_GRACE_MS * 2);
+      vi.advanceTimersByTime(js.WRAPPER_GRACE_MS * 2);
       expect(killed, "another panel still shows it").toEqual([]);
       b.closed(1000, "");
-      vi.advanceTimersByTime(routes.WRAPPER_GRACE_MS - 1);
+      vi.advanceTimersByTime(js.WRAPPER_GRACE_MS - 1);
       expect(killed).toEqual([]);
       vi.advanceTimersByTime(1);
       expect(killed.map(k => [k.name, k.socket, k.tmux])).toEqual([["ccdeck-att-0b9f3c1e", DECK_SOCKET, "/secret/bin/tmux"]]);
       b.closed(1000, "");
-      vi.advanceTimersByTime(routes.WRAPPER_GRACE_MS * 2);
+      vi.advanceTimersByTime(js.WRAPPER_GRACE_MS * 2);
       expect(killed, "a socket closed twice is one panel gone").toHaveLength(1);
     } finally {
       vi.useRealTimers();
@@ -1054,12 +1059,12 @@ describe("a background session's attach wrapper", () => {
     try {
       const o = options();
       show(o).closed(1000, "");
-      vi.advanceTimersByTime(routes.WRAPPER_GRACE_MS / 2);
+      vi.advanceTimersByTime(js.WRAPPER_GRACE_MS / 2);
       const again = show(o);
-      vi.advanceTimersByTime(routes.WRAPPER_GRACE_MS * 2);
+      vi.advanceTimersByTime(js.WRAPPER_GRACE_MS * 2);
       expect(killed).toEqual([]);
       again.closed(1000, "");
-      vi.advanceTimersByTime(routes.WRAPPER_GRACE_MS);
+      vi.advanceTimersByTime(js.WRAPPER_GRACE_MS);
       expect(killed).toHaveLength(1);
     } finally {
       vi.useRealTimers();
@@ -1083,7 +1088,7 @@ describe("a background session's attach wrapper", () => {
 describe("ttySize", () => {
   it("reads nothing that is not a terminal's path", async () => {
     for (const tty of ["", "pts/3", "/dev/pts/3; rm -rf /", "/dev/../etc/passwd x", null]) {
-      expect(await routes.ttySize(tty as string), String(tty)).toBeNull();
+      expect(await js.ttySize(tty as string), String(tty)).toBeNull();
     }
   });
 });

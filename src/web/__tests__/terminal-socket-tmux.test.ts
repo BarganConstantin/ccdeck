@@ -13,7 +13,9 @@
 // ccdeck`; this runs on a socket named for this run, inside a TMUX_TMPDIR in
 // this run's temp folder, handed to the routes through startServer's
 // `terminal` option — so the user's own tmux and the deck's are never asked
-// anything — and the server is killed in afterAll. The panel itself is
+// anything — and the server is killed in afterAll. The routes run on the JS
+// backend (`jsBackend`, terminal-js-routes.mjs), the parity oracle only a
+// test can hand the deck. The panel itself is
 // switched on the way a person would, with CCDECK_TERMINAL=1.
 //
 // NO tmux, NO SKIP. Without one (CCDECK_TMUX unset and nothing on PATH) the
@@ -56,6 +58,8 @@ const SOCKET = Object.freeze({ name: `ccdeck-test-ts-${process.pid}-${randomByte
 // @ts-expect-error — plain .mjs server module, no types
 const mod = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs server module, no types
+const { jsTerminalBackend } = await import("../../server/terminal-js-routes.mjs");
+// @ts-expect-error — plain .mjs server module, no types
 const { findTmux, runTmux } = await import("../../server/tmux.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { launchSession, listDeckSessions } = await import("../../server/terminal-sessions.mjs");
@@ -70,7 +74,7 @@ beforeAll(async () => {
   // from GitHub on a machine without one: the suite never downloads.
   server = await mod.startServer({
     port: 0, persist: false, claude: false, codex: false,
-    terminal: { deckSocket: SOCKET, downloadBlocked: () => "download_disabled" },
+    terminal: { jsBackend: jsTerminalBackend, deckSocket: SOCKET, downloadBlocked: () => "download_disabled" },
   });
   port = (server.address() as { port: number }).port;
 }, 30_000);

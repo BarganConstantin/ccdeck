@@ -176,10 +176,11 @@ import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage
 // Connected trackers (#2178) and each provider's own reads. See
 // integrations/routes.mjs; nothing in it is shared with paired decks.
 import { handleIntegrations } from "./integrations/routes.mjs";
-// The terminal panel's five routes, every one absent while the panel is
-// switched off — see terminal-routes.mjs — and the WebSocket upgrade that
-// carries a pane, which runs its own gates because the route table never sees
-// an upgrade (terminal-socket.mjs).
+// The Command Panel's six routes, every one absent while the panel is
+// switched off and answered by the optional local engine while it is on —
+// see terminal-routes.mjs — and the WebSocket upgrade that carries a session,
+// which runs its own gates because the route table never sees an upgrade
+// (terminal-socket.mjs).
 import { handleTerminalAdopt, handleTerminalClaim, handleTerminalLaunch, handleTerminalOpen, handleTerminalStatus, handleTerminalTarget, terminalUpgradeOptions } from "./terminal-routes.mjs";
 import { installTerminalUpgrade } from "./terminal-socket.mjs";
 // For bin/deck.js's shutdown: an upgraded socket is not in the HTTP server's
@@ -209,12 +210,14 @@ export function requestUrl(rawUrl) {
   catch { return null; }
 }
 
-// `terminal` is handed to the terminal routes and its upgrade as their
-// stand-ins (see terminalDeps in terminal-routes.mjs): the suite runs them on
-// a tmux server of its own through it. The product passes nothing. It is also
-// the only way a deck is given the optional local engine's terminal,
-// `terminal.engine` (engineTerminals in pro-engine-terminal.mjs, built where
-// the client is created): no setting, variable or flag reaches it.
+// `terminal` is handed to the Command Panel's routes and its upgrade as their
+// stand-ins (see terminalDeps in terminal-routes.mjs). The product passes
+// nothing. A test passes an engine's terminal as `terminal.engine`
+// (engineTerminals in pro-engine-terminal.mjs), or the JS backend as
+// `terminal.jsBackend` (terminal-js-routes.mjs) to run the routes on a tmux
+// server of its own: only a caller of startServer can, and nothing the deck
+// runs imports that backend, so no setting, variable, flag or request reaches
+// it.
 export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null, terminal = {} } = {}) {
   startQuotaHistory();
   await startToolAudit();
@@ -457,8 +460,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // once per name per day. A name, never what was in it. See feature-use.mjs.
     if (req.method === "POST" && url.pathname === "/api/feature") return guard(handleFeature(req, res), res);
 
-    // The terminal panel. While it is switched off each of these answers the
-    // 404 below, word for word, without asking tmux anything — see
+    // The Command Panel. While it is switched off each of these answers the
+    // 404 below, word for word, without asking anything of anyone — see
     // terminal-routes.mjs. Session ids ride in the query or the body, never in
     // the path, so GUARDED_READS can name the two reads exactly.
     if (req.method === "GET"  && url.pathname === "/api/terminal/status") return guard(handleTerminalStatus(req, res, terminal), res);

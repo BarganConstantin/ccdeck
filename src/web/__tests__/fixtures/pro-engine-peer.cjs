@@ -85,7 +85,7 @@ function streamFrame(kind, id, payload) {
   if (!s.hold) credit(id, s);
 }
 // The panel's route methods (terminal.status, .target, .claim, .open, .adopt,
-// .launch, .forgetTmux), answered as terminal.answers set them: per method,
+// .launch), answered as terminal.answers set them: per method,
 // `{ data }` or `{ error }`, after `delayMs`, or `{ crash: true }`. A data whose
 // `handle` is "mint" carries a fresh handle this double will redeem, as a
 // route's does. Every call is logged with its params; a method with no answer

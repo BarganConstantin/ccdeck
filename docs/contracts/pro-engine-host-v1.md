@@ -1,14 +1,16 @@
 # Optional local engine host contract v1
 
-`createProEngineClient` is an internal Node adapter, not a browser API. It does
-not change the UI, and with no engine the HTTP routes and the terminal
-WebSocket are served exactly as before and no engine module is loaded. A deck
-is given an engine only through `startServer`'s `terminal.engine` option, set
-to `engineTerminals(client)` where the client is created; the product passes
+`createProEngineClient` is an internal Node adapter, not a browser API. The
+Command Panel's routes and its WebSocket are served only through an engine;
+there is no other terminal behind them. With no engine, or one switched off,
+every route answers that the engine is not installed (Terminal routes, below),
+the WebSocket is refused 503, and no engine client module is loaded. A deck is
+given an engine only through `startServer`'s `terminal.engine` option, set to
+`engineTerminals(client)` where the client is created; the product passes
 none, and no setting, environment variable or command-line flag reaches it.
-While that engine is enabled, the terminal panel's routes are asked of it
-first (Terminal routes, below), and the terminal WebSocket is relayed to it
-for a ticket bound to an engine handle (Terminal streams, below).
+While that engine is enabled, the panel's routes are asked of it (Terminal
+routes, below), and the WebSocket is relayed to it for a ticket bound to an
+engine handle (Terminal streams, below).
 Construction is disabled by default and performs no file lookup, installation,
 network request or process launch. Only explicit owner configuration may enable
 it. `request(method, params, { signal, timeoutMs })` permits terminal namespace
@@ -63,6 +65,8 @@ private build machinery, private fixtures or a bundled engine executable.
 While the deck holds an enabled engine, each of the panel's six routes is
 asked of it, after everything HTTP the deck keeps: the panel switch (404), the
 request gates, and the body (at most 8 KiB, else 413; a JSON object, or null).
+The engine is the only answer: what it cannot take is refused (Refusals,
+below), never answered some other way.
 
 | Method | Route | `params` |
 |---|---|---|
@@ -72,7 +76,6 @@ request gates, and the body (at most 8 KiB, else 413; a JSON object, or null).
 | `terminal.open` | `POST /api/terminal/open` | `{ "body": B }` |
 | `terminal.adopt` | `POST /api/terminal/adopt` | `{ "body": B }` |
 | `terminal.launch` | `POST /api/terminal/launch` | `{ "body": B }` |
-| `terminal.forgetTmux` | not a route | `{ "body": null }`, to a running engine once a tmux the deck fetched has landed |
 
 `B` is the request's body when it is a JSON object, else null. The engine
 answers `{ status, body, handle?, log?, fixable? }`, and the deck sends
@@ -85,19 +88,35 @@ answers `{ status, body, handle?, log?, fixable? }`, and the deck sends
   The handle itself is never sent to the page.
 - `log` goes to the deck's log, where the deck's own route logs, never to the
   page.
-- `fixable` (status only): no usable tmux, and one the deck could fetch. The
-  deck runs its own download branch on the engine's `body.tmux`.
+- `fixable` (status only, from an earlier engine): accepted with a `body.tmux`
+  and ignored. The deck fetches no tmux and sends `terminal.forgetTmux` no
+  more; with no usable tmux the panel shows the engine's answer, the
+  install line included.
 
-Any other shape is the deck's own 500. The deck's own route answers instead,
-as with no engine, when the engine was not asked or did not run the request:
-it is not running and will not start, its hello advertised
-`terminal.backend: "unavailable"`, it refused with `unavailable` or `busy`,
-or the client refused the request with `invalid_request`. A read (status,
-target) that failed any other way is answered by the deck too. `internal` is
-the deck's 500. A mutation (claim, open, adopt, launch) that failed any other
-way, with no answer in time or the engine gone, is the deck's 500 and is never
-asked again, of the engine or of the deck's own route: it may already have
-started an agent.
+Any other shape is the deck's own 500.
+
+### Refusals
+
+When the engine cannot take a question, the route answers
+`{ "ok": false, "error": E, "code": C }`, `E` one short sentence for the page:
+
+| `code` | Status | When |
+|---|---|---|
+| `not-installed` | 409 | no engine, or one switched off; nothing is asked |
+| `not-verified` | 409 | the installation did not verify, so nothing was started |
+| `failed` | 409 | the engine would not start (it exited, or its hello did not match) |
+| `no-terminal` | 409 | its hello advertised `terminal.backend: "unavailable"` (nothing is asked), or it refused with `unavailable` |
+| `unsupported` | 409 | the platform has no Command Panel yet |
+| `restarting` | 503 | its restart is waiting out the backoff, it is closing, or a read lost it |
+| `busy` | 503 | it, or the client, refused with `busy` |
+| `no-answer` | 503 | it did not start, or answer a read, in time |
+| `bad-request` | 400 | it, or the client, refused with `bad_params` or `invalid_request` |
+
+409 is a state of the machine the panel shows and stops at; 503 is one it
+waits out, asking again. `internal` is the deck's 500, for a read too. A
+mutation (claim, open, adopt, launch) that failed any other way, with no answer
+in time or the engine gone, is the deck's 500 and is never asked again: it may
+already have started an agent.
 
 ## Terminal streams
 
@@ -114,7 +133,9 @@ message on the stream, both ways; a seed is one binary message, never split.
 The host asks for an attach only while the engine's hello advertised a terminal
 backend (`terminal.backend` other than `unavailable`); otherwise, or with the
 engine not running, the upgrade is refused 503 without asking, and the engine
-is never started for it.
+is never started for it. A ticket is relayed only while the deck holds an
+enabled engine; any other ticket is refused 503 before the 101, since nothing
+else is behind the socket.
 
 ### Frames
 

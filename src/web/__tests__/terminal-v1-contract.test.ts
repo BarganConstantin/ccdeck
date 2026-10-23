@@ -16,8 +16,11 @@ let server: Server; let base = "";
 beforeAll(async () => {
   // @ts-expect-error plain server module
   const { startServer } = await import("../../server/index.mjs");
+  // @ts-expect-error plain server module
+  const { jsTerminalBackend } = await import("../../server/terminal-js-routes.mjs");
+  // The recorded answers are the JS backend's, the oracle the engine is held to.
   server = await startServer({ port: 0, portRange: [], claude: false, codex: false, terminal: {
-    enabled: () => true, findTmux: async () => ({ ok: false, reason: "missing", install: "Install tmux 3.2 or newer." }), downloadBlocked: () => true,
+    enabled: () => true, jsBackend: jsTerminalBackend, findTmux: async () => ({ ok: false, reason: "missing", install: "Install tmux 3.2 or newer." }), downloadBlocked: () => true,
   } });
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 });
@@ -42,13 +45,15 @@ describe("version 1 browser contract", () => {
   it("freezes paths and bounded ticket/stream constants", async () => {
     // @ts-expect-error plain server module
     const wire = await import("../../server/terminal-socket.mjs");
+    // @ts-expect-error plain server module
+    const bridge = await import("../../server/terminal-bridge.mjs");
     expect(Object.fromEntries(Object.entries(spec.routes).map(([k, v]: any) => [k, v.path]))).toEqual(TERMINAL_ROUTES);
     expect(spec.websocket.path).toBe(TERMINAL_ATTACH_PATH);
     expect(spec.websocket.maxMessageBytes).toBe(MAX_MESSAGE_BYTES);
     expect(spec.websocket.ticketTtlMs).toBe(wire.TICKET_TTL_MS);
     expect(spec.websocket.maxTickets).toBe(wire.MAX_TICKETS);
     expect(spec.websocket.maxConnections).toBe(wire.MAX_TERMINALS);
-    expect(spec.websocket.ackWindowBytes).toBe(wire.ACK_WINDOW_BYTES);
+    expect(spec.websocket.ackWindowBytes).toBe(bridge.ACK_WINDOW_BYTES);
   });
   for (const sample of fixtures.filter((s: any) => !s.baseline)) it(`${sample.method} ${sample.path}`, async () => {
     // The folder goes in as a JSON string's contents, escaped: a Windows path's
