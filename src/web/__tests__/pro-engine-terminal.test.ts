@@ -184,6 +184,9 @@ describe.skipIf(process.platform === "win32")("terminal streams on the engine's 
     const st = await e.client.attachTerminal(await mint(e));
     const s = sink();
     st.start(s);
+    // The hello's flow reaches the double before the close is emitted: a hello
+    // read in one chunk with that close ends the stream before a flow is owed.
+    await vi.waitFor(async () => expect(await controls(e, 1)).toEqual([{ t: "flow", relayed: HELLO.length, buffered: 0 }]));
     const reason = "é".repeat(61) + "x";
     await emit(e, [{ kind: 3, stream: 1, text: `{ "reason" : ${JSON.stringify(reason)}, "code":1011,"t":"close"}` }, { kind: 2, stream: 1, text: "after its close" }]);
     expect(s.got).toEqual([["text", HELLO], ["close", 1011, reason]]);
