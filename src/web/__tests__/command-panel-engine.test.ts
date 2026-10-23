@@ -64,6 +64,9 @@ const { engineEnv, TERMINAL_OPT_IN } = await import("../../server/pro-engine-cli
 // @ts-expect-error — plain .mjs server module, no types
 const { verifyEngineInstallation } = await import("../../server/pro-engine-install.mjs");
 // @ts-expect-error — plain .mjs server module, no types
+const { engineRefusal } = await import("../../server/pro-engine-terminal.mjs");
+const { PANEL_RECOVERING, PANEL_UNAVAILABLE } = await import("../terminal-api");
+// @ts-expect-error — plain .mjs server module, no types
 const { RUNNING_VERSION } = await import("../../server/running-version.mjs");
 
 const ENGINE_DIR = join(DIR, "deck", "engine");
@@ -199,6 +202,20 @@ describe("the engine's environment and keys", () => {
     expect(engineEnv(shell, true)).toEqual({ PATH: "/usr/bin", CCDECK_ENGINE_TERMINAL: "1" });
     expect(engineEnv({ CCDECK_ENGINE_TERMINAL: "0" }, true)).toEqual({ CCDECK_ENGINE_TERMINAL: "1" });
     expect(shell[TERMINAL_OPT_IN], "the deck's own is left as it was").toBe("1");
+  });
+
+  it("is the opt-in the host contract names, and each refusal the page reads is in its table at the status the deck sends", () => {
+    const contract = readFileSync(new URL("../../../docs/contracts/pro-engine-host-v1.md", import.meta.url), "utf8");
+    const optIn = contract.slice(contract.indexOf("## Terminal opt-in"), contract.indexOf("## Terminal routes"));
+    expect(optIn.length, "a section of its own, before the routes").toBeGreaterThan(200);
+    expect(optIn).toContain(`\`${TERMINAL_OPT_IN}\` set to\nexactly \`1\``);
+    expect(optIn).toMatch(/not authentication material/);
+    expect(optIn).toMatch(/the protocol stays 1/);
+    for (const code of [...PANEL_UNAVAILABLE, ...PANEL_RECOVERING]) {
+      const { status, body } = engineRefusal(code);
+      expect(body.code, code).toBe(code);
+      expect(contract, code).toContain(`| \`${code}\` | ${status} |`);
+    }
   });
 
   it("verifies nothing against an empty key list, before reading anything", async () => {

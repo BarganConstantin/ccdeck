@@ -14,8 +14,8 @@ downloaded or installed. It trusts only the Ed25519 keys shipped with the deck,
 a frozen list that is empty in this release, so a missing folder answers
 `not-installed` and a present one `not-verified`, and the executable is never
 read. Off Linux every route answers `unsupported` without looking. The client
-it makes is the only one constructed with `terminal: true`. The
-engine is stopped 1.5 s after the switch goes off, once its panels have been
+it makes is the only one constructed with `terminal: true` (Terminal opt-in,
+below). The engine is stopped 1.5 s after the switch goes off, once its panels have been
 told, and at deck shutdown without being waited for; a later question starts
 a new one. With the switch off nothing here runs: no file is looked at, no
 client is made, no process is started and nothing touches the network.
@@ -77,6 +77,34 @@ identity. Installation/update signing and key rotation require separate release
 validation. The free package contains only this host interface, not Rust sources,
 private build machinery, private fixtures or a bundled engine executable.
 
+## Terminal opt-in
+
+An engine serves `terminal.*`, `terminal.attach` included, only on Linux, and
+only when its environment at start holds `CCDECK_ENGINE_TERMINAL` set to
+exactly `1`: a second, engine-side switch behind the deck's own. The deck sets
+it only for the engine it starts for the Command Panel, a client constructed
+with `terminal: true`, after the person has switched the panel on in Settings
+(off by default). Every engine the deck starts, that one included, first has
+any value the deck inherited removed, so a shell's variable reaches no engine
+and turns nothing on. Nothing else sets it: no request, other setting or
+command-line flag.
+
+It is not authentication material (the nonce stays in the hello only) and
+carries nothing secret. It fixes the hello's `terminal` for the engine's life:
+
+- on: `launch`, `resume`, `attachOwned`, `attachExternalTmux` and
+  `surviveEngineRestart` true, `attachExternalConsole` false,
+  `backend: "tmux"`;
+- off (absent, any other value such as `0`, `true`, ` 1` or `1\n`, or any
+  platform but Linux whatever it says): every flag false,
+  `backend: "unavailable"`, and every `terminal.*` call answers `unavailable`.
+
+An engine that does not know the variable advertises `unavailable` the same
+way, and the deck answers its routes `no-terminal` (Refusals, below) without
+asking it. No method, frame or protocol version changes: the protocol stays 1,
+and a host that never sets the variable gets the engine as before. The
+routes' environment drops it, so tmux, Claude and Codex never see it.
+
 ## Terminal routes
 
 While the deck holds an enabled engine, each of the panel's six routes is
@@ -129,8 +157,11 @@ When the engine cannot take a question, the route answers
 | `no-answer` | 503 | it did not start, or answer a read, in time |
 | `bad-request` | 400 | it, or the client, refused with `bad_params` or `invalid_request` |
 
-409 is a state of the machine the panel shows and stops at; 503 is one it
-waits out, asking again. `internal` is the deck's 500, for a read too. A
+409 is a state of the machine the panel shows and stops at, checking again
+only when the person asks. 503 is a moment: the panel waits it out, asking
+again, where asking starts nothing (an open, or a reconnect under a live
+pane); a launch or adopt refused 503 was not run, and is asked again only on
+the person's press, a launch by the same key. `internal` is the deck's 500, for a read too. A
 mutation (claim, open, adopt, launch) that failed any other way, with no answer
 in time or the engine gone, is the deck's 500 and is never asked again: it may
 already have started an agent.
