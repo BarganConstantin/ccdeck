@@ -13,13 +13,32 @@
 // name and one line on the left, the control on the right. While the deck has
 // not answered, a control is busy rather than disabled, as Radar's switch is,
 // and the press is refused in the handler.
+//
+// NO VALUE IT DID NOT READ. When settings.json cannot be read, or the deck
+// does not answer, the rows are not drawn at all — a switch has no position
+// for "not known", and a default drawn there would read as the user's own.
+// A file that is not there yet is Claude Code on its defaults, and is said to
+// be. A variable that outranks a row is said under it.
 import { CLAUDE_SETTING_GROUPS, CLAUDE_SETTINGS, daysLabel, type ClaudeSettingEntry, type ClaudeSettingOption } from "../../server/claude-settings-catalog.mjs";
 import { refreshClaudeSettings, setClaudeSetting, useClaudeSettings, type ClaudeSettingRow, type ClaudeSettingsState } from "../use-claude-settings";
 import ClaudeSettingsIndex from "./ClaudeSettingsIndex";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 
 export const CLAUDE_UNDONE = "Changed back after saving, most likely by a running Claude Code session. Set it again to keep it.";
-export const CLAUDE_FOOT = "A project's own .claude/settings.json can override these rows in that project. Policies set through MDM or the Windows registry are not visible here.";
+export const CLAUDE_NO_FILE = "There is no settings.json yet, so Claude Code uses its defaults. The first change here creates it.";
+
+/** The line under the rows: which file they are saved in, and what can
+ *  override them without the deck seeing it. */
+export function claudeFoot(fileShown?: string): string {
+  return `Saved in ${fileShown ?? "your settings.json"}. A project's own .claude/settings.json, and policies set through MDM or the Windows registry, can override these rows and are not shown here.`;
+}
+
+/** What a variable that outranks a row makes of it, and where it is set. */
+export function overrideLine(o: NonNullable<ClaudeSettingRow["override"]>): string {
+  const set = `${o.env}=${o.value}`;
+  if (o.where === "environment") return `${o.effect} in sessions started with ${set}, as ccdeck was.`;
+  return `${o.effect} in every session: ${o.where === "user" ? "your settings.json" : "your organization"} sets ${set}.`;
+}
 
 const CUSTOM = "\u0000custom";
 
@@ -90,12 +109,15 @@ export default function ClaudeCodeSettings() {
 export function ClaudeCodeSettingsView({ state }: { state: ClaudeSettingsState }) {
   const { reading, saving, error, undone } = state;
   const common = commonReason(reading);
+  const noFile = reading?.userFile === "absent";
+  const rowsKnown = reading ? reading.userFile !== "invalid" && reading.userFile !== "unreadable" : !error;
   return (
     <>
-      {(reading === null || error || common) && (
+      {(reading === null || error || common || noFile) && (
         <SettingsGroup>
           {reading === null && !error && <p className="settings-row settings-row-status" role="status">Reading Claude Code settings…</p>}
           {common && <p className="settings-row settings-row-status" role="status">{common}</p>}
+          {noFile && !common && <p className="settings-row settings-row-status" role="status">{CLAUDE_NO_FILE}</p>}
           {error && (
             <div className="settings-row" role="alert">
               <span className="settings-row-name">{error}</span>
@@ -106,12 +128,14 @@ export function ClaudeCodeSettingsView({ state }: { state: ClaudeSettingsState }
           )}
         </SettingsGroup>
       )}
-      {CLAUDE_SETTING_GROUPS.map(group => (
+      {rowsKnown && CLAUDE_SETTING_GROUPS.map(group => (
         <SettingsGroup key={group.id} id={`claude-group-${group.id}`} title={group.title}>
           {CLAUDE_SETTINGS.filter(entry => entry.group === group.id).map(entry => {
             const row = reading?.settings.find(r => r.id === entry.id);
             const nameId = `claude-${entry.id}-label`, noteId = `claude-${entry.id}-note`;
-            const said = row && !row.editable ? (common ? "" : row.reason) : undone?.id === entry.id ? CLAUDE_UNDONE : "";
+            const said = row && !row.editable && !common ? row.reason
+              : undone?.id === entry.id ? CLAUDE_UNDONE
+              : row?.override ? overrideLine(row.override) : "";
             return (
               <SettingRow
                 key={entry.id}
@@ -128,8 +152,8 @@ export function ClaudeCodeSettingsView({ state }: { state: ClaudeSettingsState }
           })}
         </SettingsGroup>
       ))}
-      <p className="settings-foot">{CLAUDE_FOOT}</p>
-      <ClaudeSettingsIndex present={reading?.present ?? null} />
+      {rowsKnown && <p className="settings-foot">{claudeFoot(reading?.fileShown)}</p>}
+      <ClaudeSettingsIndex present={reading?.present ?? null} noFile={noFile} />
     </>
   );
 }

@@ -12,8 +12,9 @@
 //
 // NOTHING UNTIL ASKED. With an empty filter the list is the keys the user's
 // own file sets, which is the short answer to "what have I changed"; a filter
-// searches all of them. The index is fetched with the section, not with the
-// deck: it is some forty kilobytes nobody else reads.
+// searches all of them. While that file cannot be read the list says nothing
+// of it, rather than calling it empty. The index is fetched with the section,
+// not with the deck: it is some forty kilobytes nobody else reads.
 import { useEffect, useId, useMemo, useState } from "react";
 import { CLAUDE_SETTINGS_DOCS } from "../../server/claude-settings-catalog.mjs";
 import { isEscapeKey } from "../modal-dismiss";
@@ -57,7 +58,9 @@ export function matchKeys(keys: readonly IndexedKey[], query: string): IndexedKe
 let loaded: Promise<IndexedKey[]> | null = null;
 const loadIndex = () => (loaded ??= import("../../server/claude-settings-index.json").then(m => m.default.keys as IndexedKey[]));
 
-export default function ClaudeSettingsIndex({ present }: { present: Record<string, string> | null }) {
+/** `present` is null while the user's settings.json cannot be read, and
+ *  `noFile` says it is not there at all. */
+export default function ClaudeSettingsIndex({ present, noFile = false }: { present: Record<string, string> | null; noFile?: boolean }) {
   const [keys, setKeys] = useState<IndexedKey[] | null>(null);
   const [query, setQuery] = useState("");
   const filterId = useId();
@@ -86,7 +89,9 @@ export default function ClaudeSettingsIndex({ present }: { present: Record<strin
       id="claude-group-all"
       settingId="claude-all-settings"
       title="All Claude Code settings"
-      note={searching ? undefined : "The keys your settings.json sets. Filter to look up any of them, and open the reference for what each does."}
+      note={searching ? undefined : present && !noFile
+        ? "The keys your settings.json sets. Filter to look up any of them, and open the reference for what each does."
+        : "Filter to look up any setting Claude Code documents, and open the reference for what each does."}
       aside={keys ? <span className="settings-caption-count">{keys.length}</span> : undefined}
       list={false}
     >
@@ -132,7 +137,7 @@ export default function ClaudeSettingsIndex({ present }: { present: Record<strin
       )}
       {searching && rows.length === 0 && keys && <p className="settings-empty" role="status">No setting matches “{query.trim()}”.</p>}
       {rows.length > INDEX_LIMIT && <p className="settings-foot" role="status">{rows.length - INDEX_LIMIT} more. Type more of the name to narrow the list.</p>}
-      {!searching && present && keys && rows.length === 0 && <p className="settings-empty">Your settings.json sets nothing yet.</p>}
+      {!searching && present && !noFile && keys && rows.length === 0 && <p className="settings-empty">Your settings.json sets nothing yet.</p>}
     </SettingsGroup>
   );
 }

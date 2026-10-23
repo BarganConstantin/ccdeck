@@ -31,6 +31,20 @@ describe("the short list", () => {
     }
   });
 
+  it("shows, for a key no file sets, the default the reference documents", () => {
+    for (const entry of CLAUDE_SETTINGS) {
+      if (entry.kind !== "switch" && entry.kind !== "days") continue;
+      const documented = doc(entry.key)!.default;
+      // "unset, so …" in the reference: the words say what that does, which
+      // the row's note and its `unset` were written from.
+      if (documented === null) continue;
+      expect(String(entry.unset), entry.id).toBe(documented);
+    }
+    // And the ones that read "unset" are the ones checked by hand: off.
+    expect(CLAUDE_SETTINGS.filter(e => e.kind === "switch" && doc(e.key)!.default === null).map(e => [e.id, e.unset]))
+      .toEqual([["isolatePeerMachines", false]]);
+  });
+
   it("asks for the version the reference names for each key it writes", () => {
     for (const entry of CLAUDE_SETTINGS) {
       const since = doc(entry.kind === "allowTool" ? "crossSessionInbound" : entry.key)!.since;

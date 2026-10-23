@@ -20,13 +20,19 @@
 // key is unset removes the key rather than writing that value, so the file
 // keeps only what the person changed, and a later change of default in Claude
 // Code reaches them.
+//
+// ONLY A ROW THAT DOES WHAT IT SAYS. A key whose effect depends on the model
+// is not here: `effortLevel` in the user file is ignored by Opus 5.5 and every
+// model after it, which read `modelSettings` instead, and
+// `alwaysThinkingEnabled: false` does nothing on a model that always thinks.
+// Both are better changed where Claude Code shows the model, with /effort and
+// /model.
 
 export const CLAUDE_SETTINGS_DOCS = "https://code.claude.com/docs/en/settings-reference";
 
 /** The captions the rows are drawn under, in the order they are drawn. */
 export const CLAUDE_SETTING_GROUPS = [
   { id: "sessions", title: "Your sessions" },
-  { id: "model", title: "Model" },
   { id: "memory", title: "Memory and history" },
   { id: "git", title: "Git" },
   { id: "terminal", title: "Terminal" },
@@ -42,8 +48,16 @@ export const CLAUDE_SETTING_GROUPS = [
  *   attribution `attribution: false` when off, the key absent when on
  *
  * since: the oldest Claude Code that reads the value the row writes. Older
- *   ones ignore it, or for a `strict` row skip the whole settings file over
- *   it, so a strict row is not written while the version cannot be read.
+ *   ones ignore it, or for `attribution: false` skip the whole settings file
+ *   over it, so the row is not written while the version cannot be read.
+ *
+ * overrides: environment variables Claude Code's reference says outrank the
+ *   key, each with the value that does (`on`: 1, true, yes; `off`: 0, false,
+ *   no) and what it makes of the row. Read from the `env` block of the files
+ *   the deck reads, and from the deck's own environment.
+ *
+ * legacy: a value an older Claude Code kept in ~/.claude.json still applies
+ *   while no settings file sets the key.
  */
 export const CLAUDE_SETTINGS = [
   {
@@ -71,34 +85,20 @@ export const CLAUDE_SETTINGS = [
     keywords: ["remote control", "cloud", "cross-machine", "approval"],
   },
   {
-    id: "effortLevel", key: "effortLevel", group: "model", kind: "choice",
-    label: "Effort",
-    note: "For models without a saved level, in sessions started after the change. Higher reasons more and uses more quota.",
-    options: [
-      { value: null, label: "Model default" },
-      { value: "low", label: "Low" },
-      { value: "medium", label: "Medium" },
-      { value: "high", label: "High" },
-      { value: "xhigh", label: "Extra high" },
-    ],
-    keywords: ["reasoning", "effort level", "quality", "speed", "think harder"],
-  },
-  {
-    id: "alwaysThinkingEnabled", key: "alwaysThinkingEnabled", group: "model", kind: "switch", unset: true,
-    label: "Extended thinking",
-    note: "Off turns extended thinking off in every session.",
-    keywords: ["thinking", "reasoning", "think"],
-  },
-  {
     id: "autoMemoryEnabled", key: "autoMemoryEnabled", group: "memory", kind: "switch", unset: true,
     label: "Auto memory",
     note: "Claude keeps notes it learns while working and reads them in later sessions. Off, it does neither.",
+    overrides: [
+      { env: "CLAUDE_CODE_DISABLE_AUTO_MEMORY", when: "on", effect: "Off" },
+      { env: "CLAUDE_CODE_DISABLE_AUTO_MEMORY", when: "off", effect: "On" },
+    ],
     keywords: ["memory", "remember", "notes", "memory.md"],
   },
   {
     id: "autoCompactEnabled", key: "autoCompactEnabled", group: "memory", kind: "switch", unset: true,
     label: "Compact automatically",
     note: "Claude summarizes a long conversation when it nears the context limit, so the session can go on.",
+    overrides: [{ env: "DISABLE_AUTO_COMPACT", when: "on", effect: "Off" }],
     keywords: ["compact", "context", "summarize", "context window"],
   },
   {
@@ -112,10 +112,11 @@ export const CLAUDE_SETTINGS = [
     id: "fileCheckpointingEnabled", key: "fileCheckpointingEnabled", group: "memory", kind: "switch", unset: true,
     label: "Checkpoints for rewind",
     note: "Claude keeps a copy of each file before editing it, so a change can be rewound.",
+    overrides: [{ env: "CLAUDE_CODE_DISABLE_FILE_CHECKPOINTING", when: "on", effect: "Off" }],
     keywords: ["rewind", "checkpoint", "restore", "revert"],
   },
   {
-    id: "attribution", key: "attribution", group: "git", kind: "attribution", since: "2.1.281", strict: true,
+    id: "attribution", key: "attribution", group: "git", kind: "attribution", since: "2.1.281",
     label: "Credit Claude in commits and pull requests",
     note: "Off, Claude adds no Co-Authored-By line to commits and no attribution line to pull requests.",
     keywords: ["co-authored-by", "co-author", "trailer", "generated with", "commit message", "pull request", "attribution"],
@@ -127,7 +128,7 @@ export const CLAUDE_SETTINGS = [
     keywords: ["spinner", "tips", "hints"],
   },
   {
-    id: "showTurnDuration", key: "showTurnDuration", group: "terminal", kind: "switch", unset: true,
+    id: "showTurnDuration", key: "showTurnDuration", group: "terminal", kind: "switch", unset: true, legacy: true,
     label: "Show how long a turn took",
     note: "The line after each turn that says how long Claude worked.",
     keywords: ["duration", "time", "timer"],
@@ -142,8 +143,13 @@ export const CLAUDE_SETTINGS = [
     id: "autoUpdatesChannel", key: "autoUpdatesChannel", group: "updates", kind: "choice",
     label: "Update channel",
     note: "Stable follows a version about a week old and skips releases with major regressions.",
+    overrides: [
+      { env: "DISABLE_UPDATES", when: "on", effect: "Updates are off" },
+      { env: "DISABLE_AUTOUPDATER", when: "on", effect: "Background updates are off" },
+    ],
     options: [
-      { value: null, label: "Latest" },
+      // `claude install latest` writes the default out, so it reads as this.
+      { value: null, label: "Latest", also: "latest" },
       { value: "stable", label: "Stable" },
     ],
     keywords: ["updates", "release channel", "stable", "latest", "version"],

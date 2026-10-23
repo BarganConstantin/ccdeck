@@ -1,9 +1,17 @@
-export type ClaudeSettingGroup = "sessions" | "model" | "memory" | "git" | "terminal" | "updates";
+export type ClaudeSettingGroup = "sessions" | "memory" | "git" | "terminal" | "updates";
 export type ClaudeSettingKind = "switch" | "choice" | "days" | "allowTool" | "attribution";
 
 export interface ClaudeSettingOption {
   value: string | null;
   label: string;
+  /** A value in the file that means the same as this option. */
+  also?: string;
+}
+
+export interface ClaudeSettingOverride {
+  env: string;
+  when: "on" | "off";
+  effect: string;
 }
 
 export interface ClaudeSettingEntry {
@@ -15,7 +23,8 @@ export interface ClaudeSettingEntry {
   note: string;
   keywords: readonly string[];
   since?: string;
-  strict?: boolean;
+  overrides?: readonly ClaudeSettingOverride[];
+  legacy?: boolean;
   unset?: boolean | number;
   tool?: string;
   options?: readonly (ClaudeSettingOption | number)[];

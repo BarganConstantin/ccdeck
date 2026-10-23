@@ -16,13 +16,22 @@
 // string from the key's own list of choices. Everything else in the file —
 // env blocks, helper commands, URLs, tokens — is reported as present and
 // nothing more, because the deck has no business carrying it into a page.
+//
+// NOTHING IS GUESSED. A row shows what Claude Code will do, or no value at
+// all: a settings.json that cannot be read sends no values, only why; a
+// variable that outranks a key (the table's `overrides`) is said under its
+// row; the old `includeCoAuthoredBy: false`, and a turn-duration choice an
+// older Claude Code kept in ~/.claude.json, are read as Claude Code still
+// reads them; and a row that needs a newer Claude Code is not written while
+// the version here cannot be read.
 import { readFileSync } from "node:fs";
-import { mkdir, readdir, unlink } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { posix, win32 } from "node:path";
 import { createTemp, readSettingsForWrite, renameWithRetry, writeFileAtomic } from "./atomic-write.mjs";
 import { CLAUDE_SETTINGS, claudeSettingById } from "./claude-settings-catalog.mjs";
 import { claudeCodeVersions, claudeConfigDir, claudeVersionAtLeast } from "./claude-dir.mjs";
+import { claudeGlobalConfigPath } from "./claude-login.mjs";
 import { deckDataDir } from "./deck-home.mjs";
 import { managedSettingsPath, readBoundedJson } from "./traffic-radar-config.mjs";
 
@@ -73,17 +82,69 @@ function files({ home, env, platform }) {
 async function readDropIns(dir, join, readJson, list) {
   let names;
   try { names = await list(dir); }
-  catch (error) { return error?.code === "ENOENT" ? [] : [{ status: "unavailable", settings: {} }]; }
+  catch (error) { return error?.code === "ENOENT" ? [] : [{ status: "unreadable", settings: {} }]; }
   return Promise.all(names.filter(n => n.endsWith(".json")).sort().map(n => readSource(join(dir, n), readJson)));
 }
 
+/** A settings file as `read`, `absent`, `invalid` (not a JSON object, which
+ *  Claude Code skips whole) or `unreadable` (by the deck: no permission, or
+ *  larger than it reads). */
 async function readSource(path, readJson) {
   try {
     const settings = await readJson(path);
-    return isObject(settings) ? { status: "read", settings } : { status: "unavailable", settings: {} };
+    return isObject(settings) ? { status: "read", settings } : { status: "invalid", settings: {} };
   } catch (error) {
-    return { status: error?.code === "ENOENT" ? "absent" : "unavailable", settings: {} };
+    return { status: error?.code === "ENOENT" ? "absent" : error instanceof SyntaxError ? "invalid" : "unreadable", settings: {} };
   }
+}
+
+const unknown = source => source.status === "invalid" || source.status === "unreadable";
+
+let legacyCache = null;
+/**
+ * The `legacy` rows' values an older Claude Code kept in its state file
+ * (~/.claude.json, or the config directory's when it moved), which still
+ * apply while no settings file sets the key. That file holds every project's
+ * history and can run to megabytes, so it is read again only when it changes.
+ */
+export async function readLegacyValues({ home = homedir(), env = process.env, platform = process.platform } = {}) {
+  try {
+    const path = await claudeGlobalConfigPath({ env, home, platform });
+    const st = await stat(path);
+    if (legacyCache?.path === path && legacyCache.mtimeMs === st.mtimeMs && legacyCache.size === st.size) return legacyCache.values;
+    const state = st.size > 64 * 1024 * 1024 ? null : JSON.parse((await readFile(path, "utf8")).replace(/^﻿/, ""));
+    const values = {};
+    for (const entry of CLAUDE_SETTINGS) {
+      if (entry.legacy && isObject(state) && typeof state[entry.key] === "boolean") values[entry.key] = state[entry.key];
+    }
+    legacyCache = { path, mtimeMs: st.mtimeMs, size: st.size, values };
+    return values;
+  } catch {
+    return {};
+  }
+}
+
+const ON = /^(1|true|yes|on)$/i;
+const OFF = /^(0|false|no|off)$/i;
+
+/** The variable that outranks this row, where it is set and what it makes of
+ *  the row, or null. For each variable the first source that sets it
+ *  decides — a settings file's `env` is applied over the environment a
+ *  session starts with, the administrator's first. */
+function overrideFor(entry, sources) {
+  for (const o of entry.overrides ?? []) {
+    const from = sources.find(s => isObject(s.env) && s.env[o.env] !== undefined && s.env[o.env] !== null);
+    if (!from) continue;
+    const value = String(from.env[o.env]).trim();
+    if ((o.when === "on" ? ON : OFF).test(value)) return { env: o.env, value, where: from.where, effect: o.effect };
+  }
+  return null;
+}
+
+/** `path` with the home directory written as ~, for the page to show. */
+function shownPath(path, home, platform) {
+  const sep = platform === "win32" ? "\\" : "/";
+  return path === home || path.startsWith(home + sep) ? `~${path.slice(home.length)}` : path;
 }
 
 const denies = (settings, tool) => {
@@ -92,32 +153,36 @@ const denies = (settings, tool) => {
 };
 
 /** Whether a file decides this row: names its key, or for a tool row, denies
- *  the tool. */
+ *  the tool. The deprecated `includeCoAuthoredBy: false` still turns
+ *  attribution off where `attribution` is not set. */
 function decides(entry, settings) {
   if (entry.kind === "allowTool") return denies(settings, entry.tool);
+  if (entry.kind === "attribution" && settings.includeCoAuthoredBy === false) return true;
   return Object.hasOwn(settings, entry.key);
 }
 
 /** What the row's control shows for a settings object: a switch's Boolean, a
  *  choice's string or null, a day count. `custom` marks a value the row's
- *  control cannot express, which it shows but will not overwrite. */
-function rowValue(entry, settings) {
+ *  control cannot express, which it shows but will not overwrite. `legacy`
+ *  holds the values ~/.claude.json still gives a key no file sets. */
+function rowValue(entry, settings, legacy = {}) {
   const raw = settings[entry.key];
   switch (entry.kind) {
     case "allowTool": return { value: !denies(settings, entry.tool) };
     case "attribution":
-      if (raw === undefined) return { value: true };
+      if (raw === undefined) return { value: settings.includeCoAuthoredBy !== false };
       if (raw === false) return { value: false };
       return { value: true, custom: true };
     case "switch":
-      if (raw === undefined) return { value: entry.unset };
+      if (raw === undefined) return { value: entry.legacy && typeof legacy[entry.key] === "boolean" ? legacy[entry.key] : entry.unset };
       return typeof raw === "boolean" ? { value: raw } : { value: entry.unset, custom: true };
     case "days":
       if (raw === undefined) return { value: entry.unset };
       return Number.isInteger(raw) && raw >= 1 ? { value: raw } : { value: entry.unset, custom: true };
     case "choice": {
       if (raw === undefined) return { value: null };
-      return entry.options.some(o => o.value === raw) ? { value: raw } : { value: null, custom: true };
+      const option = entry.options.find(o => o.value === raw || o.also === raw);
+      return option ? { value: option.value } : { value: null, custom: true };
     }
     default: return { value: null, custom: true };
   }
@@ -138,22 +203,28 @@ export function safeDisplay(key, raw, index = settingsIndex()) {
  * `editable` is false, with the reason in words, while a file that could
  * decide the row cannot be read, while an administrator's file decides it,
  * while the Claude Code on this machine is too old to read what it writes, or
- * while the user file holds a value the control cannot express.
+ * cannot be asked, or while the user file holds a value the control cannot
+ * express. While the user file cannot be read no row has a value at all.
+ *
+ * `userFile` says which: `read`, `absent` (Claude Code is on its defaults,
+ * and the first change makes the file), `invalid` or `unreadable`.
  */
 export async function readClaudeSettings({
   home = homedir(), env = process.env, platform = process.platform,
   readJson = readBoundedJson, list = readdir, versions = () => claudeCodeVersions({ home, env, platform }),
+  readLegacy = readLegacyValues,
 } = {}) {
   const paths = files({ home, env, platform });
-  const [user, organization, managedFile, dropIns] = await Promise.all([
+  const [user, organization, managedFile, dropIns, legacy] = await Promise.all([
     readSource(paths.user, readJson), readSource(paths.organization, readJson), readSource(paths.managed, readJson),
     readDropIns(paths.dropIns, platform === "win32" ? win32.join : posix.join, readJson, list),
+    readLegacy({ home, env, platform }),
   ]);
   // The administrator's files as one: the drop-ins merged over the main file,
   // as Claude Code reads them, with every file's deny rules kept.
   const managedParts = [managedFile, ...dropIns];
   const managed = {
-    status: managedParts.some(p => p.status === "unavailable") ? "unavailable" : managedParts.some(p => p.status === "read") ? "read" : "absent",
+    status: managedParts.find(unknown)?.status ?? (managedParts.some(p => p.status === "read") ? "read" : "absent"),
     settings: Object.assign({}, ...managedParts.map(p => p.settings)),
   };
   const deny = managedParts.flatMap(p => Array.isArray(p.settings.permissions?.deny) ? p.settings.permissions.deny : []);
@@ -161,37 +232,50 @@ export async function readClaudeSettings({
   const found = versions();
   const oldest = oldestClaudeVersion(found);
   const tooOld = oldest !== null && !claudeVersionAtLeast(oldest, WRITABLE_SINCE);
-  const uncertain = [user, organization, managed].some(s => s.status === "unavailable");
+  const userUnknown = unknown(user);
+  const othersUnknown = unknown(organization) || unknown(managed);
   const rulesManagedOnly = managed.settings.allowManagedPermissionRulesOnly === true;
+  const envSources = [
+    { where: "managed", env: managed.settings.env }, { where: "organization", env: organization.settings.env },
+    { where: "user", env: user.settings.env }, { where: "environment", env },
+  ];
 
   const settings = CLAUDE_SETTINGS.map(entry => {
     const lockedBy = decides(entry, managed.settings) ? "managed"
       : decides(entry, organization.settings) ? "organization"
       : entry.kind === "allowTool" && rulesManagedOnly ? "managed" : null;
-    const shown = lockedBy ? rowValue(entry, lockedBy === "managed" ? managed.settings : organization.settings) : rowValue(entry, user.settings);
+    const shown = lockedBy ? rowValue(entry, lockedBy === "managed" ? managed.settings : organization.settings) : rowValue(entry, user.settings, legacy);
     const behind = entry.since && oldest !== null && !claudeVersionAtLeast(oldest, entry.since);
-    const unknownVersion = entry.strict && oldest === null;
-    const reason = uncertain ? "Settings could not be read. Nothing can be changed until they can."
+    const unknownVersion = entry.since && oldest === null;
+    const reason = user.status === "invalid" ? "Your settings.json is not valid JSON, so Claude Code skips all of it, hooks included. Fix it in an editor; this section reads it again by itself."
+      : user.status === "unreadable" ? "Your settings.json could not be read here, so nothing is shown or changed until it can."
+      : othersUnknown ? "Your organization's settings could not be read, so nothing here can be changed until they can."
       : lockedBy ? "Set by your organization. Ask your administrator to change it."
       : tooOld ? `Needs Claude Code ${WRITABLE_SINCE} or newer.`
       : behind ? `Needs Claude Code ${entry.since} or newer.`
       : unknownVersion ? `Needs Claude Code ${entry.since} or newer, and the version installed here could not be read.`
       : shown.custom ? "Your settings.json holds a custom value. Edit it there."
       : null;
+    const override = userUnknown ? null : overrideFor(entry, envSources);
     return {
-      id: entry.id, value: shown.value, isSet: !lockedBy && decides(entry, user.settings),
-      ...(shown.custom ? { custom: true } : {}), ...(lockedBy ? { lockedBy } : {}),
-      editable: reason === null, ...(reason ? { reason } : {}),
+      id: entry.id, value: userUnknown ? null : shown.value, isSet: !lockedBy && decides(entry, user.settings),
+      ...(shown.custom && !userUnknown ? { custom: true } : {}), ...(lockedBy ? { lockedBy } : {}),
+      editable: reason === null, ...(reason ? { reason } : {}), ...(override ? { override } : {}),
     };
   });
 
-  const present = {};
-  if (user.status === "read") for (const [key, raw] of Object.entries(user.settings)) present[key] = safeDisplay(key, raw);
+  let present = null;
+  if (user.status === "read" || user.status === "absent") {
+    present = {};
+    for (const [key, raw] of Object.entries(user.settings)) present[key] = safeDisplay(key, raw);
+  }
 
   return {
     ok: true,
     claudeVersion: oldest,
     file: paths.user,
+    fileShown: shownPath(paths.user, home, platform),
+    userFile: user.status,
     sources: [
       { name: "User settings", status: user.status },
       { name: "Cached organization settings", status: organization.status },
@@ -213,8 +297,9 @@ function acceptable(entry, value) {
 }
 
 /** The user settings with the row set to `value`, or a reason it cannot be.
- *  The value Claude Code uses when the key is absent removes the key. */
-function applied(entry, value, current) {
+ *  The value Claude Code uses when the key is absent removes the key — for a
+ *  `legacy` row, the value ~/.claude.json would then give it. */
+function applied(entry, value, current, legacy = {}) {
   const settings = { ...current };
   if (entry.kind === "allowTool") {
     const permissions = settings.permissions;
@@ -236,11 +321,19 @@ function applied(entry, value, current) {
   }
   if (entry.kind === "attribution") {
     if (current.attribution !== undefined && current.attribution !== false) return { error: "Your settings.json holds a custom attribution. Edit it there." };
-    if (value) delete settings.attribution; else settings.attribution = false;
+    if (value) {
+      delete settings.attribution;
+      if (settings.includeCoAuthoredBy === false) delete settings.includeCoAuthoredBy;
+    } else if (current.attribution === undefined && current.includeCoAuthoredBy === false) {
+      // Already off, by the key that came before `attribution`.
+    } else {
+      settings.attribution = false;
+    }
     return { settings };
   }
   if (entry.kind === "switch" || entry.kind === "days") {
-    if (value === entry.unset) delete settings[entry.key]; else settings[entry.key] = value;
+    const absent = entry.legacy && typeof legacy[entry.key] === "boolean" ? legacy[entry.key] : entry.unset;
+    if (value === absent) delete settings[entry.key]; else settings[entry.key] = value;
     return { settings };
   }
   if (value === null) delete settings[entry.key]; else settings[entry.key] = value;
@@ -282,13 +375,14 @@ export function updateClaudeSetting(id, value, options = {}) {
     const state = await readClaudeSettings(options);
     const row = state.settings.find(r => r.id === entry.id);
     if (!row.editable) throw new SettingsRefusal(row.reason);
-    const { home = homedir(), env = process.env, platform = process.platform } = options;
+    const { home = homedir(), env = process.env, platform = process.platform, readLegacy = readLegacyValues } = options;
     const paths = files({ home, env, platform });
+    const legacy = await readLegacy({ home, env, platform });
     for (let attempt = 0; attempt < 2; attempt++) {
       let read;
       try { read = await readSettingsForWrite(paths.user); }
       catch { throw new SettingsRefusal("Your settings.json could not be read as JSON. No changes were saved."); }
-      const next = applied(entry, value, read.settings);
+      const next = applied(entry, value, read.settings, legacy);
       if (next.error) throw new SettingsRefusal(next.error);
       const text = JSON.stringify(next.settings, null, 2) + "\n";
       if (JSON.stringify(next.settings) === JSON.stringify(read.settings)) return readClaudeSettings(options);

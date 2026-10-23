@@ -19,15 +19,26 @@ export interface ClaudeSettingRow {
   lockedBy?: "managed" | "organization";
   editable: boolean;
   reason?: string;
+  /** A variable that outranks the row, where it is set, and what it makes of
+   *  the row ("Off", "Updates are off"). */
+  override?: { env: string; value: string; where: "managed" | "organization" | "user" | "environment"; effect: string };
 }
+
+/** The user's settings.json: read, not there yet (Claude Code is on its
+ *  defaults), not JSON (Claude Code skips it), or not readable by the deck. */
+export type ClaudeUserFile = "read" | "absent" | "invalid" | "unreadable";
 
 export interface ClaudeSettingsReading {
   claudeVersion: string | null;
   file: string;
+  /** `file` with the home directory written as ~. */
+  fileShown: string;
+  userFile: ClaudeUserFile;
   settings: ClaudeSettingRow[];
   /** Every top-level key of the user file, and what the page may see of its
-   *  value: the value for a safe kind, otherwise "set". */
-  present: Record<string, string>;
+   *  value: the value for a safe kind, otherwise "set". Null while the file
+   *  cannot be read. */
+  present: Record<string, string> | null;
 }
 
 export interface ClaudeSettingsState {
@@ -54,7 +65,7 @@ const publish = (patch: Partial<ClaudeSettingsState>) => { snapshot = { ...snaps
 
 function valid(data: unknown): data is ClaudeSettingsReading & { ok: true } {
   const d = data as { ok?: unknown; settings?: unknown; present?: unknown } | null;
-  return !!d && d.ok === true && Array.isArray(d.settings) && !!d.present && typeof d.present === "object";
+  return !!d && d.ok === true && Array.isArray(d.settings) && typeof d.present === "object";
 }
 
 async function read(signal: AbortSignal): Promise<ClaudeSettingsReading> {
