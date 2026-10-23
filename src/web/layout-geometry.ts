@@ -28,6 +28,12 @@ export const SESSION_GAP = SESSION_CHROME + SESSION_VISIBLE_GAP;
 // Clear space two cards of the SAME session keep from each other.
 export const CARD_MARGIN = 24;
 
+// Clear space between two subagents of one parent, stacked in the rank beside
+// it — dagre's `nodesep`, and the pitch a subagent spawned later is appended at
+// (join-sessions.ts), so a column grown one spawn at a time is spaced like one
+// laid out whole.
+export const SIBLING_GAP = 70;
+
 // Two cards in DIFFERENT sessions need more than card clearance: each is drawn
 // inside a cluster box that extends past it — padding on every side, a header
 // strip, and a label tab above that. Cards 30px apart look fine and their boxes

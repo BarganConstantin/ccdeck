@@ -29,11 +29,12 @@
 // a line from the last turn would describe a session that has moved on. Until
 // the model answers, the note says the prompt itself, as Claude Code's agent
 // view does — see statusNote.
+import { planSummary } from "./agent-plan";
 import { recapShown } from "./session-recap";
 import { recapKey } from "./recap-note";
 import { injectedPrompt } from "./injected-prompt";
 import { stopNoteSource, stopNoteText } from "./stop-failure-copy";
-import type { AgentNodeData, BackgroundJob, PromptEntry } from "./types";
+import type { AgentNodeData, AgentPlan, BackgroundJob, PromptEntry } from "./types";
 import type { StopFacts } from "../server/stop-failure.mjs";
 
 /** What a note can be saying. `recap` is Claude Code's recap; `now` a running
@@ -199,6 +200,40 @@ export function sessionNoteShown(a: NoteBearing): SessionNote | null {
     : null;
   if (status && recap) return recap.at > status.at ? recap : status;
   return status ?? recap;
+}
+
+/** The note the canvas draws beside a session's card: its note, with the
+ *  session's plan under it, or the plan alone. */
+export interface BoardNote {
+  note: SessionNote | null;
+  plan: AgentPlan | null;
+  /** What putting it away remembers: the note's own key when there is a note,
+   *  so the plan goes with it; the session's when the plan is alone. */
+  key: string;
+}
+
+/**
+ * The note beside the card, with the plan on it (#2157).
+ *
+ * The plan was on the full card's row, the session list and the details panel,
+ * and a user who had read about it in the release notes found it on none of
+ * them: a fitted board draws the card as a face. The note is the one thing
+ * beside a card that is meant to be read from a distance, so the plan goes on
+ * it — every step, the way the details panel lists them.
+ *
+ * A session with a plan and nothing else to say gets a note holding the plan
+ * alone, while some step is still to do; a finished plan stays on a note that
+ * is there anyway, and does not hold one open by itself. Closed sessions draw
+ * no note at all, as before.
+ */
+export function boardNote(a: NoteBearing & Pick<AgentNodeData, "plan">): BoardNote | null {
+  const note = sessionNoteShown(a);
+  if (a.kind !== "root" || a.closedAt != null) return null;
+  const summary = planSummary(a.plan);
+  const plan = summary ? a.plan! : null;
+  if (note) return { note, plan, key: note.key };
+  if (plan && !summary!.allDone) return { note: null, plan, key: `${a.sessionId}@plan` };
+  return null;
 }
 
 /** Who wrote the note, in words, for its tooltip and its peek. */

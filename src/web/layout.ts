@@ -8,7 +8,7 @@
 import dagre from "dagre";
 import type { Node, Edge } from "reactflow";
 import {
-  cardSize, columnGap, fitZoom, footprint, groupBySession, SESSION_GAP, TOOL_LANE_W, type Lanes,
+  cardSize, columnGap, fitZoom, footprint, groupBySession, SESSION_GAP, SIBLING_GAP, TOOL_LANE_W, type Lanes,
 } from "./layout-geometry";
 
 // The shared measurements are layout-geometry.ts's. The lane map's type and
@@ -59,6 +59,51 @@ export interface LayoutOptions {
  */
 interface PinnedBox { minX: number; minY: number; maxX: number; maxY: number }
 
+/** dagre's gap between two ranks: the room an edge takes to turn from a parent
+ *  card to its children when nothing else stands between them. */
+const RANK_SEP = 160;
+
+/** Clear canvas kept between the end of a parent's bubble trail and its
+ *  children's cards. */
+export const LANE_CLEARANCE = 40;
+
+/**
+ * How much wider than NODE_W a card that has not been measured yet can turn
+ * out: agent-node.css draws it 260 wide, plus 60 at the largest text size.
+ *
+ * A board laid out before its cards measured — a page replaying the log, R —
+ * keeps those slots once they measure, and the overlap pass then compares the
+ * real width. Without this a root measured 20 wider than the 240 it was laid
+ * out at reached its middle subagent with its bubble lane, and the pass slid
+ * that subagent and every one under it down past the lane, leaving a column
+ * with a hole in it. A card already measured needs no slack.
+ */
+const UNMEASURED_SLACK = 80;
+
+/**
+ * The box dagre is handed for an agent: its card plus its burst lane, LESS the
+ * rank gap the lane already provides.
+ *
+ * Handed the whole card+lane box, dagre added its 160 rank gap after the 420 of
+ * lane, so every subagent landed 580 units from its parent's card — 160 past
+ * the furthest a trail of bubbles can reach, and more than twice the card it
+ * was spawned from. A session that fanned out once was 1,900 units wide for two
+ * columns of 240px cards, the fit could not frame it at the full card on a
+ * 1440px window even with every panel shut, and with the default panels open
+ * it framed it at the 0.2 floor: the report was "Default layout for spawning
+ * new nodes make no sense". The edge's turn fits inside the lane, through the
+ * same space the bubbles are drawn in, so a laned card's children now start
+ * LANE_CLEARANCE past the lane, and UNMEASURED_SLACK more while the card has
+ * not measured. A card with no bubbles keeps the full rank gap.
+ */
+function rankBox(id: string, measured: Map<string, { width: number; height: number }>, lanes?: Lanes): { w: number; h: number } {
+  const card = cardSize(id, measured);
+  const box = footprint(id, measured, lanes);
+  const lane = box.w - card.w;
+  const clearance = LANE_CLEARANCE + (measured.has(id) ? 0 : UNMEASURED_SLACK);
+  return lane > 0 ? { w: card.w + Math.max(0, lane + clearance - RANK_SEP), h: box.h } : box;
+}
+
 function layoutSession(
   ids: string[],
   edges: Edge[],
@@ -78,8 +123,8 @@ function layoutSession(
     rankdir: direction,
     marginx: 0,
     marginy: 0,
-    nodesep: 70,
-    ranksep: 160,
+    nodesep: SIBLING_GAP,
+    ranksep: RANK_SEP,
     edgesep: 30,
   });
   // A dragged node is not part of the flow — it renders wherever the user
@@ -96,8 +141,9 @@ function layoutSession(
     // and ranksep (160) is far narrower than a lane (420). The next rank
     // therefore lands on top of this agent's tool bubbles, which is exactly
     // what a screenshot of five Chrome bubbles piled on each other showed.
-    // Reserving the lane here moves the children clear of it instead.
-    const { w, h } = footprint(id, measured, lanes);
+    // Reserving the lane here moves the children clear of it instead — by the
+    // lane and LANE_CLEARANCE, not the lane and a whole rank gap (rankBox).
+    const { w, h } = rankBox(id, measured, lanes);
     g.setNode(id, { width: w, height: h });
   }
   for (const e of edges) {
@@ -113,7 +159,7 @@ function layoutSession(
     const { w, h } = cardSize(id, measured);
     // dagre centred the card+lane box; the CARD sits at its left edge, so the
     // reserved space ends up where the bubbles actually are.
-    const box = footprint(id, measured, lanes);
+    const box = rankBox(id, measured, lanes);
     const x = p.x - box.w / 2;
     const y = p.y - box.h / 2;
     positions.set(id, { x, y });

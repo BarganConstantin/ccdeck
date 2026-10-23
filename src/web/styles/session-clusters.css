@@ -206,6 +206,17 @@
   color: var(--muted);
 }
 .canvas-wrap[data-lod="overview"] .cluster-label-branch { display: inline; }
+/* The plan's count (#2157), wherever the root card is a face: at `detail` the
+   card draws a plan row of its own, and below it nothing else on the board
+   says how far the session has got. */
+.cluster-label-plan {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.canvas-wrap[data-lod="detail"] .cluster-label-plan { display: none; }
 /* A pill with no room to be drawn whole — above the canvas's top edge, under
    the category filter bar or the canvas's other chrome, past a side of the
    pane — is not drawn (SessionClusters, cluster-label-room.ts). Under the top

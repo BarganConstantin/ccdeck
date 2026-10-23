@@ -214,6 +214,23 @@ describe("a subagent lands beside the session it joined", () => {
     expect(at(out, "c2").y - 800).toBe(at(scratch, "c2").y - at(scratch, "r").y);
   });
 
+  it("joins the column its siblings already stand in, under the lowest, one spawn at a time", () => {
+    // Spawned one after another, each subagent's scratch slot is centred on
+    // the parent with ALL its children, and the rank's x moves once a sibling
+    // has bubbles — so the old pass drew the first beside its parent and the
+    // rest in a second column, unevenly. Every spawn here goes under the last.
+    const nodes = [agent("r", "s"), agent("c1", "s", "r"), agent("c2", "s", "r"), agent("c3", "s", "r")];
+    const edges: Edge[] = ["c1", "c2", "c3"].map(c => ({ id: c, source: "r", target: c }));
+    const measured = sizes(nodes);
+    const placed = new Map<string, Point>([["r", { x: 500, y: 300 }], ["c1", { x: 1000, y: 300 }]]);
+    const scratch = autoLayout(nodes, edges, { measured, lanes: new Map([["r", 4], ["c1", 2]]) });
+    const out = joinSessions(scratch, new Map(), id => placed.get(id), id => ({ w: measured.get(id)!.width, h: measured.get(id)!.height }));
+    expect(at(out, "c2")).toEqual({ x: 1000, y: 300 + H + 70 });
+    expect(at(out, "c3")).toEqual({ x: 1000, y: 300 + 2 * (H + 70) });
+    // Nothing that was already on the canvas moves.
+    expect(at(out, "r")).toEqual(at(scratch, "r"));
+  });
+
   it("leaves a brand-new session where the layout put it", () => {
     const { nodes, edges, measured } = family();
     const scratch = autoLayout(nodes, edges, { measured });

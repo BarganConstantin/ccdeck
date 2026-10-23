@@ -11,9 +11,11 @@
 import { describe, it, expect } from "vitest";
 import { applyEvent, initialState, type GraphState } from "../reducer";
 import type { AgentNodeData, HookEnvelope, HookPayload } from "../types";
-import { planLine, planSpoken, planSummary } from "../agent-plan";
+import { planLine, planSpoken, planSummary, planWindow } from "../agent-plan";
+import { boardNote, sessionNoteShown } from "../session-note";
 import { buildRows } from "../components/SessionList";
-import { faceSignal } from "../node-face";
+import { faceSignal, type BranchSummary } from "../node-face";
+import { clusterBounds } from "../cluster-bounds";
 import { agentAriaLabel } from "../agent-copy";
 import { MAX_TOOLS_PER_AGENT } from "../tool-calls";
 
@@ -273,6 +275,117 @@ describe("what the surfaces say", () => {
     send(s, { hook_event_name: "PostToolUse", tool_name: "Edit", tool_use_id: "open-edit", tool_response: {} });
     send(s, { hook_event_name: "Stop" } as Partial<HookPayload>);
     expect(faceSignal(root(s), undefined, words)).toBeNull();
+  });
+});
+
+describe("a plan a fitted board can read", () => {
+  // The report on 3.43.1: "Release notes mentioned visualization of the
+  // agent's plan and progress but I don't see it anywhere." The plan row is on
+  // the full card only, and a session that plans is the session that fans out
+  // — so the fit framed it at a face, and the face said "3 subagents".
+  const words = { sayWaiting: () => "", describeCall: () => ({ name: "Edit" }) };
+  const branch: BranchSummary = { total: 3, live: 3, done: 0, err: 0, failed: 0 };
+
+  function planning(): GraphState {
+    const s = board();
+    create(s, 1, "Reproduce the failing tests", "Reproducing the failing tests");
+    create(s, 2, "Fix the parser");
+    update(s, 1, { status: "in_progress" });
+    return s;
+  }
+
+  it("puts the step on a running root's face ahead of its subagents", () => {
+    expect(faceSignal(root(planning()), branch, words)).toEqual({
+      tone: "muted", long: "0/2 · Reproducing the failing tests", short: "0/2 done",
+    });
+  });
+
+  it("gives the subagents the face back once the plan is finished", () => {
+    const s = planning();
+    update(s, 1, { status: "completed" });
+    update(s, 2, { status: "completed" });
+    expect(faceSignal(root(s), branch, words)).toMatchObject({ short: "→ 3 · 3 live" });
+  });
+
+  it("carries the count on the session pill, which is drawn at every zoom", () => {
+    const s = planning();
+    const card = { type: "agent", position: { x: 0, y: 0 }, width: 240, height: 130 };
+    const [c] = clusterBounds([{ ...card, data: root(s) }]);
+    expect(c.plan).toBe("plan 0/2");
+    expect(c.title.split("\n")[0]).toBe("repo · plan 0/2 · Reproducing the failing tests");
+  });
+
+  it("leaves the pill as it was for a session that keeps no list", () => {
+    const s = board();
+    const [c] = clusterBounds([{ type: "agent", position: { x: 0, y: 0 }, width: 240, height: 130, data: root(s) }]);
+    expect(c.plan).toBeUndefined();
+    expect(c.title.split("\n")[0]).toBe("repo");
+  });
+});
+
+describe("the plan on the session's note", () => {
+  // The owner's answer to the same report: put the plan where the recap is, on
+  // the note beside the card — the one thing on the board meant to be read
+  // from a distance.
+  function planning(): GraphState {
+    const s = board();
+    create(s, 1, "Reproduce the failing tests", "Reproducing the failing tests");
+    create(s, 2, "Fix the parser");
+    update(s, 1, { status: "in_progress" });
+    return s;
+  }
+  /** The same root with nothing for its note to say. */
+  const quiet = (a: AgentNodeData): AgentNodeData => ({ ...a, prompts: [], recap: undefined, activity: undefined, job: undefined });
+
+  it("goes under the note the session already has, and is put away with it", () => {
+    const a = root(planning());
+    const note = sessionNoteShown(a)!;
+    expect(note).not.toBeNull();
+    const b = boardNote(a)!;
+    expect(b.note).toEqual(note);
+    expect(b.plan?.items.map(i => i.text)).toEqual(["Reproduce the failing tests", "Fix the parser"]);
+    expect(b.key).toBe(note.key);
+  });
+
+  it("holds a note open by itself while a step is still to do", () => {
+    const a = quiet(root(planning()));
+    expect(sessionNoteShown(a)).toBeNull();
+    expect(boardNote(a)).toMatchObject({ note: null, key: `${SID}@plan` });
+    expect(boardNote(a)!.plan?.items).toHaveLength(2);
+  });
+
+  it("does not hold one open once every step is done", () => {
+    const s = planning();
+    update(s, 1, { status: "completed" });
+    update(s, 2, { status: "completed" });
+    expect(boardNote(quiet(root(s)))).toBeNull();
+    // On a note that is there anyway it stays, as its count.
+    expect(boardNote(root(s))?.plan).not.toBeNull();
+  });
+
+  it("draws nothing for a session that keeps no list, or one that has closed", () => {
+    expect(boardNote(quiet(root(board())))).toBeNull();
+    expect(boardNote(root(board()))?.plan).toBeNull();
+    const s = planning();
+    send(s, { hook_event_name: "SessionEnd" } as Partial<HookPayload>);
+    expect(boardNote(root(s))).toBeNull();
+  });
+
+  it("shows a long plan five steps at a time, around the one under way", () => {
+    const items = Array.from({ length: 9 }, (_, k) => ({
+      text: `step ${k + 1}`,
+      status: (k < 4 ? "completed" : k === 4 ? "in_progress" : "pending") as "completed" | "in_progress" | "pending",
+    }));
+    const w = planWindow(items);
+    expect(w.shown.map(i => i.text)).toEqual(["step 4", "step 5", "step 6", "step 7", "step 8"]);
+    expect([w.before, w.after]).toEqual([3, 1]);
+    // At the start, and at the end, the window stays whole.
+    const first = planWindow(items.map((i, k) => ({ ...i, status: k === 0 ? "in_progress" as const : "pending" as const })));
+    expect([first.shown[0].text, first.before, first.after]).toEqual(["step 1", 0, 4]);
+    const last = planWindow(items.map(i => ({ ...i, status: "completed" as const })));
+    expect([last.shown[4].text, last.before, last.after]).toEqual(["step 9", 4, 0]);
+    // A plan that fits is shown whole.
+    expect(planWindow(items.slice(0, 5))).toEqual({ shown: items.slice(0, 5), before: 0, after: 0 });
   });
 });
 

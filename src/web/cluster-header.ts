@@ -36,9 +36,9 @@ export interface ClusterHeader {
   fullLabel: string;
   /** The pill's tooltip: everything the pill says, whole and in the order it
    *  draws it — the words a screen reader hears for a session waiting on you,
-   *  the workspace, the subagents' summary, the name, the id — and then what a
-   *  press does. The pill ellipsises at its gutter and at the pane's edge, and
-   *  this is where the cut part is read back. */
+   *  the workspace, the plan, the subagents' summary, the name, the id — and
+   *  then what a press does. The pill ellipsises at its gutter and at the
+   *  pane's edge, and this is where the cut part is read back. */
   title: string;
 }
 
@@ -167,15 +167,15 @@ export function clusterHeader(
   sessionId: string,
   collides: boolean,
   peers: readonly string[] = [],
-  { branch, alarm = false }: { branch?: string; alarm?: boolean } = {},
+  { branch, plan, alarm = false }: { branch?: string; plan?: string; alarm?: boolean } = {},
 ): ClusterHeader {
   const named = name?.trim() ?? "";
   const id = collides ? distinctIdTail(sessionId, peers) : undefined;
   const fields = [workspace, named || undefined, id].filter(Boolean) as string[];
-  // The pill draws the subagents' summary between the workspace and the name,
-  // and says "waiting on you: " first for a screen reader; the tooltip reads
-  // the same run.
-  const whole = [workspace, branch, named || undefined, id].filter(Boolean).join(SEP);
+  // The pill draws the plan and the subagents' summary between the workspace
+  // and the name, and says "waiting on you: " first for a screen reader; the
+  // tooltip reads the same run, with the plan's step whole.
+  const whole = [workspace, plan ? `plan ${plan}` : undefined, branch, named || undefined, id].filter(Boolean).join(SEP);
   return {
     // THE LAST UNBOUNDED STRING ON THE HEADER, and it is capped by the same
     // ruler as the name beside it. The note above records that a long
