@@ -15,7 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   connectionHost, createConnection, deleteConnection, IntegrationFailure, integrationsReach, kindOffered, offeredKinds,
-  takeIntegrationFocus, testConnection, updateConnection, useIntegrations,
+  takeIntegrationAdd, takeIntegrationFocus, testConnection, updateConnection, useIntegrations,
 } from "../integrations/client";
 import { clearConnectionPrefs } from "../integrations/prefs";
 import { integrationDef, integrationDefs } from "../integrations/registry";
@@ -59,6 +59,8 @@ export default function IntegrationsSection() {
   useEffect(() => {
     const id = takeIntegrationFocus();
     if (id) { setFocused(id); setEditing({ mode: "edit", id }); }
+    const kind = takeIntegrationAdd();
+    if (kind) setEditing({ mode: "add", kind });
   }, []);
   useEffect(() => {
     if (!focused || !connections) return;

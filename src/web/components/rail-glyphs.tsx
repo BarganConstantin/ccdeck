@@ -20,6 +20,13 @@ export const SessionListGlyph = () => (
   </Glyph>
 );
 
+/** Discovery, distinct from a provider shortcut or a generic Add action. */
+export const IntegrationsGlyph = () => (
+  <Glyph>
+    <path d="M5 1.5v3M9 1.5v3M3.5 4.5h7v2.3A3.5 3.5 0 0 1 7 10.3V13M2.5 4.5h9" />
+  </Glyph>
+);
+
 export const AccountsGlyph = () => (
   <Glyph>
     <circle cx="7" cy="4.6" r="2.4" />
