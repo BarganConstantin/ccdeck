@@ -73,14 +73,16 @@ interface RowProps {
   /** For a row a search result jumps to, and nothing else. */
   settingId?: string;
   className?: string;
+  /** Complete supporting explanation, disclosed separately from the concise note. */
+  details?: ReactNode;
   /** Anything that spans the row under the name and the note: a picker, a
    *  confirmation, a status line. */
   children?: ReactNode;
 }
 
-export function SettingRow({ name, nameId, note, noteId, control, as = "label", settingId, className, children }: RowProps) {
+export function SettingRow({ name, nameId, note, noteId, control, as = "label", settingId, className, details, children }: RowProps) {
   const Tag = as;
-  return (
+  const row = (
     <Tag className={className ? `settings-row ${className}` : "settings-row"} data-setting={settingId}>
       <span className="settings-row-name" id={nameId}>{name}</span>
       {note && <span className="settings-row-note" id={noteId}>{note}</span>}
@@ -88,4 +90,11 @@ export function SettingRow({ name, nameId, note, noteId, control, as = "label", 
       {children}
     </Tag>
   );
+  if (!details) return row;
+  // Keep the disclosure outside the label, while the setting name still
+  // activates its control and the pair remains one row in the shared list.
+  return <div className="settings-row-with-details">
+    {row}
+    <details className="settings-row-details"><summary>Details<span className="vis-hidden"> about {name}</span></summary><div>{details}</div></details>
+  </div>;
 }

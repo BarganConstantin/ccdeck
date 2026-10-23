@@ -22,10 +22,7 @@ describe("provider-targeted Settings navigation", () => {
   it("mounts the original form for the requested provider without an extra picker", () => {
     requestIntegrationAdd("github");
     const section = mount(IntegrationsSection, {});
-    const group = one(section.tree, e => e.props.id === "integrations-add-title")!;
-    // The add form is a render-time branch; invoking the fragment's child
-    // isn't needed because its form element is already in the element tree.
-    const form = one(group, e => e.type === IntegrationConnectionForm)!;
+    const form = one(section.tree, e => e.type === IntegrationConnectionForm)!;
     expect(form.props.def).toMatchObject({ kind: "github", label: "GitHub" });
     expect(form.props.existing).toBeUndefined();
     section.unmount();

@@ -39,8 +39,8 @@ export default function SessionRecoverySettings({ provider }: { provider: "Codex
   const key = provider === "Codex" ? "recoverCodexSessions" : "recoverClaudeSessions";
   const settingId = `${provider.toLowerCase()}-session-recovery`;
   const recover = usePrefSwitch(key, true);
-  return <SettingsGroup id={`${settingId}-title`} title={`${provider} sessions`} note="Choose what appears after ccdeck starts.">
-    <SettingRow settingId={settingId} name="Restore unfinished sessions" note={provider === "Codex" ? "Find unfinished turns in recent local Codex logs on the next start. A missing ending does not confirm the process is still running." : "On the next start, find busy local Claude sessions whose process identity can be verified."} control={
+  return <SettingsGroup id={`${settingId}-title`} title={`${provider} sessions`}>
+    <SettingRow settingId={settingId} name="Restore unfinished sessions" note={provider === "Codex" ? "Restore recent unfinished turns on startup; their processes may have stopped." : "Restore verified busy sessions on the next start."} details={provider === "Codex" ? "Find unfinished turns in recent local Codex logs on the next start. A missing ending does not confirm the process is still running." : "On the next start, find busy local Claude sessions whose process identity can be verified."} control={
       <button type="button" className="switch" role="switch" aria-label={`Restore unfinished ${provider} sessions`} aria-checked={recover.enabled === true} {...selfPressProps(recover.busy, recover.enabled === null)} onClick={() => { void recover.change(); }}><span className="switch-knob" /></button>
     } />
     {recover.error && <p role="alert">{recover.error}</p>}
@@ -53,7 +53,7 @@ export default function SessionRecoverySettings({ provider }: { provider: "Codex
 function ContinueStoppedRow() {
   const pref = usePrefSwitch("continueStopped", false);
   return <>
-    <SettingRow settingId="claude-continue-stopped" name="Continue stopped background sessions" note="When a background session stops on an expired login or a usage limit, continue it once a working login with room is active. Once per stop; a session that stops again right after waits for you." control={
+    <SettingRow settingId="claude-continue-stopped" name="Continue stopped background sessions" note="Resume once a working login with room becomes available." details="When a background session stops on an expired login or a usage limit, continue it once a working login with room is active. Once per stop; a session that stops again right after waits for you." control={
       <button type="button" className="switch" role="switch" aria-label="Continue stopped background sessions automatically" aria-checked={pref.enabled === true} {...selfPressProps(pref.busy, pref.enabled === null)} onClick={() => { void pref.change(); }}><span className="switch-knob" /></button>
     } />
     {pref.error && <p role="alert">{pref.error}</p>}

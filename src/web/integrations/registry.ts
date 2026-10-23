@@ -30,7 +30,7 @@ const jira: IntegrationWebDef = {
   Glyph: JiraGlyph,
   // J is the canvas's next agent (with K), so the other free letter in the name.
   shortcut: "I",
-  detail: "Your board, sprint first",
+  detail: "Boards, sprints, and issues",
   blurb: "Jira Cloud, or Jira Server / Data Center 8.14 and newer.",
   fields: [
     {
@@ -72,7 +72,7 @@ const github: IntegrationWebDef = {
   kind: "github",
   label: "GitHub",
   Glyph: GithubGlyph,
-  detail: "Branches, pull requests, Actions",
+  detail: "Repositories, pull requests, and Actions",
   blurb: "github.com, read-only, with a personal access token.",
   fields: GITHUB_FIELDS,
   tokenHelp: githubTokenHelp,
@@ -82,7 +82,7 @@ const gitlab: IntegrationWebDef = {
   kind: "gitlab",
   label: "GitLab",
   Glyph: GitlabGlyph,
-  detail: "Branches, merge requests, pipelines",
+  detail: "Projects, merge requests, and pipelines",
   blurb: "GitLab.com or your own instance, read-only.",
   fields: GITLAB_FIELDS,
   tokenHelp: gitlabTokenHelp,
