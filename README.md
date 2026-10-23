@@ -208,25 +208,43 @@ phone. Three views keep configuration, observed traffic and saved files separate
   lines; the first 200 matching rows are displayed. File contents alone do not
   prove that a record was sent.
 
-Choose all configured IPv4 destinations, one destination or a custom IPv4
-address and port, then press **Start monitoring** once. ccdeck runs the capture
-itself, as the user running ccdeck: there is no command to paste into a
-Terminal or PowerShell tab, and no repeated ten-minute activation. It retries
-after a capture-process failure or network interface change, and remembers the
-enabled destinations across server restarts. What that user needs:
+Radar monitors by itself, always: there is no Start, no Stop and no
+destination to pick. ccdeck finds Claude Code's collector — from Claude's
+settings, a running session's environment (a collector named by host is looked
+up), the collectors it found before, or an active IPv4 OTLP/gRPC connection on
+port 4317 — and runs the capture itself, as the user running ccdeck, with no
+command to paste into a Terminal or PowerShell tab. It looks every five seconds
+while Radar is open and about once a minute while it is closed, retries after a
+capture-process failure or network interface change, and remembers the
+collectors it found across server restarts.
 
-- **macOS** — the `tcpdump` macOS includes, and permission to capture, which
-  Wireshark’s official
-  [ChmodBPF permission helper](https://www.wireshark.org/docs/wsug_html_chunked/ChBuildInstallOSXInstall.html)
-  grants.
-- **Linux** — `tcpdump`, and packet capture permission for the user running
-  ccdeck.
+Packet capture needs an administrator once. When it is missing, Monitor shows
+**Allow packet capture once**, says what will change, and **Allow capture…**
+opens the system's own password prompt:
+
+- **macOS** — ccdeck adds a small helper of its own,
+  `/Library/LaunchDaemons/dev.ccdeck.chmodbpf.plist`, which does at every
+  startup what Wireshark's
+  [ChmodBPF](https://www.wireshark.org/docs/wsug_html_chunked/ChBuildInstallOSXInstall.html)
+  does: it lets the `access_bpf` group read the packet-capture devices, and
+  your user joins that group. This startup's devices are handed to you
+  directly, so capture starts without logging in again. A Mac with Wireshark's
+  ChmodBPF already set up needs nothing.
+- **Linux** — ccdeck installs `tcpdump` with your package manager (apt, dnf,
+  zypper or pacman) when it is missing, then lets it capture
+  (`cap_net_raw,cap_net_admin`) and limits running it to your own group. A
+  `tcpdump` update replaces the file and drops this; Radar then asks again. The
+  desktop app's `.deb` recommends `tcpdump`, so apt installs it with the app.
 - **Windows** — [Wireshark with Npcap](https://www.wireshark.org/download.html)
-  (ccdeck runs its `dumpcap`), with capture access for that user.
+  (ccdeck runs its `dumpcap`), which you install yourself: Npcap's free edition
+  may not be installed by another program.
 
-ccdeck stays unprivileged: it does not install drivers or change permissions. A
-blocked capture shows its permission or reconnecting state rather than claiming
-to be listening, and capture starts by itself once access is granted.
+Where no password prompt can open — a deck reached over SSH, a Linux desktop
+with no polkit agent — Radar writes the same setup script to
+`~/.agents-deck/radar-capture-setup.sh` and shows the one `sudo` command that
+runs it. Nothing else is changed without that password. A blocked capture shows
+its permission or reconnecting state rather than claiming to be listening, and
+capture starts by itself as soon as access is granted.
 
 Each destination gets its own decoder, up to eight destinations per capture.
 Linux captures routed and loopback traffic through `any`; macOS resolves the
@@ -246,27 +264,21 @@ success and rejection. Acceptance does not prove final backend storage. Contents
 come from captured traffic, not local conversation transcripts. Messages remain
 in local server memory for 24 hours, up to 2,000 exports and a 32 MiB encoded
 payload budget; unreadable observations are capped at 2,000 for 24 hours. The
-oldest entries are removed when a limit is reached. Stop/Start and closing the
-modal preserve history; restarting ccdeck removes it.
+oldest entries are removed when a limit is reached. Closing the modal preserves
+history; restarting ccdeck removes it.
 No capture file is written. **Pause list** pauses display, not capture or retention;
 **Clear messages** clears exports and unreadable observations.
 
-Monitoring continues until **Stop monitoring** or until ccdeck exits. An enabled
-monitor resumes when ccdeck next starts on the same port; Stop is remembered too.
-Closing the modal or browser does not stop capture. Only the opt-in and collector
-destinations are saved, never packet contents, tokens or decoded messages.
-Capture contents are available through the local loopback UI, not LAN endpoints.
-Local clients of the same server share its capture.
+Monitoring continues while ccdeck runs and starts again with it;
+`AGENTS_DECK_NO_RADAR=1` keeps a deck from looking for a collector or capturing
+at all. Closing the modal or browser does not stop capture. Only the collector destinations are
+saved, never packet contents, tokens or decoded messages. Capture contents are
+available through the local loopback UI, not LAN endpoints. Local clients of
+the same server share its capture.
 
-**Automatic monitoring** is off unless you turn it on in **Settings → Radar →
-Monitor automatically**. On, ccdeck finds the collector itself — from Claude's
-settings, a monitor you started, or an active IPv4 OTLP/gRPC connection on port
-4317 — monitors it without Radar open, and retries every five seconds while
-none is available; Monitor then hides Start and the destination picker. Off
-stops it, and nothing is looked for or retried.
-
-Configuration and connection sampling runs only while Radar is open and the
-browser page is visible. A connection does not prove an upload, and absence of
+Configuration and connection sampling runs every five seconds while Radar is
+open and the browser page is visible, and about once a minute in the
+background, to find the collector. A connection does not prove an upload, and absence of
 observed traffic does not mean telemetry is disabled. Native-process sampling
 can miss short-lived connections and Node wrappers. Windows samples native
 Claude processes with PowerShell; Linux uses process names and owned `/proc`
@@ -345,7 +357,7 @@ Opening Radio asks the public [Radio Browser](https://www.radio-browser.info/) d
 
 It never steers an agent or edits your code, but it is not read-only either — besides the hook entry and its own event log, it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does. It also reads your browser's history, because Browser Watch is on unless you switch it off; that is its own section below, because it is the one thing here that is about you rather than about an agent.
 
-Telemetry Radar's flag switches write to `~/.claude/settings.json` too: each puts the flag you set — `CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_LOG_USER_PROMPTS` and the other telemetry and content flags Radar lists — in that file's `env` block, as `"1"` or `"0"`. Switching a flag off writes `"0"` rather than removing it, and `--uninstall`, which removes ccdeck's hook entries, leaves these values as you set them. Starting Radar's monitoring writes `~/.agents-deck/radar-monitor-<port>.json`: the opt-in and the destinations a deck on that port resumes, never packets or decoded messages; turning on automatic monitoring writes `radar-settings-<port>.json` beside it, the switch and the collectors it found. And the quota readings the deck takes are kept in `quota-history.json`, in its data directory (see [Uninstall](#uninstall)), for 35 days and up to 2 MB, under a hash of the account rather than its address, for the Usage panel's quota history. What each Claude organization's settings turn on for telemetry is kept in `org-telemetry.json`, in the same data directory: per organization, its name, the level, the content flags that are on, the collector's scheme, host and port, and when the deck read them, never a path, a header or a credential.
+Telemetry Radar's flag switches write to `~/.claude/settings.json` too: each puts the flag you set — `CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_LOG_USER_PROMPTS` and the other telemetry and content flags Radar lists — in that file's `env` block, as `"1"` or `"0"`. Switching a flag off writes `"0"` rather than removing it, and `--uninstall`, which removes ccdeck's hook entries, leaves these values as you set them. Radar's monitoring writes `~/.agents-deck/radar-monitor-<port>.json`, the destinations a deck on that port resumes, never packets or decoded messages, and `radar-settings-<port>.json` beside it, the collectors it found. And the quota readings the deck takes are kept in `quota-history.json`, in its data directory (see [Uninstall](#uninstall)), for 35 days and up to 2 MB, under a hash of the account rather than its address, for the Usage panel's quota history. What each Claude organization's settings turn on for telemetry is kept in `org-telemetry.json`, in the same data directory: per organization, its name, the level, the content flags that are on, the collector's scheme, host and port, and when the deck read them, never a path, a header or a credential.
 
 **Settings › Claude Code** writes `~/.claude/settings.json` only when you change one of its rows, and only that row's key: going back to Claude Code's default removes the key, and **Let sessions find each other** adds or removes the bare `ListAgents` entry in `permissions.deny` and nothing else in that list. Before each change it keeps the file as it was as `claude-settings.before-change.json` in its data directory, readable only by you. It never writes managed, organization or project settings, nor `~/.claude.json`. A row your organization decides, or one that needs a newer Claude Code than the one it finds, cannot be changed there. The page sees only on/off values, numbers and documented choices from the file; `env` blocks, helper commands and tokens show as "set". `--uninstall` leaves what you set there.
 
@@ -669,10 +681,23 @@ platform's **data** directory, and the platform's **log** directory.
 `prefs.json` is the one to delete deliberately: it holds this deck's **Local
 network private key**, the one every deck you paired with has pinned. Leaving it
 behind leaves that identity on the machine. (`~/.agents-deck/` holds the managed
-tools and the deck's records about them, `radar-monitor-<port>.json` once
-Telemetry Radar has monitored — the destinations it resumes — and
-`radar-settings-<port>.json` once its automatic monitoring has been switched,
-but no key.)
+tools and the deck's records about them, `radar-monitor-<port>.json` and
+`radar-settings-<port>.json` once Telemetry Radar has monitored — the
+destinations it resumes and the collectors it found — but no key.)
+
+**Allow capture** changed the system, so undoing it takes an administrator too.
+On macOS:
+
+```bash
+sudo launchctl bootout system/dev.ccdeck.chmodbpf
+sudo rm /Library/LaunchDaemons/dev.ccdeck.chmodbpf.plist "/Library/Application Support/ccdeck/ccdeck-chmodbpf"
+```
+
+On Linux, give `tcpdump` back its packaged state:
+
+```bash
+t=$(readlink -f "$(command -v tcpdump)"); sudo setcap -r "$t"; sudo chgrp root "$t"; sudo chmod 0755 "$t"
+```
 
 The data directory also holds Tool activity's `tool-audit/` folder — up to 90
 days of which tools and commands your agents ran, and how long they took — and

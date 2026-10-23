@@ -433,7 +433,6 @@ export const GUARDED_READS = new Set([
   "/api/tool-audit",
   "/api/tool-audit/storage",
   "/api/system/traffic-radar",
-  "/api/system/traffic-radar/settings",
   "/api/system/traffic-radar/capture",
   "/api/system/traffic-radar/capture/event",
   // What the user's Claude Code settings.json holds, for Settings › Claude Code.

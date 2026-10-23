@@ -96,7 +96,7 @@ describe("a door into Settings opens it at the section it names", () => {
       ["integrations", />GitHub</],
       ["data", />Tool history<\/h3>/],
       ["claude", />Messages from other sessions</],
-      ["radar", />Monitor automatically</],
+      ["radar", /data-setting="radar-open"/],
       ["about", />Version</],
     ];
     expect(cases.map(([id]) => id)).toEqual(SETTINGS_SECTIONS.map(s => s.id));

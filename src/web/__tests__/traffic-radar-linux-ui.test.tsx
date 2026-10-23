@@ -34,12 +34,15 @@ describe("Linux connection attempts in the inspector", () => {
   });
 
   it("shows a configured collector's pending attempt in Monitor", () => {
-    const capture: CaptureSnapshot = { ok: true, automatic: false, sessionId: null, state: "idle", destination: null, interface: null, startedAt: null, expiresAt: null, lastInputAt: null, bytes: 0, issues: {}, events: [] };
+    // Before capture names a source: the collector the launch environment
+    // names is what the connection is matched against. No picker offers it —
+    // the deck monitors it by itself.
+    const capture: CaptureSnapshot = { ok: true, automatic: true, featureEnabled: true, managed: true, sessionId: null, state: "idle", destination: null, interface: null, startedAt: null, expiresAt: null, lastInputAt: null, bytes: 0, issues: {}, events: [] };
     const radar = { ...snapshot, environment: launch, connections: [{ ...connection, connecting: true as const }] };
-    const markup = html(<TelemetryCapture capture={capture} radar={radar} failed={false} busy={false} error="" command="" action={async () => {}} />);
+    const markup = html(<TelemetryCapture capture={capture} radar={radar} failed={false} busy={false} error="" action={async () => {}} />);
     expect(markup).toContain("Connections to these collectors (1)");
     expect(markup).toContain('class="tr-attempt">Connecting · no reply yet</span>');
-    expect(markup).toContain('<option value="all" selected="">192.0.2.16:4317</option>');
+    expect(markup).not.toContain('aria-label="Capture destination"');
   });
 });
 

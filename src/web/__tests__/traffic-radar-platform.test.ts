@@ -80,7 +80,27 @@ describe('capture backends', () => {
     if (platform === 'win32') expect(setup.command).toContain("Node''s Tools");
   });
   it.each(['win32','linux'])('explains missing capture dependencies on %s', async platform => {
-    await expect(captureTool(platform, async () => null)).rejects.toThrow(platform === 'win32' ? 'Wireshark with Npcap' : 'Install tcpdump');
+    // Radar retries by itself now: the message asks for the install, not a retry.
+    const missing = captureTool(platform, async () => null);
+    await expect(missing).rejects.toThrow(platform === 'win32' ? 'Install Wireshark with Npcap to capture traffic.' : 'Install tcpdump to capture traffic.');
+    await expect(missing).rejects.not.toThrow('then retry');
+  });
+  // Some distributions keep tcpdump in sbin, which a user's or a desktop app's
+  // PATH may leave out: each place is tried, the PATH first.
+  it('finds tcpdump in sbin on Linux when PATH does not have it', async () => {
+    const tried: string[] = [];
+    const run = async (file: string, args: string[]) => { tried.push(file); expect(args).toEqual(['--version']); return file === '/usr/sbin/tcpdump' ? 'tcpdump version 4.99.5' : null; };
+    expect(await captureTool('linux', run)).toBe('/usr/sbin/tcpdump');
+    expect(tried).toEqual(['tcpdump', '/usr/sbin/tcpdump']);
+    tried.length = 0;
+    await expect(captureTool('linux', async (file: string) => (tried.push(file), null))).rejects.toThrow('Install tcpdump');
+    expect(tried).toEqual(['tcpdump', '/usr/sbin/tcpdump', '/usr/bin/tcpdump', '/sbin/tcpdump']);
+    expect(await captureTool('linux', async () => 'tcpdump version 4.99.5')).toBe('tcpdump');
+  });
+  it('looks for tcpdump only where macOS ships it', async () => {
+    const tried: string[] = [];
+    expect(await captureTool('darwin', async (file: string) => (tried.push(file), 'tcpdump version 4.99.1'))).toBe('/usr/sbin/tcpdump');
+    expect(tried).toEqual(['/usr/sbin/tcpdump']);
   });
   it('streams dumpcap binary output unchanged and kills the child when the receiver ends', async () => {
     const bytes = pcap(packet(request()));
