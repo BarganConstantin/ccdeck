@@ -18,9 +18,11 @@ provider entry. Counts describe saved connections.
 Manage opens a focused connection detail view in the existing pane. Keep full
 name, host, account, server information, last verification and saved-token state.
 The connection name (or instance URL) heads Manage, with provider and Saved
-connection secondary. Test/Edit are neutral peers. Add connection has a separate
-area; the final Remove connection area uses the shared outlined danger button
-and retains the two-press safety guard. Per-connection Manage avoids a separate account picker.
+connection secondary. Test/Edit are neutral rounded controls. Manage facts use two columns on desktop
+with labels above values, one column on narrow screens. Add connection sits
+discreetly in the identity header. Remove connection is the final area, with a
+neutral outlined control that becomes destructive when armed, preserving the
+two-press safety guard. Per-connection Manage avoids a separate account picker.
 Additional connections deliberately cost Manage → Add connection.
 
 Connect saves back to the overview; Edit saves/cancels back to its selected

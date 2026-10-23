@@ -45,13 +45,16 @@ export default function IntegrationConnectionDetails({ connection, provider, ava
         <h3 ref={headingRef} tabIndex={-1} id="ig-managed-title" className="ig-managed-title">{connection.name || connection.baseUrl}</h3>
         <p>{label} · Saved connection</p>
       </div>
+      {available && <div className="ig-add-another">
+        <button type="button" className="btn" disabled={busy !== null} aria-label={`Add another ${label} connection`} onClick={event => onAdd(event.currentTarget)}>Add connection</button>
+      </div>}
     </header>
     <dl className="ig-detail-facts">
-      <div><dt>Host</dt><dd className="ig-mono">{connection.baseUrl}</dd></div>
+      <div><dt>Host</dt><dd title={connection.baseUrl}>{connection.baseUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}</dd></div>
       <div><dt>Account</dt><dd>{account}{login ? ` (${login})` : ""}</dd></div>
-      {server && <div><dt>Server</dt><dd>{server}</dd></div>}
       <div><dt>Last verified</dt><dd>{verified ?? "No verification time available"}</dd></div>
-      <div><dt>Token</dt><dd>{connection.tokenSaved ? "Saved on this machine" : "No token saved"}</dd></div>
+      <div><dt>Credentials</dt><dd>{connection.tokenSaved ? "Stored locally" : "No token saved"}</dd></div>
+      {server && <div><dt>Server</dt><dd>{server}</dd></div>}
     </dl>
     {!available && <p className="ig-stranded">{label} is not available on this deck. Disconnect deletes this connection and its saved token.</p>}
     {warnings.length > 0 && <ul className="ig-warnings">{warnings.map(w => <li key={w}>{w}</li>)}</ul>}
@@ -60,14 +63,10 @@ export default function IntegrationConnectionDetails({ connection, provider, ava
       <button type="button" className="btn" disabled={busy !== null} onClick={event => onEdit(event.currentTarget)}>Edit connection</button>
     </div>}
     {note && <p className="ig-note" data-tone={note.tone} role={note.tone === "err" ? "alert" : "status"}>{note.text}</p>}
-    {available && <div className="ig-add-another">
-      <button type="button" className="btn" disabled={busy !== null} aria-label={`Add another ${label} connection`} onClick={event => onAdd(event.currentTarget)}>Add connection</button>
-      <span>Add another {label} account or instance.</span>
-    </div>}
     <div className="ig-disconnect-section">
       <h4>Remove connection</h4>
       <p>Remove this connection and its saved token from this machine.</p>
-      <button type="button" className={`btn danger ig-disconnect${armed ? " armed" : ""}`} disabled={busy !== null && !deleting}
+      <button type="button" className={`btn ig-disconnect${armed ? " danger armed" : ""}`} disabled={busy !== null && !deleting}
         aria-busy={deleting} aria-disabled={deleting || undefined}
         onKeyDown={event => { if (event.repeat) event.preventDefault(); }}
         aria-label={armed ? `Confirm disconnecting ${connection.name}` : `Disconnect ${connection.name}`}

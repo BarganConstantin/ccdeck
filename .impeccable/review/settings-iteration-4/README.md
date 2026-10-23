@@ -2,6 +2,8 @@
 
 # Settings — iteration 4, final polish
 
+**Superseded visually by the owner-requested [reference correction](reference-followup/README.md).**
+
 Baseline `b491a418`. The approved Compact Native Settings structure is preserved.
 No Settings shell, sidebar, other settings section, API or credential behavior
 changed. This is a local review candidate, not approval to merge.

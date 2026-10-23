@@ -19,11 +19,11 @@ const draw = (available = true, armed = false, value = connection) => renderToSt
 describe("focused connection management", () => {
   it("shows complete account/instance facts and historical verification without implying current health", () => {
     const html = draw();
-    for (const fact of ["Jira · Saved connection", "Work tracker", "https://jira.example.com", "Review Developer (reviewer)", "Jira Data Center 9.0", "Last verified", "Saved on this machine"]) expect(html).toContain(fact);
+    for (const fact of ["Jira · Saved connection", "Work tracker", "https://jira.example.com", "Review Developer (reviewer)", "Jira Data Center 9.0", "Last verified", "Stored locally"]) expect(html).toContain(fact);
     for (const action of ["Test connection", "Edit connection", "Add connection", "Disconnect"]) expect(html).toContain(`>${action}</button>`);
     expect(html).toContain('id="ig-managed-title" class="ig-managed-title">Work tracker</h3>');
     expect(html).not.toContain('class="btn primary"');
-    expect(html).toContain('class="btn danger ig-disconnect"');
+    expect(html).toContain('class="btn ig-disconnect"');
     expect(html).not.toMatch(/Healthy|Online|<input|type="password"/);
   });
 
