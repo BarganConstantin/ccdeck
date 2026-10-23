@@ -45,7 +45,8 @@ import { railItems } from "./rail-items";
 // The modal and its panels load on demand; this is the light wrapper that
 // fetches them (IntegrationModalOnDemand.tsx).
 import IntegrationModal, { preloadIntegrationModal } from "./components/IntegrationModalOnDemand";
-import { connectionsOf, kindOffered, kindOpenable, requestIntegrationFocus, useIntegrations } from "./integrations/client";
+import ExploreIntegrationsModal from "./components/ExploreIntegrationsModal";
+import { connectionsOf, kindOffered, kindOpenable, requestIntegrationAdd, requestIntegrationFocus, useIntegrations } from "./integrations/client";
 import { integrationDefs } from "./integrations/registry";
 import type { IntegrationKind } from "./integrations/types";
 import { useMediaQuery } from "./use-media-query";
@@ -280,6 +281,16 @@ function Inner() {
   // connections wait in Settings, where Disconnect removes them.
   const integrations = useIntegrations();
   const [integrationOpen, setIntegrationOpen] = useState<IntegrationKind | null>(null);
+  const [exploreIntegrationsOpen, setExploreIntegrationsOpen] = useState(false);
+  const closeExploreIntegrations = useCallback(() => setExploreIntegrationsOpen(false), []);
+  const connectIntegration = (kind: IntegrationKind) => {
+    requestIntegrationAdd(kind);
+    openSettings("integrations");
+  };
+  const manageIntegration = (connectionId?: string) => {
+    if (connectionId) requestIntegrationFocus(connectionId);
+    openSettings("integrations");
+  };
   const closeIntegration = useCallback(() => setIntegrationOpen(null), []);
   const connectedKinds = integrationDefs().filter(p => kindOpenable(integrations, p.kind));
   const openIntegrationRef = useMirroredRef((kind: string) => {
@@ -639,6 +650,7 @@ function Inner() {
     openCapacity: setCapacityView,
     toggles: panelReturn.toggles,
     integrations: connectedKinds.map(provider => ({ provider, onPress: () => setIntegrationOpen(provider.kind) })),
+    openExploreIntegrations: () => setExploreIntegrationsOpen(true),
   });
   // How many of the waiting sessions the topbar names, for the count's hint,
   // which lists the rest.
@@ -725,8 +737,8 @@ function Inner() {
           control before the region it discloses — or, on a phone, the dock
           that stands in for both stripes and the utilities. */}
       {phone
-        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, rails.utilities[1]]} />
-        : <EdgeRail side="left" label="Left column" groups={[rails.leftStripe, rails.integrations]} />}
+        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, rails.utilities[1]]} />
+        : <EdgeRail side="left" label="Left column" groups={[rails.leftStripe, rails.integrations, rails.explore]} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -817,6 +829,8 @@ function Inner() {
         <IntegrationModal kind={integrationOpen} connections={kindOffered(integrations, integrationOpen) ? connectionsOf(integrations, integrationOpen) : []}
           onClose={closeIntegration} onReconnect={reconnectIntegration} />
       )}
+      {exploreIntegrationsOpen && <ExploreIntegrationsModal integrations={integrations} onClose={closeExploreIntegrations}
+        onOpen={setIntegrationOpen} onConnect={connectIntegration} onManage={manageIntegration} />}
 
       {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
           fixed, so where they sit in the DOM changes nothing on screen — only

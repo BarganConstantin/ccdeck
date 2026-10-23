@@ -59,7 +59,8 @@ describe("character appearance preference", () => {
     expect(modal()).toContain('aria-labelledby="settings-title"');
     expect(themes()).toContain('role="radiogroup"');
     expect(themes()).toContain('role="radio"');
-    expect(modal()).toContain("onClick={onClose}");
+    expect(modal()).toContain("onClick={() => requestLeave(onClose)}");
+    expect(modal()).toContain("const dismissSettings = () => requestLeave(onClose, true)");
     // Inside the viewport, and the section scrolls rather than the page. The
     // dialog is one height whichever section it holds (it followed its section
     // until the frame jumping under the pointer was reported), clamped inside

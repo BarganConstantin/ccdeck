@@ -22,7 +22,8 @@ export default function BoardSection() {
         settingId="hide-finished"
         name={HIDE_FINISHED_LABEL}
         nameId="settings-hide-finished-label"
-        note={HIDE_FINISHED_NOTE}
+        note="Hidden sessions stay available in the session list."
+        details={HIDE_FINISHED_NOTE}
         noteId="settings-hide-finished-note"
         control={
           <select

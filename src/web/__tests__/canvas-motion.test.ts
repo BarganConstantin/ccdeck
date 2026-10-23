@@ -500,6 +500,8 @@ const owner = (sel: string) => sel.replace(/:active.*$/, "");
  *  What this control gives back on press instead is the hover brightness it
  *  keeps through the whole gesture, and a fit-view that moves the canvas. */
 const EXEMPT: string[] = [
+  // Native Settings disclosures answer through expanded state, without moving labels.
+  ".ig-access summary", ".ig-token-help summary", ".settings-row-details summary",
   // Radio uses pointer-only feedback on the control or its child glyph.
   // Range thumbs and map markers must retain fixed interaction geometry.
   ".radio-cluster-preview > div > .radio-cluster-station",

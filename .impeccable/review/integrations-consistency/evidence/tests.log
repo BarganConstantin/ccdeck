@@ -1,0 +1,82 @@
+
+> ccdeck@3.46.0 test
+> vitest run src/web/__tests__/integrations-available.test.ts src/web/__tests__/integrations-avatar.test.ts src/web/__tests__/integrations-connection-details.test.ts src/web/__tests__/integrations-connection-form.test.ts src/web/__tests__/integrations-detail-bar.test.ts src/web/__tests__/integrations-failure.test.ts src/web/__tests__/integrations-free-deck.test.ts src/web/__tests__/integrations-freshness.test.ts src/web/__tests__/integrations-header.test.ts src/web/__tests__/integrations-host-motion.test.ts src/web/__tests__/integrations-host-requests.test.ts src/web/__tests__/integrations-names.test.ts src/web/__tests__/integrations-on-demand-escape.test.ts src/web/__tests__/integrations-on-demand.test.ts src/web/__tests__/integrations-poll.test.ts src/web/__tests__/integrations-routes-2178.test.ts src/web/__tests__/integrations-search.test.ts src/web/__tests__/integrations-secrets.test.ts src/web/__tests__/integrations-selection.test.ts src/web/__tests__/integrations-settings.test.ts src/web/__tests__/integrations-skeleton.test.ts src/web/__tests__/integrations-transport-2178.test.ts src/web/__tests__/integrations-unavailable.test.ts src/web/__tests__/integrations-unhandled.test.ts src/web/__tests__/settings-about-2176.test.ts src/web/__tests__/settings-allowlist-prototype.test.ts src/web/__tests__/settings-atomic-write.test.ts src/web/__tests__/settings-chord.test.ts src/web/__tests__/settings-lost-update.test.ts src/web/__tests__/settings-one-height.test.ts src/web/__tests__/settings-preserve.test.ts src/web/__tests__/settings-race-unreadable-788.test.ts src/web/__tests__/settings-readonly-target.test.ts src/web/__tests__/settings-rows-2176.test.ts src/web/__tests__/settings-search.test.ts src/web/__tests__/settings-surface.test.ts src/web/__tests__/settings-symlink-target.test.ts src/web/__tests__/modal-focus-trap.test.ts src/web/__tests__/modal-dismiss.test.ts src/web/__tests__/modal-dialog-role.test.ts src/web/__tests__/modal-shortcut-gate.test.ts src/web/__tests__/contrast-floors.test.ts src/web/__tests__/control-edges.test.ts
+
+
+ RUN  v2.1.9 /Users/constantin/Desktop/ccdeck-work/src/web
+
+[stray-deck guard] 1 deck(s) from an earlier run are still alive and will be ignored:
+  10018  /Users/constantin/.nvm/versions/node/v22.14.0/bin/node /var/folders/wl/62nt10wn1zv836q4f5kvn56w0000gn/T/ccdeck-boot-budget-GZ44MW/pkg/bin/deck.js --port 28229 --claude --no-codex --history /var/folders/wl/62nt10wn1zv836q4f5kvn56w0000gn/T/ccdeck-boot-budget-GZ44MW/events-installing.jsonl
+ ✓ __tests__/modal-focus-trap.test.ts (45 tests) 71ms
+ ✓ __tests__/settings-symlink-target.test.ts (12 tests) 301ms
+ ✓ __tests__/contrast-floors.test.ts (83 tests) 3594ms
+   ✓ an opacity over text is a contrast ratio too (#1289) > tells a mark from a box that can hold a word, so the sweep below means something 891ms
+   ✓ an opacity over text is a contrast ratio too (#1289) > puts --dim-stale on marks and fills only — elements with no children to hold a word 499ms
+   ✓ nothing at rest paints --inflight itself (#1649) > draws the empty canvas, which only shows when nothing runs, in neither theme's --inflight 425ms
+ ✓ __tests__/integrations-transport-2178.test.ts (15 tests) 371ms
+ ✓ __tests__/settings-about-2176.test.ts (22 tests) 281ms
+ ✓ __tests__/modal-dismiss.test.ts (17 tests) 197ms
+ ✓ __tests__/modal-shortcut-gate.test.ts (14 tests) 64ms
+ ✓ __tests__/integrations-unavailable.test.ts (24 tests) 2345ms
+   ✓ the rail control and I follow what the deck offers > is App's list too: the rail, I and the modal all read it, and a kind no longer offered closes its modal 1570ms
+ ✓ __tests__/integrations-secrets.test.ts (14 tests) 1511ms
+   ✓ a tracker that echoes a bearer token > is connected with the account it answered, the echo taken out, in the answer and on disk 512ms
+ ✓ __tests__/integrations-routes-2178.test.ts (22 tests) 1759ms
+   ✓ a connection to a tracker > connects with a token, and answers with the account but never the token 461ms
+ ✓ __tests__/integrations-available.test.ts (20 tests) 1994ms
+   ✓ the kinds the page is told about > are every registered provider, one not answering listed with available false, and every saved connection stays listed 500ms
+ ✓ __tests__/settings-search.test.ts (30 tests) 3210ms
+   ✓ the index holds every place a result can land > knows every expression a section builds a setting id from 2331ms
+   ✓ the index holds every place a result can land > gives every entry a unique id and a label a component prints 647ms
+ ✓ __tests__/integrations-host-requests.test.ts (23 tests) 2231ms
+   ✓ the path and the connection > answers expired for a connection with no saved token, and asks no provider 321ms
+ ✓ __tests__/settings-surface.test.ts (35 tests) 1319ms
+   ✓ a door into Settings opens it at the section it names > draws the section it was opened at, with that tab on show and the rest one Tab stop away 339ms
+ ✓ __tests__/integrations-free-deck.test.ts (13 tests) 2497ms
+   ✓ a connection the deck's own provider reads > answers every read the panels make from its own tracker, asking that address and nothing else 1025ms
+   ✓ a connection the deck's own provider reads > is disconnected with its token, asking nothing 419ms
+ ✓ __tests__/integrations-settings.test.ts (15 tests) 792ms
+   ✓ Settings provider entries > shows providers in order with one Connect action each and primary GitHub Connect 534ms
+ ✓ __tests__/integrations-poll.test.ts (10 tests) 1033ms
+   ✓ a deck that lists its provider as not available now, with no connection > shows the kind's entries from the later read that lists it available, and keeps reading every minute 378ms
+ ✓ __tests__/integrations-host-motion.test.ts (14 tests) 110ms
+ ✓ __tests__/settings-race-unreadable-788.test.ts (7 tests) 402ms
+ ✓ __tests__/integrations-connection-details.test.ts (16 tests) 442ms
+ ✓ __tests__/settings-atomic-write.test.ts (6 tests) 329ms
+ ✓ __tests__/integrations-unhandled.test.ts (4 tests) 718ms
+ ✓ __tests__/settings-preserve.test.ts (8 tests) 346ms
+ ✓ __tests__/integrations-avatar.test.ts (19 tests) 133ms
+ ✓ __tests__/integrations-names.test.ts (7 tests) 383ms
+ ✓ __tests__/integrations-failure.test.ts (12 tests) 362ms
+   ✓ what a failure offers > puts a rate limit's wait on Try again, not twice 324ms
+ ✓ __tests__/settings-chord.test.ts (21 tests) 2178ms
+   ✓ Cmd/Ctrl+, opens Settings from anywhere > opens over a popover, which covers nothing 1998ms
+ ✓ __tests__/integrations-selection.test.ts (42 tests) 429ms
+ ✓ __tests__/settings-rows-2176.test.ts (14 tests) 255ms
+ ✓ __tests__/integrations-on-demand.test.ts (9 tests) 126ms
+ ✓ __tests__/modal-dialog-role.test.ts (7 tests) 259ms
+ ✓ __tests__/settings-readonly-target.test.ts (3 tests) 139ms
+ ✓ __tests__/settings-lost-update.test.ts (3 tests) 336ms
+ ✓ __tests__/integrations-search.test.ts (4 tests) 175ms
+ ✓ __tests__/integrations-connection-form.test.ts (4 tests) 104ms
+ ✓ __tests__/integrations-detail-bar.test.ts (5 tests) 171ms
+ ✓ __tests__/integrations-on-demand-escape.test.ts (3 tests) 17ms
+ ✓ __tests__/settings-one-height.test.ts (6 tests) 2072ms
+   ✓ Settings keeps one height across sections > scrolls the section, never the nav or the header, on a gutter that does not move 578ms
+   ✓ Settings keeps one height across sections > draws the same frame round every section 569ms
+ ✓ __tests__/integrations-skeleton.test.ts (4 tests) 75ms
+ ✓ __tests__/integrations-freshness.test.ts (8 tests) 1417ms
+   ✓ the freshness line on screen > puts the warning mark beside its word, and the exact moment behind the age 320ms
+   ✓ the freshness line on screen > spins Refresh only while a read is out, and not at all under reduced motion 1003ms
+ ✓ __tests__/settings-allowlist-prototype.test.ts (2 tests) 7ms
+ ✓ __tests__/integrations-header.test.ts (13 tests) 285ms
+ ✓ __tests__/control-edges.test.ts (29 tests) 13658ms
+   ✓ every control that draws a boundary draws one that can be seen (1.4.11) > clears 3:1 at rest, on every surface it can land on, in both themes 3647ms
+   ✓ every control that draws a boundary draws one that can be seen (1.4.11) > never draws it fainter in a state than at rest — a hover that lowers a contrast is not a hover 7814ms
+   ✓ the control surface, promoted (#332) > left no control reading --line for its own edge 1572ms
+
+ Test Files  43 passed (43)
+      Tests  684 passed (684)
+   Start at  15:50:30
+   Duration  21.78s (transform 28.04s, setup 3.40s, collect 105.06s, tests 48.50s, environment 19ms, prepare 20.65s)
+

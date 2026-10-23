@@ -37,13 +37,13 @@ export interface SettingsSectionEntry {
  *  what it is. About comes last and stands at the foot of the nav, as it does
  *  in the desktop settings windows this dialog is modelled on. */
 export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
-  { id: "general", label: "General", note: "The board, updates, and the settings that live in their own panels." },
+  { id: "general", label: "General", note: "Session behavior, board preferences, and automatic updates." },
   { id: "appearance", label: "Appearance", note: "The colour theme and the character on the canvas." },
   { id: "reading", label: "Text & density", note: "Make the deck comfortable to read. Changes apply immediately and stay separate from canvas zoom." },
-  { id: "keyboard", label: "Keyboard", note: "Every shortcut, and whether single keys answer." },
+  { id: "keyboard", label: "Keyboard", note: "Keyboard shortcuts and single-key controls." },
   { id: "notifications", label: "Notifications", note: "How the deck reaches you while you are not looking at it." },
-  { id: "sounds", label: "Sounds", note: "What plays when a turn finishes and when Claude asks." },
-  { id: "integrations", label: "Integrations", note: "Where the deck reads your work from: Jira, GitHub and GitLab. Read only." },
+  { id: "sounds", label: "Sounds", note: "Notification tones and custom audio." },
+  { id: "integrations", label: "Integrations", note: "Manage connections to your developer tools." },
   { id: "data", label: "Data", note: "What the deck keeps on this device." },
   { id: "radar", label: "Radar", note: "Automatic monitoring of Claude telemetry, off unless you turn it on." },
   { id: "about", label: "About", note: "The version you are running, and where to say what you think of it." },
