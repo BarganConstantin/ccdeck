@@ -165,14 +165,18 @@ describe("connection form request state", () => {
     });
   }
 
-  it("locks the fields and Cancel while a submission is pending, keeping the submit control focusable", () => {
+  it("locks edits and Cancel while pending without removing keyboard focus", () => {
     const html = renderToStaticMarkup(createElement(IntegrationConnectionForm, {
       def: integrationDef("gitlab")!, busy: true, error: null, onSubmit: () => {}, onCancel: () => {},
     }));
     const inputs = [...html.matchAll(/<input[^>]*>/g)].map(match => match[0]);
     expect(inputs.length).toBeGreaterThan(2);
-    for (const input of inputs) expect(input).toContain('disabled=""');
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Cancel/);
+    for (const input of inputs) {
+      expect(input).not.toMatch(/(?<![-\w])disabled=/);
+      expect(input).toContain(input.includes('type="radio"') ? 'aria-disabled="true"' : 'readonly=""');
+    }
+    expect(html).toMatch(/<button[^>]*aria-disabled="true"[^>]*>Cancel/);
+    expect(html).not.toMatch(/(?<![-\w])disabled=/);
     expect(html).toMatch(/<button type="submit"[^>]*aria-disabled="true"[^>]*aria-busy="true"/);
   });
 

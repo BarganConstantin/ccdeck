@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   connectionHost, createConnection, deleteConnection, IntegrationFailure, integrationsReach, kindOffered, offeredKinds, refreshIntegrations,
-  takeIntegrationFocus, testConnection, updateConnection, useIntegrations,
+  takeIntegrationAdd, takeIntegrationFocus, testConnection, updateConnection, useIntegrations,
 } from "../integrations/client";
 import { clearConnectionPrefs } from "../integrations/prefs";
 import { integrationDef, integrationDefs } from "../integrations/registry";
@@ -67,6 +67,8 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
   useEffect(() => {
     const id = takeIntegrationFocus();
     if (id) { triggerRef.current = manageRefs.current.get(id) ?? null; setManagedId(id); setFocused(id); setEditing({ mode: "edit", id }); }
+    const kind = takeIntegrationAdd();
+    if (kind) setEditing({ mode: "add", kind });
   }, []);
   useEffect(() => {
     if (!focused || !connections) return;
@@ -77,7 +79,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
     const cancel = () => {
       // Cancel can disappear while the window loses focus; retain its return target.
       if (document.activeElement?.getAttribute("aria-label") === "Cancel disconnect") {
-        document.querySelector<HTMLButtonElement>(".ig-manage-view .ig-disconnect")?.focus();
+        document.querySelector<HTMLButtonElement>(".ig-manage-view [data-integration-disconnect]")?.focus();
       }
       setArmed(null);
     };
@@ -85,7 +87,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
     const t = window.setTimeout(() => {
       // Reading an engaged confirmation has no deadline. Leaving its action
       // cancels immediately; four seconds remains an unfocused safety fallback.
-      if (!document.querySelector(".ig-disconnect-actions")?.contains(document.activeElement)) cancel();
+      if (!document.querySelector("[data-integration-disconnect-actions]")?.contains(document.activeElement)) cancel();
     }, 4_000);
     window.addEventListener("blur", cancel);
     document.addEventListener("visibilitychange", onVisibility);
@@ -325,7 +327,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
   return (
     <div className="ig-settings" data-view={editing ? "form" : managedId ? "connection" : managingKind ? "provider" : "overview"}>
       {editing && <div className="ig-config-view">
-        <button type="button" className="btn ig-back-to-overview" disabled={busy !== null} onClick={() => leave(closeForm, true)}>
+        <button type="button" className="btn ig-back-to-overview" aria-disabled={busy !== null || undefined} onClick={() => leave(closeForm, true)}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 3-5 5 5 5M2 8h12" /></svg>
           {managedId ? "Back to connection" : managingKind ? `Back to ${collectionProvider?.label ?? managingKind} connections` : "All integrations"}
         </button>
@@ -347,10 +349,10 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
       </div>}
       {managingKind && <div className="ig-provider-view" hidden={editing !== null || managedId !== null}>
         <div className="ig-manage-navigation">
-          <button type="button" className="btn ig-back-to-overview" disabled={busy !== null} onClick={() => leave(backToOverview, true)}>
+          <button type="button" className="btn ig-back-to-overview" aria-disabled={busy !== null || undefined} onClick={() => leave(backToOverview, true)}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 3-5 5 5 5M2 8h12" /></svg>All integrations
           </button>
-          {kindOffered(integrations, managingKind) && <button type="button" className="btn" disabled={busy !== null}
+          {kindOffered(integrations, managingKind) && <button type="button" className="btn" aria-disabled={busy !== null || undefined}
             onClick={event => begin({ mode: "add", kind: managingKind }, event.currentTarget)}>Add {collectionProvider?.label ?? managingKind} connection</button>}
         </div>
         <h2 ref={providerHeadingRef} tabIndex={-1} className="ig-managed-title">{collectionProvider?.label ?? managingKind} connections</h2>
@@ -360,10 +362,10 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
       </div>}
       {managedId && <div className="ig-manage-view" hidden={editing !== null}>
         <div className="ig-manage-navigation">
-        <button type="button" className="btn ig-back-to-overview" disabled={busy !== null} onClick={() => leave(backToCollection, true)}>
+        <button type="button" className="btn ig-back-to-overview" aria-disabled={busy !== null || undefined} onClick={() => leave(backToCollection, true)}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 3-5 5 5 5M2 8h12" /></svg>{managingKind ? `Back to ${collectionProvider?.label ?? managingKind} connections` : "All integrations"}
         </button>
-        {managedConnection && kindOffered(integrations, managedConnection.kind) && <button type="button" className="btn" disabled={busy !== null}
+        {managedConnection && kindOffered(integrations, managedConnection.kind) && <button type="button" className="btn" aria-disabled={busy !== null || undefined}
           onClick={event => begin({ mode: "add", kind: managedConnection.kind }, event.currentTarget)}>Add {integrationDef(managedConnection.kind)?.label ?? managedConnection.kind} connection</button>}
         </div>
         {managedConnection ? <IntegrationConnectionDetails connection={managedConnection} provider={integrationDef(managedConnection.kind)}
@@ -402,7 +404,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
                   </>}
                 {!offered.has(provider.kind) && <span className="ig-stranded">{provider.label} is not available on this deck.</span>}
               </div>
-              <button type="button" className={`btn ig-manage${saved.length ? "" : " primary"}`} disabled={busy !== null}
+              <button type="button" className={`btn ig-manage${saved.length ? "" : " primary"}`} aria-disabled={busy !== null || undefined}
                 ref={el => { const refs = saved.length ? providerRefs.current : addRefs.current; if (el) refs.set(provider.kind, el); else refs.delete(provider.kind); }}
                 aria-label={`${saved.length ? "Manage" : "Connect"} ${provider.label}`}
                 onClick={event => saved.length ? openProvider(provider.kind, event.currentTarget) : begin({ mode: "add", kind: provider.kind }, event.currentTarget)}>

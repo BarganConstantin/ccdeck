@@ -15,7 +15,7 @@ import type { RailItem } from "./components/EdgeRails";
 import type { IntegrationWebDef } from "./integrations/types";
 import type { CapacityView } from "./components/AccountsUsageReport";
 import {
-  AccountsGlyph, BrowserWatchGlyph, CapacityGlyph, FeedbackGlyph, HistoryGlyph, MachineGlyph, ResetCalendarGlyph,
+  AccountsGlyph, BrowserWatchGlyph, CapacityGlyph, FeedbackGlyph, HistoryGlyph, IntegrationsGlyph, MachineGlyph, ResetCalendarGlyph,
   SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph, SkillActivityGlyph,
 } from "./components/rail-glyphs";
 import type { ToolActivityView } from "./components/ToolAuditModal";
@@ -41,6 +41,8 @@ export interface RailItems {
    *  two, after a divider; on a phone, under More. Empty until a connection
    *  of that kind exists. */
   integrations: RailItem[];
+  /** Permanent discovery action, separate from connected provider shortcuts. */
+  explore: RailItem[];
 }
 
 /** A tracker kind with at least one connection, and the press that opens its
@@ -64,7 +66,7 @@ export function railItems({
   providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, radioOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
-  openCapacity, integrations = [],
+  openCapacity, integrations = [], openExploreIntegrations,
 }: {
   providers: Providers;
   sessionListOpen: boolean;
@@ -95,6 +97,7 @@ export function railItems({
   openCapacity?: (view: CapacityView) => void;
   /** The connected tracker kinds, in the registry's order (#2178). */
   integrations?: IntegrationRail[];
+  openExploreIntegrations?: () => void;
 }): RailItems {
   const settingsCap = settingsChordLabel(platformName());
   // aria-expanded, not aria-pressed, on the four panels: each shows and
@@ -197,6 +200,10 @@ export function railItems({
       detail: "Explore stations around the world", onPress: () => setRadioOpen(open => !open),
     }]] : [])],
     utilities: [settings, feedback],
+    explore: openExploreIntegrations ? [{
+      id: "explore-integrations", label: "Explore integrations", short: "Integrations",
+      ariaLabel: "Explore integrations", glyph: <IntegrationsGlyph />, kind: "dialog", onPress: openExploreIntegrations,
+    }] : [],
     // Each opens its large modal, so a dialog: aria-haspopup and no state.
     integrations: integrations.map(({ provider, onPress }): RailItem => ({
       id: `integration-${provider.kind}`, label: provider.label, short: provider.label,

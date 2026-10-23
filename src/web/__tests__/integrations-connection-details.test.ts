@@ -27,7 +27,7 @@ describe("focused connection management", () => {
     expect(html).not.toContain('>Add connection</button>');
     expect(html).toContain('<dt>Host</dt><dd>https://jira.example.com</dd>');
     expect(html).not.toContain('class="btn primary"');
-    expect(html).toContain('class="btn danger ig-disconnect"');
+    expect(html).toContain('data-integration-disconnect="true" class="btn danger"');
     expect(html).toContain('<h3>Remove connection</h3>');
     expect(html).not.toMatch(/Healthy|Online|<input|type="password"/);
   });
@@ -44,7 +44,7 @@ describe("focused connection management", () => {
     expect(html).toContain('aria-label="Confirm disconnecting Work tracker"');
     expect(html).toContain('role="status">Press Confirm disconnect to delete this connection and its saved token, or Cancel to keep it.</p>');
     expect(html).toContain('>Confirm disconnect</button>');
-    expect(html).toContain('class="btn danger ig-disconnect armed"');
+    expect(html).toContain('data-integration-disconnect="true" class="btn danger armed"');
     const cancel = html.match(/<button[^>]*aria-label="Cancel disconnect"[^>]*>Cancel<\/button>/)?.[0];
     expect(cancel).toBeDefined();
     expect(cancel).toContain('type="button"');

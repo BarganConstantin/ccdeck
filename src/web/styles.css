@@ -42,6 +42,7 @@
 @import "./styles/session-list.css";             /* the session list */
 @import "./styles/detail-sections.css";          /* the detail panel's hero and sections, prompt history, tool rows */
 @import "./styles/dialogs.css";                  /* the tool, clear, shortcuts, what's-new and session-end dialogs */
+@import "./styles/explore-integrations.css";     /* the native integration discovery catalog */
 @import "./styles/empty-state.css";              /* the empty-state hero */
 @import "./styles/light-contrast.css";           /* light-mode contrast tuning */
 @import "./styles/usage-panel.css";              /* the usage panel and its quota bars */

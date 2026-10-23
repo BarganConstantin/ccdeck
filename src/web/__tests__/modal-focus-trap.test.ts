@@ -291,7 +291,8 @@ describe("the deck's ten overlays", () => {
     // two classes, which the sweep's one-class pattern does not match.
     // Quota history (#2121) shares the same trap and named close focus.
     // The thirtieth is a connected tracker's panel (#2178).
-    expect(MODALS.length).toBe(30);
+    // Explore integrations joins the same focus and dismissal contract.
+    expect(MODALS.length).toBe(31);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {

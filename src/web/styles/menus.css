@@ -63,7 +63,7 @@
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms ease-out, color 120ms ease-out;
+  transition: background-color 120ms ease-out, color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .settings-tab > svg { display: block; flex: none; }
 /* One line, always: a name that wrapped under its glyph would make one tab
@@ -77,6 +77,7 @@
 }
 /* Drawn inside, so the nav's own edge does not clip the ring. */
 .settings-tab:focus-visible { outline-offset: -2px; }
+.settings-tab:active { transform: scale(0.97); }
 /* THE ONE THING IN THE DIALOG THAT SCROLLS, and only when a window is too
    short for its section; a scroll that reaches either end stays here rather
    than handing on to the page behind the scrim. Keyed by its section in the
@@ -510,6 +511,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .settings-tab, .settings-result { transition: none; }
+  .settings-tab:active { transform: none; }
   .settings-result:active { transform: none; }
   .settings-link:active { transform: none; }
 }
