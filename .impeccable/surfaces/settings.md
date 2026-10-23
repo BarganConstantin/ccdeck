@@ -18,7 +18,7 @@ Saved totals belong beside the Integrations heading. The access/token disclosure
 is secondary below the complete list, separate from provider and count metadata.
 
 Manage opens a focused connection detail view in the existing pane. The generic
-Integrations introduction is hidden only here; the selected name or instance URL
+Integrations introduction and saved count appear only on the overview; the selected name or instance URL
 is its h2. Keep full endpoint (scheme and path), account, known provider/server
 metadata, historical verification and saved-token state. Facts remain two columns
 on desktop with labels above values, one column on narrow screens.
@@ -38,6 +38,11 @@ Explicit Cancel restores focus; a four-second timer is only an unfocused safety
 fallback. Test/Edit/Add clear an armed decision. Deletion errors belong beside
 removal. Removing from a multi-connection list focuses the remaining account;
 removing its last connection returns to overview Connect or the section tab.
+
+Connect/Edit share the existing glyph/header pattern with a contextual h2. Edit
+adds the provider identity beneath the connection name. Initial focus stays on
+the first appropriate field; submitting with Enter moves focus to the surviving
+Checking action before inputs disable, keeping busy feedback visible.
 
 Connect saves back to the overview; Edit saves/cancels back to its selected
 connection. Back/Escape go up one level before closing Settings. Search, dirty
@@ -66,3 +71,5 @@ Evidence:
 - [Iteration 5](../review/settings-iteration-5/README.md)
 
 - [Composition regression correction](../review/integrations-composition/README.md)
+
+- [Final consistency and UX QA](../review/integrations-consistency/README.md)

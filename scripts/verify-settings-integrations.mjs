@@ -45,12 +45,14 @@ try {
       localStorage.setItem("agent-dag.releaseNotesSeen", "3.46.0");
     }, theme);
     const page = await context.newPage();
+    page.setDefaultNavigationTimeout(5_000);
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     let saved = [connection("gitlab", "gitlab", "Work projects"), connection("jira", "jira", "Engineering")];
     let refuse = false, testFails = false, failList = false, deleteFails = false, mutations = 0;
     let requestDelay = 180;
-    const calls = { test: 0, delete: 0 };
+    const calls = { form: 0, test: 0, delete: 0 };
+    const formChecks = [];
     const longName = "Platform engineering and developer productivity services";
     const longAccount = "Review Developer for infrastructure reliability and cross-platform developer productivity services";
     const payloads = [];
@@ -69,6 +71,7 @@ try {
         ? { status: 503, json: { error: { kind: "unavailable", message: "Could not read saved connections. Try again." } } }
         : { json: { connections: saved, providers } });
       if (method !== "GET") mutations++;
+      if ((method === "POST" && path === "/api/integrations/connections") || method === "PATCH") calls.form++;
       if (path.endsWith("/test")) calls.test++;
       if (method === "DELETE") calls.delete++;
       await new Promise(resolve => setTimeout(resolve, requestDelay));
@@ -120,7 +123,11 @@ try {
         if (window.axe.getRules().some(rule => rule.tags.includes("wcag22aa"))) tags.push("wcag22aa");
         return { tags, report: await window.axe.run(document.querySelector(".settings-modal"), { runOnly: { type: "tag", values: tags } }) };
       });
-      await writeFile(`${output}/axe-${name}-${width}x${height}-${theme}.json`, JSON.stringify({ tags, engine: report.testEngine, violations: report.violations }, null, 2));
+      const incomplete = report.incomplete.map(rule => ({ id: rule.id, help: rule.help,
+        nodes: rule.nodes.map(node => ({ target: node.target,
+          any: node.any.map(check => ({ id: check.id, message: check.message })),
+          all: node.all.map(check => ({ id: check.id, message: check.message })) })) }));
+      await writeFile(`${output}/axe-${name}-${width}x${height}-${theme}.json`, JSON.stringify({ tags, engine: report.testEngine, violations: report.violations, incomplete }, null, 2));
       assert.deepEqual(report.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.map(n => n.target) })), []);
     };
     const discard = async () => {
@@ -129,6 +136,31 @@ try {
     };
     const checkFocus = async label => page.waitForFunction(label => document.activeElement?.getAttribute("aria-label") === label, label);
     const providerLabels = { github: "GitHub", gitlab: "GitLab", jira: "Jira" };
+    const formLayout = async (name, kind, entering = true) => {
+      const form = page.getByRole("form", { name, exact: true });
+      await form.waitFor();
+      assert.equal(await page.locator('.ig-settings[data-view="form"]').isVisible(), true);
+      assert.equal(await page.locator(".settings-pane-head").isVisible(), false, "Forms must hide the generic pane heading and description");
+      assert.equal(await page.locator(".settings-pane-head .ig-total").isVisible(), false, "Global connection count belongs only to overview");
+      const heading = form.getByRole("heading", { name, exact: true, level: 2 });
+      assert.equal(await heading.isVisible(), true);
+      assert.equal(await page.locator('.settings-pane h2:visible').count(), 1, "One contextual h2 must head the form subpage");
+      assert.equal(await form.getAttribute("aria-labelledby"), await heading.getAttribute("id"), "Form accessible name must remain the task title");
+      const glyph = form.locator('.ig-managed-header > .ig-provider-glyph');
+      assert.equal(await glyph.isVisible(), true);
+      assert.equal(await glyph.getAttribute("aria-hidden"), "true", "Provider glyph must be decorative");
+      assert.equal(await glyph.locator("svg").count(), 1);
+      const identity = form.locator('.ig-managed-identity');
+      if (name.startsWith("Edit ")) assert.equal(await identity.locator("p").innerText(), `${providerLabels[kind]} connection`);
+      else assert.equal(await identity.locator("p").count(), 0, "Connect needs no extra introduction");
+      if (entering) {
+        const label = name.startsWith("Edit ") || kind !== "jira" ? "Personal access token" : "Jira URL";
+        await page.waitForFunction(id => document.activeElement?.id === id, await form.getByLabel(label, { exact: true }).getAttribute("id"));
+      }
+      await noOverflow();
+      formChecks.push({ name, provider: providerLabels[kind], enteringFocusChecked: entering, status: "pass" });
+      return form;
+    };
     // Provider entry points are distinct from the fully named collection rows.
     const providerManage = kind => page.locator(".ig-overview").getByRole("button", { name: `Manage ${providerLabels[kind]}`, exact: true });
     const manage = (kind, name) => page.locator(".ig-provider-view").getByRole("button", { name: `Manage ${providerLabels[kind]}: ${name} (reviewer)`, exact: true });
@@ -159,7 +191,8 @@ try {
     const toolbarAdd = kind => page.locator(".ig-provider-view:visible, .ig-manage-view:visible").getByRole("button", { name: `Add ${providerLabels[kind]} connection`, exact: true });
     const cancelAdd = async (kind, origin) => {
       await toolbarAdd(kind).click();
-      await page.getByRole("form", { name: `Connect ${providerLabels[kind]}`, exact: true }).getByRole("button", { name: "Cancel", exact: true }).click();
+      const form = await formLayout(`Connect ${providerLabels[kind]}`, kind);
+      await form.getByRole("button", { name: "Cancel", exact: true }).click();
       await page.locator(".ig-config-view").waitFor({ state: "detached" });
       await page.locator(`.ig-settings[data-view="${origin}"]`).waitFor();
       assert.equal(await toolbarAdd(kind).evaluate(el => el === document.activeElement), true, "Cancel Add must restore its origin toolbar focus");
@@ -168,6 +201,7 @@ try {
       await page.locator('.ig-settings[data-view="provider"]').waitFor();
       const heading = collection.getByRole("heading", { name: `${providerLabels[kind]} connections`, exact: true, level: 2 });
       await heading.waitFor();
+      assert.equal(await page.locator(".settings-pane-head").isVisible(), false, "Provider collection must hide the overview heading and count");
       assert.equal(await page.locator(".ig-overview").isVisible(), false);
       assert.equal(await collection.getByRole("button", { name: "All integrations", exact: true }).isVisible(), true);
       assert.equal(await toolbarAdd(kind).isVisible(), true);
@@ -214,6 +248,7 @@ try {
       assert.ok(actionWidths.length === 3 && Math.max(...actionWidths.map(b => b.width)) - Math.min(...actionWidths.map(b => b.width)) <= 0.5,
         `Provider actions must share the intrinsic column width: ${JSON.stringify(actionWidths)}`);
       assert.equal(await page.locator('.settings-pane-head .ig-total').count(), 1);
+      assert.equal(await page.locator('.settings-pane-head .ig-total').isVisible(), true);
       assert.equal(await page.locator('.ig-overview-info .ig-total').count(), 0, "Count must be detached from security help");
       assert.equal((await page.locator('.settings-pane-head .ig-total').innerText()).trim(), `${saved.length} saved connection${saved.length === 1 ? "" : "s"}`);
       await noOverflow();
@@ -329,7 +364,7 @@ try {
       await providerManage("gitlab").focus(); await page.keyboard.press("Shift+Tab"); await page.keyboard.press("Tab");
       await keyboardFocusVisible(); await checkFocus("Manage GitLab"); await shot("manage-keyboard-focus");
       await connect.click();
-      const connectForm = page.getByRole("form", { name: "Connect GitHub", exact: true });
+      const connectForm = await formLayout("Connect GitHub", "github");
       assert.deepEqual(await controlGeometry(connectForm.getByRole("button", { name: "Connect", exact: true })), geometry);
       await shot("github"); await connectForm.getByRole("button", { name: "Cancel", exact: true }).click();
       await openConnection("gitlab", "Work projects"); await managementLayout("Work projects");
@@ -428,7 +463,7 @@ try {
 
     // Task C — empty Connect, validation, unsaved inputs, and creation.
     await page.getByRole("button", { name: "Connect GitHub", exact: true }).click();
-    let form = page.getByRole("form", { name: "Connect GitHub", exact: true });
+    let form = await formLayout("Connect GitHub", "github");
     assert.equal(await form.getByLabel("Personal access token", { exact: true }).evaluate(el => el === document.activeElement), true);
     assert.equal(await form.getByRole("button", { name: "Connect", exact: true }).evaluate(el => el.matches('.btn.primary')), true);
     assert.deepEqual(await controlGeometry(form.getByRole("button", { name: "Connect", exact: true })), overviewConnectGeometry, "Overview Connect must share form control geometry");
@@ -440,11 +475,29 @@ try {
     await page.keyboard.press("Escape");
     assert.equal(await form.getByLabel("Personal access token", { exact: true }).inputValue(), "review-fixture");
     refuse = true;
-    await form.getByRole("button", { name: "Connect", exact: true }).click();
+    requestDelay = 2_000;
+    const formsBefore = calls.form;
+    const tokenInput = form.getByLabel("Personal access token", { exact: true });
+    await tokenInput.focus(); await tokenInput.press("Enter");
+    const checking = form.getByRole("button", { name: "Checking…", exact: true });
+    await checking.waitFor();
+    assert.equal(await checking.evaluate(el => el.disabled), false, "Busy submit must remain natively enabled to retain focus");
+    assert.equal(await checking.getAttribute("aria-disabled"), "true");
+    assert.equal(await checking.getAttribute("aria-busy"), "true");
+    assert.equal(await checking.evaluate(el => el === document.activeElement), true, "Enter from the token field must transfer focus to Checking");
+    await keyboardFocusVisible();
+    assert.equal(await tokenInput.isDisabled(), true);
+    assert.equal(await tokenInput.inputValue(), "", "Submitted secret must be cleared immediately");
+    await page.keyboard.press("Enter");
+    await checking.evaluate(el => { el.click(); el.click(); el.form.requestSubmit(el); });
     await form.getByRole("alert").waitFor();
-    assert.equal(await form.getByLabel("Personal access token", { exact: true }).inputValue(), "");
+    assert.equal(calls.form, formsBefore + 1, "Repeated submit while busy must issue exactly one form request");
+    assert.equal(await tokenInput.inputValue(), "");
+    assert.equal(await tokenInput.evaluate(el => el === document.activeElement), true, "Field refusal must restore focus to the token input");
+    assert.equal((await form.getByRole("alert").innerText()).includes("review-fixture"), false, "Feedback must never echo the submitted token");
+    await formLayout("Connect GitHub", "github", false);
     await shot("field-error"); await accessibility("field-error");
-    refuse = false;
+    refuse = false; requestDelay = 180;
     await form.getByLabel("Personal access token", { exact: true }).fill("review-fixture");
     await form.getByRole("button", { name: "Connect", exact: true }).click();
     assert.equal(await form.getByRole("button", { name: "Cancel", exact: true }).isDisabled(), true);
@@ -457,7 +510,7 @@ try {
     // Task D — toolbar Add, multiple connections, long names and Edit.
     await openConnection("gitlab", "Work projects");
     await toolbarAdd("gitlab").click();
-    form = page.getByRole("form", { name: "Connect GitLab", exact: true });
+    form = await formLayout("Connect GitLab", "gitlab");
     await form.getByLabel("Self-managed", { exact: true }).focus(); await page.keyboard.press("Space");
     await form.getByLabel("GitLab URL", { exact: true }).fill("https://source-control.engineering-and-platform-development.example.com");
     await form.getByLabel("Personal access token", { exact: true }).fill("review-fixture");
@@ -487,7 +540,7 @@ try {
     await checkFocus(`Manage GitLab: ${longName} (reviewer)`);
     await manage("gitlab", "Work projects").click();
     await page.getByRole("button", { name: "Edit connection", exact: true }).click();
-    form = page.getByRole("form", { name: "Edit Work projects", exact: true });
+    form = await formLayout("Edit Work projects", "gitlab");
     assert.equal(await form.getByLabel("Personal access token", { exact: true }).inputValue(), "");
     await form.getByLabel("Name", { exact: false }).fill("Work sources");
     await shot("edit"); await accessibility("edit");
@@ -498,7 +551,7 @@ try {
     assert.equal(await page.getByRole("button", { name: "Edit connection", exact: true }).evaluate(el => el === document.activeElement), true);
     // A newly supplied token reports validation; name-only Save must not pretend to test.
     await page.getByRole("button", { name: "Edit connection", exact: true }).click();
-    form = page.getByRole("form", { name: "Edit Work sources", exact: true });
+    form = await formLayout("Edit Work sources", "gitlab");
     await form.getByLabel("Personal access token", { exact: true }).fill("replacement-review-fixture");
     await form.getByRole("button", { name: "Save", exact: true }).click();
     await page.getByRole("status").filter({ hasText: /Saved\. Connection test passed as Review Developer/ }).waitFor();
@@ -556,11 +609,13 @@ try {
     assert.equal(calls.delete, deletesBefore);
     await disconnect().click();
     await page.getByRole("button", { name: "Edit connection", exact: true }).click();
+    await formLayout("Edit Work sources", "gitlab");
     await page.getByRole("form", { name: "Edit Work sources", exact: true }).getByRole("button", { name: "Cancel", exact: true }).click();
     await page.locator(".ig-config-view").waitFor({ state: "detached" });
     assert.equal(await disconnect().isVisible(), true, "Returning from Edit must clear the old armed state");
     assert.equal(await confirmDisconnect().count(), 0);
     await disconnect().click(); await toolbarAdd("gitlab").click();
+    await formLayout("Connect GitLab", "gitlab");
     await page.getByRole("form", { name: "Connect GitLab", exact: true }).getByRole("button", { name: "Cancel", exact: true }).click();
     await page.locator(".ig-config-view").waitFor({ state: "detached" });
     assert.equal(await disconnect().isVisible(), true, "Returning from Add must clear the old armed state");
@@ -606,15 +661,17 @@ try {
     // Task G — Jira variants, search, leave guards, unavailable providers and adaptation.
     await openConnection("jira", "Engineering");
     await toolbarAdd("jira").click();
-    form = page.getByRole("form", { name: "Connect Jira", exact: true });
+    form = await formLayout("Connect Jira", "jira");
     await shot("jira-server");
     await form.getByLabel("Jira Cloud", { exact: true }).focus(); await page.keyboard.press("Space");
     await form.getByLabel("Site URL", { exact: true }).fill("review-team.atlassian.net");
     await form.getByLabel("Atlassian account email", { exact: true }).fill("reviewer@example.com");
+    await formLayout("Connect Jira", "jira", false);
     await shot("jira"); await accessibility("jira");
     await form.getByRole("button", { name: "Cancel", exact: true }).click(); await discard();
     assert.equal(await page.locator(".ig-manage-view").isVisible(), true);
     await page.getByRole("button", { name: "Edit connection", exact: true }).click();
+    await formLayout("Edit Engineering", "jira");
     await page.keyboard.press("Escape");
     assert.equal(await page.locator(".ig-manage-view").isVisible(), true);
     await page.keyboard.press("Escape");
@@ -629,6 +686,7 @@ try {
     assert.equal(await page.locator(".ig-overview").isVisible(), true);
     await openConnection("jira", "Engineering");
     await page.getByRole("button", { name: "Edit connection", exact: true }).click();
+    await formLayout("Edit Engineering", "jira");
     await page.getByRole("form").getByLabel("Name", { exact: false }).fill("Unsaved name");
     await tab("General").click();
     await page.getByRole("button", { name: "Keep editing", exact: true }).waitFor();
@@ -709,11 +767,15 @@ try {
         await tab("Integrations").click(); await noOverflow(); await accessibility(`theme-${id}`);
         await openConnection("jira", "Engineering"); await accessibility(`manage-theme-${id}`); await back();
       }
-      results.push({ themeCatalog: themes, accessibility: process.env.AXE_SCRIPT ? "pass" : "not run" });
+      results.push({ themeCatalog: themes, accessibility: process.env.AXE_SCRIPT ? "zero violations; incomplete checks recorded for manual review" : "not run" });
     }
     // Removal after entering a collection must preserve that context until empty.
     saved.push(connection("gitlab", "gitlab-final-extra", "Temporary GitLab"));
-    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    // Direct fixture edits need a fresh client snapshot; visibility refresh may
+    // share an in-flight read that captured the previous fixture collection.
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await tab("Integrations").click();
     await page.locator("#ig-provider-gitlab").getByText("2 saved connections", { exact: true }).waitFor();
     await providerManage("gitlab").click(); await collectionLayout("gitlab");
     for (const name of ["Temporary GitLab", longName]) {
@@ -745,7 +807,7 @@ try {
     await page.keyboard.press("Escape"); await page.locator(".settings-modal").waitFor({ state: "detached" });
     assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).evaluate(el => el === document.activeElement), true);
     assert.deepEqual(errors, []);
-    results.push({ copiedBefore, styleFailures: styleFailures.filter(f => f.width === width && f.height === height && f.theme === theme), width, height, theme, tasks: "A–G pass", overview: "pass", manage: "pass", multipleConnections: "one provider entry, explicit collection, context Add/Cancel/Back and deletion focus pass", focusedForms: "pass", unsavedDrafts: "pass", management: "pass", disconnect: "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass", duplicateRequests: { test: "pass", delete: "pass", calls }, keyboard: "pass", focusTargets: width <= 390 || height <= 540 ? ">=24px, visible and unobscured" : "not separately measured", zoomTechnique, overflow: "none", accessibility: process.env.AXE_SCRIPT ? "pass" : "not run", mutations, errors });
+    results.push({ newFormQA: { status: "pass", forms: formChecks, keyboardSubmit: "Enter from token: focused native-enabled Checking action, aria-disabled/busy, visible focus, immediate secret clearing, one request despite duplicate submits, error focus returns to token, feedback omits token" }, copiedBefore, styleFailures: styleFailures.filter(f => f.width === width && f.height === height && f.theme === theme), width, height, theme, tasks: "A–G pass", overview: "pass", manage: "pass", multipleConnections: "one provider entry, explicit collection, context Add/Cancel/Back and deletion focus pass", focusedForms: "pass", unsavedDrafts: "pass", management: "pass", disconnect: "double-click guard, confirmation survives reading; focus/window cancellation, explicit Cancel/focus, Edit/Add/Test reset, keyboard, 503 and delayed retry pass", duplicateRequests: { test: "pass", delete: "pass", calls }, keyboard: "pass", focusTargets: width <= 390 || height <= 540 ? ">=24px, visible and unobscured" : "not separately measured", zoomTechnique, overflow: "none", accessibility: process.env.AXE_SCRIPT ? "zero violations; incomplete checks recorded for manual review" : "not run", mutations, errors });
     console.log(JSON.stringify(results.at(-1)));
     await context.close();
   }

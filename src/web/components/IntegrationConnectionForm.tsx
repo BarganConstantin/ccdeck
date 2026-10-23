@@ -73,6 +73,9 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
     if (busy) return;
     const input: Record<string, string> = {};
     for (const field of def.fields) if (shown(field, values)) input[field.name] = (values[field.name] ?? "").trim();
+    // Keyboard Enter can submit from a field that becomes disabled while checking.
+    // Keep focus on the surviving busy action, visible even in a short pane.
+    event.currentTarget.querySelector<HTMLButtonElement>('button[type="submit"]')?.focus();
     onSubmit(input, name.trim());
     setValues(state => Object.fromEntries(Object.entries(state).map(([k, v]) => [k, def.fields.find(f => f.name === k)?.secret ? "" : v])));
   };
@@ -110,7 +113,13 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
   return (
     <FormContext.Provider value={context}>
       <form ref={formRef} className="ig-form" onSubmit={submit} aria-labelledby={`${uid}-title`} noValidate>
-        <h3 className="ig-form-title" id={`${uid}-title`}>{editing ? `Edit ${existing!.name}` : `Connect ${def.label}`}</h3>
+        <header className="ig-managed-header">
+          <span className="ig-provider-glyph" aria-hidden><def.Glyph /></span>
+          <div className="ig-managed-identity">
+            <h2 className="ig-form-title" id={`${uid}-title`}>{editing ? `Edit ${existing!.name}` : `Connect ${def.label}`}</h2>
+            {editing && <p>{def.label} connection</p>}
+          </div>
+        </header>
 
         {visible.map(raw => {
           const field = resolved(raw, values);

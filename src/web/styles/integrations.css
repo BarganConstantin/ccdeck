@@ -357,8 +357,8 @@ img.ig-avatar + img.ig-avatar {
 }
 .ig-stack-more { margin-left: 2px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 
-/* The overview introduction yields to the selected connection's own heading. */
-.settings-pane:has(> .ig-settings[data-view="connection"], > .ig-settings[data-view="provider"]) > .settings-pane-head { display: none; }
+/* Only the overview owns the generic heading/count; focused pages name their task. */
+.settings-pane:has(> .ig-settings:not([data-view="overview"])) > .settings-pane-head { display: none; }
 /* Compact provider list: one contextual action per saved connection. */
 .ig-settings, .ig-overview { display: flex; flex-direction: column; min-width: 0; gap: 16px; }
 .ig-overview[hidden], .ig-manage-view[hidden], .ig-provider-view[hidden] { display: none; }

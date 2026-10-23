@@ -1,0 +1,45 @@
+{
+  "tags": [
+    "wcag2a",
+    "wcag2aa",
+    "wcag21aa",
+    "wcag22aa"
+  ],
+  "engine": {
+    "name": "axe-core",
+    "version": "4.13.0"
+  },
+  "violations": [],
+  "incomplete": [
+    {
+      "id": "color-contrast",
+      "help": "Elements must meet minimum color contrast ratio thresholds",
+      "nodes": [
+        {
+          "target": [
+            ".settings-pane-note"
+          ],
+          "any": [
+            {
+              "id": "color-contrast",
+              "message": "Element's background color could not be determined because it partially overlaps other elements"
+            }
+          ],
+          "all": []
+        },
+        {
+          "target": [
+            "#ig-provider-gitlab > .ig-summary-text.ig-provider-content > .ig-conn-line"
+          ],
+          "any": [
+            {
+              "id": "color-contrast",
+              "message": "Element's background color could not be determined because it partially overlaps other elements"
+            }
+          ],
+          "all": []
+        }
+      ]
+    }
+  ]
+}

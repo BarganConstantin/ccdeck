@@ -134,6 +134,37 @@ describe("Settings provider entries", () => {
 });
 
 describe("connection form request state", () => {
+  for (const kind of ["github", "gitlab", "jira"] as const) {
+    const def = integrationDef(kind)!;
+    it(`names the ${kind} Connect form with its provider heading`, () => {
+      const html = renderToStaticMarkup(createElement(IntegrationConnectionForm, {
+        def, busy: false, error: null, onSubmit: () => {}, onCancel: () => {},
+      }));
+      const headingId = /<form[^>]*aria-labelledby="([^"]+)"/.exec(html)?.[1];
+      expect(headingId).toBeDefined();
+      const heading = /<h2[^>]*id="([^"]+)"[^>]*>(.*?)<\/h2>/.exec(html);
+      expect(heading?.slice(1)).toEqual([headingId, `Connect ${def.label}`]);
+      expect(html).not.toContain(`<p>${def.label} connection</p>`);
+      expect(html).toMatch(/<span[^>]*aria-hidden="true"[^>]*><svg/);
+    });
+
+    it(`keeps ${kind} Edit identity and saved-secret semantics`, () => {
+      const html = renderToStaticMarkup(createElement(IntegrationConnectionForm, {
+        def, existing: connection("saved", kind), busy: false, error: null, onSubmit: () => {}, onCancel: () => {},
+      }));
+      const headingId = /<form[^>]*aria-labelledby="([^"]+)"/.exec(html)?.[1];
+      expect(headingId).toBeDefined();
+      const heading = /<h2[^>]*id="([^"]+)"[^>]*>(.*?)<\/h2>/.exec(html);
+      expect(heading?.slice(1)).toEqual([headingId, "Edit Review saved"]);
+      expect(html).toContain(`<p>${def.label} connection</p>`);
+      expect(html).toMatch(/<span[^>]*aria-hidden="true"[^>]*><svg/);
+      const secret = /<input[^>]*type="password"[^>]*>/.exec(html)?.[0];
+      expect(secret).toContain('value=""');
+      expect(secret).toContain("Saved. Leave blank to keep it");
+      expect(secret).not.toContain('aria-required="true"');
+    });
+  }
+
   it("locks the fields and Cancel while a submission is pending, keeping the submit control focusable", () => {
     const html = renderToStaticMarkup(createElement(IntegrationConnectionForm, {
       def: integrationDef("gitlab")!, busy: true, error: null, onSubmit: () => {}, onCancel: () => {},
