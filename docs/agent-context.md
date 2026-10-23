@@ -109,6 +109,11 @@ rather than matching just one theme ID. The theme README owns the format and
 generation instructions. A custom-theme importer/editor is a future possibility,
 not an implemented feature.
 
+T steps through every theme from inside any dialog too (owner, 2026-10-23):
+only a field being typed in or a `<select>` keeps the letter, and every other
+single-key shortcut stays blocked behind a dialog. One path answers it,
+`keepsThemeKey` in `shortcuts.ts`; Settings has no T handler of its own.
+
 The minimap drawing was reduced from 200 × 150 to 140 × 105 (about 30% smaller;
 142 × 107 including borders). Character ledge travel must use the measured map
 and sprite widths, not the previous 148px travel range. Walk planning, runtime
