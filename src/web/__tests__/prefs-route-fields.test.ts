@@ -156,7 +156,7 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
   ["recoverClaudeSessions", { recoverClaudeSessions: false }, p => p.recoverClaudeSessions, false],
   ["recoverCodexSessions", { recoverCodexSessions: false }, p => p.recoverCodexSessions, false],
-  // The terminal's Beta switch in Settings › General (use-stage.ts
+  // The Command Panel's switch in Settings › Experimental (use-stage.ts
   // toggleTerminal), from off — every deck's start — to on.
   ["terminal", { terminal: true }, p => p.terminal, true],
   ["lan.enabled", { lan: { enabled: false } }, p => p.lan.enabled, false],
@@ -220,13 +220,13 @@ describe("POST /api/prefs and the terminal's switch", () => {
     expect(closeOpenTerminals).not.toHaveBeenCalled();
   });
 
-  it("leaves them open when the launch keeps the terminal on whatever the switch says", async () => {
+  it("answers the switch alone: a launch variable from before it turns nothing on", async () => {
     process.env.CCDECK_TERMINAL = "1";
     try {
       const { out } = await post({ terminal: false });
-      expect(out.terminalOn).toBe(true);
-      expect(out.terminalForced).toBe(true);
-      expect(closeOpenTerminals).not.toHaveBeenCalled();
+      expect(out.terminalOn).toBe(false);
+      expect(out).not.toHaveProperty("terminalForced");
+      expect(out.terminalSupported, "whether this platform has the panel").toBe(process.platform === "linux");
     } finally {
       delete process.env.CCDECK_TERMINAL;
     }

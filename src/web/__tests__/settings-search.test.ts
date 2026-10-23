@@ -108,11 +108,13 @@ describe("the index holds every place a result can land", () => {
     }
   });
 
-  it("names the terminal's switch as General names it, and finds it by the words people use for one", () => {
+  it("names the Command Panel's switch as Experimental names it, and finds it by the words people use for one", () => {
     const entry = SETTINGS_INDEX.find(e => e.id === "terminal")!;
     expect(entry.label).toBe(TERMINAL_LABEL);
-    expect(resultPlace(entry)).toBe("General › Terminal");
-    for (const q of ["terminal", "tmux", "shell", "command line"]) expect(ids(searchSettings(q)), q).toContain("terminal");
+    expect(entry.section).toBe("experimental");
+    expect(resultPlace(entry)).toBe("Experimental");
+    for (const q of ["command panel", "terminal", "tmux", "shell", "command line", "experimental", "beta"]) expect(ids(searchSettings(q)), q).toContain("terminal");
+    expect(ids(searchSettings("experimental"))[0], "the section first, its one row beside it").toBe("section:experimental");
   });
 
   it("names every theme by its name, under Appearance › Theme", () => {

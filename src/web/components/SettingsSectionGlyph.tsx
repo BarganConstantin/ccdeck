@@ -21,6 +21,7 @@
 // follow Lucide's (ISC licence) redrawn on this grid, so the set reads as one
 // family with the icons a reader already knows from other settings windows.
 // Integrations (#2178) is a plug: what connects the deck to a tracker.
+// Experimental is a flask, the shape a settings window's labs page wears.
 // A dot is a zero-length stroke, which the round cap draws as a dot.
 import type { SettingsSection } from "../settings";
 
@@ -68,6 +69,12 @@ export default function SettingsSectionGlyph({ section }: { section: SettingsSec
           <path d="M5.1 1.6v2.6M8.9 1.6v2.6" />
           <path d="M3.4 4.2h7.2v2.3a3.6 3.6 0 0 1-7.2 0z" />
           <path d="M7 10.1v2.3" />
+        </>
+      )}
+      {section === "experimental" && (
+        <>
+          <path d="M5.4 1.6h3.2M5.9 1.6v3.9L2.5 11.2a.8.8 0 0 0 .7 1.2h7.6a.8.8 0 0 0 .7-1.2L8.1 5.5V1.6" />
+          <path d="M3.9 8.8h6.2" />
         </>
       )}
       {section === "about" && (

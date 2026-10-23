@@ -96,6 +96,7 @@ describe("a door into Settings opens it at the section it names", () => {
       ["integrations", />GitHub</],
       ["data", />Tool history<\/h3>/],
       ["radar", />Monitor automatically</],
+      ["experimental", />Features still being tested, each off until you turn it on\.</],
       ["about", />Version</],
     ];
     expect(cases.map(([id]) => id)).toEqual(SETTINGS_SECTIONS.map(s => s.id));
@@ -118,12 +119,17 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
-  it("draws the terminal's Beta switch in General, after the board, only when App hands it over", () => {
-    expect(drawSettings({ section: "general" })).not.toContain(">Terminal</h3>");
-    const html = drawSettings({ section: "general", terminal: { on: false, forced: false, toggle: noop } });
-    expect(html.indexOf(">Terminal</h3>")).toBeGreaterThan(html.indexOf(">Board</h3>"));
-    expect(html.indexOf(">Terminal</h3>")).toBeLessThan(html.indexOf(">Updates</h3>"));
+  it("draws the Command Panel's switch alone in Experimental, only when App hands it over, and nowhere in General", () => {
+    const terminal = { on: false, supported: true, toggle: noop };
+    expect(drawSettings({ section: "experimental" })).not.toContain("settings-terminal-label");
+    const html = drawSettings({ section: "experimental", terminal });
     expect(html).toMatch(/role="switch" aria-checked="false" aria-labelledby="settings-terminal-label"/);
+    expect(html).toContain(">Command Panel<");
+    expect(html.match(/role="switch"/g), "one switch, in an untitled group").toHaveLength(1);
+    expect(html).not.toContain("</h3>");
+    const general = drawSettings({ section: "general", terminal });
+    expect(general).not.toContain("settings-terminal-label");
+    expect(general).not.toContain(">Terminal</h3>");
   });
 
   it("gives each subject its own section: the board in General, the look in Appearance, the keys in Keyboard, history in Data", () => {
@@ -151,9 +157,10 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
-  it("names the ten sections in the nav, in order, About last", () => {
+  it("names the eleven sections in the nav, in order, About last", () => {
     // Integrations since #2178: the trackers this deck reads, between Sounds and Data.
-    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Data", "Radar", "About"];
+    // Experimental since the Command Panel: what is still being tested, before About.
+    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Data", "Radar", "Experimental", "About"];
     expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(names);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all

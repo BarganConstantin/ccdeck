@@ -46,6 +46,11 @@ export const ENGINE_PUBLIC_KEYS = Object.freeze([]);
  *  (pro-engine-terminal.mjs' SHUTDOWN_GRACE_MS). */
 export const STOP_GRACE_MS = 1_500;
 
+/** Whether `platform` has the Command Panel: Linux only, in this release. */
+export function commandPanelSupported(platform = process.platform) {
+  return platform === "linux";
+}
+
 /** The one folder the Command Panel's engine is installed in. */
 export function engineInstallDir(platform = process.platform, env = process.env) {
   return join(deckDataDir(platform, env), "engine");
@@ -80,7 +85,7 @@ export function commandPanelEngine({
 
   /** The engine's terminals, or why there is none. */
   async function ready() {
-    if (platform !== "linux") return { refusal: "unsupported" };
+    if (!commandPanelSupported(platform)) return { refusal: "unsupported" };
     if (held) return held;
     making ??= (async () => {
       const directory = engineInstallDir(platform, env);

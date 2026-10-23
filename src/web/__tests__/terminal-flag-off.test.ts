@@ -1,7 +1,7 @@
 // A deck with the terminal panel switched off is a deck without one.
 //
-// The panel ships off: off unless the launch variable, the settings file or
-// the Beta switch in Settings says otherwise. Off has to mean ABSENT, not
+// The panel ships off: off unless the switch in Settings › Experimental, or
+// the settings file it writes, says otherwise. Off has to mean ABSENT, not
 // "present and refusing": every /api/terminal/* path answers exactly what an
 // /api path with no route answers, a request offering an upgrade — the
 // socket's, or curl's h2c — is answered as if it offered none, the page is
@@ -14,7 +14,7 @@
 // a session listing, a control client — runs that script first, and the
 // script's log staying empty is the proof that none of them did.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { request, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -32,8 +32,10 @@ process.env.XDG_DATA_HOME = join(DIR, "data");
 process.env.XDG_STATE_HOME = join(DIR, "state");
 process.env.CLAUDE_SWAP_BACKUP = join(DIR, "claude-swap");
 if (!resolve(process.env.CLAUDE_CONFIG_DIR).startsWith(resolve(DIR))) throw new Error("sandbox escaped");
-// Off by the variable's absence, whatever the shell running the suite has set.
-delete process.env.CCDECK_TERMINAL;
+// A launch variable from before the switch, and the engine's own opt-in:
+// neither turns the panel on, whatever the shell running the suite has set.
+process.env.CCDECK_TERMINAL = "1";
+process.env.CCDECK_ENGINE_TERMINAL = "1";
 
 const TMUX_LOG = join(DIR, "tmux-was-run.log");
 const TMUX_STUB = join(DIR, "tmux");
@@ -156,7 +158,7 @@ describe("the terminal routes on a deck with the panel switched off", () => {
     // file still holds a deck with the panel off.
     const on = JSON.parse((await ask("POST", "/api/prefs", { terminal: true })).body);
     expect(on.terminalOn).toBe(true);
-    expect(on.terminalForced, "the switch did it, not the launch").toBe(false);
+    expect(on.terminalSupported).toBe(process.platform === "linux");
     const off = JSON.parse((await ask("POST", "/api/prefs", { terminal: false })).body);
     expect(off.terminalOn).toBe(false);
     expect((await ask("GET", "/api/terminal/status")).status).toBe(404);
@@ -164,42 +166,42 @@ describe("the terminal routes on a deck with the panel switched off", () => {
 });
 
 describe("terminalOn", () => {
-  const { terminalOn, TERMINAL_ENV, DEFAULTS, PAGE_FIELDS, normalise } = prefs;
+  const { terminalOn, DEFAULTS, PAGE_FIELDS, normalise } = prefs;
 
   it("is off by default", () => {
     expect(DEFAULTS.terminal).toBe(false);
     expect(normalise({}).terminal).toBe(false);
-    expect(terminalOn({}, {})).toBe(false);
-    expect(terminalOn(undefined, {})).toBe(false);
+    expect(terminalOn({})).toBe(false);
+    expect(terminalOn(undefined)).toBe(false);
   });
 
-  it("is on with the launch variable set to exactly 1, whatever the file says", () => {
-    expect(TERMINAL_ENV).toBe("CCDECK_TERMINAL");
-    expect(terminalOn({ terminal: false }, { CCDECK_TERMINAL: "1" })).toBe(true);
-    for (const v of ["", "0", "true", "yes", " 1"]) expect(terminalOn({}, { CCDECK_TERMINAL: v }), JSON.stringify(v)).toBe(false);
+  it("is the switch alone: no launch variable turns it on", () => {
+    expect(process.env.CCDECK_TERMINAL, "set above, as a shell might have").toBe("1");
+    expect(terminalOn({ terminal: false })).toBe(false);
+    expect(prefs).not.toHaveProperty("TERMINAL_ENV");
+    expect(prefs).not.toHaveProperty("terminalForced");
   });
 
   it("is on with the stored switch, and only a real true counts", () => {
-    expect(terminalOn({ terminal: true }, {})).toBe(true);
-    expect(terminalOn({ terminal: "true" }, {})).toBe(false);
+    expect(terminalOn({ terminal: true })).toBe(true);
+    expect(terminalOn({ terminal: "true" })).toBe(false);
     expect(normalise({ terminal: true }).terminal, "kept across a write").toBe(true);
     expect(normalise({ terminal: 1 }).terminal).toBe(false);
   });
 
-  it("is a field a page may write: Settings › General's Beta switch", () => {
+  it("is a field a page may write: Settings › Experimental's Command Panel switch", () => {
     expect(PAGE_FIELDS.top).toContain("terminal");
     expect(prefs.pagePatch({ terminal: true })).toEqual({ terminal: true });
   });
 
-  it("says when the launch forced it on, which the switch cannot undo", () => {
-    expect(prefs.terminalForced({ CCDECK_TERMINAL: "1" })).toBe(true);
-    for (const v of [undefined, "", "0", "true"]) expect(prefs.terminalForced({ CCDECK_TERMINAL: v }), String(v)).toBe(false);
-    expect(terminalOn({ terminal: false }, { CCDECK_TERMINAL: "1" })).toBe(true);
-  });
-
-  it("is hidden: the launch variable is in neither the README nor what a login item carries", () => {
+  it("has no launch variable: CCDECK_TERMINAL is read nowhere the deck runs, documented nowhere, carried by no login item", () => {
     const readme = readFileSync(fileURLToPath(new URL("../../../README.md", import.meta.url)), "utf8");
     expect(readme).not.toContain("CCDECK_TERMINAL");
     expect([...SETTING_VARS, ...SCOPE_VARS]).not.toContain("CCDECK_TERMINAL");
+    const root = fileURLToPath(new URL("../../../", import.meta.url));
+    const sources = ["src/server", "bin"].flatMap(dir => readdirSync(join(root, dir), { recursive: true }).map(f => join(root, dir, String(f))))
+      .filter(f => /\.(?:mjs|js)$/.test(f));
+    expect(sources.length).toBeGreaterThan(50);
+    expect(sources.filter(f => /\bCCDECK_TERMINAL\b/.test(readFileSync(f, "utf8")))).toEqual([]);
   });
 });

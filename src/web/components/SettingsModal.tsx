@@ -50,7 +50,6 @@ import AboutSection from "./AboutSection";
 import UpdatesSection from "./UpdatesSection";
 import CharacterSection from "./CharacterSection";
 import TerminalSection, { type TerminalSwitch } from "./TerminalSection";
-import { platformName } from "../platform";
 import { nextTheme } from "../theme";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SettingsSearchField, SettingsSearchResults, SettingsSearchStatus } from "./SettingsSearch";
@@ -77,7 +76,7 @@ export interface SettingsModalProps {
   restart: ReturnType<typeof useAutoRestart>;
   /** Where About and General send the reader, each closing this first. */
   doors: SettingsDoors;
-  /** The terminal's Beta switch (use-stage.ts); General draws it when given. */
+  /** The Command Panel's switch (use-stage.ts); Experimental draws it when given. */
   terminal?: TerminalSwitch;
 }
 
@@ -223,6 +222,8 @@ export default function SettingsModal({
     switch (section) {
       case "radar":
         return <RadarSettings onOpen={doors.radar} />;
+      case "experimental":
+        return terminal ? <TerminalSection terminal={terminal} /> : null;
       case "appearance":
         return (
           <>
@@ -289,13 +290,12 @@ export default function SettingsModal({
           />
         );
       default:
-        // General: how the board behaves, the terminal's Beta beside it, the
-        // sessions recovered at startup, how the deck updates itself, and the
-        // preferences that live in a panel of their own (#2176).
+        // General: how the board behaves, the sessions recovered at startup,
+        // how the deck updates itself, and the preferences that live in a
+        // panel of their own (#2176).
         return (
           <>
             <BoardSection />
-            {terminal && <TerminalSection terminal={terminal} platform={platformName()} />}
             <SessionRecoverySettings provider="Codex" />
             {providers.claude && <SessionRecoverySettings provider="Claude" />}
             <UpdatesSection autoRestart={restart.autoRestart} onToggleAutoRestart={restart.toggleAutoRestart} version={versionCheck.version} />

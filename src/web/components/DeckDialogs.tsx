@@ -89,7 +89,7 @@ export default function DeckDialogs({
   /** The two panels Settings › General points at that are App's to open: the
    *  accounts panel, and the Local network view inside it (#2176). */
   panelDoors: { accounts: () => void; localNetwork: () => void };
-  /** The terminal's Beta switch, which Settings › General draws. */
+  /** The Command Panel's switch, which Settings › Experimental draws. */
   terminal?: TerminalSwitch;
 }) {
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,

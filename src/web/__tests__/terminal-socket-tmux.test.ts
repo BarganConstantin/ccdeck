@@ -16,7 +16,7 @@
 // anything — and the server is killed in afterAll. The routes run on the JS
 // backend (`jsBackend`, terminal-js-routes.mjs), the parity oracle only a
 // test can hand the deck. The panel itself is
-// switched on the way a person would, with CCDECK_TERMINAL=1.
+// switched on the way a person does, with the switch in Settings.
 //
 // NO tmux, NO SKIP. Without one (CCDECK_TMUX unset and nothing on PATH) the
 // case asserts what the panel would be told instead — the house pattern of
@@ -48,8 +48,6 @@ if (!resolve(process.env.CLAUDE_CONFIG_DIR).startsWith(resolve(DIR))) throw new 
 // client — finds its sockets here, and only here.
 process.env.TMUX_TMPDIR = join(DIR, "t");
 mkdirSync(process.env.TMUX_TMPDIR, { mode: 0o700 });
-// The panel, on, the way its owner switches it on.
-process.env.CCDECK_TERMINAL = "1";
 const PROJECT = join(DIR, "project");
 mkdirSync(PROJECT);
 
@@ -77,6 +75,9 @@ beforeAll(async () => {
     terminal: { jsBackend: jsTerminalBackend, deckSocket: SOCKET, downloadBlocked: () => "download_disabled" },
   });
   port = (server.address() as { port: number }).port;
+  // The panel, on, the way its owner switches it on: Settings › Experimental.
+  const on = await ask("POST", "/api/prefs", { terminal: true });
+  expect([on.status, on.body.terminalOn]).toEqual([200, true]);
 }, 30_000);
 afterAll(async () => {
   if (tmux?.ok) await runTmux(tmux, SOCKET, ["kill-server"]);

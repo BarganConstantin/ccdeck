@@ -107,18 +107,18 @@ export const DEFAULTS = Object.freeze({
   // `auto when idle`, which defaulted on as a localStorage key; it moved here so
   // the server can read it with no page open.
   autoUpdate: true,
-  // THE TERMINAL PANEL, OFF until somebody turns it on: a terminal you can
+  // THE COMMAND PANEL, OFF until somebody turns it on: a terminal you can
   // type into is the first thing in the deck that reaches into an agent rather
-  // than watching one. A Beta switch in Settings › General since 2026-10-18,
-  // so in PAGE_FIELDS, behind the gates every other switch is behind. Those
+  // than watching one. The switch in Settings › Experimental (a Beta switch in
+  // Settings › General from 2026-10-18), so in PAGE_FIELDS, behind the gates
+  // every other switch is behind. Those
   // turn away every other site, a rebound name and the network; they cannot
   // turn away a process on this machine that writes a loopback Origin itself
   // (request-gates.mjs says so), and such a process can now switch on a way to
   // type into the user's sessions — where before it had to write prefs.json.
-  // Accepted for the Beta, knowingly: that process can already read the ring
-  // and the accounts through the same gates. Before the switch it was
-  // deck-owned, set by hand in prefs.json; the launch variable terminalOn
-  // names still turns it on for one run. See terminal-routes.mjs.
+  // Accepted for the experiment, knowingly: that process can already read the
+  // ring and the accounts through the same gates. The switch is the only way
+  // on: no launch variable turns it on. See terminal-routes.mjs.
   terminal: false,
   // USAGE REPORTS (#1853), ON unless somebody turns them off — the owner's
   // decision, 2026-09-30: nobody is asked and the README says what is sent; the
@@ -812,35 +812,20 @@ export function lanEnabled(prefs, env = process.env) {
   return normalise(prefs).lan.enabled;
 }
 
-/** Set to "1" to switch the terminal panel on for one run, whatever prefs.json
- *  says. THE ONE VARIABLE HERE THAT TURNS SOMETHING ON rather than vetoing it,
- *  and deliberately left out of the README's table and of the login item's
- *  SETTING_VARS while the panel is a Beta — readme-order.test.ts names it as a
- *  decision, so documenting it later is a decision too. */
-export const TERMINAL_ENV = "CCDECK_TERMINAL";
-
 /**
- * Is the terminal panel switched on? Either the launch variable or the stored
- * `terminal` switch, and nothing else.
+ * Is the Command Panel switched on? The stored `terminal` switch, a real true,
+ * and nothing else: no environment variable or launch flag turns it on.
  *
  * The opposite polarity from lanEnabled's veto, on purpose: the panel is the
- * feature that is off unless somebody chose it, and either of the people who
- * can choose — whoever launched the deck, or whoever turned on the switch in
- * Settings or wrote it into the settings file — is enough.
+ * feature that is off unless somebody chose it, in Settings or in the
+ * settings file.
  *
  * Asked on every request and every upgrade rather than once at boot, so the
  * routes and the socket answer from the same settings at every moment and can
  * never disagree about whether the panel exists.
  */
-export function terminalOn(prefs, env = process.env) {
-  return terminalForced(env) || prefs?.terminal === true;
-}
-
-/** On whatever the switch says, because the deck was launched with the
- *  variable: Settings draws its switch on and fixed, and says why, rather than
- *  offering a press that could not turn it off. */
-export function terminalForced(env = process.env) {
-  return env[TERMINAL_ENV] === "1";
+export function terminalOn(prefs) {
+  return prefs?.terminal === true;
 }
 
 /**

@@ -107,14 +107,15 @@ export interface StageDeps {
 }
 
 export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent }: StageDeps) {
-  // The flag, from the one read of the deck's prefs (use-prefs-read.ts), and
-  // whether the launch forced it on, which the switch in Settings says.
+  // The switch, from the one read of the deck's prefs (use-prefs-read.ts),
+  // and whether the deck's platform has the panel at all, which the switch in
+  // Settings says — null until the deck has answered.
   const [enabled, setEnabled] = useState(false);
-  const [forced, setForced] = useState(false);
+  const [supported, setSupported] = useState<boolean | null>(null);
   const enabledRef = useMirroredRef(enabled);
   const loadTerminalPrefs = useCallback((d: TerminalPrefsAnswer) => {
     setEnabled(d.terminalOn === true);
-    setForced(d.terminalForced === true);
+    setSupported(typeof d.terminalSupported === "boolean" ? d.terminalSupported : null);
   }, []);
 
   // A reducer held in a state rather than useReducer, for the same answer
@@ -691,7 +692,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   }, [enabled, shellRef]);
 
   return {
-    enabled, forced, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
+    enabled, supported, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
     onNodeClick, followSession, switchTo, openFromButton, openTile, launch, onLaunched,
     focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
     openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, firstRunDone, onCell,
@@ -762,7 +763,7 @@ export function useRailPanel(
 /** What /api/prefs answers, as far as the stage reads it (prefs-routes.mjs). */
 export interface TerminalPrefsAnswer {
   terminalOn?: unknown;
-  terminalForced?: unknown;
+  terminalSupported?: unknown;
 }
 
 /** Written when this tab's press has changed the switch, so the deck's other

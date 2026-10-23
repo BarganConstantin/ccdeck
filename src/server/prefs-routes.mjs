@@ -7,7 +7,7 @@
 // engine had (lan-deck.mjs): what is left of them is a body read, a write
 // through the one, a push to the other, and an answer. The notifier stays in
 // index.mjs, beside the desktop-app connections it notifies through.
-import { notificationsOn, notificationsVetoed, pagePatch, prefsRefusalDetail, prefsWriteRefusal, publicPrefs, reportsVetoed, terminalForced, terminalOn } from "./deck-prefs.mjs";
+import { notificationsOn, notificationsVetoed, pagePatch, prefsRefusalDetail, prefsWriteRefusal, publicPrefs, reportsVetoed, terminalOn } from "./deck-prefs.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { applyLanPrefs, forgetReach, resetLanLoaded } from "./lan-deck.mjs";
@@ -15,7 +15,7 @@ import { giveBackDeckFolders } from "./prefs-give-back.mjs";
 import { readBody, send } from "./http-io.mjs";
 import { noteContinueSwitchedOn } from "./stop-continue.mjs";
 import { closeOpenTerminals } from "./terminal-socket.mjs";
-import { commandPanel } from "./command-panel-engine.mjs";
+import { commandPanel, commandPanelSupported } from "./command-panel-engine.mjs";
 
 /**
  * GET the deck's settings, and what the machine is allowing.
@@ -42,14 +42,16 @@ function prefsPayload() {
     notificationsAllowed: notificationsOn(prefs),
     notificationsVetoed: notificationsVetoed(),
     reportsVetoed: reportsVetoed(),
-    // The effective answer, launch variable included: the page renders no
-    // terminal at all, and never fetches its code, unless this is true. It is
-    // here rather than on a route of its own because this is the one read
-    // every page already makes at boot — and a route of its own would have to
-    // exist with the flag off, which is the state it reports.
+    // The Command Panel's switch: the page renders no panel at all, and
+    // never fetches its code, unless this is true. It is here rather than on
+    // a route of its own because this is the one read every page already
+    // makes at boot — and a route of its own would have to exist with the
+    // switch off, which is the state it reports.
     terminalOn: terminalOn(prefs),
-    // On because of how the deck was launched, which the switch cannot undo.
-    terminalForced: terminalForced(),
+    // Whether this deck's platform has the panel at all (Linux, for now), so
+    // Settings can say so rather than offer a switch that leads nowhere. The
+    // deck's platform, not the browser's: the panel runs where the deck does.
+    terminalSupported: commandPanelSupported(),
   };
 }
 

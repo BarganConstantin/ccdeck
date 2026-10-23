@@ -251,18 +251,18 @@ describe("the switch in Settings", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("turns the terminal on at the press, and keeps what the deck answers", async () => {
-    const fetch = answer({ ok: true, body: { ok: true, terminalOn: true, terminalForced: false } });
+    const fetch = answer({ ok: true, body: { ok: true, terminalOn: true, terminalSupported: true } });
     const { now } = setup();
     now().stage.toggleTerminal();
     expect(now().stage.enabled, "at the press, not a round trip later").toBe(true);
     expect(fetch).toHaveBeenCalledWith("/api/prefs", expect.objectContaining({ method: "POST", body: JSON.stringify({ terminal: true }) }));
     await flush();
     expect(now().stage.enabled).toBe(true);
-    expect(now().stage.forced).toBe(false);
+    expect(now().stage.supported).toBe(true);
   });
 
   it("turns it off with the stage taken down at once and the board given back", async () => {
-    const fetch = answer({ ok: true, body: { ok: true, terminalOn: false, terminalForced: false } });
+    const fetch = answer({ ok: true, body: { ok: true, terminalOn: false, terminalSupported: true } });
     const { now, turnOn } = setup();
     turnOn();
     now().stage.onNodeClick("s1", page.card as unknown as Element);
@@ -304,7 +304,7 @@ describe("the switch in Settings", () => {
     now().stage.toggleTerminal();
     now().stage.toggleTerminal();
     expect(now().stage.enabled, "on, then off again").toBe(false);
-    const reply = (on: boolean) => ({ ok: true, json: async () => ({ ok: true, terminalOn: on, terminalForced: false }) });
+    const reply = (on: boolean) => ({ ok: true, json: async () => ({ ok: true, terminalOn: on, terminalSupported: true }) });
     answers[1](reply(false));
     await flush();
     answers[0](reply(true));
@@ -315,7 +315,7 @@ describe("the switch in Settings", () => {
   it("asks the deck what it holds when a write is refused, rather than guessing", async () => {
     const fetch = vi.fn(async (_url: string, init?: { method?: string }) => init?.method === "POST"
       ? { ok: false, json: async () => ({ ok: false, reason: "unwritable" }) }
-      : { ok: true, json: async () => ({ ok: true, terminalOn: true, terminalForced: false }) });
+      : { ok: true, json: async () => ({ ok: true, terminalOn: true, terminalSupported: true }) });
     vi.stubGlobal("fetch", fetch);
     const { now } = setup();
     now().stage.toggleTerminal();
@@ -325,7 +325,7 @@ describe("the switch in Settings", () => {
   });
 
   it("tells the other tabs, which ask the deck and take the stage down when it is off", async () => {
-    answer({ ok: true, body: { ok: true, terminalOn: true, terminalForced: false } });
+    answer({ ok: true, body: { ok: true, terminalOn: true, terminalSupported: true } });
     const { now } = setup();
     now().stage.toggleTerminal();
     await flush();
@@ -337,7 +337,7 @@ describe("the switch in Settings", () => {
     other.now().stage.onNodeClick("s1", page.card as unknown as Element);
     other.now().stage.reveal();
     expect(other.now().stage.shell.phase).not.toBe("closed");
-    answer({ ok: true, body: { ok: true, terminalOn: false, terminalForced: false } });
+    answer({ ok: true, body: { ok: true, terminalOn: false, terminalSupported: true } });
     for (const fn of storage) fn({ storageArea: localArea, key: STAGE_SWITCHED, newValue: "1" });
     await flush();
     expect(other.now().stage.enabled).toBe(false);
@@ -353,7 +353,7 @@ describe("the switch in Settings", () => {
     // held is on the body by then — what a real browser shows.
     const doc = (globalThis as Record<string, any>).document;
     doc.activeElement = doc.body;
-    answer({ ok: true, body: { ok: true, terminalOn: false, terminalForced: false } });
+    answer({ ok: true, body: { ok: true, terminalOn: false, terminalSupported: true } });
     for (const fn of storage) fn({ storageArea: localArea, key: STAGE_SWITCHED, newValue: "1" });
     await flush();
     expect(now().stage.shell.phase).toBe("closed");
@@ -367,14 +367,14 @@ describe("the switch in Settings", () => {
     now().stage.reveal();
     const doc = (globalThis as Record<string, any>).document;
     doc.activeElement = { closest: () => null };
-    answer({ ok: true, body: { ok: true, terminalOn: false, terminalForced: false } });
+    answer({ ok: true, body: { ok: true, terminalOn: false, terminalSupported: true } });
     now().stage.toggleTerminal();
     await flush();
     expect(focused).toBeNull();
   });
 
   it("forgets the session a reload would have put back once it goes off", async () => {
-    answer({ ok: true, body: { ok: true, terminalOn: false, terminalForced: false } });
+    answer({ ok: true, body: { ok: true, terminalOn: false, terminalSupported: true } });
     const { now, turnOn } = setup();
     turnOn();
     now().stage.onNodeClick("s1", page.card as unknown as Element);
@@ -391,13 +391,18 @@ describe("the switch in Settings", () => {
     expect(session.has(STAGE_RESTORE_KEY), "a reload's restore is still to come").toBe(true);
   });
 
-  it("says when the launch forced it on, from the read every page makes", () => {
+  it("says whether the deck's platform has the panel, from the read every page makes, and nothing until it has said", () => {
     const { now } = setup();
-    now().stage.loadTerminalPrefs({ terminalOn: true, terminalForced: true });
-    expect(now().stage.enabled).toBe(true);
-    expect(now().stage.forced).toBe(true);
-    now().stage.loadTerminalPrefs({ terminalOn: true, terminalForced: "yes" });
-    expect(now().stage.forced).toBe(false);
+    expect(now().stage.supported, "before the deck has answered").toBeNull();
+    now().stage.loadTerminalPrefs({ terminalOn: false, terminalSupported: false });
+    expect([now().stage.enabled, now().stage.supported]).toEqual([false, false]);
+    now().stage.loadTerminalPrefs({ terminalOn: true, terminalSupported: true });
+    expect([now().stage.enabled, now().stage.supported]).toEqual([true, true]);
+    now().stage.loadTerminalPrefs({ terminalOn: true, terminalSupported: "yes" });
+    expect(now().stage.supported, "only a boolean is an answer").toBeNull();
+    // A deck from before the field, or a launch variable from before the switch: neither turns anything on.
+    now().stage.loadTerminalPrefs({ terminalForced: true } as never);
+    expect([now().stage.enabled, now().stage.supported]).toEqual([false, null]);
   });
 });
 
