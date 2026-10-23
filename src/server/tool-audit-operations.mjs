@@ -3,20 +3,27 @@ const safe = value => typeof value === 'string' && /^[A-Za-z0-9_./:+-]{1,100}$/.
 const basename = value => value.split(/[\\/]/).at(-1).replace(/\.exe$/i, '');
 const takesValue = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--config-env']);
 
+// Each command, and whether it reads the one before it through a pipe.
 function shellWords(command) {
-  const segments = [[]]; let token = '', quote = '', escaped = false;
+  const segments = [[]], piped = [false]; let token = '', quote = '', escaped = false;
   const word = () => { if (token) segments.at(-1).push(token); token = ''; };
-  for (const ch of command.slice(0, 32768)) {
+  const next = pipe => { word(); if (segments.at(-1).length) { segments.push([]); piped.push(pipe); } };
+  const text = command.slice(0, 32768);
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
     if (escaped) { token += ch; escaped = false; continue; }
     if (ch === '\\' && quote !== "'") { escaped = true; continue; }
     if (quote) { if (ch === quote) quote = ''; else token += ch; continue; }
     if (ch === '"' || ch === "'") { quote = ch; continue; }
-    if (/\s/.test(ch)) { if (ch === '\n') { word(); segments.push([]); } else word(); }
-    else if (';&|'.includes(ch)) { word(); if (segments.at(-1).length) segments.push([]); }
+    if (/\s/.test(ch)) { if (ch === '\n') next(false); else word(); }
+    // The & of 2>&1, >&2 and &>file is a redirection, not the end of a command.
+    else if (ch === '&' && (/[<>]$/.test(token) || text[i + 1] === '>')) token += ch;
+    else if (';&|'.includes(ch)) next(ch === '|' && text[i - 1] !== '|' && text[i + 1] !== '|');
     else token += ch;
   }
   word();
-  return { segments: segments.filter(s => s.length), uncertain: !!quote || escaped || /\$\(|`|<<|\b(?:if|for|while|case|function)\b/.test(command) };
+  const kept = segments.map((words, i) => ({ words, piped: piped[i] })).filter(s => s.words.length);
+  return { segments: kept, uncertain: !!quote || escaped || /\$\(|`|<<|\b(?:if|for|while|case|function)\b/.test(command) };
 }
 function operation(words, depth = 0) {
   let i = 0;
@@ -28,7 +35,7 @@ function operation(words, depth = 0) {
   const program = basename(exe); const args = words.slice(i + 1);
   if (['sh', 'bash', 'zsh', 'pwsh', 'powershell'].includes(program) && depth < 2) {
     const at = args.findIndex(a => /^-(?:[a-z]*c|Command)$/i.test(a));
-    if (at >= 0 && args[at + 1]) return shellOperations(args[at + 1], depth + 1);
+    if (at >= 0 && args[at + 1]) return shellParts(args[at + 1], depth + 1);
   }
   if (program === 'git') {
     let j = 0;
@@ -45,17 +52,30 @@ function operation(words, depth = 0) {
   }
   return safe(program) ?? 'shell (unclassified)';
 }
-export function shellOperations(command, depth = 0) {
+// Builtins that take no time beside the command they set up.
+const instant = new Set(['cd', 'pwd', 'echo', 'printf', 'true', 'false', 'export', 'set', 'unset', 'source', '.']);
+/** A command's operations, and `lead`: the ones its time is theirs. A pipeline runs
+ *  as long as the command feeding it, not the tail or grep reading its output. */
+function shellParts(command, depth = 0) {
   const { segments, uncertain } = shellWords(command);
-  if (uncertain || !segments.length || segments.length > 32) return ['shell (unclassified)'];
-  return [...new Set(segments.flatMap(words => operation(words, depth)))].slice(0, 16);
+  if (uncertain || !segments.length || segments.length > 32) return { operations: ['shell (unclassified)'], lead: ['shell (unclassified)'] };
+  const parts = segments.map(({ words, piped }) => {
+    const part = operation(words, depth);
+    return typeof part === 'string' ? { operations: [part], lead: piped ? [] : [part] } : { operations: part.operations, lead: piped ? [] : part.lead };
+  });
+  const operations = [...new Set(parts.flatMap(part => part.operations))].slice(0, 16);
+  const fed = [...new Set(parts.flatMap(part => part.lead))].filter(op => operations.includes(op));
+  const busy = fed.filter(op => !instant.has(op));
+  return { operations, lead: busy.length ? busy : fed.length ? fed : operations };
 }
+export function shellOperations(command, depth = 0) { return shellParts(command, depth).operations; }
+const withLead = ({ operations, lead }) => lead.length < operations.length ? { operations, lead } : { operations };
 export function auditOperations(name, input) {
   const tool = safe(name) ?? 'tool (unclassified)';
   if (['exec', 'functions.exec'].includes(name) && typeof input?.script === 'string') return { tool, operations: scriptOperations(input.script), shell: true, wrapped: true };
   if (/^(?:Bash|Shell|exec_command|run|shell_command|functions\.exec_command|mcp__.*__exec_command)$/i.test(name ?? '')) {
     const command = input?.command ?? input?.cmd;
-    if (typeof command === 'string' && command.length <= 32768) return { tool, operations: shellOperations(command), shell: true };
+    if (typeof command === 'string' && command.length <= 32768) return { tool, ...withLead(shellParts(command)), shell: true };
     return { tool, operations: ['shell (unclassified)'], shell: true };
   }
   return { tool, operations: [tool], shell: false };
