@@ -6,14 +6,14 @@
 import { readStored, removeStored, writeStored } from "../storage";
 
 /** The detail column's bounds, in CSS pixels. */
-export const DETAIL_WIDTH = { min: 320, standard: 440, max: 1600 } as const;
+export const DETAIL_WIDTH = { min: 320, max: 1600 } as const;
 /** Until the reader drags it, the detail takes this share of the workspace,
- *  between DETAIL_WIDTH.min and .standard: under a 1100px modal a fixed 440
- *  left the list about 400px and its rows wrapped, so the list keeps 55 % or
- *  more there, and from about 1050px the detail is its standard 440 again. */
-export const DETAIL_SHARE = 0.42;
+ *  within DETAIL_WIDTH, and never so much that the list goes under LIST_MIN:
+ *  capped at 440, a wide modal's detail was a narrow column beside a list
+ *  with room to spare. */
+export const DETAIL_SHARE = 0.5;
 /** The CSS for that share, which the split uses until a width is stored. */
-export const AUTO_DETAIL_CSS = `clamp(${DETAIL_WIDTH.min}px, ${DETAIL_SHARE * 100}%, ${DETAIL_WIDTH.standard}px)`;
+export const AUTO_DETAIL_CSS = `clamp(${DETAIL_WIDTH.min}px, ${DETAIL_SHARE * 100}%, ${DETAIL_WIDTH.max}px)`;
 /** The list always keeps this much beside the detail. */
 export const LIST_MIN = 420;
 /** The draggable line between them. */
@@ -26,13 +26,13 @@ const key = (storageKey: string) => `agent-dag.integrations.${storageKey}.detail
 /** A width the detail can take in a workspace `room` pixels wide. */
 export function clampDetail(width: number, room: number): number {
   const most = Math.max(DETAIL_WIDTH.min, Math.min(DETAIL_WIDTH.max, room - LIST_MIN - SPLITTER));
-  return Math.round(Math.min(most, Math.max(DETAIL_WIDTH.min, Number.isFinite(width) ? width : DETAIL_WIDTH.standard)));
+  return Math.round(Math.min(most, Math.max(DETAIL_WIDTH.min, Number.isFinite(width) ? width : room * DETAIL_SHARE)));
 }
 
 /** The width the detail takes in a workspace `room` pixels wide before the
- *  reader has dragged it: the share, kept between min and standard. */
+ *  reader has dragged it: the share, within the bounds. */
 export function autoDetail(room: number): number {
-  return clampDetail(Math.min(DETAIL_WIDTH.standard, Math.max(DETAIL_WIDTH.min, room * DETAIL_SHARE)), room);
+  return clampDetail(room * DETAIL_SHARE, room);
 }
 
 /** The width the reader dragged the detail to, or null while it is automatic. */

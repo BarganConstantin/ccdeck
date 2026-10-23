@@ -7,8 +7,8 @@
 // The core's, not a provider's: every tracker panel is a list of things and
 // the one thing chosen, and each gets the same split and the same memory of
 // its width (integrations/layout.ts). Until the reader drags it the detail
-// takes 42 % of the room between 320 and 440px, so under a 1100px modal the
-// list keeps the wider share and its rows stay on one line.
+// takes half the room, never under 320px nor so much that the list goes
+// under 420px.
 //
 // What the host does for every panel, so none has to:
 // - Escape closes an open detail before it closes the modal, at every width:
