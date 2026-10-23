@@ -19,6 +19,13 @@
 // the 404 every route gives while the flag is off and a body this page cannot
 // read all come back as one `ApiFailure`, with the status when there was one.
 //
+// A REFUSAL KEEPS ITS CODE. When the Command Panel's engine cannot take a
+// question, the deck answers one of the codes below beside its sentence
+// (docs/contracts/pro-engine-host-v1.md, Refusals). The panel needs the code
+// to tell a state of this machine — no engine, one that did not verify, a
+// platform with no panel — from a moment the deck is waiting out, so the
+// failure carries it. Any other code a route answers stays the route's own.
+//
 // "NOT ATTACHABLE" IS NOT A FAILURE. POST /api/terminal/open answers a session
 // it cannot attach to with HTTP 200 and `{ ok: false, target }`: the deck did
 // its job, and the target says what the panel should offer instead. That is
@@ -140,7 +147,24 @@ export interface ApiFailure {
   ok: false;
   status: number | null;
   error: string;
+  /** The deck's refusal code, when the Command Panel's engine refused. */
+  code?: PanelRefusal;
 }
+
+/** Refusals that are a state of this machine (HTTP 409): the panel says so
+ *  and stops there, until the reader asks it to check again. */
+export const PANEL_UNAVAILABLE = ["unsupported", "not-installed", "not-verified", "no-terminal", "failed"] as const;
+/** Refusals of a moment (HTTP 503): an engine restarting, busy, or slow to
+ *  answer, which the panel waits out where waiting is safe. */
+export const PANEL_RECOVERING = ["restarting", "busy", "no-answer"] as const;
+export type PanelUnavailable = typeof PANEL_UNAVAILABLE[number];
+export type PanelRefusal = PanelUnavailable | typeof PANEL_RECOVERING[number];
+
+const REFUSALS: ReadonlySet<string> = new Set([...PANEL_UNAVAILABLE, ...PANEL_RECOVERING]);
+
+/** Whether `code` is a state of this machine rather than of a moment. */
+export const panelUnavailable = (code?: string | null): code is PanelUnavailable =>
+  (PANEL_UNAVAILABLE as readonly string[]).includes(code ?? "");
 
 /** What New session may ask of a new Claude: Claude Code's own flags, from
  *  the lists the deck's launcher accepts (terminal-sessions.mjs). Absent is
@@ -208,7 +232,8 @@ function failureFrom(status: number, body: unknown): ApiFailure {
   if (status === 401 || status === 403) return { ok: false, status, error: REFUSED };
   // A launch the deck's tmux refused may say what to do about it.
   const hint = isObject(body) && typeof body.hint === "string" ? body.hint : "";
-  if (said) return { ok: false, status, error: hint ? `${said} ${hint}` : said };
+  const code = isObject(body) && typeof body.code === "string" && REFUSALS.has(body.code) ? body.code as PanelRefusal : null;
+  if (said) return { ok: false, status, error: hint ? `${said} ${hint}` : said, ...(code ? { code } : {}) };
   return { ok: false, status, error: UNREADABLE };
 }
 

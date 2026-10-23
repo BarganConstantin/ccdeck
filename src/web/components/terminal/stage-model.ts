@@ -18,7 +18,7 @@
 // decided there (DESIGN-UI decision 4); the stage only prints the chord and
 // says who owns the keys.
 import type { SizeOwner } from "../../terminal-protocol";
-import type { TerminalProvider, TerminalTarget, TmuxProgress } from "../../terminal-api";
+import type { PanelUnavailable, TerminalProvider, TerminalTarget, TmuxProgress } from "../../terminal-api";
 import { shortAgo } from "../../relative-time";
 import { elapsed } from "../../duration";
 
@@ -58,7 +58,10 @@ export type StagePhase =
   | { kind: "tmux-missing"; reason: string; install?: string; download?: string; busy: boolean }
   | { kind: "ended"; atOpen?: boolean }
   | { kind: "detached" }
-  | { kind: "error"; message: string };
+  /** `code`: the engine's refusal, when it is a state of this machine
+   *  (terminal-api's PANEL_UNAVAILABLE). Such a card checks again in place,
+   *  `busy` while it does, as the tmux card does. */
+  | { kind: "error"; message: string; code?: PanelUnavailable; busy?: boolean };
 
 export type StagePhaseKind = StagePhase["kind"];
 
@@ -233,6 +236,10 @@ export function headerStatus(board: StageStatus | null, phase: StagePhase): Stag
       return { state: "starting", phrase: "setting up tmux…" };
     case "tmux-missing":
       return { state: "detached", phrase: "not attached" };
+    case "error":
+      // The engine is not here to attach anything: the board's "working" is
+      // true of the session, but not of this panel.
+      return phase.code ? { state: "detached", phrase: "not attached" } : board ?? { state: "none", phrase: "" };
     case "not-attachable":
       // Started outside the deck and still running there: the board's own
       // tool and argument are still true, only the place is different.

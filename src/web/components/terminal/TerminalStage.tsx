@@ -71,7 +71,7 @@ const NOTICE_MS = 6000;
  *  own card would otherwise answer at once, before the check had. */
 export function settlesFocus(phase: StagePhase): boolean {
   return phase.kind !== "attaching" && phase.kind !== "starting" && phase.kind !== "tmux-installing"
-    && !(phase.kind === "tmux-missing" && phase.busy)
+    && !((phase.kind === "tmux-missing" || phase.kind === "error") && phase.busy)
     && !(phase.kind === "live" && !phase.readOnly);
 }
 

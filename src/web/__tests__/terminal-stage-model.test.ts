@@ -107,6 +107,13 @@ describe("what the stage knows better than the board", () => {
     expect(headerStatus(boardEnded, { kind: "ended" })).toBe(boardEnded);
   });
 
+  it("says not attached when the engine is not there to attach, and lets the board speak over any other failure", () => {
+    expect(headerStatus(working, { kind: "error", message: "…", code: "not-installed", busy: false })).toEqual({ state: "detached", phrase: "not attached" });
+    expect(headerStatus(null, { kind: "error", message: "…", code: "unsupported", busy: false }).phrase).toBe("not attached");
+    expect(headerStatus(working, { kind: "error", message: "The deck did not answer." })).toBe(working);
+    expect(headerStatus(null, { kind: "error", message: "The deck did not answer." })).toEqual({ state: "none", phrase: "" });
+  });
+
   it("says it is setting up tmux while the deck fetches its own", () => {
     expect(headerStatus(working, { kind: "tmux-installing" })).toEqual({ state: "starting", phrase: "setting up tmux…" });
     expect(stageAnnouncement("paycore", { kind: "tmux-installing" })).toBe("Setting up tmux for the Command Panel.");

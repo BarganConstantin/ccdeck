@@ -942,6 +942,115 @@ describe("a new session started from the stage", () => {
   });
 });
 
+describe("the Command Panel's engine refusing (pro-engine-host-v1.md, Refusals)", () => {
+  const NOT_INSTALLED = "The Command Panel's engine is not installed on this machine.";
+  const refusal = (status: number, code: string, error: string): ApiFailure => ({ ok: false, status, error, code } as ApiFailure);
+  const restarting = () => refusal(503, "restarting", "The Command Panel's engine is restarting.");
+
+  it("shows a state of this machine as it is, without asking about tmux, and checks again in place", async () => {
+    const { r, ctl } = rig();
+    r.open.mockResolvedValueOnce(refusal(409, "not-installed", NOT_INSTALLED)).mockResolvedValueOnce(refusal(409, "not-installed", NOT_INSTALLED));
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "error", message: NOT_INSTALLED, code: "not-installed", busy: false });
+    expect(r.status, "an engine's state is not tmux's").not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.open, "a state is not waited out: asked once").toHaveBeenCalledTimes(1);
+
+    ctl.retry();
+    expect(r.last().phase, "Check again keeps the sentence up").toEqual({ kind: "error", message: NOT_INSTALLED, code: "not-installed", busy: true });
+    ctl.retry();
+    await flush();
+    expect(r.open, "a second press while it checks is refused").toHaveBeenCalledTimes(2);
+    expect(r.last().phase).toEqual({ kind: "error", message: NOT_INSTALLED, code: "not-installed", busy: false });
+
+    // Installed since: the same press attaches.
+    ctl.retry();
+    await flush();
+    expect(r.open).toHaveBeenCalledTimes(3);
+    expect(r.sockets).toHaveLength(1);
+  });
+
+  it("keeps a card up when a check finds the engine starting, and attaches once it answers", async () => {
+    const { r, ctl } = rig();
+    r.open.mockResolvedValueOnce(refusal(409, "failed", "The Command Panel's engine would not start.")).mockResolvedValueOnce(restarting());
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    ctl.retry();
+    await flush();
+    expect(r.last().phase, "a card, never reconnecting over an empty box").toEqual({ kind: "attaching", reconnect: false });
+    await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS_MS[0]);
+    expect(r.open).toHaveBeenCalledTimes(3);
+    expect(r.sockets).toHaveLength(1);
+  });
+
+  it("says a launch's refusal as the engine's state, and never launches again by itself", async () => {
+    const { r, ctl } = rig();
+    r.launch.mockResolvedValueOnce(refusal(409, "not-verified", "The Command Panel's engine could not be verified, so it was not started."));
+    ctl.show({ kind: "launch", agent: "claude", cwd: "/w", key: "n7" });
+    await flush();
+    expect(r.last().phase).toMatchObject({ kind: "error", code: "not-verified", busy: false });
+    expect(r.status, "a 409 of the engine's own is not tmux missing").not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.launch).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers a launch the engine refused for a moment again, by its key, only when pressed", async () => {
+    const { r, ctl } = rig();
+    r.launch.mockResolvedValueOnce(restarting());
+    ctl.show({ kind: "launch", agent: "codex", cwd: "/w", key: "n8" });
+    await flush();
+    expect(r.last().phase, "a moment is not a state of the machine").toEqual({ kind: "error", message: "The Command Panel's engine is restarting." });
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.launch, "not asked again by itself: nothing starts that was not pressed for").toHaveBeenCalledTimes(1);
+    ctl.retry();
+    await flush();
+    expect(r.launch).toHaveBeenCalledTimes(2);
+    expect(r.launch.mock.calls[1][0].key, "the same launch, which the deck keeps to one agent").toBe("n8");
+    expect(r.launched).toHaveLength(1);
+  });
+
+  it("waits out a moment's refusal on a first open, its card kept up, and attaches once the engine is back", async () => {
+    const { r, ctl } = rig();
+    r.open.mockResolvedValueOnce(restarting());
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    expect(r.last().phase, "the card, not an empty box").toEqual({ kind: "attaching", reconnect: false });
+    await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS_MS[0]);
+    expect(r.open).toHaveBeenCalledTimes(2);
+    expect(r.sockets).toHaveLength(1);
+    expect(r.last().phase).toEqual({ kind: "attaching", reconnect: false });
+  });
+
+  it("reconnects while the engine restarts under a live pane, and gives up naming the engine, not the deck", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const s = await attach(r, ctl);
+    r.open.mockResolvedValue(restarting());
+    // The deck closes a relayed socket 1011 when its engine goes.
+    s.drop(1011);
+    expect(r.last().phase, "the frozen frame stays up").toEqual({ kind: "attaching", reconnect: true });
+    for (let i = 0; i < 40 && r.last().phase.kind === "attaching"; i++) {
+      r.clock.now += 5000;
+      await vi.advanceTimersByTimeAsync(5000);
+    }
+    expect(r.open.mock.calls.length).toBeGreaterThan(3);
+    expect(r.last().phase).toEqual({ kind: "error", message: "The Command Panel's engine did not come back. The session is still running in tmux; try again in a moment." });
+  });
+
+  it("answers a state of the machine met while reconnecting at once", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const s = await attach(r, ctl);
+    r.open.mockResolvedValueOnce(refusal(409, "failed", "The Command Panel's engine would not start."));
+    s.drop(1011);
+    await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS_MS[0]);
+    expect(r.last().phase).toEqual({ kind: "error", message: "The Command Panel's engine would not start.", code: "failed", busy: false });
+  });
+});
+
 describe("while the deck sets up its own tmux", () => {
   const INSTALLING = { ok: true, platform: "linux", tmux: { ok: false, reason: "installing" } } as TerminalStatus;
   const READY = { ok: true, platform: "linux", tmux: { ok: true } } as TerminalStatus;

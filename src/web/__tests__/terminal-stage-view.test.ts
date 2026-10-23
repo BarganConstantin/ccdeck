@@ -238,6 +238,27 @@ describe("the body's state cards, each at the terminal's origin", () => {
     expect(tmuxFact("too-old")).toMatch(/older than 3\.2/);
   });
 
+  it("draws the engine's state with its sentence, checking again in place, and only Not now where there is nothing to check", () => {
+    const sentence = "The Command Panel's engine is not installed on this machine.";
+    const props = bodyProps({ kind: "error", message: sentence, code: "not-installed", busy: false });
+    expect(textOf(StateCard(props))).toContain(sentence);
+    expect(all(StateCard(props), el => el.type === "button").map(b => textOf(b))).toEqual(["Check again", "Not now"]);
+    press(button(StateCard(props), "Check again"));
+    expect(props.onRetry).toHaveBeenCalled();
+    const busy = button(StateCard(bodyProps({ kind: "error", message: sentence, code: "not-installed", busy: true })), "Checking…")!;
+    expect(busy.props["aria-busy"]).toBe(true);
+    expect(busy.props.disabled, "busy, never disabled (#620)").toBeUndefined();
+
+    const elsewhere = StateCard(bodyProps({ kind: "error", message: "The Command Panel is not available on this platform yet.", code: "unsupported", busy: false }));
+    const buttons = all(elsewhere, el => el.type === "button");
+    expect(buttons.map(b => textOf(b)), "nothing to check on a platform with no panel").toEqual(["Not now"]);
+    expect(buttons[0].props["data-stage-land"], "and the keys land on it").toBe(true);
+
+    // Any other failure keeps FP-01's Try again.
+    expect(all(StateCard(bodyProps({ kind: "error", message: "The deck did not answer." })), el => el.type === "button").map(b => textOf(b)))
+      .toEqual(["Try again", "Not now"]);
+  });
+
   it("says the deck is fetching its own tmux, what that means, and lets the stage be left meanwhile", () => {
     const props = bodyProps({ kind: "tmux-installing" });
     const out = html(createElement(StateCard, props));
@@ -310,6 +331,8 @@ describe("the body's state cards, each at the terminal's origin", () => {
       { kind: "not-attachable", target: { kind: "gone", label: "This session has ended.", adoptable: true }, stillRunning: false, busy: false },
       { kind: "tmux-installing" }, { kind: "tmux-missing", reason: "too-old", busy: false },
       { kind: "error", message: "The deck did not answer." },
+      { kind: "error", message: "The Command Panel's engine is not installed on this machine.", code: "not-installed", busy: false },
+      { kind: "error", message: "The Command Panel is not available on this platform yet.", code: "unsupported", busy: false },
     ];
     for (const phase of phases) expect(textOf(StateCard(bodyProps(phase))).trim(), phase.kind).not.toBe("");
   });

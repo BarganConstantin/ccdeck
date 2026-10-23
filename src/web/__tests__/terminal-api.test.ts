@@ -13,12 +13,15 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
+  PANEL_RECOVERING,
+  PANEL_UNAVAILABLE,
   STILL_RUNNING,
   TERMINAL_ROUTES,
   adoptTerminal,
   claimLaunch,
   launchTerminal,
   openTerminal,
+  panelUnavailable,
   terminalStatus,
   terminalTarget,
   type SessionRef,
@@ -174,6 +177,18 @@ describe("reading the answers", () => {
     const answer = await openTerminal(SESSION, { fetchFn });
     expect(answer).toEqual({ ok: false, target: STARTED_ELSEWHERE });
     expect("status" in answer, "a state to draw must not look like an HTTP failure").toBe(false);
+  });
+
+  it("keeps the engine's refusal code beside its sentence, and no other code a route answers", async () => {
+    const said = "The Command Panel's engine is not installed on this machine.";
+    expect(await openTerminal(SESSION, { fetchFn: answering(409, { ok: false, error: said, code: "not-installed" }).fetchFn }))
+      .toEqual({ ok: false, status: 409, error: said, code: "not-installed" });
+    expect(await terminalStatus({ fetchFn: answering(503, { ok: false, error: "The Command Panel's engine is restarting.", code: "restarting" }).fetchFn }))
+      .toEqual({ ok: false, status: 503, error: "The Command Panel's engine is restarting.", code: "restarting" });
+    expect(await launchTerminal({ agent: "claude", cwd: "/srv" }, { fetchFn: answering(409, { ok: false, error: "tmux is not here.", code: "tmux-unavailable" }).fetchFn }))
+      .toEqual({ ok: false, status: 409, error: "tmux is not here." });
+    for (const code of PANEL_UNAVAILABLE) expect(panelUnavailable(code), code).toBe(true);
+    for (const code of [...PANEL_RECOVERING, "tmux-unavailable", "", null, undefined]) expect(panelUnavailable(code), String(code)).toBe(false);
   });
 
   it("reads adopt's 409 as the still-running refusal the panel has a sentence for", async () => {

@@ -208,16 +208,26 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
           </div>
         </div>
       );
-    case "error":
+    case "error": {
+      // The engine's refusal, when it is a state of this machine, is checked
+      // again in place, as tmux missing is; a platform with no panel has
+      // nothing to check, and offers only Not now.
+      const again = phase.code !== "unsupported";
+      const check = !!phase.code;
       return (
         <div className="ts-card">
           <p className="ts-text ts-text-first">{phase.message}</p>
           <div className="ts-acts">
-            <button type="button" className="btn" data-stage-land onClick={p.onRetry}>Try again</button>
-            <button type="button" className="btn" onClick={p.onNotNow}>Not now</button>
+            {again && (
+              <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
+                {check ? (phase.busy ? "Checking…" : "Check again") : "Try again"}
+              </button>
+            )}
+            <button type="button" className="btn" data-stage-land={again ? undefined : true} onClick={p.onNotNow}>Not now</button>
           </div>
         </div>
       );
+    }
     default:
       return null;
   }

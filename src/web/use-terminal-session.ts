@@ -43,6 +43,8 @@ import {
   launchTerminal,
   openTerminal,
   terminalStatus,
+  panelUnavailable,
+  PANEL_RECOVERING,
   STILL_RUNNING,
   type LaunchOptions,
   type PaneColours,
@@ -60,7 +62,7 @@ import { openLink } from "./terminal-links";
 import { copyText } from "./copy-text";
 import { leaveRepliesToTmux } from "./terminal-replies";
 import { isApplePlatform, platformName } from "./platform";
-import type { KeysOwner, StagePhase } from "./components/terminal/stage-model";
+import { showsFrame, type KeysOwner, type StagePhase } from "./components/terminal/stage-model";
 
 /** The stage's font size. 13.3px is where the deck's mono stack advances a
  *  whole 8px on DejaVu Sans Mono and on Menlo, so cells come out exactly 8
@@ -487,6 +489,14 @@ const isFailure = (v: { ok: boolean }): v is ApiFailure => v.ok === false && !("
 /** A failure that a deck on its way back up would also give: no answer at
  *  all, or a gateway in front of it that has none yet. */
 const transient = (f: ApiFailure) => f.status === null || f.status === 502 || f.status === 503 || f.status === 504;
+/** The engine's refusal of a moment (restarting, busy, slow): waited out,
+ *  asking again, wherever asking again cannot start anything. */
+const recovering = (f: ApiFailure) => transient(f) && (PANEL_RECOVERING as readonly string[]).includes(f.code ?? "");
+
+/** A failure as the card draws it. A refusal that is a state of this machine
+ *  keeps its code, so the card checks again in place. */
+const failed = (f: ApiFailure): StagePhase =>
+  panelUnavailable(f.code) ? { kind: "error", message: f.error, code: f.code, busy: false } : { kind: "error", message: f.error };
 
 /** Whether two answers about the deck's tmux download say the same thing, so
  *  a poll that learned nothing new draws nothing. */
@@ -496,6 +506,7 @@ const sameProgress = (a?: TmuxProgress, b?: TmuxProgress) =>
 
 const STOPPED = "The Command Panel stopped. The session may still be running.";
 const NO_RETURN = "The deck did not come back. The session is still running in tmux; try again once the deck is up.";
+const ENGINE_NO_RETURN = "The Command Panel's engine did not come back. The session is still running in tmux; try again in a moment.";
 const NOT_REOPENABLE = "This session started without a name the deck can find it by yet. Open it from the board.";
 const TMUX_SETUP_SLOW = "The deck is still setting up tmux. Try again in a minute.";
 
@@ -543,6 +554,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   let streamTimer: ReturnType<typeof setTimeout> | null = null;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectStarted: number | null = null;
+  // Whether the last answer while reconnecting was the engine's, not silence:
+  // the deck is up, and it is the engine that has not come back.
+  let engineLost = false;
   // When the deck last said it was restarting; null for any other loss.
   let restartSaid: number | null = null;
   let attempts = 0;
@@ -650,6 +664,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
             parsedBytes(seed.byteLength, true);
             attempts = 0;
             reconnectStarted = null;
+            engineLost = false;
             restartSaid = null;
             emit({ phase: { kind: "live", sizeOwner, readOnly }, paneSize: sizeOwner === "pane" ? { cols: t.cols, rows: t.rows } : null });
             measure();
@@ -762,7 +777,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
           const shown = snap.phase.kind === "tmux-installing" ? snap.phase.progress : undefined;
           tmuxNotReady(my, { ok: false, reason: "installing", ...(shown ? { progress: shown } : {}) }, since);
         } else {
-          setPhase({ kind: "error", message: status.error });
+          setPhase(failed(status));
         }
       });
     }, TMUX_SETUP_POLL_MS);
@@ -781,8 +796,10 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     if (my !== gen) return;
     if (answer.ok) { connect(answer.ticket, my); return; }
     if (isFailure(answer)) {
-      if (reconnecting && transient(answer)) { reconnect(my); return; }
-      setPhase({ kind: "error", message: answer.error });
+      // Opening starts nothing, so a moment's refusal is waited out even on
+      // a first open, its card kept up while the engine comes back.
+      if ((reconnecting && transient(answer)) || recovering(answer)) { reconnect(my, answer); return; }
+      setPhase(failed(answer));
       return;
     }
     if (answer.target.kind === "unsupported") {
@@ -803,8 +820,12 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     const answer = await deps.api.launch({ agent, cwd, key, size: { ...want }, ...(options ? { launch: options } : {}), ...(tint ? { colours: tint } : {}) });
     if (my !== gen) return;
     if (!answer.ok) {
-      if (answer.status === 409) await tmuxOr(my, { kind: "error", message: answer.error });
-      else setPhase({ kind: "error", message: answer.error });
+      // A 409 of the engine's own is its state, not tmux's: said as it is,
+      // without asking about tmux. Never asked again by itself, whatever the
+      // status — a launch is started only by a press, and its key keeps a
+      // second press to the one agent.
+      if (answer.status === 409 && !answer.code) await tmuxOr(my, { kind: "error", message: answer.error });
+      else setPhase(failed(answer));
       return;
     }
     launched = true;
@@ -831,18 +852,26 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     void openFlow(ref, my, reconnecting);
   };
 
-  /** The deck went away under a live pane. Keep the frame, and ask again. */
-  const reconnect = (my: number) => {
+  /** The deck, or its engine, went away under a live pane, or refused a
+   *  first open for a moment. Keep the frame, or the card, and ask again.
+   *  `lost`: the answer that sent it here, when there was one. */
+  const reconnect = (my: number, lost?: ApiFailure) => {
     if (my !== gen || disposed) return;
     const now = deps.now();
+    if (lost) engineLost = !!lost.code;
     reconnectStarted ??= now;
     if (now - reconnectStarted > RECONNECT_GIVE_UP_MS) {
       reconnectStarted = null;
       attempts = 0;
-      setPhase({ kind: "error", message: NO_RETURN });
+      setPhase({ kind: "error", message: engineLost ? ENGINE_NO_RETURN : NO_RETURN });
+      engineLost = false;
       return;
     }
-    setPhase({ kind: "attaching", reconnect: true });
+    // A pane that was up keeps its frame. Anything else — a first open, a
+    // card checking again — keeps a card: "reconnecting" over an empty box
+    // would be neither true nor anything to look at.
+    const next: StagePhase = showsFrame(snap.phase) ? { kind: "attaching", reconnect: true } : { kind: "attaching", reconnect: false };
+    if (snap.phase.kind !== "attaching" || snap.phase.reconnect !== next.reconnect) setPhase(next);
     const fast = restartSaid !== null && now - restartSaid < RESTART_FAST_MS;
     const delay = fast ? RESTART_POLL_MS : RECONNECT_DELAYS_MS[Math.min(attempts, RECONNECT_DELAYS_MS.length - 1)];
     attempts += 1;
@@ -946,6 +975,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       held = [];
       attempts = 0;
       reconnectStarted = null;
+      engineLost = false;
       begin();
     },
 
@@ -986,24 +1016,27 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
           setPhase({ ...phase, stillRunning: true, busy: false });
           return;
         }
-        setPhase({ kind: "error", message: answer.error });
+        setPhase(failed(answer));
       });
     },
 
     retry() {
       if (disposed) return;
       const phase = snap.phase;
-      if (phase.kind === "tmux-missing" && phase.busy) return;
+      const checks = phase.kind === "tmux-missing" || (phase.kind === "error" && !!phase.code);
+      if (checks && phase.busy) return;
       attempts = 0;
       reconnectStarted = null;
-      if (phase.kind !== "tmux-missing") {
+      engineLost = false;
+      if (!checks) {
         // A failed launch is asked again; anything else is reopened.
         begin(false);
         return;
       }
       // "Check again" keeps the fact on screen while it asks, rather than
-      // flashing "attaching…" over the install line for the length of a
-      // request that will most likely say the same thing.
+      // flashing "attaching…" over the install line, or over the engine's
+      // state, for the length of a request that will most likely say the
+      // same thing.
       gen += 1;
       const my = gen;
       dropConnection();
