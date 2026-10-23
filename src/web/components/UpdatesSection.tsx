@@ -93,7 +93,10 @@ export default function UpdatesSection({ autoRestart, onToggleAutoRestart, versi
           settingId="auto-update"
           name={AUTO_UPDATE_LABEL}
           nameId="settings-auto-update-label"
-          note={NOTES[shape]}
+          note={shape === "no-restart" ? "Automatic updates are unavailable in this session. Your choice is saved for the next start."
+            : shape === "checks-off" ? "Update checks are disabled. Only versions installed another way can be applied."
+            : "Restart into a newer version after 30 seconds without active agents."}
+          details={NOTES[shape]}
           noteId="settings-auto-update-note"
           control={
             /* Operable in every shape it is drawn in, as Notifications' switch

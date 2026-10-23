@@ -1,0 +1,498 @@
+{
+  "nativeBrowser": "unavailable; isolated Playwright",
+  "persistence": "fixture only; real API/provider/storage untested",
+  "results": [
+    {
+      "case": "github-1440x1000-rider-black",
+      "checks": [
+        "provider heading/identity",
+        "missing and invalid field alerts",
+        "secret clearing and URL/name retention",
+        "2-second busy keyboard focus/visibility",
+        "duplicate request guard",
+        "create payload/deployment"
+      ],
+      "axe": [
+        {
+          "state": "connect",
+          "violations": [],
+          "incomplete": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "targets": [
+                [
+                  ".ig-help > summary"
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        "github-1440x1000-rider-black-connect.png",
+        "github-1440x1000-rider-black-error.png"
+      ],
+      "blockedOutsideWrites": [
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/presence",
+          "method": "POST"
+        },
+        {
+          "path": "/api/forget",
+          "method": "POST"
+        }
+      ],
+      "fixtureWrites": 3,
+      "status": "passed"
+    },
+    {
+      "case": "gitlab-cloud-1440x1000-rider-black",
+      "checks": [
+        "provider heading/identity",
+        "missing and invalid field alerts",
+        "secret clearing and URL/name retention",
+        "2-second busy keyboard focus/visibility",
+        "duplicate request guard",
+        "create payload/deployment"
+      ],
+      "axe": [
+        {
+          "state": "connect",
+          "violations": [],
+          "incomplete": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "targets": [
+                [
+                  ".ig-help > summary"
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        "gitlab-cloud-1440x1000-rider-black-connect.png",
+        "gitlab-cloud-1440x1000-rider-black-error.png"
+      ],
+      "blockedOutsideWrites": [
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/presence",
+          "method": "POST"
+        },
+        {
+          "path": "/api/forget",
+          "method": "POST"
+        }
+      ],
+      "fixtureWrites": 3,
+      "status": "passed"
+    },
+    {
+      "case": "gitlab-self-1440x1000-rider-black",
+      "checks": [
+        "provider heading/identity",
+        "missing and invalid field alerts",
+        "secret clearing and URL/name retention",
+        "2-second busy keyboard focus/visibility",
+        "duplicate request guard",
+        "create payload/deployment"
+      ],
+      "axe": [
+        {
+          "state": "connect",
+          "violations": [],
+          "incomplete": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "targets": [
+                [
+                  ".ig-help > summary"
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        "gitlab-self-1440x1000-rider-black-connect.png",
+        "gitlab-self-1440x1000-rider-black-error.png"
+      ],
+      "blockedOutsideWrites": [
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/presence",
+          "method": "POST"
+        },
+        {
+          "path": "/api/forget",
+          "method": "POST"
+        },
+        {
+          "path": "/api/forget",
+          "method": "POST"
+        }
+      ],
+      "fixtureWrites": 3,
+      "status": "passed"
+    },
+    {
+      "case": "jira-cloud-1440x1000-rider-black",
+      "checks": [
+        "provider heading/identity",
+        "missing and invalid field alerts",
+        "secret clearing and URL/name retention",
+        "2-second busy keyboard focus/visibility",
+        "duplicate request guard",
+        "create payload/deployment"
+      ],
+      "axe": [
+        {
+          "state": "connect",
+          "violations": [],
+          "incomplete": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "targets": [
+                [
+                  ".ig-help > summary"
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        "jira-cloud-1440x1000-rider-black-connect.png",
+        "jira-cloud-1440x1000-rider-black-error.png"
+      ],
+      "blockedOutsideWrites": [
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/presence",
+          "method": "POST"
+        },
+        {
+          "path": "/api/forget",
+          "method": "POST"
+        }
+      ],
+      "fixtureWrites": 4,
+      "status": "passed"
+    },
+    {
+      "case": "jira-server-1440x1000-rider-black",
+      "checks": [
+        "provider heading/identity",
+        "missing and invalid field alerts",
+        "secret clearing and URL/name retention",
+        "2-second busy keyboard focus/visibility",
+        "duplicate request guard",
+        "create payload/deployment",
+        "blank edit retains saved credential flag",
+        "changed deployment requires fresh credentials",
+        "replacement credentials payload"
+      ],
+      "axe": [
+        {
+          "state": "connect",
+          "violations": [],
+          "incomplete": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "targets": [
+                [
+                  ".ig-help > summary"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "state": "edit",
+          "violations": [],
+          "incomplete": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "targets": [
+                [
+                  "form > .ig-managed-header > .ig-managed-identity > p"
+                ],
+                [
+                  ".ig-help > summary"
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        "jira-server-1440x1000-rider-black-connect.png",
+        "jira-server-1440x1000-rider-black-error.png",
+        "jira-server-1440x1000-rider-black-edit.png"
+      ],
+      "blockedOutsideWrites": [
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/presence",
+          "method": "POST"
+        },
+        {
+          "path": "/api/forget",
+          "method": "POST"
+        },
+        {
+          "path": "/api/presence",
+          "method": "POST"
+        }
+      ],
+      "fixtureWrites": 6,
+      "status": "passed"
+    },
+    {
+      "case": "github-1440x1000-light",
+      "checks": [
+        "provider heading/identity",
+        "missing and invalid field alerts",
+        "secret clearing and URL/name retention",
+        "2-second busy keyboard focus/visibility",
+        "duplicate request guard",
+        "create payload/deployment"
+      ],
+      "axe": [
+        {
+          "state": "connect",
+          "violations": [],
+          "incomplete": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "targets": [
+                [
+                  ".ig-help > summary"
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        "github-1440x1000-light-connect.png",
+        "github-1440x1000-light-error.png"
+      ],
+      "blockedOutsideWrites": [
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/presence",
+          "method": "POST"
+        },
+        {
+          "path": "/api/forget",
+          "method": "POST"
+        }
+      ],
+      "fixtureWrites": 3,
+      "status": "passed"
+    },
+    {
+      "case": "jira-cloud-390x844-light",
+      "checks": [
+        "provider heading/identity",
+        "missing and invalid field alerts",
+        "secret clearing and URL/name retention",
+        "2-second busy keyboard focus/visibility",
+        "duplicate request guard",
+        "create payload/deployment"
+      ],
+      "axe": [
+        {
+          "state": "connect",
+          "violations": [],
+          "incomplete": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "targets": [
+                [
+                  "#settings-tab-notifications > .settings-tab-label"
+                ],
+                [
+                  "#settings-tab-radar > .settings-tab-label"
+                ],
+                [
+                  "#\\:r3\\:-baseUrl-hint"
+                ],
+                [
+                  ".ig-help > summary"
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        "jira-cloud-390x844-light-connect.png",
+        "jira-cloud-390x844-light-error.png"
+      ],
+      "blockedOutsideWrites": [
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/presence",
+          "method": "POST"
+        },
+        {
+          "path": "/api/forget",
+          "method": "POST"
+        }
+      ],
+      "fixtureWrites": 4,
+      "status": "passed"
+    },
+    {
+      "case": "gitlab-self-320x740-rider-black",
+      "checks": [
+        "provider heading/identity",
+        "missing and invalid field alerts",
+        "secret clearing and URL/name retention",
+        "2-second busy keyboard focus/visibility",
+        "duplicate request guard",
+        "create payload/deployment"
+      ],
+      "axe": [
+        {
+          "state": "connect",
+          "violations": [],
+          "incomplete": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "targets": [
+                [
+                  "#\\:r3\\:-baseUrl-hint"
+                ],
+                [
+                  ".ig-help > summary"
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        "gitlab-self-320x740-rider-black-connect.png",
+        "gitlab-self-320x740-rider-black-error.png"
+      ],
+      "blockedOutsideWrites": [
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/presence",
+          "method": "POST"
+        },
+        {
+          "path": "/api/forget",
+          "method": "POST"
+        }
+      ],
+      "fixtureWrites": 3,
+      "status": "passed"
+    },
+    {
+      "case": "jira-server-900x540-rider-black",
+      "checks": [
+        "provider heading/identity",
+        "missing and invalid field alerts",
+        "secret clearing and URL/name retention",
+        "2-second busy keyboard focus/visibility",
+        "duplicate request guard",
+        "create payload/deployment"
+      ],
+      "axe": [
+        {
+          "state": "connect",
+          "violations": [],
+          "incomplete": []
+        }
+      ],
+      "screenshots": [
+        "jira-server-900x540-rider-black-connect.png",
+        "jira-server-900x540-rider-black-error.png"
+      ],
+      "blockedOutsideWrites": [
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/feature",
+          "method": "POST"
+        },
+        {
+          "path": "/api/presence",
+          "method": "POST"
+        },
+        {
+          "path": "/api/forget",
+          "method": "POST"
+        }
+      ],
+      "fixtureWrites": 3,
+      "status": "passed"
+    }
+  ]
+}

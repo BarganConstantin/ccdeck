@@ -1,0 +1,14 @@
+{
+  "tags": [
+    "wcag2a",
+    "wcag2aa",
+    "wcag21aa",
+    "wcag22aa"
+  ],
+  "engine": {
+    "name": "axe-core",
+    "version": "4.13.0"
+  },
+  "violations": [],
+  "incomplete": []
+}
