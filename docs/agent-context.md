@@ -80,10 +80,11 @@ flow. Branches, pull requests and releases now follow
   unfinished Git View work. Preserve that checkout and its changes.
 - Current Radar worktree: `~/.cache/ccdeck-wt/radar-cross-platform`.
   Earlier UI worktree: `~/.cache/ccdeck-wt/finish-left-column`.
-- Working branch: `feat/radar-cross-platform`; delivery branch: `origin/development`.
-  Completed commits have been delivered with `git push origin HEAD:development`.
-  Fetch and inspect divergence before pushing; integrate remote work rather than
-  force-pushing. Other worktrees also exist, so inspect `git worktree list`.
+- Working branch: `feat/radar-cross-platform`. Under the earlier flow its
+  commits were pushed straight to the old `development`; never push to
+  `development` that way now. Integration follows
+  [`release-workflow.md`](release-workflow.md). Other worktrees also exist, so
+  inspect `git worktree list`.
 - The owner's local app has been served at `http://127.0.0.1:4317` from the Radar
   worktree, using `~/.nvm/versions/node/v22.14.0/bin/node`.
   Inspect the actual listener and process before assuming this is still true.
