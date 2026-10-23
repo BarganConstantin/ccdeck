@@ -15,15 +15,24 @@ Aliases distinguish multiple connections. The common access/token disclosure
 belongs in a separate footer below the complete provider list, never inside a
 provider entry. Counts describe saved connections.
 
-Manage opens a focused connection detail view in the existing pane. Keep full
-name, host, account, server information, last verification and saved-token state.
-The connection name (or instance URL) heads Manage, with provider and Saved
-connection secondary. Test/Edit are neutral rounded controls. Manage facts use two columns on desktop
-with labels above values, one column on narrow screens. Add connection sits
-discreetly in the identity header. Remove connection is the final area, with a
-neutral outlined control that becomes destructive when armed, preserving the
-two-press safety guard. Per-connection Manage avoids a separate account picker.
-Additional connections deliberately cost Manage → Add connection.
+Manage opens a focused connection detail view in the existing pane. The generic
+Integrations introduction is hidden only here; the selected name or instance URL
+is its h2. Keep full endpoint (scheme and path), account, known provider/server
+metadata, historical verification and saved-token state. Facts remain two columns
+on desktop with labels above values, one column on narrow screens.
+
+Provider-level Add connection is direct in the overview provider heading. A
+provider-named shortcut beside All integrations preserves the one-click path from
+Manage, outside the selected identity. Focus enters the selected heading, then
+Test/Edit, using shared 30px / --r-ctl controls rather than a local pill variant.
+Remove connection is final and uses the existing outlined danger control. Keep
+the two-press 400ms guard. An engaged confirmation has no reading deadline;
+leaving its focus group, changing window/task or pressing Cancel disarms it.
+Explicit Cancel restores focus; a four-second timer is only an unfocused safety
+fallback. Test/Edit/Add clear an armed decision.
+Deletion errors belong beside removal, not above ordinary management actions.
+Per-connection Manage avoids a separate account picker; multiple saved accounts
+remain individually named and directly reachable.
 
 Connect saves back to the overview; Edit saves/cancels back to its selected
 connection. Back/Escape go up one level before closing Settings. Search, dirty
@@ -48,3 +57,5 @@ Evidence:
 - [Iteration 3](../review/settings-iteration-3/README.md)
 
 - [Iteration 4](../review/settings-iteration-4/README.md)
+
+- [Iteration 5](../review/settings-iteration-5/README.md)

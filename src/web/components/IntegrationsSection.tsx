@@ -12,7 +12,7 @@
 // saying so and Disconnect alone, which deletes it and its saved token with
 // no provider asked. A deck offering none shows only such connections, and
 // Settings draws no section at all once they are gone (sectionsDrawn).
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   connectionHost, createConnection, deleteConnection, IntegrationFailure, integrationsReach, kindOffered, offeredKinds, refreshIntegrations,
   takeIntegrationFocus, testConnection, updateConnection, useIntegrations,
@@ -26,7 +26,7 @@ import IntegrationConnectionDetails, { connectionServer, verificationTime } from
 import { SettingsGroup } from "./SettingsParts";
 
 type Editing = { mode: "add"; kind: IntegrationKind } | { mode: "edit"; id: string } | null;
-type Note = { id: string; tone: "ok" | "err"; text: string };
+type Note = { id: string; tone: "ok" | "err"; text: string; scope?: "disconnect" };
 
 /** A shared modal dismissal goes back one level while a form is open. */
 export type SettingsLeaveGuard = (action: () => void, back?: boolean) => void;
@@ -69,11 +69,29 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
   }, [focused, connections]);
   useEffect(() => {
     if (!armed) return;
-    const t = window.setTimeout(() => setArmed(null), 4_000);
-    return () => window.clearTimeout(t);
+    const cancel = () => {
+      // Cancel can disappear while the window loses focus; retain its return target.
+      if (document.activeElement?.getAttribute("aria-label") === "Cancel disconnect") {
+        document.querySelector<HTMLButtonElement>(".ig-manage-view .ig-disconnect")?.focus();
+      }
+      setArmed(null);
+    };
+    const onVisibility = () => { if (document.hidden) cancel(); };
+    const t = window.setTimeout(() => {
+      // Reading an engaged confirmation has no deadline. Leaving its action
+      // cancels immediately; four seconds remains an unfocused safety fallback.
+      if (!document.querySelector(".ig-disconnect-actions")?.contains(document.activeElement)) cancel();
+    }, 4_000);
+    window.addEventListener("blur", cancel);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("blur", cancel);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [armed]);
 
-  const note = (id: string, tone: Note["tone"], text: string) => setNotes(list => [...list.filter(n => n.id !== id), { id, tone, text }]);
+  const note = (id: string, tone: Note["tone"], text: string, scope?: Note["scope"]) => setNotes(list => [...list.filter(n => n.id !== id), { id, tone, text, scope }]);
   const clearNote = (id: string) => setNotes(list => list.filter(n => n.id !== id));
 
   /** One request at a time across the section, refused by the handler too. */
@@ -94,7 +112,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
       setDirty(false);
       setManagedId(null);
       setOverviewNotice("Connection added.");
-      note(conn.id, "ok", `Connected as ${conn.account.name || conn.account.login}.`);
+      note(conn.id, "ok", `Connection saved and tested as ${conn.account.name || conn.account.login}.`);
       setFocused(conn.id);
       focusAfterChange.current = () => {
         const target = manageRefs.current.get(conn.id);
@@ -114,17 +132,18 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
       setPendingLeave(null);
       setDirty(false);
       focusAfterChange.current = () => formTriggerRef.current ?? (managedId ? detailHeadingRef.current : manageRefs.current.get(connection.id));
-      note(connection.id, "ok", validated ? `Saved and checked: signed in as ${connection.account.name || connection.account.login}.` : "Saved.");
+      note(connection.id, "ok", validated ? `Saved. Connection test passed as ${connection.account.name || connection.account.login}.` : "Saved.");
     } catch (err) {
       setFormError(err instanceof IntegrationFailure ? err : new IntegrationFailure("upstream", "The change could not be saved."));
     }
   });
 
   const test = (conn: Connection) => void run(`test:${conn.id}`, async () => {
+    setArmed(null);
     clearNote(conn.id);
     try {
       const fresh = await testConnection(conn.id);
-      note(conn.id, "ok", `Verified as ${fresh.account.name || fresh.account.login}.`);
+      note(conn.id, "ok", `Connection test passed. Signed in as ${fresh.account.name || fresh.account.login}.`);
     } catch (err) {
       note(conn.id, "err", err instanceof Error ? err.message : "The test failed.");
     }
@@ -134,7 +153,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
     if (busyRef.current) return;
     const now = Date.now();
     const press = armedPress({ armedFor: armed, target: conn.id, armedAt: armedAt.current, now, gapMs: CONFIRM_GAP_MS });
-    if (press === "arm") { setArmed(conn.id); armedAt.current = now; return; }
+    if (press === "arm") { pressed.focus({ preventScroll: true }); setArmed(conn.id); armedAt.current = now; return; }
     if (press === "ignore") return;
     setArmed(null);
     void run(`delete:${conn.id}`, async () => {
@@ -153,7 +172,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
           return remaining && manageRefs.current.get(remaining.id) || addRefs.current.get(conn.kind) || document.getElementById("settings-tab-integrations");
         };
       } catch (err) {
-        note(conn.id, "err", err instanceof Error ? err.message : "Disconnect failed.");
+        note(conn.id, "err", err instanceof Error ? err.message : "The connection could not be removed. Try again.", "disconnect");
       }
     });
   };
@@ -213,7 +232,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
   const begin = (next: NonNullable<Editing>, trigger: HTMLButtonElement) => {
     if (busyRef.current) return;
     focusAfterChange.current = null;
-    setPendingLeave(null); setOverviewNotice("");
+    setPendingLeave(null); setOverviewNotice(""); setArmed(null);
     if (managedId) formTriggerRef.current = trigger;
     else {
       overviewScroll.current = trigger.closest<HTMLElement>(".settings-pane")?.scrollTop ?? 0;
@@ -235,16 +254,15 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
     if (pane) pane.scrollTop = 0;
   };
 
-  const renderConnection = (conn: Connection, showName = false, heading?: ReactNode) => {
+  const renderConnection = (conn: Connection, showName = false) => {
     const provider = integrationDef(conn.kind);
     const unavailable = !kindOffered(integrations, conn.kind);
     const verified = verificationTime(conn);
     const account = conn.account.login || conn.account.name;
-    const server = connectionServer(conn);
+    const server = conn.kind === "jira" ? connectionServer(conn) : null;
     return <div key={conn.id} className="ig-conn" ref={el => { if (el) rowRefs.current.set(conn.id, el); else rowRefs.current.delete(conn.id); }}>
       <div className="ig-summary-row">
         <div className="ig-summary-text">
-          {heading}
           <span className="ig-conn-name">{connectionHost(conn)}</span>
           <span className="ig-conn-line">{[showName && conn.name !== connectionHost(conn) ? conn.name : "", account, server || (verified ? `Last verified ${verified}` : "Not verified yet")].filter(Boolean).join(" · ") || "No account read yet"}</span>
           {!conn.tokenSaved && <span className="ig-bad">No token saved</span>}
@@ -263,7 +281,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
     : editedConnection && known.find(provider => provider.kind === editedConnection.kind);
 
   return (
-    <div className="ig-settings">
+    <div className="ig-settings" data-view={editing ? "form" : managedId ? "connection" : "overview"}>
       {editing && <div className="ig-config-view">
         <button type="button" className="btn ig-back-to-overview" disabled={busy !== null} onClick={() => leave(closeForm, true)}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 3-5 5 5 5M2 8h12" /></svg>
@@ -286,14 +304,18 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
         </div>
       </div>}
       {managedId && <div className="ig-manage-view" hidden={editing !== null}>
+        <div className="ig-manage-navigation">
         <button type="button" className="btn ig-back-to-overview" disabled={busy !== null} onClick={() => leave(backToOverview, true)}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 3-5 5 5 5M2 8h12" /></svg>All integrations
         </button>
+        {managedConnection && kindOffered(integrations, managedConnection.kind) && <button type="button" className="btn" disabled={busy !== null}
+          onClick={event => begin({ mode: "add", kind: managedConnection.kind }, event.currentTarget)}>Add {integrationDef(managedConnection.kind)?.label ?? managedConnection.kind} connection</button>}
+        </div>
         {managedConnection ? <IntegrationConnectionDetails connection={managedConnection} provider={integrationDef(managedConnection.kind)}
           available={kindOffered(integrations, managedConnection.kind)} busy={busy} armed={armed === managedId}
           note={notes.find(n => n.id === managedId)} headingRef={detailHeadingRef}
           onTest={() => test(managedConnection)} onEdit={button => begin({ mode: "edit", id: managedConnection.id }, button)}
-          onAdd={button => begin({ mode: "add", kind: managedConnection.kind }, button)} onDisconnect={button => disconnect(managedConnection, button)} />
+          onDisconnect={button => disconnect(managedConnection, button)} onCancelDisconnect={() => setArmed(null)} />
           : <p role="status">This connection is no longer saved.</p>}
       </div>}
       <div className="ig-overview" hidden={editing !== null || managedId !== null}>
@@ -309,11 +331,16 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
               return <section key={provider.kind} className="ig-provider" id={`ig-provider-${provider.kind}`} aria-labelledby={`ig-provider-name-${provider.kind}`} data-setting={`integration-${provider.kind}`}>
                 <span className="ig-provider-glyph" aria-hidden><provider.Glyph /></span>
                 <div className="ig-provider-content">
-                  {saved.length > 1 && <h3 id={`ig-provider-name-${provider.kind}`}>{provider.label}</h3>}
+                  {saved.length > 0 && <div className="ig-provider-heading">
+                    <h3 id={`ig-provider-name-${provider.kind}`}>{provider.label}</h3>
+                    <button type="button" className="btn" disabled={busy !== null} aria-label={`Add connection to ${provider.label}`}
+                      ref={el => { if (el) addRefs.current.set(provider.kind, el); else addRefs.current.delete(provider.kind); }}
+                      onClick={event => begin({ mode: "add", kind: provider.kind }, event.currentTarget)}>Add connection</button>
+                  </div>}
                   {saved.length === 0 ? <div className="ig-summary-row"><div className="ig-summary-text"><h3 id={`ig-provider-name-${provider.kind}`}>{provider.label}</h3><span className="ig-conn-line">Not connected</span></div>
                     <button type="button" className="btn ig-manage" ref={el => { if (el) addRefs.current.set(provider.kind, el); else addRefs.current.delete(provider.kind); }}
                       aria-label={`Connect ${provider.label}`} onClick={event => begin({ mode: "add", kind: provider.kind }, event.currentTarget)}>Connect</button></div>
-                    : <>{saved.length > 1 && <p className="ig-connection-count">{saved.length} connections</p>}<div className="ig-connections">{saved.map(conn => renderConnection(conn, saved.length > 1, saved.length === 1 ? <h3 id={`ig-provider-name-${provider.kind}`}>{provider.label}</h3> : undefined))}</div></>}
+                    : <>{saved.length > 1 && <p className="ig-connection-count">{saved.length} connections</p>}<div className="ig-connections">{saved.map(conn => renderConnection(conn, saved.length > 1))}</div></>}
                 </div>
               </section>;
             })}
@@ -327,7 +354,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
         </div>
         {reach === "all" && <>
           <div className="ig-overview-info">
-            <details className="ig-access"><summary>Access and token storage</summary><p>Read-only access. Tokens stay on this machine and are never shown again or shared with paired decks.</p></details>
+            <details className="ig-access"><summary>Access and token storage</summary><p>ccdeck only reads from connected services. Tokens stay on this machine and are never shown again or shared with paired decks.</p></details>
             <span className="ig-total">{list.length} saved connection{list.length === 1 ? "" : "s"}</span>
           </div>
         </>}

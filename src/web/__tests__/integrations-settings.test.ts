@@ -14,9 +14,9 @@ const connection = (id: string, kind: IntegrationKind): IntegrationConnection =>
   account: { id: "review", name: "Reviewer", login: "review", avatarUrl: "" },
   meta: {}, tokenSaved: true, allowedOrigins: [], createdAt: "", updatedAt: "",
 });
-async function draw(connections: IntegrationConnection[]) {
+async function draw(connections: IntegrationConnection[], offered = providers) {
   vi.stubGlobal("window", { setTimeout, clearTimeout });
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ connections, providers }))));
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ connections, providers: offered }))));
   await refreshIntegrations();
   return renderToStaticMarkup(createElement(IntegrationsSection));
 }
@@ -30,6 +30,7 @@ describe("Settings provider entries", () => {
     for (const label of ["GitHub", "GitLab", "Jira"]) expect(html).toContain(`aria-label="Connect ${label}"`);
     expect(html.match(/Not connected/g)).toHaveLength(3);
     expect(html).not.toContain("<form");
+    expect(html).not.toContain('aria-label="Add connection to');
     expect(html).not.toContain("More trackers");
   });
 
@@ -39,10 +40,45 @@ describe("Settings provider entries", () => {
     for (const [id, label] of [["a", "GitHub"], ["b", "Jira"], ["c", "GitHub"]]) {
       expect(html).toContain(`aria-label="Manage ${label}: Review ${id} (review)"`);
     }
-    expect(html).not.toMatch(/>Test<|>Edit<|>Disconnect</);
+    expect(html).not.toMatch(/>Test(?: connection)?<|>Edit(?: connection)?<|>Disconnect</);
+    expect(html).toContain('aria-label="Add connection to GitHub"');
+    expect(html).toContain('aria-label="Add connection to Jira"');
+    expect(html).not.toContain('aria-label="Add connection to GitLab"');
+    expect(html.match(/>Add connection<\/button>/g)).toHaveLength(2);
     expect(html.indexOf("Review c")).toBeLessThan(html.indexOf('id="ig-provider-gitlab"'));
     expect(html.indexOf('id="ig-provider-jira"')).toBeLessThan(html.indexOf("Review b"));
     expect(html).not.toMatch(/Healthy|Online|Working:/);
+  });
+
+  it("offers a direct Add connection beside a connected provider while preserving its alias and Manage path", async () => {
+    const html = await draw([connection("work", "gitlab")]);
+    const provider = html.slice(html.indexOf('id="ig-provider-gitlab"'), html.indexOf('id="ig-provider-jira"'));
+    expect(provider).toContain('id="ig-provider-name-gitlab">GitLab</h3>');
+    expect(provider).toMatch(/<button[^>]*aria-label="Add connection to GitLab"[^>]*>Add connection<\/button>/);
+    expect(provider).toContain('aria-label="Manage GitLab: Review work (review)"');
+    expect(provider).toContain("gitlab.example.com");
+    expect(provider).not.toContain('aria-label="Connect GitLab"');
+    expect(provider).not.toMatch(/>Test(?: connection)?<|>Edit(?: connection)?<|>Disconnect</);
+  });
+
+  it("keeps unavailable saved connections manageable without offering Add or Connect for that provider", async () => {
+    const html = await draw([connection("work", "gitlab"), connection("tracker", "jira")],
+      providers.map(provider => ({ ...provider, available: provider.kind !== "gitlab" })));
+    expect(html).toContain('aria-label="Manage GitLab: Review work (review)"');
+    expect(html).toContain("GitLab is not available on this deck.");
+    expect(html).not.toContain('aria-label="Add connection to GitLab"');
+    expect(html).not.toContain('aria-label="Connect GitLab"');
+    expect(html).toContain('aria-label="Add connection to Jira"');
+    expect(html).toContain('aria-label="Connect GitHub"');
+    expect(html).not.toMatch(/>Test(?: connection)?<|>Edit(?: connection)?<|>Disconnect</);
+  });
+
+  it("offers no creation controls when only unavailable saved connections remain", async () => {
+    const html = await draw([connection("work", "gitlab")], []);
+    expect(html).toContain('aria-label="Manage GitLab: Review work (review)"');
+    expect(html).toContain("GitLab is not available on this deck.");
+    expect(html).not.toMatch(/aria-label="(?:Add connection to|Connect) /);
+    expect(html).not.toMatch(/>Add connection<|<form|>Test(?: connection)?<|>Edit(?: connection)?<|>Disconnect</);
   });
 
   it("searches providers directly and excludes provider anchors the deck cannot offer", () => {

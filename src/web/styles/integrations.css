@@ -357,6 +357,8 @@ img.ig-avatar + img.ig-avatar {
 }
 .ig-stack-more { margin-left: 2px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 
+/* The overview introduction yields to the selected connection's own heading. */
+.settings-pane:has(> .ig-settings[data-view="connection"]) > .settings-pane-head { display: none; }
 /* Compact provider list: one contextual action per saved connection. */
 .ig-settings, .ig-overview { display: flex; flex-direction: column; min-width: 0; gap: 16px; }
 .ig-overview[hidden], .ig-manage-view[hidden] { display: none; }
@@ -371,6 +373,7 @@ img.ig-avatar + img.ig-avatar {
 .ig-provider + .ig-provider { border-top: 1px solid var(--line); }
 .ig-provider > .ig-provider-glyph { padding-top: 2px; }
 .ig-provider-content { min-width: 0; }
+.ig-provider-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 8px; }
 .ig-provider-content h3 { margin: 0; color: var(--text); font-size: calc(14px + var(--ui-text-increase, 0px)); line-height: 1.4; font-weight: 600; }
 .ig-connection-count { margin: 0 0 8px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .ig-connection-list { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
@@ -379,7 +382,7 @@ img.ig-avatar + img.ig-avatar {
 .ig-summary-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .ig-summary-text .ig-conn-name { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; overflow-wrap: anywhere; }
 .ig-provider .ig-conn-line { color: var(--text-secondary); line-height: 1.5; }
-.ig-manage { min-height: 30px; min-width: 80px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.ig-manage { min-width: 80px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .ig-list-error { display: flex; align-items: center; gap: 12px; color: var(--err); }
 .ig-list-error p { flex: 1; margin: 0; overflow-wrap: anywhere; }
 .ig-config-view, .ig-manage-view { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
@@ -389,7 +392,7 @@ img.ig-avatar + img.ig-avatar {
 .ig-config-view .ig-form-title, .ig-managed-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); line-height: 1.4; font-weight: 600; }
 .ig-managed-header { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; min-width: 0; }
 .ig-managed-header > .ig-provider-glyph { padding-top: 3px; }
-.ig-managed-identity { min-width: 0; flex: 1 1 160px; }
+.ig-managed-identity { min-width: 0; flex: 1; }
 .ig-managed-title { overflow-wrap: anywhere; font-weight: 500; }
 .ig-managed-identity p { margin: 4px 0 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
 .ig-config-view .ig-form-actions { justify-content: flex-start; align-self: flex-start; }
@@ -399,17 +402,15 @@ img.ig-avatar + img.ig-avatar {
 .ig-detail-facts dt { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .ig-detail-facts dd { margin: 0; min-width: 0; color: var(--text); font-size: calc(14px + var(--ui-text-increase, 0px)); overflow-wrap: anywhere; }
 .ig-manage-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.ig-add-another { flex: none; margin-left: auto; }
-.ig-add-another .btn { font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.ig-connection-details .btn { border-radius: 999px; }
+.ig-manage-navigation { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; }
 .ig-disconnect-section { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
-.ig-disconnect-section h4 { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.ig-disconnect-section h3 { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .ig-disconnect-section > p { margin: 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
 
 .ig-leave-confirm { border: 1px solid var(--ctl-edge); border-radius: var(--r-panel); padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: calc(13px + var(--ui-text-increase, 0px)); }
 .ig-leave-confirm p { margin: 0; color: var(--text-secondary); line-height: 1.5; }
-.ig-form-actions .btn[aria-disabled="true"] { cursor: progress; }
-.ig-form-actions .btn[aria-disabled="true"]:active { transform: none; }
+.ig-settings .btn[aria-disabled="true"] { cursor: progress; }
+.ig-settings .btn[aria-disabled="true"]:active { transform: none; }
 @media (max-width: 640px) {
   .ig-detail-facts { grid-template-columns: minmax(0, 1fr); }
 }
