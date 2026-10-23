@@ -34,3 +34,15 @@ it('shows automatic collection waiting independently of the feature preference',
   expect(radarMonitorState({ ok: true, automatic: true, featureEnabled: true, enabled: false, state: 'idle', sources: [], events: [] } as any)).toMatchObject({ enabled: true, title: 'Waiting for a collector…', tone: 'neutral' });
   expect(radarMonitorState({ ok: true, automatic: true, featureEnabled: true, enabled: false, state: 'error', setupError: 'Packet capture permission is required.', sources: [], events: [] } as any)).toMatchObject({ enabled: true, title: 'Capture permission needed', tone: 'attention' });
 });
+
+// A missing capture tool (tcpdump on Linux, Wireshark with Npcap on Windows) is
+// setup to finish once, not a capture error; a refused permission says so first.
+it('names a missing capture tool as setup, and lets a refused permission win over it', () => {
+  const always = { ok: true, automatic: true, featureEnabled: true, managed: true, enabled: false, state: 'error', sources: [], events: [] };
+  for (const setupError of ['Install tcpdump to capture traffic. Configuration and file inspection work without it.', 'Install Wireshark with Npcap to capture traffic. Configuration and file inspection work without it.'])
+    expect(radarMonitorState({ ...always, setupError } as any)).toMatchObject({ install: true, permission: false, title: 'Capture setup needed', tone: 'attention' });
+  expect(radarMonitorState({ ...always, setupError: 'Monitoring setup failed. Retrying automatically.' } as any)).toMatchObject({ install: false, permission: false, title: 'Capture error', tone: 'error' });
+  const both = { ...always, setupError: 'Install tcpdump to capture traffic.', sources: [{ destination: '192.0.2.16:4317', interface: 'any', active: false, bytes: 0, error: 'Packet capture permission is required.' }] };
+  expect(radarMonitorState(both as any)).toMatchObject({ install: true, permission: true, title: 'Capture permission needed', tone: 'attention' });
+  expect(radarMonitorState(listening)).toMatchObject({ install: false });
+});

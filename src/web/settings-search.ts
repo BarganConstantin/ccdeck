@@ -172,8 +172,8 @@ function buildIndex(): SettingsEntry[] {
         keywords: ["delete history", "erase", "wipe", "remove"] },
     ],
     radar: [
-      { id: "radar-enabled", section: "radar", label: "Monitor automatically",
-        keywords: ["telemetry", "collector", "monitoring", "traffic", "background", "automatic", "radar"] },
+      { id: "radar-open", section: "radar", label: "Radar",
+        keywords: ["telemetry", "collector", "monitoring", "traffic", "background", "automatic", "packet capture"] },
     ],
     about: [
       { id: "version", section: "about", group: "ccdeck", label: "Version",

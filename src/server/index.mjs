@@ -528,7 +528,12 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // and that will differ on the next boot. Every test in this suite boots
       // that way. Comparing the candidate would hand those decks a manifest.
       boundPort = server.address()?.port ?? candidate;
-      void trafficCapture.resume(boundPort).catch(() => {});
+      // Radar monitors by itself, always (traffic-radar-service.mjs), which
+      // means looking at the machine's Claude processes and capturing their
+      // collector. AGENTS_DECK_NO_RADAR=1 keeps a deck from doing either: the
+      // test suite sets it, so a developer's own telemetry is never captured by
+      // a test's deck.
+      if (process.env.AGENTS_DECK_NO_RADAR !== "1") void trafficCapture.resume(boundPort).catch(() => {});
       server.once("close", () => trafficCapture.dispose());
       // Codex has no working hooks on Windows — tail its rollout files instead.
       if (codex) {
