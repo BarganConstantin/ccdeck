@@ -181,11 +181,18 @@ clear next action when capture needs assistance.
 - Capture now runs directly in ccdeck with one supervised child per destination,
   using binary pcap stdout (`-F pcap` for dumpcap). Failed children retry, with a
   fresh interface and decoder. `traffic-radar-monitor.mjs` owns this supervision
-  and per-port opt-in preferences. App startup resumes enabled destinations;
-  Stop disables the saved preference. Tokens and packet contents are not saved.
+  and per-port preferences. App startup resumes the saved destinations. Tokens
+  and packet contents are not saved.
   The older helper command remains for CLI smoke tests and compatibility.
-- Capture dependencies and privileges are explicit. No drivers are installed
-  automatically. On 2026-10-09 the owner explicitly approved installing all
+- Monitoring is always on, with no switch, Start or Stop (owner, 2026-10-23,
+  reversing v3.44.0's opt-in; `docs/features/radar-automatic-monitoring.md`).
+  Capture privileges are granted once, on the person's press of **Allow
+  capture…**, through the system's own password prompt
+  (`traffic-radar-permission.mjs`): on macOS ccdeck's own ChmodBPF-style
+  LaunchDaemon, on Linux `tcpdump` installed when missing and given
+  capabilities for the user's own group. Never open that prompt by itself.
+  Windows stays the person's own Npcap install: no drivers are installed
+  automatically there. On 2026-10-09 the owner explicitly approved installing all
   dependencies on `rdp`. Wireshark 4.6.9 and Npcap 1.89 were installed from
   official, signed packages; the Npcap driver runs without a reboot. The free
   Npcap installer was completed through its GUI, not an OEM silent switch.
@@ -198,9 +205,9 @@ clear next action when capture needs assistance.
   session ID was recovered, and the collector response was `accepted`. This
   verifies the capture path; it does not prove Claude sent that test payload.
 - Monitoring has no ten-minute expiry. It continues while ccdeck runs and resumes
-  after a restart on the same port, until explicitly stopped. Retention remains
-  bounded to 2,000 exports / 24 hours / 32 MiB encoded payloads. History survives
-  Stop/Start within the process; it is cleared by restart or Clear messages. The
+  after a restart on the same port. Retention remains bounded to 2,000 exports /
+  24 hours / 32 MiB encoded payloads. History is cleared by restart or Clear
+  messages. The
   UI reports capacity evictions and renders history in batches of 100. Permission failures remain visible.
 - On 2026-10-09 Wireshark's signed, notarized ChmodBPF package was installed on
   the owner's Mac through the system administrator prompt. This grants packet

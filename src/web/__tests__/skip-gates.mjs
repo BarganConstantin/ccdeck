@@ -207,6 +207,10 @@ export const GATES = [
   // runs on all three legs.
   { file: "prefs-corrupt-1002.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
+  // Allow capture's two root scripts, parsed by the machine's own `sh -n`. They
+  // run on macOS and Linux only, and Windows has no `sh` to parse them; the
+  // assertions on what each script says run on all three legs.
+  { file: "traffic-radar-permission.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   // #673's end-to-end block. Creating a FILE symlink on Windows needs
   // SeCreateSymbolicLinkPrivilege, so the seven cases that make one, run a
   // writer and look at what is left cannot be built there. The resolver block in
