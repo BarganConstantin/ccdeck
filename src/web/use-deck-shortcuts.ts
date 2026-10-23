@@ -18,7 +18,7 @@ import { isUndoChord } from "./rearrange-undo";
 import type { GraphState } from "./reducer";
 import { isSettingsChord, type SettingsSection } from "./settings";
 import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
-import { canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
+import { canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, keepsThemeKey, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import { nextTheme, type Theme } from "./theme";
 
 type Read<T> = { readonly current: T };
@@ -187,6 +187,21 @@ export function useDeckShortcuts({
         if (!e.repeat) setKeyHelpOpen(false);
         return;
       }
+      // T, the next theme, is answered here and nowhere below. It is the one
+      // letter that goes through a dialog (the owner's call, 2026-10-23), so
+      // it cannot wait for the two gates under this: a dialog puts focus on
+      // its first control, which the focused-control gate would hand the
+      // letter, and the modal gate drops every letter behind a dialog.
+      // keepsThemeKey says who keeps it instead: over a dialog, a field being
+      // typed in or a <select>; on the board, whoever that gate would.
+      // Settings answered T itself until then; one path now, so one theme per
+      // press in every dialog. A held key is one press, as in the table below.
+      if (e.key === "t" || e.key === "T") {
+        const modalOpen = canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() });
+        if (intent.nodeId == null && keepsThemeKey({ target, modalOpen })) return;
+        if (!e.repeat) setTheme(nextTheme);
+        return;
+      }
       // A focused control owns its own keys: Space presses a button, letters
       // run a <select>'s type-ahead. Answering them stole the button's
       // activation key and let a bare "c" from a dropdown wipe the event log.
@@ -309,7 +324,6 @@ export function useDeckShortcuts({
           focusSession(next.id);
         }
       }
-      if (e.key === "t" || e.key === "T") setTheme(nextTheme);
       // The last topbar control to get a key, and the only one that reads
       // Shift. Every other letter here treats "C" and "c" alike — a Caps-locked
       // keyboard sends the upper case for the same press — and this one does
