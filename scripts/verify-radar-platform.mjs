@@ -28,8 +28,8 @@ const managed = automatic || process.argv.includes('--managed');
 const directory = managed ? await mkdtemp(join(tmpdir(), 'radar-native-monitor-')) : null;
 const options = { managed, preferences: directory ? capturePreferences(directory) : null };
 let automaticEndpoint = null;
-// Automatic monitoring is opt-in: the monitor keeps its own preferences, and the
-// switch its own file beside them, turned on below as Settings › Radar would.
+// The always-on service: the monitor keeps its own preferences, and the service
+// the collectors it found in its own file beside them.
 const makeCapture = () => automatic ? createRadarService({ capture: createTrafficCapture(options), preferences: capturePreferences(directory, 'radar-settings'),
   discover: async () => ({ config: { variables: automaticEndpoint ? [{ key: 'OTEL_EXPORTER_OTLP_ENDPOINT', value: automaticEndpoint }] : [] }, connections: [] }),
 }) : createTrafficCapture(options);
@@ -49,11 +49,8 @@ try {
   const port = collector.address().port, localPort = ingest.address().port;
   automaticEndpoint = `http://127.0.0.1:${port}`;
   const setup = automatic ? null : await capture.prepare(`127.0.0.1:${port}`, localPort);
-  if (automatic) {
-    await capture.resume(localPort);
-    assert.equal((await capture.settings()).enabled, false, 'automatic monitoring must start off');
-    await capture.setEnabled(true);
-  }
+  // Nothing to switch on: the service finds the collector by itself.
+  if (automatic) await capture.resume(localPort);
   const token = setup ? /'([a-f0-9]{64})'/.exec(setup.command)[1] : null;
   const base = `http://127.0.0.1:${localPort}`;
   const tool = await captureTool(process.platform), iface = await captureInterface('127.0.0.1', process.platform);
@@ -101,8 +98,10 @@ try {
     const end = Date.now() + 10000;
     while (Date.now() < end && !capture.read().events.some(e => e.outcome === 'accepted')) await new Promise(r => setTimeout(r, 100));
     const resumed = capture.read().events[0]; assert.equal(resumed?.outcome, 'accepted'); assert.deepEqual(capture.detail(resumed.id).payload, LOGS);
-    await capture.stop(); await capture.resume(localPort); assert.equal(capture.read().enabled, false);
-    console.log(JSON.stringify({ managedRestart: 'passed', automatic, stoppedAfterResume: true }));
+    // A stopped monitor stays stopped; the always-on service starts it again.
+    await capture.stop(); await capture.resume(localPort);
+    if (automatic) await waitListening(); else assert.equal(capture.read().enabled, false);
+    console.log(JSON.stringify({ managedRestart: 'passed', automatic, resumedAfterStop: automatic }));
   }
   console.log(JSON.stringify({ liveCapture: 'passed', backend: capture.read().backend, sessionIds: event.sessionIds, outcome: event.outcome }));
 } finally {

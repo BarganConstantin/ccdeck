@@ -56,7 +56,7 @@ function drawBoard(issues: JiraIssue[], props: Partial<JiraBacklogProps> = {}, o
   };
   const all: JiraBacklogProps = {
     conn: CONN, overview, groups, snap, expanded: {}, onToggleGroup: () => {}, filter: { search: "", hideDone: false },
-    mine: false, filtered: false, selected: null, onOpen: () => {}, onRetryGroup: () => {}, onMore: () => {},
+    mine: false, filtered: false, selected: null, onOpen: () => {}, rowsOpen: {}, onToggleRow: () => {}, onRetryGroup: () => {}, onMore: () => {},
     onShowClosed: () => {}, onMoreClosed: () => {}, loadSubtasks: () => {}, onReconnect: () => {}, ...props,
   };
   return renderToStaticMarkup(createElement(JiraBacklog, all));

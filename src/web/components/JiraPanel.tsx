@@ -5,8 +5,12 @@
 //
 // WHAT IT REMEMBERS, per connection (the host's `prefs`): the board on show,
 // "Only my issues" (on the first time, then as left), "Hide done", the board's
-// quick filters that were on, and which groups were open. The search box is
-// for the moment, and starts empty.
+// quick filters that were on, and which groups were open. For the page's life
+// (integrations/view-memory.ts) it also keeps the search, and each board keeps
+// the issue open beside it with its breadcrumb, the rows whose sub-tasks are
+// shown, and both scrolls: reopening the panel, or going back to a board,
+// puts that issue back when it is still on the board as drawn, and opens the
+// first issue of the first open group beside the list when there is none.
 //
 // WHEN IT READS: when it opens on a board read more than five minutes ago, and
 // when Refresh is pressed. Never on a timer (use-jira-board.ts).
@@ -14,7 +18,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { connectionHost, type IntegrationFailure } from "../integrations/client";
 import type { IntegrationPanelProps } from "../integrations/types";
 import { readBoards, type JiraBoardSummary } from "../jira-api";
-import { shownQuickFilters, type GroupDef } from "../jira-board";
+import { boardRows, drawnIssues, shownQuickFilters, type GroupDef } from "../jira-board";
+import { useListView } from "../integrations/use-list-view";
+import { keepList, keepSearch, listKey as listKeyOf, recallList, recallSearch, type Drawn } from "../integrations/view-memory";
 import { failureOf, useJiraBoard } from "../use-jira-board";
 import { ExternalLinkGlyph } from "./action-glyphs";
 import AnchoredPopover from "./AnchoredPopover";
@@ -117,7 +123,12 @@ function BoardPicker({ api, current, layerId, onPick, onClose }: {
 
 // ── the panel ───────────────────────────────────────────────────────────────
 
+/** The panel's selection is the trail: the issues opened on the way to the
+ *  one on show, which is the last. Two are the same when they show it. */
+const sameIssue = (a: string[], b: string[]) => a[a.length - 1] === b[b.length - 1];
+
 export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narrow, onReconnect }: IntegrationPanelProps) {
+  const scope = `jira:${conn.id}`;
   const [board, setBoardState] = useState<string | null>(() => prefs.read("board", isString) ?? null);
   const [boardName, setBoardName] = useState<string>(() => prefs.read("boardName", (v): v is string => typeof v === "string") ?? "");
   const [mine, setMine] = useState(() => prefs.read("mine", isBool) ?? true);
@@ -128,9 +139,9 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
     return saved && saved.board === board ? saved.ids : [];
   });
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => prefs.read("expanded", isFlags) ?? {});
-  const [search, setSearch] = useState("");
+  const [search, setSearchState] = useState(() => recallSearch(scope));
+  const setSearch = (text: string) => { setSearchState(text); keepSearch(scope, text); };
   const [picker, setPicker] = useState(false);
-  const [trail, setTrail] = useState<string[]>([]);
   const [boardsError, setBoardsError] = useState<IntegrationFailure | null>(null);
   const [noBoards, setNoBoards] = useState(false);
 
@@ -147,7 +158,6 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
     prefs.write("board", id);
     prefs.write("boardName", b.name);
     setQuick([]);
-    setTrail([]);
   }, [prefs]);
 
   // No board remembered: the first one this account can see.
@@ -192,10 +202,40 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
     setQuick(ids => (ids.every(id => drawn.has(id)) ? ids : ids.filter(id => drawn.has(id))));
   }, [overview, quickFilters]);
 
+  // ── what is open, per board ──
+  // The rows whose sub-tasks are shown, kept with the board, and read back
+  // while rendering when the board changes, so the issues they draw are
+  // there when the board says what it has drawn.
+  const listKey = listKeyOf(scope, board);
+  const [rows, setRows] = useState(() => ({ key: listKey, open: recallList<string[]>(listKey)?.rows ?? {} }));
+  let rowsOpen = rows.open;
+  if (rows.key !== listKey) {
+    rowsOpen = recallList<string[]>(listKey)?.rows ?? {};
+    setRows({ key: listKey, open: rowsOpen });
+  }
+  const toggleRow = (key: string, open: boolean) => {
+    const next = { ...rowsOpen, [key]: open };
+    setRows({ key: listKey, open: next });
+    keepList<string[]>(listKey, { rows: next });
+  };
+
+  const built = useMemo(() => (overview ? boardRows(groups, snap.groups, key => snap.subtasks[key]?.issues, rowFilter) : []),
+    [overview, groups, snap.groups, snap.subtasks, rowFilter]);
+  const drawn = useMemo<Drawn<string[]> | null>(() => {
+    if (!overview) return null;
+    const { complete, keys, first } = drawnIssues(built, expanded, rowsOpen, snap.subtasks, rowFilter, filtered);
+    // The issue opened from the list is the trail's first.
+    return { complete, has: trail => keys.has(trail[0]), first: first == null ? null : [first] };
+  }, [overview, built, expanded, rowsOpen, snap.subtasks, rowFilter, filtered]);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const view = useListView<string[]>({ listKey, drawn, same: sameIssue, sideBySide: !narrow, root: rootRef, listScroller: ".jr-list-scroll" });
+  const { choose } = view;
+  const trail = useMemo(() => view.selection ?? [], [view.selection]);
+
   // ── the detail, and the way back from it ──
   const open = trail.length > 0;
   const openIssue = (key: string) => {
-    setTrail([key]);
+    choose([key]);
     // On a narrow screen the row goes with the list: focus goes to the issue's
     // name, or to Back until the name is read (JiraIssueDetail moves it on).
     if (narrow) {
@@ -207,12 +247,12 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   // deck's dismiss stack, at every width): focus goes back to the issue's row.
   const back = useCallback(() => {
     const key = trail[0];
-    setTrail([]);
+    choose(null);
     requestAnimationFrame(() => {
       const row = key ? document.querySelector<HTMLElement>(`.jr-row-main[data-key="${CSS.escape(key)}"]`) : null;
       row?.focus();
     });
-  }, [trail]);
+  }, [trail, choose]);
 
   const host = connectionHost(conn);
   const blocking = !overview ? (error ?? boardsError) : null;
@@ -255,6 +295,8 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
           filtered={filtered}
           selected={trail[trail.length - 1] ?? null}
           onOpen={openIssue}
+          rowsOpen={rowsOpen}
+          onToggleRow={toggleRow}
           onRetryGroup={g => jira.ensureGroup(g, true)}
           onMore={jira.loadMore}
           onShowClosed={jira.showClosed}
@@ -274,16 +316,17 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       trail={trail}
       estimation={overview.estimation.kind}
       time={overview.timeTracking}
-      onOpen={(key, how) => setTrail(t => (how === "push" ? [...t.filter(k => k !== key), key] : [key]))}
-      onTrail={index => setTrail(t => t.slice(0, index + 1))}
+      onOpen={(key, how) => choose(how === "push" ? [...trail.filter(k => k !== key), key] : [key])}
+      onTrail={index => choose(trail.slice(0, index + 1))}
       onReconnect={onReconnect}
       narrow={narrow}
+      auto={view.auto}
       onClose={back}
     />
   ) : null;
 
   return (
-    <div className="jr-panel" data-deployment={conn.meta?.deployment === "cloud" ? "cloud" : "server"}>
+    <div ref={rootRef} className="jr-panel" data-deployment={conn.meta?.deployment === "cloud" ? "cloud" : "server"}>
       {/* On a narrow screen an open issue is a screen of its own, and the
           board, search and filters are the list's: they wait behind Back. */}
       <div className="jr-toolbar" hidden={narrow && open}>

@@ -91,7 +91,9 @@ export function launchVariables(processes) {
   }));
 }
 
-async function readBoundedJson(path) {
+/** A settings file as JSON, refused past 256 KB or when it is not a file.
+ *  Settings › Claude Code reads the same three files (claude-settings.mjs). */
+export async function readBoundedJson(path) {
   const file = await open(path, "r");
   try {
     const stat = await file.stat();
@@ -103,11 +105,16 @@ async function readBoundedJson(path) {
   } finally { await file.close(); }
 }
 
+/** Where an administrator's managed-settings.json lives on each platform. */
+export function managedSettingsPath(platform = process.platform, env = process.env) {
+  return platform === 'win32' ? win32.join(env.ProgramFiles || 'C:\\Program Files', 'ClaudeCode', 'managed-settings.json')
+    : platform === 'linux' ? '/etc/claude-code/managed-settings.json' : '/Library/Application Support/ClaudeCode/managed-settings.json';
+}
+
 export async function readRadarConfig({ home = homedir(), env = process.env, platform = process.platform, readJson = readBoundedJson } = {}) {
   const pathJoin = platform === 'win32' ? win32.join : posix.join;
   const dir = claudeConfigDir(env, home, platform);
-  const managed = platform === 'win32' ? pathJoin(env.ProgramFiles || 'C:\\Program Files', 'ClaudeCode', 'managed-settings.json')
-    : platform === 'linux' ? '/etc/claude-code/managed-settings.json' : '/Library/Application Support/ClaudeCode/managed-settings.json';
+  const managed = managedSettingsPath(platform, env);
   const files = [
     ["User settings", pathJoin(dir, "settings.json")],
     ["Cached organization settings", pathJoin(dir, "remote-settings.json")],

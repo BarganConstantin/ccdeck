@@ -6,11 +6,14 @@
 // the reader's own face ringed, the stack rule (three, then +N; pictures
 // overlap and are cut away, initials never do), and the two marks that are
 // all a face has, the empty ring and your ring, measured at 3:1 or better on
-// every ground a row has in every theme.
+// every ground a row has in every theme. And where a picture is asked for: the
+// deck first, then the tracker itself, where a self-managed GitLab gives an
+// avatar to a signed-in browser and to no token, then initials.
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import IntegrationAvatar, { IntegrationAvatarStack, IntegrationPerson, UnassignedAvatar, stackLabel } from "../components/IntegrationAvatar";
+import IntegrationAvatar, { IntegrationAvatarStack, IntegrationPerson, UnassignedAvatar, avatarSource, stackLabel } from "../components/IntegrationAvatar";
+import { trackerImageUrl } from "../integrations/client";
 import { THEMES, color, contrast, css, host, over, panelOf, scopeOf } from "./integrations-palette";
 
 const html = (el: Parameters<typeof createElement>[0], props: Record<string, unknown>) =>
@@ -48,6 +51,50 @@ describe("a face", () => {
     const nameless = html(IntegrationPerson, { src: null, name: "Ana Lee", nameless: true });
     expect(nameless).toMatch(/^<span class="ig-person" title="Ana Lee">/);
     expect(nameless).toContain('<span class="vis-hidden">Ana Lee</span>');
+  });
+});
+
+describe("where a face's picture comes from", () => {
+  const deck = "/api/integrations/gitlab/c1/asset?url=x";
+  const site = "https://gitlab.example.com/uploads/-/system/user/avatar/65/avatar.png";
+
+  it("asks the deck, then the tracker itself, then draws initials", () => {
+    expect(avatarSource(deck, site, new Set())).toBe(deck);
+    expect(avatarSource(deck, site, new Set([deck]))).toBe(site);
+    expect(avatarSource(deck, site, new Set([deck, site]))).toBeNull();
+    expect(avatarSource(deck, null, new Set([deck]))).toBeNull();
+    expect(avatarSource(null, undefined, new Set())).toBeNull();
+  });
+
+  it("draws the deck's address first, and the tracker's when it is the only one", () => {
+    expect(html(IntegrationAvatar, { src: deck, direct: site, name: "Ana Lee" })).toContain(`src="${deck.replace(/&/g, "&amp;")}"`);
+    expect(html(IntegrationAvatar, { src: null, direct: site, name: "Ana Lee" })).toContain(`src="${site}"`);
+    // Neither: initials, as before.
+    expect(html(IntegrationAvatar, { src: null, direct: null, name: "Ana Lee" })).toContain(">AL</span>");
+  });
+
+  it("passes the tracker's address on from a person and from a stack", () => {
+    expect(html(IntegrationPerson, { src: null, direct: site, name: "Ana Lee" })).toContain(`src="${site}"`);
+    expect(html(IntegrationAvatarStack, { people: [{ key: "a", name: "Ana Lee", src: null, direct: site }] })).toContain(`src="${site}"`);
+  });
+
+  it("lets the browser ask only the connection's own host", () => {
+    const conn = { baseUrl: "https://gitlab.example.com" };
+    expect(trackerImageUrl(conn, site)).toBe(site);
+    expect(trackerImageUrl({ baseUrl: "https://gitlab.example.com/gitlab/" }, "https://gitlab.example.com/gitlab/uploads/a.png")).toBe("https://gitlab.example.com/gitlab/uploads/a.png");
+    expect(trackerImageUrl({ baseUrl: "http://gitlab.lan:8080" }, "http://gitlab.lan:8080/uploads/a.png")).toBe("http://gitlab.lan:8080/uploads/a.png");
+    // A public image host goes through the deck alone: the browser has no
+    // session there that the deck lacks.
+    expect(trackerImageUrl(conn, "https://secure.gravatar.com/avatar/abc")).toBeNull();
+    expect(trackerImageUrl({ baseUrl: "https://github.com" }, "https://avatars.githubusercontent.com/u/1?v=4")).toBeNull();
+    // Another scheme or port is another origin.
+    expect(trackerImageUrl(conn, "http://gitlab.example.com/uploads/a.png")).toBeNull();
+    expect(trackerImageUrl(conn, "https://gitlab.example.com:8443/uploads/a.png")).toBeNull();
+    expect(trackerImageUrl(conn, "https://user:pw@gitlab.example.com/uploads/a.png")).toBeNull();
+    expect(trackerImageUrl(conn, "javascript:alert(1)")).toBeNull();
+    expect(trackerImageUrl(conn, "/uploads/a.png")).toBeNull();
+    expect(trackerImageUrl(conn, null)).toBeNull();
+    expect(trackerImageUrl({ baseUrl: "not a url" }, site)).toBeNull();
   });
 });
 

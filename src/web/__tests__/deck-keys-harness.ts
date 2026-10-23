@@ -39,6 +39,7 @@ export interface KeyTarget {
   tagName: string;
   role?: string;
   type?: string;
+  isContentEditable?: boolean;
   blur?: () => void;
   /** Inside the terminal pane: the target answers `closest("[data-terminal-panel]")`.
    *  Left out, the target has no `closest` at all, as every target here had

@@ -23,6 +23,7 @@ import { OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isGuardedRe
 import { trafficCapture } from "./traffic-radar-capture.mjs";
 import { trafficRadar } from "./traffic-radar.mjs";
 import { handleTrafficCapture, isAuthorizedTrafficIngest } from "./traffic-radar-routes.mjs";
+import { CLAUDE_SETTINGS_ROUTE, handleClaudeSettings } from "./claude-settings-routes.mjs";
 // How much the event ring may hold and what one event is charged against it —
 // see ring-bounds.mjs. The four it exported from this file, it still exports.
 export { MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, payloadChars } from "./ring-bounds.mjs";
@@ -373,6 +374,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       return guard(trafficRadar.read().then(snapshot => send(res, 200, snapshot)), res);
     }
     if (url.pathname.startsWith("/api/system/traffic-radar/")) return guard(handleTrafficCapture(req, res, url), res);
+    // Settings › Claude Code: the short list of Claude Code settings, and the
+    // press that changes one in the user's settings.json. See claude-settings.mjs.
+    if (url.pathname === CLAUDE_SETTINGS_ROUTE) return guard(handleClaudeSettings(req, res), res);
     // On demand only — the process list costs a subprocess on every platform,
     // so it is fetched while the detail panel is open and never on the timer.
     if (req.method === "GET"  && url.pathname === "/api/system/processes") {
@@ -569,7 +573,12 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // and that will differ on the next boot. Every test in this suite boots
       // that way. Comparing the candidate would hand those decks a manifest.
       boundPort = server.address()?.port ?? candidate;
-      void trafficCapture.resume(boundPort).catch(() => {});
+      // Radar monitors by itself, always (traffic-radar-service.mjs), which
+      // means looking at the machine's Claude processes and capturing their
+      // collector. AGENTS_DECK_NO_RADAR=1 keeps a deck from doing either: the
+      // test suite sets it, so a developer's own telemetry is never captured by
+      // a test's deck.
+      if (process.env.AGENTS_DECK_NO_RADAR !== "1") void trafficCapture.resume(boundPort).catch(() => {});
       server.once("close", () => trafficCapture.dispose());
       // Codex has no working hooks on Windows — tail its rollout files instead.
       if (codex) {

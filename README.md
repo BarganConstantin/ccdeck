@@ -130,7 +130,7 @@ The panels open from the window's edges: the session list and the Claude account
 
 Two notes can appear at the bottom of the canvas: **Undo**, for a few seconds after `R` or the re-arrange button lays the canvas out again — `Ctrl+Z` (`⌘Z` on a Mac) does the same — and **Resume**, which turns auto-fit back on after you have panned or zoomed.
 
-Everything the page lets you set apart from the music — the theme, the text size and spacing, the character on the canvas, the single-key shortcuts, the sounds and notifications, how long Tool activity keeps its history — is in **Settings**, behind the gear at the right of the topbar, or `Cmd+,` (`Ctrl+,` on Windows and Linux); the music is in **Radio**, below. Changes apply immediately except startup recovery, which applies at the next server start. **Settings › Appearance** holds twelve color themes, Gruvbox Dark, Gruvbox Light and Gruvbox Material the newest — a fresh install starts in Rider Black rather than following your system's light or dark setting, a theme you picked stays, `T` steps through all twelve, and the deck fades from one theme to the next over 180 ms, or switches at once when your system asks for reduced motion — and the character: Deck companion, Fox or Penguin, with a switch to hide it. **Settings › Text & density** has five text sizes — Smallest, Smaller, Default, Larger and Largest, 11, 12, 13, 15 and 17 px for body text — and five densities for the spacing in lists, panels and controls: Tightest, Tighter, Compact, Default and Comfortable, at 30%, 50%, 70%, 100% and 140% of the designed spacing. Both are kept in this browser, and neither is a zoom: your browser's zoom and the canvas's stay where they were, the panels widen for larger text, and the cards on the canvas follow it. **Reset to defaults** puts both back. The sounds and how loud each tone is are in **Settings › Sounds**, which `V` opens straight away; `M` turns sounds off or on from anywhere. `?` lists every key. If you use voice control or press letters by accident, turn off **Single-key shortcuts** in **Settings › Keyboard**, which also lists every shortcut: letters, `?` and Space then do nothing, while `Cmd+,`, `Esc`, `Enter`, `Tab`, `Delete` and the arrows keep working.
+Everything the page lets you set apart from the music — the theme, the text size and spacing, the character on the canvas, the single-key shortcuts, the sounds and notifications, how long Tool activity keeps its history — is in **Settings**, behind the gear at the right of the topbar, or `Cmd+,` (`Ctrl+,` on Windows and Linux); the music is in **Radio**, below. Changes apply immediately except startup recovery, which applies at the next server start. **Settings › Appearance** holds twelve color themes, Gruvbox Dark, Gruvbox Light and Gruvbox Material the newest — a fresh install starts in Rider Black rather than following your system's light or dark setting, a theme you picked stays, `T` steps through all twelve, from inside any dialog too unless you are typing in a field, and the deck fades from one theme to the next over 180 ms, or switches at once when your system asks for reduced motion — and the character: Deck companion, Fox or Penguin, with a switch to hide it. **Settings › Text & density** has five text sizes — Smallest, Smaller, Default, Larger and Largest, 11, 12, 13, 15 and 17 px for body text — and five densities for the spacing in lists, panels and controls: Tightest, Tighter, Compact, Default and Comfortable, at 30%, 50%, 70%, 100% and 140% of the designed spacing. Both are kept in this browser, and neither is a zoom: your browser's zoom and the canvas's stay where they were, the panels widen for larger text, and the cards on the canvas follow it. **Reset to defaults** puts both back. The sounds and how loud each tone is are in **Settings › Sounds**, which `V` opens straight away; `M` turns sounds off or on from anywhere. `?` lists every key. If you use voice control or press letters by accident, turn off **Single-key shortcuts** in **Settings › Keyboard**, which also lists every shortcut: letters, `?` and Space then do nothing, while `Cmd+,`, `Esc`, `Enter`, `Tab`, `Delete` and the arrows keep working. **Settings › Claude Code**, there when Claude Code is, changes twelve of Claude Code's own settings in your `settings.json` — whether your sessions take messages from and can find each other, auto memory, automatic compaction, how long conversations are kept, checkpoints for rewind, the Co-Authored-By credit, the terminal's tips, turn duration and motion, and the update channel. It shows only what it read: a value that comes from somewhere else, such as an environment variable or your organization, is said under its row, and a `settings.json` it cannot read shows no values, only why. Below them it lists every setting Claude Code documents, the ones your file sets first, each with a link to Claude Code's reference (see [What it touches](#what-it-touches)).
 
 **Radio**, on the right sidebar beside the character (in **More** on a phone), opens a responsive Radio Explorer with a large interactive map, station discovery and a persistent player. Filter by country, sound or language, save favorites, return to recent stations, or choose **Surprise me**. Your existing Claude FM, Lofi Girl and custom streams are under **Your streams**. Select a station to inspect it, then press Play to listen; closing Radio or hiding the character keeps it playing. Favorites, history and the last catalogue are saved in this browser. Control music directly in Radio Explorer; character settings are in **Settings › Appearance**.
 
@@ -208,25 +208,43 @@ phone. Three views keep configuration, observed traffic and saved files separate
   lines; the first 200 matching rows are displayed. File contents alone do not
   prove that a record was sent.
 
-Choose all configured IPv4 destinations, one destination or a custom IPv4
-address and port, then press **Start monitoring** once. ccdeck runs the capture
-itself, as the user running ccdeck: there is no command to paste into a
-Terminal or PowerShell tab, and no repeated ten-minute activation. It retries
-after a capture-process failure or network interface change, and remembers the
-enabled destinations across server restarts. What that user needs:
+Radar monitors by itself, always: there is no Start, no Stop and no
+destination to pick. ccdeck finds Claude Code's collector — from Claude's
+settings, a running session's environment (a collector named by host is looked
+up), the collectors it found before, or an active IPv4 OTLP/gRPC connection on
+port 4317 — and runs the capture itself, as the user running ccdeck, with no
+command to paste into a Terminal or PowerShell tab. It looks every five seconds
+while Radar is open and about once a minute while it is closed, retries after a
+capture-process failure or network interface change, and remembers the
+collectors it found across server restarts.
 
-- **macOS** — the `tcpdump` macOS includes, and permission to capture, which
-  Wireshark’s official
-  [ChmodBPF permission helper](https://www.wireshark.org/docs/wsug_html_chunked/ChBuildInstallOSXInstall.html)
-  grants.
-- **Linux** — `tcpdump`, and packet capture permission for the user running
-  ccdeck.
+Packet capture needs an administrator once. When it is missing, Monitor shows
+**Allow packet capture once**, says what will change, and **Allow capture…**
+opens the system's own password prompt:
+
+- **macOS** — ccdeck adds a small helper of its own,
+  `/Library/LaunchDaemons/dev.ccdeck.chmodbpf.plist`, which does at every
+  startup what Wireshark's
+  [ChmodBPF](https://www.wireshark.org/docs/wsug_html_chunked/ChBuildInstallOSXInstall.html)
+  does: it lets the `access_bpf` group read the packet-capture devices, and
+  your user joins that group. This startup's devices are handed to you
+  directly, so capture starts without logging in again. A Mac with Wireshark's
+  ChmodBPF already set up needs nothing.
+- **Linux** — ccdeck installs `tcpdump` with your package manager (apt, dnf,
+  zypper or pacman) when it is missing, then lets it capture
+  (`cap_net_raw,cap_net_admin`) and limits running it to your own group. A
+  `tcpdump` update replaces the file and drops this; Radar then asks again. The
+  desktop app's `.deb` recommends `tcpdump`, so apt installs it with the app.
 - **Windows** — [Wireshark with Npcap](https://www.wireshark.org/download.html)
-  (ccdeck runs its `dumpcap`), with capture access for that user.
+  (ccdeck runs its `dumpcap`), which you install yourself: Npcap's free edition
+  may not be installed by another program.
 
-ccdeck stays unprivileged: it does not install drivers or change permissions. A
-blocked capture shows its permission or reconnecting state rather than claiming
-to be listening, and capture starts by itself once access is granted.
+Where no password prompt can open — a deck reached over SSH, a Linux desktop
+with no polkit agent — Radar writes the same setup script to
+`~/.agents-deck/radar-capture-setup.sh` and shows the one `sudo` command that
+runs it. Nothing else is changed without that password. A blocked capture shows
+its permission or reconnecting state rather than claiming to be listening, and
+capture starts by itself as soon as access is granted.
 
 Each destination gets its own decoder, up to eight destinations per capture.
 Linux captures routed and loopback traffic through `any`; macOS resolves the
@@ -246,27 +264,21 @@ success and rejection. Acceptance does not prove final backend storage. Contents
 come from captured traffic, not local conversation transcripts. Messages remain
 in local server memory for 24 hours, up to 2,000 exports and a 32 MiB encoded
 payload budget; unreadable observations are capped at 2,000 for 24 hours. The
-oldest entries are removed when a limit is reached. Stop/Start and closing the
-modal preserve history; restarting ccdeck removes it.
+oldest entries are removed when a limit is reached. Closing the modal preserves
+history; restarting ccdeck removes it.
 No capture file is written. **Pause list** pauses display, not capture or retention;
 **Clear messages** clears exports and unreadable observations.
 
-Monitoring continues until **Stop monitoring** or until ccdeck exits. An enabled
-monitor resumes when ccdeck next starts on the same port; Stop is remembered too.
-Closing the modal or browser does not stop capture. Only the opt-in and collector
-destinations are saved, never packet contents, tokens or decoded messages.
-Capture contents are available through the local loopback UI, not LAN endpoints.
-Local clients of the same server share its capture.
+Monitoring continues while ccdeck runs and starts again with it;
+`AGENTS_DECK_NO_RADAR=1` keeps a deck from looking for a collector or capturing
+at all. Closing the modal or browser does not stop capture. Only the collector destinations are
+saved, never packet contents, tokens or decoded messages. Capture contents are
+available through the local loopback UI, not LAN endpoints. Local clients of
+the same server share its capture.
 
-**Automatic monitoring** is off unless you turn it on in **Settings → Radar →
-Monitor automatically**. On, ccdeck finds the collector itself — from Claude's
-settings, a monitor you started, or an active IPv4 OTLP/gRPC connection on port
-4317 — monitors it without Radar open, and retries every five seconds while
-none is available; Monitor then hides Start and the destination picker. Off
-stops it, and nothing is looked for or retried.
-
-Configuration and connection sampling runs only while Radar is open and the
-browser page is visible. A connection does not prove an upload, and absence of
+Configuration and connection sampling runs every five seconds while Radar is
+open and the browser page is visible, and about once a minute in the
+background, to find the collector. A connection does not prove an upload, and absence of
 observed traffic does not mean telemetry is disabled. Native-process sampling
 can miss short-lived connections and Node wrappers. Windows samples native
 Claude processes with PowerShell; Linux uses process names and owned `/proc`
@@ -345,7 +357,9 @@ Opening Radio asks the public [Radio Browser](https://www.radio-browser.info/) d
 
 It never steers an agent or edits your code, but it is not read-only either — besides the hook entry and its own event log, it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does. It also reads your browser's history, because Browser Watch is on unless you switch it off; that is its own section below, because it is the one thing here that is about you rather than about an agent.
 
-Telemetry Radar's flag switches write to `~/.claude/settings.json` too: each puts the flag you set — `CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_LOG_USER_PROMPTS` and the other telemetry and content flags Radar lists — in that file's `env` block, as `"1"` or `"0"`. Switching a flag off writes `"0"` rather than removing it, and `--uninstall`, which removes ccdeck's hook entries, leaves these values as you set them. Starting Radar's monitoring writes `~/.agents-deck/radar-monitor-<port>.json`: the opt-in and the destinations a deck on that port resumes, never packets or decoded messages; turning on automatic monitoring writes `radar-settings-<port>.json` beside it, the switch and the collectors it found. And the quota readings the deck takes are kept in `quota-history.json`, in its data directory (see [Uninstall](#uninstall)), for 35 days and up to 2 MB, under a hash of the account rather than its address, for the Usage panel's quota history. What each Claude organization's settings turn on for telemetry is kept in `org-telemetry.json`, in the same data directory: per organization, its name, the level, the content flags that are on, the collector's scheme, host and port, and when the deck read them, never a path, a header or a credential.
+Telemetry Radar's flag switches write to `~/.claude/settings.json` too: each puts the flag you set — `CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_LOG_USER_PROMPTS` and the other telemetry and content flags Radar lists — in that file's `env` block, as `"1"` or `"0"`. Switching a flag off writes `"0"` rather than removing it, and `--uninstall`, which removes ccdeck's hook entries, leaves these values as you set them. Radar's monitoring writes `~/.agents-deck/radar-monitor-<port>.json`, the destinations a deck on that port resumes, never packets or decoded messages, and `radar-settings-<port>.json` beside it, the collectors it found. And the quota readings the deck takes are kept in `quota-history.json`, in its data directory (see [Uninstall](#uninstall)), for 35 days and up to 2 MB, under a hash of the account rather than its address, for the Usage panel's quota history. What each Claude organization's settings turn on for telemetry is kept in `org-telemetry.json`, in the same data directory: per organization, its name, the level, the content flags that are on, the collector's scheme, host and port, and when the deck read them, never a path, a header or a credential.
+
+**Settings › Claude Code** writes `~/.claude/settings.json` only when you change one of its rows, and only that row's key: going back to Claude Code's default removes the key, and **Let sessions find each other** adds or removes the bare `ListAgents` entry in `permissions.deny` and nothing else in that list. Before each change it keeps the file as it was as `claude-settings.before-change.json` in its data directory, readable only by you. It never writes managed, organization or project settings, nor `~/.claude.json`. A row your organization decides, or one that needs a newer Claude Code than the one it finds, cannot be changed there. The page sees only on/off values, numbers and documented choices from the file; `env` blocks, helper commands and tokens show as "set". `--uninstall` leaves what you set there.
 
 Tool activity keeps its history in `tool-audit/`, in the same data directory: a file a day with a line per tool call — Claude Code or Codex, when it started and ended, whether it failed, and the tool's name or, for a shell command, its operation (`git push`, `npm run build`) — with a line per skill used, holding the skill's name, the session it ran in and the name of its project folder, and a `settings.json` holding how long to keep it, when it started counting, and a random id for this device that nothing sends anywhere. The rest of a command line, the tool's or the skill's arguments and output, and paths are not saved, nor a tool call's session id, and nothing in the folder leaves the machine. It keeps 90 days unless you pick 30 or 60 under **Keep history** in **Settings › Data › Tool history**, which also shows the space it takes and has **Clear history…**; older days are deleted as they fall out. `--no-persist` does not stop it — that flag is about the events log — and `--uninstall` leaves it, `--purge` too (see [Uninstall](#uninstall)).
 
@@ -667,10 +681,23 @@ platform's **data** directory, and the platform's **log** directory.
 `prefs.json` is the one to delete deliberately: it holds this deck's **Local
 network private key**, the one every deck you paired with has pinned. Leaving it
 behind leaves that identity on the machine. (`~/.agents-deck/` holds the managed
-tools and the deck's records about them, `radar-monitor-<port>.json` once
-Telemetry Radar has monitored — the destinations it resumes — and
-`radar-settings-<port>.json` once its automatic monitoring has been switched,
-but no key.)
+tools and the deck's records about them, `radar-monitor-<port>.json` and
+`radar-settings-<port>.json` once Telemetry Radar has monitored — the
+destinations it resumes and the collectors it found — but no key.)
+
+**Allow capture** changed the system, so undoing it takes an administrator too.
+On macOS:
+
+```bash
+sudo launchctl bootout system/dev.ccdeck.chmodbpf
+sudo rm /Library/LaunchDaemons/dev.ccdeck.chmodbpf.plist "/Library/Application Support/ccdeck/ccdeck-chmodbpf"
+```
+
+On Linux, give `tcpdump` back its packaged state:
+
+```bash
+t=$(readlink -f "$(command -v tcpdump)"); sudo setcap -r "$t"; sudo chgrp root "$t"; sudo chmod 0755 "$t"
+```
 
 The data directory also holds Tool activity's `tool-audit/` folder — up to 90
 days of which tools and commands your agents ran, and how long they took — and

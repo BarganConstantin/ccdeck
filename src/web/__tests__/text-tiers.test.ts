@@ -274,6 +274,9 @@ describe("what was migrated to the secondary tier", () => {
       // holds (#2176) — Text & density's opening sentence was the first of
       // them. Read once, before anything in the section is.
       ".settings-pane-note",
+      // Why a Claude Code setting cannot be changed here, or that a running
+      // session wrote it back: one sentence under its row, read and acted on.
+      ".settings-row-said-quiet",
       // What a tool history change just did, said in its own row.
       ".settings-row-status",
       ".radio-art",

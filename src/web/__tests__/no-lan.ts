@@ -26,3 +26,10 @@ process.env.AGENTS_DECK_NO_REPORTS = "1";
 // a deck writes the same settings.json on every machine; the gate's own suite
 // (skill-hook-gate-fp03) unsets it and tests the default.
 process.env.AGENTS_DECK_SKILL_HOOK = "0";
+
+// Telemetry Radar monitors by itself on every deck (traffic-radar-service.mjs):
+// it samples the machine's Claude processes and captures their collector with
+// tcpdump. A deck booted here would do that to the developer's own sessions,
+// and spawn processes under suites that count them. Radar's suites build the
+// service directly with fakes and never need a real deck for it.
+process.env.AGENTS_DECK_NO_RADAR = "1";

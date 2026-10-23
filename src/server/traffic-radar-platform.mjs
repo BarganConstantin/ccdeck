@@ -137,10 +137,16 @@ export function dumpcapPath(env = process.env, exists = existsSync) {
   return 'dumpcap.exe'; // Custom installs may expose it on PATH.
 }
 export class CaptureSetupError extends Error {}
+// Linux keeps tcpdump in /usr/sbin on some distributions (openSUSE, Fedora
+// before 42), which a user's PATH, or a desktop app's, may leave out.
+const LINUX_TCPDUMP = ['tcpdump', '/usr/sbin/tcpdump', '/usr/bin/tcpdump', '/sbin/tcpdump'];
 export async function captureTool(platform, run = systemCommand) {
-  const file = platform === 'win32' ? dumpcapPath() : platform === 'darwin' ? '/usr/sbin/tcpdump' : 'tcpdump';
-  if (await run(file, [platform === 'win32' ? '-v' : '--version']) === null)
-    throw new CaptureSetupError(platform === 'win32' ? 'Install Wireshark with Npcap to capture traffic, then retry. Configuration and file inspection work without it.' : 'Install tcpdump to capture traffic, then retry. Configuration and file inspection work without it.');
+  const version = platform === 'win32' ? '-v' : '--version';
+  const tried = platform === 'win32' ? [dumpcapPath()] : platform === 'darwin' ? ['/usr/sbin/tcpdump'] : LINUX_TCPDUMP;
+  let file = null;
+  for (const candidate of tried) if (await run(candidate, [version]) !== null) { file = candidate; break; }
+  if (file === null)
+    throw new CaptureSetupError(platform === 'win32' ? 'Install Wireshark with Npcap to capture traffic. Configuration and file inspection work without it.' : 'Install tcpdump to capture traffic. Configuration and file inspection work without it.');
   if (platform === 'win32' && await run(file, ['-D']) === null)
     throw new CaptureSetupError('Npcap interfaces are unavailable. Check that Npcap is installed and its capture permissions allow this user.');
   return file;
