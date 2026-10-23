@@ -6,8 +6,12 @@
 // sessions only.
 import type { Node } from "reactflow";
 import {
-  cardSize, columnGap, CROSS_SESSION_Y, footprint, FULL_SIZE, groupBySession, SESSION_CHROME, sessionOfNode, TOOL_LANE_W, type Lanes,
+  cardSize, columnGap, CROSS_SESSION_Y, footprint, FULL_SIZE, groupBySession, RECAP_NOTE_GAP, RECAP_NOTE_H, RECAP_NOTE_W,
+  SESSION_CHROME, sessionOfNode, TOOL_LANE_W, type Lanes,
 } from "./layout-geometry";
+
+/** A session's note, which stands to the left of its root card. */
+const isNote = (n: Node) => n.type === "recapNote";
 
 /**
  * Drop newly-arrived sessions into the gaps left by ones that finished.
@@ -41,6 +45,20 @@ import {
  * leftmost and topmost. When nothing is settled yet the whole board is
  * arriving at once, and autoLayout's arrangement of it stands.
  *
+ * A COLUMN IS WHERE ITS CARDS STAND, NOT ITS NOTES. A session's note stands to
+ * the left of its root card, so a column's left edge measured from everything
+ * on it was the left edge of a note — and an arrival's card was put there,
+ * where the note above it stood, and its own note then went a note further
+ * left. Every arrival stood a step left of the one before, a staircase off the
+ * left edge of the board. So a column is lined up by its sessions' cards, and
+ * an arrival with a root keeps the room its note will take to the left of the
+ * card (canvas-flow places the note from the card once the card has its spot,
+ * so the note moves with nothing here) and the lane its calls will draw their
+ * bubbles in to the right. It arrives with neither — a session's first frame
+ * is SessionStart, before its prompt or its first call — and placed without
+ * them, the bubbles of its first calls reached into the note of the session
+ * beside it, and the push shoved that whole session down the board.
+ *
  * Mutates `positions`; returns the session ids it relocated.
  */
 export function fillGapsWithNewSessions(
@@ -72,7 +90,12 @@ export function fillGapsWithNewSessions(
   // cluster box stretches across the canvas to reach it and the parent→child
   // edge runs the length of the screen. A partially-new session keeps the slot
   // dagre just gave its new cards, beside their siblings.
-  const membersBySession = groupBySession(nodes, n => posOf(n.id) != null);
+  //
+  // A note is not counted: canvas-flow places it from its card after this pass,
+  // and the caller leaves it out of `newIds` because a note joining a session
+  // already here is no arrival. One that came in the same frame as its session
+  // would otherwise have kept the session from counting as arrived at all.
+  const membersBySession = groupBySession(nodes, n => posOf(n.id) != null && !isNote(n));
   const wholeSessionArrived = new Set<string>();
   for (const [sid, members] of membersBySession) {
     if (members.every(n => newIds.has(n.id) && !pinned.has(n.id))) wholeSessionArrived.add(sid);
@@ -80,16 +103,17 @@ export function fillGapsWithNewSessions(
 
   // Group the arrivals, and keep anything already placed as an obstacle.
   const arriving = new Map<string, Node[]>();
-  const settled: Array<{ sid: string; x: number; y: number; w: number; h: number; cw: number; ch: number }> = [];
+  const settled: Array<{ sid: string; x: number; y: number; w: number; h: number; cw: number; ch: number; note: boolean }> = [];
   for (const n of nodes) {
     const p = posOf(n.id);
     if (!p) continue;
     const { w, h } = sizeOf(n.id);
     const sid = sessionOfNode(n);
     if (wholeSessionArrived.has(sid)) {
-      (arriving.get(sid) ?? arriving.set(sid, []).get(sid)!).push(n);
+      // An arrival's note is placed from its card afterwards, wherever the card goes.
+      if (!isNote(n)) (arriving.get(sid) ?? arriving.set(sid, []).get(sid)!).push(n);
     } else {
-      settled.push({ sid, x: p.x, y: p.y, w, h, ...cardOf(n.id) });
+      settled.push({ sid, x: p.x, y: p.y, w, h, ...cardOf(n.id), note: isNote(n) });
     }
   }
   if (arriving.size === 0 || (scoring && settled.length === 0)) return [];
@@ -120,7 +144,13 @@ export function fillGapsWithNewSessions(
       maxX = Math.max(maxX, p.x + w); maxY = Math.max(maxY, p.y + h);
       cardRight = Math.max(cardRight, p.x + cw); cardBottom = Math.max(cardBottom, p.y + ch);
     }
-    const w = maxX - minX, h = maxY - minY;
+    const h = maxY - minY;
+    // The ground it will cover once it is under way: the room for its note to
+    // the left of the card, and the lane for its calls past its rightmost card.
+    const noteRoom = members.some(n => (n.data as { kind?: string } | undefined)?.kind === "root")
+      ? RECAP_NOTE_W + RECAP_NOTE_GAP : 0;
+    const reach = Math.max(maxX, cardRight + TOOL_LANE_W) - minX;
+    const clear = (x: number, y: number) => !clashes(x - noteRoom, y, noteRoom + reach, h);
 
     // Candidate tops: the very top of a column, and just under everything
     // already there. Any gap big enough starts at one of those edges, so
@@ -129,8 +159,9 @@ export function fillGapsWithNewSessions(
     // used to create a phantom column: arrivals filled the space above it
     // even on a portrait canvas with room below the main column. Use each
     // settled session's left edge; child cards still remain obstacles.
+    // Its cards' left edge, not its note's: see the note on the function.
     const origins = new Map<string, number>();
-    for (const r of settled) origins.set(r.sid, Math.min(origins.get(r.sid) ?? Infinity, r.x));
+    for (const r of settled) if (!r.note) origins.set(r.sid, Math.min(origins.get(r.sid) ?? Infinity, r.x));
     const columns = [...new Set([...origins.values()].map(x => Math.round(x)))].sort((a, b) => a - b);
     const xs = columns.length ? columns : [minX];
     const ys = [0, ...settled.map(r => r.y + r.h + PADDING)].sort((a, b) => a - b);
@@ -151,7 +182,7 @@ export function fillGapsWithNewSessions(
       // every tie, however much taller than its neighbour it already was.
       const scoreAt = (x: number, y: number) => {
         const across = frame!.width /
-          (Math.max(right, x + cardRight - minX) - Math.min(left, x) + TOOL_LANE_W);
+          (Math.max(right, x + cardRight - minX) - Math.min(left, x - noteRoom) + TOOL_LANE_W);
         const down = frame!.height /
           (Math.max(bottom, y + cardBottom - minY) - Math.min(top, y));
         return [Math.min(FULL_SIZE, across, down), Math.min(across, down), Math.max(across, down)];
@@ -165,13 +196,13 @@ export function fillGapsWithNewSessions(
       };
       // A new column starts a burst lane and a column gap past the rightmost
       // card — the pitch autoLayout packs its columns at — level with the top
-      // of the board.
-      const fresh = Math.round(right + TOOL_LANE_W + gap);
+      // of the board, and its card a note's room further in.
+      const fresh = Math.round(right + TOOL_LANE_W + gap + noteRoom);
       const tops = [...new Set([...ys, top])].sort((a, b) => a - b);
       let best: number[] | null = null;
       for (const x of [...xs, fresh]) {
         for (const y of tops) {
-          if (clashes(x, y, w, h)) continue;
+          if (!clear(x, y)) continue;
           const score = scoreAt(x, y);
           if (best === null || beats(score, best)) { best = score; target = { x, y }; }
         }
@@ -181,7 +212,7 @@ export function fillGapsWithNewSessions(
       outer: for (const x of xs) {
         for (const y of ys) {
           if (y >= minY) break;               // not a gap — that is where it already is
-          if (!clashes(x, y, w, h)) { target = { x, y }; break outer; }
+          if (clear(x, y)) { target = { x, y }; break outer; }
         }
       }
     }
@@ -194,11 +225,16 @@ export function fillGapsWithNewSessions(
       }
       moved.push(sid);
     }
-    // Placed or not, it is an obstacle for the next arrival.
+    // Placed or not, it is an obstacle for the next arrival — its note too,
+    // which is not on the board yet.
     for (const n of members) {
       const p = posOf(n.id)!;
       const { w: nw, h: nh } = sizeOf(n.id);
-      settled.push({ sid, x: p.x, y: p.y, w: nw, h: nh, ...cardOf(n.id) });
+      settled.push({ sid, x: p.x, y: p.y, w: nw, h: nh, ...cardOf(n.id), note: false });
+    }
+    if (noteRoom > 0) {
+      const x = minX + (target ? target.x - minX : 0), y = minY + (target ? target.y - minY : 0);
+      settled.push({ sid, x: x - noteRoom, y, w: RECAP_NOTE_W, h: RECAP_NOTE_H, cw: RECAP_NOTE_W, ch: RECAP_NOTE_H, note: true });
     }
   }
   return moved;

@@ -24,7 +24,7 @@ import { type Edge, type Node } from "reactflow";
 import { canvasSessions } from "./canvas-session";
 import { agentAriaLabel } from "./agent-copy";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
-import { footprint, NODE_W, sessionOfNode } from "./layout-geometry";
+import { footprint, NODE_W, RECAP_NOTE_GAP, RECAP_NOTE_H, RECAP_NOTE_W, sessionOfNode } from "./layout-geometry";
 import { branchSummaries, type BranchSummary } from "./node-face";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
 import { liveNodeIds, measuredNodeIds, pruneStaleEntries } from "./prune";
@@ -34,13 +34,10 @@ import { boardNote, noteTag } from "./session-note";
 import type { AgentNodeData } from "./types";
 import type React from "react";
 
-/** A recap note's size before React Flow has measured it — the sheet's width,
- *  and about a card's height — and the gap it keeps to the left of its card:
- *  dagre's rank gap in layout.ts, so a note placed on arrival sits where R
- *  would put it. */
-export const RECAP_NOTE_W = 300;
-export const RECAP_NOTE_H = 130;
-export const RECAP_NOTE_GAP = 160;
+// A recap note's size before React Flow has measured it, and the gap it keeps
+// to its card: layout-geometry.ts's, since the gap pass reserves the note's
+// room for a session that is still arriving.
+export { RECAP_NOTE_GAP, RECAP_NOTE_H, RECAP_NOTE_W } from "./layout-geometry";
 
 /** `branch` is on a root only, and only while it has subagents on the canvas:
  *  what they add up to, for the faces too small to show them one by one. */
