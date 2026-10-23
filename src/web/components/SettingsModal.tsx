@@ -41,6 +41,7 @@ import NotificationsSection from "./NotificationsSection";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
 import RadarSettings from "./RadarSettings";
+import ClaudeCodeSettings from "./ClaudeCodeSettings";
 import ToolAuditSettings from "./ToolAuditSettings";
 import IntegrationsSection, { type SettingsLeaveGuard } from "./IntegrationsSection";
 import { integrationsReach, offeredKinds, useIntegrations } from "../integrations/client";
@@ -104,7 +105,7 @@ export default function SettingsModal({
   // the pane's head all walk this list, so here it takes the table's name.
   const integrations = useIntegrations();
   const integrationsReachHere = integrationsReach(integrations);
-  const SETTINGS_SECTIONS = sectionsDrawn(integrationsReachHere, section);
+  const SETTINGS_SECTIONS = sectionsDrawn(integrationsReachHere, section, providers.claude);
   const at = Math.max(0, SETTINGS_SECTIONS.findIndex(s => s.id === section));
 
   // THE SEARCH. While the field holds a query the pane shows what matches it
@@ -219,6 +220,8 @@ export default function SettingsModal({
     switch (section) {
       case "radar":
         return <RadarSettings onOpen={doors.radar} />;
+      case "claude":
+        return <ClaudeCodeSettings />;
       case "appearance":
         return (
           <>
