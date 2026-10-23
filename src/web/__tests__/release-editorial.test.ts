@@ -69,6 +69,7 @@ describe('release editorial contract',()=>{
  });
  it('renders empty releases and multi-version history without losing content',()=>{
   expect(draw()).toContain('No release notes for this build.');
+  expect(draw([{version:'3.46.0',notes:[]}])).toContain('No release notes for this build.');
   const html=draw([{version:'3.46.0',notes:[]},{version:'3.45.0',notes:[note(undefined,'Historical detail')]}]);
   expect(html).toContain('Historical detail');expect(html).toContain('class="rn-history"');expect(html).toContain('Previous releases');
  });

@@ -64,7 +64,7 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
         </div> : <><ReleaseActions update={update} />
           <p className="rn-update-said" role="status">{updateFailure}</p></>}
         {context && <p className="rn-context">{context}</p>}
-        {!entries.length && <p className="rn-empty">No release notes for this build.</p>}
+        {!entries.some(entry => entry.notes.length > 0) && <p className="rn-empty">No release notes for this build.</p>}
         {latest && <ReleaseSection key={latest.version} entry={latest} showVersion={since !== null && entries.length > 1} />}
         {visiblePrevious.length > 0 && <section className="rn-upgrade-history" aria-label="Earlier changes in this upgrade">
           <h2 className="rn-group-title">Earlier in this upgrade</h2>
