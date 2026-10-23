@@ -1,9 +1,13 @@
 // The Jira panel's rules apart from React: what an issue's detail says about
 // the work on it, and (as the panel grows) what a row and a sprint's header
-// say about the issues in them. No DOM: the helpers are pure.
+// say about the issues in them, and which issues a board has on screen. No
+// DOM: the helpers are pure.
 import { describe, it, expect } from "vitest";
-import { buildRows, filterRows, groupStats, needsAttention, rowKey, shownQuickFilters, subtaskShown, timeLine } from "../jira-board";
-import type { JiraIssue, StatusCategory } from "../jira-api";
+import {
+  boardRows, buildRows, drawnIssues, filterRows, groupsFor, groupStats, needsAttention, rowKey, shownQuickFilters, subtaskShown, timeLine,
+  type GroupRead,
+} from "../jira-board";
+import type { JiraBoardOverview, JiraIssue, JiraSprint, StatusCategory } from "../jira-api";
 
 const TIME = { hoursPerDay: 8, daysPerWeek: 5 };
 const STORY = { name: "Story", icon: null, subtask: false, epic: false };
@@ -100,5 +104,55 @@ describe("the board's own quick filters", () => {
   it("keep a filter that only starts the same way, or is named in another language", () => {
     const kept = [{ id: "a", name: "Only my issues in review", description: "" }, { id: "b", name: "Nur meine Vorgänge", description: "" }];
     expect(shownQuickFilters(kept)).toEqual(kept);
+  });
+});
+
+describe("which issues a board has on screen", () => {
+  // The panel puts a remembered issue back only when the board, as drawn,
+  // still shows it: an open group's rows, and the sub-tasks under open rows.
+  const sprint = (id: number, name: string): JiraSprint => ({ id, name, state: "active", startDate: null, endDate: null, completeDate: null, goal: "" });
+  const overview = {
+    hasSprints: true, hasBacklog: true, sprints: { active: [sprint(13, "Sprint 13")], future: [sprint(14, "Sprint 14")] },
+  } as unknown as JiraBoardOverview;
+  const groups = groupsFor(overview);
+  const ready = (...issues: JiraIssue[]): GroupRead => ({ status: "ready", issues });
+  const none = { search: "", hideDone: false };
+  const story = issue("C-10", { subtaskKeys: ["C-11"] });
+  const child = subOf("C-11", story);
+  const data = {
+    "sprint:13": ready(story, issue("C-20")),
+    "sprint:14": ready(issue("C-40")),
+    backlog: ready(issue("C-50")),
+  };
+
+  it("counts the rows of the open groups only, the active sprint open and the others folded", () => {
+    const { keys, complete } = drawnIssues(boardRows(groups, data, () => undefined, none), {}, {}, {}, none, false);
+    expect([...keys]).toEqual(["C-10", "C-20"]);
+    expect(complete).toBe(true);
+    const opened = drawnIssues(boardRows(groups, data, () => undefined, none), { "sprint:14": true }, {}, {}, none, false);
+    expect([...opened.keys]).toEqual(["C-10", "C-20", "C-40"]);
+  });
+
+  it("counts a sub-task under an open row, read or in the group's own results", () => {
+    const built = boardRows(groups, data, () => undefined, none);
+    expect(drawnIssues(built, {}, { "C-10": true }, { "C-10": ready(child) }, none, false).keys.has("C-11")).toBe(true);
+    expect(drawnIssues(built, {}, {}, { "C-10": ready(child) }, none, false).keys.has("C-11")).toBe(false);
+  });
+
+  it("is not complete while an open group, or an open row's sub-tasks, are still being read", () => {
+    const loading = { ...data, "sprint:13": { status: "loading" as const, issues: [] } };
+    expect(drawnIssues(boardRows(groups, loading, () => undefined, none), {}, {}, {}, none, false).complete).toBe(false);
+    const built = boardRows(groups, data, () => undefined, none);
+    expect(drawnIssues(built, {}, { "C-10": true }, {}, none, false).complete).toBe(false);
+    expect(drawnIssues(built, {}, { "C-10": true }, { "C-10": { status: "loading", issues: [] } }, none, false).complete).toBe(false);
+    // A folded group being read stops nothing: nothing in it is drawn.
+    const backlogLoading = { ...data, backlog: { status: "loading" as const, issues: [] } };
+    expect(drawnIssues(boardRows(groups, backlogLoading, () => undefined, none), {}, {}, {}, none, false).complete).toBe(true);
+  });
+
+  it("follows the filters: an issue the search hides is not on screen", () => {
+    const search = { search: "c-20", hideDone: false };
+    const { keys } = drawnIssues(boardRows(groups, data, () => undefined, search), {}, {}, {}, search, true);
+    expect([...keys]).toEqual(["C-20"]);
   });
 });

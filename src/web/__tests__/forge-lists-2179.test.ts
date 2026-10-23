@@ -195,6 +195,10 @@ function ctx(kind: ForgeKind, over: Partial<ForgeContextValue> = {}): ForgeConte
     reportFreshness: () => {},
     onReconnect: () => {},
     narrow: false,
+    listKey: "test",
+    reportRows: () => {},
+    recallSection: () => null,
+    keepSection: () => {},
     ...over,
   };
 }

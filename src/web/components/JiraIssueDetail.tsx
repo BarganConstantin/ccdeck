@@ -32,6 +32,9 @@ export interface JiraIssueDetailProps {
   onReconnect: () => void;
   /** The detail is a screen of its own, with the host's Back for a Close. */
   narrow: boolean;
+  /** The panel put this issue back (integrations/use-list-view.ts); the reader
+   *  did not open it, so focus stays where it is. */
+  auto?: boolean;
   /** Close the issue: back to the row that opened it. */
   onClose: () => void;
 }
@@ -65,7 +68,7 @@ function SubtaskList({ issues, onOpen }: { issues: JiraIssue[]; onOpen: (key: st
   );
 }
 
-export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation, time, onOpen, onTrail, onReconnect, narrow, onClose }: JiraIssueDetailProps) {
+export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation, time, onOpen, onTrail, onReconnect, narrow, auto = false, onClose }: JiraIssueDetailProps) {
   const key = trail[trail.length - 1] ?? null;
   const { data, loading, error, reload } = useJiraIssue(api, conn.id, key);
   const ctx = useMemo<HtmlContext>(() => ({ baseUrl: conn.baseUrl, image: abs => jiraImage(conn, assetUrl, abs) }), [conn, assetUrl]);
@@ -74,15 +77,16 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
   // On a narrow screen the detail replaces the list, and the row that had
   // focus is gone with it. The panel puts focus on Back while the issue is
   // read; once its name is drawn, focus moves to the name, unless the reader
-  // has already moved it somewhere else.
+  // has already moved it somewhere else. An issue the panel put back moves
+  // nothing: the modal has put focus where it starts.
   const shownKey = issue?.key;
   useEffect(() => {
-    if (!narrow || !shownKey) return;
+    if (!narrow || !shownKey || auto) return;
     const at = document.activeElement;
     if (at === document.body || (at instanceof HTMLElement && at.matches("[data-ig-back]"))) {
       document.getElementById("jira-detail-title")?.focus();
     }
-  }, [narrow, shownKey]);
+  }, [narrow, shownKey, auto]);
 
   // Where the issue sits: its project, its parent unless the trail already
   // passes through it, and every issue opened on the way here.
