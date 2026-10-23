@@ -220,7 +220,7 @@ export const GATES = [
   // handshake and the request lifecycle, against the same test double. Written
   // on the two platforms the installer accepts rather than on win32, so a
   // fourth platform skips rather than failing an installation it never accepts.
-  { file: "pro-engine-client.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 19 },
+  { file: "pro-engine-client.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 20 },
   // The panel's routes answered by the same signed double started as the
   // engine, on a real deck, on the same two platforms. What a deck with no
   // engine answers is pro-engine-routes-off, un-gated, on every leg.

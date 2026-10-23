@@ -30,8 +30,12 @@ async function readOwned(file, limit, executable = false) {
   } finally { await handle.close(); }
 }
 
-/** A trusted owner-provided Ed25519 public key, never browser/request input. */
+/** Trusted Ed25519 public keys — one, or a list any of which may have signed
+ *  the manifest — from the host, never browser/request input. An empty list
+ *  trusts nothing, and is refused before anything is read. */
 export async function verifyEngineInstallation({ directory, publicKey }) {
+  const keys = Array.isArray(publicKey) ? publicKey : [publicKey];
+  if (keys.length === 0) throw invalid();
   try {
     const target = TARGETS[`${process.platform}-${process.arch}`];
     // Windows ACL/identity verification is provided by the native-platform gate.
@@ -48,11 +52,11 @@ export async function verifyEngineInstallation({ directory, publicKey }) {
     const { data: manifestBytes } = await readOwned(path.join(root, 'manifest.json'), 16 * 1024);
     const manifest = JSON.parse(manifestBytes.toString('utf8'));
     if (!manifest || Object.keys(manifest).sort().join(',') !== 'payload,signature' || typeof manifest.payload !== 'string' || typeof manifest.signature !== 'string') throw invalid();
-    const key = createPublicKey(publicKey);
-    if (key.asymmetricKeyType !== 'ed25519') throw invalid();
+    const trusted = keys.map(key => createPublicKey(key));
+    if (trusted.some(key => key.asymmetricKeyType !== 'ed25519')) throw invalid();
     const payload = Buffer.from(manifest.payload, 'base64');
     const signature = Buffer.from(manifest.signature, 'base64');
-    if (payload.toString('base64') !== manifest.payload || signature.toString('base64') !== manifest.signature || !verify(null, payload, key, signature)) throw invalid();
+    if (payload.toString('base64') !== manifest.payload || signature.toString('base64') !== manifest.signature || !trusted.some(key => verify(null, payload, key, signature))) throw invalid();
     const entry = JSON.parse(payload.toString('utf8'));
     if (!entry || Object.keys(entry).sort().join(',') !== 'file,protocol,sha256,size,target,version' || entry.protocol !== ENGINE_PROTOCOL || entry.target !== target || !/^[a-f0-9]{64}$/.test(entry.sha256) || !Number.isSafeInteger(entry.size) || entry.size < 1 || entry.size > 128 * 1024 * 1024 || typeof entry.version !== 'string' || !/^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][a-zA-Z0-9.-]+)?$/.test(entry.version) || !/^ccdeck-pro-engine(?:-[a-zA-Z0-9.-]+)?$/.test(entry.file)) throw invalid();
     const executable = path.join(root, entry.file);

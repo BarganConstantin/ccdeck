@@ -212,9 +212,9 @@ const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled, leftove
 // here is how the banner came to print ~/.codex/sessions on machines whose
 // sessions are somewhere else entirely — see the Codex sessions row in
 // bin/cli/startup.js.
-// closeAllTerminals because shutdown, below, has to reach the terminal panel's
-// sockets itself — see the note there.
-const { startServer, hookToken, releaseRestart, markDeckReady, CODEX_SESSIONS_DIR, canonicalWorkspace, closeAllTerminals } =
+// closeAllTerminals and stopCommandPanelEngine because shutdown, below, has to
+// reach the Command Panel's sockets and its engine itself — see the note there.
+const { startServer, hookToken, releaseRestart, markDeckReady, CODEX_SESSIONS_DIR, canonicalWorkspace, closeAllTerminals, stopCommandPanelEngine } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/index.mjs")).href);
 // What this boot set up, for the usage reports — see activation.mjs.
 const { noteSetup, respawnHooksJob } = await import(pathToFileURL(join(PKG_ROOT, "src/server/activation.mjs")).href);
@@ -654,8 +654,13 @@ async function shutdown(code = 0) {
     // `server` is only ever set from startServer, which came out of the same
     // destructuring as this, so a shutdown that arrives earlier — when there
     // can be no terminal open — never touches a binding still in its TDZ.
+    //
+    // Then the Command Panel's engine, which the panels were relayed to: told
+    // to stop and not waited for. It has already been handed each panel's
+    // shutdown, and an engine that outlives the deck ends with its stdin.
     if (server) {
       try { closeAllTerminals("server-shutdown"); } catch { /* nothing open, or nothing left to tell */ }
+      try { stopCommandPanelEngine(); } catch { /* none was started */ }
     }
     // WHAT THIS DECK STARTED, ENDED WITH IT. Every deadline in exec.mjs lives
     // in a timer in THIS process — `run` states the outcome and only then kills

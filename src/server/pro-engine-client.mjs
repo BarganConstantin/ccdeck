@@ -23,6 +23,21 @@ const HANDLE = /^[0-9a-f]{64}$/;
 const LONE_SURROGATE = /\p{Cs}/u;
 const wellFormed = (key, value) => { if (LONE_SURROGATE.test(key) || (typeof value === 'string' && LONE_SURROGATE.test(value))) throw fail('invalid_request'); return value; };
 const replaceLoneSurrogates = text => text.replace(/\p{Cs}/gu, '\ufffd');
+/** The variable that lets an engine serve the Command Panel's terminal
+ *  (docs/contracts/pro-engine-host-v1.md, "Terminal opt-in"). */
+export const TERMINAL_OPT_IN = 'CCDECK_ENGINE_TERMINAL';
+/**
+ * The engine's environment: `env` without TERMINAL_OPT_IN, in any case, so a
+ * value the deck inherited from its shell never reaches an engine; then set to
+ * exactly "1" for an engine started for the Command Panel (`terminal`), and
+ * for no other.
+ */
+export function engineEnv(env, terminal) {
+  const out = {};
+  for (const [key, value] of Object.entries(env)) if (key.toUpperCase() !== TERMINAL_OPT_IN) out[key] = value;
+  if (terminal === true) out[TERMINAL_OPT_IN] = '1';
+  return out;
+}
 function awaitStartup(starting, signal, timeoutMs) {
   return new Promise((resolve, reject) => {
     const clean = () => { clearTimeout(timer); signal?.removeEventListener('abort', abort); };
@@ -56,8 +71,8 @@ export class ProEngineClient extends EventEmitter {
   #prefix = Buffer.alloc(4); #prefixAt = 0; #body; #bodyAt = 0;
   #closed = false; #heartbeat; #failures = 0; #retryAt = 0; #generation = 0; #capabilities;
   #streams = new Map(); #lastStream = 0;
-  constructor({ enabled = false, directory, publicKey, hostVersion = '0.0.0', timeoutMs = 10_000, heartbeatMs = 15_000 } = {}) {
-    super(); this.options = Object.freeze({ enabled, directory, publicKey, hostVersion, timeoutMs, heartbeatMs });
+  constructor({ enabled = false, directory, publicKey, hostVersion = '0.0.0', timeoutMs = 10_000, heartbeatMs = 15_000, terminal = false } = {}) {
+    super(); this.options = Object.freeze({ enabled, directory, publicKey, hostVersion, timeoutMs, heartbeatMs, terminal: terminal === true });
   }
   get enabled() { return this.options.enabled === true; }
   get capabilities() { return this.#capabilities; }
@@ -74,7 +89,7 @@ export class ProEngineClient extends EventEmitter {
   async #launch() {
     const installation = await awaitStartup(verifyEngineInstallation(this.options), undefined, 5000);
     if (this.#closed) throw fail('closed');
-    const child = spawn(installation.executable, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: false, env: process.env });
+    const child = spawn(installation.executable, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: false, env: engineEnv(process.env, this.options.terminal) });
     this.#child = child; this.#installation = installation; this.#nonce = randomBytes(32).toString('hex');
     const generation = ++this.#generation;
     // Stream ids start again at 1 for every engine instance.
@@ -309,5 +324,6 @@ export class ProEngineClient extends EventEmitter {
   }
 }
 
-/** Disabled construction does no I/O, discovery, subprocess launch or download. */
+/** Disabled construction does no I/O, discovery, subprocess launch or download.
+ *  `terminal: true` is for the Command Panel's engine alone (command-panel-engine.mjs). */
 export function createProEngineClient(options = {}) { return new ProEngineClient(options); }

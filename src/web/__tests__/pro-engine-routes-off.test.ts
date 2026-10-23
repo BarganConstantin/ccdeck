@@ -1,28 +1,35 @@
-// With no engine — the default, and always so in the free product — the
-// Command Panel's six routes have nothing behind them, and say so: a deck given
-// no `terminal.engine`, a null one, or one that is switched off answers every
-// route with the same status and the same bytes, `{ ok: false, error, code:
-// "not-installed" }`, asks the engine nothing, asks nothing of any other
-// terminal, and loads no engine client.
+// With no engine — always so in the free product — the Command Panel's six
+// routes have nothing behind them, and say so: a deck handed a null
+// `terminal.engine`, or one that is switched off, answers every route with the
+// same status and the same bytes, `{ ok: false, error, code: "not-installed"
+// }`, asks the engine nothing, asks nothing of any other terminal, and makes
+// no engine client. (The deck's own engine, which a deck handed none uses, is
+// command-panel-engine.test.ts's.)
 //
-// The two client modules are replaced by stand-ins that record being loaded,
-// so "loads nothing" is a fact about this run of a real deck rather than about
-// the source; the scan below says the same of the source, for an import added
-// later that this run would not reach.
+// The client's maker and the installer's verifier are wrapped to record every
+// call, so "makes nothing" is a fact about this run of a real deck rather than
+// about the source; the scan below says the same of the source: one module in
+// the deck makes a client, and only that one.
 //
 // And how the engine's failures become refusals (routeThroughEngine), against
 // stand-in clients, on every leg: the signed double that answers for real is
 // pro-engine-routes.test.ts's, on the two platforms an engine is installed on.
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { request, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 
-const loads = vi.hoisted(() => ({ client: 0, install: 0 }));
-vi.mock("../../server/pro-engine-client.mjs", () => { loads.client += 1; return {}; });
-vi.mock("../../server/pro-engine-install.mjs", () => { loads.install += 1; return {}; });
+const made = vi.hoisted(() => ({ client: 0, verified: 0 }));
+vi.mock("../../server/pro-engine-client.mjs", async (importOriginal) => {
+  const real: any = await importOriginal();
+  return { ...real, createProEngineClient: (o: unknown) => { made.client += 1; return real.createProEngineClient(o); } };
+});
+vi.mock("../../server/pro-engine-install.mjs", async (importOriginal) => {
+  const real: any = await importOriginal();
+  return { ...real, verifyEngineInstallation: (o: unknown) => { made.verified += 1; return real.verifyEngineInstallation(o); } };
+});
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-engine-routes-off-"));
 process.env.HOME = DIR;
@@ -63,6 +70,7 @@ const off = {
 const record = (name: string) => (..._args: unknown[]) => { asked.push(name); return new Promise(() => {}); };
 const options: Record<string, unknown> = {
   enabled: () => true,
+  engine: null,
   tickets,
   findTmux: record("findTmux"),
   resolveTarget: record("resolveTarget"),
@@ -125,15 +133,12 @@ async function answers() {
 }
 
 describe("the Command Panel's routes with no engine", () => {
-  it("answer not-installed, byte for byte the same with no engine, a null one, or one switched off, and ask nothing of anyone", async () => {
-    delete options.engine;
-    const none = await answers();
+  it("answer not-installed, byte for byte the same with a null engine or one switched off, and ask nothing of anyone", async () => {
     options.engine = null;
-    const empty = await answers();
+    const none = await answers();
     options.engine = off;
     const disabled = await answers();
-    delete options.engine;
-    expect(empty).toEqual(none);
+    options.engine = null;
     expect(disabled).toEqual(none);
     expect(asked, "nothing was asked of the engine, nor of any other terminal").toEqual([]);
     // What those answers are, so the comparison is not of three empty lists.
@@ -146,14 +151,17 @@ describe("the Command Panel's routes with no engine", () => {
     expect(none.join("\n"), "no ticket of any kind").not.toContain('"ticket"');
   });
 
-  it("loads no engine client, on a deck that answered every route", async () => {
+  it("make no engine client and verify no installation, on a deck that answered every route", async () => {
     await answers();
-    expect(loads).toEqual({ client: 0, install: 0 });
+    expect(made).toEqual({ client: 0, verified: 0 });
   });
 
-  it("import no engine client, statically or on demand", () => {
+  it("make a client in one place in the deck, the Command Panel's, and import none on demand", () => {
+    const server = new URL("../../server/", import.meta.url);
+    const makers = readdirSync(server, { recursive: true }).map(String).filter(f => f.endsWith(".mjs") && /\b(?:createProEngineClient|ProEngineClient)\b/.test(readFileSync(new URL(f, server), "utf8")));
+    expect(makers.sort()).toEqual(["command-panel-engine.mjs", "pro-engine-client.mjs"]);
     for (const file of ["terminal-routes.mjs", "terminal-socket.mjs", "index.mjs"]) {
-      const source = readFileSync(new URL(`../../server/${file}`, import.meta.url), "utf8");
+      const source = readFileSync(new URL(file, server), "utf8");
       const imports = source.split("\n").filter(line => /^import\b/.test(line));
       expect(imports.length, `the scan sees ${file}'s imports`).toBeGreaterThan(0);
       expect(imports.filter(line => /pro-engine-(client|install)/.test(line)), file).toEqual([]);

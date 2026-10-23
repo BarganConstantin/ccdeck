@@ -3,17 +3,32 @@
 `createProEngineClient` is an internal Node adapter, not a browser API. The
 Command Panel's routes and its WebSocket are served only through an engine;
 there is no other terminal behind them. With no engine, or one switched off,
-every route answers that the engine is not installed (Terminal routes, below),
-the WebSocket is refused 503, and no engine client module is loaded. A deck is
-given an engine only through `startServer`'s `terminal.engine` option, set to
-`engineTerminals(client)` where the client is created; the product passes
-none, and no setting, environment variable or command-line flag reaches it.
-While that engine is enabled, the panel's routes are asked of it (Terminal
-routes, below), and the WebSocket is relayed to it for a ticket bound to an
-engine handle (Terminal streams, below).
+every route answers that the engine is not installed (Terminal routes, below)
+and the WebSocket is refused 503.
+
+The deck makes its own engine in one place, `command-panel-engine.mjs`, and
+only while the Command Panel's switch in Settings is on (off by default), on
+Linux, once a route asks. It looks in `<deck data folder>/engine` (the
+`CCDECK_HOME` folder when set) and nowhere else: not on `PATH`, never
+downloaded or installed. It trusts only the Ed25519 keys shipped with the deck,
+a frozen list that is empty in this release, so a missing folder answers
+`not-installed` and a present one `not-verified`, and the executable is never
+read. Off Linux every route answers `unsupported` without looking. The client
+it makes is the only one constructed with `terminal: true`. The
+engine is stopped 1.5 s after the switch goes off, once its panels have been
+told, and at deck shutdown without being waited for; a later question starts
+a new one. With the switch off nothing here runs: no file is looked at, no
+client is made, no process is started and nothing touches the network.
+
+A caller of `startServer` may hand a deck another engine as `terminal.engine`,
+set to `engineTerminals(client)` where the client is created; no setting,
+environment variable or command-line flag reaches that option. While the
+deck's engine is enabled, the panel's routes are asked of it (Terminal routes,
+below), and the WebSocket is relayed to it for a ticket bound to an engine
+handle (Terminal streams, below).
 Construction is disabled by default and performs no file lookup, installation,
-network request or process launch. Only explicit owner configuration may enable
-it. `request(method, params, { signal, timeoutMs })` permits terminal namespace
+network request or process launch. Only the Command Panel's switch, or a
+caller of `startServer`, may enable it. `request(method, params, { signal, timeoutMs })` permits terminal namespace
 operations except `terminal.attach`, which only `attachTerminal(handle,
 { signal, timeoutMs })` sends; `close()` detaches the engine. Mutations are
 never automatically replayed after failure. A subsequent request may retry
@@ -21,8 +36,10 @@ startup after bounded
 backoff. `disconnected` reports a sanitized code; stderr is drained privately.
 
 An installation is an owner-only directory containing an executable named
-`ccdeck-pro-engine` (optionally a version suffix) and `manifest.json`. A trusted
-Ed25519 public key must be provided by host configuration, never an HTTP request.
+`ccdeck-pro-engine` (optionally a version suffix) and `manifest.json`. Trusted
+Ed25519 public keys must be provided by the host, never an HTTP request: one,
+or a list any of which may have signed the manifest. An empty list trusts
+nothing and is refused before anything is read.
 The manifest envelope is `{payload, signature}`: canonical base64 strings for
 exact signed JSON bytes and the Ed25519 signature over those bytes. Signed JSON
 fields: `file`, `protocol` (1), `target` (Rust triple), `sha256`, `size`, `version`.

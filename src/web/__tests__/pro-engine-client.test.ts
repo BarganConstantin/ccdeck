@@ -140,6 +140,32 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))('optional nativ
     expect(f.client.running).toBe(false); await f.client.close();
     await expect(f.client.request('terminal.echo')).rejects.toMatchObject({ code: 'closed' });
   });
+  it('trusts any key of a list and none of an empty one, and tells only the Command Panel\'s engine it may serve terminals', async () => {
+    const f = await installed();
+    const base = { enabled: true, directory: f.directory, publicKey: f.publicKey, heartbeatMs: 60_000 };
+    const other = generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'pem' });
+    // Whatever the deck's own shell exported, in either case.
+    const saved = { upper: process.env.CCDECK_ENGINE_TERMINAL, lower: process.env.ccdeck_engine_terminal };
+    process.env.CCDECK_ENGINE_TERMINAL = '0';
+    process.env.ccdeck_engine_terminal = '1';
+    try {
+      const panel = createProEngineClient({ ...base, publicKey: [other, f.publicKey], terminal: true }); clients.push(panel);
+      expect(await panel.request('terminal.optIn')).toEqual({ value: '1', names: ['CCDECK_ENGINE_TERMINAL'] });
+      expect(await f.client.request('terminal.optIn'), 'any other engine: removed, never passed on').toEqual({ value: null, names: [] });
+      process.env.CCDECK_ENGINE_TERMINAL = '1';
+      const plain = createProEngineClient({ ...base, terminal: 'yes' }); clients.push(plain);
+      expect(await plain.request('terminal.optIn'), 'only terminal: true opts in').toEqual({ value: null, names: [] });
+      const none = createProEngineClient({ ...base, publicKey: [] }); clients.push(none);
+      const opened = vi.spyOn(fileSystem, 'open');
+      await expect(none.start()).rejects.toThrow('could not be verified');
+      expect(opened, 'no key: the executable is never read').not.toHaveBeenCalled();
+      expect(none.running).toBe(false);
+    } finally {
+      for (const [key, value] of [['CCDECK_ENGINE_TERMINAL', saved.upper], ['ccdeck_engine_terminal', saved.lower]] as const) {
+        if (value === undefined) delete process.env[key]; else process.env[key] = value;
+      }
+    }
+  });
 });
 
 // Stated on every leg rather than run on Windows alone (skip-gates.mjs keeps

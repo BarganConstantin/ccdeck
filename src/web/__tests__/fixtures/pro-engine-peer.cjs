@@ -153,6 +153,8 @@ process.stdin.on('data', chunk => {
     else if (req.method === 'terminal.emit') { emit(req.params.frames); respond(req.id, { emitted: req.params.frames.length }); }
     else if (req.method === 'terminal.hold') { const s = streams.get(req.params.stream); if (s) { s.hold = req.params.hold; if (!s.hold) credit(req.params.stream, s); } respond(req.id, { live: !!s }); }
     else if (req.method === 'terminal.log') respond(req.id, { log, live: [...streams.keys()], named });
+    // The terminal opt-in as this process was started with it: its value, and every name it is set under in any case.
+    else if (req.method === 'terminal.optIn') respond(req.id, { value: process.env.CCDECK_ENGINE_TERMINAL ?? null, names: Object.keys(process.env).filter(k => k.toUpperCase() === 'CCDECK_ENGINE_TERMINAL') });
     else if (req.method === 'terminal.answers') { for (const [method, a] of Object.entries(req.params.answers)) answers.set(method, a); respond(req.id, { set: answers.size }); }
     else if (answers.has(req.method)) route(req);
     else respond(req.id, { value: req.params, pid: process.pid });

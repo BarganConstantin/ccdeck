@@ -15,6 +15,7 @@ import { giveBackDeckFolders } from "./prefs-give-back.mjs";
 import { readBody, send } from "./http-io.mjs";
 import { noteContinueSwitchedOn } from "./stop-continue.mjs";
 import { closeOpenTerminals } from "./terminal-socket.mjs";
+import { commandPanel } from "./command-panel-engine.mjs";
 
 /**
  * GET the deck's settings, and what the machine is allowing.
@@ -89,8 +90,11 @@ export async function handlePrefsWrite(req, res) {
   // at once rather than after the LAN engine has had its turn. Asked of what
   // was written, not of what was sent — any value that is not true turns the
   // switch off. The sessions keep running; closing a panel never stops an
-  // agent.
-  if (terminalWasOn && !terminalOn(heldPrefs.current())) closeOpenTerminals("error", TERMINAL_TURNED_OFF);
+  // agent. The engine that served them stops once they have closed.
+  if (terminalWasOn && !terminalOn(heldPrefs.current())) {
+    closeOpenTerminals("error", TERMINAL_TURNED_OFF);
+    commandPanel.switchedOff();
+  }
   // The engine reads its settings from here rather than holding its own copy,
   // so turning the switch off in the panel really does stop the sockets rather
   // than only changing what the panel says.

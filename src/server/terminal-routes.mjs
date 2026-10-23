@@ -32,6 +32,7 @@
 // here over it: the handle never reaches the page, and nothing the page sends
 // is ever used as a pane.
 import { PRODUCT } from "./brand.mjs";
+import { commandPanel } from "./command-panel-engine.mjs";
 import { terminalOn } from "./deck-prefs.mjs";
 import { readBody, send } from "./http-io.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
@@ -53,9 +54,11 @@ const TICKETS = createTicketStore();
  * its `terminal` option through here; the product passes nothing.
  *
  * `engine` is the optional local engine's terminal, as engineTerminals in
- * pro-engine-terminal.mjs builds it for a client. With none, or one that is
- * switched off, every route answers that the engine is not installed and
- * nothing is asked of it.
+ * pro-engine-terminal.mjs builds it for a client. The deck's own is the
+ * Command Panel's (command-panel-engine.mjs), which looks for an engine only
+ * once a route asks it — so only with the switch on. A caller may hand
+ * another; with none, or one that is switched off, every route answers that
+ * the engine is not installed and nothing is asked of it.
  *
  * `jsBackend` is TESTS ONLY: the JS backend (terminal-js-routes.mjs'
  * jsTerminalBackend), which a test hands startServer to run the routes on a
@@ -67,7 +70,7 @@ export function terminalDeps(overrides = {}) {
   return {
     enabled: () => terminalOn(heldPrefs.current()),
     tickets: TICKETS,
-    engine: null,
+    engine: commandPanel,
     jsBackend: null,
     ...(overrides ?? {}),
   };

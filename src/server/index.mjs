@@ -184,8 +184,10 @@ import { handleIntegrations } from "./integrations/routes.mjs";
 import { handleTerminalAdopt, handleTerminalClaim, handleTerminalLaunch, handleTerminalOpen, handleTerminalStatus, handleTerminalTarget, terminalUpgradeOptions } from "./terminal-routes.mjs";
 import { installTerminalUpgrade } from "./terminal-socket.mjs";
 // For bin/deck.js's shutdown: an upgraded socket is not in the HTTP server's
-// connection list, so closeAllConnections() never reaches a terminal.
+// connection list, so closeAllConnections() never reaches a terminal; and the
+// Command Panel's engine, a child of this process, is stopped beside them.
 export { closeAllTerminals } from "./terminal-socket.mjs";
+export { stopCommandPanelEngine } from "./command-panel-engine.mjs";
 // The port fallback, one listen attempt, and the words for a failed one — see
 // listen.mjs. The loop that uses them is startServer's.
 import { listenFailure, portRetryable, randomPort, tryListen } from "./listen.mjs";
