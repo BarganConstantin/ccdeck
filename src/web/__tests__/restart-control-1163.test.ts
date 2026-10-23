@@ -24,16 +24,9 @@ const TRAY_MENU = read("../../../desktop/tray-menu.mjs");
 describe("restart in the page", () => {
   it("is a door in the dialog the version chip opens, drawn only when it is offered", () => {
     expect(MODAL).toMatch(/onRestart\?: \(\) => void;/);
-    // The last button of the dialog's action strip, which the owner asked for
-    // in place of three stacked rows: set apart at the end, its sentence in its
-    // hint and its description, and still drawn only when it is offered.
-    expect(MODAL).toMatch(/<ReleaseActions [^>]*onRestart=\{onRestart\}/);
-    // Standing down only while the line under the strip offers an update,
-    // which restarts too: two restarts side by side, one of which updates, is
-    // the guess #1187 already took off this dialog for the app's update.
-    expect(STRIP).toContain("const restartDoor = updates ? undefined : onRestart;");
-    expect(STRIP).toMatch(/\{restartDoor && \(\s*<button type="button" className="btn rn-act rn-act-restart" onClick=\{restartDoor\}/);
-    expect(STRIP).toMatch(/<RestartGlyph \/>Restart\s*<\/button>/);
+    expect(MODAL).toContain('const canRestart = onRestart && !updateVersion && !updating;');
+    expect(MODAL).toContain('role="menuitem"');
+    expect(MODAL).toContain('onRestart?.();');
     expect(STRIP).toContain('RESTART_WHY = "Restart the deck. Sessions, settings and pairings come back as they were."');
   });
 

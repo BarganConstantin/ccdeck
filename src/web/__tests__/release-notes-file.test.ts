@@ -13,7 +13,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { compareVersions, isVersion, readNotes, RELEASE_NOTES, splitNoteTitle } from "../release-notes";
+import { compareVersions, isVersion, readNotes, RELEASE_NOTES, splitNoteTitle, validateReleaseEditorial } from "../release-notes";
 import { sheetText } from "./sheet-source";
 
 /** A title that OPENS with an emoji, whatever comes after it — deliberately
@@ -67,13 +67,17 @@ describe("the shape of release-notes.json", () => {
     // meant is an entry that renders with half its content and no complaint.
     for (const key of versionKeys) {
       for (const note of raw[key] as Array<Record<string, unknown>>) {
-        expect(Object.keys(note).sort(), key).toEqual(["body", "title"]);
+        expect(Object.keys(note).filter(k => k !== "priority").sort(), key).toEqual(["body", "title"]);
         expect(typeof note.title, key).toBe("string");
         expect(typeof note.body, key).toBe("string");
         expect(String(note.title).trim(), key).not.toBe("");
         expect(String(note.body).trim(), key).not.toBe("");
       }
     }
+  });
+
+  it("validates editorial metadata without silently ignoring typos", () => {
+    expect(validateReleaseEditorial(raw)).toEqual([]);
   });
 
   it("carries its own instructions, so the next author does not have to find them", () => {
