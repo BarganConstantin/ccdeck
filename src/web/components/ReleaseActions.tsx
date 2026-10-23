@@ -83,7 +83,8 @@ export function useReleaseUpdateCheck(wiring: UpdateCheckWiring | undefined) {
     if (action.kind === "install") void upgrade.startUpgrade();
     else void restart.askRestart({ upgrade: true });
   };
-  const needsAttention = state.checking || state.line.tone === "warn" || !!state.line.action
+  // Routine checks belong to the menu/live region, without shifting the digest.
+  const needsAttention = state.line.tone === "warn" || !!state.line.action
     || !!versionCheck.version?.notice || desktopUpdate.appUpdate?.status === "downloading";
   return { state, check, act, checkWhy, needsAttention };
 }

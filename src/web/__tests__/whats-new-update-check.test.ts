@@ -314,21 +314,32 @@ describe("the compact status row", () => {
     expect(html).toContain('Runs npm i -g ccdeck@latest here, then restarts once nothing is running.');
   });
 
-  it("keeps routine checking out of the reading area", () => {
+  it.each([false, true])("keeps routine checking out of the reading area (checking=%s)", versionChecking => {
     const html = renderToStaticMarkup(createElement(ReleaseNotesModal, {
       entries: [{ version: "3.38.6", summary: "Read the useful changes", notes: [{title:"A concrete benefit",body:"Useful details",priority:"highlight"}] }],
       since: null, running: "3.38.6", firstRun: false, onClose: noop,
-      updateCheck: wiring(version({checkedAt: Date.now()})),
+      updateCheck: wiring(version({checkedAt: Date.now()}), {versionChecking}),
     }));
     expect(html).not.toContain('class="rn-status-row"');
     expect(html).not.toContain('>Highlights<');
     expect(html).toContain('aria-label="More options"');
     expect(html).toContain('class="rn-live-status" role="status"');
+    if (versionChecking) expect(html).toContain('Checking…');
   });
-  it("marks checks in progress as attention-worthy while preserving the existing check controller", () => {
+  it("retains the busy check controller without interrupting reading", () => {
     const html = draw({ updateCheck: wiring(version({}), {versionChecking:true}) });
-    expect(html).toContain('data-attention="true"');
+    expect(html).toContain('data-attention="false"');
     expect(html).toContain('Checking…');
+  });
+  it.each([
+    version(OUT),
+    version({latest:null, checkedAt:null, checkFailedAt:Date.now()}),
+  ])("keeps actionable updates and failed checks in the reading area", v => {
+    const html = renderToStaticMarkup(createElement(ReleaseNotesModal, {
+      entries: [], since:null, running:v.running, firstRun:false, onClose:noop,
+      updateCheck:wiring(v),
+    }));
+    expect(html).toContain('class="rn-status-row"');
   });
   it("keeps a disabled-check explanation truthful", () => {
     const html = draw({ updateCheck: wiring(version({checkDisabled:true})) });
