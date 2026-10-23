@@ -30,7 +30,7 @@
 }
 
 .modal {
-  width: min(820px, 92vw);
+  width: var(--dialog-m);
   max-height: 82vh;
   display: flex;
   flex-direction: column;
@@ -42,14 +42,39 @@
   animation: popIn 180ms cubic-bezier(0.22,1,0.36,1);
 }
 
+/* THE ONE DIALOG HEADER (tokens.css, "One dialog frame"). Every dialog's top
+   row is this: its title on the left at one size and weight, a muted note
+   beside it where the dialog has one, its actions and its × on the right in
+   `glyph-btn`s at the same inset, on the same band. The Usage history, Tool
+   activity, account reports, Explore, Radio and Radar headers wore four other
+   versions of it, 37 to 94px tall. */
 .modal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  gap: 12px;
+  min-height: var(--dialog-head-h);
+  box-sizing: border-box;
+  flex-shrink: 0;
+  padding: 8px 16px 8px 20px;
   border-bottom: 1px solid var(--line);
   background: var(--bg-soft);
 }
+/* The title, at the deck's one dialog title size (DESIGN.md: 14px/600) and in
+   its own face: a dialog's name is a word, not a value. A heading where the
+   dialog has one, a span where it is named by its title alone (KeyboardHelp.tsx
+   says why); either reads the same. The tool modal alone keeps monospace,
+   because its title is a tool's name. */
+.modal-head h2,
+.modal-tool-name {
+  margin: 0;
+  font-family: inherit;
+  font-size: calc(14px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text);
+}
+.tool-modal .modal-tool-name { font-family: var(--font-mono); }
 .modal-title {
   display: flex;
   align-items: center;
@@ -64,11 +89,6 @@
 .modal-title .status-dot.inflight { background: var(--inflight); animation: pulse var(--pulse-live) infinite; }
 .modal-title .status-dot.done { background: var(--ok); }
 .modal-title .status-dot.err  { background: var(--err); }
-.modal-tool-name {
-  font-weight: 600;
-  font-size: calc(14px + var(--ui-text-increase, 0px));
-  font-family: var(--font-mono);
-}
 .modal-tool-id {
   color: var(--muted);
   font-size: calc(11px + var(--ui-text-increase, 0px));
@@ -195,7 +215,7 @@
 /* ---------------- clear confirmation ---------------- */
 
 /* One sentence and two buttons, so it wants none of .modal's 820px. */
-.modal.clear-confirm { width: min(440px, 92vw); }
+.modal.clear-confirm { width: var(--dialog-s); }
 /* Cancel comes first in the DOM, so it is what focus and the first Tab find;
    the destructive answer is never the default one. */
 .clear-confirm .cc-actions { display: flex; justify-content: flex-end; gap: 8px; }
@@ -226,7 +246,7 @@
 /* ---------------- a dialog whose chunk did not arrive ---------------- */
 
 /* One sentence and two buttons, sized like the clear prompt (LazyDialog.tsx). */
-.modal.dialog-missing { width: min(440px, 92vw); }
+.modal.dialog-missing { width: var(--dialog-s); }
 .dm-note { margin: 0; color: var(--text); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
 .dm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
@@ -241,7 +261,7 @@
    rule drawn across the dialog.
    The fields are the accounts panel's own text field (.ap-manage-input),
    already swept for edge contrast, placeholder colour and the focus ring. */
-.modal.feedback-dialog { position: relative; width: min(540px, 92vw); }
+.modal.feedback-dialog { position: relative; width: var(--dialog-s); }
 /* The stage holds the form and, once sent, the thanks laid over it, so the
    dialog keeps its height through the change. It and the form pass the
    modal's height down: min-height 0 is what lets .modal-body scroll inside
@@ -743,7 +763,7 @@
    440. Everything else it needs — the entrance, the dim behind it, the fade
    that replaces both under reduced motion — is .modal-backdrop's and .modal's
    already, which is the whole reason this sheet is built out of them. */
-.modal.key-help { width: min(560px, 92vw); }
+.modal.key-help { width: var(--dialog-s); }
 /* The caption over each group of rows. The tool inspector says the same thing
    with `.modal-section h4` and keeps it: h4 belongs to the three dialogs that
    already had one, so this sheet's groups are h3 and bring their own rule
@@ -768,7 +788,7 @@
    body below runs about 75 characters, which is inside the band a paragraph is
    comfortable to read at. Wider than the shortcuts sheet's 560 because that
    sheet is a two-column table and this is sentences. */
-.modal.release-notes { width: min(620px, 92vw); }
+.modal.release-notes { width: var(--dialog-s); }
 /* The app's verified update and what became of the last press of its button
    (#1187), held as ONE item of the body's column, so the body's 16px gap does
    not open between a button and the sentence about it — or open at all while

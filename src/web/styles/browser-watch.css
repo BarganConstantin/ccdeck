@@ -2,7 +2,7 @@
    Its control is on the right stripe (edge-rails.css), where its unread count
    is `.rail-badge`: in the chrome's resting grey, never in amber. */
 
-.bw-modal { width: min(860px, 94vw); }
+.bw-modal { width: var(--dialog-m); }
 /* `flex: none` on every child, and it is not cosmetic. `.modal-body` is a
    column flex container with a bounded height, so a child that overflows it
    gets SHRUNK rather than scrolled — the state rows collapsed to a four-pixel

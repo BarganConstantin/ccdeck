@@ -154,9 +154,9 @@ export default function ContextModal({ agent, onClose }: Props) {
   return (
     <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal ctx-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Context breakdown">
-        <header className="ctx-modal-head">
+        <header className="modal-head ctx-modal-head">
           <div>
-            <div className="ctx-modal-title">Context · {agent.label}</div>
+            <div className="modal-tool-name">Context · {agent.label}</div>
             <div className="ctx-modal-sub">{copy.subtitle}</div>
           </div>
           <button type="button" ref={closeRef} className="glyph-btn ctx-modal-close" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>

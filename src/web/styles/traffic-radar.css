@@ -1,4 +1,4 @@
-.modal.tr-modal { --tr-inset: 16px; --tr-control-h: 32px; --tr-radius: 6px; --tr-row-gap: 4px; --tr-selection: color-mix(in srgb, var(--accent) 10%, var(--panel)); --tr-toolbar: var(--bg-soft); --tr-feed-surface: color-mix(in srgb, var(--panel) 72%, var(--bg)); --tr-divider: var(--line-soft); width: min(1060px, 94vw); height: min(740px, 88dvh); max-height: 88dvh; }
+.modal.tr-modal { --tr-inset: 16px; --tr-control-h: 32px; --tr-radius: 6px; --tr-row-gap: 4px; --tr-selection: color-mix(in srgb, var(--accent) 10%, var(--panel)); --tr-toolbar: var(--bg-soft); --tr-feed-surface: color-mix(in srgb, var(--panel) 72%, var(--bg)); --tr-divider: var(--line-soft); width: var(--dialog-l); height: var(--dialog-l-h); max-height: var(--dialog-l-h); }
 .tr-beta { flex-shrink: 0; padding: 2px 6px; border: 1px solid transparent; border-radius: var(--r-tag); background: transparent; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: 1.4; }
 .tr-body { display: flex; flex-direction: column; min-height: 0; flex: 1; font-size: calc(13px + var(--ui-text-increase, 0px)); }
 .tr-body h3 { font-size: calc(14px + var(--ui-text-increase, 0px)); margin: 0; font-weight: 600; }
@@ -279,11 +279,10 @@
 .tr-purpose > details[open] > summary::before, .tr-monitor-footer details[open] > summary::before { transform: rotate(45deg); }
 
 /* Window chrome, activity identity and interaction rhythm. */
-.tr-modal .modal-head { padding: 14px 16px; background: var(--panel); border-bottom: 1px solid var(--tr-divider); }
-.tr-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.tr-identity > svg { width: 24px; height: 24px; flex: none; color: var(--accent); }
-.tr-identity .modal-tool-name { font-family: inherit; font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; letter-spacing: -.01em; }
-.tr-identity p { margin: 4px 0 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+/* The header is the one dialog header (dialogs.css), its tabs and its help
+   beside the name: one row, the name, Beta and the purpose on one line. */
+.tr-identity { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.tr-identity p { margin: 0; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .tr-navigation { position: relative; }
 .tr-help { margin-left: 0; }
 .tr-help summary { display: flex; align-items: center; gap: 6px; min-height: var(--tr-control-h); padding: 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); border-radius: var(--tr-radius); transition: background 140ms ease-out; }
@@ -303,11 +302,9 @@
   .tr-navigation .tr-tab { padding-inline: 10px; }
 }
 @media (max-width: 640px) {
-  .tr-modal .modal-head { padding: 12px 14px; }
-  .tr-identity > svg { display: none; }
-  .tr-identity .modal-title { gap: 6px; }
-  .tr-identity .modal-tool-name { font-size: calc(14px + var(--ui-text-increase, 0px)); }
-  .tr-identity p { max-width: 28ch; line-height: 1.5; }
+  .tr-identity { flex-wrap: wrap; row-gap: 2px; }
+  .tr-identity .modal-title { gap: 6px; white-space: nowrap; }
+  .tr-identity p { flex-basis: 100%; white-space: normal; }
   .tr-inspector { padding: 20px 14px; }
   .tr-inspection-limit { padding: 12px; }
   .tr-capture-bar > div:first-child { min-width: 0; }

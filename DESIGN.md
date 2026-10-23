@@ -536,14 +536,21 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
   has no label of its own to be found by.
 - **`.ap-field select` / `.ap-manage-input`** — `--ctl-fill`, `--ctl-edge`, 6px,
   `min-height: var(--ctl-h)`; hover lifts the border to `--text`.
-- **`.modal`** — `min(820px, 92vw)`, `max-height: 82vh`, `--panel` on `--r-panel`,
-  `--shadow-2` plus a faint accent ring. The backdrop is `rgba(5,6,9,0.55)` with
+- **`.modal`** — one of three widths (tokens.css): `--dialog-s` 560px for a
+  question or a short read, `--dialog-m` 820px (the default) for a form or a
+  report, `--dialog-l` 1120px for a workspace with a list beside its details,
+  which alone keeps one height, `--dialog-l-h`, so its tabs do not resize it.
+  The integration trackers' full-page panels are the one exception. Its header
+  is always `.modal-head`: 52px, `--bg-soft` band, the title at 14px/600 in the
+  UI face (monospace only for a tool's name), a muted note beside it, actions
+  and a `glyph-btn` × at the same inset. `max-height: 82vh`, `--panel` on
+  `--r-panel`, `--shadow-2` plus a faint accent ring. The backdrop is `rgba(5,6,9,0.55)` with
   **no blur**: the scrim is already opaque enough, and a blur over a canvas whose
   dashes never stop re-rasterises under the dialog for as long as it is open.
 
 ### Tool activity
 
-A large modal (90vw × 90dvh on desktop), opened from the rail below Usage
+The large dialog (`--dialog-l` × `--dialog-l-h` on desktop), opened from the rail below Usage
 history (More → Tools on phones),
 that a person reads top to bottom in under a minute. Owner direction
 (2026-10-15): simple and useful for the people using it, nothing complicated.

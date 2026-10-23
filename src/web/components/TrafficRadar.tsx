@@ -51,7 +51,7 @@ export function TrafficRadarView({ snapshot, failed = false, captureState, sessi
   for (const id of fileSessions) if (!choices.has(id)) choices.set(id, "Session");
   return <div className="tr-body">
     <header className="modal-head tr-header">
-      <div className="tr-identity"><RadarIcon kind="radar" /><div><div className="modal-title"><span className="modal-tool-name" id="tr-title">Telemetry Radar</span><span className="tr-beta" title="Beta feature — still being tested and improved.">Beta</span></div><p id="tr-purpose">Inspect Claude Code’s collector traffic.</p></div></div>
+      <div className="tr-identity"><div className="modal-title"><span className="modal-tool-name" id="tr-title">Telemetry Radar</span><span className="tr-beta" title="Beta feature — still being tested and improved.">Beta</span></div><p id="tr-purpose">Inspect Claude Code’s collector traffic.</p></div>
     <div className="tr-navigation">
       {/* Written out rather than mapped, so each tab names its panel's id as the panel spells it. */}
       <div className="tr-tabs" role="tablist" aria-label="Radar views" onKeyDown={handleTabKeyDown}>
