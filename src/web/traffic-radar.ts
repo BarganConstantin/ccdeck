@@ -5,6 +5,8 @@ export interface RadarVariable {
   source: string;
   editable?: boolean;
   blockedReason?: string;
+  /** Read from a running Claude process's launch environment (Linux): evidence, not a switch. */
+  launch?: boolean;
 }
 
 export interface RadarSnapshot {
@@ -15,6 +17,9 @@ export interface RadarSnapshot {
   status: "unsupported" | "unavailable" | "observing";
   processCount: number;
   limited?: boolean;
+  /** Claude processes whose sockets could not be read, such as another user's. */
+  uninspected?: number;
+  environment?: RadarVariable[];
   config: {
     sources: { name: string; status: "read" | "absent" | "unavailable" }[];
     variables: RadarVariable[];
@@ -27,6 +32,8 @@ export interface RadarSnapshot {
     firstSeenAt: number;
     lastSeenAt: number;
     active: boolean | null;
+    /** Every socket to this destination is still awaiting a reply (Linux SYN-SENT). */
+    connecting?: true;
   }[];
   alerts: { id: number; message: string; at: number }[];
 }
@@ -36,8 +43,14 @@ export function radarStatus(snapshot: RadarSnapshot | null, failed = false): str
   if (!snapshot) return "Reading configuration and connections…";
   if (snapshot.status === "unsupported") return "Connection monitoring is unavailable on this operating system";
   if (snapshot.status === "unavailable") return "Connection visibility incomplete";
-  if (snapshot.connections.some(connection => connection.active)) return "Connections observed";
+  if (snapshot.connections.some(connection => connection.active && !connection.connecting)) return "Connections observed";
   return "No connections observed in this sample";
+}
+
+export function connectionLabel(connection: { active: boolean | null; connecting?: boolean }, stale = false): string {
+  if (stale || connection.active === null) return "Visibility unavailable";
+  if (connection.connecting) return connection.active ? "Connecting · no reply yet" : "Attempted · no reply seen";
+  return connection.active ? "Active connection" : "Previously observed";
 }
 
 export function captureSummary(variables: RadarVariable[]): string {

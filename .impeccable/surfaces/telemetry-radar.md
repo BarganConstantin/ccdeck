@@ -278,3 +278,32 @@ its door. The File view stays as Radar's third tab, and the sessions a file
 names join the session filter as captured ones do ("Session · <short ID>").
 Everything else above is kept: the compact rows, prompt previews, highlights,
 the "With prompt" filter, the resizable list and the unified header.
+
+## Linux process evidence — 2026-10-23
+
+Forward ports, not a merge, of Linux behaviours first written on an earlier,
+unreleased Radar branch, which stays unmerged. Radar now counts Claude Code started by its versioned path (`claude/versions/<v>`,
+whose process name is the version), confirmed by its executable and never by
+argv; the VS Code extension's bundled `resources/native-binary/claude` is matched
+by name as before. A Claude process this user may not inspect, such as another
+user's, is counted in a single Configuration note instead of turning the whole
+sample unavailable. Each network namespace's socket table is parsed once per
+sample, and /proc is read to EOF: Node 18's `readFile` returned only its first
+page, so most sockets of a busy machine went unseen.
+
+An attempt nothing has answered reads "Connecting · no reply yet", then
+"Attempted · no reply seen", in `--warn` where connections are already listed
+(Configuration's observed list, Monitor's collector connections). It is never
+called an observed connection and never becomes an automatic-monitoring target.
+The launch environment of running Claude processes adds allowlisted telemetry
+variables, hidden and shortened by the same rules as settings, one row per
+value across processes. Launch flags are read-only: "Read-only" beside a
+locked switch, with the settings switch for the same flag kept. Launch
+endpoints count as configured destinations.
+
+Left out: the branch's four-card overview (the capture bar already carries that
+state), one row per reconnect and local port, the `ss` dependency and the full
+/proc scan. Verification: unit tests, real-Linux dummy processes on Node 18, 22
+and 24, and isolated browser checks in all twelve themes at 1280px and three
+at 390 and 320px, with reduced motion and forced colours. macOS and Windows
+sampling are unchanged and were not re-verified.

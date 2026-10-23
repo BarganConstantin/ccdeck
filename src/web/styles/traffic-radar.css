@@ -121,6 +121,8 @@
 .tr-observation strong { color: var(--warn); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .tr-live-connections li { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .tr-live-connections span { color: var(--text-secondary); }
+/* An attempt nothing has answered is actionable: the collector may be unreachable. */
+.tr-live-connections .tr-attempt { color: var(--warn); }
 .tr-attributes { margin: 12px 0; }
 .tr-attributes > div { padding-block: 12px; border-bottom: 1px solid var(--line); }
 .tr-attributes dt { font-size: calc(12px + var(--ui-text-increase, 0px)); }
