@@ -109,6 +109,12 @@ describe("every key the deck binds is written down where a user can find it", ()
     expect(rows.find(r => r.cap === "F")!.action).toMatch(/fit/);
   });
 
+  it("says T moves to the next theme, since it walks every theme rather than a light/dark pair", () => {
+    const rows = KEY_HELP.flatMap(g => g.rows);
+    expect(rows.find(r => r.cap === "T")!.action).toBe("next theme");
+    expect(rows.filter(r => /light or dark/.test(r.action))).toEqual([]);
+  });
+
   it("gives every row a cap and an action, in groups that are not empty", () => {
     expect(KEY_HELP.length).toBeGreaterThan(3);
     for (const group of KEY_HELP) {
