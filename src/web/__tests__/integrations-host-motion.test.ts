@@ -75,8 +75,9 @@ describe("the split between a list and its detail", () => {
     expect(split).not.toMatch(/["']Escape["']/);
   });
 
-  it("gives focus to Back when a phone's detail opens with focus on the hidden list or nowhere", () => {
-    expect(split).toMatch(/if \(drillIn && \(!active \|\| active === document\.body \|\| listRef\.current\?\.contains\(active\)\)\) \{\s*backRef\.current\?\.focus\(/);
+  it("gives focus to Back when a phone's detail opens with focus on the hidden list, on what it hid, or nowhere", () => {
+    expect(split).toMatch(/const hidden = active instanceof HTMLElement && !\(active\.checkVisibility\?\.\(\) \?\? true\);/);
+    expect(split).toMatch(/if \(drillIn && \(!active \|\| active === document\.body \|\| hidden \|\| listRef\.current\?\.contains\(active\)\)\) \{\s*backRef\.current\?\.focus\(/);
   });
 
   it("fades a new thing in beside the list and never animates a width", () => {
@@ -107,19 +108,26 @@ describe("the split between a list and its detail", () => {
 });
 
 describe("the detail's width before the reader drags it", () => {
-  it("leaves the list the wider share under a 1100px modal, and is the standard 440 from about 1050px", () => {
-    const listShare = (room: number) => (room - SPLITTER - autoDetail(room)) / room;
-    expect(autoDetail(810)).toBe(340);           // a 900px window's modal
-    expect(listShare(810)).toBeGreaterThanOrEqual(0.55);
-    expect(listShare(1000)).toBeGreaterThanOrEqual(0.55);
-    expect(autoDetail(1100)).toBe(DETAIL_WIDTH.standard);
-    expect(autoDetail(1296)).toBe(DETAIL_WIDTH.standard);
-    expect(autoDetail(760)).toBe(clampDetail(DETAIL_WIDTH.min, 760));
-    expect(760 - SPLITTER - autoDetail(760)).toBeGreaterThanOrEqual(LIST_MIN);
+  it("takes half the workspace, with no 440px cap", () => {
+    expect(autoDetail(1726)).toBe(863);          // a 1920px window's modal
+    expect(autoDetail(1296)).toBe(648);          // 1440px
+    expect(autoDetail(1000)).toBe(500);
+  });
+
+  it("keeps the list at 420px or more, and itself at 320px or more", () => {
+    // A 900px window's modal: half would leave the list under its floor.
+    expect(autoDetail(810)).toBe(810 - LIST_MIN - SPLITTER);
+    expect(810 - SPLITTER - autoDetail(810)).toBe(LIST_MIN);
+    expect(autoDetail(700)).toBe(DETAIL_WIDTH.min);
+    expect(autoDetail(4000)).toBe(DETAIL_WIDTH.max);
+    // A dragged width is held to the same bounds.
+    expect(clampDetail(200, 1726)).toBe(DETAIL_WIDTH.min);
+    expect(clampDetail(1500, 1726)).toBe(1726 - LIST_MIN - SPLITTER);
+    expect(clampDetail(600, 1726)).toBe(600);
   });
 
   it("is the same rule in the sheet, and nothing is stored until the reader drags", () => {
-    expect(AUTO_DETAIL_CSS).toBe("clamp(320px, 42%, 440px)");
+    expect(AUTO_DETAIL_CSS).toBe("clamp(320px, 50%, 1600px)");
     expect(readDetailWidth("no-such-panel")).toBeNull();
     expect(split).toMatch(/"--ig-detail-w": width == null \? AUTO_DETAIL_CSS : `\$\{width\}px`/);
     // Enter and a double click on the splitter go back to it.

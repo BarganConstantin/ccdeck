@@ -148,6 +148,13 @@ export function needsAttention(issue: Pick<JiraIssue, "flagged" | "priority" | "
   return !isDone(issue) && (issue.flagged || (issue.priority != null && priorityLevel(issue.priority.name) === "highest"));
 }
 
+/** How an issue was resolved, when that says more than its status: an issue
+ *  Done and resolved "Done" says it once, beside a status it repeats. */
+export function shownResolution(issue: { status: { name: string }; resolution: string | null }): string | null {
+  const resolution = issue.resolution?.trim() ?? "";
+  return resolution && resolution.toLowerCase() !== issue.status.name.trim().toLowerCase() ? resolution : null;
+}
+
 /** A sub-task stays under its row when Hide done and Needs attention allow. */
 export function subtaskShown(issue: JiraIssue, filter: RowFilter): boolean {
   return (!filter.hideDone || !isDone(issue)) && (!filter.attention || needsAttention(issue));
@@ -187,6 +194,83 @@ export function filterRows(rows: readonly Row[], filter: RowFilter, subtasks?: (
     }
   }
   return out;
+}
+
+// ── what a board draws ──────────────────────────────────────────────────────
+
+/** One group's read, as far as its rows need it. */
+export interface GroupRead {
+  status: "idle" | "loading" | "ready" | "error";
+  issues: readonly JiraIssue[];
+}
+
+/** A group with the rows the filters leave in it. */
+export interface BuiltGroup<D extends GroupRead = GroupRead> {
+  def: GroupDef;
+  data: D | undefined;
+  rows: Row[];
+}
+
+/** Every group's rows, in the board's order, each issue drawn once: in the
+ *  first group it is in, folded or not. The backlog draws these, and the
+ *  panel asks them which issues are on screen. */
+export function boardRows<D extends GroupRead>(groups: readonly GroupDef[], data: Readonly<Record<string, D | undefined>>,
+  subtasks: (key: string) => readonly JiraIssue[] | undefined, filter: RowFilter): BuiltGroup<D>[] {
+  const seen = new Set<string>();
+  return groups.map(def => {
+    const read = data[def.id];
+    return { def, data: read, rows: filterRows(buildRows(read?.issues ?? [], seen), filter, subtasks) };
+  });
+}
+
+/** Whether a row's sub-tasks are shown: the reader's choice, or, for a
+ *  parent drawn for its sub-tasks, open from the start. */
+export function rowOpen(row: Row, open: Readonly<Record<string, boolean>>): boolean {
+  return open[rowKey(row)] ?? row.kind === "context";
+}
+
+/** The sub-tasks drawn under an open row: every one once they are read, less
+ *  what Hide done and Needs attention leave out; until then the ones in the
+ *  group's own results. */
+export function subtaskRows(row: Row, all: GroupRead | undefined, filter: RowFilter): readonly JiraIssue[] {
+  return all?.status === "ready" ? all.issues.filter(sub => subtaskShown(sub, filter)) : row.matched;
+}
+
+/** Whether an open row reads its sub-tasks: a context row always; an issue
+ *  that has some, unless every one is in hand already and no filter hides
+ *  any. */
+export function readsSubtasks(row: Row, filtered: boolean): boolean {
+  if (row.kind === "context") return true;
+  const want = row.issue.subtaskKeys;
+  if (want.length === 0) return false;
+  return filtered || !want.every(key => row.matched.some(m => m.key === key));
+}
+
+/** The issues a board has on screen, by key: the rows of its open groups,
+ *  and the sub-tasks under their open rows. `complete` once nothing drawn is
+ *  still being read — an open group, or an open row's sub-tasks. `first` is
+ *  the top row of the first open group with any, in the board's order; null
+ *  while an open group above it is still being read, or there is none. */
+export function drawnIssues(built: readonly BuiltGroup[], expanded: Readonly<Record<string, boolean>>, open: Readonly<Record<string, boolean>>,
+  subtasks: Readonly<Record<string, GroupRead | undefined>>, filter: RowFilter, filtered: boolean): { complete: boolean; keys: Set<string>; first: string | null } {
+  const keys = new Set<string>();
+  let complete = true;
+  let first: string | null = null;
+  for (const { def, data, rows } of built) {
+    if (!groupOpen(def, expanded)) continue;
+    // Drawn: read, failed, or showing what it had while it is read again.
+    if (!data || (data.status !== "ready" && data.status !== "error" && data.issues.length === 0)) { complete = false; continue; }
+    if (first == null && complete && rows.length > 0) first = rowKey(rows[0]);
+    for (const row of rows) {
+      const key = rowKey(row);
+      keys.add(key);
+      if (!rowOpen(row, open)) continue;
+      const all = subtasks[key];
+      for (const sub of subtaskRows(row, all, filter)) keys.add(sub.key);
+      if (all ? all.status === "loading" : readsSubtasks(row, filtered)) complete = false;
+    }
+  }
+  return { complete, keys, first };
 }
 
 // ── what a header counts ────────────────────────────────────────────────────

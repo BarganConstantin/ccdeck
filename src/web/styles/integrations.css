@@ -103,8 +103,8 @@
 .ig-body { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 
 /* The list and its detail, each with its own scroll. From 900px the detail sits
-   beside the list at the width the reader dragged it to, and never takes so
-   much that the list goes under 420px. */
+   beside the list, at half the room until the reader drags it, and never takes
+   so much that the list goes under 420px. */
 .ig-split { position: relative; flex: 1; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .ig-split[data-detail]:not([data-drill-in]) { grid-template-columns: minmax(0, 1fr) 8px min(var(--ig-detail-w), calc(100% - 428px)); }
 .ig-split[data-resizing] { cursor: col-resize; user-select: none; }

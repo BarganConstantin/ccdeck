@@ -26,7 +26,7 @@ import {
 import { labelParts } from "../../forge-detail";
 import { useForgePages, useForgeRead } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
-import { sameSelection, useForge } from "./ForgeContext";
+import { sameSelection, useForge, useReportRows } from "./ForgeContext";
 import { IntegrationAvatarStack } from "../IntegrationAvatar";
 import { Ago, Badge, Face, FoldGroup, ListEnd, LoadingRows, ReadFailure, StateMark, useFaceOf } from "./ForgeParts";
 import { CheckGlyph } from "../integration-glyphs";
@@ -49,7 +49,7 @@ const DRAFT: Mark = changeBadge({ state: "open", draft: true, approved: false })
 const APPROVED: Mark = changeBadge({ state: "open", draft: false, approved: true });
 
 export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
-  const { kind, api, scope, refresh, reportFreshness } = useForge();
+  const { kind, api, scope, refresh, reportFreshness, isOpen } = useForge();
   const words = forgeWords[kind];
   const repo = view.repo ?? undefined;
   const acrossRepos = view.repo == null;
@@ -65,6 +65,17 @@ export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
   const phase = listPhase(read, items.length, shown.length);
   const reviews = view.filter === "review" && view.state === "open" ? splitReviews(shown) : null;
   const noun = words.changes.toLowerCase();
+  // The rows on screen: review requests as their two groups draw them, the
+  // approved ones folded until the reader opens them.
+  const drawn = useMemo(() => {
+    if (phase !== "rows") return [];
+    const open = (id: string, byDefault: boolean) => (isOpen(id) ? !byDefault : byDefault);
+    const list = reviews
+      ? [...(open("reviews-waiting", true) ? reviews.waiting : []), ...(open("reviews-approved", false) ? reviews.approved : [])]
+      : shown;
+    return list.map(c => ({ type: "change" as const, repo: c.repo, number: c.number }));
+  }, [phase, reviews, shown, isOpen]);
+  useReportRows(drawn, phase !== "loading");
 
   const rows = (list: ForgeChange[]) => (
     <ul className="fg-rows">

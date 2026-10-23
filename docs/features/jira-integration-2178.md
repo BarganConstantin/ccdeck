@@ -48,12 +48,13 @@ deck sends a tracker is a GET.
     the summary, flagged, fix versions, the epic, the estimate and what is
     left, the status, and the assignee, ringed when it is you. On a phone a
     row is three lines at most.
-  - **The issue**, beside the list from 900px and its own screen with a Back
-    under that:
+  - **The issue**, beside the list from 900px (half the panel until you drag
+    the line between them) and its own screen with a Back under that:
     - a bar with the key and a button that copies it, *Open in Jira*, and
       Close (on a phone, Back stands in its place);
     - the path, then the title, with the type, status, priority and flag
-      under it;
+      under it, and the resolution when it is not the status again (*Won't
+      Do*, not a second *Done*);
     - the fields that have a value, and when it was created and updated;
     - the description, sub-tasks, links, attachments and the latest comments.
     - Escape closes the issue first, with focus back on its row, and then
@@ -64,6 +65,13 @@ deck sends a tracker is a GET.
 - **Remembered per connection, in this browser:** the board, the open groups,
   *Only my issues*, *Hide done*, *Needs attention* and the board's quick
   filters. The detail's width is remembered per browser.
+- **Kept while the page is open** (a reload starts fresh): the search, and per
+  board the issue open beside the list with its breadcrumb, the rows whose
+  sub-tasks are shown, and both scrolls. Reopening the panel, or going back to
+  a board, puts that issue back when it is still on the board as drawn. With
+  nothing to put back, the first issue of the first open group opens beside
+  the list (from 900px). An issue you closed stays closed until you open a
+  row. Searching or filtering with an issue open leaves it open.
 
 ## Jira: what is supported
 
