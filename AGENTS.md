@@ -106,6 +106,8 @@ compatibility conditions and opt-outs. Separate essential technical details into
 always-visible `notice` text; the schema validates highlight length and metadata.
 Optional semantic icons must match the change and use the native glyph family.
 Use a short factual `noticeLabel` where useful (for example, Setup change).
+Keep a highlight body to one useful sentence; secondary `details` can expand
+below it. Consequential qualifications always belong in a visible `notice`.
 Manual notes are a running-release digest, with Release history linking to the
 full changelog. Upgrade notes retain all consequential changes in the actual range;
 unclassified legacy notes remain visible. Historical notes remain intact.

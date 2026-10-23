@@ -884,7 +884,7 @@ All three remain versioned JSON definitions; references are in the themes README
 
 ### What’s new
 
-A 620px editorial digest using the shared modal shell, a fixed header/footer and
+A 650px editorial digest using the shared modal shell, a fixed header/footer and
 one internal scroller. Routine update checking and status live in the shared
 anchored menu, including checks in progress; only a failure or actionable update
 interrupts reading. Announcements stay accessible. Ordinary Restart keeps its existing handoff.
@@ -896,7 +896,11 @@ Release summaries and at most three highlights come from explicit editorial
 metadata in release-notes.json. Required changes remain visible without card outlines; other notes
 use native More improvements disclosures. Benefit descriptions and always-visible
 technical notices are separate; optional factual notice labels default to Important.
-Semantic icons use distinct native glyphs in a narrow column aligned with titles.
+Semantic icons use distinct native 16px glyphs in a 28px column aligned with titles.
+Use 20px bold headlines, 13px semibold row titles and 13px secondary descriptions.
+Notices have a quiet 2px neutral left rule, 10px inset and 11px top spacing.
+Secondary highlight details share the improvements disclosure; essential notices never do.
+Its label counts other improvements, with Show details / Hide details on the right.
 Manual opening shows only the running release. Upgrade notices keep required changes and unclassified legacy
 notes visible, while optional earlier changes remain discoverable in a disclosure.
 Release history links to the complete public changelog; no manual history explorer

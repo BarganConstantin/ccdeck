@@ -63,6 +63,11 @@
     "have no truncation limit. A notice also keeps its change visible across upgrades.",
     "Optional noticeLabel gives it a short factual heading (1–32 characters), such",
     "as Setup change or Compatibility. It requires notice text; default is Important.",
+    "Optional details holds secondary context, shown under the same improvements",
+    "disclosure for highlights and beside other notes. Keep the body to one useful",
+    "sentence. Never move setup, safety, privacy or compatibility conditions into",
+    "details: use notice for those, so they remain visible across upgrades.",
+    "The disclosure counts other improvements, not extra details of highlights.",
     "Mark any other mandatory action as required. The manual digest shows only the",
     "running release; Release history opens the full changelog. Upgrade notes keep",
     "required/noticed changes visible and disclose the other notes in that range.",
@@ -187,15 +192,17 @@
     },
     {
       "title": "🗺️ Follow plans at any zoom",
-      "body": "See plan progress on session notes and the canvas; subagents line up beside their parent.",
+      "body": "See plan progress on session notes and directly on the canvas.",
       "priority": "highlight",
-      "icon": "plans"
+      "icon": "plans",
+      "details": "Subagents stay in one column beside their parent."
     },
     {
       "title": "✅ Keep your Claude account in sync",
-      "body": "After `/login`, Accounts, switching and usage follow your Claude Code account; Auto-switch can also be set up while off.",
+      "body": "After `/login`, Accounts, Switch, Auto-switch and Usage follow your active Claude Code account.",
       "priority": "highlight",
-      "icon": "accounts"
+      "icon": "accounts",
+      "details": "Auto-switch can also be set up while it is off."
     },
     {
       "title": "📊 Account capacity and the Reset calendar have their own buttons",
@@ -203,11 +210,12 @@
     },
     {
       "title": "🧩 See which skills your agents use",
-      "body": "Review skill activity from the right sidebar, including typed slash commands.",
+      "body": "Review your agents' skill activity, including typed slash commands.",
       "priority": "highlight",
-      "notice": "Counting typed slash commands adds a `UserPromptExpansion` hook to Claude Code's `settings.json` on version 2.1.116 or newer; `AGENTS_DECK_SKILL_HOOK=0` prevents adding it.",
+      "notice": "Counting typed slash commands adds a `UserPromptExpansion` hook to Claude Code's `settings.json` on supported versions (2.1.116+). Set `AGENTS_DECK_SKILL_HOOK=0` to opt out.",
       "icon": "skills",
-      "noticeLabel": "Setup change"
+      "noticeLabel": "Setup change",
+      "details": "Open Skill activity from the right sidebar."
     },
     {
       "title": "📈 Load history keeps the reading you click",
