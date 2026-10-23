@@ -109,6 +109,19 @@ rather than matching just one theme ID. The theme README owns the format and
 generation instructions. A custom-theme importer/editor is a future possibility,
 not an implemented feature.
 
+UI organization (owner, 2026-10-23, after a user wrote the deck has a lot in
+it but is not organized; branch `feature/ui-organization`):
+- Both edge stripes follow one rule (`rail-items.tsx`): runs of doors that
+  answer one question each, every run of two or more a named group, all 13
+  doors kept in the owner's order. Radio is a dialog door now, with no blur.
+- Usage and the machine panel dock beside the right stripe (`rail-dock.ts`),
+  side by side, and the canvas narrows by them; below 360px of canvas they
+  float as before. This reverses #910's floating pair with the owner's
+  informed choice, made after seeing #847/#910's history.
+- Every dialog is `--dialog-s` 560, `--dialog-m` 820 or `--dialog-l` 1120
+  and has the one `.modal-head`. The integration trackers' full-page panel
+  stays 90vw by the owner's own spec for it.
+
 T steps through every theme from inside any dialog too (owner, 2026-10-23):
 only a field being typed in or a `<select>` keeps the letter, and every other
 single-key shortcut stays blocked behind a dialog. One path answers it,
