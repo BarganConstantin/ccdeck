@@ -596,7 +596,9 @@ installers put it), or when its config dir carries traces of having been used;
 Codex counts as present when `~/.codex/` exists. On a machine with only one of
 them, the other one's hooks, installs and panels are skipped rather than shown
 empty — the boot banner says which way it went, and `--claude` / `--codex`
-override it if the guess is wrong.
+override it if the guess is wrong. A CLI installed while the deck is running is
+noticed within about fifteen seconds, and the deck restarts itself to serve it
+(unless you started it with `--no-claude` / `--no-codex`).
 
 `--workspace` is a filter this deck applies to itself, not a claim on the sessions it matches: **every** running deck whose workspace contains a session's directory draws that session. That is not a way to keep a machine-wide deck and one scoped to `~/proj` side by side: in one Claude config directory the second start stops the first and takes its place, as above. The filter reads the same way on all three paths a session can reach the canvas by — Claude Code's hook, Codex's rollout files, and the boot replay of the events log — and the events log still gets exactly one copy of each event, whichever decks are up. A relative path is resolved against the directory you start the deck in, and once, so every path scopes to the same tree. The log is machine-wide by default and shared by every deck on the box, so a scoped deck replays only the part of it that is inside its own workspace: it comes up showing what it will go on to capture, and nothing else.
 
