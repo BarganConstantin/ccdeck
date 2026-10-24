@@ -106,6 +106,13 @@ describe("one colour, expressed as far as the profile reaches", () => {
     expect(fg(ACCENT, "none", "\x1b[96m")).toBe("");
   });
 
+  it("takes a near-grey to the grey ramp, not to the cube's teal", () => {
+    // The muted tone is a cool grey: under 256 colours (tmux, most SSH
+    // sessions) the cube's nearest was 109, a teal, on every border.
+    expect(fg([126, 130, 140], "ansi256", "\x1b[2m")).toBe("\x1b[38;5;244m");
+    expect(fg([128, 128, 128], "ansi256", "\x1b[2m")).toBe("\x1b[38;5;244m");
+  });
+
   it("hands out empty strings under 'none', so the same template needs no branch", () => {
     const p = palette("none");
     for (const v of Object.values(p)) expect(v).toBe("");

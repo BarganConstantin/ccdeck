@@ -83,12 +83,15 @@ export function colorProfile({ env = process.env, isTTY = false, platform = proc
 // ── colours ──────────────────────────────────────────────────────────────────
 
 /** rgb → the nearest xterm-256 index: the 6×6×6 cube, or the 24-step grey ramp
- *  for anything neutral, which is where the muted tones land. */
+ *  for anything neutral, which is where the muted tones land. Neutral is near
+ *  grey, not exactly grey: the muted tone is a cool grey, and the cube's
+ *  nearest to it is a teal — every border and every quiet word, under tmux. */
 function to256(r, g, b) {
-  if (r === g && g === b) {
-    if (r < 8) return 16;
-    if (r > 248) return 231;
-    return Math.round(((r - 8) / 247) * 24) + 232;
+  if (Math.max(r, g, b) - Math.min(r, g, b) < 16) {
+    const v = Math.round((r + g + b) / 3);
+    if (v < 8) return 16;
+    if (v > 248) return 231;
+    return Math.round(((v - 8) / 247) * 24) + 232;
   }
   return 16 + 36 * Math.round((r / 255) * 5) + 6 * Math.round((g / 255) * 5) + Math.round((b / 255) * 5);
 }

@@ -431,7 +431,7 @@ ccdeck open                   the deck in your browser — over SSH, the line th
 ccdeck tui                    all of the above on one screen that stays up
 ```
 
-**`ccdeck tui`** keeps the accounts and the sessions waiting on you on one full screen, read again every few seconds. Move with the arrows (or `j` / `k`, or a slot's number), **Enter** switches to the selected account, **b** selects the one Auto-switch would pick, **a** turns Auto-switch on or off, **r** reads the usage again, **?** lists the keys and **q** leaves with your terminal as it was. With no deck running it reads claude-swap's store and **d** starts one in the background. It fits from 40×12 up, and draws in ASCII on a console that cannot show the blocks.
+**`ccdeck tui`** keeps the accounts and the sessions waiting on you on one full screen, read again every few seconds. Move with the arrows (or `j` / `k`, or a slot's number), **Enter** switches to the selected account, **b** selects the one Auto-switch would pick, **a** turns Auto-switch on or off, **r** reads the usage again, **?** lists the keys and **q** leaves with your terminal as it was. With no deck running it reads claude-swap's store and **d** starts one in the background. It fits from 40×12 up, sets the selected account's detail beside the waiting sessions from 120 columns, follows `NO_COLOR`, and draws in ASCII on a console that cannot show its lines.
 
 `swap` and `use` are other names for `switch`, `ls` for `accounts` and `ps` for `sessions`; `status`, `stop` and `logs` are `--status`, `--stop` and `--logs`. `ccdeck swap 1 2` does not exchange two slots the way claude-swap's `cswap swap` does — it says so and points you there.
 

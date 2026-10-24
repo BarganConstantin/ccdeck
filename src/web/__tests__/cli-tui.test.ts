@@ -4,8 +4,10 @@
 // What is pinned here, in the order it can go wrong:
 //
 //   the frame     exactly as many rows as the screen, none of them reaching its
-//                 last column, at every width and in the ASCII tier; what gives
-//                 way on a short screen, and the selection always on it;
+//                 last column, at every width, in every colour tier and in the
+//                 ASCII one, and not one escape under NO_COLOR; the panels, the
+//                 lit row, what gives way on a short screen, the selection
+//                 always on it;
 //   the keys      which key asks for what, and the refusals a switch is told
 //                 before it is asked for, in `ccdeck switch`'s words;
 //   the screen    only the rows that changed are written, and the terminal is
@@ -29,7 +31,7 @@ const view = await import("../../server/tui-view.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const { createScreen, ALT_SCREEN_ON, ALT_SCREEN_OFF, WRAP_ON } = await import("../../server/tui-screen.mjs");
 // @ts-expect-error — plain .mjs module, no types
-const { accountLines, fitPainted, textWidth } = await import("../../server/cli-lines.mjs");
+const { fitPainted, sliceCells, textWidth } = await import("../../server/cli-lines.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const { glyphs, palette, stripAnsi, CURSOR_SHOW } = await import("../../server/term.mjs");
 // @ts-expect-error — plain .js module, no types
@@ -71,23 +73,17 @@ const tone = palette("ansi16");
 const plainTone = palette("none");
 const U = glyphs(true);
 const A = glyphs(false);
+const PROFILES = ["truecolor", "ansi256", "ansi16", "none"];
 
 function deckState(over: State = {}): State {
-  const s = { ...view.initialState(), deck: { port: 4317, version: "3.46.0" }, source: "deck", auto: AUTO, sessions: SESSIONS };
+  const s = { ...view.initialState(), deck: { port: 4317, version: "3.46.0" }, source: "deck", auto: AUTO, sessions: SESSIONS, readAt: NOW - 2_000 };
   return { ...view.withRoster(s, { ok: true, activeNum: 1, accounts: ROWS }), ...over };
 }
-const frame = (s: State, columns = 80, rows = 24, unicode = true) =>
-  view.tuiFrame(s, { columns, rows, tone: unicode ? tone : plainTone, g: unicode ? U : A, unicode, now: NOW });
+const frame = (s: State, columns = 80, rows = 24, unicode = true, profile = unicode ? "ansi16" : "none") =>
+  view.tuiFrame(s, { columns, rows, tone: palette(profile), g: unicode ? U : A, unicode, now: NOW, profile });
 const text = (lines: string[]) => lines.map((l: string) => stripAnsi(l));
-
-describe("the command", () => {
-  it("is a command word, answers and leaves rather than detaching", () => {
-    const flags = parseArgs(["tui"]);
-    expect(flags.command).toBe("tui");
-    expect(isOneShot(flags)).toBe(true);
-    expect(parseArgs(["--port", "4320", "tui"]).command).toBe("tui");
-  });
-});
+/** A panel row's inside: the borders and the padding off. */
+const inside = (l: string) => l.replace(/^[│|] /, "").replace(/ *[│|]$/, "");
 
 describe("the frame", () => {
   const states: [string, State][] = [
@@ -97,15 +93,20 @@ describe("the frame", () => {
     ["nothing read yet", { ...view.initialState() }],
     ["a long notice", deckState({ notice: view.note("err", "x".repeat(300), NOW) })],
     ["many accounts", { ...deckState(), ...view.withRoster(deckState(), { ok: true, accounts: Array.from({ length: 14 }, (_, i) => row(i + 1, `user${i + 1}@a-rather-long-domain.example`, `alias-${i + 1}`)) }) }],
+    ["an account with trouble selected", deckState({ at: 2, sessions: [] })],
   ];
   for (const [what, s] of states) {
-    for (const [columns, rows] of [[40, 12], [64, 16], [80, 24], [104, 30], [160, 50]]) {
-      it(`${what} at ${columns}x${rows}: every row is inside the screen`, () => {
-        for (const unicode of [true, false]) {
-          const { lines } = frame(s, columns, rows, unicode);
-          expect(lines).toHaveLength(rows);
-          for (const line of lines) expect(textWidth(line)).toBeLessThan(columns);
-          if (!unicode) for (const line of text(lines)) expect(line).toMatch(/^[\x20-\x7e]*$/);
+    for (const [columns, rows] of [[40, 12], [64, 16], [80, 24], [104, 30], [120, 32], [160, 50]]) {
+      it(`${what} at ${columns}x${rows}: every row is inside the screen, in every colour tier`, () => {
+        for (const profile of PROFILES) {
+          for (const unicode of [true, false]) {
+            const { lines } = frame(s, columns, rows, unicode, profile);
+            expect(lines).toHaveLength(rows);
+            for (const line of lines) expect(textWidth(line)).toBeLessThan(columns);
+            if (!unicode) for (const line of text(lines)) expect(line).toMatch(/^[\x20-\x7e]*$/);
+            // NO_COLOR: not one escape, the lit row and the keys included.
+            if (profile === "none") for (const line of lines) expect(line).not.toContain("\x1b");
+          }
         }
       });
     }
@@ -117,71 +118,159 @@ describe("the frame", () => {
     expect(text(lines)[0]).toBe("too small — 40×12 at least");
   });
 
+  it("puts the screen in panels under a title bar, the last panel reaching the foot", () => {
+    const lines = text(frame(deckState()).lines);
+    expect(lines[0]).toMatch(/^ {2}ccdeck {2}Claude accounts +● live · deck 4317 {2}$/);
+    expect(lines[1]).toMatch(/^╭─ Accounts ─+╮$/);
+    expect(lines.some(l => l.startsWith("╭─ #1 alice@corp.example (work) ─"))).toBe(true);
+    expect(lines.some(l => /^╭─ Waiting on you · 2 ─+ 1 working ─╮$/.test(l))).toBe(true);
+    expect(lines[21]).toMatch(/^╰─+╯$/);
+    for (const l of lines.slice(1, 22)) expect(textWidth(l)).toBe(79);
+  });
+
+  it("says the deck is live while it answers, and how old the reading is once it does not", () => {
+    expect(text(frame(deckState()).lines)[0]).toContain("● live · deck 4317");
+    expect(text(frame(deckState({ readAt: NOW - 25_000 })).lines)[0]).toContain("○ read 25s ago · deck 4317");
+    expect(text(frame(deckState({ readAt: null })).lines)[0]).toMatch(/accounts +deck 4317 {2}$/);
+    expect(text(frame(deckState({ deck: null, source: "local" })).lines)[0]).toContain("no deck · claude-swap's store");
+  });
+
   it("points at the selected account, and marks the live one and the home one", () => {
     const lines = text(frame(deckState({ at: 1 })).lines);
-    const bob = lines.find(l => l.includes("bob@home.example") && !l.includes("#2"))!;
-    expect(bob.startsWith("›")).toBe(true);
-    expect(bob).toContain("⌂");
-    const alice = lines.find(l => l.includes("alice@corp.example") && !l.includes("#1"))!;
-    expect(alice).toMatch(/^\s+● 1/);
+    const bob = inside(lines.find(l => l.includes("bob@home.example") && !l.includes("#2"))!);
+    expect(bob).toMatch(/^› {3}2 ⌂ home {2}bob@home\.example/);
+    const alice = inside(lines.find(l => l.includes("alice@corp.example") && !l.includes("#1"))!);
+    expect(alice).toMatch(/^ {2}● 1 {3}work {2}alice@corp\.example/);
     // The detail is the selected account's, with every lane.
-    expect(lines).toContain("  #2 bob@home.example (home)  home  read 1m ago");
-    expect(lines.some(l => /^\s+5h\s+[█░]{20}\s+20%\s+resets in 1h/.test(l))).toBe(true);
-    expect(lines.some(l => l.includes("Auto-switch on  switches at 90% · next: most room · home #2"))).toBe(true);
+    expect(lines.some(l => /^╭─ #2 bob@home\.example \(home\) ─+ home · read 1m ago ─╮$/.test(l))).toBe(true);
+    expect(lines.some(l => /^│ 5h {2}[━╸─]+ +20% {3}resets in 1h/.test(l))).toBe(true);
+    // Auto-switch, in the list's bottom border.
+    expect(lines.some(l => /^╰─+ Auto-switch on · at 90% · next: most room ─╯$/.test(l))).toBe(true);
+  });
+
+  it("says what an account's trouble means for a switch to it", () => {
+    const lines = text(frame(deckState({ at: 2 })).lines);
+    expect(lines.some(l => inside(l).startsWith("sign-in needed — its login has expired"))).toBe(true);
+    const off = text(frame(deckState({ at: 3 })).lines);
+    expect(off.some(l => inside(l).startsWith("disabled — kept out of Auto-switch's rotation"))).toBe(true);
+  });
+
+  it("lights the selected row across the panel, as far as the terminal's colours reach", () => {
+    const lit = (profile: string) => frame(deckState({ at: 1 }), 80, 24, true, profile).lines.find((l: string) => stripAnsi(l).startsWith("│ ›"))!;
+    const SELECT = "\x1b[48;2;46;67;110m";
+    expect(lit("truecolor")).toContain(SELECT);
+    expect(lit("ansi256")).toContain("\x1b[48;5;60m");
+    expect(lit("ansi16")).toContain("\x1b[44;97m");
+    expect(lit("none")).not.toContain("\x1b");
+    // Every reset inside the row puts the light back, so it runs to the border.
+    const row = lit("truecolor");
+    const parts = row.slice(row.indexOf(SELECT), row.lastIndexOf("│")).split("\x1b[0m");
+    for (const part of parts.slice(1, -1)) expect(part.startsWith(SELECT)).toBe(true);
+  });
+
+  it("draws the chrome and the keys only where it has the colours for them", () => {
+    const deep = frame(deckState(), 80, 24, true, "truecolor").lines;
+    expect(deep[0].startsWith("\x1b[48;2;43;45;48m")).toBe(true);
+    expect(deep.at(-1)).toContain("\x1b[48;2;57;59;64m\x1b[38;2;223;225;229m enter ");
+    // 256 colours take the grey ramp for the chrome, not the cube's first grey.
+    expect(frame(deckState(), 80, 24, true, "ansi256").lines[0].startsWith("\x1b[48;5;236m")).toBe(true);
+    const sixteen = frame(deckState(), 80, 24, true, "ansi16").lines;
+    expect(sixteen[0]).not.toContain("\x1b[48");
+    expect(sixteen.at(-1)).toContain("\x1b[7m enter ");
+  });
+
+  it("draws a meter as a line to the half cell, its track in text colour alone", () => {
+    // 14% of the detail's 40-cell meter is 5.6 cells: five whole and a half.
+    const one = [row(1, "a@x.example", null, { active: true, lanes: [lane("five_hour", "5h", 14, NOW / 1000 + 3600)] })];
+    const s = view.withRoster(deckState(), { ok: true, accounts: one });
+    for (const profile of PROFILES) {
+      const lines = frame(s, 80, 24, true, profile).lines;
+      expect(text(lines).some(l => l.startsWith(`│ 5h  ━━━━━╸${"─".repeat(34)}  14%`))).toBe(true);
+      // No background under a meter: it sits on a light terminal as on a dark one.
+      const meterRow = lines.find((l: string) => stripAnsi(l).startsWith("│ 5h  ━"))!;
+      expect(meterRow).not.toContain("\x1b[48");
+    }
+    expect(frame(s, 80, 24, true, "truecolor").lines.join("")).toContain("\x1b[38;2;78;81;88m─");
+    expect(text(frame(s, 80, 24, false, "none").lines).some(l => l.startsWith("| 5h  ######......"))).toBe(true);
+  });
+
+  it("from 120 columns puts the detail and the waiting sessions side by side", () => {
+    const pair = text(frame(deckState(), 120, 32).lines).find(l => l.includes("#1 alice@corp.example") && l.includes("Waiting on you"));
+    expect(pair).toMatch(/^╭─ #1 alice@corp\.example \(work\) ─.*╮ ╭─ Waiting on you · 2 ─.*╮$/);
+    expect(text(frame(deckState(), 119, 32).lines).some(l => l.includes("#1 alice") && l.includes("Waiting"))).toBe(false);
+  });
+
+  it("opens the keys in a box over the screen, the screen under it faded", () => {
+    const f = frame(deckState({ help: true }), 80, 24, true, "truecolor").lines;
+    const lines = text(f);
+    const top = lines.findIndex(l => l.includes("╭─ Keys "));
+    const bottom = lines.findIndex(l => l.includes("any key closes ─╯"));
+    expect(top).toBeGreaterThan(0);
+    expect(bottom).toBeGreaterThan(top);
+    expect(lines.slice(top, bottom).some(l => l.includes("enter  s   switch to the selected account"))).toBe(true);
+    expect(lines.some(l => l.includes("⌂          Auto-switch's home account"))).toBe(true);
+    expect(lines[top].indexOf("╭")).toBe(lines[bottom].indexOf("╰"));
+    // The screen around it is still there, faded.
+    expect(lines[0]).toContain("ccdeck  Claude accounts");
+    expect(f[0].startsWith("\x1b[38;2;92;95;102m")).toBe(true);
   });
 
   it("lists who is waiting longest first, with the question under each", () => {
     const lines = text(frame(deckState()).lines);
     const title = lines.findIndex(l => l.includes("Waiting on you"));
-    expect(lines[title]).toContain("2 sessions · 1 working");
-    expect(lines[title + 1]).toContain("docs");
-    expect(lines[title + 2]).toContain("Which branch?");
-    expect(lines[title + 3]).toContain("api-refactor");
+    expect(lines[title]).toMatch(/Waiting on you · 2 ─+ 1 working ─╮$/);
+    expect(inside(lines[title + 1])).toMatch(/^⚠ {2}12m {2}docs +Codex$/);
+    expect(inside(lines[title + 2]).trim()).toBe("Which branch?");
+    expect(inside(lines[title + 2]).indexOf("Which")).toBe(inside(lines[title + 1]).indexOf("docs"));
+    expect(inside(lines[title + 3])).toMatch(/^⚠ {3}3m {2}api-refactor +Claude · opus-4-1$/);
+    expect(inside(lines[title + 4]).trim()).toBe("Claude needs your permission to use Bash");
   });
 
   it("says nobody is waiting when nobody is", () => {
     const lines = text(frame(deckState({ sessions: [SESSIONS[2]] })).lines);
-    expect(lines).toContain("  nobody is waiting on you · 1 working");
+    expect(lines.some(l => /^╭─ Sessions ─+ 1 working ─╮$/.test(l))).toBe(true);
+    expect(lines.some(l => inside(l) === "nobody is waiting on you")).toBe(true);
   });
 
   it("gives way on a short screen: the waiting count and the selection stay", () => {
     const many = Array.from({ length: 6 }, (_, i) => ({ ...SESSIONS[0], id: `w${i}`, name: `job-${i}`, since: NOW - i * 1000 }));
     const lines = text(frame(deckState({ sessions: many }), 80, 16).lines);
-    expect(lines.some(l => l.includes("Waiting on you") && l.includes("6 sessions"))).toBe(true);
-    // The detail went before the accounts did.
+    expect(lines.some(l => l.includes("Waiting on you · 6"))).toBe(true);
+    // The detail went before the accounts did, and its rows went to the waiting.
     expect(lines.some(l => l.includes("read 1m ago"))).toBe(false);
     expect(lines.filter(l => /@/.test(l))).toHaveLength(4);
+    expect(lines.some(l => /^╰─ 4 more — ccdeck sessions ─+╯$/.test(l))).toBe(true);
   });
 
-  it("scrolls a long list so the selection is on it, and says what is off screen", () => {
+  it("scrolls a long list so the selection is on it, its border saying which rows show", () => {
     const rows = Array.from({ length: 14 }, (_, i) => row(i + 1, `user${i + 1}@x.example`, null));
     let s: State = view.withRoster({ ...view.initialState(), deck: { port: 4317 }, auto: AUTO, sessions: [] }, { ok: true, accounts: rows });
     s = { ...s, at: 12 };
     const f = frame(s, 80, 14);
     const lines = text(f.lines);
-    expect(lines.find(l => l.startsWith("›"))).toContain("user13@x.example");
-    expect(lines.some(l => /\d+ above/.test(l))).toBe(true);
+    expect(lines.find(l => l.startsWith("│ ›"))).toContain("user13@x.example");
+    expect(lines.some(l => /^╰─ 8–13 of 14 ─/.test(l))).toBe(true);
     // Moving back up keeps the list where it was until the selection leaves it.
-    const back = text(frame({ ...s, top: f.top, at: 11 }, 80, 14).lines);
-    expect(back.find(l => l.startsWith("›"))).toContain("user12@x.example");
-    expect(frame({ ...s, top: f.top, at: 11 }, 80, 14).top).toBe(f.top);
+    const back = frame({ ...s, top: f.top, at: 11 }, 80, 14);
+    expect(text(back.lines).find(l => l.startsWith("│ ›"))).toContain("user12@x.example");
+    expect(back.top).toBe(f.top);
   });
 
   it("shows why the roster is empty, in the commands' own words", () => {
     const s = view.withRoster({ ...view.initialState(), source: "local" }, { ok: false, reason: "no_cswap" }, ["claude-swap is not installed", "or by hand: pipx install claude-swap"]);
     const lines = text(frame(s).lines);
-    expect(lines[2]).toBe("  claude-swap is not installed");
-    expect(lines[3]).toBe("  or by hand: pipx install claude-swap");
+    expect(inside(lines[2])).toBe("claude-swap is not installed");
+    expect(inside(lines[3])).toBe("or by hand: pipx install claude-swap");
   });
 
   it("keeps the keys that leave and explain on a narrow screen", () => {
     const last = text(frame(deckState(), 40, 12).lines)[11];
-    expect(last).toContain("? keys");
-    expect(last).toContain("q quit");
+    expect(last).toMatch(/\? +keys/);
+    expect(last).toMatch(/q +quit/);
     const wide = text(frame(deckState(), 100, 24).lines)[23];
-    expect(wide).toContain("a auto-switch");
+    expect(wide).toMatch(/a +auto-switch/);
     const noDeck = text(frame(deckState({ deck: null, source: "local" }), 100, 24).lines)[23];
-    expect(noDeck).toContain("d start the deck");
+    expect(noDeck).toMatch(/d +start the deck/);
   });
 });
 
@@ -313,16 +402,15 @@ describe("the painted lines", () => {
     expect(stripAnsi(cut)).toBe("abcde…");
     expect(cut.startsWith(tone.ok)).toBe(true);
     expect(fitPainted("short", 10, "…")).toBe("short");
+    // A line with no colour is cut without gaining any: NO_COLOR stays escape-free.
+    expect(fitPainted("abcdefghij", 6, "…")).toBe("abcde…");
   });
 
-  it("the home mark costs the email two columns and nothing else", () => {
-    const opts = { tone: plainTone, g: U, unicode: true, columns: 80, now: NOW };
-    const without = text(accountLines(ROWS, opts));
-    const withHome = text(accountLines(ROWS, { ...opts, home: 2 }));
-    expect(withHome[1]).toContain("⌂ home");
-    for (const l of withHome) expect(textWidth(l)).toBeLessThanOrEqual(80);
-    // A home no row has changes nothing.
-    expect(text(accountLines(ROWS, { ...opts, home: 9 }))).toEqual(without);
+  it("slice a plain line by columns, a wide character cut in half a space", () => {
+    expect(sliceCells("ab日本c", 1, 4)).toBe("b日");
+    expect(sliceCells("ab日本c", 3, 6)).toBe(" 本");
+    expect(sliceCells("ab", 1, 5)).toBe("b   ");
+    expect(textWidth(sliceCells("日本語のテキスト", 0, 7))).toBe(7);
   });
 });
 

@@ -28,7 +28,7 @@ import {
 import { oneLine } from "../../src/server/cli-lines.mjs";
 import { stripAnsi } from "../../src/server/term.mjs";
 import { COMMAND, PKG_ROOT } from "./package.js";
-import { G, P, UNICODE } from "./screen.js";
+import { G, P, PROFILE, UNICODE } from "./screen.js";
 
 /** How often each reading is taken while the screen is up. The sessions are
  *  the ones a person is waiting to see change; the roster is the deck's own
@@ -42,7 +42,7 @@ export const START_WAIT_MS = 90_000;
 /**
  * Run the screen until q, resolving to the exit code. `deps` replaces the
  * terminal, the clock and the deck for a test: `input`, `output`, `now`,
- * `source` (see deckSource), `tone`, `g`, `unicode`, `tickMs`.
+ * `source` (see deckSource), `tone`, `g`, `unicode`, `profile`, `tickMs`.
  */
 export async function runTui(flags, out, deps = {}) {
   const input = deps.input ?? process.stdin;
@@ -62,7 +62,7 @@ export async function runTui(flags, out, deps = {}) {
   const { accountName, bestAccount } = await load("src/server/account-pick.mjs");
   const port = flags.port != null ? Number(flags.port) : null;
   const src = deps.source ?? deckSource(port);
-  const look = { tone: deps.tone ?? P, g: deps.g ?? G, unicode: deps.unicode ?? UNICODE };
+  const look = { tone: deps.tone ?? P, g: deps.g ?? G, unicode: deps.unicode ?? UNICODE, profile: deps.profile ?? PROFILE };
   const g = look.g;
   const clock = deps.now ?? Date.now;
 
@@ -121,7 +121,7 @@ export async function runTui(flags, out, deps = {}) {
       const r = await src.ask(deck, { path: force ? "/api/claude-accounts?refresh=1" : "/api/claude-accounts" });
       if (r.ok && r.body) {
         state = view.withRoster(state, r.body, r.body.ok ? null : [].concat(rosterTrouble(r.body)));
-        set({ source: "deck", silent: [] });
+        set({ source: "deck", silent: [], readAt: clock() });
       } else if (r.status === 0) lost();
       else tell("err", deckTrouble(deck, r));
       return;
@@ -135,7 +135,7 @@ export async function runTui(flags, out, deps = {}) {
   const readAuto = once("auto", async () => {
     if (!deck) return;
     const r = await src.ask(deck, { path: "/api/cswap-auto" });
-    if (r.ok && r.body && typeof r.body === "object") set({ auto: r.body });
+    if (r.ok && r.body && typeof r.body === "object") set({ auto: r.body, readAt: clock() });
     else if (r.status === 0) lost();
     else set({ auto: null });
   });
@@ -144,7 +144,7 @@ export async function runTui(flags, out, deps = {}) {
     if (!deck) return;
     const r = await src.ask(deck, { path: "/api/sessions", timeoutMs: 3_000 });
     if (r.ok && Array.isArray(r.body?.sessions)) {
-      set({ sessions: r.body.sessions, skew: typeof r.body.now === "number" ? r.body.now - clock() : 0 });
+      set({ sessions: r.body.sessions, skew: typeof r.body.now === "number" ? r.body.now - clock() : 0, readAt: clock() });
     } else if (r.status === 0) lost();
   });
 
