@@ -13,7 +13,7 @@
    where a list of machines belongs. What is left is what this deck IS: the name
    it appears under, and the logins it offers. Two sections, both short, so the
    980px the token and the address rows needed is 980px of empty space now. */
-.lan-modal { width: min(520px, 92vw); }
+.lan-modal { width: var(--dialog-s); }
 .lan-modal .modal-body { display: flex; flex-direction: column; gap: 20px; }
 /* The account rows bleed 4px past their own box, which is right in the panel:
    the hover bed reaches the panel's inset there and the row reads as full
@@ -222,7 +222,7 @@ input, textarea { caret-color: var(--accent); }
    the question rather than to the 820px the inspectors need. Everything in it
    is one column: who is asking, what saying yes costs, the fingerprint worth
    comparing, and the two answers. */
-.modal.lan-ask { width: min(460px, 92vw); }
+.modal.lan-ask { width: var(--dialog-s); }
 .modal.lan-ask .modal-body { display: flex; flex-direction: column; gap: 10px; }
 /* The emitter is the accent here for the same reason it is on a live roster
    row: this is the one thing on the screen that is happening now. */
@@ -249,7 +249,7 @@ input, textarea { caret-color: var(--accent); }
 /* 520, not the 480 a label and a value needed: the lanes are the widest thing
    in it now, and every pixel taken from them is taken from the address on
    each one. */
-.modal.lan-peer { width: min(520px, 92vw); }
+.modal.lan-peer { width: var(--dialog-s); }
 .lan-peer-head {
   justify-content: flex-start;
   align-items: flex-start;
@@ -1103,7 +1103,7 @@ input, textarea { caret-color: var(--accent); }
    for that: an address is monospace, an invite is a 140-character token, and
    the firewall block is a paragraph plus a shell command. Unfolded, the section
    stopped being a list of machines and became a form with a list on top. */
-.modal.lan-add { width: min(520px, 92vw); }
+.modal.lan-add { width: var(--dialog-s); }
 /* TWO OF A KIND, DRAWN THE SAME WAY. Each method is heading, field, one
    sentence — identical rhythm twice, which is what says "there are two ways in"
    without a card, a rule or a word spent on saying it. The gap between them is

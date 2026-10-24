@@ -260,9 +260,9 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
     <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal ap-proj-modal" onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-labelledby="ap-proj-title ap-proj-sub">
-        <header className="ap-proj-head">
+        <header className="modal-head ap-proj-head">
           <div className="ap-proj-titlewrap">
-            <div className="ap-proj-title" id="ap-proj-title">Projects</div>
+            <div className="modal-tool-name" id="ap-proj-title">Projects</div>
             <div className="ap-proj-sub" id="ap-proj-sub" title={name}>{name}</div>
           </div>
           {/* The usage modal's range strip, reused so the two read the same. */}

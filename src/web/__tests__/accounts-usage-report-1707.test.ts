@@ -414,7 +414,7 @@ describe("where it opens from", () => {
   it("opens one view, titled for itself, with no tabs between the two", () => {
     const modal = sourceOf("components/AccountsUsageReport.tsx");
     expect(modal).toContain('const VIEW_TITLE: Record<CapacityView, string> = { accounts: "Account capacity", calendar: "Reset calendar" };');
-    expect(modal).toContain('<h2 className="ap-proj-title" id="ap-report-title">{VIEW_TITLE[view]}</h2>');
+    expect(modal).toContain('<h2 id="ap-report-title">{VIEW_TITLE[view]}</h2>');
     expect(modal).not.toMatch(/ap-report-views?\b|setView\(/);
   });
 
@@ -438,7 +438,7 @@ describe("where it opens from", () => {
     expect(modal).toContain('role="dialog" aria-modal="true" aria-labelledby="ap-report-title"');
     expect(modal).not.toContain("ap-proj-sub");
     expect(modal).toMatch(/return createPortal\(\s*(?:\/\/[^\n]*\n\s*)*<div className="modal-backdrop"/);
-    expect(modal).toContain('<h2 className="ap-proj-title" id="ap-report-title">{VIEW_TITLE[view]}</h2>');
+    expect(modal).toContain('<h2 id="ap-report-title">{VIEW_TITLE[view]}</h2>');
   });
 });
 

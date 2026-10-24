@@ -1,5 +1,5 @@
 /* A focused whole-session report, using the shared dialog and usage tokens. */
-.modal.su-modal { width: min(560px, 92vw); color: var(--text); }
+.modal.su-modal { width: var(--dialog-s); color: var(--text); }
 .su-title { min-width: 0; }
 .su-title h2 { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .su-title > span { display: block; margin-top: 3px; color: var(--text-dim); font-size: calc(12px + var(--ui-text-increase, 0px)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

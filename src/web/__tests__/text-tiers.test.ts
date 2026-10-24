@@ -416,8 +416,8 @@ describe("what was migrated to the secondary tier", () => {
       ".tr-variables dt > span, .tr-variables dt > code",
           // Readable descriptions in integration discovery and focused Settings.
       ".explore-glyph",
-      ".explore-head p",
       ".explore-info p",
+      ".explore-intro",
       ".explore-status",
       ".explore-text-action",
       ".ig-back-to-overview",

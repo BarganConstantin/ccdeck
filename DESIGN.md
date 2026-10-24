@@ -379,9 +379,13 @@ Sessions and Accounts share the left slot and are mutually exclusive; accounts
 takes `auto` because it has to fit bars and email addresses.
 
 **The panel buttons live on the window's edges** (`edge-rails.css`): a stripe
-`--edge-w` wide (one control height), with upright icon buttons on the left for the session list and the
-accounts panel, and one on the right for Usage, the machine panel, Usage history
-and Browser Watch; `.app` keeps their width free with its inline padding. They
+`--edge-w` wide (one control height), with upright icon buttons; `.app` keeps
+their width free with its inline padding. Both stripes follow one rule
+(`rail-items.tsx`): runs of doors that answer one question each, three at most,
+between the same rules, and every run of two or more is a named group. The left
+stripe holds Claude accounts, the session list, integrations and Explore; the
+right one holds Usage and the machine, activity history, watchers, and Radio.
+A door says what it opens: a panel is a toggle, a dialog is a dialog. They
 are show/hide toggles, not tabs — several panels can be open at once and the
 canvas never leaves — so an open one is a `--text` line on the stripe's inner
 edge, never a tab joined to a page. The topbar keeps the identity, the stream's
@@ -393,6 +397,18 @@ when single-key shortcuts are disabled; mobile dock labels remain visible.
 **The detail rail is the 360px column.** `--rail-r` is *not* its width — it is the
 right offset the floating panels position against: `368px` (the rail plus an 8px
 gap), or `8px` when no detail is open. Setting the rail to 368 would be wrong.
+
+**Usage and the machine panel move by their header** (`panel-place.ts`,
+`panel-place.css`): the reader drags one where the board is empty and it stays
+there across reloads, kept from the nearer window edge. The sheet clamps it
+between the stripes, below the bar and with 120px of it left in the window, so
+a smaller window pulls it in and a larger one gives the place back. A double
+click on the header, or a drop within 24px of the slot, returns it to its
+`--rail-r` slot. Escape cancels a drag. Put one below the other in a shared
+column and the upper one ends 8px above it and scrolls (`stackCap`), live
+while dragging, so both read whole; where it would keep less than 120px they
+overlap instead, the one moved last on top. A phone's sheets do not move. The owner turned a dock beside the stripe down
+twice (2026-10-23/24) in favour of this.
 
 **Breakpoints,** and there are deliberately few: `520px`, `640px`, `1039/1040px`,
 `1200px`, `1439/1440px`, plus `1139px` and `1632px` for the topbar ribbon's
@@ -525,14 +541,21 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
   has no label of its own to be found by.
 - **`.ap-field select` / `.ap-manage-input`** — `--ctl-fill`, `--ctl-edge`, 6px,
   `min-height: var(--ctl-h)`; hover lifts the border to `--text`.
-- **`.modal`** — `min(820px, 92vw)`, `max-height: 82vh`, `--panel` on `--r-panel`,
-  `--shadow-2` plus a faint accent ring. The backdrop is `rgba(5,6,9,0.55)` with
+- **`.modal`** — one of three widths (tokens.css): `--dialog-s` 560px for a
+  question or a short read, `--dialog-m` 820px (the default) for a form or a
+  report, `--dialog-l` 1120px for a workspace with a list beside its details,
+  which alone keeps one height, `--dialog-l-h`, so its tabs do not resize it.
+  The integration trackers' full-page panels are the one exception. Its header
+  is always `.modal-head`: 52px, `--bg-soft` band, the title at 14px/600 in the
+  UI face (monospace only for a tool's name), a muted note beside it, actions
+  and a `glyph-btn` × at the same inset. `max-height: 82vh`, `--panel` on
+  `--r-panel`, `--shadow-2` plus a faint accent ring. The backdrop is `rgba(5,6,9,0.55)` with
   **no blur**: the scrim is already opaque enough, and a blur over a canvas whose
   dashes never stop re-rasterises under the dialog for as long as it is open.
 
 ### Tool activity
 
-A large modal (90vw × 90dvh on desktop), opened from the rail below Usage
+The large dialog (`--dialog-l` × `--dialog-l-h` on desktop), opened from the rail below Usage
 history (More → Tools on phones),
 that a person reads top to bottom in under a minute. Owner direction
 (2026-10-15): simple and useful for the people using it, nothing complicated.

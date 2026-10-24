@@ -325,11 +325,11 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
     <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal ap-report-modal" data-view={view} onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-labelledby="ap-report-title">
-        <header className="ap-proj-head">
+        <header className="modal-head ap-proj-head">
           {/* No subtitle: the count it carried is the lead's, one line down, and
               "Claude" moved into the lead with it (#1713). */}
           <div className="ap-proj-titlewrap">
-            <h2 className="ap-proj-title" id="ap-report-title">{VIEW_TITLE[view]}</h2>
+            <h2 id="ap-report-title">{VIEW_TITLE[view]}</h2>
           </div>
           <button ref={closeRef} type="button" className="glyph-btn ap-proj-close" onClick={onClose} aria-label="Close">×</button>
         </header>
