@@ -15,6 +15,15 @@ export interface AuditDay {
   averageMs: number | null; medianMs: number | null; maxMs: number | null; p95Ms: number | null;
 }
 export interface AuditHistory { timeZone: string; days: AuditDay[] }
+/** One part of a lane's time: an operation and the wall-clock time it held. */
+export interface TimePart { operation: string; ms: number }
+/** Where the Claude Code turns' time went (tool-audit-report.mjs): the three lanes
+ *  add up to `totalMs`, and each lane's parts add up to the lane. */
+export interface TimeSplit {
+  turns: number; open: number; totalMs: number; claudeMs: number; machineMs: number; youMs: number;
+  machine: TimePart[]; you: TimePart[]; stops: Record<string, number>;
+  replies: { count: number; medianMs: number | null; p90Ms: number | null; maxMs: number | null; days: { date: string; count: number; medianMs: number | null }[] };
+}
 export interface AuditReport {
   ok: boolean; capturedAt: number; since: number; until: number; provider: AuditProvider;
   total: number; measured: number; failed: number; unmatched: number; corrupt: number; orphaned: number;
@@ -23,6 +32,8 @@ export interface AuditReport {
   providers: Record<'claude' | 'codex', { calls: number; measured: number; failed: number }>;
   duplicates: number;
   bytes: number; storageOk: boolean; dropped: number; deviceId: string; startedAt: number; retentionDays: number;
+  /** Null on the Codex view; absent from a deck older than the split. */
+  split?: TimeSplit | null; turnsSince?: number;
 }
 export interface AuditStorage { ok: boolean; bytes: number; retentionDays: 30 | 60 | 90; startedAt: number; storageOk: boolean; dropped: number }
 

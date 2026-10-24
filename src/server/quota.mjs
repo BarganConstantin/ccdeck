@@ -54,7 +54,8 @@
 // reset inventory is quota-store-resets.mjs's.
 import { noteQuotaHistory, forgetQuotaHistoryAccount } from "./quota-history.mjs";
 import { activeAccountUsage, requestCollection } from "./claude-accounts.mjs";
-import { quotaFromStore, readingLapsed, WIN_5H_SEC, WIN_7D_SEC } from "./quota-shape.mjs";
+import { claudePlanLabel, quotaFromStore, readingLapsed, WIN_5H_SEC, WIN_7D_SEC } from "./quota-shape.mjs";
+import { readLiveLogin } from "./claude-login.mjs";
 import {
   SELF_POLL_MS, clearCooldown, coolingDown, cooldownUntil, credentialFingerprint, fetchOAuthUsage,
   hasSubscriptionCredential,
@@ -323,6 +324,32 @@ const _accountOfQuota = new WeakMap();
  *  about one account and must never land on another. */
 export function quotaAccount(reading) {
   return (reading && typeof reading === "object" && _accountOfQuota.get(reading)) || null;
+}
+
+/**
+ * A reading with the plan of the account it is about — `plan` as
+ * claudePlanToken names it, `planLabel` as the panel prints it beside the
+ * section title, where the Codex section has always shown its own.
+ *
+ * The plan is the signed-in account's, read off Claude Code's own config
+ * (claude-login.mjs), and that is whose numbers every source reads. A reading
+ * with no numbers has nothing to label, and one tagged as somebody else's —
+ * taken before a switch, answered after it — gets no plan rather than the new
+ * account's.
+ *
+ * Applied by the route, to a copy: account-watch.mjs looks the reading itself
+ * up in _accountOfQuota, and a copy is not in it.
+ *
+ * @param login who is signed in; read from Claude Code's config by default,
+ *   and a parameter so a test can name its own, as it can `account`.
+ */
+export async function withClaudePlan(reading, { login, account = quotaAccount(reading) } = {}) {
+  if (!reading?.ok) return reading;
+  const live = login === undefined ? await readLiveLogin() : login;
+  const planLabel = claudePlanLabel(live?.plan);
+  if (!planLabel) return reading;
+  if (account && !sameAccount(account, accountOf(live.email, live.orgUuid))) return reading;
+  return { ...reading, plan: live.plan, planLabel };
 }
 
 // Which account a store reading is about, for the inventory read it starts.

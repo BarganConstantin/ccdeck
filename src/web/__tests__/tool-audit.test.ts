@@ -37,6 +37,23 @@ describe('concrete operation classification', () => {
     expect(shellOperations('for x in *; do git status; done')).toEqual(['shell (unclassified)']);
     expect(shellOperations('bash -lc "unterminated')).toEqual(['shell (unclassified)']);
   });
+  it('reads a redirection as part of its command, not as a command of its own', () => {
+    expect(shellOperations('npm test 2>&1 | tail -5')).toEqual(['npm test', 'tail']);
+    expect(shellOperations('node build.mjs > out.txt 2>&1 && git status')).toEqual(['node', 'git status']);
+    expect(shellOperations('echo done >&2; ls 1>&2')).toEqual(['echo', 'ls']);
+    expect(shellOperations('make &>build.log & wait')).toEqual(['make', 'wait']);
+  });
+  it('names the commands a call’s time belongs to: not what reads a pipe, nor cd beside a command', () => {
+    const lead = (command: string) => auditOperations('Bash', { command });
+    expect(lead('cd /private/repo && npm test 2>&1 | tail -5')).toEqual({ tool: 'Bash', operations: ['cd', 'npm test', 'tail'], lead: ['npm test'], shell: true });
+    expect(lead('git status || git stash list | head')).toMatchObject({ operations: ['git status', 'git stash', 'head'], lead: ['git status', 'git stash'] });
+    expect(lead('bash -lc "cd /x && node a.mjs | grep ok"')).toMatchObject({ operations: ['cd', 'node', 'grep'], lead: ['node'] });
+    expect(lead('npm test |& tee log.txt')).toMatchObject({ lead: ['npm test'] });
+    // One command, or only instant ones, is its own lead and stores none.
+    expect(lead('npm test')).toEqual({ tool: 'Bash', operations: ['npm test'], shell: true });
+    expect(lead('cd /x && echo ok')).toEqual({ tool: 'Bash', operations: ['cd', 'echo'], shell: true });
+    expect(lead('grep -rn needle src | head')).toMatchObject({ lead: ['grep'] });
+  });
 });
 describe('Codex orchestration wrappers', () => {
   it('extracts literal concrete commands and other tools without executing code', () => {

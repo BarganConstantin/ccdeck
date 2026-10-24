@@ -17,7 +17,7 @@ export function auditQuery(params) {
   if (!['all', 'claude', 'codex'].includes(provider) || ![1, 7, 30, 60, 90].includes(days)
       || operation && operation.length > 150 || skill !== undefined && !/^[^\s<>]{1,150}$/.test(skill) || !!since !== !!until) return null;
   if (since && (!calendarDate(since) || !calendarDate(until) || since > until || Date.parse(until) - Date.parse(since) >= 90 * 86400000)) return null;
-  return { provider, days, ...(view === 'skills' ? { view, skill } : { operation }), ...(history ? { history: true, timeZone } : {}), ...(since ? { since: Date.parse(since), until: Date.parse(until) + 86400000 - 1 } : {}) };
+  return { provider, days, timeZone, ...(view === 'skills' ? { view, skill } : { operation }), ...(history ? { history: true } : {}), ...(since ? { since: Date.parse(since), until: Date.parse(until) + 86400000 - 1 } : {}) };
 }
 export async function handleToolAudit(req, res) {
   const audit = toolAudit();
