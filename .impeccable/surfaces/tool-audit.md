@@ -98,6 +98,29 @@ the server side is `tool-audit-skills.mjs` and `codex-skills.mjs`.
   counted as uses. A period that starts before counting did says so instead of
   showing quiet days as unused.
 - A latest use links to its session only while that session is on the canvas;
-  otherwise it says "not on the canvas" rather than linking to nothing.
+  otherwise it shows no link rather than linking to nothing. (It said "not on
+  the canvas" on every such row until 2026-10-24, which was mostly noise.)
 - The Tools view's `Skill` row offers "See which skills ran →", since the row
   alone cannot say which.
+
+## Skills at a glance — 2026-10-24
+
+Owner direction: Skill activity should answer something on opening, as Tool
+activity does, and be worth using. The research behind it: "Claude does not use
+my skill" is the commonest skill complaint, and Claude Code drops the
+descriptions of the least-invoked skills first once the listing outgrows its
+budget. `/skill-doctor` reports one session; the deck has the history, both
+agents, and which uses were typed.
+
+- Worth a look beside a ring, three to two, the same `.ta-glance` row as Tools.
+  The facts: a skill that fails, the go-to, one always typed and never picked by
+  the agent (its description likely misses your words), one gone quiet, a new one.
+  Quiet and new need three and two weeks watched.
+- The ring, "Who starts your skills": picked by Claude (purple), picked by Codex
+  (lime), typed by you (cyan) — Claude and you keep the hues of the time ring.
+  A lane filters the list ("5 of 10"); typed commands that never reach the deck
+  read as "not counted", never as zero.
+- Each skill's bar is split in those hues; its details lead with the same
+  counts, and the per-day chart starts where counting began.
+- Opening the view selects its first skill once, like Tools, so the details are
+  open on arrival; closing them leaves them closed.

@@ -39,6 +39,9 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
   useFeatureUse('skill-activity');
   const [sort, setSort] = useState<SkillSort>('uses');
   const [search, setSearch] = useState('');
+  const sortRef = useRef(sort); sortRef.current = sort;
+  const searchRef = useRef(search); searchRef.current = search;
+  const initialSelectionMade = useRef(false);
   const [showAll, setShowAll] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [origin, setOrigin] = useState<SkillOrigin | null>(null);
@@ -71,7 +74,11 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
         const reply = await readAuditReport<SkillReport>(query, controller.signal);
         if (live) {
           loadedQuery.current = query; setData(reply);
-          setSelected(current => current && reply.rows.some(row => row.name === current) ? current : null);
+          // Open on the first skill, once, as Tool activity opens on its first tool;
+          // closed details stay closed through refreshes and sorting.
+          const first = !initialSelectionMade.current && sortSkills(reply.rows, sortRef.current, searchRef.current).find(row => row.uses > 0);
+          if (first) { initialSelectionMade.current = true; setSelected(first.name); }
+          else setSelected(current => current && reply.rows.some(row => row.name === current) ? current : null);
         }
       } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'Reading the history took too long. Try again, or keep less history in Settings.'); }
       finally { window.clearTimeout(deadline); if (live) { reading.current = false; setLoading(false); } }
