@@ -11,11 +11,6 @@
 // changes nothing on screen, only where Tab takes you. They are rendered after
 // the canvas now, so the order reads the way the page does: the left column,
 // the canvas, the right rails, then the detail panel at the far right.
-//
-// Since 2026-10-23 the two rails are columns beside the right stripe
-// (rail-dock.ts), so the detail panel is no longer at the far right: the page
-// reads the canvas, the detail panel, the machine panel, then Usage against
-// the stripe, and the document follows it.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -45,9 +40,9 @@ describe("tab order follows the page, left to right (#880)", () => {
     expect(at("<MachinePanel")).toBeGreaterThan(at("</CanvasMain>"));
   });
 
-  it("keeps the detail panel, then the machine panel, then Usage against the stripe", () => {
+  it("keeps usage before machine, and both before the detail panel at the far right", () => {
+    expect(at("<UsagePanel")).toBeLessThan(at("<MachinePanel"));
     // The panel's <aside> is components/DetailAside.tsx's; App.tsx places it.
-    expect(at("<DetailAside")).toBeLessThan(at("<MachinePanel"));
-    expect(at("<MachinePanel")).toBeLessThan(at("<UsagePanel"));
+    expect(at("<MachinePanel")).toBeLessThan(at("<DetailAside"));
   });
 });

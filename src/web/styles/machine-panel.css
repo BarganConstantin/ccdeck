@@ -1,10 +1,8 @@
 /* ---------------- machine detail ----------------
-   In the same slot family as the usage panel. Where the window has room, the
-   two are a column each in the right dock beside the stripe (rail-dock.css);
-   where it has not, they float over the canvas, and these rules place them.
-   The two queue instead of overlapping: alone, this takes the slot usage would
-   have had; with usage open it steps one panel further left. One rail, read
-   right to left, nothing stacked on anything.
+   Docked in the right rail, in the same slot family as the usage panel, rather
+   than floating over the canvas. The two queue instead of overlapping: alone,
+   this takes the slot usage would have had; with usage open it steps one panel
+   further left. One rail, read right to left, nothing stacked on anything.
 
    Everything inside is in bytes and cores rather than ratios — the percentage
    is what the topbar already answered, and "how much of how much" is what you
@@ -56,10 +54,9 @@
    without opening a corridor. */
 .sysdetail.shifted { right: calc(var(--rail-r) + 280px + var(--ui-panel-increase, 0px) + 20px); }
 
-/* THE TWO RAIL PANELS STAY SIDE BY SIDE, as they were before #847: the owner
-   chose that on 2026-09-14 after seeing them stacked in one column. Docked
-   beside the stripe since 2026-10-23 (rail-dock.css), and over the canvas
-   where the window has no room for that. On a phone the shifted machine panel would sit past the left edge
+/* THE TWO RAIL PANELS STAY SIDE BY SIDE, over the canvas, as they were before
+   #847: the owner chose that on 2026-09-14 after seeing them stacked in one
+   column. On a phone the shifted machine panel would sit past the left edge
    (#849), so below the sheet's 640px breakpoint each of them spans the window
    instead. The desktop layout is untouched. */
 @media (max-width: 640px) {

@@ -114,11 +114,11 @@ it but is not organized; branch `feature/ui-organization`):
 - Both edge stripes follow one rule (`rail-items.tsx`): runs of doors that
   answer one question each, every run of two or more a named group, all 13
   doors kept in the owner's order. Radio is a dialog door now, with no blur.
-- Usage and the machine panel dock beside the right stripe (`rail-dock.ts`),
-  side by side in a lane, and the canvas narrows by it; below 360px of canvas
-  they float as before. This reverses #910's floating pair with the owner's
-  informed choice, made after seeing #847/#910's history. They stay cards as
-  tall as their content: the owner turned a full-height column down.
+- Usage and the machine panel float over the board, as #910 left them. A
+  dock beside the right stripe was built (full-height columns, then cards in
+  a lane) and the owner turned both down on 2026-10-24: they want the panels
+  over the board. Free drag was discussed and not taken up. Do not dock them
+  again without a new request.
 - Every dialog is `--dialog-s` 560, `--dialog-m` 820 or `--dialog-l` 1120
   and has the one `.modal-head`. The integration trackers' full-page panel
   stays 90vw by the owner's own spec for it.

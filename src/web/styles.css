@@ -71,7 +71,6 @@
 @import "./styles/lan-network-map.css";          /* the network map, after lan-setup.css whose fact grid it trims */
 @import "./styles/guides.css";                   /* guides */
 @import "./styles/edge-rails.css";               /* the edge stripes, the phone dock and the topbar's two utilities */
-@import "./styles/rail-dock.css";                /* Usage and the machine panel, docked beside the right stripe */
 @import "./styles/hint.css";                     /* the chrome's one hint: a name and its keycap */
 @import "./styles/radio.css";                    /* radio explorer */
 @import "./styles/integrations.css";             /* Settings › Integrations and a tracker's modal (#2178) */

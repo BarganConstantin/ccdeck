@@ -42,7 +42,6 @@ import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { railItems } from "./rail-items";
-import { useRailDock } from "./rail-dock";
 // The modal and its panels load on demand; this is the light wrapper that
 // fetches them (IntegrationModalOnDemand.tsx).
 import IntegrationModal, { preloadIntegrationModal } from "./components/IntegrationModalOnDemand";
@@ -627,11 +626,6 @@ function Inner() {
   // lives in — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
   // the two stripes and the utilities are one dock along the bottom.
   const phone = useMediaQuery(PHONE_QUERY);
-  // Usage and the machine panel in a column beside the right stripe, or over
-  // the canvas where the window has no room for it — rail-dock.ts.
-  const railDock = useRailDock({
-    phone, leftW: leftColumnTarget, detailShown, usage: isMounted(usagePhase), machine: isMounted(machinePhase),
-  });
   const [radioOpen, setRadioOpen] = useState(false);
   // Tool activity, on the view its door names: tools or skills.
   const [toolAuditView, setToolAuditView] = useState<ToolActivityView | null>(null);
@@ -838,6 +832,33 @@ function Inner() {
       {exploreIntegrationsOpen && <ExploreIntegrationsModal integrations={integrations} onClose={closeExploreIntegrations}
         onOpen={setIntegrationOpen} onConnect={connectIntegration} onManage={manageIntegration} />}
 
+      {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
+          fixed, so where they sit in the DOM changes nothing on screen — only
+          where Tab goes. Rendered ahead of the left column, as they used to be,
+          they sent a keyboard reader's focus topbar, right, left, right, centre;
+          here it reads the way the page does: the left column, the canvas,
+          these two, then the detail panel at the far right. */}
+      {isMounted(usagePhase) && (
+        <UsagePanel
+          state={stateRef.current}
+          now={now}
+          providers={providers}
+          incidents={incidents}
+          liveSince={liveSince}
+          leaving={usagePhase === "leaving"}
+          onClose={() => { panelReturn.usage(); setUsagePanelOpen(false); }}
+        />
+      )}
+
+      {/* Mounted only while it is open, which is also what starts its poll: the
+          topbar meter used to keep /api/system running for the life of the tab
+          on behalf of a readout that is gone. `usageOpen` moves it one rail
+          slot left when usage has the first one — see .sysdetail.shifted. */}
+      {isMounted(machinePhase) && (
+        <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"}
+          onClose={() => { panelReturn.machine(); setMachinePanelOpen(false); }} />
+      )}
+
       {/* NOTHING SELECTED, NO PANEL. It used to draw an `EmptyDetail` — a title,
           "Click an agent to see its tools", and a fifteen-row shortcut list —
           which is a 360px column of the canvas spent on a sentence and a copy
@@ -853,36 +874,6 @@ function Inner() {
           onClose={() => { panelReturn.detail(); setDetailOpen(false); }}
         />
       ) : null}
-
-      {/* THE RIGHT DOCK, BESIDE THE STRIPE ITS BUTTONS ARE ON (rail-dock.ts):
-          the machine panel, then Usage against the stripe, a column each, after
-          the detail panel in the document as on screen, so Tab reads the page
-          the way it is drawn — the left column, the canvas, the detail panel,
-          these two (#880). Where the window has no room for the column they
-          float over the canvas as before, and the order is the same. */}
-      {(isMounted(usagePhase) || isMounted(machinePhase)) && (
-        <div ref={railDock.ref} className={railDock.docked ? "rail-dock docked" : "rail-dock"}>
-          {/* Mounted only while it is open, which is also what starts its poll:
-              the topbar meter used to keep /api/system running for the life of
-              the tab on behalf of a readout that is gone. Floating, `usageOpen`
-              moves it one rail slot left — see .sysdetail.shifted. */}
-          {isMounted(machinePhase) && (
-            <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"}
-              onClose={() => { panelReturn.machine(); setMachinePanelOpen(false); }} />
-          )}
-          {isMounted(usagePhase) && (
-            <UsagePanel
-              state={stateRef.current}
-              now={now}
-              providers={providers}
-              incidents={incidents}
-              liveSince={liveSince}
-              leaving={usagePhase === "leaving"}
-              onClose={() => { panelReturn.usage(); setUsagePanelOpen(false); }}
-            />
-          )}
-        </div>
-      )}
 
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}
       <DeckDialogs
