@@ -2,7 +2,7 @@
 /* The panel-level share, on the shared .modal shell. Wider than the sign-in
    dialog by nothing at all: both are forms, and a picker that spans the screen
    makes five short rows look like a table of data. */
-.sa-modal { width: min(560px, 92vw); }
+.sa-modal { width: var(--dialog-s); }
 .sa-body { display: flex; flex-direction: column; gap: 18px; }
 .sa-step { display: flex; flex-direction: column; gap: 10px; }
 .sa-step h4 {

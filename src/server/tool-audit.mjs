@@ -8,6 +8,7 @@ import { writeFileAtomic } from './atomic-write.mjs';
 import { buildToolAuditReport } from './tool-audit-report.mjs';
 import { buildSkillReport } from './tool-audit-skills.mjs';
 import { auditOperations } from './tool-audit-operations.mjs';
+import { stopError } from './stop-failure.mjs';
 const DAY = 86400000;
 const digest = text => createHash('sha256').update(text).digest('hex');
 const date = t => new Date(t).toISOString().slice(0, 10);
@@ -17,21 +18,33 @@ const validMeta = m => m?.v === 1 && /^[a-f0-9-]{36}$/.test(m.deviceId ?? '') &&
 const skillName = value => { const name = typeof value === 'string' ? value.trim().replace(/^\//, '') : ''; return /^[^\s<>]{1,150}$/.test(name) ? name : null; };
 const folder = cwd => typeof cwd === 'string' ? cwd.replace(/^file:\/\//, '').split(/[\\/]/).filter(Boolean).at(-1)?.slice(0, 150) ?? null : null;
 const skillUse = (name, origin, session, cwd, subagent) => ({ skill: name, origin, session, project: folder(cwd), subagent: !!subagent });
+// Where a turn's time went: a Claude Code turn runs from UserPromptSubmit to its Stop
+// or StopFailure, and every hook names the prompt it serves, a subagent's included, so
+// each tool call is filed under its turn. Codex rollouts name no prompt and stay out.
+const promptKey = raw => typeof raw.prompt_id === 'string' && raw.prompt_id && raw.prompt_id.length <= 256 ? `claude|${raw.session_id}|${raw.prompt_id}` : null;
+// Claude Code's own time for a call, which leaves out the approval prompt and the
+// PreToolUse hooks; the rest of the call's span is one or the other.
+const runMs = ms => typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 && ms <= 7 * DAY ? Math.round(ms) : null;
 
 export function createToolAudit({ dir, now = Date.now, runReport = workerReport } = {}) {
   let meta, readyPromise, serial = Promise.resolve(), pending = [], timer, storageOk = true, dropped = 0, reportFlight = null, prunedDay = null;
   // The last arguments each session typed a command with, as a digest held in memory:
   // the same command again with the same arguments is a repeat, such as a /loop tick.
   const lastArgs = new Map();
+  // Each session's calls still running, and whether a permission prompt came up while
+  // they did: that is what tells a wait for approval from hooks starting the tool.
+  const running = new Map();
   const enqueue = fn => { const task = serial.then(fn); serial = task.catch(() => {}); return task; };
   const ready = () => readyPromise ??= (async () => {
     await mkdir(dir, { recursive: true });
     try { meta = JSON.parse(await readFile(join(dir, 'settings.json'), 'utf8')); }
     catch (e) { if (e.code !== 'ENOENT') throw e; }
     if (meta && !validMeta(meta)) throw new Error('Unreadable tool history settings');
-    if (!meta) { meta = { v: 1, deviceId: randomUUID(), epoch: randomUUID(), retentionDays: 90, startedAt: now(), skillsSince: now() }; await saveMeta(); }
+    if (!meta) { meta = { v: 1, deviceId: randomUUID(), epoch: randomUUID(), retentionDays: 90, startedAt: now(), skillsSince: now(), turnsSince: now() }; await saveMeta(); }
     // A journal from before skills were counted: its Skill calls never named the skill.
     if (!Number.isFinite(meta.skillsSince)) { meta.skillsSince = now(); await saveMeta(); }
+    // Nor did it hold turns, so the split of the time starts here.
+    if (!Number.isFinite(meta.turnsSince)) { meta.turnsSince = now(); await saveMeta(); }
     await prune();
   })();
   const saveMeta = () => writeFileAtomic(join(dir, 'settings.json'), JSON.stringify(meta));
@@ -50,7 +63,8 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
     for (const row of batch) { const d = date(row.t); if (!days.has(d)) days.set(d, []); days.get(d).push(row); }
     for (const [d, rows] of days) {
       try {
-        await appendFile(join(dir, `${d}.jsonl`), rows.map(row => JSON.stringify({ ...row, id: digest(`${meta.deviceId}|${meta.epoch}|${row.id}`) })).join('\n') + '\n', { mode: 0o600 });
+        await appendFile(join(dir, `${d}.jsonl`), rows.map(row => JSON.stringify({ ...row, id: digest(`${meta.deviceId}|${meta.epoch}|${row.id}`),
+          ...(row.turn ? { turn: digest(`${meta.deviceId}|${meta.epoch}|${row.turn}`) } : {}) })).join('\n') + '\n', { mode: 0o600 });
         storageOk = true;
       } catch { storageOk = false; dropped += rows.length; }
     }
@@ -80,11 +94,32 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
     queue({ id: `claude|${raw.session_id}|${prompt}|${name}`, provider: 'claude', kind: 'skill', t, at: measured(at, t), clock: 'hook',
       ...skillUse(name, 'typed', raw.session_id, raw.cwd, typeof raw.agent_id === 'string' && raw.agent_id), repeat });
   };
+  // A turn's two ends. A second Stop for one prompt (a Stop hook sent Claude back to
+  // work) is a later end of the same turn, and the report keeps the latest.
+  const turn = (raw, opts) => {
+    const key = promptKey(raw);
+    if (!key) return;
+    const t = now(), at = opts.receivedAt ?? t, start = raw.hook_event_name === 'UserPromptSubmit';
+    queue({ id: key, provider: 'claude', kind: start ? 'turn' : 'turn-end', t, at: measured(at, t), clock: 'hook',
+      ...(start ? {} : { stop: raw.hook_event_name === 'Stop' ? 'done' : stopError(raw) }) });
+  };
+  const calls = session => {
+    let held = running.get(session);
+    if (!held) { running.set(session, held = new Map()); if (running.size > 500) running.delete(running.keys().next().value); }
+    return held;
+  };
   return {
     async start() { await ready(); },
     observe(raw, source, opts = {}) {
       if (opts.replay || !['hook', 'codex'].includes(source)) return;
       if (raw?.hook_event_name === 'UserPromptExpansion' && source === 'hook') return typed(raw, opts);
+      const claudeHook = source === 'hook' && raw?.provider !== 'codex' && typeof raw?.session_id === 'string' && raw.session_id.length <= 256;
+      if (claudeHook && ['UserPromptSubmit', 'Stop', 'StopFailure'].includes(raw.hook_event_name)) return turn(raw, opts);
+      if (claudeHook && raw.hook_event_name === 'Notification' && raw.notification_type === 'permission_prompt') {
+        const held = running.get(raw.session_id);
+        for (const id of held?.keys() ?? []) held.set(id, true);
+        return;
+      }
       const kind = raw?.hook_event_name === 'PreToolUse' ? 'start' : ['PostToolUse', 'PostToolUseFailure'].includes(raw?.hook_event_name) ? 'end' : null;
       if (!kind || typeof raw.session_id !== 'string' || typeof raw.tool_use_id !== 'string' || raw.session_id.length > 256 || raw.tool_use_id.length > 256) return;
       const provider = raw.provider === 'codex' || source === 'codex' ? 'codex' : 'claude';
@@ -96,7 +131,22 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
         Object.assign(row, auditOperations(raw.tool_name, raw.tool_input));
         const name = provider === 'claude' && raw.tool_name === 'Skill' ? skillName(raw.tool_input?.skill) : null;
         if (name) Object.assign(row, skillUse(name, 'agent', raw.session_id, raw.cwd, typeof raw.agent_id === 'string' && raw.agent_id));
-      } else row.failed = kind === 'end' && raw.hook_event_name === 'PostToolUseFailure';
+        if (claudeHook) {
+          const key = promptKey(raw);
+          if (key) row.turn = key;
+          const held = calls(raw.session_id);
+          held.set(raw.tool_use_id, false);
+          if (held.size > 200) held.delete(held.keys().next().value);
+        }
+      } else {
+        row.failed = kind === 'end' && raw.hook_event_name === 'PostToolUseFailure';
+        if (claudeHook) {
+          const ms = runMs(raw.duration_ms), held = running.get(raw.session_id);
+          if (ms !== null) row.ms = ms;
+          if (held?.get(raw.tool_use_id)) row.asked = true;
+          held?.delete(raw.tool_use_id);
+        }
+      }
       queue(row);
     },
     /** A Codex skill read off a rollout: `key` names the turn and skill, so a
@@ -117,7 +167,7 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
     async clear() { return enqueue(async () => {
       await flush();
       for (const name of await files()) await unlink(join(dir, name));
-      meta = { ...meta, epoch: randomUUID(), startedAt: now(), skillsSince: now() }; await saveMeta(); dropped = 0; storageOk = true; lastArgs.clear();
+      meta = { ...meta, epoch: randomUUID(), startedAt: now(), skillsSince: now(), turnsSince: now() }; await saveMeta(); dropped = 0; storageOk = true; lastArgs.clear(); running.clear();
       return { ok: true };
     }); },
     async report(query, signal) {
@@ -126,7 +176,7 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
         const snapshot = await enqueue(async () => { await flush(); const inv = await inventory(); return { ...inv, meta: { ...meta }, storageOk, dropped }; });
         const result = await runReport({ files: snapshot.journal, query, now: now(), meta: snapshot.meta }, signal);
         if (meta.epoch !== snapshot.meta.epoch) return { ok: false, reason: 'history_cleared' };
-        return { ...result, bytes: snapshot.bytes, storageOk: snapshot.storageOk, dropped: snapshot.dropped, deviceId: snapshot.meta.deviceId, startedAt: snapshot.meta.startedAt, skillsSince: snapshot.meta.skillsSince, retentionDays: snapshot.meta.retentionDays };
+        return { ...result, bytes: snapshot.bytes, storageOk: snapshot.storageOk, dropped: snapshot.dropped, deviceId: snapshot.meta.deviceId, startedAt: snapshot.meta.startedAt, skillsSince: snapshot.meta.skillsSince, turnsSince: snapshot.meta.turnsSince, retentionDays: snapshot.meta.retentionDays };
       })();
       try { return await reportFlight; } finally { reportFlight = null; }
     },

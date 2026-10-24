@@ -49,7 +49,7 @@ function rails({ claude = true, usageOpen = false, unread = 0, onHistory = noop 
 
 /** The dock exactly as App.tsx composes it from the rails. */
 function dockFor(r: ReturnType<typeof rails>) {
-  return mount(EdgeDock, { items: [...r.left, ...r.right[0], r.utilities[0]], more: [...r.right[1], r.utilities[1]] });
+  return mount(EdgeDock, { items: [...r.left, ...r.right[0], r.utilities[0]], more: [...r.right.slice(1).flat(), r.utilities[1]] });
 }
 
 /** The control elements the dock draws: its RailButtons, then its More. */
@@ -101,9 +101,9 @@ describe("the dock holds the four panels and Settings, then More", () => {
     // A connected tracker (#2178) is a left-stripe control on a desktop and a
     // More row on a phone, before Feedback: the dock keeps its five slots. So
     // are Account capacity and Reset calendar, the first two rows of More.
-    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\], rails\.utilities\[0\]\]\} more=\{\[\.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, rails\.utilities\[1\]\]\} \/>\s*:\s*<EdgeRail side="left"/);
+    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\], rails\.utilities\[0\]\]\} more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, rails\.utilities\[1\]\]\} \/>\s*:\s*<EdgeRail side="left"/);
     expect(app).toMatch(/\{!phone && <EdgeRail side="right"/);
-    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{rails\.utilities\} \/><\/div>\}/);
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>\}/);
   });
 
   it("swaps at the sheet's own narrow breakpoint, so the dock is drawn exactly where it is mounted", () => {

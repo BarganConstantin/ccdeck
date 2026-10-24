@@ -98,9 +98,10 @@ describe("rowIsFor", () => {
 
   it("is the only place the guard is written", () => {
     expect(code.match(/\(row\??\.organizationUuid \?\? ""\)/g) ?? []).toHaveLength(1);
-    // Called by the three readers — the roster, activeAccountUsage, and the
-    // switch's check that its target's login has not expired (#2184).
-    expect(code.match(/(?<!function )rowIsFor\(row, acct\)/g) ?? []).toHaveLength(3);
+    // Called by the four readers — the roster, activeAccountUsage, the
+    // switch's check that its target's login has not expired (#2184), and
+    // storedUsageReadings, which the record of each window's reset reads.
+    expect(code.match(/(?<!function )rowIsFor\(row, acct\)/g) ?? []).toHaveLength(4);
   });
 });
 

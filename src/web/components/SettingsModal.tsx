@@ -57,6 +57,9 @@ import { useSettingsJump } from "./use-settings-jump";
 export interface SettingsModalProps {
   /** The section on show; the nav and the door that opened this both set it. */
   section: SettingsSection;
+  /** A row the door that opened this named (quick open), landed on as the
+   *  section is drawn. */
+  landOn?: string;
   onSection: (section: SettingsSection) => void;
   onClose: () => void;
   providers: Providers;
@@ -80,7 +83,7 @@ export interface SettingsModalProps {
 }
 
 export default function SettingsModal({
-  section, onSection, onClose, providers, sound, tones, customTones, notify, appearance,
+  section, landOn, onSection, onClose, providers, sound, tones, customTones, notify, appearance,
   versionCheck, desktopUpdate, restart, doors, terminal,
 }: SettingsModalProps) {
   // Focus starts on the section's own tab, not on the ×: the nav is what this
@@ -123,6 +126,9 @@ export default function SettingsModal({
   const results = useMemo(() => searchSettings(query, indexFor(providers.claude, integrationsReachHere, offeredKinds(integrations))), [query, providers.claude, integrationsReachHere, integrations]);
   const jumpTo = useSettingsJump(paneRef, !searching, section);
   const changeQuery = (next: string) => { setQuery(next); setActive(0); };
+  // Opened at one setting, the dialog lands on it the way a result of its own
+  // search does, and focus goes to the row past the tab it starts on.
+  useEffect(() => { if (landOn) jumpTo(landOn); }, [landOn, jumpTo]);
 
   // A section chosen in the nav ends the search: a press on a tab is "take me
   // there", and the results would otherwise stand over the page it asked for.

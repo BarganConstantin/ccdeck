@@ -328,13 +328,14 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // disclosures and the settings. The disclosures have since left the bar
     // for the window's edges (2026-10-08), each beside the panel it opens, and
     // the bar keeps the two utilities, in one run drawn by UtilityRun: the
-    // gear, first since the speaker left the bar (2026-10-07), and Feedback.
+    // gear, first of them since the speaker left the bar (2026-10-07), and
+    // Feedback, with Search (⌘K) ahead of both since quick open (2026-10-24).
     // Pause is in none of them, and no run is left holding nothing.
     expect(app).not.toMatch(/className="action-run/);
-    expect(app).toMatch(/<div className="actions"><UtilityRun items=\{rails\.utilities\} \/><\/div>/);
+    expect(app).toMatch(/<div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>/);
     expect(app).toMatch(/utilities: \[settings, feedback\]/);
     expect(app).toMatch(/ariaLabel: "Settings"/);
-    expect(app).toMatch(/<EdgeRail side="right" label="Right panels" groups=\{rails\.right\} \/>/);
+    expect(app).toMatch(/<EdgeRail side="right" label="Usage and activity" groups=\{rails\.right\} \/>/);
     expect(app).toMatch(/ariaLabel: "Usage"/);
     expect(app).not.toMatch(/Sound settings/);
     expect(app, "Pause came back as a chrome control").not.toMatch(/id: "pause"|ariaLabel: "Pause/);

@@ -92,7 +92,7 @@ describe("Cmd/Ctrl+, opens Settings from anywhere", () => {
     }
     expect(deck.props.openSettings).toHaveBeenCalledTimes(1);
     expect(sourceOf("use-settings-menus.ts")).toMatch(
-      /const openSettings = useCallback\(\(section\?: SettingsSection\) => \{\s*setSettings\(door => openedAt\(door, section\)\);\s*\}, \[\]\);/,
+      /const openSettings = useCallback\(\(section\?: SettingsSection, landOn\?: string\) => \{\s*setSettings\(door => openedAt\(door, section, landOn\)\);\s*\}, \[\]\);/,
     );
   });
 

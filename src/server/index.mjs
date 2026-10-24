@@ -173,7 +173,9 @@ import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStat
 import { startToolAudit } from "./tool-audit.mjs";
 import { handleToolAudit } from "./tool-audit-routes.mjs";
 import { startQuotaHistory } from "./quota-history.mjs";
-import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota, handleQuotaHistory } from "./usage-routes.mjs";
+import { startQuotaCloses } from "./quota-closes.mjs";
+import { startQuotaCloseWatch } from "./quota-close-watch.mjs";
+import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota, handleQuotaCloses, handleQuotaHistory } from "./usage-routes.mjs";
 // Connected trackers (#2178) and each provider's own reads. See
 // integrations/routes.mjs; nothing in it is shared with paired decks.
 import { handleIntegrations } from "./integrations/routes.mjs";
@@ -223,6 +225,7 @@ export function requestUrl(rawUrl) {
 // it.
 export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null, terminal = {} } = {}) {
   startQuotaHistory();
+  startQuotaCloses();
   await startToolAudit();
   armLifecycle({ onRestart, onStop, persist, onSelfUpdate: () => reporter.noteSelfUpdate() });
   // Which tree and which CLIs, normalised once — see setDeckScope.
@@ -352,6 +355,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/shutdown")    return guard(handleStop(req, res), res);
     if (["GET", "POST"].includes(req.method) && ["/api/tool-audit", "/api/tool-audit/storage"].includes(url.pathname)) return guard(handleToolAudit(req, res), res);
     if (req.method === "GET" && url.pathname === "/api/quota/history") return guard(handleQuotaHistory(req, res), res);
+    if (req.method === "GET" && url.pathname === "/api/quota/closes") return guard(handleQuotaCloses(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/quota")       return guard(handleQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-usage")  return guard(handleCodexUsage(req, res), res);
     // Machine state, not session state: sampled on the server's own timer and
@@ -620,6 +624,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // watches. Idle — a check of two switches every couple of minutes — unless
       // the threshold or the reset notification is on.
       startAccountWatch({ providers: deckProviders });
+      // How full each quota window was at its reset: claude-swap's store read
+      // every few minutes, and one fresh reading before each weekly reset.
+      startQuotaCloseWatch({ providers: deckProviders });
       // The account-projects rollup: fold Claude transcripts into a per-account,
       // per-project token tally, incrementally. Claude only — it reads Claude
       // transcripts — best effort, and its timer is unref'd so it never holds

@@ -109,6 +109,32 @@ rather than matching just one theme ID. The theme README owns the format and
 generation instructions. A custom-theme importer/editor is a future possibility,
 not an implemented feature.
 
+UI organization (owner, 2026-10-23, after a user wrote the deck has a lot in
+it but is not organized; branch `feature/ui-organization`):
+- Both edge stripes follow one rule (`rail-items.tsx`): runs of doors that
+  answer one question each, every run of two or more a named group, all 13
+  doors kept in the owner's order. Radio is a dialog door now, with no blur.
+- Usage and the machine panel float over the board, as #910 left them. A
+  dock beside the right stripe was built (full-height columns, then cards in
+  a lane) and the owner turned both down on 2026-10-24: they want the panels
+  over the board, and asked instead that the reader can move each one by its
+  header (`panel-place.ts`): the place is remembered per panel, a double
+  click puts it back, and a phone does not move them. One put below the
+  other shortens the upper one with a scroll, as the window's foot does. Do not dock them again
+  without a new request.
+- Every dialog is `--dialog-s` 560, `--dialog-m` 820 or `--dialog-l` 1120
+  and has the one `.modal-head`. The integration trackers' full-page panel
+  stays 90vw by the owner's own spec for it.
+
+Quick open (owner, 2026-10-24, "like Raycast, pleasant, with animation,
+comfortable"; branch `feature/quick-open`): ⌘K on a Mac, Ctrl+K elsewhere, and
+Search first in the topbar's utility run and under the phone's More. Rules in
+`quick-open.ts`, rows built from the presses the chrome already has in
+`quick-open-items.tsx`, drawn by `components/QuickOpen.tsx`. It reaches single
+settings through Settings' own search index and lands on the row
+(`openSettings(section, landOn)`). Keep it built from the existing doors: a row
+must never offer something the chrome does not.
+
 T steps through every theme from inside any dialog too (owner, 2026-10-23):
 only a field being typed in or a `<select>` keeps the letter, and every other
 single-key shortcut stays blocked behind a dialog. One path answers it,

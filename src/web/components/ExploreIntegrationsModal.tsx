@@ -40,14 +40,12 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
     <div className="modal-backdrop" role="presentation" {...scrimPress}>
       <div ref={dialogRef} className="modal explore-integrations" role="dialog" aria-modal="true"
         aria-labelledby="explore-integrations-title" aria-describedby="explore-integrations-description">
-        <div className="explore-head">
-          <div>
-            <h2 id="explore-integrations-title">Explore integrations</h2>
-            <p id="explore-integrations-description">Connect your project tools and keep the work behind each agent close by.</p>
-          </div>
+        <div className="modal-head explore-head">
+          <h2 id="explore-integrations-title">Explore integrations</h2>
           <button type="button" className="glyph-btn" aria-label="Close Explore integrations" title="Close (Esc)" onClick={onClose}>×</button>
         </div>
         <div className="explore-body">
+          <p id="explore-integrations-description" className="explore-intro">Connect your project tools and keep the work behind each agent close by.</p>
           {integrations.error && <p className="explore-status" role="alert">{integrations.error} Connection status may be out of date. Manage connections in Settings.</p>}
           {integrations.connections === null ? (
             <p className="explore-status" role="status">{integrations.error ? "Connection status is unavailable." : "Reading integrations…"}</p>

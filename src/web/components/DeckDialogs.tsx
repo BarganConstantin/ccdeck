@@ -104,7 +104,7 @@ export default function DeckDialogs({
   const { setWatchOn, markWatchSeen } = watchBadge;
   const { setWatchSaid } = announcements;
   const { palette } = appearance;
-  const { settingsOpen, settingsSection, showSection, closeSettings, openSettings } = menus;
+  const { settingsOpen, settingsSection, settingsLandOn, showSection, closeSettings, openSettings } = menus;
   return (
     <>
       {openedTool && <ToolModal tool={openedTool} onClose={() => setOpenedToolKey(null)} />}
@@ -168,6 +168,7 @@ export default function DeckDialogs({
       {settingsOpen && (
         <SettingsModal
           section={settingsSection}
+          landOn={settingsLandOn}
           onSection={showSection}
           onClose={closeSettings}
           providers={providers}

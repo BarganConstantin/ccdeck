@@ -236,7 +236,10 @@ describe("the ring #381 put there is exactly what it was (#434)", () => {
     const removers = [...bareCss.matchAll(/^([^{}\n][^{}]*)\{([^}]*)\}/gm)]
       .filter(([, , body]) => /outline\s*:\s*(none|0)\b/.test(body))
       .map(([, selector]) => selector.trim());
+    // Quick open's input, whose ring the field row around it draws instead
+    // (quick-open.css), as the Radio search's wrapper draws its own.
     expect(removers).toEqual([
+      ".qo-input:focus-visible",
       ".radio-pin",
       ".radio-search:focus-within",
       ".radio-search input:focus",

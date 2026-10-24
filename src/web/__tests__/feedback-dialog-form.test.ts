@@ -130,9 +130,11 @@ describe("the default state asks for one thing", () => {
 
   it("fits a typical window without scrolling, and well inside the 450px the brief aims at", () => {
     // Summed from the sheet's own numbers, for the state the dialog opens in:
-    // no image, the details folded, no error. The header's content is the 24px
-    // close button's box less the margins that pull it into the title's line.
-    const head = 2 * px(value(".modal-head", "padding").split(" ")[0]) + 24 + 1;
+    // no image, the details folded, no error. The header is the one dialog
+    // header's height, or its padding around the 24px close button where that
+    // is more, plus its rule.
+    const head = Math.max(52, 2 * px(value(".modal-head", "padding").split(" ")[0]) + 24) + 1;
+    expect(value(".modal-head", "min-height")).toBe("var(--dialog-head-h)");
     const bodyPad = 2 * px(value(".modal-body", "padding"));
     const gap = px(value(".modal-body.fb-body", "gap"));
     const kindsRow = px(value(".fb-kind", "min-height")) + 2 * px(value(".fb-kinds", "padding"));
@@ -149,7 +151,7 @@ describe("the default state asks for one thing", () => {
     // The message grows with what is typed and stops before it can push Send
     // off a short window.
     expect(value(".ap-manage-input.fb-message", "max-height")).toBe("min(40vh, 320px)");
-    expect(value(".modal.feedback-dialog", "width")).toBe("min(540px, 92vw)");
+    expect(value(".modal.feedback-dialog", "width")).toBe("var(--dialog-s)");
   });
 });
 

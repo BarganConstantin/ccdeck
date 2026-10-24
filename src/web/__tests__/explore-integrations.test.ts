@@ -91,12 +91,12 @@ describe("permanent discovery inside the roving rail", () => {
   for (const kinds of [[], ["jira"], ["jira", "github", "gitlab"]] as IntegrationKind[][]) {
     it(`keeps Explore last with ${kinds.length} connected kinds and one toolbar Tab stop`, () => {
       const rails = make(kinds);
-      const html = draw(createElement(EdgeRail, { side: "left", label: "Left column", groups: [rails.leftStripe, rails.integrations, rails.explore] }));
+      const html = draw(createElement(EdgeRail, { side: "left", label: "Left column", groups: [...rails.leftStripe, rails.integrations, rails.explore] }));
       const tags = buttons(html);
       expect([...tags.keys()].at(-1)).toBe("explore-integrations");
       expect([...tags.values()].filter(tag => attr(tag, "tabindex") === "0")).toHaveLength(1);
       expect(html).toContain('data-rail-group="explore"');
-      expect(tags.size).toBe(rails.leftStripe.length + kinds.length + 1);
+      expect(tags.size).toBe(rails.leftStripe.flat().length + kinds.length + 1);
     });
   }
   it("adds discovery to More without replacing the other mobile actions", () => {

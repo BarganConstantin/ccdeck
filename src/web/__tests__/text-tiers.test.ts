@@ -350,6 +350,14 @@ describe("what was migrated to the secondary tier", () => {
       ".ta-note",
       ".ta-search input::placeholder",
       ".ta-summary",
+      // Its Where the time went, by bed as well: a lane in the ring's legend is
+      // raised on --ctl-fill while its level is open, with its time and what it
+      // mostly was under the name, and the parts that are not a command — the
+      // hooks starting tools, the rest of the list — sit in rows raised the
+      // same way under the pointer.
+      ".tt-lane",
+      ".tt-part[data-rest]",
+      ".tt-part[data-static]",
       // The local reads' waits — Projects, session usage, usage history, and
       // quota, process and sensor history: the one sentence under each title
       // that says what is being read, and that the first run may download
@@ -408,8 +416,8 @@ describe("what was migrated to the secondary tier", () => {
       ".tr-variables dt > span, .tr-variables dt > code",
           // Readable descriptions in integration discovery and focused Settings.
       ".explore-glyph",
-      ".explore-head p",
       ".explore-info p",
+      ".explore-intro",
       ".explore-status",
       ".explore-text-action",
       ".ig-back-to-overview",

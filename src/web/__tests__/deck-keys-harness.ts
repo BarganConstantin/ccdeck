@@ -128,6 +128,7 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
     setKeyHelpOpen: keyHelp.set,
     setTheme: theme.set,
     openSettings: vi.fn(),
+    openQuickOpen: vi.fn(),
     // Only when a test hands one over, so every other test mounts the deck
     // with the very props it always had.
     ...(stage !== undefined ? { stageRef: { current: stage } } : {}),
@@ -144,7 +145,7 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
     const target = o.target ?? BODY;
     const { inPanel, ...rest } = target;
     const e = {
-      key, repeat: o.repeat ?? false, shiftKey: o.shiftKey ?? false,
+      key, code: o.code, repeat: o.repeat ?? false, shiftKey: o.shiftKey ?? false,
       ctrlKey: o.ctrlKey ?? false, metaKey: o.metaKey ?? false, altKey: o.altKey ?? false,
       code: o.code,
       target: {

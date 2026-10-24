@@ -269,6 +269,25 @@ describe("activeAccountUsage, which the Usage panel's bars are made from", () =>
   });
 });
 
+describe("storedUsageReadings, which the record of each window's reset is fed from", () => {
+  type Stored = { storedUsageReadings: () => Promise<{ email: string; organizationUuid: string; fetchedAt: number }[]> };
+  it("reads every account's own row, inactive ones too, under the same identity guard, and runs nothing", async () => {
+    seed({ accounts: { 1: ALICE, 2: BOB, 3: CAROL }, active: 2,
+      usage: { 1: collected(ALICE, { fetchedAt: 1700000000.4 }), 2: collected(BOB), 3: collected({ ...CAROL, email: "dave@x" }) } });
+    proc.calls.length = 0;
+    const rows = await (await freshAccounts() as unknown as Stored).storedUsageReadings();
+    expect(rows.map(r => [r.email, r.organizationUuid])).toEqual([["alice@x", "org-a"], ["bob@x", "org-a"]]);
+    expect(rows[0].fetchedAt).toBe(1700000000400);
+    expect(proc.calls).toEqual([]);
+  });
+  it("reads nothing from a usage file of another schema version, or with no store at all", async () => {
+    seed({ accounts: { 2: ALICE }, usage: { 2: collected(ALICE) }, schemaVersion: 3 });
+    expect(await (await freshAccounts() as unknown as Stored).storedUsageReadings()).toEqual([]);
+    rmTempDir(STORE);
+    expect(await (await freshAccounts() as unknown as Stored).storedUsageReadings()).toEqual([]);
+  });
+});
+
 describe("the Usage panel, end to end", () => {
   type Quota = { ok: boolean; source?: string; session5hPct?: number };
 

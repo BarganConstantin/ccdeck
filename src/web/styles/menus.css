@@ -10,9 +10,10 @@
    the header and the nav stay. No floor and no ceiling besides it, so nothing
    a section draws reaches the frame. Centred like every dialog: a height that
    never changes keeps it in one place.
-   800px holds a 184px nav and a section four theme previews wide (#2176). */
+   The medium dialog, 820px, holds a 184px nav and a section four theme
+   previews wide (#2176). */
 .modal.settings-modal {
-  width: min(800px, calc(100vw - 32px));
+  width: var(--dialog-m);
   height: min(720px, calc(100dvh - 80px));
   max-height: none;
   --settings-group-gap: 20px;

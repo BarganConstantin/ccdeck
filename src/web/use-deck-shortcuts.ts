@@ -25,6 +25,8 @@ import { canvasKeyIntent, shouldReleaseFocusOnEscape } from "./canvas-keys";
 import type { ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { isUndoChord } from "./rearrange-undo";
+import { isApplePlatform, platformName } from "./platform";
+import { isQuickOpenChord } from "./quick-open";
 import type { GraphState } from "./reducer";
 import { isSettingsChord, type SettingsSection } from "./settings";
 import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
@@ -109,6 +111,8 @@ export interface DeckShortcuts {
   /** A connected tracker's panel by kind (#2178), or nothing when that kind
    *  has no connection — the rail button is not drawn then either. */
   openIntegrationRef?: Read<(kind: string) => void>;
+  /** Quick open, on ⌘K or Ctrl+K (quick-open.ts). */
+  openQuickOpen: () => void;
   /** The terminal stage, where the terminal flag put one. Left out, or not
    *  open, and the keys are the deck's as they always were. */
   stageRef?: Read<StageShortcuts | null>;
@@ -120,7 +124,7 @@ export function useDeckShortcuts({
   clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
   handleRelayout, undoRearrange, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
   setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
-  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, stageRef,
+  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen, stageRef,
 }: DeckShortcuts): void {
   // keyboard shortcuts
   useEffect(() => {
@@ -236,6 +240,18 @@ export function useDeckShortcuts({
       // in keeps its keystrokes, and nothing opens behind a dialog that covers
       // the canvas — Settings over a clear prompt would be two things waiting
       // on one Escape.
+      // Quick open: ⌘K on a Mac, Ctrl+K elsewhere. A chord, so it answers
+      // with the single-key shortcuts off, and held to the dialog gate like
+      // the one below. Not to the field gate: the session list's filter is
+      // where a reader looking for something already is, and what this opens
+      // is the field that finds more. Its own field closes it on the same
+      // chord (QuickOpen.tsx), ahead of this listener.
+      if (isQuickOpenChord(e, isApplePlatform(platformName()))) {
+        if (canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) return;
+        e.preventDefault();
+        if (!e.repeat) openQuickOpen();
+        return;
+      }
       if (e.key === "," && isSettingsChord(e)) {
         if (isTypingTarget(target)) return;
         if (canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) return;
