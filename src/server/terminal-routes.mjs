@@ -14,7 +14,10 @@
 // panel off is indistinguishable from one built before it existed, and none of
 // this asks anything of anyone. A POST asks again once its body is in, right
 // before the engine would be asked (`answer`): a switch-off that lands while
-// the body arrives is a switch-off before the request. The request gates still run first, as they do
+// the body arrives is a switch-off before the request. And once more when the
+// engine has answered: a switch-off that lands while it works on the question
+// mints no ticket, and the page is told what was done (answeredAfterOff).
+// The request gates still run first, as they do
 // for every path: the two reads are in GUARDED_READS and the four POSTs are
 // mutations, so what is refused there is refused whatever the switch says.
 //
@@ -153,6 +156,26 @@ function notFound(res) {
   return send(res, 404, { error: "not found" });
 }
 
+/** What the page is told of a launch or an adopt the engine ran, when the switch went off before it answered. */
+export const STARTED_TURNED_OFF = "The session was started, but the Command Panel was turned off in Settings. Switch it on to open the session.";
+/** And of an open or a claim that went through: what an open panel is told at the switch-off (prefs-routes.mjs). */
+export const REACHED_TURNED_OFF = "The Command Panel was turned off in Settings. The session is still running.";
+
+/**
+ * A question asked while on, answered by the engine after the switch went off. Nothing is minted — the socket
+ * is refused while off — and the page is told what is now true: what a launch, an adopt, an open or a claim
+ * did is not undone, so the page hears that its session runs and the panel is off (409 `turned-off`, a state
+ * it shows and stops at); anything else, which changed nothing, is the 404 a request after the switch-off gets.
+ */
+function answeredAfterOff(res, method, said) {
+  const body = said.body && typeof said.body === "object" ? said.body : {};
+  const done = method !== "status" && method !== "target" && said.status >= 200 && said.status < 300
+    && body.ok === true && (method !== "claim" || body.claimed === true);
+  if (!done) return notFound(res);
+  const error = method === "launch" || method === "adopt" ? STARTED_TURNED_OFF : REACHED_TURNED_OFF;
+  return send(res, 409, { ok: false, error, code: "turned-off" });
+}
+
 /** The body as a plain object, or null for anything else. A body over the cap
  *  has already been answered 413 by readBody, and nothing is sent after it. */
 async function jsonBody(req, res) {
@@ -190,6 +213,9 @@ async function answer(d, req, res, method, question) {
   if (d.jsBackend) return d.jsBackend[method](req, res, question, d);
   const said = d.engine?.enabled === true ? await d.engine.route(method, question) : engineRefusal("not-installed");
   if (said.log) console.error(`${PRODUCT}: terminal: ${said.log}`);
+  // And once more, now that the engine has answered: a question asked while on can be answered after the
+  // switch-off, since the engine is stopped only once it has answered (command-panel-engine.mjs).
+  if (!d.enabled()) return answeredAfterOff(res, method, said);
   let out = said.body;
   if (said.handle) {
     const origin = typeof req?.headers?.origin === "string" ? req.headers.origin.trim().toLowerCase() : "";

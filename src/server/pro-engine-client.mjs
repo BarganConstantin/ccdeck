@@ -320,7 +320,11 @@ export class ProEngineClient extends EventEmitter {
   async close() {
     if (this.#closed) return;
     if (this.#child && this.#capabilities) { try { await this.#send('system.shutdown', {}, { timeoutMs: 1000 }); } catch {} }
-    this.#closed = true; this.#lost(this.#child, fail('closed'));
+    this.#closed = true;
+    const child = this.#child;
+    this.#lost(child, fail('closed'));
+    // Answered once the process has exited (and been reaped), so whoever starts the next engine never runs it beside this one.
+    if (child && child.exitCode === null && child.signalCode === null) await new Promise(resolve => child.once('exit', resolve));
   }
 }
 
