@@ -219,6 +219,16 @@
   transition: opacity 150ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .ts-host .xterm { padding: 0; }
+/* One weight for every glyph. xterm's WebGL renderer draws each glyph once,
+   into a scratch canvas, and keeps it. While idle it draws the ASCII set with
+   that canvas outside the page, in the browser's own smoothing; a glyph a frame
+   needs before then is drawn with the canvas inside .xterm, in the smoothing
+   .xterm inherits: the deck's antialiased (tokens.css). On a Mac those are two
+   weights, and which one a letter got was a race: a reopened pane, whose screen
+   arrives before the idle drawing is done, mixed them within one line. The
+   terminal keeps the browser's own smoothing, the one it draws with outside
+   the page, whichever way a glyph is drawn. Only macOS has the property. */
+.ts-host .xterm { -webkit-font-smoothing: auto; }
 /* xterm's scrollbar fades out over 800ms after every write and every scroll:
    a transition that runs for as long as anyone types, keeping the page
    producing frames and every echo a frame late (quiet-page.ts). It shows and
