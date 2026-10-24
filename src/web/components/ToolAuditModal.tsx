@@ -158,7 +158,7 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
 
   return createPortal(<div className="modal-backdrop" role="presentation" {...scrimPress}>
     <div className="modal ta-report" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title" data-view={view}>
-      <header className="ta-report-header">
+      <header className="modal-head ta-report-header">
         <h2 id="tool-audit-title">{viewTitle[view]}</h2>
         <div className="ta-actions">
           <span className="ta-freshness" role="status">{reading ? shown !== null ? 'Updating…' : 'Reading history…' : shown !== null ? `Updated ${new Date(shown).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}` : ''}</span>

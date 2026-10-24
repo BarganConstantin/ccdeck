@@ -3,7 +3,7 @@
    machine panel. Every series is stacked on one time axis and each keeps its
    own unit: degrees and a percentage share nothing but a range, and one axis
    for both would invite a comparison of shapes that means nothing. */
-.hist-modal { width: min(620px, 92vw); }
+.hist-modal { width: var(--dialog-m); }
 .hist-since {
   margin-left: auto;
   margin-right: 10px;
@@ -113,8 +113,12 @@
    the pid and the untruncated name the panel has no width for. */
 /* 880, up from 680. The table carries seven columns now instead of four, and
    the five fixed ones take 300px of the row before the name has any — a name
-   plus the arguments that identify it needs the rest, and at 680 it had 340. */
-.pl-modal { width: min(880px, 94vw); }
+   plus the arguments that identify it needs the rest, and at 680 it had 340.
+   The large dialog since 2026-10-23 (tokens.css, "One dialog frame"): a list
+   beside its details is what that width is for, and `min(1120px, 100vw -
+   32px)` is never narrower than `min(880px, 94vw)` was at any window from
+   534px up. */
+.pl-modal { width: var(--dialog-l); }
 /* The box that holds the table and the band. In the default layout it is what
    the modal already was — a column whose table scrolls and whose band does not
    — and it exists so one media query can turn that column on its side. */
@@ -135,17 +139,15 @@
    guess and it was wrong: it would have left the process column at 488.
 
    The breakpoint is the viewport width at which the modal can actually be
-   1120 wide: `min(1120px, 94vw)` reaches 1120 at 1192px, so 1200 with a little
-   room. Below it, every rule above stands untouched — the band under the list,
-   the modal at 880 — which is the layout every measurement in this file was
-   taken against.
+   1120 wide: the large dialog reaches 1120 at 1152px, so 1200 with room. Below
+   it, every rule above stands untouched — the band under the list, the modal
+   at least the 880 every measurement in this file was taken against.
 
    `order: -1` rather than putting the band first in the markup. The DOM keeps
    the order it has, so a screen reader hears the list and then the machine at
    EVERY width, which is what it hears today: the wide layout changes where the
    pixels are and nothing about the reading. */
 @media (min-width: 1200px) {
-  .pl-modal { width: 1120px; }
   .pl-split { flex-direction: row; align-items: stretch; }
   .pl-split .pl-body { flex: 1 1 auto; min-width: 0; }
   .pl-split .pl-strip {

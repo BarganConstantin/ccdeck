@@ -587,9 +587,13 @@ describe("two layouts, and the arithmetic that decides between them", () => {
   });
 
   it("waits for a viewport that can actually hold the wide modal", () => {
-    // `min(1120px, 94vw)` reaches 1120 at 1192px of viewport. 1200 with room.
+    // The large dialog, `min(1120px, calc(100vw - 32px))`, reaches 1120 at
+    // 1152px of viewport. 1200 with room, and the block sets no width of its
+    // own: the modal is already that wide there.
     expect(wide).toBeTruthy();
-    expect(wide).toContain(".pl-modal { width: 1120px; }");
+    expect(css).toContain(".pl-modal { width: var(--dialog-l); }");
+    expect(css).toContain("--dialog-l: min(1120px, calc(100vw - 32px));");
+    expect(wide).not.toContain(".pl-modal {");
   });
 
   it("is 1120 wide because of the process column, not because it looked right", () => {
@@ -647,7 +651,10 @@ describe("two layouts, and the arithmetic that decides between them", () => {
     // under the table, border-top and not border-right, spark 116x24, cell head
     // 116px, no overflow. Every measurement in this file was taken against that
     // layout and none of them moved.
-    expect(css).toContain(".pl-modal { width: min(880px, 94vw); }");
+    // The modal is the large dialog now, never narrower than that 880 from a
+    // 912px window up, and wider than `min(880px, 94vw)` was at every window
+    // from 534px.
+    expect(css).toContain(".pl-modal { width: var(--dialog-l); }");
     const band = css.slice(css.indexOf("\n.pl-strip {") + 1);
     expect(band.slice(0, band.indexOf("}"))).toContain("border-top: 1px solid var(--line)");
   });

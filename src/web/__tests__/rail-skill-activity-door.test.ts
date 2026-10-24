@@ -38,7 +38,11 @@ const ids = (items: { id: string }[]) => items.map(i => i.id);
 
 describe("the right stripe's two doors into Tool activity", () => {
   it("stand together under Usage history, Tool activity first", () => {
-    expect(ids(rails(noop).right[1])).toEqual(["history", "tool-activity", "skill-activity", "browser-watch"]);
+    // The activity history is one run, Browser watch the next one down.
+    const right = rails(noop).right;
+    expect(ids(right[1])).toEqual(["history", "tool-activity", "skill-activity"]);
+    expect(right[1].every(i => i.group === "Activity history")).toBe(true);
+    expect(ids(right[2])).toEqual(["browser-watch"]);
   });
 
   it("open the dialog on the view each one names, as a dialog and not a panel", () => {
@@ -58,7 +62,7 @@ describe("the right stripe's two doors into Tool activity", () => {
   });
 
   it("go together where the deck has no Tool activity to open", () => {
-    expect(ids(rails().right[1])).toEqual(["history", "browser-watch"]);
+    expect(rails().right.slice(1).map(ids)).toEqual([["history"], ["browser-watch"]]);
   });
 
   it("are rows under More on a phone, side by side", () => {

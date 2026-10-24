@@ -622,8 +622,8 @@ function Inner() {
   // use-prefs-read.ts.
   usePrefsRead({ loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs: reports.loadReportsPrefs });
 
-  // The eight controls of the chrome, each defined once, and the edge each
-  // lives on — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
+  // The controls of the chrome, each defined once, and the edge and group each
+  // lives in — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
   // the two stripes and the utilities are one dock along the bottom.
   const phone = useMediaQuery(PHONE_QUERY);
   const [radioOpen, setRadioOpen] = useState(false);
@@ -645,7 +645,7 @@ function Inner() {
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
     usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
     watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, openSettings, onFeedback: dialogs.openFeedback,
-    radioOpen, setRadioOpen,
+    setRadioOpen,
     openToolActivity: setToolAuditView,
     openCapacity: setCapacityView,
     toggles: panelReturn.toggles,
@@ -738,7 +738,7 @@ function Inner() {
           that stands in for both stripes and the utilities. */}
       {phone
         ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, rails.utilities[1]]} />
-        : <EdgeRail side="left" label="Left column" groups={[rails.leftStripe, rails.integrations, rails.explore]} />}
+        : <EdgeRail side="left" label="Accounts and sessions" groups={[...rails.leftStripe, rails.integrations, rails.explore]} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -821,7 +821,7 @@ function Inner() {
 
       {/* The right stripe, ahead of the two panels it opens so Tab reaches the
           control before the region it discloses. */}
-      {!phone && <EdgeRail side="right" label="Right panels" groups={rails.right} />}
+      {!phone && <EdgeRail side="right" label="Usage and activity" groups={rails.right} />}
 
       {toolAuditView && <ToolAuditModal view={toolAuditView} onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}
       {capacityView && <AccountCapacityDialog view={capacityView} onClose={closeCapacity} />}

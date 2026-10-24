@@ -1,23 +1,16 @@
 /* Explore is a compact catalog, not a second connection manager. The supplied
    handoff's provider rows use the native surfaces, glyphs and control edges. */
 .modal.explore-integrations {
-  width: min(610px, 94vw);
+  width: var(--dialog-s);
   max-height: min(700px, calc(100dvh - 24px));
   min-width: 0;
   font-size: calc(13px + var(--ui-text-increase, 0px));
 }
-.explore-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 24px 24px 18px;
-  border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
-}
-.explore-head > div { flex: 1; min-width: 0; }
-.explore-head h2 { margin: 0; font-size: calc(18px + var(--ui-text-increase, 0px)); line-height: 1.25; overflow-wrap: anywhere; }
-.explore-head p { margin: 8px 0 0; color: var(--text-secondary); line-height: 1.55; }
+/* The header is the one dialog header (dialogs.css), the sentence that was in
+   it the first line of the body: a title row is the dialog's name and its ×. */
+.explore-head h2 { min-width: 0; overflow-wrap: anywhere; }
 .explore-head .glyph-btn { flex-shrink: 0; }
+.explore-intro { margin: 0 8px 16px; color: var(--text-secondary); line-height: 1.55; }
 .explore-body { min-height: 0; overflow-y: auto; padding: 16px; }
 .explore-caption { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 0 8px 12px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .explore-caption > :first-child { font-weight: 600; }
@@ -41,9 +34,8 @@
 .explore-footer > span { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .explore-status { margin: 8px; color: var(--text-secondary); }
 @media (max-width: 640px) {
-  .explore-head { padding: 16px; gap: 8px; }
   .explore-body { padding: 12px; }
-  .explore-caption { margin-inline: 4px; }
+  .explore-caption, .explore-intro { margin-inline: 4px; }
   .explore-provider { align-items: flex-start; gap: 8px; padding: 12px 8px; }
   .explore-glyph { width: 28px; height: 32px; }
   .explore-glyph .glyph { width: 20px; height: 20px; }

@@ -187,7 +187,7 @@ describe("the type ladder is a closed set (#379 §3)", () => {
     expect(decl(".session-list .sl-label", "font-size")).toBe("12px"); // was 12.5
     expect(decl(".uh-stat-label", "font-size")).toBe("9px");        // was 9.5
     expect(decl(".uh-bar-label", "font-size")).toBe("9px");         // was 8
-    expect(decl(".ctx-modal-title", "font-size")).toBe("14px");     // was 15
+    expect(decl(".modal-tool-name", "font-size")).toBe("14px");     // the context title's was 15; every dialog title's since 2026-10-23
     expect(decl(".detail-hero .hero-title", "font-size")).toBe("18px"); // was 17
     expect(FONT_SIZES.length).toBeGreaterThan(150);
   });

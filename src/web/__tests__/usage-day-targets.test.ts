@@ -32,6 +32,12 @@
 // the dialog, which declares `overflow: auto` and would otherwise have become
 // the sideways scroller itself.
 //
+// The medium dialog since 2026-10-23 (tokens.css, "One dialog frame"): 820px,
+// a 784px content box, where the default 30 days are 26.13px a column on their
+// own share and only 90 days still lean on the floor. The gap stays out: it
+// would cost the default view nothing now, and the floor's arithmetic is the
+// one that has to hold the day the modal narrows again.
+//
 // This suite runs in plain node — no DOM, no layout engine — the way
 // panel-overflow.test.ts and panel-rhythm.test.ts do, so none of the widths
 // above can be measured here. What it does instead is re-derive them from the
@@ -113,7 +119,11 @@ const px = (value: string | null) => {
 
 /** The px term inside a `min()` — the cap, which is the width this modal has on
  *  any window wide enough to give it one. `min(760px, 92vw)` is 760. */
-const capPx = (value: string | null) => {
+const capPx = (value: string | null): number => {
+  // A size the root names, read where the root declares it: `var(--dialog-m)`
+  // is the medium dialog's `min(820px, …)` (tokens.css, "One dialog frame").
+  const named = /^var\((--[\w-]+)\)$/.exec((value ?? "").trim());
+  if (named) return capPx(decl(":root", named[1]));
   const m = /min\(\s*(-?[\d.]+)px\s*,/.exec(value ?? "");
   return m ? +m[1] : px(value);
 };
@@ -166,13 +176,13 @@ const round = (v: number) => Math.round(v * 100) / 100;
 // ── 1. the premise ──────────────────────────────────────────────────────────
 
 describe("the box the chart has to fit its days into", () => {
-  it("is a border box, which is what makes a 760px modal a 724px chart", () => {
+  it("is a border box, which is what makes an 820px modal a 784px chart", () => {
     // Every number in this file assumes the declared width IS the border box.
     // The sheet says so once, globally, and the arithmetic is wrong without it.
     expect(bodyOf("*")).toMatch(/box-sizing\s*:\s*border-box/);
     expect(Number.isNaN(modalWidth)).toBe(false);
     expect(Number.isNaN(padSide)).toBe(false);
-    expect(contentWidth).toBe(724);
+    expect(contentWidth).toBe(784);
   });
 
   it("holds four presets, and the widest of them is the one that cannot fit", () => {
@@ -247,16 +257,18 @@ describe("every day in the chart is a target somebody can hit", () => {
 
 describe("the chart is the box that scrolls, and only when it has to", () => {
   it("leaves the preset the modal opens on exactly where it was", () => {
-    // 30 columns of 24.13px in 724px, edge to edge, no scrollbar. This is the
-    // half of the fix that is easy to lose: reinstate the chart's gap and the
-    // default view gains a horizontal scrollbar for the sake of 25px.
+    // 30 columns of 26.13px in 784px, edge to edge, no scrollbar. In the 760px
+    // modal this was the half of the fix that was easy to lose: a 1px gap gave
+    // the default view a horizontal scrollbar for the sake of 25px, and the
+    // gap stays out for the window that brings that width back.
     const defaultPreset = 30;
     expect(PRESETS).toContain(defaultPreset);
     expect(history).toMatch(/useState\(30\)/);
     expect(rowOverflow(defaultPreset)).toBeLessThanOrEqual(0);
-    // And says why: with a 1px gap between the columns it would not.
+    // And says why: at the 724px the 760px modal gave it, a 1px gap between
+    // the floored columns would not have fit.
     const withGap = FLOOR * defaultPreset + 1 * (defaultPreset - 1);
-    expect(withGap).toBeGreaterThan(contentWidth);
+    expect(withGap).toBeGreaterThan(724);
     expect(chartGap).toBe(0);
   });
 

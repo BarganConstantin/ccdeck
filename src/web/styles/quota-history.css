@@ -1,7 +1,6 @@
 /* Usage histories share the existing report shell and measurement palette. */
-.modal.qh-modal { width: min(640px, 94vw); color: var(--text); animation: radioOpen 200ms cubic-bezier(.22, 1, .36, 1); }
+.modal.qh-modal { width: var(--dialog-m); color: var(--text); animation: radioOpen 200ms cubic-bezier(.22, 1, .36, 1); }
 .modal.qh-modal[data-keyboard-interaction] { animation: none; }
-.qh-modal .modal-head h2 { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .qh-header-actions { display: flex; gap: 8px; margin-left: auto; }
 .qh-body { gap: 16px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .qh-body > * { flex: none; }

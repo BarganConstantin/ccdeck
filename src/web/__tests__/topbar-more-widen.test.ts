@@ -210,7 +210,7 @@ function draw<P>(component: (p: P) => unknown, props: P, root: object) {
 }
 
 const DOCK_IDS = ["accounts", "session-list", "usage", "machine", "settings", "more"];
-const dockProps = () => { const r = rails(); return { items: [...r.left, ...r.right[0], r.utilities[0]], more: [...r.right[1], r.utilities[1]] }; };
+const dockProps = () => { const r = rails(); return { items: [...r.left, ...r.right[0], r.utilities[0]], more: [...r.right.slice(1).flat(), r.utilities[1]] }; };
 
 describe("the chrome when the window crosses a phone's width", () => {
   it("puts focus on the same control on the other side of the swap", () => {
