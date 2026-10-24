@@ -129,9 +129,11 @@ export function commandPanelEngine({
       // A ticket outlives nothing: with no engine there is nothing it names.
       return held ? held.terminals.attach(handle, socket) : { ok: false, status: 503 };
     },
-    /** The switch went off: stop the engine once its panels have closed. */
+    /** The switch went off: stop the engine once its panels have closed —
+     *  one running, or one a question asked while on is making now, which
+     *  is stopped the same grace later (or, made after it, not made). */
     switchedOff() {
-      if (!held || stopping) return;
+      if ((!held && !making) || stopping) return;
       stopping = setTimeout(() => { stopping = null; drop(); }, graceMs);
       stopping.unref?.();
     },

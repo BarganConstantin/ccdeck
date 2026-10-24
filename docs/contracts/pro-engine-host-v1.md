@@ -17,7 +17,10 @@ read. Off Linux every route answers `unsupported` without looking. The client
 it makes is the only one constructed with `terminal: true` (Terminal opt-in,
 below). The engine is stopped 1.5 s after the switch goes off, once its panels have been
 told, and at deck shutdown without being waited for; a later question starts
-a new one. With the switch off nothing here runs: no file is looked at, no
+a new one. An engine still being made for a question asked while on is stopped
+the same way. A route whose request was still arriving when the switch went
+off is answered as one sent after it, the no-route 404, and nothing is asked of
+the engine. With the switch off nothing here runs: no file is looked at, no
 client is made, no process is started and nothing touches the network.
 
 A caller of `startServer` may hand a deck another engine as `terminal.engine`,

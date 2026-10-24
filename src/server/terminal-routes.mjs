@@ -12,7 +12,9 @@
 // when it says no, answers exactly what index.mjs answers for an /api path
 // with no route — the same status and the same body — so a deck with the
 // panel off is indistinguishable from one built before it existed, and none of
-// this asks anything of anyone. The request gates still run first, as they do
+// this asks anything of anyone. A POST asks again once its body is in, right
+// before the engine would be asked (`answer`): a switch-off that lands while
+// the body arrives is a switch-off before the request. The request gates still run first, as they do
 // for every path: the two reads are in GUARDED_READS and the four POSTs are
 // mutations, so what is refused there is refused whatever the switch says.
 //
@@ -180,6 +182,11 @@ async function jsonBody(req, res) {
  */
 async function answer(d, req, res, method, question) {
   if (res.headersSent) return;
+  // The switch again, now that the question is whole: a POST's body is read after the route's first look, and
+  // the switch can go off while it arrives. Off by now, the route is not there, as for a request sent after
+  // the switch-off: nothing is asked of the engine, which would otherwise run a launch the switch had already
+  // closed and put off the engine's stop (command-panel-engine.mjs) with the switch off.
+  if (!d.enabled()) return notFound(res);
   if (d.jsBackend) return d.jsBackend[method](req, res, question, d);
   const said = d.engine?.enabled === true ? await d.engine.route(method, question) : engineRefusal("not-installed");
   if (said.log) console.error(`${PRODUCT}: terminal: ${said.log}`);
