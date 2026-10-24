@@ -67,6 +67,7 @@
 @import "./styles/claude-fm.css";                /* Claude FM */
 @import "./styles/account-projects.css";         /* the account Projects report */
 @import "./styles/rating.css";                   /* the one question the deck asks about itself */
+@import "./styles/panel-place.css";              /* Usage and the machine panel where the reader put them */
 @import "./styles/lan-setup.css";                /* local network setup */
 @import "./styles/lan-network-map.css";          /* the network map, after lan-setup.css whose fact grid it trims */
 @import "./styles/guides.css";                   /* guides */

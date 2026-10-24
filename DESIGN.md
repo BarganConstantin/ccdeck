@@ -398,6 +398,16 @@ when single-key shortcuts are disabled; mobile dock labels remain visible.
 right offset the floating panels position against: `368px` (the rail plus an 8px
 gap), or `8px` when no detail is open. Setting the rail to 368 would be wrong.
 
+**Usage and the machine panel move by their header** (`panel-place.ts`,
+`panel-place.css`): the reader drags one where the board is empty and it stays
+there across reloads, kept from the nearer window edge. The sheet clamps it
+between the stripes, below the bar and with 120px of it left in the window, so
+a smaller window pulls it in and a larger one gives the place back. A double
+click on the header, or a drop within 24px of the slot, returns it to its
+`--rail-r` slot. Escape cancels a drag; the one moved last is drawn on top. A
+phone's sheets do not move. The owner turned a dock beside the stripe down
+twice (2026-10-23/24) in favour of this.
+
 **Breakpoints,** and there are deliberately few: `520px`, `640px`, `1039/1040px`,
 `1200px`, `1439/1440px`, plus `1139px` and `1632px` for the topbar ribbon's
 sub-bands only. Below ~1100px the floating panels cover most of the canvas — a

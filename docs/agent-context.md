@@ -117,8 +117,10 @@ it but is not organized; branch `feature/ui-organization`):
 - Usage and the machine panel float over the board, as #910 left them. A
   dock beside the right stripe was built (full-height columns, then cards in
   a lane) and the owner turned both down on 2026-10-24: they want the panels
-  over the board. Free drag was discussed and not taken up. Do not dock them
-  again without a new request.
+  over the board, and asked instead that the reader can move each one by its
+  header (`panel-place.ts`): the place is remembered per panel, a double
+  click puts it back, and a phone does not move them. Do not dock them again
+  without a new request.
 - Every dialog is `--dialog-s` 560, `--dialog-m` 820 or `--dialog-l` 1120
   and has the one `.modal-head`. The integration trackers' full-page panel
   stays 90vw by the owner's own spec for it.

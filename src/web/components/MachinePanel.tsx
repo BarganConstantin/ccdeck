@@ -45,6 +45,7 @@ import { useSystem } from "../use-system";
 import ProcessListModal from "./ProcessListModal";
 import { Fig, OpensHistory, Row } from "./MachineReadout";
 import NetworkSection from "./MachineNetwork";
+import { PLACE_KEYS, usePanelPlace } from "../panel-place";
 
 /**
  * The panel's frame: its slot in the rail, its landmark name, its title, the
@@ -73,14 +74,17 @@ function Shell({ usageOpen, leaving, sub, flag, onClose, children }: {
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const place = usePanelPlace(PLACE_KEYS.machine);
   return (
     // Named by its own heading (#879). The title was a styled <span>, so this
     // was the one panel a screen reader's heading list skipped: Usage and
     // Claude accounts each open with an <h2>, and a reader moving by heading
     // went from one to the other past it. The landmark takes its name from
     // the heading so the region and its title cannot disagree.
-    <aside className={`sysdetail${usageOpen ? " shifted" : ""}${leaving ? " leaving" : ""}`} id="system-panel" aria-labelledby="sd-title">
-      <div className="sd-top">
+    // Its header moves it (panel-place.ts); a moved panel is past the shift.
+    <aside className={`sysdetail${usageOpen ? " shifted" : ""}${leaving ? " leaving" : ""}`} id="system-panel" aria-labelledby="sd-title"
+      {...place.panel}>
+      <div className="sd-top" {...place.grip}>
         <div className="sd-head">
           <h2 className="sd-title" id="sd-title">This machine</h2>
           {sub && <span className="sd-sub">{sub}</span>}
