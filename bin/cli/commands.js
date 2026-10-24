@@ -14,6 +14,10 @@
 // Every command takes `--json`: one object on stdout, `schemaVersion` first,
 // `ok` beside it, the human sentences left off. Exit codes are part of the
 // contract — see EXIT.
+//
+// `ccdeck tui` (bin/cli/tui.js) is the same commands kept on screen: it asks
+// the deck through the helpers exported here, so a switch from it takes the
+// route, the lock and the refusals a `ccdeck switch` does.
 import { spawn } from "node:child_process";
 import { hostname, userInfo } from "node:os";
 import { join } from "node:path";
@@ -24,7 +28,7 @@ import { COMMAND, PKG_ROOT, PKG_VERSION } from "./package.js";
 import { G, P, UNICODE, cols } from "./screen.js";
 import { oneShotVoice, reportFlagRows } from "./one-shot.js";
 
-const load = (rel) => import(pathToFileURL(join(PKG_ROOT, rel)).href);
+export const load = (rel) => import(pathToFileURL(join(PKG_ROOT, rel)).href);
 
 /** The picker, loaded only when somebody is about to be shown it. */
 async function pickAccount(rows, opts) {
@@ -63,6 +67,9 @@ export async function runCommand(flags) {
     case "usage": return usageCommand(flags, out);
     case "sessions": return sessionsCommand(flags, out);
     case "open": return openCommand(flags, out);
+    // The one that stays: a full screen over the same deck, until q. Loaded
+    // only when asked for, like the picker.
+    case "tui": return (await import("./tui.js")).runTui(flags, out);
     default: return out.fail(EXIT.USAGE, "unknown_command", unknownCommandText(String(flags.command)));
   }
 }
@@ -143,13 +150,13 @@ async function deckFor(flags) {
 
 /** Decks whose process is alive although none answered the challenge — slow
  *  at boot, in a pause, on a loaded machine. A switch here would race theirs. */
-async function silentDecks(port) {
+export async function silentDecks(port) {
   const { registeredDecks } = await load("src/server/running-deck.mjs");
   const decks = await registeredDecks().catch(() => []);
   return port == null ? decks : decks.filter(d => d.port === port);
 }
 
-async function ask(deck, opts) {
+export async function ask(deck, opts) {
   const { askDeck } = await load("src/server/deck-client.mjs");
   return askDeck(deck, opts);
 }
@@ -182,7 +189,7 @@ function localNote(silent) {
 }
 
 /** What to say about a deck that did not answer as expected. */
-function deckTrouble(deck, r) {
+export function deckTrouble(deck, r) {
   if (r.status === 404) {
     return `the deck on ${deck.port} (v${deck.version || "?"}) predates this command ${G.dash} \`${COMMAND} --new\` restarts it on v${PKG_VERSION}`;
   }
@@ -191,7 +198,7 @@ function deckTrouble(deck, r) {
 }
 
 /** Why a roster has nothing in it, in the words a person needs next. */
-function rosterTrouble(roster) {
+export function rosterTrouble(roster) {
   switch (roster?.reason) {
     case "no_accounts":
       return `no Claude accounts yet ${G.dash} sign in with \`claude\`, then add it from the deck's Accounts panel or with \`cswap add\``;
@@ -403,7 +410,7 @@ const BEST_PICKS = Object.freeze({
  * read its panel makes, with its token. With no deck, read here. A deck that
  * predates the rules (404) or cannot say has none to follow.
  */
-async function autoRules(deck, accounts) {
+export async function autoRules(deck, accounts) {
   const { bestRules } = await load("src/server/cswap-auto-choice.mjs");
   if (!deck) return bestRules(accounts).catch(() => null);
   const r = await ask(deck, { path: "/api/cswap-auto" });
@@ -421,7 +428,7 @@ function lanesSummary(a) {
 
 /** The switch, asked of the deck: its lock, its cache invalidation, its swap
  *  log — the same route the panel's click takes. */
-async function switchThroughDeck(deck, num) {
+export async function switchThroughDeck(deck, num) {
   // Longer than the deck's own thirty seconds for `cswap switch`, so it is the
   // deck's timeout that answers rather than this one cutting it off mid-switch.
   const r = await ask(deck, { method: "POST", path: "/api/claude-accounts/switch", body: { account: num }, timeoutMs: 45_000 });
@@ -431,7 +438,7 @@ async function switchThroughDeck(deck, num) {
 
 /** The switch with no deck to ask: claude-accounts.mjs's own, under the same
  *  mutex, and recorded in the same swap log the deck's route writes. */
-async function switchHere(num) {
+export async function switchHere(num) {
   const { switchClaudeAccount } = await load("src/server/claude-accounts.mjs");
   const result = await switchClaudeAccount(num);
   if (result.ok) {

@@ -77,6 +77,33 @@ const padStart = (s, n) => " ".repeat(Math.max(0, n - textWidth(s))) + s;
 export const clip = (s, n, ellipsis = "…") => (textWidth(s) <= n ? s
   : n <= textWidth(ellipsis) ? takeCells(s, n) : `${takeCells(s, n - textWidth(ellipsis))}${ellipsis}`);
 
+/**
+ * A painted line cut to `n` columns, its colour codes kept and not counted.
+ * The full-screen view's last word on a row (`ccdeck tui`): every line is laid
+ * out to fit already, and this is what holds when one was not — a row one
+ * column too long wraps into the row under it, and the screen below it is
+ * then one row off from what the view drew. The `ellipsis` says a line was
+ * cut, inside the same `n`.
+ */
+export function fitPainted(s, n, ellipsis = "") {
+  const text = String(s);
+  if (textWidth(text) <= n) return text;
+  const room = Math.max(0, n - textWidth(ellipsis));
+  let out = "";
+  let w = 0;
+  for (let i = 0; i < text.length;) {
+    const esc = /^\x1b\[[0-9;?]*[a-zA-Z]/.exec(text.slice(i, i + 32));
+    if (esc) { out += esc[0]; i += esc[0].length; continue; }
+    const ch = String.fromCodePoint(text.codePointAt(i));
+    const c = cellsOf(ch);
+    if (w + c > room) break;
+    out += ch;
+    w += c;
+    i += ch.length;
+  }
+  return `${out}${room < n ? ellipsis : ""}\x1b[0m`;
+}
+
 /** What is wrong with an account, in words, or null when nothing is. */
 export function accountTrouble(a) {
   if (a.disabled) return { word: "disabled", tone: "muted" };
@@ -106,24 +133,30 @@ function lanesText(a, { tone, g, unicode, now, wide }) {
  * the percentages stand alone; below that the alias goes and the email is
  * clipped. Nothing wraps: a row that wrapped would put one account's usage
  * under another's name.
+ *
+ * `home` is Auto-switch's home account by slot, for the views that know it
+ * (`ccdeck tui`): its row wears a house after the slot, two columns the email
+ * gives up. Without one — or with one no row has — the rows are unchanged.
  */
-export function accountLines(accounts, { tone, g, unicode = true, columns = 80, now = Date.now() } = {}) {
+export function accountLines(accounts, { tone, g, unicode = true, columns = 80, now = Date.now(), home = null } = {}) {
   const rows = Array.isArray(accounts) ? accounts : [];
   if (!rows.length) return [`  ${tone.muted}${g.dash}  no Claude accounts yet${tone.reset}`];
   const wide = columns >= 104;
   const aliasOf = (a) => oneLine(a.alias);
   const emailOf = (a) => oneLine(a.email) || "(no email)";
   const showAlias = columns >= 64 && rows.some(a => aliasOf(a));
+  const showHome = home != null && rows.some(a => a.num === home);
   const numW = Math.max(...rows.map(a => String(a.num).length));
   const aliasW = showAlias ? Math.min(14, Math.max(...rows.map(a => textWidth(aliasOf(a))))) : 0;
   // What is left for the email once the mark, the slot, the alias and the
   // lanes have their room; never less than 12, which still shows whose it is.
   const lanesW = wide ? 66 : 20;
-  const emailRoom = Math.max(12, columns - 2 - 2 - numW - 2 - (showAlias ? aliasW + 2 : 0) - 2 - lanesW);
+  const emailRoom = Math.max(12, columns - 2 - 2 - numW - 2 - (showHome ? 2 : 0) - (showAlias ? aliasW + 2 : 0) - 2 - lanesW);
   const emailW = Math.min(emailRoom, Math.max(...rows.map(a => textWidth(emailOf(a)))));
   return rows.map(a => {
     const mark = a.active ? `${tone.ok}${g.pulse}${tone.reset}` : " ";
     const num = `${a.active ? tone.bold : ""}${padStart(String(a.num), numW)}${tone.reset}`;
+    const house = !showHome ? "" : a.num === home ? `${tone.accent}${unicode ? "⌂" : "H"}${tone.reset} ` : "  ";
     const alias = showAlias ? `${tone.accent}${padEnd(clip(aliasOf(a), aliasW, g.ellipsis), aliasW)}${tone.reset}  ` : "";
     const email = padEnd(clip(emailOf(a), emailW, g.ellipsis), emailW);
     const trouble = accountTrouble(a);
@@ -132,7 +165,7 @@ export function accountLines(accounts, { tone, g, unicode = true, columns = 80, 
       : lanesText(a, { tone, g, unicode, now, wide });
     // The last lane's reset is padded for the column after it, which the last
     // lane does not have: the padding goes, and the colour reset behind it stays.
-    const line = `  ${mark} ${num}  ${alias}${email}  ${status}`.replace(/ +((?:\x1b\[[0-9;]*m)*)$/, "$1");
+    const line = `  ${mark} ${num}  ${house}${alias}${email}  ${status}`.replace(/ +((?:\x1b\[[0-9;]*m)*)$/, "$1");
     // How old the reading is, where it fits: the one part of a row that can be
     // left off without the row saying something else.
     const age = !trouble && a.stale && a.fetchedAt != null
@@ -151,17 +184,24 @@ export function usageLines(a, { tone, g, unicode = true, columns = 80, now = Dat
   const out = [head, ""];
   const trouble = accountTrouble(a);
   if (trouble) out.push(`    ${tone[trouble.tone]}${trouble.word}${tone.reset}`);
-  const lanes = a.lanes ?? [];
-  const labelW = Math.max(2, ...lanes.map(l => String(l.label).length));
-  const cells = columns >= 70 ? 20 : 10;
-  for (const l of lanes) {
-    const until = untilReset(l.resetAt, now);
-    out.push(`    ${tone.muted}${padEnd(String(l.label), labelW)}${tone.reset}  ${pctTone(l.pct, tone)}${meter(l.pct, { cells, unicode })}`
-      + `${padStart(`${Math.round(l.pct)}%`, 5)}${tone.reset}${until ? `   ${tone.muted}resets in ${until}${tone.reset}` : ""}`);
-  }
-  if (!lanes.length) out.push(`    ${tone.muted}${a.fetchedAt == null ? "not read yet" : "no usage reading"}${tone.reset}`);
+  out.push(...laneLines(a, { tone, unicode, columns, now }));
   if (a.fetchedAt != null) out.push("", `    ${tone.muted}read ${sinceLabel(now - a.fetchedAt)} ago${tone.reset}`);
   return out;
+}
+
+/** Every lane of one account, a meter each — twenty cells from 70 columns —
+ *  and its reset; one muted line when there is no reading. `ccdeck usage`'s
+ *  body, and the selected account's in `ccdeck tui`. */
+export function laneLines(a, { tone, unicode = true, columns = 80, now = Date.now(), indent = "    " } = {}) {
+  const lanes = a.lanes ?? [];
+  if (!lanes.length) return [`${indent}${tone.muted}${a.fetchedAt == null ? "not read yet" : "no usage reading"}${tone.reset}`];
+  const labelW = Math.max(2, ...lanes.map(l => String(l.label).length));
+  const cells = columns >= 70 ? 20 : 10;
+  return lanes.map(l => {
+    const until = untilReset(l.resetAt, now);
+    return `${indent}${tone.muted}${padEnd(String(l.label), labelW)}${tone.reset}  ${pctTone(l.pct, tone)}${meter(l.pct, { cells, unicode })}`
+      + `${padStart(`${Math.round(l.pct)}%`, 5)}${tone.reset}${until ? `   ${tone.muted}resets in ${until}${tone.reset}` : ""}`;
+  });
 }
 
 /** "opus-4-1" for "claude-opus-4-1-20250805": the part a person says. */
