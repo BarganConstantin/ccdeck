@@ -404,8 +404,10 @@ there across reloads, kept from the nearer window edge. The sheet clamps it
 between the stripes, below the bar and with 120px of it left in the window, so
 a smaller window pulls it in and a larger one gives the place back. A double
 click on the header, or a drop within 24px of the slot, returns it to its
-`--rail-r` slot. Escape cancels a drag; the one moved last is drawn on top. A
-phone's sheets do not move. The owner turned a dock beside the stripe down
+`--rail-r` slot. Escape cancels a drag. Put one below the other in a shared
+column and the upper one ends 8px above it and scrolls (`stackCap`), live
+while dragging, so both read whole; where it would keep less than 120px they
+overlap instead, the one moved last on top. A phone's sheets do not move. The owner turned a dock beside the stripe down
 twice (2026-10-23/24) in favour of this.
 
 **Breakpoints,** and there are deliberately few: `520px`, `640px`, `1039/1040px`,

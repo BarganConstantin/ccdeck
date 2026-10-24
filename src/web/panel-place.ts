@@ -17,7 +17,7 @@
 //
 // A phone has no room to move anything in; there the two are sheets and a
 // stored place waits for the next desktop load.
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import { readStored, removeStored, writeStored } from "./storage";
 import { useMediaQuery } from "./use-media-query";
 import { PHONE_QUERY } from "./phone-load";
@@ -90,6 +90,48 @@ export function parsePlace(raw: string | null): PanelPlace | null {
   return null;
 }
 
+/** Between a panel and one put below it in the same column. */
+export const STACK_GAP = 8;
+
+type Box = { left: number; top: number; width: number };
+
+/**
+ * ONE PANEL PUT BELOW THE OTHER SHORTENS THE ONE ABOVE (owner, 2026-10-24).
+ * Where the two share any of a column, the upper one ends STACK_GAP above the
+ * lower one's top and scrolls the rest, the way either already does at the
+ * window's foot, so both can be read whole. The heights do not matter: a cap
+ * longer than the upper panel's content changes nothing. Where the upper one
+ * would keep less than LEAST_SHOWN, there is no cap and they overlap, the
+ * one moved last on top.
+ */
+export function stackCap(a: Box, b: Box): { upper: "a" | "b"; cap: number } | null {
+  if (a.left >= b.left + b.width || b.left >= a.left + a.width) return null;
+  const [upper, lower, which] = a.top <= b.top ? [a, b, "a" as const] : [b, a, "b" as const];
+  const cap = lower.top - upper.top - STACK_GAP;
+  return cap >= LEAST_SHOWN ? { upper: which, cap } : null;
+}
+
+/** Applies stackCap to the two panels as they stand. Offsets, not rects, so
+ *  the 8px of an arriving panel's rail-in does not count. A phone stacks its
+ *  two sheets in the sheet already. */
+export function fitStack(): void {
+  const usage = document.querySelector<HTMLElement>(".usage-panel");
+  const machine = document.querySelector<HTMLElement>(".sysdetail");
+  usage?.style.removeProperty("max-height");
+  machine?.style.removeProperty("max-height");
+  if (!usage || !machine || window.matchMedia(PHONE_QUERY).matches) return;
+  const box = (el: HTMLElement): Box => ({ left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth });
+  const fit = stackCap(box(usage), box(machine));
+  if (fit) (fit.upper === "a" ? usage : machine).style.maxHeight = `${fit.cap}px`;
+}
+
+let fitFrame = 0;
+/** fitStack once in the next frame, however many things asked for it. */
+function scheduleFit(): void {
+  if (fitFrame) return;
+  fitFrame = requestAnimationFrame(() => { fitFrame = 0; fitStack(); });
+}
+
 /** The room as the sheet sees it, measured rather than read from the tokens
  *  (nothing here calls getComputedStyle; see render-path-cost-612-613): the
  *  stripe's width, and the home slot's top, which is the sheet's least top,
@@ -133,6 +175,8 @@ export function usePanelPlace(key: string) {
       el.style.removeProperty("top");
       el.style.removeProperty("right");
     }
+    // The other panel gives way as this one passes over it, not after.
+    fitStack();
   };
   const finish = () => {
     const el = panelRef.current;
@@ -217,6 +261,22 @@ export function usePanelPlace(key: string) {
   };
 
   const placed = place && !phone ? place : null;
+  // The pair is fitted when this panel arrives or is put somewhere, before it
+  // paints; when it leaves; and when the room around them changes: the window,
+  // or the canvas column, which the detail panel and the rating row resize and
+  // whose arrival moves a home slot.
+  useLayoutEffect(() => { fitStack(); }, [placed?.edge, placed?.x, placed?.y]);
+  useEffect(() => {
+    window.addEventListener("resize", scheduleFit);
+    const main = document.querySelector(".app main");
+    const resized = main && typeof ResizeObserver !== "undefined" ? new ResizeObserver(scheduleFit) : null;
+    if (main) resized?.observe(main);
+    return () => {
+      window.removeEventListener("resize", scheduleFit);
+      resized?.disconnect();
+      scheduleFit();
+    };
+  }, []);
   const panel = {
     ref: panelRef,
     "data-place": placed?.edge,

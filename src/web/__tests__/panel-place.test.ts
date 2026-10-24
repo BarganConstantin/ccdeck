@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { boxOf, clamp, HOME_SNAP, LEAST_SHOWN, nearHome, parsePlace, placeOf, PLACE_KEYS, type PanelRoom } from "../panel-place";
+import { boxOf, clamp, HOME_SNAP, LEAST_SHOWN, nearHome, parsePlace, placeOf, PLACE_KEYS, STACK_GAP, stackCap, type PanelRoom } from "../panel-place";
 import { sheetText } from "./sheet-source";
 
 const source = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
@@ -63,6 +63,35 @@ describe("going home", () => {
     expect(nearHome({ left: 1112 - HOME_SNAP, top: 52 + HOME_SNAP }, home)).toBe(true);
     expect(nearHome({ left: 1112 - HOME_SNAP - 1, top: 52 }, home)).toBe(false);
     expect(nearHome({ left: 1112, top: 52 + HOME_SNAP + 1 }, home)).toBe(false);
+  });
+});
+
+describe("one panel put below the other", () => {
+  // The owner's case: Usage at home, the machine panel put down under it.
+  const usage = { left: 1112, top: 52, width: 280 };
+
+  it("shortens the upper one to end a gap above the lower one", () => {
+    expect(stackCap(usage, { left: 1112, top: 270, width: 280 })).toEqual({ upper: "a", cap: 270 - 52 - STACK_GAP });
+    expect(stackCap({ left: 1000, top: 400, width: 280 }, usage)).toEqual({ upper: "b", cap: 400 - 52 - STACK_GAP });
+  });
+
+  it("counts any shared part of a column", () => {
+    expect(stackCap(usage, { left: 1112 - 279, top: 300, width: 280 })?.upper).toBe("a");
+    expect(stackCap(usage, { left: 1112 - 280, top: 300, width: 280 })).toBeNull();
+    expect(stackCap(usage, { left: 1112 + 280, top: 300, width: 280 })).toBeNull();
+  });
+
+  it("leaves two that start too close to overlap, rather than keep a sliver", () => {
+    expect(stackCap(usage, { left: 1112, top: 52 + LEAST_SHOWN + STACK_GAP, width: 280 })?.cap).toBe(LEAST_SHOWN);
+    expect(stackCap(usage, { left: 1112, top: 52 + LEAST_SHOWN + STACK_GAP - 1, width: 280 })).toBeNull();
+    expect(stackCap(usage, { ...usage })).toBeNull();
+  });
+
+  it("is fitted while one is dragged, and when either arrives, moves or leaves", () => {
+    const hook = source("../panel-place.ts");
+    expect(hook).toMatch(/const draw = [\s\S]*?fitStack\(\);\s*\};/);
+    expect(hook).toContain("useLayoutEffect(() => { fitStack(); }, [placed?.edge, placed?.x, placed?.y]);");
+    expect(hook).toMatch(/return \(\) => \{[\s\S]*?scheduleFit\(\);\s*\};/);
   });
 });
 
