@@ -33,6 +33,7 @@ import { engineTerminals, SHUTDOWN_GRACE_MS } from "../../server/pro-engine-term
 // @ts-expect-error — plain .mjs server module, no types
 import { acceptKey } from "../../server/ws-frames.mjs";
 import { clientFrame, handshakeKey, json, openWs, OPS, type Frame, type WsClient } from "./ws-test-client";
+import { parseServerMessage } from "../terminal-protocol";
 
 const roots: string[] = [], clients: any[] = [], servers: Server[] = [], sockets: WsClient[] = [], raws: net.Socket[] = [];
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -396,6 +397,29 @@ describe.skipIf(process.platform === "win32")("the terminal socket relayed to th
     await c.closed;
     await vi.waitFor(async () => expect((await controls(e, 1)).filter(m => m.t === "close")).toEqual([{ t: "close" }]));
     expect((await e.client.request("terminal.log")).live).toEqual([]);
+    expect(e.lost).toEqual([]);
+  });
+
+  it("relays an engine's replies frame verbatim between the hello and the first reset, and the panel reads its kinds", async () => {
+    // A session with no tmux server: the engine says, in the tmux frame's
+    // place, which queries the panel's own terminal answers. The deck parses
+    // nothing it relays, so the bytes are the engine's.
+    const e = await installed();
+    const d = await deck(e);
+    await plan(e, { replies: ["decrqm-dec", "osc11"] });
+    const c = await d.dial(await d.ticket());
+    expect(json(await c.next())).toEqual(JSON.parse(HELLO));
+    const said = await c.next();
+    expect([said.op, said.data.toString()]).toEqual([OPS.text, JSON.stringify({ t: "replies", v: 1, view: ["decrqm-dec", "osc11"] })]);
+    expect(parseServerMessage(said.data.toString())).toEqual({ t: "replies", view: ["decrqm-dec", "osc11"] });
+    await emit(e, [{ kind: 2, stream: 1, text: '{"t":"reset","cols":80,"rows":24}' }, { kind: 1, stream: 1, text: "\x1bc$ " }]);
+    expect(json(await c.next())).toEqual({ t: "reset", cols: 80, rows: 24 });
+    const seed = await c.next();
+    expect([seed.op, seed.data.toString()]).toEqual([OPS.binary, "\x1bc$ "]);
+    const relayed = HELLO.length + said.data.length + '{"t":"reset","cols":80,"rows":24}'.length + 4;
+    await vi.waitFor(async () => expect((await controls(e, 1)).filter(m => m.t === "flow").at(-1)?.relayed, "counted as any text").toBe(relayed));
+    c.sendClose(1000);
+    await c.closed;
     expect(e.lost).toEqual([]);
   });
 

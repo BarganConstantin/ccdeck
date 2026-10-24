@@ -39,6 +39,7 @@
     "serverMessages": [
       "hello",
       "tmux",
+      "replies",
       "reset",
       "size",
       "exit"

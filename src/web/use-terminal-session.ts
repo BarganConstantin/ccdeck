@@ -54,7 +54,7 @@ import {
   type TmuxProgress,
   type TmuxStatus,
 } from "./terminal-api";
-import { connectTerminal, hexColour, pasteTooLarge, type ConnectOptions, type SizeOwner, type TerminalConnection, type TmuxVersion } from "./terminal-protocol";
+import { connectTerminal, hexColour, pasteTooLarge, type ConnectOptions, type SizeOwner, type TerminalConnection, type TmuxVersion, type ViewKind } from "./terminal-protocol";
 import { MINIMUM_CONTRAST_RATIO } from "./terminal-palette";
 import type { Cell } from "./stage-geometry";
 import { terminalKeyInput, terminalKeyOutcome, type TerminalKey } from "./terminal-keys";
@@ -152,6 +152,9 @@ export interface StageTerminal {
   /** The tmux server the pane lives in, which decides the questions xterm
    *  leaves to it (terminal-replies.ts); null while a connection has not said. */
   tmuxVersion(version: TmuxVersion | null): void;
+  /** For a session with no tmux: the query kinds the deck says xterm answers
+   *  itself (terminal-replies.ts). A tmux version, null included, clears it. */
+  viewAnswers(kinds: readonly ViewKind[]): void;
   focus(): void;
   blur(): void;
   /** The cell it drew with, in CSS pixels, once it has drawn. */
@@ -252,7 +255,9 @@ function copySelection(term: { hasSelection(): boolean; getSelection(): string; 
  * TMUX ANSWERS THE PANE'S QUESTIONS (terminal-replies.ts) — those that tmux
  * answers: xterm sees them in the raw output and would answer a second time
  * into the program's input. What a given tmux answers is its version's, which
- * the deck reports per connection (`tmuxVersion`); xterm answers the rest.
+ * the deck reports per connection (`tmuxVersion`); xterm answers the rest. A
+ * session with no tmux is told instead which questions xterm answers
+ * (`viewAnswers`).
  *
  * LINKS NEED CTRL (Cmd on a Mac), and never a browser dialog
  * (terminal-links.ts), for OSC 8 links and plain URLs alike.
@@ -393,6 +398,7 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     resize: (cols, rows) => term.resize(cols, rows),
     setTheme: theme => { term.options.theme = theme; },
     tmuxVersion: version => replies.setTmux(version),
+    viewAnswers: kinds => replies.setViewAnswers(kinds),
     focus: () => term.focus(),
     blur: () => term.blur(),
     // The screen element is exactly cols × rows cells: xterm sizes it to the
@@ -687,6 +693,13 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       onTmux: version => {
         if (my !== gen) return;
         withTerminal(t => t.write("", () => { if (my === gen) t.tmuxVersion(version); }));
+      },
+      // A session with no tmux says, in the version's place, which questions
+      // xterm answers itself; applied where it falls in the bytes, as the
+      // version is, and cleared with it on the next connection.
+      onReplies: kinds => {
+        if (my !== gen) return;
+        withTerminal(t => t.write("", () => { if (my === gen) t.viewAnswers(kinds); }));
       },
       onSize: ({ cols, rows }) => {
         // The pane's real size, when it is not the one this panel asked for:

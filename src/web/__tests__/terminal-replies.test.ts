@@ -9,6 +9,7 @@ import {
   COLOUR_OSC, QUERY_CSI, QUERY_DCS, RESET_OSC, TMUX_36_DEC_MODES, asksColour, leaveRepliesToTmux, tmuxAnswers,
   type SequenceId,
 } from "../terminal-replies";
+import { VIEW_KINDS, type ViewKind } from "../terminal-protocol";
 
 type Handler = (...args: never[]) => boolean;
 const idKey = (id: SequenceId) => `${id.prefix ?? ""}|${id.intermediates ?? ""}|${id.final}`;
@@ -178,5 +179,97 @@ describe("what the stage's xterm answers", () => {
     expect(asksColour("rgb:ff/ff/ff")).toBe(false);
     expect(asksColour("1;#123456")).toBe(false);
     expect(asksColour("")).toBe(false);
+  });
+});
+
+// A session with no tmux (the optional engine's console sessions) never says a
+// version; the deck may say instead which kinds the stage's xterm answers
+// (`{t:"replies"}`, terminal-protocol.ts). Same parser, same questions.
+describe("for a session with no tmux, the kinds the deck says the stage's xterm answers", () => {
+  const DA1 = { final: "c" }, DA2 = { prefix: ">", final: "c" }, DSR = { final: "n" }, DECDSR = { prefix: "?", final: "n" };
+  const RQM_ANSI = { intermediates: "$", final: "p" }, RQM_DEC = { prefix: "?", intermediates: "$", final: "p" };
+  const RQSS = { intermediates: "$", final: "q" };
+
+  /** Every question, as the version cases above ask them: what xterm answered. */
+  function every(p: ReturnType<typeof parser>) {
+    p.csi(DA1); p.csi(DA2); p.csi(DSR, [5]); p.csi(DSR, [6]);
+    p.csi(DECDSR, [996]); p.csi(DECDSR, [6]);
+    p.csi(RQM_DEC, [2026]); p.csi(RQM_DEC, [2004]); p.csi(RQM_ANSI, [4]);
+    p.dcs(RQSS, " q");
+    p.osc(10, "?"); p.osc(11, "?"); p.osc(10, "?;?"); p.osc(12, "?"); p.osc(4, "1;?");
+    return p.replied;
+  }
+  /** A view told `kinds`, after the version `v` (the latest word wins). */
+  function told(kinds: readonly ViewKind[] | null, v: readonly [number, number] | null = null) {
+    const p = parser();
+    const replies = leaveRepliesToTmux(p.api);
+    replies.setTmux(v);
+    replies.setViewAnswers(kinds);
+    return { p, replies };
+  }
+
+  it("answers exactly the kinds listed and leaves every other question alone, whatever the version", () => {
+    for (const v of [null, [3, 2], [3, 8]] as const) {
+      expect(every(told(["decrqm-dec", "osc10", "osc11"], v).p), String(v))
+        .toEqual(["csi ?|$|p", "csi ?|$|p", "osc 10", "osc 11", "osc 10"]);
+    }
+  });
+
+  it("answers, for each kind alone, that kind's questions and no other", () => {
+    const alone: Record<ViewKind, string[]> = {
+      da: ["csi ||c", "csi >||c"],
+      dsr: ["csi ||n", "csi ||n"],
+      decdsr: ["csi ?||n", "csi ?||n"],
+      "decrqm-ansi": ["csi |$|p"],
+      "decrqm-dec": ["csi ?|$|p", "csi ?|$|p"],
+      decrqss: ["dcs |$|q"],
+      osc4: ["osc 4"],
+      osc10: ["osc 10", "osc 10"],
+      osc11: ["osc 11"],
+      osc12: ["osc 12"],
+    };
+    expect(Object.keys(alone).sort()).toEqual([...VIEW_KINDS].sort());
+    for (const kind of VIEW_KINDS) expect(every(told([kind]).p), kind).toEqual(alone[kind]);
+    expect(every(told(VIEW_KINDS).p), "every kind listed: xterm answers every question").toEqual([
+      "csi ||c", "csi >||c", "csi ||n", "csi ||n", "csi ?||n", "csi ?||n", "csi ?|$|p", "csi ?|$|p", "csi |$|p",
+      "dcs |$|q", "osc 10", "osc 11", "osc 10", "osc 12", "osc 4",
+    ]);
+  });
+
+  it("goes back to the version on a tmux frame, and to none on a new connection", () => {
+    const { p, replies } = told(["osc12"]);
+    replies.setTmux([3, 4]);
+    expect(every(p), "3.4's own").toEqual(["csi ?||n", "csi ?|$|p", "csi ?|$|p", "csi |$|p", "dcs |$|q", "osc 10", "osc 12", "osc 4"]);
+    p.replied.length = 0;
+    replies.setViewAnswers(["osc12"]);
+    replies.setTmux(null);
+    expect(every(p), "unknown again, as before any word").toEqual(["csi ?||n", "osc 10", "osc 12", "osc 4"]);
+  });
+
+  it("with an empty list, or none, leaves everything exactly as it was", () => {
+    for (const v of [null, [3, 4], [3, 8]] as const) {
+      const before = parser();
+      leaveRepliesToTmux(before.api).setTmux(v);
+      const empty = told([], v);
+      const cleared = told(["osc11"], v);
+      cleared.replies.setViewAnswers(null);
+      const expected = every(before);
+      expect(every(empty.p), `${v}: empty`).toEqual(expected);
+      expect(every(cleared.p), `${v}: null`).toEqual(expected);
+    }
+  });
+
+  it("still lets a program set its colours and its cursor style while a list leaves their questions alone", () => {
+    const { p } = told(["da"]);
+    p.osc(11, "rgb:11/22/33"); p.osc(4, "1;#cc0000"); p.osc(10, "#ffffff");
+    p.csi({ intermediates: " ", final: "q" });
+    expect(p.replied).toEqual(["osc 11", "osc 4", "osc 10", "cursor style"]);
+  });
+
+  it("goes back to xterm's own answers once disposed, list and all", () => {
+    const { p, replies } = told(["da"]);
+    replies.dispose();
+    p.csi(DECDSR, [6]); p.osc(11, "?");
+    expect(p.replied).toEqual(["csi ?||n", "osc 11"]);
   });
 });

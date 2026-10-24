@@ -197,6 +197,8 @@ and runs the panel's protocol, the one `terminalBridge` speaks. The panel
 cannot tell the two apart: every message, its bytes, its order, and every close
 code and reason are what the JS bridge sends. One WebSocket message is one
 message on the stream, both ways; a seed is one binary message, never split.
+The one message the JS bridge has no counterpart for is `replies`, for a
+session it cannot open (Query answers, below).
 
 The host asks for an attach only while the engine's hello advertised a terminal
 backend (`terminal.backend` other than `unavailable`); otherwise, or with the
@@ -265,6 +267,39 @@ whether the `close` reached it before or after its answer.
 | engine | kind 3 `close` | `conn.close(code, reason)` |
 
 The host parses nothing it relays.
+
+### Query answers (`replies`)
+
+A session with no tmux server (a console session) never says `{"t":"tmux"}`.
+In its place the engine may say, as one text message, which queries the
+panel's own terminal answers:
+
+```
+{"t": "replies", "v": 1, "view": ["decrqm-dec", "osc10", "osc11"]}
+```
+
+- **Meaning:** for this session the panel's terminal answers exactly these
+  query kinds and leaves every other query alone. A kind missing or unknown
+  stays silent, so a newer panel's kind never answers against an older engine.
+- **Kinds** (`VIEW_KINDS`, `src/web/terminal-protocol.ts`): `da` (DA1, DA2),
+  `dsr`, `decdsr`, `decrqm-ansi`, `decrqm-dec`, `decrqss`, `osc4`, `osc10`,
+  `osc11`, `osc12` (an OSC colour's `?` form only; a set still sets). The
+  engine says known kinds only, each once, in that order, never an empty list.
+- **Order:** at most once per stream, after `hello` and before the first
+  `reset`, never again on a reseed. A stream whose session has a tmux version
+  is told `tmux` and never `replies`.
+- **`v`:** the panel ignores a frame whose `v` is not the number 1, or whose
+  `view` is not a list of strings; of a list it keeps the kinds it knows, once
+  each. A different meaning gets a new `v`.
+- **The panel** (`src/web/terminal-replies.ts`): while a list is set, a query
+  is answered by its terminal only if its kind is listed, whatever the tmux
+  version. A `tmux` frame or a new connection clears it; an empty list is no
+  list.
+- **Compatibility:** an older panel ignores a message whose `t` it does not
+  know, and behaves as before; an older engine never says it, and a panel that
+  is not told behaves as before. The host relays it verbatim, like any text,
+  and the deck's own JS bridge never says it. Today no engine names a kind, so
+  the frame is not sent.
 
 ### Stream control (kind 3)
 
@@ -342,5 +377,5 @@ the host's messages.
 
 No pid, pane, window, session or socket name, path or argv crosses, in either
 direction: not in the reply, a control message or an error. The browser is
-handed only what the JS bridge would send. Nothing in a stream is logged, by
+handed only what the JS bridge would send, and `replies` (Query answers). Nothing in a stream is logged, by
 either side.
