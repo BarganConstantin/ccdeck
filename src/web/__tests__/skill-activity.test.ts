@@ -9,7 +9,7 @@ import { createToolAudit } from '../../server/tool-audit.mjs';
 import { auditQuery } from '../../server/tool-audit-routes.mjs';
 // @ts-expect-error server module
 import { codexSkillState, codexSkillUses, noteCodexSkills, parseSkillCatalog } from '../../server/codex-skills.mjs';
-import { countingStartedLate, originParts, skillParts, skillSummary, sortSkills, typedCommandsNote } from '../skill-activity';
+import { countingStartedLate, dayOriginParts, dayOrigins, findSkillHighlights, originLine, originShares, skillParts, skillSummary, sortSkills, typedCommandsNote, useOrigin } from '../skill-activity';
 import type { SkillRow } from '../tool-audit';
 
 const dirs: string[] = []; const audits: any[] = [];
@@ -102,6 +102,20 @@ describe('Skill activity collection', () => {
     expect(days.at(-1)).toMatchObject({ date: '2026-10-13', uses: 3, status: 'used' });
     expect(days[0].status).toBe('outside-history');
     expect(r.countedSince).toBe(START);
+  });
+  it('splits a skill’s days by who started it, and says what its five named projects leave out', async () => {
+    const { audit } = await setup();
+    for (const [i, cwd] of ['/w/a', '/w/a', '/w/b', '/w/c', '/w/d', '/w/e', '/w/f', '/w/g', '/w/g'].entries()) audit.observe(skillCall(`c${i}`, 'matt-pr', { cwd }), 'hook', { receivedAt: clock - 20 + i });
+    audit.observe(typed('matt-pr', 'brief', { cwd: undefined }), 'hook', { receivedAt: clock - 5 });
+    audit.observeSkill({ key: 'turn1|matt-pr', name: 'matt-pr', origin: 'detected', session: 'codex1', cwd: '/w/a', subagent: false, at: clock - 1 });
+    const { details } = await skills(audit, { skill: 'matt-pr', history: true, timeZone: 'UTC', days: 7 });
+    expect(details.projects).toEqual([{ name: 'a', uses: 3 }, { name: 'g', uses: 2 }, { name: 'b', uses: 1 }, { name: 'c', uses: 1 }, { name: 'd', uses: 1 }]);
+    // The named five, the rest and the uses with no folder add up to every use.
+    expect(details.moreProjects).toEqual({ projects: 2, uses: 2 });
+    expect(details.projectless).toBe(1);
+    expect(details.total).toBe(11);
+    expect(details.history.days.at(-1)).toMatchObject({ date: '2026-10-13', uses: 11, agent: 9, typed: 1, detected: 1 });
+    expect(details.history.days[0]).toMatchObject({ uses: 0, agent: 0, typed: 0, detected: 0 });
   });
   it('starts counting skills when an older journal first meets this build, and again after Clear', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'ccdeck-skill-activity-')); dirs.push(dir);
@@ -203,9 +217,35 @@ describe('Skill activity list', () => {
     expect(skillParts('matt-pr')).toEqual({ namespace: '', short: 'matt-pr' });
     expect(skillParts('odd:')).toEqual({ namespace: '', short: 'odd:' });
   });
-  it('says how the uses came about, and only what happened', () => {
-    expect(originParts(row('x', 6, 0, { typed: 2, agent: 3, detected: 1, subagent: 1 }))).toEqual(['2 typed by you', '3 called by the agent', '1 detected in Codex', '1 in a subagent']);
-    expect(originParts(row('x', 1, 0))).toEqual(['1 called by the agent']);
+  it('says under a skill who started it, with counts only once more than one did', () => {
+    expect(originLine(row('x', 6, 0, { typed: 2, agent: 3, detected: 1, providers: { claude: 5, codex: 1 } }))).toBe('Picked by Claude 3, Codex 1 · typed by you 2');
+    expect(originLine(row('x', 1, 0))).toBe('Picked by Claude');
+    expect(originLine(row('x', 2, 0, { agent: 0, typed: 2 }))).toBe('Typed by you');
+    expect(originLine(row('x', 2, 0, { agent: 0, typed: 2, providers: { claude: 0, codex: 2 } }))).toBe('Typed by you in Codex');
+    expect(originLine(row('x', 2, 0, { agent: 0, detected: 2, providers: { claude: 0, codex: 2 } }))).toBe('Picked by Codex');
+  });
+  it('names who started one use, and a day’s uses by who started them in the ring’s order', () => {
+    expect(useOrigin({ origin: 'agent', provider: 'claude' })).toBe('Picked by Claude');
+    expect(useOrigin({ origin: 'detected', provider: 'codex' })).toBe('Picked by Codex');
+    expect(useOrigin({ origin: 'typed', provider: 'claude' })).toBe('Typed by you');
+    expect(useOrigin({ origin: 'typed', provider: 'codex' })).toBe('Typed in Codex');
+    expect(dayOrigins({ typed: 1, agent: 3, detected: 0 })).toBe('3 picked by Claude, 1 typed by you');
+    expect(dayOriginParts({ typed: 2, agent: 0, detected: 1 })).toEqual([{ id: 'detected', text: '1 picked by Codex' }, { id: 'typed', text: '2 typed by you' }]);
+    expect(dayOrigins({ typed: 0, agent: 0, detected: 0 })).toBe('');
+  });
+  it('splits the period’s uses by who started them, naming the skill each way mostly was', () => {
+    const report = { typedCommands: 'on' as const, rows: [row('impeccable', 8, 9, { agent: 6, typed: 2 }), row('loop', 3, 5, { agent: 0, typed: 3 }),
+      row('docs', 1, 1, { agent: 0, detected: 1 }), row('idle', 0, 0, { agent: 0, repeats: 4 })] };
+    expect(originShares(report, 'all')).toEqual([
+      { id: 'agent', label: 'Picked by Claude', uses: 6, share: '50%', fact: 'Only impeccable' },
+      { id: 'detected', label: 'Picked by Codex', uses: 1, share: '8%', fact: 'Only docs' },
+      { id: 'typed', label: 'Typed by you', uses: 5, share: '42%', fact: 'Mostly loop' },
+    ]);
+    // Claude's slash commands not reaching the deck reads as uncounted, never as "you never type one".
+    const claudeOnly = { typedCommands: 'skipped' as const, rows: [row('impeccable', 4, 9)] };
+    expect(originShares(claudeOnly, 'claude').map(part => [part.id, part.uses, part.fact])).toEqual([['agent', 4, 'Only impeccable'], ['typed', 0, 'Slash commands are not counted']]);
+    expect(originShares(claudeOnly, 'codex').map(part => part.id)).toEqual(['agent']);
+    expect(originShares({ rows: [row('idle', 0, 0, { agent: 0, repeats: 2 })] }, 'all')).toEqual([]);
   });
   it('sums the period in one sentence and leaves repeats out of the count', () => {
     const summary = skillSummary({ total: 1, failed: 0, repeats: 4, rows: [row('loop', 1, 0, { repeats: 4 }), row('idle', 0, 0, { repeats: 2 })] }, 'claude', '7');
@@ -219,5 +259,28 @@ describe('Skill activity list', () => {
     expect(typedCommandsNote({ typedCommands: 'skipped' }, 'codex')).toBeNull();
     expect(typedCommandsNote({ typedCommands: 'skipped' }, 'claude')).toMatch(/not counted yet: that needs Claude Code 2\.1\.116 or newer/);
     expect(typedCommandsNote({ typedCommands: 'off' }, 'all')).toMatch(/AGENTS_DECK_SKILL_HOOK turned off/);
+  });
+  it('picks at most three things worth a look, one per skill: failing, the go-to, the one always typed, then quiet and new', () => {
+    const DAY = 86400000, until = Date.parse('2026-10-24T12:00:00Z'), since = until - 30 * DAY;
+    const go = row('impeccable', 8, until - DAY, { sessions: 7, firstAt: until - 20 * DAY });
+    const typedOnly = row('loop', 4, until - DAY, { agent: 0, typed: 4, firstAt: until - 25 * DAY });
+    const quiet = row('grill', 3, until - 10 * DAY, { firstAt: until - 28 * DAY });
+    const fresh = row('dataviz', 1, until - DAY, { firstAt: until - DAY });
+    const failing = row('broken', 2, until - 2 * DAY, { failed: 2, firstAt: until - 15 * DAY });
+    const report = (rows: SkillRow[], extra = {}) => ({ rows, total: rows.reduce((sum, r) => sum + r.uses, 0), since, until, countedSince: since, typedCommands: 'on' as const, ...extra });
+    const kinds = (r: ReturnType<typeof report>, provider: 'all' | 'claude' = 'all') => findSkillHighlights(r, provider).map(h => [h.kind, h.skill]);
+
+    expect(kinds(report([go, typedOnly, quiet, fresh, failing]))).toEqual([['failing', 'broken'], ['top', 'impeccable'], ['typed', 'loop']]);
+    expect(kinds(report([go, typedOnly, quiet, fresh]))).toEqual([['top', 'impeccable'], ['typed', 'loop'], ['quiet', 'grill']]);
+    expect(findSkillHighlights(report([go, typedOnly, quiet]), 'all').map(h => h.detail)).toEqual([
+      '8 of 15 uses (53%), in 7 sessions.',
+      'Typed 4 times, never picked by Claude on its own. If it should be, its description needs the words you use.',
+      `3 uses, none since ${new Date(until - 10 * DAY).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}.`,
+    ]);
+    // Typed commands that never reach the deck cannot say a skill is always typed.
+    expect(kinds(report([go, typedOnly, quiet, fresh], { typedCommands: 'skipped' }), 'claude')).toEqual([['top', 'impeccable'], ['quiet', 'grill'], ['new', 'dataviz']]);
+    // Ten days watched say nothing about quiet or new; one skill is nobody's go-to.
+    expect(kinds(report([go, quiet, fresh], { countedSince: until - 10 * DAY }))).toEqual([['top', 'impeccable']]);
+    expect(kinds(report([go]))).toEqual([]);
   });
 });

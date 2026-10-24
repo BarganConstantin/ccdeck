@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { callTime, failureShare, findHighlights, percent, sortTools, summaryParts, toolSortValue } from '../tool-audit-report';
+import { callClock, callDay, callTime, failureShare, findHighlights, percent, sortTools, summaryParts, toolSortValue } from '../tool-audit-report';
 import type { AuditRow } from '../tool-audit';
 import { clampDetails, DETAILS_WIDTH, readDetailsWidth, REPORT_MIN, writeDetailsWidth } from '../tool-audit-layout';
 
@@ -69,6 +69,12 @@ describe('plain numbers', () => {
     expect(callTime(new Date(2026, 9, 15, 9, 5).getTime(), now)).toMatch(/^Today /);
     expect(callTime(new Date(2026, 9, 14, 23, 59).getTime(), now)).toMatch(/^Yesterday /);
     expect(callTime(new Date(2026, 9, 12, 8, 0).getTime(), now)).toMatch(/12, /);
+    // A list grouped by day takes the day and the time apart.
+    expect(callDay(new Date(2026, 9, 15, 0, 1).getTime(), now)).toBe('Today');
+    expect(callDay(new Date(2026, 9, 14, 23, 59).getTime(), now)).toBe('Yesterday');
+    expect(callDay(new Date(2026, 9, 12, 8, 0).getTime(), now)).toMatch(/12/);
+    const at = new Date(2026, 9, 12, 8, 0).getTime();
+    expect(callTime(at, now)).toBe(`${callDay(at, now)}, ${callClock(at)}`);
   });
 });
 

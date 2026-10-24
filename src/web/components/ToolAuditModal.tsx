@@ -53,6 +53,7 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
   const [showAll, setShowAll] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const initialSelectionMade = useRef(false);
+  const shownRow = useRef<AuditRow | null>(null);
   const [keyboardSelection, setKeyboardSelection] = useState(false);
   const selectedRef = useRef(selected); selectedRef.current = selected;
   const selectionOrigin = useRef<HTMLElement | null>(null);
@@ -100,7 +101,8 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
           loadedQuery.current = query; setData(reply);
           const first = !initialSelectionMade.current && sortTools(reply.rows, sortRef.current, searchRef.current)[0];
           if (first) { initialSelectionMade.current = true; setSelected(first.operation); }
-          else if (selectedRef.current && !reply.rows.some(row => row.operation === selectedRef.current)) setSelected(null);
+          // Open details whose tool the new period lacks move to its first, rather than closing.
+          else if (selectedRef.current && !reply.rows.some(row => row.operation === selectedRef.current)) setSelected(sortTools(reply.rows, sortRef.current, searchRef.current)[0]?.operation ?? null);
         }
       } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'Reading the history took too long. Try again, or keep less history in Settings.'); }
       finally { window.clearTimeout(deadline); if (live) { busy.current = false; setLoading(false); } }
@@ -129,7 +131,11 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
   const highlights = useMemo(() => data ? findHighlights(data.rows, data.totalMs) : [], [data]);
   const visible = showAll || search ? rows : rows.slice(0, FIRST_ROWS);
   const top = rows.length ? toolSortValue(rows[0], sort) ?? 0 : 0;
-  const selection = data?.rows.find(row => row.operation === selected);
+  const liveRow = data?.rows.find(row => row.operation === selected);
+  if (liveRow) shownRow.current = liveRow;
+  // Across a new period or agent the details stay open on the tool they showed, its
+  // numbers held back until the new report arrives, so the panel neither closes nor moves.
+  const selection = liveRow ?? (selected && !data && shownRow.current?.operation === selected ? shownRow.current : undefined);
 
   const select = (operation: string) => (event: MouseEvent<HTMLButtonElement>) => {
     selectionOrigin.current = event.currentTarget;
@@ -237,7 +243,7 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
         </div></div>
         {selection && sideBySide && <ToolAuditSplitter width={detailsWidth} workspace={workspaceRef} onCommit={resizeDetails} />}
         {selection && <ToolAuditDrawer keyboard={keyboardSelection} itemKey={selection.operation} onClose={closeInspector}>
-          <ToolAuditInspector row={details?.operation === selected && details.measurements ? details.measurements : selection} details={details?.operation === selected ? details : null} loading={detailLoading} error={detailError} kind={detailKind} setKind={setDetailKind} onClose={closeInspector}
+          <ToolAuditInspector row={details?.operation === selected && details.measurements ? details.measurements : selection} details={details?.operation === selected ? details : null} loading={detailLoading} pending={!liveRow} charted={Number(period) >= 7} error={detailError} kind={detailKind} setKind={setDetailKind} onClose={closeInspector}
             onShowSkills={selection.operation === 'Skill' ? () => { setSelected(null); setView('skills'); } : undefined} />
         </ToolAuditDrawer>}
       </div>}
