@@ -754,6 +754,27 @@ export async function activeAccountUsage() {
 }
 
 /**
+ * What claude-swap last collected for every account it manages: the two small
+ * files activeAccountUsage reads, under the same identity guard, and nothing
+ * else — no CLI, no verdicts, no repair. The record of how full each window was
+ * at its reset (quota-close-watch.mjs) reads this on a timer, and a timer must
+ * not start what a look at the accounts panel does.
+ */
+export async function storedUsageReadings() {
+  const root = backupRoot();
+  const seq  = await readSequence(root);
+  if (!seq?.accounts || typeof seq.accounts !== "object") return [];
+  const rows = await readUsageRows(root);
+  return Object.entries(seq.accounts).flatMap(([num, acct]) => {
+    const row = rows[num];
+    const fetchedAt = rowIsFor(row, acct) ? observedMs(row.fetchedAt) : null;
+    return row?.lastGood && fetchedAt != null
+      ? [{ email: acct.email, organizationUuid: acct.organizationUuid ?? "", lastGood: row.lastGood, fetchedAt }]
+      : [];
+  });
+}
+
+/**
  * Ask claude-swap to collect now, if its own schedule agrees.
  *
  * Exported for the Usage panel's refresh button, which has no other way to ask
