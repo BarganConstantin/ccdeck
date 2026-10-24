@@ -228,8 +228,12 @@
 .sa-list-head[data-failures], .sa-list[data-failures] .ta-row { grid-template-columns: minmax(0, 1fr) 72px 132px 76px; }
 .sa-list-head[data-sort=uses] [data-col=uses], .sa-list-head[data-sort=recent] [data-col=recent],
 .sa-list[data-sort=uses] [data-col=uses], .sa-list[data-sort=recent] [data-col=recent] { color: var(--text); font-weight: 600; }
+/* A skill's bar is its uses split by who started them, in the ring's hues and order,
+   a surface gap between the parts. */
+.sa-list .ta-bar { display: flex; gap: 2px; background: none; }
+.sa-list .ta-bar i { flex: 1 1 0; min-width: 2px; border-radius: 2px; background: var(--tt-c); }
+.ta-facts > div[data-lane] dt::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 2px; background: var(--tt-c); vertical-align: 0; }
 .sa-since, .ta-note.sa-typed-note { margin-top: 10px; }
-.ta-facts dd.sa-fact-time { font-size: calc(16px + var(--ui-text-increase, 0px)); }
 .ta-show-skills { justify-self: start; margin-top: -6px; }
 .sa-projects h4 { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .sa-projects ul { list-style: none; margin: 8px 0 0; padding: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
@@ -245,7 +249,6 @@
 .sa-session { min-width: 0; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-align: left; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 2px; cursor: pointer; overflow-wrap: anywhere; transition: text-decoration-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
 .sa-session:hover { text-decoration-color: currentColor; }
 .sa-session:active { transform: scale(0.97); }
-.sa-session-gone { color: var(--muted); }
 @container tool-report (max-width: 640px) {
   .sa-list .ta-row, .sa-list[data-failures] .ta-row { display: flex; }
 }
@@ -266,18 +269,25 @@
   .ta-view:active, .sa-session:active { transform: none; }
 }
 
+/* The lanes' hues, one meaning each across both views and the details beside them
+   (a phone's drawer sits outside the dialog): Claude purple and you cyan, this
+   machine — or, among skills, Codex — lime. */
+.ta-report, .ta-drawer-backdrop { --tt-claude: var(--usage-purple); --tt-machine: var(--usage-lime); --tt-codex: var(--usage-lime); --tt-you: var(--usage-cyan); }
+:is(.ta-report, .ta-drawer-backdrop) :is([data-lane=claude], [data-lane=agent]) { --tt-c: var(--tt-claude); }
+:is(.ta-report, .ta-drawer-backdrop) [data-lane=machine] { --tt-c: var(--tt-machine); }
+:is(.ta-report, .ta-drawer-backdrop) [data-lane=detected] { --tt-c: var(--tt-codex); }
+:is(.ta-report, .ta-drawer-backdrop) :is([data-lane=you], [data-lane=typed]) { --tt-c: var(--tt-you); }
+
 /* At a glance: what is worth a look beside where the Claude Code turns' time went,
-   three to two, and a lane's detail opening across both beneath. One column when
-   the report is narrow, or when only one of the two has anything to say. */
-.ta-glance { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 0 24px; margin-top: 32px; --tt-claude: var(--usage-purple); --tt-machine: var(--usage-lime); --tt-you: var(--usage-cyan); }
+   or beside who starts the skills, three to two, and a lane's detail opening across
+   both beneath. One column when the report is narrow, or when only one of the two
+   has anything to say. */
+.ta-glance { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 0 24px; margin-top: 32px; }
 .ta-glance[data-single] { grid-template-columns: minmax(0, 1fr); }
 .ta-glance[data-single] > .tt { max-width: 560px; }
 .ta-glance > .ta-highlights, .ta-glance > .tt { display: flex; flex-direction: column; min-width: 0; margin-top: 0; }
 .ta-glance > .ta-highlights ul { flex: 1; }
 .ta-glance > .tt-fold { grid-column: 1 / -1; }
-.ta-glance [data-lane=claude] { --tt-c: var(--tt-claude); }
-.ta-glance [data-lane=machine] { --tt-c: var(--tt-machine); }
-.ta-glance [data-lane=you] { --tt-c: var(--tt-you); }
 
 /* Where the time went: a ring of three lanes — Claude, this machine, you — with the
    total at its centre, and a legend saying each lane's share and what it mostly was.
@@ -307,8 +317,14 @@
 .tt-lane strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .tt-lane-time { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; }
 .tt-lane-fact { grid-column: 2 / -1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.tt-lane:hover, .tt-lane[aria-expanded=true] { background: var(--ctl-fill); }
+.tt-lane:hover, .tt-lane[aria-expanded=true], .tt-lane[aria-pressed=true] { background: var(--ctl-fill); }
 .tt-lane:active { transform: scale(0.97); }
+/* Skills' lanes filter the list: the funnel is quiet until the lane is pressed, and a
+   lane with nothing counted is only read. */
+.tt-lane[aria-pressed=false] .tt-caret { opacity: .5; }
+.tt-lane:disabled { cursor: default; }
+.tt-lane:disabled:hover { background: transparent; }
+.tt-lane:disabled:active { transform: none; }
 .tt-caret { flex: none; transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1); }
 .tt-lane[aria-expanded=true] .tt-caret { transform: rotate(180deg); }
 /* A narrow card puts the ring above its legend, so the facts keep their words. */

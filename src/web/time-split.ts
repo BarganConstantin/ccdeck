@@ -27,20 +27,23 @@ export function laneShares(split: TimeSplit): LaneShare[] {
 /** A long time as the ring's centre and the legend say it: whole hours from an hour up. */
 export const glanceTime = (ms: number) => ms >= 3600000 ? `${Math.round(ms / 3600000).toLocaleString()} h` : auditDuration(ms);
 
-/** The ring's arcs, on a circle 100 long from the top: each lane its share, less
- *  the gap that separates it from the next. One lane alone closes the ring. */
-export function donutArcs(parts: LaneShare[], gap = 0.8) {
-  const live = parts.filter(part => part.ms > 0);
-  const total = live.reduce((sum, part) => sum + part.ms, 0);
+/** A ring's arcs, on a circle 100 long from the top: each part its share, less the
+ *  gap that separates it from the next. One part alone closes the ring. */
+export function ringArcs<T extends string>(parts: { id: T; value: number }[], gap = 0.8) {
+  const live = parts.filter(part => part.value > 0);
+  const total = live.reduce((sum, part) => sum + part.value, 0);
   if (!total) return [];
   if (live.length === 1) return [{ id: live[0].id, from: 0, length: 100 }];
   let at = 0;
   return live.map(part => {
-    const share = part.ms / total * 100, from = at;
+    const share = part.value / total * 100, from = at;
     at += share;
     return { id: part.id, from: from + gap / 2, length: Math.max(0.3, share - gap) };
   });
 }
+
+/** The time ring's arcs: each lane by its time. */
+export const donutArcs = (parts: LaneShare[], gap = 0.8) => ringArcs(parts.map(part => ({ id: part.id, value: part.ms })), gap);
 
 /** What a lane mostly was, in the words of one line under it in the legend. */
 export function laneFact(split: TimeSplit, lane: Lane) {
