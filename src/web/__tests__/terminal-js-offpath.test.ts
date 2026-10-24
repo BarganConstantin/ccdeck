@@ -39,9 +39,11 @@ const JS_BACKEND = [
 ];
 
 /** The imports of a computed name the walk cannot follow, and what each loads:
- *  pinned-build's loop over PINNED_MODULES (followed as bare names) and the
- *  CLI's `load(rel)`, whose callers pass literals (followed as strings). */
-const COMPUTED_IMPORTS = ["bin/cli/commands.js", "src/server/pinned-build.mjs"];
+ *  pinned-build's loop over PINNED_MODULES (followed as bare names), the
+ *  CLI's `load(rel)`, whose callers pass literals (followed as strings), and
+ *  quota-close-watch's `lazy(name)`, whose callers pass the bare names of
+ *  quota modules (followed as bare names). */
+const COMPUTED_IMPORTS = ["bin/cli/commands.js", "src/server/pinned-build.mjs", "src/server/quota-close-watch.mjs"];
 
 const isFile = (p: string) => existsSync(p) && statSync(p).isFile();
 
