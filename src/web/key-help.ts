@@ -102,6 +102,11 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
   {
     title: "Panels and dialogs",
     rows: [
+      // Quick open (quick-open.ts): every row below, and the sessions, the
+      // settings and the themes, by name. A chord, so it stays on the sheet
+      // with the single-key shortcuts off; ⌘ on a Mac, where Ctrl+K belongs
+      // to the text field.
+      { cap: "Ctrl + K", macCap: "⌘ K", action: "search panels, sessions, settings, actions and themes", binds: ["k", "K"], chord: true },
       { cap: "U", action: "usage panel", binds: ["u", "U"] },
       { cap: "L", action: "session list", binds: ["l", "L"] },
       { cap: "D", action: "detail panel", binds: ["d", "D"] },

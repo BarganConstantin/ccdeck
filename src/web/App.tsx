@@ -5,7 +5,12 @@ import { ReactFlowProvider, useReactFlow } from "reactflow";
 import { usePanelPresence, isMounted, isDrawn, isLeaving } from "./panel-exit";
 import BoardFlow from "./components/BoardFlow";
 import DesktopTitlebar from "./components/DesktopTitlebar";
-import SessionList from "./components/SessionList";
+import SessionList, { buildRows } from "./components/SessionList";
+import QuickOpen from "./components/QuickOpen";
+import { quickOpenItems } from "./quick-open-items";
+import type { QuickItem } from "./quick-open";
+import { indexFor } from "./settings-search";
+import { useSingleKeyShortcuts } from "./use-single-key-shortcuts";
 import ToolAuditModal, { type ToolActivityView } from "./components/ToolAuditModal";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
@@ -46,7 +51,9 @@ import { railItems } from "./rail-items";
 // fetches them (IntegrationModalOnDemand.tsx).
 import IntegrationModal, { preloadIntegrationModal } from "./components/IntegrationModalOnDemand";
 import ExploreIntegrationsModal from "./components/ExploreIntegrationsModal";
-import { connectionsOf, kindOffered, kindOpenable, requestIntegrationAdd, requestIntegrationFocus, useIntegrations } from "./integrations/client";
+import {
+  connectionsOf, integrationsReach, kindOffered, kindOpenable, offeredKinds, requestIntegrationAdd, requestIntegrationFocus, useIntegrations,
+} from "./integrations/client";
 import { integrationDefs } from "./integrations/registry";
 import type { IntegrationKind } from "./integrations/types";
 import { useMediaQuery } from "./use-media-query";
@@ -566,6 +573,16 @@ function Inner() {
   // swallowing the single-key shortcuts (#851): see use-pointer-focus.ts.
   const pointerFocusRef = usePointerFocus();
 
+  // Quick open (⌘K): one field for every door, session, setting, action and
+  // theme — quick-open.ts, drawn by components/QuickOpen.tsx. A chosen row
+  // shuts the field and runs in the same render, so what it opens is drawn
+  // with nothing left over it.
+  const [quickOpenOpen, setQuickOpenOpen] = useState(false);
+  const openQuickOpen = useCallback(() => setQuickOpenOpen(true), []);
+  const closeQuickOpen = useCallback(() => setQuickOpenOpen(false), []);
+  const runQuick = useCallback((item: QuickItem) => { setQuickOpenOpen(false); item.run(); }, []);
+  const singleKeys = useSingleKeyShortcuts();
+
   // Every key the deck answers, and what each one reaches: see
   // use-deck-shortcuts.ts, whose parameter list is that list.
   useDeckShortcuts({
@@ -576,7 +593,7 @@ function Inner() {
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
     handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
-    setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef,
+    setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen,
   });
 
   /** Not a topbar readout any more — the "agents" counter went with the
@@ -651,6 +668,7 @@ function Inner() {
     toggles: panelReturn.toggles,
     integrations: connectedKinds.map(provider => ({ provider, onPress: () => setIntegrationOpen(provider.kind) })),
     openExploreIntegrations: () => setExploreIntegrationsOpen(true),
+    openQuickOpen,
   });
   // How many of the waiting sessions the topbar names, for the count's hint,
   // which lists the rest.
@@ -728,16 +746,16 @@ function Inner() {
         {selected && (
           <SelectedRibbon selected={selected} now={now} selectedIds={selectedIds} focusAgent={focusAgent} clearSelection={clearSelection} />
         )}
-        {/* Settings and Feedback, in the corner every product keeps them in.
-            The panel toggles are on the edges their panels open from. */}
-        {!phone && <div className="actions"><UtilityRun items={rails.utilities} /></div>}
+        {/* Search, Settings and Feedback, in the corner every product keeps
+            them in. The panel toggles are on the edges their panels open from. */}
+        {!phone && <div className="actions"><UtilityRun items={[rails.search, ...rails.utilities]} /></div>}
       </header>
 
       {/* The left stripe, ahead of the column it opens so Tab reaches the
           control before the region it discloses — or, on a phone, the dock
           that stands in for both stripes and the utilities. */}
       {phone
-        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, rails.utilities[1]]} />
+        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, rails.utilities[1]]} />
         : <EdgeRail side="left" label="Accounts and sessions" groups={[...rails.leftStripe, rails.integrations, rails.explore]} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
@@ -831,6 +849,17 @@ function Inner() {
       )}
       {exploreIntegrationsOpen && <ExploreIntegrationsModal integrations={integrations} onClose={closeExploreIntegrations}
         onOpen={setIntegrationOpen} onConnect={connectIntegration} onManage={manageIntegration} />}
+      {/* Built while it is open only, from the same doors, rows and presses
+          the chrome draws, so it can never offer something the deck does not. */}
+      {quickOpenOpen && (
+        <QuickOpen onClose={closeQuickOpen} onRun={runQuick} items={quickOpenItems({
+          rails, sessions: buildRows(stateRef.current, now), now, openSession: pickSession,
+          settings: indexFor(providers.claude, integrationsReach(integrations), offeredKinds(integrations)), openSettings,
+          singleKeys, fit: handleFit, rearrange: handleRelayout, paused, togglePause,
+          clear: agentCount > 0 ? () => requestClear("button") : undefined,
+          keyHelp: () => setKeyHelpOpen(true), tour: openTour, theme: appearance.theme, setTheme,
+        })} />
+      )}
 
       {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
           fixed, so where they sit in the DOM changes nothing on screen — only

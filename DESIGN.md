@@ -553,6 +553,29 @@ never a 1px drop. Disabled is `opacity: var(--dim-off)`.
   **no blur**: the scrim is already opaque enough, and a blur over a canvas whose
   dashes never stop re-rasterises under the dialog for as long as it is open.
 
+### Quick open
+
+`⌘K` on a Mac, `Ctrl+K` elsewhere, and **Search** first in the topbar's utility
+run (first under More on a phone). One field that reaches every stripe door, the
+sessions (waiting first), Settings' sections and every row its own search can
+land on, the canvas actions and the themes, each row naming what Enter does in
+the foot ("Show panel", "Go to setting") and wearing the key it already has.
+
+- **A launcher, not a form**: no `.modal-head`. 640px wide, top-aligned at
+  `max(12vh, 64px)`, `--panel` on 12px with `--shadow-2` under one deeper layer
+  of its own, and a lighter scrim (`0.36`, light `0.16`) because the board behind
+  it is still what it is about. The field is 56px at 16px text; the list keeps
+  one height (`min(400px, 52vh)`) so typing never makes the dialog jump.
+- **The field wears the focus ring**, inset `-6px` on the row, because the input
+  in it is borderless (the Radio search's pattern). Rows are 40px; the chosen
+  one is a neutral `--text` 9% fill, never the accent, which marks the letters
+  that matched. A press deepens the fill and nothing moves.
+- **An empty field is the map** — Recent, then five sessions, the doors,
+  Settings' sections and the actions. Themes and single settings wait for a
+  query. A scattered match must start a word with its first letter.
+- **The one authored motion** is the arrival: 200ms on the house ease-out from
+  `translateY(-12px) scale(0.97)`, away in 120ms; a fade under reduced motion.
+
 ### Tool activity
 
 The large dialog (`--dialog-l` × `--dialog-l-h` on desktop), opened from the rail below Usage

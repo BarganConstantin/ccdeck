@@ -86,6 +86,10 @@ export function focusedTabToFollow(focusedId: string | null | undefined, selecte
 export interface SettingsDoor {
   open: boolean;
   section: SettingsSection;
+  /** A row to land on once the section is drawn, by its settings-search id,
+   *  for a door that names one setting rather than a page: quick open's.
+   *  Each opening sets it afresh, so it is used once. */
+  landOn?: string;
 }
 
 export const SETTINGS_CLOSED: SettingsDoor = { open: false, section: "general" };
@@ -93,8 +97,9 @@ export const SETTINGS_CLOSED: SettingsDoor = { open: false, section: "general" }
 /** Settings opened through a door. A door that names a section — V names
  *  Sounds — opens it there; the gear and the chord name none, and get the
  *  section last shown. */
-export function openedAt(door: SettingsDoor, section?: SettingsSection): SettingsDoor {
-  return { open: true, section: section ?? door.section };
+export function openedAt(door: SettingsDoor, section?: SettingsSection, landOn?: string): SettingsDoor {
+  const opened = { open: true, section: section ?? door.section };
+  return landOn ? { ...opened, landOn } : opened;
 }
 
 /** The doors out of Settings into the rest of the deck (#2176): what About
