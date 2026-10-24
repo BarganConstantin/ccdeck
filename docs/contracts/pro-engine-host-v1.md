@@ -8,12 +8,14 @@ and the WebSocket is refused 503.
 
 The deck makes its own engine in one place, `command-panel-engine.mjs`, and
 only while the Command Panel's switch in Settings is on (off by default), on
-Linux, once a route asks. It looks in `<deck data folder>/engine` (the
+Linux or macOS, once a route asks. It looks in `<deck data folder>/engine` (the
 `CCDECK_HOME` folder when set) and nowhere else: not on `PATH`, never
 downloaded or installed. It trusts only the Ed25519 keys shipped with the deck,
 a frozen list that is empty in this release, so a missing folder answers
 `not-installed` and a present one `not-verified`, and the executable is never
-read. Off Linux every route answers `unsupported` without looking. The client
+read. Off Linux and macOS (on Windows) every route answers `unsupported`
+without looking; on both, a route reaches the engine only when its hello
+advertises a terminal backend, and answers `no-terminal` otherwise. The client
 it makes is the only one constructed with `terminal: true` (Terminal opt-in,
 below). The engine is stopped 1.5 s after the switch goes off, once its panels have been
 told, and at deck shutdown without being waited for; a later question starts
@@ -82,8 +84,8 @@ private build machinery, private fixtures or a bundled engine executable.
 
 ## Terminal opt-in
 
-An engine serves `terminal.*`, `terminal.attach` included, only on Linux, and
-only when its environment at start holds `CCDECK_ENGINE_TERMINAL` set to
+An engine serves `terminal.*`, `terminal.attach` included, only on Linux and
+macOS, and only when its environment at start holds `CCDECK_ENGINE_TERMINAL` set to
 exactly `1`: a second, engine-side switch behind the deck's own. The deck sets
 it only for the engine it starts for the Command Panel, a client constructed
 with `terminal: true`, after the person has switched the panel on in Settings
@@ -99,7 +101,7 @@ carries nothing secret. It fixes the hello's `terminal` for the engine's life:
   `surviveEngineRestart` true, `attachExternalConsole` false,
   `backend: "tmux"`;
 - off (absent, any other value such as `0`, `true`, ` 1` or `1\n`, or any
-  platform but Linux whatever it says): every flag false,
+  platform but Linux and macOS whatever it says): every flag false,
   `backend: "unavailable"`, and every `terminal.*` call answers `unavailable`.
 
 An engine that does not know the variable advertises `unavailable` the same

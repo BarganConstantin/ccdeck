@@ -48,7 +48,7 @@ function prefsPayload() {
     // makes at boot — and a route of its own would have to exist with the
     // switch off, which is the state it reports.
     terminalOn: terminalOn(prefs),
-    // Whether this deck's platform has the panel at all (Linux, for now), so
+    // Whether this deck's platform has the panel at all (Linux and macOS, for now), so
     // Settings can say so rather than offer a switch that leads nowhere. The
     // deck's platform, not the browser's: the panel runs where the deck does.
     terminalSupported: commandPanelSupported(),
