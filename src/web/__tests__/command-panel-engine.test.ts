@@ -21,7 +21,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 
-const made = vi.hoisted(() => ({ clients: [] as unknown[], switchedOff: 0 }));
+const made = vi.hoisted(() => ({ clients: [] as unknown[], switchedOff: 0, routes: [] as string[] }));
 vi.mock("../../server/pro-engine-client.mjs", async (importOriginal) => {
   const real: any = await importOriginal();
   return { ...real, createProEngineClient: (options: unknown) => { made.clients.push(options); return real.createProEngineClient(options); } };
@@ -31,7 +31,7 @@ vi.mock("../../server/command-panel-engine.mjs", async (importOriginal) => {
   const panel = real.commandPanelEngine();
   const commandPanel = Object.freeze({
     get enabled() { return panel.enabled; },
-    route: (method: string, body: unknown) => panel.route(method, body),
+    route: (method: string, body: unknown) => { made.routes.push(method); return panel.route(method, body); },
     attach: (handle: string, socket: unknown) => panel.attach(handle, socket),
     switchedOff: () => { made.switchedOff += 1; panel.switchedOff(); },
     stop: () => panel.stop(),
@@ -180,6 +180,38 @@ describe("the Command Panel's engine, made by the deck", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it("stops an engine whose client was being made when the switch went off, and makes none once the grace is out", async () => {
+    const clients: ReturnType<typeof fakeClient>[] = [];
+    const createClient = vi.fn(() => { const c = fakeClient(); clients.push(c); return c; });
+    let looked!: () => void;
+    const lstat = () => new Promise<void>(r => { looked = r; });
+    // The folder looked at, the switch goes off, then the client is made: the question was asked while on and
+    // is answered, and the engine it started stops a grace after the switch-off, as one already running does.
+    const e = cpe.commandPanelEngine({ platform: "linux", env: {}, keys: ["K"], lstat, createClient });
+    const asked = e.route("status", null);
+    await vi.waitFor(() => expect(looked).toBeTypeOf("function"));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    e.switchedOff();
+    looked();
+    expect((await asked).status).toBe(200);
+    expect([clients.length, e.running]).toEqual([1, true]);
+    vi.advanceTimersByTime(cpe.STOP_GRACE_MS - 1);
+    expect(clients[0].closed, "the panels are still closing").toBe(0);
+    vi.advanceTimersByTime(1);
+    expect([clients[0].closed, e.running]).toEqual([1, false]);
+    vi.useRealTimers();
+    // The folder still being looked at when the grace runs out: no client is made after it.
+    looked = undefined as unknown as () => void;
+    const late = e.route("launch", {});
+    await vi.waitFor(() => expect(looked).toBeTypeOf("function"));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    e.switchedOff();
+    vi.advanceTimersByTime(cpe.STOP_GRACE_MS);
+    looked();
+    expect((await late).body.code).toBe("restarting");
+    expect([createClient.mock.calls.length, e.running]).toEqual([1, false]);
+  });
+
   it("makes no client for a question that was asked as the deck stopped", async () => {
     let looked!: () => void;
     const createClient = vi.fn(() => fakeClient());
@@ -236,8 +268,16 @@ describe("a deck's Command Panel engine, by its switch", () => {
   let server: Server;
   let port = 0;
   let on = false;
+  // How many more looks at the switch see it on before it goes off by itself: the moment a switch-off lands
+  // between a route's own look and its answer, without a race to win.
+  let looksLeft = Infinity;
+  const look = () => {
+    const was = on;
+    if (on && --looksLeft <= 0) on = false;
+    return was;
+  };
   beforeAll(async () => {
-    server = await mod.startServer({ port: 0, persist: false, claude: false, codex: false, terminal: { enabled: () => on } });
+    server = await mod.startServer({ port: 0, persist: false, claude: false, codex: false, terminal: { enabled: look } });
     port = (server.address() as { port: number }).port;
   }, 30_000);
   afterAll(async () => {
@@ -289,6 +329,30 @@ describe("a deck's Command Panel engine, by its switch", () => {
     else expect(looked).toEqual([]);
     expect(made.clients).toEqual([]);
     on = false;
+  });
+
+  it("answers a request whose body was still arriving when the switch went off as one that came after: a 404, and the engine is never asked", async () => {
+    const sid = "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f";
+    const posts: Array<[string, unknown]> = [
+      ["/api/terminal/launch", { agent: "claude", cwd: DIR, key: "k-late-1" }],
+      ["/api/terminal/open", { sessionId: sid, provider: "claude", cwd: DIR }],
+      ["/api/terminal/adopt", { sessionId: sid, provider: "claude", cwd: DIR }],
+      ["/api/terminal/claim", { key: "k-late-1", sessionId: sid, provider: "claude", cwd: DIR }],
+    ];
+    for (const [path, body] of posts) {
+      // The upgrade's look, ahead of every request, then the route's own: on for both, off from then on, while
+      // the body is read.
+      on = true;
+      looksLeft = 2;
+      const asked = made.routes.length;
+      const got = await ask("POST", path, body);
+      const wentOff = !on;
+      on = false;
+      looksLeft = Infinity;
+      expect(wentOff, `${path}: the switch went off during the request`).toBe(true);
+      expect([got.status, got.body], path).toEqual([404, { error: "not found" }]);
+      expect(made.routes.slice(asked), `${path}: nothing reached the engine`).toEqual([]);
+    }
   });
 
   it("reports the switch going off in Settings, so the engine stops once its panels have closed", async () => {
