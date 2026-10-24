@@ -2,7 +2,7 @@
 // its share reads as, and what each lane opens into when it is pressed.
 import { operationDescription, operationName } from './operation-glossary';
 import { percent } from './tool-audit-report';
-import type { TimePart, TimeSplit } from './tool-audit';
+import { auditDuration, type TimePart, type TimeSplit } from './tool-audit';
 
 export type Lane = 'claude' | 'machine' | 'you';
 export interface LaneShare { id: Lane; label: string; ms: number; share: string; hint: string }
@@ -22,6 +22,36 @@ export function laneShares(split: TimeSplit): LaneShare[] {
   const ms: Record<Lane, number> = { claude: split.claudeMs, machine: split.machineMs, you: split.youMs };
   return (['claude', 'machine', 'you'] as Lane[]).filter(id => ms[id] > 0 || id !== 'you')
     .map(id => ({ id, ...lanes[id], ms: ms[id], share: split.totalMs ? percent(ms[id], split.totalMs) : '0%' }));
+}
+
+/** A long time as the ring's centre and the legend say it: whole hours from an hour up. */
+export const glanceTime = (ms: number) => ms >= 3600000 ? `${Math.round(ms / 3600000).toLocaleString()} h` : auditDuration(ms);
+
+/** The ring's arcs, on a circle 100 long from the top: each lane its share, less
+ *  the gap that separates it from the next. One lane alone closes the ring. */
+export function donutArcs(parts: LaneShare[], gap = 0.8) {
+  const live = parts.filter(part => part.ms > 0);
+  const total = live.reduce((sum, part) => sum + part.ms, 0);
+  if (!total) return [];
+  if (live.length === 1) return [{ id: live[0].id, from: 0, length: 100 }];
+  let at = 0;
+  return live.map(part => {
+    const share = part.ms / total * 100, from = at;
+    at += share;
+    return { id: part.id, from: from + gap / 2, length: Math.max(0.3, share - gap) };
+  });
+}
+
+/** What a lane mostly was, in the words of one line under it in the legend. */
+export function laneFact(split: TimeSplit, lane: Lane) {
+  if (lane === 'claude') return split.replies.count ? `Usually answers in ${auditDuration(split.replies.medianMs)}` : 'Thinking and writing';
+  const top = (lane === 'machine' ? split.machine : split.you)[0];
+  if (!top) return lane === 'machine' ? 'Tools and the hooks that start them' : 'Approvals and answers';
+  const { operation } = top;
+  if (operation === STARTING) return 'Mostly starting tools';
+  if (lane === 'you') return operation === 'AskUserQuestion' ? 'Mostly answering questions'
+    : operation === 'ExitPlanMode' ? 'Mostly approving plans' : `Mostly approving ${operationName(operation)}`;
+  return `Mostly ${operationName(operation)}`;
 }
 
 export interface PartRow extends TimePart { label: string; detail: string | null; share: string; inTable: boolean; more?: boolean }

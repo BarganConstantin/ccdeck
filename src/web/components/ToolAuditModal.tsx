@@ -185,16 +185,19 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
               {summary.time && <> and spent <strong>{summary.time}</strong> running them</>}.{' '}
               {summary.failed ? <><strong className="ta-bad">{summary.failed.toLocaleString()} failed</strong> ({summary.failedShare}).</> : 'None failed.'}
             </p>
-            {data.split && <ToolTimeSplit split={data.split} since={data.since} turnsSince={data.turnsSince} selected={selected} onPick={(operation, event) => select(operation)(event)} />}
             {(!data.storageOk || data.dropped > 0 || data.corrupt > 0) && <p className="ta-warning" role="status">Some calls could not be saved or read, so these numbers may be a little low.{!data.storageOk && ' Check free disk space.'}</p>}
 
-            {highlights.length > 0 && <section className="ta-highlights" aria-labelledby="ta-highlights-title">
-              <h3 id="ta-highlights-title">Worth a look</h3>
-              <ul>{highlights.map(item => <li key={item.kind}><button type="button" className="ta-highlight" data-kind={item.kind} data-operation={item.operation} aria-expanded={selected === item.operation} aria-controls={selected === item.operation ? 'tool-operation-inspector' : undefined} onClick={select(item.operation)}>
-                <span className="ta-highlight-glyph">{highlightGlyph[item.kind]}</span>
-                <span className="ta-highlight-text"><span><code>{operationName(item.operation)}</code> {item.title}</span><small>{item.detail}</small></span>
-              </button></li>)}</ul>
-            </section>}
+            {/* At a glance: what is worth a look beside where the time went. */}
+            {(highlights.length > 0 || data.split) && <div className="ta-glance" data-single={!(highlights.length > 0 && data.split) || undefined}>
+              {highlights.length > 0 && <section className="ta-highlights" aria-labelledby="ta-highlights-title">
+                <h3 id="ta-highlights-title">Worth a look</h3>
+                <ul>{highlights.map(item => <li key={item.kind}><button type="button" className="ta-highlight" data-kind={item.kind} data-operation={item.operation} aria-expanded={selected === item.operation} aria-controls={selected === item.operation ? 'tool-operation-inspector' : undefined} onClick={select(item.operation)}>
+                  <span className="ta-highlight-glyph">{highlightGlyph[item.kind]}</span>
+                  <span className="ta-highlight-text"><span><code>{operationName(item.operation)}</code> {item.title}</span><small>{item.detail}</small></span>
+                </button></li>)}</ul>
+              </section>}
+              {data.split && <ToolTimeSplit split={data.split} since={data.since} turnsSince={data.turnsSince} selected={selected} onPick={(operation, event) => select(operation)(event)} />}
+            </div>}
 
             <section className="ta-tools" aria-labelledby="ta-tools-title">
               <div className="ta-tools-head">

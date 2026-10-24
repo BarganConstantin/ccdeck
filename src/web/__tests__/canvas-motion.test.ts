@@ -393,9 +393,9 @@ const PRESSES: Press[] = [
   [".ta-row:active", "0.97", "transform"],
   [".ta-highlight:active", "0.97", "transform"],
   [".ta-explain summary:active", "0.97", "transform"],
-  // Where the time went: a lane's key opens its level, and a part is a
-  // full-width row that opens the command or the rest of the list.
-  [".tt-key:active", "0.97", "transform"],
+  // Where the time went: a lane in the ring's legend opens its level, and a
+  // part is a full-width row that opens the command or the rest of the list.
+  [".tt-lane:active", "0.97", "transform"],
   ["button.tt-part:active", "0.97", "transform"],
   [".sa-session:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
@@ -529,11 +529,11 @@ const EXEMPT: string[] = [
   // keeps through hover and while selected — the same "brightness held through
   // the gesture" answer `.cluster-label` gives.
   ".ap-proj-day",
-  // A lane of Tool activity's Where the time went bar, for the same reason: its
-  // width is the lane's share of the time, and a 12px band scaled on press
-  // moves its neighbours. It brightens under the pointer, and the key beneath
-  // it is the control that answers a press (and the keyboard).
-  ".tt-seg",
+  // An arc of Tool activity's Where the time went ring, for the same reason:
+  // its length is the lane's share of the time, and an arc scaled on press
+  // leaves the ring. It thickens under the pointer, and its row in the legend
+  // is the control that answers a press (and the keyboard).
+  ".tt-arc",
   ".cluster-label",
   // A row in the share picker, which is a <label> and not a second
   // control: it carries `cursor: pointer` because the whole row is the

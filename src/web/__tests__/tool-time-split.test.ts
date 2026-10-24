@@ -13,8 +13,8 @@ import { rmTempDir } from './rm-temp-dir';
 import { createToolAudit } from '../../server/tool-audit.mjs';
 // @ts-expect-error server module
 import { auditQuery } from '../../server/tool-audit-routes.mjs';
-import { laneParts, laneShares, slowDays, stopsLine, STARTING } from '../time-split';
-import type { TimeSplit } from '../tool-audit';
+import { donutArcs, glanceTime, laneFact, laneParts, laneShares, slowDays, stopsLine, STARTING } from '../time-split';
+import { auditDuration, type TimeSplit } from '../tool-audit';
 
 const dirs: string[] = []; const audits: any[] = [];
 const T0 = Date.parse('2026-10-20T10:00:00Z');
@@ -235,6 +235,35 @@ describe('what the bar and its levels read', () => {
     const days = [{ date: '2026-10-20', count: 40, medianMs: 3000 }, { date: '2026-10-21', count: 30, medianMs: 6000 }, { date: '2026-10-22', count: 2, medianMs: 9000 }];
     expect(slowDays(split({ replies: { count: 72, medianMs: 3500, p90Ms: 9000, maxMs: 20_000, days } })).map(d => d.date)).toEqual(['2026-10-21']);
     expect(slowDays(split())).toEqual([]);
+  });
+
+  it('draws each lane its share of the ring, less one gap, from the top', () => {
+    const arcs = donutArcs(laneShares(split()));
+    expect(arcs.map(a => a.id)).toEqual(['claude', 'machine', 'you']);
+    expect(arcs.map(a => +a.length.toFixed(2))).toEqual([49.2, 39.2, 9.2]);
+    expect(arcs.map(a => +a.from.toFixed(2))).toEqual([0.4, 50.4, 90.4]);
+    // Every arc ends a gap before the next begins.
+    for (const [a, b] of arcs.slice(0, -1).map((a, i) => [a, arcs[i + 1]])) expect(+(b.from - (a.from + a.length)).toFixed(2)).toBe(0.8);
+    // One lane closes the ring; a sliver stays visible.
+    expect(donutArcs(laneShares(split({ totalMs: 5000, claudeMs: 5000, machineMs: 0, youMs: 0 })))).toEqual([{ id: 'claude', from: 0, length: 100 }]);
+    expect(donutArcs(laneShares(split({ totalMs: 100_000, claudeMs: 99_900, machineMs: 100, youMs: 0 })))[1].length).toBe(0.3);
+  });
+
+  it('says in one line what each lane mostly was', () => {
+    const s = split({ machine: [{ operation: 'npm test', ms: 30_000 }], you: [{ operation: 'git push', ms: 9000 }],
+      replies: { count: 5, medianMs: 2900, p90Ms: null, maxMs: 9000, days: [] } });
+    expect(laneFact(s, 'claude')).toBe('Usually answers in 2.9 s');
+    expect(laneFact(s, 'machine')).toBe('Mostly npm test');
+    expect(laneFact(s, 'you')).toBe('Mostly approving git push');
+    expect(laneFact(split({ you: [{ operation: 'AskUserQuestion', ms: 1 }] }), 'you')).toBe('Mostly answering questions');
+    expect(laneFact(split({ machine: [{ operation: STARTING, ms: 1 }] }), 'machine')).toBe('Mostly starting tools');
+    expect(laneFact(split(), 'machine')).toBe('Tools and the hooks that start them');
+  });
+
+  it('rounds the ring\'s times to whole hours from an hour up', () => {
+    expect(glanceTime(35.5 * 3600000)).toBe('36 h');
+    expect(glanceTime(1250 * 3600000)).toBe('1,250 h');
+    expect(glanceTime(42 * 60000)).toBe(auditDuration(42 * 60000));
   });
 
   it('says how turns died, most first, and nothing when none did', () => {

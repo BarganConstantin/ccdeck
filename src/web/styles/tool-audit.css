@@ -266,54 +266,67 @@
   .ta-view:active, .sa-session:active { transform: none; }
 }
 
-/* Where the time went: one bar of the Claude Code turns' time — Claude, this machine,
-   you — that opens a lane into its parts beneath it, drawn out of the lane's own place
-   on the bar. Hues from the usage palette, checked for colour-blind separation; the
-   2px gaps and the named keys carry identity as well as the colour. */
-.tt { margin-top: 28px; --tt-claude: var(--usage-purple); --tt-machine: var(--usage-lime); --tt-you: var(--usage-cyan); }
-.tt [data-lane=claude] { --tt-c: var(--tt-claude); }
-.tt [data-lane=machine] { --tt-c: var(--tt-machine); }
-.tt [data-lane=you] { --tt-c: var(--tt-you); }
+/* At a glance: what is worth a look beside where the Claude Code turns' time went,
+   three to two, and a lane's detail opening across both beneath. One column when
+   the report is narrow, or when only one of the two has anything to say. */
+.ta-glance { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 0 24px; margin-top: 32px; --tt-claude: var(--usage-purple); --tt-machine: var(--usage-lime); --tt-you: var(--usage-cyan); }
+.ta-glance[data-single] { grid-template-columns: minmax(0, 1fr); }
+.ta-glance[data-single] > .tt { max-width: 560px; }
+.ta-glance > .ta-highlights, .ta-glance > .tt { display: flex; flex-direction: column; min-width: 0; margin-top: 0; }
+.ta-glance > .ta-highlights ul { flex: 1; }
+.ta-glance > .tt-fold { grid-column: 1 / -1; }
+.ta-glance [data-lane=claude] { --tt-c: var(--tt-claude); }
+.ta-glance [data-lane=machine] { --tt-c: var(--tt-machine); }
+.ta-glance [data-lane=you] { --tt-c: var(--tt-you); }
+
+/* Where the time went: a ring of three lanes — Claude, this machine, you — with the
+   total at its centre, and a legend saying each lane's share and what it mostly was.
+   Hues from the usage palette, checked for colour-blind separation; the gaps between
+   the arcs and the named legend carry identity as well as the colour. */
+.tt { container: tt / inline-size; }
 .tt-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
 .tt-head h3 { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .tt-scope { font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); font-variant-numeric: tabular-nums; }
-.tt-empty { margin-top: 8px; max-width: 62ch; }
-.tt-bar { display: flex; gap: 2px; height: 12px; margin-top: 12px; }
-.tt-seg { min-width: 4px; border-radius: 2px; background: var(--tt-c); cursor: pointer; transition: opacity 180ms ease, filter 120ms ease; }
-.tt-seg:first-child { border-radius: 4px 2px 2px 4px; }
-.tt-seg:last-child { border-radius: 2px 4px 4px 2px; }
-.tt-seg:only-child { border-radius: 4px; }
-.tt-seg:hover { filter: brightness(1.12); }
-.tt[data-open] .tt-seg:not([data-open]) { opacity: .32; }
-.tt-keys { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; margin-left: -10px; }
-/* The key's time and caret take its secondary ink: the key is raised on --ctl-fill
-   while open, where --muted falls short (#1789). */
-.tt-key { display: inline-flex; align-items: baseline; gap: 8px; min-height: 32px; padding: 5px 10px; box-sizing: border-box; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text-secondary); font: inherit; font-size: calc(13px + var(--ui-text-increase, 0px)); cursor: pointer; transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
-.tt-key i { width: 10px; height: 10px; border-radius: 3px; background: var(--tt-c); align-self: center; flex: none; }
-.tt-key-name { color: var(--text); font-weight: 500; }
-.tt-key strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
-.tt-key-time { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; }
-.tt-caret { flex: none; align-self: center; transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1); }
-.tt-key[aria-expanded=true] .tt-caret { transform: rotate(180deg); }
-.tt-key:hover { background: var(--ctl-fill); }
-.tt-key[aria-expanded=true] { background: var(--ctl-fill); }
-.tt-key:active { transform: scale(0.97); }
-.tt-key:focus-visible { outline-offset: 0; }
+.tt-card { flex: 1; display: flex; align-items: center; gap: 16px; margin-top: 10px; padding: 14px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); }
+.tt-empty { margin: 0; max-width: 62ch; }
+.tt-donut { position: relative; flex: none; width: 112px; height: 112px; }
+.tt-donut svg { display: block; width: 100%; height: 100%; overflow: visible; transform: rotate(-90deg); }
+.tt-arc { fill: none; stroke: var(--tt-c); stroke-width: 14; cursor: pointer; transition: opacity 180ms ease, stroke-width 180ms cubic-bezier(0.23, 1, 0.32, 1); animation: tt-sweep 640ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.tt[data-focus] .tt-arc:not([data-on]) { opacity: .3; }
+.tt-arc[data-on] { stroke-width: 17; }
+.tt-center { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 1px; text-align: center; pointer-events: none; }
+.tt-center strong { font: 600 calc(17px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.tt-center span { max-width: 72px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); line-height: 1.3; }
+.tt-lanes { flex: 1; min-width: 0; display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.tt-lanes li { display: grid; }
+/* The legend's time and fact take its secondary ink: a lane is raised on --ctl-fill
+   while open and under the pointer, where --muted falls short (#1789). */
+.tt-lane { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto 10px; align-items: center; gap: 1px 8px; width: 100%; min-height: 44px; padding: 5px 8px; box-sizing: border-box; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text-secondary); font: inherit; font-size: calc(13px + var(--ui-text-increase, 0px)); text-align: left; cursor: pointer; transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.tt-lane i { width: 10px; height: 10px; border-radius: 3px; background: var(--tt-c); }
+.tt-lane-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 500; }
+.tt-lane strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.tt-lane-time { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; }
+.tt-lane-fact { grid-column: 2 / -1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.tt-lane:hover, .tt-lane[aria-expanded=true] { background: var(--ctl-fill); }
+.tt-lane:active { transform: scale(0.97); }
+.tt-caret { flex: none; transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1); }
+.tt-lane[aria-expanded=true] .tt-caret { transform: rotate(180deg); }
+/* A narrow card puts the ring above its legend, so the facts keep their words. */
+@container tt (max-width: 340px) {
+  .tt-card { flex-direction: column; align-items: stretch; }
+  .tt-donut { align-self: center; }
+}
 
-/* A lane's level folds open under the keys; the line ties it to the lane it came from. */
+/* A lane's level folds open beneath the row, named by the lane it came from. */
 .tt-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 280ms cubic-bezier(0.23, 1, 0.32, 1); }
 .tt-fold[data-open] { grid-template-rows: 1fr; }
 .tt-level { min-height: 0; overflow: hidden; }
-.tt-level-body { padding: 4px 0 2px; animation: tt-level-in 280ms cubic-bezier(0.23, 1, 0.32, 1); }
-.tt-link { display: block; width: 100%; height: 14px; transform-origin: top; animation: tt-link-in 280ms cubic-bezier(0.23, 1, 0.32, 1); }
-.tt-link polygon { fill: color-mix(in srgb, var(--tt-c) 18%, transparent); }
-.tt-hint { margin-top: 10px; max-width: 75ch; }
-.tt-sub { display: flex; gap: 2px; height: 8px; margin-top: 12px; transform-origin: left; animation: tt-zoom 340ms cubic-bezier(0.23, 1, 0.32, 1) both; }
-.tt-sub span { min-width: 3px; border-radius: 2px; background: var(--tt-c); transition: opacity 140ms; }
-.tt-sub span:first-child { border-radius: 4px 2px 2px 4px; }
-.tt-sub span:last-child { border-radius: 2px 4px 4px 2px; }
-.tt-sub span[data-rest] { opacity: .45; }
-.tt-sub:has([data-hot]) span:not([data-hot]) { opacity: .3; }
+.tt-level-body { padding: 24px 0 2px; animation: tt-level-in 280ms cubic-bezier(0.23, 1, 0.32, 1); }
+.tt-level-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.tt-level-head i { width: 10px; height: 10px; border-radius: 3px; background: var(--tt-c); align-self: center; }
+.tt-level-head strong { font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.tt-level-head span { font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); font-variant-numeric: tabular-nums; }
+.tt-hint { margin-top: 6px; max-width: 75ch; }
 .tt-parts { list-style: none; margin: 10px 0 0; padding: 0; max-width: 820px; }
 .tt-parts li { display: grid; border-bottom: 1px solid var(--line-soft); }
 .tt-part { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; width: 100%; min-height: 46px; padding: 6px 10px; box-sizing: border-box; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; text-align: left; }
@@ -322,13 +335,12 @@ button.tt-part:active { transform: scale(0.97); }
 /* A part that is not a command, and the row that opens the rest: secondary ink by
    their bed, raised on --ctl-fill under the pointer like the rows around them. */
 .tt-part[data-static] { color: var(--text-secondary); }
-.tt-parts li[data-hot] .tt-part, .tt-part[data-selected] { background: var(--ctl-fill); }
+.tt-parts li:hover .tt-part, .tt-part[data-selected] { background: var(--ctl-fill); }
 .tt-part[data-selected] .ta-op { font-weight: 600; }
 .tt-part-name { display: grid; gap: 2px; min-width: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); }
 .tt-part-bar { display: block; height: 3px; margin-top: 5px; width: calc(var(--tt-share) * 100%); border-radius: 2px; background: var(--tt-c); transform-origin: left; animation: tt-grow 420ms cubic-bezier(0.23, 1, 0.32, 1) both; }
 .tt-part[data-static] .tt-part-bar, .tt-part[data-rest] .tt-part-bar { opacity: .45; }
 .tt-part[data-rest] { color: var(--text-secondary); }
-.tt-part[data-rest]:hover { background: var(--ctl-fill); }
 .tt-part-name .tt-caret { display: inline-block; margin-left: 6px; vertical-align: -1px; }
 .tt-tip { margin-top: 10px; }
 
@@ -345,25 +357,29 @@ button.tt-part:active { transform: scale(0.97); }
 .tt-days-note { margin-top: 6px; font-variant-numeric: tabular-nums; }
 .tt-stops { margin-top: 10px; }
 
+@keyframes tt-sweep { from { stroke-dasharray: 0 100; } }
 @keyframes tt-level-in { from { opacity: 0; transform: translateY(-4px); } }
-@keyframes tt-link-in { from { transform: scaleY(0); opacity: 0; } }
-@keyframes tt-zoom { from { transform: translateX(calc(var(--tt-x) * 1%)) scaleX(var(--tt-w)); } }
 @keyframes tt-grow { from { transform: scaleX(0); } }
 @keyframes tt-rise { from { transform: scaleY(0); } }
 
+/* Beside the details panel the report narrows: halves keep the ring beside its legend. */
+@container tool-report (max-width: 900px) {
+  .ta-glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container tool-report (max-width: 720px) {
+  .ta-glance { grid-template-columns: minmax(0, 1fr); }
+  .ta-glance > .ta-highlights + .tt { margin-top: 28px; }
+}
 @container tool-report (max-width: 640px) {
   .tt-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tt-key { padding-inline: 8px; gap: 6px; }
-  .tt-keys { margin-left: -8px; }
 }
 @media (pointer: coarse) {
-  .tt-bar { height: 16px; }
-  .tt-key { min-height: 40px; }
+  .tt-lane { min-height: 48px; }
   .tt-part { min-height: 52px; }
 }
-@media (hover: none) { .tt-key:hover:not([aria-expanded=true]) { background: transparent; } }
+@media (hover: none) { .tt-lane:hover:not([aria-expanded=true]), .tt-parts li:hover .tt-part:not([data-selected]) { background: transparent; } }
 @media (prefers-reduced-motion: reduce) {
-  .tt-fold, .tt-seg, .tt-key, .tt-caret, button.tt-part, .tt-sub span, .tt-days-bars i { transition: none; }
-  .tt-level-body, .tt-link, .tt-sub, .tt-part-bar, .tt-days-bars i { animation: none; }
-  .tt-key:active, button.tt-part:active { transform: none; }
+  .tt-fold, .tt-arc, .tt-lane, .tt-caret, button.tt-part, .tt-days-bars i { transition: none; }
+  .tt-level-body, .tt-arc, .tt-part-bar, .tt-days-bars i { animation: none; }
+  .tt-lane:active, button.tt-part:active { transform: none; }
 }
