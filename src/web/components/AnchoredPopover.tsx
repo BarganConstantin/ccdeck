@@ -143,13 +143,18 @@ export default function AnchoredPopover({
       return;
     }
     // Measured at its natural height, so a popover that was squeezed last time
-    // is allowed to grow back when there is room again.
+    // is allowed to grow back when there is room again. Uncapped it has nothing
+    // to scroll, and the browser takes its scroll back to the top as it
+    // measures: kept here and handed back under the cap, or a render undoes a
+    // scroll down to the last controls (popover-keeps-scroll.test.ts).
+    const scrolled = el.scrollTop;
     el.style.maxHeight = "";
     const p = placePopover(box, { width: el.offsetWidth, height: el.offsetHeight },
       { width: window.innerWidth, height: window.innerHeight }, align);
     el.style.top = `${p.top}px`;
     el.style.left = `${p.left}px`;
     el.style.maxHeight = p.maxHeight == null ? "" : `${p.maxHeight}px`;
+    if (scrolled) el.scrollTop = scrolled;
     el.dataset.side = p.side;
   }, [anchorId, boundaryId, ref, align]);
 
