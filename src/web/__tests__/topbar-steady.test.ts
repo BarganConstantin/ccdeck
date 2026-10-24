@@ -32,15 +32,16 @@ const items = (watchUnseen: number) => railItems({
   usagePanelOpen: false, setUsagePanelOpen: noop, machinePanelOpen: false, setMachinePanelOpen: noop,
   setUsageHistoryOpen: noop, watchOn: false, watchUnseen, setBrowserWatchOpen: noop, openSettings: noop,
   onFeedback: noop, toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() } as never,
+  openQuickOpen: noop,
 });
 
 describe("the bar holds nothing a panel changes", () => {
-  it("draws no panel toggle: only Settings and Feedback, which open dialogs", () => {
-    expect(header).toContain("<UtilityRun items={rails.utilities} />");
+  it("draws no panel toggle: only Search, Settings and Feedback, which open dialogs", () => {
+    expect(header).toContain("<UtilityRun items={[rails.search, ...rails.utilities]} />");
     expect(header).not.toMatch(/rails\.left|rails\.right|<EdgeRail|<EdgeDock/);
     const utilities = items(0).utilities;
     expect(utilities.map(i => i.id)).toEqual(["settings", "feedback"]);
-    for (const u of utilities) {
+    for (const u of [items(0).search, ...utilities]) {
       expect(u.kind, u.id).toBe("dialog");
       expect(u.open, u.id).toBeUndefined();
     }

@@ -413,7 +413,11 @@ describe("5. one focus language, and nothing quietly opting out of it", () => {
     expect(declOf(".radio-map-canvas:focus-visible", "outline")).toBe("2px solid var(--accent)");
     expect(declOf(".radio-search:focus-within", "outline")).toBe("none");
     expect(declOf(".radio-pin:focus-visible .radio-pin-dot", "stroke")).toBe("var(--accent)");
+    // Quick open's input draws the ring on the field row it sits in, inset
+    // under the dialog's clipped edge.
+    expect(declOf(".qo-field:has(.qo-input:focus-visible)", "outline")).toBe("2px solid var(--accent)");
     expect(killers).toEqual([
+      ".qo-input:focus-visible",
       ".radio-pin",
       ".radio-search:focus-within",
       ".radio-search input:focus",
@@ -421,7 +425,7 @@ describe("5. one focus language, and nothing quietly opting out of it", () => {
       ".radio-panel .radio-map-canvas:focus:not(:focus-visible),\n.radio-panel .radio-map-canvas[data-pointer-focus]:focus",
       ".radio-panel:not([data-keyboard-interaction]) .radio-filter-popup :focus-visible",
     ]);
-    for (const sel of killers.filter(sel => !sel.startsWith(".radio"))) {
+    for (const sel of killers.filter(sel => !sel.startsWith(".radio") && !sel.startsWith(".qo-"))) {
       expect(declOf(`${sel}:focus-visible`, "outline"), sel).not.toBeNull();
     }
   });

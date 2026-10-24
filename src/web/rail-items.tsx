@@ -27,14 +27,15 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { Providers } from "./providers";
 import type { PanelToggles } from "./use-panel-return";
-import { platformName } from "./platform";
+import { isApplePlatform, platformName } from "./platform";
+import { quickOpenChordLabel } from "./quick-open";
 import { settingsChordLabel, type SettingsSection } from "./settings";
 import type { RailItem } from "./components/EdgeRails";
 import type { IntegrationWebDef } from "./integrations/types";
 import type { CapacityView } from "./components/AccountsUsageReport";
 import {
   AccountsGlyph, BrowserWatchGlyph, CapacityGlyph, FeedbackGlyph, HistoryGlyph, IntegrationsGlyph, MachineGlyph, ResetCalendarGlyph,
-  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph, SkillActivityGlyph,
+  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph, SkillActivityGlyph, SearchGlyph,
 } from "./components/rail-glyphs";
 import type { ToolActivityView } from "./components/ToolAuditModal";
 
@@ -56,6 +57,9 @@ export interface RailItems {
   right: RailItem[][];
   /** Settings and Feedback, in the topbar's corner. */
   utilities: RailItem[];
+  /** Quick open (quick-open.ts): ahead of the two utilities on the bar, and
+   *  the first row under the phone's More. */
+  search: RailItem;
   /** One per connected tracker kind (#2178) — Jira — under the left column's
    *  two, after a divider; on a phone, under More. Empty until a connection
    *  of that kind exists. */
@@ -92,7 +96,7 @@ export function railItems({
   providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
-  openCapacity, integrations = [], openExploreIntegrations,
+  openCapacity, integrations = [], openExploreIntegrations, openQuickOpen,
 }: {
   providers: Providers;
   sessionListOpen: boolean;
@@ -123,8 +127,11 @@ export function railItems({
   /** The connected tracker kinds, in the registry's order (#2178). */
   integrations?: IntegrationRail[];
   openExploreIntegrations?: () => void;
+  /** Quick open, the field ⌘K opens (components/QuickOpen.tsx). */
+  openQuickOpen: () => void;
 }): RailItems {
   const settingsCap = settingsChordLabel(platformName());
+  const apple = isApplePlatform(platformName());
   // aria-expanded, not aria-pressed, on the four panels: each shows and
   // hides a region beside the canvas and leaves focus where it was — the
   // disclosure pattern. aria-controls only while the region is mounted: an
@@ -189,6 +196,14 @@ export function railItems({
     id: "settings", label: "Settings", short: "Settings", key: { cap: settingsCap, aria: "Control+, Meta+,", single: false },
     ariaLabel: "Settings", glyph: <SettingsGlyph />, kind: "dialog", onPress: () => openSettings(),
   };
+  // The field every door is also behind, by name. A chord, like Settings',
+  // so it answers with the single-key shortcuts off.
+  const search: RailItem = {
+    id: "quick-open", label: "Search", short: "Search",
+    key: { cap: quickOpenChordLabel(apple), aria: apple ? "Meta+K" : "Control+K", single: false },
+    ariaLabel: "Search", detail: "Panels, sessions, settings, actions and themes",
+    glyph: <SearchGlyph />, kind: "dialog", onPress: openQuickOpen,
+  };
   const feedback: RailItem = {
     id: "feedback", label: "Feedback", short: "Feedback", menu: "Send feedback",
     ariaLabel: "Send feedback", glyph: <FeedbackGlyph />, kind: "dialog", onPress: onFeedback,
@@ -236,6 +251,7 @@ export function railItems({
       radio,
     ].filter(group => group.length > 0),
     utilities: [settings, feedback],
+    search,
     explore: openExploreIntegrations ? [{
       id: "explore-integrations", label: "Explore integrations", short: "Integrations",
       ariaLabel: "Explore integrations", glyph: <IntegrationsGlyph />, kind: "dialog", onPress: openExploreIntegrations,

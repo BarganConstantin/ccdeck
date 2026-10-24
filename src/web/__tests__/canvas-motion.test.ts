@@ -385,6 +385,8 @@ const PRESSES: Press[] = [
   [".uh-range-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],
+  // Quick open's esc chip, a 22px key: the icon tier.
+  [".qo-esc:active", "0.94", "transform"],
   // Browser Watch's episode disclosure. Same tier and same number as the row
   // above it: a full-width row that opens to show what it is summarising.
   [".bw-ep-head:active", "0.97", "transform"],
@@ -632,6 +634,10 @@ const EXEMPT: string[] = [
   // moves.
   ".jr-row-main",
   ".jr-detail-sub",
+  // A row in quick open (⌘K) runs what it names and the field is gone on the
+  // release, so it answers as the deck's other list rows do: its fill
+  // deepens a step and nothing moves.
+  ".qo-row",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {

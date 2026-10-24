@@ -212,7 +212,7 @@ describe("the topbar's Feedback button", () => {
     expect(rails).toMatch(/aria-haspopup=\{disclosure \? undefined : "dialog"\}/);
     // On the bar, in the utility run beside the gear, at every desktop width.
     expect(items).toMatch(/utilities: \[settings, feedback\]/);
-    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{rails\.utilities\} \/><\/div>\}/);
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>\}/);
   });
 
   it("draws its glyph on the chrome's one icon spec (#837), and says its word beside it at every desktop width", () => {
@@ -238,7 +238,7 @@ describe("the topbar's Feedback button", () => {
     // More, where a row has the room to say "Send feedback" whole.
     expect(item).toMatch(/menu: "Send feedback"/);
     // A connected tracker's row (#2178) comes before it; Feedback stays last.
-    expect(app).toMatch(/more=\{\[\.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, rails\.utilities\[1\]\]\}/);
+    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, rails\.utilities\[1\]\]\}/);
     expect(rails).toMatch(/item\.menu \?\? item\.label/);
   });
 

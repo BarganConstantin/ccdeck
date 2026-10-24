@@ -126,6 +126,15 @@ it but is not organized; branch `feature/ui-organization`):
   and has the one `.modal-head`. The integration trackers' full-page panel
   stays 90vw by the owner's own spec for it.
 
+Quick open (owner, 2026-10-24, "like Raycast, pleasant, with animation,
+comfortable"; branch `feature/quick-open`): ⌘K on a Mac, Ctrl+K elsewhere, and
+Search first in the topbar's utility run and under the phone's More. Rules in
+`quick-open.ts`, rows built from the presses the chrome already has in
+`quick-open-items.tsx`, drawn by `components/QuickOpen.tsx`. It reaches single
+settings through Settings' own search index and lands on the row
+(`openSettings(section, landOn)`). Keep it built from the existing doors: a row
+must never offer something the chrome does not.
+
 T steps through every theme from inside any dialog too (owner, 2026-10-23):
 only a field being typed in or a `<select>` keeps the letter, and every other
 single-key shortcut stays blocked behind a dialog. One path answers it,
