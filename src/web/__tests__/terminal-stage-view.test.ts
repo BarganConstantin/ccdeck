@@ -22,6 +22,7 @@ import StageHeader, { BACK_EMPTY_LABEL, BACK_LABEL, CLOSE_EMPTY_LABEL, CLOSE_LAB
 import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE, StateCard, downloadNote, setupLine, setupShare, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
+import { POPOVER_MARGIN } from "../popover-place";
 import type { StagePhase, StageStatus } from "../components/terminal/stage-model";
 import { subjectKey } from "../use-terminal-session";
 
@@ -787,6 +788,14 @@ describe("the stage's sheet", () => {
     expect(forced).toMatch(/\.ts-spine \{ background: Highlight; \}/);
     expect(forced).toMatch(/\.ts-keys\[data-owner="pane"\] \.ts-lamp \{ background: Highlight;/);
     expect(css.split("@media (forced-colors: active) {").length - 1, "one block, as #871 holds").toBe(1);
+  });
+
+  it("keeps New session inside a phone's width, and at its 368px wherever that fits", () => {
+    // At 320px the popover kept its 368px and ran 56px past the screen's
+    // edge (16px at 360): Codex, Haiku, Plan, the worktree switch and Start
+    // were cut or out of reach. Placed with the window's margin on each side
+    // (popover-place.ts), it takes no more than the window leaves.
+    expect(rule(".anchored-popover.ns-pop")).toContain(`width: min(368px, calc(100vw - ${2 * POPOVER_MARGIN}px));`);
   });
 
   it("opens the popover opaque from its first frame: it scales, it does not fade", () => {

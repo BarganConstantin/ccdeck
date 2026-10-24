@@ -516,9 +516,11 @@
 /* Opaque from its first frame: it slides and scales, it does not fade, so a
    half-transparent form never sits over a running terminal. Two classes, to
    outrank the popover's own entrance in accounts-manage.css, later in the
-   sheet. */
+   sheet. No wider than the window leaves inside its 8px margins
+   (popover-place.ts): at 320px its 368px ran past the screen's edge and took
+   Start with it. */
 .anchored-popover.ns-pop {
-  width: 368px;
+  width: min(368px, calc(100vw - 16px));
   padding: 14px;
   transform-origin: 18px 0;
   animation: ns-pop-in 150ms cubic-bezier(0.23, 1, 0.32, 1);
