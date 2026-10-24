@@ -16,6 +16,12 @@
 //                                    the first reset — what it answers for the
 //                                    pane (terminal-replies.ts); never sent
 //                                    when tmux would not say
+//   deck  → replies {v: 1, view}     in tmux's place, for a session with no
+//                                    tmux server (the optional engine's console
+//                                    sessions): the query kinds this panel's
+//                                    terminal answers itself, every other one
+//                                    left alone. Never on a socket that is
+//                                    told a tmux version; never an empty list
 //   panel → size {cols, rows}        nothing streams until this arrives
 //   deck  → reset {cols, rows}, then ONE binary frame: the seed
 //   deck  → binary frames: the pane's output, from the byte after the seed
@@ -88,6 +94,18 @@ export const EXIT_REASONS: readonly ExitReason[] = ["ended", "detached", "server
 /** A tmux server's version as [major, minor]: 3.6a is [3, 6]. */
 export type TmuxVersion = readonly [number, number];
 
+/**
+ * The query kinds a `replies` frame may name for the panel's own terminal to
+ * answer (terminal-replies.ts): DA1 and DA2, DSR, DECDSR, DECRQM for ANSI and
+ * DEC modes, DECRQSS, and the OSC colour questions one by one. The order is
+ * the engine's, and the one a frame is read into.
+ */
+export const VIEW_KINDS = [
+  "da", "dsr", "decdsr", "decrqm-ansi", "decrqm-dec", "decrqss", "osc4", "osc10", "osc11", "osc12",
+] as const;
+
+export type ViewKind = (typeof VIEW_KINDS)[number];
+
 export interface TerminalSize {
   cols: number;
   rows: number;
@@ -133,6 +151,7 @@ export type ServerMessage =
   | ({ t: "reset" } & TerminalSize)
   | ({ t: "size" } & TerminalSize)
   | { t: "tmux"; version: TmuxVersion }
+  | { t: "replies"; view: readonly ViewKind[] }
   | ({ t: "exit" } & TerminalExit);
 
 /** The part of the browser's WebSocket this file uses, so a test can hand it
@@ -149,6 +168,10 @@ export interface TerminalHandlers {
   onSize?: (size: TerminalSize) => void;
   /** The tmux server the pane lives in. */
   onTmux?: (version: TmuxVersion) => void;
+  /** For a session with no tmux server: the query kinds this panel's terminal
+   *  answers itself, known kinds only, once each (an empty list when the deck
+   *  named none this page knows). */
+  onReplies?: (view: readonly ViewKind[]) => void;
   onExit?: (exit: TerminalExit) => void;
   onError?: (failure: TerminalFailure) => void;
 }
@@ -245,6 +268,16 @@ export function parseServerMessage(text: string): ServerMessage | null {
       const m = typeof msg.version === "string" ? /^(\d{1,3})\.(\d{1,3})$/.exec(msg.version) : null;
       return m ? { t: "tmux", version: [Number(m[1]), Number(m[2])] } : null;
     }
+    case "replies": {
+      // Version 1 and a list of strings, or nothing: a frame this cannot read
+      // is one the panel does not act on, as if it had never been said. A new
+      // meaning comes with a new `v`, which this bundle then ignores too. Of
+      // the list, the kinds this page knows, once each; a kind it does not
+      // know stays silent, which is what the frame means by leaving one out.
+      if (msg.v !== 1 || !Array.isArray(msg.view) || !msg.view.every(k => typeof k === "string")) return null;
+      const said = new Set<unknown>(msg.view);
+      return { t: "replies", view: VIEW_KINDS.filter(k => said.has(k)) };
+    }
     case "exit": {
       // A reason this bundle does not know is still an ending, so it is one
       // the panel already knows how to draw.
@@ -309,7 +342,7 @@ const LOST = "The connection to the Command Panel was lost.";
  * away without waiting on an event it would otherwise have to track.
  */
 export function connectTerminal(options: ConnectOptions): TerminalConnection {
-  const { ticket, onHello, onReset, onData, onSize, onTmux, onExit, onError } = options;
+  const { ticket, onHello, onReset, onData, onSize, onTmux, onReplies, onExit, onError } = options;
   const base = options.base ?? (typeof location === "undefined" ? undefined : location.href);
   const create = options.createSocket ?? ((at: string) => new WebSocket(at));
   const ws = create(socketUrl(options.url ?? TERMINAL_ATTACH_PATH, ticket, base));
@@ -359,6 +392,9 @@ export function connectTerminal(options: ConnectOptions): TerminalConnection {
           return;
         case "tmux":
           onTmux?.(msg.version);
+          return;
+        case "replies":
+          onReplies?.(msg.view);
           return;
         case "exit":
           finished = true;

@@ -105,6 +105,8 @@ class FakeTerminal implements StageTerminal {
   setTheme(theme: unknown) { this.theme = theme; }
   versions: unknown[] = [];
   tmuxVersion(v: unknown) { this.versions.push(v); }
+  answers: unknown[] = [];
+  viewAnswers(kinds: unknown) { this.answers.push(kinds); }
   focus() { this.log.push("focus"); }
   blur() { this.log.push("blur"); }
   cell() { return { w: 8, h: 18 }; }
@@ -822,6 +824,37 @@ describe("the tmux the pane lives in, for the questions xterm leaves to it", () 
     s.text({ t: "tmux", version: "3.2" });
     r.terminal().parse();
     expect(r.terminal().versions.at(-1), "and never from a socket that is no longer the one speaking").toEqual([3, 8]);
+  });
+});
+
+describe("a session with no tmux, which says instead what xterm answers itself", () => {
+  it("hands the deck's list to the terminal in the order of the bytes, and never a list from a socket that is no longer speaking", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    const s = r.sockets[0];
+    s.open();
+    s.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    s.text({ t: "replies", v: 1, view: ["osc11", "decrqm-dec", "xtversion"] });
+    s.text({ t: "reset", cols: 120, rows: 40 });
+    s.binary(enc("SEED"));
+    expect(r.terminal().answers, "applied as xterm parses up to it, not before").toEqual([]);
+    r.terminal().parse();
+    expect(r.terminal().versions, "the connection starts unknown, which also clears any list").toEqual([null]);
+    expect(r.terminal().answers).toEqual([["decrqm-dec", "osc11"]]);
+
+    ctl.show({ kind: "session", ref: OTHER });
+    await flush();
+    const t = r.sockets[1];
+    t.open();
+    t.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    s.text({ t: "replies", v: 1, view: ["da"] });
+    t.text({ t: "replies", v: 2, view: ["da"] });
+    r.terminal().parse();
+    expect(r.terminal().versions.at(-1), "the new connection starts unknown again").toBeNull();
+    expect(r.terminal().answers, "nothing from the old socket, nothing from a frame this bundle cannot read").toEqual([["decrqm-dec", "osc11"]]);
   });
 });
 

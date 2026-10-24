@@ -65,7 +65,15 @@
 // colour still sets the colour, and nothing that draws is touched. Focus
 // reports (`CSI I`, `CSI O`) are not answers — they are what the reader did —
 // and still go up, as do mouse reports.
-import type { TmuxVersion } from "./terminal-protocol";
+//
+// A SESSION WITH NO TMUX (the optional engine's console sessions) has no
+// version to say, and its console answers some queries itself. There the
+// deck may say instead which kinds this terminal is to answer (`{t:"replies"}`,
+// terminal-protocol.ts): while that list is set, each query is xterm's only if
+// its kind is listed, whatever the version, and every other one is left alone.
+// A `{t:"tmux"}`, or a new connection, clears it; an empty list is no list,
+// which leaves everything as above.
+import type { TmuxVersion, ViewKind } from "./terminal-protocol";
 
 /** The parser calls this module makes: a subset of xterm's IParser, so a test
  *  can pass a recording fake. A handler returning true ends the sequence there;
@@ -173,37 +181,46 @@ function paletteFields(data: string): { asked: number[]; set: number[] } {
 /** The handle mountXterm keeps: the version to answer as, and the way out. */
 export interface TmuxReplies extends Disposable {
   /** The tmux server the pane lives in, as the deck reported it; null when a
-   *  new connection has not said yet. */
+   *  new connection has not said yet. Either way it clears the list below. */
   setTmux(version: TmuxVersion | null): void;
+  /** For a session with no tmux: the query kinds the deck says this terminal
+   *  answers. While set, a query is xterm's only if its kind is listed,
+   *  whatever the version. null or an empty list: no list. */
+  setViewAnswers(kinds: readonly ViewKind[] | null): void;
 }
 
 /** Keep xterm from answering what this pane's tmux answers for it. */
 export function leaveRepliesToTmux(parser: ReplyParser): TmuxReplies {
   let version: TmuxVersion | null = null;
+  // The kinds the deck said this terminal answers, for a session with no tmux.
+  let view: ReadonlySet<ViewKind> | null = null;
   // The colours the program set in the stream since this view attached.
   const palette = new Set<number>();
   const colours = { 10: false, 11: false, 12: false } as Record<10 | 11 | 12, boolean>;
 
+  /** Whether xterm keeps quiet on a query of `kind`: with a list, unless the
+   *  kind is listed; without one, when tmux answers it. */
+  const quiet = (kind: ViewKind, byTmux: () => boolean) => (view ? !view.has(kind) : byTmux());
   const csi = (id: SequenceId, ask: (params: Params) => boolean) => parser.registerCsiHandler(id, ask);
   const kept: Disposable[] = [
-    csi(QUERY_CSI[0], () => tmuxAnswers({ kind: "da" }, version)),
-    csi(QUERY_CSI[1], () => tmuxAnswers({ kind: "da" }, version)),
-    csi(QUERY_CSI[2], () => tmuxAnswers({ kind: "dsr" }, version)),
-    csi(QUERY_CSI[3], p => tmuxAnswers({ kind: "decdsr", mode: firstParam(p) }, version)),
-    csi(QUERY_CSI[4], p => tmuxAnswers({ kind: "decrqm-ansi", mode: firstParam(p) }, version)),
-    csi(QUERY_CSI[5], p => tmuxAnswers({ kind: "decrqm-dec", mode: firstParam(p) }, version)),
-    parser.registerDcsHandler(QUERY_DCS[0], () => tmuxAnswers({ kind: "decrqss" }, version)),
+    csi(QUERY_CSI[0], () => quiet("da", () => tmuxAnswers({ kind: "da" }, version))),
+    csi(QUERY_CSI[1], () => quiet("da", () => tmuxAnswers({ kind: "da" }, version))),
+    csi(QUERY_CSI[2], () => quiet("dsr", () => tmuxAnswers({ kind: "dsr" }, version))),
+    csi(QUERY_CSI[3], p => quiet("decdsr", () => tmuxAnswers({ kind: "decdsr", mode: firstParam(p) }, version))),
+    csi(QUERY_CSI[4], p => quiet("decrqm-ansi", () => tmuxAnswers({ kind: "decrqm-ansi", mode: firstParam(p) }, version))),
+    csi(QUERY_CSI[5], p => quiet("decrqm-dec", () => tmuxAnswers({ kind: "decrqm-dec", mode: firstParam(p) }, version))),
+    parser.registerDcsHandler(QUERY_DCS[0], () => quiet("decrqss", () => tmuxAnswers({ kind: "decrqss" }, version))),
     parser.registerOscHandler(4, data => {
       const { asked, set } = paletteFields(data);
       for (const i of set) palette.add(i);
-      return asked.length > 0 && tmuxAnswers({ kind: "osc4", asked, set: palette }, version);
+      return asked.length > 0 && quiet("osc4", () => tmuxAnswers({ kind: "osc4", asked, set: palette }, version));
     }),
     ...([10, 11, 12] as const).map(ident => parser.registerOscHandler(ident, data => {
       if (!asksColour(data)) {
         colours[ident] = true;
         return false;
       }
-      return tmuxAnswers({ kind: "osc", ident, data, set: colours[ident] }, version);
+      return quiet(`osc${ident}`, () => tmuxAnswers({ kind: "osc", ident, data, set: colours[ident] }, version));
     })),
     parser.registerOscHandler(104, data => {
       if (data === "") palette.clear();
@@ -216,7 +233,8 @@ export function leaveRepliesToTmux(parser: ReplyParser): TmuxReplies {
     })),
   ];
   return {
-    setTmux: v => { version = v; },
+    setTmux: v => { version = v; view = null; },
+    setViewAnswers: kinds => { view = kinds && kinds.length > 0 ? new Set(kinds) : null; },
     dispose: () => { for (const d of kept) d.dispose(); },
   };
 }

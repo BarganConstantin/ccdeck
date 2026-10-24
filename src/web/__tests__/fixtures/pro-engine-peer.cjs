@@ -56,6 +56,9 @@ function attach(req) {
     if (early.has(id)) return;
     streams.set(id, { taken: 0, credited: 0, sent: 0, relayed: 0, hold: !!plan.hold, deaf: !!plan.ignoreShutdown });
     json(id, 2, { t: 'hello', kind: 'A', sizeOwner: 'dock', readOnly: false });
+    // A session with no tmux server: the query kinds the panel answers, in the
+    // tmux frame's place, right behind the hello, as the engine's bridge says them.
+    if (plan.replies) json(id, 2, { t: 'replies', v: 1, view: plan.replies });
   };
   if (plan.delayMs) setTimeout(answer, plan.delayMs); else answer();
 }
@@ -148,7 +151,7 @@ process.stdin.on('data', chunk => {
     else if (req.method === 'terminal.attach') attach(req);
     // What a route would answer in a ticket's place.
     else if (req.method === 'terminal.mint') { const handle = randomBytes(32).toString('hex'); handles.set(handle, Date.now()); respond(req.id, { handle }); }
-    // How the next attaches are answered: `{ refuse, silent, delayMs, hold, ignoreShutdown }` each.
+    // How the next attaches are answered: `{ refuse, silent, delayMs, hold, ignoreShutdown, replies }` each.
     else if (req.method === 'terminal.plan') { plans.push(...req.params.plans); respond(req.id, { planned: plans.length }); }
     else if (req.method === 'terminal.emit') { emit(req.params.frames); respond(req.id, { emitted: req.params.frames.length }); }
     else if (req.method === 'terminal.hold') { const s = streams.get(req.params.stream); if (s) { s.hold = req.params.hold; if (!s.hold) credit(req.params.stream, s); } respond(req.id, { live: !!s }); }

@@ -18,6 +18,7 @@ import {
   INPUT_CHUNK_BYTES,
   MAX_MESSAGE_BYTES,
   TERMINAL_ATTACH_PATH,
+  VIEW_KINDS,
   connectTerminal,
   hexColour,
   parseServerMessage,
@@ -27,6 +28,7 @@ import {
   type TerminalHello,
   type TerminalReset,
   type TerminalSize,
+  type ViewKind,
 } from "../terminal-protocol";
 import { withoutComments } from "./tsx-scan";
 // @ts-expect-error — plain .mjs server module, no types
@@ -464,6 +466,76 @@ describe("parseServerMessage", () => {
     expect(parseServerMessage('{"t":"hello"}')).toEqual({ t: "hello", kind: "", sizeOwner: "dock", readOnly: false });
     expect(parseServerMessage('{"t":"hello","readOnly":"yes","sizeOwner":"window"}'))
       .toEqual({ t: "hello", kind: "", sizeOwner: "dock", readOnly: false });
+  });
+});
+
+describe("the query kinds a session with no tmux says the panel answers (replies)", () => {
+  const replies = (body: unknown) => parseServerMessage(JSON.stringify({ t: "replies", ...(body as object) }));
+
+  it("reads version 1's list into the kinds this page knows, in the engine's order", () => {
+    expect(replies({ v: 1, view: ["decrqm-dec", "osc10", "osc11"] })).toEqual({ t: "replies", view: ["decrqm-dec", "osc10", "osc11"] });
+    expect(replies({ v: 1, view: ["osc11", "da"] }), "in VIEW_KINDS's order, whatever the frame's").toEqual({ t: "replies", view: ["da", "osc11"] });
+    expect(replies({ v: 1, view: [...VIEW_KINDS] })).toEqual({ t: "replies", view: [...VIEW_KINDS] });
+    expect(replies({ v: 1, view: ["osc11"], later: "a field this bundle never heard of" })).toEqual({ t: "replies", view: ["osc11"] });
+  });
+
+  it("names the engine's kinds, each one a question terminal-replies.ts decides", () => {
+    expect([...VIEW_KINDS]).toEqual(["da", "dsr", "decdsr", "decrqm-ansi", "decrqm-dec", "decrqss", "osc4", "osc10", "osc11", "osc12"]);
+  });
+
+  it("drops a kind it does not know and says a repeated one once", () => {
+    expect(replies({ v: 1, view: ["xtversion", "osc11", "OSC10", "", "osc11", "colours"] })).toEqual({ t: "replies", view: ["osc11"] });
+    expect(replies({ v: 1, view: ["xtversion"] }), "nothing it knows: an empty list, which is no list").toEqual({ t: "replies", view: [] });
+    expect(replies({ v: 1, view: [] })).toEqual({ t: "replies", view: [] });
+  });
+
+  it("ignores any other version, and a list it cannot read", () => {
+    for (const body of [
+      { v: 2, view: ["osc11"] }, { v: 0, view: ["osc11"] }, { v: "1", view: ["osc11"] }, { v: 1.5, view: ["osc11"] },
+      { view: ["osc11"] }, { v: 1 }, { v: 1, view: "osc11" }, { v: 1, view: null }, { v: 1, view: { 0: "osc11" } },
+      { v: 1, view: ["osc11", 10] }, { v: 1, view: [["osc11"]] }, { v: 1, view: [null] },
+    ]) expect(replies(body), JSON.stringify(body)).toBeNull();
+  });
+
+  it("hands the list to the panel, and nothing for a frame it ignores", () => {
+    const sockets: FakeSocket[] = [];
+    const told: Array<[string, unknown]> = [];
+    connectTerminal({
+      ticket: "t1ck3t",
+      base: "http://127.0.0.1:4318/",
+      createSocket: (url: string) => { const ws = new FakeSocket(url); sockets.push(ws); return ws as unknown as WebSocket; },
+      onHello: (h: TerminalHello) => told.push(["hello", h.kind]),
+      onTmux: (v: readonly [number, number]) => told.push(["tmux", v]),
+      onReplies: (view: readonly ViewKind[]) => told.push(["replies", view]),
+      onReset: (r: TerminalReset) => told.push(["reset", [...r.seed]]),
+    });
+    const ws = sockets[0];
+    ws.open();
+    ws.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    ws.text({ t: "replies", v: 2, view: ["da"] });
+    ws.text({ t: "replies", v: 1, view: "da" });
+    ws.text({ t: "replies", v: 1, view: ["osc11", "decrqm-dec", "xtversion"] });
+    ws.text({ t: "reset", cols: 80, rows: 24 });
+    ws.binary([1]);
+    expect(told).toEqual([["hello", "A"], ["replies", ["decrqm-dec", "osc11"]], ["reset", [1]]]);
+  });
+
+  it("is no message at all to a panel that does not listen for it, which streams on as before", () => {
+    const { ws, told } = connect();
+    ws.open();
+    ws.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    ws.text({ t: "replies", v: 1, view: ["osc11"] });
+    ws.text({ t: "reset", cols: 80, rows: 24 });
+    ws.binary([7]);
+    expect(told).toEqual([
+      ["hello", { kind: "A", sizeOwner: "dock", readOnly: false }],
+      ["reset", { cols: 80, rows: 24, seed: [7] }],
+    ]);
+  });
+
+  it("is a server message the browser contract lists", () => {
+    const spec = JSON.parse(readFileSync(fileURLToPath(new URL("../../../docs/contracts/terminal-v1.schema.json", import.meta.url)), "utf8"));
+    expect(spec.websocket.serverMessages).toContain("replies");
   });
 });
 

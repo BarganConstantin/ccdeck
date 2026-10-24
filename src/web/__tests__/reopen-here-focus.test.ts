@@ -60,7 +60,7 @@ function stageOn(open: unknown) {
   const term: StageTerminal & { focus: ReturnType<typeof vi.fn> } = {
     cols: 80, rows: 24,
     write: (_data, done) => { done?.(); },
-    reset() {}, resize() {}, setTheme() {}, tmuxVersion() {},
+    reset() {}, resize() {}, setTheme() {}, tmuxVersion() {}, viewAnswers() {},
     // The textarea taking the focus is what tells the session the pane has the keys.
     focus: vi.fn(() => { doc().activeElement = textarea; events?.onFocusChange(true); }),
     blur: () => { doc().activeElement = body; events?.onFocusChange(false); },
