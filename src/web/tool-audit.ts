@@ -47,12 +47,14 @@ export interface SkillUse {
   id: string; provider: 'claude' | 'codex'; at: number; origin: SkillOrigin; session: string; project: string | null;
   subagent: boolean; state: 'pending' | 'done' | 'failed';
 }
-export interface SkillDay { date: string; uses: number; providers: { claude: number; codex: number }; status: 'used' | 'no-uses' | 'outside-history' }
+export interface SkillDay { date: string; uses: number; providers: { claude: number; codex: number }; agent: number; typed: number; detected: number; status: 'used' | 'no-uses' | 'outside-history' }
 export interface SkillReport {
   ok: boolean; view: 'skills'; capturedAt: number; since: number; until: number; provider: AuditProvider;
   total: number; repeats: number; failed: number; providers: { claude: number; codex: number }; corrupt: number; duplicates: number;
   retainedSince: number; countedSince: number; rows: SkillRow[];
-  details: { name: string; row: SkillRow | null; total: number; projects: { name: string; uses: number }[]; recent: SkillUse[];
+  details: { name: string; row: SkillRow | null; total: number; projects: { name: string; uses: number }[];
+    /** What the five named projects leave out: the other projects, and uses with no project folder. */
+    moreProjects: { projects: number; uses: number }; projectless: number; recent: SkillUse[];
     history?: { timeZone: string; days: SkillDay[] } } | null;
   bytes: number; storageOk: boolean; dropped: number; startedAt: number; skillsSince: number; retentionDays: number;
   /** Whether Claude Code reports typed slash commands to the deck; absent when it does not watch Claude. */
