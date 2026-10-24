@@ -1,13 +1,19 @@
 // The one place the deck makes the Command Panel's engine: the optional local
 // engine, started for the panel only once somebody has switched the panel on
-// and asked it something, on the one platform it runs on.
+// and asked it something, on the platforms it runs on (Linux and macOS).
 //
 // NOTHING HAPPENS UNTIL A ROUTE ASKS. Importing this does no I/O. The routes
 // (terminal-routes.mjs) ask only while the panel's switch is on — with it off
 // they are a 404 and never get here — so a deck with the switch off, the
 // default, never looks at the install folder, never builds a client, never
-// starts anything and never touches the network. Off Linux, a route is
-// answered `unsupported` without looking either.
+// starts anything and never touches the network. Off Linux and macOS (on
+// Windows), a route is answered `unsupported` without looking either.
+//
+// SUPPORTED IS NOT SERVED. On Linux and macOS a route still goes nowhere
+// unless the engine's own hello advertises a terminal backend
+// (routeThroughEngine in pro-engine-terminal.mjs answers `no-terminal`
+// otherwise): the engine decides, behind its own opt-in, whether it serves
+// the panel on this machine.
 //
 // ONE FOLDER, AND ONLY KEYS SHIPPED IN THIS FILE. The engine is looked for in
 // `<deck data folder>/engine` (CCDECK_HOME when set; deck-home.mjs) and
@@ -46,9 +52,11 @@ export const ENGINE_PUBLIC_KEYS = Object.freeze([]);
  *  (pro-engine-terminal.mjs' SHUTDOWN_GRACE_MS). */
 export const STOP_GRACE_MS = 1_500;
 
-/** Whether `platform` has the Command Panel: Linux only, in this release. */
+/** Whether `platform` has the Command Panel: Linux and macOS, in this
+ *  release; never Windows. Only where the engine's hello also advertises a
+ *  terminal backend does a route reach it (`no-terminal` otherwise). */
 export function commandPanelSupported(platform = process.platform) {
-  return platform === "linux";
+  return platform === "linux" || platform === "darwin";
 }
 
 /** The one folder the Command Panel's engine is installed in. */

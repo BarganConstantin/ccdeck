@@ -1,9 +1,10 @@
 // Where the deck makes the Command Panel's engine, and when it stops it
 // (command-panel-engine.mjs).
 //
-// Off — the switch's default — and off Linux, the deck does nothing for the
-// panel at all: no look at the install folder, no client, no process, no
-// network. On Linux with the switch on, it looks in one folder and trusts only
+// Off — the switch's default — and off Linux and macOS (Windows), the deck does
+// nothing for the panel at all: no look at the install folder, no client, no
+// process, no network. On Linux or macOS with the switch on, it looks in one
+// folder, reaches the engine only when its hello advertises a terminal backend, and trusts only
 // the keys shipped in the file, which are none in this release: a missing
 // folder is `not-installed`, a present one `not-verified`, and the executable
 // is never read. The one client it makes is the only one told it may serve
@@ -112,15 +113,67 @@ describe("the Command Panel's engine, made by the deck", () => {
     expect(cpe.engineInstallDir()).toBe(ENGINE_DIR);
   });
 
-  it("is unsupported off Linux, without looking at anything or making anything", async () => {
-    for (const platform of ["darwin", "win32", "freebsd"]) {
+  it("is supported on Linux and macOS only, and never on Windows", () => {
+    expect(cpe.commandPanelSupported("linux")).toBe(true);
+    expect(cpe.commandPanelSupported("darwin")).toBe(true);
+    for (const platform of ["win32", "freebsd", "openbsd", "sunos", "aix", "android", "cygwin", "Darwin", "darwin ", ""]) {
+      expect(cpe.commandPanelSupported(platform), platform).toBe(false);
+    }
+    expect(cpe.commandPanelSupported()).toBe(process.platform === "linux" || process.platform === "darwin");
+  });
+
+  it("is unsupported off Linux and macOS (Windows included), without looking at anything or making anything", async () => {
+    for (const platform of ["win32", "freebsd"]) {
       const lstat = vi.fn(), createClient = vi.fn();
       const e = cpe.commandPanelEngine({ platform, keys: ["k"], lstat, createClient });
-      const got = await e.route("status", null);
-      expect([got.status, got.body.code], platform).toEqual([409, "unsupported"]);
+      for (const [method, body] of [["status", null], ["target", { sessionId: "s" }], ["launch", { agent: "claude" }], ["open", { sessionId: "s" }]] as const) {
+        const got = await e.route(method, body);
+        expect([got.status, got.body.code], `${platform} ${method}`).toEqual([409, "unsupported"]);
+      }
       expect(await e.attach("ab".repeat(32), {})).toEqual({ ok: false, status: 503 });
       expect([lstat.mock.calls.length, createClient.mock.calls.length], platform).toEqual([0, 0]);
     }
+  });
+
+  it("on macOS, as on Linux, reaches the engine only when its hello advertises a terminal backend", async () => {
+    for (const platform of ["darwin", "linux"]) {
+      for (const backend of ["unavailable", undefined, null, ""]) {
+        const client = fakeClient({ status: 200, body: { ok: true, platform } });
+        (client.capabilities.terminal as { backend: unknown }).backend = backend;
+        const asked = vi.spyOn(client, "request");
+        const createClient = vi.fn(() => client);
+        const e = cpe.commandPanelEngine({ platform, env: { CCDECK_HOME: "/x/deck" }, keys: ["K"], lstat: async () => ({}), createClient });
+        for (const method of ["status", "launch"]) {
+          const got = await e.route(method, method === "launch" ? { agent: "claude" } : null);
+          expect([got.status, got.body.code], `${platform} ${String(backend)} ${method}`).toEqual([409, "no-terminal"]);
+        }
+        expect(asked, `${platform} ${String(backend)}: nothing asked of an engine that serves no terminal`).not.toHaveBeenCalled();
+      }
+      // Advertised: the same one client, made as on Linux, and every route asked of it.
+      const client = fakeClient({ status: 200, body: { ok: true, platform } });
+      const createClient = vi.fn(() => client);
+      const e = cpe.commandPanelEngine({ platform, env: { CCDECK_HOME: "/x/deck" }, keys: ["K"], lstat: async () => ({}), createClient });
+      const got = await e.route("status", null);
+      expect([got.status, got.body], platform).toEqual([200, { ok: true, platform }]);
+      expect(createClient.mock.calls, platform).toEqual([[{ enabled: true, directory: "/x/deck/engine", publicKey: ["K"], hostVersion: RUNNING_VERSION ?? "0.0.0", terminal: true }]]);
+    }
+  });
+
+  it("on macOS, as on Linux, is not-installed with no folder and not-verified with one or with no key", async () => {
+    const createClient = vi.fn();
+    const cases: Array<[() => Promise<unknown>, string[], string]> = [
+      [async () => { throw fail("ENOENT"); }, ["K"], "not-installed"],
+      [async () => ({}), [], "not-verified"],
+      [async () => { throw fail("EACCES"); }, ["K"], "not-verified"],
+    ];
+    for (const [lstat, keys, code] of cases) {
+      const looked = vi.fn(lstat);
+      const e = cpe.commandPanelEngine({ platform: "darwin", env: { CCDECK_HOME: "/x/deck" }, keys, lstat: looked, createClient });
+      const got = await e.route("status", null);
+      expect([got.status, got.body.code], code).toEqual([409, code]);
+      expect(looked.mock.calls).toEqual([["/x/deck/engine"]]);
+    }
+    expect(createClient).not.toHaveBeenCalled();
   });
 
   it("is not-installed with no folder and not-verified with one, with no key, and makes no client", async () => {
@@ -276,16 +329,17 @@ describe("a deck's Command Panel engine, by its switch", () => {
     expect(made.clients).toEqual([]);
   });
 
-  it("on, with no engine installed: not-installed on Linux, unsupported elsewhere, and no client", async () => {
+  it("on, with no engine installed: not-installed on Linux and macOS, unsupported elsewhere, and no client", async () => {
     on = true;
+    const supported = process.platform === "linux" || process.platform === "darwin";
     const seen = await reads(join(DIR, "deck"), async () => {
       for (const [method, path, body] of ROUTES) {
         const got = await ask(method, path, body);
-        expect([got.status, got.body?.code], path).toEqual([409, process.platform === "linux" ? "not-installed" : "unsupported"]);
+        expect([got.status, got.body?.code], path).toEqual([409, supported ? "not-installed" : "unsupported"]);
       }
     });
     const looked = seen.filter(s => s.includes(ENGINE_DIR));
-    if (process.platform === "linux") expect(looked).toEqual(ROUTES.map(() => `lstat ${ENGINE_DIR}`));
+    if (supported) expect(looked).toEqual(ROUTES.map(() => `lstat ${ENGINE_DIR}`));
     else expect(looked).toEqual([]);
     expect(made.clients).toEqual([]);
     on = false;

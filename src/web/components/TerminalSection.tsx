@@ -7,9 +7,9 @@
 // and the row's note saying so again in one line. The switch is the only way
 // on; no launch variable turns it on.
 //
-// The panel runs on Linux only for now. Elsewhere the switch is drawn off and
-// fixed, and says so — though never fixed on: a settings file carried over
-// from a Linux machine can still be switched off. The deck says which
+// The panel runs on Linux and macOS only for now. Elsewhere the switch is drawn
+// off and fixed, and says so — though never fixed on: a settings file carried
+// over from a Linux or macOS machine can still be switched off. The deck says which
 // (`terminalSupported` in /api/prefs), not the browser, since the panel runs
 // where the deck does; until it has said, the switch is offered as usual.
 

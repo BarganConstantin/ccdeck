@@ -226,7 +226,7 @@ describe("POST /api/prefs and the terminal's switch", () => {
       const { out } = await post({ terminal: false });
       expect(out.terminalOn).toBe(false);
       expect(out).not.toHaveProperty("terminalForced");
-      expect(out.terminalSupported, "whether this platform has the panel").toBe(process.platform === "linux");
+      expect(out.terminalSupported, "whether this platform has the panel").toBe(process.platform === "linux" || process.platform === "darwin");
     } finally {
       delete process.env.CCDECK_TERMINAL;
     }
