@@ -93,9 +93,14 @@ export async function handlePrefsWrite(req, res) {
   // was written, not of what was sent — any value that is not true turns the
   // switch off. The sessions keep running; closing a panel never stops an
   // agent. The engine that served them stops once they have closed.
-  if (terminalWasOn && !terminalOn(heldPrefs.current())) {
+  const terminalNowOn = terminalOn(heldPrefs.current());
+  if (terminalWasOn && !terminalNowOn) {
     closeOpenTerminals("error", TERMINAL_TURNED_OFF);
     commandPanel.switchedOff();
+  } else if (!terminalWasOn && terminalNowOn) {
+    // On again before the engine's stop has begun: the stop is called off,
+    // and the engine kept with what it holds (command-panel-engine.mjs).
+    commandPanel.switchedOn();
   }
   // The engine reads its settings from here rather than holding its own copy,
   // so turning the switch off in the panel really does stop the sockets rather

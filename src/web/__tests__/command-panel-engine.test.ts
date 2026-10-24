@@ -22,7 +22,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 
-const made = vi.hoisted(() => ({ clients: [] as unknown[], switchedOff: 0, routes: [] as string[] }));
+const made = vi.hoisted(() => ({ clients: [] as unknown[], switchedOff: 0, switchedOn: 0, routes: [] as string[] }));
 vi.mock("../../server/pro-engine-client.mjs", async (importOriginal) => {
   const real: any = await importOriginal();
   return { ...real, createProEngineClient: (options: unknown) => { made.clients.push(options); return real.createProEngineClient(options); } };
@@ -35,6 +35,7 @@ vi.mock("../../server/command-panel-engine.mjs", async (importOriginal) => {
     route: (method: string, body: unknown) => { made.routes.push(method); return panel.route(method, body); },
     attach: (handle: string, socket: unknown) => panel.attach(handle, socket),
     switchedOff: () => { made.switchedOff += 1; panel.switchedOff(); },
+    switchedOn: () => { made.switchedOn += 1; panel.switchedOn?.(); },
     stop: () => panel.stop(),
   });
   return { ...real, commandPanel, stopCommandPanelEngine: () => commandPanel.stop() };
@@ -66,6 +67,10 @@ const { engineEnv, TERMINAL_OPT_IN } = await import("../../server/pro-engine-cli
 const { verifyEngineInstallation } = await import("../../server/pro-engine-install.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { engineRefusal } = await import("../../server/pro-engine-terminal.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const { createTicketStore } = await import("../../server/terminal-socket.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const { TERMINAL_TURNED_OFF } = await import("../../server/prefs-routes.mjs");
 const { PANEL_RECOVERING, PANEL_UNAVAILABLE } = await import("../terminal-api");
 // @ts-expect-error — plain .mjs server module, no types
 const { RUNNING_VERSION } = await import("../../server/running-version.mjs");
@@ -87,17 +92,21 @@ async function reads(under: string, run: () => Promise<unknown>): Promise<string
   return seen;
 }
 
-/** A client as createProEngineClient makes one, answering every route `answer`. */
-function fakeClient(answer = { status: 200, body: { ok: true } }) {
+/** A client as createProEngineClient makes one, answering every route `answer`. Its close() answers once the
+ *  engine's process has exited, as the real one's does: at once, or when `exit` settles. */
+function fakeClient(answer: unknown = { status: 200, body: { ok: true } }, { exit }: { exit?: Promise<void> } = {}) {
   const client = {
     enabled: true, running: false, closed: 0,
     capabilities: { terminal: { backend: "tmux" } },
     start: async () => { client.running = true; },
-    request: async () => answer,
-    close: () => { client.closed += 1; client.running = false; return new Promise(() => {}); },
+    request: async (..._args: unknown[]): Promise<unknown> => answer,
+    close: () => { client.closed += 1; client.running = false; return exit ?? Promise.resolve(); },
   };
   return client;
 }
+/** Under fake timers: `ms` of time, with every promise that settles on the way let run. */
+const pass = (ms = 0) => vi.advanceTimersByTimeAsync(ms);
+const HANDLE = "ab".repeat(32);
 
 describe("the Command Panel's engine, made by the deck", () => {
   afterEach(() => { vi.useRealTimers(); });
@@ -276,6 +285,152 @@ describe("the Command Panel's engine, made by the deck", () => {
     expect((await asked).body.code).toBe("restarting");
     expect(createClient).not.toHaveBeenCalled();
   });
+
+  it("never stops the engine under a question it is answering: the stop waits for the answer, then follows", async () => {
+    let answer!: (a: unknown) => void;
+    const client = fakeClient();
+    client.request = () => new Promise(r => { answer = r; });
+    const e = cpe.commandPanelEngine({ platform: "linux", env: {}, keys: ["K"], lstat: async () => ({}), createClient: () => client });
+    // A launch asked while on, inside the engine (its tmux still starting the session) when the switch goes off.
+    const launch = e.route("launch", { agent: "claude", cwd: "/p", key: "k-in-flight" });
+    await vi.waitFor(() => expect(answer).toBeTypeOf("function"));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    e.switchedOff();
+    await pass(cpe.STOP_GRACE_MS * 4);
+    expect([client.closed, e.running], "stopped under the launch it was running").toEqual([0, true]);
+    // The engine answers: the session is made and labelled with its key, and the route has its answer.
+    const started = { status: 200, body: { ok: true, sessionId: "s", name: "ccdeck-claude-1", ticket: null }, handle: HANDLE };
+    answer(started);
+    expect(await launch).toEqual(started);
+    await pass();
+    expect([client.closed, e.running], "stopped once it had answered").toEqual([1, false]);
+  });
+
+  it("stops it once a question it was answering has failed, as one does at the client's deadline", async () => {
+    let failIt!: (e: unknown) => void;
+    const client = fakeClient();
+    client.request = () => new Promise((_, reject) => { failIt = reject; });
+    const e = cpe.commandPanelEngine({ platform: "linux", env: {}, keys: ["K"], lstat: async () => ({}), createClient: () => client });
+    const launch = e.route("launch", { agent: "claude", key: "k-deadline" });
+    launch.catch(() => {});
+    await vi.waitFor(() => expect(failIt).toBeTypeOf("function"));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    e.switchedOff();
+    await pass(cpe.STOP_GRACE_MS);
+    expect(client.closed, "still answering").toBe(0);
+    failIt(fail("timeout"));
+    // A mutation that went unanswered is the deck's 500 and is never asked again (routeThroughEngine).
+    await expect(launch).rejects.toMatchObject({ code: "timeout" });
+    await pass();
+    expect([client.closed, e.running]).toEqual([1, false]);
+  });
+
+  it("keeps the engine when the switch goes back on before its stop has begun, with or without a question", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const client = fakeClient();
+    const e = cpe.commandPanelEngine({ platform: "linux", env: {}, keys: ["K"], lstat: async () => ({}), createClient: () => client });
+    await e.route("status", null);
+    // Back on inside the grace, and the page asks nothing: the stop is called off by the switch itself.
+    e.switchedOff();
+    await pass(cpe.STOP_GRACE_MS - 1);
+    e.switchedOn?.();
+    await pass(cpe.STOP_GRACE_MS * 4);
+    expect([client.closed, e.running], "stopped with the switch back on").toEqual([0, true]);
+    // Back on while the stop waits for a question to be answered: called off there too.
+    let answer!: (a: unknown) => void;
+    client.request = () => new Promise(r => { answer = r; });
+    const launch = e.route("launch", { agent: "claude", key: "k-on-again" });
+    await pass();
+    e.switchedOff();
+    await pass(cpe.STOP_GRACE_MS);
+    e.switchedOn?.();
+    answer({ status: 200, body: { ok: true, sessionId: "s", name: "n", ticket: null }, handle: HANDLE });
+    expect((await launch).status).toBe(200);
+    await pass(cpe.STOP_GRACE_MS * 4);
+    expect([client.closed, e.running], "stopped with the switch back on, once the launch was answered").toEqual([0, true]);
+    // Off again: stopped a grace later, as ever.
+    e.switchedOff();
+    await pass(cpe.STOP_GRACE_MS);
+    expect([client.closed, e.running]).toEqual([1, false]);
+  });
+
+  it("starts no engine beside one that is stopping: the next question waits for it to exit, a bounded time", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const exits: Array<() => void> = [];
+    const clients: ReturnType<typeof fakeClient>[] = [];
+    const createClient = vi.fn(() => {
+      let exit!: () => void;
+      const c = fakeClient(undefined, { exit: new Promise<void>(r => { exit = r; }) });
+      exits.push(exit);
+      clients.push(c);
+      return c;
+    });
+    const e = cpe.commandPanelEngine({ platform: "linux", env: {}, keys: ["K"], lstat: async () => ({}), createClient });
+    await e.route("status", null);
+    e.switchedOff();
+    await pass(cpe.STOP_GRACE_MS);
+    expect(clients[0].closed, "its stop has begun").toBe(1);
+    // On again, and the page asks at once, while the first engine is still on its way out.
+    e.switchedOn?.();
+    let answered: { status: number; body: { code?: string } } | null = null;
+    void e.route("status", null).then(a => { answered = a; });
+    await pass(1);
+    expect(createClient, "a second engine started beside the one stopping").toHaveBeenCalledTimes(1);
+    expect(answered).toBeNull();
+    exits[0]();
+    await pass();
+    expect(createClient).toHaveBeenCalledTimes(2);
+    expect(answered!.status).toBe(200);
+    // One that does not exit in time: the question is answered `restarting` (the page waits that out), and
+    // still no second engine is started.
+    e.switchedOff();
+    await pass(cpe.STOP_GRACE_MS);
+    expect(clients[1].closed).toBe(1);
+    answered = null;
+    void e.route("status", null).then(a => { answered = a; });
+    await pass(cpe.EXIT_WAIT_MS - 1);
+    expect(answered, "answered before the wait was out").toBeNull();
+    await pass(1);
+    expect([answered!.status, answered!.body.code]).toEqual([503, "restarting"]);
+    expect(createClient).toHaveBeenCalledTimes(2);
+    // Once it has exited, the next question starts the next engine.
+    exits[1]();
+    await pass();
+    expect((await e.route("status", null)).status).toBe(200);
+    expect(createClient).toHaveBeenCalledTimes(3);
+  });
+
+  it("over ten toggles (back on inside the grace, as the stop begins, and after the engine has gone) runs one engine at a time", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    // An engine is alive from its start until its process has exited, which takes EXIT_MS after its close.
+    const EXIT_MS = 40;
+    let alive = 0;
+    let peak = 0;
+    const createClient = vi.fn(() => {
+      const c = fakeClient();
+      let up = false;
+      c.start = async () => { c.running = true; if (!up) { up = true; alive += 1; peak = Math.max(peak, alive); } };
+      c.close = () => { c.closed += 1; c.running = false; return new Promise<void>(r => setTimeout(() => { if (up) { up = false; alive -= 1; } r(); }, EXIT_MS)); };
+      return c;
+    });
+    const e = cpe.commandPanelEngine({ platform: "linux", env: {}, keys: ["K"], lstat: async () => ({}), createClient });
+    await e.route("status", null);
+    const kinds = ["inside the grace", "as the stop begins", "after it has gone"];
+    const offFor = [cpe.STOP_GRACE_MS / 2, cpe.STOP_GRACE_MS + EXIT_MS / 2, cpe.STOP_GRACE_MS + EXIT_MS * 2];
+    for (let i = 0; i < 10; i++) {
+      // The deck: the switch in Settings tells the engine (prefs-routes.mjs), and the page asks once it is on.
+      e.switchedOff();
+      await pass(offFor[i % 3]);
+      e.switchedOn?.();
+      const asked = e.route("status", null);
+      await pass(EXIT_MS * 2);
+      expect((await asked).status, `cycle ${i}, back on ${kinds[i % 3]}`).toBe(200);
+    }
+    expect(peak, "two engines at once").toBe(1);
+    expect(alive).toBe(1);
+    // Back on inside the grace keeps the engine; the other six cycles each start one after the last has gone.
+    expect(createClient).toHaveBeenCalledTimes(1 + 6);
+  });
 });
 
 describe("the engine's environment and keys", () => {
@@ -314,6 +469,99 @@ describe("the engine's environment and keys", () => {
       expect(source.match(/from ["']node:(?:net|http|https|http2|dns|tls|dgram)["']/g), file).toBeNull();
       expect(source.match(/\bfetch\(|\bimport\(/g), file).toBeNull();
     }
+  });
+});
+
+describe("a question the engine answers after the switch went off", () => {
+  // A deck handed an engine whose every answer the test gives, once the switch has gone off under the
+  // question: the moment a launch asked while on is inside the engine when the switch goes off, and the engine
+  // (which is stopped only once it has answered) answers it.
+  let server: Server;
+  let port = 0;
+  let on = true;
+  const pending: Array<{ method: string; answer: (a: unknown) => void }> = [];
+  const asked: string[] = [];
+  const engine = {
+    get enabled() { return true; },
+    attach: async () => ({ ok: false, status: 503 }),
+    route: (method: string) => { asked.push(method); return new Promise(r => { pending.push({ method, answer: r }); }); },
+  };
+  const tickets = createTicketStore();
+  beforeAll(async () => {
+    server = await mod.startServer({ port: 0, persist: false, claude: false, codex: false, terminal: { enabled: () => on, engine, tickets } });
+    port = (server.address() as { port: number }).port;
+  }, 30_000);
+  afterAll(async () => { await new Promise(r => server.close(r)); });
+
+  const ask = (method: string, path: string, body?: unknown): Promise<{ status: number; body: any }> => new Promise((resolve_, reject) => {
+    const payload = body === undefined ? undefined : JSON.stringify(body);
+    const req = request({
+      host: "127.0.0.1", port, path, method,
+      headers: { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}`, "sec-fetch-site": "same-origin", ...(payload ? { "content-type": "application/json", "content-length": String(Buffer.byteLength(payload)) } : {}) },
+    }, res => {
+      let raw = "";
+      res.setEncoding("utf8");
+      res.on("data", c => { raw += c; });
+      res.on("end", () => { let parsed: any = null; try { parsed = JSON.parse(raw); } catch { /* not JSON */ } resolve_({ status: res.statusCode ?? 0, body: parsed }); });
+    });
+    req.on("error", reject);
+    req.end(payload);
+  });
+  const SID = "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f";
+  const ref = { sessionId: SID, provider: "claude", cwd: DIR };
+  const target = { kind: "A", label: "Running in a deck pane." };
+  /** Asked while on; the switch goes off while the engine works on it; then the engine answers `said`. */
+  async function offWhileAnswering(method: string, path: string, body: unknown, said: unknown) {
+    on = true;
+    const minted = tickets.size;
+    const got = ask(method, path, body);
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    on = false;
+    pending.shift()!.answer(said);
+    const r = await got;
+    return { ...r, ticketsMinted: tickets.size - minted };
+  }
+
+  it("says what a launch, an adopt, an open or a claim did, mints no ticket, and is a 409 the page shows", async () => {
+    const started = "The session was started, but the Command Panel was turned off in Settings. Switch it on to open the session.";
+    const cases: Array<[string, string, unknown, unknown, string]> = [
+      ["launch", "/api/terminal/launch", { agent: "claude", cwd: DIR, key: "k-1" }, { status: 200, body: { ok: true, sessionId: SID, name: "ccdeck-claude-1", ticket: null }, handle: HANDLE }, started],
+      ["adopt", "/api/terminal/adopt", ref, { status: 200, body: { ok: true, ticket: null, target }, handle: HANDLE }, started],
+      ["open", "/api/terminal/open", ref, { status: 200, body: { ok: true, ticket: null, target }, handle: HANDLE }, TERMINAL_TURNED_OFF],
+      ["claim", "/api/terminal/claim", { key: "k-1", ...ref }, { status: 200, body: { ok: true, claimed: true, target } }, TERMINAL_TURNED_OFF],
+    ];
+    for (const [name, path, body, said, sentence] of cases) {
+      const r = await offWhileAnswering("POST", path, body, said);
+      expect([r.status, r.body, r.ticketsMinted], name).toEqual([409, { ok: false, error: sentence, code: "turned-off" }, 0]);
+    }
+    expect(asked.splice(0)).toEqual(["launch", "adopt", "open", "claim"]);
+  });
+
+  it("answers anything else the engine said after the switch-off as the no-route 404 a request after it gets", async () => {
+    const cases: Array<[string, string, unknown, unknown]> = [
+      ["GET", "/api/terminal/status", undefined, { status: 200, body: { ok: true, platform: "linux", tmux: { ok: true } } }],
+      ["GET", `/api/terminal/target?session=${SID}&provider=claude`, undefined, { status: 200, body: { ok: true, target } }],
+      ["POST", "/api/terminal/launch", { agent: "claude", cwd: DIR, key: "k-2" }, engineRefusal("busy")],
+      ["POST", "/api/terminal/adopt", ref, { status: 409, body: { ok: false, error: "still-running" } }],
+      ["POST", "/api/terminal/open", ref, { status: 200, body: { ok: false, target } }],
+      ["POST", "/api/terminal/claim", { key: "k-2", ...ref }, { status: 200, body: { ok: true, claimed: false, target } }],
+    ];
+    for (const [method, path, body, said] of cases) {
+      const r = await offWhileAnswering(method, path, body, said);
+      expect([r.status, r.body, r.ticketsMinted], path).toEqual([404, { error: "not found" }, 0]);
+    }
+    asked.splice(0);
+  });
+
+  it("answers as the engine said while the switch stays on, the ticket minted over its handle", async () => {
+    on = true;
+    const minted = tickets.size;
+    const got = ask("POST", "/api/terminal/launch", { agent: "claude", cwd: DIR, key: "k-3" });
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    pending.shift()!.answer({ status: 200, body: { ok: true, sessionId: SID, name: "ccdeck-claude-3", ticket: null }, handle: HANDLE });
+    const r = await got;
+    expect([r.status, r.body.ok, typeof r.body.ticket, tickets.size - minted]).toEqual([200, true, "string", 1]);
+    asked.splice(0);
   });
 });
 
@@ -418,6 +666,18 @@ describe("a deck's Command Panel engine, by its switch", () => {
     // Off and off again is no switch-off.
     expect((await ask("POST", "/api/prefs", { terminal: false })).status).toBe(200);
     expect(made.switchedOff).toBe(before + 1);
+  });
+
+  it("reports the switch going back on, so a stop that has not begun is called off", async () => {
+    expect((await ask("POST", "/api/prefs", { terminal: false })).status).toBe(200);
+    const [offs, ons] = [made.switchedOff, made.switchedOn];
+    expect((await ask("POST", "/api/prefs", { terminal: true })).status).toBe(200);
+    expect([made.switchedOff, made.switchedOn]).toEqual([offs, ons + 1]);
+    // On and on again is no switch-on.
+    expect((await ask("POST", "/api/prefs", { terminal: true })).status).toBe(200);
+    expect(made.switchedOn).toBe(ons + 1);
+    expect((await ask("POST", "/api/prefs", { terminal: false })).status).toBe(200);
+    expect([made.switchedOff, made.switchedOn]).toEqual([offs + 1, ons + 1]);
   });
 
   it("is stopped beside closeAllTerminals at shutdown, never awaited", () => {

@@ -20,9 +20,20 @@ it makes is the only one constructed with `terminal: true` (Terminal opt-in,
 below). The engine is stopped 1.5 s after the switch goes off, once its panels have been
 told, and at deck shutdown without being waited for; a later question starts
 a new one. An engine still being made for a question asked while on is stopped
-the same way. A route whose request was still arriving when the switch went
+the same way. A question asked while on that the engine is still answering when
+the 1.5 s are out is answered first, within the client's own deadline, and the
+stop follows: the engine is never stopped under a launch it is running.
+Switched back on before the stop has begun, the stop is called off and the
+engine kept. A question asked while an engine is stopping waits for its
+process to exit (`close()` answers once it has) before the next is started,
+at most 5 s, and is answered `restarting` after that: two never run at once.
+A route whose request was still arriving when the switch went
 off is answered as one sent after it, the no-route 404, and nothing is asked of
-the engine. With the switch off nothing here runs: no file is looked at, no
+the engine. A route the engine answered after the switch went off mints no
+ticket: a launch or adopt it ran, and an open or claim that went through, is
+answered 409 `{ "ok": false, "error": E, "code": "turned-off" }`, `E` saying
+the session runs and the panel is off; anything else is the no-route 404.
+With the switch off nothing here runs: no file is looked at, no
 client is made, no process is started and nothing touches the network.
 
 A caller of `startServer` may hand a deck another engine as `terminal.engine`,
@@ -35,7 +46,8 @@ Construction is disabled by default and performs no file lookup, installation,
 network request or process launch. Only the Command Panel's switch, or a
 caller of `startServer`, may enable it. `request(method, params, { signal, timeoutMs })` permits terminal namespace
 operations except `terminal.attach`, which only `attachTerminal(handle,
-{ signal, timeoutMs })` sends; `close()` detaches the engine. Mutations are
+{ signal, timeoutMs })` sends; `close()` detaches the engine and answers once
+its process has exited. Mutations are
 never automatically replayed after failure. A subsequent request may retry
 startup after bounded
 backoff. `disconnected` reports a sanitized code; stderr is drained privately.
@@ -169,7 +181,10 @@ pane); a launch or adopt refused 503 was not run, and is asked again only on
 the person's press, a launch by the same key. `internal` is the deck's 500, for a read too. A
 mutation (claim, open, adopt, launch) that failed any other way, with no answer
 in time or the engine gone, is the deck's 500 and is never asked again: it may
-already have started an agent.
+already have started an agent. One the engine did, answered after the switch
+went off, is 409 `turned-off` in the same shape, with no ticket: the session
+runs, and the panel opens it once the switch is on again (a launch by the
+same key finds it).
 
 ## Terminal streams
 

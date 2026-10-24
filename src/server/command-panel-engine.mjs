@@ -35,6 +35,16 @@
 // given to close), and at once when the deck shuts down. Stopping detaches
 // the engine; the sessions it showed keep running. The next question after a
 // stop starts a new one.
+//
+// NEVER UNDER A QUESTION, NEVER TWO. A question asked while on that the
+// engine is still answering when the grace runs out — a launch whose tmux is
+// still making its session — is answered first, and the stop follows: the
+// session is made and labelled with its launch key, not left half made by an
+// engine stopped under it (each question has the client's own deadline, so
+// this ends). Switched back on before the stop has begun, the stop is called
+// off and the engine kept. A question asked while an engine is stopping waits
+// for its process to exit before the next is started (EXIT_WAIT_MS at most,
+// and `restarting` after that), so two never run at once.
 import { promises as fsp } from "node:fs";
 import { join } from "node:path";
 import { deckDataDir } from "./deck-home.mjs";
@@ -52,6 +62,14 @@ export const ENGINE_PUBLIC_KEYS = Object.freeze([]);
  *  (pro-engine-terminal.mjs' SHUTDOWN_GRACE_MS). */
 export const STOP_GRACE_MS = 1_500;
 
+/** How long a question waits for a stopped engine's process to exit before
+ *  it is answered `restarting` (a moment the page waits out) rather than
+ *  have a second engine started beside it. The client gives the engine a
+ *  second to answer its shutdown and then ends it (pro-engine-client.mjs
+ *  close); this is far above that, and is the engine's own drain, the
+ *  longest it takes to go by itself. */
+export const EXIT_WAIT_MS = 5_000;
+
 /** Whether `platform` has the Command Panel: Linux and macOS, in this
  *  release; never Windows. Only where the engine's hello also advertises a
  *  terminal backend does a route reach it (`no-terminal` otherwise). */
@@ -64,13 +82,24 @@ export function engineInstallDir(platform = process.platform, env = process.env)
   return join(deckDataDir(platform, env), "engine");
 }
 
+/** Whether `promise` settles within `ms`. */
+function settlesWithin(promise, ms) {
+  let timer;
+  const out = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(false), ms);
+    timer.unref?.();
+  });
+  return Promise.race([promise.then(() => true, () => true), out]).finally(() => clearTimeout(timer));
+}
+
 /**
  * The Command Panel's engine as the routes and the upgrade take it (the shape
  * engineTerminals gives, with `route` answering a refusal of its own while
- * there is no client), plus `switchedOff()` and `stop()`.
+ * there is no client), plus `switchedOff()`, `switchedOn()` and `stop()`.
  *
- * `platform`, `env`, `keys`, `lstat`, `createClient` and `graceMs` are there
- * for tests; the deck uses the defaults (`commandPanel`, below).
+ * `platform`, `env`, `keys`, `lstat`, `createClient`, `graceMs` and
+ * `exitWaitMs` are there for tests; the deck uses the defaults
+ * (`commandPanel`, below).
  */
 export function commandPanelEngine({
   platform = process.platform,
@@ -79,15 +108,20 @@ export function commandPanelEngine({
   lstat = (path) => fsp.lstat(path),
   createClient = createProEngineClient,
   graceMs = STOP_GRACE_MS,
+  exitWaitMs = EXIT_WAIT_MS,
 } = {}) {
-  let held = null; // { client, terminals }
+  let held = null; // { client, terminals, asking: the questions it is answering }
   let making = null; // the question that is making it, so two make one
-  let stopping = null;
+  // A stop asked for and not begun: its grace, then the questions it waits
+  // for. Called off by a question or by the switch going on again.
+  let stopping = null; // { timer }
+  // The last engine stopped, until its process has exited: the next waits.
+  let exiting = null;
   // Counts stops: a client being made when one came is not made after it.
   let stops = 0;
 
   const cancelStop = () => {
-    clearTimeout(stopping);
+    if (stopping) clearTimeout(stopping.timer);
     stopping = null;
   };
 
@@ -98,6 +132,8 @@ export function commandPanelEngine({
     making ??= (async () => {
       const directory = engineInstallDir(platform, env);
       const at = stops;
+      // Never one beside another: the one stopped last is let go first.
+      if (exiting && !(await settlesWithin(exiting, exitWaitMs))) return { refusal: "restarting" };
       try {
         await lstat(directory);
       } catch (error) {
@@ -113,7 +149,7 @@ export function commandPanelEngine({
         hostVersion: RUNNING_VERSION ?? "0.0.0",
         terminal: true,
       });
-      held = { client, terminals: engineTerminals(client) };
+      held = { client, terminals: engineTerminals(client), asking: new Set() };
       return held;
     })().finally(() => { making = null; });
     return making;
@@ -123,7 +159,20 @@ export function commandPanelEngine({
     const was = held;
     held = null;
     stops += 1;
-    if (was) was.client.close().catch(() => {});
+    if (!was) return;
+    // close() answers once the engine's process has exited (pro-engine-client.mjs).
+    const gone = was.client.close().catch(() => {});
+    exiting = gone;
+    gone.then(() => { if (exiting === gone) exiting = null; });
+  }
+
+  /** The stop the switch-off asked for, once its grace is out: after the
+   *  questions the engine is answering, unless called off meanwhile. */
+  async function stopOnceAnswered(wanted) {
+    while (stopping === wanted && held?.asking.size) await Promise.allSettled([...held.asking]);
+    if (stopping !== wanted) return;
+    stopping = null;
+    drop();
   }
 
   return Object.freeze({
@@ -131,7 +180,15 @@ export function commandPanelEngine({
     async route(method, body) {
       cancelStop();
       const r = await ready();
-      return r.refusal ? engineRefusal(r.refusal) : r.terminals.route(method, body);
+      if (r.refusal) return engineRefusal(r.refusal);
+      // Kept while the engine answers it: a stop waits for it (stopOnceAnswered).
+      const asked = r.terminals.route(method, body);
+      r.asking.add(asked);
+      try {
+        return await asked;
+      } finally {
+        r.asking.delete(asked);
+      }
     },
     async attach(handle, socket) {
       // A ticket outlives nothing: with no engine there is nothing it names.
@@ -139,11 +196,20 @@ export function commandPanelEngine({
     },
     /** The switch went off: stop the engine once its panels have closed —
      *  one running, or one a question asked while on is making now, which
-     *  is stopped the same grace later (or, made after it, not made). */
+     *  is stopped the same grace later (or, made after it, not made) — and
+     *  once it has answered the questions it was asked while on. */
     switchedOff() {
       if ((!held && !making) || stopping) return;
-      stopping = setTimeout(() => { stopping = null; drop(); }, graceMs);
-      stopping.unref?.();
+      const wanted = { timer: null };
+      wanted.timer = setTimeout(() => { void stopOnceAnswered(wanted); }, graceMs);
+      wanted.timer.unref?.();
+      stopping = wanted;
+    },
+    /** The switch went on again: a stop that has not begun is called off,
+     *  and the engine kept. One already stopping goes; the next question
+     *  waits for its process to exit (ready). */
+    switchedOn() {
+      cancelStop();
     },
     /** The deck is going: stop it now, without waiting for it. */
     stop() {

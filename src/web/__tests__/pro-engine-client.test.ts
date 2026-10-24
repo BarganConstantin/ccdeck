@@ -140,6 +140,20 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))('optional nativ
     expect(f.client.running).toBe(false); await f.client.close();
     await expect(f.client.request('terminal.echo')).rejects.toMatchObject({ code: 'closed' });
   });
+  it('answers close() once the engine process has exited, so the next one is never started beside it', async () => {
+    // An engine that answers the shutdown and takes a while to go once it is told to (its own drain).
+    const source = (await readFile(new URL('./fixtures/pro-engine-peer.cjs', import.meta.url), 'utf8'))
+      .replace("respond(req.id, { stopping: true }); process.exit(0);", "respond(req.id, { stopping: true });")
+      .replace("process.stdin.on('end', () => process.exit(0));", "process.on('SIGTERM', () => setTimeout(() => process.exit(0), 300));");
+    const f = await installed(source);
+    const { pid } = await f.client.request('terminal.echo', {});
+    const gone = () => { try { process.kill(pid, 0); return false; } catch (error: any) { return error?.code === 'ESRCH'; } };
+    expect(gone()).toBe(false);
+    await f.client.close();
+    expect(gone(), 'close() answered with the engine still running').toBe(true);
+    expect(f.client.running).toBe(false);
+    await f.client.close();
+  });
   it('trusts any key of a list and none of an empty one, and tells only the Command Panel\'s engine it may serve terminals', async () => {
     const f = await installed();
     const base = { enabled: true, directory: f.directory, publicKey: f.publicKey, heartbeatMs: 60_000 };
