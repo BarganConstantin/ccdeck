@@ -29,6 +29,7 @@ import QuotaHistoryModal from "./QuotaHistoryModal";
 import type { SessionSelection } from "../session-usage";
 import { selfPressProps } from "../panel-press";
 import { useCodexQuota, useQuota } from "../use-quota";
+import { useEndedWeeks } from "../quota-closes";
 import { useUsageRange } from "../use-usage-range";
 import { useCountUp } from "../use-count-up";
 import { useBoardSpend } from "../use-board-spend";
@@ -92,6 +93,9 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
   ), [state, state.revision]);
   const { quota, loading: quotaLoading, refresh: refreshQuota } = useQuota(providers.claude);
   const { data: codexQuota, loading: codexLoading, refresh: refreshCodex } = useCodexQuota(providers.codex);
+  // How full each account's last weeks ended, under its 7-day bar.
+  const claudeWeekEnds = useEndedWeeks("claude", providers.claude ? quota?.historyAccount : undefined);
+  const codexWeekEnds = useEndedWeeks("codex", providers.codex ? codexQuota?.historyAccount : undefined);
 
   // Tick every 30s so countdowns + pace stay live without parent re-render
   const nowSec = usePanelClock();
@@ -346,7 +350,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
 
       {/* ── Claude quota ── */}
       {providers.claude && (
-        <ClaudeQuotaSection quota={quota} quotaLoading={quotaLoading} nowSec={nowSec}
+        <ClaudeQuotaSection quota={quota} quotaLoading={quotaLoading} nowSec={nowSec} weekEnds={claudeWeekEnds}
           incident={incidents.find(i => i.provider === "claude")} />
       )}
 
@@ -356,7 +360,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
           unavailable. / Run codex login to authenticate." permanently, for a
           CLI it has no reason to install. */}
       {providers.codex && (
-        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} nowSec={nowSec}
+        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} nowSec={nowSec} weekEnds={codexWeekEnds}
           incident={incidents.find(i => i.provider === "codex")} />
       )}
 
