@@ -789,6 +789,28 @@ describe("the room the stage is given", () => {
     expect(now().stage.geometry?.stageW).toBe(820);
   });
 
+  it("fits the rows to the keys bar as the stage draws it, and gives them back when it shrinks", () => {
+    // A first-run line on three lines grows the bar from 36px to 51px on a
+    // narrow screen; the stage says so (TerminalStage's onBarH), and the
+    // rows that bar would cover are not given to the pane.
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.switchTo("s1", { focusPane: false });
+    const plain = now().stage.geometry!;
+    expect(plain.rows, "848px of body: 40 rows under a 36px bar").toBe(40);
+    now().stage.onBarH(51);
+    const tall = now().stage.geometry!;
+    // 15px more bar against 28px of slack round 40 rows: the grid moves up
+    // into the slack (it sat 14px down, and covered 1px of the last row)
+    // rather than losing a row.
+    expect(tall.termTop + tall.rows * 18, "the last row ends above the grown bar").toBeLessThanOrEqual(848 - 64 - 51);
+    expect(tall.rows).toBe(40);
+    expect(tall.termTop).toBe(6);
+    expect(tall.cols, "the width is not the bar's business").toBe(plain.cols);
+    now().stage.onBarH(36);
+    expect(now().stage.geometry, "Got it: the bar is 36px again, and so are the rows").toEqual(plain);
+  });
+
   it("stops watching once the stage has gone", () => {
     const { now, turnOn } = setup();
     turnOn();

@@ -48,7 +48,7 @@ import { hidePeek } from "./components/SessionPeek";
 import { DOUBLE_CLICK_MS } from "./focus-hold";
 import type { GraphState } from "./reducer";
 import {
-  ASSUMED_CELL, NARROW_BELOW, STAGE_COLS_KEY, loadStageCols, saveStageCols, stageGeometry,
+  ASSUMED_CELL, BAR_H, NARROW_BELOW, STAGE_COLS_KEY, loadStageCols, saveStageCols, stageGeometry,
   type Cell, type StageGeometry,
 } from "./stage-geometry";
 import {
@@ -145,6 +145,9 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   const [cols, setCols] = useState<number | null>(() => loadStageCols());
   const [expanded, setExpanded] = useState(false);
   const [box, setBox] = useState<{ w: number; h: number; narrow: boolean } | null>(null);
+  // The keys bar as the stage last drew it (onBarH): the rows are fitted
+  // above it, and a first-run line on three lines makes it taller.
+  const [barH, setBarH] = useState(BAR_H);
   const measure = useCallback(() => {
     const el = canvasRef.current;
     if (!el) return;
@@ -164,7 +167,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
   }, [open, measure, canvasRef]);
   const geometry: StageGeometry | null = box && open
-    ? stageGeometry({ appW: box.w, bodyH: box.h, cellW: cell.w, cellH: cell.h, expanded, narrow: box.narrow, storedCols: cols })
+    ? stageGeometry({ appW: box.w, bodyH: box.h, cellW: cell.w, cellH: cell.h, expanded, narrow: box.narrow, storedCols: cols, barH })
     : null;
   const geometryRef = useMirroredRef(geometry);
 
@@ -430,7 +433,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   const revealed = useCallback(() => dispatch({ type: "revealed" }), []);
   const announce = useCallback((sentence: string) => setSaid(sentence), []);
 
-  // ── the popover, the divider, ⤢, the first-run line, the cell ──────────────
+  // ── the popover, the divider, ⤢, the first-run line, the cell, the bar ─────
   const openPopover = useCallback((anchorId: string) => dispatch({ type: "popover", anchor: anchorId }), []);
   const newSessionFrom = useCallback((anchor: HTMLElement) => {
     if (anchor.id) dispatch({ type: "popover", anchor: anchor.id });
@@ -450,6 +453,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     writeStored(STAGE_FIRST_RUN_KEY, "1");
   }, []);
   const onCell = useCallback((c: Cell) => setCell(p => (p.w === c.w && p.h === c.h ? p : c)), []);
+  const onBarH = useCallback((h: number) => setBarH(h), []);
 
   // ── effects on the page ────────────────────────────────────────────────────
   // The chunk on its way as soon as the flag is known to be on.
@@ -695,7 +699,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     enabled, supported, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
     onNodeClick, followSession, switchTo, openFromButton, openTile, launch, onLaunched,
     focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
-    openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, firstRunDone, onCell,
+    openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, firstRunDone, onCell, onBarH,
   };
 }
 

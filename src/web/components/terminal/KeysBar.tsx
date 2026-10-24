@@ -156,10 +156,13 @@ export default function KeysBar(p: KeysBarProps) {
       </div>
     );
   } else if (p.firstRun && p.canType) {
-    // The first-run line lives here so it never costs the terminal a row. On
-    // a stage too narrow for it on one line (a phone) it wraps, and Got it
-    // stays in reach. A fingertip has no Esc, so the clause that names it goes
-    // whole under a coarse pointer; ✕, the header's control, stays.
+    // The first-run line lives here so it does not cost the terminal a row.
+    // On a stage too narrow for it on one line (a phone) it wraps, and Got it
+    // stays in reach; only a third line, on the narrowest screens, grows the
+    // bar, and then the rows are fitted above it until Got it (the stage
+    // hands its bar's height to stage-geometry.ts). A fingertip has no Esc,
+    // so the clause that names it goes whole under a coarse pointer; ✕, the
+    // header's control, stays.
     left = (
       <div className="ts-keys" data-owner={p.owner}>
         <i className="ts-lamp" aria-hidden="true" />

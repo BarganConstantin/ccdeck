@@ -347,6 +347,7 @@ export function StageDock(p: StageDockProps) {
           onColsReset={stage.onColsReset}
           onRelease={stage.release}
           onCell={stage.onCell}
+          onBarH={stage.onBarH}
           onLaunched={stage.onLaunched}
           onLaunchAgain={show.kind === "launch" ? () => stage.launch(show.agent, show.cwd, show.options) : undefined}
           onAnnounce={stage.announce}

@@ -27,6 +27,12 @@
 // (use-terminal-session.ts) and this module is handed it, so the quantising
 // above is to the real grid, not to a number that was right on one machine.
 //
+// THE ROWS FIT ABOVE THE KEYS BAR AS IT IS DRAWN. The bar is 36px, but the
+// first-run line it carries wraps to a third line on the narrowest screens and
+// grows it until Got it is pressed; rows fitted to 36px left the last one
+// under it. The stage says how tall it drew its bar (TerminalStage), and the
+// rows are fitted to what that leaves; at 36px nothing changes.
+//
 // THE WIDTH IS REMEMBERED AS COLUMNS. A fraction of the window would be a
 // different column count on every window, and the column count is the thing
 // a reader chose. It is kept per browser under the agent-dag.* namespace every
@@ -96,6 +102,10 @@ export interface StageGeometryInput {
   narrow: boolean;
   /** The column count the reader last chose, or null for the default. */
   storedCols: number | null;
+  /** The keys bar's height as the stage drew it, once it has said: more
+   *  than BAR_H while the first-run line wraps to a third line. Never taken
+   *  as less than BAR_H. */
+  barH?: number;
 }
 
 /** The columns a divider may land on in this window. */
@@ -237,7 +247,8 @@ export function stageGeometry(input: StageGeometryInput): StageGeometry {
 
   const stageW = takeover ? appW : stageWidthFor(cols, cellW);
   const navW = takeover ? 0 : appW - stageW;
-  const avail = Math.max(0, input.bodyH - headH - BAR_H);
+  const barH = Math.max(BAR_H, finite(input.barH ?? BAR_H, BAR_H));
+  const avail = Math.max(0, input.bodyH - headH - barH);
   const rows = Math.max(MIN_ROWS, Math.floor((avail - ROW_SLACK) / cellH));
   const termTop = Math.max(6, Math.floor((avail - rows * cellH) / 2));
   const density = railWanted || navW < NAV_MIN ? "rail" : "tiles";

@@ -13,6 +13,7 @@ import {
   DETENTS,
   DETENT_PULL,
   HEAD_H,
+  HEAD_H_NARROW,
   INSET_X,
   MIN_COLS,
   NAV_MIN,
@@ -113,6 +114,41 @@ describe("whole cells, always", () => {
 
   it("never gives the grid fewer than five rows, however short the window", () => {
     expect(stageGeometry(at(1440, 200)).rows).toBe(5);
+  });
+});
+
+describe("the rows fit above the keys bar as it is drawn", () => {
+  // A 320px phone's takeover (measured: 540px of body, 52px header). The
+  // first-run line wraps to a third line there, and the bar grows from 36px
+  // to 51px for as long as it is said. The rows were fitted to a 36px bar, so
+  // the bar covered 5px of the last one (9px on other heights).
+  const phone = { appW: 320, bodyH: 540, cellW: 8, cellH: 18, expanded: false, narrow: true, storedCols: null };
+
+  it("gives the grid only the height left above a bar taller than 36px", () => {
+    const plain = stageGeometry(phone);
+    expect(plain.rows, "24 rows of 18 under a 36px bar").toBe(24);
+    const g = stageGeometry({ ...phone, barH: 51 });
+    const room = phone.bodyH - HEAD_H_NARROW - 51;
+    expect(g.termTop + g.rows * phone.cellH, "the last row ends above the bar's top").toBeLessThanOrEqual(room);
+    expect(g.rows, "one row fewer while the line is said").toBe(23);
+    // Every row that fits is given: one more would leave less than the
+    // 12px kept between the grid and the two rules.
+    expect((g.rows + 1) * phone.cellH + 12).toBeGreaterThan(room);
+    expect(g.termTop, "centred in what is left, as before").toBe(Math.floor((room - g.rows * phone.cellH) / 2));
+  });
+
+  it("is the same geometry as before for a bar at its own 36px, given or not", () => {
+    for (const [w, h] of [[1440, 900], [1024, 768], [760, 700], [390, 844], [320, 640]] as const) {
+      expect(stageGeometry(at(w, h, { barH: BAR_H })), `${w}×${h}`).toEqual(stageGeometry(at(w, h)));
+    }
+  });
+
+  it("never gives the grid the bar's own 36px, whatever height it is handed", () => {
+    // A bar not drawn yet reads 0, and a measurement can be anything: the
+    // bar is never less than its 36px, so the grid never gets that room.
+    for (const bad of [0, 20, -5, NaN, Infinity]) {
+      expect(stageGeometry({ ...phone, barH: bad }), String(bad)).toEqual(stageGeometry(phone));
+    }
   });
 });
 

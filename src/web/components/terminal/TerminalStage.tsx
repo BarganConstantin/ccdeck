@@ -174,6 +174,9 @@ export interface TerminalStageProps {
   onRelease?(): void;
   onKeysOwner?(owner: KeysOwner): void;
   onCell?(cell: Cell): void;
+  /** The keys bar's height as drawn, in whole pixels rounded up, once and on
+   *  every change: the geometry fits the rows above it (stage-geometry.ts). */
+  onBarH?(height: number): void;
   onLaunched?(launched: LaunchedSession): void;
   /** Start the launch on the stage again, in the same folder with the same
    *  options: its agent exited before the board had its session (endView). */
@@ -323,6 +326,22 @@ export default function TerminalStage(p: TerminalStageProps) {
   useEffect(() => { onPhase.current?.(phase.kind); }, [phase.kind]);
 
   const rootRef = useRef<HTMLElement>(null);
+  // The keys bar's height goes up as it is drawn: the first-run line wraps to
+  // a third line on the narrowest screens and grows the bar, and rows fitted
+  // to its 36px left the last one under it. Rounded up, so no fraction of a
+  // row stays covered; to the hundredth first, so layout's own noise on an
+  // exact 36px is not a pixel more.
+  const onBarH = useRef(p.onBarH);
+  onBarH.current = p.onBarH;
+  useEffect(() => {
+    const bar = rootRef.current?.querySelector<HTMLElement>(".ts-bar");
+    if (!bar || typeof ResizeObserver === "undefined") return;
+    const say = () => onBarH.current?.(Math.ceil(Math.round(bar.getBoundingClientRect().height * 100) / 100));
+    say();
+    const watch = new ResizeObserver(say);
+    watch.observe(bar);
+    return () => watch.disconnect();
+  }, []);
   // The session hook's snapshot is the shown subject's only once it has said
   // so: in the render that moves the stage, it is still the last one's, and
   // a request met on that pane, or answered by its card, would be spent on a

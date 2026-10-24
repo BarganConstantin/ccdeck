@@ -386,7 +386,8 @@
    for it on one line (the takeover: a phone, a narrow window) it wraps in the
    bar rather than pushing Got it off the end. There, two lines of 15px fit
    the bar's own 36px; only a third, on the narrowest screens, grows the bar,
-   for as long as the line is said. A stage beside the board keeps its one
+   for as long as the line is said, and the terminal's rows are fitted above
+   the grown bar (stage-geometry.ts). A stage beside the board keeps its one
    line exactly as it was. */
 .ts-first { min-width: 0; white-space: normal; }
 .ts-stage[data-takeover] .ts-first { line-height: 15px; }
