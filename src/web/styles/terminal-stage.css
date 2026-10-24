@@ -379,7 +379,8 @@
 /* The bar's buttons are the deck's .btn at the bar's height. "type here" is
    the one in the accent, and edgeless at rest — a word in the hint line, not a
    box in it; .btn's own hover draws its edge and fill when the pointer finds
-   it. */
+   it. A fingertip gets them at 32px, still inside the bar
+   (touch-and-forced-colours.css). */
 .ts-keys .btn { min-height: 26px; padding: 0 10px; }
 .ts-keys .ts-type { padding: 0 6px; border-color: transparent; font-weight: 600; color: var(--accent); }
 /* The first-run line is said whole wherever it shows: on a stage too narrow

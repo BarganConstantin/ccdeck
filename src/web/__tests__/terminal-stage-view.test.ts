@@ -649,6 +649,107 @@ describe("the keys bar under a fingertip", () => {
   });
 });
 
+describe("the Command Panel under a fingertip (#884)", () => {
+  // Under a coarse pointer the deck's floor is 32px (touch-targets-884). The
+  // keys bar's buttons were 26px tall, the cards' and New session's 30px, the
+  // popover's strips and rows 19–20px, the header's glyphs 24px boxes whose
+  // drawn reach was 28px wide, and the divider 12px wide.
+  const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
+  /** Every `@media (pointer: coarse)` block's rules, by brace depth. */
+  const coarseRules = (() => {
+    const open = "@media (pointer: coarse) {";
+    const out: { sels: string[]; body: string }[] = [];
+    for (let at = css.indexOf(open); at > -1; at = css.indexOf(open, at + open.length)) {
+      let depth = 0, i = at + open.length - 1;
+      for (; i < css.length; i++) {
+        if (css[i] === "{") depth++;
+        else if (css[i] === "}" && --depth === 0) break;
+      }
+      for (const m of css.slice(at + open.length, i).matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        out.push({ sels: m[1].split(",").map(s => s.trim().replace(/\s+/g, " ")).filter(Boolean), body: m[2] });
+      }
+    }
+    return out;
+  })();
+  const coarse = (sel: string) => coarseRules.filter(r => r.sels.includes(sel)).map(r => r.body).join("\n");
+  /** A property's px value in a rule's body, signed; NaN when it has none. */
+  const px = (body: string, prop: string) => Number(new RegExp(`(?:^|[;\\s])${prop}:\\s*(-?\\d+)px`).exec(body)?.[1] ?? NaN);
+  /** The rule outside every @media block for `sel`, as the desktop draws it. */
+  const plain = (sel: string) => {
+    const at = css.indexOf(`\n${sel} {`);
+    expect(at, `${sel} has a rule`).toBeGreaterThan(-1);
+    return css.slice(at, css.indexOf("}", at));
+  };
+
+  it("stands every button of the panel's bars, cards and New session at 32px", () => {
+    for (const sel of [
+      ".ts-keys .btn", // Got it, type here, Reopen here, Attach again, Start … again
+      ".ts-asks .ts-next", // Next ask, Answer
+      ".ts-acts .btn", // the cards: New session, Reopen here, Check again, Try again, Not now
+      ".ns-pop .uh-range-btn", // New session's agent, model and permission strips
+      ".ns-pop .ns-option", // its projects
+      ".ns-pop .ns-field", // its folder field
+      ".ns-pop .ns-acts .btn", // Cancel, Start
+      ".board-nav button.btn.nav-new", // the navigator's New session
+    ]) {
+      expect(px(coarse(sel), "min-height"), sel).toBeGreaterThanOrEqual(32);
+    }
+    // The rail's New session is a square, as wide as it is tall.
+    expect(px(coarse('.board-nav[data-density="rail"] button.btn.nav-new'), "width")).toBeGreaterThanOrEqual(32);
+  });
+
+  it("gives the header's glyphs a 32px square each, whose reach never overlaps a neighbour's", () => {
+    // ✕, ⤢, ⌨, ‹ and the install line's copy: the deck's .glyph-btn, a 24px
+    // box whose drawn target reached 4px above and below and 2px aside — 28px
+    // wide, and ⤢'s and ✕'s overlapping in their 2px gap.
+    const glyph = coarse(".ts-stage .glyph-btn");
+    expect(px(glyph, "min-width"), "min-width").toBeGreaterThanOrEqual(32);
+    expect(px(glyph, "min-height"), "min-height").toBeGreaterThanOrEqual(32);
+    expect(coarse(".ts-stage .glyph-btn::after")).toMatch(/inset:\s*-4px 0;/);
+    // In the takeover ‹ leads, 8px wider: the spine moves with the name it
+    // stands before (8px padding, a 32px ‹, the header's 12px gap).
+    expect(px(coarse(".ts-stage[data-takeover] .ts-spine"), "left")).toBe(8 + 32 + 12);
+  });
+
+  it("widens the divider to 32px over the stage's own inset, its line still on the edge", () => {
+    // 8px over the navigator and 24px over the stage, which is the stage's
+    // inset before its first column (INSET_LEFT): no cell is covered.
+    const div = coarse(".ts-divider");
+    const left = px(div, "left");
+    expect(px(div, "width")).toBe(32);
+    expect(left + 32, "no further into the stage than its inset").toBeLessThanOrEqual(24);
+    // The hairline and the grip stay centred on the stage's edge, as they
+    // are drawn beside a mouse (-6px + 5px; -6px + 2px).
+    expect(left + px(coarse(".ts-divider::before"), "left")).toBe(-6 + 5);
+    expect(left + px(coarse(".ts-grip"), "left")).toBe(-6 + 2);
+  });
+
+  it("keeps the grown buttons inside the keys bar's own height, the first-run line's included", () => {
+    // The bar is drawn at its height with a 1px rule on top, and with the
+    // first-run line as tall as its content plus 1px above and below: a
+    // button that needed more would grow the bar under every fingertip.
+    const barH = px(plain(".ts-bar"), "height");
+    expect(barH).toBe(36);
+    expect(css).toMatch(/\.ts-bar:has\(\.ts-first\) \{ height: auto; min-height: 36px; padding-block: 1px; \}/);
+    for (const sel of [".ts-keys .btn", ".ts-asks .ts-next"]) {
+      expect(px(coarse(sel), "min-height") + 1 + 2, sel).toBeLessThanOrEqual(barH);
+    }
+  });
+
+  it("leaves the panel as a mouse draws it", () => {
+    expect(plain(".ts-keys .btn")).toContain("min-height: 26px");
+    expect(plain(".ts-asks .ts-next")).toContain("min-height: 26px");
+    expect(plain(".ts-divider")).toMatch(/left: -6px;[\s\S]*width: 12px;/);
+    expect(plain(".ts-stage[data-takeover] .ts-spine")).toContain("left: 44px");
+    // The floors above are the coarse pointer's alone: no rule a mouse reads
+    // gives these a size of their own.
+    for (const sel of [".ts-stage .glyph-btn", ".ts-acts .btn", ".ns-pop .uh-range-btn", ".ns-pop .ns-option", ".ns-pop .ns-field", ".board-nav button.btn.nav-new"]) {
+      const at = css.indexOf(`\n${sel} {`);
+      if (at > -1) expect(css.slice(at, css.indexOf("}", at)), sel).not.toMatch(/min-(height|width)/);
+    }
+  });
+});
+
 describe("the stage's place in the phone's grid", () => {
   it("stays in the one track a phone has, with a left panel open over the canvas", () => {
     // Beside a left panel the stage moves to the canvas's second track; under

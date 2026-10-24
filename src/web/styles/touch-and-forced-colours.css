@@ -48,6 +48,33 @@
      fingertip presses too, stays (KeysBar). */
   .ts-keys .ts-first-keys { display: none; }
   .ts-keys .ts-kbd[data-control] { display: inline-flex; }
+  /* And every control the Command Panel draws takes the floor: the keys bar's
+     buttons (Got it, type here, Reopen here, Attach again, Next ask, Answer),
+     32px inside its 36px, so the bar keeps its height; the cards' (New
+     session, Reopen here, Check again, Try again, Not now); New session's
+     strips, projects, field and buttons; and the navigator's New session. */
+  .ts-keys .btn,
+  .ts-asks .ts-next,
+  .ts-acts .btn,
+  .ns-pop .uh-range-btn,
+  .ns-pop .ns-option,
+  .ns-pop .ns-field,
+  .ns-pop .ns-acts .btn,
+  .board-nav button.btn.nav-new { min-height: 32px; }
+  .board-nav[data-density="rail"] button.btn.nav-new { width: 32px; }
+  /* The header's glyphs (✕, ⤢, ⌨, ‹, and the install line's copy) are 32px
+     squares: their reach above and below stays, the 2px aside goes, so two
+     neighbours 2px apart never share a pixel of target. In the takeover the
+     spine moves with the name it stands before, past the wider ‹. */
+  .ts-stage .glyph-btn { min-width: 32px; min-height: 32px; }
+  .ts-stage .glyph-btn::after { inset: -4px 0; }
+  .ts-stage[data-takeover] .ts-spine { left: 52px; }
+  /* The divider is 32px wide: 8px over the navigator and 24px over the
+     stage's inset before its first column, so it covers no cell. Its line
+     and grip stay on the stage's edge. */
+  .ts-divider { left: -8px; width: 32px; }
+  .ts-divider::before { left: 7px; }
+  .ts-grip { left: 4px; }
   /* What's new's update line: its one button takes the floor, and the line
      keeps that height whether the button is there or not, so an answer that
      brings one still moves nothing. */
