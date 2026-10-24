@@ -89,11 +89,17 @@ export function summaryParts(report: Pick<AuditReport, 'total' | 'totalMs' | 'fa
 
 export const auditDay = (ms: number) => new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
+/** A call's day as a list groups by it: "Today", "Yesterday", "Oct 21". */
+export function callDay(ms: number, now = Date.now()) {
+  const day = (t: number) => new Date(t).toDateString();
+  if (day(ms) === day(now)) return 'Today';
+  if (day(ms) === day(now - 86400000)) return 'Yesterday';
+  return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+export const callClock = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
 /** "Today 09:12", "Yesterday 18:40", "Oct 12, 14:03". */
 export function callTime(ms: number, now = Date.now()) {
-  const day = (t: number) => new Date(t).toDateString();
-  const time = new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  if (day(ms) === day(now)) return `Today ${time}`;
-  if (day(ms) === day(now - 86400000)) return `Yesterday ${time}`;
-  return `${new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${time}`;
+  const day = callDay(ms, now);
+  return day === 'Today' || day === 'Yesterday' ? `${day} ${callClock(ms)}` : `${day}, ${callClock(ms)}`;
 }

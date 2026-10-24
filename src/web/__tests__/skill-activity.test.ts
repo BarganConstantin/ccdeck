@@ -9,7 +9,7 @@ import { createToolAudit } from '../../server/tool-audit.mjs';
 import { auditQuery } from '../../server/tool-audit-routes.mjs';
 // @ts-expect-error server module
 import { codexSkillState, codexSkillUses, noteCodexSkills, parseSkillCatalog } from '../../server/codex-skills.mjs';
-import { countingStartedLate, findSkillHighlights, originLine, originShares, skillParts, skillSummary, sortSkills, typedCommandsNote } from '../skill-activity';
+import { countingStartedLate, dayOriginParts, dayOrigins, findSkillHighlights, originLine, originShares, skillParts, skillSummary, sortSkills, typedCommandsNote, useOrigin } from '../skill-activity';
 import type { SkillRow } from '../tool-audit';
 
 const dirs: string[] = []; const audits: any[] = [];
@@ -102,6 +102,20 @@ describe('Skill activity collection', () => {
     expect(days.at(-1)).toMatchObject({ date: '2026-10-13', uses: 3, status: 'used' });
     expect(days[0].status).toBe('outside-history');
     expect(r.countedSince).toBe(START);
+  });
+  it('splits a skill’s days by who started it, and says what its five named projects leave out', async () => {
+    const { audit } = await setup();
+    for (const [i, cwd] of ['/w/a', '/w/a', '/w/b', '/w/c', '/w/d', '/w/e', '/w/f', '/w/g', '/w/g'].entries()) audit.observe(skillCall(`c${i}`, 'matt-pr', { cwd }), 'hook', { receivedAt: clock - 20 + i });
+    audit.observe(typed('matt-pr', 'brief', { cwd: undefined }), 'hook', { receivedAt: clock - 5 });
+    audit.observeSkill({ key: 'turn1|matt-pr', name: 'matt-pr', origin: 'detected', session: 'codex1', cwd: '/w/a', subagent: false, at: clock - 1 });
+    const { details } = await skills(audit, { skill: 'matt-pr', history: true, timeZone: 'UTC', days: 7 });
+    expect(details.projects).toEqual([{ name: 'a', uses: 3 }, { name: 'g', uses: 2 }, { name: 'b', uses: 1 }, { name: 'c', uses: 1 }, { name: 'd', uses: 1 }]);
+    // The named five, the rest and the uses with no folder add up to every use.
+    expect(details.moreProjects).toEqual({ projects: 2, uses: 2 });
+    expect(details.projectless).toBe(1);
+    expect(details.total).toBe(11);
+    expect(details.history.days.at(-1)).toMatchObject({ date: '2026-10-13', uses: 11, agent: 9, typed: 1, detected: 1 });
+    expect(details.history.days[0]).toMatchObject({ uses: 0, agent: 0, typed: 0, detected: 0 });
   });
   it('starts counting skills when an older journal first meets this build, and again after Clear', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'ccdeck-skill-activity-')); dirs.push(dir);
@@ -209,6 +223,15 @@ describe('Skill activity list', () => {
     expect(originLine(row('x', 2, 0, { agent: 0, typed: 2 }))).toBe('Typed by you');
     expect(originLine(row('x', 2, 0, { agent: 0, typed: 2, providers: { claude: 0, codex: 2 } }))).toBe('Typed by you in Codex');
     expect(originLine(row('x', 2, 0, { agent: 0, detected: 2, providers: { claude: 0, codex: 2 } }))).toBe('Picked by Codex');
+  });
+  it('names who started one use, and a day’s uses by who started them in the ring’s order', () => {
+    expect(useOrigin({ origin: 'agent', provider: 'claude' })).toBe('Picked by Claude');
+    expect(useOrigin({ origin: 'detected', provider: 'codex' })).toBe('Picked by Codex');
+    expect(useOrigin({ origin: 'typed', provider: 'claude' })).toBe('Typed by you');
+    expect(useOrigin({ origin: 'typed', provider: 'codex' })).toBe('Typed in Codex');
+    expect(dayOrigins({ typed: 1, agent: 3, detected: 0 })).toBe('3 picked by Claude, 1 typed by you');
+    expect(dayOriginParts({ typed: 2, agent: 0, detected: 1 })).toEqual([{ id: 'detected', text: '1 picked by Codex' }, { id: 'typed', text: '2 typed by you' }]);
+    expect(dayOrigins({ typed: 0, agent: 0, detected: 0 })).toBe('');
   });
   it('splits the period’s uses by who started them, naming the skill each way mostly was', () => {
     const report = { typedCommands: 'on' as const, rows: [row('impeccable', 8, 9, { agent: 6, typed: 2 }), row('loop', 3, 5, { agent: 0, typed: 3 }),

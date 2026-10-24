@@ -201,7 +201,7 @@
 }
 @media (hover: none) { .ta-row:hover:not([data-selected]), .ta-highlight:hover:not([aria-expanded=true]) { background: transparent; } }
 @media (prefers-reduced-motion: reduce) {
-  .ta-report, .ta-drawer:not([data-keyboard]), .ta-loading i, .ta-actions [data-loading] svg { animation: none; }
+  .ta-report, .ta-drawer:not([data-keyboard]), .ta-loading i, .ta-skel, .ta-actions [data-loading] svg { animation: none; }
   .ta-row, .ta-highlight { transition: none; }
   .ta-row:active, .ta-highlight:active, .ta-back:active, .ta-explain summary:active { transform: none; }
 }
@@ -237,15 +237,39 @@
 .ta-show-skills { justify-self: start; margin-top: -6px; }
 .sa-projects h4 { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .sa-projects ul { list-style: none; margin: 8px 0 0; padding: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
-.sa-projects li { display: flex; justify-content: space-between; gap: 12px; min-height: 30px; align-items: center; border-bottom: 1px solid var(--line-soft); }
+/* Each project's share of the uses drawn under it; what the named five leave out
+   reads in plain words, not a folder's typeface. */
+.sa-projects li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; padding-block: 6px; border-bottom: 1px solid var(--line-soft); }
 .sa-projects li > span:first-child { min-width: 0; overflow-wrap: anywhere; font-family: var(--font-mono); }
-.sa-projects li > span:last-child { color: var(--muted); white-space: nowrap; }
-.ta-calls.sa-uses li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "when who" "where where"; row-gap: 2px; padding-block: 8px; }
-.sa-uses .ta-call-when { grid-area: when; }
-.sa-uses .ta-call-who { grid-area: who; text-align: right; }
-.sa-uses li[data-state=failed] .ta-call-who { color: var(--err); }
-.sa-use-where { grid-area: where; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; color: var(--muted); }
-.sa-use-project { font-family: var(--font-mono); overflow-wrap: anywhere; }
+.sa-projects li > span:nth-child(2) { color: var(--muted); white-space: nowrap; }
+.sa-projects li > b { grid-column: 1 / -1; width: calc(var(--sa-share) * 100%); height: 3px; border-radius: 2px; background: var(--muted); }
+.sa-projects li[data-rest] > span:first-child { font-family: inherit; color: var(--muted); }
+.sa-projects li[data-rest] > b { opacity: .5; }
+/* The latest uses under their day: a time, then who started it and where, the
+   where following on — or onto a second line under the who when it runs out of room. */
+.sa-use-date { margin: 14px 0 0; font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--muted); }
+.ta-calls-head + .sa-use-day .sa-use-date { margin-top: 8px; }
+.sa-use-day .ta-calls { margin-top: 4px; }
+.ta-calls.sa-uses li { grid-template-columns: 5.5em minmax(0, 1fr); align-items: baseline; min-height: 32px; padding-block: 6px; box-sizing: border-box; }
+.sa-use-what { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; min-width: 0; }
+.sa-use-who i { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 2px; background: var(--tt-c); }
+.sa-uses li[data-state=failed] .sa-use-who { color: var(--err); }
+.sa-use-project { min-width: 0; color: var(--muted); font-family: var(--font-mono); overflow-wrap: anywhere; }
+/* A skill's days: each bar its uses stacked by who started them, the agent at the
+   base as in the list's bars, under a dashed line at the busiest day. */
+.sa-days-bars { position: relative; margin-top: 26px; }
+.ta-history-bars.sa-days-bars > span { flex-direction: column-reverse; align-items: stretch; gap: 1px; }
+.ta-history-bars.sa-days-bars > span[data-shown] { background: color-mix(in srgb, var(--text) 7%, transparent); border-radius: 2px 2px 0 0; }
+.ta-history-bars.sa-days-bars > span i { flex: 0 1 auto; min-height: 2px; border-radius: 0; background: var(--tt-c); }
+.ta-history-bars.sa-days-bars i:last-child { border-radius: 2px 2px 0 0; }
+.sa-days-max { position: absolute; left: 0; right: 0; bottom: 100%; padding-bottom: 2px; border-bottom: 1px dashed var(--line); font: 400 calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); color: var(--muted); pointer-events: none; }
+.sa-day-part i { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 2px; background: var(--tt-c); }
+/* While a new period is read the details keep their place: quiet bars stand where its numbers go. */
+.ta-skel { display: inline-block; width: 3ch; max-width: 100%; height: 12px; border-radius: var(--r-tag); background: var(--ctl-fill); vertical-align: middle; animation: ta-pulse 1200ms ease-in-out infinite alternate; }
+.ta-facts dd .ta-skel { height: 18px; }
+.ta-skel-lines { display: grid; gap: 14px; margin-top: 12px; max-width: 720px; }
+.ta-skel-lines .ta-skel { display: block; height: 14px; }
+.ta-history-bars.ta-history-skeleton i { background: var(--ctl-fill); }
 .sa-session { min-width: 0; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-align: left; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 2px; cursor: pointer; overflow-wrap: anywhere; transition: text-decoration-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
 .sa-session:hover { text-decoration-color: currentColor; }
 .sa-session:active { transform: scale(0.97); }

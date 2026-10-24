@@ -124,3 +124,13 @@ agents, and which uses were typed.
   counts, and the per-day chart starts where counting began.
 - Opening the view selects its first skill once, like Tools, so the details are
   open on arrival; closing them leaves them closed.
+- A new period or agent never closes the details: Tools and Skills keep the panel
+  open at its width, its labels in place and its numbers as quiet skeleton bars
+  until the new report arrives; an item the new period lacks moves the details to
+  the period's first. (A phone's drawer covers the filters, so it never meets this.)
+- A skill's details: uses per day stacked by who started them (agent at the base,
+  a dashed line at the busiest day, the words under it as the legend), projects
+  with their share and what the named five leave out ("2 more projects", "No
+  folder recorded"), and the latest uses under their day, one line each.
+- No chart library: every chart here is a few DOM bars on theme tokens, so it
+  follows the theme catalog, stays readable to assistive tech and costs no bundle.

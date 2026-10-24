@@ -1,5 +1,5 @@
 import { auditDay, count, percent, periodLabels } from './tool-audit-report';
-import type { AuditProvider, SkillReport, SkillRow, SkillUse } from './tool-audit';
+import type { AuditProvider, SkillDay, SkillReport, SkillRow, SkillUse } from './tool-audit';
 
 const DAY = 86400000;
 
@@ -26,20 +26,26 @@ export function sortSkills(rows: SkillRow[], sort: SkillSort, search = ''): Skil
   });
 }
 
-const agentNames = { claude: 'Claude', codex: 'Codex' } as const;
-
 /** Who ran it, in a few words: "Claude", "Claude and Codex". */
 export function skillAgents(row: Pick<SkillRow, 'providers'>) {
   const { claude, codex } = row.providers;
   return claude && codex ? 'Claude and Codex' : codex ? 'Codex' : 'Claude';
 }
 
-export const originWord: Record<SkillUse['origin'], string> = { typed: 'Typed', agent: 'By the agent', detected: 'Detected' };
-
 export type SkillOrigin = SkillUse['origin'];
 /** The ring's and the bars' fixed order: the agents on their own, then you. */
 export const skillOrigins: SkillOrigin[] = ['agent', 'detected', 'typed'];
 const originLabel: Record<SkillOrigin, string> = { agent: 'Picked by Claude', detected: 'Picked by Codex', typed: 'Typed by you' };
+
+/** Who started one use, in the words beside its time. */
+export const useOrigin = (use: Pick<SkillUse, 'origin' | 'provider'>) =>
+  use.origin === 'typed' && use.provider === 'codex' ? 'Typed in Codex' : originLabel[use.origin];
+
+/** A day's uses by who started them, a part each: "3 picked by Claude". */
+export const dayOriginParts = (day: Pick<SkillDay, SkillOrigin>) =>
+  skillOrigins.filter(id => day[id] > 0).map(id => ({ id, text: `${day[id].toLocaleString()} ${originLabel[id][0].toLowerCase()}${originLabel[id].slice(1)}` }));
+/** The same in one line: "3 picked by Claude, 1 typed by you". */
+export const dayOrigins = (day: Pick<SkillDay, SkillOrigin>) => dayOriginParts(day).map(part => part.text).join(', ');
 export interface OriginShare { id: SkillOrigin; label: string; uses: number; share: string; fact: string }
 
 /** Whether the slash commands typed into Claude Code reach the deck for this view. */
@@ -101,7 +107,6 @@ export function findSkillHighlights(report: Pick<SkillReport, 'rows' | 'total' |
     'new', 'is new this week', row => `First used ${auditDay(row.firstAt)}, ${count(row.uses, 'use')} so far.`);
   return found.slice(0, 3);
 }
-export const useAgent = (use: Pick<SkillUse, 'provider'>) => agentNames[use.provider];
 
 const who: Record<AuditProvider, string> = { all: 'your agents', claude: 'Claude', codex: 'Codex' };
 

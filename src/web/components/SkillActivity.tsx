@@ -42,6 +42,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
   const sortRef = useRef(sort); sortRef.current = sort;
   const searchRef = useRef(search); searchRef.current = search;
   const initialSelectionMade = useRef(false);
+  const shownRow = useRef<SkillRow | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [origin, setOrigin] = useState<SkillOrigin | null>(null);
@@ -78,7 +79,9 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
           // closed details stay closed through refreshes and sorting.
           const first = !initialSelectionMade.current && sortSkills(reply.rows, sortRef.current, searchRef.current).find(row => row.uses > 0);
           if (first) { initialSelectionMade.current = true; setSelected(first.name); }
-          else setSelected(current => current && reply.rows.some(row => row.name === current) ? current : null);
+          // Open details whose skill the new period lacks move to its first, rather than closing.
+          else setSelected(current => !current || reply.rows.some(row => row.name === current) ? current
+            : sortSkills(reply.rows, sortRef.current, searchRef.current).find(row => row.uses > 0)?.name ?? null);
         }
       } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'Reading the history took too long. Try again, or keep less history in Settings.'); }
       finally { window.clearTimeout(deadline); if (live) { reading.current = false; setLoading(false); } }
@@ -110,7 +113,11 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
   const rows = useMemo(() => sortSkills(data?.rows ?? [], sort, search).filter(row => !kept || row[kept] > 0), [data, sort, search, kept]);
   const visible = showAll || search ? rows : rows.slice(0, FIRST_ROWS);
   const top = rows.reduce((most, row) => Math.max(most, row.uses), 0);
-  const selection = data?.rows.find(row => row.name === selected);
+  const liveRow = data?.rows.find(row => row.name === selected);
+  if (liveRow) shownRow.current = liveRow;
+  // Across a new period or agent the details stay open on the skill they showed, its
+  // numbers held back until the new report arrives, so the panel neither closes nor moves.
+  const selection = liveRow ?? (selected && !data && shownRow.current?.name === selected ? shownRow.current : undefined);
   const failures = !!data && data.failed > 0;
 
   const select = (name: string) => (event: MouseEvent<HTMLButtonElement>) => {
@@ -202,7 +209,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
     </div></div>
     {selection && sideBySide && <ToolAuditSplitter width={detailsWidth} workspace={workspaceRef} onCommit={resizeDetails} />}
     {selection && <ToolAuditDrawer keyboard={keyboardSelection} itemKey={selection.name} onClose={closeInspector}>
-      <SkillInspector row={details?.name === selected && details.row ? details.row : selection} details={details?.name === selected ? details : null} loading={detailLoading} error={detailError} onClose={closeInspector} sessionLabel={sessionLabel} onOpenSession={onOpenSession} />
+      <SkillInspector row={details?.name === selected && details.row ? details.row : selection} details={details?.name === selected ? details : null} loading={detailLoading} pending={!liveRow} charted={Number(period) >= 7} error={detailError} onClose={closeInspector} sessionLabel={sessionLabel} onOpenSession={onOpenSession} />
     </ToolAuditDrawer>}
   </div>;
 }
