@@ -276,11 +276,13 @@ describe("the shortcuts sheet with the switch off", () => {
     const rows = keyHelpFor(false).flatMap(g => g.rows);
     // Ctrl + Z since Re-arrange can be undone: the stack's button still
     // re-arranges with the letters off, and the chord still takes it back.
+    // Ctrl + K since quick open: with the letters off it is the one key that
+    // still reaches the panels, so their group keeps that row alone.
     expect(rows.map(r => r.cap)).toEqual([
-      "Delete", "Ctrl + Z", "Ctrl + ,", "Tab", "Enter", "Shift + Enter", "Esc",
+      "Delete", "Ctrl + Z", "Ctrl + K", "Ctrl + ,", "Tab", "Enter", "Shift + Enter", "Esc",
       "drag", "shift-click", "click", "double-click", "hover",
     ]);
-    expect(keyHelpFor(false).map(g => g.title)).not.toContain("Panels and dialogs");
+    expect(keyHelpFor(false).find(g => g.title === "Panels and dialogs")?.rows.map(r => r.cap)).toEqual(["Ctrl + K"]);
     expect(rows.find(r => r.cap === "Delete")?.action).toBe("take the selected card off the board — the session list brings it back");
     expect(keyHelpFor(true)).toBe(KEY_HELP);
   });

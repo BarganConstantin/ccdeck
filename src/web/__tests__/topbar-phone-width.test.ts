@@ -95,7 +95,7 @@ describe("the topbar at a phone's width", () => {
     // above a phone's width, and the dock below it — the swap
     // edge-dock-phone.test.ts holds to the sheet's own breakpoint.
     const app = sourceOf("App.tsx");
-    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{rails\.utilities\} \/><\/div>\}/);
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>\}/);
     expect(app).toMatch(/\{!phone && \(\s*<WaitingNames\b/);
     expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock\b/);
     expect(app).not.toMatch(/TopbarMore|tb-more|tb-fold/);

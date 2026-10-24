@@ -53,7 +53,7 @@ describe("the settings button names what it opens (#855)", () => {
     expect(items).toContain("const settingsCap = settingsChordLabel(platformName());");
     // A modal, so the button says what kind of thing opens and holds no state.
     expect(rails).toMatch(/aria-haspopup=\{disclosure \? undefined : "dialog"\}/);
-    expect(app).toMatch(/<UtilityRun items=\{rails\.utilities\}/);
+    expect(app).toMatch(/<UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\}/);
     expect(dialogs).toMatch(/<SettingsModal\b[\s\S]*?appearance=\{appearance\}/);
     expect(themes).toMatch(/role="radiogroup"/);
     expect(themes).toMatch(/onClick=\{\(\) => onTheme\(choice\)\}/);

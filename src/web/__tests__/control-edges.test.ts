@@ -878,6 +878,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".ig-row[data-selected] .ig-chip",
       '.ig-row[data-selected] .jr-status[data-cat="done"]',
       '.ig-row[data-selected] .jr-status[data-cat="indeterminate"]',
+      // Quick open's field: the input in it is borderless, so the row it
+      // sits in draws the ring, as the feedback kinds' cards do.
+      ".qo-field:has(.qo-input:focus-visible)",
       ".radio-collection:focus-visible",
       ".radio-filter-back:focus-visible",
       ".radio-filter-chip:focus-visible",
@@ -950,8 +953,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // box and Open in Jira, and the GitHub and GitLab panel's (#2179) search
     // field, are now the integrations' shared ones: the shared search field
     // adds two, at rest and under the pointer, and the link to the tracker
-    // draws no edge.
-    expect(EDGED_CONTROLS.length).toBeLessThan(161);
+    // draws no edge. Quick open's field adds one: the ring its input draws on
+    // the row around it.
+    expect(EDGED_CONTROLS.length).toBeLessThan(162);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
