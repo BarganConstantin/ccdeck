@@ -285,8 +285,11 @@ export async function runTui(flags, out, deps = {}) {
       process.off("exit", onExit);
       process.off("uncaughtException", onCrash);
       process.off("unhandledRejection", onCrash);
-      try { input.setRawMode?.(wasRaw); } catch { /* the terminal went away */ }
+      // The keys stop being read before the mode goes back. On Windows, raw
+      // mode ended while they were still read left the PowerShell that ran us
+      // dead behind us: not one more line ran, and an SSH session closed.
       input.pause();
+      try { input.setRawMode?.(wasRaw); } catch { /* the terminal went away */ }
       screen.leave();
       resolve(code);
     };

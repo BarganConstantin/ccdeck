@@ -29,7 +29,7 @@ const { parseArgs, isOneShot } = await import("../../server/args.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const view = await import("../../server/tui-view.mjs");
 // @ts-expect-error — plain .mjs module, no types
-const { createScreen, ALT_SCREEN_ON, ALT_SCREEN_OFF, WRAP_ON } = await import("../../server/tui-screen.mjs");
+const { createScreen, framesHeld, ALT_SCREEN_ON, ALT_SCREEN_OFF, SYNC_ON, WRAP_ON } = await import("../../server/tui-screen.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const { fitPainted, sliceCells, textWidth } = await import("../../server/cli-lines.mjs");
 // @ts-expect-error — plain .mjs module, no types
@@ -393,6 +393,27 @@ describe("the screen", () => {
     const screen = createScreen(() => { throw new Error("EIO"); });
     expect(() => { screen.enter(); screen.paint(["x"]); screen.leave(); }).not.toThrow();
   });
+
+  // Conhost froze on the first frame held between the marks (Windows 11 24H2,
+  // under sshd): the accounts were read in 0.4 s and shown only on the way out.
+  it("holds a frame between the synchronized-output marks except on Windows", () => {
+    expect(framesHeld("linux")).toBe(true);
+    expect(framesHeld("darwin")).toBe(true);
+    expect(framesHeld("win32")).toBe(false);
+    const sent = (held: boolean) => {
+      const writes: string[] = [];
+      const screen = createScreen((s: string) => writes.push(s), { held });
+      screen.enter();
+      screen.paint(["one", "two"]);
+      screen.paint(["one", "TWO"]);
+      screen.leave();
+      return writes.join("");
+    };
+    expect(sent(true)).toContain(`${SYNC_ON}\x1b[2;1HTWO`);
+    expect(sent(false)).not.toMatch(/\x1b\[\?2026[hl]/);
+    expect(sent(false)).toContain("\x1b[2;1HTWO");
+    expect(sent(false)).toContain(ALT_SCREEN_OFF);
+  });
 });
 
 describe("the painted lines", () => {
@@ -417,11 +438,14 @@ describe("the painted lines", () => {
 // ── the loop, with a fake terminal and a fake deck ─────────────────────────
 
 function fakeTerminal(columns = 100, rows = 30) {
-  const input = new PassThrough() as PassThrough & { isTTY: boolean; isRaw: boolean; setRawMode: (on: boolean) => void; raw: boolean[] };
+  const input = new PassThrough() as PassThrough & { isTTY: boolean; isRaw: boolean; setRawMode: (on: boolean) => void; raw: boolean[]; order: string[] };
   input.isTTY = true;
   input.isRaw = false;
   input.raw = [];
-  input.setRawMode = (on: boolean) => { input.raw.push(on); input.isRaw = on; };
+  input.order = [];
+  input.setRawMode = (on: boolean) => { input.raw.push(on); input.order.push(`raw ${on}`); input.isRaw = on; };
+  const pause = input.pause.bind(input);
+  input.pause = () => { input.order.push("pause"); return pause(); };
   let written = "";
   const output = new Writable({ write(chunk, _enc, done) { written += String(chunk); done(); } }) as Writable & { isTTY: boolean; columns: number; rows: number };
   output.isTTY = true;
@@ -501,6 +525,20 @@ describe("the loop", () => {
     expect(await done).toBe(0);
     expect(term.written().endsWith(ALT_SCREEN_OFF)).toBe(true);
     expect(term.input.raw).toEqual([true, false]);
+  });
+
+  // On Windows, raw mode ended while the keys were still being read left the
+  // PowerShell that ran `ccdeck tui` dead behind it: not one more line ran, and
+  // the SSH session closed with the screen.
+  it("stops reading the keys before it gives the terminal its mode back", async () => {
+    const term = fakeTerminal();
+    const deck = fakeDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("q");
+    expect(await done).toBe(0);
+    expect(term.input.order.slice(-2)).toEqual(["pause", "raw false"]);
   });
 
   it("a turns Auto-switch off with the deck's own POST", async () => {

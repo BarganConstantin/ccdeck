@@ -12,6 +12,10 @@
 // rather than the screen. A frame is written between the synchronized-output
 // marks (DEC mode 2026): a terminal that knows them shows it whole, and one
 // that does not ignores them, which is what an unknown private mode is for.
+// Except on Windows, where every console is conhost's: it froze on the first
+// frame held between the marks and drew the ones after it seconds later or
+// only once the view was left (Windows 11 24H2, under sshd). Conhost draws the
+// screen from its own copy of it anyway, so there no frame is held.
 //
 // Pure in the sense that matters for a test: everything goes through `write`,
 // and nothing reads the terminal.
@@ -27,13 +31,17 @@ const RESET = "\x1b[0m";
 const CLEAR = "\x1b[2J";
 const HOME = "\x1b[H";
 
+/** Whether a frame is held between the synchronized-output marks here. */
+export const framesHeld = (platform = process.platform) => platform !== "win32";
+
 /**
  * A screen over `write`. `enter` takes the terminal, `paint(lines)` shows a
  * frame, `invalidate` forgets what is on screen so the next frame is written
  * whole (a resize, Ctrl+L), and `leave` puts the terminal back. `leave` is
  * safe to call twice and before `enter`, since every way out calls it.
+ * `held` says whether a frame goes between the synchronized-output marks.
  */
-export function createScreen(write) {
+export function createScreen(write, { held = framesHeld() } = {}) {
   let shown = null;
   let on = false;
   const send = (s) => {
@@ -60,14 +68,14 @@ export function createScreen(write) {
       // A frame shorter than the last one: the rows it no longer has.
       if (!whole) for (let i = lines.length; i < shown.length; i++) out += `\x1b[${i + 1};1H\x1b[K`;
       shown = lines.slice();
-      if (out) send(`${SYNC_ON}${out}${SYNC_OFF}`);
+      if (out) send(held ? `${SYNC_ON}${out}${SYNC_OFF}` : out);
     },
     invalidate() { shown = null; },
     leave() {
       if (!on) return;
       on = false;
       shown = null;
-      send(`${SYNC_OFF}${RESET}${WRAP_ON}${CURSOR_SHOW}${ALT_SCREEN_OFF}`);
+      send(`${held ? SYNC_OFF : ""}${RESET}${WRAP_ON}${CURSOR_SHOW}${ALT_SCREEN_OFF}`);
     },
   };
 }
