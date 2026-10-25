@@ -507,7 +507,15 @@
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
-.recap-note-plan .plan-list { gap: 2px; }
+/* The list is a grid, and a bare grid column is as wide as its widest row's
+   min-content: with every step on one line, that is the whole of the longest
+   step. So the column grew to it, and a long step ran on past the note's border
+   uncut instead of ending in an ellipsis. A column no wider than the note's own
+   lets the cut happen. */
+.recap-note-plan .plan-list {
+  gap: 2px;
+  grid-template-columns: minmax(0, 1fr);
+}
 .recap-note-plan .plan-text,
 .recap-face-plan .plan-text {
   overflow: hidden;
