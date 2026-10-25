@@ -975,6 +975,17 @@ describe("a new session started from the stage", () => {
   });
 });
 
+/** The engine's own refusals of a launch, in its own words: the Windows
+ *  console's (agent-missing, full, stopping, host-generations), and for
+ *  `exists`, which only an attach is ever answered, the tmux backend's. */
+const ENGINE_SAID = {
+  "agent-missing": "Claude Code is not installed here as a program the deck can start. Install it with the standalone installer or WinGet.",
+  exists: "The deck is already attached to that session.",
+  full: "The deck is running as many sessions as it can; end one to start another.",
+  stopping: "The deck is stopping, so it starts nothing new.",
+  "host-generations": "Sessions still run on two older session hosts. End or restart them to start new sessions.",
+} as const;
+
 describe("the Command Panel's engine refusing (pro-engine-host-v1.md, Refusals)", () => {
   const NOT_INSTALLED = "The Command Panel's engine is not installed on this machine.";
   const refusal = (status: number, code: string, error: string): ApiFailure => ({ ok: false, status, error, code } as ApiFailure);
@@ -1028,29 +1039,43 @@ describe("the Command Panel's engine refusing (pro-engine-host-v1.md, Refusals)"
     expect(r.launch).toHaveBeenCalledTimes(1);
   });
 
-  it("says the session hosts' refusal of a launch in the engine's words, never the tmux card, even where there is no tmux", async () => {
-    const THIRD = "Sessions still run on two older session hosts. End or restart them to start new sessions.";
-    const { r, ctl } = rig();
-    // The deck's answer read by the page's own terminal-api, as the stage reads it.
-    const answer = { ok: false, error: THIRD, code: "host-generations" };
+  /** The deck's 409 answer to a launch, read by the page's own terminal-api, as the stage reads it. */
+  const answered = (r: Rig, body: Record<string, unknown>) =>
     r.launch.mockImplementationOnce(req => launchTerminal(req as Parameters<typeof launchTerminal>[0], {
-      fetchFn: async () => ({ ok: false, status: 409, json: async () => answer }) as unknown as Response,
+      fetchFn: async () => ({ ok: false, status: 409, json: async () => body }) as unknown as Response,
     }));
-    // A deck with no tmux at all (Windows), had it been asked.
-    r.status.mockResolvedValue({ ok: true, platform: "win32", tmux: { ok: false, reason: "unsupported" } });
-    ctl.show({ kind: "launch", agent: "claude", cwd: "C:\\lab\\home\\projects\\demo", key: "n9" });
-    await flush();
-    await flush();
-    expect(r.last().phase, "the engine's sentence, with Try again and Not now").toEqual({ kind: "error", message: THIRD });
-    expect(r.status, "the session hosts' 409 is not tmux missing").not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
-    expect(r.launch, "never launched again by itself").toHaveBeenCalledTimes(1);
 
-    // Try again is the reader's press: the same launch, by its key, once.
-    ctl.retry();
+  it("says the engine's own refusal of a launch in its words, never the tmux card, even where there is no tmux", async () => {
+    for (const [code, said] of Object.entries(ENGINE_SAID)) {
+      const { r, ctl } = rig();
+      answered(r, { ok: false, error: said, code });
+      // A deck with no tmux at all (Windows), had it been asked.
+      r.status.mockResolvedValue({ ok: true, platform: "win32", tmux: { ok: false, reason: "unsupported" } });
+      ctl.show({ kind: "launch", agent: "claude", cwd: "C:\\lab\\home\\projects\\demo", key: "n9" });
+      await flush();
+      await flush();
+      expect(r.last().phase, `${code}: the engine's sentence, with Try again and Not now`).toEqual({ kind: "error", message: said });
+      expect(r.status, `${code}: the engine's 409 is not tmux missing`).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+      expect(r.launch, `${code}: never launched again by itself`).toHaveBeenCalledTimes(1);
+
+      // Try again is the reader's press: the same launch, by its key, once.
+      ctl.retry();
+      await flush();
+      expect(r.launch, code).toHaveBeenCalledTimes(2);
+      expect(r.launch.mock.calls[1][0], code).toMatchObject({ agent: "claude", key: "n9" });
+      ctl.dispose();
+    }
+  });
+
+  it("on Linux, says a launch refused for want of Claude as it always has: its sentence, with Try again", async () => {
+    const said = "Claude Code is not installed on this machine.";
+    const { r, ctl } = rig();
+    answered(r, { ok: false, error: said, code: "agent-missing" });
+    ctl.show({ kind: "launch", agent: "claude", cwd: "/w", key: "n10" });
     await flush();
-    expect(r.launch).toHaveBeenCalledTimes(2);
-    expect(r.launch.mock.calls[1][0]).toMatchObject({ agent: "claude", key: "n9" });
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "error", message: said });
   });
 
   it("offers a launch the engine refused for a moment again, by its key, only when pressed", async () => {

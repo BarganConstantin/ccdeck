@@ -206,11 +206,14 @@ went off, is 409 `turned-off` in the same shape, with no ticket: the session
 runs, and the panel opens it once the switch is on again (a launch by the
 same key finds it).
 
-The engine's own answer to a route reaches the page as it is. One the page
-reads by its code: `host-generations` (409), a launch refused while sessions
-still run on older session hosts. The panel says the engine's sentence with
-Try again and Not now, and does not ask about tmux; any other 409 without a
-code the page knows may still be tmux missing, and is asked as before.
+The engine's own answer to a route reaches the page as it is. The 409s of a
+launch the page reads by their code, none of them tmux's: `agent-missing`
+(the agent is not installed), `exists` (a pane already attached),
+`full` (as many sessions as it can run), `stopping` (the engine is
+stopping) and `host-generations` (sessions still run on older session
+hosts). The panel says the engine's sentence with Try again and Not now, and
+does not ask about tmux; a 409 with any other code, or none, may still be
+tmux missing (`tmux-unavailable`), and is asked as before.
 
 ## Terminal streams
 

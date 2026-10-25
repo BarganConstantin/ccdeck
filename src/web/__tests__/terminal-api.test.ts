@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
-  PANEL_HOST_REFUSALS,
+  PANEL_SAID_REFUSALS,
   PANEL_RECOVERING,
   PANEL_UNAVAILABLE,
   STILL_RUNNING,
@@ -49,6 +49,17 @@ function answering(status: number, body: unknown) {
   };
   return { fetchFn, asked };
 }
+
+/** The engine's own refusals of a launch, in its own words: the Windows
+ *  console's (agent-missing, full, stopping, host-generations), and for
+ *  `exists`, which only an attach is ever answered, the tmux backend's. */
+const ENGINE_SAID = {
+  "agent-missing": "Claude Code is not installed here as a program the deck can start. Install it with the standalone installer or WinGet.",
+  exists: "The deck is already attached to that session.",
+  full: "The deck is running as many sessions as it can; end one to start another.",
+  stopping: "The deck is stopping, so it starts nothing new.",
+  "host-generations": "Sessions still run on two older session hosts. End or restart them to start new sessions.",
+} as const;
 
 const SESSION: SessionRef = {
   sessionId: "0b7c4e2a-9f1d-4c3b-8a6e-2d5f7e9a1c3b",
@@ -192,11 +203,13 @@ describe("reading the answers", () => {
     for (const code of [...PANEL_RECOVERING, "tmux-unavailable", "", null, undefined]) expect(panelUnavailable(code), String(code)).toBe(false);
   });
 
-  it("keeps the session hosts' refusal of a launch with the engine's own sentence, a refusal that is not tmux's", async () => {
-    const said = "Sessions still run on two older session hosts. End or restart them to start new sessions.";
-    expect(await launchTerminal({ agent: "claude", cwd: "/srv", key: "n1" }, { fetchFn: answering(409, { ok: false, error: said, code: "host-generations" }).fetchFn }))
-      .toEqual({ ok: false, status: 409, error: said, code: "host-generations" });
-    for (const code of PANEL_HOST_REFUSALS) {
+  it("keeps the engine's own refusals of a launch with its sentence, refusals that are not tmux's", async () => {
+    for (const [code, said] of Object.entries(ENGINE_SAID)) {
+      expect(await launchTerminal({ agent: "claude", cwd: "/srv", key: "n1" }, { fetchFn: answering(409, { ok: false, error: said, code }).fetchFn }), code)
+        .toEqual({ ok: false, status: 409, error: said, code });
+    }
+    expect([...PANEL_SAID_REFUSALS].sort(), "exactly the engine's 409s of a launch that are not tmux's").toEqual(Object.keys(ENGINE_SAID).sort());
+    for (const code of PANEL_SAID_REFUSALS) {
       expect(panelUnavailable(code), `${code}: not a state the card checks again by itself`).toBe(false);
       expect((PANEL_RECOVERING as readonly string[]).includes(code), `${code}: not a moment waited out`).toBe(false);
     }

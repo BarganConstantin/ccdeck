@@ -34,6 +34,17 @@ const press = (el: Drawn | null, event: Record<string, unknown> = {}) => {
 const button = (tree: unknown, name: string) =>
   one(tree, el => el.type === "button" && (el.props["aria-label"] === name || textOf(el).trim() === name));
 
+/** The engine's own refusals of a launch, in its own words: the Windows
+ *  console's (agent-missing, full, stopping, host-generations), and for
+ *  `exists`, which only an attach is ever answered, the tmux backend's. */
+const ENGINE_SAID = {
+  "agent-missing": "Claude Code is not installed here as a program the deck can start. Install it with the standalone installer or WinGet.",
+  exists: "The deck is already attached to that session.",
+  full: "The deck is running as many sessions as it can; end one to start another.",
+  stopping: "The deck is stopping, so it starts nothing new.",
+  "host-generations": "Sessions still run on two older session hosts. End or restart them to start new sessions.",
+} as const;
+
 const working: StageStatus = { state: "working", phrase: "working", tool: "Task", arg: "3 subagents running", seconds: "7m 38s" };
 
 function headerProps(over: Partial<StageHeaderProps> = {}): StageHeaderProps {
@@ -260,13 +271,15 @@ describe("the body's state cards, each at the terminal's origin", () => {
       .toEqual(["Try again", "Not now"]);
   });
 
-  it("draws a launch the session hosts refused as the engine's sentence with Try again, nothing of tmux", () => {
-    const sentence = "Sessions still run on two older session hosts. End or restart them to start new sessions.";
-    const card = StateCard(bodyProps({ kind: "error", message: sentence }));
-    expect(textOf(card)).toContain(sentence);
-    expect(all(card, el => el.type === "button").map(b => textOf(b)), "a way back, and no Check again that loops").toEqual(["Try again", "Not now"]);
-    const drawn = html(createElement(StateCard, bodyProps({ kind: "error", message: sentence })));
-    for (const word of ["tmux", "Install", "Check again"]) expect(drawn, word).not.toContain(word);
+  it("draws a launch the engine refused as the engine's sentence with Try again, nothing of tmux", () => {
+    for (const sentence of Object.values(ENGINE_SAID)) {
+      const card = StateCard(bodyProps({ kind: "error", message: sentence }));
+      expect(textOf(card)).toContain(sentence);
+      expect(all(card, el => el.type === "button").map(b => textOf(b)), "a way back, and no Check again that loops").toEqual(["Try again", "Not now"]);
+      // Nothing but the engine's own words: no tmux card, no install line of the card's own.
+      const rest = html(createElement(StateCard, bodyProps({ kind: "error", message: sentence }))).split(sentence).join("");
+      for (const word of ["tmux", "Install", "Check again"]) expect(rest, `${word}: ${sentence}`).not.toContain(word);
+    }
   });
 
   it("says the deck is fetching its own tmux, what that means, and lets the stage be left meanwhile", () => {
