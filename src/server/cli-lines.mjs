@@ -77,6 +77,52 @@ const padStart = (s, n) => " ".repeat(Math.max(0, n - textWidth(s))) + s;
 export const clip = (s, n, ellipsis = "…") => (textWidth(s) <= n ? s
   : n <= textWidth(ellipsis) ? takeCells(s, n) : `${takeCells(s, n - textWidth(ellipsis))}${ellipsis}`);
 
+/**
+ * A painted line cut to `n` columns, its colour codes kept and not counted.
+ * The full-screen view's last word on a row (`ccdeck tui`): every line is laid
+ * out to fit already, and this is what holds when one was not — a row one
+ * column too long wraps into the row under it, and the screen below it is
+ * then one row off from what the view drew. The `ellipsis` says a line was
+ * cut, inside the same `n`, and a line that had colour ends on a reset; one
+ * that had none gains none, so NO_COLOR stays free of escapes.
+ */
+export function fitPainted(s, n, ellipsis = "") {
+  const text = String(s);
+  if (textWidth(text) <= n) return text;
+  const room = Math.max(0, n - textWidth(ellipsis));
+  let out = "";
+  let w = 0;
+  for (let i = 0; i < text.length;) {
+    const esc = /^\x1b\[[0-9;?]*[a-zA-Z]/.exec(text.slice(i, i + 32));
+    if (esc) { out += esc[0]; i += esc[0].length; continue; }
+    const ch = String.fromCodePoint(text.codePointAt(i));
+    const c = cellsOf(ch);
+    if (w + c > room) break;
+    out += ch;
+    w += c;
+    i += ch.length;
+  }
+  return `${out}${room < n ? ellipsis : ""}${text.includes("\x1b[") ? "\x1b[0m" : ""}`;
+}
+
+/**
+ * The columns `from` to `to` of a plain line, exactly that wide: a wide
+ * character cut in half becomes a space, and a short line is padded. What
+ * `ccdeck tui` lays a dialog over the screen with.
+ */
+export function sliceCells(s, from, to) {
+  let out = "";
+  let at = 0;
+  for (const ch of String(s)) {
+    const c = cellsOf(ch);
+    if (at >= to) break;
+    if (at >= from && at + c <= to) out += ch;
+    else if (at + c > from) out += " ".repeat(Math.min(at + c, to) - Math.max(at, from));
+    at += c;
+  }
+  return out + " ".repeat(Math.max(0, to - Math.max(from, at)));
+}
+
 /** What is wrong with an account, in words, or null when nothing is. */
 export function accountTrouble(a) {
   if (a.disabled) return { word: "disabled", tone: "muted" };

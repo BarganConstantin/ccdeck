@@ -442,15 +442,20 @@ ccdeck switch                 pick from a list (arrows, Enter; Esc cancels)
 ccdeck usage                  the active account's limits, every lane
 ccdeck sessions               what each session is doing, the ones waiting on you first
 ccdeck open                   the deck in your browser — over SSH, the line that opens it on yours
+ccdeck tui                    all of the above on one screen that stays up
 ```
+
+**`ccdeck tui`** keeps the accounts and the sessions waiting on you on one full screen, read again every few seconds. Move with the arrows (or `j` / `k`, or a slot's number), **Enter** switches to the selected account, **b** selects the one Auto-switch would pick, **a** turns Auto-switch on or off, **r** reads the usage again, **?** lists the keys and **q** leaves with your terminal as it was. With no deck running it reads claude-swap's store and **d** starts one in the background. It fits from 40×12 up, sets the selected account's detail beside the waiting sessions from 120 columns, follows `NO_COLOR`, and draws in ASCII on a console that cannot show its lines.
+
+**Adding an account over SSH**: **+** signs one in, and **Enter** on an account whose login has expired signs it in again, keeping its slot, alias and history. The screen shows a sign-in link to open in any browser; once you approve, the page there shows a code, which you paste back into the terminal. If that browser runs on the machine itself, the sign-in finishes without the code. The account you are using stays active throughout. Sign-in goes through the deck, so it needs one running.
 
 `swap` and `use` are other names for `switch`, `ls` for `accounts` and `ps` for `sessions`; `status`, `stop` and `logs` are `--status`, `--stop` and `--logs`. `ccdeck swap 1 2` does not exchange two slots the way claude-swap's `cswap swap` does — it says so and points you there.
 
 **The commands ask the deck that is running.** A switch from the terminal goes through the same route as **Switch** on a row, so it waits for the same lock as the panel, Auto-switch and a sign-in in flight, the panel shows it at once, and it lands in the Projects report's history. With no deck running, `accounts`, `switch` and `usage` read and drive claude-swap's store directly; `sessions` and `open` need a deck, since sessions are what a deck watches. After a switch, the command says how many running Claude sessions move with it — all of them, from their next message.
 
-**Over SSH**, `ccdeck open` prints the line to run on your own computer, `ssh -N -o ExitOnForwardFailure=yes -L 14317:127.0.0.1:4317 you@that-machine` (with `-p` when sshd is not on 22), and the deck then opens at `http://127.0.0.1:14317` in your own browser. Your end is not 4317, so it cannot land on a deck of your own. The deck still listens only on 127.0.0.1; the tunnel is your SSH connection.
+**Over SSH**, `ccdeck open` prints the line to run on your own computer, `ssh -N -o ExitOnForwardFailure=yes -L 14317:127.0.0.1:4317 you@that-machine` (with `-p` when sshd is not on 22), and the deck then opens at `http://127.0.0.1:14317` in your own browser. Your end is not 4317, so it cannot land on a deck of your own. The deck still listens only on 127.0.0.1; the tunnel is your SSH connection. To stay in the terminal instead, `ccdeck tui` shows the accounts there, and a start over SSH says so.
 
-**For scripts**, every command takes `--json` — one object on stdout with `schemaVersion` and `ok` — and `--port <n>` to name a deck. Nothing prompts without a terminal: `ccdeck switch` with no account named and no terminal is an error, not a wait. Exit codes are 0 done, 1 failed, 2 the command line was wrong (an account nothing matches, a misspelled command), and 3 no deck is running.
+**For scripts**, every command but `tui` takes `--json` — one object on stdout with `schemaVersion` and `ok` — and every one takes `--port <n>` to name a deck. Nothing prompts without a terminal: `ccdeck switch` with no account named and no terminal is an error, not a wait. Exit codes are 0 done, 1 failed, 2 the command line was wrong (an account nothing matches, a misspelled command), and 3 no deck is running.
 
 A misspelled command is refused — `ccdeck acounts` suggests `accounts` and starts nothing — so a typo over SSH never leaves a deck behind.
 

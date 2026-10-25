@@ -21,9 +21,10 @@ import { pathToFileURL } from "node:url";
 import { isPortValue } from "../../src/server/args.mjs";
 import { PRODUCT } from "../../src/server/brand.mjs";
 import { liveDecks, olderVersion, secondStart, versionNote } from "../../src/server/running-deck.mjs";
-import { link } from "../../src/server/term.mjs";
+import { link, overSsh } from "../../src/server/term.mjs";
+import { sshNote } from "../../src/server/way-back.mjs";
 import { COMMAND, PKG_ROOT, PKG_VERSION } from "./package.js";
-import { G, LINKS, P, sleep, write } from "./screen.js";
+import { G, LINKS, P, cols, sleep, write } from "./screen.js";
 import { reportIncompleteFlags, reportUnknownFlags } from "./startup.js";
 
 /**
@@ -100,6 +101,7 @@ export async function settleSecondStart({ flags, workspace, persist, wantCodex, 
     // looks like it did nothing at all, which is the other way to be confusing
     // about this — and it names the flag for the person who wanted a fresh one.
     write(`\n  ${P.muted}${G.dash}  no second deck was started ${G.dash} \`${COMMAND} --new\` replaces it with a fresh one${P.reset}\n`);
+    if (overSsh()) write(`  ${P.muted}${G.dash}  ${sshNote({ command: COMMAND, dash: G.dash, columns: cols() })}${P.reset}\n`);
     if (openBrowser) {
       write(`\n  ${P.ok}${P.bold}${G.play}  opening browser${G.ellipsis}${P.reset}\n\n`);
       try {
