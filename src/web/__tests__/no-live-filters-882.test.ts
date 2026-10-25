@@ -26,8 +26,10 @@ describe("no filter re-rasterises over the live canvas (#882)", () => {
       // blur OFF.
       .filter(([, b]) => /backdrop-filter:\s*(?!none)\S/.test(b))
       .map(([sel]) => sel);
-    expect(blurring).toEqual([".radio-backdrop"]);
-    expect(decl(bodyOf(".radio-backdrop"), "backdrop-filter")).toBe("blur(3px)");
+    // Radio's explorer was the one scrim that kept a blur; it is the deck's
+    // own scrim now (2026-10-23), so the waiting chip reads through it too.
+    expect(blurring).toEqual([]);
+    expect(decl(bodyOf(".radio-backdrop"), "backdrop-filter")).toBeNull();
   });
 
   it("puts no filter on a path that animates forever", () => {

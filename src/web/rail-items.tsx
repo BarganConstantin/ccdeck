@@ -1,22 +1,41 @@
-// The eight controls the deck's chrome carries, each defined once, and the
-// edge each one lives on. components/EdgeRails.tsx draws them; this says what
-// they are: the word, the key, the hint, the state and what a press does.
+// The controls the deck's chrome carries, each defined once, and the edge and
+// the group each one lives in. components/EdgeRails.tsx draws them; this says
+// what they are: the word, the key, the hint, the state and what a press does.
 //
 // One definition for three surfaces — the edge stripes, the phone's dock and
 // the two utilities left on the topbar — so a name, a key or an accessible
 // label cannot drift between them. The keys are the ones the deck has always
 // answered (use-deck-shortcuts.ts); moving a button moved none of them.
+//
+// ONE RULE FOR BOTH STRIPES (2026-10-23, after a user called the deck "not
+// organized"). Thirteen doors had grown in two runs grouped by two different
+// rules — the left by topic, the right by what opens — so where a button sat
+// said nothing about it. Now each stripe is groups that answer one question
+// each, three doors at most, between the same rules, and each group has a name
+// a screen reader says on the way in:
+//
+//   left   Claude accounts   Accounts · Account capacity · Reset calendar
+//          Session list
+//          the connected trackers, then Explore integrations at the foot
+//   right  Usage and machine Usage · Machine
+//          Activity history  Usage history · Tool activity · Skill activity
+//          Watchers          Browser watch · Telemetry Radar
+//          Radio, by the character
+//
+// Every door stayed, in the owner's order (2026-10-22): only the rules
+// between them moved.
 import type { Dispatch, SetStateAction } from "react";
 import type { Providers } from "./providers";
 import type { PanelToggles } from "./use-panel-return";
-import { platformName } from "./platform";
+import { isApplePlatform, platformName } from "./platform";
+import { quickOpenChordLabel } from "./quick-open";
 import { settingsChordLabel, type SettingsSection } from "./settings";
 import type { RailItem } from "./components/EdgeRails";
 import type { IntegrationWebDef } from "./integrations/types";
 import type { CapacityView } from "./components/AccountsUsageReport";
 import {
-  AccountsGlyph, BrowserWatchGlyph, CapacityGlyph, FeedbackGlyph, HistoryGlyph, MachineGlyph, ResetCalendarGlyph,
-  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph, SkillActivityGlyph,
+  AccountsGlyph, BrowserWatchGlyph, CapacityGlyph, FeedbackGlyph, HistoryGlyph, IntegrationsGlyph, MachineGlyph, ResetCalendarGlyph,
+  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph, SkillActivityGlyph, SearchGlyph,
 } from "./components/rail-glyphs";
 import type { ToolActivityView } from "./components/ToolAuditModal";
 
@@ -26,21 +45,27 @@ export interface RailItems {
   /** The left column's two, Accounts first: they share it, and opening one
    *  closes the other. */
   left: RailItem[];
-  /** The left stripe, top to bottom: Accounts, the two doors into its Account
-   *  capacity report, then Session list. */
-  leftStripe: RailItem[];
+  /** The left stripe's groups, top to bottom: Accounts with the two doors into
+   *  its Account capacity report, then Session list. */
+  leftStripe: RailItem[][];
   /** Account capacity and Reset calendar, each one press from the stripe and
    *  their only door. On a phone they are rows under More, so the dock keeps
    *  its five slots. Empty without Claude Code. */
   capacity: RailItem[];
-  /** The right stripe's two panels, then the two records that open as dialogs. */
+  /** The right stripe's groups: its two panels, the activity records, the
+   *  watchers, then Radio. */
   right: RailItem[][];
   /** Settings and Feedback, in the topbar's corner. */
   utilities: RailItem[];
+  /** Quick open (quick-open.ts): ahead of the two utilities on the bar, and
+   *  the first row under the phone's More. */
+  search: RailItem;
   /** One per connected tracker kind (#2178) — Jira — under the left column's
    *  two, after a divider; on a phone, under More. Empty until a connection
    *  of that kind exists. */
   integrations: RailItem[];
+  /** Permanent discovery action, separate from connected provider shortcuts. */
+  explore: RailItem[];
 }
 
 /** A tracker kind with at least one connection, and the press that opens its
@@ -60,11 +85,18 @@ export function browserWatchDetail(watchOn: boolean | null, unread: number): str
   return unread > 0 ? `${state}\n${unread} unread` : state;
 }
 
+/** A run of doors on a stripe that answer one question, named for the group a
+ *  screen reader announces (EdgeRails.tsx). A door alone in its run needs no
+ *  name beyond its own. */
+function named(group: string, items: RailItem[]): RailItem[] {
+  return items.map(item => ({ ...item, group }));
+}
+
 export function railItems({
   providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
-  watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, radioOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
-  openCapacity, integrations = [],
+  watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
+  openCapacity, integrations = [], openExploreIntegrations, openQuickOpen,
 }: {
   providers: Providers;
   sessionListOpen: boolean;
@@ -82,7 +114,6 @@ export function railItems({
   watchUnseen: number;
   setBrowserWatchOpen: Toggle;
   setTrafficRadarOpen?: Toggle;
-  radioOpen?: boolean;
   setRadioOpen?: Toggle;
   /** Open Tool activity on one of its two views — each has its own door. */
   openToolActivity?: (view: ToolActivityView) => void;
@@ -95,8 +126,12 @@ export function railItems({
   openCapacity?: (view: CapacityView) => void;
   /** The connected tracker kinds, in the registry's order (#2178). */
   integrations?: IntegrationRail[];
+  openExploreIntegrations?: () => void;
+  /** Quick open, the field ⌘K opens (components/QuickOpen.tsx). */
+  openQuickOpen: () => void;
 }): RailItems {
   const settingsCap = settingsChordLabel(platformName());
+  const apple = isApplePlatform(platformName());
   // aria-expanded, not aria-pressed, on the four panels: each shows and
   // hides a region beside the canvas and leaves focus where it was — the
   // disclosure pattern. aria-controls only while the region is mounted: an
@@ -161,6 +196,14 @@ export function railItems({
     id: "settings", label: "Settings", short: "Settings", key: { cap: settingsCap, aria: "Control+, Meta+,", single: false },
     ariaLabel: "Settings", glyph: <SettingsGlyph />, kind: "dialog", onPress: () => openSettings(),
   };
+  // The field every door is also behind, by name. A chord, like Settings',
+  // so it answers with the single-key shortcuts off.
+  const search: RailItem = {
+    id: "quick-open", label: "Search", short: "Search",
+    key: { cap: quickOpenChordLabel(apple), aria: apple ? "Meta+K" : "Control+K", single: false },
+    ariaLabel: "Search", detail: "Panels, sessions, settings, actions and themes",
+    glyph: <SearchGlyph />, kind: "dialog", onPress: openQuickOpen,
+  };
   const feedback: RailItem = {
     id: "feedback", label: "Feedback", short: "Feedback", menu: "Send feedback",
     ariaLabel: "Send feedback", glyph: <FeedbackGlyph />, kind: "dialog", onPress: onFeedback,
@@ -178,25 +221,41 @@ export function railItems({
     glyph: <SkillActivityGlyph />, kind: "dialog",
     detail: "Which skills your agents use, whether you typed them or the agent called them", onPress: () => openToolActivity("skills"),
   }] : [];
+  const radar: RailItem[] = setTrafficRadarOpen ? [{
+    id: "traffic-radar", label: "Telemetry Radar", short: "Radar", ariaLabel: "Telemetry Radar",
+    glyph: <TrafficRadarGlyph />, kind: "dialog",
+    detail: "Claude telemetry configuration and observed connections", onPress: () => setTrafficRadarOpen(true),
+  }] : [];
+  // A dialog, like the doors above it: the explorer is a modal over the deck
+  // (RadioPanel.tsx), so the button says it opens one rather than claiming a
+  // panel beside the canvas that is never there.
+  const radio: RailItem[] = setRadioOpen ? [{
+    id: "radio", label: "Radio", short: "Radio", ariaLabel: "Radio",
+    glyph: <RadioGlyph />, kind: "dialog",
+    detail: "Explore stations around the world", onPress: () => setRadioOpen(true),
+  }] : [];
   return {
     // Accounts first, at the top of the stripe and the start of the dock: the
     // owner's call (2026-10-08), the panel a first run opens and the one read
     // before choosing where to start a session.
     left: providers.claude ? [accounts, sessionList] : [sessionList],
     // The owner's order (2026-10-22): Claude accounts, Account capacity,
-    // Reset calendar, Session list.
-    leftStripe: providers.claude ? [accounts, ...capacity, sessionList] : [sessionList],
+    // Reset calendar, Session list — the first three one group, since all
+    // three are about the accounts.
+    leftStripe: providers.claude ? [named("Claude accounts", [accounts, ...capacity]), [sessionList]] : [[sessionList]],
     capacity: providers.claude ? capacity : [],
-    right: [[usage, machine], [history, ...activity, browserWatch, ...(setTrafficRadarOpen ? [{
-      id: "traffic-radar", label: "Telemetry Radar", short: "Radar", ariaLabel: "Telemetry Radar",
-      glyph: <TrafficRadarGlyph />, kind: "dialog" as const,
-      detail: "Claude telemetry configuration and observed connections", onPress: () => setTrafficRadarOpen(true),
-    }] : [])], ...(setRadioOpen ? [[{
-      id: "radio", label: "Radio", short: "Radio", ariaLabel: "Radio",
-      glyph: <RadioGlyph />, kind: "panel" as const, open: radioOpen, controls: "radio-panel",
-      detail: "Explore stations around the world", onPress: () => setRadioOpen(open => !open),
-    }]] : [])],
+    right: [
+      named("Usage and machine", [usage, machine]),
+      named("Activity history", [history, ...activity]),
+      named("Watchers", [browserWatch, ...radar]),
+      radio,
+    ].filter(group => group.length > 0),
     utilities: [settings, feedback],
+    search,
+    explore: openExploreIntegrations ? [{
+      id: "explore-integrations", label: "Explore integrations", short: "Integrations",
+      ariaLabel: "Explore integrations", glyph: <IntegrationsGlyph />, kind: "dialog", onPress: openExploreIntegrations,
+    }] : [],
     // Each opens its large modal, so a dialog: aria-haspopup and no state.
     integrations: integrations.map(({ provider, onPress }): RailItem => ({
       id: `integration-${provider.kind}`, label: provider.label, short: provider.label,

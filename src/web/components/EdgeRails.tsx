@@ -5,10 +5,12 @@
 // from a button 1,100px away on the right. Here each side of the window owns
 // its own controls, in a stripe one control-height wide on that edge:
 //
-//   left   Accounts, Session list          the left column, which they share
-//   right  Usage, Machine · History, Browser watch
-//                                          the two rail panels, then the two
-//                                          records that open as dialogs
+//   left   Accounts, its two reports · Session list · trackers · Explore
+//   right  Usage, Machine · Usage history, Tool and Skill activity ·
+//          Browser watch, Telemetry Radar · Radio
+//
+// Each stripe is runs of doors that answer one question, between the same
+// rules on both edges, each run a named group: rail-items.tsx lists them.
 //
 // Desktop rails use upright icons, with names and shortcuts in their hints.
 // Phone controls and the topbar utilities keep their visible words.
@@ -71,6 +73,9 @@ export interface RailItem {
   buttonRef?: RefObject<HTMLButtonElement>;
   /** Unread findings, drawn in the chrome's resting grey: never amber. */
   badge?: number;
+  /** The name of the run of doors this one stands in on a stripe, said once on
+   *  the way into it (rail-items.tsx). */
+  group?: string;
 }
 
 /** The key a control may name right now: its own, unless it is a single
@@ -191,17 +196,24 @@ export function EdgeRail({ side, label, groups }: { side: "left" | "right"; labe
   return (
     <div ref={ref} className={RAIL_CLASS[side]} role="toolbar" aria-label={label}
       aria-orientation="vertical" onKeyDown={roving.onKeyDown}>
-      {items.map((group, g) => (
-        <div className="rail-group" key={g}>
-          {group.map(item => {
-            const i = index++;
-            return (
-              <RailButton key={item.id} item={item} index={i} tabbable={i === roving.active}
-                onFocusIndex={roving.setCurrent} hint={hint} variant="stripe" />
-            );
-          })}
-        </div>
-      ))}
+      {items.map(group => {
+        // A run of two or more is a named group, so a screen reader moving
+        // down the stripe hears "Activity history" before the three doors in
+        // it: the rule between runs, said. A door alone keeps its own name.
+        const name = group.length > 1 ? group[0].group : undefined;
+        return (
+          <div className="rail-group" key={group[0].id} role={name ? "group" : undefined} aria-label={name}
+            data-rail-group={group[0].id === "explore-integrations" ? "explore" : undefined}>
+            {group.map(item => {
+              const i = index++;
+              return (
+                <RailButton key={item.id} item={item} index={i} tabbable={i === roving.active}
+                  onFocusIndex={roving.setCurrent} hint={hint} variant="stripe" />
+              );
+            })}
+          </div>
+        );
+      })}
       {hint.node}
     </div>
   );

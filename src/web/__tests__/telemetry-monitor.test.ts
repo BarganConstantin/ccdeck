@@ -34,14 +34,34 @@ describe('continuous managed capture', () => {
     await capture.stop(); expect(children[1].kill).toHaveBeenCalled(); children[1].emit('exit', 0);
     await tick(); expect(launch).toHaveBeenCalledTimes(2); expect(capture.read().enabled).toBe(false);
   });
-  it('reports permissions honestly and retries when capture access becomes available', async () => {
+  // Monitoring is always on, so a refused capture is retried every thirty
+  // seconds rather than every three: Allow capture restarts it at once anyway.
+  it('reports permissions honestly, retries a refusal every thirty seconds, and captures once access is granted', async () => {
+    vi.useFakeTimers();
     const children: ReturnType<typeof child>[] = [];
     const capture = createTrafficCapture({ managed: true, platform: 'linux', findTool: async () => 'tcpdump', findInterface: async () => 'any', monitor: options => monitorDestination({ ...options, retryMs: 10, launch: () => { const c = child(); children.push(c); return c; } }) });
-    cleanup.push(() => capture.dispose()); await capture.prepare('192.0.2.16:4317', 4329); await tick();
+    cleanup.push(() => capture.dispose()); await capture.prepare('192.0.2.16:4317', 4329); await vi.advanceTimersByTimeAsync(0);
+    expect(children).toHaveLength(1);
     children[0].stderr.write("tcpdump: You don't have permission to capture on that device"); children[0].emit('exit', 1);
     expect(capture.read().sources[0]).toMatchObject({ active: false, error: 'Packet capture permission is required.' });
-    await tick(); await tick(); children[1].stderr.write('tcpdump: listening on any');
+    await vi.advanceTimersByTimeAsync(29_999); expect(children).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1); expect(children).toHaveLength(2);
+    children[1].stderr.write('tcpdump: listening on any');
     expect(capture.read()).toMatchObject({ state: 'receiving', sources: [{ active: true, error: null }] });
+  });
+  it('retries a capture that ended for any other reason at the short interval', async () => {
+    vi.useFakeTimers();
+    const children: ReturnType<typeof child>[] = [];
+    const capture = createTrafficCapture({ managed: true, platform: 'linux', findTool: async () => 'tcpdump', findInterface: async () => 'any', monitor: options => monitorDestination({ ...options, retryMs: 10, permissionRetryMs: 30_000, launch: () => { const c = child(); children.push(c); return c; } }) });
+    cleanup.push(() => capture.dispose()); await capture.prepare('192.0.2.16:4317', 4329); await vi.advanceTimersByTimeAsync(0);
+    children[0].stderr.write('tcpdump: any: No such device exists'); children[0].emit('exit', 1);
+    expect(capture.read().sources[0]).toMatchObject({ active: false, error: 'Capture disconnected. Retrying automatically.' });
+    await vi.advanceTimersByTimeAsync(10); expect(children).toHaveLength(2);
+    // A refusal spawned by a launch error waits the long interval too.
+    children[1].emit('error', Object.assign(new Error('spawn tcpdump EACCES'), { code: 'EACCES' }));
+    expect(capture.read().sources[0]).toMatchObject({ error: 'Packet capture permission is required.' });
+    await vi.advanceTimersByTimeAsync(10_000); expect(children).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(20_000); expect(children).toHaveLength(3);
   });
   it('remembers opt-in across restart, never persists packets or tokens, and remembers Stop', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'radar-monitor-')); cleanup.push(() => rm(directory, { recursive: true, force: true }));

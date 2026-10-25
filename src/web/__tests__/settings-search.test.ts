@@ -7,6 +7,7 @@
 // source: every `data-setting` a section draws is a place a result can land,
 // so each must have an entry, and an entry with no row drawn anywhere would be
 // a result that jumps to nothing.
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -18,6 +19,7 @@ import { isFindChord, SETTINGS_SECTIONS } from "../settings";
 import { THEMES, THEME_DEFINITIONS } from "../theme";
 import { ACCOUNT_NOTIFY_SWITCHES } from "../notify-reach";
 import { CHIME_ORDER } from "../sound";
+import { CLAUDE_SETTINGS } from "../../server/claude-settings-catalog.mjs";
 import { TONE_LABEL } from "../components/ToneSection";
 import SettingsModal, { type SettingsModalProps } from "../components/SettingsModal";
 import { DEFAULT_PREFS } from "../sound";
@@ -40,10 +42,12 @@ const ids = (results: readonly SettingsEntry[]) => results.map(r => r.id);
  *  fails — a new one has to say what it expands to. */
 function renderedIds(): { found: Set<string>; unknown: string[] } {
   const DYNAMIC: Record<string, readonly string[]> = {
+    "IntegrationsSection.tsx {`integration-${provider.kind}`}": ["integration-github", "integration-gitlab", "integration-jira"],
     "SessionRecoverySettings.tsx {settingId}": ["codex-session-recovery", "claude-session-recovery"],
     "NotificationsSection.tsx {kind}": ACCOUNT_NOTIFY_SWITCHES.map(s => s.kind),
     "ThemeSection.tsx {`theme-${choice}`}": THEMES.map(t => `theme-${t}`),
     "ToneSection.tsx {`tone-${chime}`}": CHIME_ORDER.map(c => `tone-${c}`),
+    "ClaudeCodeSettings.tsx {`claude-${entry.id}`}": CLAUDE_SETTINGS.map(e => `claude-${e.id}`),
   };
   const found = new Set<string>();
   const unknown: string[] = [];
@@ -93,7 +97,9 @@ describe("the index holds every place a result can land", () => {
 
   it("gives every entry a unique id and a label a component prints", () => {
     expect(new Set(SETTINGS_INDEX.map(e => e.id)).size).toBe(SETTINGS_INDEX.length);
-    const text = clientText();
+    // Settings › Claude Code prints its table's labels, which live beside the
+    // server that checks every write against them (claude-settings-catalog.mjs).
+    const text = clientText() + readFileSync(new URL("../../server/claude-settings-catalog.mjs", import.meta.url), "utf8");
     const unprinted = SETTINGS_INDEX
       .filter(e => !text.includes(`"${e.label}"`) && !text.includes(`>${e.label}<`))
       .map(e => e.label);

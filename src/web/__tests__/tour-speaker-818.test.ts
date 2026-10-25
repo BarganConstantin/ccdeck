@@ -47,7 +47,7 @@ describe("the tour names the sound control by what it looks like (#818)", () => 
     expect(tip).toMatch(/topbar gear/);
     // The control the tip means, and the cog it is drawn with — in the run
     // App.tsx draws in the topbar, which holds Settings first.
-    expect(bar).toMatch(/<UtilityRun items=\{rails\.utilities\}/);
+    expect(bar).toMatch(/<UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\}/);
     expect(run).toMatch(/utilities: \[settings, feedback\]/);
     expect(run).toMatch(/ariaLabel: "Settings", glyph: <SettingsGlyph \/>/);
     expect(run).toContain(GEAR_PATH);

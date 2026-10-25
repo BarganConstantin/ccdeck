@@ -1,16 +1,26 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { readAuditReport, type AuditProvider, type SkillReport, type SkillRow } from '../tool-audit';
 import { auditDay, callTime, count, periodLabels } from '../tool-audit-report';
-import { countingStartedLate, skillAgents, skillParts, skillSorts, skillSummary, sortSkills, typedCommandsNote, type SkillSort } from '../skill-activity';
+import { countingStartedLate, findSkillHighlights, originLine, originShares, skillOrigins, skillParts, skillSorts, skillSummary, sortSkills, typedCommandsNote,
+  type SkillHighlight, type SkillOrigin, type SkillSort } from '../skill-activity';
 import { readDetailsWidth, writeDetailsWidth } from '../tool-audit-layout';
 import { useMediaQuery } from '../use-media-query';
 import { useFeatureUse } from '../feature-use';
 import ToolAuditDrawer from './ToolAuditDrawer';
 import ToolAuditSplitter from './ToolAuditSplitter';
 import SkillInspector, { type SessionLinks } from './SkillInspector';
+import SkillOrigins from './SkillOrigins';
 
 const FIRST_ROWS = 12;
 const SearchGlyph = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>;
+const glyph = (path: ReactNode) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{path}</svg>;
+const highlightGlyph: Record<SkillHighlight['kind'], ReactNode> = {
+  failing: glyph(<><circle cx="12" cy="12" r="9" /><path d="m9 9 6 6m0-6-6 6" /></>),
+  top: glyph(<path d="M5 20V11M12 20V4M19 20v-6" />),
+  typed: glyph(<><rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="m10.5 15 3-6" /></>),
+  quiet: glyph(<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z" />),
+  new: glyph(<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18" />),
+};
 
 /** What the header shows for this view: whether it is reading, and when it last did. */
 export interface ReportStatus { loading: boolean; detailLoading: boolean; capturedAt: number | null; hasData: boolean }
@@ -29,8 +39,13 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
   useFeatureUse('skill-activity');
   const [sort, setSort] = useState<SkillSort>('uses');
   const [search, setSearch] = useState('');
+  const sortRef = useRef(sort); sortRef.current = sort;
+  const searchRef = useRef(search); searchRef.current = search;
+  const initialSelectionMade = useRef(false);
+  const shownRow = useRef<SkillRow | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [origin, setOrigin] = useState<SkillOrigin | null>(null);
   const [keyboardSelection, setKeyboardSelection] = useState(false);
   const selectionOrigin = useRef<HTMLElement | null>(null);
   const [data, setData] = useState<SkillReport | null>(null);
@@ -60,7 +75,13 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
         const reply = await readAuditReport<SkillReport>(query, controller.signal);
         if (live) {
           loadedQuery.current = query; setData(reply);
-          setSelected(current => current && reply.rows.some(row => row.name === current) ? current : null);
+          // Open on the first skill, once, as Tool activity opens on its first tool;
+          // closed details stay closed through refreshes and sorting.
+          const first = !initialSelectionMade.current && sortSkills(reply.rows, sortRef.current, searchRef.current).find(row => row.uses > 0);
+          if (first) { initialSelectionMade.current = true; setSelected(first.name); }
+          // Open details whose skill the new period lacks move to its first, rather than closing.
+          else setSelected(current => !current || reply.rows.some(row => row.name === current) ? current
+            : sortSkills(reply.rows, sortRef.current, searchRef.current).find(row => row.uses > 0)?.name ?? null);
         }
       } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'Reading the history took too long. Try again, or keep less history in Settings.'); }
       finally { window.clearTimeout(deadline); if (live) { reading.current = false; setLoading(false); } }
@@ -85,10 +106,18 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
     return () => { live = false; controller.abort(); window.clearTimeout(deadline); };
   }, [selected, data, loading, query]);
 
-  const rows = useMemo(() => sortSkills(data?.rows ?? [], sort, search), [data, sort, search]);
+  const shares = useMemo(() => data ? originShares(data, provider) : [], [data, provider]);
+  const highlights = useMemo(() => data ? findSkillHighlights(data, provider) : [], [data, provider]);
+  // A lane that left with a new period or agent no longer filters.
+  const kept = origin && shares.some(part => part.id === origin && part.uses > 0) ? origin : null;
+  const rows = useMemo(() => sortSkills(data?.rows ?? [], sort, search).filter(row => !kept || row[kept] > 0), [data, sort, search, kept]);
   const visible = showAll || search ? rows : rows.slice(0, FIRST_ROWS);
   const top = rows.reduce((most, row) => Math.max(most, row.uses), 0);
-  const selection = data?.rows.find(row => row.name === selected);
+  const liveRow = data?.rows.find(row => row.name === selected);
+  if (liveRow) shownRow.current = liveRow;
+  // Across a new period or agent the details stay open on the skill they showed, its
+  // numbers held back until the new report arrives, so the panel neither closes nor moves.
+  const selection = liveRow ?? (selected && !data && shownRow.current?.name === selected ? shownRow.current : undefined);
   const failures = !!data && data.failed > 0;
 
   const select = (name: string) => (event: MouseEvent<HTMLButtonElement>) => {
@@ -130,9 +159,21 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
         {typedNote && <p className="ta-note sa-typed-note">{typedNote}</p>}
         {(!data.storageOk || data.dropped > 0 || data.corrupt > 0) && <p className="ta-warning" role="status">Some uses could not be saved or read, so these numbers may be a little low.{!data.storageOk && ' Check free disk space.'}</p>}
 
+        {/* At a glance: what is worth a look beside who starts the skills. */}
+        {(highlights.length > 0 || data.total > 0) && <div className="ta-glance" data-single={!(highlights.length > 0 && data.total > 0) || undefined}>
+          {highlights.length > 0 && <section className="ta-highlights" aria-labelledby="sa-highlights-title">
+            <h3 id="sa-highlights-title">Worth a look</h3>
+            <ul>{highlights.map(item => <li key={item.kind}><button type="button" className="ta-highlight" data-kind={item.kind} data-skill={item.skill} aria-expanded={selected === item.skill} aria-controls={selected === item.skill ? 'tool-operation-inspector' : undefined} onClick={select(item.skill)}>
+              <span className="ta-highlight-glyph">{highlightGlyph[item.kind]}</span>
+              <span className="ta-highlight-text"><span><code>{skillParts(item.skill).short}</code> {item.title}</span><small>{item.detail}</small></span>
+            </button></li>)}</ul>
+          </section>}
+          {data.total > 0 && <SkillOrigins shares={shares} total={data.total} filter={kept} onFilter={setOrigin} />}
+        </div>}
+
         <section className="ta-tools" aria-labelledby="sa-skills-title">
           <div className="ta-tools-head">
-            <h3 id="sa-skills-title">Skills <span className="ta-count">{data.rows.length.toLocaleString()}</span></h3>
+            <h3 id="sa-skills-title">Skills <span className="ta-count">{kept ? `${rows.length.toLocaleString()} of ${data.rows.length.toLocaleString()}` : data.rows.length.toLocaleString()}</span></h3>
             <label className="ta-search"><SearchGlyph /><input type="search" aria-label="Find a skill" placeholder="Find a skill" value={search} onChange={event => setSearch(event.target.value)} /></label>
           </div>
           <div className="uh-range ta-sorts sa-sorts" role="group" aria-label="Sort by">{skillSorts.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={sort === item.id} onClick={() => setSort(item.id)}>{item.label}</button>)}</div>
@@ -140,13 +181,15 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
           <ul className="ta-list sa-list" ref={listRef} data-sort={sort} data-failures={failures || undefined}>{visible.map(row => {
             const { namespace, short } = skillParts(row.name);
             return <li key={row.name}><button type="button" className="ta-row" data-skill={row.name} data-selected={selected === row.name || undefined} aria-expanded={selected === row.name} aria-controls={selected === row.name ? 'tool-operation-inspector' : undefined} aria-label={rowLabel(row)} onClick={select(row.name)}>
-              <span className="ta-row-name"><span className="ta-op">{namespace && <span className="sa-namespace">{namespace}</span>}{short}</span><span className="ta-desc">{skillAgents(row)} · {count(row.sessions, 'session')}{row.repeats > 0 ? ` · ${count(row.repeats, 'repeat')}` : ''}</span><span className="ta-bar" aria-hidden="true" style={{ "--ta-share": top && sort === 'uses' ? Math.max(0.015, row.uses / top) : 0 } as CSSProperties} /></span>
+              <span className="ta-row-name"><span className="ta-op">{namespace && <span className="sa-namespace">{namespace}</span>}{short}</span><span className="ta-desc">{[originLine(row), count(row.sessions, 'session'), row.repeats > 0 && count(row.repeats, 'repeat')].filter(Boolean).join(' · ')}</span>
+                <span className="ta-bar" aria-hidden="true" style={{ "--ta-share": top && sort === 'uses' ? Math.max(0.015, row.uses / top) : 0 } as CSSProperties}>
+                  {skillOrigins.filter(id => row[id] > 0).map(id => <i key={id} data-lane={id} style={{ flexGrow: row[id] }} />)}</span></span>
               <span className="ta-cell" data-col="uses">{row.uses.toLocaleString()}<span className="ta-unit"> {row.uses === 1 ? 'use' : 'uses'}</span></span>
               <span className="ta-cell" data-col="recent"><span className="ta-unit">last </span>{callTime(row.lastAt)}</span>
               {failures && <span className="ta-cell" data-col="failed" data-bad={row.failed > 0 || undefined}>{row.failed ? <>{row.failed.toLocaleString()}<span className="ta-unit"> failed</span></> : <span className="ta-zero">0<span className="ta-unit"> failed</span></span>}</span>}
             </button></li>;
           })}</ul>
-          {!rows.length && <p className="ta-note ta-no-match">No skill matches “{search.trim()}”.</p>}
+          {!rows.length && search.trim() && <p className="ta-note ta-no-match">No skill matches “{search.trim()}”{kept ? ' among these' : ''}.</p>}
           {!search && !showAll && rows.length > FIRST_ROWS && <button type="button" className="btn ta-more" onClick={() => setShowAll(true)}>Show all {rows.length.toLocaleString()}</button>}
         </section>
 
@@ -166,7 +209,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
     </div></div>
     {selection && sideBySide && <ToolAuditSplitter width={detailsWidth} workspace={workspaceRef} onCommit={resizeDetails} />}
     {selection && <ToolAuditDrawer keyboard={keyboardSelection} itemKey={selection.name} onClose={closeInspector}>
-      <SkillInspector row={details?.name === selected && details.row ? details.row : selection} details={details?.name === selected ? details : null} loading={detailLoading} error={detailError} onClose={closeInspector} sessionLabel={sessionLabel} onOpenSession={onOpenSession} />
+      <SkillInspector row={details?.name === selected && details.row ? details.row : selection} details={details?.name === selected ? details : null} loading={detailLoading} pending={!liveRow} charted={Number(period) >= 7} error={detailError} onClose={closeInspector} sessionLabel={sessionLabel} onOpenSession={onOpenSession} />
     </ToolAuditDrawer>}
   </div>;
 }

@@ -34,6 +34,7 @@ export interface KeyTarget {
   tagName: string;
   role?: string;
   type?: string;
+  isContentEditable?: boolean;
   blur?: () => void;
 }
 
@@ -99,6 +100,7 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
     setKeyHelpOpen: keyHelp.set,
     setTheme: theme.set,
     openSettings: vi.fn(),
+    openQuickOpen: vi.fn(),
   };
   useDeckShortcuts(props);
   if (!onKey) throw new Error("useDeckShortcuts put no keydown listener on window");
@@ -107,11 +109,11 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
   /** One keydown. `pointer` marks the target as focused by a pointer press (#851). */
   function press(key: string, o: {
     target?: KeyTarget; repeat?: boolean; shiftKey?: boolean; pointer?: boolean;
-    ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean;
+    ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; code?: string;
   } = {}) {
     const target = o.target ?? BODY;
     const e = {
-      key, repeat: o.repeat ?? false, shiftKey: o.shiftKey ?? false,
+      key, code: o.code, repeat: o.repeat ?? false, shiftKey: o.shiftKey ?? false,
       ctrlKey: o.ctrlKey ?? false, metaKey: o.metaKey ?? false, altKey: o.altKey ?? false,
       target: { ...target, getAttribute: (name: string) => (name === "role" ? target.role ?? null : null) },
       preventDefault: vi.fn(),

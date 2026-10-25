@@ -15,10 +15,12 @@ import { canvasKeyIntent, shouldReleaseFocusOnEscape } from "./canvas-keys";
 import type { ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { isUndoChord } from "./rearrange-undo";
+import { isApplePlatform, platformName } from "./platform";
+import { isQuickOpenChord } from "./quick-open";
 import type { GraphState } from "./reducer";
 import { isSettingsChord, type SettingsSection } from "./settings";
 import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
-import { canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
+import { canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, keepsThemeKey, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import { nextTheme, type Theme } from "./theme";
 
 type Read<T> = { readonly current: T };
@@ -70,6 +72,8 @@ export interface DeckShortcuts {
   /** A connected tracker's panel by kind (#2178), or nothing when that kind
    *  has no connection — the rail button is not drawn then either. */
   openIntegrationRef?: Read<(kind: string) => void>;
+  /** Quick open, on ⌘K or Ctrl+K (quick-open.ts). */
+  openQuickOpen: () => void;
 }
 
 export function useDeckShortcuts({
@@ -78,7 +82,7 @@ export function useDeckShortcuts({
   clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
   handleRelayout, undoRearrange, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
   setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
-  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef,
+  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen,
 }: DeckShortcuts): void {
   // keyboard shortcuts
   useEffect(() => {
@@ -127,6 +131,18 @@ export function useDeckShortcuts({
       // in keeps its keystrokes, and nothing opens behind a dialog that covers
       // the canvas — Settings over a clear prompt would be two things waiting
       // on one Escape.
+      // Quick open: ⌘K on a Mac, Ctrl+K elsewhere. A chord, so it answers
+      // with the single-key shortcuts off, and held to the dialog gate like
+      // the one below. Not to the field gate: the session list's filter is
+      // where a reader looking for something already is, and what this opens
+      // is the field that finds more. Its own field closes it on the same
+      // chord (QuickOpen.tsx), ahead of this listener.
+      if (isQuickOpenChord(e, isApplePlatform(platformName()))) {
+        if (canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) return;
+        e.preventDefault();
+        if (!e.repeat) openQuickOpen();
+        return;
+      }
       if (e.key === "," && isSettingsChord(e)) {
         if (isTypingTarget(target)) return;
         if (canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) return;
@@ -185,6 +201,21 @@ export function useDeckShortcuts({
       // the same press had just opened.
       if (closesKeySheet({ key: e.key, sheetOpen: keyHelpOpenRef.current, target })) {
         if (!e.repeat) setKeyHelpOpen(false);
+        return;
+      }
+      // T, the next theme, is answered here and nowhere below. It is the one
+      // letter that goes through a dialog (the owner's call, 2026-10-23), so
+      // it cannot wait for the two gates under this: a dialog puts focus on
+      // its first control, which the focused-control gate would hand the
+      // letter, and the modal gate drops every letter behind a dialog.
+      // keepsThemeKey says who keeps it instead: over a dialog, a field being
+      // typed in or a <select>; on the board, whoever that gate would.
+      // Settings answered T itself until then; one path now, so one theme per
+      // press in every dialog. A held key is one press, as in the table below.
+      if (e.key === "t" || e.key === "T") {
+        const modalOpen = canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() });
+        if (intent.nodeId == null && keepsThemeKey({ target, modalOpen })) return;
+        if (!e.repeat) setTheme(nextTheme);
         return;
       }
       // A focused control owns its own keys: Space presses a button, letters
@@ -309,7 +340,6 @@ export function useDeckShortcuts({
           focusSession(next.id);
         }
       }
-      if (e.key === "t" || e.key === "T") setTheme(nextTheme);
       // The last topbar control to get a key, and the only one that reads
       // Shift. Every other letter here treats "C" and "c" alike — a Caps-locked
       // keyboard sends the upper case for the same press — and this one does

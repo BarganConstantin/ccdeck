@@ -13,9 +13,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { SettingRow, SettingsGroup } from "../components/SettingsParts";
 import KeyboardSection, { shortcutMatches, shortcutName } from "../components/KeyboardSection";
 import ToolAuditSettings, { TOOL_HISTORY_NOTE } from "../components/ToolAuditSettings";
-import RadarSettings from "../components/RadarSettings";
+import RadarSettings, { RADAR_NOTE } from "../components/RadarSettings";
 import { KEY_HELP } from "../key-help";
 import { sourceOf } from "./client-source";
+import { SETTINGS_INDEX, isSectionEntry, searchSettings } from "../settings-search";
 
 const noop = () => {};
 const draw = (el: Parameters<typeof renderToStaticMarkup>[0]) => renderToStaticMarkup(el);
@@ -120,23 +121,47 @@ describe("Settings › Data", () => {
 });
 
 describe("Settings › Radar (#2186)", () => {
-  it("is busy, never disabled, while the deck has not answered, and says so in a row of its list", () => {
+  // 2026-10-23: Radar monitors by itself, always (the owner reversed
+  // v3.44.0's opt-in). The section is the door to Radar, saying so — no switch,
+  // nothing to read from the deck first, so nothing to wait on.
+  it("is the door to Radar alone, with no switch and nothing to wait for", () => {
     const html = draw(createElement(RadarSettings, { onOpen: noop }));
-    expect(html).toMatch(/role="switch" aria-checked="false"[^>]*aria-busy="true"/);
-    expect(html).not.toMatch(/\sdisabled=""/);
-    expect(html).toContain('<p class="settings-row settings-row-status" role="status">Reading Radar settings…</p>');
+    expect(html).not.toContain('role="switch"');
+    expect(html).not.toMatch(/Monitor automatically|Off by default|Reading Radar settings|aria-busy/);
+    expect(html).toMatch(/id="settings-radar-open"[^>]*aria-haspopup="dialog"[^>]*>Open</);
+    expect(html).toContain('data-setting="radar-open"');
+    expect(html).toContain(RADAR_NOTE);
     // Radar's own classes stay in Radar.
     expect(html).not.toMatch(/tr-note|tr-capture-error/);
   });
 
-  // v3.44.0: the switch is automatic monitoring, off unless turned on, and
-  // Radar itself never leaves the deck with it — so its door is always here.
-  it("names automatic monitoring as opt-in and always offers the door to Radar", () => {
-    const html = draw(createElement(RadarSettings, { onOpen: noop }));
-    expect(html).toContain(">Monitor automatically<");
-    expect(html).toContain("Off by default.");
-    expect(html).not.toMatch(/hides Radar|toolbar/i);
-    expect(html).toMatch(/id="settings-radar-open"[^>]*aria-haspopup="dialog"[^>]*>Open</);
-    expect(sourceOf("components/RadarSettings.tsx")).not.toMatch(/enabled === true &&/);
+  it("says monitoring is always on, in the background, and stays on this machine", () => {
+    expect(RADAR_NOTE).toMatch(/always/); expect(RADAR_NOTE).toMatch(/background/); expect(RADAR_NOTE).toMatch(/stays on this machine/);
+    expect(RADAR_NOTE).not.toMatch(/Off by default|Turning it off/);
+    const src = sourceOf("components/RadarSettings.tsx");
+    expect(src).not.toContain("use-radar-settings"); expect(src).not.toContain("setRadarEnabled");
+  });
+
+  it("is found by search under its own row id", () => {
+    const radar = SETTINGS_INDEX.filter(entry => entry.section === "radar" && !isSectionEntry(entry));
+    expect(radar.map(entry => entry.id)).toEqual(["radar-open"]);
+    expect(radar[0].label).toBe("Radar");
+    expect(radar[0].keywords).toEqual(expect.arrayContaining(["telemetry", "collector", "monitoring", "packet capture"]));
+    expect(SETTINGS_INDEX.some(entry => entry.id === "radar-enabled")).toBe(false);
+    expect(searchSettings("packet capture").map(entry => entry.id)).toContain("radar-open");
+  });
+});
+
+describe("secondary setting explanations", () => {
+  it("keeps the original label activation and puts the disclosure outside it", () => {
+    const html = draw(createElement(SettingRow, {
+      name: "Restore sessions", note: "On the next start.", details: "The complete recovery behavior.",
+      control: createElement("button", { role: "switch", "aria-label": "Restore sessions" }),
+    }));
+    expect(html).toContain('<div class="settings-row-with-details"><label class="settings-row"');
+    expect(html).toContain('</label><details class="settings-row-details">');
+    expect(html).toContain('about Restore sessions');
+    expect(html).toContain('The complete recovery behavior.');
+    expect(html).not.toMatch(/<label[^>]*>[^]*<summary[^]*<\/label>/);
   });
 });

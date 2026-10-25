@@ -553,7 +553,9 @@ const CONTROLS: Control[] = [
   { at: ".topbar .brand button.v.ready", states: [".topbar .brand button.v.ready:hover"], beds: TOPBAR },
   { at: ".selected-ribbon", states: [".selected-ribbon:hover"], beds: TOPBAR },
   { at: "button.btn", states: ["button.btn:hover"], beds: [...TOPBAR, "--panel"] },
+  { at: "button.btn", fillFrom: "button.btn.ig-manage:not(.primary)", states: ["button.btn:hover"], beds: ["--panel"] },
   { at: "button.btn.primary", fillFrom: "button.btn.primary", beds: [...TOPBAR, "--panel"] },
+  { at: "button.btn.primary", fillFrom: "button.btn.primary", states: ["button.btn.ig-manage.primary:hover"], beds: ["--panel"] },
   // The on state of an icon toggle (#370) and a toolbar button that was open,
   // the resting edge on the control fill, were swept here until the topbar's
   // panel toggles left for the window's edges (2026-10-08) and `.icon-btn` left
@@ -635,11 +637,8 @@ const CONTROLS: Control[] = [
   // panel with the control edge round it, which is the mark that says which
   // one is chosen, so that edge is measured. The track sits on the panel.
   { at: ".fb-kind:has(input:checked)", fillFrom: ".fb-kind:has(input:checked)", beds: ["--panel"] },
-  // Settings' nav, on the same terms: a section's name at rest draws no
-  // boundary — the word names it — and the section on show is raised onto the
-  // panel with the control edge round it, which is the mark that says which,
-  // so that edge is measured. The nav sits a surface down, on --bg-soft.
-  { at: '.settings-tab[aria-selected="true"]', fillFrom: '.settings-tab[aria-selected="true"]', beds: ["--bg-soft"] },
+  // Settings navigation uses a fill/text weight for selection and the global
+  // keyboard focus ring. It no longer paints a boundary to sweep here.
   // Its two quiet buttons under the message, Add screenshot and Add details:
   // no boundary at rest, since their words name them, and the control edge
   // under the pointer and the keyboard, as Other accounts' expand-all draws one.
@@ -879,6 +878,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".ig-row[data-selected] .ig-chip",
       '.ig-row[data-selected] .jr-status[data-cat="done"]',
       '.ig-row[data-selected] .jr-status[data-cat="indeterminate"]',
+      // Quick open's field: the input in it is borderless, so the row it
+      // sits in draws the ring, as the feedback kinds' cards do.
+      ".qo-field:has(.qo-input:focus-visible)",
       ".radio-collection:focus-visible",
       ".radio-filter-back:focus-visible",
       ".radio-filter-chip:focus-visible",
@@ -933,9 +935,8 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // And from 106 to 108 with the one question's scale: a number framed at
     // rest, and louder under the pointer. And from 108 to 110 with the
     // feedback dialog's Discard, which gains an edge under the pointer and the
-    // keyboard the way the LAN dialog's Unpair does. And from 110 to 112 with
-    // Settings' nav, whose chosen section is raised with the control edge round
-    // it, as the feedback dialog's chosen kind is. And from 112 to 115 with the
+    // keyboard the way the LAN dialog's Unpair does. Settings navigation now
+    // uses a borderless selection fill. Further controls were added with the
     // feedback dialog's design pass: each image, the button that replaces it,
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
@@ -952,8 +953,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // box and Open in Jira, and the GitHub and GitLab panel's (#2179) search
     // field, are now the integrations' shared ones: the shared search field
     // adds two, at rest and under the pointer, and the link to the tracker
-    // draws no edge.
-    expect(EDGED_CONTROLS.length).toBeLessThan(161);
+    // draws no edge. Quick open's field adds one: the ring its input draws on
+    // the row around it.
+    expect(EDGED_CONTROLS.length).toBeLessThan(162);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

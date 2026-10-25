@@ -41,42 +41,47 @@ function errorInfo(err: unknown): ForgeErrorInfo {
 export function useForgeRead<T>(api: ForgeApi, scope: string, read: string | null, params: Params = {}, refresh = 0): ForgeReadState<T> & { reload: () => void } {
   const path = read ? forgeReadPath(read, params) : null;
   const key = path ? `${scope}\n${path}` : null;
-  const [state, setState] = useState<ForgeReadState<T>>(() => view<T>(key ? keptRead<T>(key) : null, false));
+  const [state, setState] = useState<{ key: string | null; read: ForgeReadState<T> }>(() => ({ key, read: view<T>(key ? keptRead<T>(key) : null, false) }));
   const [forced, setForced] = useState(0);
   const lastRefresh = useRef(refresh);
 
   useEffect(() => {
     if (!key || !path) {
-      setState(view<T>(null, false));
+      setState({ key, read: view<T>(null, false) });
       return;
     }
     const entry = keptRead<T>(key);
     const force = forced > 0 || refresh !== lastRefresh.current;
     lastRefresh.current = refresh;
     if (!readDue(entry, Date.now(), force)) {
-      setState(view(entry, false));
+      setState({ key, read: view(entry, false) });
       return;
     }
-    setState(view(entry, true));
+    setState({ key, read: view(entry, true) });
     const controller = new AbortController();
     fetchForge<T>(api, path, controller.signal).then(
       data => {
         const next: Kept<T> = { data, loadedAt: Date.now(), error: null };
         keepRead(key, next);
-        if (!controller.signal.aborted) setState(view(next, false));
+        if (!controller.signal.aborted) setState({ key, read: view(next, false) });
       },
       err => {
         if (controller.signal.aborted || (err as Error)?.name === "AbortError") return;
         const next: Kept<T> = { ...keptRead<T>(key), error: errorInfo(err) };
         keepRead(key, next);
-        setState(view(next, false));
+        setState({ key, read: view(next, false) });
       },
     );
     return () => controller.abort();
   }, [api, key, path, refresh, forced]);
 
   const reload = useCallback(() => setForced(n => n + 1), []);
-  return { ...state, reload };
+  // Another read (another project, another filter) draws what was kept for
+  // it at once, never the last read's answer for a render: a list that says
+  // which rows it drew must not name the other project's.
+  const kept = state.key === key || !key ? null : keptRead<T>(key);
+  const shown = state.key === key ? state.read : view<T>(kept, kept != null && readDue(kept, Date.now()));
+  return { ...shown, reload };
 }
 
 function view<T>(entry: Kept<T> | null, loading: boolean): ForgeReadState<T> {

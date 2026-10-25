@@ -103,8 +103,8 @@
 .ig-body { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 
 /* The list and its detail, each with its own scroll. From 900px the detail sits
-   beside the list at the width the reader dragged it to, and never takes so
-   much that the list goes under 420px. */
+   beside the list, at half the room until the reader drags it, and never takes
+   so much that the list goes under 420px. */
 .ig-split { position: relative; flex: 1; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .ig-split[data-detail]:not([data-drill-in]) { grid-template-columns: minmax(0, 1fr) 8px min(var(--ig-detail-w), calc(100% - 428px)); }
 .ig-split[data-resizing] { cursor: col-resize; user-select: none; }
@@ -357,15 +357,81 @@ img.ig-avatar + img.ig-avatar {
 }
 .ig-stack-more { margin-left: 2px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 
+/* Only the overview owns the generic heading/count; focused pages name their task. */
+.settings-pane:has(> .ig-settings:not([data-view="overview"])) > .settings-pane-head { display: none; }
+/* Compact provider list: one contextual action per saved connection. */
+.ig-settings, .ig-overview { display: flex; flex-direction: column; min-width: 0; gap: 16px; }
+.ig-overview[hidden], .ig-manage-view[hidden], .ig-provider-view[hidden] { display: none; }
+.ig-overview-info { padding-top: 12px; border-top: 1px solid var(--line); color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.ig-access { min-width: 0; line-height: 1.5; }
+.ig-access summary { cursor: pointer; width: fit-content; }
+.ig-access p { margin: 8px 0 0; max-width: 65ch; }
+.ig-total { flex: none; align-self: center; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
+.ig-providers { display: grid; grid-template-columns: 16px minmax(0, 1fr) max-content; column-gap: 12px; min-width: 0; }
+.ig-provider { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; column-gap: 12px; padding-block: 16px; }
+.ig-provider:first-child { padding-top: 0; }
+.ig-provider + .ig-provider { border-top: 1px solid var(--line); }
+.ig-provider > .ig-provider-glyph { align-self: start; padding-top: 2px; }
+.ig-provider-content { min-width: 0; }
+.ig-provider-content h3 { margin: 0; color: var(--text); font-size: calc(14px + var(--ui-text-increase, 0px)); line-height: 1.4; font-weight: 600; }
+.ig-connection-list { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.ig-connections { display: flex; flex-direction: column; gap: 12px; }
+.ig-summary-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-width: 0; }
+.ig-summary-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ig-summary-text .ig-conn-name { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; overflow-wrap: anywhere; }
+.ig-provider .ig-conn-line { color: var(--text-secondary); line-height: 1.5; }
+.ig-manage { min-width: 80px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+button.btn.ig-manage { font-weight: 500; }
+button.btn.ig-manage:not(.primary) { background: var(--ctl-fill); }
+button.btn.ig-manage.primary:hover { border-color: var(--text); }
+.ig-list-error { display: flex; align-items: center; gap: 12px; color: var(--err); }
+.ig-list-error p { flex: 1; margin: 0; overflow-wrap: anywhere; }
+.ig-provider-connections { display: flex; flex-direction: column; gap: 16px; }
+.ig-provider-connections > .ig-conn + .ig-conn { border-top: 1px solid var(--line); padding-top: 16px; }
+.ig-config-view, .ig-manage-view, .ig-provider-view { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.ig-settings button.ig-back-to-overview, .ig-settings button.ig-back-to-overview:hover { border: 0; }
+.ig-back-to-overview { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding-inline: 0; color: var(--text-secondary); }
+.ig-config-view .ig-form { max-width: 100%; gap: 16px; }
+.ig-config-view .ig-form-title, .ig-managed-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); line-height: 1.4; font-weight: 600; }
+.ig-managed-header { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; min-width: 0; }
+.ig-managed-header > .ig-provider-glyph { padding-top: 3px; }
+.ig-managed-identity { min-width: 0; flex: 1; }
+.ig-managed-title { overflow-wrap: anywhere; font-weight: 500; }
+.ig-managed-identity p { margin: 4px 0 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
+.ig-config-view .ig-form-actions { justify-content: flex-start; align-self: flex-start; }
+.ig-connection-details { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.ig-detail-facts { padding-block: 16px; border-block: 1px solid var(--line); line-height: 1.5; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; margin: 0; }
+.ig-detail-facts > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ig-detail-facts dt { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.ig-detail-facts dd { margin: 0; min-width: 0; color: var(--text); font-size: calc(14px + var(--ui-text-increase, 0px)); overflow-wrap: anywhere; }
+.ig-manage-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ig-manage-navigation { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; }
+.ig-disconnect-section { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+.ig-disconnect-section h3 { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.ig-disconnect-section > p { margin: 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
+
+.ig-leave-confirm { border: 1px solid var(--ctl-edge); border-radius: var(--r-panel); padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: calc(13px + var(--ui-text-increase, 0px)); }
+.ig-leave-confirm p { margin: 0; color: var(--text-secondary); line-height: 1.5; }
+.ig-settings .btn[aria-disabled="true"] { cursor: progress; }
+.ig-settings .btn[aria-disabled="true"]:active { transform: none; }
+@media (max-width: 640px) {
+  .ig-detail-facts { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 360px) {
+  .ig-overview-info { flex-wrap: wrap; gap: 4px; }
+  .ig-summary-row { column-gap: 8px; }
+  .ig-manage { min-width: 70px; }
+}
+
 /* Settings › Integrations: the connect form, and one row per connection. */
-.ig-form-row { grid-template-columns: minmax(0, 1fr); }
 .ig-form { display: flex; flex-direction: column; gap: 12px; max-width: 560px; min-width: 0; padding: 4px 0; }
-.ig-conn .ig-form { padding-top: 8px; }
 .ig-form-title { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .ig-input { width: 100%; box-sizing: border-box; }
 .ig-mono { font-family: var(--font-mono); }
 .ig-hint { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; }
 .ig-help { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; text-wrap: pretty; }
+.ig-token-help summary { cursor: pointer; color: var(--accent); padding-block: 4px; }
+.ig-token-help[open] summary { margin-bottom: 8px; }
 .ig-help p { margin: 0 0 6px; }
 .ig-help a { color: var(--accent); text-underline-offset: 2px; }
 .ig-scopes { margin: 0 0 8px; padding-left: 18px; display: grid; gap: 2px; }
@@ -377,8 +443,8 @@ img.ig-avatar + img.ig-avatar {
 .ig-provider-name { display: inline-flex; align-items: center; gap: 8px; }
 .ig-provider-glyph { display: inline-flex; color: var(--muted); }
 .ig-error { color: var(--err); }
-.ig-conn { grid-template-columns: minmax(0, 1fr); row-gap: 8px; border-radius: var(--r-ctl); transition: background-color 600ms ease-out; }
-.ig-conn[data-focused] { background: color-mix(in srgb, var(--accent) 10%, transparent); transition-duration: 120ms; }
+.ig-conn { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.settings-list > .ig-conn { padding: calc(10px * var(--ui-space, 1)) 14px; }
 .ig-conn-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .ig-conn-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ig-conn-text .ig-conn-name { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
@@ -408,7 +474,7 @@ img.ig-avatar + img.ig-avatar {
 }
 @media (prefers-reduced-motion: reduce) {
   .modal.ig-modal[data-closing] { animation: ig-fade-out 120ms ease-out both; }
-  .ig-splitter::before, .ig-conn { transition: none; }
+  .ig-splitter::before { transition: none; }
   .ig-back:active { transform: none; }
   .ig-refresh[data-loading] svg { animation: none; }
   .ig-skeleton i { animation: none; }

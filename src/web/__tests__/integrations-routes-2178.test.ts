@@ -205,6 +205,15 @@ describe("a connection to a tracker", () => {
 
   const asset = (url: string) => `/api/integrations/tracker/${id}/asset?url=${encodeURIComponent(url)}`;
 
+  it("serves an image as the raster type its bytes are, whatever raster type it was labelled", async () => {
+    // Jira Data Center labels an uploaded avatar's PNG image/jpeg; refusing it
+    // drew every Jira face as initials.
+    const r = await page(asset(`${site.url}/useravatar`));
+    expect(r.status).toBe(200);
+    expect(r.headers["content-type"]).toBe("image/png");
+    expect(r.headers["x-content-type-options"]).toBe("nosniff");
+  });
+
   it("refuses an image on any other host, an SVG, and a page that calls itself a PNG — each with an empty body", async () => {
     const foreign = await page(asset("https://evil.example/a.png"));
     expect([foreign.status, foreign.raw]).toEqual([403, ""]);

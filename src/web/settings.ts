@@ -15,7 +15,7 @@ import { isApplePlatform } from "./platform";
 
 /** A section of Settings, in nav order. */
 export type SettingsSection =
-  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "integrations" | "data" | "radar" | "about";
+  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "integrations" | "data" | "claude" | "radar" | "about";
 
 /** One section's nav entry: the word on its tab, and the line under its name
  *  at the head of the pane, saying what the section holds before anything in
@@ -37,15 +37,16 @@ export interface SettingsSectionEntry {
  *  what it is. About comes last and stands at the foot of the nav, as it does
  *  in the desktop settings windows this dialog is modelled on. */
 export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
-  { id: "general", label: "General", note: "The board, updates, and the settings that live in their own panels." },
+  { id: "general", label: "General", note: "Session behavior, board preferences, and automatic updates." },
   { id: "appearance", label: "Appearance", note: "The colour theme and the character on the canvas." },
   { id: "reading", label: "Text & density", note: "Make the deck comfortable to read. Changes apply immediately and stay separate from canvas zoom." },
-  { id: "keyboard", label: "Keyboard", note: "Every shortcut, and whether single keys answer." },
+  { id: "keyboard", label: "Keyboard", note: "Keyboard shortcuts and single-key controls." },
   { id: "notifications", label: "Notifications", note: "How the deck reaches you while you are not looking at it." },
-  { id: "sounds", label: "Sounds", note: "What plays when a turn finishes and when Claude asks." },
-  { id: "integrations", label: "Integrations", note: "Where the deck reads your work from: Jira, GitHub and GitLab. Read only." },
+  { id: "sounds", label: "Sounds", note: "Notification tones and custom audio." },
+  { id: "integrations", label: "Integrations", note: "Manage connections to your developer tools." },
   { id: "data", label: "Data", note: "What the deck keeps on this device." },
-  { id: "radar", label: "Radar", note: "Automatic monitoring of Claude telemetry, off unless you turn it on." },
+  { id: "claude", label: "Claude Code", note: "Claude Code settings, saved to your settings.json. Most changes reach running sessions." },
+  { id: "radar", label: "Radar", note: "What Claude Code sends to its telemetry collector, watched all the time." },
   { id: "about", label: "About", note: "The version you are running, and where to say what you think of it." },
 ];
 
@@ -58,10 +59,14 @@ export function sectionIndex(section: SettingsSection): number {
  *  something (integrationsReach: a kind the deck offers, or a stranded
  *  connection to disconnect), or while it is the section on show, so the last
  *  Disconnect does not pull the page from under the reader. A deck that offers
- *  no integration draws the eight sections a deck without them always drew. */
-export function sectionsDrawn(integrations: IntegrationsReach, onShow: SettingsSection): readonly SettingsSectionEntry[] {
-  if (integrations !== "none" || onShow === "integrations") return SETTINGS_SECTIONS;
-  return SETTINGS_SECTIONS.filter(s => s.id !== "integrations");
+ *  no integration draws the sections a deck without them always drew. Claude
+ *  Code only where Claude Code is: on a Codex-only machine there is no
+ *  settings.json for it to change. */
+export function sectionsDrawn(integrations: IntegrationsReach, onShow: SettingsSection, claudeHere = true): readonly SettingsSectionEntry[] {
+  const hidden = new Set<SettingsSection>();
+  if (integrations === "none" && onShow !== "integrations") hidden.add("integrations");
+  if (!claudeHere && onShow !== "claude") hidden.add("claude");
+  return hidden.size ? SETTINGS_SECTIONS.filter(s => !hidden.has(s.id)) : SETTINGS_SECTIONS;
 }
 
 const TAB_ID_PREFIX = "settings-tab-";
@@ -81,6 +86,10 @@ export function focusedTabToFollow(focusedId: string | null | undefined, selecte
 export interface SettingsDoor {
   open: boolean;
   section: SettingsSection;
+  /** A row to land on once the section is drawn, by its settings-search id,
+   *  for a door that names one setting rather than a page: quick open's.
+   *  Each opening sets it afresh, so it is used once. */
+  landOn?: string;
 }
 
 export const SETTINGS_CLOSED: SettingsDoor = { open: false, section: "general" };
@@ -88,8 +97,9 @@ export const SETTINGS_CLOSED: SettingsDoor = { open: false, section: "general" }
 /** Settings opened through a door. A door that names a section — V names
  *  Sounds — opens it there; the gear and the chord name none, and get the
  *  section last shown. */
-export function openedAt(door: SettingsDoor, section?: SettingsSection): SettingsDoor {
-  return { open: true, section: section ?? door.section };
+export function openedAt(door: SettingsDoor, section?: SettingsSection, landOn?: string): SettingsDoor {
+  const opened = { open: true, section: section ?? door.section };
+  return landOn ? { ...opened, landOn } : opened;
 }
 
 /** The doors out of Settings into the rest of the deck (#2176): what About

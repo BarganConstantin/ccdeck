@@ -106,9 +106,9 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   return (
     <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal uh-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Usage history">
-        <header className="uh-head">
+        <header className="modal-head uh-head">
           <div className="uh-titlewrap">
-            <div className="uh-title">Usage history</div>
+            <div className="modal-tool-name">Usage history</div>
             {/* This line used to be the constant "via ccusage · local Claude /
                 Codex logs", which is the sentence #431 opens with: it named two
                 CLIs and the chart below then added them together. It is derived

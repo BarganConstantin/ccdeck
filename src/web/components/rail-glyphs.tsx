@@ -20,6 +20,15 @@ export const SessionListGlyph = () => (
   </Glyph>
 );
 
+/** Discovery, distinct from a provider shortcut or a generic Add action. */
+export const IntegrationsGlyph = () => (
+  <Glyph>
+    <g transform="rotate(45 7 7)">
+      <path d="M7 1v1.5M4.5 2.5h5v1.3a2.5 2.5 0 0 1-5 0zM5.5 7v1.5M8.5 7v1.5M4.5 8.5h5v1.3a2.5 2.5 0 0 1-5 0zM7 12.3V14" />
+    </g>
+  </Glyph>
+);
+
 export const AccountsGlyph = () => (
   <Glyph>
     <circle cx="7" cy="4.6" r="2.4" />
@@ -179,5 +188,43 @@ export const GitlabGlyph = () => (
   <Glyph>
     <path fill="currentColor" stroke="none" transform="translate(1.25 1.25) scale(0.479)"
       d="m23.6004 9.5927-.0337-.0862L20.3.9814a.851.851 0 0 0-.3362-.405.8748.8748 0 0 0-.9997.0539.8748.8748 0 0 0-.29.4399l-2.2055 6.748H7.5375l-2.2057-6.748a.8573.8573 0 0 0-.29-.4412.8748.8748 0 0 0-.9997-.0537.8585.8585 0 0 0-.3362.4049L.4332 9.5015l-.0325.0862a6.0657 6.0657 0 0 0 2.0119 7.0105l.0113.0087.03.0213 4.976 3.7264 2.462 1.8633 1.4995 1.1321a1.0085 1.0085 0 0 0 1.2197 0l1.4995-1.1321 2.4619-1.8633 5.006-3.7489.0125-.01a6.0682 6.0682 0 0 0 2.0094-7.003z" />
+  </Glyph>
+);
+
+// Quick open (quick-open.ts): the field's own glass, and the canvas actions it
+// lists, redrawn on this spec rather than borrowed from the canvas stack's
+// 24px set, so a row's glyph is one family with the doors above it.
+export const SearchGlyph = () => (
+  <Glyph>
+    <circle cx="6.1" cy="6.1" r="3.9" />
+    <path d="M9 9l3.2 3.2" />
+  </Glyph>
+);
+
+export const FitGlyph = () => (
+  <Glyph>
+    <path d="M2 5V2.6c0-.3.3-.6.6-.6H5M9 2h2.4c.3 0 .6.3.6.6V5M12 9v2.4c0 .3-.3.6-.6.6H9M5 12H2.6c-.3 0-.6-.3-.6-.6V9" />
+    <circle cx="7" cy="7" r="1.6" />
+  </Glyph>
+);
+
+export const ArrangeGlyph = () => (
+  <Glyph>
+    <rect x="1.8" y="5.3" width="3.6" height="3.4" rx=".7" />
+    <rect x="8.6" y="1.8" width="3.6" height="3.4" rx=".7" />
+    <rect x="8.6" y="8.8" width="3.6" height="3.4" rx=".7" />
+    <path d="M5.4 7h1.6M7 3.5v7M7 3.5h1.6M7 10.5h1.6" />
+  </Glyph>
+);
+
+export const PauseGlyph = () => (
+  <Glyph>
+    <path d="M5 3v8M9 3v8" />
+  </Glyph>
+);
+
+export const ClearGlyph = () => (
+  <Glyph>
+    <path d="M2.4 3.8h9.2M5.6 3.8V2.6h2.8v1.2M3.6 3.8l.6 7.6c0 .4.4.6.7.6h4.2c.4 0 .7-.3.7-.6l.6-7.6" />
   </Glyph>
 );

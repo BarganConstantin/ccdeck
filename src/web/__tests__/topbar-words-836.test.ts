@@ -60,7 +60,7 @@ const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label:
 const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Right panels", groups: rails.right }));
 const corner = renderToStaticMarkup(createElement(UtilityRun, { items: rails.utilities }));
 const dock = renderToStaticMarkup(createElement(EdgeDock, {
-  items: [...rails.left, ...rails.right[0], rails.utilities[0]], more: [...rails.right[1], rails.utilities[1]],
+  items: [...rails.left, ...rails.right[0], rails.utilities[0]], more: [...rails.right.slice(1).flat(), rails.utilities[1]],
 }));
 
 /** Each drawn button's accessible name and the word it shows, in order. */
@@ -108,9 +108,9 @@ describe("every control in the chrome says its name (#836)", () => {
     expect(hiders.map(([sel]) => sel.trim())).toEqual([]);
     // Drawn on the stripes and in the corner whenever the window is not a
     // phone's — the dock takes over there, in the same breakpoint.
-    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{rails\.utilities\} \/><\/div>\}/);
-    expect(app).toMatch(/: <EdgeRail side="left" label="Left column" groups=\{\[rails\.leftStripe, rails\.integrations\]\} \/>\}/);
-    expect(app).toMatch(/\{!phone && <EdgeRail side="right" label="Right panels" groups=\{rails\.right\} \/>\}/);
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>\}/);
+    expect(app).toMatch(/: <EdgeRail side="left" label="Accounts and sessions" groups=\{\[\.\.\.rails\.leftStripe, rails\.integrations, rails\.explore\]\} \/>\}/);
+    expect(app).toMatch(/\{!phone && <EdgeRail side="right" label="Usage and activity" groups=\{rails\.right\} \/>\}/);
   });
 
   it("says a short word under each glyph in the phone's dock, and the rest by name behind More", () => {
@@ -134,9 +134,13 @@ describe("every control in the chrome says its name (#836)", () => {
     // History was beside Usage on the bar, by subject; on the right edge it is
     // by what a press does, and it says "Usage history" whole — "History"
     // alone, over Browser watch, read as the browser's.
+    // Since 2026-10-23 both stripes follow one rule: runs of doors that answer
+    // one question (rail-items.tsx), so the records and the watchers are two
+    // runs, and a run of two or more is a group named for a screen reader.
     expect(buttons(left).map(b => b.name)).toEqual(["Accounts", "Session list"]);
     expect(buttons(right).map(b => b.name)).toEqual(["Usage", "Machine", "Usage history", "Browser watch, not watching"]);
-    expect(right.match(/<div class="rail-group">/g)).toHaveLength(2);
+    expect(right.match(/<div class="rail-group"/g)).toHaveLength(3);
+    expect(right).toContain('<div class="rail-group" role="group" aria-label="Usage and machine">');
     expect(body(".edge-rail")).toMatch(/gap: 14px;/);
     expect(body(".rail-group")).toMatch(/gap: 4px;/);
     expect(body(".edge-rail .rail-group + .rail-group")).toMatch(/border-top: 1px solid var\(--line\);/);

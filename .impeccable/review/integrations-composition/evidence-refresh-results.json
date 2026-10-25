@@ -1,0 +1,147 @@
+[
+  {
+    "evidenceOnly": true,
+    "themeCatalogScreenshots": [],
+    "width": 900,
+    "height": 540,
+    "theme": "rider-black",
+    "overview": "one action/provider; equal intrinsic widths; primary/neutral geometry checked",
+    "connectHover": {
+      "rest": {
+        "border": "rgb(131, 172, 252)",
+        "fill": "rgba(53, 116, 240, 0.314)"
+      },
+      "hovered": {
+        "border": "rgb(223, 225, 229)",
+        "fill": "rgba(53, 116, 240, 0.314)"
+      }
+    },
+    "nativeBrowser": "unavailable this turn (parent-reported timeout)",
+    "styleFailures": [
+      {
+        "width": 900,
+        "height": 540,
+        "theme": "rider-black",
+        "label": "Manage GitHub",
+        "expected": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+        "actual": "oklab(0.908772 -0.000563948 -0.00614087 / 0.0700981)"
+      }
+    ],
+    "mutations": 0
+  },
+  {
+    "evidenceOnly": true,
+    "themeCatalogScreenshots": [
+      "light",
+      "dark",
+      "rider-black",
+      "vscode-black",
+      "omarchy",
+      "matrix",
+      "black-contrast",
+      "white-contrast",
+      "catppuccin-mocha",
+      "gruvbox-dark",
+      "gruvbox-light",
+      "gruvbox-material"
+    ],
+    "width": 1440,
+    "height": 1000,
+    "theme": "rider-black",
+    "overview": "one action/provider; equal intrinsic widths; primary/neutral geometry checked",
+    "connectHover": {
+      "rest": {
+        "border": "rgb(131, 172, 252)",
+        "fill": "rgba(53, 116, 240, 0.314)"
+      },
+      "hovered": {
+        "border": "rgb(223, 225, 229)",
+        "fill": "rgba(53, 116, 240, 0.314)"
+      }
+    },
+    "nativeBrowser": "unavailable this turn (parent-reported timeout)",
+    "styleFailures": [
+      {
+        "width": 1440,
+        "height": 1000,
+        "theme": "rider-black",
+        "label": "Manage GitHub",
+        "expected": "color(srgb 0.87451 0.882353 0.898039 / 0.07)",
+        "actual": "oklab(0.908775 -0.000563739 -0.00613939 / 0.0700977)"
+      }
+    ],
+    "mutations": 0
+  },
+  {
+    "evidenceOnly": true,
+    "themeCatalogScreenshots": [],
+    "width": 1440,
+    "height": 1000,
+    "theme": "light",
+    "overview": "one action/provider; equal intrinsic widths; primary/neutral geometry checked",
+    "connectHover": {
+      "rest": {
+        "border": "rgb(3, 105, 161)",
+        "fill": "rgba(3, 105, 161, 0.22)"
+      },
+      "hovered": {
+        "border": "rgb(13, 17, 23)",
+        "fill": "rgba(3, 105, 161, 0.22)"
+      }
+    },
+    "nativeBrowser": "unavailable this turn (parent-reported timeout)",
+    "styleFailures": [
+      {
+        "width": 1440,
+        "height": 1000,
+        "theme": "light",
+        "label": "Manage GitHub",
+        "expected": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.07)",
+        "actual": "oklab(0.231435 -0.0116443 -0.0294568 / 0.0791922)"
+      }
+    ],
+    "mutations": 0
+  },
+  {
+    "evidenceOnly": true,
+    "themeCatalogScreenshots": [],
+    "width": 390,
+    "height": 844,
+    "theme": "light",
+    "overview": "one action/provider; equal intrinsic widths; primary/neutral geometry checked",
+    "connectHover": {
+      "rest": {
+        "border": "rgb(3, 105, 161)",
+        "fill": "rgba(3, 105, 161, 0.22)"
+      },
+      "hovered": {
+        "border": "rgb(13, 17, 23)",
+        "fill": "rgba(3, 105, 161, 0.22)"
+      }
+    },
+    "nativeBrowser": "unavailable this turn (parent-reported timeout)",
+    "styleFailures": [],
+    "mutations": 0
+  },
+  {
+    "evidenceOnly": true,
+    "themeCatalogScreenshots": [],
+    "width": 320,
+    "height": 740,
+    "theme": "rider-black",
+    "overview": "one action/provider; equal intrinsic widths; primary/neutral geometry checked",
+    "connectHover": {
+      "rest": {
+        "border": "rgb(131, 172, 252)",
+        "fill": "rgba(53, 116, 240, 0.314)"
+      },
+      "hovered": {
+        "border": "rgb(223, 225, 229)",
+        "fill": "rgba(53, 116, 240, 0.314)"
+      }
+    },
+    "nativeBrowser": "unavailable this turn (parent-reported timeout)",
+    "styleFailures": [],
+    "mutations": 0
+  }
+]

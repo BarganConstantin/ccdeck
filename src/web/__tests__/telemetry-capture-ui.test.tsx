@@ -2,26 +2,32 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { DecodedPayload, TelemetryCapture, outcomeLabel } from '../components/TelemetryCapture';
-import type { CaptureSnapshot, CapturedExport } from '../use-telemetry-capture';
+import type { CaptureSnapshot, CapturedExport, PermissionResult } from '../use-telemetry-capture';
 import { LOGS } from './traffic-capture-fixture.mjs';
-const capture: CaptureSnapshot = { ok: true, automatic: false, sessionId: null, state: 'idle', destination: null, interface: null, startedAt: null, expiresAt: null, lastInputAt: null, bytes: 0, issues: {}, events: [] };
-const props = { capture, radar: null, failed: false, busy: false, error: '', command: '', action: async () => {} };
+// What the deck's own capture answers now: monitoring is always on (traffic-radar-service.mjs).
+const capture: CaptureSnapshot = { ok: true, automatic: true, featureEnabled: true, managed: true, enabled: false, sessionId: null, state: 'idle', destination: null, interface: null, startedAt: null, expiresAt: null, lastInputAt: null, bytes: 0, issues: {}, events: [] };
+const props = { capture, radar: null, failed: false, busy: false, error: '', action: async () => {} };
+const listening = { ...capture, enabled: true, state: 'receiving' as const, sources: [{ destination: '127.0.0.1:4317', interface: 'lo0', active: true, bytes: 0 }] };
+const denied = (platform: string) => ({ ...capture, platform, enabled: true, state: 'interrupted' as const, sources: [{ destination: '127.0.0.1:4317', interface: 'lo0', active: false, bytes: 0, error: 'Packet capture permission is required.' }] });
+const missing = (platform: 'linux' | 'win32') => ({ ...capture, platform, state: 'error' as const,
+  setupError: platform === 'linux' ? 'Install tcpdump to capture traffic. Configuration and file inspection work without it.' : 'Install Wireshark with Npcap to capture traffic. Configuration and file inspection work without it.' });
+const render = (extra: Partial<Parameters<typeof TelemetryCapture>[0]>) => renderToStaticMarkup(<TelemetryCapture {...props} {...extra} />);
 describe('telemetry content inspection', () => {
-  it('explains activation without declaring an idle receiver safe or telemetry disabled', () => {
-    const markup = renderToStaticMarkup(<TelemetryCapture {...props} />);
-    expect(markup).toContain('Start monitoring'); expect(markup).toContain('Message capture is off');
+  it('says monitoring runs by itself without declaring an idle receiver safe or telemetry disabled', () => {
+    const markup = render({});
+    expect(markup).toContain('Waiting for traffic'); expect(markup).toContain('Radar monitors automatically when a collector is available');
     expect(markup).toContain('HTTPS contents cannot be decoded');
     expect(markup).not.toMatch(/safe|protected|telemetry is disabled/i);
   });
-  it('shows permissions, continuous capture, plaintext-only coverage and process attribution limits', () => {
-    const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, state: 'awaiting' }} command='synthetic command' />);
-    expect(markup).toContain('Only tcpdump asks for administrator permission'); expect(markup).toContain('Ctrl+C');
-    expect(markup).toContain('not only Claude'); expect(markup).toContain('continues until you stop it'); expect(markup).toContain('Closing this modal does not stop capture');
+  it('shows continuous capture, plaintext-only coverage and process attribution limits', () => {
+    const markup = render({ capture: listening });
+    expect(markup).toContain('Continuous local monitoring'); expect(markup).toContain('Monitoring is always on');
+    expect(markup).toContain('not only Claude'); expect(markup).toContain('Closing this modal does not stop capture');
+    expect(markup).not.toContain('Settings → Radar'); expect(markup).not.toContain('Turn monitoring off'); expect(markup).not.toContain('10 minutes');
   });
   it('makes incomplete capture and encryption limitations visible', () => {
-    const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, state: 'capturing', issues: { encrypted: 1, joined_midstream: 1 } }} />);
+    const markup = render({ capture: { ...listening, state: 'capturing', issues: { encrypted: 1, joined_midstream: 1 } } });
     expect(markup).toContain('contents cannot be read'); expect(markup).toContain('Waiting for a new HTTP/2 connection');
-    expect(markup).toContain('Stop monitoring');
   });
   it('renders actual OTLP body and typed attributes without reconstructing local transcripts', () => {
     const markup = renderToStaticMarkup(<DecodedPayload payload={LOGS} signal='logs' />);
@@ -91,62 +97,106 @@ describe('telemetry content inspection', () => {
   });
 });
 
-
-it('explains Windows PowerShell activation without a text pipeline or macOS-only instructions', () => {
-  const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, state: 'awaiting', shell: 'PowerShell', platform: 'win32' }} command='synthetic command' />);
-  expect(markup).toContain('Activate in PowerShell'); expect(markup).toContain('Wireshark with Npcap'); expect(markup).not.toContain('Only tcpdump');
-});
-
-it('shows continuous managed monitoring without Terminal steps or a time limit', () => {
-  const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, managed: true, enabled: true, state: 'receiving', sources: [{ destination: '127.0.0.1:4317', interface: 'lo0', active: true, bytes: 0 }] }} command='must not be shown' />);
-  expect(markup).toContain('Continuous local monitoring'); expect(markup).toContain('after a ccdeck restart'); expect(markup).toContain('Stop monitoring');
-  expect(markup).not.toContain('Activate in'); expect(markup).not.toContain('must not be shown'); expect(markup).not.toContain('10 minutes');
-});
-it('keeps Stop available while retrying a denied capture and explains the required permission', () => {
-  const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, platform: 'darwin', managed: true, enabled: true, state: 'interrupted', sources: [{ destination: '127.0.0.1:4317', interface: 'lo0', active: false, bytes: 0, error: 'Packet capture permission is required.' }] }} />);
-  expect(markup).toContain('Capture permission needed'); expect(markup).toContain('Stop monitoring'); expect(markup).toContain('ChmodBPF'); expect(markup).toContain('retries automatically');
-  // ccdeck runs this capture itself: no command screen is drawn, so the copy
-  // must not hold a Terminal command up as the alternative.
-  expect(markup).not.toContain('Terminal');
-});
-it('shows continuous automatic monitoring, switched on in Settings, without Start, Stop or Terminal steps', () => {
-  const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, automatic: true, managed: true, enabled: true, state: 'receiving', sources: [{ destination: '127.0.0.1:4317', interface: 'lo0', active: true, bytes: 0 }] }} command='must not be shown' />);
-  expect(markup).toContain('Continuous local monitoring'); expect(markup).toContain('Settings → Radar'); expect(markup).not.toContain('>Stop monitoring</button>');
-  expect(markup).not.toContain('Activate in'); expect(markup).not.toContain('must not be shown'); expect(markup).not.toContain('10 minutes');
-});
-it('keeps automatic retry active while capture is denied and explains the required permission', () => {
-  const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, automatic: true, platform: 'darwin', managed: true, enabled: true, state: 'interrupted', sources: [{ destination: '127.0.0.1:4317', interface: 'lo0', active: false, bytes: 0, error: 'Packet capture permission is required.' }] }} />);
-  expect(markup).toContain('Capture permission needed'); expect(markup).not.toContain('>Stop monitoring</button>'); expect(markup).toContain('ChmodBPF'); expect(markup).toContain('retries automatically');
-  // ccdeck runs this capture itself: no command screen is drawn, so the copy
-  // must not hold a Terminal command up as the alternative.
-  expect(markup).not.toContain('Terminal');
-});
-it('names PowerShell, not Terminal, when unmanaged Windows activation must be generated again', () => {
-  const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, state: 'awaiting', shell: 'PowerShell', platform: 'win32' }} />);
-  expect(markup).toContain('Generate the PowerShell instructions again'); expect(markup).toContain('Show activation instructions');
-  expect(markup).not.toContain('Terminal');
-});
-
-it('has no Start or Stop controls while automatic capture is waiting for a collector', () => {
-  const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={{ ...capture, automatic: true, featureEnabled: true, managed: true, enabled: false, state: 'idle' }} />);
-  expect(markup).not.toContain('>Start monitoring</button>');
-  expect(markup).not.toContain('>Stop monitoring</button>');
-  expect(markup).not.toContain('Capture destination');
-  expect(markup).toContain('Waiting for traffic');
-});
-
-// Automatic monitoring is off unless the deck says it is on: while it reads,
-// on a deck that does not say (an older server), and on one that says off, the
-// Monitor view is the one 3.43.4 released — a destination and Start, the
-// message capture off until the person starts it.
-it('keeps the destination picker and Start while automatic monitoring is off, unknown or still loading', () => {
-  for (const value of [null, { ...capture, managed: true }, { ...capture, automatic: false, managed: true }]) {
-    const markup = renderToStaticMarkup(<TelemetryCapture {...props} capture={value} />);
-    expect(markup).toContain('>Start monitoring</button>');
-    expect(markup).toContain('aria-label="Capture destination"');
-    expect(markup).toContain('Message capture is off');
-    expect(markup).toContain('Choose a destination and start monitoring.');
-    expect(markup).not.toContain('Waiting for traffic');
-    expect(markup).not.toContain('Settings → Radar');
+// Monitoring is always on (the owner, 2026-10-23): no state draws Start, Stop,
+// a destination picker or the Terminal steps of the unmanaged capture — not
+// while the capture is still loading, not on a deck that answers automatic:false.
+it('never draws Start, Stop, a destination picker or Terminal activation', () => {
+  const states: (CaptureSnapshot | null)[] = [null, capture, { ...capture, automatic: false, featureEnabled: undefined }, { ...capture, managed: false, state: 'awaiting', destination: '192.0.2.16:4317' }, listening, denied('darwin'), missing('linux')];
+  for (const value of states) {
+    const markup = render({ capture: value });
+    for (const gone of ['Start monitoring', 'Stop monitoring', 'Capture destination', 'Another IPv4 address', 'Choose a destination', 'Message capture is off', 'Activate in', 'Show activation instructions', 'Ctrl+C'])
+      expect(markup, `${gone} in ${JSON.stringify(value?.state ?? null)}`).not.toContain(gone);
   }
+});
+// On, with no collector found yet: the header says where Radar is looking, and
+// draws no empty Destination group; one appears with the first destination.
+it('says where it is looking until a collector is found, then names the destinations', () => {
+  const looking = render({ capture });
+  expect(looking).toContain('Waiting for a collector…');
+  expect(looking).toContain('Looking for the collector in Claude Code&#x27;s settings and connections.');
+  expect(looking).not.toContain('aria-label="Monitored destinations"');
+  expect(looking).not.toContain('the listener is not ready yet');
+  const found = render({ capture: listening });
+  expect(found).toContain('aria-label="Monitored destinations"'); expect(found).toContain('<code>127.0.0.1:4317</code>');
+  expect(found).toContain('1 of 1 destination listening'); expect(found).not.toContain('Looking for the collector');
+  const named = render({ capture: { ...capture, enabled: true, state: 'awaiting', destination: '192.0.2.16:4317' } });
+  expect(named).toContain('aria-label="Monitored destinations"'); expect(named).toContain('<code>192.0.2.16:4317</code>');
+  expect(named).toContain('Monitoring is enabled; the listener is not ready yet.'); expect(named).not.toContain('Looking for the collector');
+  const starting = render({ capture: { ...listening, state: 'awaiting', sources: [{ ...listening.sources[0], active: false }] } });
+  expect(starting).toContain('Monitoring is enabled; the listener is not ready yet.'); expect(starting).toContain('Not listening');
+});
+it('draws no setup card while capture is allowed', () => {
+  for (const value of [capture, listening, { ...listening, state: 'capturing' as const }]) expect(render({ capture: value })).not.toContain('Allow packet capture once');
+});
+
+describe('Allow packet capture once', () => {
+  it('on macOS, says what the password does before asking for it', () => {
+    const markup = render({ capture: denied('darwin') });
+    expect(markup).toContain('Capture permission needed'); expect(markup).toContain('Allow packet capture once');
+    expect(markup).toContain('which macOS lets only an administrator read');
+    expect(markup).toContain('asks for your password once'); expect(markup).toContain('small ccdeck helper'); expect(markup).toContain('after every restart');
+    expect(markup).toContain('stays on this Mac');
+    expect(markup).toContain('>Allow capture…</button>');
+    // A region named by its title; only the outcome line is a live region, so a
+    // screen reader is not read the whole card again on every refresh.
+    expect(markup).toContain('<section class="tr-activation" aria-labelledby="tr-setup-title"><strong id="tr-setup-title">Allow packet capture once</strong>');
+    expect(markup.match(/<section class="tr-activation"[^>]*role=/)).toBeNull(); expect(markup).toContain('<div role="status"></div></section>');
+    // ccdeck sets this up itself: no Wireshark helper to install, no Terminal command.
+    expect(markup).not.toContain('ChmodBPF'); expect(markup).not.toContain('Terminal'); expect(markup).not.toContain('wiki.wireshark.org');
+  });
+  it('on Linux, names installing tcpdump only when tcpdump is missing', () => {
+    const install = render({ capture: missing('linux') });
+    expect(install).toContain('Capture setup needed'); expect(install).toContain('which Linux lets only an administrator read');
+    expect(install).toContain('Allow capture asks for your password once, installs tcpdump and lets tcpdump capture for your user only.'); expect(install).toContain('>Allow capture…</button>');
+    const permission = render({ capture: denied('linux') });
+    expect(permission).toContain('Capture permission needed'); expect(permission).toContain('Allow capture asks for your password once and lets tcpdump capture for your user only.');
+    expect(permission).not.toContain('installs tcpdump'); expect(permission).toContain('stays on this computer');
+  });
+  // While the card explains what is missing, the rest of Monitor says what
+  // happens once it is allowed rather than repeating the refusal.
+  it('says Radar listens once capture is allowed, without repeating the refusal around the card', () => {
+    const found = render({ capture: denied('darwin') });
+    expect(found).toContain('Radar found the collector and listens as soon as capture is allowed.');
+    expect(found).toContain('<code>127.0.0.1:4317</code>'); expect(found).not.toContain('class="tr-source-error"');
+    expect(found).not.toContain('Packet capture permission is required.');
+    expect(found).toContain('<h4>Not listening yet</h4>'); expect(found).toContain('Messages appear here once packet capture is allowed.');
+    expect(found).not.toContain('Waiting for traffic'); expect(found).not.toContain('Radar monitors automatically when a collector is available');
+    const none = render({ capture: missing('linux') });
+    expect(none).toContain('Radar listens as soon as capture is allowed.'); expect(none).not.toContain('Radar found the collector');
+    expect(none).not.toContain('Looking for the collector'); expect(none).toContain('<h4>Not listening yet</h4>');
+    // Without the card, a source's own error still shows beside it.
+    const other = render({ capture: { ...listening, sources: [{ ...listening.sources[0], active: false, error: 'Capture disconnected. Retrying automatically.' }] } });
+    expect(other).toContain('<span class="tr-source-error">Capture disconnected. Retrying automatically.</span>');
+    expect(other).not.toContain('listens as soon as capture is allowed'); expect(other).not.toContain('Not listening yet');
+  });
+  it('hides the raw setup error while the card explains it, and shows any other one', () => {
+    expect(render({ capture: missing('linux') })).not.toContain('Configuration and file inspection work without it');
+    const other = render({ capture: { ...capture, platform: 'linux', state: 'error', setupError: 'Npcap interfaces are unavailable.' } });
+    expect(other).toContain('Npcap interfaces are unavailable.'); expect(other).not.toContain('Allow packet capture once');
+  });
+  it('on Windows, offers Wireshark instead of a password prompt', () => {
+    const install = render({ capture: missing('win32') });
+    expect(install).toContain('which on Windows needs Wireshark with Npcap'); expect(install).toContain('Install Wireshark once and keep Npcap ticked in its installer');
+    expect(install).toContain('<a class="btn primary" href="https://www.wireshark.org/download.html"'); expect(install).toContain('>Get Wireshark</a>');
+    expect(install).not.toContain('Allow capture…'); expect(install).not.toContain('password');
+    const restricted = render({ capture: denied('win32') });
+    expect(restricted).toContain('Npcap is limited to administrators'); expect(restricted).not.toContain('Install Wireshark once');
+    expect(restricted).not.toContain('Allow capture…');
+  });
+  it('waits on the password prompt with a busy, still focusable button', () => {
+    const markup = render({ capture: denied('darwin'), busy: true, pendingAction: 'permission' });
+    expect(markup).toMatch(/<button type="button" class="btn primary" aria-busy="true">Waiting for your password…<\/button>/);
+    expect(markup).not.toContain('>Allow capture…</button>');
+  });
+  it('says what each answer came to', () => {
+    const answer = (permission: PermissionResult, platform = 'darwin') => render({ capture: denied(platform), permission });
+    expect(answer({ outcome: 'cancelled' })).toContain('Nothing changed. Allow capture when you are ready.');
+    expect(answer({ outcome: 'granted' })).toContain('Capture allowed. Starting monitoring…');
+    const unavailable = answer({ outcome: 'unavailable', message: 'No password prompt can open in this session.', command: 'sudo sh /home/u/.agents-deck/radar-capture-setup.sh' }, 'linux');
+    expect(unavailable).toContain('No password prompt can open in this session. Run this once in a terminal instead:');
+    expect(unavailable).toContain('>Copy command</button>'); expect(unavailable).toContain('<pre class="tr-command">sudo sh /home/u/.agents-deck/radar-capture-setup.sh</pre>');
+    const failed = answer({ outcome: 'failed', message: 'The password was not accepted.' }, 'linux');
+    expect(failed).toContain('The password was not accepted.'); expect(failed).not.toContain('Copy command'); expect(failed).not.toContain('in a terminal');
+    for (const outcome of ['cancelled', 'granted'] as const) expect(answer({ outcome })).not.toContain('Copy command');
+  });
 });

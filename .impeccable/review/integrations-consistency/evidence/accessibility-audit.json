@@ -1,0 +1,937 @@
+{
+  "unitTests": {
+    "passed": 15,
+    "command": "npm test -- src/web/__tests__/integrations-settings.test.ts"
+  },
+  "variantCasesPassed": 9,
+  "fixtureWrites": 32,
+  "automatedViolations": 0,
+  "automatedScans": 10,
+  "incompleteFindings": [
+    {
+      "case": "github-1440x1000-rider-black",
+      "state": "connect",
+      "id": "color-contrast",
+      "count": 1,
+      "targets": [
+        [
+          ".ig-help > summary"
+        ]
+      ]
+    },
+    {
+      "case": "gitlab-cloud-1440x1000-rider-black",
+      "state": "connect",
+      "id": "color-contrast",
+      "count": 1,
+      "targets": [
+        [
+          ".ig-help > summary"
+        ]
+      ]
+    },
+    {
+      "case": "gitlab-self-1440x1000-rider-black",
+      "state": "connect",
+      "id": "color-contrast",
+      "count": 1,
+      "targets": [
+        [
+          ".ig-help > summary"
+        ]
+      ]
+    },
+    {
+      "case": "jira-cloud-1440x1000-rider-black",
+      "state": "connect",
+      "id": "color-contrast",
+      "count": 1,
+      "targets": [
+        [
+          ".ig-help > summary"
+        ]
+      ]
+    },
+    {
+      "case": "jira-server-1440x1000-rider-black",
+      "state": "connect",
+      "id": "color-contrast",
+      "count": 1,
+      "targets": [
+        [
+          ".ig-help > summary"
+        ]
+      ]
+    },
+    {
+      "case": "jira-server-1440x1000-rider-black",
+      "state": "edit",
+      "id": "color-contrast",
+      "count": 2,
+      "targets": [
+        [
+          "form > .ig-managed-header > .ig-managed-identity > p"
+        ],
+        [
+          ".ig-help > summary"
+        ]
+      ]
+    },
+    {
+      "case": "github-1440x1000-light",
+      "state": "connect",
+      "id": "color-contrast",
+      "count": 1,
+      "targets": [
+        [
+          ".ig-help > summary"
+        ]
+      ]
+    },
+    {
+      "case": "jira-cloud-390x844-light",
+      "state": "connect",
+      "id": "color-contrast",
+      "count": 4,
+      "targets": [
+        [
+          "#settings-tab-notifications > .settings-tab-label"
+        ],
+        [
+          "#settings-tab-radar > .settings-tab-label"
+        ],
+        [
+          "#\\:r3\\:-baseUrl-hint"
+        ],
+        [
+          ".ig-help > summary"
+        ]
+      ]
+    },
+    {
+      "case": "gitlab-self-320x740-rider-black",
+      "state": "connect",
+      "id": "color-contrast",
+      "count": 2,
+      "targets": [
+        [
+          "#\\:r3\\:-baseUrl-hint"
+        ],
+        [
+          ".ig-help > summary"
+        ]
+      ]
+    }
+  ],
+  "targetedContrastFollowup": {
+    "nativeBrowser": "unavailable; isolated Playwright",
+    "persistence": "fixture only; real API/provider/storage untested",
+    "results": [
+      {
+        "case": "jira-server-1440x1000-rider-black",
+        "checks": [],
+        "axe": [
+          {
+            "state": "edit",
+            "violations": [],
+            "incomplete": [
+              {
+                "id": "color-contrast",
+                "impact": "serious",
+                "count": 2,
+                "targets": [
+                  [
+                    "form > .ig-managed-header > .ig-managed-identity > p"
+                  ],
+                  [
+                    ".ig-help > summary"
+                  ]
+                ],
+                "nodes": [
+                  {
+                    "target": [
+                      "form > .ig-managed-header > .ig-managed-identity > p"
+                    ],
+                    "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it partially overlaps other elements"
+                  },
+                  {
+                    "target": [
+                      ".ig-help > summary"
+                    ],
+                    "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it partially overlaps other elements"
+                  }
+                ]
+              }
+            ],
+            "computedEvidence": [
+              {
+                "target": [
+                  "form > .ig-managed-header > .ig-managed-identity > p"
+                ],
+                "color": "rgb(180, 184, 191)",
+                "surfaces": [
+                  {
+                    "tag": "DIV",
+                    "classes": "modal settings-modal",
+                    "background": "rgb(43, 45, 48)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "modal-backdrop",
+                    "background": "rgba(5, 6, 9, 0.55)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "",
+                    "background": "rgb(30, 31, 34)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "BODY",
+                    "classes": "",
+                    "background": "rgb(30, 31, 34)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "HTML",
+                    "classes": "",
+                    "background": "rgb(30, 31, 34)",
+                    "mask": "none",
+                    "opacity": "1"
+                  }
+                ]
+              },
+              {
+                "target": [
+                  ".ig-help > summary"
+                ],
+                "color": "rgb(131, 172, 252)",
+                "surfaces": [
+                  {
+                    "tag": "DIV",
+                    "classes": "modal settings-modal",
+                    "background": "rgb(43, 45, 48)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "modal-backdrop",
+                    "background": "rgba(5, 6, 9, 0.55)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "",
+                    "background": "rgb(30, 31, 34)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "BODY",
+                    "classes": "",
+                    "background": "rgb(30, 31, 34)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "HTML",
+                    "classes": "",
+                    "background": "rgb(30, 31, 34)",
+                    "mask": "none",
+                    "opacity": "1"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "screenshots": [
+          "jira-server-1440x1000-rider-black-edit.png"
+        ],
+        "blockedOutsideWrites": [
+          {
+            "path": "/api/feature",
+            "method": "POST"
+          },
+          {
+            "path": "/api/feature",
+            "method": "POST"
+          },
+          {
+            "path": "/api/presence",
+            "method": "POST"
+          },
+          {
+            "path": "/api/forget",
+            "method": "POST"
+          }
+        ],
+        "fixtureWrites": 0,
+        "status": "read-only contrast follow-up"
+      },
+      {
+        "case": "github-1440x1000-light",
+        "checks": [],
+        "axe": [
+          {
+            "state": "connect",
+            "violations": [],
+            "incomplete": [
+              {
+                "id": "color-contrast",
+                "impact": "serious",
+                "count": 1,
+                "targets": [
+                  [
+                    ".ig-help > summary"
+                  ]
+                ],
+                "nodes": [
+                  {
+                    "target": [
+                      ".ig-help > summary"
+                    ],
+                    "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it partially overlaps other elements"
+                  }
+                ]
+              }
+            ],
+            "computedEvidence": [
+              {
+                "target": [
+                  ".ig-help > summary"
+                ],
+                "color": "rgb(3, 105, 161)",
+                "surfaces": [
+                  {
+                    "tag": "DIV",
+                    "classes": "modal settings-modal",
+                    "background": "rgb(255, 255, 255)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "modal-backdrop",
+                    "background": "rgba(15, 23, 42, 0.3)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "BODY",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "HTML",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "screenshots": [
+          "github-1440x1000-light-connect.png"
+        ],
+        "blockedOutsideWrites": [
+          {
+            "path": "/api/feature",
+            "method": "POST"
+          },
+          {
+            "path": "/api/feature",
+            "method": "POST"
+          },
+          {
+            "path": "/api/presence",
+            "method": "POST"
+          },
+          {
+            "path": "/api/forget",
+            "method": "POST"
+          }
+        ],
+        "fixtureWrites": 0,
+        "status": "read-only contrast follow-up"
+      },
+      {
+        "case": "jira-cloud-390x844-light",
+        "checks": [],
+        "axe": [
+          {
+            "state": "connect",
+            "violations": [],
+            "incomplete": [
+              {
+                "id": "color-contrast",
+                "impact": "serious",
+                "count": 5,
+                "targets": [
+                  [
+                    "#settings-tab-notifications > .settings-tab-label"
+                  ],
+                  [
+                    "#settings-tab-radar > .settings-tab-label"
+                  ],
+                  [
+                    ".fb-kind:nth-child(2)"
+                  ],
+                  [
+                    "#\\:r3\\:-baseUrl-hint"
+                  ],
+                  [
+                    ".ig-help > summary"
+                  ]
+                ],
+                "nodes": [
+                  {
+                    "target": [
+                      "#settings-tab-notifications > .settings-tab-label"
+                    ],
+                    "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element"
+                  },
+                  {
+                    "target": [
+                      "#settings-tab-radar > .settings-tab-label"
+                    ],
+                    "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element"
+                  },
+                  {
+                    "target": [
+                      ".fb-kind:nth-child(2)"
+                    ],
+                    "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it partially overlaps other elements"
+                  },
+                  {
+                    "target": [
+                      "#\\:r3\\:-baseUrl-hint"
+                    ],
+                    "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it partially overlaps other elements"
+                  },
+                  {
+                    "target": [
+                      ".ig-help > summary"
+                    ],
+                    "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it partially overlaps other elements"
+                  }
+                ]
+              }
+            ],
+            "computedEvidence": [
+              {
+                "target": [
+                  "#settings-tab-notifications > .settings-tab-label"
+                ],
+                "color": "rgb(74, 82, 96)",
+                "surfaces": [
+                  {
+                    "tag": "DIV",
+                    "classes": "settings-side",
+                    "background": "rgb(255, 255, 255)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "modal settings-modal",
+                    "background": "rgb(255, 255, 255)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "modal-backdrop",
+                    "background": "rgba(15, 23, 42, 0.3)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "BODY",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "HTML",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  }
+                ]
+              },
+              {
+                "target": [
+                  "#settings-tab-radar > .settings-tab-label"
+                ],
+                "color": "rgb(74, 82, 96)",
+                "surfaces": [
+                  {
+                    "tag": "DIV",
+                    "classes": "settings-side",
+                    "background": "rgb(255, 255, 255)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "modal settings-modal",
+                    "background": "rgb(255, 255, 255)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "modal-backdrop",
+                    "background": "rgba(15, 23, 42, 0.3)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "BODY",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "HTML",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  }
+                ]
+              },
+              {
+                "target": [
+                  ".fb-kind:nth-child(2)"
+                ],
+                "color": "rgb(48, 56, 69)",
+                "surfaces": [
+                  {
+                    "tag": "FIELDSET",
+                    "classes": "fb-kinds",
+                    "background": "color(srgb 0.0509804 0.0666667 0.0901961 / 0.07)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "modal settings-modal",
+                    "background": "rgb(255, 255, 255)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "modal-backdrop",
+                    "background": "rgba(15, 23, 42, 0.3)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "BODY",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "HTML",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  }
+                ]
+              },
+              {
+                "target": [
+                  "#\\:r3\\:-baseUrl-hint"
+                ],
+                "color": "rgb(74, 82, 96)",
+                "surfaces": [
+                  {
+                    "tag": "DIV",
+                    "classes": "modal settings-modal",
+                    "background": "rgb(255, 255, 255)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "modal-backdrop",
+                    "background": "rgba(15, 23, 42, 0.3)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "BODY",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "HTML",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  }
+                ]
+              },
+              {
+                "target": [
+                  ".ig-help > summary"
+                ],
+                "color": "rgb(3, 105, 161)",
+                "surfaces": [
+                  {
+                    "tag": "DIV",
+                    "classes": "modal settings-modal",
+                    "background": "rgb(255, 255, 255)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "modal-backdrop",
+                    "background": "rgba(15, 23, 42, 0.3)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "BODY",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "HTML",
+                    "classes": "",
+                    "background": "rgb(238, 241, 246)",
+                    "mask": "none",
+                    "opacity": "1"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "screenshots": [
+          "jira-cloud-390x844-light-connect.png"
+        ],
+        "blockedOutsideWrites": [
+          {
+            "path": "/api/feature",
+            "method": "POST"
+          },
+          {
+            "path": "/api/presence",
+            "method": "POST"
+          },
+          {
+            "path": "/api/forget",
+            "method": "POST"
+          }
+        ],
+        "fixtureWrites": 0,
+        "status": "read-only contrast follow-up"
+      },
+      {
+        "case": "gitlab-self-320x740-rider-black",
+        "checks": [],
+        "axe": [
+          {
+            "state": "connect",
+            "violations": [],
+            "incomplete": [
+              {
+                "id": "color-contrast",
+                "impact": "serious",
+                "count": 1,
+                "targets": [
+                  [
+                    "#\\:r3\\:-baseUrl-hint"
+                  ]
+                ],
+                "nodes": [
+                  {
+                    "target": [
+                      "#\\:r3\\:-baseUrl-hint"
+                    ],
+                    "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it partially overlaps other elements"
+                  }
+                ]
+              }
+            ],
+            "computedEvidence": [
+              {
+                "target": [
+                  "#\\:r3\\:-baseUrl-hint"
+                ],
+                "color": "rgb(157, 160, 168)",
+                "surfaces": [
+                  {
+                    "tag": "DIV",
+                    "classes": "modal settings-modal",
+                    "background": "rgb(43, 45, 48)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "modal-backdrop",
+                    "background": "rgba(5, 6, 9, 0.55)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "DIV",
+                    "classes": "",
+                    "background": "rgb(30, 31, 34)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "BODY",
+                    "classes": "",
+                    "background": "rgb(30, 31, 34)",
+                    "mask": "none",
+                    "opacity": "1"
+                  },
+                  {
+                    "tag": "HTML",
+                    "classes": "",
+                    "background": "rgb(30, 31, 34)",
+                    "mask": "none",
+                    "opacity": "1"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "screenshots": [
+          "gitlab-self-320x740-rider-black-connect.png"
+        ],
+        "blockedOutsideWrites": [
+          {
+            "path": "/api/feature",
+            "method": "POST"
+          },
+          {
+            "path": "/api/presence",
+            "method": "POST"
+          },
+          {
+            "path": "/api/forget",
+            "method": "POST"
+          },
+          {
+            "path": "/api/forget",
+            "method": "POST"
+          }
+        ],
+        "fixtureWrites": 0,
+        "status": "read-only contrast follow-up"
+      }
+    ]
+  },
+  "computedContrast": [
+    {
+      "case": "jira-server-1440x1000-rider-black",
+      "target": [
+        "form > .ig-managed-header > .ig-managed-identity > p"
+      ],
+      "foreground": "rgb(180, 184, 191)",
+      "compositedBackground": [
+        43.0,
+        45.0,
+        48.0
+      ],
+      "ratio": 6.94,
+      "interpretation": "Computed text/surface ratio only; does not certify obscured pixels or full AA."
+    },
+    {
+      "case": "jira-server-1440x1000-rider-black",
+      "target": [
+        ".ig-help > summary"
+      ],
+      "foreground": "rgb(131, 172, 252)",
+      "compositedBackground": [
+        43.0,
+        45.0,
+        48.0
+      ],
+      "ratio": 6.1,
+      "interpretation": "Computed text/surface ratio only; does not certify obscured pixels or full AA."
+    },
+    {
+      "case": "github-1440x1000-light",
+      "target": [
+        ".ig-help > summary"
+      ],
+      "foreground": "rgb(3, 105, 161)",
+      "compositedBackground": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "ratio": 5.93,
+      "interpretation": "Computed text/surface ratio only; does not certify obscured pixels or full AA."
+    },
+    {
+      "case": "jira-cloud-390x844-light",
+      "target": [
+        "#settings-tab-notifications > .settings-tab-label"
+      ],
+      "foreground": "rgb(74, 82, 96)",
+      "compositedBackground": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "ratio": 7.87,
+      "interpretation": "Computed text/surface ratio only; does not certify obscured pixels or full AA."
+    },
+    {
+      "case": "jira-cloud-390x844-light",
+      "target": [
+        "#settings-tab-radar > .settings-tab-label"
+      ],
+      "foreground": "rgb(74, 82, 96)",
+      "compositedBackground": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "ratio": 7.87,
+      "interpretation": "Computed text/surface ratio only; does not certify obscured pixels or full AA."
+    },
+    {
+      "case": "jira-cloud-390x844-light",
+      "target": [
+        ".fb-kind:nth-child(2)"
+      ],
+      "foreground": "rgb(48, 56, 69)",
+      "compositedBackground": [
+        238.06000013999997,
+        238.34000059499996,
+        238.76000038499998
+      ],
+      "ratio": 10.21,
+      "interpretation": "Computed text/surface ratio only; does not certify obscured pixels or full AA."
+    },
+    {
+      "case": "jira-cloud-390x844-light",
+      "target": [
+        "#\\:r3\\:-baseUrl-hint"
+      ],
+      "foreground": "rgb(74, 82, 96)",
+      "compositedBackground": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "ratio": 7.87,
+      "interpretation": "Computed text/surface ratio only; does not certify obscured pixels or full AA."
+    },
+    {
+      "case": "jira-cloud-390x844-light",
+      "target": [
+        ".ig-help > summary"
+      ],
+      "foreground": "rgb(3, 105, 161)",
+      "compositedBackground": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "ratio": 5.93,
+      "interpretation": "Computed text/surface ratio only; does not certify obscured pixels or full AA."
+    },
+    {
+      "case": "gitlab-self-320x740-rider-black",
+      "target": [
+        "#\\:r3\\:-baseUrl-hint"
+      ],
+      "foreground": "rgb(157, 160, 168)",
+      "compositedBackground": [
+        43.0,
+        45.0,
+        48.0
+      ],
+      "ratio": 5.28,
+      "interpretation": "Computed text/surface ratio only; does not certify obscured pixels or full AA."
+    }
+  ],
+  "detectorBefore": [],
+  "detectorAfter": [],
+  "limitations": [
+    "No AA certification; obscured scroll-navigation pixels not resolved by computed ratios.",
+    "Native browser unavailable; isolated Playwright Chromium only.",
+    "No actual provider authentication or on-disk persistence tested.",
+    "Safari focus zoom unverified; desktop-tool font scale unchanged."
+  ]
+}

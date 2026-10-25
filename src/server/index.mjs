@@ -23,6 +23,7 @@ import { OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isGuardedRe
 import { trafficCapture } from "./traffic-radar-capture.mjs";
 import { trafficRadar } from "./traffic-radar.mjs";
 import { handleTrafficCapture, isAuthorizedTrafficIngest } from "./traffic-radar-routes.mjs";
+import { CLAUDE_SETTINGS_ROUTE, handleClaudeSettings } from "./claude-settings-routes.mjs";
 // How much the event ring may hold and what one event is charged against it —
 // see ring-bounds.mjs. The four it exported from this file, it still exports.
 export { MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, payloadChars } from "./ring-bounds.mjs";
@@ -172,7 +173,9 @@ import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStat
 import { startToolAudit } from "./tool-audit.mjs";
 import { handleToolAudit } from "./tool-audit-routes.mjs";
 import { startQuotaHistory } from "./quota-history.mjs";
-import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota, handleQuotaHistory } from "./usage-routes.mjs";
+import { startQuotaCloses } from "./quota-closes.mjs";
+import { startQuotaCloseWatch } from "./quota-close-watch.mjs";
+import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage, handleProviderStatus, handleQuota, handleQuotaCloses, handleQuotaHistory } from "./usage-routes.mjs";
 // Connected trackers (#2178) and each provider's own reads. See
 // integrations/routes.mjs; nothing in it is shared with paired decks.
 import { handleIntegrations } from "./integrations/routes.mjs";
@@ -202,6 +205,7 @@ export function requestUrl(rawUrl) {
 
 export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null } = {}) {
   startQuotaHistory();
+  startQuotaCloses();
   await startToolAudit();
   armLifecycle({ onRestart, onStop, persist, onSelfUpdate: () => reporter.noteSelfUpdate() });
   // Which tree and which CLIs, normalised once — see setDeckScope.
@@ -331,6 +335,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/shutdown")    return guard(handleStop(req, res), res);
     if (["GET", "POST"].includes(req.method) && ["/api/tool-audit", "/api/tool-audit/storage"].includes(url.pathname)) return guard(handleToolAudit(req, res), res);
     if (req.method === "GET" && url.pathname === "/api/quota/history") return guard(handleQuotaHistory(req, res), res);
+    if (req.method === "GET" && url.pathname === "/api/quota/closes") return guard(handleQuotaCloses(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/quota")       return guard(handleQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-usage")  return guard(handleCodexUsage(req, res), res);
     // Machine state, not session state: sampled on the server's own timer and
@@ -353,6 +358,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       return guard(trafficRadar.read().then(snapshot => send(res, 200, snapshot)), res);
     }
     if (url.pathname.startsWith("/api/system/traffic-radar/")) return guard(handleTrafficCapture(req, res, url), res);
+    // Settings › Claude Code: the short list of Claude Code settings, and the
+    // press that changes one in the user's settings.json. See claude-settings.mjs.
+    if (url.pathname === CLAUDE_SETTINGS_ROUTE) return guard(handleClaudeSettings(req, res), res);
     // On demand only — the process list costs a subprocess on every platform,
     // so it is fetched while the detail panel is open and never on the timer.
     if (req.method === "GET"  && url.pathname === "/api/system/processes") {
@@ -528,7 +536,12 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // and that will differ on the next boot. Every test in this suite boots
       // that way. Comparing the candidate would hand those decks a manifest.
       boundPort = server.address()?.port ?? candidate;
-      void trafficCapture.resume(boundPort).catch(() => {});
+      // Radar monitors by itself, always (traffic-radar-service.mjs), which
+      // means looking at the machine's Claude processes and capturing their
+      // collector. AGENTS_DECK_NO_RADAR=1 keeps a deck from doing either: the
+      // test suite sets it, so a developer's own telemetry is never captured by
+      // a test's deck.
+      if (process.env.AGENTS_DECK_NO_RADAR !== "1") void trafficCapture.resume(boundPort).catch(() => {});
       server.once("close", () => trafficCapture.dispose());
       // Codex has no working hooks on Windows — tail its rollout files instead.
       if (codex) {
@@ -570,6 +583,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // watches. Idle — a check of two switches every couple of minutes — unless
       // the threshold or the reset notification is on.
       startAccountWatch({ providers: deckProviders });
+      // How full each quota window was at its reset: claude-swap's store read
+      // every few minutes, and one fresh reading before each weekly reset.
+      startQuotaCloseWatch({ providers: deckProviders });
       // The account-projects rollup: fold Claude transcripts into a per-account,
       // per-project token tally, incrementally. Claude only — it reads Claude
       // transcripts — best effort, and its timer is unref'd so it never holds

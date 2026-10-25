@@ -3,7 +3,7 @@
    why the deck explains itself this way now. The shell is the shared `.modal`;
    what is new is the stage the drawing sits on and the row that moves through
    them. */
-.modal.guide { width: min(560px, 92vw); }
+.modal.guide { width: var(--dialog-s); }
 .guide .modal-body { gap: 12px; }
 /* The ground the drawing is on: the page's own, one step below the dialog, so
    a machine drawn on it reads as a surface the way a panel does on the canvas. */

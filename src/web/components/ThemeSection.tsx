@@ -3,9 +3,9 @@
 // Lifted out of the Appearance modal when that modal became General, and back
 // under Appearance since Settings gave each subject its own section (#2176).
 // T still switches the theme from anywhere on the deck, and from inside
-// Settings too (SettingsModal.tsx answers it there) — while the single-key
-// shortcuts are on, which is also when the cap is drawn.
-import type { KeyboardEvent } from "react";
+// Settings and every other dialog too (use-deck-shortcuts.ts answers it) —
+// while the single-key shortcuts are on, which is also when the cap is drawn.
+import { useEffect, useRef, type KeyboardEvent } from "react";
 import { THEME_DEFINITIONS, THEMES, type Theme } from "../theme";
 import { SettingsGroup } from "./SettingsParts";
 
@@ -61,6 +61,21 @@ export default function ThemeSection({ theme, onTheme, singleKeys }: Props) {
     (event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next])?.focus();
   };
 
+  // T switches the theme under the radios without touching them, and the
+  // keyboard on the theme it replaced moves with it to the one now checked —
+  // so the next arrow walks on from the theme that is set. Only from the
+  // theme it replaced: an arrow has already moved focus ahead of a theme
+  // that lands later, and that focus stays where the arrow put it.
+  const radios = useRef<HTMLDivElement>(null);
+  const shown = useRef(theme);
+  useEffect(() => {
+    const replaced = shown.current;
+    shown.current = theme;
+    const focused = document.activeElement as HTMLElement | null;
+    if (replaced === theme || !focused || !radios.current?.contains(focused) || focused.dataset.themeChoice !== replaced) return;
+    radios.current.querySelector<HTMLButtonElement>(`[data-theme-choice="${theme}"]`)?.focus();
+  }, [theme]);
+
   return (
     <SettingsGroup
       id="appearance-theme-caption"
@@ -78,6 +93,7 @@ export default function ThemeSection({ theme, onTheme, singleKeys }: Props) {
           arrows walk the choices and switch as they go, as a click does. The
           preview is aria-hidden: the name is the word under it. */}
       <div
+        ref={radios}
         className="appearance-themes"
         role="radiogroup"
         aria-labelledby="appearance-theme-caption"

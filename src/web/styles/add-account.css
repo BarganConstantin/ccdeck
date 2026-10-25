@@ -1,7 +1,7 @@
 /* ---------------- add-account dialog ---------------- */
 /* On the shared .modal shell. Narrower than a tool inspector — this is a form,
    and a form the width of a log dump reads as a mistake. */
-.aa-modal { width: min(560px, 92vw); }
+.aa-modal { width: var(--dialog-s); }
 /* Its top edge stays put. The body changes height at every turn of a sign-in
    — the primer, the list, a stage opening and closing, the success card — and
    centred on the screen the dialog moved half of each change at its header, so
@@ -504,7 +504,7 @@
    that arrived on its own, sized to what it asks rather than to an inspector.
    Calm on purpose. Nothing here is the warn colour: the account lost nothing,
    and every word in the dialog is the panel's ground ink or its muted ink. */
-.modal.reauth-ask { width: min(480px, 92vw); }
+.modal.reauth-ask { width: var(--dialog-s); }
 .modal.reauth-ask .modal-body { display: flex; flex-direction: column; gap: 10px; }
 .reauth-lead { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text); line-height: 1.5; overflow-wrap: anywhere; }
 .reauth-name { font-weight: 600; }

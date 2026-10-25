@@ -1,0 +1,289 @@
+/* ---------------- quick open ----------------
+   ⌘K (Ctrl+K): a field near the top of the window and the list under it
+   (components/QuickOpen.tsx). A launcher, not a form, so it does not wear the
+   dialog header: the field is its title. It sits a little under the bar and
+   keeps one height while the list narrows, so typing never makes it jump.
+
+   The one authored motion is the arrival: down a few pixels, out of a slight
+   scale, on the house ease-out (DESIGN.md › Motion), and gone faster than it
+   came. Under reduced motion it only fades. */
+
+.qo-backdrop {
+  align-items: flex-start;
+  padding: max(12vh, 64px) 16px 16px;
+  /* Lighter than a dialog's scrim: the field is a moment, and the board
+     behind it is still what it is about. */
+  --modal-scrim: rgba(5, 6, 9, 0.36);
+  animation: fadeIn 160ms ease-out;
+}
+:root[data-color-scheme="light"] .qo-backdrop { --modal-scrim: rgba(15, 23, 42, 0.16); }
+.qo-backdrop.closing { animation: qo-fade-out 120ms ease-out forwards; }
+
+/* The deep layer is the field's own, so it reads as lifted off the board
+   rather than set on it; under it, the deck's second elevation. */
+.qo {
+  --qo-depth: rgba(0, 0, 0, 0.6);
+  width: min(640px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 24px 64px -16px var(--qo-depth), var(--shadow-2);
+  overflow: hidden;
+  transform-origin: 50% 0;
+  animation: qo-in 200ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+:root[data-color-scheme="light"] .qo { --qo-depth: rgba(15, 23, 42, 0.28); }
+/* Gone on the curve it came in on, faster: it settles away, it does not
+   fall off the bottom of a curve. */
+.qo.closing { animation: qo-out 120ms cubic-bezier(0.23, 1, 0.32, 1) forwards; }
+
+@keyframes qo-in {
+  from { opacity: 0; transform: translateY(-12px) scale(0.97); }
+}
+@keyframes qo-out {
+  to { opacity: 0; transform: translateY(-6px) scale(0.98); }
+}
+@keyframes qo-fade-out {
+  to { opacity: 0; }
+}
+
+/* The field. It carries the deck's one focus ring for the input in it, inset
+   so the clipped edge of the dialog does not cut it, the way the Radio search
+   draws its ring on the wrapper rather than the bare input (radio.css). */
+.qo-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 14px 0 18px;
+  border-radius: 10px;
+}
+.qo-field:has(.qo-input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -6px;
+}
+.qo-field > .glyph {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--muted);
+}
+.qo-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: calc(16px + var(--ui-text-increase, 0px));
+  caret-color: var(--accent);
+}
+.qo-input:focus-visible { outline: none; }
+.qo-input::placeholder { color: var(--muted); opacity: 1; }
+/* A key's chip that is also the pointer's way out: a fill and no edge, so it
+   reads as the keys in the rows do and not as a second field. */
+.qo-esc {
+  flex: none;
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-tag);
+  background: var(--sm-fill);
+  color: var(--muted);
+  font: calc(11px + var(--ui-text-increase, 0px))/22px var(--font-mono);
+  cursor: pointer;
+  transition: color 120ms ease-out, transform 120ms ease-out;
+}
+.qo-esc:hover { color: var(--text); }
+.qo-esc:active { transform: scale(0.94); }
+
+/* The list. One height whatever it holds. */
+.qo-list {
+  height: min(400px, 52vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 8px 8px;
+  border-top: 1px solid var(--line-soft);
+}
+.qo-group + .qo-group { margin-top: 4px; }
+.qo-caption {
+  padding: 10px 10px 6px;
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: 14px;
+}
+.qo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+}
+/* Neutral, not the accent: the accent is for the letters that matched. A
+   press deepens it a step and nothing moves, as a row of the deck's lists
+   does: the row runs and the field is gone on the release. */
+.qo-row[aria-selected="true"] { background: color-mix(in srgb, var(--text) 9%, transparent); }
+.qo-row:active { background: color-mix(in srgb, var(--text) 13%, transparent); }
+
+.qo-icon {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--muted);
+}
+.qo-row[aria-selected="true"] .qo-icon { color: var(--text); }
+.qo-icon > .glyph { width: 13px; height: 13px; }
+
+/* A session's state, by the colours its card uses; amber only for waiting. */
+.qo-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.qo-dot.waiting { background: var(--warn); }
+.qo-dot.active { background: var(--accent); }
+.qo-dot.done { background: var(--ok); }
+.qo-dot.err { background: var(--err); }
+
+/* A theme's own canvas and accent, from Settings › Appearance's previews. */
+.qo-icon > .qo-swatch {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--tp-rule);
+  border-radius: 4px;
+  background: var(--tp-canvas);
+}
+.qo-icon > .qo-swatch::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tp-accent);
+}
+
+.qo-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
+}
+.qo-title {
+  flex: none;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+}
+.qo-sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+}
+.qo-hit {
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+}
+.qo-key {
+  flex: none;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border: 1px solid var(--sm-edge);
+  border-radius: var(--r-tag);
+  background: var(--sm-fill);
+  color: var(--muted);
+  font: calc(11px + var(--ui-text-increase, 0px))/18px var(--font-mono);
+  text-align: center;
+}
+.qo-tag {
+  flex: none;
+  min-width: 52px;
+  text-align: right;
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+}
+
+.qo-empty {
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  height: 100%;
+  text-align: center;
+}
+.qo-empty p { margin: 0; }
+.qo-empty-title { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); }
+.qo-empty-note { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+
+/* The foot: how many, and what Enter does to the row that is chosen. */
+.qo-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 38px;
+  padding: 0 12px 0 18px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+}
+.qo-foot-keys { display: flex; align-items: center; gap: 16px; }
+.qo-foot-act { display: inline-flex; align-items: center; gap: 6px; }
+.qo-foot kbd {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border: 1px solid var(--sm-edge);
+  border-radius: var(--r-tag);
+  background: var(--sm-fill);
+  color: var(--text);
+  font: calc(11px + var(--ui-text-increase, 0px))/16px var(--font-mono);
+  text-align: center;
+}
+.qo-foot-act kbd + kbd { margin-left: -2px; }
+
+.qo-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A phone: the field takes the width and sits under the bar. */
+@media (max-width: 640px) {
+  .qo-backdrop { padding: 8px; }
+  .qo { width: 100%; }
+  .qo-list { height: min(360px, 48dvh); }
+  .qo-foot-count { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qo { animation: fadeIn 140ms ease-out both; }
+  .qo.closing { animation: qo-fade-out 100ms ease-out forwards; }
+  .qo-esc:active { transform: none; }
+}

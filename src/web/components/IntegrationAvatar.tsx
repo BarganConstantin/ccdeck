@@ -2,16 +2,19 @@
 // with the initials standing in when there is no picture or it does not load.
 // The address is the deck's own asset route, which reads the picture from the
 // tracker's site or its public image hosts (and refuses anything else).
+// `direct` is the picture at the tracker itself, asked by the browser when the
+// deck could not read it: a self-managed GitLab whose public visibility is
+// restricted gives avatars to a signed-in browser and to no token.
 //
-//   <IntegrationAvatar src name size? you? className? />        one face
-//   <IntegrationPerson src name size? you? nameless? />          a face and a name
-//   <IntegrationAvatarStack people={[{ key, name, src, you? }]} max?=3 size? label? />
-//   <UnassignedAvatar size? />                                  nobody yet
+//   <IntegrationAvatar src direct? name size? you? className? />        one face
+//   <IntegrationPerson src direct? name size? you? nameless? />          a face and a name
+//   <IntegrationAvatarStack people={[{ key, name, src, direct?, you? }]} max?=3 size? label? />
+//   <UnassignedAvatar size? />                                          nobody yet
 //
 // One person for Jira and the forges, which had two (two initials in --text
 // that grow with the text size, and one initial in a fixed 10px of --muted
-// that fell under AA). A picture that fails once is drawn as initials from
-// then on, without being asked for again on every page. `you` rings the
+// that fell under AA). A picture that fails at both addresses is drawn as
+// initials from then on, without being asked for again on every page. `you` rings the
 // reader's own face in the accent, initials included, since a face alone does
 // not say "mine". A stack shows `max` faces then "+N"; two pictures overlap by
 // 4px, the later cut away round the earlier so the gap is whatever the row
@@ -22,33 +25,42 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { initials } from "../integrations/client";
 
-// Pictures the deck could not fetch: a self-managed tracker may serve them
-// only to a signed-in browser.
+// Addresses that did not load, through the deck or at the tracker: a
+// self-managed tracker may serve a picture only to a signed-in browser.
 const failedAvatars = new Set<string>();
+
+/** The address to draw: the deck's, then the tracker's own, skipping any that
+ *  failed; null for initials. */
+export function avatarSource(src: string | null | undefined, direct: string | null | undefined, failed: ReadonlySet<string>): string | null {
+  for (const url of [src, direct]) if (url && !failed.has(url)) return url;
+  return null;
+}
 
 function faceStyle(size: number): CSSProperties {
   return { width: size, height: size, ["--ig-avatar-size" as string]: `${size}px` };
 }
 
-export default function IntegrationAvatar({ src, name, size = 20, you = false, className = "" }: {
+export default function IntegrationAvatar({ src, direct, name, size = 20, you = false, className = "" }: {
   src: string | null | undefined;
+  /** The picture at the tracker itself, asked when the deck could not read it. */
+  direct?: string | null;
   name: string;
   size?: number;
   /** The reader's own face: ringed in the accent. */
   you?: boolean;
   className?: string;
 }) {
-  const [failed, setFailed] = useState(() => !!src && failedAvatars.has(src));
-  useEffect(() => setFailed(!!src && failedAvatars.has(src)), [src]);
+  const [shown, setShown] = useState(() => avatarSource(src, direct, failedAvatars));
+  useEffect(() => setShown(avatarSource(src, direct, failedAvatars)), [src, direct]);
   const style = faceStyle(size);
   const mine = you || undefined;
-  if (!src || failed) {
+  if (!shown) {
     return <span className={`ig-avatar ig-avatar-initials ${className}`.trim()} data-large={size >= 28 || undefined} data-you={mine}
       style={style} aria-hidden>{initials(name)}</span>;
   }
-  return <img className={`ig-avatar ${className}`.trim()} style={style} src={src} alt="" aria-hidden referrerPolicy="no-referrer"
+  return <img className={`ig-avatar ${className}`.trim()} style={style} src={shown} alt="" aria-hidden referrerPolicy="no-referrer"
     loading="lazy" decoding="async" draggable={false} data-you={mine}
-    onError={() => { failedAvatars.add(src); setFailed(true); }} />;
+    onError={() => { failedAvatars.add(shown); setShown(avatarSource(src, direct, failedAvatars)); }} />;
 }
 
 /** The face for nobody: an empty ring, edged at 3:1 so it is still a place. */
@@ -58,8 +70,9 @@ export function UnassignedAvatar({ size = 20 }: { size?: number }) {
 
 /** A face and a name. `nameless` keeps the name for a screen reader and a
  *  tooltip only, where the row has no room for it. */
-export function IntegrationPerson({ src, name, size = 20, you = false, nameless = false }: {
+export function IntegrationPerson({ src, direct, name, size = 20, you = false, nameless = false }: {
   src: string | null | undefined;
+  direct?: string | null;
   name: string;
   size?: number;
   you?: boolean;
@@ -67,7 +80,7 @@ export function IntegrationPerson({ src, name, size = 20, you = false, nameless 
 }) {
   return (
     <span className="ig-person" title={nameless ? name : undefined}>
-      <IntegrationAvatar src={src} name={name} size={size} you={you} />
+      <IntegrationAvatar src={src} direct={direct} name={name} size={size} you={you} />
       {nameless ? <span className="vis-hidden">{name}</span> : <span className="ig-person-name">{name}</span>}
     </span>
   );
@@ -77,6 +90,7 @@ export interface StackPerson {
   key: string;
   name: string;
   src: string | null | undefined;
+  direct?: string | null;
   you?: boolean;
 }
 
@@ -102,7 +116,7 @@ export function IntegrationAvatarStack({ people, max = 3, size = 20, label }: {
   const all = stackLabel(names);
   return (
     <span className="ig-stack" role="img" aria-label={label ? `${label} ${all}` : all} title={names.join(", ")}>
-      {shown.map(p => <IntegrationAvatar key={p.key} src={p.src} name={p.name} size={size} you={p.you} />)}
+      {shown.map(p => <IntegrationAvatar key={p.key} src={p.src} direct={p.direct} name={p.name} size={size} you={p.you} />)}
       {more > 0 && <span className="ig-stack-more" aria-hidden>+{more}</span>}
     </span>
   );

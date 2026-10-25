@@ -416,6 +416,8 @@ describe("nothing else in the deck invents a focus stop", () => {
     // Tool activity's details heading takes focus when a tool is opened from
     // the keyboard, so the panel that appeared is announced by its name.
     // Settings' search results are the same combobox shape (SettingsSearch.tsx).
+    // So is quick open, whose list is a scrolling box with no control in it,
+    // which Chrome would otherwise make a Tab stop of its own (QuickOpen.tsx).
     // Skill activity's details heading does what Tool activity's does (#2181).
     // The Jira backlog (#2178) is one tab stop, its rows a roving tabindex
     // moved with the arrow keys, and each row's disclosure triangle is the
@@ -431,12 +433,13 @@ describe("nothing else in the deck invents a focus stop", () => {
     // item page takes focus when the row that opened it goes out of sight —
     // behind the drill-in screen, or on the page a link replaced
     // (forge/DetailParts.tsx).
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/IntegrationConnectionDetails.tsx", "components/IntegrationsSection.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/QuickOpen.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
     expect(code(readFileSync(join(web, "components/forge/RepoPicker.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/forge/DetailParts.tsx"), "utf8"))).toMatch(/<article ref=\{ref\} className="fd"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/JiraIssueDetail.tsx"), "utf8"))).toMatch(/<h2 id="jira-detail-title" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/RadioFilter.tsx"), "utf8"))).toMatch(/role="option" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/SettingsSearch.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
+    expect(code(readFileSync(join(web, "components/QuickOpen.tsx"), "utf8"))).toMatch(/role="listbox"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/CanvasMain.tsx"), "utf8"))).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/TelemetryCapture.tsx"), "utf8"))).toMatch(/<section className="tr-inspector"[^>]*tabIndex=\{-1\}/);
   });

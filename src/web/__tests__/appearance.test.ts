@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { CHARACTER_ENABLED_KEY, FM_SOURCE_OPTIONS, resolveCharacterEnabled } from "../appearance";
-import { clientText } from "./client-source";
+import { clientText, sourceOf } from "./client-source";
 import { sheetText } from "./sheet-source";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -59,7 +59,8 @@ describe("character appearance preference", () => {
     expect(modal()).toContain('aria-labelledby="settings-title"');
     expect(themes()).toContain('role="radiogroup"');
     expect(themes()).toContain('role="radio"');
-    expect(modal()).toContain("onClick={onClose}");
+    expect(modal()).toContain("onClick={() => requestLeave(onClose)}");
+    expect(modal()).toContain("const dismissSettings = () => requestLeave(onClose, true)");
     // Inside the viewport, and the section scrolls rather than the page. The
     // dialog is one height whichever section it holds (it followed its section
     // until the frame jumping under the pointer was reported), clamped inside
@@ -95,8 +96,14 @@ describe("character appearance preference", () => {
 
   it("keeps Space and T working inside Settings", () => {
     // React Flow cancels Space on the document; Settings keeps it for its own
-    // controls. T switches the theme here too, and only without a modifier.
-    expect(modal()).toContain('if (event.key === " ") { event.stopPropagation(); return; }');
-    expect(modal()).toContain('event.ctrlKey || event.metaKey || event.altKey) return;');
+    // controls. T switches the theme here too, through the deck's handler
+    // like every other dialog (theme-key-in-dialogs.test.ts), so Settings
+    // answers no T of its own that could apply a second theme per press.
+    expect(modal()).toContain('if (event.key === " ") event.stopPropagation();');
+    expect(sourceOf("components/SettingsModal.tsx")).not.toMatch(/key [!=]== "[tT]"/);
+    expect(sourceOf("components/ThemeSection.tsx")).not.toMatch(/key [!=]== "[tT]"/);
+    // The keyboard on the theme T replaced follows it to the checked radio.
+    expect(themes()).toContain('focused.dataset.themeChoice !== replaced) return;');
+    expect(themes()).toContain("radios.current.querySelector<HTMLButtonElement>(`[data-theme-choice=\"${theme}\"]`)?.focus();");
   });
 });

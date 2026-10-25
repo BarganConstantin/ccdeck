@@ -69,7 +69,7 @@ export default function ToolModal({
     // name. The name is the tool, which is the only thing that tells one of
     // these apart from the next.
     <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="tool-modal-title">
+      <div ref={dialogRef} className="modal tool-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="tool-modal-title">
         <header className="modal-head">
           <div className="modal-title">
             {/* Decoration, and marked as such (#373). This dot keeps its hue

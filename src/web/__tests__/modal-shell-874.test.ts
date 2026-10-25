@@ -41,9 +41,10 @@ describe("every dialog composes the one .modal shell (#874)", () => {
       for (const shell of ["background", "border", "border-radius", "box-shadow", "animation"]) {
         expect(new RegExp(`(?:^|[;\\s])${shell}\\s*:`).test(body!), `${sel} redeclares ${shell}`).toBe(false);
       }
-      // A size inside the shell's own viewport margin, not `100%` of a backdrop
-      // that no longer pads.
-      expect(/width:\s*min\(\d+px,\s*92vw\)/.test(body!), `${sel} width`).toBe(true);
+      // One of the three dialog widths (tokens.css, "One dialog frame"), each
+      // inside the window's own margin, not `100%` of a backdrop that no
+      // longer pads.
+      expect(/width:\s*var\(--dialog-[sml]\)/.test(body!), `${sel} width`).toBe(true);
     }
   });
 

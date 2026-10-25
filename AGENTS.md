@@ -35,7 +35,9 @@ it when those details change.
   unpushed. Delete a branch on `origin` only with the owner's approval. Leave
   every other worktree and branch alone.
 - The unfinished Git View and separate CLI work are protected from unrelated UI
-  edits until the owner explicitly requests work on those features.
+  edits until the owner explicitly requests work on those features. New CLI
+  work stays on its own `feature/cli-*` branch until the owner approves it
+  (see the release workflow).
 - Aim for the clarity and comfort of Rider / VS Code: compact icon rails with
   discoverable labels, readable contrast, consistent panel widths and spacing,
   clear statuses, and useful information rather than technical clutter.

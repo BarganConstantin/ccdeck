@@ -14,7 +14,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, typ
 import type { IntegrationConnection as Connection } from "../integrations/types";
 import type { JiraBoardOverview, JiraIssue, TimeTracking } from "../jira-api";
 import {
-  buildRows, filterRows, groupOpen, groupStats, rowKey, shortDate, subtaskShown, totalLabel,
+  boardRows, groupOpen, groupStats, readsSubtasks, rowKey, rowOpen, shortDate, subtaskRows, totalLabel,
   type GroupDef, type GroupStats, type Row, type RowFilter,
 } from "../jira-board";
 import type { BoardSnapshot, GroupData } from "../use-jira-board";
@@ -38,6 +38,10 @@ export interface JiraBacklogProps {
   filtered: boolean;
   selected: string | null;
   onOpen: (key: string) => void;
+  /** The rows whose sub-tasks are shown, by key: the panel keeps them, per
+   *  board, so they are open again when the panel is. */
+  rowsOpen: Record<string, boolean>;
+  onToggleRow: (key: string, open: boolean) => void;
   onRetryGroup: (group: GroupDef) => void;
   onMore: (group: GroupDef) => void;
   onShowClosed: (shown: boolean) => void;
@@ -164,29 +168,23 @@ function statusWidth(snap: BoardSnapshot): number {
 }
 
 export default function JiraBacklog(props: JiraBacklogProps) {
-  const { conn, overview, groups, snap, expanded, onToggleGroup, filter, mine, filtered, selected, onOpen, onRetryGroup, onMore,
-    onShowClosed, onMoreClosed, loadSubtasks, onReconnect } = props;
+  const { conn, overview, groups, snap, expanded, onToggleGroup, filter, mine, filtered, selected, onOpen, rowsOpen, onToggleRow,
+    onRetryGroup, onMore, onShowClosed, onMoreClosed, loadSubtasks, onReconnect } = props;
   const listRef = useRef<HTMLDivElement>(null);
-  const [rowsOpen, setRowsOpen] = useState<Record<string, boolean>>({});
-  // The groups the reader has opened here, whose rows fade in as they mount.
-  // A group open from the start, or from a saved choice, is simply there.
+  // The groups and rows the reader has opened here, whose rows fade in as
+  // they mount. One open from the start, or from a choice kept from before,
+  // is simply there.
   const [openedHere, setOpenedHere] = useState<ReadonlySet<string>>(() => new Set());
+  const [rowsOpenedHere, setRowsOpenedHere] = useState<ReadonlySet<string>>(() => new Set());
   const [current, setCurrent] = useState<string | null>(null);
   const estimation = overview.estimation.kind;
   const time = overview.timeTracking;
 
   // Rows, group by group, each issue drawn once: in the first group it is in.
-  const built = useMemo(() => {
-    const seen = new Set<string>();
-    return groups.map(def => {
-      const data: GroupData | undefined = snap.groups[def.id];
-      const rows = buildRows(data?.issues ?? [], seen);
-      const shown = filterRows(rows, filter, key => snap.subtasks[key]?.issues);
-      return { def, data, rows: shown, stats: groupStats(shown, estimation) };
-    });
-  }, [groups, snap.groups, snap.subtasks, filter, estimation]);
+  const built = useMemo(() => boardRows<GroupData>(groups, snap.groups, key => snap.subtasks[key]?.issues, filter)
+    .map(group => ({ ...group, stats: groupStats(group.rows, estimation) })), [groups, snap.groups, snap.subtasks, filter, estimation]);
 
-  const isRowOpen = (row: Row) => rowsOpen[rowKey(row)] ?? row.kind === "context";
+  const isRowOpen = (row: Row) => rowOpen(row, rowsOpen);
 
   // A row opened with no sub-tasks read yet reads them; a context row, open
   // from the start, reads them as soon as it is drawn.
@@ -196,20 +194,18 @@ export default function JiraBacklog(props: JiraBacklogProps) {
       for (const row of rows) {
         if (!isRowOpen(row)) continue;
         const key = rowKey(row);
-        if (snap.subtasks[key]) continue;
-        if (row.kind === "issue") {
-          const want = row.issue.subtaskKeys;
-          // Every sub-task already in hand, and no filter hiding any: no read.
-          if (!filtered && want.length > 0 && want.every(k => row.matched.some(m => m.key === k))) continue;
-          if (want.length === 0) continue;
-        }
+        // Every sub-task already in hand, and no filter hiding any: no read.
+        if (snap.subtasks[key] || !readsSubtasks(row, filtered)) continue;
         loadSubtasks(key);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [built, rowsOpen, expanded]);
 
-  const toggleRow = (key: string, open: boolean) => setRowsOpen(state => ({ ...state, [key]: open }));
+  const toggleRow = (key: string, open: boolean) => {
+    if (open) setRowsOpenedHere(keys => new Set(keys).add(key));
+    onToggleRow(key, open);
+  };
 
   // ── keyboard ──────────────────────────────────────────────────────────────
   const navItems = () => Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-nav]") ?? []);
@@ -257,9 +253,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     const subtasksKnown = row.kind === "issue" ? row.issue.subtaskKeys.length : 0;
     const expandable = depth === 0 && (subtasksKnown > 0 || row.matched.length > 0 || row.kind === "context");
     const toggleId = `jr-toggle-${group.id.replace(/[^a-z0-9]/gi, "-")}-${key}`;
-    const childList = all?.status === "ready"
-      ? all.issues.filter(sub => subtaskShown(sub, filter))
-      : row.matched;
+    const childList = subtaskRows(row, all, filter);
     const mineCount = (all?.status === "ready" ? all.issues : row.matched).filter(s => s.mine).length;
     const label = row.kind === "issue"
       ? rowLabel(row.issue, expandable ? `, ${subtasksKnown || row.matched.length} sub-tasks${mineCount ? `, ${mineCount} yours` : ""}` : "")
@@ -293,7 +287,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
           </button>
         </div>
         {expandable && open && (
-          <ul className="jr-subrows" role="list" aria-label={`Sub-tasks of ${key}`} data-fade={(rowsOpen[key] && fades(childList.length)) || undefined}>
+          <ul className="jr-subrows" role="list" aria-label={`Sub-tasks of ${key}`} data-fade={(rowsOpenedHere.has(key) && fades(childList.length)) || undefined}>
             {all?.status === "loading" && childList.length === 0 && <li className="jr-subnote" role="status">Reading sub-tasks…</li>}
             {all?.status === "error" && (
               <li className="jr-subnote" role="alert">Sub-tasks could not be read. <button type="button" className="jr-link-btn" onClick={() => loadSubtasks(key)}>Try again</button></li>
