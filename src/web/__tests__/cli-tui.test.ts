@@ -757,12 +757,17 @@ async function until(cond: () => boolean, ms = 5_000) {
   }
 }
 
+// The loop is drawn in the Unicode look whatever runs the tests: the host's own
+// answer is ASCII on a Windows runner and under TERM=linux, and the words these
+// tests wait for carry the Unicode dash, dot and corners.
+const LOOK = { unicode: true, g: glyphs(true) };
+
 describe("the loop", () => {
   it("switches through the deck to the account chosen, and q hands the terminal back", async () => {
     const term = fakeTerminal();
     const deck = fakeDeck();
     const { out } = quietOut();
-    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
     await until(() => term.screenText().includes("bob@home.example"));
     expect(term.written()).toContain(ALT_SCREEN_ON);
     expect(term.input.raw).toEqual([true]);
@@ -788,7 +793,7 @@ describe("the loop", () => {
     const term = fakeTerminal();
     const deck = fakeDeck();
     const { out } = quietOut();
-    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
     await until(() => term.screenText().includes("bob@home.example"));
     term.input.write("q");
     expect(await done).toBe(0);
@@ -799,7 +804,7 @@ describe("the loop", () => {
     const term = fakeTerminal();
     const deck = fakeDeck();
     const { out } = quietOut();
-    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
     await until(() => term.screenText().includes("Auto-switch on"));
     term.input.write("a");
     await until(() => deck.calls.some(c => c.method === "POST"));
@@ -816,7 +821,7 @@ describe("the loop", () => {
     deck.source.ask = async (d: unknown, o: { method?: string; path: string; body?: unknown }) =>
       (o.path.startsWith("/api/claude-accounts") ? { ok: true, status: 200, body: { ok: true, accounts: roomy } } : ask(d, o));
     const { out } = quietOut();
-    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
     await until(() => term.screenText().includes("bob@home.example"));
     term.input.write("b");
     await until(() => term.screenText().includes("enter switches to #2 bob@home.example (home) — the most room"));
@@ -836,7 +841,7 @@ describe("the loop", () => {
     deck.source.ask = async (d: unknown, o: { method?: string; path: string; body?: unknown }) =>
       (up ? ask(d, o) : { ok: false, status: 0, reason: "ECONNREFUSED", body: null });
     const { out } = quietOut();
-    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
     await until(() => term.screenText().includes("deck 4999"));
     up = false;
     term.input.write("r");
@@ -865,7 +870,7 @@ describe("the loop", () => {
       wait: () => new Promise(r => setTimeout(r, 5)),
     });
     const { out } = quietOut();
-    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
     await until(() => term.screenText().includes("no deck is running"));
     term.input.write("d");
     await until(() => term.screenText().includes("the deck is running on 4998"));
@@ -884,7 +889,7 @@ describe("the loop", () => {
     });
     const { out } = quietOut();
     const started = Date.now();
-    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
     await until(() => term.screenText().includes("no deck is running"));
     term.input.write("d");
     await until(() => term.screenText().includes("the deck did not start — ccdeck: ui not built."));
@@ -942,7 +947,7 @@ describe("the loop", () => {
     const term = fakeTerminal(80, 24);
     const deck = signinDeck();
     const { out } = quietOut();
-    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
     await until(() => term.screenText().includes("bob@home.example"));
     term.input.write("+");
     await until(() => term.screenText().includes("Sign in to Anthropic"));
@@ -972,7 +977,7 @@ describe("the loop", () => {
     const term = fakeTerminal(80, 24);
     const deck = signinDeck();
     const { out } = quietOut();
-    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
     await until(() => term.screenText().includes("carol@side.example"));
     term.input.write("3");
     term.input.write("\r");
@@ -992,7 +997,7 @@ describe("the loop", () => {
     const term = fakeTerminal(80, 24);
     const deck = signinDeck();
     const { out } = quietOut();
-    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
     await until(() => term.screenText().includes("bob@home.example"));
     term.input.write("+");
     term.input.write("\r");
@@ -1007,7 +1012,7 @@ describe("the loop", () => {
     const term = fakeTerminal(80, 24);
     const deck = signinDeck({ start: () => ({ ok: false, status: 400, body: { ok: false, reason: "already_running", state: "registering", step: "save" } }) as never });
     const { out } = quietOut();
-    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
     await until(() => term.screenText().includes("bob@home.example"));
     term.input.write("+");
     term.input.write("\r");
