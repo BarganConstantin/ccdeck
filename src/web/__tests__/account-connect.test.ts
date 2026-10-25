@@ -235,5 +235,33 @@ describe("the name a deck connects under", () => {
       expect(readFileSync(file, "utf8")).toMatch(/"token": "ccdd_/);
       s.stop();
     });
+
+    it("takes the tab's settings from the first moment it says connected", async () => {
+      // The E2E caught a deck that answered "connected" while account.json was
+      // still being written, before its sync had started: a page reporting its
+      // settings in that window was told not_connected.
+      const timers = manualTimers();
+      dir = tempDir("ccdeck-account-connect-");
+      const home = join(dir, "deck");
+      const s = createAccountService({
+        env: { CCDECK_ACCOUNT_API: api.url }, home, prefs: () => ({}),
+        tokenStore: createTokenStore({ platform: "linux", env: {}, home, which: () => false }),
+        facts: FACTS, now: clock.now, setTimer: timers.setTimer, clearTimer: timers.clearTimer, log: () => {},
+      });
+      await s.start();
+      const v = await s.connect("laptop-a");
+      let first: unknown;
+      const watch = (async () => {
+        while (s.view().state !== "connected") await new Promise(r => setImmediate(r));
+        first = await s.reportUi({ values: { theme: "paper" }, reason: "initial" });
+      })();
+      api.approve(v.connect.userCode);
+      clock.advance(5_000);
+      await timers.fire({ until: () => s.view().state === "connected" });
+      await watch;
+      expect(first, "a sync view, not not_connected").not.toBeNull();
+      await settle(50);
+      s.stop();
+    });
   });
 });

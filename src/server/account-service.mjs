@@ -290,7 +290,11 @@ export function createAccountService({
     const kept = await tokens.save(tok.accessToken);
     const previousAccountId = record.previousAccountId || record.accountId || "";
     halt();
-    await persist(() => ({
+    // Written first, and only then made this deck's record: from the moment
+    // /api/account answers "connected" the sync and the publisher are running,
+    // so a page that reports its settings at once is never told the deck is
+    // not connected.
+    const next = normaliseAccount({
       ...emptyAccount(),
       apiBase,
       appBase,
@@ -304,7 +308,9 @@ export function createAccountService({
       tokenCipher: kept.tokenCipher ?? "",
       previousAccountId,
       sync: initialSync({ accountId: tok.account.id, previousAccountId, settings: tok.settings }),
-    }));
+    });
+    await saveAccount(next, home);
+    record = next;
     setToken(tok.accessToken);
     begin();
     await sync?.pull().catch(() => {});
