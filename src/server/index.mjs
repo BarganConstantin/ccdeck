@@ -186,6 +186,10 @@ import { handleIntegrations } from "./integrations/routes.mjs";
 // (terminal-socket.mjs).
 import { handleTerminalAdopt, handleTerminalClaim, handleTerminalLaunch, handleTerminalOpen, handleTerminalStatus, handleTerminalTarget, terminalUpgradeOptions } from "./terminal-routes.mjs";
 import { installTerminalUpgrade } from "./terminal-socket.mjs";
+// Whether this deck's platform has the Command Panel, which Settings' switch
+// follows: Linux and macOS; on Windows only the test-only preview, which no
+// production entry can ask for (command-panel-platform.mjs).
+import { commandPanelPlatform } from "./command-panel-platform.mjs";
 // For bin/deck.js's shutdown: an upgraded socket is not in the HTTP server's
 // connection list, so closeAllConnections() never reaches a terminal; and the
 // Command Panel's engine, a child of this process, is stopped beside them.
@@ -230,6 +234,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   armLifecycle({ onRestart, onStop, persist, onSelfUpdate: () => reporter.noteSelfUpdate() });
   // Which tree and which CLIs, normalised once — see setDeckScope.
   setDeckScope({ workspace, claude, codex });
+  // Whether the Command Panel's switch is offered here, asked once: off Windows
+  // the platform's answer, nothing loaded; on Windows `unsupported`, but for
+  // the test-only preview (command-panel-platform.mjs).
+  const panelPlatform = await commandPanelPlatform(terminal);
   // A boot is the one moment the file, and not the engine, is the authority on
   // the key, the pairings and the port. See lanApplyFields.
   resetLanLoaded();
@@ -360,13 +368,13 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/codex-usage")  return guard(handleCodexUsage(req, res), res);
     // Machine state, not session state: sampled on the server's own timer and
     // deliberately kept out of the event stream. See src/server/system-metrics.mjs.
-    if (req.method === "GET"  && url.pathname === "/api/prefs")        return handlePrefsRead(req, res);
+    if (req.method === "GET"  && url.pathname === "/api/prefs")        return handlePrefsRead(req, res, panelPlatform);
     if (req.method === "GET"  && url.pathname === "/api/lan")          return handleLanStatus(req, res);
     if (req.method === "POST" && url.pathname === "/api/lan/peer")     return guard(handleLanPeer(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/lan/invite")   return guard(handleLanInvite(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/lan/sync")     return guard(handleLanSync(req, res), res);
-    if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res), res);
-    if (req.method === "POST" && url.pathname === "/api/prefs/give-back") return guard(handlePrefsGiveBack(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res, panelPlatform), res);
+    if (req.method === "POST" && url.pathname === "/api/prefs/give-back") return guard(handlePrefsGiveBack(req, res, panelPlatform), res);
     if (req.method === "POST" && url.pathname === "/api/reports")      return guard(handleReportsWrite(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/feedback")     return handleFeedbackFacts(req, res);
     if (req.method === "POST" && url.pathname === "/api/feedback")     return guard(handleFeedback(req, res), res);

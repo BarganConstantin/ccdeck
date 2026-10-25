@@ -65,6 +65,26 @@ ownership, safe Unix permissions, and matching hash/size may launch. Writable
 non-sticky ancestor directories are refused. No user-facing download is added.
 Windows installation ACL validation remains disabled pending native validation.
 
+The Windows preview is a test-only exception for one Windows VM, never a
+production feature. On Windows the deck offers the Command Panel's switch
+(`terminalSupported` in `/api/prefs`) only when `startServer` is given
+`terminal.windowsPreview: true` together with an explicit `terminal.engine`,
+and only when it can load `preview/command-panel-windows.mjs`
+(`src/server/command-panel-platform.mjs` decides, once, at start). That module
+sits outside `package.json` `files` and the desktop app's resources, so a
+published package or an installed app refuses the option and says so once in
+its log. Only a private QA preload passes the option; no production entry,
+setting, environment variable, flag, file or request does. The module's client
+is the deck's own client with one change: it verifies the installation with
+the module's Windows check, against the key its caller passes as `publicKey`
+(the preview's fresh test key, never a key of the deck's, whose list stays
+empty): the same signed manifest fields with a Windows target
+(`x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc`), a `ccdeck-pro-engine*.exe`
+file name, non-link regular files and a matching hash and size. It checks
+neither ACLs nor owners, nor whether the account is an administrator. The
+hello checks, the per-run nonce and everything after them are the deck's.
+Off Windows the option is ignored and the module never loaded.
+
 One persistent child uses inherited stdio. Wire frame: u32 big-endian body
 length, u8 kind, u32 stream, u64 increasing sequence, payload. Body maximum
 2 MiB, header 13 bytes. Kind 0 uses stream 0 and JSON request/response objects.
