@@ -70,9 +70,15 @@ export class ProEngineClient extends EventEmitter {
   #child; #starting; #installation; #nonce; #pending = new Map(); #out = 0n; #in = 0n; #id = 0;
   #prefix = Buffer.alloc(4); #prefixAt = 0; #body; #bodyAt = 0;
   #closed = false; #heartbeat; #failures = 0; #retryAt = 0; #generation = 0; #capabilities;
-  #streams = new Map(); #lastStream = 0;
-  constructor({ enabled = false, directory, publicKey, hostVersion = '0.0.0', timeoutMs = 10_000, heartbeatMs = 15_000, terminal = false } = {}) {
+  #streams = new Map(); #lastStream = 0; #verify;
+  /** `verifyInstallation`, the second argument, is for the Windows preview's
+   *  test-only client alone (in the preview folder beside the package, which
+   *  the package does not ship): the deck builds its clients through createProEngineClient,
+   *  which takes one argument, so every client of the deck verifies with
+   *  verifyEngineInstallation and the keys it was given. */
+  constructor({ enabled = false, directory, publicKey, hostVersion = '0.0.0', timeoutMs = 10_000, heartbeatMs = 15_000, terminal = false } = {}, { verifyInstallation = verifyEngineInstallation } = {}) {
     super(); this.options = Object.freeze({ enabled, directory, publicKey, hostVersion, timeoutMs, heartbeatMs, terminal: terminal === true });
+    this.#verify = verifyInstallation;
   }
   get enabled() { return this.options.enabled === true; }
   get capabilities() { return this.#capabilities; }
@@ -87,7 +93,7 @@ export class ProEngineClient extends EventEmitter {
     try { return await starting; } finally { if (this.#starting === starting) this.#starting = undefined; }
   }
   async #launch() {
-    const installation = await awaitStartup(verifyEngineInstallation(this.options), undefined, 5000);
+    const installation = await awaitStartup(this.#verify(this.options), undefined, 5000);
     if (this.#closed) throw fail('closed');
     const child = spawn(installation.executable, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: false, env: engineEnv(process.env, this.options.terminal) });
     this.#child = child; this.#installation = installation; this.#nonce = randomBytes(32).toString('hex');
