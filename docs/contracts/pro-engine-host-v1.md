@@ -206,6 +206,12 @@ went off, is 409 `turned-off` in the same shape, with no ticket: the session
 runs, and the panel opens it once the switch is on again (a launch by the
 same key finds it).
 
+The engine's own answer to a route reaches the page as it is. One the page
+reads by its code: `host-generations` (409), a launch refused while sessions
+still run on older session hosts. The panel says the engine's sentence with
+Try again and Not now, and does not ask about tmux; any other 409 without a
+code the page knows may still be tmux missing, and is asked as before.
+
 ## Terminal streams
 
 One stream is one attached terminal panel. `terminal-socket.mjs` keeps

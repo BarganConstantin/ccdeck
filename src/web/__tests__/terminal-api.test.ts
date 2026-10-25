@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
+  PANEL_HOST_REFUSALS,
   PANEL_RECOVERING,
   PANEL_UNAVAILABLE,
   STILL_RUNNING,
@@ -189,6 +190,16 @@ describe("reading the answers", () => {
       .toEqual({ ok: false, status: 409, error: "tmux is not here." });
     for (const code of PANEL_UNAVAILABLE) expect(panelUnavailable(code), code).toBe(true);
     for (const code of [...PANEL_RECOVERING, "tmux-unavailable", "", null, undefined]) expect(panelUnavailable(code), String(code)).toBe(false);
+  });
+
+  it("keeps the session hosts' refusal of a launch with the engine's own sentence, a refusal that is not tmux's", async () => {
+    const said = "Sessions still run on two older session hosts. End or restart them to start new sessions.";
+    expect(await launchTerminal({ agent: "claude", cwd: "/srv", key: "n1" }, { fetchFn: answering(409, { ok: false, error: said, code: "host-generations" }).fetchFn }))
+      .toEqual({ ok: false, status: 409, error: said, code: "host-generations" });
+    for (const code of PANEL_HOST_REFUSALS) {
+      expect(panelUnavailable(code), `${code}: not a state the card checks again by itself`).toBe(false);
+      expect((PANEL_RECOVERING as readonly string[]).includes(code), `${code}: not a moment waited out`).toBe(false);
+    }
   });
 
   it("reads adopt's 409 as the still-running refusal the panel has a sentence for", async () => {

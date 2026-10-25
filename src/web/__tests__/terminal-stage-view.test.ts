@@ -260,6 +260,15 @@ describe("the body's state cards, each at the terminal's origin", () => {
       .toEqual(["Try again", "Not now"]);
   });
 
+  it("draws a launch the session hosts refused as the engine's sentence with Try again, nothing of tmux", () => {
+    const sentence = "Sessions still run on two older session hosts. End or restart them to start new sessions.";
+    const card = StateCard(bodyProps({ kind: "error", message: sentence }));
+    expect(textOf(card)).toContain(sentence);
+    expect(all(card, el => el.type === "button").map(b => textOf(b)), "a way back, and no Check again that loops").toEqual(["Try again", "Not now"]);
+    const drawn = html(createElement(StateCard, bodyProps({ kind: "error", message: sentence })));
+    for (const word of ["tmux", "Install", "Check again"]) expect(drawn, word).not.toContain(word);
+  });
+
   it("says the deck is fetching its own tmux, what that means, and lets the stage be left meanwhile", () => {
     const props = bodyProps({ kind: "tmux-installing" });
     const out = html(createElement(StateCard, props));

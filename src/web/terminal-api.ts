@@ -157,10 +157,15 @@ export const PANEL_UNAVAILABLE = ["unsupported", "not-installed", "not-verified"
 /** Refusals of a moment (HTTP 503): an engine restarting, busy, or slow to
  *  answer, which the panel waits out where waiting is safe. */
 export const PANEL_RECOVERING = ["restarting", "busy", "no-answer"] as const;
+/** The engine's session hosts refusing a new session (HTTP 409): sessions
+ *  still run on older hosts, which the reader ends or restarts. Said as the
+ *  engine says it, with Try again; never tmux's, so the launch it refused is
+ *  not asked about tmux, and not a state the card checks again by itself. */
+export const PANEL_HOST_REFUSALS = ["host-generations"] as const;
 export type PanelUnavailable = typeof PANEL_UNAVAILABLE[number];
-export type PanelRefusal = PanelUnavailable | typeof PANEL_RECOVERING[number];
+export type PanelRefusal = PanelUnavailable | typeof PANEL_RECOVERING[number] | typeof PANEL_HOST_REFUSALS[number];
 
-const REFUSALS: ReadonlySet<string> = new Set([...PANEL_UNAVAILABLE, ...PANEL_RECOVERING]);
+const REFUSALS: ReadonlySet<string> = new Set([...PANEL_UNAVAILABLE, ...PANEL_RECOVERING, ...PANEL_HOST_REFUSALS]);
 
 /** Whether `code` is a state of this machine rather than of a moment. */
 export const panelUnavailable = (code?: string | null): code is PanelUnavailable =>

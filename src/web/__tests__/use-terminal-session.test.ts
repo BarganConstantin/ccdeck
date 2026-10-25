@@ -21,7 +21,7 @@ vi.mock("react", async () => (await import("./fake-react")).react);
 
 import { mount as mountComponent, flush } from "./fake-react";
 import { MAX_MESSAGE_BYTES, connectTerminal } from "../terminal-protocol";
-import type { ApiFailure, NotAttachable, SessionRef, TerminalStatus, Ticketed, Launched } from "../terminal-api";
+import { launchTerminal, type ApiFailure, type NotAttachable, type SessionRef, type TerminalStatus, type Ticketed, type Launched } from "../terminal-api";
 import {
   ACK_EVERY_BYTES,
   CTRL_V,
@@ -1026,6 +1026,31 @@ describe("the Command Panel's engine refusing (pro-engine-host-v1.md, Refusals)"
     expect(r.status, "a 409 of the engine's own is not tmux missing").not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
     expect(r.launch).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the session hosts' refusal of a launch in the engine's words, never the tmux card, even where there is no tmux", async () => {
+    const THIRD = "Sessions still run on two older session hosts. End or restart them to start new sessions.";
+    const { r, ctl } = rig();
+    // The deck's answer read by the page's own terminal-api, as the stage reads it.
+    const answer = { ok: false, error: THIRD, code: "host-generations" };
+    r.launch.mockImplementationOnce(req => launchTerminal(req as Parameters<typeof launchTerminal>[0], {
+      fetchFn: async () => ({ ok: false, status: 409, json: async () => answer }) as unknown as Response,
+    }));
+    // A deck with no tmux at all (Windows), had it been asked.
+    r.status.mockResolvedValue({ ok: true, platform: "win32", tmux: { ok: false, reason: "unsupported" } });
+    ctl.show({ kind: "launch", agent: "claude", cwd: "C:\\lab\\home\\projects\\demo", key: "n9" });
+    await flush();
+    await flush();
+    expect(r.last().phase, "the engine's sentence, with Try again and Not now").toEqual({ kind: "error", message: THIRD });
+    expect(r.status, "the session hosts' 409 is not tmux missing").not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.launch, "never launched again by itself").toHaveBeenCalledTimes(1);
+
+    // Try again is the reader's press: the same launch, by its key, once.
+    ctl.retry();
+    await flush();
+    expect(r.launch).toHaveBeenCalledTimes(2);
+    expect(r.launch.mock.calls[1][0]).toMatchObject({ agent: "claude", key: "n9" });
   });
 
   it("offers a launch the engine refused for a moment again, by its key, only when pressed", async () => {
