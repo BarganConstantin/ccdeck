@@ -23,7 +23,12 @@ import {
   accountTrouble, clip, fitPainted, meter, oneLine, pctTone, shortModel, sliceCells, textWidth, untilReset,
 } from "./cli-lines.mjs";
 import { accountKey } from "./lan-copies.mjs";
-import { fg, sinceLabel, spinnerFrames, stripAnsi } from "./term.mjs";
+import { fg, link, sinceLabel, spinnerFrames, stripAnsi } from "./term.mjs";
+
+/** Text from elsewhere — the deck's own sentences, an alias — on a console
+ *  that draws ASCII alone: its punctuation in ASCII's, anything else a "?". */
+const ASCII_FOR = Object.freeze({ "—": "-", "–": "-", "…": "...", "‘": "'", "’": "'", "“": '"', "”": '"', "·": ".", "×": "x" });
+export const asciiOnly = (s) => s.replace(/[^\x00-\x7f]/gu, (c) => ASCII_FOR[c] ?? "?");
 
 /** Below this the view says so instead of drawing a screen nothing fits on. */
 export const MIN_COLUMNS = 40;
@@ -51,6 +56,7 @@ export function initialState() {
     notice: null,       // { tone, text, until }
     busy: null,         // { text, since } while a switch or a start is under way
     starting: false,
+    signin: null,       // the sign-in page while it is up (openSignin)
   };
 }
 
@@ -101,15 +107,21 @@ export function withRoster(state, roster, trouble = null) {
  *   { type: "auto", enabled }
  *   { type: "refresh" }
  *   { type: "start" }       start a deck, when none is running
+ *   { type: "signin-start" }            ask the deck for a sign-in link
+ *   { type: "signin-code", code }       hand it the code the page showed
+ *   { type: "signin-cancel", quiet }    let go of the deck's sign-in
+ *   { type: "signin-done", account }    the page closed on a sign-in that took
  *
  * The refusals a switch can be told before it is asked for — the account in
- * use, a login known to be dead, a deck that is running and not answering —
- * are answered here, in the words `ccdeck switch` uses.
+ * use, a deck that is running and not answering — are answered here, in the
+ * words `ccdeck switch` uses; a login known to be dead opens the sign-in page
+ * for it instead. While that page is up every key is its own.
  */
 export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   const name = key.name ?? "";
   if (key.ctrl && name === "c") return { state, effect: { type: "quit" } };
   if (key.ctrl && name === "l") return { state, effect: { type: "redraw" } };
+  if (state.signin) return signinKey(state, str, key, { now, g });
   // Help is a page over the view: any key puts the view back, and the key is
   // spent doing it — q there closes the page, it does not quit.
   if (state.help) return { state: { ...state, help: false }, effect: null };
@@ -136,6 +148,7 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
     return { state: s, effect: { type: "best" } };
   }
   if (str === "a") return autoKey(s, { now, g });
+  if (str === "+") return addKey(s, { now, g });
   if (str === "r") return { state: s, effect: { type: "refresh" } };
   if (str === "d") {
     if (state.deck) return { state: { ...s, notice: note("info", `the deck is already running on ${state.deck.port}`, now) }, effect: null };
@@ -149,12 +162,15 @@ function switchKey(state, row, { now, g }) {
   if (!row) return { state, effect: null };
   const told = (tone, text) => ({ state: { ...state, notice: note(tone, text, now) }, effect: null });
   if (state.busy) return told("info", `${state.busy.text} ${g.dash} one thing at a time`);
-  if (row.active) return told("ok", `already on ${accountName(row)}`);
-  // A login known to be dead: switching to it signs every running session out.
-  // A disabled slot is a person's own "keep out of rotation" and switches.
+  // A login known to be dead: switching to it signs every running session out,
+  // so enter offers the one remedy instead, where the panel offers it — the
+  // sign-in, for this account, which replaces its login in place. In use or
+  // not. A disabled slot is a person's own "keep out of rotation" and switches.
   if (!switchable(row) && !row.disabled) {
-    return told("err", `${accountName(row)} needs a fresh sign-in ${g.dash} switching to it would sign every running session out`);
+    if (state.deck && row.email) return { state: { ...state, signin: openSignin(row.email) }, effect: null };
+    return told("err", `${accountName(row)} needs a fresh sign-in ${g.dash} d starts the deck, which signs it in again`);
   }
+  if (row.active) return told("ok", `already on ${accountName(row)}`);
   // A deck that is alive and did not answer holds the store's lock in its own
   // process: switching beside it is the race #1039 closed.
   if (!state.deck && state.silent.length) {
@@ -169,6 +185,18 @@ function autoKey(state, { now, g }) {
   if (state.busy) return told("info", `${state.busy.text} ${g.dash} one thing at a time`);
   if (!state.auto) return told("info", `the deck has not said whether Auto-switch is on yet`);
   return { state, effect: { type: "auto", enabled: state.auto.enabled !== true } };
+}
+
+function addKey(state, { now, g }) {
+  const told = (tone, text) => ({ state: { ...state, notice: note(tone, text, now) }, effect: null });
+  if (!state.deck) return told("info", `accounts are added through the deck ${g.dash} d starts one`);
+  if (state.busy) return told("info", `${state.busy.text} ${g.dash} one thing at a time`);
+  // claude-swap keeps the accounts: missing, refused or still being installed,
+  // a sign-in would end at its last step with nowhere to put the account.
+  if (state.roster && !state.roster.ok && state.roster.reason !== "no_accounts") {
+    return told("err", String([].concat(state.trouble ?? "could not read the accounts")[0]));
+  }
+  return { state: { ...state, signin: openSignin() }, effect: null };
 }
 
 
@@ -205,25 +233,38 @@ export const WIDE_COLUMNS = 120;
  *
  * `profile` is the colour tier (term.mjs colorProfile): the backgrounds — the
  * title bar, the lit row, the keys — reach as far as it does, and under
- * "none" there is not one escape on the screen.
+ * "none" there is not one escape on the screen. `links` says the terminal
+ * takes OSC 8 links (term.mjs supportsHyperlinks).
+ *
+ * While the sign-in page is up the panels give way to it, and the frame may
+ * carry a `run` (tui-screen.mjs): the sign-in link, edge to edge, its rows in
+ * `lines` as the pieces the terminal will wrap it into.
  */
-export function tuiFrame(state, { columns = 80, rows = 24, tone, g, unicode = true, now = 0, profile } = {}) {
+export function tuiFrame(state, { columns = 80, rows = 24, tone, g, unicode = true, now = 0, profile, links = false } = {}) {
   // The last column stays empty, the way statusLine leaves it (term.mjs): a
   // terminal that does not honour the wrap-off mode would wrap a full row.
+  // The run is the one exception, and wraps on purpose.
   const width = columns - 1;
-  const fill = (lines) => {
-    const out = lines.slice(0, rows).map(l => fitPainted(l, width, g.ellipsis));
+  const plain = unicode ? (l) => l : asciiOnly;
+  const fill = (lines, run = null) => {
+    const out = lines.slice(0, rows).map((l, i) => (run && i >= run.row && i < run.row + run.rows ? l : fitPainted(plain(l), width, g.ellipsis)));
     while (out.length < rows) out.push("");
     return out;
   };
   if (columns < MIN_COLUMNS || rows < MIN_ROWS) {
     const times = unicode ? "×" : "x";
-    return { lines: fill([`${tone.muted}too small ${g.dash} ${MIN_COLUMNS}${times}${MIN_ROWS} at least${tone.reset}`]), top: state.top };
+    return { lines: fill([`${tone.muted}too small ${g.dash} ${MIN_COLUMNS}${times}${MIN_ROWS} at least${tone.reset}`]), top: state.top, run: null };
   }
-  const look = { tone, g, unicode, now, skin: skinOf(profile ?? (tone.reset ? "ansi16" : "none")) };
+  const look = { tone, g, unicode, now, links, skin: skinOf(profile ?? (tone.reset ? "ansi16" : "none")) };
+  if (state.signin) {
+    const page = signinLines(state, rows - 3, width, columns, look);
+    const run = page.run ? { ...page.run, row: page.run.row + 1 } : null;
+    const lines = [titleBar(state, width, look), ...page.lines, noticeLine(state, look), footerLine(state, width, look)];
+    return { lines: fill(lines, run), top: state.top, run };
+  }
   const body = bodyLines(state, rows - 3, width, look);
   const lines = [titleBar(state, width, look), ...body.lines, noticeLine(state, look), footerLine(state, width, look)];
-  return { lines: fill(state.help ? withHelp(lines, width, look) : lines), top: body.top };
+  return { lines: fill(state.help ? withHelp(lines, width, look) : lines), top: body.top, run: null };
 }
 
 // ── the look ────────────────────────────────────────────────────────────────
@@ -360,17 +401,18 @@ function noticeLine(state, { tone, g, unicode, now }) {
   const n = state.notice;
   if (!n || (n.until != null && now > n.until)) return "";
   const [toneName, glyph] = NOTICE_MARK[n.tone] ?? NOTICE_MARK.info;
-  return `  ${tone[toneName]}${g[glyph]}${tone.reset}  ${n.tone === "err" ? tone.err : ""}${n.text}${tone.reset}`;
+  return `  ${tone[toneName]}${g[glyph]}${tone.reset}  ${n.tone === "err" ? tone.err : ""}${oneLine(n.text)}${tone.reset}`;
 }
 
 /** The keys, as many as fit, the ones that leave and explain kept to the last.
  *  Each key is a cap where the terminal can draw one. */
 function footerLine(state, width, { tone, unicode, skin }) {
-  const keys = [
+  const keys = state.signin ? signinKeys(state.signin) : [
     [unicode ? "↑↓" : "up/down", "move"],
     ["enter", "switch"],
     ["b", "best"],
     state.deck ? ["a", "auto-switch"] : ["d", "start the deck"],
+    ["+", "add"],
     ["r", "refresh"],
     ["?", "keys"],
     ["q", "quit"],
@@ -378,9 +420,9 @@ function footerLine(state, width, { tone, unicode, skin }) {
   const cap = (k) => (skin.cap ? `${skin.cap} ${k} ${tone.reset}` : `${tone.bold}${k}${tone.reset}`);
   const draw = (list) => `${skin.cap ? " " : "  "}${list.map(([k, what]) => `${cap(k)} ${tone.muted}${what}${tone.reset}`).join("  ")}`;
   const list = keys.slice();
-  // r goes first, then b, then the moves: the screen says what they do, and ?
+  // r goes first, then the moves, then b: the screen says what they do, and ?
   // and q are how to find out and how to leave.
-  for (const drop of ["r", "b", unicode ? "↑↓" : "up/down", "a", "d", "enter"]) {
+  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "enter"]) {
     if (textWidth(draw(list)) <= width) break;
     const i = list.findIndex(([k]) => k === drop);
     if (i !== -1) list.splice(i, 1);
@@ -399,7 +441,9 @@ function bodyLines(state, room, width, look) {
 
   let accounts;
   if (!state.roster) accounts = [`${tone.muted}reading the accounts${g.ellipsis}${tone.reset}`];
-  else if (!state.roster.ok) {
+  else if (!state.roster.ok && state.roster.reason === "no_accounts" && state.deck) {
+    accounts = [`${tone.muted}no Claude accounts yet ${g.dash} + signs one in${tone.reset}`];
+  } else if (!state.roster.ok) {
     // Wrapped, not cut: these are what to do next, a command among them.
     accounts = [].concat(state.trouble ?? "could not read the accounts")
       .flatMap((l, i) => wrap(String(l), inner).map(part => `${i ? tone.muted : tone.warn}${part}${tone.reset}`));
@@ -556,7 +600,7 @@ function laneCells(a, { kind, bar }, labelW, look) {
 
 /** What the trouble on an account means for a switch to it. */
 const TROUBLE_SAYS = {
-  "sign-in needed": "its login has expired, and switching to it would sign every running session out",
+  "sign-in needed": "its login has expired; enter signs it in again, keeping its slot, alias and history",
   disabled: "kept out of Auto-switch's rotation; enter still switches to it",
   "not collecting usage": "nothing has been read for it in half a day, so these are its last numbers",
 };
@@ -697,6 +741,280 @@ function waitingRows(list, { asks, width, now }, { tone, g }) {
   return out;
 }
 
+// ── adding an account ───────────────────────────────────────────────────────
+//
+// The deck's own sign-in (cswap-admin.mjs startLogin), the one the Accounts
+// panel's Add dialog drives (AddAccountDialog.tsx, signin-stages.ts):
+// `claude auth login` on this machine prints a link, the person approves it in
+// a browser, and either the CLI hears back by itself — a browser on this
+// machine reaches its loopback port — or the page shows a code, which is typed
+// or pasted here. Over SSH it is the code. The deck does the rest: who signed
+// in, `cswap add`, and the account in use put back in front.
+
+/** The sign-in page before anything is asked: a new account, or `email`'s
+ *  expired login signed in again in place. `login` is the deck's
+ *  loginState() once it has one. */
+export function openSignin(email = null) {
+  return { email, started: false, login: null, code: "", sending: false, lastLive: null };
+}
+
+/** The stages, in order (signin-stages.ts), and where `registering`'s steps
+ *  sit among them. */
+export const SIGNIN_STAGES = Object.freeze(["link", "approve", "confirm", "save"]);
+const STEP_STAGE = Object.freeze({ confirm: "confirm", save: "save", restore: "save" });
+
+/**
+ * Where a started sign-in is, from the deck's own state: `{ live }` while it
+ * runs, `{ failed }` once it stopped, `{ done: true }`. A flow the deck no
+ * longer has (`idle`) ended at the stage last seen (`vanished`).
+ */
+export function signinStage(si) {
+  const login = si?.login;
+  switch (login?.state) {
+    case "done": return { done: true };
+    case "failed": return { failed: STEP_STAGE[login.step] ?? (login.url ? "approve" : "link") };
+    case "idle": return { failed: si.lastLive ?? "link", vanished: true };
+    case "registering": return { live: STEP_STAGE[login.step] ?? "confirm" };
+    case "awaiting_code": return { live: "approve" };
+    default: return { live: "link" };
+  }
+}
+
+/** The deck's answer in place of the last, keeping the stage it was at, so a
+ *  flow that vanishes can still say where. */
+export function withLogin(state, login) {
+  const si = state.signin;
+  if (!si?.started) return state;
+  const next = { ...si, login };
+  return { ...state, signin: { ...next, lastLive: signinStage(next).live ?? si.lastLive } };
+}
+
+/** Whether the deck is still at it: what the app asks about, and what leaving
+ *  has to cancel. */
+export function signinRunning(si) {
+  return Boolean(si?.started) && Boolean(signinStage(si).live);
+}
+
+/** How often the deck is asked where the sign-in is: a person reading a
+ *  consent page, or three short commands (signin-stages.ts loginPollMs). */
+export function signinPollMs(si) {
+  return si?.login?.state === "registering" ? 400 : 1_500;
+}
+
+/** The longest code taken: the CLI's is well under it, a paste of a page is not. */
+const CODE_MAX = 1_024;
+
+function signinKey(state, str, key, { now, g }) {
+  const si = state.signin;
+  const name = key.name ?? "";
+  const enter = name === "return" || name === "enter";
+  const back = name === "escape" || str === "q";
+  const stay = { state, effect: null };
+  const close = (effect = null) => ({ state: { ...state, signin: null }, effect });
+  if (!si.started) {
+    if (enter) return { state, effect: { type: "signin-start" } };
+    return back ? close() : stay;
+  }
+  const at = signinStage(si);
+  if (at.done) return enter || back ? close({ type: "signin-done", account: si.login?.account ?? null }) : stay;
+  if (at.failed) {
+    if (enter) return { state, effect: { type: "signin-start" } };
+    // The deck may still hold the flow that failed. Letting go of it is what
+    // the panel's dialog does on every way out but a success (login-flow.ts) —
+    // unless the deck never started ours (`local`), when the only sign-in it
+    // holds is somebody else's.
+    if (!back) return stay;
+    return close(si.login?.local ? null : { type: "signin-cancel", quiet: true });
+  }
+  if (name === "escape") {
+    // Past the code the deck is writing the account, and the dialog offers no
+    // cancel there either: stopping half-way is how a store loses a record.
+    if (at.live === "confirm" || at.live === "save") {
+      return { state: { ...state, notice: note("info", `saving the account ${g.dash} a moment`, now) }, effect: null };
+    }
+    return close({ type: "signin-cancel" });
+  }
+  // The code's field: q and every other letter are its characters here.
+  if (at.live !== "approve") return stay;
+  const edit = (code) => ({ state: { ...state, signin: { ...si, code } }, effect: null });
+  if (enter) {
+    const code = si.code.trim();
+    if (!code || si.sending) return stay;
+    return { state: { ...state, signin: { ...si, sending: true } }, effect: { type: "signin-code", code } };
+  }
+  if (name === "backspace") return edit([...si.code].slice(0, -1).join(""));
+  if (key.ctrl && name === "u") return edit("");
+  // A code is printable ASCII with no spaces; anything else is a key that
+  // means nothing here rather than a character of it.
+  if (str && !key.ctrl && !key.meta && /^[\x21-\x7e]+$/.test(str)) return edit((si.code + str).slice(0, CODE_MAX));
+  return stay;
+}
+
+/** The page's keys, for the footer. */
+function signinKeys(si) {
+  if (!si.started) return [["enter", "get the sign-in link"], ["esc", "back"]];
+  const at = signinStage(si);
+  if (at.done) return [["enter", "done"]];
+  if (at.failed) return [["enter", "try again"], ["esc", "back"]];
+  if (at.live === "approve") return [["enter", "send the code"], ["esc", "cancel"]];
+  if (at.live === "link") return [["esc", "cancel"]];
+  return [];
+}
+
+/** Each stage's words: still to come, under way, done (signin-stages.ts). */
+const STAGE_WORDS = Object.freeze({
+  link: ["Get a sign-in link", "Asking the claude CLI for a sign-in link", "Sign-in link ready"],
+  approve: ["Approve in your browser", "Waiting for you to approve in the browser", "Approved in the browser"],
+  confirm: ["Confirm who signed in", "Confirming who signed in", "Sign-in confirmed"],
+  save: ["Save the credentials", "Saving the credentials", "Credentials saved"],
+});
+const STAGE_FAILED = Object.freeze({
+  link: "No sign-in link came",
+  approve: "The sign-in did not finish in the browser",
+  confirm: "The sign-in could not be confirmed",
+  save: "claude-swap could not save the account",
+});
+/** login-flow.ts LOGIN_VANISHED, for a sign-in the deck no longer has. */
+const SIGNIN_VANISHED = "the sign-in ended before it finished — the deck restarted, or it was cancelled elsewhere";
+
+/** A link the page may draw edge to edge: https, and nothing in it a
+ *  terminal could read as anything but a character. */
+const safeLink = (url) => (typeof url === "string" && /^https:\/\/[\x21-\x7e]+$/.test(url) ? url : null);
+
+/** A reason as a sentence: a capital unless it opens on a lower-case name. */
+function sentence(text) {
+  const t = String(text ?? "").trim();
+  if (!t) return "";
+  const head = /^(?:claude|claude-swap|cswap|ccdeck)\b/.test(t) ? t : t[0].toUpperCase() + t.slice(1);
+  return /[.!?…]$/.test(head) ? head : `${head}.`;
+}
+
+/** login-flow.ts restoreWarning: the account in use did not go back. */
+function restoreWarning(login, g) {
+  if (login?.restored !== false) return null;
+  const a = login.activeAccount;
+  const who = oneLine(a?.email) || (a?.num != null ? `account ${a.num}` : null);
+  return who
+    ? `This machine is now signed in as ${who} ${g.dash} the account you were using could not be put back. Switch back from the list.`
+    : `The account you were using could not be put back ${g.dash} check which account is in use in the list.`;
+}
+
+/**
+ * The page, `room` rows: the stages in a panel and under it what the person
+ * does next — on the approve stage the link, edge to edge, and the code's
+ * field. What gives way on a short screen is the explaining, then the panel;
+ * the link and the field go last.
+ */
+function signinLines(state, room, width, columns, look) {
+  const { tone, g, unicode, now, links } = look;
+  const si = state.signin;
+  const inner = width - 4;
+  // Everything the deck wrote — an address, the CLI's own last words — on one
+  // line, with nothing in it a terminal could take for an instruction.
+  const email = oneLine(si.email);
+  const error = oneLine(si.login?.error);
+  const title = `${tone.bold}${email ? "Sign in again" : "Add a Claude account"}${tone.reset}`;
+  const say = (text, t = tone.muted) => wrap(text, width - 2).map(l => `  ${t}${l}${tone.reset}`);
+  const out = (lines, run = null) => ({ lines: [...lines, ...pad(room - lines.length)].slice(0, room), run });
+
+  if (!si.started) {
+    const what = email
+      ? `claude-swap replaces the expired login in place ${g.dash} the account keeps its slot, its alias and its history ${g.dash} and the account you use now stays active.`
+      : "claude-swap records the account, and the account you use now stays active.";
+    const lines = [
+      `${tone.bold}${email ? `Sign in again as ${email}` : "Sign in to Anthropic"}${tone.reset}`,
+      "",
+      ...wrap("The claude CLI on this machine makes a sign-in link to open in any browser. If that browser runs on this machine, the sign-in finishes by itself; anywhere else the page shows a code to paste here.", inner),
+      "",
+      ...wrap(what, inner),
+    ].map((l, i) => (i ? `${tone.muted}${l}${tone.reset}` : l));
+    return out(panel(width, Math.min(room, lines.length + 2), { title, lines }, look));
+  }
+
+  const at = signinStage(si);
+  const frames = spinnerFrames(unicode);
+  const spin = frames[Math.floor(now / 100) % frames.length];
+  const stages = SIGNIN_STAGES.map((id, i) => {
+    const pos = at.done ? SIGNIN_STAGES.length : SIGNIN_STAGES.indexOf(at.live ?? at.failed);
+    const [later, under, did] = STAGE_WORDS[id];
+    if (i < pos) return `${tone.ok}${g.ok}${tone.reset}  ${tone.muted}${did}${tone.reset}`;
+    if (i > pos) return `${tone.muted}${unicode ? "·" : "."}  ${later}${tone.reset}`;
+    if (at.failed) return `${tone.err}${g.fail}  ${at.vanished ? "Sign-in ended" : STAGE_FAILED[id]}${tone.reset}`;
+    return `${tone.accent}${spin}${tone.reset}  ${under}`;
+  });
+  const left = at.live === "approve" && typeof si.login?.expiresAt === "number"
+    ? Math.ceil((si.login.expiresAt - (now + (state.skew ?? 0))) / 60_000) : null;
+  const clock = left >= 1 && left <= 5 ? `${tone.muted}${left} min left${tone.reset}` : "";
+  const box = panel(width, stages.length + 2, { title, note: clock, lines: stages }, look);
+
+  if (at.done) {
+    const acc = si.login?.account ?? {};
+    const warn = restoreWarning(si.login, g);
+    const headline = acc.added === false ? "Credentials refreshed" : acc.num != null ? `Account ${acc.num} added` : "Account added";
+    const who = oneLine(acc.email) || "the account";
+    const lines = [
+      ...box, "",
+      `  ${tone.ok}${g.ok}${tone.reset}  ${tone.bold}${headline}${tone.reset}`,
+      ...say(acc.added === false
+        ? `${who} was already in the rotation, so its stored login was replaced with this one.`
+        : warn ? `${who} is in the rotation.` : `${who} is in the rotation. The account you were using is still active.`),
+      ...(warn ? say(warn, tone.warn) : []),
+    ];
+    return out(lines);
+  }
+  if (at.failed) {
+    return out([...box, "", ...say(sentence(at.vanished ? SIGNIN_VANISHED : error || "the deck gave no reason"))]);
+  }
+  if (at.live !== "approve") {
+    const doing = {
+      link: "Asking the claude CLI on this machine for a sign-in link.",
+      confirm: "Asking the claude CLI which account just signed in.",
+      save: si.login?.step === "restore" ? "Switching this machine back to the account you were using." : "claude-swap is recording the account.",
+    }[at.live];
+    return out([...box, "", ...say(doing)]);
+  }
+
+  // The link, and the field for the code the page shows.
+  const url = safeLink(si.login?.url);
+  const caret = unicode ? "▏" : "_";
+  const shown = si.code.length > width - 8 ? `${g.ellipsis}${si.code.slice(-(width - 9))}` : si.code;
+  const field = si.sending
+    ? `  ${tone.accent}${unicode ? "›" : ">"}${tone.reset} ${shown}  ${tone.muted}sending the code${g.ellipsis}${tone.reset}`
+    : `  ${tone.accent}${unicode ? "›" : ">"}${tone.reset} ${shown}${tone.accent}${caret}${tone.reset}`;
+  const refused = !si.sending && error
+    ? wrap(error, width - 5).map((l, i) => `  ${tone.err}${i ? "   " : `${g.fail}  `}${l}${tone.reset}`) : [];
+  const pieces = [];
+  if (url) for (let i = 0; i < url.length; i += columns) pieces.push(url.slice(i, i + columns));
+  const blocks = {
+    box: [...box, ""],
+    open: say("Open this link in any browser and approve the sign-in:", ""),
+    link: url ? pieces : say(`the deck's sign-in link could not be shown ${g.dash} sign in from its Accounts panel`, tone.warn),
+    gap: [""],
+    paste: say("If that browser runs on this machine, this finishes by itself. Anywhere else the page shows a code: paste it here and press enter."),
+    field: [field, ...refused],
+    kept: say("The code goes only to the claude CLI on this machine, and is not kept."),
+  };
+  const order = ["box", "open", "link", "gap", "paste", "field", "kept"];
+  const shownBlocks = new Set(order);
+  const height = () => order.filter(b => shownBlocks.has(b)).reduce((n, b) => n + blocks[b].length, 0);
+  for (const drop of ["kept", "gap", "paste", "box", "open"]) {
+    if (height() <= room) break;
+    shownBlocks.delete(drop);
+  }
+  // A link that does not fit whole is no link at all: say so instead.
+  if (height() > room) blocks.link = say(`make the window taller to see the sign-in link ${g.dash} it needs ${pieces.length} rows`, tone.warn);
+  const lines = [];
+  let run = null;
+  for (const b of order) {
+    if (!shownBlocks.has(b)) continue;
+    if (b === "link" && url && blocks.link === pieces) {
+      run = { row: lines.length, rows: pieces.length, full: url.length % columns === 0, text: `${tone.accent}${link(url, url, links)}${tone.reset}` };
+    }
+    lines.push(...blocks[b]);
+  }
+  return out(lines, run && run.row + run.rows <= room ? run : null);
+}
+
 // ── help ────────────────────────────────────────────────────────────────────
 
 /** The keys, in a box over the screen, the screen under it faded. */
@@ -705,9 +1023,10 @@ function withHelp(base, width, look) {
   const keys = [
     [unicode ? "↑ ↓  j k" : "up down  j k", "move"],
     ["1-9", "the account in that slot"],
-    ["enter  s", "switch to the selected account"],
+    ["enter  s", "switch to the selected account, or sign it in again"],
     ["b", "select the account Auto-switch would pick"],
     ["a", "turn Auto-switch on or off"],
+    ["+", "add a Claude account, signed in from any browser"],
     ["r", "read the usage again"],
     ["d", "start the deck, when none is running"],
     ["ctrl+l", "draw the screen again"],

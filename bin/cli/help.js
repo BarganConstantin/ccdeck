@@ -30,7 +30,8 @@ Commands:
   tui                      A full-screen view of the accounts and the sessions
                            waiting on you: move with the arrows, Enter
                            switches, b picks the best, a turns Auto-switch on
-                           or off, ? lists the keys, q quits
+                           or off, + signs an account in, ? lists the keys,
+                           q quits
   status, stop, logs       The same as --status, --stop and --logs
 
   Every command takes --port <n> to name a deck, and all but tui take --json

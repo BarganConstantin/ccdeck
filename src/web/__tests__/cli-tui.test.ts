@@ -10,11 +10,16 @@
 //                 always on it;
 //   the keys      which key asks for what, and the refusals a switch is told
 //                 before it is asked for, in `ccdeck switch`'s words;
+//   the sign-in   the deck's stages, the link drawn whole for a terminal to
+//                 wrap, the code's field, and which way out lets go of the
+//                 deck's sign-in;
 //   the screen    only the rows that changed are written, and the terminal is
 //                 handed back whole, however many times it is asked;
 //   the loop      a fake terminal and a fake deck: the switch goes THROUGH the
 //                 deck with the slot chosen, Auto-switch is the deck's own POST,
-//                 q puts the terminal back, and a pipe or `--json` is refused.
+//                 an account is added with a pasted code, q puts the terminal
+//                 back — the sign-in let go of first — and a pipe or `--json`
+//                 is refused.
 import { describe, it, expect } from "vitest";
 import { spawn } from "node:child_process";
 import { mkdtempSync } from "node:fs";
@@ -29,7 +34,7 @@ const { parseArgs, isOneShot } = await import("../../server/args.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const view = await import("../../server/tui-view.mjs");
 // @ts-expect-error — plain .mjs module, no types
-const { createScreen, framesHeld, ALT_SCREEN_ON, ALT_SCREEN_OFF, SYNC_ON, WRAP_ON } = await import("../../server/tui-screen.mjs");
+const { createScreen, framesHeld, ALT_SCREEN_ON, ALT_SCREEN_OFF, SYNC_ON, WRAP_ON, WRAP_OFF } = await import("../../server/tui-screen.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const { fitPainted, sliceCells, textWidth } = await import("../../server/cli-lines.mjs");
 // @ts-expect-error — plain .mjs module, no types
@@ -69,6 +74,13 @@ const AUTO = {
   choice: { next: "room", home: { email: "bob@home.example", orgUuid: "org-2" } },
 };
 
+// What `claude auth login` prints, as the deck reports it (cswap-admin.test.ts).
+const LOGIN_URL =
+  "https://claude.com/cai/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e" +
+  "&response_type=code&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback" +
+  "&scope=org%3Acreate_api_key+user%3Aprofile&code_challenge=ipcF4hM7&state=dSuby3fi";
+const WAITING_CODE = { state: "awaiting_code", url: LOGIN_URL, error: null, account: null, expiresAt: NOW + 280_000, step: null, restored: true, activeAccount: null };
+
 const tone = palette("ansi16");
 const plainTone = palette("none");
 const U = glyphs(true);
@@ -79,8 +91,13 @@ function deckState(over: State = {}): State {
   const s = { ...view.initialState(), deck: { port: 4317, version: "3.46.0" }, source: "deck", auto: AUTO, sessions: SESSIONS, readAt: NOW - 2_000 };
   return { ...view.withRoster(s, { ok: true, activeNum: 1, accounts: ROWS }), ...over };
 }
-const frame = (s: State, columns = 80, rows = 24, unicode = true, profile = unicode ? "ansi16" : "none") =>
-  view.tuiFrame(s, { columns, rows, tone: palette(profile), g: unicode ? U : A, unicode, now: NOW, profile });
+const frame = (s: State, columns = 80, rows = 24, unicode = true, profile = unicode ? "ansi16" : "none", links = false) =>
+  view.tuiFrame(s, { columns, rows, tone: palette(profile), g: unicode ? U : A, unicode, now: NOW, profile, links });
+/** The sign-in page once the deck answered its start with `login`. */
+function signingIn(login: Row, over: State = {}, email: string | null = null): State {
+  const s = { ...deckState(), signin: { ...view.openSignin(email), started: true, lastLive: "link" } };
+  return { ...view.withLogin(s, login), ...over };
+}
 const text = (lines: string[]) => lines.map((l: string) => stripAnsi(l));
 /** A panel row's inside: the borders and the padding off. */
 const inside = (l: string) => l.replace(/^[│|] /, "").replace(/ *[│|]$/, "");
@@ -94,18 +111,29 @@ describe("the frame", () => {
     ["a long notice", deckState({ notice: view.note("err", "x".repeat(300), NOW) })],
     ["many accounts", { ...deckState(), ...view.withRoster(deckState(), { ok: true, accounts: Array.from({ length: 14 }, (_, i) => row(i + 1, `user${i + 1}@a-rather-long-domain.example`, `alias-${i + 1}`)) }) }],
     ["an account with trouble selected", deckState({ at: 2, sessions: [] })],
+    ["the sign-in's first page", { ...deckState(), signin: view.openSignin("carol@side.example") }],
+    ["the sign-in waiting for the code", signingIn({ ...WAITING_CODE, error: "that code was not accepted — copy it again from the browser" })],
+    ["the sign-in saving", signingIn({ ...WAITING_CODE, state: "registering", step: "save" })],
+    ["a sign-in that failed", signingIn({ ...WAITING_CODE, state: "failed", error: "y".repeat(300) })],
+    ["a sign-in done", signingIn({ state: "done", account: { num: 5, email: "eve@new.example", added: true }, restored: false, activeAccount: { num: 3, email: "carol@side.example" } })],
   ];
   for (const [what, s] of states) {
     for (const [columns, rows] of [[40, 12], [64, 16], [80, 24], [104, 30], [120, 32], [160, 50]]) {
       it(`${what} at ${columns}x${rows}: every row is inside the screen, in every colour tier`, () => {
         for (const profile of PROFILES) {
           for (const unicode of [true, false]) {
-            const { lines } = frame(s, columns, rows, unicode, profile);
+            const { lines, run } = frame(s, columns, rows, unicode, profile);
             expect(lines).toHaveLength(rows);
-            for (const line of lines) expect(textWidth(line)).toBeLessThan(columns);
+            // The link's rows alone reach the last column: the terminal wraps them.
+            const inRun = (i: number) => run != null && i >= run.row && i < run.row + run.rows;
+            lines.forEach((line: string, i: number) => expect(textWidth(line)).toBeLessThan(inRun(i) ? columns + 1 : columns));
+            if (run) {
+              expect(run.row + run.rows).toBeLessThanOrEqual(rows - 2);
+              expect(stripAnsi(run.text)).toBe(text(lines.slice(run.row, run.row + run.rows)).join(""));
+            }
             if (!unicode) for (const line of text(lines)) expect(line).toMatch(/^[\x20-\x7e]*$/);
             // NO_COLOR: not one escape, the lit row and the keys included.
-            if (profile === "none") for (const line of lines) expect(line).not.toContain("\x1b");
+            if (profile === "none") for (const line of [...lines, run?.text ?? ""]) expect(line).not.toContain("\x1b");
           }
         }
       });
@@ -297,10 +325,15 @@ describe("the keys", () => {
     const already = key(deckState({ at: 0 }), "\r", { name: "return" });
     expect(already.effect).toBeNull();
     expect(already.state.notice.text).toBe("already on #1 alice@corp.example (work)");
+    // A dead login is not switched to: enter offers its sign-in instead.
     const dead = key(deckState({ at: 2 }), "\r", { name: "return" });
     expect(dead.effect).toBeNull();
-    expect(dead.state.notice.tone).toBe("err");
-    expect(dead.state.notice.text).toContain("needs a fresh sign-in");
+    expect(dead.state.signin).toMatchObject({ email: "carol@side.example", started: false });
+    const deadNoDeck = key(deckState({ at: 2, deck: null }), "\r", { name: "return" });
+    expect(deadNoDeck.state.signin).toBeNull();
+    expect(deadNoDeck.state.notice.tone).toBe("err");
+    expect(deadNoDeck.state.notice.text).toContain("needs a fresh sign-in");
+    expect(deadNoDeck.state.notice.text).toContain("d starts the deck");
     // A disabled slot is somebody's own "keep out of rotation": it switches.
     expect(key(deckState({ at: 3 }), "\r", { name: "return" }).effect?.type).toBe("switch");
     const silent = key(deckState({ at: 1, deck: null, silent: [{ port: 4317 }] }), "\r", { name: "return" });
@@ -355,6 +388,185 @@ describe("the keys", () => {
   });
 });
 
+describe("the sign-in", () => {
+  const key = (s: State, str: string | undefined, k: Row = {}) => view.tuiKey(s, str, { name: str, ...k }, { now: NOW, g: U });
+  const enter = (s: State) => key(s, "\r", { name: "return" });
+  const esc = (s: State) => key(s, undefined, { name: "escape" });
+  /** The page's words as one text, the borders and the wrapping off. */
+  const prose = (lines: string[]) => text(lines).map(l => inside(l).trim()).filter(Boolean).join(" ");
+
+  it("+ opens it, and is refused where no sign-in could end well", () => {
+    expect(key(deckState(), "+").state.signin).toMatchObject({ email: null, started: false, code: "" });
+    const told = (s: State) => { const r = key(s, "+"); expect(r.state.signin).toBeNull(); return r.state.notice; };
+    expect(told(deckState({ deck: null })).text).toBe("accounts are added through the deck — d starts one");
+    expect(told(deckState({ busy: { text: "switching to #2", since: NOW } })).text).toContain("one thing at a time");
+    const noCswap = view.withRoster(deckState(), { ok: false, reason: "no_cswap" }, ["claude-swap is not installed"]);
+    expect(told(noCswap)).toMatchObject({ tone: "err", text: "claude-swap is not installed" });
+    // No accounts yet is where the first one comes from.
+    const none = view.withRoster(deckState(), { ok: false, reason: "no_accounts" }, ["no accounts yet"]);
+    expect(key(none, "+").state.signin).not.toBeNull();
+    expect(text(frame(none).lines).some(l => inside(l) === "no Claude accounts yet — + signs one in")).toBe(true);
+  });
+
+  it("says what will happen first: enter asks for the link, esc and q go back", () => {
+    const s = key(deckState(), "+").state;
+    const lines = text(frame(s).lines);
+    expect(lines[1]).toMatch(/^╭─ Add a Claude account ─+╮$/);
+    expect(inside(lines[2])).toBe("Sign in to Anthropic");
+    expect(prose(frame(s).lines)).toContain("anywhere else the page shows a code to paste here.");
+    expect(prose(frame(s).lines)).toContain("the account you use now stays active.");
+    expect(lines[23]).toMatch(/^ {2}enter +get the sign-in link +esc +back/);
+    expect(enter(s).effect).toEqual({ type: "signin-start" });
+    for (const back of [esc(s), key(s, "q")]) {
+      expect(back.state.signin).toBeNull();
+      expect(back.effect).toBeNull();
+    }
+    // An expired login is signed in again in place, for its own address.
+    const again = enter(deckState({ at: 2 })).state;
+    const said = text(frame(again).lines);
+    expect(said[1]).toMatch(/^╭─ Sign in again ─/);
+    expect(inside(said[2])).toBe("Sign in again as carol@side.example");
+    expect(prose(frame(again).lines)).toContain("keeps its slot, its alias and its history");
+  });
+
+  it("follows the deck's stages, the one under way spinning", () => {
+    const stages = (login: Row) => text(frame(signingIn(login)).lines).slice(2, 6).map(inside);
+    expect(stages({ state: "awaiting_url", url: null })).toEqual([
+      expect.stringMatching(/^\S {2}Asking the claude CLI for a sign-in link$/),
+      "·  Approve in your browser", "·  Confirm who signed in", "·  Save the credentials",
+    ]);
+    expect(stages(WAITING_CODE).slice(0, 2)).toEqual(["✓  Sign-in link ready", expect.stringMatching(/^\S {2}Waiting for you to approve in the browser$/)]);
+    expect(stages({ ...WAITING_CODE, state: "registering", step: "confirm" })[2]).toMatch(/^\S {2}Confirming who signed in$/);
+    expect(stages({ ...WAITING_CODE, state: "registering", step: "restore" })[3]).toMatch(/^\S {2}Saving the credentials$/);
+    expect(stages({ state: "done", account: { num: 5 } })).toEqual(["✓  Sign-in link ready", "✓  Approved in the browser", "✓  Sign-in confirmed", "✓  Credentials saved"]);
+    // A failure is marked where it happened.
+    expect(view.signinStage({ started: true, login: { state: "failed", step: "save" } })).toEqual({ failed: "save" });
+    expect(view.signinStage({ started: true, login: { state: "failed", url: LOGIN_URL } })).toEqual({ failed: "approve" });
+    expect(view.signinStage({ started: true, login: { state: "failed" } })).toEqual({ failed: "link" });
+    // A flow the deck no longer has ended where it was last seen.
+    const gone = view.withLogin(signingIn(WAITING_CODE), { state: "idle" });
+    expect(view.signinStage(gone.signin)).toEqual({ failed: "approve", vanished: true });
+    expect(view.signinRunning(gone.signin)).toBe(false);
+    expect(prose(frame(gone).lines)).toContain("The sign-in ended before it finished — the deck restarted, or it was cancelled elsewhere.");
+    // The deck is asked more often while it writes the account.
+    expect(view.signinPollMs(signingIn(WAITING_CODE).signin)).toBe(1_500);
+    expect(view.signinPollMs(signingIn({ ...WAITING_CODE, state: "registering" }).signin)).toBe(400);
+  });
+
+  it("draws the link whole, as one run the terminal wraps, the code's field under it", () => {
+    const f = frame(signingIn(WAITING_CODE));
+    const lines = text(f.lines);
+    expect(lines[1]).toMatch(/^╭─ Add a Claude account ─+ 5 min left ─╮$/);
+    expect(f.run).toMatchObject({ rows: Math.ceil(LOGIN_URL.length / 80), full: LOGIN_URL.length % 80 === 0 });
+    expect(stripAnsi(f.run.text)).toBe(LOGIN_URL);
+    expect(lines.slice(f.run.row, f.run.row + f.run.rows).join("")).toBe(LOGIN_URL);
+    expect(lines[f.run.row - 1]).toBe("  Open this link in any browser and approve the sign-in:");
+    expect(lines).toContain("  › ▏");
+    expect(lines[23]).toMatch(/^ {2}enter +send the code +esc +cancel/);
+    // Where the terminal knows links, the run is one: OSC 8 around it.
+    expect(frame(signingIn(WAITING_CODE), 80, 24, true, "ansi16", true).run.text).toContain(`\x1b]8;;${LOGIN_URL}`);
+    expect(text(frame(signingIn(WAITING_CODE), 80, 24, false).lines)).toContain("  > _");
+    // A last piece that reaches the last column says so: clearing the row would take its last character.
+    const exact = "https://x.example/" + "a".repeat(80 * 2 - 18);
+    expect(frame(signingIn({ ...WAITING_CODE, url: exact })).run).toMatchObject({ rows: 2, full: true });
+  });
+
+  it("draws a link it cannot vouch for as a warning, never as a run", () => {
+    for (const url of ["http://claude.ai/oauth", `https://claude.ai/\x1b]8;;evil\x07x`, "https://claude.ai/a b", 42]) {
+      const f = frame(signingIn({ ...WAITING_CODE, url }));
+      expect(f.run).toBeNull();
+      expect(prose(f.lines)).toContain("the deck's sign-in link could not be shown — sign in from its Accounts panel");
+    }
+  });
+
+  it("gives way on a short screen, the link and the field last of all", () => {
+    const short = text(frame(signingIn(WAITING_CODE), 80, 16).lines);
+    expect(short.join("")).toContain(LOGIN_URL);
+    expect(short).toContain("  › ▏");
+    expect(short.some(l => l.includes("is not kept"))).toBe(false);
+    expect(frame(signingIn(WAITING_CODE), 40, 12).run).toMatchObject({ rows: Math.ceil(LOGIN_URL.length / 40) });
+    // A link that cannot fit whole is no link at all: it says so.
+    const long = `${LOGIN_URL}&scope_more=${"x".repeat(120)}`;
+    const tiny = frame(signingIn({ ...WAITING_CODE, url: long }), 40, 12);
+    expect(tiny.run).toBeNull();
+    expect(prose(tiny.lines)).toContain(`make the window taller to see the sign-in link — it needs ${Math.ceil(long.length / 40)} rows`);
+    expect(text(tiny.lines)).toContain("  › ▏");
+  });
+
+  it("takes the code as typed or pasted, q and all, and enter sends it once", () => {
+    let s = signingIn(WAITING_CODE);
+    for (const ch of ["a", "q", "-", "Z", "9"]) s = key(s, ch).state;
+    expect(s.signin.code).toBe("aq-Z9");
+    expect(key(s, undefined, { name: "backspace" }).state.signin.code).toBe("aq-Z");
+    expect(key(s, "u", { name: "u", ctrl: true }).state.signin.code).toBe("");
+    // A space, a tab or a control key is not a character of a code.
+    for (const [str, k] of [[" ", { name: "space" }], ["\t", { name: "tab" }], ["\x1b[A", { name: "up" }]] as [string, Row][]) {
+      expect(key(s, str, k).state.signin.code).toBe("aq-Z9");
+    }
+    expect(key(s, "x".repeat(5_000)).state.signin.code).toHaveLength(1_024);
+    const sent = enter(s);
+    expect(sent.effect).toEqual({ type: "signin-code", code: "aq-Z9" });
+    expect(sent.state.signin.sending).toBe(true);
+    expect(text(frame(sent.state).lines).some(l => l.includes("aq-Z9  sending the code…"))).toBe(true);
+    expect(enter(sent.state).effect).toBeNull();
+    expect(enter(signingIn(WAITING_CODE)).effect).toBeNull();
+    // Before the link there is no field to type into.
+    expect(key(signingIn({ state: "awaiting_url", url: null }), "a").state.signin.code).toBe("");
+  });
+
+  it("puts a refused code's reason under the field, for the next one", () => {
+    const why = "that code was not accepted — copy it again from the browser";
+    const lines = text(frame(signingIn({ ...WAITING_CODE, error: why })).lines);
+    expect(lines[lines.indexOf("  › ▏") + 1]).toBe(`  ✗  ${why}`);
+    // What the CLI printed is shown, never obeyed: no escape reaches the terminal.
+    const hostile = frame(signingIn({ ...WAITING_CODE, error: "rejected\x1b]0;owned\x07 \x1b[2Jcode\nagain" }, {}, "x\x1b[31m@y.example"), 80, 24, true, "none");
+    expect(hostile.lines.join("")).not.toContain("\x1b");
+    expect(text(hostile.lines)).toContain("  ✗  rejected ]0;owned [2Jcode again");
+    // On a console that draws ASCII alone, the deck's own sentence is ASCII too.
+    expect(text(frame(signingIn({ ...WAITING_CODE, error: why }), 80, 24, false).lines)).toContain("  x  that code was not accepted - copy it again from the browser");
+  });
+
+  it("esc lets go of the deck's sign-in while it waits, and not once it writes the account", () => {
+    for (const login of [{ state: "awaiting_url", url: null }, WAITING_CODE]) {
+      const r = esc(signingIn(login));
+      expect(r.effect).toEqual({ type: "signin-cancel" });
+      expect(r.state.signin).toBeNull();
+    }
+    const saving = esc(signingIn({ ...WAITING_CODE, state: "registering", step: "save" }));
+    expect(saving.effect).toBeNull();
+    expect(saving.state.signin).not.toBeNull();
+    expect(saving.state.notice.text).toBe("saving the account — a moment");
+    // q is a character of the code there, and quits nowhere on the page but the first.
+    expect(key(signingIn(WAITING_CODE), "q").effect).toBeNull();
+    expect(key(signingIn(WAITING_CODE), "c", { name: "c", ctrl: true }).effect).toEqual({ type: "quit" });
+  });
+
+  it("says how it ended: added, refreshed, or why not, and enter tries again", () => {
+    const added = signingIn({ state: "done", account: { num: 5, email: "eve@new.example", added: true }, restored: true });
+    const said = prose(frame(added).lines);
+    expect(said).toContain("✓  Account 5 added");
+    expect(said).toContain("eve@new.example is in the rotation. The account you were using is still active.");
+    expect(enter(added)).toMatchObject({ state: { signin: null }, effect: { type: "signin-done", account: { num: 5, email: "eve@new.example" } } });
+    expect(esc(added).effect?.type).toBe("signin-done");
+    const again = signingIn({ state: "done", account: { num: 3, email: "carol@side.example", added: false }, restored: true }, {}, "carol@side.example");
+    expect(text(frame(again).lines).join("\n")).toContain("✓  Credentials refreshed");
+    // The one outcome nobody may miss: the account in use did not go back.
+    const moved = signingIn({ state: "done", account: { num: 5, email: "eve@new.example" }, restored: false, activeAccount: { num: 5, email: "eve@new.example" } });
+    expect(prose(frame(moved).lines)).toContain("This machine is now signed in as eve@new.example — the account you were using could not be put back.");
+
+    const failed = signingIn({ ...WAITING_CODE, state: "failed", error: "the sign-in window expired" });
+    const lines = text(frame(failed).lines);
+    expect(inside(lines[3])).toBe("✗  The sign-in did not finish in the browser");
+    expect(lines).toContain("  The sign-in window expired.");
+    expect(lines[23]).toMatch(/^ {2}enter +try again +esc +back/);
+    expect(enter(failed).effect).toEqual({ type: "signin-start" });
+    expect(esc(failed)).toMatchObject({ state: { signin: null }, effect: { type: "signin-cancel", quiet: true } });
+    // A start the deck refused holds nothing of ours to let go of.
+    const refused = signingIn({ state: "failed", error: "another sign-in is saving an account right now", local: true });
+    expect(esc(refused)).toMatchObject({ state: { signin: null }, effect: null });
+  });
+});
+
 describe("the screen", () => {
   it("writes only the rows that changed, and everything after a resize", () => {
     const writes: string[] = [];
@@ -373,6 +585,48 @@ describe("the screen", () => {
     screen.invalidate();
     screen.paint(["one", "TWO", "three"]);
     expect(writes.at(-1)).toContain("\x1b[1;1Hone");
+  });
+
+  // A sign-in link, written edge to edge with wrapping on so the terminal
+  // knows it for one line: one a mouse copies whole and a click opens.
+  it("writes a frame's run with wrapping on, and again only when it changed", () => {
+    const writes: string[] = [];
+    const screen = createScreen((s: string) => writes.push(s), { held: false });
+    screen.enter();
+    const run = { row: 1, rows: 2, text: "https://a.example/0123456789", full: false };
+    screen.paint(["title", "https://a.example/01", "23456789", "below"], run);
+    const first = writes.at(-1)!;
+    expect(first).toContain(`\x1b[2;1H\x1b[0m${WRAP_ON}https://a.example/0123456789\x1b[0m${WRAP_OFF}\x1b[K`);
+    // Its rows are the run's: not written a second time, cut, over it.
+    expect(first).not.toContain("\x1b[3;1H");
+    expect(first).toContain("\x1b[4;1Hbelow");
+    const before = writes.length;
+    screen.paint(["title", "https://a.example/01", "23456789", "below"], run);
+    expect(writes.length).toBe(before);
+    screen.paint(["title", "https://a.example/01", "23456789", "BELOW"], run);
+    expect(writes.at(-1)).not.toContain(WRAP_ON);
+    // A run gone leaves its rows marked as wrapped in the terminal, joined to
+    // the row above for selecting and for finding links: the screen is cleared
+    // and written whole, the one erase that takes the mark off everywhere —
+    // over conhost too, which passes on only what changed.
+    screen.paint(["title", "two", "three", "BELOW"]);
+    expect(writes.at(-1)).toContain("\x1b[2J");
+    expect(writes.at(-1)).toContain("\x1b[1;1Htitle");
+    screen.paint(["title", "two", "THREE", "BELOW"]);
+    expect(writes.at(-1)).toBe("\x1b[3;1HTHREE\x1b[0m\x1b[K");
+    // A run that grows in place keeps its rows: no clear.
+    screen.paint(["title", "ab", "cd", "BELOW"], { row: 1, rows: 2, text: "abcd", full: false });
+    screen.paint(["title", "ab", "cd", "ef"], { row: 1, rows: 3, text: "abcdef", full: false });
+    expect(writes.at(-1)).not.toContain("\x1b[2J");
+  });
+
+  it("does not clear the row after a run that reaches the last column", () => {
+    const writes: string[] = [];
+    const screen = createScreen((s: string) => writes.push(s), { held: false });
+    screen.enter();
+    screen.paint(["title", "abcd", "efgh"], { row: 1, rows: 2, text: "abcdefgh", full: true });
+    expect(writes.at(-1)).toContain(`abcdefgh\x1b[0m${WRAP_OFF}`);
+    expect(writes.at(-1)).not.toContain(`${WRAP_OFF}\x1b[K`);
   });
 
   it("hands the terminal back once, however many ways out ask", () => {
@@ -637,6 +891,135 @@ describe("the loop", () => {
     expect(Date.now() - started).toBeLessThan(5_000);
     term.input.write("q");
     await done;
+  });
+
+  // The deck's sign-in as cswap-admin.mjs runs it: a link once the CLI printed
+  // one, a wrong code asked for again, a right one saved as a new slot.
+  function signinDeck(over: { start?: (body: Row) => { status: number; body: Row } } = {}) {
+    const deck = fakeDeck();
+    let login: Row = { state: "idle" };
+    let accounts = ROWS;
+    const ask = deck.source.ask;
+    const answer = (status: number, body: Row) => ({ ok: status === 200, status, body });
+    deck.source.ask = async (d: unknown, o: { method?: string; path: string; body?: Row }) => {
+      if (o.path === "/api/claude-accounts/login") {
+        deck.calls.push({ method: "GET", path: o.path });
+        return answer(200, { ok: true, ...login });
+      }
+      if (o.path === "/api/claude-accounts/admin") {
+        deck.calls.push({ method: "POST", path: o.path, body: o.body });
+        const b = o.body ?? {};
+        if (b.action === "login") {
+          if (over.start) return over.start(b);
+          login = { ...WAITING_CODE, expiresAt: Date.now() + 300_000 };
+          return answer(200, { ok: true, ...login });
+        }
+        if (b.action === "login-code" && b.code === "good") {
+          accounts = [...ROWS, row(5, "eve@new.example", null)];
+          login = { state: "done", url: LOGIN_URL, account: { num: 5, email: "eve@new.example", added: true }, restored: true };
+          return answer(200, { ok: true, ...login });
+        }
+        if (b.action === "login-code") {
+          login = { ...login, error: "that code was not accepted — copy it again from the browser" };
+          return answer(400, { ok: false, reason: "code_rejected", ...login });
+        }
+        if (b.action === "login-cancel") {
+          login = { state: "idle" };
+          return answer(200, { ok: true, state: "idle", restored: true, activeAccount: null });
+        }
+      }
+      if (o.path.startsWith("/api/claude-accounts")) {
+        deck.calls.push({ method: "GET", path: o.path });
+        return answer(200, { ok: true, activeNum: 1, accounts });
+      }
+      return ask(d, o);
+    };
+    const posts = () => deck.calls.filter(c => c.method === "POST").map(c => c.body);
+    return { ...deck, posts };
+  }
+
+  it("adds an account: the link, a code pasted, and the new slot selected", async () => {
+    const term = fakeTerminal(80, 24);
+    const deck = signinDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("+");
+    await until(() => term.screenText().includes("Sign in to Anthropic"));
+    term.input.write("\r");
+    await until(() => term.screenText().includes("Open this link in any browser"));
+    // The link went out whole, with wrapping on for the terminal to wrap it.
+    expect(term.written()).toContain(`${WRAP_ON}`);
+    expect(term.screenText()).toContain(LOGIN_URL);
+    term.input.write("bad\r");
+    await until(() => term.screenText().includes("that code was not accepted"));
+    term.input.write("good\r");
+    await until(() => term.screenText().includes("Account 5 added"));
+    term.input.write("\r");
+    await until(() => term.screenText().includes("added: eve@new.example"));
+    // The account just added is the one selected, its detail under the list.
+    await until(() => term.screenText().includes("╭─ #5 eve@new.example"));
+    expect(deck.posts()).toEqual([
+      { action: "login" },
+      { action: "login-code", code: "bad" },
+      { action: "login-code", code: "good" },
+    ]);
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("signs an expired login in again for its own address, and esc lets the deck's go", async () => {
+    const term = fakeTerminal(80, 24);
+    const deck = signinDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    await until(() => term.screenText().includes("carol@side.example"));
+    term.input.write("3");
+    term.input.write("\r");
+    await until(() => term.screenText().includes("Sign in again as carol@side.example"));
+    term.input.write("\r");
+    await until(() => term.screenText().includes("Open this link in any browser"));
+    term.input.write("\x1b");
+    await until(() => term.screenText().includes("sign-in cancelled"));
+    expect(deck.posts()).toEqual([{ action: "login", email: "carol@side.example" }, { action: "login-cancel" }]);
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  // Left running, `claude auth login` would hold the next sign-in for the
+  // rest of its five minutes.
+  it("quitting in the middle of a sign-in lets go of the deck's first", async () => {
+    const term = fakeTerminal(80, 24);
+    const deck = signinDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("+");
+    term.input.write("\r");
+    await until(() => term.screenText().includes("Open this link in any browser"));
+    term.input.write("\x03");
+    expect(await done).toBe(0);
+    expect(deck.posts().at(-1)).toEqual({ action: "login-cancel" });
+    expect(term.written().endsWith(ALT_SCREEN_OFF)).toBe(true);
+  });
+
+  it("a start the deck refused is not cancelled: the sign-in it holds is somebody else's", async () => {
+    const term = fakeTerminal(80, 24);
+    const deck = signinDeck({ start: () => ({ ok: false, status: 400, body: { ok: false, reason: "already_running", state: "registering", step: "save" } }) as never });
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20 });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("+");
+    term.input.write("\r");
+    await until(() => term.screenText().includes("Another sign-in is saving an account right now"));
+    term.input.write("\x1b");
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("+");
+    term.input.write("\r");
+    await until(() => deck.posts().length === 2);
+    term.input.write("\x03");
+    expect(await done).toBe(0);
+    expect(deck.posts()).toEqual([{ action: "login" }, { action: "login" }]);
   });
 
   it("refuses --json and a pipe, pointing at the commands that print once", async () => {
