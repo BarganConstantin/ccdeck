@@ -14,7 +14,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { wayBackNote } from "../../server/way-back.mjs";
+import { sshNote, wayBackNote } from "../../server/way-back.mjs";
+// @ts-expect-error — plain .mjs module, no types
+import { overSsh } from "../../server/term.mjs";
 
 const DECK = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
 const SECOND_START = readFileSync(fileURLToPath(new URL("../../../bin/cli/second-start.js", import.meta.url)), "utf8");
@@ -124,5 +126,48 @@ describe("where the deck prints it", () => {
     expect(attach).toBeGreaterThan(-1);
     expect(noSecond).toBeGreaterThan(attach);
     expect(SECOND_START).not.toContain("wayBackNote");
+  });
+});
+
+// Over SSH the page opens in a browser on this machine, not in front of the
+// person who typed `ccdeck`: the line under the start names the view that
+// works where they are.
+describe("the line a start over SSH adds", () => {
+  it("is printed only over SSH", () => {
+    expect(overSsh({})).toBe(false);
+    expect(overSsh({ SSH_CONNECTION: "" })).toBe(false);
+    expect(overSsh({ SSH_CONNECTION: "10.0.0.5 51000 10.0.0.9 22" })).toBe(true);
+    expect(overSsh({ SSH_CLIENT: "10.0.0.5 51000 22" })).toBe(true);
+    expect(overSsh({ SSH_TTY: "/dev/pts/3" })).toBe(true);
+  });
+
+  it("names the TUI with the command that works in this shell, and no address", () => {
+    for (const columns of [30, 40, 60, 80, 120, 200]) {
+      const note = sshNote({ command: "ccdeck", columns });
+      expect(note).toContain("`ccdeck tui` shows your accounts");
+      expect(note).not.toMatch(/\d{4}|127\.0\.0\.1|http/);
+      expect(note).not.toContain("…");
+    }
+    expect(sshNote({ command: "agents-deck", columns: 200 })).toContain("`agents-deck tui`");
+  });
+
+  it("says the whole thing in 80 columns and fits every width from 40", () => {
+    expect(sshNote({ columns: 80 })).toBe("over SSH — `ccdeck tui` shows your accounts and waiting sessions here");
+    expect(sshNote({ columns: 60 })).toBe("over SSH — `ccdeck tui` shows your accounts here");
+    expect(sshNote({ columns: 40 })).toBe("`ccdeck tui` shows your accounts");
+    for (const columns of [40, 54, 60, 75, 80, 120]) {
+      expect(sshNote({ columns }).length + 6).toBeLessThanOrEqual(columns);
+    }
+  });
+
+  it("takes the caller's dash, so a legacy console gets no em dash", () => {
+    expect(sshNote({ dash: "-", columns: 200 })).toContain("over SSH - ");
+    expect(sshNote({ dash: "-", columns: 200 })).not.toContain("—");
+  });
+
+  it("is printed on a start and on an attach, under the start's own last line", () => {
+    const ready = STARTUP.indexOf("export function reportReady(");
+    expect(STARTUP.indexOf("if (overSsh()) write(", ready)).toBeGreaterThan(STARTUP.indexOf("wayBackNote({", ready));
+    expect(SECOND_START.indexOf("if (overSsh()) write(")).toBeGreaterThan(SECOND_START.indexOf("no second deck was started"));
   });
 });

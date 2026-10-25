@@ -24,6 +24,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { COMMANDS, isPortValue } from "../../src/server/args.mjs";
 import { isWsl } from "../../src/server/open-url.mjs";
+import { overSsh } from "../../src/server/term.mjs";
 import { COMMAND, PKG_ROOT, PKG_VERSION } from "./package.js";
 import { G, P, UNICODE, cols } from "./screen.js";
 import { oneShotVoice, reportFlagRows } from "./one-shot.js";
@@ -512,7 +513,7 @@ async function sessionsCommand(flags, out) {
  * with no display has nowhere to open one at all.
  */
 export function remoteShell(env = process.env, platform = process.platform, wsl = () => isWsl(platform, env)) {
-  if (env.SSH_CONNECTION || env.SSH_CLIENT || env.SSH_TTY) return true;
+  if (overSsh(env)) return true;
   // WSL without WSLg has no DISPLAY either, and opens the Windows browser —
   // open-url.mjs knows how.
   return platform === "linux" && !env.DISPLAY && !env.WAYLAND_DISPLAY && !wsl();

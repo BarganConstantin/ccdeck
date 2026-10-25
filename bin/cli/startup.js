@@ -13,8 +13,8 @@ import { pathToFileURL } from "node:url";
 import { budget, bootDeadlineMs } from "../../src/server/boot-deadline.mjs";
 import { PRODUCT } from "../../src/server/brand.mjs";
 import { renameNotice } from "../../src/server/invoked-as.mjs";
-import { link } from "../../src/server/term.mjs";
-import { wayBackNote } from "../../src/server/way-back.mjs";
+import { link, overSsh } from "../../src/server/term.mjs";
+import { sshNote, wayBackNote } from "../../src/server/way-back.mjs";
 import { COMMAND, INVOKED_AS, PKG_ROOT, PKG_VERSION } from "./package.js";
 import { G, LINKS, P, cols, fileLink, row, step, write } from "./screen.js";
 
@@ -503,6 +503,7 @@ export function reportReady({ url, persist, openBrowser, flags }) {
   write(`\n  ${P.muted}${G.dash}  ${wayBackNote({
     command: COMMAND, dash: G.dash, columns: cols(),
   })}${P.reset}\n`);
+  if (overSsh()) write(`  ${P.muted}${G.dash}  ${sshNote({ command: COMMAND, dash: G.dash, columns: cols() })}${P.reset}\n`);
   // Only when one is actually being opened. Under --no-open — which is how an
   // npx update relaunches, with a tab already waiting — this was announcing
   // something that never happened.

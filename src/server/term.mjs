@@ -192,6 +192,12 @@ const ASCII_GLYPHS = {
   arrow: "->", ellipsis: "...", dash: "-", bullet: "-",
 };
 
+/** Whether this shell came in over SSH: sshd sets one of these in every
+ *  session it starts, interactive or not. */
+export function overSsh(env = process.env) {
+  return set(env.SSH_CONNECTION) || set(env.SSH_CLIENT) || set(env.SSH_TTY);
+}
+
 /**
  * Whether this terminal can be trusted with the box-drawing and arrow glyphs.
  *
