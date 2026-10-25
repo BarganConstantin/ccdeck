@@ -225,6 +225,12 @@ export const GATES = [
   // engine, on a real deck, on the same two platforms. What a deck with no
   // engine answers is pro-engine-routes-off, un-gated, on every leg.
   { file: "pro-engine-routes.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 8 },
+  // The test-only Windows preview's client started against the same double,
+  // answering as a Windows engine under an `.exe` name: a script with a
+  // shebang, which macOS and Linux run and Windows cannot, as it is not a PE
+  // file. The gate, the preview's verifier and the package's exclusion of it
+  // are in the same file, un-gated, on every leg.
+  { file: "command-panel-windows-preview.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   // Allow capture's two root scripts, parsed by the machine's own `sh -n`. They
   // run on macOS and Linux only, and Windows has no `sh` to parse them; the
