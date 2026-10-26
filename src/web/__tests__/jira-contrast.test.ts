@@ -375,8 +375,8 @@ describe("a sprint's header reads on the modal's ground", () => {
       for (const hover of [false, true]) {
         const at = hover ? " under the pointer" : "";
         for (const [word, tail] of Object.entries({
-          "Active lozenge": [...toggle(hover), el("span", ["jr-badge"])],
-          count: [...toggle(hover), el("span", ["jr-group-count"])],
+          "Active lozenge": [...toggle(hover), el("span", ["jr-group-identity"]), el("span", ["jr-badge"])],
+          count: [...toggle(hover), el("span", ["jr-group-identity"]), el("span", ["jr-group-count"])],
           dates: [...facts, el("span", ["jr-group-dates"])],
         })) {
           const r = headInk([...headChain(theme), ...tail]);

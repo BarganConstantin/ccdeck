@@ -118,8 +118,8 @@ button.btn.jr-chip[aria-pressed="true"] { font-weight: 600; background: var(--ig
   max-width: 100%;
   min-height: var(--ctl-h);
   display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-wrap: nowrap;
+  align-items: flex-start;
   gap: 2px 8px;
   padding: 4px 6px;
   border: 0;
@@ -132,7 +132,9 @@ button.btn.jr-chip[aria-pressed="true"] { font-weight: 600; background: var(--ig
   transition: background-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .jr-group-toggle:active { transform: scale(0.97); }
-.jr-group-name { overflow-wrap: anywhere; }
+.jr-group-toggle > .jr-chevron { margin-top: 3px; }
+.jr-group-identity { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+.jr-group-name { max-width: 100%; overflow-wrap: anywhere; }
 /* The active sprint's lozenge, in sentence case like the status ones. The
    group's header sits on the modal's --bg, so its tint is mixed over that. */
 .jr-badge {

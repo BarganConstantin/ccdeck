@@ -93,3 +93,19 @@ describe("Jira group header hierarchy", () => {
     expect(value(chip, "padding-inline", 1440)).toBe("8px");
   });
 });
+
+
+describe("long sprint identity keeps its chevron on the first line", () => {
+  for (const width of [249, 320, 390, 700, 1440]) it(`${width}px wraps the identity inside a nonwrapping toggle`, () => {
+    const toggle = [...panel, el("div", ["jr-group-head"]), el("h3", ["jr-group-title"]), el("button", ["jr-group-toggle"])];
+    const identity = [...toggle, el("span", ["jr-group-identity"])];
+    expect(value(toggle, "flex-wrap", width)).toBe("nowrap");
+    expect(value(toggle, "align-items", width)).toBe("flex-start");
+    expect(value([...toggle, el("svg", ["jr-chevron"])], "margin-top", width)).toBe("3px");
+    expect(value(identity, "flex", width)).toBe("1");
+    expect(value(identity, "min-width", width)).toBe("0");
+    expect(value(identity, "flex-wrap", width)).toBe("wrap");
+    expect(value([...identity, el("span", ["jr-group-name"])], "max-width", width)).toBe("100%");
+    expect(value([...identity, el("span", ["jr-group-name"])], "overflow-wrap", width)).toBe("anywhere");
+  });
+});
