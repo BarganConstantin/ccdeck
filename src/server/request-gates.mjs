@@ -433,9 +433,10 @@ export const GUARDED_READS = new Set([
   "/api/tool-audit",
   "/api/tool-audit/storage",
   "/api/system/traffic-radar",
-  "/api/system/traffic-radar/settings",
   "/api/system/traffic-radar/capture",
   "/api/system/traffic-radar/capture/event",
+  // What the user's Claude Code settings.json holds, for Settings › Claude Code.
+  "/api/claude-settings",
   "/events",
   "/api/events",
   // The ring folded to one row per session (#2183): each project's path and a
@@ -454,6 +455,7 @@ export const GUARDED_READS = new Set([
   // route above is guarded for.
   "/api/codex-quota",
   "/api/quota/history",
+  "/api/quota/closes",
   // And the rest of the usage panel, by the rule /api/account-projects is here
   // under: the active account's quota windows, Claude's spend by day and by
   // session, Codex's token spend, and the auto-switch settings with the last

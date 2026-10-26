@@ -1,57 +1,25 @@
-// Settings › Radar: whether the deck watches the telemetry Claude Code sends to
-// its collectors by itself (use-radar-settings.ts), and the way into Radar.
+// Settings › Radar: the way into Radar, and what it does by itself.
 //
-// AUTOMATIC MONITORING IS OPT-IN. The switch is off on a fresh deck and on one
-// upgraded from a release without it, and nothing is captured, looked for or
-// retried until someone turns it on (traffic-radar-service.mjs). Off, Radar is
-// exactly what it was: in the toolbar, with its Monitor view's own destination
-// picker and Start, Configuration and File — so the door to Radar is always here.
+// RADAR MONITORS BY ITSELF, ALWAYS. There is no switch any more (the owner,
+// 2026-10-23, reversing v3.44.0's opt-in): the deck finds Claude Code's
+// collector and watches its telemetry in the background, even while Radar is
+// closed (traffic-radar-service.mjs). The section keeps the door to Radar, a
+// row like General's doors, saying so.
 //
-// In the shared shape (SettingsParts.tsx, #2176). The switch is the section's
-// master switch, so it stands in an untitled group as Keyboard's and Sounds'
-// do. While the deck has not answered yet it is busy, never disabled: a switch
-// disabled under focus drops focus to <body> (#518), and the press is refused
-// in the handler instead. What the deck says back — still reading, off, could
-// not save — is a row of the same list rather than a line in Radar's own type,
-// and the door to Radar is a row like General's doors.
-import { refreshRadarSettings, setRadarEnabled, useRadarSettings } from "../use-radar-settings";
+// In the shared shape (SettingsParts.tsx, #2176): one untitled group.
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 
-export const RADAR_LABEL = "Monitor automatically";
-export const RADAR_NOTE = "Off by default. On, Radar finds Claude Code's collector and watches its telemetry in the background, even while Radar is closed. Turning it off stops monitoring.";
+export const RADAR_NOTE = "Watches the telemetry Claude Code sends to its collector, always and in the background, even while Radar is closed. What it reads stays on this machine.";
 
 export default function RadarSettings({ onOpen }: { onOpen: () => void }) {
-  const { enabled, busy, error } = useRadarSettings();
   return (
     <SettingsGroup>
       <SettingRow
-        settingId="radar-enabled"
-        name={RADAR_LABEL}
-        nameId="radar-enabled-label"
-        note={RADAR_NOTE}
-        noteId="radar-enabled-note"
-        control={
-          <button
-            type="button"
-            className="switch"
-            role="switch"
-            aria-checked={enabled === true}
-            aria-labelledby="radar-enabled-label"
-            aria-describedby="radar-enabled-note"
-            aria-busy={busy || enabled === null}
-            onClick={() => { if (!busy && enabled !== null) void setRadarEnabled(!enabled); }}
-          >
-            <span className="switch-knob" />
-          </button>
-        }
-      />
-      {enabled === null && !error && <p className="settings-row settings-row-status" role="status">Reading Radar settings…</p>}
-      {/* No settingId: search answers "radar" with the switch above it. */}
-      <SettingRow
         as="div"
+        settingId="radar-open"
         name="Radar"
         nameId="settings-radar-open-name"
-        note="Claude's telemetry configuration and the connections it was seen making."
+        note={RADAR_NOTE}
         control={
           <button
             type="button"
@@ -63,14 +31,6 @@ export default function RadarSettings({ onOpen }: { onOpen: () => void }) {
           >Open</button>
         }
       />
-      {error && (
-        <div className="settings-row" role="alert">
-          <span className="settings-row-name">{error}</span>
-          <span className="settings-row-control">
-            <button type="button" className="btn" aria-busy={busy} onClick={() => void refreshRadarSettings()}>Retry</button>
-          </span>
-        </div>
-      )}
     </SettingsGroup>
   );
 }

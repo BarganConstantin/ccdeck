@@ -7,8 +7,8 @@ import { JsonInspector } from "./JsonInspector";
 import { radarMonitorState } from "../radar-monitor-state";
 import { armedPress, pressState } from "../panel-press";
 import { connectionLabel, type RadarSnapshot } from "../traffic-radar";
-import { captureAddress, configuredDestinations, observedDestinations, type RadarSession } from "../telemetry-inspection";
-import type { CaptureAction, CaptureSnapshot, CapturedExport } from "../use-telemetry-capture";
+import { captureAddress, configuredDestinations, type RadarSession } from "../telemetry-inspection";
+import type { CaptureAction, CaptureSnapshot, CapturedExport, PermissionResult } from "../use-telemetry-capture";
 import { readStored, writeStored } from "../storage";
 
 import type { Json } from "./JsonInspector";
@@ -204,17 +204,42 @@ export function DecodedPayload({ payload, signal, sessions = [] }: { payload: Ob
     </section>)}
   </div>;
 }
-export function TelemetryCapture({ capture, radar, failed, busy, pendingAction = null, error, command, commands = [], action, sessionFilter = "all", sessions = [] }: {
-  capture: CaptureSnapshot | null; radar: RadarSnapshot | null; failed: boolean; busy: boolean; pendingAction?: CaptureAction | null; error: string; command: string;
-  commands?: { destination: string; command: string }[];
-  action: (kind: CaptureAction, destination?: string | string[]) => Promise<void>;
+/** The one thing monitoring cannot do by itself: packet capture needs an
+ *  administrator, once. The card says what Allow capture changes before the
+ *  system asks for a password (traffic-radar-permission.mjs). Windows has no
+ *  such step: Npcap's free edition is the person's own to install. */
+function CaptureSetup({ platform, install, asking, permission, onAllow, onCopy, copied }: {
+  platform?: string; install: boolean; asking: boolean; permission: PermissionResult | null;
+  onAllow: () => void; onCopy: (text: string) => void; copied: boolean;
+}) {
+  const windows = platform === "win32", mac = platform === "darwin";
+  const fallback = permission && (permission.outcome === "unavailable" || permission.outcome === "failed");
+  return <section className="tr-activation" aria-labelledby="tr-setup-title"><strong id="tr-setup-title">Allow packet capture once</strong>
+    <p className="tr-note">Radar reads Claude Code's telemetry from network traffic, which {windows ? "on Windows needs Wireshark with Npcap." : `${mac ? "macOS" : "Linux"} lets only an administrator read.`}</p>
+    {windows
+      ? <p className="tr-note">{install ? "Install Wireshark once and keep Npcap ticked in its installer." : "Npcap is limited to administrators. Run its installer again with that restriction unticked."} Radar starts by itself afterwards.</p>
+      : <p className="tr-note">{mac
+        ? "Allow capture asks for your password once and adds a small ccdeck helper that gives your user that access, now and after every restart."
+        : `Allow capture asks for your password once${install ? ", installs tcpdump" : ""} and lets tcpdump capture for your user only.`} Radar then starts by itself, and what it reads stays on this {mac ? "Mac" : "computer"}.</p>}
+    {windows
+      ? <a className="btn primary" href="https://www.wireshark.org/download.html" target="_blank" rel="noreferrer">Get Wireshark</a>
+      : <button type="button" className="btn primary" aria-busy={asking} onClick={() => { if (!asking) onAllow(); }}>{asking ? "Waiting for your password…" : "Allow capture…"}</button>}
+    <div role="status">
+      {permission?.outcome === "cancelled" && <p className="tr-note">Nothing changed. Allow capture when you are ready.</p>}
+      {permission?.outcome === "granted" && <p className="tr-note">Capture allowed. Starting monitoring…</p>}
+      {fallback && <p className="tr-note">{permission.message}{permission.command && " Run this once in a terminal instead:"}</p>}
+    </div>
+    {fallback && permission.command && <div className="tr-command-entry"><div><button type="button" className="btn" onClick={() => onCopy(permission.command!)}>{copied ? "Copied" : "Copy command"}</button></div><pre className="tr-command">{permission.command}</pre></div>}
+  </section>;
+}
+export function TelemetryCapture({ capture, radar, failed, busy, pendingAction = null, error, permission = null, action, sessionFilter = "all", sessions = [] }: {
+  capture: CaptureSnapshot | null; radar: RadarSnapshot | null; failed: boolean; busy: boolean; pendingAction?: CaptureAction | null; error: string;
+  permission?: PermissionResult | null;
+  action: (kind: CaptureAction) => Promise<void>;
   sessionFilter?: string; sessions?: RadarSession[];
 }) {
   const configured = configuredDestinations([...(radar?.config?.variables ?? []), ...(radar?.environment ?? [])]);
   const addresses = [...new Set(configured.map(captureAddress).filter((v): v is string => !!v))];
-  const observed = observedDestinations(radar).filter(address => !addresses.includes(address) && captureAddress(`http://${address}`));
-  const [destination, setDestination] = useState("all");
-  const [custom, setCustom] = useState("");
   const [selectedObservation, setSelectedObservation] = useState<number | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [messageDestination, setMessageDestination] = useState("all");
@@ -282,15 +307,13 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
     const timer = setTimeout(() => setClearArmed(false), 5000);
     return () => clearTimeout(timer);
   }, [clearArmed]);
-  const shell = capture?.shell ?? (radar?.platform === "win32" ? "PowerShell" : "Terminal");
-  const windows = shell === "PowerShell";
+  const platform = capture?.platform ?? radar?.platform;
   const monitor = radarMonitorState(capture, failed);
   const running = monitor.enabled;
   const managed = !!capture?.managed;
-  // Settings › Radar's automatic monitoring, off unless the deck says it is on:
-  // off, the Monitor view keeps its destination picker and Start/Stop.
-  const automatic = capture?.automatic === true;
-  const permissionNeeded = managed && monitor.permission;
+  // Monitoring is always on (traffic-radar-service.mjs): no Start, no Stop and
+  // no destination to pick. What can stand in its way is the one-time setup.
+  const setupNeeded = managed && (monitor.permission || monitor.install);
   const active = monitor.active;
   const sourceCount = capture?.sources?.length ?? 1;
   const state = monitor.title;
@@ -312,12 +335,6 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
     setClearArmed(false); setSelected(null); setSelectedObservation(null); setPaused(null); setPausedObservationIds(null);
     void action("clear");
   };
-  const prepare = () => {
-    setCopied(null); setPaused(null); setPausedObservationIds(null); setSelected(null); setSelectedObservation(null);
-    const targets = destination === "custom" ? [custom.trim()] : destination === "all" ? addresses : [destination];
-    void action("prepare", targets.length ? targets : capture?.sources?.map(s => s.destination) ?? (capture?.destination ? [capture.destination] : []));
-  };
-  const activationCommands = commands.length ? commands : command ? [{ destination: capture?.destination ?? "Collector", command }] : [];
   const copy = async (text: string, key: string) => {
     try { await navigator.clipboard.writeText(text); setCopied(key); } catch { setCopied("failed"); }
   };
@@ -327,34 +344,16 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
   return <div className="tr-telemetry">
     <div className="tr-capture-bar">
       <div><h3 role="status" aria-live="polite"><span className={`tr-live-dot tr-dot-${monitor.tone}`} />{state}</h3>
-        <p className="tr-note">{failed ? "Showing the last successful read. Reconnecting automatically." : running ? active ? `${active} of ${sourceCount} destination${sourceCount === 1 ? "" : "s"} listening · ${monitor.traffic ? "Traffic observed" : "No traffic observed yet"}` : "Monitoring is enabled; the listener is not ready yet." : "Claude may still be sending telemetry."}</p>
-        {running && <div className="tr-active-destinations" role="group" aria-label="Monitored destinations"><span>Destination{sourceCount > 1 ? "s" : ""}</span>{capture?.sources?.length ? capture.sources.map(source => <span className="tr-destination-entry" key={source.destination}><code>{source.destination}</code>{(sourceCount > 1 || !source.active) && <span className={source.active ? "tr-source-ready" : "tr-source-pending"}>{source.active ? "Listening" : "Not listening"}</span>}{!source.active && source.error && <span className="tr-source-error">{source.error}</span>}</span>) : capture?.destination && <code>{capture.destination}</code>}</div>}
+        <p className="tr-note">{failed ? "Showing the last successful read. Reconnecting automatically." : setupNeeded ? capture?.sources?.length ? "Radar found the collector and listens as soon as capture is allowed." : "Radar listens as soon as capture is allowed." : running ? !capture?.sources?.length && !capture?.destination ? "Looking for the collector in Claude Code's settings and connections." : active ? `${active} of ${sourceCount} destination${sourceCount === 1 ? "" : "s"} listening · ${monitor.traffic ? "Traffic observed" : "No traffic observed yet"}` : "Monitoring is enabled; the listener is not ready yet." : "Claude may still be sending telemetry."}</p>
+        {running && (capture?.sources?.length || capture?.destination) && <div className="tr-active-destinations" role="group" aria-label="Monitored destinations"><span>Destination{sourceCount > 1 ? "s" : ""}</span>{capture?.sources?.length ? capture.sources.map(source => <span className="tr-destination-entry" key={source.destination}><code>{source.destination}</code>{(sourceCount > 1 || !source.active) && <span className={source.active ? "tr-source-ready" : "tr-source-pending"}>{source.active ? "Listening" : "Not listening"}</span>}{!source.active && source.error && !setupNeeded && <span className="tr-source-error">{source.error}</span>}</span>) : capture?.destination && <code>{capture.destination}</code>}</div>}
       </div>
-      {!automatic && <div className="tr-capture-actions">
-        {running ? <button className="btn" {...pressProps("stop")} onClick={() => void action("stop")}>Stop monitoring</button>
-          : <button className="btn primary" {...pressProps("prepare")} disabled={pressProps("prepare").disabled || !capture || failed || radar?.status === "unsupported" || (destination === "all" && !addresses.length) || (destination === "custom" && !custom.trim())} onClick={prepare}>{pendingAction === "prepare" ? "Starting…" : "Start monitoring"}</button>}
-
-      </div>}
     </div>
 
-    {!automatic && !running && <div className="tr-destination">
-      <label>Destination<RadarSelect aria-label="Capture destination" value={destination} onChange={e => setDestination(e.target.value)}><option value="all">{addresses.length === 1 ? addresses[0] : addresses.length ? `All configured destinations (${addresses.length})` : "Choose a collector…"}</option>{addresses.map(address => <option key={address} value={address}>{address}</option>)}{observed.length > 0 && <optgroup label="Observed Claude connections · telemetry unverified">{observed.map(address => <option key={address} value={address}>{address} · observed</option>)}</optgroup>}<option value="custom">Another IPv4 address…</option></RadarSelect></label>
-      {destination === "custom" && <input className="tr-input" aria-label="Collector IPv4 and port" value={custom} onChange={e => setCustom(e.target.value)} placeholder="192.168.1.10:4317" />}
-      {!addresses.length && destination === "all" && <span className="tr-note">{observed.length ? "Choose an observed connection or enter your collector address." : "Enter your collector address to monitor traffic. Missing settings do not mean telemetry is off."}</span>}
-    </div>}
     {radar?.status === "unsupported" && <p className="tr-capture-error" role="status">Live capture is available on macOS, Linux and Windows. You can still inspect a local file.</p>}
-    {capture?.setupError && <p className="tr-capture-error" role="status">{capture.setupError}</p>}
-    {error && <p className="tr-capture-error" role="alert">{error}{windows && error.includes("Npcap") && <> <a href="https://www.wireshark.org/download.html" target="_blank" rel="noreferrer">Get Wireshark</a></>}</p>}
-    {!managed && running && !activationCommands.length && capture?.state === "awaiting" && <div className="tr-activation"><p>Activation is pending. Generate the {shell} instructions again to continue.</p><button className="btn" {...pressProps("prepare")} onClick={prepare}>Show activation instructions</button><p className="tr-note">The previous token will be invalidated.</p></div>}
-    {!managed && activationCommands.length > 0 && running && <details className="tr-activation" open={!active}><summary>Activate in {shell}{sourceCount > 1 ? ` · ${active}/${sourceCount} listening` : ""}</summary>
-      <p>{windows ? "Run each command in a separate PowerShell tab. Wireshark with Npcap is required; use an administrator tab if Npcap restricts capture." : "Run each command in a separate Terminal tab. Only tcpdump asks for administrator permission."}</p>
-      {activationCommands.map(entry => <div className="tr-command-entry" key={entry.destination}><div><code>{entry.destination}</code><button className="btn" onClick={() => void copy(entry.command, entry.destination)}>{copied === entry.destination ? "Copied" : "Copy command"}</button></div><pre className="tr-command">{entry.command}</pre></div>)}
-      <p className="tr-note">Press Ctrl+C in each {shell} tab to stop capture. Monitoring continues until you stop it. Commands contain a local token; do not share them.</p>
-    </details>}
-    {permissionNeeded && <div className="tr-activation" role="status"><strong>Allow packet capture once</strong>
-      <p className="tr-note">{windows ? "Npcap is restricting access. Allow this user to capture traffic in Npcap setup." : capture?.platform === "darwin" ? "Install Wireshark’s ChmodBPF permission helper so tcpdump can capture for this user." : "Grant tcpdump packet capture permissions for this user."} ccdeck retries automatically when access is available.</p>
-      <a href="https://wiki.wireshark.org/CaptureSetup/CapturePrivileges" target="_blank" rel="noreferrer">Capture permission setup</a>
-    </div>}
+    {capture?.setupError && !setupNeeded && <p className="tr-capture-error" role="status">{capture.setupError}</p>}
+    {error && <p className="tr-capture-error" role="alert">{error}</p>}
+    {setupNeeded && <CaptureSetup platform={platform} install={monitor.install} asking={pendingAction === "permission"} permission={permission}
+      onAllow={() => void action("permission")} onCopy={text => void copy(text, "setup")} copied={copied === "setup"} />}
     {copied === "failed" && <p className="tr-capture-error" role="alert">Clipboard unavailable. Select the text and copy it manually.</p>}
 
     <div className="tr-workspace" data-empty={!hasHistory} ref={workspace} style={{ "--tr-feed-width": `${feedWidth}%` } as React.CSSProperties}>
@@ -392,8 +391,8 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
           <span className="tr-event-bottom"><span className={`tr-receipt ${item.event.outcome === "accepted" ? "tr-tone-ok" : item.event.outcome === "rejected" ? "tr-tone-error" : item.event.outcome === "partial" ? "tr-tone-enabled" : ""}`}>{item.event.outcome === "accepted" ? "Accepted" : item.event.outcome === "unconfirmed" ? "Receipt unconfirmed" : item.event.outcome === "partial" ? "Partially accepted" : item.event.outcome === "rejected" ? "Rejected" : "Receipt unknown"}</span><span>{item.event.count} {item.event.count === 1 ? "record" : "records"}</span></span>
         </button></li> : <li key={`observation-${item.event.id}`}><button className="tr-message" aria-pressed={selectedObservation === item.event.id} onClick={() => { setSelected(null); setSelectedObservation(item.event.id); if (window.matchMedia?.("(max-width: 640px)").matches) { inspector.current?.focus({ preventScroll: true }); inspector.current?.scrollIntoView({ block: "start", behavior: "auto" }); } }}>
           <RadarIcon kind="connection" className="tr-row-icon" /><span className="tr-event-top"><strong className="tr-event-name">Connection observed</strong><time dateTime={new Date(item.event.at).toISOString()}>{stamp(item.event.at)}</time></span><span className="tr-event-context" title={item.event.destination}>{item.event.destination} · {item.event.reason === "encrypted" ? "Encrypted contents" : "Contents not decoded"}</span>
-        </button></li>)}</ul> : <div className="tr-empty-capture">{!hasHistory && <RadarIcon kind="radar" />}<h4>{retained.length || capture?.observations?.length ? "No matching activity" : running || automatic ? "Waiting for traffic" : "Message capture is off"}</h4>
-          <p className="tr-note">{retained.length || capture?.observations?.length ? promptsOnly ? "No exports with prompt fields match your filters. Turn off With prompt to see all activity. Redacted prompts are included." : "Try another session, type or destination." : automatic ? "Radar monitors automatically when a collector is available. Keep using Claude while Radar listens." : running ? "New collector activity will appear here. Keep using Claude while Radar listens." : "Choose a destination and start monitoring. New collector activity will appear here."}</p>
+        </button></li>)}</ul> : <div className="tr-empty-capture">{!hasHistory && <RadarIcon kind="radar" />}<h4>{retained.length || capture?.observations?.length ? "No matching activity" : setupNeeded ? "Not listening yet" : "Waiting for traffic"}</h4>
+          <p className="tr-note">{retained.length || capture?.observations?.length ? promptsOnly ? "No exports with prompt fields match your filters. Turn off With prompt to see all activity. Redacted prompts are included." : "Try another session, type or destination." : setupNeeded ? "Messages appear here once packet capture is allowed." : "Radar monitors automatically when a collector is available. Keep using Claude while Radar listens."}</p>
         </div>}
         {activity.length > visibleCount && <button className="btn" onClick={() => setVisibleCount(count => count + 100)}>Show older messages</button>}
         {connections.length > 0 && <details className="tr-details"><summary>Connections to these collectors ({connections.length})</summary><ul className="tr-live-connections">{connections.map(c => <li key={`${c.pid}:${c.destination}`}><code>{c.destination}</code><span>Claude · {c.connecting && <><span className="tr-attempt">{connectionLabel(c)}</span> · </>}PID {c.pid} · {c.workspace ?? "Workspace unknown"}</span></li>)}</ul><p className="tr-note">A connection alone does not prove a telemetry message was sent. These connections are not filtered by session.</p></details>}
@@ -421,11 +420,9 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
     <footer className="tr-monitor-footer">{(running || hasHistory || failed) && <span>{failed ? "Connection interrupted" : running ? (managed ? "Continuous local monitoring" : "Local capture") : "Not monitoring"} · History in local memory</span>}<details><summary>Monitoring limits</summary><div>
       <p>Plaintext IPv4 OTLP/gRPC only. HTTPS contents cannot be decoded. Traffic to the chosen addresses can come from any process, not only Claude.</p>
       <p>History covers the last 24 hours, up to 2,000 exports and a 32 MiB payload budget. When a limit is reached, the oldest messages are removed.</p>
-      <p>History stays in local memory. Restarting ccdeck or clearing messages removes it. Closing this modal does not stop capture or clear history; stopping monitoring preserves history. No capture file is written. {automatic ? <>Turn monitoring off in Settings → Radar.</> : <>Use Stop monitoring{!managed && <> and Ctrl+C in {shell}</>} to stop capture.</>}</p>
+      <p>History stays in local memory. Restarting ccdeck or clearing messages removes it. Closing this modal does not stop capture or clear history. No capture file is written.</p>
       {capture?.bytes ? <p>Captured transport bytes: {capture.bytes.toLocaleString()}. This is not a decoded-message count.</p> : null}
-      {managed && (automatic
-        ? <p>Automatic monitoring is on: it starts with ccdeck and continues in the background. Turn it off in Settings → Radar. The in-memory history is cleared after a restart.</p>
-        : <p>Enabled monitoring resumes after a ccdeck restart; the in-memory history does not.</p>)}
+      {managed && <p>Monitoring is always on: it starts with ccdeck and continues in the background, looking for Claude's collector about once a minute while Radar is closed. The in-memory history is cleared after a restart.</p>}
       {Object.entries(capture?.issues ?? {}).map(([code, count]) => <p key={code}>{issueText[code] ?? "An inspection limitation was observed."} ({count})</p>)}
     </div></details></footer>
   </div>;

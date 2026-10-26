@@ -29,6 +29,7 @@ import QuotaHistoryModal from "./QuotaHistoryModal";
 import type { SessionSelection } from "../session-usage";
 import { selfPressProps } from "../panel-press";
 import { useCodexQuota, useQuota } from "../use-quota";
+import { useEndedWeeks } from "../quota-closes";
 import { useUsageRange } from "../use-usage-range";
 import { useCountUp } from "../use-count-up";
 import { useBoardSpend } from "../use-board-spend";
@@ -38,6 +39,7 @@ import { reportedCost } from "../reported-cost";
 import { boardSessionNames, boardSessionStates, distinctSessionLabels } from "../usage-session-join";
 import { withKey } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import { PLACE_KEYS, usePanelPlace } from "../panel-place";
 
 // The rows of the two board tables, and UNKNOWN_MODEL, are board-usage.ts's,
 // with the folds that build them (#1175). The tables that draw them, and
@@ -82,6 +84,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
   liveSince?: number | null;
 }) {
   const singleKeys = useSingleKeyShortcuts();
+  const place = usePanelPlace(PLACE_KEYS.usage);
   const [inspectedSession, setInspectedSession] = useState<SessionSelection | null>(null);
   const [quotaHistoryOpen, setQuotaHistoryOpen] = useState<"pointer" | "keyboard" | null>(null);
   const boardProviders = useMemo(() => new Map(
@@ -90,6 +93,9 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
   ), [state, state.revision]);
   const { quota, loading: quotaLoading, refresh: refreshQuota } = useQuota(providers.claude);
   const { data: codexQuota, loading: codexLoading, refresh: refreshCodex } = useCodexQuota(providers.codex);
+  // How full each account's last weeks ended, under its 7-day bar.
+  const claudeWeekEnds = useEndedWeeks("claude", providers.claude ? quota?.historyAccount : undefined);
+  const codexWeekEnds = useEndedWeeks("codex", providers.codex ? codexQuota?.historyAccount : undefined);
 
   // Tick every 30s so countdowns + pace stay live without parent re-render
   const nowSec = usePanelClock();
@@ -290,8 +296,9 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
     // outside any sectioning content is a `complementary` landmark, which does
     // take a name, and complementary is what this panel is: spend beside the
     // canvas, openable and closable without changing what the canvas shows.
-    <aside className={`usage-panel${leaving ? " leaving" : ""}`} id="usage-panel" aria-label="Usage">
-      <div className="up-header">
+    // Its header moves it (panel-place.ts).
+    <aside className={`usage-panel${leaving ? " leaving" : ""}`} id="usage-panel" aria-label="Usage" {...place.panel}>
+      <div className="up-header" {...place.grip}>
         {/* h2, under the topbar's h1 (#381). Same level as the other panels'
             titles, and the four `up-section-title`s below stepped from h4 to h3
             with it, so the panel reads h1 → h2 → h3 with nothing skipped. */}
@@ -343,7 +350,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
 
       {/* ── Claude quota ── */}
       {providers.claude && (
-        <ClaudeQuotaSection quota={quota} quotaLoading={quotaLoading} nowSec={nowSec}
+        <ClaudeQuotaSection quota={quota} quotaLoading={quotaLoading} nowSec={nowSec} weekEnds={claudeWeekEnds}
           incident={incidents.find(i => i.provider === "claude")} />
       )}
 
@@ -353,7 +360,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
           unavailable. / Run codex login to authenticate." permanently, for a
           CLI it has no reason to install. */}
       {providers.codex && (
-        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} nowSec={nowSec}
+        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} nowSec={nowSec} weekEnds={codexWeekEnds}
           incident={incidents.find(i => i.provider === "codex")} />
       )}
 

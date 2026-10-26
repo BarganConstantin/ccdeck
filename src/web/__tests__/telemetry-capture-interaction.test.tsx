@@ -3,9 +3,9 @@ import { mount, one, textOf } from "./fake-react";
 import type { CaptureSnapshot, CapturedExport } from "../use-telemetry-capture";
 vi.mock("react", async importOriginal => ({ ...await importOriginal<typeof import("react")>(), ...(await import("./fake-react")).react }));
 const { TelemetryCapture } = await import("../components/TelemetryCapture");
-const empty: CaptureSnapshot = { ok: true, automatic: false, sessionId: null, state: "idle", destination: null, interface: null, startedAt: null, expiresAt: null, lastInputAt: null, bytes: 0, issues: {}, events: [] };
+const empty: CaptureSnapshot = { ok: true, automatic: true, featureEnabled: true, managed: true, sessionId: null, state: "idle", destination: null, interface: null, startedAt: null, expiresAt: null, lastInputAt: null, bytes: 0, issues: {}, events: [] };
 const event = (id: number, signal: CapturedExport["signal"]): CapturedExport => ({ id, signal, at: 1700000000000, observedAt: 1700000000000, destination: "192.0.2.16:4317", bytes: 100, count: 1, name: `Synthetic ${signal} ${id}`, content: [], outcome: "unconfirmed", response: null });
-const props = { capture: { ...empty, events: [event(2, "logs"), event(1, "metrics")] }, radar: { ok: true, sampledAt: 0, platform: "darwin", pollMs: 5000, status: "observing" as const, processCount: 0, connections: [], alerts: [], config: { sources: [], variables: [{ key: "OTEL_EXPORTER_OTLP_ENDPOINT", value: "http://192.0.2.16:4317", source: "User settings" }] } }, failed: false, busy: false, error: "", command: "", action: vi.fn(async () => {}) };
+const props = { capture: { ...empty, events: [event(2, "logs"), event(1, "metrics")] }, radar: { ok: true, sampledAt: 0, platform: "darwin", pollMs: 5000, status: "observing" as const, processCount: 0, connections: [], alerts: [], config: { sources: [], variables: [{ key: "OTEL_EXPORTER_OTLP_ENDPOINT", value: "http://192.0.2.16:4317", source: "User settings" }] } }, failed: false, busy: false, error: "", action: vi.fn(async () => {}) };
 beforeEach(() => { vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ payload: {} }) }))); });
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); vi.restoreAllMocks(); vi.useRealTimers(); });
 describe("telemetry capture interactions", () => {
@@ -154,18 +154,6 @@ describe("telemetry capture interactions", () => {
     expect(fetch).not.toHaveBeenCalled();
     view.unmount();
   });
-  it("can prepare an explicitly selected observed connection when settings are absent", () => {
-    const view = mount(TelemetryCapture, { ...props, capture: empty, radar: { ...props.radar, config: { sources: [], variables: [] }, connections: [{ pid: 123, destination: "192.0.2.16:4317", workspace: null, firstSeenAt: 0, lastSeenAt: 0, active: true }] } });
-    expect(one(view.tree, e => e.type === "button" && textOf(e) === "Start monitoring")!.props.disabled).toBe(true);
-    expect(textOf(view.tree)).toContain("Claude may still be sending telemetry");
-    const select = one(view.tree, e => e.props["aria-label"] === "Capture destination")!;
-    (select.props.onChange as (e: { target: { value: string } }) => void)({ target: { value: "192.0.2.16:4317" } });
-    const start = one(view.tree, e => e.type === "button" && textOf(e) === "Start monitoring")!;
-    expect(start.props.disabled).toBe(false);
-    (start.props.onClick as () => void)();
-    expect(props.action).toHaveBeenCalledWith("prepare", ["192.0.2.16:4317"]);
-    view.unmount();
-  });
   it("filters messages by session evidence and preserves unidentified exports separately", () => {
     const view = mount(TelemetryCapture, { ...props, sessionFilter: "one", capture: { ...empty, events: [{ ...event(3, "logs"), sessionIds: ["one"] }, { ...event(2, "logs"), sessionIds: ["two"] }, event(1, "metrics")] } });
     expect(textOf(one(view.tree, e => e.props.className === "tr-feed"))).toContain("Synthetic logs 3");
@@ -214,18 +202,72 @@ describe("telemetry capture interactions", () => {
     expect(one(view.tree, e => e.type === "button" && textOf(e) === "Show older messages")).toBeNull();
     view.unmount();
   });
-  it("offers a replacement command after reopening before activation", () => {
-    const view = mount(TelemetryCapture, { ...props, capture: { ...empty, state: "awaiting", destination: "192.0.2.16:4317" } });
-    (one(view.tree, e => e.type === "button" && textOf(e) === "Show activation instructions")!.props.onClick as () => void)();
-    expect(props.action).toHaveBeenCalledWith("prepare", ["192.0.2.16:4317"]);
-    expect(textOf(view.tree)).toContain("previous token will be invalidated");
+  // Monitoring is always on: an observed connection is monitored by the deck
+  // itself, so nothing here asks the person to pick it or press Start.
+  it("names an observed collector without a picker or Start when settings are absent", () => {
+    const view = mount(TelemetryCapture, { ...props, capture: empty, radar: { ...props.radar, config: { sources: [], variables: [] }, connections: [{ pid: 123, destination: "192.0.2.16:4317", workspace: null, firstSeenAt: 0, lastSeenAt: 0, active: true }] } });
+    expect(one(view.tree, e => e.props["aria-label"] === "Capture destination")).toBeNull();
+    expect(one(view.tree, e => e.type === "button" && /monitoring/i.test(textOf(e)))).toBeNull();
+    expect(textOf(view.tree)).toContain("Radar monitors automatically when a collector is available");
+    expect(props.action).not.toHaveBeenCalled();
     view.unmount();
   });
-  it("preserves the pending action's focusable button while disabling sibling actions", () => {
-    const view = mount(TelemetryCapture, { ...props, busy: true, pendingAction: "prepare" });
-    const prepare = one(view.tree, e => e.type === "button" && textOf(e) === "Starting…")!;
-    expect(prepare.props.disabled).toBe(false); expect(prepare.props["aria-busy"]).toBe(true);
-    expect(one(view.tree, e => e.type === "button" && textOf(e) === "Clear history")!.props.disabled).toBe(true);
+  // The setup card is a child component, which this fake does not render:
+  // the test reads the element Monitor drew for it, and draws the card by
+  // calling it (it holds no state of its own).
+  const deniedOn = (platform: string) => ({ ...props.capture, platform, enabled: true, state: "interrupted" as const, sources: [{ destination: "192.0.2.16:4317", interface: "en0", active: false, bytes: 0, error: "Packet capture permission is required." }] });
+  type Card = { platform?: string; install: boolean; asking: boolean; permission: unknown; onAllow: () => void; onCopy: (text: string) => void; copied: boolean };
+  const setupOf = (tree: unknown) => one(tree, e => typeof e.props.onAllow === "function");
+  const drawCard = (tree: unknown) => { const card = setupOf(tree)!; return (card.type as unknown as (p: Card) => unknown)(card.props as unknown as Card); };
+  it("asks for capture permission from the setup card's one button", () => {
+    const view = mount(TelemetryCapture, { ...props, capture: deniedOn("darwin") });
+    expect(setupOf(view.tree)!.props).toMatchObject({ platform: "darwin", install: false, asking: false, permission: null, copied: false });
+    const allow = (tree: unknown) => one(drawCard(tree), e => e.type === "button")!;
+    expect(textOf(allow(view.tree))).toBe("Allow capture…");
+    (allow(view.tree).props.onClick as () => void)();
+    expect(props.action).toHaveBeenCalledTimes(1);
+    expect(props.action).toHaveBeenCalledWith("permission");
+    // While the prompt is up, a second press asks nothing more of the system.
+    view.rerender({ ...props, capture: deniedOn("darwin"), busy: true, pendingAction: "permission" });
+    expect(setupOf(view.tree)!.props.asking).toBe(true);
+    expect(textOf(allow(view.tree))).toBe("Waiting for your password…");
+    expect(allow(view.tree).props["aria-busy"]).toBe(true); expect(allow(view.tree).props.disabled).toBeUndefined();
+    (allow(view.tree).props.onClick as () => void)();
+    expect(props.action).toHaveBeenCalledTimes(1);
     view.unmount();
+  });
+  it("draws no setup card while capture is allowed, and one with install named while tcpdump is missing", () => {
+    expect(setupOf(mount(TelemetryCapture, props).tree)).toBeNull();
+    const missing = mount(TelemetryCapture, { ...props, capture: { ...props.capture, platform: "linux", state: "error" as const, setupError: "Install tcpdump to capture traffic. Configuration and file inspection work without it." } });
+    expect(setupOf(missing.tree)!.props).toMatchObject({ platform: "linux", install: true });
+    missing.unmount();
+  });
+  it("copies the terminal command when no password prompt could open", async () => {
+    vi.useFakeTimers();
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const permission = { outcome: "unavailable" as const, message: "No password prompt can open in this session.", command: "sudo sh /tmp/radar-capture-setup.sh" };
+    const view = mount(TelemetryCapture, { ...props, capture: deniedOn("linux"), permission });
+    expect(setupOf(view.tree)!.props.permission).toEqual(permission);
+    const copy = () => one(drawCard(view.tree), e => e.type === "button" && /^(Copy command|Copied)$/.test(textOf(e)))!;
+    (copy().props.onClick as () => void)();
+    await Promise.resolve(); await Promise.resolve();
+    expect(writeText).toHaveBeenCalledWith("sudo sh /tmp/radar-capture-setup.sh");
+    expect(setupOf(view.tree)!.props.copied).toBe(true);
+    expect(textOf(copy())).toBe("Copied");
+    vi.advanceTimersByTime(2000);
+    expect(setupOf(view.tree)!.props.copied).toBe(false);
+    expect(textOf(copy())).toBe("Copy command");
+    view.unmount();
+  });
+  it("keeps the pending action's button focusable while disabling sibling actions", () => {
+    const asking = mount(TelemetryCapture, { ...props, capture: deniedOn("darwin"), busy: true, pendingAction: "permission" });
+    expect(setupOf(asking.tree)!.props.asking).toBe(true);
+    expect(one(asking.tree, e => e.type === "button" && textOf(e) === "Clear history")!.props.disabled).toBe(true);
+    asking.unmount();
+    const clearing = mount(TelemetryCapture, { ...props, busy: true, pendingAction: "clear" });
+    const clear = one(clearing.tree, e => e.type === "button" && textOf(e) === "Clear history")!;
+    expect(clear.props.disabled).toBe(false); expect(clear.props["aria-busy"]).toBe(true);
+    clearing.unmount();
   });
 });

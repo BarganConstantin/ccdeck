@@ -84,6 +84,19 @@
   --r-panel: 8px;
   --r-node: 10px;
   --r-cluster: 16px;
+  /* ONE DIALOG FRAME (2026-10-23). Every dialog is one of three widths, and
+     its header is `.modal-head` (dialogs.css): a user who said the deck has a
+     lot in it but is not organized was opening nine widths from 440 to 1296px
+     under three title styles and close buttons from 24 to 36px. Small for a
+     question or a short read, medium for a form or a report, large for a
+     workspace with lists beside details, which keeps one height,
+     --dialog-l-h, where it has views to switch, so they do not resize it. A
+     phone's own rules still take the window. */
+  --dialog-s: min(560px, calc(100vw - 32px));
+  --dialog-m: min(820px, calc(100vw - 32px));
+  --dialog-l: min(1120px, calc(100vw - 32px));
+  --dialog-l-h: min(800px, calc(100dvh - 64px));
+  --dialog-head-h: 52px;
 }
 
 /* The two dimmings, in their own block and in neither theme for the same reason

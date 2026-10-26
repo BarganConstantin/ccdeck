@@ -101,5 +101,9 @@ module.exports = {
       "libatspi2.0-0", "libuuid1", "libsecret-1-0", "libgbm1",
       "libasound2t64 | libasound2",
     ],
+    // Telemetry Radar captures with tcpdump. Debian leaves it out of a desktop
+    // install; apt installs a Recommends with the app, and Radar's Allow
+    // capture installs it where this did not.
+    recommends: ["tcpdump"],
   },
 };

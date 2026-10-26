@@ -43,7 +43,7 @@ const rightStripe = (unseen: number) => renderToStaticMarkup(createElement(EdgeR
 const phoneDock = (unseen: number) => {
   const r = itemsWith(unseen);
   return renderToStaticMarkup(createElement(EdgeDock, {
-    items: [...r.left, ...r.right[0], r.utilities[0]], more: [...r.right[1], r.utilities[1]],
+    items: [...r.left, ...r.right[0], r.utilities[0]], more: [...r.right.slice(1).flat(), r.utilities[1]],
   }));
 };
 /** A button's opening tag and body, found by the start of its accessible name. */

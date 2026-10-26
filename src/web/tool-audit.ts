@@ -15,6 +15,15 @@ export interface AuditDay {
   averageMs: number | null; medianMs: number | null; maxMs: number | null; p95Ms: number | null;
 }
 export interface AuditHistory { timeZone: string; days: AuditDay[] }
+/** One part of a lane's time: an operation and the wall-clock time it held. */
+export interface TimePart { operation: string; ms: number }
+/** Where the Claude Code turns' time went (tool-audit-report.mjs): the three lanes
+ *  add up to `totalMs`, and each lane's parts add up to the lane. */
+export interface TimeSplit {
+  turns: number; open: number; totalMs: number; claudeMs: number; machineMs: number; youMs: number;
+  machine: TimePart[]; you: TimePart[]; stops: Record<string, number>;
+  replies: { count: number; medianMs: number | null; p90Ms: number | null; maxMs: number | null; days: { date: string; count: number; medianMs: number | null }[] };
+}
 export interface AuditReport {
   ok: boolean; capturedAt: number; since: number; until: number; provider: AuditProvider;
   total: number; measured: number; failed: number; unmatched: number; corrupt: number; orphaned: number;
@@ -23,6 +32,8 @@ export interface AuditReport {
   providers: Record<'claude' | 'codex', { calls: number; measured: number; failed: number }>;
   duplicates: number;
   bytes: number; storageOk: boolean; dropped: number; deviceId: string; startedAt: number; retentionDays: number;
+  /** Null on the Codex view; absent from a deck older than the split. */
+  split?: TimeSplit | null; turnsSince?: number;
 }
 export interface AuditStorage { ok: boolean; bytes: number; retentionDays: 30 | 60 | 90; startedAt: number; storageOk: boolean; dropped: number }
 
@@ -36,12 +47,14 @@ export interface SkillUse {
   id: string; provider: 'claude' | 'codex'; at: number; origin: SkillOrigin; session: string; project: string | null;
   subagent: boolean; state: 'pending' | 'done' | 'failed';
 }
-export interface SkillDay { date: string; uses: number; providers: { claude: number; codex: number }; status: 'used' | 'no-uses' | 'outside-history' }
+export interface SkillDay { date: string; uses: number; providers: { claude: number; codex: number }; agent: number; typed: number; detected: number; status: 'used' | 'no-uses' | 'outside-history' }
 export interface SkillReport {
   ok: boolean; view: 'skills'; capturedAt: number; since: number; until: number; provider: AuditProvider;
   total: number; repeats: number; failed: number; providers: { claude: number; codex: number }; corrupt: number; duplicates: number;
   retainedSince: number; countedSince: number; rows: SkillRow[];
-  details: { name: string; row: SkillRow | null; total: number; projects: { name: string; uses: number }[]; recent: SkillUse[];
+  details: { name: string; row: SkillRow | null; total: number; projects: { name: string; uses: number }[];
+    /** What the five named projects leave out: the other projects, and uses with no project folder. */
+    moreProjects: { projects: number; uses: number }; projectless: number; recent: SkillUse[];
     history?: { timeZone: string; days: SkillDay[] } } | null;
   bytes: number; storageOk: boolean; dropped: number; startedAt: number; skillsSince: number; retentionDays: number;
   /** Whether Claude Code reports typed slash commands to the deck; absent when it does not watch Claude. */

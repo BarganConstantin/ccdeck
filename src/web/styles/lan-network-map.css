@@ -42,9 +42,9 @@
   --nm-away-ink: color-mix(in srgb, var(--nm-away) 60%, transparent);
   /* The stage's own ground under a name that has to read over a wire. */
   --nm-plate: color-mix(in srgb, var(--bg) 88%, transparent);
-  width: min(1160px, 92vw);
-  height: min(800px, 88vh);
-  max-height: 88vh;
+  width: var(--dialog-l);
+  height: var(--dialog-l-h);
+  max-height: var(--dialog-l-h);
 }
 .nm-head { gap: 16px; }
 .nm-heading { min-width: 0; display: flex; flex-direction: column; gap: 2px; }

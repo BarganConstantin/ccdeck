@@ -4,6 +4,7 @@ import { readFile, stat, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { deckDataDir } from "./deck-home.mjs";
 import { writeFileAtomic } from "./atomic-write.mjs";
+import { noteQuotaCloses } from "./quota-closes.mjs";
 
 export const HISTORY_LIMITS = Object.freeze({ series: 32, points: 2048, totalPoints: 16384, days: 35, bytes: 2 * 1024 * 1024 });
 const finite = n => typeof n === "number" && Number.isFinite(n);
@@ -141,7 +142,13 @@ export function startQuotaHistory() {
 export function noteQuotaHistory(provider, account, reading) {
   if (!history) return;
   const key = history.activate(provider, account);
-  if (key) { reading.historyAccount = key; void history.record(provider, key, reading); }
+  if (key) {
+    reading.historyAccount = key;
+    void history.record(provider, key, reading);
+    // The same reading, toward how full each window was at its reset.
+    noteQuotaCloses(provider, key, historyWindows(provider, reading), reading.fetchedAt,
+      { plan: provider === "codex" && typeof reading.plan === "string" ? reading.plan : undefined });
+  }
 }
 export function forgetQuotaHistoryAccount(provider) { history?.activate(provider, null); }
 export async function quotaHistoryReport(provider, account) {

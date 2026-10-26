@@ -12,6 +12,7 @@ import { PRODUCT } from "../brand";
 import { resetCreditsLine } from "../reset-credits";
 import type { Incident } from "../provider-status";
 import type { CodexQuotaData, QuotaData } from "../use-quota";
+import { weekEndsLine, weekEndsTitle, type QuotaClose } from "../quota-closes";
 import { QuotaIncident } from "./ProviderIncidents";
 import QuotaBar from "./QuotaBar";
 
@@ -79,9 +80,18 @@ function codexHint(reason?: string): string {
   }
 }
 
-export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident }: {
+/** How full the account's last weeks ended, under the bars. A footnote, so it is
+ *  absent until a week has ended with a reading near its reset (quota-closes.ts). */
+function WeekEnds({ weeks = [] }: { weeks?: QuotaClose[] }) {
+  const line = weekEndsLine(weeks);
+  return line ? <div className="up-quota-sub" title={weekEndsTitle(weeks)}>{line}</div> : null;
+}
+
+export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, weekEnds }: {
   /** The last /api/quota answer, or null until the first one lands. */
   quota: QuotaData | null;
+  /** This account's last weeks that ran to their reset, newest first. */
+  weekEnds?: QuotaClose[];
   /** A forced read is out, and the age is not shown while it is. */
   quotaLoading: boolean;
   /** The panel's clock in seconds, for the ages, countdowns and pace. */
@@ -94,6 +104,9 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident }: {
     <section className="up-section up-quota-section">
       <h3 className="up-section-title">
         Claude quota
+        {quota?.ok && quota.planLabel && (
+          <span className="up-plan-badge">{quota.planLabel}</span>
+        )}
         {/* Where the numbers came from, on hover. Anthropic's usage endpoint
             allows ~28-30 calls an hour per account, shared by every tool on
             the machine, so when claude-swap is already collecting them the
@@ -137,6 +150,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident }: {
             windowSec={quota.week7dWindowSec}
             nowSec={nowSec}
           />
+          <WeekEnds weeks={weekEnds} />
           {quota.weekSonnetPct != null && (
             <QuotaBar label="Sonnet (7d)" pct={quota.weekSonnetPct} nowSec={nowSec} />
           )}
@@ -182,9 +196,11 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident }: {
   );
 }
 
-export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident }: {
+export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, weekEnds }: {
   /** The last /api/codex-quota answer, or null until the first one lands. */
   codexQuota: CodexQuotaData | null;
+  /** This account's last weeks that ran to their reset, newest first. */
+  weekEnds?: QuotaClose[];
   /** A forced read is out, and the age is not shown while it is. */
   codexLoading: boolean;
   /** The panel's clock in seconds, for the ages, countdowns and pace. */
@@ -219,6 +235,7 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident }
               nowSec={nowSec}
             />
           ))}
+          <WeekEnds weeks={weekEnds} />
 
           {/* Per-model families (Codex Spark and friends) — separate caps
               that run out independently of the account-wide lanes. */}

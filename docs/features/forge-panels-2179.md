@@ -118,6 +118,12 @@ query.
 - **Remembered per connection, in this browser:** the project, the tab, the
   change filter, state and sort, the issue state, and which groups are
   unfolded. The detail's width is remembered per forge.
+- **Kept while the page is open** (a reload starts fresh): the search, and per
+  project and tab the item open beside the list, both scrolls and a merge
+  request's section. Reopening the panel, or coming back to a tab, puts that
+  item back when it is still in the list; with nothing to put back, the tab's
+  first row opens beside the list (from 900px). A page you closed stays closed
+  until you choose a row. Another tab starts without the search.
 
 ## GitHub and GitLab: what is supported
 
@@ -470,10 +476,9 @@ Pipelines, Repository / Project, `#` / `!`.
 ### List and detail
 
 - **The split** is the host's: from 900px the page is a column beside the list
-  (42% of the workspace, between 320 and 440px, until it is dragged;
-  320–1600px by dragging, the list keeps 420px; Enter or a double click on the
-  splitter goes back to the automatic width), its width remembered per forge
-  in this browser.
+  (half the workspace until it is dragged, never under 320px; 320–1600px by
+  dragging, the list keeps 420px; Enter or a double click on the splitter goes
+  back to half), its width remembered per forge in this browser.
 - **Under 900px** the page is its own screen with *Back to merge requests* (or
   *Back to Actions*, *Back to branches*…). The list stays mounted, hidden, so
   its scroll and folds are where the reader left them.
@@ -505,6 +510,17 @@ under `view` in the host's per-connection store:
 whose fold differs from their default (at most 20). `normaliseView` reads each
 field back on its own, so anything unreadable falls back field by field. The
 default is the Branches tab, open changes, All, created.
+
+What is open is kept apart, in module memory for the page's life
+(`integrations/view-memory.ts`, shared with Jira): one entry per list, keyed
+`<kind>:<connection>|<repo or *>|<tab>` (Jira: `jira:<connection>|<board>`),
+with the selection, whether the reader closed it, both scroll offsets, Jira's
+open sub-task rows and a merge request's section; the search is kept per
+connection. Each tab reports the rows it draws (`useReportRows`), and
+`arrive` decides once they are drawn: a closed detail stays closed, a
+remembered item still drawn comes back with its scrolls, otherwise the first
+row opens beside the list. After that, what the list draws changes nothing.
+An item the panel opens moves no focus (`useListView`).
 
 ### Kept reads and freshness
 

@@ -22,6 +22,18 @@ import { stripAnsi } from "./term.mjs";
 export const WIN_5H_SEC  = 18000;
 export const WIN_7D_SEC  = 604800;
 
+// Anthropic's names for its plans, with the Max tier said: "Max" alone does not
+// tell the user which of the two they are on, as codex-quota.mjs's labels say
+// which Pro. Keyed by depth-facts.mjs's claudePlanToken.
+const CLAUDE_PLAN_LABELS = Object.freeze({
+  free: "Free", pro: "Pro", max: "Max", "max-5x": "Max 5x", "max-20x": "Max 20x", team: "Team", enterprise: "Enterprise",
+});
+
+/** The plan as the section title prints it, or null for one off the list. */
+export function claudePlanLabel(plan) {
+  return typeof plan === "string" && Object.hasOwn(CLAUDE_PLAN_LABELS, plan) ? CLAUDE_PLAN_LABELS[plan] : null;
+}
+
 /**
  * A reported utilisation as the whole percentage the panel draws: rounded, and
  * held inside 0–100 whatever the source said.

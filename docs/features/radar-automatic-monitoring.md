@@ -1,68 +1,85 @@
 # Automatic Radar monitoring
 
-Automatic monitoring is opt-in and off by default. Nothing is captured,
-discovered or retried until the person turns it on in Settings → Radar
-("Monitor automatically"). A fresh install and a deck upgraded from 3.43.4,
-which never saved this switch, both start with it off.
+Radar monitors by itself, always. There is no switch in Settings → Radar and
+no Start, Stop or destination picker in the Monitor view: the owner asked for
+monitoring that is simply on (2026-10-23), reversing v3.44.0's opt-in, after
+users opened Radar and found it stopped behind a capture error.
 
-While it is off, Radar behaves as 3.43.4 did: it stays in the toolbar with its
-Monitor, Configuration and File views, and the Monitor view keeps its
-destination picker and Start/Stop. A monitor the person starts there keeps its
-own `radar-monitor-<port>.json` opt-in and resumes after a restart until they
-stop it, exactly as before.
-
-While it is on, capture starts in the server without opening Radar or keeping
-a browser window open, and the Monitor view hides the manual controls. Turning
-it off stops capture and discovery. The choice survives a reload and a restart.
+Capture starts in the server without opening Radar or keeping a browser window
+open, on a fresh install and on a deck upgraded from any earlier release,
+whatever its saved files say. It continues while ccdeck runs and starts again
+with it. `AGENTS_DECK_NO_RADAR=1` keeps a deck from starting it at all: the test
+suite sets it (`no-lan.ts`), so a deck booted by a test never samples or
+captures the developer's own Claude sessions.
 
 ## Runtime ownership
 
-`traffic-radar-service.mjs` owns the automatic-monitoring switch separately
-from capture readiness and from the monitor's own opt-in. The switch and the
-collector destinations it remembers live in `radar-settings-<port>.json`,
-beside `radar-monitor-<port>.json`; it is on only where that file says
-`automatic: true`, so a missing file, an unreadable one or one written by any
-other build is off. Off, the service hands `resume`, `prepare` and `stop` to the
-capture unchanged. On, it retries discovery and setup every five seconds,
-cancels stale setup work after the switch goes off, and stops the monitor with
-its own opt-in saved off. Tokens and packet contents are never persisted.
+`traffic-radar-service.mjs` keeps capture on Claude Code's collector.
+Configured IPv4 collector endpoints come first, and an endpoint named by host
+(`otel.example.com:4317`) is looked up to its IPv4 address, bounded to two
+seconds; with none configured, the collectors it found before (including a
+monitor started by hand in an earlier release) and active IPv4 OTLP/gRPC port
+4317 connections are the fallback. Arbitrary Claude API HTTPS connections are
+not selected. When no collector is known, it waits and keeps looking.
 
-Configured IPv4 collector endpoints take precedence. With no configured address,
-remembered collectors (including a monitor started by hand before the switch was
-turned on) and active IPv4 OTLP/gRPC port 4317 connections provide fallback
-targets. Arbitrary Claude API HTTPS connections are not selected. The existing
-platform/tool/permission limits remain visible; On does not imply that capture
-is ready or that a message was sent. When no collector is known, the monitor
-waits and discovers it in the background.
+Discovery samples Claude's processes (`ps` and `lsof`, `/proc`, or PowerShell),
+and every deck now pays for it, so it runs every five seconds only while Radar
+is open, which the page shows by reading the capture, and every sixty seconds
+otherwise. Opening Radar looks at once. The collectors found live in
+`radar-settings-<port>.json`, beside the monitor's own
+`radar-monitor-<port>.json`, so a restart goes back to them before discovery
+runs. Tokens and packet contents are never persisted.
 
-## Settings and browser state
+## Capture permission, once
 
-The guarded, local-only `/api/system/traffic-radar/settings` GET/POST endpoint
-returns and persists the switch (`enabled` in its body is automatic
-monitoring). A POST must be a JSON object holding exactly one boolean
-`enabled`; anything else is refused whole with 400. The GET is a guarded read
-and the POST a guarded mutation, as for the other Radar routes. Settings → Radar
-reads it while its pane is open; no other page polls it.
+Packet capture needs an administrator on macOS and Linux. When the capture tool
+is missing or refused, Monitor shows **Allow packet capture once**: what Radar
+reads and why the system asks, what Allow capture changes, and one button that
+opens the system's own password prompt (`traffic-radar-permission.mjs`,
+`POST /api/system/traffic-radar/capture/permission`, a guarded mutation). The
+prompt opens only on that press, never by itself: a password prompt nobody
+asked for is what #1755 removed from the updater.
 
-Local project/prompt display and JSON inspection are unchanged by this switch.
-Claude telemetry flags and the external collector are not modified. In-memory
-capture history retains its existing lifetime and is cleared by a server restart.
+- macOS: `osascript … with administrator privileges` installs ccdeck's own
+  LaunchDaemon, `dev.ccdeck.chmodbpf`, which at every startup creates the BPF
+  devices and lets the `access_bpf` group read and write them, as Wireshark's
+  ChmodBPF does. The user joins `access_bpf`; this boot's devices are also
+  chowned to them, because a new group reaches running processes only after a
+  new login. The app is not signed, so SMAppService is not an option.
+- Linux: `pkexec /bin/sh -c …` installs `tcpdump` (apt, dnf, zypper or pacman)
+  when missing, and `setcap` when missing, then sets `tcpdump` to the user's own
+  group, mode 0750, with `cap_net_raw,cap_net_admin`. The user's own group is
+  one they already have, so it applies without a new login. A `tcpdump` update
+  drops the capabilities; the card comes back. With no `DISPLAY` or
+  `WAYLAND_DISPLAY`, or no polkit agent, no prompt is attempted.
+- Windows: no setup step. Npcap's free edition may not be installed by another
+  program; the card links to Wireshark's download instead.
+
+A dismissed prompt changes nothing. Where no prompt can open, or the script
+stopped, the script is written to `~/.agents-deck/radar-capture-setup.sh` and
+the card shows `sudo sh '<that file>'`. Granted, the service restarts capture
+on the current collectors at once instead of waiting for the monitor's retry. A
+monitor whose capture is refused retries every thirty seconds rather than every
+three, since monitoring no longer stops.
+
+On Linux, `captureTool` also tries `/usr/sbin/tcpdump`, `/usr/bin/tcpdump` and
+`/sbin/tcpdump`: some distributions keep it in sbin, which a user's or a desktop
+app's `PATH` may leave out. The `.deb` recommends `tcpdump`.
 
 ## Verification
 
-- `radar-monitoring-default.test.ts`: the deck's own capture, real preference
-  files in a scratch home: off on a fresh deck, off after an upgrade (a 3.43.4
-  monitor that was started resumes, nothing else), no discovery or retry while
-  off, on/off persisting across restarts.
-- `radar-service.test.ts`: the same rules on the service alone, plus the
-  automatic behaviour once on (late collectors, retries, stale discovery/setup
-  cancellation, failed preference saves).
-- `telemetry-capture-routes.test.ts`: local access, guarded reads, and strict
-  validation of the switch's body.
-- `telemetry-capture-ui.test.tsx`: the manual Monitor controls while the switch
-  is off, unknown or loading; none while it is on.
-- `radar-released-guard.test.tsx` and `traffic-radar-interaction.test.tsx`: the
-  File view and Radar's toolbar entry as 3.43.4 released them.
+- `radar-service.test.ts`: always on with nothing or anything saved, the five
+  and sixty second cadence, named collectors, retries, `retry()` after a grant,
+  and stale setup after shutdown.
+- `radar-monitoring-default.test.ts`: the deck's own capture with real
+  preference files in a scratch home, on a fresh and an upgraded deck, across a
+  restart.
+- `traffic-radar-permission.test.ts`: both root scripts and every outcome of
+  the prompt, with the commands replaced.
+- `telemetry-capture-routes.test.ts`: the permission route's guard and its
+  retry on a grant; the removed switch, Start and Stop routes answer 404.
+- `telemetry-capture-ui.test.tsx`: no Start, Stop or picker in any state, and
+  the setup card on each platform and outcome.
 - `node scripts/verify-radar-platform.mjs --live --automatic` exercises native
-  packet capture with synthetic loopback OTLP: the switch starts off, is turned
-  on, survives a restart, and Off persists — using disposable preferences.
+  packet capture with synthetic loopback OTLP: the service finds the collector
+  by itself and resumes it after a restart, using disposable preferences.

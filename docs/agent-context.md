@@ -80,10 +80,11 @@ flow. Branches, pull requests and releases now follow
   unfinished Git View work. Preserve that checkout and its changes.
 - Current Radar worktree: `~/.cache/ccdeck-wt/radar-cross-platform`.
   Earlier UI worktree: `~/.cache/ccdeck-wt/finish-left-column`.
-- Working branch: `feat/radar-cross-platform`; delivery branch: `origin/development`.
-  Completed commits have been delivered with `git push origin HEAD:development`.
-  Fetch and inspect divergence before pushing; integrate remote work rather than
-  force-pushing. Other worktrees also exist, so inspect `git worktree list`.
+- Working branch: `feat/radar-cross-platform`. Under the earlier flow its
+  commits were pushed straight to the old `development`; never push to
+  `development` that way now. Integration follows
+  [`release-workflow.md`](release-workflow.md). Other worktrees also exist, so
+  inspect `git worktree list`.
 - The owner's local app has been served at `http://127.0.0.1:4317` from the Radar
   worktree, using `~/.nvm/versions/node/v22.14.0/bin/node`.
   Inspect the actual listener and process before assuming this is still true.
@@ -107,6 +108,37 @@ Dark is the CSS fallback. Shared light-theme behavior follows `data-color-scheme
 rather than matching just one theme ID. The theme README owns the format and
 generation instructions. A custom-theme importer/editor is a future possibility,
 not an implemented feature.
+
+UI organization (owner, 2026-10-23, after a user wrote the deck has a lot in
+it but is not organized; branch `feature/ui-organization`):
+- Both edge stripes follow one rule (`rail-items.tsx`): runs of doors that
+  answer one question each, every run of two or more a named group, all 13
+  doors kept in the owner's order. Radio is a dialog door now, with no blur.
+- Usage and the machine panel float over the board, as #910 left them. A
+  dock beside the right stripe was built (full-height columns, then cards in
+  a lane) and the owner turned both down on 2026-10-24: they want the panels
+  over the board, and asked instead that the reader can move each one by its
+  header (`panel-place.ts`): the place is remembered per panel, a double
+  click puts it back, and a phone does not move them. One put below the
+  other shortens the upper one with a scroll, as the window's foot does. Do not dock them again
+  without a new request.
+- Every dialog is `--dialog-s` 560, `--dialog-m` 820 or `--dialog-l` 1120
+  and has the one `.modal-head`. The integration trackers' full-page panel
+  stays 90vw by the owner's own spec for it.
+
+Quick open (owner, 2026-10-24, "like Raycast, pleasant, with animation,
+comfortable"; branch `feature/quick-open`): ⌘K on a Mac, Ctrl+K elsewhere, and
+Search first in the topbar's utility run and under the phone's More. Rules in
+`quick-open.ts`, rows built from the presses the chrome already has in
+`quick-open-items.tsx`, drawn by `components/QuickOpen.tsx`. It reaches single
+settings through Settings' own search index and lands on the row
+(`openSettings(section, landOn)`). Keep it built from the existing doors: a row
+must never offer something the chrome does not.
+
+T steps through every theme from inside any dialog too (owner, 2026-10-23):
+only a field being typed in or a `<select>` keeps the letter, and every other
+single-key shortcut stays blocked behind a dialog. One path answers it,
+`keepsThemeKey` in `shortcuts.ts`; Settings has no T handler of its own.
 
 The minimap drawing was reduced from 200 × 150 to 140 × 105 (about 30% smaller;
 142 × 107 including borders). Character ledge travel must use the measured map
@@ -175,11 +207,18 @@ clear next action when capture needs assistance.
 - Capture now runs directly in ccdeck with one supervised child per destination,
   using binary pcap stdout (`-F pcap` for dumpcap). Failed children retry, with a
   fresh interface and decoder. `traffic-radar-monitor.mjs` owns this supervision
-  and per-port opt-in preferences. App startup resumes enabled destinations;
-  Stop disables the saved preference. Tokens and packet contents are not saved.
+  and per-port preferences. App startup resumes the saved destinations. Tokens
+  and packet contents are not saved.
   The older helper command remains for CLI smoke tests and compatibility.
-- Capture dependencies and privileges are explicit. No drivers are installed
-  automatically. On 2026-10-09 the owner explicitly approved installing all
+- Monitoring is always on, with no switch, Start or Stop (owner, 2026-10-23,
+  reversing v3.44.0's opt-in; `docs/features/radar-automatic-monitoring.md`).
+  Capture privileges are granted once, on the person's press of **Allow
+  capture…**, through the system's own password prompt
+  (`traffic-radar-permission.mjs`): on macOS ccdeck's own ChmodBPF-style
+  LaunchDaemon, on Linux `tcpdump` installed when missing and given
+  capabilities for the user's own group. Never open that prompt by itself.
+  Windows stays the person's own Npcap install: no drivers are installed
+  automatically there. On 2026-10-09 the owner explicitly approved installing all
   dependencies on `rdp`. Wireshark 4.6.9 and Npcap 1.89 were installed from
   official, signed packages; the Npcap driver runs without a reboot. The free
   Npcap installer was completed through its GUI, not an OEM silent switch.
@@ -192,9 +231,9 @@ clear next action when capture needs assistance.
   session ID was recovered, and the collector response was `accepted`. This
   verifies the capture path; it does not prove Claude sent that test payload.
 - Monitoring has no ten-minute expiry. It continues while ccdeck runs and resumes
-  after a restart on the same port, until explicitly stopped. Retention remains
-  bounded to 2,000 exports / 24 hours / 32 MiB encoded payloads. History survives
-  Stop/Start within the process; it is cleared by restart or Clear messages. The
+  after a restart on the same port. Retention remains bounded to 2,000 exports /
+  24 hours / 32 MiB encoded payloads. History is cleared by restart or Clear
+  messages. The
   UI reports capacity evictions and renders history in batches of 100. Permission failures remain visible.
 - On 2026-10-09 Wireshark's signed, notarized ChmodBPF package was installed on
   the owner's Mac through the system administrator prompt. This grants packet

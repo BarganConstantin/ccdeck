@@ -16,25 +16,17 @@
    so it outranks .modal wherever the two sit in the sheet. */
 .modal.ctx-modal {
   display: block;
-  width: min(560px, 92vw);
+  width: var(--dialog-s);
   max-height: 80vh;
   overflow: auto;
   padding: 18px 20px 24px;
   color: var(--text);
 }
-.ctx-modal-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-/* 14px/600, the size the deck's other two modal titles are already set in —
-   `.uh-title` and `.modal-tool-name`. This one wrote 15px, and 15 against 14 is
-   a 7% step: below anything a reader can resolve, so it was not saying that this
-   modal outranks those, it was only the third spelling of one decision. It was
-   also the last live rule at 15px, so the size retires with it. */
-.ctx-modal-title { font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; }
+/* The one dialog header (dialogs.css), drawn out to the dialog's edges over
+   the padding the rest of this dialog keeps. Its title is `.modal-tool-name`,
+   14px/600: this one wrote 15px once, and 15 against 14 is a 7% step below
+   anything a reader can resolve, so the size retired. */
+.ctx-modal-head { margin: -18px -20px 14px; }
 .ctx-modal-sub { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); margin-top: 3px; }
 /* The context modal's × — a header close like the other five, and the last one
    still drawing its own 28px bordered box. `.glyph-btn` now, which takes the
@@ -515,7 +507,15 @@
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
-.recap-note-plan .plan-list { gap: 2px; }
+/* The list is a grid, and a bare grid column is as wide as its widest row's
+   min-content: with every step on one line, that is the whole of the longest
+   step. So the column grew to it, and a long step ran on past the note's border
+   uncut instead of ending in an ellipsis. A column no wider than the note's own
+   lets the cut happen. */
+.recap-note-plan .plan-list {
+  gap: 2px;
+  grid-template-columns: minmax(0, 1fr);
+}
 .recap-note-plan .plan-text,
 .recap-face-plan .plan-text {
   overflow: hidden;

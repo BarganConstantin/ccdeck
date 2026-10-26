@@ -15,15 +15,16 @@ export interface CaptureSnapshot {
   sources?: { destination: string; interface: string; active: boolean; bytes: number; error?: string | null }[];
   lastInputAt: number | null; bytes: number; issues: Record<string, number>; events: CapturedExport[];
 }
-export type CaptureAction = "prepare" | "stop" | "clear";
+export type CaptureAction = "clear" | "permission";
+/** What asking for capture permission came to (traffic-radar-permission.mjs):
+ *  `command` is what to run in a terminal where no password prompt could open. */
+export interface PermissionResult { outcome: "granted" | "cancelled" | "unavailable" | "failed"; message?: string; command?: string }
 export function useTelemetryCapture() {
   const [capture, setCapture] = useState<CaptureSnapshot | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [command, setCommand] = useState("");
-  const [commands, setCommands] = useState<{ destination: string; command: string }[]>([]);
-  const [commandSession, setCommandSession] = useState<string | null>(null);
+  const [permission, setPermission] = useState<PermissionResult | null>(null);
   const [pendingAction, setPendingAction] = useState<CaptureAction | null>(null);
   const inflight = useRef<CaptureAction | null>(null);
   const actionRequest = useRef<AbortController | null>(null);
@@ -56,25 +57,26 @@ export function useTelemetryCapture() {
     void load(); document.addEventListener("visibilitychange", visibility);
     return () => { alive = false; stop(); actionRequest.current?.abort(); document.removeEventListener("visibilitychange", visibility); };
   }, []);
-  const action = async (kind: CaptureAction, destination?: string | string[]) => {
+  const action = async (kind: CaptureAction) => {
     if (!pressAccepted(inflight.current)) return;
     revision.current++;
     inflight.current = kind;
     setPendingAction(kind); setBusy(true); setError("");
+    if (kind === "permission") setPermission(null);
     const request = new AbortController(); actionRequest.current = request;
-    const timeout = setTimeout(() => request.abort(), 20_000);
+    // Asking for permission waits on a person typing their password.
+    const timeout = setTimeout(() => request.abort(), kind === "permission" ? 300_000 : 20_000);
     try {
       const response = await fetch(`/api/system/traffic-radar/capture/${kind}`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ destination }), signal: request.signal,
+        method: "POST", headers: { "Content-Type": "application/json" }, body: "{}", signal: request.signal,
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Capture action failed. Please retry.");
-      if (kind === "prepare") { setCommand(data.command); setCommands(data.commands ?? [{ destination: String(destination), command: data.command }]); setCommandSession(data.sessionId); }
-      if (kind === "stop") { setCommand(""); setCommands([]); }
+      if (kind === "permission") setPermission(data);
       const fresh = await fetch("/api/system/traffic-radar/capture", { signal: request.signal });
       if (fresh.ok) { setCapture(await fresh.json()); setFailed(false); }
     } catch (value) { setError(value instanceof Error ? value.message : "Capture action failed. Please retry."); }
     finally { clearTimeout(timeout); actionRequest.current = null; inflight.current = null; setPendingAction(null); setBusy(false); }
   };
-  return { capture, failed, busy, pendingAction, error, commands: capture?.sessionId === commandSession ? commands : [], command: capture?.sessionId === commandSession ? command : "", action };
+  return { capture, failed, busy, pendingAction, error, permission, action };
 }

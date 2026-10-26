@@ -12,8 +12,8 @@ import { existsSync } from "node:fs";
 import { killTree, pathLookup, spawnSpec } from "./exec.mjs";
 import { note, stamp, tagged } from "./ccusage-failure.mjs";
 import {
-  discardDamagedInstall, installsDisabled, lastInstallError, maybeBackgroundUpdate, resolveEntry,
-  startInstall, touchMarker, winShim,
+  discardDamagedInstall, installsDisabled, lastInstallError, maybeBackgroundUpdate, npmAvailable,
+  resolveEntry, startInstall, touchMarker, winShim,
 } from "./ccusage-install.mjs";
 
 const TIMEOUT_MS = 90_000;
@@ -158,6 +158,13 @@ async function getRunner() {
   await startInstall("latest");
   resolved = resolveEntry();
   if (resolved) { touchMarker(); return { kind: "node", entry: resolved.entry }; }
+  // No npm means no npx, so there is no fallback to hand back. The install that
+  // just failed was the registry download, and its own account is the whole
+  // story: an npx run here would only fail again with "npx is not recognized"
+  // and the modal would lead with that instead.
+  if (!npmAvailable()) {
+    throw tagged("fetch_failed", lastInstallError() ?? "ccusage could not be downloaded from the npm registry");
+  }
   // npm unavailable / offline → fall back to npx, carrying WHY the managed
   // install is not here. Without that the modal can only describe the fallback,
   // and the fallback is the second thing that failed.

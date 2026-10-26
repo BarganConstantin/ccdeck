@@ -19,14 +19,15 @@ export function useSettingsMenus() {
   const [settings, setSettings] = useState<SettingsDoor>(SETTINGS_CLOSED);
 
   /** The one door into Settings. A section deep-links to it; none opens it at
-   *  the last one shown. */
-  const openSettings = useCallback((section?: SettingsSection) => {
-    setSettings(door => openedAt(door, section));
+   *  the last one shown. A setting's id lands on that row as well. */
+  const openSettings = useCallback((section?: SettingsSection, landOn?: string) => {
+    setSettings(door => openedAt(door, section, landOn));
   }, []);
   const closeSettings = useCallback(() => setSettings(door => ({ ...door, open: false })), []);
   const showSection = useCallback((section: SettingsSection) => setSettings(door => ({ ...door, section })), []);
 
   return {
-    settingsOpen: settings.open, settingsSection: settings.section, openSettings, closeSettings, showSection,
+    settingsOpen: settings.open, settingsSection: settings.section, settingsLandOn: settings.landOn,
+    openSettings, closeSettings, showSection,
   };
 }

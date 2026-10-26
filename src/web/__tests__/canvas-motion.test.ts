@@ -385,6 +385,8 @@ const PRESSES: Press[] = [
   [".uh-range-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],
+  // Quick open's esc chip, a 22px key: the icon tier.
+  [".qo-esc:active", "0.94", "transform"],
   // Browser Watch's episode disclosure. Same tier and same number as the row
   // above it: a full-width row that opens to show what it is summarising.
   [".bw-ep-head:active", "0.97", "transform"],
@@ -393,6 +395,10 @@ const PRESSES: Press[] = [
   [".ta-row:active", "0.97", "transform"],
   [".ta-highlight:active", "0.97", "transform"],
   [".ta-explain summary:active", "0.97", "transform"],
+  // Where the time went: a lane in the ring's legend opens its level, and a
+  // part is a full-width row that opens the command or the rest of the list.
+  [".tt-lane:active", "0.97", "transform"],
+  ["button.tt-part:active", "0.97", "transform"],
   [".sa-session:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
   [".selected-ribbon .selected-close:active", "0.94", "transform"],
@@ -525,6 +531,11 @@ const EXEMPT: string[] = [
   // keeps through hover and while selected — the same "brightness held through
   // the gesture" answer `.cluster-label` gives.
   ".ap-proj-day",
+  // An arc of Tool activity's Where the time went ring, for the same reason:
+  // its length is the lane's share of the time, and an arc scaled on press
+  // leaves the ring. It thickens under the pointer, and its row in the legend
+  // is the control that answers a press (and the keyboard).
+  ".tt-arc",
   ".cluster-label",
   // A row in the share picker, which is a <label> and not a second
   // control: it carries `cursor: pointer` because the whole row is the
@@ -623,6 +634,10 @@ const EXEMPT: string[] = [
   // moves.
   ".jr-row-main",
   ".jr-detail-sub",
+  // A row in quick open (⌘K) runs what it names and the field is gone on the
+  // release, so it answers as the deck's other list rows do: its fill
+  // deepens a step and nothing moves.
+  ".qo-row",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {

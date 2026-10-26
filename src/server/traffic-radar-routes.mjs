@@ -1,5 +1,6 @@
 import { trafficCapture } from "./traffic-radar-capture.mjs";
 import { CaptureSetupError } from './traffic-radar-platform.mjs';
+import { askCapturePermission } from './traffic-radar-permission.mjs';
 import { updateRadarFlag } from './traffic-radar-config.mjs';
 import { trafficRadar } from './traffic-radar.mjs';
 const BASE = '/api/system/traffic-radar';
@@ -17,7 +18,7 @@ async function body(req, max) {
   for await (const chunk of req) { size += chunk.length; if (size > max) throw new Error('Request too large.'); chunks.push(chunk); }
   return Buffer.concat(chunks);
 }
-export async function handleTrafficCapture(req, res, url, capture = trafficCapture) {
+export async function handleTrafficCapture(req, res, url, capture = trafficCapture, permission = askCapturePermission) {
   if (!loopback(req)) return reply(res, 403, { error: 'Telemetry contents are available on this machine only.' });
   const action = url.pathname.slice(BASE.length);
   try {
@@ -32,19 +33,6 @@ export async function handleTrafficCapture(req, res, url, capture = trafficCaptu
       }
       catch (error) { return reply(res, 400, { error: error.message }); }
     }
-    // Settings › Radar: `enabled` is automatic monitoring, off unless switched on.
-    if (req.method === 'GET' && action === '/settings') return reply(res, 200, await capture.settings());
-    if (req.method === 'POST' && action === '/settings') {
-      let data;
-      try { data = JSON.parse((await body(req, 4096)).toString()); } catch { return reply(res, 400, { error: 'Invalid Radar settings.' }); }
-      // One field, a boolean, and nothing else: a body that names anything more
-      // is not this switch's and is refused whole, not half-applied.
-      if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).join() !== 'enabled')
-        return reply(res, 400, { error: 'Invalid Radar settings.' });
-      if (typeof data.enabled !== 'boolean') return reply(res, 400, { error: 'Radar enabled must be a boolean.' });
-      try { return reply(res, 200, await capture.setEnabled(data.enabled)); }
-      catch { return reply(res, 500, { error: 'Could not save Radar settings. Try again.' }); }
-    }
     if (req.method === 'GET' && action === '/capture') return reply(res, 200, capture.read());
     if (req.method === 'GET' && action === '/capture/event') {
       const detail = capture.detail(Number(url.searchParams.get('id')));
@@ -56,11 +44,13 @@ export async function handleTrafficCapture(req, res, url, capture = trafficCaptu
       const data = await body(req, 262_144);
       return reply(res, capture.ingest(token, data, Number(req.headers['x-radar-source'] ?? 0)) ? 200 : 409, { ok: capture.read().state === 'capturing' });
     }
-    if (req.method === 'POST' && action === '/capture/prepare') {
-      const data = JSON.parse((await body(req, 4096)).toString());
-      return reply(res, 200, await capture.prepare(data.destination, req.socket.localPort));
+    // Allow capture: the system's own password prompt, once. Granted, capture
+    // starts again now rather than at its next retry.
+    if (req.method === 'POST' && action === '/capture/permission') {
+      const result = await permission();
+      if (result.outcome === 'granted') await capture.retry?.();
+      return reply(res, 200, { ok: true, ...result });
     }
-    if (req.method === 'POST' && action === '/capture/stop') { await capture.stop(); return reply(res, 200, { ok: true }); }
     if (req.method === 'POST' && action === '/capture/clear') { capture.clear(); return reply(res, 200, { ok: true }); }
     return reply(res, 404, { error: 'Unknown capture action.' });
   } catch (error) { return reply(res, 400, { error: error instanceof CaptureSetupError ? error.message : 'Could not complete capture setup. Use a valid IPv4 destination and check its network route.' }); }

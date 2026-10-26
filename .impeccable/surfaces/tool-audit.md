@@ -98,6 +98,39 @@ the server side is `tool-audit-skills.mjs` and `codex-skills.mjs`.
   counted as uses. A period that starts before counting did says so instead of
   showing quiet days as unused.
 - A latest use links to its session only while that session is on the canvas;
-  otherwise it says "not on the canvas" rather than linking to nothing.
+  otherwise it shows no link rather than linking to nothing. (It said "not on
+  the canvas" on every such row until 2026-10-24, which was mostly noise.)
 - The Tools view's `Skill` row offers "See which skills ran →", since the row
   alone cannot say which.
+
+## Skills at a glance — 2026-10-24
+
+Owner direction: Skill activity should answer something on opening, as Tool
+activity does, and be worth using. The research behind it: "Claude does not use
+my skill" is the commonest skill complaint, and Claude Code drops the
+descriptions of the least-invoked skills first once the listing outgrows its
+budget. `/skill-doctor` reports one session; the deck has the history, both
+agents, and which uses were typed.
+
+- Worth a look beside a ring, three to two, the same `.ta-glance` row as Tools.
+  The facts: a skill that fails, the go-to, one always typed and never picked by
+  the agent (its description likely misses your words), one gone quiet, a new one.
+  Quiet and new need three and two weeks watched.
+- The ring, "Who starts your skills": picked by Claude (purple), picked by Codex
+  (lime), typed by you (cyan) — Claude and you keep the hues of the time ring.
+  A lane filters the list ("5 of 10"); typed commands that never reach the deck
+  read as "not counted", never as zero.
+- Each skill's bar is split in those hues; its details lead with the same
+  counts, and the per-day chart starts where counting began.
+- Opening the view selects its first skill once, like Tools, so the details are
+  open on arrival; closing them leaves them closed.
+- A new period or agent never closes the details: Tools and Skills keep the panel
+  open at its width, its labels in place and its numbers as quiet skeleton bars
+  until the new report arrives; an item the new period lacks moves the details to
+  the period's first. (A phone's drawer covers the filters, so it never meets this.)
+- A skill's details: uses per day stacked by who started them (agent at the base,
+  a dashed line at the busiest day, the words under it as the legend), projects
+  with their share and what the named five leave out ("2 more projects", "No
+  folder recorded"), and the latest uses under their day, one line each.
+- No chart library: every chart here is a few DOM bars on theme tokens, so it
+  follows the theme catalog, stays readable to assistive tech and costs no bundle.

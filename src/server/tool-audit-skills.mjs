@@ -59,8 +59,13 @@ const named = r => text(r.skill, 150) && ['typed', 'agent', 'detected'].includes
     const counted = picked.filter(use => !use.repeat).sort((a, b) => b.at - a.at);
     const projects = new Map();
     for (const use of counted) if (use.project) projects.set(use.project, (projects.get(use.project) ?? 0) + 1);
+    const ranked = [...projects].map(([name, uses]) => ({ name, uses })).sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name));
+    // What the five named projects leave out, so the list adds up to the uses: the
+    // rest of the projects, and uses with no project folder to name.
+    const rest = ranked.slice(5);
     details = { name: query.skill, row: rows.find(row => row.name === query.skill) ?? null, total: counted.length,
-      projects: [...projects].map(([name, uses]) => ({ name, uses })).sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name)).slice(0, 5),
+      projects: ranked.slice(0, 5), moreProjects: { projects: rest.length, uses: rest.reduce((sum, item) => sum + item.uses, 0) },
+      projectless: counted.filter(use => !use.project).length,
       recent: counted.slice(0, 50).map(({ id, provider, at, origin, session, project, subagent, state }) => ({ id, provider, at, origin, session, project, subagent, state })) };
     if (query.history) {
       const format = new Intl.DateTimeFormat('en-CA', { timeZone: query.timeZone ?? 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -71,9 +76,9 @@ const named = r => text(r.skill, 150) && ['typed', 'agent', 'detected'].includes
       // Calendar labels advance independently of offsets: DST days may be 23 or 25 hours.
       for (let date = first; date <= last; date += DAY) {
         const key = new Date(date).toISOString().slice(0, 10);
-        days.set(key, { date: key, uses: 0, providers: { claude: 0, codex: 0 }, status: key < countedDay ? 'outside-history' : 'no-uses' });
+        days.set(key, { date: key, uses: 0, providers: { claude: 0, codex: 0 }, agent: 0, typed: 0, detected: 0, status: key < countedDay ? 'outside-history' : 'no-uses' });
       }
-      for (const use of counted) { const day = days.get(dayKey(use.at)); if (day) { day.uses++; day.providers[use.provider]++; day.status = 'used'; } }
+      for (const use of counted) { const day = days.get(dayKey(use.at)); if (day) { day.uses++; day.providers[use.provider]++; day[use.origin]++; day.status = 'used'; } }
       details.history = { timeZone: query.timeZone ?? 'UTC', days: [...days.values()] };
     }
   }

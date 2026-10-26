@@ -6,6 +6,7 @@ import { operationDescription, operationName } from '../operation-glossary';
 import ToolAuditDrawer from './ToolAuditDrawer';
 import ToolAuditInspector from './ToolAuditInspector';
 import ToolAuditSplitter from './ToolAuditSplitter';
+import ToolTimeSplit from './ToolTimeSplit';
 import SkillActivity, { type ReportStatus } from './SkillActivity';
 import type { SessionLinks } from './SkillInspector';
 import { readDetailsWidth, writeDetailsWidth } from '../tool-audit-layout';
@@ -52,6 +53,7 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
   const [showAll, setShowAll] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const initialSelectionMade = useRef(false);
+  const shownRow = useRef<AuditRow | null>(null);
   const [keyboardSelection, setKeyboardSelection] = useState(false);
   const selectedRef = useRef(selected); selectedRef.current = selected;
   const selectionOrigin = useRef<HTMLElement | null>(null);
@@ -80,7 +82,8 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
   };
   const dialogRef = useModalDismiss(closeReport, { focusRef: closeRef });
   const scrimPress = useScrimDismiss(closeReport);
-  const query = new URLSearchParams({ provider, days: period }).toString();
+  // The reader's zone, so a day in the report is a day on their calendar.
+  const query = new URLSearchParams({ provider, days: period, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }).toString();
 
   useEffect(() => {
     // One report at a time: the Skills view reads its own while it is open.
@@ -98,7 +101,8 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
           loadedQuery.current = query; setData(reply);
           const first = !initialSelectionMade.current && sortTools(reply.rows, sortRef.current, searchRef.current)[0];
           if (first) { initialSelectionMade.current = true; setSelected(first.operation); }
-          else if (selectedRef.current && !reply.rows.some(row => row.operation === selectedRef.current)) setSelected(null);
+          // Open details whose tool the new period lacks move to its first, rather than closing.
+          else if (selectedRef.current && !reply.rows.some(row => row.operation === selectedRef.current)) setSelected(sortTools(reply.rows, sortRef.current, searchRef.current)[0]?.operation ?? null);
         }
       } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'Reading the history took too long. Try again, or keep less history in Settings.'); }
       finally { window.clearTimeout(deadline); if (live) { busy.current = false; setLoading(false); } }
@@ -115,7 +119,7 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
     const deadline = window.setTimeout(() => controller.abort(), 65000); setDetailLoading(true);
     void (async () => {
       try {
-        const reply = await readAuditReport(`${query}&operation=${encodeURIComponent(selected)}&history=1&timeZone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`, controller.signal);
+        const reply = await readAuditReport(`${query}&operation=${encodeURIComponent(selected)}&history=1`, controller.signal);
         if (live) { if (reply.details?.measurements === null) setSelected(null); else setDetails(reply.details); }
       } catch { if (live) setDetailError('Could not read the calls for this tool. Close it and open it again to retry.'); }
       finally { window.clearTimeout(deadline); if (live) setDetailLoading(false); }
@@ -127,7 +131,11 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
   const highlights = useMemo(() => data ? findHighlights(data.rows, data.totalMs) : [], [data]);
   const visible = showAll || search ? rows : rows.slice(0, FIRST_ROWS);
   const top = rows.length ? toolSortValue(rows[0], sort) ?? 0 : 0;
-  const selection = data?.rows.find(row => row.operation === selected);
+  const liveRow = data?.rows.find(row => row.operation === selected);
+  if (liveRow) shownRow.current = liveRow;
+  // Across a new period or agent the details stay open on the tool they showed, its
+  // numbers held back until the new report arrives, so the panel neither closes nor moves.
+  const selection = liveRow ?? (selected && !data && shownRow.current?.operation === selected ? shownRow.current : undefined);
 
   const select = (operation: string) => (event: MouseEvent<HTMLButtonElement>) => {
     selectionOrigin.current = event.currentTarget;
@@ -156,7 +164,7 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
 
   return createPortal(<div className="modal-backdrop" role="presentation" {...scrimPress}>
     <div className="modal ta-report" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title" data-view={view}>
-      <header className="ta-report-header">
+      <header className="modal-head ta-report-header">
         <h2 id="tool-audit-title">{viewTitle[view]}</h2>
         <div className="ta-actions">
           <span className="ta-freshness" role="status">{reading ? shown !== null ? 'Updating…' : 'Reading history…' : shown !== null ? `Updated ${new Date(shown).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
@@ -185,13 +193,17 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
             </p>
             {(!data.storageOk || data.dropped > 0 || data.corrupt > 0) && <p className="ta-warning" role="status">Some calls could not be saved or read, so these numbers may be a little low.{!data.storageOk && ' Check free disk space.'}</p>}
 
-            {highlights.length > 0 && <section className="ta-highlights" aria-labelledby="ta-highlights-title">
-              <h3 id="ta-highlights-title">Worth a look</h3>
-              <ul>{highlights.map(item => <li key={item.kind}><button type="button" className="ta-highlight" data-kind={item.kind} data-operation={item.operation} aria-expanded={selected === item.operation} aria-controls={selected === item.operation ? 'tool-operation-inspector' : undefined} onClick={select(item.operation)}>
-                <span className="ta-highlight-glyph">{highlightGlyph[item.kind]}</span>
-                <span className="ta-highlight-text"><span><code>{operationName(item.operation)}</code> {item.title}</span><small>{item.detail}</small></span>
-              </button></li>)}</ul>
-            </section>}
+            {/* At a glance: what is worth a look beside where the time went. */}
+            {(highlights.length > 0 || data.split) && <div className="ta-glance" data-single={!(highlights.length > 0 && data.split) || undefined}>
+              {highlights.length > 0 && <section className="ta-highlights" aria-labelledby="ta-highlights-title">
+                <h3 id="ta-highlights-title">Worth a look</h3>
+                <ul>{highlights.map(item => <li key={item.kind}><button type="button" className="ta-highlight" data-kind={item.kind} data-operation={item.operation} aria-expanded={selected === item.operation} aria-controls={selected === item.operation ? 'tool-operation-inspector' : undefined} onClick={select(item.operation)}>
+                  <span className="ta-highlight-glyph">{highlightGlyph[item.kind]}</span>
+                  <span className="ta-highlight-text"><span><code>{operationName(item.operation)}</code> {item.title}</span><small>{item.detail}</small></span>
+                </button></li>)}</ul>
+              </section>}
+              {data.split && <ToolTimeSplit split={data.split} since={data.since} turnsSince={data.turnsSince} selected={selected} onPick={(operation, event) => select(operation)(event)} />}
+            </div>}
 
             <section className="ta-tools" aria-labelledby="ta-tools-title">
               <div className="ta-tools-head">
@@ -219,6 +231,7 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
               <summary>How this is counted</summary>
               <ul>
                 <li>A call’s time runs from when the agent starts the tool until it reports back, so it can include waiting for your approval.</li>
+                <li>Where the time went follows each Claude Code turn by the clock, from your prompt until Claude stops: this machine while a tool runs or its hooks start it, you while Claude waits for your approval or answer, and Claude for the rest. Calls that ran together count once, and a pipeline’s time goes to the command feeding it, not to the <code>tail</code> reading its output.</li>
                 <li>Total time adds every call together. Calls that ran at the same time each count, so it can be more than the time that actually passed.</li>
                 <li>“Usually” is the middle value: half of the calls were quicker, half took longer.</li>
                 <li>A command line such as <code>git add . &amp;&amp; git commit</code> counts once for each command in it, and shares its time and result with both.</li>
@@ -230,7 +243,7 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
         </div></div>
         {selection && sideBySide && <ToolAuditSplitter width={detailsWidth} workspace={workspaceRef} onCommit={resizeDetails} />}
         {selection && <ToolAuditDrawer keyboard={keyboardSelection} itemKey={selection.operation} onClose={closeInspector}>
-          <ToolAuditInspector row={details?.operation === selected && details.measurements ? details.measurements : selection} details={details?.operation === selected ? details : null} loading={detailLoading} error={detailError} kind={detailKind} setKind={setDetailKind} onClose={closeInspector}
+          <ToolAuditInspector row={details?.operation === selected && details.measurements ? details.measurements : selection} details={details?.operation === selected ? details : null} loading={detailLoading} pending={!liveRow} charted={Number(period) >= 7} error={detailError} kind={detailKind} setKind={setDetailKind} onClose={closeInspector}
             onShowSkills={selection.operation === 'Skill' ? () => { setSelected(null); setView('skills'); } : undefined} />
         </ToolAuditDrawer>}
       </div>}

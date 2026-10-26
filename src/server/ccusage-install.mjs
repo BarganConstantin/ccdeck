@@ -12,14 +12,20 @@
 // the current call always serves from the already-installed copy. If the
 // managed install is missing/broken we fall back to the old npx path so the
 // feature still works on a fresh machine.
+//
+// A machine with no npm at all, which is what the desktop app runs on when its
+// user never installed Node, gets the same managed install fetched straight from
+// the registry instead (ccusage-registry.mjs), and no npx fallback, because npx
+// is part of the npm it does not have.
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { killTree, shimPath, spawnSpec } from "./exec.mjs";
+import { killTree, pathLookup, shimPath, spawnSpec } from "./exec.mjs";
 import { npmCliLaunch } from "./npx.mjs";
 import { oneLine } from "./term.mjs";
 import { note } from "./ccusage-failure.mjs";
+import { fetchCcusage, latestCcusage } from "./ccusage-registry.mjs";
 
 const INSTALL_TIMEOUT_MS = 120_000; // first-run npm install can be slow
 const UPDATE_CHECK_MS = 24 * 3600_000; // check npm for a newer ccusage once/day
@@ -76,6 +82,21 @@ function npmSpec(args, platform = process.platform, deps) {
 export const installSpec = (spec = "latest", platform = process.platform, deps) =>
   npmSpec(["install", `ccusage@${spec}`, "--prefix", CACHE_DIR,
     "--no-save", "--no-audit", "--no-fund", "--loglevel", "error"], platform, deps);
+
+/**
+ * Whether there is an npm here for npmSpec to launch: the shim it would hand
+ * cmd.exe on Windows, and elsewhere the npm-cli.js beside this Node or an `npm`
+ * on PATH. The same places npmSpec looks, so a yes is an npm it can reach.
+ *
+ * A no is the machine the registry fetch is for. Asked per call rather than
+ * once, so an npm installed while the deck runs is used from the next install.
+ * Exported for tests, with the platform and the file system injectable as
+ * everywhere else in this module.
+ */
+export function npmAvailable(platform = process.platform, deps) {
+  if (platform === "win32") return shimPath("npm.cmd", deps) !== null;
+  return npmCliLaunch([], { platform, ...deps }) !== null || pathLookup("npm", platform, deps) !== null;
+}
 
 let _installing = null;   // Promise guard so concurrent calls share one install
 let _checkedThisRun = false; // only kick the daily check once per process boot
@@ -285,8 +306,35 @@ function installTreeReport() {
  * fields spawnSync used to hand it — a failure to LAUNCH in `error`, the exit
  * status, and both output streams, because npm has never confined itself to
  * stderr.
+ *
+ * With no npm to run, the same install comes from the registry instead — see
+ * registryInstall below.
  */
 function install(spec = "latest") {
+  return npmAvailable() ? npmInstall(spec) : registryInstall(spec);
+}
+
+/**
+ * The managed install for a machine with no npm: ccusage and its native
+ * package, fetched and checked by ccusage-registry.mjs, unpacked where npm
+ * would have put them.
+ *
+ * Its failure carries the reason first, for the room it is cut to (#1672), and
+ * says there was no npm, because that is why the deck went to the registry
+ * itself and the reader cannot otherwise know it did.
+ */
+async function registryInstall(spec = "latest") {
+  try {
+    await fetchCcusage({ spec, pkgDir: PKG_DIR, timeoutMs: INSTALL_TIMEOUT_MS });
+  } catch (e) {
+    throw new Error(`could not download ccusage from the npm registry (this machine has no npm): ${e?.message ?? e}`);
+  }
+  if (!resolveEntry()) {
+    throw new Error(`the ccusage downloaded from the npm registry left nothing runnable: ${installTreeReport()}, under ${CACHE_DIR}`);
+  }
+}
+
+function npmInstall(spec = "latest") {
   return new Promise((resolve, reject) => {
     mkdirSync(CACHE_DIR, { recursive: true });
     const { file, args, opts } = installSpec(spec);
@@ -382,6 +430,15 @@ export function maybeBackgroundUpdate(installedVersion) {
   if (!backgroundUpdateDue()) return;
   _checkedThisRun = true;
   touchMarker();
+  // No npm to ask, so the registry is asked directly. Without this a copy
+  // fetched by registryInstall would be the version it was on its first day,
+  // for good.
+  if (!npmAvailable()) {
+    latestCcusage()
+      .then(latest => { if (latest && latest !== installedVersion) installInBackground(latest); })
+      .catch(() => { /* best-effort, like the npm check below */ });
+    return;
+  }
   try {
     const { file, args, opts } = npmSpec(["view", "ccusage", "version"]);
     const child = spawn(file, args, { windowsHide: true, ...opts });

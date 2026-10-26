@@ -95,7 +95,8 @@ describe("a door into Settings opens it at the section it names", () => {
       ["sounds", />Custom sounds</],
       ["integrations", />GitHub</],
       ["data", />Tool history<\/h3>/],
-      ["radar", />Monitor automatically</],
+      ["claude", />Messages from other sessions</],
+      ["radar", /data-setting="radar-open"/],
       ["about", />Version</],
     ];
     expect(cases.map(([id]) => id)).toEqual(SETTINGS_SECTIONS.map(s => s.id));
@@ -143,9 +144,10 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
-  it("names the ten sections in the nav, in order, About last", () => {
+  it("names the eleven sections in the nav, in order, About last", () => {
     // Integrations since #2178: the trackers this deck reads, between Sounds and Data.
-    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Data", "Radar", "About"];
+    // Claude Code beside Radar, the other section that writes Claude Code's settings.
+    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Data", "Claude Code", "Radar", "About"];
     expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(names);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all

@@ -1,0 +1,42 @@
+/* ---------------- a right panel where the reader put it ----------------
+   Usage and the machine panel can be picked up by their header and put down
+   anywhere over the board (panel-place.ts, owner 2026-10-24). Unmoved, they
+   keep the slots --rail-r gives them (machine-panel.css); moved, the panel
+   carries `data-place` with the edge it is kept from and `--place-x` /
+   `--place-y`, and this sheet draws it there.
+
+   THE CLAMP LIVES HERE, not in a resize listener: between the stripes with
+   8px to spare, below the bar (and the rating row, when it is shown), and
+   never so low that less than 120px of it is left in the window, which is
+   LEAST_SHOWN in panel-place.ts and keeps the header in reach. The place
+   itself is never rewritten, so a window made smaller and then larger again
+   puts the panel back where it was put. The drag clamps with the same numbers.
+
+   After rating.css, whose `top` for the pair this has to win over, and at the
+   same specificity plus the attribute. The rating row's height is in the
+   least top unconditionally: RatingBanner writes --rating-h while the row is
+   shown and takes it off with the row. No phone rule is needed: a phone never
+   gets `data-place`. */
+.app :is(.usage-panel, .sysdetail)[data-place] {
+  --place-top: calc(var(--topbar-h) + 8px + var(--rating-h, 0px));
+  --place-side: calc(var(--edge-w) + 8px);
+  --place-w: calc(280px + var(--ui-panel-increase, 0px));
+  --place-at: clamp(var(--place-top), var(--place-y), calc(100vh - 120px));
+  top: var(--place-at);
+  max-height: calc(100vh - var(--place-at) - 16px);
+}
+.app :is(.usage-panel, .sysdetail)[data-place="right"] {
+  left: auto;
+  right: clamp(var(--place-side), var(--place-x), calc(100vw - var(--place-side) - var(--place-w)));
+}
+.app :is(.usage-panel, .sysdetail)[data-place="left"] {
+  right: auto;
+  left: clamp(var(--place-side), var(--place-x), calc(100vw - var(--place-side) - var(--place-w)));
+}
+
+/* The header is the handle. Its buttons keep their own pointer. */
+.app [data-grip] { cursor: grab; }
+.app [data-moving] [data-grip] { cursor: grabbing; }
+.app [data-moving] { user-select: none; }
+/* The one moved last stays on top where the two overlap. */
+.app :is(.usage-panel, .sysdetail)[data-front] { z-index: 21; }

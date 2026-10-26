@@ -10,9 +10,10 @@
    the header and the nav stay. No floor and no ceiling besides it, so nothing
    a section draws reaches the frame. Centred like every dialog: a height that
    never changes keeps it in one place.
-   800px holds a 184px nav and a section four theme previews wide (#2176). */
+   The medium dialog, 820px, holds a 184px nav and a section four theme
+   previews wide (#2176). */
 .modal.settings-modal {
-  width: min(800px, calc(100vw - 32px));
+  width: var(--dialog-m);
   height: min(720px, calc(100dvh - 80px));
   max-height: none;
   --settings-group-gap: 20px;
@@ -268,6 +269,11 @@
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .settings-row-said:empty { position: absolute; }
+/* A reason the row says under itself rather than a result of a press: why
+   its control is off (Settings › Claude Code), in the note's quieter ink. */
+.settings-row-said-quiet { color: var(--text-secondary); }
+/* A Claude Code settings key, as it is spelled in settings.json. */
+.claude-key { font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); overflow-wrap: anywhere; }
 /* A way out of the deck from a row: About's Source. A link, so it is drawn as
    one — the accent's words, underlined under the pointer, the look the deck's
    other links out (.film-link) wear — and a control's height tall, so the

@@ -92,6 +92,21 @@ export function connectionAssetUrl(conn: Pick<Connection, "kind" | "id">) {
   return (url: string) => `${prefix}asset?url=${encodeURIComponent(url)}`;
 }
 
+/** A picture's own address, for the browser to ask when the deck could not
+ *  read it: a self-managed GitLab whose public visibility is restricted gives
+ *  an avatar to a signed-in browser and to no token. Only on the connection's
+ *  own origin, the tracker the user connected, and nowhere else. */
+export function trackerImageUrl(conn: Pick<Connection, "baseUrl">, url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (u.username || u.password || (u.protocol !== "https:" && u.protocol !== "http:")) return null;
+    return u.origin === new URL(conn.baseUrl).origin ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
 /** A query string from a panel's parameters: unset, empty and false left out,
  *  true as "1". */
 export function queryOf(params: Record<string, string | number | boolean | undefined>): string {

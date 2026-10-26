@@ -168,10 +168,9 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
     onPointerDownCapture={event => { delete event.currentTarget.dataset.keyboardInteraction; }}
     onWheelCapture={event => { delete event.currentTarget.dataset.keyboardInteraction; }}
     onKeyDown={containPopoverKeys}>
-    <header className="radio-header">
-      <div className="radio-heading"><RadioIcon name="radio" /><h2 id="radio-title">Radio <span>Explorer</span></h2></div>
-      <span className="radio-header-note">A soundtrack for your workspace</span>
-      <button type="button" className="icon-btn" aria-label="Close radio" onClick={onClose}><RadioIcon name="close" /></button>
+    <header className="modal-head radio-header">
+      <div className="radio-heading"><h2 id="radio-title">Radio <span>Explorer</span></h2><span className="radio-header-note">A soundtrack for your workspace</span></div>
+      <button type="button" className="glyph-btn" aria-label="Close radio" title="Close (Esc)" onClick={onClose}>×</button>
     </header>
     <div className="radio-player" data-state={state}>
       <section className="radio-now" aria-label="Current station">

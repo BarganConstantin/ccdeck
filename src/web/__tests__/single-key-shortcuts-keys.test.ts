@@ -69,11 +69,21 @@ describe("with Single-key shortcuts off, no character key does anything", () => 
     expect(gate).toBeLessThan(handler.indexOf("closesKeySheet({"));
   });
 
-  it("silences T inside Settings too, which the dialog answers itself", () => {
-    const modal = sourceOf("components/SettingsModal.tsx");
-    const gate = modal.indexOf("if (characterKeyMuted(event.key, singleKeys)) return;");
-    expect(gate).toBeGreaterThan(-1);
-    expect(gate).toBeLessThan(modal.indexOf('if ((event.key !== "t" && event.key !== "T")'));
+  it("silences T inside Settings too, and every other dialog, where the deck's handler answers it", () => {
+    const handler = sourceOf("use-deck-shortcuts.ts");
+    const gate = handler.indexOf("if (characterKeyMuted(e.key, singleKeyShortcutsOn())) return;");
+    expect(gate).toBeLessThan(handler.indexOf('if (e.key === "t" || e.key === "T") {'));
+    const deck = mountDeckKeys({ singleKeys: false });
+    const closeDialog = modalStack.push(() => {});
+    try {
+      for (const target of [BODY, { tagName: "BUTTON", role: "tab" }, { tagName: "BUTTON", role: "radio" }]) {
+        deck.press("t", { target });
+        deck.press("T", { target });
+      }
+    } finally {
+      closeDialog();
+    }
+    expect(deck.theme.set).not.toHaveBeenCalled();
   });
 });
 

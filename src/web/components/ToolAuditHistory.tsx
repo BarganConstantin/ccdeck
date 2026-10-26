@@ -12,6 +12,17 @@ function dayText(day: HistoryDay, noun: string) {
   return `${dateLabel(day.date)} · ${count(day.calls, noun)}${day.medianMs != null ? ` · usually ${auditDuration(day.medianMs)}` : ''}`;
 }
 
+/** The chart's shape while its days are read, in its place and at its height, so
+ *  nothing below moves when the bars land. */
+export function HistorySkeleton({ noun = 'call' }: { noun?: string }) {
+  return <section className="ta-history" aria-hidden="true">
+    <h4>{noun[0].toUpperCase()}{noun.slice(1)}s per day</h4>
+    <div className="ta-history-bars ta-history-skeleton" style={{ "--ta-days": 7 } as CSSProperties}>{[0.35, 0.6, 0.25, 0.8, 0.45, 0.3, 0.7].map((height, at) => <span key={at}><i className="ta-skel" style={{ "--ta-height": height } as CSSProperties} /></span>)}</div>
+    <div className="ta-history-axis"><span>&nbsp;</span></div>
+    <p className="ta-note ta-history-day"><i className="ta-skel" style={{ width: '9em' }} /></p>
+  </section>;
+}
+
 /** Calls per day. A pointer over a bar names that day; the label below always
  *  says which day it is describing, so nothing depends on hover alone. */
 export default function ToolAuditHistory({ history, noun = 'call' }: { history: { days: HistoryDay[] }; noun?: string }) {

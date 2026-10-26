@@ -13,6 +13,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { deckProviders } from "./deck-scope.mjs";
 import { send } from "./http-io.mjs";
 import { quotaHistoryReport } from "./quota-history.mjs";
+import { quotaClosesReport } from "./quota-closes.mjs";
 import { validSessionLookup } from "./ccusage-session.mjs";
 
 // Resolved the way pinned-build.mjs resolves it, from a file in the same
@@ -28,13 +29,13 @@ const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
  * carries on behind it and publishes for the next poll.
  */
 export async function handleQuota(req, res) {
-  const { fetchClaudeQuota, QUOTA_DEADLINE_MS } = await import(
+  const { fetchClaudeQuota, withClaudePlan, QUOTA_DEADLINE_MS } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/quota.mjs")).href
   );
   const url = new URL(req.url, "http://localhost");
   const force = url.searchParams.get("refresh") === "1";
   const quota = await fetchClaudeQuota({ force, deadlineMs: QUOTA_DEADLINE_MS });
-  send(res, 200, quota);
+  send(res, 200, await withClaudePlan(quota));
 }
 
 export async function handleCodexUsage(req, res) {
@@ -130,4 +131,15 @@ export async function handleQuotaHistory(req, res) {
     return send(res, 400, { ok: false, reason: "bad_history_scope" });
   }
   send(res, 200, await quotaHistoryReport(provider, account));
+}
+
+/** How full each of an account's windows was at its reset; never fetches. */
+export async function handleQuotaCloses(req, res) {
+  const url = new URL(req.url, "http://localhost");
+  const provider = url.searchParams.get("provider");
+  const account = url.searchParams.get("account");
+  if (!["claude", "codex"].includes(provider) || !/^[a-f0-9]{64}$/.test(account ?? "")) {
+    return send(res, 400, { ok: false, reason: "bad_closes_scope" });
+  }
+  send(res, 200, await quotaClosesReport(provider, account));
 }

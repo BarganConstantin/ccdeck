@@ -102,6 +102,11 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
   {
     title: "Panels and dialogs",
     rows: [
+      // Quick open (quick-open.ts): every row below, and the sessions, the
+      // settings and the themes, by name. A chord, so it stays on the sheet
+      // with the single-key shortcuts off; ⌘ on a Mac, where Ctrl+K belongs
+      // to the text field.
+      { cap: "Ctrl + K", macCap: "⌘ K", action: "search panels, sessions, settings, actions and themes", binds: ["k", "K"], chord: true },
       { cap: "U", action: "usage panel", binds: ["u", "U"] },
       { cap: "L", action: "session list", binds: ["l", "L"] },
       { cap: "D", action: "detail panel", binds: ["d", "D"] },
@@ -134,7 +139,10 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // dialog in the way: the switch it flips is in Settings › Sounds, the
       // row above.
       { cap: "M", action: "sound on or off", binds: ["m", "M"] },
-      { cap: "T", action: "light or dark theme", binds: ["t", "T"] },
+      // Every theme in turn, in Settings › Appearance's order, not a
+      // light/dark pair — and from inside a dialog too, the one letter that
+      // goes through one (use-deck-shortcuts.ts).
+      { cap: "T", action: "next theme", binds: ["t", "T"] },
     ],
   },
   {

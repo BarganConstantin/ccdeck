@@ -42,6 +42,7 @@
 @import "./styles/session-list.css";             /* the session list */
 @import "./styles/detail-sections.css";          /* the detail panel's hero and sections, prompt history, tool rows */
 @import "./styles/dialogs.css";                  /* the tool, clear, shortcuts, what's-new and session-end dialogs */
+@import "./styles/quick-open.css";               /* ⌘K: the field that reaches every panel, session, setting and action */
 @import "./styles/explore-integrations.css";     /* the native integration discovery catalog */
 @import "./styles/empty-state.css";              /* the empty-state hero */
 @import "./styles/light-contrast.css";           /* light-mode contrast tuning */
@@ -67,6 +68,7 @@
 @import "./styles/claude-fm.css";                /* Claude FM */
 @import "./styles/account-projects.css";         /* the account Projects report */
 @import "./styles/rating.css";                   /* the one question the deck asks about itself */
+@import "./styles/panel-place.css";              /* Usage and the machine panel where the reader put them */
 @import "./styles/lan-setup.css";                /* local network setup */
 @import "./styles/lan-network-map.css";          /* the network map, after lan-setup.css whose fact grid it trims */
 @import "./styles/guides.css";                   /* guides */

@@ -30,68 +30,173 @@ instructions or as a link to this file.
 
 ## 2. Branches
 
-- **Feature branches.** One per feature or fix, each in its own worktree.
-- **`development`.** The long-lived integration branch.
-  - The lead integrates reviewed, tested, public-safe changes into it.
-  - It may hold work meant for several future releases.
-  - It never holds private code or private data.
-- **`release/vX.Y.Z`.** One per coordinated release, holding only complete,
-  approved features. Never merge unfinished `development` work into a
-  release blindly.
-- **`main`.** Released code only. It changes only by merging a release pull
-  request.
+| Branch | What it holds | Created from | Goes into |
+|---|---|---|---|
+| `main` | Released code only | | |
+| `development` | Completed, reviewed, public-safe work for coming releases | a published release on `main` | `release/vX.Y.Z` |
+| `feature/<topic>`, `fix/<topic>` | One feature or fix, in its own worktree | `development` | `development` |
+| `feature/cli-<scope>` | The long-lived CLI workstream, kept apart (section 6) | a published release on `main` | `development`, only after the owner approves |
+| `release/vX.Y.Z` | One release candidate: only complete, approved work | `development` | `main`, by one pull request |
+| `hotfix/vX.Y.Z` | One urgent production fix, for a short time (section 5) | the published tag it fixes | `main`, by one pull request |
 
-`development` will be created fresh from the released `main` once the earlier
-development history has been fully migrated. It starts clean and does not
-reuse or restore that earlier history. Until it exists, the lead uses a local
-integration branch in its place.
+The three flows:
+
+- **Normal:** `feature/*` and `fix/*` → `development` → `release/vX.Y.Z` → `main`.
+- **Hotfix:** `main` → `hotfix/vX.Y.Z` → `main` → `development`.
+- **CLI:** `main` → `feature/cli-<scope>`, developed and tested on its own,
+  → `development` only when the owner approves.
+
+Rules for every branch:
+
+- `main` changes only through a pull request merged as a merge commit: a
+  release or hotfix pull request, or a separate pull request of a kind listed
+  in section 3.
+- `development` is never reset, rebased, force-pushed or deleted. It never
+  holds private code or private data. Work goes into it only through a pull
+  request, after the required CI checks pass and the lead has reviewed it,
+  merged as a merge commit. Nobody pushes to `development` directly.
+- `development` was created fresh from the published v3.46.0 commit on
+  `main`. It never restores or reuses the earlier development history, which
+  stays archived outside this repository.
+- There is no permanent `hotfix` branch. A `hotfix/vX.Y.Z` branch exists for
+  one fix only.
+- New branches use the `feature/` and `fix/` prefixes. Older branches keep
+  their names.
+
+Repository rules enforce the parts GitHub can check:
+
+- **`main`:** changes only through pull requests, merged as merge commits.
+  It cannot be deleted or force-pushed.
+- **`development`:** the same, plus:
+  - the required CI checks: the type check, the Node 18 floor, the tests on
+    Linux, macOS and Windows, and the three desktop builds;
+  - the branch must be up to date with `development` before the merge;
+  - every review thread must be resolved.
+- **`release/v*` and `hotfix/v*`:** cannot be force-pushed.
+- **`v*` tags:** once created, never moved or deleted.
+
+The lead's review is a step of this workflow, not a GitHub rule.
 
 ## 3. The default public release
 
 A coordinated feature release goes through these steps:
 
-1. Feature branches, built by one or more agents in parallel, are integrated
-   into `development`.
-2. `release/vX.Y.Z` takes only the complete, approved features.
+1. Feature and fix branches, built by one or more agents in parallel, are
+   integrated into `development`. The CLI workstream is not, until the owner
+   approves it (section 6).
+2. `release/vX.Y.Z` takes only the complete, approved features. When
+   `development` also holds work that is not ready, cut the release branch
+   from the released `main` and merge only the approved work into it. Never
+   merge unfinished `development` work into a release blindly.
 3. The exact release tree is frozen and fully validated: that is the release
    candidate.
 4. ONE public release branch, `release/vX.Y.Z`.
 5. ONE public pull request to `main`.
 6. Public CI and the required branch protection checks.
 7. One approved merge into `main`, as a merge commit.
-8. An approved release tag. The tag's automated workflow publishes to npm
-   and creates the GitHub release.
-9. After publication, `main` is merged into `development`, so `development`
-   is in sync without losing unreleased work. Never reset or force-push
-   `development`.
+8. An approved release tag on that merge commit. The tag's automated workflow
+   publishes to npm and creates the GitHub release.
+9. After publication, `main` is merged into `development` through a pull
+   request, so `development` is in sync without losing unreleased work.
+   Never reset or force-push `development`.
 
 One release pull request does not mean one commit. Keep meaningful, logically
 separate commits; never squash the whole release into one.
 
 Do not open a public pull request per worker or per feature just because
 different agents built them. A separate pull request is right for an external
-contribution, an urgent security fix, a change that is released on its own, or
-work that needs its own review boundary. Say why in that pull request.
+contribution, an urgent fix (section 5), a change that is released on its
+own, or work that needs its own review boundary. Say why in that pull request.
 
 ## 4. Approval boundaries
 
 Publishing takes two separate approvals from the owner:
 
-- **Batch 1:** the exact public release branch, its head SHA and the pull
-  request. This approves the push and opening the pull request, nothing more:
-  no merge, tag or publication.
+- **Batch 1:** the exact public release or hotfix branch, its head SHA and the
+  pull request. This approves the push and opening the pull request, nothing
+  more: no merge, tag or publication.
 - **Batch 2:** after public CI passes, the release tree is verified, the
   package is audited and the release is reviewed. Only then merge, tag and
   publish, through the automated workflow.
 
 Approving a roadmap, a plan or local work is never permission to push
-anything public.
+anything public. Creating `development`, `release/`, `hotfix/` or
+`feature/cli-` branches in the public repository, and changing branch
+protections, each need the owner's approval.
 
 Without the owner's explicit approval, never force-push, rewrite history,
 dispatch a workflow, transfer code to a runner, delete a branch or tag, or
 change a secret.
 
-## 5. Release candidate integrity
+## 5. Hotfixes
+
+A hotfix is for an urgent defect in the published release: a security
+problem, data loss, a broken install, start or upgrade, or a regression that
+blocks normal use. Everything else waits for the next release.
+
+1. Check that `main` equals the published tag being fixed, `vX.Y.Z`. If
+   `main` holds anything else, stop and ask the owner.
+2. Create `hotfix/vX.Y.(Z+1)` from that tag, in its own worktree.
+3. Make the smallest change that fixes the defect, with a regression test
+   that fails before the fix and passes after it. Bump the patch version and
+   add its release note. Nothing else: no refactoring, no features, no
+   unrelated fixes.
+4. Validate the exact hotfix tree like any release candidate (section 7),
+   including the security and privacy gates over its commits and its tree, a
+   fresh install, and an upgrade from the release it fixes.
+5. Batch 1, then Batch 2 (section 4): one public `hotfix/` branch, one pull
+   request to `main`, a merge commit, the tree check, the tag on that merge
+   commit, and the automated publication.
+6. After publication, bring the fix into `development` through a validated
+   pull request: a branch from `development` that merges `main`, with
+   conflicts resolved so that `development` keeps its own work and gains the
+   fix, the regression test and the tests around the fix passing, the
+   required CI checks green and the lead's review. If a `release/` branch is
+   open, merge `main` into it as well and revalidate it. The CLI workstream
+   takes the fix at its next sync.
+
+A hotfix branch never receives unfinished `development` work. Never merge
+`development` into a hotfix, tag a hotfix branch before its merge, skip a
+gate or an approval because the fix is urgent, or reuse a hotfix branch for a
+second fix. The branch stays until the owner approves deleting it.
+
+## 6. The CLI workstream
+
+New command-line work happens apart from everything else until it is
+finished. The CLI commands already released are on `main` and are not part
+of this rule.
+
+- When the CLI implementation starts, the lead creates one long-lived branch,
+  `feature/cli-<scope>`, from the latest published release, in its own
+  worktree.
+- The CLI agent may develop on its own, commit as it goes, run tests and
+  builds, and use helpers. Each helper works on its own
+  `feature/cli-<scope>-<topic>` branch and worktree, and its work goes into
+  `feature/cli-<scope>` through the CLI agent.
+- The CLI agent never merges unfinished CLI work into `development`, never
+  adds it to a release or hotfix branch, never pushes to `main`, never
+  changes another feature's worktree, and never publishes unfinished
+  functionality. Unfinished CLI work is not pushed to the public repository
+  at all.
+- From time to time the CLI branch takes the latest published release:
+  merge `main` into it with a merge commit, then run the CLI tests. Never
+  rebase or reset it, never drop its commits, and never merge `development`
+  into it, which would bring in unreleased work.
+
+Before the CLI work goes into `development`, all of these are required:
+
+- it is complete against the agreed requirements;
+- tests cover it, including regression tests for the defects found on the
+  way;
+- a security and privacy review, and the gates in section 7;
+- verification on Linux, macOS and Windows;
+- documentation for users;
+- the owner's explicit approval of the exact commit.
+
+It then goes into `development` through a pull request, merged as a merge
+commit, and is released through the normal flow.
+
+## 7. Release candidate integrity
 
 - Validate the exact combined source tree that will be released.
 - Run the security and privacy gates over every commit in the release and
@@ -109,9 +214,10 @@ change a secret.
 - If the code changes after the final validation, record what changed and
   rerun every check it affects.
 - After the merge, verify that the tree on `main` equals the approved release
-  candidate's tree before tagging.
+  or hotfix candidate's tree before tagging. The tag goes on the merge commit
+  on `main`, never on a release or hotfix branch.
 
-## 6. Boundaries
+## 8. Boundaries
 
 - Public text holds no private repository paths, credentials, personal data,
   internal tracking IDs or private implementation details. That includes
