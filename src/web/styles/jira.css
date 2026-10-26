@@ -188,7 +188,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   flex: 1;
   min-width: 0;
   display: grid;
-  grid-template-columns: 16px 16px auto minmax(0, 1fr) auto 20px;
+  grid-template-columns: 16px 16px auto minmax(16ch, 1fr) minmax(0, max-content) 20px;
   align-items: center;
   column-gap: 8px;
   padding: 6px 12px 6px 0;
@@ -199,7 +199,45 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   text-align: left;
   cursor: pointer;
 }
-.jr-row-main:focus-visible { outline-offset: -2px; }
+/* Selection and keyboard focus share the whole row boundary. The disclosure
+   and Move controls retain their own focused hitbox. */
+.jr-row:has(> .jr-row-main:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--r-tag); }
+.jr-row-main:focus-visible { outline: none; }
+.jr-row[draggable="true"] { cursor: grab; }
+.jr-row[data-dragging] { background: var(--ig-sel-fill, var(--accent-dim)); }
+.jr-row[data-drop="before"] { box-shadow: inset 0 2px var(--accent); }
+.jr-row[data-drop="after"] { box-shadow: inset 0 -2px var(--accent); }
+.jr-group[data-drop-group] > .jr-group-head { outline: 2px solid var(--accent); outline-offset: -2px; }
+.jr-move-button {
+  flex: none;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-height: 30px;
+  margin-right: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.jr-move-button:hover:not(:disabled), .jr-move-button[aria-expanded="true"] { color: var(--text); background: var(--ctl-fill); }
+.jr-move-button:active:not(:disabled) { background: var(--accent-dim); }
+.jr-move-button:disabled { cursor: wait; }
+.jr-move-pop { width: min(340px, calc(100vw - 24px)); }
+.jr-move-pop form { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+.jr-move-pop h3 { margin: 0 0 4px; font-size: calc(13px + var(--ui-text-increase, 0px)); }
+.jr-move-pop label { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-move-pop select { width: 100%; min-width: 0; max-width: 100%; font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px; }
+.jr-move-help, .jr-move-status, .jr-move-error { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); overflow-wrap: anywhere; }
+.jr-move-help, .jr-move-status { color: var(--muted); }
+.jr-move-status:not(:empty), .jr-board > .jr-move-error { margin-bottom: 8px; }
+.jr-move-error { color: var(--err); }
+.jr-move-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+@media (pointer: coarse) { .jr-move-button { width: 32px; min-height: 44px; } }
 /* A row is the door to its issue, as a row in the GitHub and GitLab panel
    is: a press deepens the row's tone a step and nothing moves, so the words
    stay under the pointer while the issue opens. The row is :active while its
@@ -457,7 +495,9 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 /* ── narrow ──────────────────────────────────────────────────────────────── */
 /* A list narrower than a row: the summary keeps the first line with the key
    and the avatar, and the status leads the facts on a line under it. */
-@container jira-list (max-width: 560px) {
+/* A split pane reaches its title budget before it reaches phone width.
+   Facts move down before a rich issue can squeeze its summary to zero. */
+@container jira-list (max-width: 720px) {
   .jr-row-main { grid-template-columns: 16px 16px auto minmax(0, 1fr) 20px; row-gap: 4px; }
   .jr-row-main > .jr-assignee { grid-column: 5; grid-row: 1; }
   .jr-facts { grid-column: 3 / -1; grid-row: 2; justify-content: flex-start; flex-wrap: wrap; }

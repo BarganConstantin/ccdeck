@@ -69,6 +69,29 @@ function rows(html: string): Record<string, string> {
   return out;
 }
 
+describe("explicit moves without changing the existing read-only contract", () => {
+  const onMove = async () => ({});
+  const writable = { ...OVERVIEW, moves: { enabled: true } };
+  it("keeps older servers read-only and offers Move only for eligible top-level work", () => {
+    expect(drawBoard([issue("MOCK-1")], { onMove })).not.toContain('class="jr-move-button"');
+    const html = drawBoard([
+      issue("MOCK-1"), issue("MOCK-2", { status: status("Done", "done") }),
+      issue("MOCK-3", { type: { ...STORY, epic: true } }),
+    ], { onMove }, writable);
+    expect(html.match(/class="jr-move-button"/g)).toHaveLength(1);
+    expect(html).toContain('aria-label="Move MOCK-1"');
+    expect(html).toContain('draggable="true"');
+    expect(html).toContain("Alt+M opens Move");
+  });
+  it("exposes expanded state and priority on the roving keyboard control", () => {
+    const html = drawBoard([issue("MOCK-1", { subtaskKeys: ["MOCK-2"], priority: { name: "High", icon: null } })], { rowsOpen: { "MOCK-1": true } });
+    expect(rows(html)["MOCK-1"]).toContain('aria-expanded="true"');
+    expect(rows(html)["MOCK-1"]).toContain('aria-controls="jr-toggle-sprint-13-MOCK-1-children"');
+    expect(rows(html)["MOCK-1"]).toContain("priority High");
+    expect(html).toContain('id="jr-toggle-sprint-13-MOCK-1-children"');
+  });
+});
+
 describe("every row says what state its issue is in", () => {
   it("draws Jira's status lozenge on each row and sub-row, by category, with the whole name in its title", () => {
     const story = issue("MOCK-10", { status: status("In Progress", "indeterminate"), subtaskKeys: ["MOCK-11"] });

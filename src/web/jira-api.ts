@@ -2,7 +2,8 @@
 // normalises Cloud's and Server's answers into, so one panel draws both — and
 // the reads themselves, each a GET under /api/integrations/jira/<connId>/.
 
-import { queryOf, readThrough } from "./integrations/client";
+import { IntegrationFailure, failureOf, queryOf, readThrough } from "./integrations/client";
+import type { JiraMove } from "./jira-move";
 import type { IntegrationConnection } from "./integrations/types";
 
 export type StatusCategory = "new" | "indeterminate" | "done";
@@ -73,6 +74,9 @@ export interface JiraBoardOverview {
   hasSprints: boolean;
   hasBacklog: boolean;
   timeTracking: TimeTracking;
+  /** Absent on older servers, which remain read-only. Permissions are checked
+   *  by Jira for every explicit move, never inferred from this capability. */
+  moves?: { enabled: boolean; reason?: string };
 }
 
 export interface TimeTracking { hoursPerDay: number; daysPerWeek: number }
@@ -110,6 +114,52 @@ export interface JiraIssueDetail {
 
 /** The host's `api`: a request under this connection's prefix. */
 export type JiraApi = (path: string, init?: RequestInit) => Promise<Response>;
+
+/** A write is never retried: a lost response may still mean Jira saved it. */
+export async function moveJiraIssue(api: JiraApi, boardId: string, move: JiraMove): Promise<{ notice?: string }> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 45_000);
+  try {
+    const response = await api(`board/${encodeURIComponent(boardId)}/move`, {
+      method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(move), signal: controller.signal,
+    });
+    // Read the bounded result under the same deadline as the request. A
+    // server that sends headers then stalls must not hold the move lock.
+    const reader = response.body?.getReader();
+    const stop = () => { void reader?.cancel().catch(() => {}); };
+    controller.signal.addEventListener("abort", stop, { once: true });
+    let text = "";
+    try {
+      const decoder = new TextDecoder();
+      let size = 0;
+      while (reader && !controller.signal.aborted) {
+        const part = await reader.read();
+        if (part.done) break;
+        size += part.value.byteLength;
+        if (size > 16_384) throw new Error("Result too large");
+        text += decoder.decode(part.value, { stream: true });
+      }
+      text += decoder.decode();
+      if (controller.signal.aborted) throw new Error("Deadline exceeded");
+    } finally {
+      controller.signal.removeEventListener("abort", stop);
+      await reader?.cancel().catch(() => {});
+    }
+    if (!response.ok) throw await failureOf(new Response(text, { status: response.status }));
+    if (response.status === 204) return {};
+    const result: unknown = JSON.parse(text);
+    if (!result || typeof result !== "object" || Array.isArray(result)
+      || !("ok" in result) || result.ok !== true || !("issueKey" in result) || result.issueKey !== move.issueKey
+      || ("notice" in result && (typeof result.notice !== "string" || result.notice.length > 1_000))) {
+      throw new Error("Unconfirmed result");
+    }
+    return "notice" in result ? { notice: result.notice as string } : {};
+  } catch (error) {
+    if (error instanceof IntegrationFailure) throw error;
+    throw new IntegrationFailure("network", "The move could not be confirmed. Refresh the board before trying again.");
+  } finally { window.clearTimeout(timer); }
+}
 
 const read = <T,>(api: JiraApi, path: string, params: Record<string, string | number | boolean | undefined> = {}, signal?: AbortSignal) =>
   readThrough<T>(api, `${path}${queryOf(params)}`, { signal });

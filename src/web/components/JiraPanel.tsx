@@ -14,14 +14,15 @@
 //
 // WHEN IT READS: when it opens on a board read more than five minutes ago, and
 // when Refresh is pressed. Never on a timer (use-jira-board.ts).
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { connectionHost, type IntegrationFailure } from "../integrations/client";
 import type { IntegrationPanelProps } from "../integrations/types";
-import { readBoards, type JiraBoardSummary } from "../jira-api";
+import { moveJiraIssue, readBoards, type JiraBoardSummary } from "../jira-api";
+import type { JiraMove } from "../jira-move";
 import { boardRows, drawnIssues, shownQuickFilters, type GroupDef } from "../jira-board";
 import { useListView } from "../integrations/use-list-view";
 import { keepList, keepSearch, listKey as listKeyOf, recallList, recallSearch, type Drawn } from "../integrations/view-memory";
-import { failureOf, useJiraBoard } from "../use-jira-board";
+import { failureOf, invalidateJiraConnection, useJiraBoard } from "../use-jira-board";
 import { ExternalLinkGlyph } from "./action-glyphs";
 import AnchoredPopover from "./AnchoredPopover";
 import IntegrationFreshness from "./IntegrationFreshness";
@@ -128,6 +129,7 @@ function BoardPicker({ api, current, layerId, onPick, onClose }: {
 const sameIssue = (a: string[], b: string[]) => a[a.length - 1] === b[b.length - 1];
 
 export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narrow, onReconnect }: IntegrationPanelProps) {
+  const scrollerId = useId();
   const scope = `jira:${conn.id}`;
   const [board, setBoardState] = useState<string | null>(() => prefs.read("board", isString) ?? null);
   const [boardName, setBoardName] = useState<string>(() => prefs.read("boardName", (v): v is string => typeof v === "string") ?? "");
@@ -173,6 +175,25 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   const filters = useMemo(() => ({ mine, quick }), [mine, quick]);
   const jira = useJiraBoard(api, conn.id, board, filters);
   const { snap, groups, loading, error } = jira;
+  const moveLock = useRef(false);
+  const [moving, setMoving] = useState(false);
+  const readingGroups = Object.values(snap.groups).some(g => g.more || g.status === "loading");
+  const boardRef = useRef(board);
+  boardRef.current = board;
+  const moveIssue = async (move: JiraMove) => {
+    if (!board || moveLock.current || loading || readingGroups) throw new Error("Wait for the board to finish updating.");
+    moveLock.current = true;
+    setMoving(true);
+    try { return await moveJiraIssue(api, board, move); }
+    finally {
+      moveLock.current = false;
+      setMoving(false);
+      // Even a lost response can mean Jira saved the move. Re-read rather
+      // than inventing local order or replaying a potentially completed write.
+      invalidateJiraConnection(conn.id);
+      if (boardRef.current === board) await jira.refresh();
+    }
+  };
   const overview = snap.overview && String(snap.overview.board.id) === board ? snap.overview : null;
   useEffect(() => {
     if (overview && overview.board.name && overview.board.name !== boardName) {
@@ -284,6 +305,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       <>
         {error && <IntegrationFailureNote error={error} provider="Jira" host={host} stale onRetry={jira.refresh} onReconnect={onReconnect} />}
         <JiraBacklog
+          key={board}
           conn={conn}
           overview={overview}
           groups={groups}
@@ -303,6 +325,9 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
           onMoreClosed={jira.moreClosed}
           loadSubtasks={jira.loadSubtasks}
           onReconnect={onReconnect}
+          onMove={moveIssue}
+          moveBusy={moving || loading || readingGroups}
+          scrollBoundaryId={scrollerId}
         />
       </>
     );
@@ -376,7 +401,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
 
       <IntegrationSplit
         storageKey="jira"
-        list={<div className="jr-list-scroll">{list}</div>}
+        list={<div className="jr-list-scroll" id={scrollerId}>{list}</div>}
         detail={detail}
         onBack={back}
         backLabel="Back to the board"

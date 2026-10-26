@@ -10,7 +10,7 @@
 // headers and the rows, Right opens (a group, a row's sub-tasks) and Left
 // closes or goes to the parent, Enter opens the issue, Home and End go to the
 // ends. One row at a time is a Tab stop, so Tab leaves the list in one press.
-import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type DragEvent } from "react";
 import type { IntegrationConnection as Connection } from "../integrations/types";
 import type { JiraBoardOverview, JiraIssue, TimeTracking } from "../jira-api";
 import {
@@ -23,6 +23,8 @@ import IntegrationAvatar, { IntegrationAvatarStack, UnassignedAvatar } from "./I
 import IntegrationFailureNote from "./IntegrationFailureNote";
 import IntegrationSkeleton from "./IntegrationSkeleton";
 import { Chevron, EpicChip, Estimate, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
+import { issueMove, movableIssue, moveDestination, type JiraMove } from "../jira-move";
+import JiraMovePopover from "./JiraMovePopover";
 
 export interface JiraBacklogProps {
   conn: Connection;
@@ -48,6 +50,9 @@ export interface JiraBacklogProps {
   onMoreClosed: () => void;
   loadSubtasks: (key: string) => void;
   onReconnect: () => void;
+  onMove?: (move: JiraMove) => Promise<{ notice?: string }>;
+  moveBusy?: boolean;
+  scrollBoundaryId?: string;
 }
 
 const TOTAL_LABELS = { new: "To do", indeterminate: "In progress", done: "Done" } as const;
@@ -109,7 +114,7 @@ function Tally({ stats, mine }: { stats: GroupStats; mine: boolean }) {
 /** A row's own label for a screen reader: what it is, not everything on it. */
 function rowLabel(issue: JiraIssue, extra = ""): string {
   const who = issue.assignee ? `${issue.assignee.name}${issue.mine ? ", assigned to you" : ""}` : "unassigned";
-  return `${issue.key}: ${issue.summary}. ${issue.type.name}, ${issue.status.name}, ${who}${issue.flagged ? ", flagged" : ""}${extra}`;
+  return `${issue.key}: ${issue.summary}. ${issue.type.name}, ${issue.status.name}, ${who}${issue.priority ? `, priority ${issue.priority.name}` : ""}${issue.flagged ? ", flagged" : ""}${extra}`;
 }
 
 /**
@@ -169,8 +174,82 @@ function statusWidth(snap: BoardSnapshot): number {
 
 export default function JiraBacklog(props: JiraBacklogProps) {
   const { conn, overview, groups, snap, expanded, onToggleGroup, filter, mine, filtered, selected, onOpen, rowsOpen, onToggleRow,
-    onRetryGroup, onMore, onShowClosed, onMoreClosed, loadSubtasks, onReconnect } = props;
+    onRetryGroup, onMore, onShowClosed, onMoreClosed, loadSubtasks, onReconnect, onMove, moveBusy = false } = props;
   const listRef = useRef<HTMLDivElement>(null);
+  const boardId = useId();
+  const drag = useRef<{ issue: JiraIssue; group: GroupDef } | null>(null);
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [dropAt, setDropAt] = useState<{ group: string; key?: string; side?: "before" | "after" } | null>(null);
+  const [moveMenu, setMoveMenu] = useState<{ issue: JiraIssue; from: GroupDef; anchorId: string; keyboard: boolean } | null>(null);
+  const menuSerial = useRef(0);
+  const [moveError, setMoveError] = useState("");
+  const [moveNotice, setMoveNotice] = useState("");
+  const submitting = useRef(false);
+  const canMove = overview.moves?.enabled === true && Boolean(onMove);
+  const openMoveMenu = (issue: JiraIssue, from: GroupDef, anchorId: string, keyboard = false) => {
+    menuSerial.current++;
+    setMoveError("");
+    setMoveMenu({ issue, from, anchorId, keyboard });
+  };
+  const closeMoveMenu = () => {
+    const menu = moveMenu;
+    // A successful refresh removes a cross-group source anchor before the
+    // move promise resolves. That automatic close still owns restoration;
+    // Cancel, Escape and outside presses on a present anchor relinquish it.
+    const anchorRemovedDuringMove = submitting.current && menu && !document.getElementById(menu.anchorId);
+    if (!anchorRemovedDuringMove) menuSerial.current++;
+    setMoveMenu(null);
+    if (menu?.keyboard) requestAnimationFrame(() => {
+      // Escape's shared popover primitive first returns to its anchor. A
+      // keyboard-opened Move returns one step further, to the navigable row.
+      if (document.activeElement === document.getElementById(menu.anchorId)) {
+        Array.from(listRef.current?.querySelectorAll<HTMLElement>(".jr-row-main[data-key]") ?? []).find(el => el.dataset.key === menu.issue.key)?.focus();
+      }
+    });
+  };
+  const finishDrag = () => { drag.current = null; setDragKey(null); setDropAt(null); };
+  const saveMove = async (move: JiraMove, destination: GroupDef): Promise<boolean> => {
+    if (!onMove || moveBusy || submitting.current) return false;
+    const serial = menuSerial.current;
+    const opener = document.activeElement;
+    const popup = opener?.closest(".jr-move-pop");
+    submitting.current = true;
+    setMoveError("");
+    setMoveNotice(`Moving ${move.issueKey}…`);
+    try {
+      const result = await onMove(move);
+      setMoveNotice(result.notice || `${move.issueKey} moved to ${destination.title}.`);
+      const stillOwnsFocus = serial === menuSerial.current && (document.activeElement === opener
+        || Boolean(popup?.contains(document.activeElement))
+        || (document.activeElement === document.body && (!opener?.isConnected || popup?.isConnected)));
+      if (serial === menuSerial.current) setMoveMenu(null);
+      // Reveal the destination, including a previously folded/empty sprint.
+      onToggleGroup(destination, true);
+      if (stillOwnsFocus) requestAnimationFrame(() => {
+        const row = Array.from(listRef.current?.querySelectorAll<HTMLElement>(".jr-row-main[data-key]") ?? []).find(el => el.dataset.key === move.issueKey && el.dataset.nav?.startsWith(`${destination.id}/`));
+        (row ?? document.getElementById(`jr-group-${destination.id.replace(/[^a-z0-9]/gi, "-")}-toggle`))?.focus();
+      });
+      return true;
+    } catch (error) {
+      setMoveNotice("");
+      setMoveError(error instanceof Error ? error.message : "The move could not be confirmed. Refresh before trying again.");
+      return false;
+    } finally { submitting.current = false; }
+  };
+  const overGroup = (event: DragEvent, group: GroupDef) => {
+    if (!drag.current || !canMove || moveBusy || !moveDestination(group)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDropAt({ group: group.id });
+  };
+  const dropGroup = (event: DragEvent, group: GroupDef) => {
+    const source = drag.current;
+    if (!source || !canMove || moveBusy) return;
+    event.preventDefault();
+    const move = issueMove(source.issue, source.group, group);
+    finishDrag();
+    if (move) void saveMove(move, group);
+  };
   // The groups and rows the reader has opened here, whose rows fade in as
   // they mount. One open from the start, or from a choice kept from before,
   // is simply there.
@@ -259,10 +338,40 @@ export default function JiraBacklog(props: JiraBacklogProps) {
       ? rowLabel(row.issue, expandable ? `, ${subtasksKnown || row.matched.length} sub-tasks${mineCount ? `, ${mineCount} yours` : ""}` : "")
       : `${row.parent.key}: ${row.parent.summary}. ${mine ? "Not assigned to you" : "Parent not in this list"}; shown for ${row.matched.length} sub-task${row.matched.length === 1 ? "" : "s"}`;
     const issue = row.kind === "issue" ? row.issue : null;
+    const movable = canMove && issue && movableIssue(issue, group) && depth === 0;
+    const moveId = `${boardId}-move-${group.id}-${key}`;
     return (
       <li key={key} className="jr-item" data-context={row.kind === "context" || undefined}>
         <div className="jr-row ig-row" data-selected={selected === key || undefined} data-done={issue?.status.category === "done" || undefined}
-          data-mine={issue?.mine || undefined}>
+          data-mine={issue?.mine || undefined} data-dragging={dragKey === key || undefined}
+          data-drop={dropAt?.group === group.id && dropAt.key === key ? dropAt.side : undefined}
+          draggable={Boolean(movable && !moveBusy)}
+          onDragStart={event => {
+            if (!movable || moveBusy || !issue) { event.preventDefault(); return; }
+            drag.current = { issue, group };
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", key);
+            setDragKey(key);
+            setMoveMenu(null);
+          }} onDragEnd={finishDrag}
+          onDragOver={event => {
+            if (!drag.current || !canMove || moveBusy || !issue || issue.type.subtask || !moveDestination(group)) return;
+            event.stopPropagation();
+            if (drag.current.issue.key === key) { setDropAt(null); return; }
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            const box = event.currentTarget.getBoundingClientRect();
+            setDropAt({ group: group.id, key, side: event.clientY < box.top + box.height / 2 ? "before" : "after" });
+          }} onDrop={event => {
+            const source = drag.current;
+            if (!source || !canMove || moveBusy || !issue || issue.type.subtask) return;
+            event.preventDefault(); event.stopPropagation();
+            const box = event.currentTarget.getBoundingClientRect();
+            const side = event.clientY < box.top + box.height / 2 ? "before" : "after";
+            const move = issueMove(source.issue, source.group, group, { key, side });
+            finishDrag();
+            if (move) void saveMove(move, group);
+          }}>
           {expandable ? (
             <button type="button" id={toggleId} className="jr-toggle" tabIndex={-1} aria-expanded={open}
               aria-label={`${open ? "Hide" : "Show"} sub-tasks of ${key}`} onClick={() => toggleRow(key, !open)}>
@@ -270,7 +379,14 @@ export default function JiraBacklog(props: JiraBacklogProps) {
             </button>
           ) : <span className="jr-toggle-space" aria-hidden />}
           <button type="button" className="jr-row-main" data-nav={nav} data-key={key} data-parent={parentNav} data-toggle={expandable ? toggleId : undefined}
-            data-expanded={expandable ? String(open) : undefined} tabIndex={tabStop(nav)} aria-current={selected === key || undefined}
+            data-expanded={expandable ? String(open) : undefined} aria-expanded={expandable ? open : undefined}
+            aria-controls={expandable && open ? `${toggleId}-children` : undefined}
+            aria-describedby={`${boardId}-instructions`} tabIndex={tabStop(nav)} aria-current={selected === key || undefined}
+            onKeyDown={event => {
+              if (movable && !moveBusy && event.altKey && !event.ctrlKey && !event.metaKey && (event.code === "KeyM" || event.key.toLowerCase() === "m") && issue) {
+                event.preventDefault(); event.stopPropagation(); openMoveMenu(issue, group, moveId, true);
+              }
+            }}
             aria-label={label} onFocus={() => setCurrent(nav)} onClick={() => onOpen(key)}>
             {issue ? <IssueLine issue={issue} estimation={estimation} time={time} /> : row.kind === "context" && (
               <>
@@ -285,9 +401,17 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               </>
             )}
           </button>
+          {movable && <button id={moveId} type="button" className="jr-move-button" disabled={moveBusy}
+            aria-label={`Move ${key}`} title={`Move ${key} (Alt+M)`} aria-haspopup="dialog"
+            aria-expanded={moveMenu?.anchorId === moveId} tabIndex={tabStop(nav)}
+            onClick={() => openMoveMenu(issue, group, moveId)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M8 4h8M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4" />
+            </svg>
+          </button>}
         </div>
         {expandable && open && (
-          <ul className="jr-subrows" role="list" aria-label={`Sub-tasks of ${key}`} data-fade={(rowsOpenedHere.has(key) && fades(childList.length)) || undefined}>
+          <ul id={`${toggleId}-children`} className="jr-subrows" role="list" aria-label={`Sub-tasks of ${key}`} data-fade={(rowsOpenedHere.has(key) && fades(childList.length)) || undefined}>
             {all?.status === "loading" && childList.length === 0 && <li className="jr-subnote" role="status">Reading sub-tasks…</li>}
             {all?.status === "error" && (
               <li className="jr-subnote" role="alert">Sub-tasks could not be read. <button type="button" className="jr-link-btn" onClick={() => loadSubtasks(key)}>Try again</button></li>
@@ -323,7 +447,10 @@ export default function JiraBacklog(props: JiraBacklogProps) {
   const statusCh = useMemo(() => statusWidth(snap), [snap]);
 
   return (
-    <div className="jr-board" ref={listRef} onKeyDown={onKeyDown} style={{ "--jr-status-ch": statusCh } as CSSProperties}>
+    <div className="jr-board" id={boardId} ref={listRef} onKeyDown={onKeyDown} style={{ "--jr-status-ch": statusCh } as CSSProperties}>
+      <p className="vis-hidden" id={`${boardId}-instructions`}>Use Up and Down to navigate, Right to expand and Left to collapse. Enter opens the issue.{canMove ? " Drag an issue to reorder or change sprint. Alt+M opens Move." : ""}</p>
+      <p className="jr-move-status" role="status" aria-live="polite">{moveNotice}</p>
+      {moveError && !moveMenu && <p className="jr-move-error" role="alert">{moveError}</p>}
       {noActive && <p className="jr-board-note">No sprint is active on this board. The future sprints and the backlog are below.</p>}
       {built.map(({ def, data, rows, stats }, index) => {
         const open = groupOpen(def, expanded);
@@ -344,7 +471,9 @@ export default function JiraBacklog(props: JiraBacklogProps) {
         return (
           <Fragment key={def.id}>
           {index === firstClosed && <h3 className="jr-closed-title">Closed sprints</h3>}
-          <section className="jr-group" data-kind={def.kind} aria-labelledby={`${bodyId}-title`}>
+          <section className="jr-group" data-kind={def.kind} aria-labelledby={`${bodyId}-title`}
+            data-drop-group={dropAt?.group === def.id && !dropAt.key || undefined}
+            onDragOver={event => overGroup(event, def)} onDrop={event => dropGroup(event, def)}>
             <div className="jr-group-head">
               <h3 className="jr-group-title" id={`${bodyId}-title`}>
                 <button type="button" id={`${bodyId}-toggle`} className="jr-group-toggle" data-nav={nav} data-toggle={`${bodyId}-toggle`}
@@ -391,7 +520,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                 {rows.length > 0 && <ul className="jr-rows">{rows.map(row => renderRow(row, def, 0))}</ul>}
                 {data?.capped && <p className="jr-board-note">The first 600 issues are shown. Open the sprint in Jira for the rest.</p>}
                 {def.paged && data?.next && (
-                  <button type="button" className="btn jr-more" aria-busy={data.more || undefined} onClick={() => onMore(def)}>
+                  <button type="button" className="btn jr-more" disabled={moveBusy} aria-busy={data.more || undefined} onClick={() => onMore(def)}>
                     {data.more ? "Reading…" : data.total != null ? `Show more (${data.issues.length} of ${data.total})` : "Show more"}
                   </button>
                 )}
@@ -401,6 +530,10 @@ export default function JiraBacklog(props: JiraBacklogProps) {
           </Fragment>
         );
       })}
+
+      {moveMenu && <JiraMovePopover key={moveMenu.anchorId} issue={moveMenu.issue} from={moveMenu.from} groups={groups} snap={snap}
+        anchorId={moveMenu.anchorId} portalId={boardId} boundaryId={props.scrollBoundaryId} busy={moveBusy} error={moveError}
+        onMove={saveMove} onClose={closeMoveMenu} />}
 
       {anySprint && (
         <div className="jr-closed-foot">
