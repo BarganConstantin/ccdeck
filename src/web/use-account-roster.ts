@@ -90,6 +90,10 @@ export function useAccountRoster(onRoster: (fresh: AccountsData) => void) {
       if (activeRef.current && version === versionRef.current) {
         setFailure(prev => nextFailure(prev, ctl.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE));
       }
+      // Promise.all can reject while its other fetch (or response body) is
+      // still pending. Cancel that work before clearing the deadline and
+      // forgetting this controller; otherwise later polls can pile up.
+      ctl.abort();
     } finally {
       window.clearTimeout(bell);
       requestsRef.current.delete(ctl);
