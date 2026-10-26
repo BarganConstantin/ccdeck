@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Network translation regression</title></head>
+  <body>
+    <button id="run" type="button">Replay translated network status</button>
+    <output id="result"></output>
+    <script type="module">
+      import { replayTranslation } from './translated-network-browser.tsx';
+      window.replayNetworkTranslation = replayTranslation;
+      document.getElementById('run').onclick = () => {
+        const output = document.getElementById('result');
+        try { output.textContent = JSON.stringify(replayTranslation()); }
+        catch (error) { output.textContent = `${error.name}: ${error.message}`; throw error; }
+      };
+    </script>
+  </body>
+</html>
