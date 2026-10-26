@@ -259,7 +259,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-key { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .jr-key[data-done] { text-decoration: line-through; }
 .jr-row[data-current] > .jr-row-main > .jr-key { font-weight: 600; color: var(--text); }
-.jr-current-mark { display: inline-block; width: 12px; height: 12px; margin-left: 4px; vertical-align: -2px; color: var(--text); }
 .jr-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .jr-item[data-context] > .jr-row .jr-summary { color: var(--muted); }
 /* The row's end: its facts (flag, versions, epic, estimate), then its status

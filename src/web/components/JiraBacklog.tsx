@@ -128,21 +128,13 @@ function rowLabel(issue: JiraIssue, extra = ""): string {
  * keeps a short lozenge. Narrow lists move the pieces between lines
  * (jira.css, "narrow").
  */
-function CurrentIssueMark() {
-  return <span className="jr-current-mark" title="Open in details" aria-hidden="true">
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M1.4 8S3.6 3.6 8 3.6 14.6 8 14.6 8 12.4 12.4 8 12.4 1.4 8 1.4 8Z" /><circle cx="8" cy="8" r="1.9" />
-    </svg>
-  </span>;
-}
-
-function IssueLine({ issue, estimation, time, current = false }: { issue: JiraIssue; estimation: JiraBoardOverview["estimation"]["kind"]; time: JiraBoardOverview["timeTracking"]; current?: boolean }) {
+function IssueLine({ issue, estimation, time }: { issue: JiraIssue; estimation: JiraBoardOverview["estimation"]["kind"]; time: JiraBoardOverview["timeTracking"] }) {
   const done = issue.status.category === "done";
   return (
     <>
       <TypeIcon type={issue.type} />
       <PriorityIcon priority={issue.priority} />
-      <span className="jr-key" data-done={done || undefined}>{issue.key}{current && <CurrentIssueMark />}</span>
+      <span className="jr-key" data-done={done || undefined}>{issue.key}</span>
       <span className="jr-summary">{issue.summary}</span>
       <span className="jr-facts">
         <span className="jr-meta">
@@ -416,7 +408,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     const moveId = `${boardId}-move-${group.id}-${key}`;
     return (
       <li key={key} className="jr-item" data-context={row.kind === "context" || undefined}>
-        <div className="jr-row ig-row" data-selected={picked.has(key) || undefined} data-picked={picked.has(key) || undefined} data-done={issue?.status.category === "done" || undefined}
+        <div className="jr-row ig-row" data-selected={picked.has(key) || selected === key || undefined} data-picked={picked.has(key) || undefined} data-done={issue?.status.category === "done" || undefined}
           data-current={selected === key || undefined} data-move-blocked={Boolean(issue && picked.has(key) && issueMoveBlocker({ issue, group })) || undefined}
           data-mine={issue?.mine || undefined} data-dragging={dragKeys.includes(key) || undefined}
           data-drop={dropAt?.group === group.id && dropAt.key === key ? dropAt.side : undefined}
@@ -479,11 +471,11 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               // Reserve that chord for selection; ordinary right-click stays native.
               if (issue && event.ctrlKey) { event.preventDefault(); event.currentTarget.focus(); pick(key, event); }
             }}>
-            {issue ? <IssueLine issue={issue} estimation={estimation} time={time} current={selected === key} /> : row.kind === "context" && (
+            {issue ? <IssueLine issue={issue} estimation={estimation} time={time} /> : row.kind === "context" && (
               <>
                 <TypeIcon type={row.parent.type} />
                 <PriorityIcon priority={row.parent.priority} />
-                <span className="jr-key" data-done={row.parent.status.category === "done" || undefined}>{row.parent.key}{selected === key && <CurrentIssueMark />}</span>
+                <span className="jr-key" data-done={row.parent.status.category === "done" || undefined}>{row.parent.key}</span>
                 <span className="jr-summary">{row.parent.summary}</span>
                 <span className="jr-facts">
                   <span className="jr-meta"><span className="jr-context-tag">{mine ? "not assigned to you" : "parent not in this list"}</span></span>
@@ -516,7 +508,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               const subNav = `${group.id}/${sub.key}/${nav}`;
               return (
                 <li key={sub.key} className="jr-item">
-                  <div className="jr-row jr-subrow ig-row" data-selected={picked.has(sub.key) || undefined} data-picked={picked.has(sub.key) || undefined} data-done={sub.status.category === "done" || undefined}
+                  <div className="jr-row jr-subrow ig-row" data-selected={picked.has(sub.key) || selected === sub.key || undefined} data-picked={picked.has(sub.key) || undefined} data-done={sub.status.category === "done" || undefined}
                     data-current={selected === sub.key || undefined} data-move-blocked={Boolean(picked.has(sub.key) && issueMoveBlocker({ issue: sub, group })) || undefined}
                     data-mine={sub.mine || undefined}>
                     {selectionControl(sub, group)}
@@ -526,7 +518,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                       aria-describedby={`${boardId}-instructions`}
                       onFocus={() => setCurrent(subNav)} onClick={event => { event.preventDefault(); pick(sub.key, event); }}
                       onContextMenu={event => { if (event.ctrlKey) { event.preventDefault(); event.currentTarget.focus(); pick(sub.key, event); } }}>
-                      <IssueLine issue={sub} estimation={estimation} time={time} current={selected === sub.key} />
+                      <IssueLine issue={sub} estimation={estimation} time={time} />
                     </button>
                   </div>
                 </li>

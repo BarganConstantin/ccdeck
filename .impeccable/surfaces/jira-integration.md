@@ -54,8 +54,9 @@ has to be learned twice.
   their avatar, no row tint.
 - **Keep row states independent.** Native checkboxes and the selection fill
   represent picked membership; Jira's Task glyph remains type information.
-  The open detail is marked by its key and eye, including when it is not
-  picked. Keyboard focus owns the full-row perimeter. Pressing a dragged
+  The open detail keeps its row highlight and heavier key, without an extra
+  icon (owner, 2026-10-26). Checkboxes determine batch membership independently
+  of that highlight. Keyboard focus owns the full-row perimeter. Pressing a dragged
   member must not remove the batch's selection fill.
 - **Workflow badges keep their semantic surfaces.** Jira status labels retain
   neutral/blue/green category fills through selection and hover, separately

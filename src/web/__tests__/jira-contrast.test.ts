@@ -259,14 +259,11 @@ describe("workflow status and current detail remain independent of batch state",
       });
       expect(new Set(beds.map(bed => JSON.stringify(bed))).size).toBe(3);
     });
-    it(`${theme}: the current key and eye read independently of selection`, () => {
+    it(`${theme}: the current key reads independently of picked membership`, () => {
       for (const selected of [false, true]) {
         const key = [...rowChain(theme, { selected, current: true }), el("span", ["jr-key"])];
         expect(prop(key, "font-weight")).toBe("600");
         expect(inkOn(key)).toBeGreaterThanOrEqual(BODY);
-        const eye = [...key, el("span", ["jr-current-mark"]), el("svg")];
-        const bed = bedOf(eye);
-        expect(contrast(over(color(prop(eye, "color")!, eye), bed), bed), "current-detail mark").toBeGreaterThanOrEqual(NON_TEXT);
       }
     });
     it(`${theme}: selected and dragged rows retain their batch fill while pressed`, () => {
