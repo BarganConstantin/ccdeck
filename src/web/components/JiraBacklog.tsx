@@ -473,7 +473,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               )}
             </button>
           </JiraRowPreview>
-          {movable && <button id={moveId} type="button" className="jr-move-button" disabled={moveBusy}
+          {canMove && issue && depth === 0 && <button id={moveId} type="button" className="jr-move-button" disabled={moveBusy}
             aria-label={`Actions for ${key}`} title={`Actions for ${key}`} aria-haspopup="menu"
             aria-expanded={moveMenu?.anchorId === moveId} tabIndex={tabStop(nav)}
             onKeyDown={event => {

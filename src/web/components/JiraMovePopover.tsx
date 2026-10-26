@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import type { GroupDef } from "../jira-board";
-import { issuesMove, moveDestination, moveSelectionProblem, type JiraMove, type JiraMoveItem } from "../jira-move";
+import { issueMoveBlocker, issuesMove, moveDestination, moveSelectionProblem, type JiraMove, type JiraMoveItem } from "../jira-move";
 import type { BoardSnapshot } from "../use-jira-board";
 import AnchoredPopover from "./AnchoredPopover";
 
@@ -31,7 +31,8 @@ export default function JiraMovePopover({ items, groups, snap, anchorId, portalI
   const issues = (data?.issues ?? []).filter(i => !selectedKeys.has(i.key) && !i.type.subtask && !i.type.epic);
   const anchor = position ? { key: position.slice(position.indexOf(":") + 1), side: position.startsWith("before:") ? "before" as const : "after" as const } : undefined;
   const move = to ? issuesMove(items, to, anchor) : null;
-  const problem = moveSelectionProblem(items);
+  const blocker = items.length === 1 ? issueMoveBlocker(items[0]) : null;
+  const problem = blocker ? `${items[0].issue.key} ${blocker}. This issue cannot be moved.` : moveSelectionProblem(items);
   return (
     <AnchoredPopover anchorId={anchorId} portalRootId={portalId} boundaryId={boundaryId ?? portalId}
       id={`${id}-popover`} className={view === "menu" ? "jr-actions-pop" : "jr-move-pop"} role={view === "menu" ? "menu" : "dialog"}

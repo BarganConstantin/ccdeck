@@ -72,13 +72,15 @@ function rows(html: string): Record<string, string> {
 describe("explicit moves without changing the existing read-only contract", () => {
   const onMove = async () => ({});
   const writable = { ...OVERVIEW, moves: { enabled: true } };
-  it("keeps older servers read-only and offers Move only for eligible top-level work", () => {
+  it("keeps older servers read-only and exposes actions for blocked top-level work", () => {
     expect(drawBoard([issue("MOCK-1")], { onMove })).not.toContain('class="jr-move-button"');
     const html = drawBoard([
       issue("MOCK-1"), issue("MOCK-2", { status: status("Done", "done") }),
       issue("MOCK-3", { type: { ...STORY, epic: true } }),
     ], { onMove }, writable);
-    expect(html.match(/class="jr-move-button"/g)).toHaveLength(1);
+    expect(html.match(/class="jr-move-button"/g)).toHaveLength(3);
+    expect(html).toContain('aria-label="Actions for MOCK-2"');
+    expect(html).toContain('aria-label="Actions for MOCK-3"');
     expect(html).toContain('aria-label="Actions for MOCK-1"');
     expect(html).toContain('aria-haspopup="menu"');
     expect(html).toContain('draggable="true"');
