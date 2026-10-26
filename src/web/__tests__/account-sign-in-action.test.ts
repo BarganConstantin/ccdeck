@@ -23,7 +23,7 @@ describe("an account's visible sign-in action", () => {
     const view = mount(AccountRow, props);
     const action = one(view.tree, e => e.props["aria-label"] === "Sign in again as work@example.test")!;
     expect(action).not.toBeNull();
-    expect(action.props.children).toBe("Sign in again");
+    expect(action.props.children).toBe("Sign in");
     (action.props.onClick as () => void)();
     expect(onSignIn).toHaveBeenCalledTimes(1);
     expect(onSignIn).toHaveBeenCalledWith(account.email);

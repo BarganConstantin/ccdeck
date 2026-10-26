@@ -388,9 +388,9 @@ export default function AccountRow({
             <span className="ap-issue-text">{issue.text}</span>
           </button>
           {issue.fix && onSignIn && (
-            <button type="button" className="ap-notice-fix"
+            <button type="button" className="ap-switch"
               aria-label={`${issue.fix} as ${a.email ?? name}`} title={issue.hint}
-              onClick={() => onSignIn(a.email)}>{issue.fix}</button>
+              onClick={() => onSignIn(a.email)}>Sign in</button>
           )}
           {/* How old the last reading is. On an open row the freshness
               line under the bars says it, so it is said once. */}
