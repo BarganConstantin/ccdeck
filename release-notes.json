@@ -80,6 +80,36 @@
     "3.43.1",
     "3.43.3"
   ],
+  "3.47.0": [
+    {
+      "title": "⌨️ Quick open: Cmd/Ctrl+K reaches any panel, setting, session or theme by name",
+      "body": "Type a few letters to open a panel, land on a setting inside Settings, jump to a session or switch the theme. It is also Search on the bar."
+    },
+    {
+      "title": "⚙️ Settings › Claude Code changes Claude Code's own settings from the deck",
+      "body": "Twelve settings in five groups, from auto memory and compaction to the Co-Authored-By credit and the update channel, written to your settings.json on this computer."
+    },
+    {
+      "title": "📡 Radar monitors all the time, and packet capture is one explained step",
+      "body": "There is no Start or Stop any more: Radar finds Claude Code's collector by itself. Where capture needs a permission, Allow packet capture once asks for it on your press only."
+    },
+    {
+      "title": "⏱️ Tool activity shows where the time went, and Skill activity who starts your skills",
+      "body": "Tool activity splits the turns' time between Claude, this machine and you. Skill activity shows how many skill uses Claude, Codex or you started, overall and per skill."
+    },
+    {
+      "title": "📊 Usage remembers how full each quota week ended, and names your Claude plan",
+      "body": "Under each 7-day bar a line says how full the last weeks were at their reset. The Claude quota card shows your plan beside its title, as the Codex card does."
+    },
+    {
+      "title": "🗂️ Stripes, dialogs and floating panels are organized more evenly",
+      "body": "The doors on both edge stripes sit in named groups, dialogs share one frame, and T switches the theme inside any dialog too."
+    },
+    {
+      "title": "🪟 The desktop app works on a first run without Node, and integrations got fixes",
+      "body": "Usage no longer needs npm, and Claude Code installed while the app is open is picked up. Jira and GitLab avatars load, and panels reopen where you left them."
+    }
+  ],
   "3.46.0": [
     {
       "title": "🔗 Jira, GitHub and GitLab panels are easier to read and navigate",
