@@ -278,6 +278,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
    in a cell as wide as the board's longest status name (--jr-status-ch, set
    by JiraBacklog), so the states line up as a column beside the avatars. */
 .jr-facts, .jr-meta { min-width: 0; display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.jr-meta:empty { display: none; }
 /* The estimate never shrinks under its own words; a long epic or version
    gives way first, with its ellipsis. */
 .jr-facts > .jr-estimate { flex: none; }
@@ -550,7 +551,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   /* Fix versions wait for the issue's own page: beside an epic on a phone's
      line they were cut to a character or two each. */
   .jr-facts .jr-meta > .jr-version { display: none; }
-  .jr-facts .jr-meta:empty { display: none; }
   .jr-facts > .jr-estimate { grid-column: 4 / -1; grid-row: 3; justify-self: end; }
 }
 @media (max-width: 700px) {

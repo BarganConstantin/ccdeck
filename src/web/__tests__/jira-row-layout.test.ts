@@ -88,4 +88,11 @@ describe("Jira rich and plain row-content layouts", () => {
       expect(value(chain(true, estimate), "flex", width)).toBe("none");
     }
   });
+  it("removes an empty metadata cell's gap without hiding populated metadata", () => {
+    for (const width of [280, 390, 560, 720, 1200]) for (const rich of [false, true]) {
+      const empty = [...facts, el("span", ["jr-meta"], { states: ["empty"] })];
+      expect(value(chain(rich, empty), "display", width)).toBe("none");
+      expect(value(chain(rich, meta), "display", width)).toBe("inline-flex");
+    }
+  });
 });
