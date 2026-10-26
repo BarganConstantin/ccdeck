@@ -339,6 +339,11 @@ describe("the toolbar's quiet words on their fields", () => {
         const chipBed = over(color(prop(chip, "background")!, chip), panel);
         expect(contrast(over(color(prop(chip, "color")!, chip), chipBed), chipBed), `chip pressed=${pressed} hover=${hover}`).toBeGreaterThanOrEqual(BODY);
       }
+      for (const hover of [false, true]) {
+        const reset = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]), el("button", ["jr-link-btn", "jr-clear"], { states: hover ? ["hover"] : [] })];
+        const resetBed = hover ? over(color(prop(reset, "background")!, reset), panel) : panel;
+        expect(contrast(over(color(prop(reset, "color")!, reset), resetBed), resetBed), `clear filters hover=${hover}`).toBeGreaterThanOrEqual(BODY);
+      }
     });
   }
 });

@@ -74,9 +74,10 @@ describe("compact Jira toolbar", () => {
 describe("familiar Jira filter states", () => {
   it("retains discreet filter edges and makes pressed filters distinct", () => {
     const chip = [...chips, el("button", ["btn", "jr-chip"], { attrs: { "aria-pressed": "true" } })];
-    expect(value(chip, "font-weight", 1440)).toBe("600");
+    const inactive = [...chips, el("button", ["btn", "jr-chip"], { attrs: { "aria-pressed": "false" } })];
+    expect(value(chip, "font-weight", 1440)).toBe(value(inactive, "font-weight", 1440));
     expect(value(chip, "border-color", 1440)).toBe("var(--accent)");
-    expect(value(chip, "padding-inline", 1440)).toBe("8px");
+    expect(value(chip, "background", 1440)).toContain("--ig-sel-fill");
   });
 });
 

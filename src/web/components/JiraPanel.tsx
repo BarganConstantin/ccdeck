@@ -383,7 +383,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
               </button>
             ))}
           </div>
-          {filtered && <button type="button" className="btn jr-clear" onClick={clearFilters}>Clear filters</button>}
+          {filtered && <button type="button" className="jr-link-btn jr-clear" onClick={clearFilters}>Clear filters</button>}
         </div>
         {/* After a refresh that failed the rows on screen are the last
             answer, and the line says "Not updated", never "Updated". */}

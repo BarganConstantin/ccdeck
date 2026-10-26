@@ -36,7 +36,7 @@
   display: flex;
   flex: 0 1 auto;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -47,8 +47,8 @@
   margin: -3px;
 }
 .jr-filter-chips > * { flex: none; }
-button.btn.jr-chip { padding-inline: 8px; }
-button.btn.jr-chip[aria-pressed="true"] { font-weight: 600; background: var(--ig-sel-fill, var(--accent-dim)); border-color: var(--accent); color: var(--text); }
+button.btn.jr-chip { padding-inline: 8px; font-weight: 500; }
+button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--accent-dim)); border-color: var(--accent); color: var(--text); }
 .jr-link-btn {
   padding: 0;
   border: 0;
@@ -63,7 +63,8 @@ button.btn.jr-chip[aria-pressed="true"] { font-weight: 600; background: var(--ig
 }
 .jr-link-btn:hover { color: var(--text); }
 .jr-link-btn:active { transform: scale(0.97); }
-.jr-clear { flex: none; margin-left: 4px; }
+.jr-clear { flex: none; min-height: var(--ctl-h); margin-left: 4px; padding-inline: 6px; border-radius: var(--r-ctl); color: var(--text-secondary); }
+.jr-clear:hover { color: var(--text); background: var(--ctl-fill); }
 
 /* A link that reads as a button: Open in Jira. A link still, so it can be
    middle-clicked, copied and opened in a new window. */
