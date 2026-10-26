@@ -16,6 +16,7 @@
 // makes are callbacks the panel spells.
 import { WarnGlyph } from "./AccountIssuePopover";
 import AccountTelemetry from "./AccountTelemetry";
+import AccountHint from "./AccountHint";
 import { accountIssue } from "../account-issue";
 import { ago, due } from "../account-freshness";
 import { type Failure } from "../accounts-reload";
@@ -240,15 +241,17 @@ export default function AccountRow({
             control on every row; whether Auto-switch is passing it over
             right now, and why, is its title. */}
         {home && (
-          <span className="ap-home" id={`ap-home-${a.num}`} title={home}>
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-              strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M2.2 6.6 7 2.6l4.8 4" />
-              <path d="M3.6 5.6v5.8h6.8V5.6" />
-              <path d="M6 11.4V8.6h2v2.8" />
-            </svg>
-            <span className="vis-hidden">{home}</span>
-          </span>
+          <AccountHint detail={home}>
+            <span className="ap-home" id={`ap-home-${a.num}`} title={home} role="img" aria-label="Home account">
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+                strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M2.2 6.6 7 2.6l4.8 4" />
+                <path d="M3.6 5.6v5.8h6.8V5.6" />
+                <path d="M6 11.4V8.6h2v2.8" />
+              </svg>
+              <span className="vis-hidden">{home}</span>
+            </span>
+          </AccountHint>
         )}
         {/* SHARED, SAID ON THE ROW (#2170). Whether a login is offered to the
             paired decks was a tick in Local network's setup dialog and nowhere
@@ -260,16 +263,18 @@ export default function AccountRow({
             over the door so the pointer gets it — and what a screen reader
             hears, on the row and in the door's description. */}
         {lan?.sharedTo && (
-          <span className="ap-shared" id={`ap-shared-${a.num}`} title={sharedLine(lan.sharedTo, lan.sharedInUse)}>
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-              strokeWidth="1.3" strokeLinecap="round" aria-hidden>
-              <circle cx="10.5" cy="3.2" r="1.7" />
-              <circle cx="3.5" cy="7" r="1.7" />
-              <circle cx="10.5" cy="10.8" r="1.7" />
-              <path d="M5.2 6.1 8.8 4.1M5.2 7.9l3.6 2" />
-            </svg>
-            <span className="vis-hidden">{sharedLine(lan.sharedTo, lan.sharedInUse)}</span>
-          </span>
+          <AccountHint detail={sharedLine(lan.sharedTo, lan.sharedInUse)}>
+            <span className="ap-shared" id={`ap-shared-${a.num}`} title={sharedLine(lan.sharedTo, lan.sharedInUse)} role="img" aria-label="Account sharing">
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+                strokeWidth="1.3" strokeLinecap="round" aria-hidden>
+                <circle cx="10.5" cy="3.2" r="1.7" />
+                <circle cx="3.5" cy="7" r="1.7" />
+                <circle cx="10.5" cy="10.8" r="1.7" />
+                <path d="M5.2 6.1 8.8 4.1M5.2 7.9l3.6 2" />
+              </svg>
+              <span className="vis-hidden">{sharedLine(lan.sharedTo, lan.sharedInUse)}</span>
+            </span>
+          </AccountHint>
         )}
         {/* A state, said in a word and not in a pill. It stands where
             `Switch` would, because a switch to a held-out account is
@@ -382,6 +387,11 @@ export default function AccountRow({
             {issue.tone === "warn" && <WarnGlyph />}
             <span className="ap-issue-text">{issue.text}</span>
           </button>
+          {issue.fix && onSignIn && (
+            <button type="button" className="ap-notice-fix"
+              aria-label={`${issue.fix} as ${a.email ?? name}`} title={issue.hint}
+              onClick={() => onSignIn(a.email)}>{issue.fix}</button>
+          )}
           {/* How old the last reading is. On an open row the freshness
               line under the bars says it, so it is said once. */}
           {!open && (

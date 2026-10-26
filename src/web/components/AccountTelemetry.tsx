@@ -2,6 +2,7 @@ import { useState } from "react";
 import AnchoredPopover from "./AnchoredPopover";
 import { WarnGlyph } from "./AccountIssuePopover";
 import { type TelemetryLine } from "../org-telemetry";
+import AccountHint from "./AccountHint";
 
 /** A persistent privacy indicator; its full explanation also works on touch. */
 export default function AccountTelemetry({ num, name, telemetry, boundaryId = "ap-scroll" }: {
@@ -11,12 +12,14 @@ export default function AccountTelemetry({ num, name, telemetry, boundaryId = "a
   const anchor = `ap-telemetry-mark-${num}`;
   const popover = `ap-telemetry-pop-${num}`;
   return <>
-    <button type="button" id={anchor} className="ap-more ap-telemetry" data-tone={telemetry.tone}
-      title={telemetry.detail} aria-label={`Organization telemetry for ${name}`}
-      aria-describedby={`ap-telemetry-${num}`} aria-haspopup="dialog" aria-expanded={open}
-      aria-controls={open ? popover : undefined} onClick={() => setOpen(value => !value)}>
-      <WarnGlyph />
-    </button>
+    <AccountHint detail={telemetry.detail} disabled={open}>
+      <button type="button" id={anchor} className="ap-more ap-telemetry" data-tone={telemetry.tone}
+        title={telemetry.detail} aria-label={`Organization telemetry for ${name}`}
+        aria-describedby={`ap-telemetry-${num}`} aria-haspopup="dialog" aria-expanded={open}
+        aria-controls={open ? popover : undefined} onClick={() => setOpen(value => !value)}>
+        <WarnGlyph />
+      </button>
+    </AccountHint>
     <span className="vis-hidden" id={`ap-telemetry-${num}`}>{telemetry.detail}</span>
     {open && <AnchoredPopover anchorId={anchor} boundaryId={boundaryId} id={popover}
       className="ap-pop ap-issue-pop ap-telemetry-pop" role="dialog" labelledBy={`${popover}-title`}
