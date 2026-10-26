@@ -5,22 +5,21 @@
    is information (the same epic is the same colour in Jira and here) and is
    only ever a tint under the deck's own text. */
 
-.jr-panel { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+.jr-panel { container: jira-panel / inline-size; flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 
 /* ── the toolbar ─────────────────────────────────────────────────────────── */
 .jr-toolbar {
   flex: none;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
   padding: 10px 16px;
   border-bottom: 1px solid var(--line);
   background: var(--panel);
 }
-.jr-toolbar-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
-/* The board button and its project, in a span the board picker's width: the
-   picker is drawn in it and hangs off its end (JiraPanel). */
-.jr-board-layer { --jr-pop-w: min(360px, calc(100vw - 32px)); flex: 0 1 auto; width: var(--jr-pop-w); min-width: 0; display: inline-flex; align-items: center; gap: 12px; }
+/* The trigger takes only its content width; the picker keeps its own width. */
+.jr-board-layer { --jr-pop-w: min(360px, calc(100vw - 32px)); flex: 0 1 auto; width: auto; max-width: 200px; min-width: 0; display: inline-flex; align-items: center; }
 .jr-board-btn { gap: 8px; min-width: 0; max-width: min(420px, 100%); }
 .jr-board-btn-label { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .jr-board-btn-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
@@ -30,11 +29,26 @@
 .jr-board-btn .jr-chevron[data-open] { transform: rotate(-90deg); }
 .jr-board-project { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .jr-toolbar[hidden] { display: none; }
-.jr-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
-.jr-filter-chips { display: contents; }
-/* The shared search field (IntegrationSearch) beside the chips, at a width
-   that leaves them room, and a whole row on a phone (below). */
-.jr-filters > .ig-search { flex: 0 1 260px; }
+.jr-toolbar > .ig-freshness { flex: 0 0 auto; }
+.jr-toolbar .ig-fresh { white-space: normal; overflow: visible; }
+.jr-filters { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.jr-filters > .ig-search { flex: 0 1 200px; min-width: 140px; }
+.jr-filter-chips {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ctl-edge) transparent;
+  /* Scrollable overflow must leave room for every chip's focus ring. */
+  padding: 3px;
+  margin: -3px;
+}
+.jr-filter-chips > * { flex: none; }
+.btn.jr-filter-icon { flex: none; width: var(--ctl-h); padding-inline: 0; justify-content: center; }
 button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--accent-dim)); border-color: var(--accent); color: var(--text); }
 .jr-link-btn {
   padding: 0;
@@ -552,29 +566,13 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   .jr-toolbar { padding: 8px 12px; }
   .jr-list-scroll { padding: 10px 12px 20px; }
   .jr-detail { --ig-detail-pad: 14px; padding-bottom: 24px; }
-  .jr-board-project { display: none; }
-  /* A phone's toolbar has no room for a span the picker's width: the button
-     keeps its own width, and the picker, wider than the button, is kept
-     inside the window by its placement. The freshness line keeps its words,
-     beside the button when they fit and under it when they do not. */
-  .jr-toolbar-row { flex-wrap: wrap; row-gap: 4px; }
-  .jr-board-layer { width: auto; }
-  .jr-toolbar-row > .ig-freshness { flex: none; }
+}
+@container jira-panel (max-width: 700px) {
+  .jr-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 8px 12px; }
+  .jr-toolbar > .ig-freshness { max-width: min(260px, 65cqi); }
+  .jr-filters { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; }
   .jr-filters > .ig-search { flex: 1 1 100%; }
-  .jr-filter-chips {
-    display: flex;
-    flex: 1 1 100%;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
-    /* Room for a chip's focus ring, which the scroller would clip. */
-    padding: 3px;
-    margin: -3px;
-  }
-  .jr-filter-chips > * { flex: none; }
+  .jr-filter-chips { flex: 1 1 100%; }
 }
 /* A sub-task in a narrow detail: its key, status and person on the first
    line and its summary under them, rather than cut at the frame's edge. */
