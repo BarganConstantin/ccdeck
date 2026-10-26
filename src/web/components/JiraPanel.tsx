@@ -33,8 +33,6 @@ import JiraBacklog from "./JiraBacklog";
 import JiraIssueDetail from "./JiraIssueDetail";
 import IntegrationFailureNote from "./IntegrationFailureNote";
 import { Chevron } from "./JiraParts";
-import { CrossGlyph } from "./integration-glyphs";
-import HoverHint from "./HoverHint";
 
 const isString = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 40;
 const isBool = (v: unknown): v is boolean => typeof v === "boolean";
@@ -385,9 +383,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
               </button>
             ))}
           </div>
-          {filtered && <HoverHint detail="Clear filters" className="ap-peek ap-account-hint" portalRootId="jira-board-layer">
-            <button type="button" className="btn jr-chip jr-filter-icon jr-clear" aria-label="Clear filters" onClick={clearFilters}><CrossGlyph /></button>
-          </HoverHint>}
+          {filtered && <button type="button" className="btn jr-clear" onClick={clearFilters}>Clear filters</button>}
         </div>
         {/* After a refresh that failed the rows on screen are the last
             answer, and the line says "Not updated", never "Updated". */}
