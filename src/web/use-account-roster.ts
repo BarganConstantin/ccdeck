@@ -62,10 +62,13 @@ export function useAccountRoster(onRoster: (fresh: AccountsData) => void) {
     requestsRef.current.add(ctl);
     const bell = window.setTimeout(() => ctl.abort(), RELOAD_TIMEOUT_MS);
     try {
+      // An extension can wrap fetch and throw synchronously. Make each call
+      // an async job so even a throw from the second call reaches Promise.all;
+      // otherwise the first request is left without a rejection handler.
       const [accts, autoRes] = await Promise.all([
-        fetch(`/api/claude-accounts${force ? "?refresh=1" : ""}`, { signal: ctl.signal }),
-        fetch("/api/cswap-auto", { signal: ctl.signal }),
-      ]);
+        `/api/claude-accounts${force ? "?refresh=1" : ""}`,
+        "/api/cswap-auto",
+      ].map(async url => fetch(url, { signal: ctl.signal })));
       // Read both bodies before publishing. Another reload can start while
       // JSON is arriving; only the latest request may commit this snapshot.
       const [fresh, policy] = await Promise.all([
