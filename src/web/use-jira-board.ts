@@ -259,7 +259,7 @@ export function useJiraBoard(api: JiraApi, connId: string, boardId: string | nul
         const page = await readIssues(api, boardId, queryFor(group, filtersRef.current, overview, at.next));
         setGroup(forKey, group.id, g => {
           const have = new Set(g.issues.map(i => i.key));
-          return { ...g, issues: [...g.issues, ...page.issues.filter(i => !have.has(i.key))], next: page.next, total: page.total ?? g.total, more: false };
+          return { ...g, issues: [...g.issues, ...page.issues.filter(i => !have.has(i.key))], next: page.next, total: page.total ?? g.total, capped: page.capped, more: false };
         });
       } catch (err) {
         const failure = failureOf(err);
@@ -278,7 +278,8 @@ export function useJiraBoard(api: JiraApi, connId: string, boardId: string | nul
         update(forKey, s => {
           const have = new Set(s.closed.sprints.map(x => x.id));
           const sprints = startAt === 0 ? page.sprints : [...s.closed.sprints, ...page.sprints.filter(x => !have.has(x.id))];
-          return { ...s, closed: { shown: true, sprints, total: page.total, isLast: page.isLast, loading: false, error: null } };
+          // A reader may have hidden the groups while this page was pending.
+          return { ...s, closed: { ...s.closed, sprints, total: page.total, isLast: page.isLast, loading: false, error: null } };
         });
       } catch (err) {
         const failure = failureOf(err);
