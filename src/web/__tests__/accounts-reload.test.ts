@@ -160,7 +160,8 @@ describe("the panel's reload path", () => {
     expect(verdict, "the answered case no longer reads a verdict off the responses").toBeTruthy();
     expect(load).toContain(`setFailure(prev => nextFailure(prev, ${verdict}));`);
     // The thrown case picks between the two by whose abort it was (#829).
-    expect(load).toContain(`setFailure(prev => nextFailure(prev, ${ctl}.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE));`);
+    expect(load).toContain(`const failure = ${ctl}.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE;`);
+    expect(load).toContain("setFailure(prev => nextFailure(prev, failure));");
     expect(accountsSurface()).not.toMatch(/catch\s*\{\s*\/\*[^*]*\*\/\s*\}/);
   });
 
