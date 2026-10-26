@@ -13,7 +13,16 @@ export const DETAIL_WIDTH = { min: 320, max: 1600 } as const;
  *  with room to spare. */
 export const DETAIL_SHARE = 0.5;
 /** The CSS for that share, which the split uses until a width is stored. */
-export const AUTO_DETAIL_CSS = `clamp(${DETAIL_WIDTH.min}px, ${DETAIL_SHARE * 100}%, ${DETAIL_WIDTH.max}px)`;
+export const AUTO_DETAIL_CSS = autoDetailCss();
+
+function validShare(share: number): number {
+  return Number.isFinite(share) && share > 0 && share < 1 ? share : DETAIL_SHARE;
+}
+
+/** Automatic width in CSS, decided during render rather than after paint. */
+export function autoDetailCss(share = DETAIL_SHARE): string {
+  return `clamp(${DETAIL_WIDTH.min}px, ${validShare(share) * 100}%, ${DETAIL_WIDTH.max}px)`;
+}
 /** The list always keeps this much beside the detail. */
 export const LIST_MIN = 420;
 /** The draggable line between them. */
@@ -31,8 +40,8 @@ export function clampDetail(width: number, room: number): number {
 
 /** The width the detail takes in a workspace `room` pixels wide before the
  *  reader has dragged it: the share, within the bounds. */
-export function autoDetail(room: number): number {
-  return clampDetail(room * DETAIL_SHARE, room);
+export function autoDetail(room: number, share = DETAIL_SHARE): number {
+  return clampDetail(room * validShare(share), room);
 }
 
 /** The width the reader dragged the detail to, or null while it is automatic. */
