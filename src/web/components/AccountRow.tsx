@@ -388,7 +388,7 @@ export default function AccountRow({
             <span className="ap-issue-text">{issue.text}</span>
           </button>
           {issue.fix && onSignIn && (
-            <button type="button" className="ap-switch"
+            <button type="button" className="ap-sign-in"
               aria-label={`${issue.fix} as ${a.email ?? name}`} title={issue.hint}
               onClick={() => onSignIn(a.email)}>Sign in</button>
           )}

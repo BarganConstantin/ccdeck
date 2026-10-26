@@ -31,6 +31,8 @@ describe("an account's visible sign-in action", () => {
     expect(one(view.tree, e => e.props.id === "ap-issue-2")).not.toBeNull();
     view.rerender({ ...props, a: { ...account, error: "network" } });
     expect(one(view.tree, e => e.props["aria-label"] === "Sign in again as work@example.test")).toBeNull();
+    view.rerender({ ...props, a: { ...account, error: null, staleCopy: true, repair: { state: "running" as const } } });
+    expect(one(view.tree, e => e.props.className === "ap-sign-in")).toBeNull();
     view.unmount();
   });
 });

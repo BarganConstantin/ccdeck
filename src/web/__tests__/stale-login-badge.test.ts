@@ -237,7 +237,10 @@ describe("what the panel is allowed to offer", () => {
     expect((accountsSurface().match(/signIn: true/g) ?? []).length, "a refusal offers the dialog from somewhere other than the expired login's").toBe(1);
     const row = src("../components/AccountRow.tsx");
     expect(row).toMatch(/\{refusal\.signIn && onSignIn && \(\s*<button type="button" className="ap-fix ap-failure-fix" onClick=\{\(\) => onSignIn\(a\.email\)\}/);
-    expect((row.match(/onSignIn\(/g) ?? []).length, "the row signs in from somewhere other than a refusal").toBe(1);
+    // A visible recovery action is also allowed when the same issue.fix
+    // verdict authorizes it. Stale-copy repair still produces no fix.
+    expect(row).toMatch(/\{issue\.fix && onSignIn && \(\s*<button type="button" className="ap-sign-in"/);
+    expect((row.match(/onSignIn\(/g) ?? []).length, "the row signs in outside a refusal or a gated fix").toBe(2);
     expect(panel).toMatch(/const signInAgain = \(email: string \| null\) => \{ setSignInAs\(email\); setAddOpen\(true\); \};/);
     expect(panel).toMatch(/<AccountRow[\s\S]*?onSignIn=\{signInAgain\}/);
     //

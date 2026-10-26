@@ -1,6 +1,7 @@
 import { cloneElement, useEffect, useLayoutEffect, useRef, useState, type HTMLAttributes, type ReactElement } from "react";
 import { createPortal } from "react-dom";
 import { placePopover } from "../popover-place";
+import { modalStack } from "../modal-dismiss";
 
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 const HINT_OPEN = "ccdeck:account-hint";
@@ -43,10 +44,6 @@ export default function AccountHint({ children, detail, disabled = false }: {
       el.style.top = `${p.top}px`;
       el.style.maxHeight = p.maxHeight == null ? "" : `${p.maxHeight}px`;
     };
-    const dismiss = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault(); event.stopPropagation(); setVisible(false);
-    };
     const outside = (event: PointerEvent) => {
       const target = event.target as Node;
       if (!surface.current?.contains(target) && !document.getElementById(children.props.id ?? "")?.contains(target)) setVisible(false);
@@ -59,15 +56,16 @@ export default function AccountHint({ children, detail, disabled = false }: {
       if ((event as CustomEvent<string>).detail !== id) setVisible(false);
     };
     place();
+    // Use the app's dismissal stack without taking focus or trapping Tab.
+    const unregister = modalStack.push(() => setVisible(false), 0, "popover");
     window.addEventListener("resize", place);
     window.addEventListener("scroll", scroll, true);
-    document.addEventListener("keydown", dismiss, true);
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener(HINT_OPEN, another);
     return () => {
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", scroll, true);
-      document.removeEventListener("keydown", dismiss, true);
+      unregister();
       document.removeEventListener("pointerdown", outside, true);
       document.removeEventListener(HINT_OPEN, another);
     };

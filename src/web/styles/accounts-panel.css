@@ -139,7 +139,7 @@
    card: the row's own box, 4%, on at once and off at once — the same answer a
    machine's row gives in Local network. */
 .ap-account:has(> .ap-row-open):hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
-.ap-account:has(> .ap-row-open):active:not(:has(:is(.ap-switch, .ap-more, .ap-issue, .ap-notice-fix):active)) {
+.ap-account:has(> .ap-row-open):active:not(:has(:is(.ap-switch, .ap-sign-in, .ap-more, .ap-issue):active)) {
   background: color-mix(in srgb, var(--text) 7%, transparent);
 }
 /* Secondary text on a lit row is still text. The tone lifts the ground under
@@ -168,7 +168,7 @@
 .ap-row-open:focus-visible { outline-offset: -2px; }
 /* The row's own controls, over the door: a press on one does what it says and
    does not also open the row. */
-.ap-account :is(.ap-switch, .ap-more, .ap-issue, .ap-notice-fix, .ap-failure, .ap-switched) {
+.ap-account :is(.ap-switch, .ap-sign-in, .ap-more, .ap-issue, .ap-failure, .ap-switched) {
   position: relative;
   z-index: 1;
 }
@@ -316,6 +316,7 @@
    are what a switch is decided on. A word on the control fill says "press me"
    without a border, at the 24px floor (#884), and fills a step deeper under
    the pointer. */
+.ap-sign-in,
 .ap-switch {
   flex: none;
   min-height: 24px;
@@ -330,9 +331,9 @@
   cursor: pointer;
   transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.ap-switch:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 12%, transparent); }
-.ap-switch:active:not(:disabled) { transform: scale(0.97); }
-.ap-switch:disabled { cursor: default; opacity: var(--dim-off); }
+.ap-sign-in:hover:not(:disabled), .ap-switch:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 12%, transparent); }
+.ap-sign-in:active:not(:disabled), .ap-switch:active:not(:disabled) { transform: scale(0.97); }
+.ap-sign-in:disabled, .ap-switch:disabled { cursor: default; opacity: var(--dim-off); }
 
 /* EVERYTHING UNDER THE HEAD STARTS UNDER THE NAME. The slot's column — wide
    enough for two digits, so slot 10 does not push its name off the line the
