@@ -33,6 +33,9 @@ import JiraBacklog from "./JiraBacklog";
 import JiraIssueDetail from "./JiraIssueDetail";
 import IntegrationFailureNote from "./IntegrationFailureNote";
 import { Chevron } from "./JiraParts";
+import { AccountsGlyph } from "./rail-glyphs";
+import { CrossGlyph } from "./integration-glyphs";
+import HoverHint from "./HoverHint";
 
 const isString = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 40;
 const isBool = (v: unknown): v is boolean => typeof v === "boolean";
@@ -143,6 +146,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => prefs.read("expanded", isFlags) ?? {});
   const [search, setSearchState] = useState(() => recallSearch(scope));
   const setSearch = (text: string) => { setSearchState(text); keepSearch(scope, text); };
+  const searchRef = useRef<HTMLInputElement>(null);
   const [picker, setPicker] = useState(false);
   const [boardsError, setBoardsError] = useState<IntegrationFailure | null>(null);
   const [noBoards, setNoBoards] = useState(false);
@@ -210,7 +214,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
 
   const toggleGroup = (group: GroupDef, open: boolean) => setExpanded(state => ({ ...state, [group.id]: open }));
   const filtered = mine || hideDone || attention || quick.length > 0 || search.trim() !== "";
-  const clearFilters = () => { setMine(false); setHideDone(false); setAttention(false); setQuick([]); setSearch(""); };
+  const clearFilters = () => { setMine(false); setHideDone(false); setAttention(false); setQuick([]); setSearch(""); searchRef.current?.focus(); };
   const rowFilter = useMemo(() => ({ search, hideDone, attention }), [search, hideDone, attention]);
 
   // The board's own quick filters, less its "Only My Issues" (the panel's
@@ -355,36 +359,25 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       {/* On a narrow screen an open issue is a screen of its own, and the
           board, search and filters are the list's: they wait behind Back. */}
       <div className="jr-toolbar" hidden={narrow && open}>
-        <div className="jr-toolbar-row">
-          {/* The board picker is drawn inside this span and hangs off it, the
-              way the forges' project picker does: the deck's popovers line up
-              with their anchor's end, and the span is the popover's width with
-              the button at its start, so the list opens under the button
-              instead of running out past the panel's left edge. Being inside
-              the integration dialog keeps it within the dialog's modal
-              boundary too. */}
-          <span id="jira-board-layer" className="jr-board-layer">
-            <button type="button" id="jira-board-button" className="btn jr-board-btn" aria-haspopup="dialog" aria-expanded={picker}
-              aria-controls={picker ? "jira-board-picker" : undefined} onClick={() => setPicker(p => !p)}>
-              <span className="jr-board-btn-label">Board</span>
-              <span className="jr-board-btn-name">{overview?.board.name || boardName || (board ? `Board ${board}` : "Choose a board")}</span>
-              <Chevron open={picker} />
-            </button>
-            {overview?.board.projectName && <span className="jr-board-project">{overview.board.projectName}</span>}
-          </span>
-          {/* After a refresh that failed the rows on screen are the last
-              answer, and the line says "Not updated", never "Updated". */}
-          <IntegrationFreshness loadedAt={snap.loadedAt || null} loading={loading} stale={Boolean(error)}
-            onRefresh={() => { if (board) jira.refresh(); else firstBoard(); }} label="Refresh the board" disabled={!board} />
-        </div>
+        {/* Keep the picker inside the dialog's accessibility boundary. */}
+        <span id="jira-board-layer" className="jr-board-layer">
+          <button type="button" id="jira-board-button" className="btn jr-board-btn" title={[...new Set([overview?.board.name || boardName, overview?.board.projectName].filter(Boolean))].join(" · ")} aria-haspopup="dialog" aria-expanded={picker}
+            aria-controls={picker ? "jira-board-picker" : undefined} onClick={() => setPicker(p => !p)}>
+            <span className="jr-board-btn-label">Board</span>
+            <span className="jr-board-btn-name">{overview?.board.name || boardName || (board ? `Board ${board}` : "Choose a board")}</span>
+            <Chevron open={picker} />
+          </button>
+        </span>
         <div className="jr-filters" role="group" aria-label="Filters">
           {/* Escape empties it first (the shared field's own entry on the
               dismiss stack), then leaves the issue, then closes the panel. */}
-          <IntegrationSearch value={search} onChange={setSearch} label="Search issues by key or summary" placeholder="Search key or summary" />
+          <IntegrationSearch inputRef={searchRef} value={search} onChange={setSearch} label="Search issues by key or summary" placeholder="Search key or summary" />
           {/* One row that scrolls sideways on a phone, rather than three rows
               of chips over the board. */}
           <div className="jr-filter-chips">
-            <button type="button" className="btn jr-chip" aria-pressed={mine} onClick={() => setMine(m => !m)}>Only my issues</button>
+            <HoverHint detail="Only my issues" className="ap-peek ap-account-hint" portalRootId="jira-board-layer">
+              <button type="button" className="btn jr-chip jr-filter-icon" aria-label="Only my issues" aria-pressed={mine} onClick={() => setMine(m => !m)}><AccountsGlyph /></button>
+            </HoverHint>
             <button type="button" className="btn jr-chip" aria-pressed={hideDone} onClick={() => setHideDone(h => !h)}>Hide done</button>
             <button type="button" className="btn jr-chip" aria-pressed={attention} title="Flagged, or Highest, Blocker or Critical priority, and not done"
               onClick={() => setAttention(a => !a)}>Needs attention</button>
@@ -394,9 +387,15 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
                 {q.name}
               </button>
             ))}
-            {filtered && <button type="button" className="jr-link-btn jr-clear" onClick={clearFilters}>Clear filters</button>}
+            {filtered && <HoverHint detail="Clear filters" className="ap-peek ap-account-hint" portalRootId="jira-board-layer">
+              <button type="button" className="btn jr-chip jr-filter-icon jr-clear" aria-label="Clear filters" onClick={clearFilters}><CrossGlyph /></button>
+            </HoverHint>}
           </div>
         </div>
+        {/* After a refresh that failed the rows on screen are the last
+            answer, and the line says "Not updated", never "Updated". */}
+        <IntegrationFreshness loadedAt={snap.loadedAt || null} loading={loading} stale={Boolean(error)}
+          onRefresh={() => { if (board) jira.refresh(); else firstBoard(); }} label="Refresh the board" disabled={!board} />
       </div>
 
       <IntegrationSplit

@@ -329,11 +329,11 @@ describe("nothing on a narrow screen widens its pane or loses its words", () => 
     expect(sheet).toMatch(/\.jr-field dd > \.ig-person \{ max-width: 100%; \}/);
   });
 
-  it("on a phone, keeps the freshness line's words and lets it go under the board button", () => {
-    const phone = block("@media (max-width: 700px)");
-    expect(phone).toMatch(/\.jr-toolbar-row \{ flex-wrap: wrap;/);
-    expect(phone).toMatch(/\.jr-board-layer \{ width: auto; \}/);
-    expect(phone).toMatch(/\.jr-toolbar-row > \.ig-freshness \{ flex: none; \}/);
+  it("on a narrow panel, keeps freshness visible above a full-width search and reachable filters", () => {
+    const phone = block("@container jira-panel (max-width: 700px)");
+    expect(phone).toMatch(/\.jr-toolbar \{ display: grid;[^}]*grid-template-columns: minmax\(0, 1fr\) auto;/);
+    expect(phone).toMatch(/\.jr-filters \{[^}]*grid-column: 1 \/ -1;[^}]*grid-row: 2;/);
+    expect(phone).toMatch(/\.jr-filters > \.ig-search \{ flex: 1 1 100%; \}/);
   });
 
   it("on a phone, keeps a row's flag, epic and estimate on its third line, the epic giving way", () => {
