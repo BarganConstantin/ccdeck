@@ -40,6 +40,42 @@ describe("paired account requests when fetch is wrapped by an extension", () => 
     expect(handled, "the first request can reject without an app handler").toBe(true);
   });
 
+  it.each(["throw", "reject"] as const)(
+    "aborts a still-pending sibling fetch when another request fails by %s",
+    async failureKind => {
+      let calls = 0;
+      let aborts = 0;
+      const signals: AbortSignal[] = [];
+      vi.stubGlobal("fetch", (_url: string, init: RequestInit) => {
+        if (++calls === 1) {
+          const signal = init.signal!;
+          signals.push(signal);
+          // This request cannot finish on its own. It must be cancelled even
+          // though Promise.all has already rejected on its sibling.
+          return new Promise<Response>((_resolve, reject) => {
+            signal.addEventListener("abort", () => {
+              aborts++;
+              reject(new DOMException("aborted", "AbortError"));
+            });
+          });
+        }
+        if (failureKind === "throw") throw new TypeError("Failed to fetch");
+        return Promise.reject(new TypeError("Failed to fetch"));
+      });
+
+      const view = mount(() => useAccountRoster(ignoreRoster), {});
+      await flush();
+      expect(calls).toBe(2);
+      expect(signals).toHaveLength(1);
+      expect(signals[0].aborted, "the orphaned request lost its timeout and unmount cleanup").toBe(true);
+      expect(aborts).toBe(1);
+      // Cleanup must not turn a synchronous network error into a timeout.
+      expect(view.tree.failure).toEqual(RELOAD_UNREACHABLE);
+      expect(view.tree.reloading).toBe(false);
+      view.unmount();
+    },
+  );
+
   it("gives both requests the same deadline and clears busy state after a timeout", async () => {
     const signals: AbortSignal[] = [];
     vi.stubGlobal("fetch", (_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
