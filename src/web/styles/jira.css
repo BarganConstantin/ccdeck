@@ -170,6 +170,10 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-subrows { border-top: 1px solid var(--line-soft); background: color-mix(in srgb, var(--bg) 35%, transparent); }
 .jr-row { display: flex; align-items: stretch; min-width: 0; min-height: 34px; }
 .jr-subrow { padding-left: 20px; }
+.jr-pick-label, .jr-pick-space { flex: none; width: 24px; min-height: 34px; display: inline-flex; align-items: center; justify-content: center; }
+.jr-pick-label { cursor: pointer; }
+.jr-pick { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); cursor: inherit; }
+.jr-row[data-move-blocked] .jr-pick { accent-color: var(--warn); }
 .jr-toggle, .jr-toggle-space { flex: none; width: 28px; }
 .jr-toggle {
   display: inline-flex;
@@ -227,6 +231,11 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-move-button:hover:not(:disabled), .jr-move-button[aria-expanded="true"] { color: var(--text); background: var(--ctl-fill); }
 .jr-move-button:active:not(:disabled) { background: var(--accent-dim); }
 .jr-move-button:disabled { cursor: wait; }
+.jr-actions-pop { width: min(180px, calc(100vw - 24px)); box-sizing: border-box; padding: 4px; }
+.jr-action-item { display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; padding: 8px 10px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; font-size: calc(13px + var(--ui-text-increase, 0px)); text-align: left; cursor: pointer; }
+.jr-action-item:hover:not([aria-disabled="true"]), .jr-action-item:active:not([aria-disabled="true"]) { background: var(--ctl-fill); }
+.jr-action-item[aria-disabled="true"] { color: var(--muted); cursor: default; }
+.jr-action-hint { display: block; margin: 0; padding: 8px 10px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; overflow-wrap: anywhere; }
 .jr-move-pop { width: min(340px, calc(100vw - 24px)); }
 .jr-move-pop form { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
 .jr-move-pop h3 { margin: 0 0 4px; font-size: calc(13px + var(--ui-text-increase, 0px)); }
@@ -243,12 +252,14 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 /* A row is the door to its issue, as a row in the GitHub and GitLab panel
    is: a press deepens the row's tone a step and nothing moves, so the words
    stay under the pointer while the issue opens. The row is :active while its
-   button or its disclosure triangle is pressed. (Inside a list, so it
-   outranks the shared row's hover and selection.) */
-.jr-rows .jr-row:active { background: color-mix(in srgb, var(--text) 10%, transparent); }
+   button or its disclosure triangle is pressed. Selected and dragged rows
+   retain the batch fill while pressed, so every member stays included. */
+.jr-rows .jr-row:active:not([data-selected]):not([data-dragging]) { background: color-mix(in srgb, var(--text) 10%, transparent); }
 .jr-icon { width: 16px; height: 16px; flex: none; display: block; border-radius: 2px; }
 .jr-key { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .jr-key[data-done] { text-decoration: line-through; }
+.jr-row[data-current] > .jr-row-main > .jr-key { font-weight: 600; color: var(--text); }
+.jr-current-mark { display: inline-block; width: 12px; height: 12px; margin-left: 4px; vertical-align: -2px; color: var(--text); }
 .jr-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .jr-item[data-context] > .jr-row .jr-summary { color: var(--muted); }
 /* The row's end: its facts (flag, versions, epic, estimate), then its status
@@ -335,7 +346,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
    case, as Atlassian's lozenge is written now, and cut at 16 characters with
    the whole name in its title, so a long workflow name never widens a row.
    The tints are 14 %: at 22 % Gruvbox Material's --text sat at 3.96:1. */
-.jr-status {
+.jr-status, .jr-panel .jr-status.ig-chip {
   flex: none;
   box-sizing: border-box;
   max-width: calc(16ch + 12px);
@@ -343,15 +354,18 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   text-overflow: ellipsis;
   padding: 0 6px;
   border-radius: var(--r-tag);
-  background: var(--ctl-fill);
-  color: var(--text-secondary);
+  /* An opaque bed keeps workflow meaning independent of the row's fill.
+     The extra scope outranks the shared selected-pill reset. */
+  background: color-mix(in srgb, var(--text) 7%, var(--panel));
+  color: var(--text);
+  box-shadow: none;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 600;
   line-height: calc(18px + var(--ui-text-increase, 0px));
   white-space: nowrap;
 }
-.jr-status[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); color: var(--text); }
-.jr-status[data-cat="done"] { background: color-mix(in srgb, var(--ok) 14%, var(--panel)); color: var(--text); }
+.jr-status[data-cat="indeterminate"], .jr-panel .jr-status.ig-chip[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); color: var(--text); }
+.jr-status[data-cat="done"], .jr-panel .jr-status.ig-chip[data-cat="done"] { background: color-mix(in srgb, var(--ok) 14%, var(--panel)); color: var(--text); }
 
 /* A backlog row is the host's .ig-row: its hover and its selection, and
    every quiet word in it lifted with it. A sprint's header, a board in the
@@ -360,15 +374,12 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
    rather than over whatever is under it, so the hover's fill never stacks
    under its words (Gruvbox Material's --text fell to 4.1:1 on a hovered
    lozenge); a pill on the neutral fill writes in --text under the pointer
-   for the same reason. On a selected row a status pill gives up its tint
-   (.ig-chip) and keeps an edge in its category's colour, so the state
-   still shows. */
+   for the same reason. Statuses keep their opaque semantic beds and words
+   through selection and hover, instead of becoming outlined metadata. */
 .ig-row:hover :is(.jr-estimate, .jr-remaining, .jr-status, .jr-total) { color: var(--text); }
 .jr-group-toggle:hover, .jr-board-item:hover, .jr-detail-sub:hover { background: var(--ig-hover-fill, var(--ctl-fill)); --muted: var(--text-secondary); }
 .jr-group-toggle:hover :is(.jr-estimate, .jr-status, .jr-total), .jr-detail-sub:hover .jr-status { color: var(--text); }
 .jr-board-item[aria-current="true"] { background: var(--ig-sel-fill, var(--accent-dim)); --muted: var(--text); }
-.ig-row[data-selected] .jr-status[data-cat="indeterminate"] { box-shadow: inset 0 0 0 1px var(--accent); }
-.ig-row[data-selected] .jr-status[data-cat="done"] { box-shadow: inset 0 0 0 1px var(--ok); }
 
 /* An issue type or a priority the panel draws itself, when Jira's icon is an
    SVG (which the deck does not pass on) or does not load: Jira's shapes. The
@@ -514,14 +525,16 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
    way first, with its ellipsis and the whole name in its title. Only a key
    longer than the line itself is cut. */
 @container jira-list (max-width: 360px) {
-  .jr-row-main { grid-template-columns: 16px 16px minmax(0, max-content) minmax(0, 1fr) 20px; }
+  /* The visible selection gutter costs 24px; recover spacing inside the
+     existing grid so a short status still fits beside the key and eye. */
+  .jr-row-main { grid-template-columns: 16px 16px minmax(0, max-content) minmax(0, 1fr) 20px; column-gap: 2px; padding-right: 4px; }
   .jr-row-main > .jr-key { grid-column: 3; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .jr-facts { display: contents; }
   .jr-facts .jr-status-cell { grid-column: 4; grid-row: 1; justify-self: end; min-width: 0; max-width: 100%; overflow: hidden; }
-  .jr-facts .jr-status-cell > .jr-status { flex: 0 1 auto; min-width: 0; }
+  .jr-facts .jr-status-cell > .jr-status { flex: 0 1 auto; min-width: 0; padding-inline: 4px; }
   .jr-row-main > .jr-assignee { grid-column: 5; grid-row: 1; }
   .jr-summary { grid-column: 1 / -1; grid-row: 2; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-  .jr-facts .jr-meta { grid-column: 1 / 4; grid-row: 3; justify-content: flex-start; flex-wrap: nowrap; }
+  .jr-facts .jr-meta { grid-column: 1 / 4; grid-row: 3; justify-content: flex-start; flex-wrap: nowrap; overflow: hidden; contain: inline-size; }
   /* Fix versions wait for the issue's own page: beside an epic on a phone's
      line they were cut to a character or two each. */
   .jr-facts .jr-meta > .jr-version { display: none; }

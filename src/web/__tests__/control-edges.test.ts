@@ -873,13 +873,11 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
       ".fb-kind:has(input:focus-visible)",
-      // The integrations' selected row (#2178, #2179): a pill or a status
-      // lozenge gives up its fill there, so its ring is the whole of its
-      // boundary, and so is the empty face's when no one is assigned.
+      // Selected metadata pills give up their fill, so their ring is the
+      // whole boundary, as is an empty face's. Jira workflow statuses now
+      // retain opaque semantic beds, measured in jira-contrast.test.ts.
       ".ig-row[data-selected] .ig-avatar-none",
       ".ig-row[data-selected] .ig-chip",
-      '.ig-row[data-selected] .jr-status[data-cat="done"]',
-      '.ig-row[data-selected] .jr-status[data-cat="indeterminate"]',
       // The navigable button now puts its focus ring on the whole issue row.
       ".jr-row:has(> .jr-row-main:focus-visible)",
       // Quick open's field: the input in it is borderless, so the row it

@@ -161,7 +161,7 @@ describe("the issue type the panel draws itself", () => {
 /** A row of the backlog, from the panel down: `row` describes the row's own
  *  state (selected, under the pointer), `item` whether it is a parent drawn
  *  only for its sub-tasks. */
-function rowChain(theme: string, row: { selected?: boolean; hover?: boolean; context?: boolean; cloud?: boolean } = {}): El[] {
+function rowChain(theme: string, row: { selected?: boolean; hover?: boolean; active?: boolean; dragging?: boolean; current?: boolean; blocked?: boolean; context?: boolean; cloud?: boolean } = {}): El[] {
   return [
     rootOf(theme),
     el("div", ["modal", "ig-modal"]),
@@ -169,7 +169,7 @@ function rowChain(theme: string, row: { selected?: boolean; hover?: boolean; con
     el("div", ["jr-group-body"]),
     el("ul", ["jr-rows"]),
     el("li", ["jr-item"], { attrs: row.context ? { "data-context": "true" } : {} }),
-    el("div", ["jr-row", "ig-row"], { attrs: row.selected ? { "data-selected": "true" } : {}, states: row.hover ? ["hover"] : [] }),
+    el("div", ["jr-row", "ig-row"], { attrs: { ...(row.selected ? { "data-selected": "true" } : {}), ...(row.dragging ? { "data-dragging": "true" } : {}), ...(row.current ? { "data-current": "true" } : {}), ...(row.blocked ? { "data-move-blocked": "true" } : {}) }, states: [...(row.hover ? ["hover"] : []), ...(row.active ? ["active"] : [])] }),
     el("button", ["jr-row-main"]),
   ];
 }
@@ -226,11 +226,9 @@ describe("every word on a backlog row reads, at rest, under the pointer and sele
       expect(failures).toEqual([]);
     });
 
-    it(`${theme}: a selected row's pills drop their fill, and its marks still stand off it`, () => {
+    it(`${theme}: selected metadata drops its fill, and its marks still stand off it`, () => {
       const sel = rowChain(theme, { selected: true });
-      for (const tail of [WORDS.estimate, WORDS["status indeterminate"], WORDS["status done"]]) {
-        expect(prop([...sel, ...tail], "background")).toBe("transparent");
-      }
+      expect(prop([...sel, ...WORDS.estimate], "background")).toBe("transparent");
       const bed = bedOf(sel);
       const flag = [...sel, el("span", ["jr-facts"]), el("span", ["jr-meta"]), el("span", ["jr-flagged"])];
       expect(contrast(over(color(prop(flag, "color")!, flag), bed), bed), "the flag").toBeGreaterThanOrEqual(NON_TEXT);
@@ -238,6 +236,73 @@ describe("every word on a backlog row reads, at rest, under the pointer and sele
         const glyph = [...sel, el("svg", ["jr-icon", "jr-priority-glyph"], { attrs: { "data-level": level } })];
         expect(contrast(over(color(prop(glyph, "color")!, glyph), bed), bed), `priority ${level}`).toBeGreaterThanOrEqual(NON_TEXT);
       }
+    });
+  }
+});
+
+describe("workflow status and current detail remain independent of batch state", () => {
+  for (const theme of THEMES) {
+    it(`${theme}: all three statuses retain distinct opaque beds and 4.5:1 words through selection, hover and press`, () => {
+      const beds = ["new", "indeterminate", "done"].map(cat => {
+        const tail = WORDS[`status ${cat}`];
+        const resting = [...rowChain(theme), ...tail];
+        const fill = color(prop(resting, "background")!, resting);
+        expect(fill[3], `${cat} has its own opaque bed`).toBe(1);
+        for (const state of [{}, { hover: true }, { selected: true }, { selected: true, hover: true },
+          { active: true }, { selected: true, active: true }, { selected: true, dragging: true, active: true }, { current: true }]) {
+          const chain = [...rowChain(theme, state), ...tail];
+          expect(color(prop(chain, "background")!, chain), `${cat} ${JSON.stringify(state)}`).toEqual(fill);
+          expect(prop(chain, "box-shadow"), `${cat} never falls back to an outlined selected pill`).toBe("none");
+          expect(inkOn(chain), `${cat} ${JSON.stringify(state)}`).toBeGreaterThanOrEqual(BODY);
+        }
+        return fill;
+      });
+      expect(new Set(beds.map(bed => JSON.stringify(bed))).size).toBe(3);
+    });
+    it(`${theme}: the current key and eye read independently of selection`, () => {
+      for (const selected of [false, true]) {
+        const key = [...rowChain(theme, { selected, current: true }), el("span", ["jr-key"])];
+        expect(prop(key, "font-weight")).toBe("600");
+        expect(inkOn(key)).toBeGreaterThanOrEqual(BODY);
+        const eye = [...key, el("span", ["jr-current-mark"]), el("svg")];
+        const bed = bedOf(eye);
+        expect(contrast(over(color(prop(eye, "color")!, eye), bed), bed), "current-detail mark").toBeGreaterThanOrEqual(NON_TEXT);
+      }
+    });
+    it(`${theme}: selected and dragged rows retain their batch fill while pressed`, () => {
+      const row = (state: Parameters<typeof rowChain>[1]) => rowChain(theme, state).slice(0, -1);
+      const selected = row({ selected: true });
+      const fill = color(prop(selected, "background")!, selected);
+      for (const state of [{ selected: true, active: true }, { dragging: true, active: true }, { selected: true, dragging: true, active: true }]) {
+        const chain = row(state);
+        expect(color(prop(chain, "background")!, chain)).toEqual(fill);
+      }
+    });
+    it(`${theme}: checkbox selection and blocked-selection accents clear 3:1 without tinting the row`, () => {
+      for (const selected of [false, true]) for (const blocked of [false, true]) {
+        const row = rowChain(theme, { selected, blocked }).slice(0, -1);
+        const checkbox = [...row, el("label", ["jr-pick-label"]), el("input", ["jr-pick"], { attrs: { type: "checkbox" } })];
+        const bed = bedOf(row);
+        const accent = prop(checkbox, "accent-color")!;
+        expect(accent).toBe(blocked ? "var(--warn)" : "var(--accent)");
+        expect(contrast(over(color(accent, checkbox), bed), bed)).toBeGreaterThanOrEqual(NON_TEXT);
+        const plain = rowChain(theme, { selected }).slice(0, -1);
+        expect(prop(row, "background")).toBe(prop(plain, "background"));
+      }
+    });
+    it(`${theme}: the row action menu reads at rest and under the pointer`, () => {
+      for (const hover of [false, true]) for (const disabled of [false, true]) {
+        const chain = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]),
+          el("div", ["jr-actions-pop"]), el("button", ["jr-action-item"], { attrs: disabled ? { "aria-disabled": "true" } : {}, states: hover ? ["hover"] : [] })];
+        const panel = color("var(--panel)", chain);
+        const bed = over(color(prop(chain, "background")!, chain), panel);
+        expect(contrast(over(color(prop(chain, "color")!, chain), bed), bed)).toBeGreaterThanOrEqual(BODY);
+        if (disabled) expect(prop(chain, "background")).toBe("transparent");
+      }
+      const hint = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]),
+        el("div", ["jr-actions-pop"]), el("p", ["jr-action-hint"])];
+      const bed = color("var(--panel)", hint);
+      expect(contrast(over(color(prop(hint, "color")!, hint), bed), bed)).toBeGreaterThanOrEqual(BODY);
     });
   }
 });
