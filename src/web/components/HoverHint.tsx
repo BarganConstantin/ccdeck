@@ -110,6 +110,7 @@ export default function HoverHint({ children, detail, disabled = false, classNam
       },
       onBlur: event => { children.props.onBlur?.(event); hide(); },
       onClick: event => { hide(); children.props.onClick?.(event); },
+      onContextMenu: event => { hide(); children.props.onContextMenu?.(event); },
       onDragStart: event => { hide(); children.props.onDragStart?.(event); },
       onKeyDown: event => { if (event.key !== "Escape") hide(); children.props.onKeyDown?.(event); },
     })}

@@ -393,6 +393,8 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     const issue = row.kind === "issue" ? row.issue : null;
     const movable = canMove && issue && movableIssue(issue, group) && depth === 0;
     const moveId = `${boardId}-move-${group.id}-${key}`;
+    const rowId = `${moveId}-row`;
+    const hasActions = canMove && issue && depth === 0;
     return (
       <li key={key} className="jr-item" data-context={row.kind === "context" || undefined}>
         <div className="jr-row ig-row" data-selected={picked.has(key) || selected === key || undefined} data-picked={picked.has(key) || undefined} data-done={issue?.status.category === "done" || undefined}
@@ -441,14 +443,17 @@ export default function JiraBacklog(props: JiraBacklogProps) {
             </button>
           ) : <span className="jr-toggle-space" aria-hidden />}
           <JiraRowPreview item={row.kind === "issue" ? row.issue : row.parent} portalRootId={boardId}>
-            <button type="button" className="jr-row-main" data-nav={nav} data-key={key} data-parent={parentNav} data-toggle={expandable ? toggleId : undefined}
+            <button type="button" id={rowId} className="jr-row-main" aria-haspopup={hasActions ? "menu" : undefined} data-nav={nav} data-key={key} data-parent={parentNav} data-toggle={expandable ? toggleId : undefined}
               data-has-meta={issue ? Boolean(issue.flagged || issue.fixVersions.length || issue.epic) || undefined : true}
               data-expanded={expandable ? String(open) : undefined} aria-expanded={expandable ? open : undefined}
               aria-controls={expandable && open ? `${toggleId}-children` : undefined}
               aria-describedby={`${boardId}-instructions`} tabIndex={tabStop(nav)} aria-current={selected === key || undefined}
               onKeyDown={event => {
+                if (hasActions && !moveBusy && (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) {
+                  event.preventDefault(); event.stopPropagation(); openMoveMenu(issue, group, rowId, false, "menu"); return;
+                }
                 if (movable && !moveBusy && event.altKey && !event.ctrlKey && !event.metaKey && (event.code === "KeyM" || event.key.toLowerCase() === "m") && issue) {
-                  event.preventDefault(); event.stopPropagation(); openMoveMenu(issue, group, moveId, true);
+                  event.preventDefault(); event.stopPropagation(); openMoveMenu(issue, group, rowId, true);
                 }
               }}
               aria-label={`${label}${picked.has(key) ? ". Selected" : ""}`} onFocus={() => setCurrent(nav)} onClick={event => {
@@ -456,8 +461,11 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                 else if (!event.ctrlKey && !event.metaKey && !event.shiftKey) { setPicked(new Set()); setSelectionMode(false); onOpen(key); }
               }} onContextMenu={event => {
                 // macOS delivers Control-click as contextmenu rather than click.
-                // Reserve that chord for selection; ordinary right-click stays native.
+                // Reserve that chord for selection; ordinary right-click opens actions.
                 if (issue && event.ctrlKey) { event.preventDefault(); event.currentTarget.focus(); pick(key, event); }
+                else if (hasActions && !moveBusy) {
+                  event.preventDefault(); event.currentTarget.focus(); openMoveMenu(issue, group, rowId, false, "menu");
+                }
               }}>
               {issue ? <IssueLine issue={issue} estimation={estimation} time={time} /> : row.kind === "context" && (
                 <>
@@ -473,7 +481,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               )}
             </button>
           </JiraRowPreview>
-          {canMove && issue && depth === 0 && <button id={moveId} type="button" className="jr-move-button" disabled={moveBusy}
+          {hasActions && <button id={moveId} type="button" className="jr-move-button" disabled={moveBusy}
             aria-label={`Actions for ${key}`} title={`Actions for ${key}`} aria-haspopup="menu"
             aria-expanded={moveMenu?.anchorId === moveId} tabIndex={tabStop(nav)}
             onKeyDown={event => {
@@ -531,7 +539,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
 
   return (
     <div className="jr-board" id={boardId} ref={listRef} onKeyDown={onKeyDown} style={{ "--jr-status-ch": statusCh } as CSSProperties}>
-      <p className="vis-hidden" id={`${boardId}-instructions`}>Use Up and Down to navigate, Right to expand and Left to collapse. Enter opens the issue. Ctrl or Command click toggles selection; Shift click selects a range. Space toggles the focused issue.{canMove ? " Drag selected issues to reorder or change sprint. Alt+M opens Move." : ""}</p>
+      <p className="vis-hidden" id={`${boardId}-instructions`}>Use Up and Down to navigate, Right to expand and Left to collapse. Enter opens the issue. Ctrl or Command click toggles selection; Shift click selects a range. Space toggles the focused issue.{canMove ? " Drag selected issues to reorder or change sprint. Right-click or Shift+F10 opens actions. Alt+M opens Move." : ""}</p>
       {selectionMode && selectedItems.length > 0 && <div className="jr-selection" role="group" aria-label="Selected issues">
         <span role="status">{selectedItems.length} selected</span>
         {canMove && <button type="button" className="btn" id={`${boardId}-move-selected`} disabled={moveBusy || Boolean(selectionProblem)}

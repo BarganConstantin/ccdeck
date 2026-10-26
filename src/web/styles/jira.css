@@ -252,6 +252,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-move-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .jr-selection { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 0 10px; background: var(--bg); color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .jr-selection-note { color: var(--muted); overflow-wrap: anywhere; }
+@media (hover: hover) and (pointer: fine) { .jr-move-button { display: none; } }
 @media (pointer: coarse) { .jr-move-button { width: 32px; min-height: 44px; } }
 /* A row is the door to its issue, as a row in the GitHub and GitLab panel
    is: a press deepens the row's tone a step and nothing moves, so the words

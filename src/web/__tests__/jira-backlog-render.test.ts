@@ -85,6 +85,8 @@ describe("explicit moves without changing the existing read-only contract", () =
     expect(html).toContain('aria-haspopup="menu"');
     expect(html).toContain('draggable="true"');
     expect(html).toContain("Alt+M opens Move");
+    expect(html).toContain("Right-click or Shift+F10 opens actions");
+    expect(rows(html)["MOCK-2"]).toContain('aria-haspopup="menu"');
   });
   it("exposes expanded state and priority on the roving keyboard control", () => {
     const html = drawBoard([issue("MOCK-1", { subtaskKeys: ["MOCK-2"], priority: { name: "High", icon: null } })], { rowsOpen: { "MOCK-1": true } });
