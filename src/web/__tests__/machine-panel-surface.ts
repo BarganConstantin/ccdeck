@@ -25,6 +25,7 @@ export const MACHINE_PANEL_FILES = [
   "use-system.ts",
   "components/MachineReadout.tsx",
   "components/MachineNetwork.tsx",
+  "components/MachineGpu.tsx",
 ] as const;
 
 let joined: string | null = null;

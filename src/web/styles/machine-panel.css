@@ -631,3 +631,5 @@
   .sysdetail .sd-reading:active { transform: none; }
   .sysdetail .sd-detail:active { transform: none; }
 }
+
+.sd-gpu-name { margin: 0 0 8px; font-size: inherit; font-weight: 600; overflow-wrap: anywhere; }

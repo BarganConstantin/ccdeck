@@ -65,5 +65,17 @@ export interface Snapshot {
   thermal: Thermal | null;
   /** Null until anything about the network has been read. */
   network?: Network | null;
+  gpus?: GpuReading[];
   intervalMs: number;
+}
+
+/** Current driver readings; null means the driver did not supply that field. */
+export interface GpuReading {
+  id: string;
+  name: string;
+  utilization: number | null;
+  memoryUsed: number | null;
+  memoryTotal: number | null;
+  temperature: number | null;
+  power: number | null;
 }
