@@ -15,6 +15,7 @@
 // the row never reads another account's part of that state. The writes it
 // makes are callbacks the panel spells.
 import { WarnGlyph } from "./AccountIssuePopover";
+import AccountTelemetry from "./AccountTelemetry";
 import { accountIssue } from "../account-issue";
 import { ago, due } from "../account-freshness";
 import { type Failure } from "../accounts-reload";
@@ -133,12 +134,14 @@ interface Props {
   /** Something is rotating accounts — the deck's loop or a terminal's — so the
    *  telemetry line points at "Hold out of rotation" in the ⋯ menu. */
   rotating?: boolean;
+  /** The scroll area that can clip this row's telemetry indicator. */
+  telemetryBoundaryId?: string;
 }
 
 export default function AccountRow({
   a, nowSec, lan, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
   refusal, onDismissRefusal, onSignIn, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null, home = null,
-  rotating = false,
+  rotating = false, telemetryBoundaryId,
 }: Props) {
   // The windows that have not reset since they were read: the only ones whose
   // numbers say anything about this window (lane-view.ts's lapsed).
@@ -231,6 +234,7 @@ export default function AccountRow({
             id is what the door's description points at. */}
         {a.alias && <span className="ap-alias" title={a.alias}>{a.alias}</span>}
         <span className="ap-email" id={`ap-email-${a.num}`} title={a.email ?? undefined}>{a.email}</span>
+        {telemetry && <AccountTelemetry num={a.num} name={name} telemetry={telemetry} boundaryId={telemetryBoundaryId} />}
         {/* HOME: the account Auto-switch comes back to. A mark, like the
             shared one beside it, and set from the ⋯ rather than by another
             control on every row; whether Auto-switch is passing it over
@@ -386,17 +390,6 @@ export default function AccountRow({
             </span>
           )}
         </div>
-      )}
-
-      {/* WHAT THE ORGANIZATION RECORDS, on every row of it, shut or open:
-          the moment it matters is before the switch. A word for what goes
-          out on the row, the sentence behind it for a pointer and for a
-          screen reader — the door's description points here. */}
-      {telemetry && (
-        <p className="ap-telemetry" id={`ap-telemetry-${a.num}`} data-tone={telemetry.tone} title={telemetry.detail}>
-          <span aria-hidden>{telemetry.text}</span>
-          <span className="vis-hidden">{telemetry.detail}</span>
-        </p>
       )}
 
       {/* SHUT: THE TWO NUMBERS AN ACCOUNT IS CHOSEN BY. No bars, no

@@ -176,9 +176,11 @@ describe("the row", () => {
 
   it("says it on a shut row, before the switch, and the door points a screen reader at it", async () => {
     const html = await render(account(content));
-    expect(html).toContain('<p class="ap-telemetry" id="ap-telemetry-3" data-tone="warn" title="Acme turns on Claude Code telemetry');
-    expect(html).toContain('<span aria-hidden="true">Telemetry · prompts</span>');
-    expect(html).toContain('<span class="vis-hidden">Acme turns on Claude Code telemetry for new sessions: usage data, and your prompts, sent to http://h:4317.');
+    expect(html).toContain('class="ap-more ap-telemetry" data-tone="warn" title="Acme turns on Claude Code telemetry');
+    expect(html).toContain('aria-label="Organization telemetry for a@x.com"');
+    expect(html).toContain('aria-haspopup="dialog" aria-expanded="false"');
+    expect(html).not.toContain('<p class="ap-telemetry"');
+    expect(html).toContain('<span class="vis-hidden" id="ap-telemetry-3">Acme turns on Claude Code telemetry for new sessions: usage data, and your prompts, sent to http://h:4317.');
     expect(html).toMatch(/aria-describedby="[^"]*ap-telemetry-3/);
   });
 
