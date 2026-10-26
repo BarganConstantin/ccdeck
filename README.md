@@ -33,7 +33,7 @@ Or the desktop app, with the waiting count in your menu bar: **[macOS](https://g
 
 which Claude Code session is blocked on you · tool calls · one canvas · cost · quota · local · sessions never leave
 
-[ccdeck.dev](https://ccdeck.dev) · [Guides](https://ccdeck.dev/guides/) · [What you get](#what-you-get) · [Quick start](#quick-start) · [How it works](#how-it-works) · [What it touches](#what-it-touches) · [Accounts](#accounts) · [Local network](#local-network) · [Options](#options) · [FAQ](#questions-people-ask)
+[ccdeck.dev](https://ccdeck.dev) · [Guides](https://ccdeck.dev/guides/) · [What you get](#what-you-get) · [Quick start](#quick-start) · [How it works](#how-it-works) · [What it touches](#what-it-touches) · [Accounts](#accounts) · [Local network](#local-network) · [Options](#options) · [Support](#support-ccdeck) · [FAQ](#questions-people-ask)
 
 
 </div>
@@ -844,6 +844,12 @@ and starts again when you log in. `ccdeck --stop` ends it.
 
 - 💬 **Questions & ideas** — [GitHub Discussions](https://github.com/BarganConstantin/ccdeck/discussions)
 - 🐛 **Bugs & feature requests** — [GitHub Issues](https://github.com/BarganConstantin/ccdeck/issues)
+
+## Support ccdeck
+
+ccdeck is free, open source, and maintained independently. If it helps you see which coding agent needs attention instead of checking terminal after terminal, [consider sponsoring its development](https://github.com/sponsors/BarganConstantin).
+
+Sponsorships support bug fixes, documentation, and testing across macOS, Linux, and Windows. They're entirely optional — no sponsorship or payment is needed to use ccdeck.
 
 ## License
 
