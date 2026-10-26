@@ -61,7 +61,9 @@ export default function LanEntryRow({ entry, rows, onOpen, onMap, peek, openPeek
                 already reading the row, and a glance wants the same dot the
                 machines inside wear. */}
             {entry.live && <i className="ap-nav-live" aria-hidden />}
-            {entry.text}
+            {/* Keep text inside its own element: a browser translator may
+                replace its text node while the live mark is being inserted. */}
+            <span>{entry.text}</span>
           </span>
         </span>
         <svg className="ap-nav-chev" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
