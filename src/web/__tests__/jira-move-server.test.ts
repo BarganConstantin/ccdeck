@@ -25,7 +25,7 @@ function rig(options = {}) {
     boardType: "scrum", rank: 10020, jql: "project = MOCK ORDER BY Rank ASC", filterReadable: true,
     sprints, issues: [issue("MOCK-1"), issue("MOCK-2", sprints[0]), issue("MOCK-3", sprints[0])],
     groups: { "MOCK-1": "backlog", "MOCK-2": "sprint:13", "MOCK-3": "sprint:13" },
-    writes: [], calls: [], writeResponses: [], writeError: null, onRead: null, ...options.state,
+    writes: [], calls: [], writeResponses: [], writeError: null, onRead: null, issuePageSize: 100, ...options.state,
   };
   const fetchImpl = async (url, init = {}) => {
     const u = new URL(url);
@@ -47,7 +47,10 @@ function rig(options = {}) {
     if (/\/board\/1\/(?:issue|backlog|sprint\/\d+\/issue)$/.test(path)) {
       const keys = (u.searchParams.get("jql") ?? "").match(/MOCK-\d+/g) ?? [];
       const group = path.endsWith("/backlog") ? "backlog" : /\/sprint\/(\d+)\/issue$/.test(path) ? `sprint:${path.match(/\/sprint\/(\d+)\/issue$/)[1]}` : null;
-      return json({ issues: state.issues.filter(i => keys.includes(i.key) && (!group || state.groups[i.key] === group)), total: keys.length });
+      const matched = state.issues.filter(i => keys.includes(i.key) && (!group || state.groups[i.key] === group));
+      const startAt = Number(u.searchParams.get("startAt") ?? 0);
+      const max = Math.min(Number(u.searchParams.get("maxResults") ?? 100), state.issuePageSize);
+      return json({ issues: matched.slice(startAt, startAt + max), total: Object.hasOwn(state, "issueTotal") ? state.issueTotal : matched.length });
     }
     if (/\/board\/1\/quickfilter$/.test(path)) return json({ values: [], isLast: true });
     if (/\/configuration$/.test(path)) return json({});
@@ -321,5 +324,218 @@ describe("the HTTP move allowlist", () => {
       assert.equal((await post(input, { headers: { origin: "https://other.example", "sec-fetch-site": "cross-site" } })).status, 403);
     });
     assert.equal(r.state.calls.length, 0);
+  });
+});
+
+const batchInput = { issueKeys: ["MOCK-3", "MOCK-1"], target: { kind: "sprint", sprintId: 13 }, beforeIssue: "MOCK-2" };
+const multiStatus = entries => new Response(JSON.stringify({ entries }), { status: 207 });
+function bothNeedMove(r) {
+  r.state.issues[2].fields.sprint = r.state.sprints[1];
+  r.state.groups["MOCK-3"] = "sprint:14";
+  return r;
+}
+function fiftyIssues(r) {
+  const keys = Array.from({ length: 50 }, (_, i) => `MOCK-${i + 10}`);
+  for (const key of keys) {
+    const issue = structuredClone(r.state.issues[0]);
+    issue.key = key;
+    r.state.issues.push(issue);
+    r.state.groups[key] = "backlog";
+  }
+  return keys.reverse();
+}
+
+describe("bounded ordered Jira batches", () => {
+  it("assigns only issues that need moving, then ranks the full batch in input order", async () => {
+    const r = rig();
+    const result = await r.move(batchInput);
+    assert.deepEqual(result.body, { ok: true, issueKeys: ["MOCK-3", "MOCK-1"], target: batchInput.target, refresh: true });
+    assert.deepEqual(r.state.writes.map(w => w.json), [
+      { issues: ["MOCK-1"] },
+      { issues: ["MOCK-3", "MOCK-1"], rankCustomFieldId: 10020, rankBeforeIssue: "MOCK-2" },
+    ]);
+  });
+  it("accepts mixed backlog/active/future sources and assigns them once", async () => {
+    const r = bothNeedMove(rig());
+    assert.equal((await r.move(batchInput)).status, 200);
+    assert.deepEqual(r.state.writes[0].json, { issues: ["MOCK-3", "MOCK-1"] });
+    assert.equal(r.state.writes.length, 2);
+  });
+  it("supports a future target with a target anchor", async () => {
+    const r = rig();
+    r.state.issues[1].fields.sprint = r.state.sprints[1];
+    r.state.groups["MOCK-2"] = "sprint:14";
+    assert.equal((await r.move({ ...batchInput, target: { kind: "sprint", sprintId: 14 } })).status, 200);
+    assert.ok(r.state.writes[0].url.endsWith("/sprint/14/issue"));
+    assert.deepEqual(r.state.writes[0].json.issues, batchInput.issueKeys);
+  });
+  it("supports backlog moves and ranks the ordered batch after its anchor", async () => {
+    const r = bothNeedMove(rig());
+    const body = { issueKeys: ["MOCK-3", "MOCK-2"], target: { kind: "backlog" }, afterIssue: "MOCK-1" };
+    assert.equal((await r.move(body)).status, 200);
+    assert.ok(r.state.writes[0].url.endsWith("/backlog/issue"));
+    assert.deepEqual(r.state.writes[1].json.issues, body.issueKeys);
+    assert.equal(r.state.writes[1].json.rankAfterIssue, "MOCK-1");
+  });
+  it("reorders a batch already in the target with no membership write", async () => {
+    const r = rig();
+    r.state.issues[0].fields.sprint = r.state.sprints[0];
+    r.state.groups["MOCK-1"] = "sprint:13";
+    assert.equal((await r.move(batchInput)).status, 200);
+    assert.deepEqual(r.state.writes.map(w => w.method), ["PUT"]);
+    assert.deepEqual(r.state.writes[0].json.issues, batchInput.issueKeys);
+  });
+  it("preserves the no-anchor membership-only contract", async () => {
+    const r = bothNeedMove(rig());
+    assert.equal((await r.move({ issueKeys: batchInput.issueKeys, target: batchInput.target })).status, 200);
+    assert.equal(r.state.writes.length, 1);
+    assert.deepEqual(r.state.writes[0].json.issues, batchInput.issueKeys);
+  });
+  it("validates 50 keys plus an anchor across capped pages, preserving order", async () => {
+    const r = rig({ state: { issuePageSize: 7 } });
+    const keys = fiftyIssues(r);
+    const body = { ...batchInput, issueKeys: keys };
+    await withHost(r, async post => {
+      const result = await post(body);
+      assert.equal(result.status, 200);
+      assert.deepEqual(result.body.issueKeys, keys);
+    });
+    assert.equal(r.state.writes.length, 2);
+    assert.deepEqual(r.state.writes[0].json.issues, keys);
+    assert.deepEqual(r.state.writes[1].json.issues, keys);
+    const firstWrite = r.state.calls.findIndex(c => c.method !== "GET");
+    assert.ok(firstWrite > 10);
+    assert.ok(r.state.calls.slice(firstWrite).every(c => c.method !== "GET"));
+  });
+  it("validates capped pages even when Jira omits a total", async () => {
+    const r = rig({ state: { issuePageSize: 1, issueTotal: null } });
+    assert.equal((await r.move(batchInput)).status, 200);
+    assert.equal(r.state.writes.length, 2);
+  });
+  for (const patch of [
+    { issueKey: "MOCK-1" }, { issueKeys: [] }, { issueKeys: ["MOCK-1"] }, { issueKeys: Array.from({ length: 51 }, (_, i) => `MOCK-${i + 10}`) },
+    { issueKeys: ["MOCK-1", "MOCK-1"] }, { issueKeys: ["MOCK-1", "mock-3"] }, { issueKeys: ["MOCK-1", null] },
+    { issueKeys: "MOCK-1,MOCK-3" }, { issueKeys: ["MOCK-1", "MOCK-3\n"] }, { beforeIssue: "MOCK-3" },
+    { beforeIssue: "MOCK-1" }, { beforeIssue: undefined, afterIssue: "MOCK-3" }, { afterIssue: "MOCK-2" },
+    { target: { kind: "sprint", sprintId: 15 } }, { target: { kind: "sprint", sprintId: 99 } },
+  ]) it(`rejects invalid batch ${JSON.stringify(patch)} before any write`, async () => {
+    const r = rig();
+    assert.equal((await r.move({ ...batchInput, ...patch })).status, 400);
+    assert.equal(r.state.writes.length, 0);
+  });
+  for (const problem of ["done", "epic", "subtask", "closed", "off-board", "wrong-source", "anchor-subtask", "anchor-wrong-group"])
+    it(`validates the entire batch before writes: ${problem}`, async () => {
+      const r = rig();
+      // The invalid issue is last in the ordered batch. Earlier keys must not
+      // have been assigned while later validation is still pending.
+      const f = r.state.issues[0].fields;
+      if (problem === "done") f.status.statusCategory.key = "done";
+      if (problem === "epic") f.issuetype.name = "Epic";
+      if (problem === "subtask") f.issuetype.subtask = true;
+      if (problem === "closed") f.sprint = r.state.sprints[2];
+      if (problem === "off-board") r.state.issues.shift();
+      if (problem === "wrong-source") r.state.groups["MOCK-1"] = "sprint:15";
+      if (problem === "anchor-subtask") r.state.issues[1].fields.issuetype.subtask = true;
+      if (problem === "anchor-wrong-group") r.state.groups["MOCK-2"] = "backlog";
+      assert.equal((await r.move(batchInput)).status, 400);
+      assert.equal(r.state.writes.length, 0);
+    });
+  it("refuses incomplete validation pages instead of silently moving a subset", async () => {
+    const r = rig({ state: { onRead: u => /\/board\/1\/issue$/.test(u.pathname) ? json({ issues: [], total: 3 }) : null } });
+    assert.equal((await r.move(batchInput)).status, 400);
+    assert.equal(r.state.writes.length, 0);
+  });
+  it("bounds validation if a provider ignores pagination", async () => {
+    const r = rig();
+    r.state.onRead = u => /\/board\/1\/issue$/.test(u.pathname) ? json({ issues: [r.state.issues[0]], total: 3 }) : null;
+    assert.equal((await r.move(batchInput)).status, 400);
+    assert.equal(r.state.calls.filter(c => /\/board\/1\/issue\?/.test(c.url)).length, 2);
+    assert.equal(r.state.writes.length, 0);
+  });
+});
+
+describe("batch 207 and uncertain-write outcomes", () => {
+  it("accepts 207 only when every requested key is explicitly successful, regardless of response order", async () => {
+    const r = bothNeedMove(rig({ state: { writeResponses: [
+      multiStatus([{ issueKey: "MOCK-1", status: 204 }, { issueKey: "MOCK-3", status: 200 }]),
+      multiStatus([{ issueKey: "MOCK-1", status: 200 }, { issueKey: "MOCK-3", status: 204 }]),
+    ] } }));
+    assert.equal((await r.move(batchInput)).body.ok, true);
+    assert.equal(r.state.writes.length, 2);
+  });
+  it("keeps mixed membership outcomes, stops before rank and invalidates caches", async () => {
+    const r = bothNeedMove(rig({ state: { writeResponses: [multiStatus([
+      { issueKey: "MOCK-3", status: 200 }, { issueKey: "MOCK-1", status: 403 },
+    ])] } }));
+    const old = r.client.cache;
+    const result = await r.move(batchInput);
+    assert.equal(result.body.ok, false);
+    assert.equal(result.status, 502);
+    assert.equal(result.body.outcome.membership, "partial");
+    assert.deepEqual(result.body.outcomes, [
+      { issueKey: "MOCK-3", membership: "moved", rank: "unchanged" },
+      { issueKey: "MOCK-1", membership: "unchanged", rank: "unchanged" },
+    ]);
+    assert.match(result.body.error.message, /some issues were updated/i);
+    assert.equal(r.state.writes.length, 1);
+    assert.notEqual(r.client.cache, old);
+  });
+  it("reports partial rank after membership succeeds without pretending all ranks failed", async () => {
+    const r = bothNeedMove(rig({ state: { writeResponses: [new Response(null, { status: 204 }), multiStatus([
+      { issueKey: "MOCK-3", status: 200 }, { issueKey: "MOCK-1", status: 403 },
+    ])] } }));
+    const result = await r.move(batchInput);
+    assert.equal(result.body.ok, false);
+    assert.deepEqual(result.body.outcome, { membership: "moved", rank: "partial" });
+    assert.deepEqual(result.body.outcomes.map(o => o.rank), ["ranked", "failed"]);
+    assert.equal(r.state.writes.length, 2);
+  });
+  for (const [name, entries] of [
+    ["missing", [{ issueKey: "MOCK-3", status: 200 }]],
+    ["duplicate", [{ issueKey: "MOCK-3", status: 200 }, { issueKey: "MOCK-3", status: 200 }, { issueKey: "MOCK-1", status: 200 }]],
+    ["unexpected", [{ issueKey: "MOCK-3", status: 200 }, { issueKey: "MOCK-1", status: 200 }, { issueKey: "MOCK-99", status: 200 }]],
+    ["malformed-status", [{ issueKey: "MOCK-3", status: 200 }, { issueKey: "MOCK-1", status: "200" }]],
+    ["uncertain", [{ issueKey: "MOCK-3", status: 200 }, { issueKey: "MOCK-1", status: 503 }]],
+    ["empty", []],
+  ]) it(`never treats ${name} 207 entries as whole-batch success`, async () => {
+    const r = bothNeedMove(rig({ state: { writeResponses: [multiStatus(entries)] } }));
+    const result = await r.move(batchInput);
+    assert.equal(result.body.ok, false);
+    assert.equal(result.body.refresh, true);
+    assert.equal(result.body.outcome.membership, "unknown");
+    assert.equal(r.state.writes.length, 1);
+    if (["missing", "malformed-status", "uncertain"].includes(name)) assert.equal(result.body.outcomes[0].membership, "moved");
+  });
+  for (const status of [403, 429, 500]) it(`never retries a batch refused at ${status}`, async () => {
+    const r = bothNeedMove(rig({ state: { writeResponses: [new Response(null, { status, headers: { "retry-after": "45" } })] } }));
+    const result = await r.move(batchInput);
+    assert.equal(result.body.ok, false);
+    assert.equal(result.body.outcome.membership, status < 500 ? "unchanged" : "unknown");
+    assert.equal(result.body.outcomes.length, 2);
+    assert.equal(r.state.writes.length, 1);
+  });
+  it("preserves unchanged membership for issues already in target on a lost batch response", async () => {
+    const r = rig({ state: { writeError: new Error("synthetic network failure") } });
+    const result = await r.move(batchInput);
+    assert.deepEqual(result.body.outcomes.map(o => o.membership), ["unchanged", "unknown"]);
+    assert.equal(result.body.outcome.membership, "unknown");
+    assert.equal(r.state.writes.length, 1);
+  });
+  it("reports lost rank response after a confirmed batch move without replay", async () => {
+    const r = bothNeedMove(rig({ state: { writeResponses: [new Response(null, { status: 204 }), () => { throw new Error("synthetic lost rank response"); }] } }));
+    const result = await r.move(batchInput);
+    assert.equal(result.body.ok, false);
+    assert.deepEqual(result.body.outcome, { membership: "moved", rank: "unknown" });
+    assert.equal(r.state.writes.length, 2);
+  });
+  it("uses the same scoped Cloud transport for a batch", async () => {
+    const r = bothNeedMove(rig({ conn: { meta: { deployment: "cloud", apiBase: "https://api.atlassian.com/ex/jira/mock-cloud" }, allowedOrigins: ["https://jira.example.com", "https://api.atlassian.com"] } }));
+    assert.equal((await r.move(batchInput)).status, 200);
+    assert.equal(r.state.writes.length, 2);
+    for (const w of r.state.writes) {
+      assert.ok(w.url.startsWith("https://api.atlassian.com/ex/jira/mock-cloud/rest/agile/1.0/"));
+      assert.equal(w.redirect, "manual");
+      assert.ok(w.headers.Authorization.startsWith("Basic "));
+    }
   });
 });

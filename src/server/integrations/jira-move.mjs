@@ -1,4 +1,4 @@
-// One bounded Jira write: a top-level issue's sprint/backlog membership and
+// One bounded Jira write: up to 50 top-level issues' sprint/backlog membership and
 // rank. No URL, method, field id or arbitrary Jira body comes from the caller.
 // Both Cloud and Server/DC support these Agile endpoints. Use assignment then
 // rank separately: older Server schemas accept only `issues` on assignment.
@@ -14,18 +14,23 @@ const only = (v, keys) => object(v) && Object.keys(v).every(k => keys.includes(k
 const invalid = message => integrationError("invalid", message);
 
 export function parseJiraMove(body) {
-  if (!only(body, ["issueKey", "target", "beforeIssue", "afterIssue"])) throw invalid("Supply one issue and a sprint or backlog target.");
+  if (!only(body, ["issueKey", "issueKeys", "target", "beforeIssue", "afterIssue"]) || Object.hasOwn(body, "issueKey") === Object.hasOwn(body, "issueKeys")) {
+    throw invalid("Supply either one issueKey or 2–50 ordered issueKeys and a sprint or backlog target.");
+  }
   const key = value => typeof value === "string" && value === value.trim() && KEY.test(value) ? value : null;
-  const issueKey = key(body.issueKey);
+  const batch = Object.hasOwn(body, "issueKeys");
+  const issueKeys = batch ? body.issueKeys : [body.issueKey];
+  if (!Array.isArray(issueKeys) || issueKeys.length < (batch ? 2 : 1) || issueKeys.length > 50 ||
+    issueKeys.some(value => !key(value)) || new Set(issueKeys).size !== issueKeys.length) throw invalid("Supply unique, valid issue keys (2–50 for a batch).");
   const t = body.target;
-  if (!issueKey || !only(t, t?.kind === "sprint" ? ["kind", "sprintId"] : ["kind"]) ||
+  if (!only(t, t?.kind === "sprint" ? ["kind", "sprintId"] : ["kind"]) ||
     !(t.kind === "backlog" || (t.kind === "sprint" && positiveId(t.sprintId)))) throw invalid("Not a valid issue key or move target.");
   const beforeIssue = Object.hasOwn(body, "beforeIssue") ? key(body.beforeIssue) : undefined;
   const afterIssue = Object.hasOwn(body, "afterIssue") ? key(body.afterIssue) : undefined;
-  if (beforeIssue === null || afterIssue === null || (beforeIssue && afterIssue) || beforeIssue === issueKey || afterIssue === issueKey) {
+  if (beforeIssue === null || afterIssue === null || (beforeIssue && afterIssue) || issueKeys.includes(beforeIssue) || issueKeys.includes(afterIssue)) {
     throw invalid("Use at most one other issue as the rank anchor.");
   }
-  return { issueKey, target: t.kind === "sprint" ? { kind: "sprint", sprintId: t.sprintId } : { kind: "backlog" }, beforeIssue, afterIssue };
+  return { issueKeys: issueKeys.slice(), batch, target: t.kind === "sprint" ? { kind: "sprint", sprintId: t.sprintId } : { kind: "backlog" }, beforeIssue, afterIssue };
 }
 
 /** Conservative support, not a claim about the token's write permissions. */
@@ -50,7 +55,7 @@ export async function readJiraMoveCapability(read, agile, rest, boardId, config)
 /** Only this closure can sign a write. The returned API takes a validated
  * move, never an upstream address or HTTP method. */
 export function createJiraMover({ secret, origins, sign, authCheck, fetchImpl = globalThis.fetch, reader, agile, rest, invalidate }) {
-  async function write(suffix, method, body, issueKey, signal) {
+  async function write(suffix, method, body, issueKeys, signal) {
     const url = `${agile}/${suffix}`;
     if (!isSafeTarget(url) || !origins().includes(originOf(url))) throw integrationError("permission", "This Jira write is outside the connection's token origins.");
     const controller = new AbortController();
@@ -69,8 +74,8 @@ export function createJiraMover({ secret, origins, sign, authCheck, fetchImpl = 
       if (refused) throw integrationError("expired", refused, { status: 401 });
       if (res.status === 204) return;
       if (res.status === 207) {
-        // A single issue was sent. Only an explicit successful entry for that
-        // exact key is success; don't treat HTTP 207's `ok` as all successful.
+        // Every requested key needs exactly one explicit success. A missing,
+        // duplicate or unrecognized entry is uncertainty, never success.
         let size = 0;
         const chunks = [];
         if (res.body) for await (const chunk of res.body) {
@@ -81,10 +86,19 @@ export function createJiraMover({ secret, origins, sign, authCheck, fetchImpl = 
         let json;
         try { json = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { /* unknown result */ }
         const entries = json?.entries;
-        const entry = Array.isArray(entries) && entries.length === 1 && entries[0]?.issueKey === issueKey ? entries[0] : null;
-        if (entry && Number.isInteger(entry.status) && entry.status >= 200 && entry.status < 300) return;
-        if (entry && Number.isInteger(entry.status) && entry.status >= 400 && entry.status < 600) throw errorFromStatus(entry.status, res.headers, { label: "Jira" });
-        throw integrationError("upstream", "Jira did not confirm the issue's rank. Refresh the board to check its position.", { status: 207 });
+        const recognized = Array.isArray(entries) && entries.every(e => issueKeys.includes(e?.issueKey));
+        const results = new Map(issueKeys.map(key => {
+          const matches = recognized ? entries.filter(e => e.issueKey === key) : [];
+          const status = matches.length === 1 && Number.isInteger(matches[0].status) ? matches[0].status : null;
+          return [key, { status, state: status >= 200 && status < 300 ? "succeeded" : status >= 400 && status < 500 ? "failed" : "unknown" }];
+        }));
+        if ([...results.values()].every(r => r.state === "succeeded")) return;
+        const single = issueKeys.length === 1 ? results.get(issueKeys[0]) : null;
+        const err = single?.status >= 400 && single.status < 600
+          ? errorFromStatus(single.status, res.headers, { label: "Jira" })
+          : integrationError("upstream", "Jira did not confirm every requested issue update. Some issues may have changed; refresh the board to check them.", { status: 207 });
+        err.writeOutcomes = results;
+        throw err;
       }
       if (!res.ok) {
         const err = errorFromStatus(res.status, res.headers, { label: "Jira" });
@@ -101,12 +115,13 @@ export function createJiraMover({ secret, origins, sign, authCheck, fetchImpl = 
 
   return async (boardId, input, signal) => {
     const move = parseJiraMove(input);
-    const { issueKey, target, beforeIssue, afterIssue } = move;
+    const { issueKeys, batch, target, beforeIssue, afterIssue } = move;
     const anchor = beforeIssue ?? afterIssue;
     const read = reader(signal);
-    const outcome = { membership: "unchanged", rank: "unchanged" };
+    const outcomes = new Map(issueKeys.map(key => [key, { membership: "unchanged", rank: "unchanged" }]));
     let attempted = false;
     let stage = "membership";
+    let pendingKeys = [];
     try {
       if (!/^[1-9]\d{0,11}$/.test(boardId) || boardId !== boardId.trim()) throw invalid("Not a board id.");
       // No cached authorization, ordering, membership or sprint-state reads.
@@ -114,24 +129,47 @@ export function createJiraMover({ secret, origins, sign, authCheck, fetchImpl = 
       const cfg = await read.json(`${agile}/board/${boardId}/configuration`);
       const capability = await readJiraMoveCapability(read, agile, rest, boardId, { ...cfg, type: board?.type });
       if (!capability.enabled) throw invalid(capability.reason);
-      const keys = [issueKey, ...(anchor ? [anchor] : [])];
-      const params = new URLSearchParams({ jql: `key in (${keys.join(",")})`, fields: "issuetype,status,sprint", maxResults: "2" });
-      const page = await read.json(`${agile}/board/${boardId}/issue?${params}`);
-      const issues = Array.isArray(page?.issues) ? page.issues : [];
+      const keys = [...issueKeys, ...(anchor ? [anchor] : [])];
+      // The board may cap a page below 51 (50 moved keys plus their anchor).
+      // Read only these validated keys, stopping on no progress or at the bound.
+      const readIssues = async (suffix, selected, fields) => {
+        const found = new Map();
+        for (let startAt = 0, guard = 0; found.size < selected.length && guard < selected.length; guard++) {
+          const q = new URLSearchParams({ jql: `key in (${selected.join(",")})`, fields, maxResults: String(selected.length), startAt: String(startAt) });
+          const page = await read.json(`${agile}/board/${boardId}/${suffix}?${q}`);
+          const values = Array.isArray(page?.issues) ? page.issues : [];
+          const count = found.size;
+          for (const issue of values) if (selected.includes(issue?.key)) found.set(issue.key, issue);
+          if (found.size === count || page?.isLast === true || (Number.isInteger(page?.total) && startAt + values.length >= page.total)) break;
+          startAt += values.length;
+        }
+        return found;
+      };
+      const issues = await readIssues("issue", keys, "issuetype,status,sprint");
       for (const key of keys) {
-        const issue = issues.find(i => i.key === key);
-        if (!issue) throw invalid("The issue and anchor must both belong to this board.");
-        if (issue.fields?.issuetype?.subtask !== false) throw invalid("The issue and rank anchor must be top-level issues.");
-        if (key === issueKey && (issue.fields?.issuetype?.name?.toLowerCase() === "epic" || !["new", "indeterminate"].includes(issue.fields?.status?.statusCategory?.key))) {
+        const issue = issues.get(key);
+        if (!issue) throw invalid("The issues and anchor must all belong to this board.");
+        if (issue.fields?.issuetype?.subtask !== false) throw invalid("The issues and rank anchor must be top-level issues.");
+        if (issueKeys.includes(key) && (issue.fields?.issuetype?.name?.toLowerCase() === "epic" || !["new", "indeterminate"].includes(issue.fields?.status?.statusCategory?.key))) {
           throw invalid("Only unfinished top-level non-epic issues can be moved.");
         }
       }
-      const issue = issues.find(i => i.key === issueKey);
-      const raw = issue.fields?.sprint;
-      const current = raw == null ? [] : Array.isArray(raw) ? raw : [raw];
-      if (current.length > 1 || current.some(s => !positiveId(s?.id) || !["active", "future"].includes(s?.state))) throw invalid("The issue must be in the backlog or one active or future sprint.");
-      const source = current.length ? { kind: "sprint", sprintId: current[0].id } : { kind: "backlog" };
-      const wanted = new Set([...(source.kind === "sprint" ? [source.sprintId] : []), ...(target.kind === "sprint" ? [target.sprintId] : [])]);
+      const sources = new Map();
+      const sameGroup = source => source.kind === target.kind && (source.kind === "backlog" || source.sprintId === target.sprintId);
+      const groupId = group => group.kind === "backlog" ? "backlog" : `sprint:${group.sprintId}`;
+      const groups = new Map();
+      const wanted = new Set(target.kind === "sprint" ? [target.sprintId] : []);
+      for (const key of issueKeys) {
+        const raw = issues.get(key).fields?.sprint;
+        const current = raw == null ? [] : Array.isArray(raw) ? raw : [raw];
+        if (current.length > 1 || current.some(s => !positiveId(s?.id) || !["active", "future"].includes(s?.state))) throw invalid("Every issue must be in the backlog or one active or future sprint.");
+        const source = current.length ? { kind: "sprint", sprintId: current[0].id } : { kind: "backlog" };
+        sources.set(key, source);
+        if (source.kind === "sprint") wanted.add(source.sprintId);
+        const id = groupId(source);
+        if (!groups.has(id)) groups.set(id, { group: source, keys: [] });
+        groups.get(id).keys.push(key);
+      }
       // A sprint visible elsewhere is not enough: it must be on this board.
       for (let startAt = 0, guard = 0; wanted.size && guard < 20; guard++) {
         const q = new URLSearchParams({ state: "active,future", startAt: String(startAt), maxResults: "50" });
@@ -142,39 +180,50 @@ export function createJiraMover({ secret, origins, sign, authCheck, fetchImpl = 
         startAt += values.length;
       }
       if (wanted.size) throw invalid("The source and target must be active or future sprints on this board.");
-      const inGroup = async (key, group) => {
-        const suffix = group.kind === "sprint" ? `sprint/${group.sprintId}/issue` : "backlog";
-        const q = new URLSearchParams({ jql: `key = ${key}`, fields: "issuetype", maxResults: "1" });
-        const answer = await read.json(`${agile}/board/${boardId}/${suffix}?${q}`);
-        return Array.isArray(answer?.issues) && answer.issues.some(i => i.key === key);
-      };
-      if (!await inGroup(issueKey, source)) throw invalid("The issue's source changed or is a closed sprint. Refresh the board.");
-      if (anchor && !await inGroup(anchor, target)) throw invalid("The rank anchor must be in the target group. Refresh the board.");
-      const sameGroup = source.kind === target.kind && (source.kind === "backlog" || source.sprintId === target.sprintId);
-      if (!sameGroup) {
+      const groupSuffix = group => group.kind === "sprint" ? `sprint/${group.sprintId}/issue` : "backlog";
+      for (const { group, keys } of groups.values()) {
+        const found = await readIssues(groupSuffix(group), keys, "issuetype");
+        if (keys.some(key => !found.has(key))) throw invalid("An issue's source changed or is a closed sprint. Refresh the board.");
+      }
+      if (anchor && !(await readIssues(groupSuffix(target), [anchor], "issuetype")).has(anchor)) throw invalid("The rank anchor must be in the target group. Refresh the board.");
+      const needed = issueKeys.filter(key => !sameGroup(sources.get(key)));
+      if (needed.length) {
         attempted = true;
+        pendingKeys = needed;
         const suffix = target.kind === "sprint" ? `sprint/${target.sprintId}/issue` : "backlog/issue";
-        await write(suffix, "POST", { issues: [issueKey] }, issueKey, signal);
-        outcome.membership = "moved";
+        await write(suffix, "POST", { issues: needed }, needed, signal);
+        for (const key of needed) outcomes.get(key).membership = "moved";
       }
       if (anchor) {
         stage = "rank";
         attempted = true;
-        await write("issue/rank", "PUT", { issues: [issueKey], rankCustomFieldId: capability.rankCustomFieldId,
-          ...(beforeIssue ? { rankBeforeIssue: beforeIssue } : { rankAfterIssue: afterIssue }) }, issueKey, signal);
-        outcome.rank = "ranked";
+        pendingKeys = issueKeys;
+        await write("issue/rank", "PUT", { issues: issueKeys, rankCustomFieldId: capability.rankCustomFieldId,
+          ...(beforeIssue ? { rankBeforeIssue: beforeIssue } : { rankAfterIssue: afterIssue }) }, issueKeys, signal);
+        for (const key of issueKeys) outcomes.get(key).rank = "ranked";
       }
-      return { status: 200, body: { ok: true, issueKey, target, refresh: true } };
+      return { status: 200, body: { ok: true, ...(batch ? { issueKeys } : { issueKey: issueKeys[0] }), target, refresh: true } };
     } catch (err) {
       const result = errorResponse(err);
       if (attempted) {
         const rejected = Number.isInteger(err?.status) && err.status >= 400 && err.status < 500;
-        if (stage === "membership") outcome.membership = rejected ? "unchanged" : "unknown";
-        else outcome.rank = rejected ? "failed" : "unknown";
-        const prefix = outcome.membership === "moved" ? "The issue moved, but its requested position was not confirmed. " : "";
+        for (const key of pendingKeys) {
+          const state = err?.writeOutcomes?.get(key)?.state ?? (rejected ? "failed" : "unknown");
+          outcomes.get(key)[stage] = state === "succeeded" ? (stage === "membership" ? "moved" : "ranked")
+            : state === "failed" ? (stage === "membership" ? "unchanged" : "failed") : "unknown";
+        }
+        const summarize = field => {
+          const states = new Set([...outcomes.values()].map(o => o[field]));
+          return states.size === 1 ? [...states][0] : states.has("unknown") ? "unknown" : "partial";
+        };
+        const outcome = { membership: summarize("membership"), rank: summarize("rank") };
+        const updated = [...outcomes.values()].some(o => o.membership === "moved" || o.rank === "ranked");
+        const prefix = batch && updated ? "Some issues were updated, but the whole batch was not confirmed. "
+          : !batch && outcome.membership === "moved" ? "The issue moved, but its requested position was not confirmed. " : "";
         result.body.error.message = `${prefix}${result.body.error.message} Refresh the board before trying again.`;
         result.body.refresh = true;
         result.body.outcome = outcome;
+        if (batch) result.body.outcomes = issueKeys.map(issueKey => ({ issueKey, ...outcomes.get(issueKey) }));
       }
       return result;
     } finally {
