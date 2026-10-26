@@ -302,6 +302,28 @@ describe("workflow status and current detail remain independent of batch state",
   }
 });
 
+describe("the complete row preview reads in every theme", () => {
+  for (const theme of THEMES) {
+    it(`${theme}: the full summary, key and metadata retain the 4.5:1 text floor`, () => {
+      const preview = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-row-preview"])];
+      const fill = color(prop(preview, "background")!, preview);
+      expect(fill[3], "the hint has its own opaque surface").toBe(1);
+      for (const tail of [
+        [el("p", ["jr-preview-key"])],
+        [el("p", ["jr-preview-summary"])],
+        [el("dl"), el("dt")],
+        [el("dl"), el("dd")],
+      ]) {
+        const word = [...preview, ...tail];
+        expect(contrast(over(color(prop(word, "color")!, word), fill), fill)).toBeGreaterThanOrEqual(BODY);
+      }
+      const summary = [...preview, el("p", ["jr-preview-summary"])];
+      expect(prop(summary, "white-space")).toBe("normal");
+      expect(prop(summary, "overflow-wrap")).toBe("anywhere");
+    });
+  }
+});
+
 describe("the toolbar's quiet words on their fields", () => {
   for (const theme of THEMES) {
     it(`${theme}: the search placeholder and a pressed filter's word clear 4.5:1`, () => {

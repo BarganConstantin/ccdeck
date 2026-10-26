@@ -199,6 +199,23 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   text-align: left;
   cursor: pointer;
 }
+/* Rich rows reserve the entire first line for issue identity at every
+   desktop width. Metadata has one bounded line of its own; the estimate
+   keeps its words while the version/epic labels yield with ellipses. */
+.jr-row-main:where([data-has-meta="true"]) { grid-template-columns: 16px 16px auto minmax(0, 1fr) 20px; row-gap: 4px; }
+.jr-row-main:where([data-has-meta="true"]) > .jr-assignee { grid-column: 5; grid-row: 1; }
+.jr-row-main:where([data-has-meta="true"]) > .jr-facts { grid-column: 3 / -1; grid-row: 2; justify-content: flex-start; flex-wrap: nowrap; }
+.jr-row-main:where([data-has-meta="true"]) .jr-meta { flex: 1; justify-content: flex-start; flex-wrap: nowrap; overflow: hidden; }
+.jr-row-main:where([data-has-meta="true"]) .jr-status-cell { order: -1; min-width: 0; }
+
+/* HoverHint owns viewport placement and maximum height. This is a single
+   reading surface, in the modal's popover layer, not another issue card. */
+.jr-row-preview { position: fixed; top: 0; left: 0; z-index: 40; box-sizing: border-box; width: min(420px, calc(100vw - 24px)); padding: 12px; overflow: hidden auto; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-contact), var(--shadow-2); color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 1.45; overflow-wrap: anywhere; }
+.jr-preview-key { margin: 0 0 4px; color: var(--muted); font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; }
+.jr-preview-summary { margin: 0; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 400; white-space: normal; overflow-wrap: anywhere; }
+.jr-row-preview dl { display: grid; grid-template-columns: minmax(64px, max-content) minmax(0, 1fr); gap: 4px 10px; margin: 8px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.jr-row-preview dt { color: var(--muted); font-weight: 400; }
+.jr-row-preview dd { margin: 0; min-width: 0; color: var(--text-secondary); white-space: normal; overflow-wrap: anywhere; }
 /* Selection and keyboard focus share the whole row boundary. The disclosure
    and Move controls retain their own focused hitbox. */
 .jr-row:has(> .jr-row-main:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--r-tag); }
@@ -503,13 +520,14 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 /* ── narrow ──────────────────────────────────────────────────────────────── */
 /* A list narrower than a row: the summary keeps the first line with the key
    and the avatar, and the status leads the facts on a line under it. */
-/* A split pane reaches its title budget before it reaches phone width.
-   Facts move down before a rich issue can squeeze its summary to zero. */
-@container jira-list (max-width: 720px) {
+/* Plain rows keep their compact first line until the list itself is narrow.
+   Rich rows already have two lines, so crossing this width never takes
+   summary space away from a row with versions or an epic. */
+@container jira-list (max-width: 560px) {
   .jr-row-main { grid-template-columns: 16px 16px auto minmax(0, 1fr) 20px; row-gap: 4px; }
   .jr-row-main > .jr-assignee { grid-column: 5; grid-row: 1; }
-  .jr-facts { grid-column: 3 / -1; grid-row: 2; justify-content: flex-start; flex-wrap: wrap; }
-  .jr-facts .jr-meta { justify-content: flex-start; flex-wrap: wrap; }
+  .jr-facts { grid-column: 3 / -1; grid-row: 2; justify-content: flex-start; flex-wrap: nowrap; }
+  .jr-facts .jr-meta { flex: 1; justify-content: flex-start; flex-wrap: nowrap; overflow: hidden; }
   .jr-facts .jr-status-cell { order: -1; min-width: 0; }
   .jr-group-facts { margin-left: 0; flex-basis: 100%; flex-wrap: wrap; }
 }
