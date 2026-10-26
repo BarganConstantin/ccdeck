@@ -74,7 +74,7 @@ describe("the live account's row", () => {
   it("carries the same mark, titled and said with that line, and nothing more", () => {
     const kept = "Shared on Local network: in use here · not sent to Laptop while this deck is on it.";
     const html = row({ sharedTo: ["Laptop"], sharedInUse: true });
-    expect(html).toContain(`class="ap-shared" id="ap-shared-2" title="${kept}"`);
+    expect(html).toContain('class="ap-shared" id="ap-shared-2" role="img" aria-label="Account sharing"');
     expect(html).toContain(`class="vis-hidden">${kept}<`);
     expect(html).not.toContain("offered to Laptop");
     // The markup is the offered row's, but for the line: no new element, no new word on screen.
