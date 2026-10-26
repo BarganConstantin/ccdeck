@@ -178,7 +178,7 @@ describe("the panel's reload path", () => {
     expect(ctl, "the reload makes no AbortController of its own").toBeTruthy();
     expect(bell, "nothing aborts that controller after RELOAD_TIMEOUT_MS").toBeTruthy();
     // Both requests ride that controller's signal.
-    expect(load.match(new RegExp(`signal: ${ctl}\\.signal`, "g"))).toHaveLength(2);
+    expect(load).toContain(`.map(async url => fetch(url, { signal: ${ctl}.signal }))`);
     // Disarmed exactly once, and only on the way out.
     const clear = `window.clearTimeout(${bell});`;
     expect(load.split(clear).length - 1, "the timer is not cleared exactly once").toBe(1);
