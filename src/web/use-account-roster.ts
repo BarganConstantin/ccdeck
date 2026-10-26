@@ -88,7 +88,9 @@ export function useAccountRoster(onRoster: (fresh: AccountsData) => void) {
       // Our own abort is a deck that answered the connection and then took
       // too long, not one that is gone (#829) — see RELOAD_SLOW.
       if (activeRef.current && version === versionRef.current) {
-        setFailure(prev => nextFailure(prev, ctl.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE));
+        // State updaters may run after sibling cleanup aborts this signal.
+        const failure = ctl.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE;
+        setFailure(prev => nextFailure(prev, failure));
       }
       // Promise.all can reject while its other fetch (or response body) is
       // still pending. Cancel that work before clearing the deadline and
