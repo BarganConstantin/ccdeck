@@ -377,7 +377,7 @@ describe("a sprint's header reads on the modal's ground", () => {
         for (const [word, tail] of Object.entries({
           "Active lozenge": [...toggle(hover), el("span", ["jr-group-identity"]), el("span", ["jr-badge"])],
           count: [...toggle(hover), el("span", ["jr-group-identity"]), el("span", ["jr-group-count"])],
-          dates: [...facts, el("span", ["jr-group-dates"])],
+          dates: [...toggle(hover), el("span", ["jr-group-identity"]), el("span", ["jr-group-dates"])],
         })) {
           const r = headInk([...headChain(theme), ...tail]);
           if (r < BODY) failures.push(`${word}${at}: ${r.toFixed(2)}`);
@@ -387,7 +387,7 @@ describe("a sprint's header reads on the modal's ground", () => {
       if (tally < BODY) failures.push(`tally: ${tally.toFixed(2)}`);
       for (const cat of [null, "new", "indeterminate", "done"]) {
         const total = el("span", ["jr-total"], { attrs: cat ? { "data-cat": cat } : {} });
-        const r = headInk([...headChain(theme), el("div", ["jr-group-totals"]), el("span", ["jr-totals"]), total]);
+        const r = headInk([...headChain(theme), ...facts, el("span", ["jr-totals"]), total]);
         if (r < BODY) failures.push(`total ${cat ?? "column"}: ${r.toFixed(2)}`);
       }
       expect(failures).toEqual([]);

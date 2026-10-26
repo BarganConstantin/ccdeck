@@ -113,7 +113,7 @@ button.btn.jr-chip[aria-pressed="true"] { font-weight: 600; background: var(--ig
 .jr-closed-title { margin: 8px 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .jr-group { margin: 0 0 16px; min-width: 0; }
 .jr-group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 2px 0 6px; min-width: 0; }
-.jr-group-title { margin: 0; flex: 1 1 240px; min-width: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.jr-group-title { margin: 0; flex: 1 1 auto; min-width: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .jr-group-toggle {
   max-width: 100%;
   min-height: var(--ctl-h);
@@ -147,11 +147,7 @@ button.btn.jr-chip[aria-pressed="true"] { font-weight: 600; background: var(--ig
   line-height: calc(18px + var(--ui-text-increase, 0px));
 }
 .jr-group-dates, .jr-group-count { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.jr-group-totals { display: flex; flex: 0 1 auto; justify-content: flex-end; margin-left: auto; min-width: 0; max-width: 100%; }
-.jr-group-totals:empty { display: none; }
-/* Six pixels of toggle padding, its 12px chevron and the 8px title gap. */
-.jr-group-facts { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding-left: 26px; min-width: 0; }
-.jr-group-facts .jr-group-dates { white-space: normal; overflow-wrap: anywhere; }
+.jr-group-facts { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; }
 .jr-tally { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .jr-totals { display: inline-flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
 .jr-total, .jr-estimate {
@@ -545,6 +541,7 @@ button.btn.jr-chip[aria-pressed="true"] { font-weight: 600; background: var(--ig
   .jr-facts { max-width: none; grid-column: 3 / -1; grid-row: 2; justify-content: flex-start; flex-wrap: nowrap; }
   .jr-facts .jr-meta { flex: 1; justify-content: flex-start; flex-wrap: nowrap; overflow: hidden; }
   .jr-facts .jr-status-cell { order: -1; min-width: 0; }
+  .jr-group-facts { margin-left: 0; flex-basis: 100%; flex-wrap: wrap; }
 }
 /* A phone: three lines at most. The issue's type, priority, key, status and
    person on the first; its summary under them, up to two lines; its flag,

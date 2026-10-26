@@ -591,22 +591,22 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                   <Chevron open={open} />
                   <span className="jr-group-identity">
                     <span className="jr-group-name">{def.title}</span>
+                    {def.kind === "active" && <span className="jr-badge">Active</span>}
+                    {dates && <span className="jr-group-dates">{dates}</span>}
                     {onDemand ? (
                       <span className="jr-group-count" title="Counted when you open it"><span aria-hidden>—</span><span className="vis-hidden">issues counted when opened</span></span>
                     ) : (
                       <span className="jr-group-count">{countText} {loaded ? (stats.count === 1 && !totalKnown ? "issue" : "issues") : <span className="vis-hidden">issues, not read yet</span>}</span>
                     )}
-                    {def.kind === "active" && <span className="jr-badge">Active</span>}
                   </span>
                 </button>
               </h3>
-              {loaded && <div className="jr-group-totals"><Totals def={def} totals={stats.totals} estimation={estimation} time={time} /></div>}
-              {(dates || (loaded && (people.length > 0 || stats.mine > 0 || stats.flagged > 0 || stats.highest > 0))) && (
+              {loaded && (
                 <div className="jr-group-facts">
-                  {loaded && <IntegrationAvatarStack label="Assigned to"
-                    people={people.map(p => ({ key: p.id, name: p.name, src: p.avatar, you: p.id === stats.youId }))} />}
-                  {dates && <span className="jr-group-dates" title={[sprint?.startDate, sprint?.completeDate ?? sprint?.endDate].filter(Boolean).join(" – ")}>{dates}</span>}
-                  {loaded && <Tally stats={stats} mine={mine} />}
+                  <Tally stats={stats} mine={mine} />
+                  <IntegrationAvatarStack label="Assigned to"
+                    people={people.map(p => ({ key: p.id, name: p.name, src: p.avatar, you: p.id === stats.youId }))} />
+                  <Totals def={def} totals={stats.totals} estimation={estimation} time={time} />
                 </div>
               )}
             </div>

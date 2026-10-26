@@ -71,21 +71,7 @@ describe("compact Jira toolbar", () => {
 });
 
 
-describe("Jira group header hierarchy", () => {
-  const head = [...panel, el("section", ["jr-group"]), el("div", ["jr-group-head"])];
-  for (const width of [249, 320, 390, 700, 1440]) it(`${width}px header allows totals to wrap and aligns secondary facts with the name`, () => {
-    const totals = [...head, el("div", ["jr-group-totals"])];
-    const facts = [...head, el("div", ["jr-group-facts"])];
-    expect(value(head, "flex-wrap", width)).toBe("wrap");
-    expect(value([...head, el("h3", ["jr-group-title"])], "flex", width)).toBe("1 1 240px");
-    expect(value(totals, "max-width", width)).toBe("100%");
-    expect(value([...head, el("div", ["jr-group-totals"], { states: ["empty"] })], "display", width)).toBe("none");
-    expect(value(facts, "flex", width)).toBe("1 1 100%");
-    expect(value(facts, "padding-left", width)).toBe("26px");
-    expect(value(facts, "flex-wrap", width)).toBe("wrap");
-    expect(value([...facts, el("span", ["jr-group-dates"])], "white-space", width)).toBe("normal");
-    expect(value([...facts, el("span", ["jr-group-dates"])], "overflow-wrap", width)).toBe("anywhere");
-  });
+describe("familiar Jira filter states", () => {
   it("retains discreet filter edges and makes pressed filters distinct", () => {
     const chip = [...chips, el("button", ["btn", "jr-chip"], { attrs: { "aria-pressed": "true" } })];
     expect(value(chip, "font-weight", 1440)).toBe("600");
