@@ -1,6 +1,6 @@
 import { cloneElement, useEffect, useLayoutEffect, useRef, useState, type HTMLAttributes, type ReactElement } from "react";
 import { createPortal } from "react-dom";
-import { placeBeside } from "../popover-place";
+import { placeBeside, placePopover } from "../popover-place";
 
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -29,8 +29,14 @@ export default function AccountHint({ children, detail, disabled = false }: {
       const rect = anchor.getBoundingClientRect();
       if (rect.bottom <= 0 || rect.top >= innerHeight) { setVisible(false); return; }
       el.style.maxHeight = "";
-      const p = placeBeside(rect, { width: el.offsetWidth, height: el.offsetHeight },
-        { width: innerWidth, height: innerHeight });
+      const size = { width: el.offsetWidth, height: el.offsetHeight };
+      const viewport = { width: innerWidth, height: innerHeight };
+      const beside = placeBeside(rect, size, viewport);
+      // A clamped side placement can cover the icon on a phone. A focus
+      // hint must never intercept the click that follows that focus.
+      const coversAnchor = beside.left < rect.right && beside.left + size.width > rect.left
+        && beside.top < rect.bottom && beside.top + size.height > rect.top;
+      const p = coversAnchor ? placePopover(rect, size, viewport) : beside;
       el.style.left = `${p.left}px`;
       el.style.top = `${p.top}px`;
       el.style.maxHeight = p.maxHeight == null ? "" : `${p.maxHeight}px`;
