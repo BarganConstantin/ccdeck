@@ -95,7 +95,7 @@ function BoardPicker({ api, current, layerId, onPick, onClose }: {
   };
 
   return (
-    <AnchoredPopover anchorId={layerId} portalRootId={layerId} id="jira-board-picker" className="jr-board-pop" role="dialog"
+    <AnchoredPopover anchorId={layerId} align="start" portalRootId={layerId} id="jira-board-picker" className="jr-board-pop" role="dialog"
       labelledBy="jira-board-picker-title" focusRef={searchRef} onClose={onClose}>
       <div className="jr-board-pop-inner" onKeyDown={onKeyDown}>
         <p className="jr-board-pop-title" id="jira-board-picker-title">Boards</p>
@@ -360,7 +360,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       <div className="jr-toolbar" hidden={narrow && open}>
         {/* Keep the picker inside the dialog's accessibility boundary. */}
         <span id="jira-board-layer" className="jr-board-layer">
-          <button type="button" id="jira-board-button" className="btn jr-board-btn" title={[...new Set([overview?.board.name || boardName, overview?.board.projectName].filter(Boolean))].join(" · ")} aria-haspopup="dialog" aria-expanded={picker}
+          <button type="button" id="jira-board-button" className="btn jr-board-btn" aria-label={`Board: ${overview?.board.name || boardName || (board ? `Board ${board}` : "Choose a board")}`} title={[...new Set([overview?.board.name || boardName, overview?.board.projectName].filter(Boolean))].join(" · ")} aria-haspopup="dialog" aria-expanded={picker}
             aria-controls={picker ? "jira-board-picker" : undefined} onClick={() => setPicker(p => !p)}>
             <span className="jr-board-btn-label">Board</span>
             <span className="jr-board-btn-name">{overview?.board.name || boardName || (board ? `Board ${board}` : "Choose a board")}</span>
@@ -384,10 +384,10 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
                 {q.name}
               </button>
             ))}
-            {filtered && <HoverHint detail="Clear filters" className="ap-peek ap-account-hint" portalRootId="jira-board-layer">
-              <button type="button" className="btn jr-chip jr-filter-icon jr-clear" aria-label="Clear filters" onClick={clearFilters}><CrossGlyph /></button>
-            </HoverHint>}
           </div>
+          {filtered && <HoverHint detail="Clear filters" className="ap-peek ap-account-hint" portalRootId="jira-board-layer">
+            <button type="button" className="btn jr-chip jr-filter-icon jr-clear" aria-label="Clear filters" onClick={clearFilters}><CrossGlyph /></button>
+          </HoverHint>}
         </div>
         {/* After a refresh that failed the rows on screen are the last
             answer, and the line says "Not updated", never "Updated". */}
@@ -397,6 +397,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
 
       <IntegrationSplit
         storageKey="jira"
+        automaticDetailShare={0.4}
         list={<div className="jr-list-scroll" id={scrollerId}>{list}</div>}
         detail={detail}
         onBack={back}

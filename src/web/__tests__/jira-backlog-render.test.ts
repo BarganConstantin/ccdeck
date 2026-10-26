@@ -371,6 +371,17 @@ describe("group read failures and closed-sprint discovery", () => {
     expect(html).toContain('data-key="MOCK-1"');
     expect(html).toContain("Show more (1 of 2)");
   });
+  it("uses quiet empty styling only for a confirmed, complete, successful read", () => {
+    const snap = snapshot(); const group = groupsFor(OVERVIEW)[0];
+    snap.groups = { [group.id]: { status: "ready", issues: [], next: "", total: 0, capped: false, error: null, more: false } };
+    expect(drawBoard([], { snap })).toContain('data-empty="true"');
+    snap.groups[group.id].error = failure;
+    expect(drawBoard([], { snap })).not.toContain('data-empty="true"');
+    snap.groups[group.id].error = null; snap.groups[group.id].next = "next-page";
+    expect(drawBoard([], { snap })).not.toContain('data-empty="true"');
+    snap.groups[group.id].next = ""; snap.groups[group.id].status = "loading";
+    expect(drawBoard([], { snap })).not.toContain('data-empty="true"');
+  });
   it("shows a closed discovery error with direct recovery, without claiming emptiness", () => {
     const snap = snapshot(); snap.closed.error = failure;
     const html = drawBoard([], { snap });

@@ -16,6 +16,8 @@ export default function JiraRowPreview({ item, portalRootId, children }: {
 }) {
   const versions = item.fixVersions ?? [];
   const clipped = (anchor: HTMLElement) => {
+    // The draggable source is the row wrapper, outside this hint's child.
+    if (anchor.closest(".jr-board")?.querySelector("[data-dragging]")) return false;
     if (versions.length > 1) return true; // The row shows a compact count.
     return Array.from(anchor.querySelectorAll<HTMLElement>(".jr-key, .jr-summary, .jr-version, .jr-epic"))
       .some(el => el.getClientRects().length === 0 || el.scrollWidth > el.clientWidth + 1

@@ -116,7 +116,7 @@ export function placeReadingHint(anchor: Edges, size: Size, viewport: Size, mini
   };
 }
 
-export function placePopover(anchor: Edges, size: Size, viewport: Size): Placement {
+export function placePopover(anchor: Edges, size: Size, viewport: Size, align: "start" | "end" = "end"): Placement {
   const below = viewport.height - POPOVER_MARGIN - (anchor.bottom + POPOVER_GAP);
   const above = anchor.top - POPOVER_GAP - POPOVER_MARGIN;
   const side = size.height <= below || below >= above ? "below" : "above";
@@ -127,6 +127,6 @@ export function placePopover(anchor: Edges, size: Size, viewport: Size): Placeme
   // Right edge under the anchor's, then pulled back inside the window. The left
   // clamp is applied last so that a window narrower than the popover keeps its
   // start edge — the words — on screen and lets the end run off instead.
-  const left = Math.max(POPOVER_MARGIN, Math.min(anchor.right - size.width, viewport.width - POPOVER_MARGIN - size.width));
+  const left = Math.max(POPOVER_MARGIN, Math.min(align === "start" ? anchor.left : anchor.right - size.width, viewport.width - POPOVER_MARGIN - size.width));
   return { top: Math.max(POPOVER_MARGIN, top), left, side, maxHeight: fits ? null : height };
 }

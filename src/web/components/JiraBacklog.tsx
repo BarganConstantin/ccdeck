@@ -612,7 +612,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
             </div>
             {sprint?.goal && open && <p className="jr-goal">{sprint.goal}</p>}
             {open && (
-              <div id={bodyId} className="jr-group-body" data-fade={(openedHere.has(def.id) && fades(rows.length)) || undefined}>
+              <div id={bodyId} className="jr-group-body" data-empty={data?.status === "ready" && rows.length === 0 && !data.error && !data.next && !data.capped || undefined} data-fade={(openedHere.has(def.id) && fades(rows.length)) || undefined}>
                 {data?.error && (
                   <IntegrationFailureNote error={data.error} provider="Jira" host={connectionHost(conn)} stale={data.issues.length > 0}
                     title={data.status === "ready" ? "More issues could not be read" : undefined}

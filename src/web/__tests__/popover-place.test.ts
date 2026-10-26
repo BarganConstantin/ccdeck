@@ -167,3 +167,15 @@ describe("where the popover opens (popover-place.ts)", () => {
     expect(p.top + p.maxHeight!).toBe(120 - POPOVER_GAP);
   });
 });
+
+
+describe("start-aligned board pickers", () => {
+  it("stays attached to a compact trigger rather than drifting to the viewport edge", () => {
+    const trigger = { left: 106, right: 240, top: 100, bottom: 130 };
+    expect(placePopover(trigger, { width: 360, height: 200 }, { width: 1784, height: 900 }, "start").left).toBe(106);
+    expect(placePopover(trigger, { width: 360, height: 200 }, { width: 1784, height: 900 }).left).toBe(POPOVER_MARGIN);
+  });
+  it("still clamps the picker inside a narrow viewport", () => {
+    expect(placePopover(anchor(250, 100), SIZE, { width: 320, height: 800 }, "start").left).toBe(104);
+  });
+});

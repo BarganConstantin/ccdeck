@@ -58,6 +58,8 @@ interface Props {
   /** The control this hangs off, by id. Looked up at each placement rather
    *  than held, so a row re-rendered under it is followed rather than lost. */
   anchorId: string;
+  /** Board pickers may align to the start of their trigger. */
+  align?: "start" | "end";
   /** Keep modal-owned controls inside its accessibility boundary. */
   portalRootId?: string;
   /** The element the anchor scrolls inside. Once the anchor has left it, the
@@ -97,7 +99,7 @@ function itemsIn(root: HTMLElement | null): HTMLButtonElement[] {
 }
 
 export default function AnchoredPopover({
-  anchorId, boundaryId, portalRootId, id, className, role, labelledBy, start = "first", focusRef, fallbackFocus, onClose, children,
+  anchorId, align = "end", boundaryId, portalRootId, id, className, role, labelledBy, start = "first", focusRef, fallbackFocus, onClose, children,
 }: Props) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -143,12 +145,12 @@ export default function AnchoredPopover({
     // is allowed to grow back when there is room again.
     el.style.maxHeight = "";
     const p = placePopover(box, { width: el.offsetWidth, height: el.offsetHeight },
-      { width: window.innerWidth, height: window.innerHeight });
+      { width: window.innerWidth, height: window.innerHeight }, align);
     el.style.top = `${p.top}px`;
     el.style.left = `${p.left}px`;
     el.style.maxHeight = p.maxHeight == null ? "" : `${p.maxHeight}px`;
     el.dataset.side = p.side;
-  }, [anchorId, boundaryId, ref]);
+  }, [anchorId, align, boundaryId, ref]);
 
   // Before paint, every render: the first one is what puts it beside the
   // anchor at all, and the rest follow a row that moved.

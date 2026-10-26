@@ -56,7 +56,7 @@ describe("compact Jira toolbar", () => {
     expect(value(filters, "grid-column", width)).toBe("1 / -1");
     expect(value(filters, "grid-row", width)).toBe("2");
     expect(value([...filters, el("div", ["ig-search"])], "flex", width)).toBe("1 1 100%");
-    expect(value(chips, "flex", width)).toBe("1 1 100%");
+    expect(value(chips, "flex", width)).toBe("1 1 0");
   });
   for (const width of [320, 390, 700, 1440]) it(`${width}px keeps overflow chips reachable and freshness words visible`, () => {
     expect(value(chips, "overflow-x", width)).toBe("auto");

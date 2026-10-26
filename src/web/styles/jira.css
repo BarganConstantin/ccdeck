@@ -173,6 +173,8 @@ button.btn.jr-chip[aria-pressed="true"] { font-weight: 600; background: var(--ig
    appears at once. */
 .jr-group-body[data-fade], .jr-subrows[data-fade] { animation: jr-open 120ms ease-out; }
 @keyframes jr-open { from { opacity: 0; } }
+.jr-group-body[data-empty] { overflow: visible; border: 0; border-radius: 0; background: transparent; }
+.jr-group-body[data-empty] .jr-empty-group { padding: 6px 12px; }
 .jr-empty-group { margin: 0; padding: 12px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .jr-more { margin: 8px 12px; }
 .jr-closed-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 0; }
@@ -205,7 +207,7 @@ button.btn.jr-chip[aria-pressed="true"] { font-weight: 600; background: var(--ig
   flex: 1;
   min-width: 0;
   display: grid;
-  grid-template-columns: 16px 16px auto minmax(12ch, 1fr) minmax(0, max-content) 20px;
+  grid-template-columns: 16px 16px auto minmax(16ch, 1fr) minmax(0, max-content) 20px;
   align-items: center;
   column-gap: 8px;
   padding: 6px 12px 6px 0;
@@ -287,7 +289,7 @@ button.btn.jr-chip[aria-pressed="true"] { font-weight: 600; background: var(--ig
    in a cell as wide as the board's longest status name (--jr-status-ch, set
    by JiraBacklog), so the states line up as a column beside the avatars. */
 .jr-facts, .jr-meta { min-width: 0; display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; }
-.jr-facts { max-width: clamp(140px, 44cqi, 480px); flex-wrap: nowrap; }
+.jr-facts { max-width: clamp(140px, 36cqi, 400px); flex-wrap: nowrap; }
 .jr-meta { flex: 1; flex-wrap: nowrap; overflow: hidden; }
 .jr-meta:empty { display: none; }
 /* The estimate never shrinks under its own words; a long epic or version
@@ -443,7 +445,6 @@ button.btn.jr-chip[aria-pressed="true"] { font-weight: 600; background: var(--ig
 .jr-crumb:hover { color: var(--text); text-decoration: underline; }
 .jr-crumb:active { transform: scale(0.97); }
 .jr-crumb-text { color: var(--muted); }
-.jr-crumb-here { color: var(--text); }
 .jr-detail-head { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .jr-detail-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
 .jr-detail-state { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
@@ -571,10 +572,11 @@ button.btn.jr-chip[aria-pressed="true"] { font-weight: 600; background: var(--ig
 }
 @container jira-panel (max-width: 700px) {
   .jr-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 8px 12px; }
-  .jr-toolbar > .ig-freshness { max-width: min(260px, 65cqi); }
+  .jr-toolbar > .ig-freshness { max-width: min(260px, 50cqi); }
+  .jr-board-btn-label { display: none; }
   .jr-filters { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; }
   .jr-filters > .ig-search { flex: 1 1 100%; }
-  .jr-filter-chips { flex: 1 1 100%; }
+  .jr-filter-chips { flex: 1 1 0; }
 }
 /* A sub-task in a narrow detail: its key, status and person on the first
    line and its summary under them, rather than cut at the frame's edge. */
