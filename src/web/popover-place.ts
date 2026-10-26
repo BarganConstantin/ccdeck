@@ -98,6 +98,24 @@ export function placeBeside(anchor: Edges, size: Size, viewport: Size): BesidePl
   return { top, left: start, side, maxHeight: fits ? null : height };
 }
 
+/** A reading preview must leave the following row available to the pointer.
+ * Use a side only when the whole width fits outside the anchor; otherwise
+ * scroll above it. At the top edge, omit a preview with no readable space. */
+export function placeReadingHint(anchor: Edges, size: Size, viewport: Size, minimumHeight = 0): BesidePlacement | Placement | null {
+  const right = viewport.width - POPOVER_MARGIN - anchor.right - POPOVER_GAP;
+  const left = anchor.left - POPOVER_GAP - POPOVER_MARGIN;
+  if (size.width <= Math.max(right, left)) return placeBeside(anchor, size, viewport);
+  const room = Math.max(0, Math.min(anchor.top - POPOVER_GAP, viewport.height - POPOVER_MARGIN) - POPOVER_MARGIN);
+  if (room <= 0 || room < Math.min(size.height, minimumHeight)) return null;
+  const height = Math.min(size.height, room);
+  return {
+    side: "above",
+    top: Math.max(POPOVER_MARGIN, Math.min(anchor.top - POPOVER_GAP, viewport.height - POPOVER_MARGIN) - height),
+    left: Math.max(POPOVER_MARGIN, Math.min(anchor.right - size.width, viewport.width - POPOVER_MARGIN - size.width)),
+    maxHeight: height < size.height ? height : null,
+  };
+}
+
 export function placePopover(anchor: Edges, size: Size, viewport: Size): Placement {
   const below = viewport.height - POPOVER_MARGIN - (anchor.bottom + POPOVER_GAP);
   const above = anchor.top - POPOVER_GAP - POPOVER_MARGIN;

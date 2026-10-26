@@ -21,7 +21,7 @@ export default function JiraRowPreview({ item, portalRootId, children }: {
       .some(el => el.getClientRects().length === 0 || el.scrollWidth > el.clientWidth + 1
         || (el.classList.contains("jr-summary") && el.scrollHeight > el.clientHeight + 2));
   };
-  return <HoverHint className="jr-row-preview" portalRootId={portalRootId} focusDelay={250} shouldShow={clipped}
+  return <HoverHint className="jr-row-preview" portalRootId={portalRootId} placement="reading" focusDelay={250} shouldShow={clipped}
     detail={<>
       <div className="jr-preview-key">{item.key}</div>
       <div className="jr-preview-summary">{item.summary}</div>
