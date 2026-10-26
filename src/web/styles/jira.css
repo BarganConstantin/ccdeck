@@ -27,7 +27,6 @@
 .jr-chevron[data-open] { transform: rotate(90deg); }
 .jr-board-btn .jr-chevron { transform: rotate(90deg); color: var(--muted); }
 .jr-board-btn .jr-chevron[data-open] { transform: rotate(-90deg); }
-.jr-board-project { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .jr-toolbar[hidden] { display: none; }
 .jr-toolbar > .ig-freshness { flex: 0 0 auto; }
 .jr-toolbar .ig-fresh { white-space: normal; overflow: visible; }
