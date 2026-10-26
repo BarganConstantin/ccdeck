@@ -1,9 +1,9 @@
 // What the deck's Jira routes answer (#2178) — the shapes src/server/integrations/jira.mjs
 // normalises Cloud's and Server's answers into, so one panel draws both — and
-// the reads themselves, each a GET under /api/integrations/jira/<connId>/.
+// the GET reads and bounded moves under /api/integrations/jira/<connId>/.
 
 import { IntegrationFailure, failureOf, queryOf, readThrough } from "./integrations/client";
-import type { JiraMove } from "./jira-move";
+import { moveKeys, type JiraMove } from "./jira-move";
 import type { IntegrationConnection } from "./integrations/types";
 
 export type StatusCategory = "new" | "indeterminate" | "done";
@@ -149,8 +149,12 @@ export async function moveJiraIssue(api: JiraApi, boardId: string, move: JiraMov
     if (!response.ok) throw await failureOf(new Response(text, { status: response.status }));
     if (response.status === 204) return {};
     const result: unknown = JSON.parse(text);
+    const keys = moveKeys(move);
+    const confirmed = result && typeof result === "object" && (move.issueKeys
+      ? "issueKeys" in result && Array.isArray(result.issueKeys) && result.issueKeys.length === keys.length && result.issueKeys.every((key, i) => key === keys[i])
+      : "issueKey" in result && result.issueKey === move.issueKey);
     if (!result || typeof result !== "object" || Array.isArray(result)
-      || !("ok" in result) || result.ok !== true || !("issueKey" in result) || result.issueKey !== move.issueKey
+      || !("ok" in result) || result.ok !== true || !confirmed
       || ("notice" in result && (typeof result.notice !== "string" || result.notice.length > 1_000))) {
       throw new Error("Unconfirmed result");
     }

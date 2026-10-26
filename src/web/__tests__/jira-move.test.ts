@@ -1,11 +1,41 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { issueMove, movableIssue, moveDestination } from "../jira-move";
+import { issueMove, issuesMove, movableIssue, moveDestination, selectIssue } from "../jira-move";
 import { moveJiraIssue, type JiraIssue } from "../jira-api";
 import type { GroupDef } from "../jira-board";
 
 const sprint: GroupDef = { id: "sprint:1", kind: "active", title: "Sprint 1", sprint: { id: 1, name: "Sprint 1", state: "active", goal: "", startDate: null, endDate: null, completeDate: null }, defaultOpen: true, paged: false };
 const backlog: GroupDef = { id: "backlog", kind: "backlog", title: "Backlog", defaultOpen: true, paged: true };
 const issue: JiraIssue = { id: "1", key: "MOCK-1", summary: "Move me", url: "", type: { name: "Task", subtask: false, epic: false, icon: null }, status: { name: "To Do", category: "new" }, priority: null, assignee: null, mine: true, parent: null, subtaskKeys: [], epic: null, fixVersions: [], estimate: null, remaining: null, points: null, flagged: false, updated: "" };
+
+describe("visible issue selection", () => {
+  const visible = ["MOCK-1", "MOCK-2", "MOCK-3", "MOCK-4"];
+  it("toggles without replacing existing picks and replaces on an ordinary click", () => {
+    const initial = new Set(["MOCK-1", "MOCK-2"]);
+    expect([...selectIssue(initial, visible, "MOCK-3", null, "toggle")]).toEqual(["MOCK-1", "MOCK-2", "MOCK-3"]);
+    expect([...selectIssue(initial, visible, "MOCK-1", null, "toggle")]).toEqual(["MOCK-2"]);
+    expect([...selectIssue(initial, visible, "MOCK-4", null, "replace")]).toEqual(["MOCK-4"]);
+    expect([...initial]).toEqual(["MOCK-1", "MOCK-2"]);
+  });
+  it("selects ranges in visible order in either direction, with an additive variant", () => {
+    expect([...selectIssue(new Set(), visible, "MOCK-1", "MOCK-3", "range")]).toEqual(["MOCK-1", "MOCK-2", "MOCK-3"]);
+    expect([...selectIssue(new Set(["MOCK-1"]), visible, "MOCK-4", "MOCK-3", "add-range")]).toEqual(["MOCK-1", "MOCK-3", "MOCK-4"]);
+    expect([...selectIssue(new Set(["MOCK-1"]), visible, "MOCK-3", "gone", "range")]).toEqual(["MOCK-3"]);
+  });
+  it("never lets an unknown clicked key create a hidden selection", () => {
+    expect([...selectIssue(new Set(["MOCK-1"]), visible, "unknown", null, "toggle")]).toEqual(["MOCK-1"]);
+  });
+  it("moves the complete ordered group and excludes every selected issue as an anchor", () => {
+    const items = [issue, { ...issue, key: "MOCK-3" }].map(issue => ({ issue, group: sprint }));
+    expect(issuesMove(items, backlog)).toEqual({ issueKeys: ["MOCK-1", "MOCK-3"], target: { kind: "backlog" } });
+    expect(issuesMove(items, sprint, { key: "MOCK-2", side: "after" })).toEqual({ issueKeys: ["MOCK-1", "MOCK-3"], target: { kind: "sprint", sprintId: 1 }, afterIssue: "MOCK-2" });
+    expect(issuesMove(items, sprint, { key: "MOCK-3", side: "before" })).toBeNull();
+    expect(issuesMove(items, sprint)).toBeNull();
+  });
+  it("rejects the entire group when it includes ineligible work or exceeds Jira's limit", () => {
+    expect(issuesMove([{ issue, group: sprint }, { issue: { ...issue, key: "MOCK-2", type: { ...issue.type, subtask: true } }, group: sprint }], backlog)).toBeNull();
+    expect(issuesMove(Array.from({ length: 51 }, (_,i) => ({ issue: { ...issue, key: `MOCK-${i+1}` }, group: sprint })), backlog)).toBeNull();
+  });
+});
 
 describe("one explicit Jira move", () => {
   it("keeps same-group drops meaningful and forbids self anchors", () => {
@@ -46,6 +76,18 @@ describe("Jira write transport", () => {
     const api = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { kind: "permission", message: "Jira refused this move." } }), { status: 403 }));
     await expect(moveJiraIssue(api, "1", move)).rejects.toMatchObject({ kind: "permission", message: "Jira refused this move." });
     expect(api).toHaveBeenCalledTimes(1);
+  });
+  it("requires confirmation of every batch key in its original order", async () => {
+    setup();
+    const batch = { issueKeys: ["MOCK-1", "MOCK-3"], target: { kind: "backlog" as const } };
+    const success = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true, issueKeys: batch.issueKeys })));
+    await expect(moveJiraIssue(success, "1", batch)).resolves.toEqual({});
+    expect(JSON.parse(success.mock.calls[0][1].body).issueKeys).toEqual(batch.issueKeys);
+    for (const keys of [["MOCK-1"], ["MOCK-3", "MOCK-1"], ["MOCK-1", "MOCK-2"]]) {
+      const api = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true, issueKeys: keys })));
+      await expect(moveJiraIssue(api, "1", batch)).rejects.toThrow("could not be confirmed");
+      expect(api).toHaveBeenCalledTimes(1);
+    }
   });
   it("does not replay an uncertain write after a disconnect or malformed success", async () => {
     setup();
