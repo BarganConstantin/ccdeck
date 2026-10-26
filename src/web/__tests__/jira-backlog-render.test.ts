@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { IntegrationFailure } from "../integrations/client";
 import JiraBacklog, { type JiraBacklogProps } from "../components/JiraBacklog";
 import { groupsFor, type GroupDef } from "../jira-board";
 import type { JiraBoardOverview, JiraIssue, JiraSprint, StatusCategory } from "../jira-api";
@@ -351,5 +352,43 @@ describe("nothing on a narrow screen widens its pane or loses its words", () => 
     expect(narrow).toMatch(/\.jr-row-main > \.jr-key \{ grid-column: 3; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; \}/);
     expect(narrow).toMatch(/\.jr-facts \.jr-status-cell > \.jr-status \{[^}]*flex: 0 1 auto;[^}]*min-width: 0;/);
     expect(sheet).toMatch(/\.jr-status(?:, [^{]+)? \{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;/);
+  });
+});
+
+
+describe("group read failures and closed-sprint discovery", () => {
+  const failure = new IntegrationFailure("network", "Offline for this test");
+  const snapshot = (): BoardSnapshot => ({ overview: OVERVIEW, groups: {
+    "sprint:13": { status: "ready", issues: [], next: "", total: 0, capped: false, error: null, more: false },
+  }, subtasks: {}, closed: { shown: true, sprints: [], total: 0, isLast: false, loading: false, error: null }, loadedAt: 1 });
+  it("renders a failed further page without removing loaded issues or its cursor", () => {
+    const snap = snapshot();
+    const group = groupsFor(OVERVIEW)[0];
+    snap.groups = { [group.id]: { status: "ready", issues: [issue("MOCK-1")], next: "next-page", total: 2, capped: false, more: false, error: failure } };
+    const html = drawBoard([], { snap, groups: [{ ...group, paged: true }] });
+    expect(html).toContain("More issues could not be read");
+    expect(html).toContain("Try again");
+    expect(html).toContain('data-key="MOCK-1"');
+    expect(html).toContain("Show more (1 of 2)");
+  });
+  it("shows a closed discovery error with direct recovery, without claiming emptiness", () => {
+    const snap = snapshot(); snap.closed.error = failure;
+    const html = drawBoard([], { snap });
+    expect(html).toContain("Closed sprints could not be read");
+    expect(html).toContain("Try again");
+    expect(html).not.toContain("No closed sprints on this board.");
+  });
+  it("distinguishes loading, confirmed emptiness and hidden discovery", () => {
+    const snap = snapshot(); snap.closed.loading = true;
+    const loading = drawBoard([], { snap });
+    expect(loading).toContain("Reading closed sprints…");
+    expect(loading).not.toContain("No closed sprints on this board.");
+    expect(loading).toContain('aria-expanded="true"');
+    snap.closed.loading = false;
+    expect(drawBoard([], { snap })).toContain("No closed sprints on this board.");
+    snap.closed.shown = false; snap.closed.error = failure;
+    const hidden = drawBoard([], { snap });
+    expect(hidden).not.toContain("Closed sprints could not be read");
+    expect(hidden).toContain("Show closed sprints");
   });
 });

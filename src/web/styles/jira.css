@@ -150,7 +150,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 }
 .jr-total[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--text); }
 .jr-total[data-cat="done"] { background: color-mix(in srgb, var(--ok) 14%, var(--bg)); color: var(--text); }
-.jr-goal { margin: 0 0 8px 6px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; }
+.jr-goal { overflow-wrap: anywhere; margin: 0 0 8px 6px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; }
 .jr-group-body { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); }
 /* A group or a row's sub-tasks the reader has just opened fade in, once, as
    they mount; nothing moves, and a long list (JiraBacklog: over 30 rows)
@@ -161,6 +161,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-more { margin: 8px 12px; }
 .jr-closed-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 0; }
 .jr-closed-foot .jr-subnote { flex-basis: 100%; padding: 0; }
+.jr-closed-foot > .ig-failure { flex-basis: 100%; min-width: 0; margin: 0; }
 
 /* One row per issue, each drawn once. A row is one button — the issue — with
    its disclosure triangle beside it when it has sub-tasks. */

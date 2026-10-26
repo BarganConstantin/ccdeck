@@ -611,9 +611,13 @@ export default function JiraBacklog(props: JiraBacklogProps) {
             {sprint?.goal && open && <p className="jr-goal">{sprint.goal}</p>}
             {open && (
               <div id={bodyId} className="jr-group-body" data-fade={(openedHere.has(def.id) && fades(rows.length)) || undefined}>
-                {data?.status === "error" && data.error && (
+                {data?.error && (
                   <IntegrationFailureNote error={data.error} provider="Jira" host={connectionHost(conn)} stale={data.issues.length > 0}
-                    onRetry={() => onRetryGroup(def)} onReconnect={onReconnect} />
+                    title={data.status === "ready" ? "More issues could not be read" : undefined}
+                    onRetry={() => {
+                      document.getElementById(`${bodyId}-toggle`)?.focus();
+                      if (data.status === "ready" && data.next) onMore(def); else onRetryGroup(def);
+                    }} onReconnect={onReconnect} />
                 )}
                 {(!data || data.status === "idle" || (data.status === "loading" && data.issues.length === 0)) && (
                   <IntegrationSkeleton label={`Reading ${def.title}`} rows={3} />
@@ -644,22 +648,25 @@ export default function JiraBacklog(props: JiraBacklogProps) {
 
       {anySprint && (
         <div className="jr-closed-foot">
-          {closedState.error && <p className="jr-subnote" role="alert">Closed sprints could not be read: {closedState.error.message}</p>}
-          {!closedState.shown ? (
-            <button type="button" className="btn" aria-busy={closedState.loading || undefined} onClick={() => onShowClosed(true)}>
-              {closedState.loading ? "Reading closed sprints…" : "Show closed sprints"}
-            </button>
-          ) : (
-            <>
-              {closedState.sprints.length === 0 && !closedState.loading && <p className="jr-subnote">No closed sprints on this board.</p>}
-              {!closedState.isLast && closedState.sprints.length > 0 && (
-                <button type="button" className="btn" aria-busy={closedState.loading || undefined} onClick={onMoreClosed}>
-                  {closedState.loading ? "Reading…" : `Show older sprints (${closedState.sprints.length} of ${closedState.total})`}
-                </button>
-              )}
-              <button type="button" className="btn" onClick={() => onShowClosed(false)}>Hide closed sprints</button>
-            </>
-          )}
+          <button id={`${boardId}-closed-toggle`} type="button" className="btn" aria-expanded={closedState.shown}
+            aria-busy={closedState.loading || undefined} onClick={() => onShowClosed(!closedState.shown)}>
+            {closedState.shown ? "Hide closed sprints" : "Show closed sprints"}
+          </button>
+          {closedState.shown && <>
+            {closedState.loading && <p className="jr-subnote" role="status">Reading closed sprints…</p>}
+            {closedState.error && <IntegrationFailureNote error={closedState.error} provider="Jira" host={connectionHost(conn)}
+              title="Closed sprints could not be read" stale={closedState.sprints.length > 0}
+              onRetry={() => {
+                document.getElementById(`${boardId}-closed-toggle`)?.focus();
+                if (closedState.sprints.length) onMoreClosed(); else onShowClosed(true);
+              }} onReconnect={onReconnect} />}
+            {!closedState.error && !closedState.loading && closedState.sprints.length === 0 && <p className="jr-subnote">No closed sprints on this board.</p>}
+            {!closedState.error && !closedState.isLast && closedState.sprints.length > 0 && (
+              <button type="button" className="btn" disabled={closedState.loading} aria-busy={closedState.loading || undefined} onClick={onMoreClosed}>
+                {closedState.loading ? "Reading…" : `Show older sprints (${closedState.sprints.length} of ${closedState.total})`}
+              </button>
+            )}
+          </>}
         </div>
       )}
     </div>
