@@ -170,10 +170,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-subrows { border-top: 1px solid var(--line-soft); background: color-mix(in srgb, var(--bg) 35%, transparent); }
 .jr-row { display: flex; align-items: stretch; min-width: 0; min-height: 34px; }
 .jr-subrow { padding-left: 20px; }
-.jr-pick-label, .jr-pick-space { flex: none; width: 24px; min-height: 34px; display: inline-flex; align-items: center; justify-content: center; }
-.jr-pick-label { cursor: pointer; }
-.jr-pick { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); cursor: inherit; }
-.jr-row[data-move-blocked] .jr-pick { accent-color: var(--warn); }
 .jr-toggle, .jr-toggle-space { flex: none; width: 28px; }
 .jr-toggle {
   display: inline-flex;
@@ -524,8 +520,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
    way first, with its ellipsis and the whole name in its title. Only a key
    longer than the line itself is cut. */
 @container jira-list (max-width: 360px) {
-  /* The visible selection gutter costs 24px; recover spacing inside the
-     existing grid so a short status still fits beside the key and eye. */
+  /* Keep short statuses readable beside the key on phone-width lists. */
   .jr-row-main { grid-template-columns: 16px 16px minmax(0, max-content) minmax(0, 1fr) 20px; column-gap: 2px; padding-right: 4px; }
   .jr-row-main > .jr-key { grid-column: 3; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .jr-facts { display: contents; }

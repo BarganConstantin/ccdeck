@@ -93,14 +93,13 @@ describe("explicit moves without changing the existing read-only contract", () =
   });
 });
 
-describe("row selection has its own controls and current-detail highlight", () => {
+describe("row selection and current-detail highlight", () => {
   it("keeps the current issue highlighted without an extra icon", () => {
     const html = drawBoard([issue("MOCK-1"), issue("MOCK-2")], { selected: "MOCK-1" });
     expect(html).toContain('data-current="true"');
     expect(html).toContain('data-selected="true"');
     expect(html).not.toContain('class="jr-current-mark"');
-    expect(html).toContain('aria-label="Select MOCK-1"');
-    expect(html).toContain('aria-label="Select MOCK-2"');
+    expect(html).not.toContain('type="checkbox"');
     // The type glyph remains factual, not a selection checkbox.
     expect(rows(html)["MOCK-1"]).toContain('aria-label="Story"');
   });

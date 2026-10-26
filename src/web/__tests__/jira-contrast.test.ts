@@ -275,17 +275,15 @@ describe("workflow status and current detail remain independent of batch state",
         expect(color(prop(chain, "background")!, chain)).toEqual(fill);
       }
     });
-    it(`${theme}: checkbox selection and blocked-selection accents clear 3:1 without tinting the row`, () => {
+    it(`${theme}: blocked-selection feedback reads without tinting the row`, () => {
       for (const selected of [false, true]) for (const blocked of [false, true]) {
         const row = rowChain(theme, { selected, blocked }).slice(0, -1);
-        const checkbox = [...row, el("label", ["jr-pick-label"]), el("input", ["jr-pick"], { attrs: { type: "checkbox" } })];
-        const bed = bedOf(row);
-        const accent = prop(checkbox, "accent-color")!;
-        expect(accent).toBe(blocked ? "var(--warn)" : "var(--accent)");
-        expect(contrast(over(color(accent, checkbox), bed), bed)).toBeGreaterThanOrEqual(NON_TEXT);
         const plain = rowChain(theme, { selected }).slice(0, -1);
         expect(prop(row, "background")).toBe(prop(plain, "background"));
       }
+      const note = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]),
+        el("div", ["jr-list-scroll"]), el("div", ["jr-board"]), el("div", ["jr-selection"]), el("span", ["jr-selection-note"])];
+      expect(inkOn(note)).toBeGreaterThanOrEqual(BODY);
     });
     it(`${theme}: the row action menu reads at rest and under the pointer`, () => {
       for (const hover of [false, true]) for (const disabled of [false, true]) {

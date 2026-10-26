@@ -311,18 +311,6 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     setSelectionMode(modified);
     if (!modified) onOpen(key);
   };
-  const selectionControl = (issue: JiraIssue, group: GroupDef) => {
-    const reason = issueMoveBlocker({ issue, group });
-    return <label className="jr-pick-label" title={`${picked.has(issue.key) ? "Deselect" : "Select"} ${issue.key}${reason ? ` (${reason})` : ""}`}>
-      <input type="checkbox" className="jr-pick" checked={picked.has(issue.key)} tabIndex={-1}
-        aria-label={`Select ${issue.key}`} aria-describedby={canMove && picked.has(issue.key) && reason ? `${boardId}-blocked` : undefined}
-        onFocus={event => { const nav = event.currentTarget.closest(".jr-row")?.querySelector<HTMLElement>(".jr-row-main")?.dataset.nav; if (nav) setCurrent(nav); }}
-        // Click owns the update so Shift/Ctrl/Cmd modifiers work on the checkbox too.
-        onChange={() => {}} onClick={event => { event.stopPropagation(); pick(issue.key, event, true); }}
-        onContextMenu={event => { if (event.ctrlKey) { event.preventDefault(); pick(issue.key, event, true); } }} />
-    </label>;
-  };
-
   // A row opened with no sub-tasks read yet reads them; a context row, open
   // from the start, reads them as soon as it is drawn.
   useEffect(() => {
@@ -348,10 +336,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
   const navItems = () => Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-nav]") ?? []);
   const focusNav = (el: HTMLElement | undefined) => { if (el) { el.focus(); el.scrollIntoView?.({ block: "nearest" }); } };
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    let target = e.target as HTMLElement;
-    if (target.matches(".jr-pick") && ["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
-      target = target.closest(".jr-row")?.querySelector<HTMLElement>(".jr-row-main") ?? target;
-    }
+    const target = e.target as HTMLElement;
     if (target.dataset.key && e.key === " " && !e.altKey) {
       e.preventDefault();
       if (!e.repeat) pick(target.dataset.key, e, true);
@@ -413,7 +398,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
           data-mine={issue?.mine || undefined} data-dragging={dragKeys.includes(key) || undefined}
           data-drop={dropAt?.group === group.id && dropAt.key === key ? dropAt.side : undefined}
           draggable={Boolean(movable && !moveBusy)}
-          onPointerDown={event => { dragFromControl.current = Boolean((event.target as Element).closest(".jr-pick-label, .jr-toggle, .jr-move-button")); }}
+          onPointerDown={event => { dragFromControl.current = Boolean((event.target as Element).closest(".jr-toggle, .jr-move-button")); }}
           onDragStart={event => {
             if (!movable || moveBusy || !issue || dragFromControl.current) { event.preventDefault(); return; }
             const items = picked.has(key) ? selectedItems : [{ issue, group }];
@@ -447,7 +432,6 @@ export default function JiraBacklog(props: JiraBacklogProps) {
             finishDrag();
             if (move) void saveMove(move, group);
           }}>
-          {issue ? selectionControl(issue, group) : <span className="jr-pick-space" aria-hidden="true" />}
           {expandable ? (
             <button type="button" id={toggleId} className="jr-toggle" tabIndex={-1} aria-expanded={open}
               aria-label={`${open ? "Hide" : "Show"} sub-tasks of ${key}`} onClick={() => toggleRow(key, !open)}>
@@ -511,7 +495,6 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                   <div className="jr-row jr-subrow ig-row" data-selected={picked.has(sub.key) || selected === sub.key || undefined} data-picked={picked.has(sub.key) || undefined} data-done={sub.status.category === "done" || undefined}
                     data-current={selected === sub.key || undefined} data-move-blocked={Boolean(picked.has(sub.key) && issueMoveBlocker({ issue: sub, group })) || undefined}
                     data-mine={sub.mine || undefined}>
-                    {selectionControl(sub, group)}
                     <span className="jr-toggle-space" aria-hidden />
                     <button type="button" className="jr-row-main" data-nav={subNav} data-key={sub.key} data-parent={nav} tabIndex={tabStop(subNav)}
                       aria-current={selected === sub.key || undefined} aria-label={`${rowLabel(sub)}${picked.has(sub.key) ? ". Selected" : ""}`}
