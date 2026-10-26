@@ -1,8 +1,9 @@
 import { cloneElement, useEffect, useLayoutEffect, useRef, useState, type HTMLAttributes, type ReactElement } from "react";
 import { createPortal } from "react-dom";
-import { placeBeside, placePopover } from "../popover-place";
+import { placePopover } from "../popover-place";
 
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
+const HINT_OPEN = "ccdeck:account-hint";
 
 /** Non-modal account hints reuse the panel's hover surface and placement. */
 export default function AccountHint({ children, detail, disabled = false }: {
@@ -16,7 +17,12 @@ export default function AccountHint({ children, detail, disabled = false }: {
   const id = `${children.props.id}-hint`;
   const clear = () => window.clearTimeout(timer.current);
   const hide = () => { clear(); setVisible(false); };
-  const show = () => { clear(); if (!disabled) setVisible(true); };
+  const show = () => {
+    clear();
+    if (disabled) return;
+    document.dispatchEvent(new CustomEvent(HINT_OPEN, { detail: id }));
+    setVisible(true);
+  };
   const leave = () => { clear(); timer.current = window.setTimeout(() => setVisible(false), 140); };
   useEffect(() => () => window.clearTimeout(timer.current), []);
   useEffect(() => { if (disabled) { window.clearTimeout(timer.current); setVisible(false); } }, [disabled]);
@@ -31,12 +37,8 @@ export default function AccountHint({ children, detail, disabled = false }: {
       el.style.maxHeight = "";
       const size = { width: el.offsetWidth, height: el.offsetHeight };
       const viewport = { width: innerWidth, height: innerHeight };
-      const beside = placeBeside(rect, size, viewport);
-      // A clamped side placement can cover the icon on a phone. A focus
-      // hint must never intercept the click that follows that focus.
-      const coversAnchor = beside.left < rect.right && beside.left + size.width > rect.left
-        && beside.top < rect.bottom && beside.top + size.height > rect.top;
-      const p = coversAnchor ? placePopover(rect, size, viewport) : beside;
+      // Icon hints open vertically so adjacent Home/share controls stay clear.
+      const p = placePopover(rect, size, viewport);
       el.style.left = `${p.left}px`;
       el.style.top = `${p.top}px`;
       el.style.maxHeight = p.maxHeight == null ? "" : `${p.maxHeight}px`;
@@ -50,17 +52,24 @@ export default function AccountHint({ children, detail, disabled = false }: {
       if (!surface.current?.contains(target) && !document.getElementById(children.props.id ?? "")?.contains(target)) setVisible(false);
     };
     // Scrolling dismisses a hint, including scrolling a nested account list.
-    const scroll = () => setVisible(false);
+    const scroll = (event: Event) => {
+      if (!surface.current?.contains(event.target as Node)) setVisible(false);
+    };
+    const another = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== id) setVisible(false);
+    };
     place();
     window.addEventListener("resize", place);
     window.addEventListener("scroll", scroll, true);
     document.addEventListener("keydown", dismiss, true);
     document.addEventListener("pointerdown", outside, true);
+    document.addEventListener(HINT_OPEN, another);
     return () => {
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", scroll, true);
       document.removeEventListener("keydown", dismiss, true);
       document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener(HINT_OPEN, another);
     };
   }, [visible, disabled, children.props.id, detail]);
   return <>
