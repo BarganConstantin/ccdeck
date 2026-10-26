@@ -294,6 +294,17 @@ capture permissions and development dependencies. See the
 for Npcap and binary pcap output.
 
 
+### NVIDIA GPU readings
+
+On Linux and Windows, the Machine panel can show each NVIDIA GPU's utilization,
+allocated and total video memory, temperature and power. This requires the
+NVIDIA driver's `nvidia-smi` command on `PATH`; ccdeck installs nothing.
+Unavailable driver fields say “Unavailable”, and devices without a current
+reading are hidden. Successful readings refresh every five seconds; a failed
+probe clears the reading and retries after a minute. GPU history is not recorded.
+These are readings from this machine, not the GPUs running a cloud model.
+Existing Thermal sensors remain separate.
+
 ### Temperature, per machine
 
 The machine panel shows a **Thermal** section only where the machine actually answers, and it never invents a reading — no sensor means no row.

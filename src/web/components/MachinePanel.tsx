@@ -45,6 +45,7 @@ import { useSystem } from "../use-system";
 import ProcessListModal from "./ProcessListModal";
 import { Fig, OpensHistory, Row } from "./MachineReadout";
 import NetworkSection from "./MachineNetwork";
+import MachineGpu from "./MachineGpu";
 import { PLACE_KEYS, usePanelPlace } from "../panel-place";
 
 /**
@@ -157,6 +158,7 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
       <CpuSection cpu={cpu} perCore={perCore} loadavg={loadavg} cores={cores} />
       <MemorySection memory={memory} swap={swap} platform={platform} />
       {network && <NetworkSection network={network} />}
+      <MachineGpu devices={sys.gpus ?? []} />
       <ThermalSection thermal={thermal} />
       <Processes sys={sys} />
     </Shell>
