@@ -33,7 +33,6 @@ import JiraBacklog from "./JiraBacklog";
 import JiraIssueDetail from "./JiraIssueDetail";
 import IntegrationFailureNote from "./IntegrationFailureNote";
 import { Chevron } from "./JiraParts";
-import { AccountsGlyph } from "./rail-glyphs";
 import { CrossGlyph } from "./integration-glyphs";
 import HoverHint from "./HoverHint";
 
@@ -375,9 +374,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
           {/* One row that scrolls sideways on a phone, rather than three rows
               of chips over the board. */}
           <div className="jr-filter-chips">
-            <HoverHint detail="Only my issues" className="ap-peek ap-account-hint" portalRootId="jira-board-layer">
-              <button type="button" className="btn jr-chip jr-filter-icon" aria-label="Only my issues" aria-pressed={mine} onClick={() => setMine(m => !m)}><AccountsGlyph /></button>
-            </HoverHint>
+            <button type="button" className="btn jr-chip" aria-pressed={mine} onClick={() => setMine(m => !m)}>Only my issues</button>
             <button type="button" className="btn jr-chip" aria-pressed={hideDone} onClick={() => setHideDone(h => !h)}>Hide done</button>
             <button type="button" className="btn jr-chip" aria-pressed={attention} title="Flagged, or Highest, Blocker or Critical priority, and not done"
               onClick={() => setAttention(a => !a)}>Needs attention</button>
