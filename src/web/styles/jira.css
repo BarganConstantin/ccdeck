@@ -188,7 +188,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   flex: 1;
   min-width: 0;
   display: grid;
-  grid-template-columns: 16px 16px auto minmax(16ch, 1fr) minmax(0, max-content) 20px;
+  grid-template-columns: 16px 16px auto minmax(12ch, 1fr) minmax(0, max-content) 20px;
   align-items: center;
   column-gap: 8px;
   padding: 6px 12px 6px 0;
@@ -199,15 +199,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   text-align: left;
   cursor: pointer;
 }
-/* Rich rows reserve the entire first line for issue identity at every
-   desktop width. Metadata has one bounded line of its own; the estimate
-   keeps its words while the version/epic labels yield with ellipses. */
-.jr-row-main:where([data-has-meta="true"]) { grid-template-columns: 16px 16px auto minmax(0, 1fr) 20px; row-gap: 4px; }
-.jr-row-main:where([data-has-meta="true"]) > .jr-assignee { grid-column: 5; grid-row: 1; }
-.jr-row-main:where([data-has-meta="true"]) > .jr-facts { grid-column: 3 / -1; grid-row: 2; justify-content: flex-start; flex-wrap: nowrap; }
-.jr-row-main:where([data-has-meta="true"]) .jr-meta { flex: 1; justify-content: flex-start; flex-wrap: nowrap; overflow: hidden; }
-.jr-row-main:where([data-has-meta="true"]) .jr-status-cell { order: -1; min-width: 0; }
-
 /* HoverHint owns viewport placement and maximum height. This is a single
    reading surface, in the modal's popover layer, not another issue card. */
 .jr-row-preview { position: fixed; top: 0; left: 0; z-index: 40; box-sizing: border-box; width: min(420px, calc(100vw - 24px)); padding: 12px; overflow: hidden auto; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-contact), var(--shadow-2); color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 1.45; overflow-wrap: anywhere; }
@@ -278,6 +269,8 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
    in a cell as wide as the board's longest status name (--jr-status-ch, set
    by JiraBacklog), so the states line up as a column beside the avatars. */
 .jr-facts, .jr-meta { min-width: 0; display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.jr-facts { max-width: clamp(140px, 44cqi, 480px); flex-wrap: nowrap; }
+.jr-meta { flex: 1; flex-wrap: nowrap; overflow: hidden; }
 .jr-meta:empty { display: none; }
 /* The estimate never shrinks under its own words; a long epic or version
    gives way first, with its ellipsis. */
@@ -527,7 +520,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 @container jira-list (max-width: 560px) {
   .jr-row-main { grid-template-columns: 16px 16px auto minmax(0, 1fr) 20px; row-gap: 4px; }
   .jr-row-main > .jr-assignee { grid-column: 5; grid-row: 1; }
-  .jr-facts { grid-column: 3 / -1; grid-row: 2; justify-content: flex-start; flex-wrap: nowrap; }
+  .jr-facts { max-width: none; grid-column: 3 / -1; grid-row: 2; justify-content: flex-start; flex-wrap: nowrap; }
   .jr-facts .jr-meta { flex: 1; justify-content: flex-start; flex-wrap: nowrap; overflow: hidden; }
   .jr-facts .jr-status-cell { order: -1; min-width: 0; }
   .jr-group-facts { margin-left: 0; flex-basis: 100%; flex-wrap: wrap; }

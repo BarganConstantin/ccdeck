@@ -46,12 +46,13 @@ const estimate = [...facts, el("span", ["jr-estimate", "ig-chip"])];
 
 describe("Jira rich and plain row-content layouts", () => {
   for (const width of [561, 600, 719, 720, 721, 800, 1200, 1600]) {
-    it(`a ${width}px list reserves the rich row's first line for identity and keeps plain rows compact`, () => {
-      expect(value(chain(true), "grid-template-columns", width)).toBe("16px 16px auto minmax(0, 1fr) 20px");
-      expect(value(chain(true, facts), "grid-row", width)).toBe("2");
-      expect(value(chain(true, facts), "grid-column", width)).toBe("3 / -1");
-      expect(value(chain(true, [el("span", ["jr-assignee"])]), "grid-row", width)).toBe("1");
-      expect(value(chain(false), "grid-template-columns", width)).toBe("16px 16px auto minmax(16ch, 1fr) minmax(0, max-content) 20px");
+    it(`a ${width}px list keeps rich and plain rows on one line`, () => {
+      expect(value(chain(true), "grid-template-columns", width)).toBe("16px 16px auto minmax(12ch, 1fr) minmax(0, max-content) 20px");
+      expect(value(chain(true, facts), "grid-row", width)).toBeNull();
+      expect(value(chain(true, facts), "grid-column", width)).toBeNull();
+      expect(value(chain(true, facts), "max-width", width)).toBe("clamp(140px, 44cqi, 480px)");
+      expect(value(chain(true, [el("span", ["jr-assignee"])]), "grid-row", width)).toBeNull();
+      expect(value(chain(false), "grid-template-columns", width)).toBe("16px 16px auto minmax(12ch, 1fr) minmax(0, max-content) 20px");
       expect(value(chain(false, facts), "grid-row", width)).toBeNull();
     });
   }
