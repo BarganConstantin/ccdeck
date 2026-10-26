@@ -632,4 +632,4 @@
   .sysdetail .sd-detail:active { transform: none; }
 }
 
-.sd-gpu-name { margin: 0 0 8px; font-size: inherit; font-weight: 600; overflow-wrap: anywhere; }
+.sd-gpu-name { margin: 0 0 8px; font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 600; overflow-wrap: anywhere; }
