@@ -3,7 +3,7 @@ import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 import { createServer, request } from "node:http";
 // @ts-expect-error plain server module
-import { createJiraClient, jiraRoutes } from "../../server/integrations/jira.mjs";
+import { createJiraClient, jiraRoutes, normaliseIssue } from "../../server/integrations/jira.mjs";
 // @ts-expect-error plain server module
 import { handleIntegrations, forgetConnection } from "../../server/integrations/routes.mjs";
 // @ts-expect-error plain server module
@@ -64,6 +64,24 @@ function rig(options = {}) {
 }
 
 describe("the bounded Jira move", () => {
+  it("rejects a renamed hierarchy-level epic before any write", async () => {
+    const r = rig();
+    r.state.issues[0].fields.issuetype = { name: "Feature", subtask: false, hierarchyLevel: 1 };
+    assert.equal(normaliseIssue(r.conn, r.state.issues[0]).type.epic, true);
+    const result = await r.move();
+    assert.equal(result.status, 400);
+    assert.match(result.body.error.message, /non-epic/);
+    assert.equal(r.state.writes.length, 0);
+  });
+
+  for (const hierarchyLevel of [0, 2, "1"]) it(`keeps the normalizer's exact epic hierarchy semantics: ${JSON.stringify(hierarchyLevel)}`, async () => {
+    const r = rig();
+    r.state.issues[0].fields.issuetype = { name: "Feature", subtask: false, hierarchyLevel };
+    assert.equal(normaliseIssue(r.conn, r.state.issues[0]).type.epic, false);
+    assert.equal((await r.move()).status, 200);
+    assert.equal(r.state.writes.length, 2);
+  });
+
   it("moves once then ranks once, using only the board's rank field", async () => {
     const r = rig();
     assert.deepEqual((await r.move()).body, { ok: true, issueKey: "MOCK-1", target: input.target, refresh: true });
@@ -346,6 +364,18 @@ function fiftyIssues(r) {
 }
 
 describe("bounded ordered Jira batches", () => {
+  it("rejects a renamed epic later in the batch before writing any earlier issue", async () => {
+    const r = bothNeedMove(rig());
+    // Both keys need assignment, and the eligible key is first. A validator
+    // that starts writing before checking the later key would partially move it.
+    r.state.issues[0].fields.issuetype = { name: "Feature", subtask: false, hierarchyLevel: 1 };
+    assert.equal(normaliseIssue(r.conn, r.state.issues[0]).type.epic, true);
+    const result = await r.move(batchInput);
+    assert.equal(result.status, 400);
+    assert.match(result.body.error.message, /non-epic/);
+    assert.equal(r.state.writes.length, 0);
+  });
+
   it("assigns only issues that need moving, then ranks the full batch in input order", async () => {
     const r = rig();
     const result = await r.move(batchInput);

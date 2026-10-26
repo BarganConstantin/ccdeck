@@ -150,7 +150,10 @@ export function createJiraMover({ secret, origins, sign, authCheck, fetchImpl = 
         const issue = issues.get(key);
         if (!issue) throw invalid("The issues and anchor must all belong to this board.");
         if (issue.fields?.issuetype?.subtask !== false) throw invalid("The issues and rank anchor must be top-level issues.");
-        if (issueKeys.includes(key) && (issue.fields?.issuetype?.name?.toLowerCase() === "epic" || !["new", "indeterminate"].includes(issue.fields?.status?.statusCategory?.key))) {
+        // Match Jira's issue normalizer, including renamed epic-level types.
+        const type = issue.fields?.issuetype;
+        const epic = type?.hierarchyLevel === 1 || /^epic$/i.test(String(type?.name ?? ""));
+        if (issueKeys.includes(key) && (epic || !["new", "indeterminate"].includes(issue.fields?.status?.statusCategory?.key))) {
           throw invalid("Only unfinished top-level non-epic issues can be moved.");
         }
       }
