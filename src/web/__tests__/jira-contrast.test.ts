@@ -334,9 +334,11 @@ describe("the toolbar's quiet words on their fields", () => {
       const ink = cascaded(field, "color", s => /::placeholder$/.test(s) ? selects(s.replace(/::placeholder$/, ""), field) : null);
       expect(ink).not.toBeNull();
       expect(contrast(over(color(ink!, placeholder), fieldBed), fieldBed), "placeholder").toBeGreaterThanOrEqual(BODY);
-      const chip = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]), el("button", ["btn", "jr-chip"], { attrs: { "aria-pressed": "true" } })];
-      const chipBed = over(color(prop(chip, "background")!, chip), panel);
-      expect(contrast(over(color(prop(chip, "color")!, chip), chipBed), chipBed), "pressed chip").toBeGreaterThanOrEqual(BODY);
+      for (const pressed of ["false", "true"]) for (const hover of [false, true]) {
+        const chip = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]), el("button", ["btn", "jr-chip"], { attrs: { "aria-pressed": pressed }, states: hover ? ["hover"] : [] })];
+        const chipBed = over(color(prop(chip, "background")!, chip), panel);
+        expect(contrast(over(color(prop(chip, "color")!, chip), chipBed), chipBed), `chip pressed=${pressed} hover=${hover}`).toBeGreaterThanOrEqual(BODY);
+      }
     });
   }
 });
@@ -375,7 +377,7 @@ describe("a sprint's header reads on the modal's ground", () => {
         for (const [word, tail] of Object.entries({
           "Active lozenge": [...toggle(hover), el("span", ["jr-badge"])],
           count: [...toggle(hover), el("span", ["jr-group-count"])],
-          dates: [...toggle(hover), el("span", ["jr-group-dates"])],
+          dates: [...facts, el("span", ["jr-group-dates"])],
         })) {
           const r = headInk([...headChain(theme), ...tail]);
           if (r < BODY) failures.push(`${word}${at}: ${r.toFixed(2)}`);
@@ -385,7 +387,7 @@ describe("a sprint's header reads on the modal's ground", () => {
       if (tally < BODY) failures.push(`tally: ${tally.toFixed(2)}`);
       for (const cat of [null, "new", "indeterminate", "done"]) {
         const total = el("span", ["jr-total"], { attrs: cat ? { "data-cat": cat } : {} });
-        const r = headInk([...headChain(theme), ...facts, el("span", ["jr-totals"]), total]);
+        const r = headInk([...headChain(theme), el("div", ["jr-group-totals"]), el("span", ["jr-totals"]), total]);
         if (r < BODY) failures.push(`total ${cat ?? "column"}: ${r.toFixed(2)}`);
       }
       expect(failures).toEqual([]);
