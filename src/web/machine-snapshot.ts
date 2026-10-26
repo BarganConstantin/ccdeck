@@ -6,6 +6,15 @@
 
 export interface Memory { total: number; available: number; usedPct: number }
 export interface Swap { total: number; used: number }
+export interface Gpu {
+  index: number;
+  name: string;
+  utilization: number | null;
+  memoryUsedMiB: number | null;
+  memoryTotalMiB: number | null;
+  temperatureC: number | null;
+  powerW: number | null;
+}
 /** `warnAt`/`critAt` come from the chip itself where the platform publishes
  *  them — Linux hwmon does — because a laptop package sensor and an NVMe drive
  *  do not share a comfortable range. Elsewhere the server fills in 75/90. */
@@ -56,6 +65,8 @@ export interface Snapshot {
   cores: number;
   memory: Memory | null;
   swap: Swap | null;
+  /** Optional for older servers; null without a current NVIDIA reading. */
+  gpus?: Gpu[] | null;
   perCore: number[] | null;
   uptimeSec: number;
   platform: string;

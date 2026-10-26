@@ -27,6 +27,7 @@ import {
 } from "./network-sampler.mjs";
 import { processesReply, readProcesses, resetProcessList } from "./process-list.mjs";
 import { CRIT_C, WARN_C } from "./thermal-metrics.mjs";
+import { gpuSnapshot, startGpuTimer, stopGpu } from "./gpu-metrics.mjs";
 import {
   lastThermal, sampleThermal, startThermalTimer, stopThermal, thermalSnapshot, THROTTLE_LABEL,
 } from "./thermal-sampler.mjs";
@@ -375,6 +376,7 @@ export function startSystemMetrics({ probe = false } = {}) {
   memTimer = setInterval(sampleMemory, MEM_INTERVAL_MS);
   startThermalTimer();
   startNetworkTimers(probe);
+  startGpuTimer();
   cpuTimer.unref?.();
   memTimer.unref?.();
 }
@@ -402,6 +404,7 @@ export function stopSystemMetrics() {
   cpuTimer = memTimer = null;
   stopThermal();
   stopNetwork();
+  stopGpu();
   resetHistory();
   historySince = 0;
   prevTicks = null;
@@ -441,6 +444,7 @@ export function systemSnapshot() {
     // The rule the `load:1m` record in sampleCpu asks too — see loadReading.
     loadavg: loadReading(),
     network: networkSnapshot(),
+    gpus: gpuSnapshot(),
     intervalMs: CPU_INTERVAL_MS,
     sampledAt: Date.now(),
   };

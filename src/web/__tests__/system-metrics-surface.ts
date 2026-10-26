@@ -34,6 +34,7 @@ export const SYSTEM_METRICS_FILES = [
   "metrics-history.mjs",
   "network-sampler.mjs",
   "thermal-sampler.mjs",
+  "gpu-metrics.mjs",
 ] as const;
 
 let joined: string | null = null;

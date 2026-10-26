@@ -9,8 +9,8 @@
 // keeps returning to. It is a button in the icon run now, and everything the
 // meter said is one click away in here, where there is room to say it properly.
 //
-// FIVE SECTIONS, IN THE ORDER THE QUESTIONS ARRIVE. What is this machine doing
-// (CPU), what is it holding (memory), what is its line doing (network), is it
+// SECTIONS, IN THE ORDER THE QUESTIONS ARRIVE. What is this machine doing
+// (CPU and GPU), what is it holding (memory), what is its line doing (network), is it
 // getting hot (thermal), and which process is responsible (the door at the
 // foot). Each is one control over one reading, and the detail that only matters
 // once — the path traffic takes — is behind the one disclosure in the panel
@@ -45,6 +45,7 @@ import { useSystem } from "../use-system";
 import ProcessListModal from "./ProcessListModal";
 import { Fig, OpensHistory, Row } from "./MachineReadout";
 import NetworkSection from "./MachineNetwork";
+import GpuSection from "./MachineGpu";
 import { PLACE_KEYS, usePanelPlace } from "../panel-place";
 
 /**
@@ -155,6 +156,7 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
       onClose={onClose}
     >
       <CpuSection cpu={cpu} perCore={perCore} loadavg={loadavg} cores={cores} />
+      <GpuSection gpus={sys.gpus} />
       <MemorySection memory={memory} swap={swap} platform={platform} />
       {network && <NetworkSection network={network} />}
       <ThermalSection thermal={thermal} />
