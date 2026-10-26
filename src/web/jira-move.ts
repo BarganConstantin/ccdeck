@@ -38,7 +38,23 @@ export function moveDestination(group: GroupDef): JiraMove["target"] | null {
 }
 
 export function movableIssue(issue: JiraIssue, group: GroupDef): boolean {
-  return !issue.type.subtask && !issue.type.epic && issue.status.category !== "done" && moveDestination(group) !== null;
+  return issueMoveBlocker({ issue, group }) === null;
+}
+
+export function issueMoveBlocker({ issue, group }: JiraMoveItem): string | null {
+  if (issue.type.subtask) return "is a subtask";
+  if (issue.type.epic) return "is an epic";
+  if (issue.status.category === "done") return `is ${issue.status.name}`;
+  if (group.kind === "closed") return "is in a closed sprint";
+  if (!moveDestination(group)) return "is not in an active/future sprint or the backlog";
+  return null;
+}
+
+/** Name the actual blockers instead of making the reader inspect the batch. */
+export function moveSelectionProblem(items: readonly JiraMoveItem[]): string {
+  const blocked = items.filter(i => issueMoveBlocker(i));
+  if (blocked.length) return `${blocked.slice(0, 2).map(i => `${i.issue.key} ${issueMoveBlocker(i)}`).join("; ")}${blocked.length > 2 ? `; ${blocked.length - 2} more blocked` : ""}. Remove blocked issues to move the rest.`;
+  return items.length > 50 ? "Move up to 50 issues at a time." : "";
 }
 
 /** No unanchored same-group drop: that would look like a reorder but do none. */

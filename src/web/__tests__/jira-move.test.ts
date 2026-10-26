@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { issueMove, issuesMove, movableIssue, moveDestination, selectIssue } from "../jira-move";
+import { issueMove, issueMoveBlocker, issuesMove, movableIssue, moveDestination, moveSelectionProblem, selectIssue } from "../jira-move";
 import { moveJiraIssue, type JiraIssue } from "../jira-api";
 import type { GroupDef } from "../jira-board";
 
@@ -34,6 +34,22 @@ describe("visible issue selection", () => {
   it("rejects the entire group when it includes ineligible work or exceeds Jira's limit", () => {
     expect(issuesMove([{ issue, group: sprint }, { issue: { ...issue, key: "MOCK-2", type: { ...issue.type, subtask: true } }, group: sprint }], backlog)).toBeNull();
     expect(issuesMove(Array.from({ length: 51 }, (_,i) => ({ issue: { ...issue, key: `MOCK-${i+1}` }, group: sprint })), backlog)).toBeNull();
+  });
+});
+
+describe("actionable blocked-selection feedback", () => {
+  it("identifies the issue and its actual reason without dropping valid selections", () => {
+    const done = { issue: { ...issue, key: "MOCK-6", status: { name: "Released", category: "done" as const } }, group: sprint };
+    expect(moveSelectionProblem([{ issue, group: sprint }, done])).toContain("MOCK-6 is Released");
+    expect(moveSelectionProblem([{ issue, group: sprint }, done])).not.toContain("MOCK-1 is");
+    expect(issueMoveBlocker({ issue, group: { ...sprint, kind: "closed" } })).toBe("is in a closed sprint");
+    expect(issueMoveBlocker({ issue: { ...issue, type: { ...issue.type, subtask: true } }, group: sprint })).toBe("is a subtask");
+  });
+  it("bounds long lists of blockers and distinguishes the size limit", () => {
+    const blocked = Array.from({ length: 4 }, (_, i) => ({ issue: { ...issue, key: `MOCK-${i+1}`, type: { ...issue.type, epic: true } }, group: sprint }));
+    expect(moveSelectionProblem(blocked)).toContain("MOCK-1 is an epic; MOCK-2 is an epic; 2 more blocked");
+    expect(moveSelectionProblem(Array.from({ length: 51 }, (_,i) => ({ issue: { ...issue, key: `MOCK-${i+1}` }, group: sprint })))).toBe("Move up to 50 issues at a time.");
+    expect(moveSelectionProblem([{ issue, group: sprint }])).toBe("");
   });
 });
 

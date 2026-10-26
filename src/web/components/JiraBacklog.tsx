@@ -23,7 +23,7 @@ import IntegrationAvatar, { IntegrationAvatarStack, UnassignedAvatar } from "./I
 import IntegrationFailureNote from "./IntegrationFailureNote";
 import IntegrationSkeleton from "./IntegrationSkeleton";
 import { Chevron, EpicChip, Estimate, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
-import { issuesMove, movableIssue, moveDestination, moveKeys, selectIssue, type JiraMove, type JiraMoveItem } from "../jira-move";
+import { issueMoveBlocker, issuesMove, movableIssue, moveDestination, moveKeys, moveSelectionProblem, selectIssue, type JiraMove, type JiraMoveItem } from "../jira-move";
 import JiraMovePopover from "./JiraMovePopover";
 
 export interface JiraBacklogProps {
@@ -128,13 +128,21 @@ function rowLabel(issue: JiraIssue, extra = ""): string {
  * keeps a short lozenge. Narrow lists move the pieces between lines
  * (jira.css, "narrow").
  */
-function IssueLine({ issue, estimation, time }: { issue: JiraIssue; estimation: JiraBoardOverview["estimation"]["kind"]; time: JiraBoardOverview["timeTracking"] }) {
+function CurrentIssueMark() {
+  return <span className="jr-current-mark" title="Open in details" aria-hidden="true">
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1.4 8S3.6 3.6 8 3.6 14.6 8 14.6 8 12.4 12.4 8 12.4 1.4 8 1.4 8Z" /><circle cx="8" cy="8" r="1.9" />
+    </svg>
+  </span>;
+}
+
+function IssueLine({ issue, estimation, time, current = false }: { issue: JiraIssue; estimation: JiraBoardOverview["estimation"]["kind"]; time: JiraBoardOverview["timeTracking"]; current?: boolean }) {
   const done = issue.status.category === "done";
   return (
     <>
       <TypeIcon type={issue.type} />
       <PriorityIcon priority={issue.priority} />
-      <span className="jr-key" data-done={done || undefined}>{issue.key}</span>
+      <span className="jr-key" data-done={done || undefined}>{issue.key}{current && <CurrentIssueMark />}</span>
       <span className="jr-summary">{issue.summary}</span>
       <span className="jr-facts">
         <span className="jr-meta">
@@ -178,27 +186,28 @@ export default function JiraBacklog(props: JiraBacklogProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const boardId = useId();
   const drag = useRef<{ items: JiraMoveItem[] } | null>(null);
+  const dragFromControl = useRef(false);
   const [dragKeys, setDragKeys] = useState<string[]>([]);
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const selectionAnchor = useRef<string | null>(null);
   const selectionVersion = useRef(0);
   const [dropAt, setDropAt] = useState<{ group: string; key?: string; side?: "before" | "after" } | null>(null);
-  const [moveMenu, setMoveMenu] = useState<{ issue: JiraIssue; items: JiraMoveItem[]; anchorId: string; keyboard: boolean } | null>(null);
+  const [moveMenu, setMoveMenu] = useState<{ issue: JiraIssue; items: JiraMoveItem[]; anchorId: string; keyboard: boolean; initialView: "menu" | "move" } | null>(null);
   const menuSerial = useRef(0);
   const [moveError, setMoveError] = useState("");
   const [moveNotice, setMoveNotice] = useState("");
   const submitting = useRef(false);
   const canMove = overview.moves?.enabled === true && Boolean(onMove);
-  const openMoveMenu = (issue: JiraIssue, from: GroupDef, anchorId: string, keyboard = false) => {
+  const openMoveMenu = (issue: JiraIssue, from: GroupDef, anchorId: string, keyboard = false, initialView: "menu" | "move" = "move") => {
     const items = picked.has(issue.key) ? selectedItems : [{ issue, group: from }];
-    if (items.length > 50 || items.some(i => !movableIssue(i.issue, i.group))) {
-      setMoveError(items.length > 50 ? "Move up to 50 issues at a time." : "Only unfinished top-level issues can be moved. Adjust the selection first.");
+    if (initialView === "move" && (items.length > 50 || items.some(i => !movableIssue(i.issue, i.group)))) {
+      setMoveError(moveSelectionProblem(items));
       return;
     }
     menuSerial.current++;
     setMoveError("");
-    setMoveMenu({ issue, items, anchorId, keyboard });
+    setMoveMenu({ issue, items, anchorId, keyboard, initialView });
   };
   const closeMoveMenu = () => {
     const menu = moveMenu;
@@ -292,8 +301,8 @@ export default function JiraBacklog(props: JiraBacklogProps) {
   }, [built, expanded, rowsOpen, snap.subtasks, filter]);
   const visibleKeys = visibleItems.map(i => i.issue.key);
   const selectedItems = visibleItems.filter(i => picked.has(i.issue.key));
-  const selectionProblem = selectedItems.length > 50 ? "Move up to 50 issues at a time."
-    : selectedItems.some(i => !movableIssue(i.issue, i.group)) ? "Only unfinished top-level issues can be moved." : "";
+  const blockedItems = selectedItems.filter(i => issueMoveBlocker(i));
+  const selectionProblem = moveSelectionProblem(selectedItems);
   useEffect(() => {
     const visible = new Set(visibleItems.map(i => i.issue.key));
     setPicked(previous => [...previous].every(key => visible.has(key)) ? previous : new Set([...previous].filter(key => visible.has(key))));
@@ -309,6 +318,17 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     if (!modifiers.shiftKey) selectionAnchor.current = key;
     setSelectionMode(modified);
     if (!modified) onOpen(key);
+  };
+  const selectionControl = (issue: JiraIssue, group: GroupDef) => {
+    const reason = issueMoveBlocker({ issue, group });
+    return <label className="jr-pick-label" title={`${picked.has(issue.key) ? "Deselect" : "Select"} ${issue.key}${reason ? ` (${reason})` : ""}`}>
+      <input type="checkbox" className="jr-pick" checked={picked.has(issue.key)} tabIndex={-1}
+        aria-label={`Select ${issue.key}`} aria-describedby={canMove && picked.has(issue.key) && reason ? `${boardId}-blocked` : undefined}
+        onFocus={event => { const nav = event.currentTarget.closest(".jr-row")?.querySelector<HTMLElement>(".jr-row-main")?.dataset.nav; if (nav) setCurrent(nav); }}
+        // Click owns the update so Shift/Ctrl/Cmd modifiers work on the checkbox too.
+        onChange={() => {}} onClick={event => { event.stopPropagation(); pick(issue.key, event, true); }}
+        onContextMenu={event => { if (event.ctrlKey) { event.preventDefault(); pick(issue.key, event, true); } }} />
+    </label>;
   };
 
   // A row opened with no sub-tasks read yet reads them; a context row, open
@@ -336,7 +356,10 @@ export default function JiraBacklog(props: JiraBacklogProps) {
   const navItems = () => Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-nav]") ?? []);
   const focusNav = (el: HTMLElement | undefined) => { if (el) { el.focus(); el.scrollIntoView?.({ block: "nearest" }); } };
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
+    let target = e.target as HTMLElement;
+    if (target.matches(".jr-pick") && ["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
+      target = target.closest(".jr-row")?.querySelector<HTMLElement>(".jr-row-main") ?? target;
+    }
     if (target.dataset.key && e.key === " " && !e.altKey) {
       e.preventDefault();
       if (!e.repeat) pick(target.dataset.key, e, true);
@@ -393,16 +416,18 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     const moveId = `${boardId}-move-${group.id}-${key}`;
     return (
       <li key={key} className="jr-item" data-context={row.kind === "context" || undefined}>
-        <div className="jr-row ig-row" data-selected={(picked.size || selectionMode ? picked.has(key) : selected === key) || undefined} data-picked={picked.has(key) || undefined} data-done={issue?.status.category === "done" || undefined}
+        <div className="jr-row ig-row" data-selected={picked.has(key) || undefined} data-picked={picked.has(key) || undefined} data-done={issue?.status.category === "done" || undefined}
+          data-current={selected === key || undefined} data-move-blocked={Boolean(issue && picked.has(key) && issueMoveBlocker({ issue, group })) || undefined}
           data-mine={issue?.mine || undefined} data-dragging={dragKeys.includes(key) || undefined}
           data-drop={dropAt?.group === group.id && dropAt.key === key ? dropAt.side : undefined}
           draggable={Boolean(movable && !moveBusy)}
+          onPointerDown={event => { dragFromControl.current = Boolean((event.target as Element).closest(".jr-pick-label, .jr-toggle, .jr-move-button")); }}
           onDragStart={event => {
-            if (!movable || moveBusy || !issue) { event.preventDefault(); return; }
+            if (!movable || moveBusy || !issue || dragFromControl.current) { event.preventDefault(); return; }
             const items = picked.has(key) ? selectedItems : [{ issue, group }];
             if (items.length > 50 || items.some(i => !movableIssue(i.issue, i.group))) {
               event.preventDefault();
-              setMoveError(items.length > 50 ? "Move up to 50 issues at a time." : "Only unfinished top-level issues can be moved. Adjust the selection first.");
+              setMoveError(moveSelectionProblem(items));
               return;
             }
             if (!picked.has(key)) { selectionVersion.current++; setPicked(new Set([key])); setSelectionMode(false); }
@@ -430,6 +455,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
             finishDrag();
             if (move) void saveMove(move, group);
           }}>
+          {issue ? selectionControl(issue, group) : <span className="jr-pick-space" aria-hidden="true" />}
           {expandable ? (
             <button type="button" id={toggleId} className="jr-toggle" tabIndex={-1} aria-expanded={open}
               aria-label={`${open ? "Hide" : "Show"} sub-tasks of ${key}`} onClick={() => toggleRow(key, !open)}>
@@ -453,11 +479,11 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               // Reserve that chord for selection; ordinary right-click stays native.
               if (issue && event.ctrlKey) { event.preventDefault(); event.currentTarget.focus(); pick(key, event); }
             }}>
-            {issue ? <IssueLine issue={issue} estimation={estimation} time={time} /> : row.kind === "context" && (
+            {issue ? <IssueLine issue={issue} estimation={estimation} time={time} current={selected === key} /> : row.kind === "context" && (
               <>
                 <TypeIcon type={row.parent.type} />
                 <PriorityIcon priority={row.parent.priority} />
-                <span className="jr-key" data-done={row.parent.status.category === "done" || undefined}>{row.parent.key}</span>
+                <span className="jr-key" data-done={row.parent.status.category === "done" || undefined}>{row.parent.key}{selected === key && <CurrentIssueMark />}</span>
                 <span className="jr-summary">{row.parent.summary}</span>
                 <span className="jr-facts">
                   <span className="jr-meta"><span className="jr-context-tag">{mine ? "not assigned to you" : "parent not in this list"}</span></span>
@@ -467,11 +493,16 @@ export default function JiraBacklog(props: JiraBacklogProps) {
             )}
           </button>
           {movable && <button id={moveId} type="button" className="jr-move-button" disabled={moveBusy}
-            aria-label={`Move ${key}`} title={`Move ${key} (Alt+M)`} aria-haspopup="dialog"
+            aria-label={`Actions for ${key}`} title={`Actions for ${key}`} aria-haspopup="menu"
             aria-expanded={moveMenu?.anchorId === moveId} tabIndex={tabStop(nav)}
-            onClick={() => openMoveMenu(issue, group, moveId)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M8 4h8M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4" />
+            onKeyDown={event => {
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault(); event.stopPropagation(); openMoveMenu(issue, group, moveId, false, "menu");
+              }
+            }}
+            onClick={() => moveMenu?.anchorId === moveId ? closeMoveMenu() : openMoveMenu(issue, group, moveId, false, "menu")}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <circle cx="3" cy="8" r="1.2" /><circle cx="8" cy="8" r="1.2" /><circle cx="13" cy="8" r="1.2" />
             </svg>
           </button>}
         </div>
@@ -485,15 +516,17 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               const subNav = `${group.id}/${sub.key}/${nav}`;
               return (
                 <li key={sub.key} className="jr-item">
-                  <div className="jr-row jr-subrow ig-row" data-selected={(picked.size || selectionMode ? picked.has(sub.key) : selected === sub.key) || undefined} data-picked={picked.has(sub.key) || undefined} data-done={sub.status.category === "done" || undefined}
+                  <div className="jr-row jr-subrow ig-row" data-selected={picked.has(sub.key) || undefined} data-picked={picked.has(sub.key) || undefined} data-done={sub.status.category === "done" || undefined}
+                    data-current={selected === sub.key || undefined} data-move-blocked={Boolean(picked.has(sub.key) && issueMoveBlocker({ issue: sub, group })) || undefined}
                     data-mine={sub.mine || undefined}>
+                    {selectionControl(sub, group)}
                     <span className="jr-toggle-space" aria-hidden />
                     <button type="button" className="jr-row-main" data-nav={subNav} data-key={sub.key} data-parent={nav} tabIndex={tabStop(subNav)}
                       aria-current={selected === sub.key || undefined} aria-label={`${rowLabel(sub)}${picked.has(sub.key) ? ". Selected" : ""}`}
                       aria-describedby={`${boardId}-instructions`}
                       onFocus={() => setCurrent(subNav)} onClick={event => { event.preventDefault(); pick(sub.key, event); }}
                       onContextMenu={event => { if (event.ctrlKey) { event.preventDefault(); event.currentTarget.focus(); pick(sub.key, event); } }}>
-                      <IssueLine issue={sub} estimation={estimation} time={time} />
+                      <IssueLine issue={sub} estimation={estimation} time={time} current={selected === sub.key} />
                     </button>
                   </div>
                 </li>
@@ -524,7 +557,12 @@ export default function JiraBacklog(props: JiraBacklogProps) {
         <button type="button" className="btn" aria-label="Clear selection" onClick={() => {
           selectionVersion.current++; setPicked(new Set()); setSelectionMode(true); selectionAnchor.current = null;
         }}>Clear</button>
-        {selectionProblem && canMove && <span className="jr-selection-note">{selectionProblem}</span>}
+        {selectionProblem && canMove && <span className="jr-selection-note" id={`${boardId}-blocked`}>{selectionProblem}</span>}
+        {blockedItems.length > 0 && canMove && <button type="button" className="btn" onClick={() => {
+          selectionVersion.current++;
+          setPicked(new Set(selectedItems.filter(i => !issueMoveBlocker(i)).map(i => i.issue.key)));
+          setMoveError("");
+        }}>Remove blocked ({blockedItems.length})</button>}
       </div>}
       <p className="jr-move-status" role="status" aria-live="polite">{moveNotice}</p>
       {moveError && !moveMenu && <p className="jr-move-error" role="alert">{moveError}</p>}
@@ -609,6 +647,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
       })}
 
       {moveMenu && <JiraMovePopover key={moveMenu.anchorId} items={moveMenu.items} groups={groups} snap={snap}
+        initialView={moveMenu.initialView}
         anchorId={moveMenu.anchorId} portalId={boardId} boundaryId={props.scrollBoundaryId} busy={moveBusy} error={moveError}
         onMove={saveMove} onClose={closeMoveMenu} />}
 

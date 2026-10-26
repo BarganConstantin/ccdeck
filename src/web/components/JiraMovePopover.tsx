@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import type { GroupDef } from "../jira-board";
-import { issuesMove, moveDestination, type JiraMove, type JiraMoveItem } from "../jira-move";
+import { issuesMove, moveDestination, moveSelectionProblem, type JiraMove, type JiraMoveItem } from "../jira-move";
 import type { BoardSnapshot } from "../use-jira-board";
 import AnchoredPopover from "./AnchoredPopover";
 
@@ -15,11 +15,13 @@ interface Props {
   onMove: (move: JiraMove, destination: GroupDef) => Promise<boolean>;
   onClose: () => void;
   error: string;
+  initialView?: "menu" | "move";
 }
 
 /** The same move as a pointer drop, with named controls for touch/keyboard. */
-export default function JiraMovePopover({ items, groups, snap, anchorId, portalId, boundaryId, busy, onMove, onClose, error }: Props) {
+export default function JiraMovePopover({ items, groups, snap, anchorId, portalId, boundaryId, busy, onMove, onClose, error, initialView = "move" }: Props) {
   const id = useId();
+  const [view, setView] = useState(initialView);
   const [destination, setDestination] = useState(items[0].group.id);
   const [position, setPosition] = useState("");
   const targets = groups.filter(g => moveDestination(g));
@@ -29,13 +31,21 @@ export default function JiraMovePopover({ items, groups, snap, anchorId, portalI
   const issues = (data?.issues ?? []).filter(i => !selectedKeys.has(i.key) && !i.type.subtask && !i.type.epic);
   const anchor = position ? { key: position.slice(position.indexOf(":") + 1), side: position.startsWith("before:") ? "before" as const : "after" as const } : undefined;
   const move = to ? issuesMove(items, to, anchor) : null;
+  const problem = moveSelectionProblem(items);
   return (
     <AnchoredPopover anchorId={anchorId} portalRootId={portalId} boundaryId={boundaryId ?? portalId}
-      id={`${id}-popover`} className="jr-move-pop" role="dialog" labelledBy={`${id}-title`} onClose={onClose}>
-      <form onSubmit={e => { e.preventDefault(); if (move && to && !busy) void onMove(move, to); }}>
+      id={`${id}-popover`} className={view === "menu" ? "jr-actions-pop" : "jr-move-pop"} role={view === "menu" ? "menu" : "dialog"}
+      labelledBy={view === "menu" ? anchorId : `${id}-title`} onClose={onClose}>
+      {view === "menu" ? <>
+        <button type="button" className="jr-action-item" role="menuitem" aria-disabled={Boolean(problem) || busy}
+          aria-describedby={problem ? `${id}-problem` : undefined} onClick={() => { if (!problem && !busy) setView("move"); }}>
+          {items.length === 1 ? "Move…" : `Move ${items.length} issues…`}
+        </button>
+        {problem && <p id={`${id}-problem`} className="jr-action-hint">{problem}</p>}
+      </> : <form onSubmit={e => { e.preventDefault(); if (move && to && !busy) void onMove(move, to); }}>
         <h3 id={`${id}-title`}>Move {items.length === 1 ? items[0].issue.key : `${items.length} issues`}</h3>
         <label htmlFor={`${id}-destination`}>Destination</label>
-        <select id={`${id}-destination`} value={destination} disabled={busy}
+        <select id={`${id}-destination`} value={destination} disabled={busy} autoFocus
           onChange={e => { setDestination(e.target.value); setPosition(""); }}>
           {targets.map(g => <option key={g.id} value={g.id}>{g.title}</option>)}
         </select>
@@ -51,7 +61,7 @@ export default function JiraMovePopover({ items, groups, snap, anchorId, portalI
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
           <button type="submit" className="btn primary" disabled={!move || busy} aria-busy={busy || undefined}>{busy ? "Moving…" : items.length === 1 ? "Move issue" : `Move ${items.length} issues`}</button>
         </div>
-      </form>
+      </form>}
     </AnchoredPopover>
   );
 }

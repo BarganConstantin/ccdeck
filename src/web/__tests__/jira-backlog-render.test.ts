@@ -79,7 +79,8 @@ describe("explicit moves without changing the existing read-only contract", () =
       issue("MOCK-3", { type: { ...STORY, epic: true } }),
     ], { onMove }, writable);
     expect(html.match(/class="jr-move-button"/g)).toHaveLength(1);
-    expect(html).toContain('aria-label="Move MOCK-1"');
+    expect(html).toContain('aria-label="Actions for MOCK-1"');
+    expect(html).toContain('aria-haspopup="menu"');
     expect(html).toContain('draggable="true"');
     expect(html).toContain("Alt+M opens Move");
   });
@@ -89,6 +90,19 @@ describe("explicit moves without changing the existing read-only contract", () =
     expect(rows(html)["MOCK-1"]).toContain('aria-controls="jr-toggle-sprint-13-MOCK-1-children"');
     expect(rows(html)["MOCK-1"]).toContain("priority High");
     expect(html).toContain('id="jr-toggle-sprint-13-MOCK-1-children"');
+  });
+});
+
+describe("row selection has its own controls and current-detail marker", () => {
+  it("keeps the current issue visible independently of batch membership", () => {
+    const html = drawBoard([issue("MOCK-1"), issue("MOCK-2")], { selected: "MOCK-1" });
+    expect(html).toContain('data-current="true"');
+    expect(rows(html)["MOCK-1"]).toContain('class="jr-current-mark"');
+    expect(rows(html)["MOCK-2"]).not.toContain('class="jr-current-mark"');
+    expect(html).toContain('aria-label="Select MOCK-1"');
+    expect(html).toContain('aria-label="Select MOCK-2"');
+    // The type glyph remains factual, not a selection checkbox.
+    expect(rows(html)["MOCK-1"]).toContain('aria-label="Story"');
   });
 });
 
@@ -310,9 +324,9 @@ describe("nothing on a narrow screen widens its pane or loses its words", () => 
     const narrow = block("@container jira-list (max-width: 360px)");
     // The key's column takes its words' width first; the status's takes what
     // is left. Only a key longer than the line is cut.
-    expect(narrow).toMatch(/\.jr-row-main \{ grid-template-columns: 16px 16px minmax\(0, max-content\) minmax\(0, 1fr\) 20px; \}/);
+    expect(narrow).toMatch(/\.jr-row-main \{[^}]*grid-template-columns: 16px 16px minmax\(0, max-content\) minmax\(0, 1fr\) 20px;/);
     expect(narrow).toMatch(/\.jr-row-main > \.jr-key \{ grid-column: 3; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; \}/);
-    expect(narrow).toMatch(/\.jr-facts \.jr-status-cell > \.jr-status \{ flex: 0 1 auto; min-width: 0; \}/);
-    expect(sheet).toMatch(/\.jr-status \{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;/);
+    expect(narrow).toMatch(/\.jr-facts \.jr-status-cell > \.jr-status \{[^}]*flex: 0 1 auto;[^}]*min-width: 0;/);
+    expect(sheet).toMatch(/\.jr-status(?:, [^{]+)? \{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;/);
   });
 });
