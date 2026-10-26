@@ -105,6 +105,26 @@ describe("row selection and current-detail highlight", () => {
   });
 });
 
+describe("title-first row content", () => {
+  it("uses a compact version count without dropping full values", () => {
+    const versions = ["Release Europe", "Release America", "Service compatibility"];
+    const html = drawBoard([issue("MOCK-1", { fixVersions: versions }), issue("MOCK-2")]);
+    const drawn = rows(html);
+    expect(drawn["MOCK-1"]).toContain('data-has-meta="true"');
+    expect(drawn["MOCK-1"]).toContain('title="Release Europe, Release America, Service compatibility"');
+    expect(drawn["MOCK-1"]).toContain("3 versions");
+    expect(drawn["MOCK-1"].match(/class="jr-version"/g)).toHaveLength(1);
+    expect(drawn["MOCK-2"]).not.toContain('data-has-meta="true"');
+  });
+  it("keeps a single version's name and the original keyboard row label", () => {
+    const html = drawBoard([issue("MOCK-1", { summary: "Full identifying title", fixVersions: ["V6"] })]);
+    const row = rows(html)["MOCK-1"];
+    expect(row).toContain('title="V6">V6</span>');
+    expect(row).toContain('aria-label="MOCK-1: Full identifying title.');
+    expect(row).toContain('aria-describedby="');
+  });
+});
+
 describe("every row says what state its issue is in", () => {
   it("draws Jira's status lozenge on each row and sub-row, by category, with the whole name in its title", () => {
     const story = issue("MOCK-10", { status: status("In Progress", "indeterminate"), subtaskKeys: ["MOCK-11"] });

@@ -25,6 +25,7 @@ import IntegrationSkeleton from "./IntegrationSkeleton";
 import { Chevron, EpicChip, Estimate, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
 import { issueMoveBlocker, issuesMove, movableIssue, moveDestination, moveKeys, moveSelectionProblem, selectIssue, type JiraMove, type JiraMoveItem } from "../jira-move";
 import JiraMovePopover from "./JiraMovePopover";
+import JiraRowPreview from "./JiraRowPreview";
 
 export interface JiraBacklogProps {
   conn: Connection;
@@ -139,8 +140,9 @@ function IssueLine({ issue, estimation, time }: { issue: JiraIssue; estimation: 
       <span className="jr-facts">
         <span className="jr-meta">
           {issue.flagged && <span className="jr-flagged" title="Flagged"><FlagGlyph /></span>}
-          {issue.fixVersions.slice(0, 2).map(v => <span key={v} className="jr-version">{v}</span>)}
-          {issue.fixVersions.length > 2 && <span className="jr-version" title={issue.fixVersions.slice(2).join(", ")}>+{issue.fixVersions.length - 2}</span>}
+          {issue.fixVersions.length > 0 && <span className="jr-version" title={issue.fixVersions.join(", ")}>
+            {issue.fixVersions.length === 1 ? issue.fixVersions[0] : `${issue.fixVersions.length} versions`}
+          </span>}
           {issue.epic && <EpicChip epic={issue.epic} />}
         </span>
         <Estimate issue={issue} estimation={estimation} time={time} />
@@ -438,36 +440,39 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               <Chevron open={open} />
             </button>
           ) : <span className="jr-toggle-space" aria-hidden />}
-          <button type="button" className="jr-row-main" data-nav={nav} data-key={key} data-parent={parentNav} data-toggle={expandable ? toggleId : undefined}
-            data-expanded={expandable ? String(open) : undefined} aria-expanded={expandable ? open : undefined}
-            aria-controls={expandable && open ? `${toggleId}-children` : undefined}
-            aria-describedby={`${boardId}-instructions`} tabIndex={tabStop(nav)} aria-current={selected === key || undefined}
-            onKeyDown={event => {
-              if (movable && !moveBusy && event.altKey && !event.ctrlKey && !event.metaKey && (event.code === "KeyM" || event.key.toLowerCase() === "m") && issue) {
-                event.preventDefault(); event.stopPropagation(); openMoveMenu(issue, group, moveId, true);
-              }
-            }}
-            aria-label={`${label}${picked.has(key) ? ". Selected" : ""}`} onFocus={() => setCurrent(nav)} onClick={event => {
-              if (issue) { event.preventDefault(); pick(key, event); }
-              else if (!event.ctrlKey && !event.metaKey && !event.shiftKey) { setPicked(new Set()); setSelectionMode(false); onOpen(key); }
-            }} onContextMenu={event => {
-              // macOS delivers Control-click as contextmenu rather than click.
-              // Reserve that chord for selection; ordinary right-click stays native.
-              if (issue && event.ctrlKey) { event.preventDefault(); event.currentTarget.focus(); pick(key, event); }
-            }}>
-            {issue ? <IssueLine issue={issue} estimation={estimation} time={time} /> : row.kind === "context" && (
-              <>
-                <TypeIcon type={row.parent.type} />
-                <PriorityIcon priority={row.parent.priority} />
-                <span className="jr-key" data-done={row.parent.status.category === "done" || undefined}>{row.parent.key}</span>
-                <span className="jr-summary">{row.parent.summary}</span>
-                <span className="jr-facts">
-                  <span className="jr-meta"><span className="jr-context-tag">{mine ? "not assigned to you" : "parent not in this list"}</span></span>
-                  <span className="jr-status-cell"><StatusLozenge status={row.parent.status} /></span>
-                </span>
-              </>
-            )}
-          </button>
+          <JiraRowPreview item={row.kind === "issue" ? row.issue : row.parent} portalRootId={boardId}>
+            <button type="button" className="jr-row-main" data-nav={nav} data-key={key} data-parent={parentNav} data-toggle={expandable ? toggleId : undefined}
+              data-has-meta={issue ? Boolean(issue.flagged || issue.fixVersions.length || issue.epic) || undefined : true}
+              data-expanded={expandable ? String(open) : undefined} aria-expanded={expandable ? open : undefined}
+              aria-controls={expandable && open ? `${toggleId}-children` : undefined}
+              aria-describedby={`${boardId}-instructions`} tabIndex={tabStop(nav)} aria-current={selected === key || undefined}
+              onKeyDown={event => {
+                if (movable && !moveBusy && event.altKey && !event.ctrlKey && !event.metaKey && (event.code === "KeyM" || event.key.toLowerCase() === "m") && issue) {
+                  event.preventDefault(); event.stopPropagation(); openMoveMenu(issue, group, moveId, true);
+                }
+              }}
+              aria-label={`${label}${picked.has(key) ? ". Selected" : ""}`} onFocus={() => setCurrent(nav)} onClick={event => {
+                if (issue) { event.preventDefault(); pick(key, event); }
+                else if (!event.ctrlKey && !event.metaKey && !event.shiftKey) { setPicked(new Set()); setSelectionMode(false); onOpen(key); }
+              }} onContextMenu={event => {
+                // macOS delivers Control-click as contextmenu rather than click.
+                // Reserve that chord for selection; ordinary right-click stays native.
+                if (issue && event.ctrlKey) { event.preventDefault(); event.currentTarget.focus(); pick(key, event); }
+              }}>
+              {issue ? <IssueLine issue={issue} estimation={estimation} time={time} /> : row.kind === "context" && (
+                <>
+                  <TypeIcon type={row.parent.type} />
+                  <PriorityIcon priority={row.parent.priority} />
+                  <span className="jr-key" data-done={row.parent.status.category === "done" || undefined}>{row.parent.key}</span>
+                  <span className="jr-summary">{row.parent.summary}</span>
+                  <span className="jr-facts">
+                    <span className="jr-meta"><span className="jr-context-tag">{mine ? "not assigned to you" : "parent not in this list"}</span></span>
+                    <span className="jr-status-cell"><StatusLozenge status={row.parent.status} /></span>
+                  </span>
+                </>
+              )}
+            </button>
+          </JiraRowPreview>
           {movable && <button id={moveId} type="button" className="jr-move-button" disabled={moveBusy}
             aria-label={`Actions for ${key}`} title={`Actions for ${key}`} aria-haspopup="menu"
             aria-expanded={moveMenu?.anchorId === moveId} tabIndex={tabStop(nav)}
@@ -496,13 +501,16 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                     data-current={selected === sub.key || undefined} data-move-blocked={Boolean(picked.has(sub.key) && issueMoveBlocker({ issue: sub, group })) || undefined}
                     data-mine={sub.mine || undefined}>
                     <span className="jr-toggle-space" aria-hidden />
-                    <button type="button" className="jr-row-main" data-nav={subNav} data-key={sub.key} data-parent={nav} tabIndex={tabStop(subNav)}
-                      aria-current={selected === sub.key || undefined} aria-label={`${rowLabel(sub)}${picked.has(sub.key) ? ". Selected" : ""}`}
-                      aria-describedby={`${boardId}-instructions`}
-                      onFocus={() => setCurrent(subNav)} onClick={event => { event.preventDefault(); pick(sub.key, event); }}
-                      onContextMenu={event => { if (event.ctrlKey) { event.preventDefault(); event.currentTarget.focus(); pick(sub.key, event); } }}>
-                      <IssueLine issue={sub} estimation={estimation} time={time} />
-                    </button>
+                    <JiraRowPreview item={sub} portalRootId={boardId}>
+                      <button type="button" className="jr-row-main" data-nav={subNav} data-key={sub.key} data-parent={nav} tabIndex={tabStop(subNav)}
+                        data-has-meta={Boolean(sub.flagged || sub.fixVersions.length || sub.epic) || undefined}
+                        aria-current={selected === sub.key || undefined} aria-label={`${rowLabel(sub)}${picked.has(sub.key) ? ". Selected" : ""}`}
+                        aria-describedby={`${boardId}-instructions`}
+                        onFocus={() => setCurrent(subNav)} onClick={event => { event.preventDefault(); pick(sub.key, event); }}
+                        onContextMenu={event => { if (event.ctrlKey) { event.preventDefault(); event.currentTarget.focus(); pick(sub.key, event); } }}>
+                        <IssueLine issue={sub} estimation={estimation} time={time} />
+                      </button>
+                    </JiraRowPreview>
                   </div>
                 </li>
               );
