@@ -177,10 +177,10 @@ export const DEFAULTS = Object.freeze({
     // read a ticked account that never arrived as sharing being broken. The
     // cost is the one #2192 found: the two machines then hold one login, and a
     // Claude login renews once, so whichever copy renews second is signed out.
-    // The "Also active on" warning and Auto-switch avoiding an account active
-    // on another deck (#2192) stay, and the switch keeps it here for whoever
-    // wants that. See `sendInUseSet` in normalise for why a saved false from
-    // before 3.48.1 does not count.
+    // The "Also active on" warning (#2192) stays, and the switch keeps it here
+    // for whoever wants that. Auto-switch may still land on a login a paired
+    // deck is on (3.43.3), and now that login reaches it. See `sendInUseSet` in
+    // normalise for why a saved false from before 3.48.1 does not count.
     sendInUse: true,
     sendInUseSet: false,
     // FINDING THIS PERSON'S OTHER MACHINES OVER TAILSCALE, off until they turn
