@@ -149,9 +149,10 @@ describe("the shape on disk", () => {
     expect(normalise({}).lan).toEqual({
       enabled: true, name: "", secret: "", shared: [], onward: [], manual: [], trusted: [], unpaired: [], port: 0,
       autoAsk: true, autoAccept: true, pairingMode: "automatic", aliases: {}, shareActive: true,
-      // The login this deck is on is not sent unless somebody turns it on
-      // (#2192): two machines on one login sign one of them out.
-      sendInUse: false,
+      // The login this deck is on goes out with the other ticked ones unless
+      // somebody turns it off (3.48.1; #2192 has why that has a cost), and
+      // only a press of the switch from then on is a choice.
+      sendInUse: true, sendInUseSet: false,
       // Tailscale discovery is off until somebody turns it on; its own two
       // permissions ship on, and answer only for the owner's own machines.
       tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
@@ -163,8 +164,8 @@ describe("the shape on disk", () => {
     expect(normalise({ lan: { tailscale: true } }).lan.tailscale).toBe(true);
     expect(normalise({ lan: { tailscale: "yes" } }).lan.tailscale).toBe(false);
     expect(normalise({ lan: { tailscaleAccept: false } }).lan.tailscaleAccept).toBe(false);
-    expect(normalise({ lan: { sendInUse: true } }).lan.sendInUse).toBe(true);
-    expect(normalise({ lan: { sendInUse: "yes" } }).lan.sendInUse).toBe(false);
+    expect(normalise({ lan: { sendInUse: false, sendInUseSet: true } }).lan.sendInUse).toBe(false);
+    expect(normalise({ lan: { sendInUse: "no", sendInUseSet: true } }).lan.sendInUse).toBe(true);
   });
 
   it("does not lose the private key when a page toggles the switch", async () => {
@@ -183,7 +184,7 @@ describe("the shape on disk", () => {
     expect(saved.lan).toEqual({
       enabled: true, name: "", secret: "kept", shared: ["a@@1"], onward: [], manual: [], trusted: [], unpaired: [], port: 0,
       autoAsk: true, autoAccept: true, pairingMode: "automatic", aliases: {}, shareActive: true,
-      sendInUse: false, tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
+      sendInUse: true, sendInUseSet: false, tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
     });
   });
 
