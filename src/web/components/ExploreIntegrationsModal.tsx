@@ -20,6 +20,13 @@ const capabilities: Record<IntegrationKind, string> = {
   github: "Repositories, pull requests and Actions",
   gitlab: "Projects, merge requests and pipelines",
 };
+// What each provider does with your token: Jira also moves issues, by drag or Move
+// (since 3.48.0); GitHub and GitLab only read.
+const access: Record<IntegrationKind, string> = {
+  jira: "Can move issues",
+  github: "Read only",
+  gitlab: "Read only",
+};
 
 function exploreLauncher(): HTMLElement | null {
   return Array.from(document.querySelectorAll<HTMLElement>('[data-rail-item="explore-integrations"], [data-rail-item="more"]'))
@@ -65,7 +72,7 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
                       <h3>{def.label}</h3>
                       <p>{capabilities[def.kind]}</p>
                       <span className="explore-connection" data-connected={openable || undefined}>
-                        {offered ? openable ? "Connected" : "Not connected" : "Unavailable on this deck"} · Read only
+                        {offered ? openable ? "Connected" : "Not connected" : "Unavailable on this deck"} · {access[def.kind]}
                       </span>
                     </div>
                     <div className="explore-actions">
@@ -85,7 +92,7 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
           </>}
         </div>
         <div className="explore-footer">
-          <span>Read only · Tokens stay on this machine</span>
+          <span>Browsing only reads · Tokens stay on this machine</span>
           <button type="button" className="btn explore-text-action" onClick={() => go(() => onManage())}>Manage in Settings <ExternalLinkGlyph /></button>
         </div>
       </div>

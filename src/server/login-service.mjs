@@ -406,6 +406,9 @@ export const SETTING_VARS = Object.freeze([
   // The off switch for Skill activity's typed-command hook (skill-hook.mjs). A
   // deck started at login without it would put the entry back in.
   "AGENTS_DECK_SKILL_HOOK",
+  // Radar's off switch (index.mjs). A deck started at login without it would
+  // look for Claude Code's collector and capture it.
+  "AGENTS_DECK_NO_RADAR",
 ]);
 
 export function settingsEnv(env = process.env) {

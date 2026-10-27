@@ -33,7 +33,10 @@ describe("Explore's native catalog", () => {
     const { html } = catalog();
     for (const p of providers) expect(html).toContain(`aria-label="Connect ${p.label}"`);
     expect(html.match(/Not connected/g)).toHaveLength(3);
-    expect(html.match(/Read only/g)).toHaveLength(4);
+    // Jira also moves issues (3.48.0); GitHub and GitLab only read.
+    expect(html.match(/Read only/g)).toHaveLength(2);
+    expect(html.match(/Can move issues/g)).toHaveLength(1);
+    expect(html).toContain("Browsing only reads · Tokens stay on this machine");
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain('aria-labelledby="explore-integrations-title"');
     expect(html).not.toMatch(/input|Show in sidebar|Hide|localStorage/);
