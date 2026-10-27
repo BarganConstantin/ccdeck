@@ -14,14 +14,15 @@
 //
 // WHEN IT READS: when it opens on a board read more than five minutes ago, and
 // when Refresh is pressed. Never on a timer (use-jira-board.ts).
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { connectionHost, type IntegrationFailure } from "../integrations/client";
 import type { IntegrationPanelProps } from "../integrations/types";
-import { readBoards, type JiraBoardSummary } from "../jira-api";
+import { moveJiraIssue, readBoards, type JiraBoardSummary } from "../jira-api";
+import type { JiraMove } from "../jira-move";
 import { boardRows, drawnIssues, shownQuickFilters, type GroupDef } from "../jira-board";
 import { useListView } from "../integrations/use-list-view";
 import { keepList, keepSearch, listKey as listKeyOf, recallList, recallSearch, type Drawn } from "../integrations/view-memory";
-import { failureOf, useJiraBoard } from "../use-jira-board";
+import { failureOf, invalidateJiraConnection, useJiraBoard } from "../use-jira-board";
 import { ExternalLinkGlyph } from "./action-glyphs";
 import AnchoredPopover from "./AnchoredPopover";
 import IntegrationFreshness from "./IntegrationFreshness";
@@ -92,7 +93,7 @@ function BoardPicker({ api, current, layerId, onPick, onClose }: {
   };
 
   return (
-    <AnchoredPopover anchorId={layerId} portalRootId={layerId} id="jira-board-picker" className="jr-board-pop" role="dialog"
+    <AnchoredPopover anchorId={layerId} align="start" portalRootId={layerId} id="jira-board-picker" className="jr-board-pop" role="dialog"
       labelledBy="jira-board-picker-title" focusRef={searchRef} onClose={onClose}>
       <div className="jr-board-pop-inner" onKeyDown={onKeyDown}>
         <p className="jr-board-pop-title" id="jira-board-picker-title">Boards</p>
@@ -128,6 +129,7 @@ function BoardPicker({ api, current, layerId, onPick, onClose }: {
 const sameIssue = (a: string[], b: string[]) => a[a.length - 1] === b[b.length - 1];
 
 export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narrow, onReconnect }: IntegrationPanelProps) {
+  const scrollerId = useId();
   const scope = `jira:${conn.id}`;
   const [board, setBoardState] = useState<string | null>(() => prefs.read("board", isString) ?? null);
   const [boardName, setBoardName] = useState<string>(() => prefs.read("boardName", (v): v is string => typeof v === "string") ?? "");
@@ -141,6 +143,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => prefs.read("expanded", isFlags) ?? {});
   const [search, setSearchState] = useState(() => recallSearch(scope));
   const setSearch = (text: string) => { setSearchState(text); keepSearch(scope, text); };
+  const searchRef = useRef<HTMLInputElement>(null);
   const [picker, setPicker] = useState(false);
   const [boardsError, setBoardsError] = useState<IntegrationFailure | null>(null);
   const [noBoards, setNoBoards] = useState(false);
@@ -173,6 +176,25 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   const filters = useMemo(() => ({ mine, quick }), [mine, quick]);
   const jira = useJiraBoard(api, conn.id, board, filters);
   const { snap, groups, loading, error } = jira;
+  const moveLock = useRef(false);
+  const [moving, setMoving] = useState(false);
+  const readingGroups = Object.values(snap.groups).some(g => g.more || g.status === "loading");
+  const boardRef = useRef(board);
+  boardRef.current = board;
+  const moveIssue = async (move: JiraMove) => {
+    if (!board || moveLock.current || loading || readingGroups) throw new Error("Wait for the board to finish updating.");
+    moveLock.current = true;
+    setMoving(true);
+    try { return await moveJiraIssue(api, board, move); }
+    finally {
+      moveLock.current = false;
+      setMoving(false);
+      // Even a lost response can mean Jira saved the move. Re-read rather
+      // than inventing local order or replaying a potentially completed write.
+      invalidateJiraConnection(conn.id);
+      if (boardRef.current === board) await jira.refresh();
+    }
+  };
   const overview = snap.overview && String(snap.overview.board.id) === board ? snap.overview : null;
   useEffect(() => {
     if (overview && overview.board.name && overview.board.name !== boardName) {
@@ -189,7 +211,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
 
   const toggleGroup = (group: GroupDef, open: boolean) => setExpanded(state => ({ ...state, [group.id]: open }));
   const filtered = mine || hideDone || attention || quick.length > 0 || search.trim() !== "";
-  const clearFilters = () => { setMine(false); setHideDone(false); setAttention(false); setQuick([]); setSearch(""); };
+  const clearFilters = () => { setMine(false); setHideDone(false); setAttention(false); setQuick([]); setSearch(""); searchRef.current?.focus(); };
   const rowFilter = useMemo(() => ({ search, hideDone, attention }), [search, hideDone, attention]);
 
   // The board's own quick filters, less its "Only My Issues" (the panel's
@@ -284,6 +306,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       <>
         {error && <IntegrationFailureNote error={error} provider="Jira" host={host} stale onRetry={jira.refresh} onReconnect={onReconnect} />}
         <JiraBacklog
+          key={board}
           conn={conn}
           overview={overview}
           groups={groups}
@@ -303,6 +326,9 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
           onMoreClosed={jira.moreClosed}
           loadSubtasks={jira.loadSubtasks}
           onReconnect={onReconnect}
+          onMove={moveIssue}
+          moveBusy={moving || loading || readingGroups}
+          scrollBoundaryId={scrollerId}
         />
       </>
     );
@@ -330,32 +356,19 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       {/* On a narrow screen an open issue is a screen of its own, and the
           board, search and filters are the list's: they wait behind Back. */}
       <div className="jr-toolbar" hidden={narrow && open}>
-        <div className="jr-toolbar-row">
-          {/* The board picker is drawn inside this span and hangs off it, the
-              way the forges' project picker does: the deck's popovers line up
-              with their anchor's end, and the span is the popover's width with
-              the button at its start, so the list opens under the button
-              instead of running out past the panel's left edge. Being inside
-              the integration dialog keeps it within the dialog's modal
-              boundary too. */}
-          <span id="jira-board-layer" className="jr-board-layer">
-            <button type="button" id="jira-board-button" className="btn jr-board-btn" aria-haspopup="dialog" aria-expanded={picker}
-              aria-controls={picker ? "jira-board-picker" : undefined} onClick={() => setPicker(p => !p)}>
-              <span className="jr-board-btn-label">Board</span>
-              <span className="jr-board-btn-name">{overview?.board.name || boardName || (board ? `Board ${board}` : "Choose a board")}</span>
-              <Chevron open={picker} />
-            </button>
-            {overview?.board.projectName && <span className="jr-board-project">{overview.board.projectName}</span>}
-          </span>
-          {/* After a refresh that failed the rows on screen are the last
-              answer, and the line says "Not updated", never "Updated". */}
-          <IntegrationFreshness loadedAt={snap.loadedAt || null} loading={loading} stale={Boolean(error)}
-            onRefresh={() => { if (board) jira.refresh(); else firstBoard(); }} label="Refresh the board" disabled={!board} />
-        </div>
+        {/* Keep the picker inside the dialog's accessibility boundary. */}
+        <span id="jira-board-layer" className="jr-board-layer">
+          <button type="button" id="jira-board-button" className="btn jr-board-btn" aria-label={`Board: ${overview?.board.name || boardName || (board ? `Board ${board}` : "Choose a board")}`} title={[...new Set([overview?.board.name || boardName, overview?.board.projectName].filter(Boolean))].join(" · ")} aria-haspopup="dialog" aria-expanded={picker}
+            aria-controls={picker ? "jira-board-picker" : undefined} onClick={() => setPicker(p => !p)}>
+            <span className="jr-board-btn-label">Board</span>
+            <span className="jr-board-btn-name">{overview?.board.name || boardName || (board ? `Board ${board}` : "Choose a board")}</span>
+            <Chevron open={picker} />
+          </button>
+        </span>
         <div className="jr-filters" role="group" aria-label="Filters">
           {/* Escape empties it first (the shared field's own entry on the
               dismiss stack), then leaves the issue, then closes the panel. */}
-          <IntegrationSearch value={search} onChange={setSearch} label="Search issues by key or summary" placeholder="Search key or summary" />
+          <IntegrationSearch inputRef={searchRef} value={search} onChange={setSearch} label="Search issues by key or summary" placeholder="Search key or summary" />
           {/* One row that scrolls sideways on a phone, rather than three rows
               of chips over the board. */}
           <div className="jr-filter-chips">
@@ -369,14 +382,19 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
                 {q.name}
               </button>
             ))}
-            {filtered && <button type="button" className="jr-link-btn jr-clear" onClick={clearFilters}>Clear filters</button>}
           </div>
+          {filtered && <button type="button" className="jr-link-btn jr-clear" onClick={clearFilters}>Clear filters</button>}
         </div>
+        {/* After a refresh that failed the rows on screen are the last
+            answer, and the line says "Not updated", never "Updated". */}
+        <IntegrationFreshness loadedAt={snap.loadedAt || null} loading={loading} stale={Boolean(error)}
+          onRefresh={() => { if (board) jira.refresh(); else firstBoard(); }} label="Refresh the board" disabled={!board} />
       </div>
 
       <IntegrationSplit
         storageKey="jira"
-        list={<div className="jr-list-scroll">{list}</div>}
+        automaticDetailShare={0.4}
+        list={<div className="jr-list-scroll" id={scrollerId}>{list}</div>}
         detail={detail}
         onBack={back}
         backLabel="Back to the board"

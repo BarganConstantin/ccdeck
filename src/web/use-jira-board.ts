@@ -76,6 +76,16 @@ const EMPTY_CLOSED: ClosedData = { shown: false, sprints: [], total: 0, isLast: 
 const EMPTY_GROUP: GroupData = { status: "idle", issues: [], next: "", total: null, capped: false, error: null, more: false };
 
 const snapshots = new Map<string, BoardSnapshot>();
+const detailInvalidations = new Set<(connId: string) => void>();
+
+/** A rank/sprint change affects other boards and saved filter views too. */
+export function invalidateJiraConnection(connId: string) {
+  for (const [key, snap] of snapshots) {
+    if (key.startsWith(`${connId}|`)) snapshots.set(key, { ...snap, loadedAt: 0 });
+  }
+  for (const key of details.keys()) if (key.startsWith(`${connId}|`)) details.delete(key);
+  for (const notify of detailInvalidations) notify(connId);
+}
 
 const snapshotKey = (connId: string, boardId: string, f: BoardFilters) =>
   `${connId}|${boardId}|${f.mine ? "mine" : "all"}|${f.quick.join(",")}`;
@@ -130,7 +140,7 @@ export interface JiraBoardApi {
   loading: boolean;
   /** What stopped the last refresh, if anything did. */
   error: IntegrationFailure | null;
-  refresh: () => void;
+  refresh: () => Promise<void>;
   /** Read a group that has not been read — a closed sprint just opened — or,
    *  with `force`, read one again after it failed. */
   ensureGroup: (group: GroupDef, force?: boolean) => void;
@@ -179,7 +189,7 @@ export function useJiraBoard(api: JiraApi, connId: string, boardId: string | nul
     }
   }, [boardId, api, setGroup]);
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     if (!boardId) return;
     const forKey = keyRef.current;
     const mine = ++gen.current;
@@ -189,7 +199,7 @@ export function useJiraBoard(api: JiraApi, connId: string, boardId: string | nul
     const { signal } = controller;
     setLoading(true);
     setError(null);
-    void (async () => {
+    await (async () => {
       try {
         const overview = await readBoard(api, boardId, signal);
         if (mine !== gen.current) return;
@@ -249,7 +259,7 @@ export function useJiraBoard(api: JiraApi, connId: string, boardId: string | nul
         const page = await readIssues(api, boardId, queryFor(group, filtersRef.current, overview, at.next));
         setGroup(forKey, group.id, g => {
           const have = new Set(g.issues.map(i => i.key));
-          return { ...g, issues: [...g.issues, ...page.issues.filter(i => !have.has(i.key))], next: page.next, total: page.total ?? g.total, more: false };
+          return { ...g, issues: [...g.issues, ...page.issues.filter(i => !have.has(i.key))], next: page.next, total: page.total ?? g.total, capped: page.capped, more: false };
         });
       } catch (err) {
         const failure = failureOf(err);
@@ -268,7 +278,8 @@ export function useJiraBoard(api: JiraApi, connId: string, boardId: string | nul
         update(forKey, s => {
           const have = new Set(s.closed.sprints.map(x => x.id));
           const sprints = startAt === 0 ? page.sprints : [...s.closed.sprints, ...page.sprints.filter(x => !have.has(x.id))];
-          return { ...s, closed: { shown: true, sprints, total: page.total, isLast: page.isLast, loading: false, error: null } };
+          // A reader may have hidden the groups while this page was pending.
+          return { ...s, closed: { ...s.closed, sprints, total: page.total, isLast: page.isLast, loading: false, error: null } };
         });
       } catch (err) {
         const failure = failureOf(err);
@@ -327,6 +338,14 @@ export function useJiraIssue(api: JiraApi, connId: string, key: string | null): 
   const [error, setError] = useState<IntegrationFailure | null>(null);
   const [nonce, setNonce] = useState(0);
   const forced = useRef(false);
+
+  useEffect(() => {
+    const invalidated = (id: string) => {
+      if (id === connId && key) { forced.current = true; setNonce(n => n + 1); }
+    };
+    detailInvalidations.add(invalidated);
+    return () => { detailInvalidations.delete(invalidated); };
+  }, [connId, key]);
 
   useEffect(() => {
     if (!key) { setData(null); setError(null); return; }

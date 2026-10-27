@@ -2,7 +2,7 @@
 // inside the column that clips it (popover-place.ts). These are the rules that
 // file states, each measured at the edge where it binds.
 import { describe, it, expect } from "vitest";
-import { placeBeside, placePopover, POPOVER_GAP, POPOVER_MARGIN } from "../popover-place";
+import { placeBeside, placePopover, placeReadingHint, POPOVER_GAP, POPOVER_MARGIN } from "../popover-place";
 
 const VIEW = { width: 1280, height: 800 };
 /** The menu's own box: 208 wide, four 30px rows, a rule and the padding. */
@@ -12,6 +12,58 @@ const anchor = (x: number, y: number) => ({ left: x - 24, right: x, top: y, bott
 
 /** The accounts column's own way-in row: the full 288px panel, 42px tall. */
 const rowAt = (top: number, left = 12, right = 288) => ({ left, right, top, bottom: top + 42 });
+
+describe("reading previews leave the following row available", () => {
+  const preview = { width: 420, height: 113 };
+  const desktop = { width: 1440, height: 1000 };
+
+  it("clears the next row in the reported 1440px split layout", () => {
+    const row = { left: 118, right: 684, top: 208, bottom: 242 };
+    const p = placeReadingHint(row, preview, desktop)!;
+    expect(p.side).toBe("right");
+    expect(p.left).toBeGreaterThan(row.right);
+    expect(p.top).toBe(row.top);
+    expect(p.maxHeight).toBeNull();
+  });
+
+  it("uses the left side when the full preview fits only there", () => {
+    const row = rowAt(200, 900, 1320);
+    const p = placeReadingHint(row, preview, desktop)!;
+    expect(p.side).toBe("left");
+    expect(p.left + preview.width).toBeLessThan(row.left);
+  });
+
+  it("opens above a full-width list even when there is more space below", () => {
+    const row = rowAt(208, 118, 1320);
+    const p = placeReadingHint(row, preview, desktop)!;
+    expect(p.side).toBe("above");
+    expect(p.top + preview.height).toBe(row.top - POPOVER_GAP);
+  });
+
+  it.each([320, 390])("keeps a long mobile preview above its row and inside a %ipx viewport", width => {
+    const row = rowAt(160, 12, width - 12);
+    const size = { width: width - 16, height: 600 };
+    const p = placeReadingHint(row, size, { width, height: 640 }, 44)!;
+    expect(p.side).toBe("above");
+    expect(p.top).toBe(POPOVER_MARGIN);
+    expect(p.left).toBeGreaterThanOrEqual(POPOVER_MARGIN);
+    expect(p.left + size.width).toBeLessThanOrEqual(width - POPOVER_MARGIN);
+    expect(p.top + p.maxHeight!).toBe(row.top - POPOVER_GAP);
+  });
+
+  it("does not show an unreadable strip at the top edge or cover the next row instead", () => {
+    expect(placeReadingHint(rowAt(20, 12, 308), { width: 304, height: 200 }, { width: 320, height: 640 }, 44)).toBeNull();
+    expect(placeReadingHint(rowAt(-10, 12, 308), { width: 304, height: 200 }, { width: 320, height: 640 })).toBeNull();
+  });
+
+  it("clamps a bottom-edge side preview without covering the list column", () => {
+    const row = rowAt(980, 118, 684);
+    const p = placeReadingHint(row, { width: 420, height: 1400 }, desktop)!;
+    expect(p.left).toBeGreaterThan(row.right);
+    expect(p.top).toBe(POPOVER_MARGIN);
+    expect(p.top + p.maxHeight!).toBe(desktop.height - POPOVER_MARGIN);
+  });
+});
 
 // The hover peek is not a menu and does not go where a menu goes. A menu drops
 // under the control the reader just pressed; this card opens beside a row
@@ -113,5 +165,17 @@ describe("where the popover opens (popover-place.ts)", () => {
     expect(p.side).toBe("above");
     expect(p.top).toBe(POPOVER_MARGIN);
     expect(p.top + p.maxHeight!).toBe(120 - POPOVER_GAP);
+  });
+});
+
+
+describe("start-aligned board pickers", () => {
+  it("stays attached to a compact trigger rather than drifting to the viewport edge", () => {
+    const trigger = { left: 106, right: 240, top: 100, bottom: 130 };
+    expect(placePopover(trigger, { width: 360, height: 200 }, { width: 1784, height: 900 }, "start").left).toBe(106);
+    expect(placePopover(trigger, { width: 360, height: 200 }, { width: 1784, height: 900 }).left).toBe(POPOVER_MARGIN);
+  });
+  it("still clamps the picker inside a narrow viewport", () => {
+    expect(placePopover(anchor(250, 100), SIZE, { width: 320, height: 800 }, "start").left).toBe(104);
   });
 });

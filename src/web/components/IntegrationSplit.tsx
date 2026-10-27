@@ -7,7 +7,8 @@
 // The core's, not a provider's: every tracker panel is a list of things and
 // the one thing chosen, and each gets the same split and the same memory of
 // its width (integrations/layout.ts). Until the reader drags it the detail
-// takes half the room, never under 320px nor so much that the list goes
+// defaults to half the room, or the provider's automatic share, never under
+// 320px nor so much that the list goes
 // under 420px.
 //
 // What the host does for every panel, so none has to:
@@ -26,26 +27,26 @@
 //   in 120ms, laid over the list as it returns. Under reduced motion the
 //   screens change at once, with a fade at most.
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
-import { AUTO_DETAIL_CSS, autoDetail, clampDetail, DETAIL_WIDTH, DRILL_IN_QUERY, readDetailWidth, writeDetailWidth } from "../integrations/layout";
+import { autoDetailCss, autoDetail, DETAIL_SHARE, clampDetail, DETAIL_WIDTH, DRILL_IN_QUERY, readDetailWidth, writeDetailWidth } from "../integrations/layout";
 import { modalStack } from "../modal-dismiss";
 import { useMediaQuery } from "../use-media-query";
 import { prefersReducedMotion } from "../viewport-motion";
 
-function Splitter({ width, workspace, controls, onCommit }: {
-  width: number | null; workspace: RefObject<HTMLDivElement>; controls: string; onCommit: (width: number | null) => void;
+function Splitter({ width, workspace, controls, onCommit, automaticDetailShare }: {
+  width: number | null; workspace: RefObject<HTMLDivElement>; controls: string; onCommit: (width: number | null) => void; automaticDetailShare: number;
 }) {
   const self = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; width: number; room: number; last: number } | null>(null);
   const room = () => workspace.current?.clientWidth ?? window.innerWidth;
-  const shown = width == null ? autoDetail(room()) : clampDetail(width, room());
+  const shown = width == null ? autoDetail(room(), automaticDetailShare) : clampDetail(width, room());
   const apply = (next: number) => {
     workspace.current?.style.setProperty("--ig-detail-w", `${next}px`);
     self.current?.setAttribute("aria-valuenow", String(next));
   };
   const commit = (next: number | null) => {
     if (next == null) {
-      workspace.current?.style.setProperty("--ig-detail-w", AUTO_DETAIL_CSS);
-      self.current?.setAttribute("aria-valuenow", String(autoDetail(room())));
+      workspace.current?.style.setProperty("--ig-detail-w", autoDetailCss(automaticDetailShare));
+      self.current?.setAttribute("aria-valuenow", String(autoDetail(room(), automaticDetailShare)));
     } else apply(next);
     onCommit(next);
   };
@@ -97,6 +98,8 @@ export interface IntegrationSplitProps {
   backLabel: string;
   /** Whose detail width this is, remembered per browser: "jira". */
   storageKey: string;
+  /** Fraction of the workspace used until a pixel width is saved; default 0.5. */
+  automaticDetailShare?: number;
   /** Which thing the detail shows (its key or id). A new one fades the
    *  detail's content in, or brings the drill-in screen in; without it only
    *  the opening of a detail does. */
@@ -108,7 +111,7 @@ export function useDrillIn(): boolean {
   return useMediaQuery(DRILL_IN_QUERY);
 }
 
-export default function IntegrationSplit({ list, detail, onBack, backLabel, storageKey, detailKey }: IntegrationSplitProps) {
+export default function IntegrationSplit({ list, detail, onBack, backLabel, storageKey, detailKey, automaticDetailShare = DETAIL_SHARE }: IntegrationSplitProps) {
   const drillIn = useDrillIn();
   const detailId = `${useId()}-detail`;
   const workspace = useRef<HTMLDivElement>(null);
@@ -184,11 +187,11 @@ export default function IntegrationSplit({ list, detail, onBack, backLabel, stor
 
   return (
     <div ref={workspace} className="ig-split" data-detail={open || undefined} data-drill-in={drillIn || undefined}
-      style={{ "--ig-detail-w": width == null ? AUTO_DETAIL_CSS : `${width}px` } as CSSProperties}>
+      style={{ "--ig-detail-w": width == null ? autoDetailCss(automaticDetailShare) : `${width}px` } as CSSProperties}>
       {/* The list stays mounted on the drill-in screen, only hidden, so its
           scroll and its open groups are where the reader left them. */}
       <div ref={listRef} className="ig-list" hidden={(drillIn && open) || undefined}>{list}</div>
-      {open && !drillIn && <Splitter width={width} workspace={workspace} controls={detailId} onCommit={commit} />}
+      {open && !drillIn && <Splitter width={width} workspace={workspace} controls={detailId} onCommit={commit} automaticDetailShare={automaticDetailShare} />}
       {shown != null && (
         <section ref={detailRef} className="ig-detail" id={detailId} aria-label="Details" data-leaving={isLeaving || undefined}
           onAnimationEnd={event => { if (isLeaving && event.target === event.currentTarget) setLeaving(null); }}>

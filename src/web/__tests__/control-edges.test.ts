@@ -540,6 +540,8 @@ const CONTROLS: Control[] = [
   // with the primary button's accent edge. Its search fields and its Open in
   // Jira link are the integrations' shared ones.
   { at: 'button.btn.jr-chip[aria-pressed="true"]', fillFrom: 'button.btn.jr-chip[aria-pressed="true"]', beds: ["--panel"] },
+  // Move's native destination/position fields sit on the anchored panel.
+  { at: ".jr-move-pop select", beds: ["--panel"] },
   // The integrations' shared search field (#2178, #2179), which both panels'
   // fields become: on a toolbar over --bg in the modal, or over --panel.
   { at: ".ig-search-input", states: [".ig-search-input:hover"], beds: ["--panel", "--bg"] },
@@ -871,13 +873,13 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
       ".fb-kind:has(input:focus-visible)",
-      // The integrations' selected row (#2178, #2179): a pill or a status
-      // lozenge gives up its fill there, so its ring is the whole of its
-      // boundary, and so is the empty face's when no one is assigned.
+      // Selected metadata pills give up their fill, so their ring is the
+      // whole boundary, as is an empty face's. Jira workflow statuses now
+      // retain opaque semantic beds, measured in jira-contrast.test.ts.
       ".ig-row[data-selected] .ig-avatar-none",
       ".ig-row[data-selected] .ig-chip",
-      '.ig-row[data-selected] .jr-status[data-cat="done"]',
-      '.ig-row[data-selected] .jr-status[data-cat="indeterminate"]',
+      // The navigable button now puts its focus ring on the whole issue row.
+      ".jr-row:has(> .jr-row-main:focus-visible)",
       // Quick open's field: the input in it is borderless, so the row it
       // sits in draws the ring, as the feedback kinds' cards do.
       ".qo-field:has(.qo-input:focus-visible)",
@@ -955,7 +957,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // adds two, at rest and under the pointer, and the link to the tracker
     // draws no edge. Quick open's field adds one: the ring its input draws on
     // the row around it.
-    expect(EDGED_CONTROLS.length).toBeLessThan(162);
+    // Jira Move adds a select boundary and the full-row keyboard perimeter;
+    // both are swept at the unchanged 3:1 floor, not exempted.
+    expect(EDGED_CONTROLS.length).toBeLessThan(164);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

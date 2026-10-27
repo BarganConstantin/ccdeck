@@ -14,6 +14,8 @@
 //   GET    /api/integrations/<kind>/<id>/asset?url=     an image, read by the provider's client from its
 //                                                        own image hosts (raster only; empty 403/404)
 //   GET    /api/integrations/<kind>/<id>/<subpath…>     the provider's own reads (registry.mjs)
+//   POST   /api/integrations/jira/<id>/board/<boardId>/move
+//                                                      one validated issue's group/rank (jira-move.mjs)
 //
 // A route that would ask a provider that is not answering (registry.mjs,
 // `available`), or ask for a saved connection whose provider this deck does
@@ -31,7 +33,7 @@
 // And what comes back is sent without it: a tracker that echoes the token
 // reaches the page, the saved connection and the log as `[redacted]`.
 import { createHash } from "node:crypto";
-import { readBody, send } from "../http-io.mjs";
+import { readBody, readBytes, send } from "../http-io.mjs";
 import { errorBody, errorResponse, integrationError, isTypedError } from "./errors.mjs";
 import { fetchImage, IMAGE_MAX_BYTES, isSafeTarget, normaliseBaseUrl, originOf, RASTER_TYPES, rasterTypeOf } from "./proxy.mjs";
 import { getProvider, isAvailable, providerList } from "./registry.mjs";
@@ -451,9 +453,21 @@ export async function handleIntegrations(req, res, url, deps = {}) {
     // /api/integrations/<kind>/<id>/<subpath…>
     const [kind, id, ...rest] = segments;
     if (!id || rest.length === 0) return notFound(res);
-    // Reads only, whatever the kind and whether or not this deck has its
-    // provider: nothing under here may change anything.
-    if (method !== "GET" && method !== "HEAD") return notAllowed(res);
+    // The only provider mutation is this narrowly shaped Jira operation.
+    // The server's normal mutation authentication and CSRF gates still apply.
+    const jiraMove = kind === "jira" && method === "POST" && rest.length === 3
+      && rest[0] === "board" && /^[1-9]\d{0,11}$/.test(rest[1]) && rest[2] === "move";
+    if (method !== "GET" && method !== "HEAD" && !jiraMove) return notAllowed(res);
+    let moveBody;
+    if (jiraMove) {
+      if (!/^application\/json(?:\s*;|$)/i.test(String(req.headers["content-type"] ?? ""))) {
+        throw integrationError("invalid", "Send the move as application/json.");
+      }
+      const bytes = await readBytes(req, res, 4096).catch(err => { if (!res.headersSent) throw err; return null; });
+      if (bytes === null) return;
+      try { moveBody = JSON.parse(bytes.toString("utf8")); }
+      catch { throw integrationError("invalid", "The move body is not valid JSON."); }
+    }
     const provider = getProvider(kind);
 
     // An image: whatever goes wrong, an empty 403 or 404, and the connection
@@ -486,7 +500,7 @@ export async function handleIntegrations(req, res, url, deps = {}) {
     if (secret == null) throw integrationError("expired", "No token is saved for this connection. Reconnect it in Settings.");
     const client = clientFor(provider, conn, secret, { fetchImpl });
 
-    const read = await provider.routes(client, method, rest.join("/"), url.searchParams, req, { signal });
+    const read = await provider.routes(client, method, rest.join("/"), url.searchParams, req, { signal, ...(jiraMove ? { moveBody } : {}) });
     if (res.writableEnded || signal.aborted) return;
     const status = Number.isInteger(read?.status) ? read.status : 500;
     return answer(status, read?.body ?? errorBody(null));

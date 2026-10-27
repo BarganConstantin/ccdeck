@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { IntegrationFailure } from "../integrations/client";
 import JiraBacklog, { type JiraBacklogProps } from "../components/JiraBacklog";
 import { groupsFor, type GroupDef } from "../jira-board";
 import type { JiraBoardOverview, JiraIssue, JiraSprint, StatusCategory } from "../jira-api";
@@ -68,6 +69,66 @@ function rows(html: string): Record<string, string> {
   for (const m of html.matchAll(/<button[^>]*class="jr-row-main"[^>]*data-key="([^"]+)"[^>]*>([\s\S]*?)<\/button>/g)) out[m[1]] = m[0];
   return out;
 }
+
+describe("explicit moves without changing the existing read-only contract", () => {
+  const onMove = async () => ({});
+  const writable = { ...OVERVIEW, moves: { enabled: true } };
+  it("keeps older servers read-only and exposes actions for blocked top-level work", () => {
+    expect(drawBoard([issue("MOCK-1")], { onMove })).not.toContain('class="jr-move-button"');
+    const html = drawBoard([
+      issue("MOCK-1"), issue("MOCK-2", { status: status("Done", "done") }),
+      issue("MOCK-3", { type: { ...STORY, epic: true } }),
+    ], { onMove }, writable);
+    expect(html.match(/class="jr-move-button"/g)).toHaveLength(3);
+    expect(html).toContain('aria-label="Actions for MOCK-2"');
+    expect(html).toContain('aria-label="Actions for MOCK-3"');
+    expect(html).toContain('aria-label="Actions for MOCK-1"');
+    expect(html).toContain('aria-haspopup="menu"');
+    expect(html).toContain('draggable="true"');
+    expect(html).toContain("Alt+M opens Move");
+    expect(html).toContain("Right-click or Shift+F10 opens actions");
+    expect(rows(html)["MOCK-2"]).toContain('aria-haspopup="menu"');
+  });
+  it("exposes expanded state and priority on the roving keyboard control", () => {
+    const html = drawBoard([issue("MOCK-1", { subtaskKeys: ["MOCK-2"], priority: { name: "High", icon: null } })], { rowsOpen: { "MOCK-1": true } });
+    expect(rows(html)["MOCK-1"]).toContain('aria-expanded="true"');
+    expect(rows(html)["MOCK-1"]).toContain('aria-controls="jr-toggle-sprint-13-MOCK-1-children"');
+    expect(rows(html)["MOCK-1"]).toContain("priority High");
+    expect(html).toContain('id="jr-toggle-sprint-13-MOCK-1-children"');
+  });
+});
+
+describe("row selection and current-detail highlight", () => {
+  it("keeps the current issue highlighted without an extra icon", () => {
+    const html = drawBoard([issue("MOCK-1"), issue("MOCK-2")], { selected: "MOCK-1" });
+    expect(html).toContain('data-current="true"');
+    expect(html).toContain('data-selected="true"');
+    expect(html).not.toContain('class="jr-current-mark"');
+    expect(html).not.toContain('type="checkbox"');
+    // The type glyph remains factual, not a selection checkbox.
+    expect(rows(html)["MOCK-1"]).toContain('aria-label="Story"');
+  });
+});
+
+describe("title-first row content", () => {
+  it("uses a compact version count without dropping full values", () => {
+    const versions = ["Release Europe", "Release America", "Service compatibility"];
+    const html = drawBoard([issue("MOCK-1", { fixVersions: versions }), issue("MOCK-2")]);
+    const drawn = rows(html);
+    expect(drawn["MOCK-1"]).toContain('data-has-meta="true"');
+    expect(drawn["MOCK-1"]).toContain('title="Release Europe, Release America, Service compatibility"');
+    expect(drawn["MOCK-1"]).toContain("3 versions");
+    expect(drawn["MOCK-1"].match(/class="jr-version"/g)).toHaveLength(1);
+    expect(drawn["MOCK-2"]).not.toContain('data-has-meta="true"');
+  });
+  it("keeps a single version's name and the original keyboard row label", () => {
+    const html = drawBoard([issue("MOCK-1", { summary: "Full identifying title", fixVersions: ["V6"] })]);
+    const row = rows(html)["MOCK-1"];
+    expect(row).toContain('title="V6">V6</span>');
+    expect(row).toContain('aria-label="MOCK-1: Full identifying title.');
+    expect(row).toContain('aria-describedby="');
+  });
+});
 
 describe("every row says what state its issue is in", () => {
   it("draws Jira's status lozenge on each row and sub-row, by category, with the whole name in its title", () => {
@@ -268,11 +329,11 @@ describe("nothing on a narrow screen widens its pane or loses its words", () => 
     expect(sheet).toMatch(/\.jr-field dd > \.ig-person \{ max-width: 100%; \}/);
   });
 
-  it("on a phone, keeps the freshness line's words and lets it go under the board button", () => {
-    const phone = block("@media (max-width: 700px)");
-    expect(phone).toMatch(/\.jr-toolbar-row \{ flex-wrap: wrap;/);
-    expect(phone).toMatch(/\.jr-board-layer \{ width: auto; \}/);
-    expect(phone).toMatch(/\.jr-toolbar-row > \.ig-freshness \{ flex: none; \}/);
+  it("on a narrow panel, keeps freshness visible above a full-width search and reachable filters", () => {
+    const phone = block("@container jira-panel (max-width: 700px)");
+    expect(phone).toMatch(/\.jr-toolbar \{ display: grid;[^}]*grid-template-columns: minmax\(0, 1fr\) auto;/);
+    expect(phone).toMatch(/\.jr-filters \{[^}]*grid-column: 1 \/ -1;[^}]*grid-row: 2;/);
+    expect(phone).toMatch(/\.jr-filters > \.ig-search \{ flex: 1 1 100%; \}/);
   });
 
   it("on a phone, keeps a row's flag, epic and estimate on its third line, the epic giving way", () => {
@@ -287,9 +348,58 @@ describe("nothing on a narrow screen widens its pane or loses its words", () => 
     const narrow = block("@container jira-list (max-width: 360px)");
     // The key's column takes its words' width first; the status's takes what
     // is left. Only a key longer than the line is cut.
-    expect(narrow).toMatch(/\.jr-row-main \{ grid-template-columns: 16px 16px minmax\(0, max-content\) minmax\(0, 1fr\) 20px; \}/);
+    expect(narrow).toMatch(/\.jr-row-main \{[^}]*grid-template-columns: 16px 16px minmax\(0, max-content\) minmax\(0, 1fr\) 20px;/);
     expect(narrow).toMatch(/\.jr-row-main > \.jr-key \{ grid-column: 3; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; \}/);
-    expect(narrow).toMatch(/\.jr-facts \.jr-status-cell > \.jr-status \{ flex: 0 1 auto; min-width: 0; \}/);
-    expect(sheet).toMatch(/\.jr-status \{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;/);
+    expect(narrow).toMatch(/\.jr-facts \.jr-status-cell > \.jr-status \{[^}]*flex: 0 1 auto;[^}]*min-width: 0;/);
+    expect(sheet).toMatch(/\.jr-status(?:, [^{]+)? \{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;/);
+  });
+});
+
+
+describe("group read failures and closed-sprint discovery", () => {
+  const failure = new IntegrationFailure("network", "Offline for this test");
+  const snapshot = (): BoardSnapshot => ({ overview: OVERVIEW, groups: {
+    "sprint:13": { status: "ready", issues: [], next: "", total: 0, capped: false, error: null, more: false },
+  }, subtasks: {}, closed: { shown: true, sprints: [], total: 0, isLast: false, loading: false, error: null }, loadedAt: 1 });
+  it("renders a failed further page without removing loaded issues or its cursor", () => {
+    const snap = snapshot();
+    const group = groupsFor(OVERVIEW)[0];
+    snap.groups = { [group.id]: { status: "ready", issues: [issue("MOCK-1")], next: "next-page", total: 2, capped: false, more: false, error: failure } };
+    const html = drawBoard([], { snap, groups: [{ ...group, paged: true }] });
+    expect(html).toContain("More issues could not be read");
+    expect(html).toContain("Try again");
+    expect(html).toContain('data-key="MOCK-1"');
+    expect(html).toContain("Show more (1 of 2)");
+  });
+  it("uses quiet empty styling only for a confirmed, complete, successful read", () => {
+    const snap = snapshot(); const group = groupsFor(OVERVIEW)[0];
+    snap.groups = { [group.id]: { status: "ready", issues: [], next: "", total: 0, capped: false, error: null, more: false } };
+    expect(drawBoard([], { snap })).toContain('data-empty="true"');
+    snap.groups[group.id].error = failure;
+    expect(drawBoard([], { snap })).not.toContain('data-empty="true"');
+    snap.groups[group.id].error = null; snap.groups[group.id].next = "next-page";
+    expect(drawBoard([], { snap })).not.toContain('data-empty="true"');
+    snap.groups[group.id].next = ""; snap.groups[group.id].status = "loading";
+    expect(drawBoard([], { snap })).not.toContain('data-empty="true"');
+  });
+  it("shows a closed discovery error with direct recovery, without claiming emptiness", () => {
+    const snap = snapshot(); snap.closed.error = failure;
+    const html = drawBoard([], { snap });
+    expect(html).toContain("Closed sprints could not be read");
+    expect(html).toContain("Try again");
+    expect(html).not.toContain("No closed sprints on this board.");
+  });
+  it("distinguishes loading, confirmed emptiness and hidden discovery", () => {
+    const snap = snapshot(); snap.closed.loading = true;
+    const loading = drawBoard([], { snap });
+    expect(loading).toContain("Reading closed sprints…");
+    expect(loading).not.toContain("No closed sprints on this board.");
+    expect(loading).toContain('aria-expanded="true"');
+    snap.closed.loading = false;
+    expect(drawBoard([], { snap })).toContain("No closed sprints on this board.");
+    snap.closed.shown = false; snap.closed.error = failure;
+    const hidden = drawBoard([], { snap });
+    expect(hidden).not.toContain("Closed sprints could not be read");
+    expect(hidden).toContain("Show closed sprints");
   });
 });

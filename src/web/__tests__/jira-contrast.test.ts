@@ -161,7 +161,7 @@ describe("the issue type the panel draws itself", () => {
 /** A row of the backlog, from the panel down: `row` describes the row's own
  *  state (selected, under the pointer), `item` whether it is a parent drawn
  *  only for its sub-tasks. */
-function rowChain(theme: string, row: { selected?: boolean; hover?: boolean; context?: boolean; cloud?: boolean } = {}): El[] {
+function rowChain(theme: string, row: { selected?: boolean; hover?: boolean; active?: boolean; dragging?: boolean; current?: boolean; blocked?: boolean; context?: boolean; cloud?: boolean } = {}): El[] {
   return [
     rootOf(theme),
     el("div", ["modal", "ig-modal"]),
@@ -169,7 +169,7 @@ function rowChain(theme: string, row: { selected?: boolean; hover?: boolean; con
     el("div", ["jr-group-body"]),
     el("ul", ["jr-rows"]),
     el("li", ["jr-item"], { attrs: row.context ? { "data-context": "true" } : {} }),
-    el("div", ["jr-row", "ig-row"], { attrs: row.selected ? { "data-selected": "true" } : {}, states: row.hover ? ["hover"] : [] }),
+    el("div", ["jr-row", "ig-row"], { attrs: { ...(row.selected ? { "data-selected": "true" } : {}), ...(row.dragging ? { "data-dragging": "true" } : {}), ...(row.current ? { "data-current": "true" } : {}), ...(row.blocked ? { "data-move-blocked": "true" } : {}) }, states: [...(row.hover ? ["hover"] : []), ...(row.active ? ["active"] : [])] }),
     el("button", ["jr-row-main"]),
   ];
 }
@@ -226,11 +226,9 @@ describe("every word on a backlog row reads, at rest, under the pointer and sele
       expect(failures).toEqual([]);
     });
 
-    it(`${theme}: a selected row's pills drop their fill, and its marks still stand off it`, () => {
+    it(`${theme}: selected metadata drops its fill, and its marks still stand off it`, () => {
       const sel = rowChain(theme, { selected: true });
-      for (const tail of [WORDS.estimate, WORDS["status indeterminate"], WORDS["status done"]]) {
-        expect(prop([...sel, ...tail], "background")).toBe("transparent");
-      }
+      expect(prop([...sel, ...WORDS.estimate], "background")).toBe("transparent");
       const bed = bedOf(sel);
       const flag = [...sel, el("span", ["jr-facts"]), el("span", ["jr-meta"]), el("span", ["jr-flagged"])];
       expect(contrast(over(color(prop(flag, "color")!, flag), bed), bed), "the flag").toBeGreaterThanOrEqual(NON_TEXT);
@@ -238,6 +236,90 @@ describe("every word on a backlog row reads, at rest, under the pointer and sele
         const glyph = [...sel, el("svg", ["jr-icon", "jr-priority-glyph"], { attrs: { "data-level": level } })];
         expect(contrast(over(color(prop(glyph, "color")!, glyph), bed), bed), `priority ${level}`).toBeGreaterThanOrEqual(NON_TEXT);
       }
+    });
+  }
+});
+
+describe("workflow status and current detail remain independent of batch state", () => {
+  for (const theme of THEMES) {
+    it(`${theme}: all three statuses retain distinct opaque beds and 4.5:1 words through selection, hover and press`, () => {
+      const beds = ["new", "indeterminate", "done"].map(cat => {
+        const tail = WORDS[`status ${cat}`];
+        const resting = [...rowChain(theme), ...tail];
+        const fill = color(prop(resting, "background")!, resting);
+        expect(fill[3], `${cat} has its own opaque bed`).toBe(1);
+        for (const state of [{}, { hover: true }, { selected: true }, { selected: true, hover: true },
+          { active: true }, { selected: true, active: true }, { selected: true, dragging: true, active: true }, { current: true }]) {
+          const chain = [...rowChain(theme, state), ...tail];
+          expect(color(prop(chain, "background")!, chain), `${cat} ${JSON.stringify(state)}`).toEqual(fill);
+          expect(prop(chain, "box-shadow"), `${cat} never falls back to an outlined selected pill`).toBe("none");
+          expect(inkOn(chain), `${cat} ${JSON.stringify(state)}`).toBeGreaterThanOrEqual(BODY);
+        }
+        return fill;
+      });
+      expect(new Set(beds.map(bed => JSON.stringify(bed))).size).toBe(3);
+    });
+    it(`${theme}: the current key reads independently of picked membership`, () => {
+      for (const selected of [false, true]) {
+        const key = [...rowChain(theme, { selected, current: true }), el("span", ["jr-key"])];
+        expect(prop(key, "font-weight")).toBe("600");
+        expect(inkOn(key)).toBeGreaterThanOrEqual(BODY);
+      }
+    });
+    it(`${theme}: selected and dragged rows retain their batch fill while pressed`, () => {
+      const row = (state: Parameters<typeof rowChain>[1]) => rowChain(theme, state).slice(0, -1);
+      const selected = row({ selected: true });
+      const fill = color(prop(selected, "background")!, selected);
+      for (const state of [{ selected: true, active: true }, { dragging: true, active: true }, { selected: true, dragging: true, active: true }]) {
+        const chain = row(state);
+        expect(color(prop(chain, "background")!, chain)).toEqual(fill);
+      }
+    });
+    it(`${theme}: blocked-selection feedback reads without tinting the row`, () => {
+      for (const selected of [false, true]) for (const blocked of [false, true]) {
+        const row = rowChain(theme, { selected, blocked }).slice(0, -1);
+        const plain = rowChain(theme, { selected }).slice(0, -1);
+        expect(prop(row, "background")).toBe(prop(plain, "background"));
+      }
+      const note = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]),
+        el("div", ["jr-list-scroll"]), el("div", ["jr-board"]), el("div", ["jr-selection"]), el("span", ["jr-selection-note"])];
+      expect(inkOn(note)).toBeGreaterThanOrEqual(BODY);
+    });
+    it(`${theme}: the row action menu reads at rest and under the pointer`, () => {
+      for (const hover of [false, true]) for (const disabled of [false, true]) {
+        const chain = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]),
+          el("div", ["jr-actions-pop"]), el("button", ["jr-action-item"], { attrs: disabled ? { "aria-disabled": "true" } : {}, states: hover ? ["hover"] : [] })];
+        const panel = color("var(--panel)", chain);
+        const bed = over(color(prop(chain, "background")!, chain), panel);
+        expect(contrast(over(color(prop(chain, "color")!, chain), bed), bed)).toBeGreaterThanOrEqual(BODY);
+        if (disabled) expect(prop(chain, "background")).toBe("transparent");
+      }
+      const hint = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]),
+        el("div", ["jr-actions-pop"]), el("p", ["jr-action-hint"])];
+      const bed = color("var(--panel)", hint);
+      expect(contrast(over(color(prop(hint, "color")!, hint), bed), bed)).toBeGreaterThanOrEqual(BODY);
+    });
+  }
+});
+
+describe("the complete row preview reads in every theme", () => {
+  for (const theme of THEMES) {
+    it(`${theme}: the full summary, key and metadata retain the 4.5:1 text floor`, () => {
+      const preview = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-row-preview"])];
+      const fill = color(prop(preview, "background")!, preview);
+      expect(fill[3], "the hint has its own opaque surface").toBe(1);
+      for (const tail of [
+        [el("p", ["jr-preview-key"])],
+        [el("p", ["jr-preview-summary"])],
+        [el("dl"), el("dt")],
+        [el("dl"), el("dd")],
+      ]) {
+        const word = [...preview, ...tail];
+        expect(contrast(over(color(prop(word, "color")!, word), fill), fill)).toBeGreaterThanOrEqual(BODY);
+      }
+      const summary = [...preview, el("p", ["jr-preview-summary"])];
+      expect(prop(summary, "white-space")).toBe("normal");
+      expect(prop(summary, "overflow-wrap")).toBe("anywhere");
     });
   }
 });
@@ -252,9 +334,16 @@ describe("the toolbar's quiet words on their fields", () => {
       const ink = cascaded(field, "color", s => /::placeholder$/.test(s) ? selects(s.replace(/::placeholder$/, ""), field) : null);
       expect(ink).not.toBeNull();
       expect(contrast(over(color(ink!, placeholder), fieldBed), fieldBed), "placeholder").toBeGreaterThanOrEqual(BODY);
-      const chip = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]), el("button", ["btn", "jr-chip"], { attrs: { "aria-pressed": "true" } })];
-      const chipBed = over(color(prop(chip, "background")!, chip), panel);
-      expect(contrast(over(color(prop(chip, "color")!, chip), chipBed), chipBed), "pressed chip").toBeGreaterThanOrEqual(BODY);
+      for (const pressed of ["false", "true"]) for (const hover of [false, true]) {
+        const chip = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]), el("button", ["btn", "jr-chip"], { attrs: { "aria-pressed": pressed }, states: hover ? ["hover"] : [] })];
+        const chipBed = over(color(prop(chip, "background")!, chip), panel);
+        expect(contrast(over(color(prop(chip, "color")!, chip), chipBed), chipBed), `chip pressed=${pressed} hover=${hover}`).toBeGreaterThanOrEqual(BODY);
+      }
+      for (const hover of [false, true]) {
+        const reset = [rootOf(theme), el("div", ["modal", "ig-modal"]), el("div", ["jr-panel"]), el("button", ["jr-link-btn", "jr-clear"], { states: hover ? ["hover"] : [] })];
+        const resetBed = hover ? over(color(prop(reset, "background")!, reset), panel) : panel;
+        expect(contrast(over(color(prop(reset, "color")!, reset), resetBed), resetBed), `clear filters hover=${hover}`).toBeGreaterThanOrEqual(BODY);
+      }
     });
   }
 });
@@ -291,9 +380,9 @@ describe("a sprint's header reads on the modal's ground", () => {
       for (const hover of [false, true]) {
         const at = hover ? " under the pointer" : "";
         for (const [word, tail] of Object.entries({
-          "Active lozenge": [...toggle(hover), el("span", ["jr-badge"])],
-          count: [...toggle(hover), el("span", ["jr-group-count"])],
-          dates: [...toggle(hover), el("span", ["jr-group-dates"])],
+          "Active lozenge": [...toggle(hover), el("span", ["jr-group-identity"]), el("span", ["jr-badge"])],
+          count: [...toggle(hover), el("span", ["jr-group-identity"]), el("span", ["jr-group-count"])],
+          dates: [...toggle(hover), el("span", ["jr-group-identity"]), el("span", ["jr-group-dates"])],
         })) {
           const r = headInk([...headChain(theme), ...tail]);
           if (r < BODY) failures.push(`${word}${at}: ${r.toFixed(2)}`);
