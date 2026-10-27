@@ -123,6 +123,8 @@ export interface StageSessionInfo {
   context?: StageContext | null;
   /** "14m ago", for the end bar of a session that ended. */
   endedAgo?: string | null;
+  /** This deck launched it from the Command Panel (panel-launch.ts). */
+  launched?: boolean;
 }
 
 /** What the stage is asked to show. */

@@ -141,7 +141,7 @@ function setup(opts: { detailOpen?: boolean; selected?: string | null; agents?: 
   const setDetailOpen = vi.fn();
   const selectAgent = vi.fn();
   const deps: StageDeps = {
-    stateRef: { current: { agents } as unknown as GraphState },
+    stateRef: { current: { agents, panelLaunches: new Map(), revision: 0 } as unknown as GraphState },
     canvasRef: { current: page.canvas as unknown as HTMLElement },
     detailOpen: opts.detailOpen ?? false,
     detailShown: false,
@@ -508,6 +508,7 @@ describe("the other ways in", () => {
     now().stage.onLaunched({ sessionId: "s-new" });
     view.rerender(props);
     expect(now().stage.shell.target, "not on the board yet").toMatchObject({ kind: "launch" });
+    expect(deps.stateRef.current.panelLaunches.get("s-new"), "the launch waits for its card").toBe(key);
     deps.stateRef.current.agents.set("s-new", root("s-new"));
     view.rerender(props);
     expect(now().stage.shell.target).toEqual({ kind: "session", id: "s-new", launch: key });

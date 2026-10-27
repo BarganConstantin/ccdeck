@@ -124,7 +124,10 @@ export function stageShowFor(
   if (!root) {
     return {
       kind: "session",
-      session: { ref: { sessionId: id, provider: "claude", cwd: "" }, name: id.slice(0, 8), hue: sessionHue(id), status: { state: "none", phrase: "" } },
+      session: {
+        ref: { sessionId: id, provider: "claude", cwd: "" }, name: id.slice(0, 8), hue: sessionHue(id), status: { state: "none", phrase: "" },
+        ...(target.launch ? { launched: true } : {}),
+      },
       ...launch,
     };
   }
@@ -152,6 +155,9 @@ export function stageShowFor(
       ghostLine: signal?.long ?? promptLine(lastPrompt),
       context: { prompt: promptLine(lastPrompt), fact },
       endedAgo: root.closedAt != null ? shortAgo(now - root.closedAt) : null,
+      // A launch of this panel's, which the board keeps for the session's life
+      // (panel-launch.ts), or the one the stage has just moved off.
+      ...(root.panelLaunch != null || target.launch ? { launched: true } : {}),
     },
     ...launch,
   };

@@ -46,6 +46,7 @@ import { focusCanvasNode } from "./canvas-node-element";
 import type { BoardNavigatorHandle } from "./components/BoardNavigator";
 import { hidePeek } from "./components/SessionPeek";
 import { DOUBLE_CLICK_MS } from "./focus-hold";
+import { notePanelLaunch } from "./panel-launch";
 import type { GraphState } from "./reducer";
 import {
   ASSUMED_CELL, BAR_H, NARROW_BELOW, STAGE_COLS_KEY, loadStageCols, saveStageCols, stageGeometry,
@@ -357,8 +358,12 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     if (l.sessionId) {
       launchedIdsRef.current.add(l.sessionId);
       dispatch({ type: "remember", sessionId: l.sessionId });
+      // And on the board, as a launch of this panel's, kept until the session
+      // ends: a new session that has done nothing yet is not a ghost to hide
+      // (panel-launch.ts).
+      notePanelLaunch(stateRef.current, l.sessionId, t.key);
     }
-  }, [shellRef]);
+  }, [shellRef, stateRef]);
   useEffect(() => {
     const t = shell.target;
     const l = launchedRef.current;
