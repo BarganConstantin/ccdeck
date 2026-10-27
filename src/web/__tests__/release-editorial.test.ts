@@ -58,6 +58,11 @@ describe('release editorial contract',()=>{
   const icons=[...html.matchAll(/<span class="rn-title-icon"[^>]*>([\s\S]*?)<\/span>/g)].map(m=>m[1]);
   expect(icons).toHaveLength(3);expect(new Set(icons).size).toBe(3);
  });
+ it('leads a title with its own emoji, and shows the glyph only for a title without one',()=>{
+  const html=draw([{version:'9.9.9',notes:[{...note(undefined,'🗞️ Shorter notes'),icon:'plans'},{...note(),icon:'skills'}]}],{running:'9.9.9'});
+  expect(html).toContain('<h3 class="rn-note-title"><span class="rn-note-icon">🗞️</span> Shorter notes</h3>');
+  expect([...html.matchAll(/class="rn-title-icon"/g)]).toHaveLength(1);
+ });
  it('fails open for unclassified legacy upgrades instead of hiding possible warnings',()=>{
   const entries=[{version:'3.46.0',notes:[]},{version:'3.45.0',notes:[note(undefined,'Legacy warning')]}];
   const p=presentReleaseNotes(entries,true);expect(p.visiblePrevious[0].notes).toEqual(entries[1].notes);expect(p.history).toEqual([]);

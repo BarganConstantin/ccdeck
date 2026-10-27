@@ -146,11 +146,15 @@ function ReleaseSection({ entry, showVersion }: { entry: VersionNotes; showVersi
 const NOTE_ICONS = { plans: SessionListGlyph, accounts: AccountsGlyph, skills: SkillActivityGlyph };
 
 function Note({ note, highlight }: { note: ReleaseNote; highlight?: boolean }) {
-  const { rest } = splitNoteTitle(note.title);
-  const Icon = note.icon ? ownRow(NOTE_ICONS, note.icon) : undefined;
+  // The title's own emoji leads it, as it did before the digest (owner,
+  // 2026-10-27), in a box of its own for the side bearing a colour glyph lacks
+  // (.rn-note-icon). The semantic glyph stands in only for a title without one,
+  // so a note never shows two marks.
+  const { icon: emoji, rest } = splitNoteTitle(note.title);
+  const Icon = !emoji && note.icon ? ownRow(NOTE_ICONS, note.icon) : undefined;
   return <li className="rn-note" data-highlight={highlight || undefined} data-required={note.priority === "required" || undefined} data-has-icon={!!Icon || undefined}>
     {Icon && <span className="rn-title-icon" aria-hidden="true"><Icon /></span>}
-    <div><h3 className="rn-note-title">{rest.trimStart()}</h3>
+    <div><h3 className="rn-note-title">{emoji && <span className="rn-note-icon">{emoji}</span>}{emoji ? rest : rest.trimStart()}</h3>
       <p className="rn-note-body">{renderInline(parseInline(note.body))}</p>
       {!highlight && note.details && <p className="rn-note-body rn-extra-detail">{renderInline(parseInline(note.details))}</p>}
       {note.notice && <p className="rn-note-notice"><strong>{note.noticeLabel ?? "Important"}: </strong>{renderInline(parseInline(note.notice))}</p>}

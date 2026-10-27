@@ -816,6 +816,10 @@
 .release-notes .rn-notes { list-style: none; margin: 0; padding: 0; }
 .release-notes .rn-note { padding: 12px 0; border-top: 1px solid var(--line); min-width: 0; }
 .release-notes .rn-note-title { margin: 0 0 3px; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 650; line-height: 1.4; color: var(--text); overflow-wrap: anywhere; }
+/* The side bearing a colour emoji does not have (#715): its glyph fills its
+   advance, so the word space after it is all the white there is. The space
+   stays in the text (splitNoteTitle keeps it); this adds only the bearing. */
+.release-notes .rn-note-icon { margin-right: 0.15em; }
 .release-notes .rn-note-body { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 1.58; color: var(--text-secondary); white-space: pre-line; overflow-wrap: anywhere; }
 /* Disclosures are reading rows, not outlined fields. */
 .release-notes .rn-more, .release-notes .rn-history { margin-top: 0; border: 0; border-top: 1px solid var(--line); }
