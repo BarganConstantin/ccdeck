@@ -423,7 +423,7 @@ function Inner() {
   // that says so — use-removals.ts.
   const { removedNodes, removedAgentIds, removeNode, removeSelectedNode, removalNotice,
           hideSessions, bringBack, bringBackAll, forgetRemovals }
-    = useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clearSelection, primarySelectedId });
+    = useRemovals({ stateRef, pinnedRef, positionsRef, returningRef: layout.returningRef, canvasRef, clearSelection, primarySelectedId });
   // Finished sessions taking themselves off the board after the delay picked
   // in Settings › General — use-hide-finished.ts.
   useHideFinished({

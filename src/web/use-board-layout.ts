@@ -59,6 +59,11 @@ export function useBoardLayout({ fitLeft, moveCamera, currentViewport }: Pick<Ca
   // storage, and a mark restored from a previous run would only relayout a
   // node that has been settled since.
   const provisionalRef = useRef<Provisional>(new Set());
+  // Sessions on their way back onto the board, marked as they leave the
+  // removal set (use-removals.ts) and spent by the frame that draws them, which
+  // sends each back to the place it kept (return-home.ts). Not persisted: a
+  // mark lives one frame.
+  const returningRef = useRef<Set<string>>(new Set());
   const lastLayoutSigRef = useRef<string>("");
   // Moved wherever the cached positions are thrown away — R, below, and the
   // reframe (use-reframe.ts). The board is rebuilt inside the memo that calls
@@ -168,8 +173,8 @@ export function useBoardLayout({ fitLeft, moveCamera, currentViewport }: Pick<Ca
     dismiss: dismissRearrangeUndo, hold: holdRearrangeUndo, release: releaseRearrangeUndo,
   };
 
-  return { restoredLayout, pinnedRef, positionsRef, provisionalRef, lastLayoutSigRef, layoutEpoch, setLayoutEpoch, lastLayoutFrameRef,
-           handleRelayout, rearrangeUndo };
+  return { restoredLayout, pinnedRef, positionsRef, provisionalRef, returningRef, lastLayoutSigRef, layoutEpoch, setLayoutEpoch,
+           lastLayoutFrameRef, handleRelayout, rearrangeUndo };
 }
 
 /** Keeps the stored layout in step with the board: moved out of App.tsx
