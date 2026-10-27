@@ -17,9 +17,10 @@
 // arrives together with its words is one a screen reader is apt to skip.
 //
 // No way out of the row leaves focus on <body> (see landRef and leave below).
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { focusDropped } from "../panel-press";
 import type { RatingPhase } from "../use-rating-ask";
+import { useRowHeight } from "../use-row-height";
 
 /** What the thanks says, on the row and in DeckBanner's live region. */
 export const RATING_THANKS = "Thanks — that helps.";
@@ -35,26 +36,6 @@ function scoreLabel(n: number): string {
 
 /** At or under this, the thanks also offers the feedback dialog. */
 const LOW_SCORE = 6;
-
-/** The row's height, written on the page as --rating-h for as long as the row
- *  is up. The row takes the whole width under the topbar, and the rail's two
- *  panels are fixed rather than in the grid, so this is how they know where
- *  it ends (rating.css). Measured again whenever the row wraps differently —
- *  a resized window, the thanks after the question. */
-function useRowHeight(phase: RatingPhase) {
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const row = ref.current;
-    const page = row?.closest<HTMLElement>(".app");
-    if (!row || !page) return;
-    const measure = () => page.style.setProperty("--rating-h", `${Math.ceil(row.getBoundingClientRect().height)}px`);
-    measure();
-    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
-    ro?.observe(row);
-    return () => { ro?.disconnect(); page.style.removeProperty("--rating-h"); };
-  }, [phase]);
-  return ref;
-}
 
 /** Where focus goes when the row leaves with it: the canvas — App.tsx's
  *  <main>, the skip link's target — which is the next thing on the page and
@@ -77,7 +58,9 @@ export default function RatingBanner({ phase, score, onAnswer, onLater, onClose,
    *  somebody is in it (use-rating-ask.ts). */
   onHold: (held: boolean) => void;
 }) {
-  const rowRef = useRowHeight(phase);
+  // The row spans the window under the topbar, and the rail's panels are
+  // placed under it by this (rating.css). Measured again for the thanks.
+  const rowRef = useRowHeight("--rating-h", phase);
   const offerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   // A NUMBER TAKES ITSELF AWAY WHEN IT IS PRESSED: the row becomes the thanks,

@@ -130,14 +130,15 @@ describe("in the panels and the sheet", () => {
     expect(LEAST_SHOWN).toBe(120);
   });
 
-  it("keeps a placed panel under the rating row while it is shown", () => {
-    // The drag measures its least top from the home slot, which rating.css
-    // already moves down by the row; the sheet has to agree.
-    expect(sheet).toMatch(/\[data-place\]\s*\{[^}]*--place-top:\s*calc\(var\(--topbar-h\) \+ 8px \+ var\(--rating-h, 0px\)\);/);
+  it("keeps a placed panel under the rating row, or the out-of-date terminal's, while it is shown", () => {
+    // The drag measures its least top from the home slot, which rating.css and
+    // terminal-cli-banner.css already move down by the row; the sheet has to agree.
+    expect(sheet).toMatch(/\[data-place\]\s*\{[^}]*--place-top:\s*calc\(var\(--topbar-h\) \+ 8px \+ var\(--rating-h, 0px\) \+ var\(--cli-banner-h, 0px\)\);/);
   });
 
-  it("comes after rating.css, whose top for the pair it overrides", () => {
+  it("comes after rating.css and terminal-cli-banner.css, whose top for the pair it overrides", () => {
     const index = source("../styles.css");
     expect(index.indexOf('"./styles/panel-place.css"')).toBeGreaterThan(index.indexOf('"./styles/rating.css"'));
+    expect(index.indexOf('"./styles/panel-place.css"')).toBeGreaterThan(index.indexOf('"./styles/terminal-cli-banner.css"'));
   });
 });

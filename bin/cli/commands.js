@@ -52,7 +52,9 @@ export const SCHEMA_VERSION = 1;
 /** Run the command `flags` names and resolve to the exit code. */
 export async function runCommand(flags) {
   const out = output(flags);
-  if (typeof flags.unknownCommand === "string") return out.fail(EXIT.USAGE, "unknown_command", unknownCommandText(flags.unknownCommand));
+  if (typeof flags.unknownCommand === "string") {
+    return out.fail(EXIT.USAGE, "unknown_command", unknownCommandText(flags.unknownCommand, await newerCopy()));
+  }
   reportFlagRows(flags, oneShotVoice());
   // A `--port` that names no port names no deck, and reading it as "any deck"
   // would answer about — or switch through — one nobody named. Failing closed,
@@ -71,7 +73,7 @@ export async function runCommand(flags) {
     // The one that stays: a full screen over the same deck, until q. Loaded
     // only when asked for, like the picker.
     case "tui": return (await import("./tui.js")).runTui(flags, out);
-    default: return out.fail(EXIT.USAGE, "unknown_command", unknownCommandText(String(flags.command)));
+    default: return out.fail(EXIT.USAGE, "unknown_command", unknownCommandText(String(flags.command), await newerCopy()));
   }
 }
 
@@ -132,8 +134,37 @@ function distance(a, b) {
   return row[b.length];
 }
 
-function unknownCommandText(word) {
+/**
+ * The newest ccdeck this machine knows of beyond this copy — a deck running
+ * here, or the release npm last named (the deck's own update check wrote it
+ * down) — and the line that brings this copy up to it. Null when this copy is
+ * the newest known. Read, never fetched: a refused command should not wait on
+ * the network.
+ */
+export async function newerCopy() {
+  const [{ liveDecks, olderVersion }, { lastKnownLatest }, { upgradeCommand }] = await Promise.all([
+    load("src/server/running-deck.mjs"), load("src/server/npm-latest.mjs"), load("src/server/install-layout.mjs"),
+  ]);
+  const known = [...(await liveDecks().catch(() => [])).map(d => d.version), lastKnownLatest()];
+  let newest = null;
+  for (const v of known) if (typeof v === "string" && olderVersion(newest ?? PKG_VERSION, v)) newest = v;
+  return newest ? { version: newest, command: upgradeCommand(PKG_ROOT) } : null;
+}
+
+/**
+ * Why a word is not a command. A near miss is a typo and is named. Otherwise,
+ * with a newer ccdeck known, the word may be one of ITS commands — `ccdeck tui`
+ * typed at a copy from before `tui` — and the line that updates this copy is
+ * worth more than the list of the commands it has.
+ */
+export function unknownCommandText(word, newer = null) {
   const near = suggestion(word);
+  if (!near && newer) {
+    return [
+      `unknown command "${word}" ${G.dash} this ${COMMAND} is v${PKG_VERSION}, and v${newer.version} may have it`,
+      `\`${newer.command}\` updates it; \`${COMMAND} --help\` lists the commands this one has.`,
+    ];
+  }
   return [
     `unknown command "${word}"${near ? ` ${G.dash} did you mean \`${COMMAND} ${near}\`?` : ""}`,
     `\`${COMMAND} --help\` lists the commands; \`${COMMAND}\` alone starts the deck.`,
