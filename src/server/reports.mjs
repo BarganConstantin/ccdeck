@@ -18,9 +18,6 @@
 //     alone also carries coarse counts of how much: how many sessions,
 //     subagents and projects the deck heard from on the last day it was used,
 //     and that day's date — numbers, never their names (see usage-day.mjs) —
-//     and which providers currently have saved tracker connections (jira, github,
-//     gitlab only; no addresses, account details or tokens). This is a snapshot
-//     at report time, not a usage-day count. Omitted when the store is unreadable;
 //     and which of the deck's features were used that day, as fixed names
 //     ("usage-history", "account-switch") and nothing about what was done
 //     with them (feature-use.mjs), and how the deck held up and who runs it:
@@ -28,7 +25,10 @@
 //     events it took in, each as a bucket ("2s", "512m", "1k"), the Claude and
 //     Codex plan as its category ("max-20x", "plus") and nothing else from the
 //     credentials it is read off, and how many Claude accounts and paired
-//     machines the deck holds, as capped counts (depth-facts.mjs),
+//     machines the deck holds, as capped counts (depth-facts.mjs), and which
+//     trackers have a saved connection when it is sent: "jira", "github",
+//     "gitlab" and nothing else, never an address, an account or a token
+//     (integrations/store.mjs; left out when that list cannot be read),
 //   - an "uninstall" event when somebody runs `ccdeck --uninstall`, with the
 //     reason they picked from a short list if they picked one (bin/cli/leaving.js),
 //   - an "activated" event, once, when a new install's first session arrives:
