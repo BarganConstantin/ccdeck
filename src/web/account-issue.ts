@@ -9,7 +9,6 @@
 // component because the component was its only reader, which had two test
 // files importing a component of nearly two thousand lines to reach four pure
 // functions.
-import { deckList } from "../server/lan-elsewhere.mjs";
 
 /** A verb from picker-commit.ts as a button in the popover says it. Those words
  *  are lowercase because the row's pills are; the popover's buttons are in
@@ -27,9 +26,6 @@ export type Repair = { state: "running" } | { state: "failed"; reason: string | 
  *  server sends, and how the deck's repair of the third is going. The panel's
  *  roster rows are these and more. */
 export interface IssueSource {
-  /** The account this deck is on: the one row another deck being on the same
-   *  login is said on (#2192). */
-  active?: boolean;
   error: string | null;
   stopped?: boolean;
   collector?: string | null;
@@ -201,50 +197,13 @@ const EXPIRED_EVERYWHERE = {
       + "shares it; the others repair from it on their next round.",
 };
 
-/**
- * What the live row says when a paired deck is on this login right now too
- * (#2192) — see activeElsewhere. The words are about the one thing that breaks:
- * a login renews once, so the machine that renews it second is signed out.
- *
- * ON THE LIVE ROW ONLY, AND THE READER'S TO ACT ON, so it takes the warning
- * mark and, through it, the notice over the list: every session this deck
- * starts runs on that login, and one press on either machine ends it. A row to
- * switch to says nothing: a switch is a person's to make, and Auto-switch may
- * make it too (3.43.3) — the moment it lands, this is the live row, and it says
- * so here and in one notification.
- *
- * SAID AS "ACTIVE", NOT "SIGNED OUT": nothing has gone wrong yet, and a login
- * signed in to separately on each machine is two logins that never collide —
- * which is the one thing the deck cannot see from here, so the hint says it.
- */
-export function elsewhereIssue(decks: readonly string[]): AccountIssue {
-  const who = deckList(decks);
-  const verb = decks.length > 1 ? "are" : "is";
-  return {
-    text: `Also active on ${who}`,
-    hint: `${who} ${verb} using this login right now as well. A Claude login renews once: whichever machine `
-      + "renews it first keeps it, and the other is signed out (“Login expired · Please run /login”). Use a "
-      + "different account on one of them. Signing in on each machine separately gives each its own login, and "
-      + "those do not collide.",
-    fix: null,
-    tone: "warn",
-    blocksSwitch: false,
-  };
-}
-
 export function accountIssue(
   a: IssueSource,
   nowSec: number,
-  /** What Local network knows about this account's copies on other decks, and
-   *  the paired decks that say they are on it right now (#2192). */
-  lan?: { noCopyWorksNearby?: boolean; elsewhere?: readonly string[] | null },
+  /** Whether any paired online deck has a working copy for recovery. */
+  lan?: { noCopyWorksNearby?: boolean },
 ): AccountIssue | null {
   const issue = ownIssue(a, nowSec);
-  // On the live row, a problem the reader has to act on outranks this; anything
-  // quieter does not, because this one ends with a machine signed out.
-  if (a.active === true && lan?.elsewhere?.length && (!issue || issue.tone !== "warn")) {
-    return elsewhereIssue(lan.elsewhere);
-  }
   if (!issue || !lan?.noCopyWorksNearby || !deadLogin(a)) return issue;
   return { ...issue, text: EXPIRED_EVERYWHERE.text, hint: EXPIRED_EVERYWHERE.hint };
 }
