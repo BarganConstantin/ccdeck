@@ -352,6 +352,7 @@ export function StageDock(p: StageDockProps) {
           onLaunchAgain={show.kind === "launch" ? () => stage.launch(show.agent, show.cwd, show.options) : undefined}
           onAnnounce={stage.announce}
           onPhase={onPhase}
+          windows={stage.windows}
         />
       </div>
       <span ref={edgeRef} className="stage-edge" aria-hidden="true" />

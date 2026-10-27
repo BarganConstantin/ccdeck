@@ -23,7 +23,7 @@ import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE, StateCard, downloa
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
 import { POPOVER_MARGIN } from "../popover-place";
-import type { StagePhase, StageStatus } from "../components/terminal/stage-model";
+import { LAUNCHED_UNREACHABLE, launchedUnreachable, type StagePhase, type StageStatus } from "../components/terminal/stage-model";
 import { subjectKey } from "../use-terminal-session";
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
@@ -232,6 +232,33 @@ describe("the body's state cards, each at the terminal's origin", () => {
     expect(refused).not.toContain("Reopen here");
     expect(html(createElement(StateCard, bodyProps({ kind: "not-attachable", target: { ...target, adoptable: false }, stillRunning: false, busy: false }))))
       .not.toContain("Reopen here");
+  });
+
+  it("on Windows, says a session this deck launched and cannot reach is its own launch, not ended, with no Reopen here", () => {
+    const target = { kind: "C" as const, label: "This session was started outside the deck, so there is no pane to attach to.", adoptable: true };
+    const phase: StagePhase = { kind: "not-attachable", target, stillRunning: false, busy: false };
+    const ours = bodyProps(phase, { windows: true, launched: true });
+    const out = html(createElement(StateCard, ours));
+    expect(out).toContain(LAUNCHED_UNREACHABLE);
+    expect(LAUNCHED_UNREACHABLE).toBe("This session was started from the Command Panel, but this deck cannot reach it: it may be running under another Windows sign-in, or its owner cannot be verified from here. It has not been ended.");
+    expect(out).not.toContain(target.label);
+    expect(out).not.toContain("Reopen here");
+    expect(out).not.toMatch(/has ended|tmux/);
+    const tree = StateCard(ours);
+    press(button(tree, "Not now"));
+    expect(ours.onNotNow).toHaveBeenCalled();
+    expect(launchedUnreachable(target, { windows: true, launched: true })).toBe(true);
+
+    // No launch record, or not Windows: the deck's own sentence and Reopen here, as before.
+    for (const over of [{ windows: true }, { windows: true, launched: false }, { launched: true }, {}]) {
+      const said = html(createElement(StateCard, bodyProps(phase, over)));
+      expect(said, JSON.stringify(over)).toContain(target.label);
+      expect(said, JSON.stringify(over)).toContain("Reopen here");
+      expect(said, JSON.stringify(over)).not.toContain(LAUNCHED_UNREACHABLE);
+    }
+    // Only case C: a launched session that has gone is still said to be gone.
+    const gone = { kind: "gone" as const, label: "This session has ended.", adoptable: true };
+    expect(launchedUnreachable(gone, { windows: true, launched: true })).toBe(false);
   });
 
   it("states tmux missing as a fact with the line that installs it, and checks again on request", () => {

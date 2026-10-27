@@ -270,6 +270,20 @@ export function spineLive(status: StageStatus, phase: StagePhase, streaming: boo
 // What the live region says. The stage never streams output into one (#372);
 // it says when the stage changed what it shows, once.
 
+/** Case C on Windows for a session this deck launched — the stage holds its
+ *  launch — where the deck's "started outside the deck" would be untrue. It
+ *  says why the deck may not reach it, and that it was not ended. */
+export const LAUNCHED_UNREACHABLE =
+  "This session was started from the Command Panel, but this deck cannot reach it: it may be running under another Windows sign-in, or its owner cannot be verified from here. It has not been ended.";
+
+/** Whether a card with no pane is LAUNCHED_UNREACHABLE's: case C, on Windows,
+ *  for a session this deck launched. Such a card offers no Reopen here — there
+ *  is nothing this deck can do across sign-ins. Without the launch, C keeps
+ *  the deck's own sentence. */
+export function launchedUnreachable(target: TerminalTarget, place: { windows?: boolean; launched?: boolean }): boolean {
+  return target.kind === "C" && place.windows === true && place.launched === true;
+}
+
 /** The sentence for arriving at `phase`, or null when there is nothing new to
  *  say. The integrator hands it to the deck's announcement reducer. */
 export function stageAnnouncement(name: string, phase: StagePhase): string | null {

@@ -61,6 +61,9 @@ import { useFullStage } from "./use-full-stage";
 import { usePaneRoom } from "./use-pane-room";
 import KeysBar, { type ArrivalView, type AsksView, type EndView } from "./KeysBar";
 import Divider from "./Divider";
+import HostsDialog from "./HostsDialog";
+import type { HostsApi } from "./older-hosts";
+import { useOlderHosts } from "./use-older-hosts";
 
 /** How long the keys bar holds a refusal before its hints come back. */
 const NOTICE_MS = 6000;
@@ -188,8 +191,13 @@ export interface TerminalStageProps {
   /** The body's phase changed — once per kind. The open morph waits on it:
    *  the stage is uncovered only once there is a pane (or a card) to show. */
   onPhase?(kind: StagePhaseKind): void;
+  /** The deck runs on Windows: sessions live in the session host, not in a
+   *  tmux, and older session hosts are worth a line in the keys bar. */
+  windows?: boolean;
   /** The suite's seam into the session. The integrator passes nothing. */
   sessionDeps?: Partial<SessionDeps>;
+  /** The suite's seam into the older hosts' routes. */
+  hostsApi?: HostsApi;
 }
 
 /** The subject the session hook is handed for what the stage shows. */
@@ -257,6 +265,7 @@ export default function TerminalStage(p: TerminalStageProps) {
     onLaunched: p.onLaunched,
     onNotice: setNotice,
     deps: p.sessionDeps,
+    windows: p.windows,
   });
   const { phase } = session;
 
@@ -380,6 +389,7 @@ export default function TerminalStage(p: TerminalStageProps) {
   };
 
   const end = endView(phase, p.show, { reopen, launchAgain: p.onLaunchAgain, attachAgain: retry });
+  const hosts = useOlderHosts(p.windows === true, key, s => onAnnounce.current?.(s), p.hostsApi);
 
   const style = {
     "--session-hue": p.show.kind === "session" ? p.show.session.hue : p.show.kind === "launch" ? p.show.hue : 200,
@@ -444,6 +454,8 @@ export default function TerminalStage(p: TerminalStageProps) {
         phase={phase}
         ghostLine={p.show.kind === "session" ? p.show.session.ghostLine : null}
         context={p.show.kind === "session" ? p.show.session.context : null}
+        windows={p.windows}
+        launched={p.show.kind === "session" && (p.show.session.launched === true || !!p.show.launch)}
         onAdopt={reopen}
         onNotNow={p.onClose}
         onRetry={retry}
@@ -466,7 +478,19 @@ export default function TerminalStage(p: TerminalStageProps) {
         arrival={p.arrival}
         onNextAsk={p.onNextAsk}
         onAnswerArrival={p.onAnswerArrival}
+        hosts={hosts.line ? { said: hosts.line, onReview: hosts.canReview ? hosts.review : null } : null}
       />
+      {hosts.open && hosts.view && (
+        <HostsDialog
+          view={hosts.view}
+          now={Date.now()}
+          busy={hosts.busy}
+          said={hosts.said}
+          onEnd={hosts.end}
+          onKeep={hosts.keep}
+          onCancel={hosts.cancel}
+        />
+      )}
     </section>
   );
 }

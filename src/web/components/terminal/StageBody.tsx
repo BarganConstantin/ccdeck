@@ -15,8 +15,9 @@
 // hairline under the header once the wait passes 300ms.
 //
 // The words are the deck's. Case C and "gone" print describeTarget's one
-// sentence from the server; adopt's 409 is answered in place, beside the
-// button it refused, never in a confirm().
+// sentence from the server — but for a session this deck launched on Windows,
+// which it did not start "outside the deck" (LAUNCHED_UNREACHABLE); adopt's
+// 409 is answered in place, beside the button it refused, never in a confirm().
 //
 // A BUTTON THAT IS WORKING SAYS SO AND STAYS ENABLED (#620): disabling the
 // control a press came from drops keyboard focus to <body>. It carries
@@ -26,7 +27,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } f
 import { copyText } from "../../copy-text";
 import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
-import { agentName, frameRun, type FrameRun, type StagePhase } from "./stage-model";
+import { LAUNCHED_UNREACHABLE, agentName, frameRun, launchedUnreachable, type FrameRun, type StagePhase } from "./stage-model";
 import { CopyGlyph, PlusGlyph, TerminalGlyph } from "./stage-icons";
 
 /** The id the empty card's New session button carries, so the popover can
@@ -50,6 +51,10 @@ export interface StageBodyProps {
   /** The last line the board knew, shown while attaching. */
   ghostLine?: string | null;
   context?: StageContext | null;
+  /** The deck's sessions run in the Windows session host. */
+  windows?: boolean;
+  /** This deck launched the session on the stage (panel-launch.ts). */
+  launched?: boolean;
   onAdopt(): void;
   /** "Not now": leave the stage, the session untouched. */
   onNotNow(): void;
@@ -144,6 +149,8 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
       );
     case "not-attachable": {
       const { target } = phase;
+      const ours = launchedUnreachable(target, p);
+      const adoptable = target.adoptable && !ours;
       return (
         <div className="ts-card">
           {p.context?.prompt && <div className="ts-ctx"><span className="ts-prompt">❯ </span>{p.context.prompt}</div>}
@@ -152,15 +159,15 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
               <i className="ts-fact-mark" data-kind={target.kind} aria-hidden="true" /><span className="ts-fact-text">{p.context.fact}</span>
             </div>
           )}
-          <p className="ts-text">{target.label}</p>
+          <p className="ts-text">{ours ? LAUNCHED_UNREACHABLE : target.label}</p>
           {phase.stillRunning && <p className="ts-note" role="status">{STILL_RUNNING_NOTE}</p>}
           <div className="ts-acts">
-            {target.adoptable && (
+            {adoptable && (
               <button type="button" className={phase.stillRunning ? "btn" : "btn primary"} aria-busy={phase.busy || undefined} data-stage-land onClick={p.onAdopt}>
                 {phase.stillRunning ? "Check again" : "Reopen here"}
               </button>
             )}
-            <button type="button" className="btn" data-stage-land={target.adoptable ? undefined : true} onClick={p.onNotNow}>Not now</button>
+            <button type="button" className="btn" data-stage-land={adoptable ? undefined : true} onClick={p.onNotNow}>Not now</button>
           </div>
         </div>
       );

@@ -45,6 +45,14 @@ export interface ArrivalView {
   tool?: string | null;
 }
 
+/** Sessions on an older session host (Windows): the line and Review. */
+export interface HostsLineView {
+  said: string;
+  /** Null while there is nothing to review: the line is the engine's
+   *  refusal of new sessions alone. */
+  onReview?: (() => void) | null;
+}
+
 /** The end bar's sentence and its one action. */
 export interface EndView {
   sentence: string;
@@ -78,6 +86,9 @@ export interface KeysBarProps {
   arrival?: ArrivalView | null;
   onNextAsk?(): void;
   onAnswerArrival?(): void;
+  /** Sessions on an older session host, said where an ask would be when
+   *  there is none. */
+  hosts?: HostsLineView | null;
 }
 
 /** `control`: the chip names one of the stage's own controls (✕), not a key,
@@ -123,6 +134,16 @@ export function AsksTrack({ asks, onNextAsk }: { asks: AsksView; onNextAsk?(): v
   }
   if (asks.clear) return <div className="ts-asks"><span className="ts-resumed">✓ No more asks</span></div>;
   return null;
+}
+
+/** "1 session still runs on an older session host.  [Review]" */
+export function HostsNote({ hosts }: { hosts: HostsLineView }) {
+  return (
+    <div className="ts-asks ts-hosts">
+      <span className="ts-hosts-said">{hosts.said}</span>
+      {hosts.onReview && <button type="button" className="btn" onClick={hosts.onReview}>Review</button>}
+    </div>
+  );
 }
 
 /** "● paycore asks · Bash  [Answer n]" — said once, quietly, in the bar. */
@@ -208,6 +229,9 @@ export default function KeysBar(p: KeysBarProps) {
   let right = null;
   if (!p.end && p.asks) right = <AsksTrack asks={p.asks} onNextAsk={p.onNextAsk} />;
   else if (!p.end && p.arrival) right = <ArrivalNote arrival={p.arrival} onAnswer={p.onAnswerArrival} />;
+  // An ask outranks it; an end bar does not — it is the same note on any
+  // pane, and a refused launch is where it is needed most.
+  else if (p.hosts) right = <HostsNote hosts={p.hosts} />;
   return (
     <footer className="ts-bar" aria-label="Keyboard">
       {left}
