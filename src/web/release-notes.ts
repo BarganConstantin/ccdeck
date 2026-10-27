@@ -60,8 +60,8 @@
 
 import raw from "../../release-notes.json";
 
-/** One thing a user would notice. `title` is the one line the deck shows;
- *  `body` is the fuller account, kept in the file for the release text. */
+/** One thing a user would notice. `title` is what the eye catches; `body` is
+ *  what they need in order to act on it or stop worrying about it. */
 export interface ReleaseNote {
   title: string;
   body: string;
