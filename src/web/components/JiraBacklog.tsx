@@ -24,6 +24,7 @@ import IntegrationFailureNote from "./IntegrationFailureNote";
 import IntegrationSkeleton from "./IntegrationSkeleton";
 import { Chevron, EpicChip, Estimate, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
 import { issueMoveBlocker, issuesMove, movableIssue, moveDestination, moveKeys, moveSelectionProblem, selectIssue, type JiraMove, type JiraMoveItem } from "../jira-move";
+import { selfPressAccepted, selfPressProps } from "../panel-press";
 import JiraMovePopover from "./JiraMovePopover";
 import JiraRowPreview from "./JiraRowPreview";
 
@@ -192,8 +193,13 @@ export default function JiraBacklog(props: JiraBacklogProps) {
   const [moveError, setMoveError] = useState("");
   const [moveNotice, setMoveNotice] = useState("");
   const submitting = useRef(false);
+  const moveBusyRef = useRef(false);
+  moveBusyRef.current = moveBusy;
+  const closedLoadingRef = useRef(false);
+  closedLoadingRef.current = snap.closed.loading;
   const canMove = overview.moves?.enabled === true && Boolean(onMove);
   const openMoveMenu = (issue: JiraIssue, from: GroupDef, anchorId: string, keyboard = false, initialView: "menu" | "move" = "move") => {
+    if (!selfPressAccepted(moveBusyRef.current || submitting.current)) return;
     const items = picked.has(issue.key) ? selectedItems : [{ issue, group: from }];
     if (initialView === "move" && (items.length > 50 || items.some(i => !movableIssue(i.issue, i.group)))) {
       setMoveError(moveSelectionProblem(items));
@@ -481,7 +487,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               )}
             </button>
           </JiraRowPreview>
-          {hasActions && <button id={moveId} type="button" className="jr-move-button" disabled={moveBusy}
+          {hasActions && <button id={moveId} type="button" className="jr-move-button" {...selfPressProps(moveBusy)}
             aria-label={`Actions for ${key}`} title={`Actions for ${key}`} aria-haspopup="menu"
             aria-expanded={moveMenu?.anchorId === moveId} tabIndex={tabStop(nav)}
             onKeyDown={event => {
@@ -489,7 +495,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                 event.preventDefault(); event.stopPropagation(); openMoveMenu(issue, group, moveId, false, "menu");
               }
             }}
-            onClick={() => moveMenu?.anchorId === moveId ? closeMoveMenu() : openMoveMenu(issue, group, moveId, false, "menu")}>
+            onClick={() => { if (!selfPressAccepted(moveBusyRef.current || submitting.current)) return; moveMenu?.anchorId === moveId ? closeMoveMenu() : openMoveMenu(issue, group, moveId, false, "menu"); }}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
               <circle cx="3" cy="8" r="1.2" /><circle cx="8" cy="8" r="1.2" /><circle cx="13" cy="8" r="1.2" />
             </svg>
@@ -542,9 +548,9 @@ export default function JiraBacklog(props: JiraBacklogProps) {
       <p className="vis-hidden" id={`${boardId}-instructions`}>Use Up and Down to navigate, Right to expand and Left to collapse. Enter opens the issue. Ctrl or Command click toggles selection; Shift click selects a range. Space toggles the focused issue.{canMove ? " Drag selected issues to reorder or change sprint. Right-click or Shift+F10 opens actions. Alt+M opens Move." : ""}</p>
       {selectionMode && selectedItems.length > 0 && <div className="jr-selection" role="group" aria-label="Selected issues">
         <span role="status">{selectedItems.length} selected</span>
-        {canMove && <button type="button" className="btn" id={`${boardId}-move-selected`} disabled={moveBusy || Boolean(selectionProblem)}
+        {canMove && <button type="button" className="btn" id={`${boardId}-move-selected`} {...selfPressProps(moveBusy, Boolean(selectionProblem))}
           aria-haspopup="dialog" aria-expanded={moveMenu?.anchorId === `${boardId}-move-selected`}
-          onClick={() => openMoveMenu(selectedItems[0].issue, selectedItems[0].group, `${boardId}-move-selected`)}>Move selected</button>}
+          onClick={() => { if (!selectionProblem) openMoveMenu(selectedItems[0].issue, selectedItems[0].group, `${boardId}-move-selected`); }}>Move selected</button>}
         <button type="button" className="btn" aria-label="Clear selection" onClick={() => {
           selectionVersion.current++; setPicked(new Set()); setSelectionMode(true); selectionAnchor.current = null;
         }}>Clear</button>
@@ -632,7 +638,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                 {rows.length > 0 && <ul className="jr-rows">{rows.map(row => renderRow(row, def, 0))}</ul>}
                 {data?.capped && <p className="jr-board-note">The first 600 issues are shown. Open the sprint in Jira for the rest.</p>}
                 {def.paged && data?.next && (
-                  <button type="button" className="btn jr-more" disabled={moveBusy} aria-busy={data.more || undefined} onClick={() => onMore(def)}>
+                  <button type="button" className="btn jr-more" {...selfPressProps(moveBusy || Boolean(data.more))} onClick={() => { if (selfPressAccepted(moveBusyRef.current || Boolean(data.more))) onMore(def); }}>
                     {data.more ? "Reading…" : data.total != null ? `Show more (${data.issues.length} of ${data.total})` : "Show more"}
                   </button>
                 )}
@@ -664,7 +670,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               }} onReconnect={onReconnect} />}
             {!closedState.error && !closedState.loading && closedState.sprints.length === 0 && <p className="jr-subnote">No closed sprints on this board.</p>}
             {!closedState.error && !closedState.isLast && closedState.sprints.length > 0 && (
-              <button type="button" className="btn" disabled={closedState.loading} aria-busy={closedState.loading || undefined} onClick={onMoreClosed}>
+              <button type="button" className="btn" {...selfPressProps(closedState.loading)} onClick={() => { if (selfPressAccepted(closedLoadingRef.current)) onMoreClosed(); }}>
                 {closedState.loading ? "Reading…" : `Show older sprints (${closedState.sprints.length} of ${closedState.total})`}
               </button>
             )}
