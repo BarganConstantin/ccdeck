@@ -45,9 +45,11 @@ export function IntegrationCopy({ value, label }: { value: string; label: string
   );
 }
 
-export default function IntegrationDetailBar({ reference, copyValue, copyLabel, href, openLabel, narrow, onClose }: {
+export default function IntegrationDetailBar({ reference, context, copyValue, copyLabel, href, openLabel, narrow, onClose }: {
   /** What the item is: "acme/widgets#463", "group/project!5144", "PROJ-123". */
   reference: string;
+  /** Optional project context; Copy still copies only the reference. */
+  context?: string;
   /** What Copy puts on the clipboard, when it is not the reference itself. */
   copyValue?: string;
   /** What Copy copies, in words: "reference", "key", "pipeline id". */
@@ -64,6 +66,7 @@ export default function IntegrationDetailBar({ reference, copyValue, copyLabel, 
   return (
     <div className="ig-detail-bar">
       <span className="ig-ref">
+        {context && <><span className="ig-ref-context" title={context}>{context}</span><span className="ig-ref-separator" aria-hidden>/</span></>}
         <code className="ig-ref-text" title={reference}>
           {path && <span className="ig-ref-path">{path}</span>}
           {num && <span className="ig-ref-num">{num}</span>}

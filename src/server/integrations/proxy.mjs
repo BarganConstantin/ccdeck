@@ -13,10 +13,9 @@
 // again, and one anywhere else is an error — the token is never re-sent to a
 // host the user did not connect.
 //
-// READ ONLY BY CONSTRUCTION. The proxy sends GET and nothing else. Browsing a
-// tracker is the whole feature; there is no route here that could change an
-// issue, and there is no generic "fetch this URL with my token" route anywhere
-// in the deck.
+// READ ONLY BY CONSTRUCTION. This generic proxy sends GET and nothing else.
+// Jira's bounded move has its own private write transport; it cannot turn this
+// into a generic "fetch this URL with my token" route.
 import { errorFromFetchFailure, errorFromStatus, integrationError } from "./errors.mjs";
 
 /** HTTPS only, with one exception: a tracker on this machine (a mock, a

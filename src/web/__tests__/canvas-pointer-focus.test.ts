@@ -237,7 +237,9 @@ describe("the ring #381 put there is exactly what it was (#434)", () => {
       .filter(([, , body]) => /outline\s*:\s*(none|0)\b/.test(body))
       .map(([, selector]) => selector.trim());
     // Quick open's input, whose ring the field row around it draws instead
-    // (quick-open.css), as the Radio search's wrapper draws its own.
+    // (quick-open.css), as the Radio search's wrapper draws its own. And a
+    // Jira issue's main button, whose ring the whole row draws, so the
+    // disclosure and the actions button inside the row sit within it.
     expect(removers).toEqual([
       ".qo-input:focus-visible",
       ".radio-pin",
@@ -246,6 +248,7 @@ describe("the ring #381 put there is exactly what it was (#434)", () => {
       ".radio-panel .radio-search input:focus-visible",
       ".radio-panel .radio-map-canvas:focus:not(:focus-visible),\n.radio-panel .radio-map-canvas[data-pointer-focus]:focus",
       ".radio-panel:not([data-keyboard-interaction]) .radio-filter-popup :focus-visible",
+      ".jr-row-main:focus-visible",
     ]);
     expect(bareCss).toContain(".radio-map-canvas:focus-visible");
   });

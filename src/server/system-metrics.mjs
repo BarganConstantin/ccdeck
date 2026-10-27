@@ -18,6 +18,7 @@
 // readout the loudest producer in the application. So this is a plain poll
 // endpoint, exactly like /api/quota and /api/codex-usage already are.
 import os from "node:os";
+import { startGpuMetrics, stopGpuMetrics, gpuSnapshot } from "./gpu-metrics.mjs";
 import { loadReading } from "./load-average.mjs";
 import { BUCKET_MS, labelsUnder, oldestBucketMs, pointsOf, record, resetHistory } from "./metrics-history.mjs";
 import { readAvailable, readSwap } from "./memory-metrics.mjs";
@@ -374,6 +375,7 @@ export function startSystemMetrics({ probe = false } = {}) {
   cpuTimer = setInterval(sampleCpu, CPU_INTERVAL_MS);
   memTimer = setInterval(sampleMemory, MEM_INTERVAL_MS);
   startThermalTimer();
+  startGpuMetrics();
   startNetworkTimers(probe);
   cpuTimer.unref?.();
   memTimer.unref?.();
@@ -401,6 +403,7 @@ export function stopSystemMetrics() {
   if (memTimer) clearInterval(memTimer);
   cpuTimer = memTimer = null;
   stopThermal();
+  stopGpuMetrics();
   stopNetwork();
   resetHistory();
   historySince = 0;
@@ -436,6 +439,7 @@ export function systemSnapshot() {
     // Null on a machine that publishes nothing, and the panel draws no section
     // at all for it rather than an empty one.
     thermal: thermalSnapshot(),
+    gpus: gpuSnapshot(),
     uptimeSec: Math.round(os.uptime()),
     platform: process.platform,
     // The rule the `load:1m` record in sampleCpu asks too — see loadReading.

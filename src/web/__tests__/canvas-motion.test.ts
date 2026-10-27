@@ -368,6 +368,7 @@ const PRESSES: Press[] = [
   // An inactive account's one verb, a word on the control fill: a labelled
   // control, 0.97 like every other one.
   [".ap-switch:active:not(:disabled)", "0.97", "transform"],
+  [".ap-sign-in:active:not(:disabled)", "0.97", "transform"],
   // #856's two disclosures: a warning that opens its reason, a pace note that
   // opens its number. Text-weight, and still a thing being pressed — the
   // reason #355 gave — so 0.97 of a word.
@@ -471,6 +472,9 @@ const PRESSES: Press[] = [
   [".jr-board-item:active", "0.97", "transform"],
   [".jr-crumb:active", "0.97", "transform"],
   [".jr-link-btn:active", "0.97", "transform"],
+  // An issue's actions button on a touch screen (⋯, the only way to Move
+  // there): a 28px glyph, so 0.94.
+  [".jr-move-button:active:not(:disabled)", "0.94", "transform"],
   // The GitHub and GitLab panel (#2179): a group's or a stage's fold, a
   // project in the picker and a link to another item on a page are labelled
   // controls, 0.97. The copy button beside a value is the integrations'
@@ -634,6 +638,10 @@ const EXEMPT: string[] = [
   // moves.
   ".jr-row-main",
   ".jr-detail-sub",
+  // An item in a Jira issue's actions menu (Move…), answered the way the
+  // account menu's items are: the fill deepens and nothing moves, so the word
+  // stays under the pointer as the menu turns into the form it opens.
+  ".jr-action-item",
   // A row in quick open (⌘K) runs what it names and the field is gone on the
   // release, so it answers as the deck's other list rows do: its fill
   // deepens a step and nothing moves.

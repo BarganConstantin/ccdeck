@@ -38,11 +38,25 @@ describe("a reset time with no date", () => {
     expect(parseResetToSec("10am", local(2026, 9, 5, 10, 0, 40))).toBe(sec(local(2026, 9, 5, 10, 0)));
   });
 
+  it("is tomorrow's clock reading across the night the clocks change", () => {
+    // Europe goes back an hour in the night of 25 October 2026, so that day is
+    // 25 hours long there: "4pm" read at 4:07pm the day before is 24h 53m
+    // away, not 23h 53m. Where the zone has no such night it is a plain day.
+    expect(parseResetToSec("4pm", local(2026, 9, 24, 16, 7))).toBe(sec(local(2026, 9, 25, 16, 0)));
+    // And forward an hour in the night of 29 March 2026: a 23-hour day.
+    expect(parseResetToSec("4pm", local(2026, 2, 28, 16, 7))).toBe(sec(local(2026, 2, 29, 16, 0)));
+  });
+
   it("reaches the session window the CLI path publishes", () => {
+    const now = Date.now();
     const q = parseUsageText("Current session: 12% used · resets 4pm (Europe/Chisinau)\n");
-    const ahead = q.session5hResetAt * 1000 - Date.now();
+    const ahead = q.session5hResetAt * 1000 - now;
     expect(ahead).toBeGreaterThan(-60_000);
-    expect(ahead).toBeLessThanOrEqual(24 * 3600_000);
+    // At most the same clock reading tomorrow, which is 25 hours away on the
+    // night the clocks go back — not a fixed 24, which failed on that eve.
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    expect(ahead).toBeLessThanOrEqual(tomorrow.getTime() - now + 60_000);
   });
 
   it("leaves a time that carries its date to the year search", () => {

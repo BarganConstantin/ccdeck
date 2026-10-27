@@ -75,7 +75,8 @@ describe("the account's row", () => {
 
   it("carries the mark, titled and said, when the login is offered", () => {
     const html = row(account(), ["rdp"]);
-    expect(html).toContain('class="ap-shared" id="ap-shared-2" title="Shared on Local network: offered to rdp."');
+    expect(html).toContain('class="ap-shared" id="ap-shared-2" role="img" aria-label="Account sharing"');
+    expect(html).toContain('tabindex="0"');
     expect(html).toMatch(/class="vis-hidden">Shared on Local network: offered to rdp\.</);
     // The door covers the mark, so the door says it too.
     expect(html).toMatch(/class="ap-row-open"[^>]*aria-describedby="[^"]*\bap-shared-2\b/);

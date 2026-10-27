@@ -129,7 +129,7 @@ describe("the detail's width before the reader drags it", () => {
   it("is the same rule in the sheet, and nothing is stored until the reader drags", () => {
     expect(AUTO_DETAIL_CSS).toBe("clamp(320px, 50%, 1600px)");
     expect(readDetailWidth("no-such-panel")).toBeNull();
-    expect(split).toMatch(/"--ig-detail-w": width == null \? AUTO_DETAIL_CSS : `\$\{width\}px`/);
+    expect(split).toMatch(/"--ig-detail-w": width == null \? autoDetailCss\(automaticDetailShare\) : `\$\{width\}px`/);
     // Enter and a double click on the splitter go back to it.
     expect(split).toMatch(/if \(event\.key === "Enter"\) \{ event\.preventDefault\(\); commit\(null\); return; \}/);
     expect(split).toMatch(/onDoubleClick=\{\(\) => commit\(null\)\}/);

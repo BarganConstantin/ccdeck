@@ -183,6 +183,7 @@ export const COMMANDS = Object.freeze({
   usage: "usage", quota: "usage",
   sessions: "sessions", ps: "sessions",
   open: "open",
+  tui: "tui",
 });
 const FLAG_WORDS = Object.freeze({
   status: "status", stop: "stop", logs: "logs", help: "help", version: "version",

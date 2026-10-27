@@ -62,10 +62,13 @@ export function useAccountRoster(onRoster: (fresh: AccountsData) => void) {
     requestsRef.current.add(ctl);
     const bell = window.setTimeout(() => ctl.abort(), RELOAD_TIMEOUT_MS);
     try {
+      // An extension can wrap fetch and throw synchronously. Make each call
+      // an async job so even a throw from the second call reaches Promise.all;
+      // otherwise the first request is left without a rejection handler.
       const [accts, autoRes] = await Promise.all([
-        fetch(`/api/claude-accounts${force ? "?refresh=1" : ""}`, { signal: ctl.signal }),
-        fetch("/api/cswap-auto", { signal: ctl.signal }),
-      ]);
+        `/api/claude-accounts${force ? "?refresh=1" : ""}`,
+        "/api/cswap-auto",
+      ].map(async url => fetch(url, { signal: ctl.signal })));
       // Read both bodies before publishing. Another reload can start while
       // JSON is arriving; only the latest request may commit this snapshot.
       const [fresh, policy] = await Promise.all([
@@ -85,8 +88,14 @@ export function useAccountRoster(onRoster: (fresh: AccountsData) => void) {
       // Our own abort is a deck that answered the connection and then took
       // too long, not one that is gone (#829) — see RELOAD_SLOW.
       if (activeRef.current && version === versionRef.current) {
-        setFailure(prev => nextFailure(prev, ctl.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE));
+        // State updaters may run after sibling cleanup aborts this signal.
+        const failure = ctl.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE;
+        setFailure(prev => nextFailure(prev, failure));
       }
+      // Promise.all can reject while its other fetch (or response body) is
+      // still pending. Cancel that work before clearing the deadline and
+      // forgetting this controller; otherwise later polls can pile up.
+      ctl.abort();
     } finally {
       window.clearTimeout(bell);
       requestsRef.current.delete(ctl);

@@ -64,7 +64,8 @@ export default function JiraTokenHelp() {
           <p><a href={SERVER_DOCS} target="_blank" rel="noreferrer noopener">How personal access tokens work</a></p>
         </>
       )}
-      <p className="ig-dim">The deck only reads: it sends Jira nothing but GET requests, keeps the token on this machine, and never shows it again.</p>
+      <p className="ig-dim">Browsing only reads Jira. Dragging an issue or confirming Move saves its sprint and rank in Jira, using your account’s permissions. The token stays on this machine and is never shown again.</p>
+      {cloud && <p className="ig-dim">For moving with a scoped Cloud token, also allow <code>write:issue:jira-software</code> (rank), <code>write:sprint:jira-software</code> (sprint) and <code>write:board-scope:jira-software</code> (backlog). Read-only tokens can still browse.</p>}
     </>
   );
 }

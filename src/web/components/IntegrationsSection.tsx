@@ -422,7 +422,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
         </div>
         {reach === "all" && <>
           <div className="ig-overview-info">
-            <details className="ig-access"><summary>Access and token storage</summary><p>ccdeck only reads from connected services. Tokens stay on this machine and are never shown again or shared with paired decks.</p></details>
+            <details className="ig-access"><summary>Access and token storage</summary><p>Browsing integrations only reads. Jira also saves sprint and rank changes when you drag an issue or confirm Move, subject to your Jira permissions. GitHub and GitLab remain read-only. Tokens stay on this machine and are never shown again or shared with paired decks.</p></details>
           </div>
         </>}
       </div>

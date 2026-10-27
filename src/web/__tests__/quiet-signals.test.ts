@@ -416,6 +416,9 @@ describe("5. one focus language, and nothing quietly opting out of it", () => {
     // Quick open's input draws the ring on the field row it sits in, inset
     // under the dialog's clipped edge.
     expect(declOf(".qo-field:has(.qo-input:focus-visible)", "outline")).toBe("2px solid var(--accent)");
+    // A Jira issue's main button draws its ring on the whole row, around the
+    // disclosure and actions button that sit beside it.
+    expect(declOf(".jr-row:has(> .jr-row-main:focus-visible)", "outline")).toBe("2px solid var(--accent)");
     expect(killers).toEqual([
       ".qo-input:focus-visible",
       ".radio-pin",
@@ -424,8 +427,9 @@ describe("5. one focus language, and nothing quietly opting out of it", () => {
       ".radio-panel .radio-search input:focus-visible",
       ".radio-panel .radio-map-canvas:focus:not(:focus-visible),\n.radio-panel .radio-map-canvas[data-pointer-focus]:focus",
       ".radio-panel:not([data-keyboard-interaction]) .radio-filter-popup :focus-visible",
+      ".jr-row-main:focus-visible",
     ]);
-    for (const sel of killers.filter(sel => !sel.startsWith(".radio") && !sel.startsWith(".qo-"))) {
+    for (const sel of killers.filter(sel => !sel.startsWith(".radio") && !sel.startsWith(".qo-") && !sel.startsWith(".jr-row-main"))) {
       expect(declOf(`${sel}:focus-visible`, "outline"), sel).not.toBeNull();
     }
   });
