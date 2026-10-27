@@ -42,6 +42,7 @@ export const CLI_FILES = [
   "bin/cli/second-start.js",
   "bin/cli/commands.js",
   "bin/cli/picker.js",
+  "bin/cli/tui.js",
 ] as const;
 
 let joined: string | null = null;

@@ -160,7 +160,8 @@ describe("the panel's reload path", () => {
     expect(verdict, "the answered case no longer reads a verdict off the responses").toBeTruthy();
     expect(load).toContain(`setFailure(prev => nextFailure(prev, ${verdict}));`);
     // The thrown case picks between the two by whose abort it was (#829).
-    expect(load).toContain(`setFailure(prev => nextFailure(prev, ${ctl}.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE));`);
+    expect(load).toContain(`const failure = ${ctl}.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE;`);
+    expect(load).toContain("setFailure(prev => nextFailure(prev, failure));");
     expect(accountsSurface()).not.toMatch(/catch\s*\{\s*\/\*[^*]*\*\/\s*\}/);
   });
 
@@ -178,7 +179,7 @@ describe("the panel's reload path", () => {
     expect(ctl, "the reload makes no AbortController of its own").toBeTruthy();
     expect(bell, "nothing aborts that controller after RELOAD_TIMEOUT_MS").toBeTruthy();
     // Both requests ride that controller's signal.
-    expect(load.match(new RegExp(`signal: ${ctl}\\.signal`, "g"))).toHaveLength(2);
+    expect(load).toContain(`.map(async url => fetch(url, { signal: ${ctl}.signal }))`);
     // Disarmed exactly once, and only on the way out.
     const clear = `window.clearTimeout(${bell});`;
     expect(load.split(clear).length - 1, "the timer is not cleared exactly once").toBe(1);

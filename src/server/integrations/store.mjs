@@ -146,6 +146,27 @@ export function createIntegrationsStore({ dir = () => join(deckDataDir(), STORE_
   const publicOf = (conn, secrets) => ({ ...conn, tokenSaved: secrets.has(conn.id) });
 
   return {
+    /**
+     * Only the supported provider names with a saved connection — never credentials,
+     * account identity, connection ID, address or number of connections. Metadata
+     * alone is read: the secrets file is not even opened for usage reporting.
+     * null = unavailable/unreadable; [] = successfully read, nothing connected.
+     */
+    async connectedKinds() {
+      try {
+        const raw = await readFile(join(dir(), META_FILE), "utf8");
+        const doc = JSON.parse(raw.replace(/^\uFEFF/, ""));
+        if (!doc || !Array.isArray(doc.connections)) return null;
+        const kinds = new Set(doc.connections
+          .filter(c => c && typeof c === "object" && typeof c.kind === "string")
+          .map(c => c.kind)
+          .filter(k => k === "jira" || k === "github" || k === "gitlab"));
+        return ["jira", "github", "gitlab"].filter(k => kinds.has(k));
+      } catch (error) {
+        if (error?.code === "ENOENT") return [];
+        return null;
+      }
+    },
     /** Every connection, as a page may see it. `own(conn, secret)`, when
      *  given, is handed each connection that has a secret, with it, and
      *  answers the connection to list: the routes take that secret out of what

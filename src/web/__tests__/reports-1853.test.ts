@@ -61,6 +61,7 @@ function harness({
   const reporterWith = (over: {
     env?: Record<string, string>; version?: string;
     usage?: unknown; versions?: () => unknown; setup?: () => unknown;
+    integrations?: () => Promise<unknown>;
     facts?: Record<string, unknown>; ready?: Promise<unknown>;
   } = {}) => createReporter({
     fetchImpl, now: () => clock, prefs: store, env: over.env ?? env,
@@ -71,6 +72,7 @@ function harness({
     usage: over.usage ?? tally,
     ...(over.setup ? { setup: over.setup } : {}),
     ...(over.versions ? { versions: over.versions } : {}),
+    ...(over.integrations ? { integrations: over.integrations } : {}),
     // A deck on its first run here, never this machine's own boot read: an id
     // made over an older deck's settings is reports-upgrade-first-run's case.
     firstRun: () => true,
@@ -86,6 +88,31 @@ function harness({
     kinds: () => calls.filter(c => c.url.endsWith("/v1/app/events")).map(c => c.body?.kind),
   };
 }
+
+
+describe("provider connection snapshots", () => {
+  it("reports distinct known providers on active only, not addresses or secrets", async () => {
+    const h = harness();
+    const report = h.reporterWith({ integrations: async () =>
+      ["gitlab", "jira", "jira", "unknown", "token-secret", "github"] });
+    await report.checkIn();
+    const installs = h.calls.filter(c => c.body?.kind === "install");
+    const active = h.calls.filter(c => c.body?.kind === "active");
+    expect(installs[0].body).not.toHaveProperty("connectedIntegrations");
+    expect(active[0].body?.connectedIntegrations).toEqual(["jira", "github", "gitlab"]);
+    expect(JSON.stringify(active[0].body)).not.toContain("token-secret");
+  });
+
+  it("distinguishes empty configurations from a failed metadata read", async () => {
+    const empty = harness();
+    await empty.reporterWith({ integrations: async () => [] }).checkIn();
+    expect(empty.calls.find(c => c.body?.kind === "active")?.body?.connectedIntegrations).toEqual([]);
+
+    const unreadable = harness();
+    await unreadable.reporterWith({ integrations: async () => { throw Error("unreadable metadata"); } }).checkIn();
+    expect(unreadable.calls.find(c => c.body?.kind === "active")?.body).not.toHaveProperty("connectedIntegrations");
+  });
+});
 
 describe("a deck nobody has touched", () => {
   it("has reports on, and keeps a choice somebody saved", () => {

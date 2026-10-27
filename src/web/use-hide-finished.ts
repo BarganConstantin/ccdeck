@@ -4,7 +4,7 @@
 // board's (use-removals.ts).
 import { useEffect, useRef, useState, useSyncExternalStore, type MutableRefObject } from "react";
 import {
-  HIDE_CHECK_MS, hideFinishedAfter, markBroughtBack, readHandledTurns, saveHandledTurns, sessionsToHide,
+  HIDE_CHECK_MS, hideFinishedAfter, markBroughtBack, readHandledTurns, retireHiddenTurns, saveHandledTurns, sessionsToHide,
   subscribeHideFinishedAfter,
 } from "./hide-finished";
 import type { GraphState } from "./reducer";
@@ -46,6 +46,16 @@ export function useHideFinished({ stateRef, removedNodes, hideSessions, keepSess
     handledRef.current = next;
     saveHandledTurns(localStore(), next);
   }, [removedNodes]);
+
+  // A session working again leaves the subagents of the turn it was put away
+  // at behind (retireHiddenTurns). Ahead of App's call-backs (use-removals.ts),
+  // which bring a hidden session back when it works: both run in the same
+  // commit, so the frame that draws it back already has those cards gone, and
+  // a subagent it spawns is not placed under them. After the replay, like the
+  // hiding, so a reload retires them again from the history it replays.
+  useEffect(() => {
+    if (ready) retireHiddenTurns(stateRef.current, handledRef.current);
+  }, [ready, stateRef.current, stateRef.current.revision]);
 
   useEffect(() => {
     if (!ready || afterMinutes === 0) return;

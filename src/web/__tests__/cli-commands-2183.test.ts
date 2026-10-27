@@ -74,6 +74,7 @@ describe("a command word is a command", () => {
       ["accounts", "accounts"], ["account", "accounts"], ["ls", "accounts"],
       ["switch", "switch"], ["swap", "switch"], ["use", "switch"],
       ["usage", "usage"], ["quota", "usage"], ["sessions", "sessions"], ["ps", "sessions"], ["open", "open"],
+      ["tui", "tui"],
     ];
     for (const [word, command] of spellings) {
       expect(parseArgs([word, "2"]), word).toEqual({ command, commandWord: word, operands: ["2"], unknown: [], incomplete: [] });

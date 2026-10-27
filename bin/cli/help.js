@@ -27,12 +27,17 @@ Commands:
                            you first. --all adds the ended ones. Alias: ps
   open                     Open the deck in a browser. Over SSH, print the
                            \`ssh -L\` line that opens it on your own computer
+  tui                      A full-screen view of the accounts and the sessions
+                           waiting on you: move with the arrows, Enter
+                           switches, b picks the best, a turns Auto-switch on
+                           or off, + signs an account in, ? lists the keys,
+                           q quits
   status, stop, logs       The same as --status, --stop and --logs
 
-  Every command takes --json (one object on stdout, with schemaVersion) and
-  --port <n> to name a deck. Without a running deck, accounts, switch and usage
-  read claude-swap's store directly. Exit codes: 0 done, 1 failed, 2 the
-  command line was wrong, 3 no deck is running.
+  Every command takes --port <n> to name a deck, and all but tui take --json
+  (one object on stdout, with schemaVersion). Without a running deck,
+  accounts, switch, usage and tui read claude-swap's store directly. Exit
+  codes: 0 done, 1 failed, 2 the command line was wrong, 3 no deck is running.
 
 Options:
   -p, --port <number>      Preferred port (default: 4317; falls back to random 4318–4400)

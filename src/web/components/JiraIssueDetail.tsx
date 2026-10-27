@@ -97,10 +97,9 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
     }
   }, [narrow, shownKey, auto]);
 
-  // Where the issue sits: its project, its parent unless the trail already
-  // passes through it, and every issue opened on the way here.
+  // Keep meaningful parent/history navigation; project and current key live
+  // together in the sticky reference bar.
   const crumbs: { label: string; title: string; go?: () => void }[] = [];
-  if (issue?.project.name) crumbs.push({ label: issue.project.name, title: issue.project.key });
   const parentKey = issue?.parent?.key;
   if (parentKey && !trail.slice(0, -1).includes(parentKey)) {
     crumbs.push({ label: parentKey, title: issue!.parent!.summary, go: () => openHere(() => onOpen(parentKey, "replace")) });
@@ -110,15 +109,14 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
   if (!key) return null;
   return (
     <article className="jr-detail" aria-busy={loading || undefined} aria-labelledby="jira-detail-title">
-      <IntegrationDetailBar reference={key} copyLabel="key" href={issue?.url ?? null} openLabel="Open in Jira" narrow={narrow} onClose={onClose} />
-      <ol className="jr-crumbs" role="list" aria-label="Where this issue is">
+      <IntegrationDetailBar reference={key} context={issue?.project.name} copyLabel="key" href={issue?.url ?? null} openLabel="Open in Jira" narrow={narrow} onClose={onClose} />
+      {crumbs.length > 0 && <ol className="jr-crumbs" role="list" aria-label="Related issues">
         {crumbs.map((c, i) => (
           <li key={`${c.label}-${i}`}>
             {c.go ? <button type="button" className="jr-crumb" title={c.title} onClick={c.go}>{c.label}</button> : <span className="jr-crumb-text" title={c.title}>{c.label}</span>}
           </li>
         ))}
-        <li aria-current="page"><span className="jr-crumb-text jr-crumb-here">{key}</span></li>
-      </ol>
+      </ol>}
 
       {error && <IntegrationFailureNote error={error} provider="Jira" host={connectionHost(conn)} stale={Boolean(issue)} onRetry={reload} onReconnect={onReconnect} />}
 

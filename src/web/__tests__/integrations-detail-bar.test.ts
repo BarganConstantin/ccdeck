@@ -31,6 +31,15 @@ describe("an item's top line", () => {
     expect(referenceParts("acme/widgets")).toEqual({ path: "acme/widgets", num: "" });
   });
 
+  it("keeps project context separate from the copyable issue identity", () => {
+    const html = bar({ reference: "MOCK-1", copyLabel: "key", context: "Platform" });
+    expect(html).toContain('class="ig-ref-context" title="Platform">Platform</span>');
+    expect(html).toContain('class="ig-ref-num">MOCK-1</span>');
+    expect(html).toContain('aria-label="Copy key"');
+    expect(html.match(/MOCK-1<\/span>/g)).toHaveLength(1);
+    expect(bar({})).not.toContain("ig-ref-context");
+  });
+
   it("draws the reference, Copy, the link out and Close on a wide screen", () => {
     const html = bar({});
     expect(html).toContain('<code class="ig-ref-text" title="acme/widgets#463"><span class="ig-ref-path">acme/widgets</span><span class="ig-ref-num">#463</span></code>');

@@ -184,16 +184,18 @@ export const DEFAULTS = Object.freeze({
     // of one person's machines show each other where they are working; off, and
     // paired decks read "current account hidden" instead.
     shareActive: true,
-    // THE LOGIN THIS DECK IS USING, SENT TO A PAIRED DECK, off unless somebody
-    // turns it on (#2192). A ticked account goes to every paired deck that
-    // lacks it or holds an expired copy — and when it is the one this deck is
-    // signed in to, the two machines then hold one login. A Claude login renews
-    // once: whichever copy renews it first keeps it, and the other machine is
-    // signed out. So while this deck is on an account, that account stays
-    // here, and goes out like any other the moment this deck switches away. A
-    // new field, so nobody's saved choice is changed: the ticks are untouched,
-    // and what they hand out is every login except the one in use.
-    sendInUse: false,
+    // THE LOGIN THIS DECK IS USING, SENT TO A PAIRED DECK, on unless somebody
+    // turns it off: a ticked account goes out whether or not this deck is on it
+    // (owner, 2026-10-27, 3.48.1). From #2192 until then it was off, and people
+    // read a ticked account that never arrived as sharing being broken. The
+    // cost is the one #2192 found: the two machines then hold one login, and a
+    // Claude login renews once, so whichever copy renews second is signed out.
+    // The "Also active on" warning (#2192) stays, and the switch keeps it here
+    // for whoever wants that. Auto-switch may still land on a login a paired
+    // deck is on (3.43.3), and now that login reaches it. See `sendInUseSet` in
+    // normalise for why a saved false from before 3.48.1 does not count.
+    sendInUse: true,
+    sendInUseSet: false,
     // FINDING THIS PERSON'S OTHER MACHINES OVER TAILSCALE, off until they turn
     // it on: it is a new path off this machine, and the owner chooses it. Its
     // two permissions ship on, like the local pair above, and they are narrower
@@ -334,9 +336,14 @@ function normaliseLan(raw) {
     // Whether paired decks are told which shared account this one is on. Absent
     // is on — the default above — and only a real boolean turns it off.
     shareActive: flagOr(src.shareActive, DEFAULTS.lan.shareActive),
-    // Whether the login in use here may be sent. Off unless a real boolean
-    // says on.
-    sendInUse: flagOr(src.sendInUse, DEFAULTS.lan.sendInUse),
+    // Whether the login in use here may be sent. On unless somebody turned it
+    // off on 3.48.1 or later. Every write saves the whole normalised `lan`, so
+    // a deck from before then holds `sendInUse: false` whether or not anybody
+    // pressed the switch: the old default, written back with a tick or a name.
+    // That false says nothing, so it counts only beside `sendInUseSet`, which
+    // the page's own write of the switch adds (pagePatch).
+    sendInUse: src.sendInUseSet === true ? flagOr(src.sendInUse, DEFAULTS.lan.sendInUse) : DEFAULTS.lan.sendInUse,
+    sendInUseSet: src.sendInUseSet === true,
     // The Tailscale switch and its two permissions. Only a real boolean
     // overrides a default, as above.
     tailscale: flagOr(src.tailscale, DEFAULTS.lan.tailscale),
@@ -767,6 +774,9 @@ export function pagePatch(body) {
   };
   const patch = pick(body, PAGE_FIELDS.top);
   const lan = pick(body?.lan, PAGE_FIELDS.lan);
+  // Somebody pressed the switch, so from now on its value is a choice, not the
+  // default written back (see `sendInUseSet` in normalise).
+  if (Object.hasOwn(lan, "sendInUse")) lan.sendInUseSet = true;
   return Object.keys(lan).length ? { ...patch, lan } : patch;
 }
 

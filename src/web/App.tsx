@@ -426,7 +426,7 @@ function Inner() {
   // that says so — use-removals.ts.
   const { removedNodes, removedAgentIds, removeNode, removeSelectedNode, removalNotice,
           hideSessions, bringBack, bringBackAll, forgetRemovals }
-    = useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clearSelection, primarySelectedId });
+    = useRemovals({ stateRef, pinnedRef, positionsRef, returningRef: layout.returningRef, canvasRef, clearSelection, primarySelectedId });
   // What the layout keys off: the visible, not-removed agents and their
   // parents, plus the two size versions — use-board-graph.ts.
   const layoutSig = useLayoutSig({ stateRef, now, removedAgentIds, sizeVersion, domSizeVersion });

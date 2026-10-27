@@ -484,6 +484,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
         refusal={refusal} onDismissRefusal={() => clearFailure()} onSignIn={signInAgain}
         switchedHere={switchedHere} swapped={swapped} displaced={displaced}
         issueExpanded={issueExpanded} onOpenIssue={openIssue}
+        telemetryBoundaryId={rowBoundary(a.num)}
         sortKey={a.active ? null : orderKey(shownOrder)}
         home={isHome(a, auto?.choice?.home) ? homeTitle(a, !!auto?.enabled) : null}
         rotating={!!(auto?.enabled || auto?.external)} />
