@@ -884,8 +884,8 @@ All three remain versioned JSON definitions; references are in the themes README
 
 ### What’s new
 
-A 650px editorial digest using the shared modal shell, a fixed header/footer and
-one internal scroller. Routine update checking and status live in the shared
+An editorial digest at `--dialog-s` (560px, a short read) using the shared modal
+shell and its one header, a fixed footer and one internal scroller. Routine update checking and status live in the shared
 anchored menu, including checks in progress; only a failure or actionable update
 interrupts reading. Announcements stay accessible. Ordinary Restart keeps its existing handoff.
 The modal fades without a transform so its modal-owned fixed popover remains
@@ -897,7 +897,8 @@ metadata in release-notes.json. Required changes remain visible without card out
 use native More improvements disclosures. Benefit descriptions and always-visible
 technical notices are separate; optional factual notice labels default to Important.
 Semantic icons use distinct native 16px glyphs in a 28px column aligned with titles.
-Use 20px bold headlines, 13px semibold row titles and 13px secondary descriptions.
+Use 18px bold headlines (16px on a phone), 13px semibold row titles and 13px
+secondary descriptions; icons and group titles stay on `--muted`.
 Notices have a quiet 2px neutral left rule, 10px inset and 11px top spacing.
 Secondary highlight details share the improvements disclosure; essential notices never do.
 Its label counts other improvements, with Show details / Hide details on the right.
@@ -911,6 +912,7 @@ notes visible, while optional earlier changes remain discoverable in a disclosur
 Release history links to the complete public changelog; no manual history explorer
 is duplicated inside the digest. Upgrade-only disclosures cover the actual upgrade range.
 Use 13px minimum prose, theme tokens, wrap inline code and honor text scaling.
-Disclosures use quiet separators rather than rectangular field borders. Footer links use readable
-secondary ink with underlines and clear hover/focus; Done anchors the same action area.
+Disclosures use quiet separators rather than rectangular field borders. Footer links use `--muted`
+ink (at least 4.9:1 on `--bg-soft` in every theme) with underlines and clear hover/focus; Done
+anchors the same action area.
 The JSON file’s author instructions own the metadata contract.

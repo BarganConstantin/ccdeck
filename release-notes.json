@@ -36,7 +36,7 @@
     "own is ambiguous — a missing key reads the same whether it was a decision",
     "or a forgotten step, and five releases in a row were once forgotten. The list",
     "is what tells the two apart, and release-notes-current-version.test.ts fails",
-    "the release whose version is in neither place. Any key opening with // is a",
+    "the release whose version is in neither place. Any key opening with // is",
     "author metadata and never a release.",
     "",
     "Editorial metadata: optional //summaries maps a release version to one",

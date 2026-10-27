@@ -433,6 +433,15 @@ describe("what was migrated to the secondary tier", () => {
       ".ig-provider .ig-conn-line",
       ".ig-total",
       ".settings-row-details",
+      // What's new: the sentence under each change, the always-visible notice
+      // beside it, the one line that says which releases are shown (or that
+      // this build has none), and the options menu's line about the last
+      // check. Each is read, not glanced at; the group titles, the icons and
+      // the footer's links stay on --muted.
+      ".release-notes .rn-context, .release-notes .rn-empty",
+      ".release-notes .rn-note-body",
+      ".release-notes .rn-note-notice",
+      ".rn-menu-status",
     ].sort());
   });
 

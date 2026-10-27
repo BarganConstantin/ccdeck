@@ -52,10 +52,10 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
 
   return <div className="modal-backdrop" {...scrimPress} role="presentation">
     <div ref={dialogRef} className="modal release-notes" id={`${id}-dialog`} onClick={e => e.stopPropagation()}
-      role="dialog" aria-modal="true" aria-labelledby={`${id}-title`}>
+      role="dialog" aria-modal="true" aria-labelledby="release-notes-title">
       <header className="modal-head">
         <div className="modal-title">
-          <span id={`${id}-title`} className="modal-tool-name">What&apos;s new</span>
+          <span id="release-notes-title" className="modal-tool-name">What&apos;s new</span>
           {range && <span className="modal-tool-id">{range}</span>}
         </div>
         <div className="modal-actions">
