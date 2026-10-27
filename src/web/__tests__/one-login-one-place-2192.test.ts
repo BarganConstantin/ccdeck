@@ -232,11 +232,14 @@ describe("the login a deck is on, on the wire", () => {
       .toMatchObject({ short: "in use on the other deck" });
   });
 
-  it("is a new switch that ships off, and a saved choice is kept", () => {
-    expect(DEFAULTS.lan.sendInUse).toBe(false);
-    expect(normalise({ lan: {} }).lan.sendInUse).toBe(false);
-    expect(normalise({ lan: { sendInUse: true } }).lan.sendInUse).toBe(true);
-    expect(normalise({ lan: { sendInUse: "yes" } }).lan.sendInUse).toBe(false);
+  it("ships on since 3.48.1, and keeps a choice made from then on", () => {
+    expect(DEFAULTS.lan.sendInUse).toBe(true);
+    expect(normalise({ lan: {} }).lan.sendInUse).toBe(true);
+    // A false saved before 3.48.1 is the old default written back with the
+    // rest of `lan`, not a choice.
+    expect(normalise({ lan: { sendInUse: false } }).lan.sendInUse).toBe(true);
+    expect(normalise({ lan: { sendInUse: false, sendInUseSet: true } }).lan.sendInUse).toBe(false);
+    expect(normalise({ lan: { sendInUse: "no", sendInUseSet: true } }).lan.sendInUse).toBe(true);
     // The pairing switches and shareActive are untouched.
     expect(normalise({ lan: {} }).lan).toMatchObject({ autoAsk: true, autoAccept: true, pairingMode: "automatic", shareActive: true });
     expect(normalise({ lan: { shareActive: false } }).lan.shareActive).toBe(false);
