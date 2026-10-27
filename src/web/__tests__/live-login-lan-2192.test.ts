@@ -104,9 +104,12 @@ async function rounds(here: RigDeck, most = 4) {
 }
 
 describe("the login a deck is signed in to, between two decks paired by the switch", () => {
-  it("ships the switches on, and the new one off", () => {
+  it("ships the switches on, the login in use included since 3.48.1", () => {
+    // SHIPPED leaves sendInUse to the engine's own default, off: the cases
+    // below are a deck whose owner turned it off. A real deck takes it from
+    // its prefs (lanApplyFields), where it ships on.
     expect(SHIPPED).toEqual({ autoAsk: true, autoAccept: true, pairingMode: "automatic" });
-    expect(DEFAULTS.lan.sendInUse).toBe(false);
+    expect(DEFAULTS.lan.sendInUse).toBe(true);
   });
 
   it("is not added to a deck that lacks it", async () => {
