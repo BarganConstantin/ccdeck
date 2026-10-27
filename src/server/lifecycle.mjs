@@ -29,6 +29,7 @@ import { presentsDeckToken } from "./request-gates.mjs";
 // The version this process runs, read at boot by a leaf so that the LAN
 // engine's card and /api/version give one answer — see running-version.mjs.
 import { RUNNING_VERSION } from "./running-version.mjs";
+import { terminalCliNotice } from "./terminal-cli.mjs";
 
 // Resolved the way pinned-build.mjs resolves it, from a file in the same
 // directory, so every lazy import below is the URL the pin has already evaluated.
@@ -142,8 +143,12 @@ async function handleVersion(req, res) {
   // `dash` argument on purpose: the glyph tier is a terminal concern, and the
   // default em dash is what a browser should get.
   const rename = renameNotice({ invoked, pkgRoot: PKG_ROOT });
+  // The ccdeck a terminal here starts, when it is older than this deck: its
+  // commands are the old one's, and only the deck can say so (terminal-cli.mjs).
+  // A fact about this process's PATH, like the two above, so attached here too.
   send(res, 200, {
     ...report, canRestart: canRestartNow(), invokedAs: invoked, renameFix: rename?.fix ?? null,
+    terminalCli: terminalCliNotice({ running: RUNNING_VERSION }),
   });
 }
 

@@ -15,10 +15,12 @@
    After rating.css, whose `top` for the pair this has to win over, and at the
    same specificity plus the attribute. The rating row's height is in the
    least top unconditionally: RatingBanner writes --rating-h while the row is
-   shown and takes it off with the row. No phone rule is needed: a phone never
+   shown and takes it off with the row, and the out-of-date terminal's row
+   does the same with --cli-banner-h (terminal-cli-banner.css). At most one
+   of the two is up. No phone rule is needed: a phone never
    gets `data-place`. */
 .app :is(.usage-panel, .sysdetail)[data-place] {
-  --place-top: calc(var(--topbar-h) + 8px + var(--rating-h, 0px));
+  --place-top: calc(var(--topbar-h) + 8px + var(--rating-h, 0px) + var(--cli-banner-h, 0px));
   --place-side: calc(var(--edge-w) + 8px);
   --place-w: calc(280px + var(--ui-panel-increase, 0px));
   --place-at: clamp(var(--place-top), var(--place-y), calc(100vh - 120px));

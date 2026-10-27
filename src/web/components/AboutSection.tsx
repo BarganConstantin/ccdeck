@@ -111,7 +111,7 @@ export default function AboutSection({
           note={pageBehind(bundle, version?.running) ? pageBehindNote(bundle) : undefined}
           control={<span className="settings-read">{running}</span>}
         />
-        {typeof window !== "undefined" && window.ccdeckTerminalCli && <TerminalCliNotice />}
+        {version?.terminalCli && <TerminalCliNotice cli={version.terminalCli} running={running} />}
         {offer && <UpdateRow offer={offer} restarting={updateRestarting} failure={updateFailure} onRestart={onUpdateRestart} onUpdate={doors.update} />}
         <SettingRow
           as="div"

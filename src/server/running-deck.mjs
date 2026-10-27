@@ -373,3 +373,17 @@ export function versionNote(running, ours) {
     ? `running v${running}, older than the v${ours} you launched`
     : `running v${running}, newer than the v${ours} you launched — kept it`;
 }
+
+/**
+ * The line under versionNote when the deck kept is the newer one: how to bring
+ * the command just typed up to it.
+ *
+ * The deck knows commands this copy does not — a 3.42 `ccdeck tui` beside a
+ * 3.49 deck read `tui` as an unknown option — and cannot answer for it, so the
+ * copy says how it is updated. `command` is that install's own line
+ * (upgradeCommand). Empty unless ours is the older one.
+ */
+export function catchUpNote(running, ours, command) {
+  if (typeof command !== "string" || command === "" || typeof running !== "string" || running === "") return "";
+  return olderVersion(ours, running) ? `to use v${running} in this terminal: \`${command}\`` : "";
+}
