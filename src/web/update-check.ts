@@ -13,6 +13,7 @@
 // channel can be pinned without a browser.
 import type { DesktopUpdateState } from "./desktop-update";
 import { agoLabel } from "./browser-watch-model";
+import { compareVersions, isVersion } from "./release-notes";
 import { ownRow } from "./own-row";
 import type { VersionInfo } from "./use-version-check";
 
@@ -140,11 +141,15 @@ function settledLine(f: UpdateCheckFacts): UpdateLine {
   const pending = v?.latestPending && v.latestPending !== f.running ? v.latestPending : null;
   if (pending) return line(`${pending} is tagged on npm but can't be installed yet. ${PENDING_RETRY}`);
   const checked = v?.checkedAt ? ago(v.checkedAt, f.now) : null;
-  if (f.answered && v?.latest) {
-    const said = v.latest === f.running ? `You're on the latest, ${f.running}.` : `You're on ${f.running}, ahead of npm's ${v.latest}.`;
+  // An old successful lookup is history, not evidence that this build is current.
+  const fresh = v?.checkedAt && f.now >= v.checkedAt && f.now - v.checkedAt <= 60 * 60_000;
+  if (fresh && v?.latest && isVersion(v.latest) && isVersion(f.running)) {
+    const drift = compareVersions(v.latest, f.running);
+    const said = drift === 0 ? `You're on the latest, ${f.running}.`
+      : drift < 0 ? `You're on ${f.running}, ahead of npm's ${v.latest}.` : `${v.latest} is out.`;
     return line(said, { age: checked ? `Checked ${checked}.` : null });
   }
-  return line("", { age: checked ? `Last checked ${checked}.` : null });
+  return line(checked ? "Update status may have changed." : "No update check yet.", { age: checked ? `Last checked ${checked}.` : null });
 }
 
 /**
