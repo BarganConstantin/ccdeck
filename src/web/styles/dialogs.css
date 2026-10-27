@@ -886,7 +886,7 @@
   padding-left: 12px;
 }
 .release-notes .rn-note-title {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 600;
   line-height: 1.45;
@@ -908,35 +908,8 @@
 .release-notes .rn-note-icon {
   margin-right: 0.15em;
 }
-/* 1.65 rather than the 1.5 the rest of the sheet uses. Everything else set at
-   this size in the deck is a label or a number; this is the only place a user
-   is asked to read three or four sentences, and the extra leading is what makes
-   that possible in a dialog they did not open on purpose. */
-.release-notes .rn-note-body {
-  margin: 0;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 1.65;
-  color: var(--muted);
-  /* The blank lines in release-notes.json are paragraphs, and until now they
-     were not. Every entry in that file separates its thoughts with `\n\n` —
-     what changed, then what to do about it — and the component renders the
-     string into a bare <p>, where HTML's own whitespace collapsing turns the
-     break into one space. So all three releases written so far shipped as a
-     single wall of text, saying something the data had explicitly structured.
-     `pre-line` collapses runs of spaces the way normal text does and keeps the
-     line breaks, which is exactly the split the file's authors were making. */
-  white-space: pre-line;
-}
-
-/* THE MARKS INSIDE THAT TEXT, which were printed as themselves until now. The
-   body is `--muted`, so emphasis has to be a step UP in colour and not only in
-   weight — bold at the same tone as its paragraph is a difference you have to
-   already know is there. */
-.release-notes .rn-strong { color: var(--text); font-weight: 600; }
-/* `pre-wrap`, not the paragraph's inherited `pre-line`: a code span says
-   exactly what to type, and `pre-line` collapses runs of spaces inside it. It
-   still wraps, because `{"command":"rm -rf node_modules"}` is 34 characters and
-   `nowrap` would push it out of the dialog. */
+/* The update command in a code span. `pre-wrap` keeps its spaces, and it still
+   wraps, because a long command would otherwise push out of the dialog. */
 .release-notes .rn-code {
   background: var(--line);
   color: var(--text);
