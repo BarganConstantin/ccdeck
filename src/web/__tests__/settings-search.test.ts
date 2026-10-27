@@ -150,13 +150,12 @@ describe("searchSettings ranks what was typed", () => {
     // switches are found by their section alone, and come after it.
     expect(ids(searchSettings("notifications"))).toEqual([
       "section:notifications", "notify-closed", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped",
-      "notifyElsewhere",
     ]);
     // "alerts" is a keyword of the six switches and of the section.
     const alerts = ids(searchSettings("alerts"));
     expect(alerts[0]).toBe("section:notifications");
     expect(alerts).toEqual(expect.arrayContaining([
-      "notify-closed", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "notifyElsewhere",
+      "notify-closed", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped",
     ]));
   });
 

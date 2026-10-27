@@ -1,4 +1,4 @@
-// One login, live in one place (#2192): the in-use refusal, and the warning.
+// One login, live in one place (#2192): account sharing and in-use rules.
 //
 // A Claude refresh token renews once: the copy that renews it first keeps the
 // login, and every other copy is refused from then on, so two machines on one
@@ -15,12 +15,9 @@
 //   - which deck is on which login, and for how long its word counts
 //     (lan-elsewhere.mjs), and that a deck too old to say anything is read as
 //     saying nothing;
-//   - the live account's row: "Also active on <deck>", from that word and
-//     nothing else, so it never fires for a login the in-use rule keeps here;
-//   - the desktop notification, once per incident, from the same word.
+//   - peer activity alone never raises an account warning or desktop alert.
 //
-// Auto-switch is not here: it may move to a login a paired deck is on (3.43.3),
-// and the warning is what says so once it has.
+// Auto-switch may still move to a login a paired deck is on (3.43.3).
 //
 // Pure functions only: no socket, no process, no file. lan-serve.test.ts drives
 // `serve` itself through the same answer, and live-login-lan-2192.test.ts two
@@ -37,9 +34,7 @@ import { currentFor, heardCurrent, IN_USE, manifestFor, mayGiveInUse, offered, p
 import { createManifests } from "../../server/lan-manifest.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { DEFAULTS, normalise } from "../../server/deck-prefs.mjs";
-// @ts-expect-error — plain .mjs server module, no types
-import { createAccountNotifier, elsewhereNotice } from "../../server/account-notify.mjs";
-import { accountIssue, elsewhereIssue } from "../account-issue";
+import { accountIssue } from "../account-issue";
 import { activeElsewhere, lanAccounts, offeredHere } from "../account-lan";
 import AccountRow from "../components/AccountRow";
 import type { Account } from "../claude-accounts";
@@ -299,8 +294,8 @@ describe("the live account's row, when a paired deck is on that login", () => {
     num: 2, email: "work@example.test", alias: null, org: null, orgUuid: "org-w", active: false, disabled: false,
     lanes: [], headroom: 80, fetchedAt: NOW - 60_000, nextAt: null, stale: false, error: null, ...over,
   } as Account);
-  const row = (a: Account, elsewhere: readonly string[] | null) => renderToStaticMarkup(createElement(AccountRow, {
-    a, nowSec: NOW_SEC, lan: { sharedTo: null, elsewhere }, opened: false, onToggleLanes: () => {}, busy: null,
+  const row = (a: Account) => renderToStaticMarkup(createElement(AccountRow, {
+    a, nowSec: NOW_SEC, lan: { sharedTo: null }, opened: false, onToggleLanes: () => {}, busy: null,
     pressProps: () => ({}), onSwitch: () => {}, menuOpen: false, onOpenMenu: () => {}, onCloseMenu: () => {},
     refusal: null, onDismissRefusal: () => {}, switchedHere: false, swapped: null, displaced: undefined,
     issueExpanded: false, onOpenIssue: () => {},
@@ -314,49 +309,36 @@ describe("the live account's row, when a paired deck is on that login", () => {
     expect(activeElsewhere(WORK, null, NOW)).toBeNull();
   });
 
-  it("warns on the live row, which is what the notice over the list reads", () => {
-    const issue = accountIssue({ error: null, active: true }, NOW_SEC, { elsewhere: ["iMac"] });
-    expect(issue).toMatchObject({ text: "Also active on iMac", tone: "warn", fix: null, blocksSwitch: false });
-    expect(issue!.hint).toContain("iMac is using this login right now as well.");
-    expect(issue!.hint).toContain("the other is signed out");
-    expect(issue!.hint).toContain("Signing in on each machine separately");
-    expect(elsewhereIssue(["iMac", "PC"]).hint).toMatch(/^iMac and PC are using/);
-    const html = row(account({ active: true }), ["iMac"]);
-    expect(html).toMatch(/class="ap-issue" data-tone="warn"[^>]*>[\s\S]*?Also active on iMac/);
+  it("shows no account warning just because another deck is on the same login", () => {
+    expect(accountIssue({ error: null }, NOW_SEC)).toBeNull();
+    const html = row(account({ active: true }));
+    expect(html).not.toContain("Also active");
+    expect(html).not.toContain('class="ap-issue"');
   });
 
-  // Auto-switch may move here (3.43.3), and a person may: the row to switch to
-  // keeps its Switch as it was, and the warning is the live row's once it lands.
-  it("says nothing on a row to switch to", () => {
-    expect(accountIssue({ error: null, active: false }, NOW_SEC, { elsewhere: ["iMac"] })).toBeNull();
-    const html = row(account(), ["iMac"]);
-    expect(html).not.toContain("Active on");
+  it("keeps switching available on an account also in use by a peer", () => {
+    expect(accountIssue({ error: null }, NOW_SEC)).toBeNull();
+    const html = row(account());
     expect(html).not.toContain("Also active");
     expect(html).toContain('title="Switch to work@example.test"');
   });
 
-  it("says nothing while no deck is on it", () => {
-    expect(accountIssue({ error: null, active: true }, NOW_SEC, { elsewhere: null })).toBeNull();
-    expect(accountIssue({ error: null, active: true }, NOW_SEC, { elsewhere: [] })).toBeNull();
-    expect(row(account({ active: true }), null)).not.toContain("Also active");
-  });
-
-  it("gives way to a problem the reader has to act on, and outranks a quieter one", () => {
-    const dead = { error: null, stopped: true, collector: "relogin_required", active: true };
-    expect(accountIssue(dead, NOW_SEC, { elsewhere: ["iMac"] })?.text).toBe("Login expired");
-    const quiet = { error: null, stopped: true, collector: null, active: true };
+  it("preserves genuine login errors and collector warnings", () => {
+    const dead = { error: null, stopped: true, collector: "relogin_required" };
+    expect(accountIssue(dead, NOW_SEC)?.text).toBe("Login expired");
+    expect(row(account({ active: true, error: "invalid_grant" }))).not.toContain("Also active");
+    const quiet = { error: null, stopped: true, collector: null };
     expect(accountIssue(quiet, NOW_SEC)?.text).toBe("Not collecting");
-    expect(accountIssue(quiet, NOW_SEC, { elsewhere: ["iMac"] })?.text).toBe("Also active on iMac");
-    // On a row to switch to, its own news stays.
-    expect(accountIssue({ ...quiet, active: false }, NOW_SEC, { elsewhere: ["iMac"] })?.text).toBe("Not collecting");
+    expect(accountIssue({ ...dead, error: "invalid_grant" }, NOW_SEC)?.tone).toBe("warn");
+    expect(accountIssue(dead, NOW_SEC, { noCopyWorksNearby: true })?.text).toBe("Login expired on all online decks");
   });
 
-  // THE IN-USE RULE AND THE WARNING READ DIFFERENT WORDS. A paired deck's list
+  // THE IN-USE RULE AND THE UI READ DIFFERENT WORDS. A paired deck's list
   // goes through the real manifest (lan-manifest.mjs, both ends): the login a
   // deck is on is kept on that deck and marked `inUse`, and this deck's own
-  // live login is marked "in use here". Neither mark is a deck saying where it
-  // is, and the warning is built from that saying alone.
-  it("never fires for a login the in-use rule keeps local", () => {
+  // live login is marked "in use here". Neither mark means that an account
+  // needs attention merely because another machine is using it.
+  it("does not alert on an account in use locally or on another deck", () => {
     const rows = manifestRows;
     const heard = heardFrom;
     const shown = SHOWN;
@@ -365,8 +347,8 @@ describe("the live account's row, when a paired deck is on that login", () => {
       const decks = activeElsewhere(WORK, s as never, NOW);
       return {
         decks,
-        issue: accountIssue(live, NOW_SEC, { elsewhere: decks })?.text ?? null,
-        row: row(live, decks).includes("Also active"),
+        issue: accountIssue(live, NOW_SEC)?.text ?? null,
+        row: row(live).includes("Also active"),
       };
     };
     const silent = { decks: null, issue: null, row: false };
@@ -398,100 +380,12 @@ describe("the live account's row, when a paired deck is on that login", () => {
     expect(warns(unticked)).toEqual(silent);
 
     // And the one case that is a deck saying so: on this deck's login, ticked
-    // and shown. Its list marks that login in use, and the warning names it.
+    // and shown. Its list marks that login in use, without raising an alert.
     const both = heard(rows(WORK), shown);
     expect(both.peers[0].offers?.current).toEqual({ key: WORK });
     expect(both.peers[0].offers?.accounts).toContainEqual({ key: WORK, email: "work@example.test", alive: true, shareable: false, inUse: true });
-    expect(warns(both)).toEqual({ decks: ["studio"], issue: "Also active on studio", row: true });
+    expect(warns(both)).toEqual({ decks: ["studio"], issue: null, row: false });
     // The same word as currentFor gives it on its own.
     expect(currentFor(rows(WORK), [WORK, HOME], true)).toEqual({ current: { key: WORK } });
-  });
-});
-
-// ── the notification ────────────────────────────────────────────────────────
-
-describe("the desktop notification", () => {
-  type Settings = { swap: boolean; quota: boolean; reset: boolean; stopped: boolean; elsewhere: boolean };
-  function harness(settings: Settings = { swap: true, quota: false, reset: false, stopped: true, elsewhere: true }) {
-    const said: Array<{ title: string; body: string }> = [];
-    const errors: unknown[] = [];
-    const n = createAccountNotifier({
-      notify: (title: string, body: string) => { said.push({ title, body }); },
-      settings: () => settings,
-      product: "ccdeck",
-      now: () => NOW,
-      load: async () => null,
-      save: async () => {},
-      later: () => 0,
-      onError: (err: unknown) => errors.push(err),
-    });
-    return { n, said, settings, errors };
-  }
-  const ON_WORK = { key: WORK, name: "work@example.test" };
-  const ON_HOME = { key: HOME, name: "home" };
-
-  it("is said once for as long as both decks are on the login, however often it is asked", async () => {
-    const { n, said, errors } = harness();
-    for (let i = 0; i < 5; i++) await n.elsewhere(ON_WORK, ["iMac"]);
-    expect(said).toEqual([{
-      title: "Claude · work@example.test — ccdeck",
-      body: "Also active on iMac. When one machine renews this login, the other is signed out — use a different account on one of them.",
-    }]);
-    expect(errors).toEqual([]);
-  });
-
-  it("is said again for a new incident, and not for the end of one", async () => {
-    const { n, said } = harness();
-    await n.elsewhere(ON_WORK, ["iMac"]);
-    // The other deck moved off it: the incident closes, silently.
-    await n.elsewhere(ON_WORK, []);
-    await n.elsewhere(null, []);
-    expect(said).toHaveLength(1);
-    // And back on it: that is news again.
-    await n.elsewhere(ON_WORK, ["iMac"]);
-    expect(said).toHaveLength(2);
-    // This deck moved to another login a deck is on: a different incident.
-    await n.elsewhere(ON_HOME, ["PC"]);
-    expect(said.map(s => s.title)).toEqual([
-      "Claude · work@example.test — ccdeck", "Claude · work@example.test — ccdeck", "Claude · home — ccdeck",
-    ]);
-  });
-
-  it("is not said with its switch off, and an incident that opened unsaid stays unsaid", async () => {
-    const { n, said, settings } = harness({ swap: true, quota: false, reset: false, stopped: true, elsewhere: false });
-    await n.elsewhere(ON_WORK, ["iMac"]);
-    settings.elsewhere = true;
-    await n.elsewhere(ON_WORK, ["iMac"]);
-    expect(said).toEqual([]);
-    await n.elsewhere(ON_WORK, []);
-    await n.elsewhere(ON_WORK, ["iMac"]);
-    expect(said).toHaveLength(1);
-  });
-
-  it("names every deck on it", () => {
-    expect(elsewhereNotice({ accountName: "work", decks: ["iMac", "PC"] }).body).toMatch(/^Also active on iMac and PC\. /);
-  });
-
-  // The same in-use cases as the row's, through the door the notifier reads
-  // (account-watch.mjs watchElsewhereOnce asks elsewhereNow, then this).
-  it("is never said for a login the in-use rule keeps local", async () => {
-    const { n, said } = harness();
-    const ask = async (s: Status) => {
-      connectLanStatus(() => s);
-      await n.elsewhere(ON_WORK, elsewhereNow(NOW).get(WORK) ?? []);
-    };
-    try {
-      await ask(status([]));
-      await ask(heardFrom(manifestRows(HOME), SHOWN));
-      await ask(heardFrom(manifestRows(WORK), { ...SHOWN, shareActive: false }));
-      await ask(heardFrom(manifestRows(WORK), { ...SHOWN, shared: [HOME] }));
-      await ask(heardFrom(manifestRows(WORK), { shared: [] }));
-      expect(said).toEqual([]);
-      // The one that is a deck saying so.
-      await ask(heardFrom(manifestRows(WORK), SHOWN));
-      expect(said.map(s => s.body)).toEqual([expect.stringMatching(/^Also active on studio\. /)]);
-    } finally {
-      connectLanStatus(null);
-    }
   });
 });
