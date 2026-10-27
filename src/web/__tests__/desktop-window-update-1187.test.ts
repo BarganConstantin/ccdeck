@@ -109,15 +109,18 @@ describe("the one-button window wiring", () => {
 
   it("puts the update first and holds the tour back while it is ready", () => {
     const modal = read("../components/ReleaseNotesModal.tsx");
-    const body = modal.slice(modal.indexOf('<section className="modal-body">'));
-    const update = body.indexOf("onClick={onUpdateRestart}");
-    expect(update).toBeGreaterThan(-1);
-    // Ahead of the intro and of the action strip that holds the tour and the
-    // deck's own Restart (ReleaseActions.tsx, since the owner asked for one
-    // strip in place of three stacked rows).
-    expect(update).toBeLessThan(body.indexOf('<p className="modal-note">'));
-    expect(update).toBeLessThan(body.indexOf("<ReleaseActions"));
-    expect(body).toMatch(/<ReleaseActions onTour=\{updateVersion \? undefined : onTour\} onRestart=\{onRestart\}/);
+    const body = modal.slice(modal.indexOf('<section className="modal-body"'));
+    // The verified update is the body's first line, ahead of the context line
+    // and of every release in the editorial digest...
+    const ready = body.indexOf('{updateVersion ? <div className="rn-ready">');
+    expect(ready).toBeGreaterThan(-1);
+    expect(ready).toBeLessThan(body.indexOf('<p className="rn-context">'));
+    expect(ready).toBeLessThan(body.indexOf("<ReleaseSection"));
+    // ...and its restart takes Done's place as the footer's one primary action.
+    expect(body).toMatch(/\{updateVersion && onUpdateRestart \? <button className="btn primary" type="button" onClick=\{onUpdateRestart\}/);
+    // The tour and the deck's own Restart are held back while it is ready.
+    expect(body).toMatch(/\{onTour && !updateVersion && <button className="rn-text-button" type="button" onClick=\{onTour\}>Take the tour<\/button>\}/);
+    expect(modal).toContain("const canRestart = onRestart && !updateVersion && !updating;");
   });
 
   it("wears its own chip, not the stale chip's warning", () => {
@@ -225,9 +228,11 @@ describe("a restart that did not happen says so (#1187)", () => {
     expect(app).toContain('desktopUpdateTimerRef.current = window.setTimeout(() => handBack("timeout"), UPDATE_RESTART_WAIT_MS);');
     expect(app).toContain("setDesktopUpdateFailure({ failure, version: updateVersion });");
     expect(app).toContain("updateFailure={desktopUpdateFailure");
-    // Mounted with the door, empty until a press fails.
-    expect(modal).toContain('<p className="rn-update-said" role="status">{updateFailure}</p>');
-    expect(modal).toMatch(/\{\(updateVersion \|\| updateFailure\) && \(\s*<div className="rn-update">/);
+    // Mounted with the door, empty until a press fails: beside the ready
+    // update, and in its place once the app has none ready, so a failure for a
+    // version that is still on offer is said either way.
+    const said = '<p className="rn-update-said" role="status">{updateFailure}</p>';
+    expect(modal.split(said).length - 1).toBe(2);
   });
 
   it("never lets an older press's clock or answer hand back a newer one", () => {

@@ -1,28 +1,16 @@
-// What's new's actions: Take the tour, Check for updates and Restart, as one
-// strip of small buttons under the line that says which release this is, and
-// the one line under them where an update check answers.
-//
-// They were full-width rows, each a sentence and a button, and three of them
-// stood between the reader and the notes the dialog is for. The sentences now
-// live in each button's hint, and in its description for a screen reader, so
-// nothing they said is lost. Restart sits apart at the end: it is the one that
-// takes the deck down, if only for a moment.
-//
-// The update line is a live region and is always there, one small line tall,
-// so an answer arriving moves nothing above it. What it says, and which of the
-// update banner's actions it offers on this install, is update-check.ts's.
+// Update checks and their authenticated lifecycle handoff, shared by the reading sheet.
+// The modal owns placement; the existing version, upgrade and restart hooks own actions.
 import { useEffect, useId, useRef, useState } from "react";
 
 import { desktopAppVersion, trayMenuName } from "../desktop-update";
 import { inDesktopApp } from "../in-app";
 import { selfPressAccepted } from "../panel-press";
-import { CHECK_LABEL, CHECK_WHY, runDesktopUpdateCheck, runUpdateCheck, updateCheckState, type UpdateLine, type UpdateLineAction } from "../update-check";
+import { CHECK_WHY, runDesktopUpdateCheck, runUpdateCheck, updateCheckState, type UpdateLine, type UpdateLineAction } from "../update-check";
 import type { useAutoRestart } from "../use-auto-restart";
 import type { useDeckUpgrade } from "../use-deck-upgrade";
 import type { useDesktopUpdate } from "../use-desktop-update";
 import { useNow } from "../use-now";
 import type { useVersionCheck } from "../use-version-check";
-import { RestartGlyph, TourGlyph, UpdateCheckGlyph } from "./rail-glyphs";
 import { useHint } from "./use-hint";
 import { UPGRADE_BLOCK_TEXT } from "./VersionBanner";
 
@@ -46,7 +34,7 @@ export interface UpdateCheckWiring {
 
 /** The check's state for this dialog, and its two kinds of press. Null where
  *  there is nothing to say: no wiring, or the app's own update is ready. */
-function useUpdateCheck(wiring: UpdateCheckWiring | undefined) {
+export function useReleaseUpdateCheck(wiring: UpdateCheckWiring | undefined) {
   const versionChecking = wiring?.versionCheck.versionChecking ?? false;
   const now = useNow(30_000);
   const [pressing, setPressing] = useState(false);
@@ -63,8 +51,9 @@ function useUpdateCheck(wiring: UpdateCheckWiring | undefined) {
   if (!wiring) return null;
 
   const { versionCheck, upgrade, restart, desktopUpdate, running, onHandOff } = wiring;
+  // A new response may arrive before the 30-second display ticker advances.
   const state = updateCheckState({
-    version: versionCheck.version, running, checking: pressing || versionChecking, answered, unreachable, now,
+    version: versionCheck.version, running, checking: pressing || versionChecking, answered, unreachable, now: Math.max(now, Date.now()),
     upgradeState: upgrade.upgradeState, copied: upgrade.cmdCopied, restarting: restart.restarting,
     app: { inApp: inDesktopApp(), update: desktopUpdate.appUpdate, version: desktopAppVersion(), menu: trayMenuName() },
   }, UPGRADE_BLOCK_TEXT);
@@ -94,60 +83,23 @@ function useUpdateCheck(wiring: UpdateCheckWiring | undefined) {
     if (action.kind === "install") void upgrade.startUpgrade();
     else void restart.askRestart({ upgrade: true });
   };
-  return { state, check, act, checkWhy };
+  // Routine checks belong to the menu/live region, without shifting the digest.
+  const needsAttention = state.line.tone === "warn" || !!state.line.action
+    || !!versionCheck.version?.notice || desktopUpdate.appUpdate?.status === "downloading";
+  return { state, check, act, checkWhy, needsAttention };
 }
 
-export default function ReleaseActions({ onTour, onRestart, updateCheck }: {
-  onTour?: () => void;
-  onRestart?: () => void;
-  updateCheck?: UpdateCheckWiring;
+/** Update state and the existing check action, without competing navigation buttons. */
+export default function ReleaseActions({ update }: {
+  update: ReturnType<typeof useReleaseUpdateCheck>;
 }) {
-  // Above the strip, never below it: under it is the line a press answers on,
-  // and a hint left up by a keyboard press would sit over the answer.
   const hint = useHint("above", "dialog");
-  const update = useUpdateCheck(updateCheck);
   const id = useId();
-  const canCheck = update?.state.canCheck ?? false;
-  // Restart stands down while the line offers an update. Both of those
-  // restart too, and two restarts side by side, only one of which updates, is
-  // a guess nobody should have to make — the reason the app's ready update
-  // takes Restart's place at the top of the dialog.
-  const updates = update?.state.line.action?.kind === "install" || update?.state.line.action?.kind === "npx";
-  const restartDoor = updates ? undefined : onRestart;
-  if (!onTour && !canCheck && !restartDoor && !update) return null;
-  return (
-    <div className="rn-actions">
-      {(onTour || canCheck || restartDoor) && (
-        <div className="rn-acts">
-          {onTour && (
-            <button type="button" className="btn rn-act" onClick={onTour}
-              aria-describedby={`${id}-tour`} {...hint.bind({ label: TOUR_WHY })}>
-              <TourGlyph />Take the tour
-            </button>
-          )}
-          {update && canCheck && (
-            <button type="button" className="btn rn-act" onClick={() => void update.check()}
-              aria-busy={update.state.checking || undefined}
-              aria-describedby={`${id}-check`} {...hint.bind({ label: update.checkWhy })}>
-              <UpdateCheckGlyph />{CHECK_LABEL}
-            </button>
-          )}
-          {restartDoor && (
-            <button type="button" className="btn rn-act rn-act-restart" onClick={restartDoor}
-              aria-describedby={`${id}-restart`} {...hint.bind({ label: RESTART_WHY })}>
-              <RestartGlyph />Restart
-            </button>
-          )}
-        </div>
-      )}
-      {update && <UpdateLineView line={update.state.line} onAct={update.act} bindHint={hint.bind} whyId={`${id}-act`} />}
-      {/* What each hint says, for a reader who never sees a hint. */}
-      <span hidden id={`${id}-tour`}>{TOUR_WHY}</span>
-      <span hidden id={`${id}-check`}>{update?.checkWhy ?? CHECK_WHY}</span>
-      <span hidden id={`${id}-restart`}>{RESTART_WHY}</span>
-      {hint.node}
-    </div>
-  );
+  return <div className="rn-status-row">
+    {update ? <UpdateLineView line={update.state.line} onAct={update.act} bindHint={hint.bind} whyId={`${id}-action`} announce={false} />
+      : <p className="rn-update-line"><span role="status">Update status unavailable.</span></p>}
+    {hint.node}
+  </div>;
 }
 
 type BindHint = ReturnType<typeof useHint>["bind"];
@@ -156,8 +108,9 @@ type BindHint = ReturnType<typeof useHint>["bind"];
  *  live region, mounted empty with the dialog so an answer is news rather
  *  than part of the opening. When it was had sits outside that region: read
  *  where it stands, never read out as a minute goes by. */
-export function UpdateLineView({ line, onAct, bindHint, whyId }: {
+export function UpdateLineView({ line, onAct, bindHint, whyId, announce = true }: {
   line: UpdateLine;
+  announce?: boolean;
   onAct: (action: UpdateLineAction) => void;
   bindHint?: BindHint;
   /** The id the update action's sentence is drawn under, for its description. */
@@ -167,7 +120,7 @@ export function UpdateLineView({ line, onAct, bindHint, whyId }: {
   const act = action && <LineAction action={action} onAct={onAct} bindHint={bindHint} whyId={whyId} />;
   return (
     <p className="rn-update-line" data-tone={line.tone}>
-      <span className="rn-update-what" role="status">{line.said}</span>
+      <span className="rn-update-what" role={announce ? "status" : undefined}>{line.said}</span>
       {line.age && <span className="rn-update-age">{line.age}</span>}
       {line.command ? (
         // The command and its Copy wrap as one, so Copy never lands alone on

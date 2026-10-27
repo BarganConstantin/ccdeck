@@ -16,8 +16,8 @@
     "fire, anything that is invisible when it is correct.",
     "",
     "Write it for the person running the deck, not for the person reading the",
-    "diff. `title` is the one line the deck shows them, so it has to stand on",
-    "its own; `body` is the fuller account, kept here for the release text.",
+    "diff. `title` is the sentence they scan; `body` is what they need in order",
+    "to act on it, or to stop worrying about it.",
     "",
     "Keys are versions exactly as package.json spells them. A key that is not a",
     "version, or an entry missing either field, fails the suite rather than",
@@ -36,9 +36,53 @@
     "own is ambiguous — a missing key reads the same whether it was a decision",
     "or a forgotten step, and five releases in a row were once forgotten. The list",
     "is what tells the two apart, and release-notes-current-version.test.ts fails",
-    "the release whose version is in neither place. Any key opening with // is a",
-    "note to the author and never a release."
+    "the release whose version is in neither place. Any key opening with // is",
+    "author metadata and never a release.",
+    "",
+    "Editorial metadata: optional //summaries maps a release version to one",
+    "specific, verified headline (1–120 characters). No generic marketing claims.",
+    "A note may have priority: highlight or required. Choose at most 3 highlights,",
+    "only when warranted. Unmarked notes go under More improvements when highlights",
+    "exist. Legacy notes stay unabridged; legacy upgrade notes stay visible.",
+    "Use required for breaking changes, changed settings, privacy/security impact,",
+    "compatibility requirements or mandatory actions. A highlight with any such",
+    "impact must also carry a notice with all essential qualifications: highlight",
+    "alone is editorial placement, not an instruction to surface it across upgrades.",
+    "Required notes and notices stay visible across upgrades, never in a closed section.",
+    "Write a short benefit-led title and one useful sentence where possible; keep",
+    "opt-outs and limits. Avoid inflated adjectives, filler and generic claims.",
+    "Preserve original factual meaning. Never invent capabilities or results.",
+    "Retain setup instructions, compatibility minimums and privacy implications.",
+    "Verify each claim against the released diff and tests. No promotion",
+    "for invisible fixes. Do not rewrite historical releases to fit the layout.",
+    "",
+    "Keep highlight titles within 72 characters (excluding a leading emoji) and",
+    "benefit descriptions within 240 characters. These limits are validated.",
+    "Put essential compatibility, privacy or configuration details in optional",
+    "notice text, outside More improvements. Current/upgrade notices stay visible and",
+    "have no truncation limit. A notice also keeps its change visible across upgrades.",
+    "Optional noticeLabel gives it a short factual heading (1–32 characters), such",
+    "as Setup change or Compatibility. It requires notice text; default is Important.",
+    "Optional details holds secondary context, shown under the same improvements",
+    "disclosure for highlights and beside other notes. Keep the body to one useful",
+    "sentence. Never move setup, safety, privacy or compatibility conditions into",
+    "details: use notice for those, so they remain visible across upgrades.",
+    "The disclosure counts other improvements, not extra details of highlights.",
+    "Mark any other mandatory action as required. The manual digest shows only the",
+    "running release; Release history opens the full changelog. Upgrade notes keep",
+    "required/noticed changes visible and disclose the other notes in that range.",
+    "Unclassified legacy upgrade notes stay visible rather than guessing safety.",
+    "Before adding editorial metadata to a release, review every note: unmarked",
+    "changes will be treated as optional in later upgrades. Never infer safety",
+    "from a title, keyword, emoji, position or a shortened description.",
+    "",
+    "Optional icon is a semantic key: plans, accounts or skills. Use it only when",
+    "it matches the change; do not infer icons from versions, titles or emoji.",
+    "The modal uses native monochrome glyphs, so titles need no decorative emoji."
   ],
+  "//summaries": {
+    "3.46.0": "Plans, accounts and skills at a glance"
+  },
   "//nothing-to-say": [
     "3.23.1",
     "3.23.2",
@@ -80,6 +124,39 @@
     "3.43.1",
     "3.43.3",
     "3.48.1"
+  ],
+  "3.49.0": [
+    {
+      "title": "🗞️ What's new is shorter and easier to scan",
+      "body": "Up to three main changes come first and the rest wait under Show details; Check for updates moved to the dialog's More options menu."
+    },
+    {
+      "title": "👥 No warning when one account is in use on several decks",
+      "body": "The account row and the desktop no longer flag it, and the Login active on another deck switch is gone from Settings › Notifications; expired logins are still shown.",
+      "priority": "required"
+    },
+    {
+      "title": "📍 Auto-hidden sessions come back where they were",
+      "body": "With Hide finished sessions after on, a session that works again returns to its place, with its new subagents beside it rather than further down the board."
+    },
+    {
+      "title": "💻 Windows: About flags an outdated terminal CLI",
+      "body": "When the npm ccdeck on PATH is older than the desktop app, Settings › About shows the command that updates it."
+    },
+    {
+      "title": "✏️ Texts that fell behind are up to date",
+      "body": "Explore integrations says Jira can move issues, and the Radar and Where the time went tips match what the app does."
+    },
+    {
+      "title": "🛡️ AGENTS_DECK_NO_RADAR holds at login and in the desktop app",
+      "body": "A deck started at login or by the desktop app no longer watches Claude Code's telemetry collector when your shell sets the variable.",
+      "priority": "required"
+    },
+    {
+      "title": "📊 Usage reports name the trackers you connected",
+      "body": "The daily report says which of Jira, GitHub or GitLab has a saved connection, never its address, account or token; AGENTS_DECK_NO_REPORTS=1 still keeps reports off.",
+      "priority": "required"
+    }
   ],
   "3.48.0": [
     {
@@ -147,20 +224,30 @@
       "body": "It now sees Claude Code started from its versioned install folder, plus connection attempts that got no reply and the telemetry variables it was launched with."
     },
     {
-      "title": "🗺️ Plans are easier to follow on the session canvas",
-      "body": "A session's plan now shows on its note and as “plan 2/5” at every zoom. Subagents line up in one column, closer to their parent."
+      "title": "🗺️ Follow plans at any zoom",
+      "body": "See plan progress on session notes and directly on the canvas.",
+      "priority": "highlight",
+      "icon": "plans",
+      "details": "Subagents stay in one column beside their parent."
     },
     {
-      "title": "✅ The active account follows your Claude Code login",
-      "body": "After a /login, the accounts panel, Switch, Auto-switch and Usage use the account Claude Code is signed in to. Auto-switch can now be set up while it is off."
+      "title": "✅ Keep your Claude account in sync",
+      "body": "After `/login`, Accounts, Switch, Auto-switch and Usage follow your active Claude Code account.",
+      "priority": "highlight",
+      "icon": "accounts",
+      "details": "Auto-switch can also be set up while it is off."
     },
     {
       "title": "📊 Account capacity and the Reset calendar have their own buttons",
       "body": "Both open from the left stripe, under Claude accounts, instead of from the small gauge in the accounts panel's header."
     },
     {
-      "title": "🧩 Skill activity has its own button and counts typed skills",
-      "body": "It opens from the right stripe. To count skills you start with a slash command, the deck now adds a UserPromptExpansion hook to Claude Code's settings.json (2.1.116 or newer); AGENTS_DECK_SKILL_HOOK=0 leaves it out."
+      "title": "🧩 See which skills your agents use",
+      "body": "Review skill activity from the right sidebar, including typed slash commands.",
+      "priority": "highlight",
+      "notice": "Counting typed slash commands adds a `UserPromptExpansion` hook to Claude Code's `settings.json` on supported versions (2.1.116+). Set `AGENTS_DECK_SKILL_HOOK=0` to opt out.",
+      "icon": "skills",
+      "noticeLabel": "Setup change"
     },
     {
       "title": "📈 Load history keeps the reading you click",

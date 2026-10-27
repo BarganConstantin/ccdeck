@@ -512,6 +512,12 @@ const owner = (sel: string) => sel.replace(/:active.*$/, "");
 const EXEMPT: string[] = [
   // Native Settings disclosures answer through expanded state, without moving labels.
   ".ig-access summary", ".ig-token-help summary", ".settings-row-details summary",
+  // What's new's disclosures are full-width reading rows: they answer through
+  // the underlined label, the turning chevron and the expanded state, and a
+  // row scaled on press would shift the words under the pointer. Take the tour
+  // is a link-shaped word in the footer beside Release history, and answers the
+  // way that link does, with a heavier underline.
+  ".release-notes .rn-history > summary", ".release-notes .rn-more > summary", ".release-notes .rn-text-button",
   // Radio uses pointer-only feedback on the control or its child glyph.
   // Range thumbs and map markers must retain fixed interaction geometry.
   ".radio-cluster-preview > div > .radio-cluster-station",

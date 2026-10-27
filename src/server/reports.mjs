@@ -25,7 +25,10 @@
 //     events it took in, each as a bucket ("2s", "512m", "1k"), the Claude and
 //     Codex plan as its category ("max-20x", "plus") and nothing else from the
 //     credentials it is read off, and how many Claude accounts and paired
-//     machines the deck holds, as capped counts (depth-facts.mjs),
+//     machines the deck holds, as capped counts (depth-facts.mjs), and which
+//     trackers have a saved connection when it is sent: "jira", "github",
+//     "gitlab" and nothing else, never an address, an account or a token
+//     (integrations/store.mjs; left out when that list cannot be read),
 //   - an "uninstall" event when somebody runs `ccdeck --uninstall`, with the
 //     reason they picked from a short list if they picked one (bin/cli/leaving.js),
 //   - an "activated" event, once, when a new install's first session arrives:
@@ -556,6 +559,7 @@ export function createReporter({
   setupKnown = () => whenSetupKnown(),
   reference = notedRef,
   depth = async () => ({}),
+  integrations = async () => null,
   launchedIn = () => process.uptime() * 1000,
   memory = () => process.memoryUsage.rss(),
   npx = false,
@@ -681,6 +685,20 @@ export function createReporter({
       addIf(out, "events", eventsBucket(raw.events));
       addIf(out, "deckMemory", raw.peakMb > 0 ? memoryBucket(raw.peakMb) : undefined);
       return out;
+    } catch {
+      return {};
+    }
+  }
+
+  /** A snapshot of which tracker providers have connections at report time.
+   * The provider owns the local read; only the three fixed provider tokens leave.
+   * null means unknown (store unavailable), [] means verified no connections. */
+  async function connectedProviders() {
+    try {
+      const value = await integrations();
+      if (!Array.isArray(value)) return {};
+      const providers = ["jira", "github", "gitlab"].filter(k => value.includes(k));
+      return { connectedIntegrations: providers };
     } catch {
       return {};
     }
@@ -952,7 +970,8 @@ export function createReporter({
       // deck for its counts.
       const used = coarseUsage(today);
       const held = await depthNow();
-      if (settled(await call("POST", "/v1/app/events", { installId, kind: "active", ...factsNow(), ...setupNow(), ...used, ...held }))) {
+      const connected = await connectedProviders();
+      if (settled(await call("POST", "/v1/app/events", { installId, kind: "active", ...factsNow(), ...setupNow(), ...used, ...held, ...connected }))) {
         if (used.usageDay) usage.markSent(used.usageDay);
         await remember(installId, { lastActiveDay: today });
       }
@@ -1318,5 +1337,9 @@ export function ratingFile(dir) {
 /** The deck's own reporter. */
 export const reporter = createReporter({
   versions: () => cliVersionCache, probe: probeCliVersions, depth: deckDepth, npx: isNpxInstall(PKG_ROOT),
+  integrations: async () => {
+    const { integrationsStore } = await import("./integrations/store.mjs");
+    return integrationsStore.connectedKinds();
+  },
   ratingKept: ratingFile(),
 });

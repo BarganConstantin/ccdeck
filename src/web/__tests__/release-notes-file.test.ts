@@ -13,7 +13,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { compareVersions, isVersion, readNotes, RELEASE_NOTES, splitNoteTitle } from "../release-notes";
+import { compareVersions, isVersion, readNotes, RELEASE_NOTES, splitNoteTitle, validateReleaseEditorial } from "../release-notes";
 import { sheetText } from "./sheet-source";
 
 /** A title that OPENS with an emoji, whatever comes after it — deliberately
@@ -67,13 +67,17 @@ describe("the shape of release-notes.json", () => {
     // meant is an entry that renders with half its content and no complaint.
     for (const key of versionKeys) {
       for (const note of raw[key] as Array<Record<string, unknown>>) {
-        expect(Object.keys(note).sort(), key).toEqual(["body", "title"]);
+        expect(Object.keys(note).filter(k => k !== "details" && k !== "priority" && k !== "notice" && k !== "noticeLabel" && k !== "icon").sort(), key).toEqual(["body", "title"]);
         expect(typeof note.title, key).toBe("string");
         expect(typeof note.body, key).toBe("string");
         expect(String(note.title).trim(), key).not.toBe("");
         expect(String(note.body).trim(), key).not.toBe("");
       }
     }
+  });
+
+  it("validates editorial metadata without silently ignoring typos", () => {
+    expect(validateReleaseEditorial(raw)).toEqual([]);
   });
 
   it("carries its own instructions, so the next author does not have to find them", () => {
@@ -164,6 +168,30 @@ describe("what a note is allowed to say", () => {
       expect(EMPTY.test(s), s).toBe(true);
     }
     expect(EMPTY.test("The deck no longer keeps a sound hook in your settings.json")).toBe(false);
+  });
+});
+
+describe("the blank lines in a body, which are load-bearing", () => {
+  it("is how the entries are actually written", () => {
+    // Not a hypothetical. Every release written so far splits its body into
+    // what changed and what to do about it, and the split is a `\n\n`.
+    const bodies = versionKeys.flatMap(k => (raw[k] as { body: string }[]).map(n => n.body));
+    expect(bodies.length).toBeGreaterThan(0);
+    expect(bodies.some(b => b.includes("\n\n")), "no entry separates its thoughts any more — if that is deliberate, this case and the CSS below can go").toBe(true);
+  });
+
+  it("renders as a break rather than collapsing into a space", () => {
+    // `.rn-note-body` is a bare <p> holding the raw string, and HTML collapses
+    // a newline to a space — so every `\n\n` above was silently ignored and
+    // three releases shipped as one wall of text. The data and the rule that
+    // makes it mean something live in different files, and nothing but this
+    // connects them.
+    const css = sheetText();
+    const rule = css.slice(css.indexOf(".release-notes .rn-note-body {"));
+    expect(rule.slice(0, 1), "styles.css no longer has a .release-notes .rn-note-body rule").toBe(".");
+    const body = rule.slice(0, rule.indexOf("}"));
+    expect(body, "the paragraph breaks in release-notes.json collapse to spaces again")
+      .toMatch(/white-space:\s*(pre-line|pre-wrap)\s*;/);
   });
 });
 

@@ -28,6 +28,7 @@ import { footprint, NODE_W, RECAP_NOTE_GAP, RECAP_NOTE_H, RECAP_NOTE_W, sessionO
 import { branchSummaries, type BranchSummary } from "./node-face";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
 import { liveNodeIds, measuredNodeIds, pruneStaleEntries } from "./prune";
+import { sendSessionsHome } from "./return-home";
 import { isRecapDismissed, isRecapNoteId, recapNoteId } from "./recap-note";
 import { sessionHue, type GraphState } from "./reducer";
 import { boardNote, noteTag } from "./session-note";
@@ -207,6 +208,13 @@ export function snapshotToFlow(
    * and the page has settled.
    */
   restored: Set<string>,
+  /**
+   * Sessions that have just come back onto the board — from the session list,
+   * or by working again after Hide finished sessions took them off. Each goes
+   * back to the place it kept, unless that ground was taken meanwhile
+   * (return-home.ts). Spent as each session's cards are drawn.
+   */
+  returning: Set<string> = new Set(),
 ): { nodes: Node<FlowNodeData>[]; edges: Edge[] } {
   const nodes: Node<FlowNodeData>[] = [];
   const edges: Edge[] = [];
@@ -404,6 +412,10 @@ export function snapshotToFlow(
       provisional.delete(id);
     }
   }
+  // A session back from being hidden stands where it stood, or, when that
+  // ground has been taken, arrives whole: its places are forgotten here, so it
+  // is among the missing below and the gap pass finds it room.
+  if (historyReplayed) sendSessionsHome(nodes, positions, provisional, pinned, measured, lanes, returning);
   const missing = nodes.filter(n => needsLayout(n.id, pinned, positions, provisional));
   if (missing.length > 0 || sig !== lastLayoutSigRef.current) {
     if (missing.length > 0) {
@@ -481,6 +493,8 @@ export function snapshotToFlow(
   // agent that leaves between the stamp and that pass would leave its id in the
   // set for the life of the tab, which is the leak the size cache below had.
   pruneStaleEntries(provisional, live);
+  // And a session marked as coming back that left the board for good first.
+  pruneStaleEntries(returning, live);
   // Drop pins for agents that are gone. Pinned positions are restored from
   // localStorage on every load, so without this a drag from some previous run
   // outlives the agent it belonged to and keeps claiming that spot on the
