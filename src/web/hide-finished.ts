@@ -24,7 +24,17 @@
 // ONCE PER TURN. A session the reader brings back is not hidden again by the
 // same finished turn — only by the end of a later one. The turns already acted
 // on are kept with the removals, so a reload does not undo a bring-back.
+//
+// THE TURN IT WAS HIDDEN AT STAYS BEHIND. A session that comes back by working
+// again comes back to new work: the subagents that had finished in the turn it
+// was hidden at leave the board for good, the way a new prompt retires them
+// (applyUserPromptSubmit). An agent that starts its next turn on its own — a
+// background task finishing, a scheduled run — sends no prompt, so they used
+// to come back with it, and every subagent it spawned next was put under them:
+// each round further down the board than the last.
 import { isAlarming } from "./ambient-counts";
+import type { GraphState } from "./graph-state";
+import { lastWorkedAt } from "./remove-node";
 import type { AgentNodeData } from "./types";
 import { readStored, writeStored } from "./storage";
 
@@ -182,4 +192,38 @@ export function markBroughtBack(
     next.set(id, endedAt);
   }
   return next ?? handled;
+}
+
+/**
+ * Retire the subagents that had finished by the turn each session was hidden
+ * or brought back at, once that session has worked since: what comes back is
+ * the session's new work, not the turn that was put away. `handled` is that
+ * turn for each session (the map `sessionsToHide` and `markBroughtBack` keep).
+ *
+ * Stamped as retired at the end of that turn, which is long past by the time
+ * anything works again — so the card is gone in the same frame its session
+ * comes back, rather than fading for EXIT_ANIM_MS while the subagent the work
+ * spawns is placed under it. Worked out from the stored turns and the agents
+ * alone, so a reload that replays the session retires the same cards again.
+ * Mutates the agents; returns whether any was retired, with the state's
+ * revision moved when one was.
+ */
+export function retireHiddenTurns(state: GraphState, handled: ReadonlyMap<string, number>): boolean {
+  if (handled.size === 0) return false;
+  const workedAt = new Map<string, number>();
+  for (const a of state.agents.values()) {
+    if (!handled.has(a.sessionId)) continue;
+    const at = lastWorkedAt(a);
+    if (at > (workedAt.get(a.sessionId) ?? -Infinity)) workedAt.set(a.sessionId, at);
+  }
+  let changed = false;
+  for (const a of state.agents.values()) {
+    if (a.kind !== "subagent" || a.state !== "done" || a.endedAt == null || a.exitAt != null) continue;
+    const turn = handled.get(a.sessionId);
+    if (turn == null || a.endedAt > turn || !((workedAt.get(a.sessionId) ?? -Infinity) > turn)) continue;
+    a.exitAt = turn;
+    changed = true;
+  }
+  if (changed) state.revision += 1;
+  return changed;
 }

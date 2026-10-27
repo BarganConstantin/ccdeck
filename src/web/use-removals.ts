@@ -14,10 +14,13 @@ import { localStore, removeStored } from "./storage";
 
 type Layout = ReturnType<typeof useBoardLayout>;
 
-export function useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clearSelection, primarySelectedId }: {
+export function useRemovals({ stateRef, pinnedRef, positionsRef, returningRef, canvasRef, clearSelection, primarySelectedId }: {
   stateRef: MutableRefObject<GraphState>;
   pinnedRef: Layout["pinnedRef"];
   positionsRef: Layout["positionsRef"];
+  /** Where a card coming back is marked, so the frame that draws it sends it
+   *  back to the place it kept (return-home.ts). */
+  returningRef: Layout["returningRef"];
   /** Where focus goes once the control that removed the card has unmounted. */
   canvasRef: MutableRefObject<HTMLElement | null>;
   clearSelection: () => void;
@@ -74,7 +77,12 @@ export function useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clea
 
   // Settings' "Hide finished sessions after" (use-hide-finished.ts): the same
   // removal, minus what a press brings with it — no sentence for a screen
-  // reader and no selection cleared, since nobody pressed anything.
+  // reader and no selection cleared, since nobody pressed anything — and the
+  // session keeps its place. It comes back by itself the moment it works again,
+  // and it comes back to where it stood (return-home.ts). Forgetting the root's
+  // place as it went, the way a press does, laid it out as an arrival on its
+  // return: at the foot of a column, under its own subagents, and a session
+  // that finished and resumed walked down the board a round at a time.
   const hideSessions = useCallback((ids: Iterable<string>) => {
     const list = [...ids];
     setRemovedNodes(previous => {
@@ -88,10 +96,6 @@ export function useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clea
       saveRemovedNodes(localStore(), next);
       return next;
     });
-    for (const id of list) {
-      pinnedRef.current.delete(id);
-      positionsRef.current.delete(id);
-    }
   }, []);
 
   const bringBack = useCallback((ids: Iterable<string>) => {
@@ -99,6 +103,12 @@ export function useRemovals({ stateRef, pinnedRef, positionsRef, canvasRef, clea
     setRemovedNodes(previous => {
       const next = withoutRemovals(previous, list);
       if (next !== previous) saveRemovedNodes(localStore(), next);
+      // Sessions only, and only what really leaves the set: a session already on
+      // the board is not coming back to anywhere, and a card brought back on its
+      // own is laid out beside its session (its place went with the press).
+      for (const id of list) {
+        if (next !== previous && previous.has(id) && stateRef.current.agents.get(id)?.kind === "root") returningRef.current.add(id);
+      }
       return next;
     });
   }, []);
