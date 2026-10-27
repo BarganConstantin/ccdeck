@@ -4,18 +4,15 @@
 // login, and every other copy is refused from then on, so two machines on one
 // copied login race at every renewal and the loser is signed out ("Login
 // expired · Please run /login"). This pins what crosses the wire about the
-// login a deck is signed in to, how both ends draw it, and what this deck says
-// when a paired deck is on the login it is on:
+// login a deck is signed in to, and how both ends draw it:
 //
 //   - the login a deck is on is listed and not given, in a shape an older deck
 //     already obeys, and refused when an older deck asks for it anyway;
 //   - "Send the login this deck is using too" is a new switch that ships off;
 //   - this deck's setup and a deck's lanes say "in use" rather than "cannot
 //     share";
-//   - which deck is on which login, and for how long its word counts
-//     (lan-elsewhere.mjs), and that a deck too old to say anything is read as
-//     saying nothing;
-//   - peer activity alone never raises an account warning or desktop alert.
+//   - a paired deck on the same login raises no account warning: real login
+//     problems still do.
 //
 // Auto-switch may still move to a login a paired deck is on (3.43.3).
 //
@@ -25,9 +22,6 @@
 import { describe, it, expect } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import {
-  connectLanStatus, decksByAccount, deckList, deckName, ELSEWHERE_FRESH_MS, elsewhereNow, namesByAccount,
-} from "../../server/lan-elsewhere.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { currentFor, heardCurrent, IN_USE, manifestFor, mayGiveInUse, offered, peerWhy, plan } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
@@ -35,7 +29,7 @@ import { createManifests } from "../../server/lan-manifest.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { DEFAULTS, normalise } from "../../server/deck-prefs.mjs";
 import { accountIssue } from "../account-issue";
-import { activeElsewhere, lanAccounts, offeredHere } from "../account-lan";
+import { lanAccounts, offeredHere } from "../account-lan";
 import AccountRow from "../components/AccountRow";
 import type { Account } from "../claude-accounts";
 import { exchangeLanes } from "../lan-exchange";
@@ -83,86 +77,6 @@ function heardFrom(theirs: unknown[], cfg: Record<string, unknown>): Status {
 
 /** The studio's settings that show which shared login it is on. */
 const SHOWN = { shared: [WORK, HOME], shareActive: true, sendInUse: false };
-
-// ── which deck is on which login ────────────────────────────────────────────
-
-describe("which deck is on which login", () => {
-  it("is what a paired deck said within five minutes, and nothing older", () => {
-    expect(ELSEWHERE_FRESH_MS).toBe(5 * 60_000);
-    const names = (ago: number) => namesByAccount(status([deck("iMac", WORK, ago)]), NOW).get(WORK) ?? null;
-    expect(names(30_000)).toEqual(["iMac"]);
-    // A dropped round or two does not take it down: that would be two incidents.
-    expect(names(4 * 60_000)).toEqual(["iMac"]);
-    expect(names(ELSEWHERE_FRESH_MS)).toEqual(["iMac"]);
-    // Past the window, what it said is its last word, not its current one.
-    expect(names(ELSEWHERE_FRESH_MS + 1)).toBeNull();
-    // And a clock that ran ahead is not a promise about the next five minutes.
-    expect(names(-(ELSEWHERE_FRESH_MS + 1))).toBeNull();
-    expect(names(-60_000)).toEqual(["iMac"]);
-  });
-
-  it("is nothing for a deck that hides it, is on a login it does not share, or never says", () => {
-    const said: unknown[] = [{ hidden: true }, { other: true }, null, { key: "" }, { key: 7 }];
-    for (const current of said) {
-      const p = deck("iMac", null);
-      p.offers = { at: NOW - 1000, accounts: [], current: current as Current };
-      expect(decksByAccount(status([p]), NOW).size, JSON.stringify(current)).toBe(0);
-    }
-    // A deck older than 3.22.15 sends no `current` at all.
-    expect(decksByAccount(status([deck("old", null)]), NOW).size).toBe(0);
-    // And one that never sent a list has nothing to read.
-    expect(decksByAccount(status([deck("new", WORK, 0, { offers: null })]), NOW).size).toBe(0);
-    const odd = deck("odd", WORK, 0, { offers: { at: Number.NaN, current: { key: WORK } } });
-    expect(decksByAccount(status([odd]), NOW).size).toBe(0);
-  });
-
-  it("is nothing from a deck that is not paired, or while Local network is off", () => {
-    expect(decksByAccount(status([deck("near", WORK, 1000, { paired: false })]), NOW).size).toBe(0);
-    expect(decksByAccount(status([deck("iMac", WORK)], { enabled: false }), NOW).size).toBe(0);
-    expect(decksByAccount(null, NOW).size).toBe(0);
-    expect(decksByAccount(undefined, NOW).size).toBe(0);
-  });
-
-  it("does not count a second deck on this same machine, which shares the login rather than copying it", () => {
-    for (const addr of ["127.0.0.1", "::1", "localhost", "192.0.2.10"]) {
-      expect(decksByAccount(status([deck("here", WORK, 1000, { addr })]), NOW).size, addr).toBe(0);
-    }
-  });
-
-  it("names each deck once, by the name given it here, in order", () => {
-    const s = status([
-      deck("rdp", WORK),
-      deck("macbook", WORK, 1000, { fp: "fp-mac" }),
-      // The same machine reached a second way is still one deck.
-      deck("macbook", WORK, 2000, { fp: "fp-mac-2", peerFp: "fp-mac" }),
-      deck("pc", HOME),
-    ], { aliases: { "fp-mac": "Work Mac" } });
-    const by = namesByAccount(s, NOW);
-    expect(by.get(WORK)).toEqual(["rdp", "Work Mac"]);
-    expect(by.get(HOME)).toEqual(["pc"]);
-    expect(decksByAccount(s, NOW).get(WORK)?.map(p => p.fp)).toEqual(["fp-rdp", "fp-mac"]);
-    expect(deckName({ fp: "fp-x" })).toBe("another deck");
-    expect(deckName({ fp: "fp-x", name: "  " }, { "fp-x": " Den " })).toBe("Den");
-  });
-
-  it("is said as a list a sentence can hold", () => {
-    expect(deckList([])).toBe("another deck");
-    expect(deckList(["iMac"])).toBe("iMac");
-    expect(deckList(["iMac", "PC"])).toBe("iMac and PC");
-    expect(deckList(["iMac", "Mac", "PC"])).toBe("iMac, Mac and PC");
-  });
-
-  it("is asked through a door the server connects, and is nobody until it is", () => {
-    connectLanStatus(null);
-    expect(elsewhereNow(NOW).size).toBe(0);
-    connectLanStatus(() => status([deck("iMac", WORK)]));
-    expect(elsewhereNow(NOW).get(WORK)).toEqual(["iMac"]);
-    // A status that cannot be read is a deck that knows of nobody.
-    connectLanStatus(() => { throw new Error("engine gone"); });
-    expect(elsewhereNow(NOW).size).toBe(0);
-    connectLanStatus(null);
-  });
-});
 
 // ── what crosses the wire ───────────────────────────────────────────────────
 
@@ -301,14 +215,6 @@ describe("the live account's row, when a paired deck is on that login", () => {
     issueExpanded: false, onOpenIssue: () => {},
   } as never));
 
-  it("finds the decks by the list's names, through the same rule as the server", () => {
-    const s = status([deck("imac", WORK, 1000, { fp: "fp-imac" })], { aliases: { "fp-imac": "iMac" } });
-    expect(activeElsewhere(WORK, s as never, NOW)).toEqual(["iMac"]);
-    expect(activeElsewhere(HOME, s as never, NOW)).toBeNull();
-    expect(activeElsewhere(WORK, s as never, NOW + ELSEWHERE_FRESH_MS + 2000)).toBeNull();
-    expect(activeElsewhere(WORK, null, NOW)).toBeNull();
-  });
-
   it("shows no account warning just because another deck is on the same login", () => {
     expect(accountIssue({ error: null }, NOW_SEC)).toBeNull();
     const html = row(account({ active: true }));
@@ -333,59 +239,38 @@ describe("the live account's row, when a paired deck is on that login", () => {
     expect(accountIssue(dead, NOW_SEC, { noCopyWorksNearby: true })?.text).toBe("Login expired on all online decks");
   });
 
-  // THE IN-USE RULE AND THE UI READ DIFFERENT WORDS. A paired deck's list
-  // goes through the real manifest (lan-manifest.mjs, both ends): the login a
-  // deck is on is kept on that deck and marked `inUse`, and this deck's own
-  // live login is marked "in use here". Neither mark means that an account
-  // needs attention merely because another machine is using it.
-  it("does not alert on an account in use locally or on another deck", () => {
-    const rows = manifestRows;
-    const heard = heardFrom;
-    const shown = SHOWN;
+  // WHAT A PAIRED DECK SAYS STILL CROSSES THE WIRE. A paired deck's list goes
+  // through the real manifest (lan-manifest.mjs, both ends): the login a deck
+  // is on is kept on that deck and marked `inUse`, and the deck may name it as
+  // `current`. Decks older than this one read that word for their own warning,
+  // so it keeps its shape; this deck draws nothing from it.
+  it("keeps the in-use marks and the deck's word on the wire", () => {
     const live = account({ active: true, num: 1 });
-    const warns = (s: Status) => {
-      const decks = activeElsewhere(WORK, s as never, NOW);
-      return {
-        decks,
-        issue: accountIssue(live, NOW_SEC)?.text ?? null,
-        row: row(live).includes("Also active"),
-      };
-    };
-    const silent = { decks: null, issue: null, row: false };
 
-    // This deck's own live login, which the in-use rule keeps here: marked so
-    // in this deck's own list, and no deck has said anything about it.
+    // This deck's own live login, which the in-use rule keeps here.
     const mine = offeredHere(lanAccounts([live, account({ num: 2, email: "home@example.test", orgUuid: "org-h" })]), { sendInUse: false });
     expect(mine[0]).toMatchObject({ key: WORK, inUse: true, shareable: false });
-    expect(warns(status([]))).toEqual(silent);
-    expect(warns(heard(rows(HOME), { shared: [] }))).toEqual(silent);
 
     // A paired deck keeping ITS live login there: listed in use, and named as
-    // the one it is on, which is not this deck's.
-    const onHome = heard(rows(HOME), shown);
+    // the one it is on.
+    const onHome = heardFrom(manifestRows(HOME), SHOWN);
     expect(onHome.peers[0].offers?.accounts).toContainEqual({ key: HOME, email: "home@example.test", alive: true, shareable: false, inUse: true });
     expect(onHome.peers[0].offers?.current).toEqual({ key: HOME });
-    expect(warns(onHome)).toEqual(silent);
 
     // On this deck's login, and hiding which one: the in-use rule leaves that
-    // login out of its list and the deck says `hidden`, so nothing names it.
-    const hidden = heard(rows(WORK), { ...shown, shareActive: false });
+    // login out of its list and the deck says `hidden`.
+    const hidden = heardFrom(manifestRows(WORK), { ...SHOWN, shareActive: false });
     expect(hidden.peers[0].offers?.current).toEqual({ hidden: true });
     expect(hidden.peers[0].offers?.accounts?.map(a => a.key)).toEqual([HOME]);
-    expect(warns(hidden)).toEqual(silent);
 
     // On this deck's login, not ticked for this deck: it says `other`.
-    const unticked = heard(rows(WORK), { ...shown, shared: [HOME] });
+    const unticked = heardFrom(manifestRows(WORK), { ...SHOWN, shared: [HOME] });
     expect(unticked.peers[0].offers?.current).toEqual({ other: true });
-    expect(warns(unticked)).toEqual(silent);
 
-    // And the one case that is a deck saying so: on this deck's login, ticked
-    // and shown. Its list marks that login in use, without raising an alert.
-    const both = heard(rows(WORK), shown);
+    // On this deck's login, ticked and shown: named, and marked in use.
+    const both = heardFrom(manifestRows(WORK), SHOWN);
     expect(both.peers[0].offers?.current).toEqual({ key: WORK });
     expect(both.peers[0].offers?.accounts).toContainEqual({ key: WORK, email: "work@example.test", alive: true, shareable: false, inUse: true });
-    expect(warns(both)).toEqual({ decks: ["studio"], issue: null, row: false });
-    // The same word as currentFor gives it on its own.
-    expect(currentFor(rows(WORK), [WORK, HOME], true)).toEqual({ current: { key: WORK } });
+    expect(currentFor(manifestRows(WORK), [WORK, HOME], true)).toEqual({ current: { key: WORK } });
   });
 });
