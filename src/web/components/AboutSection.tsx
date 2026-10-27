@@ -26,6 +26,7 @@ import type { VersionInfo, VersionNotice } from "../use-version-check";
 // the same pictures, so the same sentence.
 import { TOUR_WHY } from "./ReleaseActions";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
+import TerminalCliNotice from "./TerminalCliNotice";
 
 /** The licence the project offers ccdeck under — package.json's `license`,
  *  LICENSING.md's first line. settings-about-2176.test.ts holds the two to
@@ -110,6 +111,7 @@ export default function AboutSection({
           note={pageBehind(bundle, version?.running) ? pageBehindNote(bundle) : undefined}
           control={<span className="settings-read">{running}</span>}
         />
+        {typeof window !== "undefined" && window.ccdeckTerminalCli && <TerminalCliNotice />}
         {offer && <UpdateRow offer={offer} restarting={updateRestarting} failure={updateFailure} onRestart={onUpdateRestart} onUpdate={doors.update} />}
         <SettingRow
           as="div"
