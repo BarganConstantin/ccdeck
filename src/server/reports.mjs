@@ -20,7 +20,7 @@
 //     and that day's date — numbers, never their names (see usage-day.mjs) —
 //     and which providers currently have saved tracker connections (jira, github,
 //     gitlab only; no addresses, account details or tokens). This is a snapshot
-//     at report time, not a usage-day count. Omitted when the store is unreadable.
+//     at report time, not a usage-day count. Omitted when the store is unreadable;
 //     and which of the deck's features were used that day, as fixed names
 //     ("usage-history", "account-switch") and nothing about what was done
 //     with them (feature-use.mjs), and how the deck held up and who runs it:
