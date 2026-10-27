@@ -144,7 +144,7 @@ routes' environment drops it, so tmux, Claude and Codex never see it.
 
 ## Terminal routes
 
-While the deck holds an enabled engine, each of the panel's six routes is
+While the deck holds an enabled engine, each of the panel's eight routes is
 asked of it, after everything HTTP the deck keeps: the panel switch (404), the
 request gates, and the body (at most 8 KiB, else 413; a JSON object, or null).
 The engine is the only answer: what it cannot take is refused (Refusals,
@@ -158,6 +158,8 @@ below), never answered some other way.
 | `terminal.open` | `POST /api/terminal/open` | `{ "body": B }` |
 | `terminal.adopt` | `POST /api/terminal/adopt` | `{ "body": B }` |
 | `terminal.launch` | `POST /api/terminal/launch` | `{ "body": B }` |
+| `terminal.hosts` | `GET /api/terminal/hosts` | `{ "body": null }` |
+| `terminal.endHosts` | `POST /api/terminal/hosts/end` | `{ "body": B }` |
 
 `B` is the request's body when it is a JSON object, else null. The engine
 answers `{ status, body, handle?, log?, fixable? }`, and the deck sends
@@ -199,7 +201,7 @@ only when the person asks. 503 is a moment: the panel waits it out, asking
 again, where asking starts nothing (an open, or a reconnect under a live
 pane); a launch or adopt refused 503 was not run, and is asked again only on
 the person's press, a launch by the same key. `internal` is the deck's 500, for a read too. A
-mutation (claim, open, adopt, launch) that failed any other way, with no answer
+mutation (claim, open, adopt, launch, endHosts) that failed any other way, with no answer
 in time or the engine gone, is the deck's 500 and is never asked again: it may
 already have started an agent. One the engine did, answered after the switch
 went off, is 409 `turned-off` in the same shape, with no ticket: the session
@@ -214,6 +216,21 @@ stopping) and `host-generations` (sessions still run on older session
 hosts). The panel says the engine's sentence with Try again and Not now, and
 does not ask about tmux; a 409 with any other code, or none, may still be
 tmux missing (`tmux-unavailable`), and is asked as before.
+
+The two hosts routes are the Windows session host's. `terminal.hosts` answers
+`{ ok: true, hosts: [{ generation, state, sessions: [{ id, name, agent, cwd,
+conversation, started }] }], launchesRefused }`: the older hosts still running
+sessions (`state` is `stranded`, `security` or `draining`) and why new sessions
+are refused while they run, or null. `terminal.endHosts` is asked with `{
+generation, sessions }`, exactly the ids the person reviewed on that host, and
+answers `{ ok: true, ended }`, or 409 `consent-outdated` when that host's
+sessions changed since, 409 `host-gone` when it no longer runs, 400 for a
+body that is not those two keys or names the current generation, and 500
+`end-failed` when the end itself failed. With no older host, `terminal.hosts`
+answers `{ ok: true, hosts: [], launchesRefused: null }`. An engine with no
+session host refuses both with `unavailable`, which the page reads as nothing
+to show. The page never asks `terminal.endHosts` again by itself: on
+`consent-outdated` it reads the hosts again for the person to review.
 
 ## Terminal streams
 

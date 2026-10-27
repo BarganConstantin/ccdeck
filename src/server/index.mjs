@@ -179,12 +179,15 @@ import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage
 // Connected trackers (#2178) and each provider's own reads. See
 // integrations/routes.mjs; nothing in it is shared with paired decks.
 import { handleIntegrations } from "./integrations/routes.mjs";
-// The Command Panel's six routes, every one absent while the panel is
+// The Command Panel's eight routes, every one absent while the panel is
 // switched off and answered by the optional local engine while it is on —
 // see terminal-routes.mjs — and the WebSocket upgrade that carries a session,
 // which runs its own gates because the route table never sees an upgrade
 // (terminal-socket.mjs).
-import { handleTerminalAdopt, handleTerminalClaim, handleTerminalLaunch, handleTerminalOpen, handleTerminalStatus, handleTerminalTarget, terminalUpgradeOptions } from "./terminal-routes.mjs";
+import {
+  handleTerminalAdopt, handleTerminalClaim, handleTerminalEndHosts, handleTerminalHosts, handleTerminalLaunch, handleTerminalOpen,
+  handleTerminalStatus, handleTerminalTarget, terminalUpgradeOptions,
+} from "./terminal-routes.mjs";
 import { installTerminalUpgrade } from "./terminal-socket.mjs";
 // Whether this deck's platform has the Command Panel, which Settings' switch
 // follows: Linux and macOS; on Windows only the test-only preview, which no
@@ -481,9 +484,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // The Command Panel. While it is switched off each of these answers the
     // 404 below, word for word, without asking anything of anyone — see
     // terminal-routes.mjs. Session ids ride in the query or the body, never in
-    // the path, so GUARDED_READS can name the two reads exactly.
+    // the path, so GUARDED_READS can name the three reads exactly.
     if (req.method === "GET"  && url.pathname === "/api/terminal/status") return guard(handleTerminalStatus(req, res, terminal), res);
     if (req.method === "GET"  && url.pathname === "/api/terminal/target") return guard(handleTerminalTarget(req, res, url, terminal), res);
+    if (req.method === "GET"  && url.pathname === "/api/terminal/hosts")  return guard(handleTerminalHosts(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/hosts/end") return guard(handleTerminalEndHosts(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/open")   return guard(handleTerminalOpen(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/adopt")  return guard(handleTerminalAdopt(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/launch") return guard(handleTerminalLaunch(req, res, terminal), res);

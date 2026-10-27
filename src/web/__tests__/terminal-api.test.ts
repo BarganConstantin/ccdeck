@@ -1,4 +1,4 @@
-// The terminal panel's six HTTP calls, answered by a fake fetch.
+// The terminal panel's eight HTTP calls, answered by a fake fetch.
 //
 // What these pin is the edge between "the deck answered" and "the deck said
 // yes": a 200 that says a session cannot be attached is a state the panel
@@ -20,9 +20,11 @@ import {
   TERMINAL_ROUTES,
   adoptTerminal,
   claimLaunch,
+  endHostSessions,
   launchTerminal,
   openTerminal,
   panelUnavailable,
+  terminalHosts,
   terminalStatus,
   terminalTarget,
   type SessionRef,
@@ -76,8 +78,11 @@ const STARTED_ELSEWHERE = {
 
 describe("the requests themselves", () => {
   it("asks only same-origin paths under /api/terminal/, the ones the deck routes", () => {
-    for (const path of Object.values(TERMINAL_ROUTES)) expect(path).toMatch(/^\/api\/terminal\/[a-z]+$/);
-    expect(Object.keys(TERMINAL_ROUTES).sort()).toEqual(["adopt", "claim", "launch", "open", "status", "target"]);
+    // One word under /api/terminal/, and the end of an older host's sessions
+    // under the hosts it ends them on.
+    for (const path of Object.values(TERMINAL_ROUTES)) expect(path).toMatch(/^\/api\/terminal\/(?:[a-z]+|hosts\/end)$/);
+    expect(Object.keys(TERMINAL_ROUTES).sort()).toEqual(["adopt", "claim", "endHosts", "hosts", "launch", "open", "status", "target"]);
+    expect([TERMINAL_ROUTES.hosts, TERMINAL_ROUTES.endHosts]).toEqual(["/api/terminal/hosts", "/api/terminal/hosts/end"]);
   });
 
   it("reads the status with a plain GET", async () => {
@@ -324,6 +329,64 @@ describe("failures are values, never throws", () => {
   it("does not take a status without a tmux verdict", async () => {
     const { fetchFn } = answering(200, { ok: true, platform: "linux" });
     expect((await terminalStatus({ fetchFn })).ok).toBe(false);
+  });
+});
+
+describe("the older session hosts (Windows)", () => {
+  const ID = "0123456789abcdef0123456789abcdef";
+  const SESSION_ON_HOST = { id: ID, name: "paycore", agent: "claude", cwd: "C:\\work\\paycore", conversation: "", started: 1_700_000_000_000 };
+  const HOSTS = { ok: true, hosts: [{ generation: 2, state: "security", sessions: [SESSION_ON_HOST] }], launchesRefused: null };
+
+  it("reads the hosts with a plain GET, and each host and session as the deck lists them", async () => {
+    const { fetchFn, asked } = answering(200, HOSTS);
+    expect(await terminalHosts({ fetchFn })).toEqual(HOSTS);
+    expect(asked).toEqual([{ url: "/api/terminal/hosts", method: "GET", headers: {}, body: undefined, signal: undefined }]);
+    const refused = { ...HOSTS, launchesRefused: ENGINE_SAID["host-generations"] };
+    expect(await terminalHosts({ fetchFn: answering(200, refused).fetchFn })).toEqual(refused);
+  });
+
+  it("POSTs an end with exactly the generation and the ids it was handed, and reads how many ended", async () => {
+    const { fetchFn, asked } = answering(200, { ok: true, ended: 1 });
+    expect(await endHostSessions({ generation: 2, sessions: [ID] }, { fetchFn })).toEqual({ ok: true, ended: 1 });
+    expect(asked).toEqual([{ url: "/api/terminal/hosts/end", method: "POST", headers: { "content-type": "application/json" }, body: { generation: 2, sessions: [ID] }, signal: undefined }]);
+  });
+
+  it("keeps the engine's refusals of an end with their sentences", async () => {
+    const said: Array<[number, string, string]> = [
+      [409, "consent-outdated", "The sessions on that session host changed. Review them again."],
+      [409, "host-gone", "That session host is no longer running."],
+      [500, "end-failed", "The deck could not end those sessions. Try again."],
+    ];
+    for (const [status, code, error] of said) {
+      const got = await endHostSessions({ generation: 2, sessions: [ID] }, { fetchFn: answering(status, { ok: false, error, code }).fetchFn });
+      expect(got, code).toEqual({ ok: false, status, error, code });
+    }
+    const bad = await endHostSessions({ generation: 2, sessions: [ID] }, { fetchFn: answering(400, { ok: false, error: "That is the current session host." }).fetchFn });
+    expect(bad).toEqual({ ok: false, status: 400, error: "That is the current session host." });
+  });
+
+  it("reads a deck with no session host, and the panel switched off, as failures", async () => {
+    const none = await terminalHosts({ fetchFn: answering(409, { ok: false, error: "This deck has no terminal for the Command Panel.", code: "no-terminal" }).fetchFn });
+    expect([none.ok, !none.ok && none.code]).toEqual([false, "no-terminal"]);
+    expect((await terminalHosts({ fetchFn: answering(404, { error: "not found" }).fetchFn })).ok).toBe(false);
+  });
+
+  it("refuses a list it cannot read whole: a host or a session that is not one is not half-listed", async () => {
+    const host = HOSTS.hosts[0];
+    const bad = [
+      { ...HOSTS, hosts: [{ ...host, state: "old" }] },
+      { ...HOSTS, hosts: [{ ...host, generation: 1.5 }] },
+      { ...HOSTS, hosts: [{ ...host, sessions: [SESSION_ON_HOST, { ...SESSION_ON_HOST, id: "not-an-id" }] }] },
+      { ...HOSTS, hosts: [{ ...host, sessions: [{ ...SESSION_ON_HOST, id: ID.toUpperCase() }] }] },
+      { ...HOSTS, hosts: [{ ...host, sessions: [{ ...SESSION_ON_HOST, agent: "gemini" }] }] },
+      { ...HOSTS, hosts: [{ ...host, sessions: [{ ...SESSION_ON_HOST, started: "yesterday" }] }] },
+      { ...HOSTS, hosts: [{ ...host, sessions: [{ ...SESSION_ON_HOST, name: "" }] }] },
+      { ...HOSTS, launchesRefused: "" },
+      { ...HOSTS, launchesRefused: undefined },
+      { ok: true, launchesRefused: null },
+    ];
+    for (const body of bad) expect((await terminalHosts({ fetchFn: answering(200, body).fetchFn })).ok, JSON.stringify(body)).toBe(false);
+    expect((await endHostSessions({ generation: 2, sessions: [ID] }, { fetchFn: answering(200, { ok: true, ended: "1" }).fetchFn })).ok).toBe(false);
   });
 });
 

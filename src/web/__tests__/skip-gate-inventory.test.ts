@@ -164,7 +164,7 @@ describe("the register of conditionally-skipped cases", () => {
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 122,
+      total: 124,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
@@ -185,7 +185,7 @@ describe("the register of conditionally-skipped cases", () => {
         "no-shell-hook-commands.test.ts": 2,
         "prefs-corrupt-1002.test.ts": 2,
         "pro-engine-client.test.ts": 21,
-        "pro-engine-routes.test.ts": 8,
+        "pro-engine-routes.test.ts": 10,
         "pro-engine-terminal.test.ts": 27,
         "relay-guard.test.ts": 6,
         "settings-atomic-write.test.ts": 1,

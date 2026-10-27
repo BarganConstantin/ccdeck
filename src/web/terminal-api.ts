@@ -1,11 +1,29 @@
-// The five HTTP questions the terminal panel asks the deck before, and instead
-// of, opening a socket.
+// The HTTP questions the terminal panel asks the deck before, and instead of,
+// opening a socket.
 //
-//   GET  /api/terminal/status   is tmux here, and new enough?
-//   GET  /api/terminal/target   can this session be attached to, and how?
-//   POST /api/terminal/open     attach — answered with a ticket, or with why not
-//   POST /api/terminal/adopt    reopen a session started outside the deck, here
-//   POST /api/terminal/launch   start a new agent in a deck-owned tmux session
+//   GET  /api/terminal/status     is tmux here, and new enough?
+//   GET  /api/terminal/target     can this session be attached to, and how?
+//   GET  /api/terminal/hosts      sessions still on an older session host
+//   POST /api/terminal/open       attach — answered with a ticket, or with why not
+//   POST /api/terminal/adopt      reopen a session started outside the deck, here
+//   POST /api/terminal/launch     start a new agent in a deck-owned tmux session
+//   POST /api/terminal/claim      is this new Codex the one a launch started?
+//   POST /api/terminal/hosts/end  end the sessions the reader reviewed on one host
+//
+// THE TWO HOSTS ROUTES ARE WINDOWS'. A session host that the engine has moved
+// on from (a newer engine, a security update) keeps its sessions running until
+// they end or the reader ends them. GET /api/terminal/hosts answers
+//
+//   { ok: true, hosts: [{ generation, state, sessions: [{ id, name, agent,
+//     cwd, conversation, started }] }], launchesRefused: null | sentence }
+//
+// with only the older hosts that still run sessions, and only those sessions;
+// `state` is "stranded", "security" or "draining". POST
+// /api/terminal/hosts/end `{ generation, sessions }` ends exactly those ids on
+// that host: `{ ok: true, ended }`, or 409 `consent-outdated` when its
+// sessions changed since the reader looked, or 409 `host-gone` when it no
+// longer runs. An engine with no session host — Linux, macOS — refuses both
+// `no-terminal`, which the panel reads as nothing to show.
 //
 // Same-origin fetches with relative paths, like every other call this page
 // makes: the deck's request gates recognise its own page by Origin on a POST
@@ -41,6 +59,8 @@ export const TERMINAL_ROUTES = {
   adopt: "/api/terminal/adopt",
   launch: "/api/terminal/launch",
   claim: "/api/terminal/claim",
+  hosts: "/api/terminal/hosts",
+  endHosts: "/api/terminal/hosts/end",
 } as const;
 
 export type TerminalProvider = "claude" | "codex";
@@ -164,14 +184,52 @@ export const PANEL_RECOVERING = ["restarting", "busy", "no-answer"] as const;
  *  launch it refused is not asked about tmux, and it is not a state the card
  *  checks again by itself. A 409 with any other code may be tmux missing. */
 export const PANEL_SAID_REFUSALS = ["agent-missing", "exists", "full", "stopping", "host-generations"] as const;
+/** The engine's refusals of an end of an older host's sessions: the sessions
+ *  on it changed since the reader looked, or it has gone (HTTP 409), or the
+ *  end itself failed (HTTP 500), which the reader may press again. */
+export const HOSTS_REFUSALS = ["consent-outdated", "host-gone", "end-failed"] as const;
 export type PanelUnavailable = typeof PANEL_UNAVAILABLE[number];
-export type PanelRefusal = PanelUnavailable | typeof PANEL_RECOVERING[number] | typeof PANEL_SAID_REFUSALS[number];
+export type PanelRefusal = PanelUnavailable | typeof PANEL_RECOVERING[number] | typeof PANEL_SAID_REFUSALS[number] | typeof HOSTS_REFUSALS[number];
 
-const REFUSALS: ReadonlySet<string> = new Set([...PANEL_UNAVAILABLE, ...PANEL_RECOVERING, ...PANEL_SAID_REFUSALS]);
+const REFUSALS: ReadonlySet<string> = new Set([...PANEL_UNAVAILABLE, ...PANEL_RECOVERING, ...PANEL_SAID_REFUSALS, ...HOSTS_REFUSALS]);
 
 /** Whether `code` is a state of this machine rather than of a moment. */
 export const panelUnavailable = (code?: string | null): code is PanelUnavailable =>
   (PANEL_UNAVAILABLE as readonly string[]).includes(code ?? "");
+
+/** Why an older session host is still listed: the engine has moved on from
+ *  it, a security update replaces it, or it closes once its sessions end. */
+export type HostState = "stranded" | "security" | "draining";
+
+/** A session still running on an older session host. `conversation` is the
+ *  agent's own id for it, or "" before it has one; `started` is when, in ms. */
+export interface HostSession {
+  id: string;
+  name: string;
+  agent: TerminalProvider;
+  /** Its project folder, absolute. */
+  cwd: string;
+  conversation: string;
+  started: number;
+}
+
+export interface OlderHost {
+  generation: number;
+  state: HostState;
+  sessions: HostSession[];
+}
+
+export interface HostsAnswer {
+  ok: true;
+  hosts: OlderHost[];
+  /** The engine's sentence while it refuses new sessions, else null. */
+  launchesRefused: string | null;
+}
+
+export interface HostsEnded {
+  ok: true;
+  ended: number;
+}
 
 /** What New session may ask of a new Claude: Claude Code's own flags, from
  *  the lists the deck's launcher accepts (terminal-sessions.mjs). Absent is
@@ -278,6 +336,27 @@ const post = (body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
+const HOST_STATES: ReadonlySet<string> = new Set(["stranded", "security", "draining"]);
+const SESSION_ID = /^[0-9a-f]{32}$/;
+
+/** A session as the deck lists one, or null for anything that is not one. */
+function hostSessionOf(v: unknown): HostSession | null {
+  if (!isObject(v) || typeof v.id !== "string" || !SESSION_ID.test(v.id) || typeof v.name !== "string" || !v.name) return null;
+  if ((v.agent !== "claude" && v.agent !== "codex") || typeof v.cwd !== "string" || typeof v.conversation !== "string") return null;
+  if (typeof v.started !== "number" || !Number.isFinite(v.started)) return null;
+  return { id: v.id, name: v.name, agent: v.agent, cwd: v.cwd, conversation: v.conversation, started: v.started };
+}
+
+/** A host as the deck lists one, or null — and a host with one session that
+ *  is not one is not read at all: what the reader reviews is all of it. */
+function olderHostOf(v: unknown): OlderHost | null {
+  if (!isObject(v) || !Number.isInteger(v.generation) || typeof v.state !== "string" || !HOST_STATES.has(v.state)) return null;
+  if (!Array.isArray(v.sessions)) return null;
+  const sessions = v.sessions.map(hostSessionOf);
+  if (sessions.some(x => x === null)) return null;
+  return { generation: v.generation as number, state: v.state as HostState, sessions: sessions as HostSession[] };
+}
+
 /** Whether tmux is usable here. Asked once, when the panel first opens. */
 export function terminalStatus(options: ApiOptions = {}): Promise<TerminalStatus | ApiFailure> {
   return ask<TerminalStatus>(TERMINAL_ROUTES.status, { method: "GET" }, options, body => {
@@ -321,6 +400,32 @@ export function openTerminal(ref: SessionRef, options: ApiOptions = {}): Promise
     const ticket = ticketOf(body.ticket);
     return body.ok === true && ticket ? { ok: true, ticket, target } : null;
   });
+}
+
+/** The older session hosts that still run sessions, and whether new sessions
+ *  are refused while they do. A deck with no session host refuses it
+ *  (`no-terminal`), as it does while the panel is off (404). */
+export function terminalHosts(options: ApiOptions = {}): Promise<HostsAnswer | ApiFailure> {
+  return ask<HostsAnswer>(TERMINAL_ROUTES.hosts, { method: "GET" }, options, body => {
+    if (!isObject(body) || body.ok !== true || !Array.isArray(body.hosts)) return null;
+    const hosts = body.hosts.map(olderHostOf);
+    if (hosts.some(h => h === null)) return null;
+    const said = body.launchesRefused;
+    const refused = said === null ? null : typeof said === "string" && said ? said : undefined;
+    if (refused === undefined) return null;
+    return { ok: true, hosts: hosts as OlderHost[], launchesRefused: refused };
+  });
+}
+
+/** End exactly `sessions` on the host of `generation`: the ids the reader
+ *  was shown, never more. Asked once per press; a refusal is said, not
+ *  asked again. */
+export function endHostSessions(
+  { generation, sessions }: { generation: number; sessions: readonly string[] },
+  options: ApiOptions = {},
+): Promise<HostsEnded | ApiFailure> {
+  return ask<HostsEnded>(TERMINAL_ROUTES.endHosts, post({ generation, sessions: [...sessions] }), options, body =>
+    isObject(body) && body.ok === true && Number.isInteger(body.ended) ? { ok: true, ended: body.ended as number } : null);
 }
 
 /** Reopen a session started outside the deck, in a deck-owned tmux session.

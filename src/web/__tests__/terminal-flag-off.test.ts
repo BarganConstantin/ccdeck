@@ -96,6 +96,8 @@ const ROUTES: [string, string, unknown?][] = [
   ["POST", "/api/terminal/adopt", { sessionId: "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f", provider: "claude", cwd: "/tmp" }],
   ["POST", "/api/terminal/launch", { agent: "claude", cwd: "/tmp" }],
   ["POST", "/api/terminal/claim", { key: "launch-k1", sessionId: "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f", provider: "codex", cwd: "/tmp" }],
+  ["GET", "/api/terminal/hosts"],
+  ["POST", "/api/terminal/hosts/end", { generation: 1, sessions: ["a".repeat(32)] }],
 ];
 
 describe("the terminal routes on a deck with the panel switched off", () => {
@@ -114,7 +116,10 @@ describe("the terminal routes on a deck with the panel switched off", () => {
     // route — which is the same answer it gets with the panel on.
     expect(GUARDED_READS.has("/api/terminal/status")).toBe(true);
     expect(GUARDED_READS.has("/api/terminal/target")).toBe(true);
+    expect(GUARDED_READS.has("/api/terminal/hosts")).toBe(true);
     expect((await ask("GET", "/api/terminal/status", undefined, { host: `127.0.0.1:${port}` })).status).toBe(401);
+    expect((await ask("GET", "/api/terminal/hosts", undefined, { host: `127.0.0.1:${port}` })).status).toBe(401);
+    expect((await ask("POST", "/api/terminal/hosts/end", { generation: 1, sessions: [] }, { host: `127.0.0.1:${port}` })).status).toBe(401);
     expect((await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: "/tmp" }, { host: `127.0.0.1:${port}` })).status).toBe(401);
     expect((await ask("POST", "/api/terminal/claim", { key: "launch-k1" }, { host: `127.0.0.1:${port}` })).status).toBe(401);
   });

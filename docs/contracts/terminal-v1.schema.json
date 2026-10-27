@@ -27,6 +27,14 @@
     "claim": {
       "method": "POST",
       "path": "/api/terminal/claim"
+    },
+    "hosts": {
+      "method": "GET",
+      "path": "/api/terminal/hosts"
+    },
+    "endHosts": {
+      "method": "POST",
+      "path": "/api/terminal/hosts/end"
     }
   },
   "websocket": {

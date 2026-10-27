@@ -72,10 +72,11 @@ export const SHUTDOWN_GRACE_MS = 1_500;
 const LOST_REASON = "the server could not handle a message";
 
 /** The routes that change something: a launch, an adopt, an open (which may
- *  start a wrapper) and a claim (which labels a pane). Once one may have
- *  reached the engine it is never asked again — that could be a second
- *  agent. */
-const MUTATIONS = new Set(["claim", "open", "adopt", "launch"]);
+ *  start a wrapper), a claim (which labels a pane) and an end of the sessions
+ *  on an older session host. Once one may have reached the engine it is
+ *  never asked again — that could be a second agent, or an end nobody
+ *  reviewed. */
+const MUTATIONS = new Set(["claim", "open", "adopt", "launch", "endHosts"]);
 
 /** A request's errors that say the engine never ran it, whatever the route,
  *  and the refusal each is: not serving terminals, too many requests, one
@@ -89,7 +90,7 @@ const NOT_RUN = new Map([
   ["disabled", "failed"],
 ]);
 
-/** What a read (status, target) that went unanswered is refused as: the
+/** What a read (status, target, hosts) that went unanswered is refused as: the
  *  engine went away under it, or it took too long. Asking a read again
  *  changes nothing, so the page waits and asks. */
 const READ_LOST = new Map([
@@ -129,7 +130,7 @@ export function engineTerminals(client) {
 
 /**
  * The engine's answer to one of the panel's routes (`method` is the route's
- * name: status, target, claim, open, adopt, launch), asked as
+ * name: status, target, hosts, claim, open, adopt, launch, endHosts), asked as
  * `terminal.<method>` with `{ body }`, the route's parsed question. Answers
  * the checked answer, or the refusal (engineRefusal) for an engine that did
  * not take it:

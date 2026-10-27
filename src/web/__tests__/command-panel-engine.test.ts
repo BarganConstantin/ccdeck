@@ -553,6 +553,18 @@ describe("a question the engine answers after the switch went off", () => {
     asked.splice(0);
   });
 
+  it("says an end of an older host's sessions that went through was done, and answers the hosts read and a refused end as the 404", async () => {
+    const order = { generation: 1, sessions: ["a".repeat(32)] };
+    const ended = await offWhileAnswering("POST", "/api/terminal/hosts/end", order, { status: 200, body: { ok: true, ended: 1 } });
+    const sentence = "The sessions were ended, but the Command Panel was turned off in Settings.";
+    expect([ended.status, ended.body, ended.ticketsMinted]).toEqual([409, { ok: false, error: sentence, code: "turned-off" }, 0]);
+    const listed = { status: 200, body: { ok: true, hosts: [], launchesRefused: null } };
+    expect((await offWhileAnswering("GET", "/api/terminal/hosts", undefined, listed)).status, "a read changed nothing").toBe(404);
+    const outdated = { status: 409, body: { ok: false, error: "The sessions on that session host changed. Review them again.", code: "consent-outdated" } };
+    expect((await offWhileAnswering("POST", "/api/terminal/hosts/end", order, outdated)).status, "nothing was ended").toBe(404);
+    expect(asked.splice(0)).toEqual(["endHosts", "hosts", "endHosts"]);
+  });
+
   it("answers as the engine said while the switch stays on, the ticket minted over its handle", async () => {
     on = true;
     const minted = tickets.size;

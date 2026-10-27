@@ -1,4 +1,4 @@
-// With no engine — always so in the free product — the Command Panel's six
+// With no engine — always so in the free product — the Command Panel's eight
 // routes have nothing behind them, and say so: a deck handed a null
 // `terminal.engine`, or one that is switched off, answers every route with the
 // same status and the same bytes, `{ ok: false, error, code: "not-installed"
@@ -119,6 +119,9 @@ const ROUTES: Array<[string, string, string?]> = [
   ["POST", "/api/terminal/adopt", session],
   ["POST", "/api/terminal/launch", JSON.stringify({ agent: "claude", cwd: PROJECT, key: "k-1" })],
   ["POST", "/api/terminal/launch", JSON.stringify({ agent: "gemini", cwd: PROJECT })],
+  // The older session hosts' two (Windows): refused the same way.
+  ["GET", "/api/terminal/hosts"],
+  ["POST", "/api/terminal/hosts/end", JSON.stringify({ generation: 1, sessions: ["0".repeat(32)] })],
   ["POST", "/api/terminal/launch", JSON.stringify({ agent: "claude", cwd: PROJECT, pad: "x".repeat(9 * 1024) })],
 ];
 
@@ -204,19 +207,19 @@ describe("routeThroughEngine's refusals", () => {
       ["bad_params", 400, "bad-request"], ["backoff", 503, "restarting"], ["disabled", 409, "failed"],
     ];
     for (const [error, status, refusal] of table) {
-      for (const method of ["status", "target", "claim", "open", "adopt", "launch"]) {
+      for (const method of ["status", "target", "hosts", "claim", "open", "adopt", "launch", "endHosts"]) {
         expect(await code(client({ error }), method), `${method} ${error}`).toEqual([status, refusal]);
       }
     }
   });
 
   it("refuses a read that went unanswered, and never a mutation that may have run: that throws, once", async () => {
-    for (const method of ["status", "target"]) {
+    for (const method of ["status", "target", "hosts"]) {
       expect(await code(client({ error: "timeout" }), method)).toEqual([503, "no-answer"]);
       for (const error of ["exited", "closed", "transport", "heartbeat", "protocol", "startup"]) expect(await code(client({ error }), method), error).toEqual([503, "restarting"]);
       await expect(routeThroughEngine(client({ error: "internal" }), method, null)).rejects.toMatchObject({ code: "internal" });
     }
-    for (const method of ["claim", "open", "adopt", "launch"]) {
+    for (const method of ["claim", "open", "adopt", "launch", "endHosts"]) {
       for (const error of ["timeout", "exited", "closed", "transport", "heartbeat", "internal", "cancelled"]) {
         const c = client({ error });
         await expect(routeThroughEngine(c, method, null), `${method} ${error}`).rejects.toMatchObject({ code: error });

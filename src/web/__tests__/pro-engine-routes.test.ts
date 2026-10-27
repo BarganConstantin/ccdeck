@@ -1,4 +1,4 @@
-// The Command Panel's six routes answered by the optional local engine, on a
+// The Command Panel's eight routes answered by the optional local engine, on a
 // real deck (startServer), against the signed test double started as the
 // engine (fixtures/pro-engine-peer.cjs, docs/contracts/pro-engine-host-v1.md,
 // "Terminal routes").
@@ -298,6 +298,47 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("the Command Pa
       expect(got.status, JSON.stringify(data)).toBe(500);
       expect(got.raw).not.toContain("already");
     }
+  });
+
+  it("asks the older session hosts' two routes as terminal.hosts and terminal.endHosts, sends a refusal as it is, and never asks an end twice", async () => {
+    const client = await useEngine({ timeoutMs: 300 });
+    const listed = {
+      ok: true,
+      hosts: [{ generation: 1, state: "stranded", sessions: [{ id: "a".repeat(32), name: "paycore", agent: "claude", cwd: PROJECT, conversation: "", started: 1 }] }],
+      launchesRefused: null,
+    };
+    const outdated = { ok: false, error: "The sessions on that session host changed. Review them again.", code: "consent-outdated" };
+    const gone = { ok: false, error: "That session host is no longer running.", code: "host-gone" };
+    const order = { generation: 1, sessions: ["a".repeat(32)] };
+    await answers(client, {
+      "terminal.hosts": { data: { status: 200, body: listed } },
+      "terminal.endHosts": { data: { status: 409, body: outdated } },
+    });
+    const got = await ask("GET", "/api/terminal/hosts");
+    expect([got.status, got.body]).toEqual([200, listed]);
+    const end = await ask("POST", "/api/terminal/hosts/end", order);
+    expect([end.status, end.body]).toEqual([409, outdated]);
+    await answers(client, { "terminal.endHosts": { data: { status: 409, body: gone } } });
+    expect((await ask("POST", "/api/terminal/hosts/end", order)).body).toEqual(gone);
+    await answers(client, { "terminal.endHosts": { data: { status: 200, body: { ok: true, ended: 1 } } } });
+    const ended = await ask("POST", "/api/terminal/hosts/end", order);
+    expect([ended.status, ended.body]).toEqual([200, { ok: true, ended: 1 }]);
+    await answers(client, { "terminal.endHosts": { data: { status: 200, body: { ok: true, ended: 1 } }, delayMs: 2_000 } });
+    expect((await ask("POST", "/api/terminal/hosts/end", order)).status, "no answer in time: the deck's 500").toBe(500);
+    expect((await routeCalls(client)).map(c => [c.route, c.params]), "each asked once, with the body as the page sent it").toEqual([
+      ["terminal.hosts", { body: null }],
+      ["terminal.endHosts", { body: order }],
+      ["terminal.endHosts", { body: order }],
+      ["terminal.endHosts", { body: order }],
+      ["terminal.endHosts", { body: order }],
+    ]);
+  });
+
+  it("refuses the older hosts' routes for an engine with no session host, as on Linux and macOS, and asks it nothing", async () => {
+    const none = await useEngine({ backend: "unavailable" });
+    expect(refusal(await ask("GET", "/api/terminal/hosts"))).toEqual(refused(409, "no-terminal"));
+    expect(refusal(await ask("POST", "/api/terminal/hosts/end", { generation: 1, sessions: ["a".repeat(32)] }))).toEqual(refused(409, "no-terminal"));
+    expect(await routeCalls(none)).toEqual([]);
   });
 
   it("refuses for an engine that would not start or has no terminal, and asks nothing with the panel off, a body over the cap or a cross-site page", async () => {

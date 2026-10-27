@@ -1,12 +1,18 @@
-// The Command Panel's six HTTP routes, and the wiring that hands its socket
+// The Command Panel's eight HTTP routes, and the wiring that hands its socket
 // to the upgrade in terminal-socket.mjs.
 //
-//   GET  /api/terminal/status   is tmux here, and new enough? No paths.
-//   GET  /api/terminal/target   can this session be attached to, and how?
-//   POST /api/terminal/open     attach: a ticket for the socket, or why not
-//   POST /api/terminal/adopt    reopen a session started outside the deck, here
-//   POST /api/terminal/launch   start a new agent in a deck-owned tmux session
-//   POST /api/terminal/claim    is this new Codex the one a launch started?
+//   GET  /api/terminal/status     is tmux here, and new enough? No paths.
+//   GET  /api/terminal/target     can this session be attached to, and how?
+//   GET  /api/terminal/hosts      sessions still on an older session host
+//   POST /api/terminal/open       attach: a ticket for the socket, or why not
+//   POST /api/terminal/adopt      reopen a session started outside the deck, here
+//   POST /api/terminal/launch     start a new agent in a deck-owned tmux session
+//   POST /api/terminal/claim      is this new Codex the one a launch started?
+//   POST /api/terminal/hosts/end  end the sessions on one older host, as reviewed
+//
+// The two hosts routes are the Windows session host's: an engine with no
+// session host answers that it cannot (`no-terminal`), which the page reads
+// as nothing to show.
 //
 // SWITCHED OFF, THEY ARE NOT THERE. Every handler asks terminalOn first and,
 // when it says no, answers exactly what index.mjs answers for an /api path
@@ -18,7 +24,7 @@
 // engine has answered: a switch-off that lands while it works on the question
 // mints no ticket, and the page is told what was done (answeredAfterOff).
 // The request gates still run first, as they do
-// for every path: the two reads are in GUARDED_READS and the four POSTs are
+// for every path: the three reads are in GUARDED_READS and the five POSTs are
 // mutations, so what is refused there is refused whatever the switch says.
 //
 // THE ENGINE ANSWERS THEM. Everything HTTP stays here — the switch, the gates,
@@ -116,6 +122,23 @@ export async function handleTerminalTarget(req, res, url, options) {
   return answer(d, req, res, "target", query);
 }
 
+/** GET /api/terminal/hosts → `{ ok: true, hosts, launchesRefused }`: the
+ *  older session hosts still running sessions, each `{ generation, state,
+ *  sessions }`, and why new sessions are refused while they run, or null. */
+export async function handleTerminalHosts(req, res, options) {
+  const d = terminalDeps(options);
+  if (!d.enabled()) return notFound(res);
+  return answer(d, req, res, "hosts", null);
+}
+
+/** POST /api/terminal/hosts/end `{ generation, sessions }` → `{ ok: true,
+ *  ended }`: end exactly the sessions the reader reviewed on that host. 409
+ *  `consent-outdated` when its sessions changed since, `host-gone` when it no
+ *  longer runs. */
+export async function handleTerminalEndHosts(req, res, options) {
+  return posted(req, res, options, "endHosts");
+}
+
 /** POST /api/terminal/claim `{ key, sessionId, provider, cwd }` → `{ ok: true,
  *  claimed, target }`: whether the session runs in the pane the page launched
  *  under `key`. */
@@ -151,6 +174,9 @@ async function posted(req, res, options, method) {
   return answer(d, req, res, method, body);
 }
 
+/** The routes that only ask: answered after the switch-off, they changed nothing. */
+const READS = new Set(["status", "target", "hosts"]);
+
 /** The answer index.mjs gives an /api path with no route, byte for byte. */
 function notFound(res) {
   return send(res, 404, { error: "not found" });
@@ -160,6 +186,8 @@ function notFound(res) {
 export const STARTED_TURNED_OFF = "The session was started, but the Command Panel was turned off in Settings. Switch it on to open the session.";
 /** And of an open or a claim that went through: what an open panel is told at the switch-off (prefs-routes.mjs). */
 export const REACHED_TURNED_OFF = "The Command Panel was turned off in Settings. The session is still running.";
+/** And of an end of an older host's sessions that went through. */
+export const ENDED_TURNED_OFF = "The sessions were ended, but the Command Panel was turned off in Settings.";
 
 /**
  * A question asked while on, answered by the engine after the switch went off. Nothing is minted — the socket
@@ -169,10 +197,11 @@ export const REACHED_TURNED_OFF = "The Command Panel was turned off in Settings.
  */
 function answeredAfterOff(res, method, said) {
   const body = said.body && typeof said.body === "object" ? said.body : {};
-  const done = method !== "status" && method !== "target" && said.status >= 200 && said.status < 300
+  const done = !READS.has(method) && said.status >= 200 && said.status < 300
     && body.ok === true && (method !== "claim" || body.claimed === true);
   if (!done) return notFound(res);
-  const error = method === "launch" || method === "adopt" ? STARTED_TURNED_OFF : REACHED_TURNED_OFF;
+  const error = method === "launch" || method === "adopt" ? STARTED_TURNED_OFF
+    : method === "endHosts" ? ENDED_TURNED_OFF : REACHED_TURNED_OFF;
   return send(res, 409, { ok: false, error, code: "turned-off" });
 }
 
@@ -210,7 +239,14 @@ async function answer(d, req, res, method, question) {
   // the switch-off: nothing is asked of the engine, which would otherwise run a launch the switch had already
   // closed and put off the engine's stop (command-panel-engine.mjs) with the switch off.
   if (!d.enabled()) return notFound(res);
-  if (d.jsBackend) return d.jsBackend[method](req, res, question, d);
+  if (d.jsBackend) {
+    // The test's tmux has no session host: what an engine without one answers.
+    if (typeof d.jsBackend[method] !== "function") {
+      const { status, body } = engineRefusal("no-terminal");
+      return send(res, status, body);
+    }
+    return d.jsBackend[method](req, res, question, d);
+  }
   const said = d.engine?.enabled === true ? await d.engine.route(method, question) : engineRefusal("not-installed");
   if (said.log) console.error(`${PRODUCT}: terminal: ${said.log}`);
   // And once more, now that the engine has answered: a question asked while on can be answered after the

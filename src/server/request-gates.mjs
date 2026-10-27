@@ -488,9 +488,11 @@ export const GUARDED_READS = new Set([
   // is doing rather than what the machine is. /status says only whether tmux
   // is usable here, but it has the same one caller, the deck's own page, and
   // a family of routes with one open door is a family somebody has to reason
-  // about route by route.
+  // about route by route. /hosts names the sessions still running on an older
+  // session host, with their folders.
   "/api/terminal/status",
   "/api/terminal/target",
+  "/api/terminal/hosts",
   "/api/radio-stations",
   "/api/radio-click",
   // The trackers this deck is connected to (#2178): the list of connections
