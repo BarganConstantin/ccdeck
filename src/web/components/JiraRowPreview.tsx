@@ -27,7 +27,7 @@ export default function JiraRowPreview({ item, portalRootId, children }: {
     detail={<>
       <div className="jr-preview-key">{item.key}</div>
       <div className="jr-preview-summary">{item.summary}</div>
-      {(versions.length > 0 || item.epic) && <dl className="jr-preview-fields">
+      {(versions.length > 0 || item.epic) && <dl>
         {versions.length > 0 && <><dt>{versions.length === 1 ? "Version" : "Versions"}</dt><dd>{versions.join(", ")}</dd></>}
         {item.epic && <><dt>Epic</dt><dd>{item.epic.key}: {item.epic.name}</dd></>}
       </dl>}

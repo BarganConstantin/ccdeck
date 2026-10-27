@@ -1,7 +1,7 @@
 import { cloneElement, useEffect, useId, useLayoutEffect, useRef, useState, type HTMLAttributes, type ReactElement, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { placePopover, placeReadingHint } from "../popover-place";
-import { modalStack } from "../modal-dismiss";
+import { isEscapeKey, modalStack } from "../modal-dismiss";
 
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 // Shared with existing account hints so only one disclosure is visible.
@@ -33,8 +33,10 @@ export default function HoverHint({ children, detail, disabled = false, classNam
   const [visible, setVisible] = useState(false);
   const timer = useRef(0);
   const surface = useRef<HTMLDivElement>(null);
-  const latest = useRef({ disabled, shouldShow });
-  latest.current = { disabled, shouldShow };
+  const disabledRef = useRef(disabled);
+  const shouldShowRef = useRef(shouldShow);
+  disabledRef.current = disabled;
+  shouldShowRef.current = shouldShow;
   const clear = () => window.clearTimeout(timer.current);
   const hide = () => { clear(); setVisible(false); };
   const renderedAnchor = () => {
@@ -47,7 +49,7 @@ export default function HoverHint({ children, detail, disabled = false, classNam
   const show = () => {
     clear();
     const anchor = renderedAnchor();
-    if (latest.current.disabled || !anchor || latest.current.shouldShow?.(anchor) === false) return;
+    if (disabledRef.current || !anchor || shouldShowRef.current?.(anchor) === false) return;
     document.dispatchEvent(new CustomEvent(HINT_OPEN, { detail: id }));
     setVisible(true);
   };
@@ -59,14 +61,18 @@ export default function HoverHint({ children, detail, disabled = false, classNam
     const place = () => {
       const el = surface.current;
       const anchor = renderedAnchor();
-      if (!el || !anchor || latest.current.shouldShow?.(anchor) === false) { setVisible(false); return; }
+      if (!el || !anchor || shouldShowRef.current?.(anchor) === false) { setVisible(false); return; }
       el.style.maxHeight = "";
       const size = { width: el.offsetWidth, height: el.offsetHeight };
       const viewport = { width: innerWidth, height: innerHeight };
-      const style = getComputedStyle(el);
-      const number = (value: string) => Number.parseFloat(value) || 0;
-      const minimumHeight = (number(style.lineHeight) || number(style.fontSize) * 1.2)
-        + number(style.paddingTop) + number(style.paddingBottom) + number(style.borderTopWidth) + number(style.borderBottomWidth);
+      const bounds = el.getBoundingClientRect();
+      const first = el.firstElementChild?.getBoundingClientRect();
+      const last = el.lastElementChild?.getBoundingClientRect();
+      // Keep at least the first reading block and the actual surface insets.
+      // Geometry follows the active theme/reading profile without CSS parsing.
+      const minimumHeight = first && last
+        ? first.top - bounds.top + first.height + bounds.bottom - last.bottom
+        : size.height;
       const p = placement === "reading"
         ? placeReadingHint(anchor.getBoundingClientRect(), size, viewport, minimumHeight)
         : placePopover(anchor.getBoundingClientRect(), size, viewport);
@@ -122,7 +128,7 @@ export default function HoverHint({ children, detail, disabled = false, classNam
       onClick: event => { hide(); children.props.onClick?.(event); },
       onContextMenu: event => { hide(); children.props.onContextMenu?.(event); },
       onDragStart: event => { hide(); children.props.onDragStart?.(event); },
-      onKeyDown: event => { if (event.key !== "Escape") hide(); children.props.onKeyDown?.(event); },
+      onKeyDown: event => { if (!isEscapeKey(event.key)) hide(); children.props.onKeyDown?.(event); },
     })}
     {visible && !disabled && createPortal(
       <div ref={surface} id={id} className={className} role="tooltip" onPointerEnter={clear} onPointerLeave={leave}>
