@@ -18,6 +18,9 @@
 //     alone also carries coarse counts of how much: how many sessions,
 //     subagents and projects the deck heard from on the last day it was used,
 //     and that day's date — numbers, never their names (see usage-day.mjs) —
+//     and which providers currently have saved tracker connections (jira, github,
+//     gitlab only; no addresses, account details or tokens). This is a snapshot
+//     at report time, not a usage-day count. Omitted when the store is unreadable.
 //     and which of the deck's features were used that day, as fixed names
 //     ("usage-history", "account-switch") and nothing about what was done
 //     with them (feature-use.mjs), and how the deck held up and who runs it:
@@ -556,6 +559,7 @@ export function createReporter({
   setupKnown = () => whenSetupKnown(),
   reference = notedRef,
   depth = async () => ({}),
+  integrations = async () => null,
   launchedIn = () => process.uptime() * 1000,
   memory = () => process.memoryUsage.rss(),
   npx = false,
@@ -681,6 +685,20 @@ export function createReporter({
       addIf(out, "events", eventsBucket(raw.events));
       addIf(out, "deckMemory", raw.peakMb > 0 ? memoryBucket(raw.peakMb) : undefined);
       return out;
+    } catch {
+      return {};
+    }
+  }
+
+  /** A snapshot of which tracker providers have connections at report time.
+   * The provider owns the local read; only the three fixed provider tokens leave.
+   * null means unknown (store unavailable), [] means verified no connections. */
+  async function connectedProviders() {
+    try {
+      const value = await integrations();
+      if (!Array.isArray(value)) return {};
+      const providers = ["jira", "github", "gitlab"].filter(k => value.includes(k));
+      return { connectedIntegrations: providers };
     } catch {
       return {};
     }
@@ -952,7 +970,8 @@ export function createReporter({
       // deck for its counts.
       const used = coarseUsage(today);
       const held = await depthNow();
-      if (settled(await call("POST", "/v1/app/events", { installId, kind: "active", ...factsNow(), ...setupNow(), ...used, ...held }))) {
+      const connected = await connectedProviders();
+      if (settled(await call("POST", "/v1/app/events", { installId, kind: "active", ...factsNow(), ...setupNow(), ...used, ...held, ...connected }))) {
         if (used.usageDay) usage.markSent(used.usageDay);
         await remember(installId, { lastActiveDay: today });
       }
@@ -1318,5 +1337,9 @@ export function ratingFile(dir) {
 /** The deck's own reporter. */
 export const reporter = createReporter({
   versions: () => cliVersionCache, probe: probeCliVersions, depth: deckDepth, npx: isNpxInstall(PKG_ROOT),
+  integrations: async () => {
+    const { integrationsStore } = await import("./integrations/store.mjs");
+    return integrationsStore.connectedKinds();
+  },
   ratingKept: ratingFile(),
 });
