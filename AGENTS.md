@@ -91,6 +91,7 @@ When preparing release notes for ccdeck, write them as concise product communica
 
 - Start from the actual release diff, merged issues, and user-visible behavior. Ask: **what would a user notice?**
 - Select only the meaningful changes. Do not turn the notes into a commit log, issue list, PR dump, or implementation summary.
+- Say only what the person sees in the app. Usage reports, telemetry and environment variables are documented in README, not in release notes.
 - Describe the result in user language: what is new, what got easier, what was fixed, or what changed in behavior.
 - Keep the tone polished, calm, and direct. Prefer a few strong lines over a long exhaustive changelog.
 - Mention implementation details only when a user needs them to understand a behavior change, migration, compatibility issue, or action they must take.

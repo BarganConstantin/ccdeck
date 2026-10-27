@@ -52,7 +52,9 @@
     "Write a short benefit-led title and one useful sentence where possible; keep",
     "opt-outs and limits. Avoid inflated adjectives, filler and generic claims.",
     "Preserve original factual meaning. Never invent capabilities or results.",
-    "Retain setup instructions, compatibility minimums and privacy implications.",
+    "Retain setup instructions and compatibility minimums. Say only what a user",
+    "sees in the app: usage reports, telemetry and environment variables are for",
+    "README to explain, not for a note.",
     "Verify each claim against the released diff and tests. No promotion",
     "for invisible fixes. Do not rewrite historical releases to fit the layout.",
     "",
@@ -78,7 +80,8 @@
     "",
     "Optional icon is a semantic key: plans, accounts or skills. Use it only when",
     "it matches the change; do not infer icons from versions, titles or emoji.",
-    "The modal uses native monochrome glyphs, so titles need no decorative emoji."
+    "The modal shows a title's leading emoji; the glyph stands in only for a title",
+    "without one."
   ],
   "//summaries": {
     "3.46.0": "Plans, accounts and skills at a glance"
@@ -146,16 +149,6 @@
     {
       "title": "✏️ Texts that fell behind are up to date",
       "body": "Explore integrations says Jira can move issues, and the Radar and Where the time went tips match what the app does."
-    },
-    {
-      "title": "🛡️ AGENTS_DECK_NO_RADAR holds at login and in the desktop app",
-      "body": "A deck started at login or by the desktop app no longer watches Claude Code's telemetry collector when your shell sets the variable.",
-      "priority": "required"
-    },
-    {
-      "title": "📊 Usage reports name the trackers you connected",
-      "body": "The daily report says which of Jira, GitHub or GitLab has a saved connection, never its address, account or token; AGENTS_DECK_NO_REPORTS=1 still keeps reports off.",
-      "priority": "required"
     }
   ],
   "3.48.0": [
