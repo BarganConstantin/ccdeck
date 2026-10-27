@@ -144,7 +144,6 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["notifyQuota", { notifyQuota: true }, p => p.notifyQuota, true],
   ["notifyReset", { notifyReset: true }, p => p.notifyReset, true],
   ["notifyStopped", { notifyStopped: false }, p => p.notifyStopped, false],
-  // A paired deck on the login this one is on (#2192).
   // Settings › General › Claude sessions (SessionRecoverySettings.tsx), off
   // until somebody turns it on (#2193).
   ["continueStopped", { continueStopped: true }, p => p.continueStopped, true],

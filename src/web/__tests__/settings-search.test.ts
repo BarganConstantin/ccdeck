@@ -151,7 +151,7 @@ describe("searchSettings ranks what was typed", () => {
     expect(ids(searchSettings("notifications"))).toEqual([
       "section:notifications", "notify-closed", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped",
     ]);
-    // "alerts" is a keyword of the six switches and of the section.
+    // "alerts" is a keyword of the five switches and of the section.
     const alerts = ids(searchSettings("alerts"));
     expect(alerts[0]).toBe("section:notifications");
     expect(alerts).toEqual(expect.arrayContaining([
