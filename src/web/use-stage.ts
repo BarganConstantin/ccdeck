@@ -110,13 +110,16 @@ export interface StageDeps {
 export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent }: StageDeps) {
   // The switch, from the one read of the deck's prefs (use-prefs-read.ts),
   // and whether the deck's platform has the panel at all, which the switch in
-  // Settings says — null until the deck has answered.
+  // Settings says — null until the deck has answered. `windows`: its sessions
+  // run in the Windows session host, not tmux, and the words say so.
   const [enabled, setEnabled] = useState(false);
   const [supported, setSupported] = useState<boolean | null>(null);
+  const [windows, setWindows] = useState(false);
   const enabledRef = useMirroredRef(enabled);
   const loadTerminalPrefs = useCallback((d: TerminalPrefsAnswer) => {
     setEnabled(d.terminalOn === true);
     setSupported(typeof d.terminalSupported === "boolean" ? d.terminalSupported : null);
+    setWindows(d.terminalWindows === true);
   }, []);
 
   // A reducer held in a state rather than useReducer, for the same answer
@@ -701,7 +704,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   }, [enabled, shellRef]);
 
   return {
-    enabled, supported, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
+    enabled, supported, windows, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
     onNodeClick, followSession, switchTo, openFromButton, openTile, launch, onLaunched,
     focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
     openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, firstRunDone, onCell, onBarH,
@@ -773,6 +776,7 @@ export function useRailPanel(
 export interface TerminalPrefsAnswer {
   terminalOn?: unknown;
   terminalSupported?: unknown;
+  terminalWindows?: unknown;
 }
 
 /** Written when this tab's press has changed the switch, so the deck's other

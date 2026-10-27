@@ -11,7 +11,7 @@ vi.mock("react", async () => (await import("./fake-react")).react);
 
 import { all, mount, one, textOf, type Drawn } from "./fake-react";
 import Divider, { dividerKey, type DividerProps } from "../components/terminal/Divider";
-import { MODE_CHOICES, NewSessionForm, launchOptions, startLabel, startTarget, type NewSessionFormProps } from "../components/terminal/NewSessionPopover";
+import { MODE_CHOICES, NEW_SESSION_NOTE, NEW_SESSION_NOTE_WINDOWS, NewSessionForm, launchOptions, startLabel, startTarget, type NewSessionFormProps } from "../components/terminal/NewSessionPopover";
 import { colsRange, NAV_MIN, stageWidthFor } from "../stage-geometry";
 import type { ProjectChoice } from "../components/terminal/stage-model";
 
@@ -181,6 +181,14 @@ describe("the New session form", () => {
   it("says in one sentence that the session joins the board and outlives the stage", () => {
     const text = textOf(mount(NewSessionForm, props()).tree);
     expect(text).toContain("It joins the board as its own cluster and opens here, inside the deck's tmux — closing the Command Panel never stops it.");
+    expect(NEW_SESSION_NOTE).toBe("It joins the board as its own cluster and opens here, inside the deck's tmux — closing the Command Panel never stops it.");
+  });
+
+  it("on Windows, says the session runs in the session host, never in the deck's tmux", () => {
+    const text = textOf(mount(NewSessionForm, props({ windows: true })).tree);
+    expect(text).toContain("It joins the board as its own cluster and opens here, in the session host — closing the Command Panel never stops it.");
+    expect(text).toContain(NEW_SESSION_NOTE_WINDOWS);
+    expect(text).not.toMatch(/tmux/);
   });
 
   it("offers only the path when the board has no projects yet", () => {

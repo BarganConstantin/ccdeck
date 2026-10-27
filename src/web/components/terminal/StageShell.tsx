@@ -362,6 +362,7 @@ export function StageDock(p: StageDockProps) {
           projects={boardProjects(agents.values(), currentCwd)}
           onStart={stage.launch}
           onClose={stage.closePopover}
+          windows={stage.windows}
         />
       )}
     </div>

@@ -26,6 +26,10 @@ import {
   ACK_EVERY_BYTES,
   CTRL_V,
   ECHO_WINDOW_MS,
+  ENGINE_NO_RETURN,
+  ENGINE_NO_RETURN_WINDOWS,
+  NO_RETURN,
+  NO_RETURN_WINDOWS,
   PASTE_TOO_LARGE,
   RECONNECT_DELAYS_MS,
   RECONNECT_GIVE_UP_MS,
@@ -138,8 +142,9 @@ interface Rig {
 }
 
 /** A controller wired to the fakes. `lazyMount` keeps xterm "loading" until
- *  the case resolves it, the way the dynamic import does in a browser. */
-function rig({ lazyMount = false } = {}) {
+ *  the case resolves it, the way the dynamic import does in a browser.
+ *  `windows`: the deck's sessions run in the Windows session host. */
+function rig({ lazyMount = false, windows = false } = {}) {
   const sockets: FakeSocket[] = [];
   let term: FakeTerminal | null = null;
   let events: StageTerminalEvents | null = null;
@@ -179,7 +184,7 @@ function rig({ lazyMount = false } = {}) {
     onCell: c => r.cells.push(c),
     onLaunched: l => r.launched.push(l),
     onNotice: n => r.notices.push(n),
-  });
+  }, { windows });
   return { r, ctl };
 }
 
@@ -466,6 +471,43 @@ describe("a deck restart under a live pane (scenario S3)", () => {
     expect(r.clock.now - 1_000_000).toBeGreaterThan(RECONNECT_GIVE_UP_MS);
     expect(r.last().phase.kind).toBe("error");
     expect((r.last().phase as { message: string }).message).toMatch(/still running in tmux/);
+    expect(r.last().phase).toEqual({ kind: "error", message: NO_RETURN });
+  });
+
+  it("on Windows, says the session is still running in the session host when the deck does not come back", async () => {
+    const { r, ctl } = rig({ windows: true });
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const s = await attach(r, ctl);
+    r.open.mockResolvedValue(failure(null));
+    s.text({ t: "exit", reason: "server-shutdown" });
+    for (let i = 0; i < 40 && r.last().phase.kind === "attaching"; i++) {
+      r.clock.now += 5000;
+      await vi.advanceTimersByTimeAsync(5000);
+    }
+    expect(r.last().phase).toEqual({ kind: "error", message: NO_RETURN_WINDOWS });
+    expect(NO_RETURN_WINDOWS).toBe("The deck did not come back. The session is still running in the session host; try again once the deck is up.");
+    expect(NO_RETURN_WINDOWS).not.toMatch(/tmux/);
+  });
+});
+
+describe("a deck whose sessions run in the Windows session host", () => {
+  it("says a refusal that would have been tmux missing elsewhere as the deck wrote it, and asks nothing about tmux", async () => {
+    const { r, ctl } = rig({ windows: true });
+    r.open.mockResolvedValue({ ok: false, target: { kind: "unsupported", label: "The Command Panel cannot open this session here." } });
+    r.status.mockResolvedValue({ ok: true, platform: "win32", tmux: { ok: false, reason: "unsupported-platform" } });
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "error", message: "The Command Panel cannot open this session here." });
+    expect(r.status, "no tmux to ask about").not.toHaveBeenCalled();
+
+    const linux = rig();
+    linux.r.open.mockResolvedValue({ ok: false, target: { kind: "unsupported", label: "The terminal runs on tmux…", reason: "missing" } });
+    linux.r.status.mockResolvedValue({ ok: true, platform: "linux", tmux: { ok: false, reason: "missing", install: "sudo apt install tmux" } });
+    linux.ctl.show({ kind: "session", ref: REF });
+    await flush();
+    expect(linux.r.status, "elsewhere tmux is asked about, as before").toHaveBeenCalledTimes(1);
+    expect(linux.r.last().phase.kind).toBe("tmux-missing");
   });
 });
 
@@ -1120,6 +1162,22 @@ describe("the Command Panel's engine refusing (pro-engine-host-v1.md, Refusals)"
     }
     expect(r.open.mock.calls.length).toBeGreaterThan(3);
     expect(r.last().phase).toEqual({ kind: "error", message: "The Command Panel's engine did not come back. The session is still running in tmux; try again in a moment." });
+  });
+
+  it("on Windows, gives up naming the session host, never the deck's tmux", async () => {
+    const { r, ctl } = rig({ windows: true });
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const s = await attach(r, ctl);
+    r.open.mockResolvedValue(restarting());
+    s.drop(1011);
+    for (let i = 0; i < 40 && r.last().phase.kind === "attaching"; i++) {
+      r.clock.now += 5000;
+      await vi.advanceTimersByTimeAsync(5000);
+    }
+    expect(r.last().phase).toEqual({ kind: "error", message: ENGINE_NO_RETURN_WINDOWS });
+    expect(ENGINE_NO_RETURN_WINDOWS).toBe("The Command Panel's engine did not come back. The session is still running in the session host; try again in a moment.");
+    expect(ENGINE_NO_RETURN).toBe("The Command Panel's engine did not come back. The session is still running in tmux; try again in a moment.");
   });
 
   it("answers a state of the machine met while reconnecting at once", async () => {

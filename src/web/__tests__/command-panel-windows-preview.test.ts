@@ -243,6 +243,19 @@ describe("a deck handed the preview option", () => {
     expect(read({ supported: "yes" })).toBe(false);
     expect(read(undefined)).toBe(commandPanelSupported());
   });
+
+  it("tells the page its sessions run in the Windows session host only with the preview on", () => {
+    const windowsOf = (panel: unknown) => {
+      let body = "";
+      const res = { headersSent: false, writeHead: () => {}, end: (b: string) => { body = b; } };
+      handlePrefsRead({}, res, panel);
+      return JSON.parse(body).terminalWindows;
+    };
+    expect(windowsOf({ supported: true, windowsPreview: true })).toBe(true);
+    expect(windowsOf({ supported: true, windowsPreview: false })).toBe(false);
+    expect(windowsOf({ supported: true, windowsPreview: "yes" })).toBe(false);
+    expect(windowsOf(undefined)).toBe(false);
+  });
 });
 
 describe("no production entry can ask for the preview", () => {

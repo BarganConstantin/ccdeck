@@ -51,6 +51,10 @@ export const WINDOWS_PREVIEW_REFUSED = Object.freeze({
 
 const answer = (supported, windowsPreview) => Object.freeze({ supported, windowsPreview });
 
+/** Whether this answer puts the panel's sessions in the Windows session host
+ *  rather than tmux: only ever the preview above. */
+export const panelInSessionHost = (panel) => panel?.windowsPreview === true;
+
 /**
  * This deck's Command Panel platform, for startServer's `terminal` option:
  * `{ supported, windowsPreview }`. `platform`, `load` and `log` are there for

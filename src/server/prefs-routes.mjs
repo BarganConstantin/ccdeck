@@ -16,6 +16,7 @@ import { readBody, send } from "./http-io.mjs";
 import { noteContinueSwitchedOn } from "./stop-continue.mjs";
 import { closeOpenTerminals } from "./terminal-socket.mjs";
 import { commandPanel, commandPanelSupported } from "./command-panel-engine.mjs";
+import { panelInSessionHost } from "./command-panel-platform.mjs";
 
 /**
  * GET the deck's settings, and what the machine is allowing.
@@ -55,6 +56,10 @@ function prefsPayload(panel) {
     // (command-panel-platform.mjs: on Windows false, but for the test-only
     // preview); a caller with none asks the platform, as this always did.
     terminalSupported: panel ? panel.supported === true : commandPanelSupported(),
+    // Whether the panel's sessions run in the Windows session host rather than
+    // tmux — only ever in the test-only Windows preview — so the page's words
+    // name the place they keep running in.
+    terminalWindows: panelInSessionHost(panel),
   };
 }
 

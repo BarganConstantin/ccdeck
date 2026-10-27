@@ -1,5 +1,6 @@
-// "New session": start Claude or Codex in a project, in the deck's own tmux,
-// and put it on the stage (v3, the Claude app's "New chat" place).
+// "New session": start Claude or Codex in a project, in the deck's own tmux —
+// on Windows, in the session host — and put it on the stage (v3, the Claude
+// app's "New chat" place).
 //
 // THREE CHOICES AND A BUTTON THAT SAYS WHAT IT WILL DO. The agent; the
 // project, from every folder a session on the board ran in — the stage's own
@@ -45,9 +46,17 @@ const LIST_ID = "ns-projects";
 const WORKTREE_ID = "ns-worktree-label";
 const optionId = (i: number) => `ns-opt-${i}`;
 
+/** The one sentence under the choices: where the session runs, and that
+ *  closing the panel never stops it. */
+export const NEW_SESSION_NOTE = "It joins the board as its own cluster and opens here, inside the deck's tmux — closing the Command Panel never stops it.";
+/** The same on Windows, which has no tmux: the panel's sessions run in its session host. */
+export const NEW_SESSION_NOTE_WINDOWS = "It joins the board as its own cluster and opens here, in the session host — closing the Command Panel never stops it.";
+
 export interface NewSessionFormProps {
   projects: ProjectChoice[];
   initialAgent?: TerminalProvider;
+  /** The deck's sessions run in the Windows session host, not tmux. */
+  windows?: boolean;
   onStart(agent: TerminalProvider, cwd: string, options?: LaunchOptions): void;
   onCancel(): void;
 }
@@ -95,7 +104,7 @@ export function startLabel(agent: TerminalProvider, target: { name: string } | n
   return target ? `Start ${who} in ${target.name}` : `Start ${who}`;
 }
 
-export function NewSessionForm({ projects, initialAgent = "claude", onStart, onCancel }: NewSessionFormProps) {
+export function NewSessionForm({ projects, initialAgent = "claude", windows = false, onStart, onCancel }: NewSessionFormProps) {
   const [agent, setAgent] = useState<TerminalProvider>(initialAgent);
   const [chosen, setChosen] = useState(0);
   const [typed, setTyped] = useState("");
@@ -217,7 +226,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", onStart, onC
           </label>
         </>
       )}
-      <p className="ns-note">It joins the board as its own cluster and opens here, inside the deck's tmux — closing the Command Panel never stops it.</p>
+      <p className="ns-note">{windows ? NEW_SESSION_NOTE_WINDOWS : NEW_SESSION_NOTE}</p>
       <div className="ns-acts">
         <button type="button" className="btn" onClick={onCancel}>Cancel</button>
         <button type="button" className="btn primary" disabled={!target} onClick={start}>{startLabel(agent, target)}</button>
@@ -231,6 +240,7 @@ export interface NewSessionPopoverProps {
   anchorId: string;
   projects: ProjectChoice[];
   initialAgent?: TerminalProvider;
+  windows?: boolean;
   onStart(agent: TerminalProvider, cwd: string, options?: LaunchOptions): void;
   onClose(): void;
 }
@@ -253,6 +263,7 @@ export default function NewSessionPopover(p: NewSessionPopoverProps) {
       <NewSessionForm
         projects={p.projects}
         initialAgent={p.initialAgent}
+        windows={p.windows}
         onStart={(agent, cwd, options) => { p.onStart(agent, cwd, options); p.onClose(); }}
         onCancel={p.onClose}
       />

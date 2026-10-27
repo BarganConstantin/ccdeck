@@ -965,7 +965,7 @@ function Inner() {
         upgrade={upgrade} lanPairs={lanPairs} attention={attention} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
         menus={menus} sound={sound} tones={tones} customTones={customTones} notify={notify}
-        terminal={{ on: stage.enabled, supported: stage.supported, toggle: stage.toggleTerminal }}
+        terminal={{ on: stage.enabled, supported: stage.supported, windows: stage.windows, toggle: stage.toggleTerminal }}
         panelDoors={{ accounts: openAccountsPanel, localNetwork: openLocalNetwork }}
       />
     </div>

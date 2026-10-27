@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import TerminalSection, {
-  TERMINAL_LABEL, TERMINAL_NOTE, TERMINAL_UNSUPPORTED_NOTE, terminalNote, type TerminalSwitch,
+  TERMINAL_LABEL, TERMINAL_NOTE, TERMINAL_UNSUPPORTED_NOTE, TERMINAL_WINDOWS_NOTE, terminalNote, type TerminalSwitch,
 } from "../components/TerminalSection";
 import { DEFAULTS } from "../../server/deck-prefs.mjs";
 
@@ -50,8 +50,22 @@ describe("the Command Panel's switch in Settings", () => {
   });
 
   it("names no variable, file, engine or tmux: plain words only", () => {
-    for (const text of [TERMINAL_LABEL, TERMINAL_NOTE, TERMINAL_UNSUPPORTED_NOTE]) {
+    for (const text of [TERMINAL_LABEL, TERMINAL_NOTE, TERMINAL_UNSUPPORTED_NOTE, TERMINAL_WINDOWS_NOTE]) {
       expect(text).not.toMatch(/CCDECK_|prefs\.json|engine|tmux|Beta/i);
     }
+  });
+
+  it("says what turning it off does: the panel closes, its sessions keep running, and are back when it is on", () => {
+    expect(TERMINAL_NOTE).toBe("Experimental: open sessions beside the board and type into them. Turning it off closes the panel, not its sessions: they keep running and are back when you turn it on again.");
+  });
+
+  it("on Windows, says where they keep running: in the session host", () => {
+    expect(TERMINAL_WINDOWS_NOTE).toBe("Experimental: open sessions beside the board and type into them. Turning it off closes the panel, not its sessions: they keep running in the session host and are back when you turn it on again.");
+    expect(TERMINAL_WINDOWS_NOTE.split(". ").length, "one line: two short sentences at most").toBeLessThanOrEqual(2);
+    expect(terminalNote(true, true)).toBe(TERMINAL_WINDOWS_NOTE);
+    expect(terminalNote(null, true)).toBe(TERMINAL_WINDOWS_NOTE);
+    expect(terminalNote(false, true), "a platform with no panel says only that").toBe(TERMINAL_UNSUPPORTED_NOTE);
+    expect(draw({ windows: true })).toContain(TERMINAL_WINDOWS_NOTE);
+    expect(draw()).not.toContain("session host");
   });
 });

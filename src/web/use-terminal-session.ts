@@ -473,6 +473,12 @@ export interface SessionCallbacks {
   onNotice?(sentence: string): void;
 }
 
+/** Where the deck's sessions run: tmux, or on Windows the session host,
+ *  which has no tmux to ask about and is named in the stage's sentences. */
+export interface SessionPlace {
+  windows?: boolean;
+}
+
 /** A paste too big for one message: refused, and said, rather than lost. */
 export const PASTE_TOO_LARGE = "That paste is over 1 MB, too big to send to the session. Nothing was typed.";
 
@@ -511,8 +517,11 @@ const sameProgress = (a?: TmuxProgress, b?: TmuxProgress) =>
   && (a?.stage !== "downloading" || b?.stage !== "downloading" || (a.received === b.received && a.total === b.total));
 
 const STOPPED = "The Command Panel stopped. The session may still be running.";
-const NO_RETURN = "The deck did not come back. The session is still running in tmux; try again once the deck is up.";
-const ENGINE_NO_RETURN = "The Command Panel's engine did not come back. The session is still running in tmux; try again in a moment.";
+export const NO_RETURN = "The deck did not come back. The session is still running in tmux; try again once the deck is up.";
+export const ENGINE_NO_RETURN = "The Command Panel's engine did not come back. The session is still running in tmux; try again in a moment.";
+/** The same two on Windows, where the panel's sessions run in its session host. */
+export const NO_RETURN_WINDOWS = "The deck did not come back. The session is still running in the session host; try again once the deck is up.";
+export const ENGINE_NO_RETURN_WINDOWS = "The Command Panel's engine did not come back. The session is still running in the session host; try again in a moment.";
 const NOT_REOPENABLE = "This session started without a name the deck can find it by yet. Open it from the board.";
 const TMUX_SETUP_SLOW = "The deck is still setting up tmux. Try again in a minute.";
 
@@ -523,7 +532,8 @@ const TMUX_SETUP_SLOW = "The deck is still setting up tmux. Try again in a minut
  * comes back after the subject changed, or after the controller was disposed,
  * finds a newer generation and does nothing.
  */
-export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallbacks): TerminalSessionController {
+export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallbacks, place: SessionPlace = {}): TerminalSessionController {
+  const windows = place.windows === true;
   let gen = 0;
   let disposed = false;
   let subject: StageSubject = { kind: "empty" };
@@ -745,8 +755,10 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
 
   // -- asking the deck -------------------------------------------------------
 
-  /** A refusal that might be tmux missing: ask, and draw that fact if so. */
+  /** A refusal that might be tmux missing: ask, and draw that fact if so.
+   *  Windows has no tmux to be missing: the refusal is said as it is. */
   const tmuxOr = async (my: number, otherwise: StagePhase) => {
+    if (windows) { setPhase(otherwise); return; }
     const status = await deps.api.status();
     if (my !== gen) return;
     if (status.ok && !status.tmux.ok) tmuxNotReady(my, status.tmux, deps.now());
@@ -876,7 +888,8 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     if (now - reconnectStarted > RECONNECT_GIVE_UP_MS) {
       reconnectStarted = null;
       attempts = 0;
-      setPhase({ kind: "error", message: engineLost ? ENGINE_NO_RETURN : NO_RETURN });
+      const message = engineLost ? (windows ? ENGINE_NO_RETURN_WINDOWS : ENGINE_NO_RETURN) : (windows ? NO_RETURN_WINDOWS : NO_RETURN);
+      setPhase({ kind: "error", message });
       engineLost = false;
       return;
     }
@@ -1104,6 +1117,9 @@ export interface UseTerminalSessionOptions {
   onCell?: (cell: Cell) => void;
   onLaunched?: (launched: LaunchedSession) => void;
   onNotice?: (sentence: string) => void;
+  /** The deck's sessions run in the Windows session host. Read once, as the
+   *  stage's terminal is made: the deck said it before the stage could open. */
+  windows?: boolean;
   /** The suite's seam. The stage passes nothing. */
   deps?: Partial<SessionDeps>;
 }
@@ -1139,7 +1155,7 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
       onCell: cell => latest.current.onCell?.(cell),
       onLaunched: launched => latest.current.onLaunched?.(launched),
       onNotice: sentence => latest.current.onNotice?.(sentence),
-    });
+    }, { windows: o.windows === true });
     controller.current = ctl;
     ctl.resize(o.cols, o.rows, !!o.holdResize);
     ctl.setTheme(o.theme);
