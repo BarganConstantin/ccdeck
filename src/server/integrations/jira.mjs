@@ -17,9 +17,10 @@
 //           Agile 1.0. `Authorization: Bearer <PAT>`. Personal access tokens
 //           arrived in Jira 8.14, so an older server is `incompatible`.
 //
-// Every request goes through the core's proxy (proxy.mjs), which
-// signs with `sign` below and only for the connection's allowed origins. The
-// routes are GET-only and answer normalised shapes (see `normaliseIssue`), so
+// Reads go through the core's GET-only proxy (proxy.mjs), which signs with
+// `sign` below and only for the connection's allowed origins. The one move
+// route uses jira-move.mjs's private, non-replaying write transport. Reads
+// answer normalised shapes (see `normaliseIssue`), so
 // the page draws Cloud and Server with one renderer: descriptions and comments
 // are Jira's own `renderedFields` HTML on both, sanitised in the browser
 // (src/web/jira-html.tsx).
@@ -27,6 +28,7 @@ import { createCache } from "./cache.mjs";
 import { errorResponse, integrationError, IntegrationError } from "./errors.mjs";
 import { createProxy, fetchImage, isLocalHost, isSafeTarget, normaliseBaseUrl, originOf } from "./proxy.mjs";
 import { createRouter } from "./registry.mjs";
+import { createJiraMover, readJiraMoveCapability } from "./jira-move.mjs";
 
 export const MIN_SERVER_VERSION = [8, 14, 0];
 const ATLASSIAN_API = "https://api.atlassian.com";
@@ -464,6 +466,7 @@ async function boardConfig(ctx, boardId) {
       statusIds: (Array.isArray(c?.statuses) ? c.statuses : []).map(st => String(st?.id ?? "")).filter(id => /^\d{1,12}$/.test(id)),
     }));
     return {
+      moveConfig: cfg,
       estimation: { kind, fieldId: fieldId || null, label: text(field?.displayName, 80) || (kind === "time" ? "Original Time Estimate" : kind === "points" ? "Story points" : "Issue count") },
       columns,
     };
@@ -788,6 +791,14 @@ export function registerJiraRoutes(router) {
       hasSprints: scrum,
       hasBacklog: backlog,
       timeTracking: time,
+      moves: await ctx.cache.remember(`move-capability:${id}`, 10 * MINUTE, async () => {
+        try {
+          return await readJiraMoveCapability(ctx.client, agileBase(ctx.conn), restBase(ctx.conn), id, { ...config.moveConfig, type });
+        } catch {
+          // Viewing remains available when the token cannot inspect ordering.
+          return { enabled: false, reason: "The board's rank ordering could not be verified." };
+        }
+      }),
     };
   });
 
@@ -955,17 +966,22 @@ registerJiraRoutes(jiraRouter);
  */
 export function createJiraClient(conn, secret, { fetchImpl, apiOrigin } = {}) {
   let origins = Array.isArray(conn.allowedOrigins) && conn.allowedOrigins.length ? conn.allowedOrigins.slice() : [originOf(conn.baseUrl)].filter(Boolean);
-  const cache = createCache();
+  let cache = createCache();
   const proxy = (list, phase, signal) => createProxy({
     conn: { ...conn, allowedOrigins: list }, secret, sign: signJira, phase, signal, fetchImpl,
     label: "Jira", errorDetail: jiraErrorDetail, authCheck: jiraAuthCheck,
   });
   let useProxy = null;
   const reader = () => (useProxy ??= proxy(origins, "use"));
+  const moveIssue = createJiraMover({ secret, origins: () => origins.slice(), sign: signJira, authCheck: jiraAuthCheck, fetchImpl,
+    reader: signal => ({ json: (url, opts = {}) => reader().json(url, { ...opts, signal }) }),
+    agile: agileBase(conn), rest: restBase(conn), invalidate: () => { cache = createCache(); },
+  });
   return {
     kind: "jira",
     conn,
-    cache,
+    get cache() { return cache; },
+    moveIssue,
     get allowedOrigins() { return origins.slice(); },
     async validate({ phase = "validate", signal } = {}) {
       const result = await validateJira(conn, secret, { phase, signal, client: list => proxy(list, phase, signal) }, { apiOrigin });
@@ -994,9 +1010,15 @@ export function createJiraClient(conn, secret, { fetchImpl, apiOrigin } = {}) {
   };
 }
 
-/** The panel's reads (registerJiraRoutes), as registry.mjs's `routes`. */
-export async function jiraRoutes(client, method, subpath, searchParams, _req, { signal } = {}) {
-  if (method !== "GET" && method !== "HEAD") return errorResponse(integrationError("invalid", "The Jira panel only reads."));
+/** The panel's reads and its one bounded move, as registry.mjs's `routes`. */
+export async function jiraRoutes(client, method, subpath, searchParams, _req, { signal, moveBody } = {}) {
+  const move = /^board\/([1-9]\d{0,11})\/move$/.exec(subpath);
+  if (method === "POST" && move) {
+    if ([...searchParams].length) return errorResponse(integrationError("invalid", "Move parameters belong in the JSON body."));
+    try { return await client.moveIssue(move[1], moveBody, signal); }
+    catch (err) { return errorResponse(err); }
+  }
+  if (method !== "GET" && method !== "HEAD") return errorResponse(integrationError("invalid", "That Jira operation is not supported."));
   const route = jiraRouter.find(subpath);
   if (!route) return errorResponse(integrationError("not-found", "No such Jira read."));
   try {

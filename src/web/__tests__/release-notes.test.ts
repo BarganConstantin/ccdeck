@@ -1036,4 +1036,12 @@ describe("how App.tsx wires it up", () => {
     // the JSON was not allowed to carry.
     expect(modal).not.toMatch(/&nbsp;/);
   });
+
+  it("shows each note as its title alone", () => {
+    // The owner's call (2026-10-27): one line per change is what a user takes
+    // in. The body stays in the file as the release's fuller account, and the
+    // day it is drawn again is a decision, not a slip.
+    expect(modal).toMatch(/<p className="rn-note-title">/);
+    expect(modal).not.toMatch(/note\.body/);
+  });
 });

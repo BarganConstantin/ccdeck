@@ -47,6 +47,33 @@ const GUTTER = 3;
 const MARGIN = 1;
 
 /**
+ * The line a start over SSH adds under it: the accounts, on the terminal the
+ * person is already in. The browser the page would open in is on this machine,
+ * not in front of them, and `ccdeck tui` is the one view that needs nothing set
+ * up first. Printed on an attach too, unlike the note above — over SSH a second
+ * `ccdeck` attaching is the usual way in, and nothing on that screen says it.
+ *
+ * The same ladder, from the core outwards: the command and what it shows, then
+ * why this line is here, then the sessions it shows beside the accounts.
+ *
+ * @param {object} [o]
+ * @param {string} [o.command]  The name that works in this shell — INVOKED_AS.
+ * @param {string} [o.dash]     The caller's dash glyph.
+ * @param {number} [o.columns]  Terminal width.
+ * @returns {string} The note, with no leading gutter and no trailing newline.
+ */
+export function sshNote({ command = PRODUCT, dash = "—", columns = 80 } = {}) {
+  const room = columns - INDENT - GUTTER - MARGIN;
+  const tui = `\`${command || PRODUCT} tui\``;
+  const core = `${tui} shows your accounts`;
+  const said = `over SSH ${dash} ${core} here`;
+  const whole = `over SSH ${dash} ${tui} shows your accounts and waiting sessions here`;
+  if (whole.length <= room) return whole;
+  if (said.length <= room) return said;
+  return core;
+}
+
+/**
  * What the terminal says about coming back, at the width it has to say it in.
  *
  * A LADDER, NOT AN ELLIPSIS. statusLine truncates a detail that will not fit

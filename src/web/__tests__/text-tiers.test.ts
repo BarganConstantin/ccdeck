@@ -242,11 +242,15 @@ describe("what was migrated to the secondary tier", () => {
       // and a quote inside an issue. Why a read failed is the integrations'
       // shared failure note's.
       ".jr-board-note", ".jr-goal", ".jr-html blockquote", ".jr-state p",
-      // Jira's labels, status lozenges and sprint totals: words on a
-      // --ctl-fill pill, kept here by their bed rather than their role, as
-      // the shared field's placeholder is — --muted is 4.05:1 on that fill
-      // in dark.
-      ".jr-label", ".jr-status", ".jr-total, .jr-estimate",
+      // And around the backlog: how many issues are picked, the Move form's
+      // field labels, a reading preview's version and epic, and Clear filters,
+      // a worded action that steps up to --text under the pointer.
+      ".jr-selection", ".jr-move-pop label", ".jr-row-preview dd", ".jr-clear",
+      // Jira's labels and sprint totals: words on a --ctl-fill pill, kept
+      // here by their bed rather than their role, as the shared field's
+      // placeholder is — --muted is 4.05:1 on that fill in dark. A status
+      // lozenge reads --text on its own opaque bed.
+      ".jr-label", ".jr-total, .jr-estimate",
       // And by the same bed: what is left of an estimate, inside the
       // estimate's pill. The search field is the integrations' shared one.
       ".jr-remaining",

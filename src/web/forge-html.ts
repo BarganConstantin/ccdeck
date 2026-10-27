@@ -8,8 +8,8 @@
 // whoever can write a description can put markup in it, and an instance can
 // be anyone's.
 //
-// A TOKEN TREE, NOT AN HTML STRING — the rule inline-markdown.ts set for this
-// codebase, which has no dangerouslySetInnerHTML anywhere. The browser parses
+// A TOKEN TREE, NOT AN HTML STRING — the rule for this codebase, which has no
+// dangerouslySetInnerHTML anywhere. The browser parses
 // the forge's HTML into an inert document (DOMParser runs no script and loads
 // nothing), this file walks it, and what comes out is a tree of the elements
 // on an allow-list with only their allowed attributes, which ForgeHtml.tsx

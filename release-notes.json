@@ -16,8 +16,8 @@
     "fire, anything that is invisible when it is correct.",
     "",
     "Write it for the person running the deck, not for the person reading the",
-    "diff. `title` is the sentence they scan; `body` is what they need in order",
-    "to act on it, or to stop worrying about it.",
+    "diff. `title` is the one line the deck shows them, so it has to stand on",
+    "its own; `body` is the fuller account, kept here for the release text.",
     "",
     "Keys are versions exactly as package.json spells them. A key that is not a",
     "version, or an entry missing either field, fails the suite rather than",
@@ -79,6 +79,32 @@
     "3.41.3",
     "3.43.1",
     "3.43.3"
+  ],
+  "3.48.0": [
+    {
+      "title": "🗂️ Jira: move issues between sprints and the backlog",
+      "body": "On a Scrum board ordered by Rank, drag issues or use Move to reorder them or send them to another sprint or the backlog, one at a time or up to 50 together. Browsing still only reads."
+    },
+    {
+      "title": "🔎 The Jira list is easier to scan",
+      "body": "Titles keep more room, a row's preview no longer covers the next row, the issue key shows once in the detail, and Clear filters stays in reach on a phone."
+    },
+    {
+      "title": "⌨️ ccdeck tui keeps your Claude accounts on one screen over SSH",
+      "body": "Switch accounts, turn Auto-switch on or off, and sign an account in with a link you open in any browser, all from the terminal."
+    },
+    {
+      "title": "🎮 Machine shows NVIDIA GPU readings",
+      "body": "On Linux and Windows with nvidia-smi: each GPU's utilization, video memory, temperature and power."
+    },
+    {
+      "title": "👤 Claude accounts are quieter, and an expired login has a Sign in button",
+      "body": "Telemetry is a small shield explained on hover or focus, and an account whose login expired shows Sign in on its own row."
+    },
+    {
+      "title": "🩹 Fewer page errors from browser extensions and translation",
+      "body": "The Accounts panel recovers when an extension breaks its requests, and Local network keeps working while the browser translates the page."
+    }
   ],
   "3.47.0": [
     {

@@ -2,8 +2,10 @@
 
 Issue #2178. **Mode: Operate. World: the established ccdeck instrument panel.**
 The task is to glance at the ticket behind the work an agent is doing,
-without leaving the deck. It is not a Jira client: it reads, never writes,
-and hands anything more to *Open in Jira*.
+without leaving the deck. Browsing reads only. Explicit Move actions can
+reorder up to 50 eligible issues or move them between active/future sprints
+and the backlog, using the account's Jira permissions. Other edits stay in
+*Open in Jira*; the generic integration proxy remains GET-only.
 
 Source:
 - Server: `src/server/integrations/` (core and `jira.mjs`).
@@ -50,6 +52,17 @@ has to be learned twice.
 - **Selection is the integrations' quiet selection fill** (`--ig-sel-fill`).
   No coloured edge stripes (owner, 2026-10-13). The reader's own issues ring
   their avatar, no row tint.
+- **Keep row states independent.** Ctrl/Cmd-click, Shift-click and Space manage
+  picked membership; do not add selection checkboxes (owner, 2026-10-26).
+  Jira's Task glyph remains type information.
+  The open detail keeps its row highlight and heavier key, without an extra
+  icon (owner, 2026-10-26). Explicit picks determine batch membership independently
+  of that highlight. Keyboard focus owns the full-row perimeter. Pressing a dragged
+  member must not remove the batch's selection fill.
+- **Workflow badges keep their semantic surfaces.** Jira status labels retain
+  neutral/blue/green category fills through selection and hover, separately
+  from generic metadata chips, with the same text-contrast floors. An invalid
+  selection names its blockers and can remove only blocked members.
 - **Shared controls only:**
   - `btn` and `glyph-btn`, `sm-select`, the integrations' shared search
     field, freshness line, failure note, loading rows, avatars and detail bar,
