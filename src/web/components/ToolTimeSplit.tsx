@@ -97,7 +97,7 @@ function PartsLevel({ split, lane, selected, onPick }: {
         </li>;
       })}
     </ul>
-    {asks && <p className="ta-note tt-tip">Allow a command you trust in Settings › Claude Code, and Claude stops asking for it.</p>}
+    {asks && <p className="ta-note tt-tip">Allow a command you trust with /permissions in Claude Code, and Claude stops asking for it.</p>}
   </>;
 }
 
