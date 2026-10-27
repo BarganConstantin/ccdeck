@@ -24,7 +24,6 @@ import OtherAccounts from "./OtherAccounts";
 import ShareAccountsDialog from "./ShareAccountsDialog";
 import { isAutoArmed, pastThreshold, peersOf, reachable } from "../account-fold";
 import { lanAccounts, type SharedMark } from "../account-lan";
-import { deckList } from "../../server/lan-elsewhere.mjs";
 import { laneKey } from "../lane-open";
 import {
   allOpen, holdOrder, isOpen, orderChoices, orderKey, sortAccounts, toggleAll, toggleOne, trimOpenness, validOrder,
@@ -245,28 +244,15 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // rows (#2170): from the same status, so a row and the setup dialog's ticks
   // never disagree.
   const [shared, setShared] = useState<ReadonlyMap<string, SharedMark>>(() => new Map());
-  // And which of them a paired deck is on right now, for the live row that says
-  // one login is live in two places (#2192). From the same status again.
-  const [elsewhere, setElsewhere] = useState<ReadonlyMap<string, readonly string[]>>(() => new Map());
   const lanFor = (a: Account) => {
     const key = lanAccounts([a])[0].key;
     const mark = shared.get(key);
     return {
       noCopyWorksNearby: noCopy.has(key), sharedTo: mark?.to ?? null, sharedInUse: mark?.inUse === true,
-      elsewhere: elsewhere.get(key) ?? null,
     };
   };
   const activeAcct = data?.accounts?.find(a => a.active);
   const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec, lanFor(activeAcct)) : null;
-  // A switch that took onto a login a paired deck is on, said with the switch
-  // (#2192): the live row's warning says it to the eye, and this is the region
-  // that says the switch at all to a screen reader.
-  const switchedTo = switched ? data?.accounts?.find(a => a.num === switched.num) : undefined;
-  const switchedElsewhere = switchedTo ? lanFor(switchedTo).elsewhere : null;
-  const switchedRisk = switchedElsewhere?.length
-    ? `. Also active on ${deckList(switchedElsewhere)}: when one machine renews this login, the other is signed out.`
-    : "";
-
   // ── the fold ──
   // WHO THE COLUMN DRAWS AT ONCE, and who stands behind one row. The live
   // account is the reading the panel is opened for and never folds; the others
@@ -742,7 +728,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
           appears already holding its text is one a screen reader may never
           read. */}
       <div className="vis-hidden" role="status" aria-atomic="true">
-        {switched ? `Now active: ${switched.name}` : ""}{switched ? switchedRisk : ""}
+        {switched ? `Now active: ${switched.name}` : ""}
       </div>
 
       {/* LOCAL NETWORK: A WAY IN AT THE FOOT, AND A VIEW OF ITS OWN. It is not
@@ -759,7 +745,6 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
           onChanged={() => load(true)}
           onNoCopy={takeNoCopy}
           onShared={setShared}
-          onElsewhere={setElsewhere}
           view={view === "lan"}
           onOpen={openLan}
           onBack={() => setView("accounts")}

@@ -91,14 +91,9 @@ function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
 interface Props {
   a: Account;
   nowSec: number;
-  /** What Local network knows about this account's copies on other decks, and
-   *  the paired decks this deck offers it to — null when it offers it to none —
-   *  and whether this deck is on it and so keeps it here (#2192); and the
-   *  paired decks that say they are on it right now, null when none does —
-   *  which the live row warns about (account-issue.ts elsewhereIssue). */
+  /** Whether a paired deck can restore this account and which decks share it. */
   lan?: {
     noCopyWorksNearby?: boolean; sharedTo?: readonly string[] | null; sharedInUse?: boolean;
-    elsewhere?: readonly string[] | null;
   };
   /** The reader has opened this row's detail. */
   opened: boolean;
