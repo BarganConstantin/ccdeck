@@ -271,17 +271,34 @@ export function spineLive(status: StageStatus, phase: StagePhase, streaming: boo
 // it says when the stage changed what it shows, once.
 
 /** Case C on Windows for a session this deck launched — the stage holds its
- *  launch — where the deck's "started outside the deck" would be untrue. It
- *  says why the deck may not reach it, and that it was not ended. */
+ *  launch, or the deck's record says so — where the deck's "started outside
+ *  the deck" would be untrue. It says why the deck may not reach it, and that
+ *  it was not ended. */
 export const LAUNCHED_UNREACHABLE =
   "This session was started from the Command Panel, but this deck cannot reach it: it may be running under another Windows sign-in, or its owner cannot be verified from here. It has not been ended.";
 
+/** Case C on Windows for a session the deck cannot say who started (the
+ *  target's provenance is "unknown"): neither sentence above would be known
+ *  to be true. */
+export const PROVENANCE_UNKNOWN =
+  "This deck cannot reach this session, and cannot tell whether it was started from the Command Panel: it may be running under another Windows sign-in or in a terminal outside the deck. It has not been ended.";
+
 /** Whether a card with no pane is LAUNCHED_UNREACHABLE's: case C, on Windows,
- *  for a session this deck launched. Such a card offers no Reopen here — there
- *  is nothing this deck can do across sign-ins. Without the launch, C keeps
- *  the deck's own sentence. */
+ *  for a session this deck launched — this tab's launch, or the deck's record
+ *  (`provenance: "panel"`), which outlives a reload, another tab and a deck
+ *  restart. Such a card offers no Reopen here — there is nothing this deck can
+ *  do across sign-ins. Without either, C keeps the deck's own sentence. */
 export function launchedUnreachable(target: TerminalTarget, place: { windows?: boolean; launched?: boolean }): boolean {
-  return target.kind === "C" && place.windows === true && place.launched === true;
+  return target.kind === "C" && place.windows === true && (place.launched === true || target.provenance === "panel");
+}
+
+/** Whether a card with no pane is PROVENANCE_UNKNOWN's: case C, on Windows,
+ *  not known to be this deck's launch, and the deck cannot tell whose it is.
+ *  It fails closed: no Reopen, as for a launch of this deck's. A target with
+ *  no provenance at all (an engine route that did not carry it) keeps the
+ *  deck's own sentence. */
+export function provenanceUnknown(target: TerminalTarget, place: { windows?: boolean; launched?: boolean }): boolean {
+  return target.kind === "C" && place.windows === true && !launchedUnreachable(target, place) && target.provenance === "unknown";
 }
 
 /** The sentence for arriving at `phase`, or null when there is nothing new to

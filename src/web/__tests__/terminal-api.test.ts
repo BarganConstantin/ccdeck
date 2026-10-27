@@ -104,6 +104,17 @@ describe("the requests themselves", () => {
     expect(asked[0].method).toBe("GET");
   });
 
+  it("reads a case C target's provenance when it is one of the deck's three words, and nothing else (F6-R)", async () => {
+    for (const provenance of ["panel", "external", "unknown"] as const) {
+      const { fetchFn } = answering(200, { ok: true, target: { ...STARTED_ELSEWHERE, provenance } });
+      expect(await terminalTarget(SESSION, { fetchFn })).toEqual({ ok: true, target: { ...STARTED_ELSEWHERE, provenance } });
+    }
+    for (const provenance of ["PANEL", "launched", 1, true, null, { panel: true }]) {
+      const { fetchFn } = answering(200, { ok: true, target: { ...STARTED_ELSEWHERE, provenance } });
+      expect(await terminalTarget(SESSION, { fetchFn }), JSON.stringify(provenance)).toEqual({ ok: true, target: STARTED_ELSEWHERE });
+    }
+  });
+
   it("POSTs a claim with the launch's key and the session's three fields, and reads the deck's yes or no", async () => {
     const yes = answering(200, { ok: true, claimed: true, target: ATTACHABLE });
     expect(await claimLaunch({ ...SESSION, extra: "not sent" } as SessionRef, "launch-k1", { fetchFn: yes.fetchFn }))

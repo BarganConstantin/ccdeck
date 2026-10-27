@@ -76,6 +76,12 @@ export function writesLogFor(payload) {
   return typeof sid !== "string" || sid === "" || !foreignSessions.has(sid);
 }
 
+/** Whether a hook said another deck logs session `sid` (panel-provenance.mjs:
+ *  that deck, not this one, knows whether its panel started it). */
+export function isForeignSession(sid) {
+  return typeof sid === "string" && foreignSessions.has(sid);
+}
+
 /**
  * Who else is holding the log this deck would empty, and whose it is to empty.
  *

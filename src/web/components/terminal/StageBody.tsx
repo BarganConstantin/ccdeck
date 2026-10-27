@@ -27,7 +27,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } f
 import { copyText } from "../../copy-text";
 import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
-import { LAUNCHED_UNREACHABLE, agentName, frameRun, launchedUnreachable, type FrameRun, type StagePhase } from "./stage-model";
+import { LAUNCHED_UNREACHABLE, PROVENANCE_UNKNOWN, agentName, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase } from "./stage-model";
 import { CopyGlyph, PlusGlyph, TerminalGlyph } from "./stage-icons";
 
 /** The id the empty card's New session button carries, so the popover can
@@ -150,7 +150,8 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
     case "not-attachable": {
       const { target } = phase;
       const ours = launchedUnreachable(target, p);
-      const adoptable = target.adoptable && !ours;
+      const unsure = provenanceUnknown(target, p);
+      const adoptable = target.adoptable && !ours && !unsure;
       return (
         <div className="ts-card">
           {p.context?.prompt && <div className="ts-ctx"><span className="ts-prompt">❯ </span>{p.context.prompt}</div>}
@@ -159,7 +160,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
               <i className="ts-fact-mark" data-kind={target.kind} aria-hidden="true" /><span className="ts-fact-text">{p.context.fact}</span>
             </div>
           )}
-          <p className="ts-text">{ours ? LAUNCHED_UNREACHABLE : target.label}</p>
+          <p className="ts-text">{ours ? LAUNCHED_UNREACHABLE : unsure ? PROVENANCE_UNKNOWN : target.label}</p>
           {phase.stillRunning && <p className="ts-note" role="status">{STILL_RUNNING_NOTE}</p>}
           <div className="ts-acts">
             {adoptable && (

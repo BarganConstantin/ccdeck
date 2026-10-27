@@ -115,6 +115,13 @@
         },
         "hint": {
           "type": "string"
+        },
+        "provenance": {
+          "enum": [
+            "panel",
+            "external",
+            "unknown"
+          ]
         }
       }
     }

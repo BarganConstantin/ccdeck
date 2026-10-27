@@ -88,6 +88,14 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
     return { ...initialState(), lastSeq: env.seq, seqEpoch: state.seqEpoch, revision: state.revision + 1 };
   }
 
+  // The deck's own record of what its Command Panel started (the server's
+  // panel-provenance.mjs), which the panel reads from the deck when it needs
+  // it. Not a session speaking, and nothing on the board changes.
+  if (name === "__panel_launch") {
+    state.lastSeq = env.seq;
+    return state;
+  }
+
   state.totalEvents += 1;
   state.lastSeq = env.seq;
   state.revision += 1;

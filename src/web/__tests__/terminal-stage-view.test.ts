@@ -23,7 +23,7 @@ import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE, StateCard, downloa
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
 import { POPOVER_MARGIN } from "../popover-place";
-import { LAUNCHED_UNREACHABLE, launchedUnreachable, type StagePhase, type StageStatus } from "../components/terminal/stage-model";
+import { LAUNCHED_UNREACHABLE, PROVENANCE_UNKNOWN, launchedUnreachable, provenanceUnknown, type StagePhase, type StageStatus } from "../components/terminal/stage-model";
 import { subjectKey } from "../use-terminal-session";
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
@@ -259,6 +259,62 @@ describe("the body's state cards, each at the terminal's origin", () => {
     // Only case C: a launched session that has gone is still said to be gone.
     const gone = { kind: "gone" as const, label: "This session has ended.", adoptable: true };
     expect(launchedUnreachable(gone, { windows: true, launched: true })).toBe(false);
+  });
+
+  it("after a reload, tells the three cases apart from the deck's record: its launch, outside the deck, or cannot tell (F6-R)", () => {
+    const label = "This session was started outside the deck, so there is no pane to attach to.";
+    const card = (provenance: "panel" | "external" | "unknown" | undefined, over: Record<string, unknown> = { windows: true }) => {
+      const target = { kind: "C" as const, label, adoptable: true, ...(provenance ? { provenance } : {}) };
+      const phase: StagePhase = { kind: "not-attachable", target, stillRunning: false, busy: false };
+      return { target, out: html(createElement(StateCard, bodyProps(phase, over))) };
+    };
+
+    // The tab that launched it is gone (no `launched`): the deck's record says it was the panel's.
+    const panel = card("panel");
+    expect(panel.out).toContain(LAUNCHED_UNREACHABLE);
+    expect(panel.out).not.toContain(label);
+    expect(panel.out).not.toContain("Reopen here");
+    expect(launchedUnreachable(panel.target, { windows: true })).toBe(true);
+    expect(provenanceUnknown(panel.target, { windows: true })).toBe(false);
+
+    // Genuinely outside the deck: its own sentence, and Reopen here as before.
+    const external = card("external");
+    expect(external.out).toContain(label);
+    expect(external.out).toContain("Reopen here");
+    expect(external.out).not.toContain(LAUNCHED_UNREACHABLE);
+    expect(external.out).not.toContain(PROVENANCE_UNKNOWN);
+
+    // The deck cannot tell: neither claim, nothing ended, and no Reopen here (it fails closed).
+    const unknown = card("unknown");
+    expect(unknown.out).toContain(PROVENANCE_UNKNOWN);
+    expect(PROVENANCE_UNKNOWN).toBe("This deck cannot reach this session, and cannot tell whether it was started from the Command Panel: it may be running under another Windows sign-in or in a terminal outside the deck. It has not been ended.");
+    expect(unknown.out).not.toContain(label);
+    expect(unknown.out).not.toContain(LAUNCHED_UNREACHABLE);
+    expect(unknown.out).not.toContain("Reopen here");
+    expect(unknown.out).not.toMatch(/has ended/);
+    expect(provenanceUnknown(unknown.target, { windows: true })).toBe(true);
+
+    // This tab's own launch outranks a record that cannot tell.
+    const launchedHere = card("unknown", { windows: true, launched: true });
+    expect(launchedHere.out).toContain(LAUNCHED_UNREACHABLE);
+    expect(provenanceUnknown(launchedHere.target, { windows: true, launched: true })).toBe(false);
+
+    // Off Windows the deck's own sentence stands whatever the record says; and a
+    // target with no provenance (an older answer) reads as before.
+    for (const provenance of ["panel", "external", "unknown", undefined] as const) {
+      const off = card(provenance, {});
+      expect(off.out, String(provenance)).toContain(label);
+      expect(off.out, String(provenance)).toContain("Reopen here");
+    }
+    expect(card(undefined).out).toContain(label);
+    expect(card(undefined).out).toContain("Reopen here");
+
+    // Only case C.
+    for (const provenance of ["panel", "unknown"] as const) {
+      const gone = { kind: "gone" as const, label: "This session has ended.", adoptable: true, provenance };
+      expect(launchedUnreachable(gone, { windows: true })).toBe(false);
+      expect(provenanceUnknown(gone, { windows: true })).toBe(false);
+    }
   });
 
   it("states tmux missing as a fact with the line that installs it, and checks again on request", () => {

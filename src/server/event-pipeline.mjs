@@ -10,6 +10,7 @@
 // module loads; index.mjs's routes import it from here. The bodies are
 // unchanged.
 import { noteToolAudit } from "./tool-audit.mjs";
+import { panelProvenance } from "./panel-provenance.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { createBlockNotifier } from "./block-notify.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
@@ -129,6 +130,9 @@ export function pushEvent(raw, source, opts = {}) {
   const evt = admitEvent(raw, source, opts.receivedAt ?? Date.now());
   const seq = evt.seq;
   noteToolAudit(raw, source, opts);
+  // Which sessions the Command Panel started, read off the same stream: its own
+  // records, and the starts and ends it weighs them against (panel-provenance.mjs).
+  panelProvenance.observe(raw, source, evt.receivedAt, opts);
 
   // Does this event reach the log at all? Not on a replay (it came from
   // there), not when the hook told us another deck owns this session's log,

@@ -46,6 +46,7 @@ import { PRODUCT } from "./brand.mjs";
 import { commandPanel } from "./command-panel-engine.mjs";
 import { terminalOn } from "./deck-prefs.mjs";
 import { readBody, send } from "./http-io.mjs";
+import { panelProvenance, withProvenance } from "./panel-provenance.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { engineRefusal } from "./pro-engine-terminal.mjs";
 import { createTicketStore } from "./terminal-socket.mjs";
@@ -76,12 +77,18 @@ const TICKETS = createTicketStore();
  * tmux of its own — the parity oracle the engine is checked against. Nothing
  * the deck runs imports it, so no setting, variable, flag or request can turn
  * it on; when it is there, it answers in the engine's place.
+ *
+ * `provenance` is the deck's record of the sessions its panel started
+ * (panel-provenance.mjs): told of each launch, adopt and claim the engine
+ * answers, and asked for the provenance a case C target carries. Never asked
+ * whether anything may be done.
  */
 export function terminalDeps(overrides = {}) {
   return {
     enabled: () => terminalOn(heldPrefs.current()),
     tickets: TICKETS,
     engine: commandPanel,
+    provenance: panelProvenance,
     jsBackend: null,
     ...(overrides ?? {}),
   };
@@ -176,6 +183,8 @@ async function posted(req, res, options, method) {
 
 /** The routes that only ask: answered after the switch-off, they changed nothing. */
 const READS = new Set(["status", "target", "hosts"]);
+/** The routes that start an agent: the deck notes each before the engine is asked. */
+const LAUNCHES = new Set(["launch", "adopt"]);
 
 /** The answer index.mjs gives an /api path with no route, byte for byte. */
 function notFound(res) {
@@ -247,12 +256,18 @@ async function answer(d, req, res, method, question) {
     }
     return d.jsBackend[method](req, res, question, d);
   }
-  const said = d.engine?.enabled === true ? await d.engine.route(method, question) : engineRefusal("not-installed");
+  // A launch or an adopt is noted before the engine is asked, so that one it ran and never answered (the
+  // deck stopped in between) leaves its session "unknown" rather than "external" (panel-provenance.mjs).
+  const engineOn = d.engine?.enabled === true;
+  const ref = engineOn && d.provenance && LAUNCHES.has(method) ? d.provenance.started(method, question) : null;
+  const said = engineOn ? await d.engine.route(method, question) : engineRefusal("not-installed");
   if (said.log) console.error(`${PRODUCT}: terminal: ${said.log}`);
+  // What the engine did, it did whatever the switch now says: noted before the switch is asked again.
+  d.provenance?.answered(method, question, ref, said.status, said.body);
   // And once more, now that the engine has answered: a question asked while on can be answered after the
   // switch-off, since the engine is stopped only once it has answered (command-panel-engine.mjs).
   if (!d.enabled()) return answeredAfterOff(res, method, said);
-  let out = said.body;
+  let out = withProvenance(d.provenance, question, said.body);
   if (said.handle) {
     const origin = typeof req?.headers?.origin === "string" ? req.headers.origin.trim().toLowerCase() : "";
     out = { ...out, ticket: d.tickets.mint({ handle: said.handle, ...(origin ? { origin } : {}) }) };

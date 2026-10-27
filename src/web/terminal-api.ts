@@ -108,11 +108,17 @@ export interface TerminalStatus {
  *  it shows, and whether a "Reopen here" is on offer. */
 export type TerminalTargetKind = "A" | "B" | "C" | "D" | "gone" | "unsupported";
 
+/** Who started a case C session, as the deck recorded it (the server's
+ *  panel-provenance.mjs): its Command Panel, something outside the deck, or
+ *  the deck cannot tell. */
+export type TerminalProvenance = "panel" | "external" | "unknown";
+
 export interface TerminalTarget {
   kind: TerminalTargetKind;
   label: string;
   adoptable?: boolean;
   reason?: string;
+  provenance?: TerminalProvenance;
 }
 
 /** A session on the board, as the routes that act on one want it named. */
@@ -276,6 +282,7 @@ function targetOf(v: unknown): TerminalTarget | null {
   const out: TerminalTarget = { kind: v.kind as TerminalTargetKind, label: v.label };
   if (typeof v.adoptable === "boolean") out.adoptable = v.adoptable;
   if (typeof v.reason === "string") out.reason = v.reason;
+  if (v.provenance === "panel" || v.provenance === "external" || v.provenance === "unknown") out.provenance = v.provenance;
   return out;
 }
 
