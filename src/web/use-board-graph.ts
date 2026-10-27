@@ -73,7 +73,7 @@ export function useBoardGraph({
   dragPatchRef: MutableRefObject<Map<string, { x: number; y: number }> | null>;
   dragMoveTick: number;
 }) {
-  const { pinnedRef, positionsRef, provisionalRef, lastLayoutSigRef, restoredLayout, layoutEpoch } = layout;
+  const { pinnedRef, positionsRef, provisionalRef, returningRef, lastLayoutSigRef, restoredLayout, layoutEpoch } = layout;
 
   // Union spotlight set — lineage of every selected agent merged. Multi-
   // select widens the spotlight without losing the "follow the chain"
@@ -120,7 +120,7 @@ export function useBoardGraph({
       measuredRef.current, prevSessionSizeRef.current, onBubble, settled, dragging,
       positionsRef.current, provisionalRef.current, layoutSig, lastLayoutSigRef,
       selectedIds, spotlightSet, visibleAgentIds, openContext, historyReplayed,
-      restoredLayout.restored,
+      restoredLayout.restored, returningRef.current,
       );
       return visibleBoard(flow.nodes, flow.edges, removedNodes);
     },
