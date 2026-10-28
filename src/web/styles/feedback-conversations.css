@@ -17,7 +17,12 @@
    ever amber; the dot is the accent and a count is the chrome's grey. */
 
 .modal.feedback-dialog[data-account] { height: min(600px, 82vh); }
+/* The room the form does not need goes to the message, which is the one big
+   thing on it: the field grows to fill the body, and gives the room back,
+   down to its own floor, when the details unfold under it. */
 .feedback-dialog[data-account] .modal-body.fb-body { flex: 1 1 auto; }
+.feedback-dialog[data-account] .fb-compose { flex: 1 1 auto; }
+.feedback-dialog[data-account] .ap-manage-input.fb-message { flex: 1 1 auto; max-height: none; }
 
 /* THE TABS, under the header's rule: words in the resting grey, the chosen
    one in the text colour over the accent's underline. */
