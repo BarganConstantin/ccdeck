@@ -22,6 +22,11 @@
 // are not: a screenshot can be megabytes and the storage holds a few. A draft
 // brought back by a reload knows how many images it had, and the dialog says,
 // in one quiet line, that they have to be added again.
+//
+// WHO IT GOES AS IS PART OF THE DRAFT. With a ccdeck account connected, the
+// dialog's Send without my account is kept with the words, so a draft opened
+// again never changes who it is sent as. Ticking it alone is no more a draft
+// than picking a kind.
 import { BODY_MAX, CONTACT_MAX, KINDS, type FeedbackPrefill, type Kind } from "./feedback";
 import { MAX_IMAGES } from "./feedback-images";
 import type { KeptImages } from "./use-feedback-images";
@@ -41,8 +46,9 @@ export function draftKey(seed: FeedbackSeed): string {
   return JSON.stringify([seed.kind, seed.body]);
 }
 
-/** Everything a dialog holds that a draft keeps. */
-export interface DraftContent { kind: Kind; body: string; contact: string; images: KeptImages }
+/** Everything a dialog holds that a draft keeps. `anonymous` is Send without
+ *  my account, ticked; absent on a draft written before there was one. */
+export interface DraftContent { kind: Kind; body: string; contact: string; images: KeptImages; anonymous?: boolean }
 
 /** A draft handed back to a dialog that opens. */
 export interface KeptDraft extends DraftContent {
@@ -76,13 +82,15 @@ interface Entry {
   kind: Kind;
   body: string;
   contact: string;
+  anonymous: boolean;
   /** Null for a draft read back after a reload, whose images stayed behind. */
   images: KeptImages | null;
   imageCount: number;
 }
 
-/** What sessionStorage holds for one draft: the words and how many images. */
-interface Stored { kind: Kind; body: string; contact: string; images: number }
+/** What sessionStorage holds for one draft: the words, how many images, and
+ *  whether it goes without the account. */
+interface Stored { kind: Kind; body: string; contact: string; images: number; anonymous?: boolean }
 
 const NO_IMAGES: KeptImages = { ready: [], waiting: [] };
 
@@ -92,12 +100,13 @@ export function parseStoredDraft(item: unknown): [string, Stored] | null {
   if (!Array.isArray(item) || item.length !== 2 || typeof item[0] !== "string") return null;
   const value = item[1] as Partial<Stored> | null;
   if (!value || typeof value !== "object") return null;
-  const { kind, body, contact, images } = value;
+  const { kind, body, contact, images, anonymous } = value;
   if (!KINDS.some(k => k.value === kind)) return null;
   if (typeof body !== "string" || body.length > BODY_MAX) return null;
   if (typeof contact !== "string" || contact.length > CONTACT_MAX) return null;
   if (typeof images !== "number" || !Number.isInteger(images) || images < 0 || images > MAX_IMAGES) return null;
-  return [item[0], { kind: kind as Kind, body, contact, images }];
+  if (anonymous !== undefined && typeof anonymous !== "boolean") return null;
+  return [item[0], { kind: kind as Kind, body, contact, images, ...(anonymous ? { anonymous } : {}) }];
 }
 
 export interface DraftStore {
@@ -122,7 +131,7 @@ export function createDraftStore(storage: () => Storage | null): DraftStore {
       if (Array.isArray(list)) {
         for (const item of list.slice(-MAX_DRAFTS)) {
           const parsed = parseStoredDraft(item);
-          if (parsed) entries.set(parsed[0], { ...parsed[1], images: null, imageCount: parsed[1].images });
+          if (parsed) entries.set(parsed[0], { ...parsed[1], anonymous: parsed[1].anonymous === true, images: null, imageCount: parsed[1].images });
         }
       }
     } catch {}
@@ -134,7 +143,7 @@ export function createDraftStore(storage: () => Storage | null): DraftStore {
       const target = storage();
       if (!target) return;
       const list = [...all()].map(([key, e]): [string, Stored] =>
-        [key, { kind: e.kind, body: e.body, contact: e.contact, images: e.imageCount }]);
+        [key, { kind: e.kind, body: e.body, contact: e.contact, images: e.imageCount, ...(e.anonymous ? { anonymous: true } : {}) }]);
       if (list.length === 0) target.removeItem(DRAFTS_STORAGE_KEY);
       else target.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(list));
     } catch {}
@@ -150,6 +159,7 @@ export function createDraftStore(storage: () => Storage | null): DraftStore {
       if (!e) return null;
       return {
         kind: e.kind, body: e.body, contact: e.contact,
+        ...(e.anonymous ? { anonymous: true } : {}),
         images: e.images ?? NO_IMAGES,
         imagesLost: e.images ? 0 : e.imageCount,
       };
@@ -162,7 +172,10 @@ export function createDraftStore(storage: () => Storage | null): DraftStore {
       }
       const map = all();
       map.delete(key);
-      map.set(key, { kind: draft.kind, body: draft.body, contact: draft.contact, images: draft.images, imageCount: count });
+      map.set(key, {
+        kind: draft.kind, body: draft.body, contact: draft.contact, anonymous: draft.anonymous === true,
+        images: draft.images, imageCount: count,
+      });
       for (const oldest of map.keys()) {
         if (map.size <= MAX_DRAFTS) break;
         map.delete(oldest);

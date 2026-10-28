@@ -151,6 +151,7 @@ export default function DeckDialogs({
         <FeedbackDialog
           initialKind={feedbackPrefill?.initialKind}
           initialBody={feedbackPrefill?.initialBody}
+          initialTab={feedbackPrefill?.initialTab}
           onClose={() => { setFeedbackOpen(false); setFeedbackPrefill(null); }}
         />
       )}

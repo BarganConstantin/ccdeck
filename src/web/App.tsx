@@ -47,6 +47,7 @@ import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { railItems } from "./rail-items";
+import { unreadOf, useFeedbackAccount } from "./feedback-unread";
 // The modal and its panels load on demand; this is the light wrapper that
 // fetches them (IntegrationModalOnDemand.tsx).
 import IntegrationModal, { preloadIntegrationModal } from "./components/IntegrationModalOnDemand";
@@ -723,6 +724,10 @@ function Inner() {
   // components/AccountCapacityDialog.tsx.
   const [capacityView, setCapacityView] = useState<CapacityView | null>(null);
   const closeCapacity = useCallback(() => setCapacityView(null), []);
+  // A ccdeck account's unread conversations, for Feedback's dot: none, and
+  // nothing drawn, unless the account's own chunk has published an account.
+  const feedbackUnread = unreadOf(useFeedbackAccount());
+  const openFeedbackConversations = useCallback(() => dialogs.openFeedback({ initialTab: "conversations" }), [dialogs.openFeedback]);
   const rails = railItems({
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
     usagePanelOpen: usageRail.shown, setUsagePanelOpen: usageRail.set,
@@ -735,6 +740,7 @@ function Inner() {
     integrations: connectedKinds.map(provider => ({ provider, onPress: () => setIntegrationOpen(provider.kind) })),
     openExploreIntegrations: () => setExploreIntegrationsOpen(true),
     openQuickOpen,
+    feedbackUnread, openFeedbackConversations,
   });
   // How many of the waiting sessions the topbar names, for the count's hint,
   // which lists the rest.

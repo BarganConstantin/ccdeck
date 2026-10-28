@@ -57,6 +57,22 @@ export interface AccountView {
   sync: SyncView | null;
   revokedReason: string | null;
   problem: string | null;
+  /** The account's feedback conversations at a glance, from the last status
+   *  frame: null before the first one and whenever not connected. */
+  feedback?: { unread: number; latestAt: string | null } | null;
+}
+
+/** What the feedback doors are told about the account (feedback-unread.ts):
+ *  whether a send can go as it, as whom, and what is unread. */
+export function feedbackAccountOf(view: AccountView | null): { connected: boolean; email: string | null; unread: number; latestAt: string | null } | null {
+  if (!view) return null;
+  const connected = view.state === "connected";
+  return {
+    connected,
+    email: connected ? view.account?.email ?? null : null,
+    unread: connected ? view.feedback?.unread ?? 0 : 0,
+    latestAt: connected ? view.feedback?.latestAt ?? null : null,
+  };
 }
 
 /** The setter that puts one setting on screen, by schema key. */

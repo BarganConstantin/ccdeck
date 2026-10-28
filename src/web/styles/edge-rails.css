@@ -170,6 +170,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Something unread with no number to draw: a ccdeck account's conversation
+   with a reply, on Feedback and on the dock's More. A 6px disc on the glyph's
+   corner, where a badge would sit, in the accent: --muted would vanish on the
+   resting grey glyph, and amber is the waiting count's alone. */
+.rail-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: none;
+}
+
 .rail-btn-stripe .rail-badge {
   position: absolute;
   top: -2px;
@@ -192,6 +205,9 @@
   gap: 6px;
   padding: 0 10px;
 }
+/* The bar's glyph starts 10px in: its top right corner is where the dot sits. */
+.rail-btn-bar .rail-dot { top: calc(50% - 9px); left: 21px; }
+.rail-btn-stripe .rail-dot { top: 5px; right: 6px; }
 
 /* ── the phone: one dock along the bottom ────────────────────────────────── */
 /* Under 641px the stripes would take 80px of a 390px screen, so the four
@@ -243,6 +259,7 @@
     top: 4px;
     left: calc(50% + 4px);
   }
+  .rail-btn-dock .rail-dot { top: 8px; left: calc(50% + 5px); }
   /* Open is the same line, on the dock's top edge, the seam it shares with
      the panel above it. */
   .rail-btn-dock::before {

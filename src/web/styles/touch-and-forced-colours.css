@@ -31,6 +31,10 @@
   .fb-kind,
   .fb-tool,
   .fb-foot .btn { min-height: 32px; }
+  /* With an account, its two tabs and Send without my account take the same
+     floor; a conversation's rows are already taller than it. */
+  .fc-tab,
+  .fc-anon { min-height: 32px; }
   .fb-shot > .fb-shot-remove::after { inset: -6px; }
   /* The canvas strips' one word each, Resume and Re-arrange's Undo, take the
      floor too, and Undo drops the chord it names: a fingertip has no key to
@@ -236,6 +240,12 @@
   /* The count keeps its bubble, so the digits stay a badge on the corner
      rather than a stray number over the button's edge. */
   .rail-badge { forced-color-adjust: none; background: CanvasText; color: Canvas; }
+  /* The dot for an unread conversation, the grey count beside it on the tab,
+     the chosen tab's underline and an unread row's dot: fills the theme would
+     paint over, redrawn as something live (the dots, the underline) and as a
+     count the text colour carries. */
+  .rail-dot, .fc-dot, .fc-tab[aria-selected="true"]::after { forced-color-adjust: none; background: Highlight; }
+  .fc-tab-count { forced-color-adjust: none; background: CanvasText; color: Canvas; }
 
   .sysdetail .sd-fill,
   .sysdetail .sd-core-fill,

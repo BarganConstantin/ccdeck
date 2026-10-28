@@ -186,6 +186,21 @@ describe("the account routes on a deck with the account switched off", () => {
   });
 });
 
+describe("the page's half, with the account off", () => {
+  it("keeps the main bundle's feedback store free of the account", async () => {
+    // The Feedback button's dot and the dialog's tabs read feedback-unread.ts,
+    // which is in the bundle every deck loads: it may import nothing of the
+    // account's, or the chunk would be fetched with the account off.
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+    for (const file of ["../feedback-unread.ts", "../components/FeedbackTabs.tsx"]) {
+      const imports = [...read(file).matchAll(/^import[^"]*"([^"]+)"/gm)].map(m => m[1]);
+      expect(imports.filter(i => /account|use-feedback-conversations|feedback-conversations|FeedbackThread/.test(i)), file).toEqual([]);
+    }
+  });
+});
+
 describe("accountOn", () => {
   it("is off by default", () => {
     expect(prefs.DEFAULTS.account).toBe(false);

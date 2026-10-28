@@ -17,11 +17,18 @@ export type Kind = "bug" | "idea" | "other";
 
 /** How a caller seeds the dialog — the error boundary opens it as a filled-in
  *  bug, the account popover as the issue it explains. Absent fields keep the
- *  empty defaults, so an unseeded open is exactly what it always was. */
+ *  empty defaults, so an unseeded open is exactly what it always was.
+ *  `initialTab` is the one door that opens on Your conversations: the topbar's
+ *  Feedback pressed while it shows the dot. It is not part of a seed, so it
+ *  never picks a draft. */
 export interface FeedbackPrefill {
   initialKind?: Kind;
   initialBody?: string;
+  initialTab?: FeedbackTab;
 }
+
+/** The connected dialog's two tabs (components/FeedbackTabs.tsx). */
+export type FeedbackTab = "write" | "conversations";
 
 /** Everything the form says that depends on the kind chosen. */
 export interface KindCopy {
@@ -102,7 +109,7 @@ function clipTitle(text: string): string {
   return `${cut.replace(/[\uD800-\uDBFF]$/, "").replace(/[\s,;:.\-–—]+$/, "")}…`;
 }
 
-export interface FeedbackDraft { kind: Kind; body: string; contact: string }
+export interface FeedbackDraft { kind: Kind; body: string; contact: string; anonymous?: boolean }
 export interface FeedbackFields { kind: Kind; title: string; body: string; contact?: string }
 
 /** What the page posts, from what was typed: the title worked out, both texts
@@ -165,6 +172,66 @@ export const WHERE_IT_GOES = [
   "Nothing becomes public by being sent. They may open a public GitHub issue from it, choosing its title and text; your contact and screenshots are never put on one.",
 ] as const;
 
+// ── sent as the ccdeck account ───────────────────────────────────────────────
+//
+// With a ccdeck account connected, what is written goes as the account and
+// starts a conversation the people who make ccdeck answer — in the dialog's
+// second tab and by email. The anonymous path stays exactly as above, one
+// tick away: Send without my account.
+
+export const ACCOUNT_DIALOG_TITLE = "Feedback";
+export const WRITE_TAB = "Write";
+export const CONVERSATIONS_TAB = "Your conversations";
+export const SEND_WITHOUT_ACCOUNT = "Send without my account";
+
+/** Who it goes as, under the message. The address once the deck has said. */
+export function accountSentAs(email: string | null): string {
+  return email
+    ? `Sent as ${email} — you'll get replies here and by email`
+    : "Sent from your ccdeck account — you'll get replies here and by email";
+}
+
+/** WHERE_IT_GOES for a send as the account: no contact to keep off an issue,
+ *  and the account's email never put on one. */
+export const WHERE_IT_GOES_ACCOUNT = [
+  "It goes to the people who make ccdeck from your account, with the version and system below. They reply here and by email.",
+  "Nothing becomes public by being sent. They may open a public GitHub issue from it, choosing its title and text; your email and screenshots are never put on one.",
+] as const;
+
+/** The thanks once a conversation has started. */
+export const SENT_LINE_ACCOUNT = "Sent — replies will show in Your conversations and by email.";
+
+/** The account's conversations could not be reached; the anonymous path is
+ *  still there, and nothing typed was lost. */
+export const ACCOUNT_UNAVAILABLE = "Your account's conversations can't be reached right now. Try again, or tick Send without my account; your text is still here.";
+
+/** `HH:mm` in the reader's own clock. */
+export function clockTime(at: Date, timeZone?: string): string {
+  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone }).format(at);
+}
+
+/** A daily limit reached: which, how many, and when it opens again. */
+export function limitLine(kind: "conversations" | "replies", limit: number, at: Date, timeZone?: string): string {
+  const what = kind === "conversations" ? "new conversations" : "replies";
+  return `You've reached today's limit of ${limit} ${what}. You can try again at ${clockTime(at, timeZone)}; your text is still here.`;
+}
+
+/** What a refusal from the account's routes (ccdeck-account-routes.mjs) means
+ *  for somebody starting a conversation. The image and size refusals read as
+ *  they do anonymously; a limit says when to come back. */
+export function accountFailure(
+  status: number,
+  answer: { reason?: unknown; errors?: unknown; limit?: unknown; retryAfterSec?: unknown } | null | undefined,
+  now = Date.now(),
+): string {
+  const reason = answer?.reason;
+  if (reason === "too_many" && Number.isInteger(answer?.limit) && Number.isInteger(answer?.retryAfterSec)) {
+    return limitLine("conversations", answer!.limit as number, new Date(now + (answer!.retryAfterSec as number) * 1000));
+  }
+  if (reason === "invalid" || reason === "too_large") return feedbackFailure(status, reason, answer?.errors);
+  return ACCOUNT_UNAVAILABLE;
+}
+
 // ── the keyboard ─────────────────────────────────────────────────────────────
 
 /** The keystroke fields a shortcut is read from. Structural, so a test can pass
@@ -215,6 +282,8 @@ export type Outcome =
 
 /** What the dialog shows, and says, once a report has arrived. */
 export const SENT_LINE = "Thanks — feedback sent.";
+/** The thanks for how it went: as the account, or as before. */
+export const sentLine = (asAccount: boolean) => (asAccount ? SENT_LINE_ACCOUNT : SENT_LINE);
 
 /** What the server's answer means for the person who pressed Send. `errors` is
  *  a 400's, keyed by field; an image's is quoted, since it names which one. */
@@ -235,9 +304,9 @@ export function feedbackFailure(status: number, reason: unknown, errors?: unknow
 
 /** What the dialog's live region says for each outcome. The region is drawn from
  *  the first render, so the change is what a screen reader hears. */
-export function outcomeAnnouncement(outcome: Outcome["state"]): string {
+export function outcomeAnnouncement(outcome: Outcome["state"], asAccount = false): string {
   if (outcome === "sending") return "Sending…";
-  if (outcome === "sent") return SENT_LINE;
+  if (outcome === "sent") return sentLine(asAccount);
   return "";
 }
 

@@ -29,7 +29,7 @@ export function useKeepDraft(
     if (!now || now.sent) return;
     feedbackDrafts.keep(now.key, { ...now.words, images: now.images.kept() }, now.seed);
   }, []);
-  useEffect(keep, [keep, words.kind, words.body, words.contact, images.shots]);
+  useEffect(keep, [keep, words.kind, words.body, words.contact, words.anonymous, images.shots]);
   useEffect(() => keep, [keep]);
   useEffect(() => {
     if (sent) feedbackDrafts.forget(key);

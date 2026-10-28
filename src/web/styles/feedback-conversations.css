@@ -1,0 +1,361 @@
+/* ---------------- feedback conversations ----------------
+   The feedback dialog with a ccdeck account connected (FeedbackTabs.tsx): two
+   tabs under the one header — Write, the form dialogs.css draws, and Your
+   conversations — and what Write adds, who it goes as and the way to send it
+   without the account. Then the conversations themselves: a list of rows,
+   and one thread drawn as a conversation, the person's messages on the right,
+   the team's on the left under the signature they were sent with, events as
+   quiet centred lines, a divider for each day and the composer at the foot.
+
+   ONE SIZE FOR BOTH TABS. With views to switch between the dialog does not
+   resize as they change (tokens.css, "One dialog frame"): it takes a fixed
+   height while the account is on, and the Write tab's body takes the room
+   the form does not need, so Send stays at the foot.
+
+   Metadata stays metadata: times, previews, signatures and event lines are
+   the muted tier, what somebody wrote is the text tier. Nothing unread is
+   ever amber; the dot is the accent and a count is the chrome's grey. */
+
+.modal.feedback-dialog[data-account] { height: min(600px, 82vh); }
+.feedback-dialog[data-account] .modal-body.fb-body { flex: 1 1 auto; }
+
+/* THE TABS, under the header's rule: words in the resting grey, the chosen
+   one in the text colour over the accent's underline. */
+.fc-tabs {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+.fc-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  cursor: pointer;
+  transition: color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fc-tab:hover,
+.fc-tab[aria-selected="true"] { color: var(--text); }
+.fc-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+.fc-tab:active { transform: scale(0.97); }
+/* The grey count of conversations with an unread reply, the edge badge's. */
+.fc-tab-count {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--bg);
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-weight: 700;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* Each panel passes the dialog's height down, so a long list or a thread
+   scrolls inside it; the one not shown is out. */
+.fc-panel { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.fc-panel[hidden] { display: none; }
+
+/* WHAT WRITE ADDS, under its two quiet buttons: the way to send it without the
+   account, then who it goes as, at the annotation tier like the facts line. */
+.fc-account { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.fc-anon {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fc-anon:active { transform: scale(0.97); }
+.fc-anon input { flex: none; margin: 0; accent-color: var(--accent); }
+.fc-sent-as {
+  margin: 0;
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  overflow-wrap: anywhere;
+}
+
+/* THE LIST: rows flush in a column, each a button with the title and when on
+   its first line and the status, what was said last and the unread dot on its
+   second. A fill under the pointer, no edge. */
+.fc-list-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-height: 0;
+  padding: 10px 10px 16px;
+  overflow: auto;
+}
+/* A grid of one column, so each row's button fills the width it is given. */
+.fc-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.fc-list > li { display: grid; min-width: 0; }
+.fc-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fc-row:hover { background: var(--ctl-fill); }
+.fc-row:active { transform: scale(0.97); }
+.fc-row-head,
+.fc-row-foot { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.fc-row-head { justify-content: space-between; gap: 12px; }
+.fc-row-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fc-row-time {
+  flex: none;
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-variant-numeric: tabular-nums;
+}
+.fc-row-preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fc-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.fc-more,
+.fc-earlier { align-self: center; }
+/* An empty list, a loading line, what could not be reached: a sentence and,
+   where it helps, the one button that tries again. */
+.fc-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+.fc-missing { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 6px; }
+
+/* A STATUS, as the API labels it: a pill toned by its code, so the colour and
+   the word agree. */
+.fc-pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ctl-fill);
+  color: var(--text);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  white-space: nowrap;
+}
+.fc-pill[data-tone="progress"] { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.fc-pill[data-tone="done"] { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.fc-pill[data-tone="closed"] { color: var(--muted); }
+
+/* ONE THREAD: its head, the timeline that scrolls, the composer at the foot. */
+.fc-thread { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.fc-thread-head {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 16px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.fc-back { margin-left: -6px; }
+.fc-thread-title {
+  margin: 0;
+  color: var(--text);
+  font-size: calc(14px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  overflow-wrap: anywhere;
+}
+.fc-thread-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0;
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+.fc-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+.fc-timeline {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px 16px;
+  overflow: auto;
+}
+.fc-day {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+.fc-day::before,
+.fc-day::after { content: ""; flex: 1 1 0; height: 1px; background: var(--line); }
+
+/* A run: one side's messages close together, the signature over the first
+   of the team's, the time under the last. The person's own run sits on the
+   right in the accent's tint; the team's on the left in the control fill. */
+.fc-run {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  align-self: flex-start;
+  gap: 4px;
+  max-width: 85%;
+  min-width: 0;
+}
+.fc-run[data-side="user"] { align-items: flex-end; align-self: flex-end; }
+.fc-signature {
+  margin: 0;
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+.fc-message { display: flex; flex-direction: column; align-items: inherit; gap: 4px; max-width: 100%; }
+.fc-bubble {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--ctl-fill);
+  color: var(--text);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.fc-run[data-side="user"] .fc-bubble { background: color-mix(in srgb, var(--accent) 16%, var(--panel)); }
+/* A link in what somebody wrote is the words' own colour, underlined: on the
+   tinted bubble the accent would be the accent on the accent. */
+.fc-bubble .fc-link { color: inherit; }
+.fc-images { padding: 0 2px; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.fc-time {
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-variant-numeric: tabular-nums;
+}
+/* An event — a status, an issue, a release, a type this deck has never heard
+   of — as a quiet line across the middle, the API's own words. */
+.fc-event {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin: 0;
+  padding: 0 24px;
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.fc-event .fc-time { padding: 0; }
+
+/* THE COMPOSER: the shared text field, growing with what is typed to six
+   lines and then scrolling, and Send reply beside it, both on the foot's
+   line; what went wrong under them. */
+.fc-composer {
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 16px 16px;
+  border-top: 1px solid var(--line);
+}
+.ap-manage-input.fc-reply {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 32px;
+  max-height: calc(6 * 1.5 * (13px + var(--ui-text-increase, 0px)) + 14px);
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 1.5;
+  resize: none;
+  field-sizing: content;
+}
+.fc-send { flex: none; }
+.fc-send[aria-busy="true"] .fb-send-idle { visibility: hidden; }
+.fc-send[aria-busy="true"] .fb-send-busy { visibility: visible; }
+.fc-reply-error { padding: 0 16px 12px; }
+
+@media (max-width: 520px) {
+  /* A phone's width: the run takes more of it, and the composer's button
+     keeps its word. */
+  .fc-run { max-width: 92%; }
+  .fc-event { padding: 0 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The press stays a state change and stops being a movement. */
+  .fc-tab:active,
+  .fc-row:active,
+  .fc-anon:active { transform: none; }
+}

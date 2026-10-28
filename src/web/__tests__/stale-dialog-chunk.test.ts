@@ -22,8 +22,13 @@ vi.mock("../components/UsageHistoryModal", () => {
 vi.mock("../components/BrowserWatchModal", () => {
   throw new TypeError("Failed to fetch dynamically imported module: /assets/BrowserWatchModal-OLDHASH.js");
 });
+// And the feedback dialog's Your conversations, a chunk of the account's own.
+vi.mock("../components/FeedbackConversations", () => {
+  throw new TypeError("Failed to fetch dynamically imported module: /assets/FeedbackConversations-OLDHASH.js");
+});
 
 import DeckDialogs from "../components/DeckDialogs";
+import { CONVERSATIONS_DID_NOT_LOAD, ConversationsPanel, FeedbackConversations } from "../components/FeedbackTabs";
 
 function fakeRes() {
   const r: { status?: number; headers?: Record<string, unknown>; body?: string } = {};
@@ -136,4 +141,27 @@ describe("a dialog whose chunk does not arrive", () => {
       expect(html).toMatch(/>Close</);
     });
   }
+});
+
+describe("Your conversations, when its chunk does not arrive", () => {
+  beforeEach(() => { vi.spyOn(console, "warn").mockImplementation(() => {}); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it("says so in the tab, with the reload, and leaves the dialog and the deck up", async () => {
+    // Not the crash pane: the import's failure settles on the note instead of
+    // being rethrown into the boundary round the whole deck.
+    const Shown = await settle(FeedbackConversations as unknown as Lazy);
+    const html = renderToStaticMarkup(createElement(Shown, {}));
+    expect(CONVERSATIONS_DID_NOT_LOAD).toBe("Couldn't load your conversations. Reload the deck.");
+    expect(html).toContain("Couldn&#x27;t load your conversations. Reload the deck.");
+    expect(html).toMatch(/>Reload</);
+    expect(html).not.toContain('role="dialog"');
+  });
+
+  it("is drawn inside a boundary of its own, which says the same if the panel throws", () => {
+    const panel = ConversationsPanel({ account: { connected: true, email: null, unread: 0, latestAt: null }, active: true, announce: () => {} }) as ReactElement<{ children: ReactElement }>;
+    expect((panel.type as { name?: string }).name).toBe("ConversationsBoundary");
+    const Boundary = panel.type as unknown as { getDerivedStateFromError(): { failed: boolean } };
+    expect(Boundary.getDerivedStateFromError()).toEqual({ failed: true });
+  });
 });

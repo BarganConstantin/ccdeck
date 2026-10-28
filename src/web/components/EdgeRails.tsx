@@ -73,6 +73,10 @@ export interface RailItem {
   buttonRef?: RefObject<HTMLButtonElement>;
   /** Unread findings, drawn in the chrome's resting grey: never amber. */
   badge?: number;
+  /** Something unread with no number worth drawing — a ccdeck account's
+   *  conversation with a reply: a small accent dot where the badge sits,
+   *  never amber. Its count is in the item's name and `detail`. */
+  dot?: boolean;
   /** The name of the run of doors this one stands in on a stripe, said once on
    *  the way into it (rail-items.tsx). */
   group?: string;
@@ -180,6 +184,7 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
       {item.glyph}
       {variant !== "stripe" && <span className="rail-word">{variant === "dock" ? item.short : item.label}</span>}
       {item.badge != null && item.badge > 0 && <span className="rail-badge" aria-hidden>{item.badge}</span>}
+      {item.dot && !(item.badge != null && item.badge > 0) && <span className="rail-dot" aria-hidden />}
     </button>
   );
 }
@@ -235,6 +240,8 @@ function DockMore({ items, tabbable, onFocusIndex, index }: {
   const [menu, setMenu] = useState<"first" | "last" | null>(null);
   const open = menu !== null;
   const unread = items.reduce((n, item) => n + (item.badge ?? 0), 0);
+  // A dot behind More shows on More while no count does.
+  const dotted = unread === 0 && items.some(item => item.dot);
   const pick = (item: RailItem) => () => {
     document.getElementById(DOCK_MORE_ID)?.focus();
     setMenu(null);
@@ -266,6 +273,7 @@ function DockMore({ items, tabbable, onFocusIndex, index }: {
         </svg>
         <span className="rail-word">More</span>
         {unread > 0 && <span className="rail-badge" aria-hidden>{unread}</span>}
+        {dotted && <span className="rail-dot" aria-hidden />}
       </button>
       {open && (
         <AnchoredPopover anchorId={DOCK_MORE_ID} id={DOCK_MENU_ID} className="ap-pop" role="menu"
@@ -273,7 +281,7 @@ function DockMore({ items, tabbable, onFocusIndex, index }: {
           {items.map(item => (
             <button key={item.id} type="button" role="menuitem" className="ap-menu-item" data-rail-item={item.id}
               onFocus={() => { handover = item.id; }} onClick={pick(item)}>
-              {item.badge ? `${item.menu ?? item.label} · ${item.badge} unread` : item.menu ?? item.label}
+              {item.dot && item.detail ? `${item.menu ?? item.label} · ${item.detail}` : item.badge ? `${item.menu ?? item.label} · ${item.badge} unread` : item.menu ?? item.label}
             </button>
           ))}
         </AnchoredPopover>
