@@ -1,8 +1,7 @@
-// The strip under the topbar, and which of its six banners it shows: a
+// The strip under the topbar, and which of its five banners it shows: a
 // restart that has just landed, a dropped connection, a release waiting, a
-// deck started under its old name, a terminal whose ccdeck is older than the
-// deck, or the one question the deck asks about itself — at most one, in that
-// order.
+// deck started under its old name, or the one question the deck asks about
+// itself — at most one, in that order.
 //
 // Moved out of App.tsx's markup unchanged. Each banner is its own component;
 // this is the order they outrank each other in. Each hook's return comes in
@@ -11,22 +10,19 @@ import type { useAutoRestart } from "../use-auto-restart";
 import type { useDeckUpgrade } from "../use-deck-upgrade";
 import type { useOldNameNotice } from "../use-old-name-notice";
 import type { useRatingAsk } from "../use-rating-ask";
-import type { useTerminalCliNotice } from "../use-terminal-cli-notice";
 import type { useVersionCheck } from "../use-version-check";
 import ConnectionBanner from "./ConnectionBanner";
 import OldNameBanner from "./OldNameBanner";
 import RatingBanner, { RATING_THANKS } from "./RatingBanner";
-import TerminalCliBanner from "./TerminalCliBanner";
 import VersionBanner from "./VersionBanner";
 
 export default function DeckBanner({
-  restart, versionCheck, upgrade, oldNameNotice, terminalCliNotice, rating, onFeedback, everConnected, live, paused,
+  restart, versionCheck, upgrade, oldNameNotice, rating, onFeedback, everConnected, live, paused,
 }: {
   restart: ReturnType<typeof useAutoRestart>;
   versionCheck: ReturnType<typeof useVersionCheck>;
   upgrade: ReturnType<typeof useDeckUpgrade>;
   oldNameNotice: ReturnType<typeof useOldNameNotice>;
-  terminalCliNotice: ReturnType<typeof useTerminalCliNotice>;
   rating: ReturnType<typeof useRatingAsk>;
   /** Opens the feedback dialog, blank — the low-score thanks offers it. */
   onFeedback: () => void;
@@ -40,7 +36,6 @@ export default function DeckBanner({
   const { version, notice, noticeOpen, dismissNotice } = versionCheck;
   const { upgradeState, startUpgrade, copyCommand, cmdCopied } = upgrade;
   const { oldName, oldNameOpen, dismissOldName } = oldNameNotice;
-  const { terminalCli, terminalCliOpen } = terminalCliNotice;
   const { ratingPhase, ratingScore, answerRating, rateLater, closeRating, holdThanks } = rating;
   const row = (
     restartedTo ? (
@@ -65,10 +60,6 @@ export default function DeckBanner({
       // today: a dropped connection, a restart and a release all outrank a
       // name. It comes back the moment the row above it is dismissed.
       <OldNameBanner oldName={oldName} version={version} dismissOldName={dismissOldName} />
-    ) : terminalCliOpen && terminalCli ? (
-      // Behind the name for the same reason: the deck itself is fine, and the
-      // fix is a command the reader runs whenever they next want a terminal one.
-      <TerminalCliBanner cli={terminalCli} notice={terminalCliNotice} />
     ) : ratingPhase !== "hidden" ? (
       // Last of all: a question about us waits behind anything the reader has
       // to act on, and comes back when the row above it goes.

@@ -87,7 +87,6 @@ import { useMirroredRef } from "./use-mirrored-ref";
 import { useDialogs } from "./use-dialogs";
 import { useClearFlow } from "./use-clear-flow";
 import { useOldNameNotice } from "./use-old-name-notice";
-import { useTerminalCliNotice } from "./use-terminal-cli-notice";
 import { useRatingAsk } from "./use-rating-ask";
 import { useCustomTones } from "./use-custom-tones";
 import { useTonePrefs } from "./use-tone-prefs";
@@ -260,7 +259,6 @@ function Inner() {
 
   // The "started under an old npm name" notice lives in use-old-name-notice.ts.
   const oldNameNotice = useOldNameNotice(version);
-  const terminalCliNotice = useTerminalCliNotice(version);
   // Upgrading the deck from its banner — the press, the faster poll while npm
   // runs, and copying the command for anyone who would rather type it — lives
   // in use-deck-upgrade.ts.
@@ -768,7 +766,7 @@ function Inner() {
       </div>
       {/* At most one banner under the topbar, and which — components/DeckBanner.tsx. */}
       <DeckBanner
-        restart={restart} versionCheck={versionCheck} upgrade={upgrade} oldNameNotice={oldNameNotice} terminalCliNotice={terminalCliNotice}
+        restart={restart} versionCheck={versionCheck} upgrade={upgrade} oldNameNotice={oldNameNotice}
         rating={rating} onFeedback={dialogs.openFeedback}
         everConnected={everConnected} live={live} paused={paused}
       />
