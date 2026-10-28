@@ -35,6 +35,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { run } from "./exec.mjs";
 import { accountKey, heardCurrent, open, seal } from "./lan-sync.mjs";
 
 const VERSION = 1;
@@ -174,7 +175,6 @@ export function sharedReadingFrom(key, now = Date.now()) {
  */
 export async function importUsage(doc, holdS) {
   const { cswapBin } = await import("./cswap-install.mjs");
-  const { run } = await import("./exec.mjs");
   const dir = await mkdtemp(join(tmpdir(), "ccdeck-usage-"));
   const file = join(dir, "usage.json");
   try {

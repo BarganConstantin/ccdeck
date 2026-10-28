@@ -106,6 +106,11 @@ const PINNED_MODULES = [
   // memory through cswap-auto.mjs; named here because account-routes.mjs
   // reaches it through import().
   "cswap-auto-choice.mjs",
+  // Whether this claude-swap has import-usage, and the binary to hand paired
+  // decks' readings to (usage-share.mjs, #930). Already in memory through
+  // claude-accounts.mjs; named here because every LAN round reaches it
+  // through import().
+  "cswap-install.mjs",
 ];
 
 let _pinned = null;
