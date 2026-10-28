@@ -1,6 +1,6 @@
-// #930: an account whose numbers a paired deck read says where, beside their
-// age, and nothing more. The open row's freshness line names the deck; a shut
-// row keeps its age alone and names it on hover.
+// #930: an account whose numbers a paired deck read looks as it always has —
+// the age, nothing added to the row — and names that deck on hover, open or
+// shut.
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -26,21 +26,22 @@ const row = (a: Account, opened: boolean) => renderToStaticMarkup(createElement(
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
 describe("an account read on a paired deck", () => {
-  it("says which deck beside the age, and why on hover", () => {
+  it("adds nothing to the row, and says which deck and why on hover", () => {
     const html = row(account({ sharedFrom: "iMac" }), true);
-    expect(text(html)).toContain("collected 3m ago on iMac");
+    expect(text(html)).toContain("collected 3m ago");
+    expect(text(html)).not.toContain("iMac");
     expect(html).toContain('title="Read on iMac, a paired deck. One deck reads each account you share');
   });
 
-  it("is told apart from one this deck reads, which promises its next read", () => {
+  it("is told apart on hover from one this deck reads", () => {
     const own = row(account({ nextAt: (NOW + 120) * 1000 }), true);
-    expect(text(own)).not.toContain("on iMac");
+    expect(own).not.toContain("iMac");
     expect(own).toContain("When claude-swap last read this account&#x27;s usage");
   });
 
   it("keeps a shut row's age alone, naming the deck only on hover", () => {
     const html = row(account({ active: false, stale: true, sharedFrom: "iMac" }), false);
     expect(html).toMatch(/<span class="ap-q-age" title="Read on iMac, a paired deck">3m ago<\/span>/);
-    expect(text(html)).not.toContain("on iMac");
+    expect(text(html)).not.toContain("iMac");
   });
 });

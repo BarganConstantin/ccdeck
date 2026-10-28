@@ -175,7 +175,7 @@ export default function AccountRow({
   // a hidden hot one. See lane-view.ts.
   const quick = fuller ? [...shown, fuller] : shown;
   const age = a.fetchedAt ? ago(a.fetchedAt, nowSec) : null;
-  // A shut row says only the age; whose read it was waits in its tooltip.
+  // Every row says only the age; whose read it was waits in its tooltip.
   const ageTitle = a.sharedFrom
     ? `Read on ${a.sharedFrom}, a paired deck`
     : "When claude-swap last read this account's usage";
@@ -455,7 +455,7 @@ export default function AccountRow({
                        + "It sets that interval itself — 3 minutes at the fastest, wider while an account is "
                        + "recovering from a rate limit — and every surface, including `cswap watch`, follows "
                        + "the same plan."}
-                >collected {ago(a.fetchedAt, nowSec)}{a.sharedFrom ? ` on ${a.sharedFrom}` : ""}{issue?.blocksSwitch ? "" : due(a.nextAt, nowSec)}</span>
+                >collected {ago(a.fetchedAt, nowSec)}{issue?.blocksSwitch ? "" : due(a.nextAt, nowSec)}</span>
               : <span className="ap-age ap-stale" title="claude-swap has not read this account yet">never collected</span>}
           </div>
         </div>
