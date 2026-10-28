@@ -25,6 +25,9 @@ export interface Account {
   headroom: number | null;
   fetchedAt: number | null;  // unix ms
   nextAt: number | null;     // unix ms — claude-swap's next planned read
+  /** The paired deck these numbers were read on, while this deck takes its
+   *  readings instead of polling the account itself (#930). */
+  sharedFrom?: string | null;
   stale: boolean;
   error: string | null;
   staleCopy?: boolean;

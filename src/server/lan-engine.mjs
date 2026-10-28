@@ -299,6 +299,12 @@ export function createEngine({
   /** Where the machine would send each broadcast, so none leaves through a
    *  tunnel — see route-via.mjs. Absent, every broadcast goes. */
   routes = null,
+  /** The usage readings this deck shares with paired decks so one of them
+   *  polls each account (usage-share.mjs), or nothing for a deck that shares
+   *  none — which is what the suite's engines are unless a test says. A
+   *  function is called with what only the engine knows: `{ now, myFp,
+   *  peerName }`. */
+  usage: usageOption = null,
 } = {}) {
   let cfg = {
     // `onward`: which of `shared` an arrival ticked rather than a person — see
@@ -424,14 +430,23 @@ export function createEngine({
   /** This deck's accounts in the shape the rules want — see lan-accounts.mjs.
    *  Read through the same function the panel uses, so a row can never be alive
    *  here and dead there. */
-  const localAccounts = async () => syncAccounts(await readAccounts());
+  const usage = typeof usageOption === "function"
+    ? usageOption({ now, myFp: () => identity?.fp ?? null, peerName: fp => trustedPeer(cfg.trusted, fp)?.name ?? null })
+    : usageOption;
+  const localAccounts = async () => {
+    const accounts = syncAccounts(await readAccounts());
+    // Every manifest is built from this read, so the readings it carries and
+    // the accounts it names come from one moment.
+    await usage?.refresh(accounts);
+    return accounts;
+  };
 
   /** This deck's side of the manifest exchange: the frame it sends, what it
    *  keeps of the one it hears — a paired deck's card and the logins it offers,
    *  kept apart from lastRound — and what a row reads of that — see
    *  lan-manifest.mjs. */
   const { manifestFrame, keepManifest, heardOf } = createManifests({
-    about, now, myFp: () => identity.fp, settings: () => cfg,
+    about, now, myFp: () => identity.fp, settings: () => cfg, usage,
   });
 
   /**

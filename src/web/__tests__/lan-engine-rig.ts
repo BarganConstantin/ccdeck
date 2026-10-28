@@ -13,7 +13,7 @@ import { createEngine } from "../../server/lan-engine.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { identityFrom, PROTOCOL } from "../../server/lan-sync.mjs";
 
-export interface StoreRow { num: number; email: string; orgUuid: string; alive: boolean }
+export interface StoreRow { num: number; email: string; orgUuid: string; alive: boolean; active?: boolean }
 export interface Id { secret: string; pub: string; fp: string }
 
 /** A socket that goes nowhere, and a way to hand the engine a packet as though

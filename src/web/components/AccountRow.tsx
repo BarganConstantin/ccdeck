@@ -175,6 +175,10 @@ export default function AccountRow({
   // a hidden hot one. See lane-view.ts.
   const quick = fuller ? [...shown, fuller] : shown;
   const age = a.fetchedAt ? ago(a.fetchedAt, nowSec) : null;
+  // Every row says only the age; whose read it was waits in its tooltip.
+  const ageTitle = a.sharedFrom
+    ? `Read on ${a.sharedFrom}, a paired deck`
+    : "When claude-swap last read this account's usage";
   // What the account's organization sends, when the deck has seen it — said
   // before a switch, because Claude Code applies it without asking in its
   // non-interactive surfaces. See org-telemetry.ts.
@@ -390,7 +394,7 @@ export default function AccountRow({
           {/* How old the last reading is. On an open row the freshness
               line under the bars says it, so it is said once. */}
           {!open && (
-            <span className="ap-issue-age" title="When claude-swap last read this account's usage">
+            <span className="ap-issue-age" title={ageTitle}>
               {age ?? "never collected"}
             </span>
           )}
@@ -420,7 +424,7 @@ export default function AccountRow({
               ))
             : <span className="ap-q-label">no usage recorded yet</span>}
           {a.stale && !issue && (
-            <span className="ap-q-age" data-never={age ? undefined : ""} title="When claude-swap last read this account's usage">
+            <span className="ap-q-age" data-never={age ? undefined : ""} title={ageTitle}>
               {age ?? "never collected"}
             </span>
           )}
@@ -445,7 +449,9 @@ export default function AccountRow({
                   // account with a problem is old because of it, so
                   // the age stays quiet and the problem takes the ink.
                   className={`ap-age${a.stale && !issue ? " ap-stale" : ""}`}
-                  title={"When claude-swap last read this account's usage, and when it plans to read it again. "
+                  title={a.sharedFrom
+                    ? `Read on ${a.sharedFrom}, a paired deck. One deck reads each account you share and the others use its numbers, so the account's usage requests are not spent once per machine.`
+                    : "When claude-swap last read this account's usage, and when it plans to read it again. "
                        + "It sets that interval itself — 3 minutes at the fastest, wider while an account is "
                        + "recovering from a rate limit — and every surface, including `cswap watch`, follows "
                        + "the same plan."}

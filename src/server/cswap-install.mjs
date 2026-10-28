@@ -275,7 +275,7 @@ export async function cswapBin() {
  * ensureCswap below, whose return value says nothing about which binary the
  * following twenty account operations will be sent to. See cswap-bin-memo.test.ts.
  */
-export function resetCswapBin() { _bin = null; _probe = null; _refused = null; }
+export function resetCswapBin() { _bin = null; _probe = null; _refused = null; _importsUsage = null; }
 
 /** Installed version string, or null when cswap cannot be found. */
 export async function cswapVersion() {
@@ -288,6 +288,26 @@ export async function cswapVersion() {
   const r = await run(bin, ["--version"]);
   if (!r.ok) return null;
   return versionIn(r);
+}
+
+// `cswap import-usage`, which paired decks hand each other's readings to
+// (usage-share.mjs), arrived in claude-swap 0.27.0 (realiti4/claude-swap#352).
+const IMPORT_USAGE_VERSION = "0.27.0";
+// Asked every LAN round, so the answer is kept: a version changes only with an
+// upgrade, and the upgrade calls resetCswapBin.
+const IMPORTS_USAGE_FRESH_MS = 10 * 60_000;
+let _importsUsage = null;
+
+/**
+ * Whether this claude-swap has `import-usage`. A copy that prints no version
+ * ("installed") cannot be shown to have it, so it does not.
+ */
+export async function cswapImportsUsage() {
+  if (_importsUsage && Date.now() - _importsUsage.at < IMPORTS_USAGE_FRESH_MS) return _importsUsage.can;
+  const v = await cswapVersion();
+  const can = typeof v === "string" && v !== "installed" && !isOlder(v, IMPORT_USAGE_VERSION);
+  _importsUsage = { at: Date.now(), can };
+  return can;
 }
 
 /**
