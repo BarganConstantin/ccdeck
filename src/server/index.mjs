@@ -549,6 +549,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/account/sync/mode")      return guard(accountRoute(req, res, url, account), res);
     if (req.method === "POST" && url.pathname === "/api/account/sync/resolve")   return guard(accountRoute(req, res, url, account), res);
     if (req.method === "POST" && url.pathname === "/api/account/sync/upload")    return guard(accountRoute(req, res, url, account), res);
+    // The account's feedback conversations, the list and everything under it
+    // (ccdeck-account-routes.mjs): the reads are guarded by prefix.
+    if (req.method === "GET"  && (url.pathname === "/api/account/feedback/threads" || url.pathname.startsWith("/api/account/feedback/threads/"))) return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && (url.pathname === "/api/account/feedback/threads" || url.pathname.startsWith("/api/account/feedback/threads/"))) return guard(accountRoute(req, res, url, account), res);
 
     // AN UNMATCHED /api/ PATH IS A 404, not the SPA shell.
     //

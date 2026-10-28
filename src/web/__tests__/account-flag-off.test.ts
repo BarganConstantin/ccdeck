@@ -119,6 +119,13 @@ const ACCOUNT_ROUTES: [string, string, unknown?][] = [
   ["POST", "/api/account/sync/mode", { mode: "shared", join: "use-shared" }],
   ["POST", "/api/account/sync/resolve", { action: "use-latest" }],
   ["POST", "/api/account/sync/upload", { upload: true }],
+  // The account's feedback conversations: the list, a thread, a new one, a
+  // reply and a read.
+  ["GET", "/api/account/feedback/threads"],
+  ["GET", "/api/account/feedback/threads/0199f3b1-2c4d-7e5f-8a6b-1c2d3e4f5a6b"],
+  ["POST", "/api/account/feedback/threads", { kind: "bug", title: "The panel is empty", body: "The panel is empty." }],
+  ["POST", "/api/account/feedback/threads/0199f3b1-2c4d-7e5f-8a6b-1c2d3e4f5a6b/replies", { body: "Still happens." }],
+  ["POST", "/api/account/feedback/threads/0199f3b1-2c4d-7e5f-8a6b-1c2d3e4f5a6b/read", { seq: 3 }],
 ];
 
 describe("the account routes on a deck with the account switched off", () => {
@@ -134,7 +141,11 @@ describe("the account routes on a deck with the account switched off", () => {
   it("are still behind the gates that come first, as every path is", async () => {
     expect(gates.GUARDED_READS.has("/api/account")).toBe(true);
     expect(gates.GUARDED_READS.has("/api/account/sync/preview")).toBe(true);
+    expect(gates.isGuardedRead("/api/account/feedback/threads")).toBe(true);
+    expect(gates.isGuardedRead("/api/account/feedback/threads/0199f3b1-2c4d-7e5f-8a6b-1c2d3e4f5a6b")).toBe(true);
     expect((await ask("GET", "/api/account", undefined, { host: `127.0.0.1:${port}` })).status).toBe(401);
+    expect((await ask("GET", "/api/account/feedback/threads", undefined, { host: `127.0.0.1:${port}` })).status).toBe(401);
+    expect((await ask("POST", "/api/account/feedback/threads", { body: "x" }, { host: `127.0.0.1:${port}` })).status).toBe(401);
     expect((await ask("POST", "/api/account/connect", { name: "x" }, { host: `127.0.0.1:${port}` })).status).toBe(401);
   });
 

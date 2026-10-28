@@ -321,8 +321,18 @@ describe("mutations require the deck's own authority", () => {
     const { GUARDED_READS } = await import("../../server/request-gates.mjs");
     expect(GUARDED_READS.has("/api/account")).toBe(true);
     expect(GUARDED_READS.has("/api/account/sync/preview")).toBe(true);
+    // @ts-expect-error — plain .mjs module, no types
+    const { isGuardedRead } = await import("../../server/request-gates.mjs");
+    expect(isGuardedRead("/api/account/feedback/threads")).toBe(true);
+    expect(isGuardedRead("/api/account/feedback/threads/0199f3b1-2c4d-7e5f-8a6b-1c2d3e4f5a6b")).toBe(true);
     const here = `127.0.0.1:${port}`;
-    for (const path of ["/api/account/connect", "/api/account/disconnect", "/api/account/ui", "/api/account/sync/mode", "/api/account/sync/upload"]) {
+    for (const path of [
+      "/api/account/connect", "/api/account/disconnect", "/api/account/ui", "/api/account/sync/mode", "/api/account/sync/upload",
+      // The account's feedback conversations: a new one, a reply, a read.
+      "/api/account/feedback/threads",
+      "/api/account/feedback/threads/0199f3b1-2c4d-7e5f-8a6b-1c2d3e4f5a6b/replies",
+      "/api/account/feedback/threads/0199f3b1-2c4d-7e5f-8a6b-1c2d3e4f5a6b/read",
+    ]) {
       // Another site, and a rebound name: refused as a page, before the route.
       expect(await post(path, { headers: { Host: here, Origin: "https://evil.example", "Sec-Fetch-Site": "cross-site" }, body: "{}" }), path).toBe(403);
       expect(await post(path, { headers: { Host: "attacker.example:4317", Origin: "http://attacker.example:4317", "Sec-Fetch-Site": "same-origin" }, body: "{}" }), path).toBe(403);

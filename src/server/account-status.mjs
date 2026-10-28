@@ -24,8 +24,9 @@
 //
 // WHAT AN ANSWER CAN SAY BACK (the control channel):
 //   200  next interval, the bound profile's settings revision (a newer one is
-//        pulled), and `rotateToken` — rotated, and the new token persisted,
-//        BEFORE it is used
+//        pulled), `rotateToken` — rotated, and the new token persisted,
+//        BEFORE it is used — and `feedback`, the account's unread
+//        conversations, which light the Feedback button's dot
 //   400  this frame is wrong: dropped, said once, the schedule carries on
 //   401  device_revoked / invalid_token / account_gone: final. Stop, and let
 //        the service forget the token
@@ -49,6 +50,24 @@ export const STOPPING_TIMEOUT_MS = 1_500;
 export const FINAL_401 = new Set(["device_revoked", "invalid_token", "account_gone"]);
 
 const iso = ms => new Date(ms).toISOString();
+
+/** The most unread conversations a summary may say: anything past it is not
+ *  a count anybody wrote. */
+export const FEEDBACK_UNREAD_MAX = 10_000;
+const ZONED = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,7})?)?(Z|z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * The account's feedback summary as a frame answer (or a read) carries it —
+ * `{ unread, latestAt }` — or null for anything that is not one. Only the two
+ * fields, so nothing else an answer holds can ride into the page's view.
+ */
+export function feedbackSummary(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const { unread, latestAt } = raw;
+  if (!Number.isInteger(unread) || unread < 0 || unread > FEEDBACK_UNREAD_MAX) return null;
+  if (latestAt !== null && !(typeof latestAt === "string" && ZONED.test(latestAt) && Number.isFinite(Date.parse(latestAt)))) return null;
+  return { unread, latestAt };
+}
 
 /** A metric reading as the frame carries it: the named fields, or the reason
  *  it cannot be told. `fields` maps frame keys to reading keys. */
@@ -100,6 +119,8 @@ export function buildFrame({ bootId, seq, observedAt, state, deck, cpu, memory, 
  *   counts(now)     the session counts' reading
  *   binding()       { profileId, appliedRevision } or null — the sync's
  *   onControl(s)    a 200's `settings`, and the moment to retry what is pending
+ *   onFeedback(f)   a 200's `feedback` summary, or null when it has none —
+ *                   the service keeps a valid one and ignores the rest
  *   onRevoked(err)  a final 401
  *   onChange()      status() would answer something new
  */
@@ -112,6 +133,7 @@ export function createStatusPublisher({
   binding = () => null,
   deck,
   onControl = () => {},
+  onFeedback = () => {},
   onRevoked = () => {},
   onChange = () => {},
   now = Date.now,
@@ -182,6 +204,7 @@ export function createStatusPublisher({
         try { await rotate(); } catch { /* the old token stays good until the new one is used */ }
       }
       try { await onControl(body.settings ?? null); } catch { /* the sync says its own failures */ }
+      try { onFeedback(body.feedback ?? null); } catch { /* the dot is never worth a frame */ }
       return schedule(jittered());
     }
     if (res.status === 401 && FINAL_401.has(res.error)) {

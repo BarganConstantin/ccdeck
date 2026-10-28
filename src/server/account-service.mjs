@@ -12,12 +12,21 @@
 // the device code. The view carries where the token is kept and nothing about
 // it; the token is redacted out of every event (token-redact.mjs) and every
 // report (reports.mjs scrub); no log line here names it.
+//
+// FEEDBACK CONVERSATIONS go through the named methods at the end — a list, a
+// thread, a new one, a reply, read — so the page never holds the token and
+// the routes never build an API path. Nothing of a conversation is kept here:
+// each is fetched when the page asks. What is kept is the account's summary,
+// `{ unread, latestAt }`, which every status frame's answer carries and the
+// view hands the page, in memory only, for the Feedback button's dot. A
+// conversation started here carries the deck's version and system and never
+// the reports' fingerprint or a contact: the account is the way back.
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { accountApiBase } from "./account-flag.mjs";
-import { createAccountClient } from "./account-client.mjs";
+import { createAccountClient, FEEDBACK_READ_MAX } from "./account-client.mjs";
 import { cleanDeviceName, createConnectFlow, deckToken, defaultDeviceName } from "./account-connect.mjs";
-import { createStatusPublisher } from "./account-status.mjs";
+import { createStatusPublisher, feedbackSummary, FINAL_401 } from "./account-status.mjs";
 import { DEVICE_TOKEN, emptyAccount, loadAccount, normaliseAccount, saveAccount } from "./account-store.mjs";
 import { createSync, initialSync, normaliseSync } from "./account-sync.mjs";
 import { createTokenStore } from "./account-token-store.mjs";
@@ -27,6 +36,7 @@ import { deckDataDir } from "./deck-home.mjs";
 import { isGitCheckout } from "./install-layout.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
 import { createSessionCounts } from "./session-counts.mjs";
+import { upstreamForm } from "./feedback-form.mjs";
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 /** How often a token the keychain would not hand over is asked for again. */
@@ -42,6 +52,26 @@ export function deckFacts({ env = process.env, platform = process.platform, arch
     channel: inApp(env) ? "desktop" : checkout ? "checkout" : "npm",
   };
 }
+
+/** The API's paths for the account's feedback conversations (design 3.3). */
+const THREADS = "/v1/device/feedback/threads";
+const threadPath = id => `${THREADS}/${encodeURIComponent(id)}`;
+/** The two daily limits a 429 names, as opposed to the request policy's. */
+const FEEDBACK_LIMITS = new Set(["too_many_conversations", "too_many_replies"]);
+
+/** A 400's field errors as the page may show them: text under field names. */
+function fieldErrors(body) {
+  const errors = body?.errors;
+  if (!errors || typeof errors !== "object" || Array.isArray(errors)) return {};
+  const out = {};
+  for (const [field, messages] of Object.entries(errors)) {
+    if (Array.isArray(messages)) out[field] = messages.filter(m => typeof m === "string");
+  }
+  return out;
+}
+
+/** Whether two summaries say the same thing (either may be null). */
+const sameSummary = (a, b) => (a === null || b === null ? a === b : a.unread === b.unread && a.latestAt === b.latestAt);
 
 /** Where a machine's page in the console is, from the approval page's origin:
  *  the API hands that out (PublicAccounts:AppBaseUrl), so a development API
@@ -94,6 +124,9 @@ export function createAccountService({
   let unregisterShutdown = null;
   let started = false;
   let announced = false;
+  /** The account's feedback summary from the last answer that carried one:
+   *  null before the first frame, and whenever not connected. */
+  let feedback = null;
 
   function clientFor(apiBase) {
     let c = clients.get(apiBase);
@@ -145,7 +178,19 @@ export function createAccountService({
       sync: connected && sync ? sync.view() : null,
       revokedReason: st === "revoked" ? record.revokedReason : null,
       problem: tokenProblem && record.deviceId ? tokenProblem : (flowState?.problem ?? null),
+      feedback: connected ? feedback : null,
     };
+  }
+
+  /** A summary from a frame's answer or a read's: kept, and said, only when it
+   *  is one and says something new. A malformed one changes nothing; none at
+   *  all (an API from before conversations) is no summary. */
+  function noteFeedback(raw) {
+    const next = raw == null ? null : feedbackSummary(raw);
+    if (raw != null && !next) return;
+    if (sameSummary(next, feedback)) return;
+    feedback = next;
+    announce();
   }
 
   /** Change the record and write it. The change lands in memory at once, so
@@ -186,6 +231,7 @@ export function createAccountService({
     publisher?.stop();
     publisher = null;
     sync = null;
+    feedback = null;
     unregisterShutdown?.();
     unregisterShutdown = null;
     if (lockTimer) clearTimer(lockTimer);
@@ -195,7 +241,7 @@ export function createAccountService({
   async function rotate() {
     const client = clientFor(record.apiBase);
     const res = await client.post("/v1/device/token/rotate", undefined, { token });
-    if (res.status === 401 && ["device_revoked", "invalid_token", "account_gone"].includes(res.error)) return ended(res.error);
+    if (res.status === 401 && FINAL_401.has(res.error)) return ended(res.error);
     const next = res.ok ? res.body?.accessToken : null;
     if (typeof next !== "string" || !DEVICE_TOKEN.test(next)) return;
     // Persisted BEFORE it is used. Both tokens stay valid until the first
@@ -235,6 +281,7 @@ export function createAccountService({
       binding: () => sync?.binding() ?? null,
       deck: facts,
       onControl: settings => sync?.onControl(settings),
+      onFeedback: noteFeedback,
       onRevoked: reason => { void ended(reason); },
       onChange: announce,
       now,
@@ -314,6 +361,41 @@ export function createAccountService({
     setToken(tok.accessToken);
     begin();
     await sync?.pull().catch(() => {});
+  }
+
+  /**
+   * One feedback call, made with this deck's token, and its answer as the
+   * local routes give it (design 4.4): `{ ok: true, status, body }` with the
+   * API's body, or `{ ok: false, reason, … }`. A final 401 ends the device, as
+   * a frame's does; a device that ended while the call was out is `revoked`.
+   */
+  async function feedbackCall(run) {
+    const device = record.deviceId;
+    if (!device || !token) return { ok: false, reason: "not_connected" };
+    const res = await run(clientFor(record.apiBase), token);
+    if (res.status === 401 && FINAL_401.has(res.error)) {
+      if (record.deviceId === device) await ended(res.error);
+      return { ok: false, reason: "revoked" };
+    }
+    if (record.deviceId !== device) return { ok: false, reason: "revoked" };
+    if (res.ok) {
+      const body = res.body;
+      return body && typeof body === "object" && !Array.isArray(body) ? { ok: true, status: res.status, body } : { ok: false, reason: "unavailable" };
+    }
+    if (res.status === 400) return { ok: false, reason: "invalid", errors: fieldErrors(res.body) };
+    if (res.status === 404 && res.error === "thread_not_found") return { ok: false, reason: "not_found" };
+    if (res.status === 413) return { ok: false, reason: "too_large" };
+    if (res.status === 429) {
+      const out = { ok: false, reason: "too_many" };
+      const limited = FEEDBACK_LIMITS.has(res.error);
+      if (limited && Number.isInteger(res.body?.limit)) out.limit = res.body.limit;
+      if (limited && Number.isInteger(res.body?.retryAfterSec)) out.retryAfterSec = res.body.retryAfterSec;
+      else if (res.retryAfterMs) out.retryAfterSec = Math.ceil(res.retryAfterMs / 1000);
+      return out;
+    }
+    // A network failure, a 5xx, the API with accounts switched off (any other
+    // 404), a 401 a proxy wrote: nothing the person can put right but wait.
+    return { ok: false, reason: "unavailable" };
   }
 
   return {
@@ -401,6 +483,39 @@ export function createAccountService({
       await sync.upload(body?.values);
       return sync.view();
     },
+    /** The account's conversations, latest activity first; `before` is the
+     *  list's own cursor. */
+    feedbackThreads({ before } = {}) {
+      const query = before ? `&before=${encodeURIComponent(before)}` : "";
+      return feedbackCall((client, tok) => client.get(`${THREADS}?limit=50${query}`, { token: tok, maxBody: FEEDBACK_READ_MAX }));
+    },
+    /** One conversation's latest page, or the page before item `before`. */
+    feedbackThread(id, { before } = {}) {
+      const query = Number.isInteger(before) ? `?before=${before}` : "";
+      return feedbackCall((client, tok) => client.get(`${threadPath(id)}${query}`, { token: tok, maxBody: FEEDBACK_READ_MAX }));
+    },
+    /** A new conversation: the dialog's kind, title and message, this deck's
+     *  version and system, and the images as feedback-form.mjs read them —
+     *  JSON without images, the form with them. Never a contact, never the
+     *  reports' fingerprint. */
+    feedbackCreate({ fields = {}, images = [] } = {}) {
+      const kept = { kind: fields.kind, title: fields.title, body: fields.body };
+      const deck = { appVersion: facts.version, platform: `${facts.os}-${facts.arch}` };
+      return feedbackCall((client, tok) => (images.length > 0
+        ? client.postForm(THREADS, upstreamForm({ fields: kept, images }, deck), { token: tok })
+        : client.post(THREADS, { ...kept, ...deck }, { token: tok })));
+    },
+    feedbackReply(id, body) {
+      return feedbackCall((client, tok) => client.post(`${threadPath(id)}/replies`, { body }, { token: tok }));
+    },
+    /** Everything up to `seq` seen; the answer is the account's summary after
+     *  it, which clears the dot at once rather than at the next frame. */
+    async feedbackRead(id, seq) {
+      const out = await feedbackCall((client, tok) => client.post(`${threadPath(id)}/read`, { seq }, { token: tok }));
+      if (out.ok) noteFeedback(out.body);
+      return out;
+    },
+    noteFeedback,
     /** For the suite and the shutdown path. */
     publisher: () => publisher,
     sync: () => sync,

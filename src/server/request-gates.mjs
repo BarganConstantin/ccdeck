@@ -512,8 +512,10 @@ export const GUARDED_READS = new Set([
  *  work, read with the user's own token; every one of them is fetched by the
  *  deck's own page and nothing else. A prefix rather than a list because a
  *  provider adds its routes without touching this file, and a read it adds
- *  must be covered from the moment it exists. */
-export const GUARDED_READ_PREFIXES = Object.freeze(["/api/integrations/"]);
+ *  must be covered from the moment it exists. The account's feedback
+ *  conversations are the same kind of read: what the person wrote to the
+ *  people who make ccdeck, and their replies, a thread id in the path. */
+export const GUARDED_READ_PREFIXES = Object.freeze(["/api/integrations/", "/api/account/feedback/"]);
 
 /** Whether a GET to `pathname` must come from the deck's page or carry the
  *  token: listed in GUARDED_READS, or under one of GUARDED_READ_PREFIXES. */
