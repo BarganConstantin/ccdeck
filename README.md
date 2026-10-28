@@ -163,7 +163,7 @@ The window is the deck under one compact toolbar that follows its theme, with th
 
 The app keeps itself current from this repository's releases, and installs an update only if it carries ccdeck's own signature. It installs on Quit, when you choose **Restart to update**, or by itself and restarts into the new version — but only once the app has been left alone for a minute (its window closed or not in focus) and none of your agents has been working or waiting for a minute. If your agents never stop, it waits a day for them and then installs at the next quiet minute; the deck is gone for a second or two, which can leave a gap in the drawing of a turn, and the agents carry on. **Later**, on the notice that an update is ready, holds it off for 24 hours. While it waits, the app looks again every half hour for a newer release, so it installs the latest one rather than one that is already behind. On the .deb, where installing asks for your password, it installs only when you choose Restart to update. **Check for updates**, in the icon's menu or in What's new, asks the app's own updater. On Windows, **Restart to update** stops the deck the app started before the installer runs.
 
-**Terminal commands are installed separately.** The desktop app updates its own copy of ccdeck, but a global npm `ccdeck` keeps its version until you update it, so a command such as `ccdeck tui` may meet an older copy that answers `unknown option tui`. From this version on, a `ccdeck` that meets a newer deck says so in the terminal with the command that updates it — usually `npm install -g ccdeck@latest` — and **Settings › About** names an older `ccdeck` on your PATH. An older copy cannot say it, so run that command yourself. Then open a new terminal and retry. To check which copy a terminal starts, run `command -v ccdeck` (macOS, Linux) or `Get-Command ccdeck` (PowerShell), and `npm list -g ccdeck --depth=0`.
+**Terminal commands are installed separately.** The desktop app updates its own copy of ccdeck, but a global npm `ccdeck` keeps its version until you update it, so a command such as `ccdeck tui` may meet an older copy that answers `unknown option tui`. From this version on, the deck updates that copy itself a few minutes after it starts, when it is a global npm install of `ccdeck` you can write to without `sudo` — see [Updating](#updating). Otherwise **Settings › About** names the older `ccdeck` on your PATH with the command that updates it — usually `npm install -g ccdeck@latest` — and a `ccdeck` from this version on says the same in the terminal when it meets a newer deck. Run it, then open a new terminal and retry. To check which copy a terminal starts, run `command -v ccdeck` (macOS, Linux) or `Get-Command ccdeck` (PowerShell), and `npm list -g ccdeck --depth=0`.
 
 Step by step: [Install the ccdeck app on Mac, Windows or Linux](https://ccdeck.dev/guides/desktop-app/)
 
@@ -645,7 +645,7 @@ Environment:
 |---|---|
 | `AGENT_DAG_PORT` | Default port, same as `-p` |
 | `CODEX_HOME` | Override `~/.codex` |
-| `AGENTS_DECK_NO_INSTALL=1` | Never install or update claude-swap / ccusage, never ask npm about releases, never read the status pages, and never send reports or feedback |
+| `AGENTS_DECK_NO_INSTALL=1` | Never install or update claude-swap / ccusage or the terminal's `ccdeck`, never ask npm about releases, never read the status pages, and never send reports or feedback |
 | `AGENTS_DECK_NO_DOWNLOAD=1` | Never download the `uv` binary, but keep the managed installs |
 | `AGENTS_DECK_NO_UPDATE_CHECK=1` | Don't ask npm about releases, but keep everything else |
 | `AGENTS_DECK_NO_STATUS=1` | Don't read Anthropic's and OpenAI's status pages, so no incident chip appears |
@@ -767,7 +767,9 @@ What the banner offers depends on how this copy was installed:
 | directory not writable | the command — a root-owned prefix is declined up front rather than failing inside npm |
 | `AGENTS_DECK_NO_INSTALL=1` | the command only; you asked for no installs |
 
-Nothing is ever installed unless you click, the argument vector is fixed in the server rather than taken from the request, and the command is always on screen — button or no button. If npm fails, the banner shows npm's own last line.
+Nothing is installed unless you click, or, with **Update when idle** on (Settings › General; on by default), once nobody is looking at the deck and no agent has worked for 30 seconds. The argument vector is fixed in the server rather than taken from the request, and the command is always on screen — button or no button. If npm fails, the banner shows npm's own last line.
+
+**The `ccdeck` your terminal starts** is a separate copy whenever the deck runs from the desktop app, npx or a checkout, and it does not move when they do. When the first `ccdeck` on your PATH is older than the deck, the deck runs the same install for it — `npm install -g --prefix <its prefix> ccdeck@latest`, into the prefix that copy lives in — five minutes after it starts, without waiting for an idle moment, since nothing of the deck's restarts. It does that only for a global npm install of `ccdeck` whose folders you can write, under the same switch (the desktop app shows none, and keeps it on), and never with `AGENTS_DECK_NO_INSTALL=1`. A root-owned prefix, pnpm, yarn or bun, or an old `agents-deck` or `agent-dag` install is left to you: **Settings › About** shows the command, and why an automatic install failed when one did. An install that failed is tried again after half an hour.
 
 ### Restarting
 

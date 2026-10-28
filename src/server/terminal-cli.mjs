@@ -1,5 +1,5 @@
-// The ccdeck a terminal on this machine starts, and whether it is older than
-// the deck answering.
+// The ccdeck a terminal on this machine starts. Whether it is older than the
+// deck answering, and what the deck does about it, is terminal-cli-update.mjs.
 //
 // The desktop app, an npx run and a global npm install each update on their
 // own, so the command a terminal starts can be left behind by the deck it
@@ -15,8 +15,6 @@
 // app says nothing rather than guess.
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { posix, win32 } from "node:path";
-import { upgradeCommand } from "./install-layout.mjs";
-import { isOlder } from "./self-update.mjs";
 
 // The names ccdeck has been published under; every one of them ships the
 // `ccdeck` command.
@@ -43,7 +41,8 @@ function windowsCli({ env, exists, read }) {
     if (!exists(win32.join(folder, "ccdeck.ps1")) && !exists(win32.join(folder, "ccdeck.cmd"))) continue;
     const root = win32.join(folder, "node_modules", "ccdeck");
     const pkg = manifest(win32.join(root, "package.json"), read);
-    return ours(pkg) ? { root, version: pkg.version } : null;
+    // npm's shims sit in the global prefix itself on Windows.
+    return ours(pkg) ? { root, version: pkg.version, prefix: folder } : null;
   }
   return null;
 }
@@ -64,7 +63,7 @@ function unixCli({ env, exists, read, realpath }) {
     let dir = posix.dirname(file);
     for (let up = 0; up < 3; up++) {
       const pkg = manifest(posix.join(dir, "package.json"), read);
-      if (pkg !== undefined) return ours(pkg) ? { root: dir, version: pkg.version } : null;
+      if (pkg !== undefined) return ours(pkg) ? { root: dir, version: pkg.version, prefix: npmPrefix(dir, read) } : null;
       dir = posix.dirname(dir);
     }
     return null;
@@ -72,22 +71,23 @@ function unixCli({ env, exists, read, realpath }) {
   return null;
 }
 
-/** The package root and version of the ccdeck a terminal starts, or null when
- *  there is none or it cannot be identified. */
+/** The npm global prefix a package root sits in — `<prefix>/lib/node_modules/<name>`
+ *  — or null for any other layout: pnpm, yarn and bun keep their globals
+ *  elsewhere, and a project's own node_modules has a package around it, as a
+ *  global prefix's `lib` never does (install-layout.mjs, frozenNameInstall). */
+function npmPrefix(root, read) {
+  const modules = posix.dirname(root);
+  const lib = posix.dirname(modules);
+  if (posix.basename(modules) !== "node_modules" || posix.basename(lib) !== "lib") return null;
+  if (manifest(posix.join(lib, "package.json"), read) !== undefined) return null;
+  return posix.dirname(lib);
+}
+
+/** The package root, version and npm global prefix (null when it is not npm's)
+ *  of the ccdeck a terminal starts, or null when there is none or it cannot be
+ *  identified. */
 export function terminalCli({
   env = process.env, platform = process.platform, exists = existsSync, read = readFileSync, realpath = realpathSync,
 } = {}) {
   return platform === "win32" ? windowsCli({ env, exists, read }) : unixCli({ env, exists, read, realpath });
-}
-
-/**
- * What /api/version says about the terminal's ccdeck: its version and the line
- * that updates it, for that install's shape (upgradeCommand). Null unless it
- * is older than `running` — the deck's own copy, an up-to-date one and a newer
- * one need nothing said.
- */
-export function terminalCliNotice({ running, ...opts } = {}) {
-  const cli = terminalCli(opts);
-  if (!cli || !isOlder(cli.version, running)) return null;
-  return { version: cli.version, command: upgradeCommand(cli.root) };
 }

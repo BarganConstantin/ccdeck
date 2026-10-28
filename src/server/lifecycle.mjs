@@ -29,7 +29,7 @@ import { presentsDeckToken } from "./request-gates.mjs";
 // The version this process runs, read at boot by a leaf so that the LAN
 // engine's card and /api/version give one answer — see running-version.mjs.
 import { RUNNING_VERSION } from "./running-version.mjs";
-import { terminalCliNotice } from "./terminal-cli.mjs";
+import { terminalCliState, updateTerminalCli } from "./terminal-cli-update.mjs";
 
 // Resolved the way pinned-build.mjs resolves it, from a file in the same
 // directory, so every lazy import below is the URL the pin has already evaluated.
@@ -144,11 +144,12 @@ async function handleVersion(req, res) {
   // default em dash is what a browser should get.
   const rename = renameNotice({ invoked, pkgRoot: PKG_ROOT });
   // The ccdeck a terminal here starts, when it is older than this deck: its
-  // commands are the old one's, and only the deck can say so (terminal-cli.mjs).
-  // A fact about this process's PATH, like the two above, so attached here too.
+  // commands are the old one's, and only the deck can say so (terminal-cli.mjs)
+  // — or replace it, which it says too (terminal-cli-update.mjs). A fact about
+  // this process's PATH, like the two above, so attached here too.
   send(res, 200, {
     ...report, canRestart: canRestartNow(), invokedAs: invoked, renameFix: rename?.fix ?? null,
-    terminalCli: terminalCliNotice({ running: RUNNING_VERSION }),
+    terminalCli: terminalCliState(terminalCliAsk()),
   });
 }
 
@@ -426,10 +427,29 @@ async function awayUpdateTick() {
   return step.act;
 }
 
+/** What terminal-cli-update.mjs is asked with: this deck, and the switch its
+ *  own unattended update obeys. */
+function terminalCliAsk() {
+  return { running: RUNNING_VERSION, pkgRoot: PKG_ROOT, enabled: heldPrefs.current()?.autoUpdate !== false };
+}
+
+/**
+ * The terminal's ccdeck, on the away-update's clock but not behind its gate:
+ * replacing that copy restarts nothing of the deck's, so neither a tab being
+ * looked at nor a deck without a launcher holds it back — only the boot grace,
+ * so that a start is never slowed by npm. terminal-cli-update.mjs decides
+ * whether, and starts it. Never throws: the next tick asks again.
+ */
+function terminalCliTick() {
+  if (Date.now() - _bootedAt < AWAY_BOOT_GRACE_MS) return false;
+  try { return updateTerminalCli(terminalCliAsk()); } catch { return false; }
+}
+
 /**
  * The away-update's clock. The boot grace counts from here, and the timer is
  * unref'd so it never keeps a process alive on its own. It does nothing until
- * the launcher has handed down a restart — see awayGate's `supervised`.
+ * the launcher has handed down a restart — see awayGate's `supervised` — except
+ * for the terminal's copy (terminalCliTick).
  *
  * Lifted out of startServer, which calls it once per boot; a second boot in the
  * same process replaces the timer rather than adding one.
@@ -437,7 +457,7 @@ async function awayUpdateTick() {
 function startAwayUpdate() {
   _bootedAt = Date.now();
   clearInterval(_awayTimer);
-  _awayTimer = setInterval(() => { awayUpdateTick().catch(() => {}); }, AWAY_TICK_MS);
+  _awayTimer = setInterval(() => { awayUpdateTick().catch(() => {}); terminalCliTick(); }, AWAY_TICK_MS);
   _awayTimer.unref?.();
 }
 
