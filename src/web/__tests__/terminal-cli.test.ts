@@ -10,7 +10,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { terminalCli, terminalCliNotice } from "../../server/terminal-cli.mjs";
 import { catchUpNote } from "../../server/running-deck.mjs";
 import TerminalCliNotice from "../components/TerminalCliNotice";
-import TerminalCliBanner from "../components/TerminalCliBanner";
 import { rmTempDir } from "./rm-temp-dir";
 
 const winRoot = "C:\\Users\\tester\\AppData\\Roaming\\npm";
@@ -115,7 +114,7 @@ describe("/api/version carries it", () => {
   });
 });
 
-describe("the app says what to run", () => {
+describe("the app says it only in About", () => {
   const cli = { version: "3.42.0", command: "npm i -g ccdeck@latest" };
 
   it("in About, on every platform", () => {
@@ -125,12 +124,9 @@ describe("the app says what to run", () => {
     expect(html).toContain("Update needed");
   });
 
-  it("in the strip under the topbar, with the command to copy and a way to dismiss it", () => {
-    const notice = { dismissTerminalCli: () => {}, copyTerminalCli: () => {}, terminalCliCopied: false };
-    const html = renderToStaticMarkup(createElement(TerminalCliBanner, { cli, notice }));
-    expect(html).toContain("Your terminal&#x27;s ccdeck is out of date (v3.42.0).");
-    expect(html).toContain("<code>npm i -g ccdeck@latest</code>");
-    expect(html).toContain('aria-label="Dismiss"');
+  it("and never in the strip under the topbar: the terminal is where it is said out loud (owner, 2026-10-28)", () => {
+    const strip = readFileSync(new URL("../components/DeckBanner.tsx", import.meta.url), "utf8");
+    expect(strip).not.toMatch(/terminalCli/i);
   });
 });
 

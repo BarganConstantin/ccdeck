@@ -200,7 +200,6 @@ describe("the strip around it", () => {
     versionCheck: { notice: null, noticeOpen: false } as never,
     upgrade: {} as never,
     oldNameNotice: { oldName: null, oldNameOpen: false } as never,
-    terminalCliNotice: { terminalCli: null, terminalCliOpen: false } as never,
     rating: { ratingPhase: "hidden", ratingScore: null, answerRating: noop, rateLater: noop, closeRating: noop, ...rating } as Rating,
     onFeedback, everConnected: true, live: true, paused: false,
   });

@@ -63,12 +63,10 @@ describe("the rating question's row", () => {
     const own = top(/\.ver-banner\.rating-banner\b/).find(r => decl(r, "grid-column") != null);
     expect(own && decl(own, "grid-column")).toBe("1 / -1");
     // The rules that put a banner in the canvas's column come earlier in the
-    // sheet with no more classes, so this one wins. A row that spans the window
-    // too — the out-of-date terminal's (terminal-cli-banner.css) — says the
-    // same thing and is not one of them.
+    // sheet with no more classes, so this one wins.
     const dots = (s: string) => (s.match(/\./g) ?? []).length;
     const sheet = sheetText();
-    for (const r of all.filter(r => /\.ver-banner\b/.test(r.selector) && !r.selector.includes("rating") && decl(r, "grid-column") && decl(r, "grid-column") !== "1 / -1")) {
+    for (const r of all.filter(r => /\.ver-banner\b/.test(r.selector) && !r.selector.includes("rating") && decl(r, "grid-column"))) {
       expect(sheet.indexOf(r.selector + " {") < sheet.indexOf(own!.selector + " {") || r.selector.includes(","), r.selector).toBe(true);
       for (const s of r.selector.split(",")) expect(dots(s), s).toBeLessThanOrEqual(dots(own!.selector));
     }
