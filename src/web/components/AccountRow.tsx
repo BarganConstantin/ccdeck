@@ -445,11 +445,13 @@ export default function AccountRow({
                   // account with a problem is old because of it, so
                   // the age stays quiet and the problem takes the ink.
                   className={`ap-age${a.stale && !issue ? " ap-stale" : ""}`}
-                  title={"When claude-swap last read this account's usage, and when it plans to read it again. "
+                  title={a.sharedFrom
+                    ? `Read on ${a.sharedFrom}, a paired deck. One deck reads each account you share and the others use its numbers, so the account's usage requests are not spent once per machine.`
+                    : "When claude-swap last read this account's usage, and when it plans to read it again. "
                        + "It sets that interval itself — 3 minutes at the fastest, wider while an account is "
                        + "recovering from a rate limit — and every surface, including `cswap watch`, follows "
                        + "the same plan."}
-                >collected {ago(a.fetchedAt, nowSec)}{issue?.blocksSwitch ? "" : due(a.nextAt, nowSec)}</span>
+                >collected {ago(a.fetchedAt, nowSec)}{a.sharedFrom ? ` on ${a.sharedFrom}` : ""}{issue?.blocksSwitch ? "" : due(a.nextAt, nowSec)}</span>
               : <span className="ap-age ap-stale" title="claude-swap has not read this account yet">never collected</span>}
           </div>
         </div>
