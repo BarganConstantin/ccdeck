@@ -331,6 +331,37 @@ describe("what cannot be read or done", () => {
     expect(hi.share.fieldFor("not a key" as never, lo.fp, hi.list())).toEqual({});
   });
 
+  it("keeps the readings well inside a frame, however many accounts and windows there are", async () => {
+    const me = "me-me-me-me", peer = "peer-peer-peer";
+    const t = 1_800_000_000_000;
+    const resets = new Date(t + 3_600_000).toISOString();
+    const many = Array.from({ length: 50 }, (_, i) => {
+      const email = `${"x".repeat(200)}${i}@example.test`, org = `org-${"o".repeat(50)}-${i}`;
+      return { key: keyOf(email, org), email, org };
+    });
+    const scoped = Array.from({ length: 16 }, (_, j) => ({ name: `${"m".repeat(60)}${j}`, pct: 50, resets_at: resets }));
+    const share = createUsageShare({
+      now: () => t, myFp: () => me, canImport: async () => true,
+      readStore: async () => many.map(a => ({
+        email: a.email, organizationUuid: a.org, fetchedAt: t - 10_000, nextPollAt: t + 200_000,
+        backoffUntil: null, heldUntil: null,
+        lastGood: { five_hour: { pct: 1, resets_at: resets }, seven_day: { pct: 1, resets_at: resets }, scoped },
+      })),
+    });
+    const list = many.map(a => ({ key: a.key, email: a.email, alive: true }));
+    await share.refresh(list);
+    const key = randomBytes(32);
+    const { open, seal } = await import("../../server/lan-sync.mjs");
+    // The peer holds them all and can poll none, so this deck owns every one.
+    const offered = list.map(a => ({ ...a, alive: false }));
+    await share.heard(key, { t: "manifest", accounts: offered, usage: seal(key, JSON.stringify({ v: 1, readings: [] }), `${peer}->${me}|usage`) }, peer, offered);
+    const field = share.fieldFor(key, peer, list) as { usage: unknown };
+    expect(Buffer.byteLength(JSON.stringify(field))).toBeLessThan(48 * 1024);
+    const sent = JSON.parse(open(key, field.usage, `${me}->${peer}|usage`)).readings;
+    expect(sent.length).toBeGreaterThan(0);
+    expect(sent.length).toBeLessThan(50);
+  });
+
   it("sits the round out rather than throw into it when the store cannot be read", async () => {
     const share = createUsageShare({
       now: () => 0, myFp: () => "x", canImport: async () => true,

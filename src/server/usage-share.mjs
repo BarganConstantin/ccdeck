@@ -68,6 +68,11 @@ const RENEW_BEFORE_MS = 90_000;
 const SAME_MEASUREMENT_MS = 5_000;
 const MAX_READINGS = 50;
 const MAX_SCOPED = 16;
+// The readings' JSON, before sealing, is kept to this, well inside a frame
+// (lan-lines.mjs MAX_FRAME_BYTES, 128 KiB) beside the manifest's own fifty
+// accounts and the card: past it the rest are not sent, and the decks that
+// would have taken them read for themselves.
+const MAX_FIELD_BYTES = 32 * 1024;
 
 /** The rendezvous score of deck `fp` for account `key`: the highest owns it. */
 export function rank(key, fp) {
@@ -307,11 +312,15 @@ export function createUsageShare({
     try {
       const theirs = heardBy.get(toFp);
       const readings = [];
+      let bytes = 0;
       for (const a of sent ?? []) {
         if (readings.length >= MAX_READINGS) break;
         if (!a?.alive || !theirs?.all.has(a.key) || ownerOf(a.key) !== myFp()) continue;
         const r = readingOf(a.key);
-        if (r) readings.push(r);
+        if (!r) continue;
+        bytes += Buffer.byteLength(JSON.stringify(r)) + 1;
+        if (bytes > MAX_FIELD_BYTES) break;
+        readings.push(r);
       }
       return { usage: seal(connKey, JSON.stringify({ v: VERSION, readings }), usageAad(myFp(), toFp)) };
     } catch {
