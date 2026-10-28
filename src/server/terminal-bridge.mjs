@@ -19,12 +19,15 @@
 // then on the pane's output as it happens, as fast as the panel says (`ack`)
 // its terminal is parsing it. tmux-control.mjs owns the hard part
 // (the seed boundary, %pause, the pane dying); this file only keeps the order
-// on the wire and never lets two seeds cross.
+// on the wire, never lets two seeds cross, and sends whole characters: a
+// frame never ends inside a UTF-8 character that its next bytes finish
+// (utf8-carry.mjs, and `carry` below).
 //
 // NOTHING THROWS OUT OF HERE, for the reason terminal-socket.mjs gives: a
 // socket callback has nothing above it to catch it.
 import { clampSize } from "./terminal-sessions.mjs";
 import { openControl } from "./tmux-control.mjs";
+import { utf8Carry } from "./utf8-carry.mjs";
 
 /** How many bytes may sit unsent on one socket before the pane's output stops
  *  being forwarded. A tab in the background, or a slow link, otherwise makes
@@ -151,6 +154,22 @@ export function terminalBridge({
     chain = chain.then(fn).catch(() => {});
     return chain;
   };
+  // Whole characters on the wire. tmux ends a %output line where its read of
+  // the pane ended, sometimes inside a character, and the panel's xterm.js
+  // loses a character cut right after a 0x80 byte ("—" as E2 80 | 94). So the
+  // bytes at a frame's end that begin a character are held — three at most —
+  // and sent in front of the next frame (utf8-carry.mjs). They are never
+  // counted in `sentBytes` until they are on the wire.
+  //
+  // Held bytes belong to the stream they came from, which runs from one seed
+  // to whatever breaks it, and they are dropped there, never sent late: every
+  // break is followed by a seed — the screen as tmux has it, which already
+  // shows the character if tmux ever finished it — or by nothing at all. So
+  // they are dropped when output is let go (congested, behind: the bytes that
+  // would finish them are among the ones let go), when a reseed is asked for
+  // (a %pause: tmux skipped output), when a seed is sent (a new stream), and
+  // at the end. A new socket is a new bridge, with a carry of its own.
+  const carry = utf8Carry();
 
   const handle = { message, closed, shutdown };
 
@@ -205,8 +224,13 @@ export function terminalBridge({
     // A reseed was asked for while this one was being captured, and is queued
     // behind it: this frame is already out of date and the stream is shut.
     if (asks !== at && queued) return;
+    // A new stream. The seed itself goes through the carry: tmux-control
+    // appends the output just past the capture to it, and that can end inside
+    // a character the first frame after it finishes. The seed always has
+    // bytes left to send — it opens with RIS — so it is still ONE frame.
+    carry.drop();
     conn.sendText(JSON.stringify({ t: "reset", cols: seed.cols, rows: seed.rows }));
-    sendBinary(seed.bytes);
+    sendBinary(carry.frame(seed.bytes));
     seedMark = sentBytes;
     shown = { cols: seed.cols, rows: seed.rows };
     seeded = true;
@@ -231,6 +255,9 @@ export function terminalBridge({
 
   function askReseed() {
     asks += 1;
+    // The stream has broken (a %pause, output let go): what it held goes
+    // with it, and the seed asked for draws the screen as tmux has it.
+    carry.drop();
     // Before the first size there is nothing on screen to replace; the first
     // seed, when it comes, is newer than whatever asked.
     if (ended || !started || queued) return;
@@ -246,14 +273,17 @@ export function terminalBridge({
     if (ackedBytes >= 0 && inFlight() > ackWindow) {
       // The panel has more in flight than its terminal has parsed by a whole
       // window: let the stream go, as for a socket that stopped reading, and
-      // seed what tmux shows once it has caught up (onAck).
+      // seed what tmux shows once it has caught up (onAck). A character it
+      // had begun is let go with it.
       behind = true;
+      carry.drop();
       return;
     }
     if (conn.bufferedAmount > highWater) {
       // Let the stream go rather than queue it: what was skipped is redrawn by
       // a seed once the socket has caught up.
       congested = true;
+      carry.drop();
       const drained = () => {
         congested = false;
         askReseed();
@@ -262,7 +292,10 @@ export function terminalBridge({
       else drained();
       return;
     }
-    sendBinary(data);
+    // Whole characters only. A frame all of whose bytes are held (one byte of
+    // a character, say) sends nothing.
+    const frame = carry.frame(data);
+    if (frame.length) sendBinary(frame);
   }
 
   function onPaneSize({ cols, rows }) {
@@ -404,6 +437,9 @@ export function terminalBridge({
   function end(reason, text, { atOpen = false } = {}) {
     if (ended) return;
     ended = true;
+    // A character the pane began and never finished is not sent: tmux draws
+    // nothing for it either.
+    carry.drop();
     clearTimeout(resizeTimer);
     clearTimeout(coloursTimer);
     conn.sendText(JSON.stringify({ t: "exit", reason, ...(text ? { message: text } : {}), ...(atOpen ? { atOpen: true } : {}) }));
@@ -420,6 +456,7 @@ export function terminalBridge({
   /** The socket went away, from either side. */
   function closed() {
     ended = true;
+    carry.drop();
     clearTimeout(resizeTimer);
     clearTimeout(coloursTimer);
     release();
