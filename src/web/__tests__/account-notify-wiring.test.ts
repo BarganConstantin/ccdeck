@@ -99,7 +99,7 @@ let watch: Watch;
 let auto: Auto;
 let quota: Quota;
 const said: { title: string; body: string }[] = [];
-const settings = { swap: true, quota: false, reset: false, elsewhere: true };
+const settings = { swap: true, quota: false, reset: false };
 let notify: (title: string, body: string) => unknown = (title, body) => { said.push({ title, body }); };
 
 const rest = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -120,7 +120,7 @@ async function tickOnce(engine: string) {
 beforeEach(async () => {
   proc.calls.length = 0;
   said.length = 0;
-  Object.assign(settings, { swap: true, quota: false, reset: false, elsewhere: true });
+  Object.assign(settings, { swap: true, quota: false, reset: false });
   notify = (title, body) => { said.push({ title, body }); };
   rmTempDir(ROOT);
   rmTempDir(join(DIR, "deck"));
@@ -255,74 +255,5 @@ describe("the deck's own quota reads", () => {
     await watch.watchOnce(() => ({ claude: true, codex: false }));
     expect(said.map(s => s.title)).toEqual(["Claude · personal — ccdeck"]);
     expect(said[0].body).toMatch(/^5-hour usage reached 90% · resets in 2h 5\dm$/);
-  });
-});
-
-// ONE LOGIN, LIVE IN ONE PLACE (#2192). The door that reads which login a
-// paired deck is on, wired to the real roster: the status handed in through
-// lan-elsewhere.mjs's door the way lan-deck.mjs hands in its engine's, and the
-// store above.
-describe("a login a paired deck is on as well", () => {
-  type Door = typeof import("../../server/lan-elsewhere.mjs");
-  /** The door, from the registry the modules under test were loaded into. */
-  const door = async () => await import("../../server/lan-elsewhere.mjs") as Door;
-  /** Local network's status with one paired deck that just said it is on `num`. */
-  const onDeck = (num: number | null) => ({
-    enabled: true, addrs: [], aliases: { "fp-imac": "iMac" },
-    peers: [{
-      fp: "fp-imac", name: "imac", addr: "192.0.2.20", paired: true,
-      offers: { at: Date.now(), accounts: [], ...(num ? { current: { key: `account-${num}@b.c@@org-${num}` } } : {}) },
-    }],
-  });
-
-  it("reaches the desktop once while this deck and the other are both on it", async () => {
-    writeStore(2, { 2: 40, 3: 20 }, { 2: "personal" });
-    const lan = await door();
-    let peer: ReturnType<typeof onDeck> = onDeck(2);
-    lan.connectLanStatus(() => peer);
-    try {
-      await watch.watchElsewhereOnce();
-      await watch.watchElsewhereOnce();
-      expect(said).toEqual([{
-        title: "Claude · personal — ccdeck",
-        body: "Also active on iMac. When one machine renews this login, the other is signed out — use a different account on one of them.",
-      }]);
-      // The other deck moved: the incident is over, and saying so is nothing.
-      peer = onDeck(3);
-      await watch.watchElsewhereOnce();
-      expect(said).toHaveLength(1);
-      // Back on it is a new one.
-      peer = onDeck(2);
-      await watch.watchElsewhereOnce();
-      expect(said).toHaveLength(2);
-    } finally {
-      lan.connectLanStatus(null);
-    }
-  });
-
-  it("is not said with its switch off", async () => {
-    settings.elsewhere = false;
-    writeStore(2, { 2: 40 });
-    const lan = await door();
-    lan.connectLanStatus(() => onDeck(2));
-    try {
-      await watch.watchElsewhereOnce();
-      expect(said).toEqual([]);
-    } finally {
-      lan.connectLanStatus(null);
-    }
-  });
-
-  it("reads no store while no paired deck is on any login", async () => {
-    writeStore(2, { 2: 40 });
-    const lan = await door();
-    lan.connectLanStatus(() => onDeck(null));
-    try {
-      await watch.watchElsewhereOnce();
-      expect(said).toEqual([]);
-      expect(proc.calls).toEqual([]);
-    } finally {
-      lan.connectLanStatus(null);
-    }
   });
 });

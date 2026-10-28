@@ -394,11 +394,15 @@ describe("nothing else in the deck invents a focus stop", () => {
     // inside their own frame, as Radio's results scroll, so each is a stop
     // the keyboard can reach and scroll (WCAG 2.1.1; axe's
     // scrollable-region-focusable); the log and the table are named regions.
+    // What's new's body is the same: the one scroller of a reading sheet, mostly
+    // prose between its few controls, a named region the keyboard can scroll.
     // Sorted, so the order is the paths' and not the file system's.
     expect([...offenders].sort()).toEqual([
       "components/ForgeHtml.tsx", "components/IntegrationSplit.tsx", "components/RadarSplitter.tsx", "components/RadioMap.tsx",
-      "components/RadioPanel.tsx", "components/ToolAuditSplitter.tsx", "components/forge/DetailJobs.tsx", "jira-html.tsx",
+      "components/RadioPanel.tsx", "components/ReleaseNotesModal.tsx", "components/ToolAuditSplitter.tsx",
+      "components/forge/DetailJobs.tsx", "jira-html.tsx",
     ]);
+    expect(code(readFileSync(`${web}components/ReleaseNotesModal.tsx`, "utf8"))).toMatch(/<section className="modal-body" role="region" aria-label="Release notes" tabIndex=\{0\}>/);
     expect(code(readFileSync(`${web}jira-html.tsx`, "utf8"))).toMatch(/tabIndex=\{0\} role="region" aria-label="Table"/);
     expect(code(readFileSync(`${web}components/forge/DetailJobs.tsx`, "utf8"))).toMatch(/<pre[^>]*className="fd-log" tabIndex=\{0\} role="region" aria-label=/);
     expect(code(readFileSync(`${web}components/ForgeHtml.tsx`, "utf8"))).toMatch(/<pre key=\{i\} tabIndex=\{0\}/);

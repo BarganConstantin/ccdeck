@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 vi.mock("../../server/cswap-install.mjs", () => ({ cswapBin: () => "fixture-only", cswapInstalling: () => false, cswapRefusal: async () => null, cswapVersion: async () => "fixture", installHint: async () => "fixture" }));
 vi.mock("../../server/exec.mjs", () => ({ run: async () => { throw new Error("No process allowed in this fixture"); }, runDetached: () => { throw new Error("No process allowed in this fixture"); } }));
-vi.mock("../../server/claude-collector.mjs", () => ({ nudgeCollector: () => {}, nextReadAt: () => null }));
+vi.mock("../../server/claude-collector.mjs", () => ({ nudgeCollector: () => {}, nextReadAt: () => null, heldNow: () => false }));
 // @ts-expect-error server ES module
 import { fetchClaudeAccounts, invalidateClaudeAccountsCache, usageRows } from "../../server/claude-accounts.mjs";
 const root = mkdtempSync(join(tmpdir(), "ccdeck-capacity-store-"));

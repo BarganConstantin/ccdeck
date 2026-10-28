@@ -24,9 +24,11 @@ import {
   CHECK_MIN_BUSY_MS, CHECKS_OFF, DECK_UNREACHABLE, NPM_UNREACHABLE, runUpdateCheck, runDesktopUpdateCheck, updateCheckState,
   type UpdateCheckFacts,
 } from "../update-check";
+import * as useNowClock from "../use-now";
 import type { VersionInfo } from "../use-version-check";
 import { UPGRADE_BLOCK_TEXT } from "../components/VersionBanner";
-import ReleaseActions, { RESTART_WHY, TOUR_WHY, UpdateLineView } from "../components/ReleaseActions";
+import ReleaseNotesModal from "../components/ReleaseNotesModal";
+import ReleaseActions, { useReleaseUpdateCheck, RESTART_WHY, TOUR_WHY, UpdateLineView } from "../components/ReleaseActions";
 
 const { homeRef } = vi.hoisted(() => ({ homeRef: { dir: null as string | null } }));
 vi.mock("node:os", async importOriginal => {
@@ -65,11 +67,11 @@ describe("the line under the actions, state by state", () => {
   it("idle: offers the check, and says when the last one ran", () => {
     expect(stateOf()).toEqual({
       canCheck: true, checking: false,
-      line: { said: "", tone: "answer", age: "Last checked 12 min ago.", command: null, action: null },
+      line: { said: "You're on the latest, 3.38.6.", tone: "answer", age: "Checked 12 min ago.", command: null, action: null },
     });
     // Never checked: nothing to date, and nothing made up.
-    expect(lineOf({ version: version({ checkedAt: null }) })).toMatchObject({ said: "", age: null });
-    expect(lineOf({ version: null })).toMatchObject({ said: "", age: null });
+    expect(lineOf({ version: version({ checkedAt: null }) })).toMatchObject({ said: "No update check yet.", age: null });
+    expect(lineOf({ version: null })).toMatchObject({ said: "No update check yet.", age: null });
   });
 
   it("checking: the button turns and the line says so", () => {
@@ -86,6 +88,12 @@ describe("the line under the actions, state by state", () => {
       .toBe("You're on 3.39.0, ahead of npm's 3.38.6.");
   });
 
+  it("does not present an old or missing lookup as up to date", () => {
+    expect(lineOf({ answered: true, version: version({ checkedAt: NOW - 61 * MIN }) }).said).toBe("Update status may have changed.");
+    expect(lineOf({ answered: true, version: version({ checkedAt: null }) }).said).toBe("No update check yet.");
+    expect(lineOf({ answered: true, running: "unknown", version: version({ checkedAt: NOW, latest: "unknown" }) }).said).not.toContain("latest");
+  });
+
   it("not available yet: names the version, says it cannot be installed, and when the deck looks again", () => {
     expect(lineOf({ answered: true, version: version({ latestPending: "3.38.7", checkedAt: NOW }) }))
       .toEqual({ said: "3.38.7 is tagged on npm but can't be installed yet. The deck looks again in five minutes.", tone: "answer", age: null, command: null, action: null });
@@ -100,7 +108,7 @@ describe("the line under the actions, state by state", () => {
     expect(lineOf({ version: version({ checkFailedAt: NOW - 3 * MIN, checkedAt: NOW - 70 * MIN }) }))
       .toMatchObject({ said: NPM_UNREACHABLE, age: "Last tried 3 min ago." });
     // A failure older than the last success is history, not news.
-    expect(lineOf({ version: version({ checkFailedAt: NOW - 30 * MIN, checkedAt: NOW - 12 * MIN }) }).said).toBe("");
+    expect(lineOf({ version: version({ checkFailedAt: NOW - 30 * MIN, checkedAt: NOW - 12 * MIN }) }).said).toBe("You're on the latest, 3.38.6.");
   });
 
   it("failure: the deck itself did not answer", () => {
@@ -283,70 +291,60 @@ const wiring = (v: VersionInfo | null, over: { versionChecking?: boolean } = {})
   running: "3.38.6",
   onHandOff: noop,
 }) as never;
-const draw = (props: Record<string, unknown>) => renderToStaticMarkup(createElement(ReleaseActions, props));
+function StatusFixture({ updateCheck }: { updateCheck?: never }) {
+  const update = useReleaseUpdateCheck(updateCheck);
+  return createElement("div", { "data-attention": update?.needsAttention, "data-check-why": update?.checkWhy }, createElement(ReleaseActions, { update }));
+}
+const draw = (props: Record<string, unknown>) => renderToStaticMarkup(createElement(StatusFixture, props));
 const buttons = (html: string) => [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(m => m[0]);
 const text = (tag: string) => tag.replace(/<[^>]+>/g, "");
 
-describe("the strip as drawn", () => {
-  const live = version({ checkedAt: Date.now() - 12 * MIN });
-
-  it("is three small buttons, each a glyph and a word, Restart last and set apart", () => {
-    const html = draw({ onTour: noop, onRestart: noop, updateCheck: wiring(live) });
-    const all = buttons(html);
-    expect(all.map(text)).toEqual(["Take the tour", "Check for updates", "Restart"]);
-    for (const b of all) {
-      expect(b).toMatch(/^<button type="button" class="btn rn-act/);
-      expect(b).toMatch(/<svg class="glyph"[^>]*aria-hidden="true"/);
-    }
-    expect(all[2]).toMatch(/class="btn rn-act rn-act-restart"/);
+describe("the compact status row", () => {
+  it("uses the current clock after a check, before the 30-second ticker catches up", () => {
+    const at = Date.now();
+    const clock = vi.spyOn(useNowClock, "useNow").mockReturnValue(at - 20_000);
+    try {
+      expect(draw({ updateCheck: wiring(version({ checkedAt: at })) })).toContain("You&#x27;re on the latest");
+    } finally { clock.mockRestore(); }
   });
 
-  it("keeps each row's sentence as the button's description", () => {
-    const html = draw({ onTour: noop, onRestart: noop, updateCheck: wiring(live) });
-    const describedBy = (b: string) => /aria-describedby="([^"]+)"/.exec(b)![1];
-    const sentence = (id: string) => new RegExp(`<span hidden="" id="${id.replace(/[:]/g, "\\:")}">([^<]+)</span>`).exec(html)?.[1];
-    const [tour, check, restart] = buttons(html);
-    expect(sentence(describedBy(tour))).toBe(TOUR_WHY);
-    expect(TOUR_WHY).toBe("Eight pictures of what the deck shows.");
-    expect(sentence(describedBy(check))).toBe("Ask npm now whether a newer ccdeck is out.");
-    expect(sentence(describedBy(restart))).toBe(RESTART_WHY);
+  it("retains the update handoff explanation as an accessible description", () => {
+    const html = draw({ updateCheck: wiring(version(OUT)) });
+    expect(html).toContain('aria-describedby=');
+    expect(html).toContain('Runs npm i -g ccdeck@latest here, then restarts once nothing is running.');
   });
 
-  it("mounts the answer as a polite live region from the start, and keeps the age readable but out of it", () => {
-    const html = draw({ onTour: noop, updateCheck: wiring(live) });
-    expect(html).toContain('<p class="rn-update-line" data-tone="answer"><span class="rn-update-what" role="status"></span>'
-      + '<span class="rn-update-age">Last checked 12 min ago.</span></p>');
-    // Nothing checked yet: the region is still there, and empty.
-    expect(draw({ updateCheck: wiring(version({ checkedAt: null })) }))
-      .toContain('<p class="rn-update-line" data-tone="answer"><span class="rn-update-what" role="status"></span></p>');
-    // Empty, it takes no room and no gap, and stays in the tree.
-    expect(read("../styles/dialogs.css")).toContain(".release-notes .rn-update-what:empty { position: absolute; }");
+  it.each([false, true])("keeps routine checking out of the reading area (checking=%s)", versionChecking => {
+    const html = renderToStaticMarkup(createElement(ReleaseNotesModal, {
+      entries: [{ version: "3.38.6", summary: "Read the useful changes", notes: [{title:"A concrete benefit",body:"Useful details",priority:"highlight"}] }],
+      since: null, running: "3.38.6", firstRun: false, onClose: noop,
+      updateCheck: wiring(version({checkedAt: Date.now()}), {versionChecking}),
+    }));
+    expect(html).not.toContain('class="rn-status-row"');
+    expect(html).not.toContain('>Highlights<');
+    expect(html).toContain('aria-label="More options"');
+    expect(html).toContain('class="rn-live-status" role="status"');
+    if (versionChecking) expect(html).toContain('Checking…');
   });
-
-  it("stands Restart down while the line offers an update, which restarts too", () => {
-    const html = draw({ onTour: noop, onRestart: noop, updateCheck: wiring(version(OUT)) });
-    expect(buttons(html).map(text)).toEqual(["Take the tour", "Check for updates", "Update now"]);
-    // A command to copy restarts nothing, so Restart stays beside it.
-    const copy = draw({ onTour: noop, onRestart: noop, updateCheck: wiring(version({ ...OUT, ...CHECKOUT })) });
-    expect(buttons(copy).map(text)).toEqual(["Take the tour", "Check for updates", "Restart", "Copy"]);
+  it("retains the busy check controller without interrupting reading", () => {
+    const html = draw({ updateCheck: wiring(version({}), {versionChecking:true}) });
+    expect(html).toContain('data-attention="false"');
+    expect(html).toContain('Checking…');
   });
-
-  it("is busy, never disabled, while the chip's check is out", () => {
-    const html = draw({ onTour: noop, updateCheck: wiring(live, { versionChecking: true }) });
-    const check = buttons(html).find(b => text(b) === "Check for updates")!;
-    expect(check).toContain('aria-busy="true"');
-    expect(check).not.toContain("disabled");
-    expect(html).toContain('<span class="rn-update-what" role="status">Checking…</span>');
+  it.each([
+    version(OUT),
+    version({latest:null, checkedAt:null, checkFailedAt:Date.now()}),
+  ])("keeps actionable updates and failed checks in the reading area", v => {
+    const html = renderToStaticMarkup(createElement(ReleaseNotesModal, {
+      entries: [], since:null, running:v.running, firstRun:false, onClose:noop,
+      updateCheck:wiring(v),
+    }));
+    expect(html).toContain('class="rn-status-row"');
   });
-
-  it("draws no Check for updates where none can run, and says why on the line", () => {
-    const html = draw({ onTour: noop, onRestart: noop, updateCheck: wiring(version({ checkDisabled: true, latest: null, checkedAt: null })) });
-    expect(buttons(html).map(text)).toEqual(["Take the tour", "Restart"]);
-    expect(html).toContain(`<p class="rn-update-line" data-tone="note"><span class="rn-update-what" role="status">${CHECKS_OFF}</span>`);
-  });
-
-  it("draws nothing at all when it has nothing to offer", () => {
-    expect(draw({})).toBe("");
+  it("keeps a disabled-check explanation truthful", () => {
+    const html = draw({ updateCheck: wiring(version({checkDisabled:true})) });
+    expect(html).toContain(CHECKS_OFF);
+    expect(buttons(html)).toEqual([]);
   });
 });
 
@@ -398,11 +396,11 @@ describe('desktop update check from the dialog', () => {
   it('keeps the native check visible and busy while Electron is checking', () => {
     expect(updateCheckState(inApp({ status: 'checking', version: null }), UPGRADE_BLOCK_TEXT)).toMatchObject({ canCheck: true, checking: true });
   });
-  it('draws the check inside Electron even when npm checks are disabled', () => {
+  it('retains the native check controller when npm checks are disabled', () => {
     vi.stubGlobal('navigator', { userAgent: 'ccdeck-desktop/3.39.1' });
     try {
       const html = draw({ onTour: noop, onRestart: noop, updateCheck: wiring(version({ checkDisabled: true })) });
-      expect(buttons(html).map(text)).toEqual(['Take the tour', 'Check for updates', 'Restart']);
+      expect(buttons(html)).toEqual([]);
       expect(html).toContain('Ask the desktop app whether a newer ccdeck is out.');
     } finally { vi.unstubAllGlobals(); }
   });

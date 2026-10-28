@@ -59,9 +59,14 @@ const INSTALL_TIMEOUT_MS = 300_000; // a cold global install on a slow line
  * Exported for tests: the platform is a parameter so the Windows command line
  * can be checked from any OS, and `deps` stands in for the Windows filesystem
  * the shim lookup asks about. The same shape ccusage.mjs's installSpec has.
+ *
+ * `prefix` names the global prefix to install into, for a copy this process
+ * does not run (terminal-cli-update.mjs): the npm that answers here need not be
+ * the one that installed it, and only that copy's own prefix rewrites it.
  */
-export function upgradeSpec(target, platform = process.platform, deps) {
-  const args = ["install", "-g", `${target}@latest`, "--no-audit", "--no-fund", "--loglevel", "error"];
+export function upgradeSpec(target, platform = process.platform, deps, prefix = null) {
+  const args = ["install", "-g", ...(prefix ? ["--prefix", prefix] : []), `${target}@latest`,
+    "--no-audit", "--no-fund", "--loglevel", "error"];
   // POSIX: the npm-cli.js beside this node, and the bare name only when there
   // is none, because a deck started at login has no PATH that finds npm on a
   // Homebrew or nvm install (#1777). See npmCliLaunch.
@@ -164,8 +169,11 @@ function dirWritable(p) {
   }
 }
 
-/** The same question, answered against the real filesystem and environment. */
-export function upgradeBlock(pkgRoot) {
+/** The same question, answered against the real filesystem and environment.
+ *  `ownCopy: false` asks it about a copy this process does not run — the
+ *  terminal's ccdeck (terminal-cli-update.mjs) — which the desktop app's own
+ *  updates never reach, so being inside the app is no refusal there. */
+export function upgradeBlock(pkgRoot, { ownCopy = true } = {}) {
   // Whatever `npm i -g` would rewrite is what has to be writable, and under the
   // stub layout that is not this directory: `npm i -g ccdeck` replaces
   // <prefix>/lib/node_modules/ccdeck, and the copy running out of its nested
@@ -195,7 +203,7 @@ export function upgradeBlock(pkgRoot) {
     writable: dirWritable(target) && dirWritable(resolve(target, "..")),
     // Inside the desktop app the app updates itself; an `npm i -g` here would
     // install a copy it never runs (app-host.mjs).
-    optedOut: process.env.AGENTS_DECK_NO_INSTALL === "1" || inApp(),
+    optedOut: process.env.AGENTS_DECK_NO_INSTALL === "1" || (ownCopy && inApp()),
     // Whether the package that write would fetch is still a deck. Kept out of
     // the pure rule above, like every other input here, so the policy stays one
     // readable expression and this file owns the filesystem half of it.
@@ -244,13 +252,37 @@ export function startUpgrade({ pkgRoot, name = PUBLISHED_NAME }) {
   // about the deck rather than about their install.
   const command = `npm ${spec.plain.join(" ")}`;
   setUpgrade("running", command);
+  // Deliberately does not restart anything once it is done. The new files on
+  // disk make installedVersion() disagree with the running one, and the
+  // ordinary drift path takes it from there — including its wait for an idle
+  // moment.
+  if (!runInstall(spec, (state, error) => setUpgrade(state, command, error))) {
+    return { ok: false, reason: "spawn_failed", command };
+  }
+  return { ok: true, command };
+}
+
+/**
+ * Run one `npm install` from upgradeSpec to its end in the background, telling
+ * `report` the state it ends in — "done", or "failed" with npm's own reason.
+ * False when npm could not even be spawned, which has been reported by then.
+ *
+ * The deck's own update and the terminal's (terminal-cli-update.mjs) both run
+ * through here, each keeping its own state, so neither can be reported as the
+ * other.
+ */
+export function runInstall(spec, report) {
+  // Whether this install has already been reported as failed — kept here, not
+  // read back from the caller's state, which a later install may have replaced.
+  let failed = false;
+  const fail = (error) => { failed = true; report("failed", error); };
 
   let child;
   try {
     child = spawn(spec.file, spec.args, { ...spec.opts, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   } catch (err) {
-    setUpgrade("failed", command, err?.message ?? String(err));
-    return { ok: false, reason: "spawn_failed", command };
+    fail(err?.message ?? String(err));
+    return false;
   }
 
   // Only the tail is kept: npm's failures put the useful line near the end, and
@@ -273,13 +305,13 @@ export function startUpgrade({ pkgRoot, name = PUBLISHED_NAME }) {
   // could arrive minutes after the deadline — or never, if the tree kill could
   // not run at all — and until it did, /api/version kept reporting
   // `state: "running"` with the UI spinning on "installing…" and the guard at
-  // the top of this function refusing every retry. When it finally arrived it
+  // the top of startUpgrade refusing every retry. When it finally arrived it
   // carried the killed wrapper's status, so a five-minute timeout was announced
   // to the user as "npm exited null".
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
-    setUpgrade("failed", command, `timed out after ${Math.round(INSTALL_TIMEOUT_MS / 60_000)} minutes`);
+    fail(`timed out after ${Math.round(INSTALL_TIMEOUT_MS / 60_000)} minutes`);
     killTree(child);
   }, INSTALL_TIMEOUT_MS);
   timer.unref?.();
@@ -289,7 +321,7 @@ export function startUpgrade({ pkgRoot, name = PUBLISHED_NAME }) {
     // A kill can make the child emit one of these; whatever it says, the reason
     // this install failed is the deadline that has already been reported.
     if (timedOut) return;
-    setUpgrade("failed", command, e?.message ?? String(e));
+    fail(e?.message ?? String(e));
   });
   child.on("close", (code) => {
     clearTimeout(timer);
@@ -297,22 +329,18 @@ export function startUpgrade({ pkgRoot, name = PUBLISHED_NAME }) {
       // A clean exit is a real install even if it lands after the deadline —
       // npm finishing in the same breath as the timer is the one case where the
       // files on disk disagree with the verdict above, and the files win.
-      //
-      // Deliberately does not restart anything. The new files on disk make
-      // installedVersion() disagree with the running one, and the ordinary
-      // drift path takes it from there — including its wait for an idle moment.
-      setUpgrade("done", command);
-    } else if (!timedOut && _upgrade?.state !== "failed") {
+      report("done", null);
+    } else if (!timedOut && !failed) {
       // Not over a failure the 'error' handler already explained. A missing npm
       // emits 'error' with ENOENT and THEN 'close' with a null code, and this
       // branch used to replace "spawn npm ENOENT" with "npm exited -2" — the
       // one message that says what is wrong, overwritten by the one that does
       // not.
-      setUpgrade("failed", command, lastMeaningfulLine(err) || `npm exited ${code}`);
+      fail(lastMeaningfulLine(err) || `npm exited ${code}`);
     }
   });
 
-  return { ok: true, command };
+  return true;
 }
 
 // The furniture around a Node crash, none of which is the reason anything

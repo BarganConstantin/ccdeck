@@ -20,7 +20,8 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { isPortValue } from "../../src/server/args.mjs";
 import { PRODUCT } from "../../src/server/brand.mjs";
-import { liveDecks, olderVersion, secondStart, versionNote } from "../../src/server/running-deck.mjs";
+import { upgradeCommand } from "../../src/server/install-layout.mjs";
+import { catchUpNote, liveDecks, olderVersion, secondStart, versionNote } from "../../src/server/running-deck.mjs";
 import { link, overSsh } from "../../src/server/term.mjs";
 import { sshNote } from "../../src/server/way-back.mjs";
 import { COMMAND, PKG_ROOT, PKG_VERSION } from "./package.js";
@@ -88,6 +89,10 @@ export async function settleSecondStart({ flags, workspace, persist, wantCodex, 
     // report to hand it to. Same rule as statusLine's `keep`.
     write(`     ${P.accent}${P.bold}${link(liveUrl, liveUrl, LINKS)}${P.reset}\n`);
     if (note) write(`  ${P.warn}${G.warn}  ${note}${P.reset}\n`);
+    // And how to catch up with it, under the note: this copy's commands are
+    // the older ones, and the deck has no way to tell it otherwise.
+    const catchUp = catchUpNote(live.version, PKG_VERSION, upgradeCommand(PKG_ROOT));
+    if (catchUp) write(`     ${P.warn}${catchUp}${P.reset}\n`);
     // THE TYPO'S WARNING, on the path that has no startup report to carry it.
     //
     // The gate used to answer `true` for these two so the report would

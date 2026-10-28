@@ -26,14 +26,12 @@ import { portHolder } from "./port-holder.mjs";
 import { createRouteCheck } from "./route-via.mjs";
 import { DISCOVERY_PORT } from "./lan-beacon.mjs";
 import { aboutThisDeck } from "./lan-about.mjs";
+import { createUsageShare } from "./usage-share.mjs";
 import { MAC_FW, PROBE_PS, UFW_CONF, UFW_DEFAULTS, isActive, localAliases, reachability, readMacProbe, readProbe, readUfw, silentInbound } from "./lan-reach.mjs";
 import { run } from "./exec.mjs";
 // A LAN round checks the imports it lands the way the paste box does.
 import { CHECKS_IMPORTS } from "./account-routes.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
-// Which of this deck's accounts a paired deck is working on, for the account
-// notifier, which reaches the engine's status through it (#2192).
-import { connectLanStatus } from "./lan-elsewhere.mjs";
 
 // ── LAN sync ────────────────────────────────────────────────────────────────
 //
@@ -76,6 +74,14 @@ export const lanEngine = createEngine({
   // nobody else. RUNNING_VERSION rather than a fresh read, for the reason it
   // is read at import: it is what this process actually runs.
   about: aboutThisDeck({ version: RUNNING_VERSION }),
+  // One paired deck polls each account they share and the others take its
+  // reading, so the same account is not polled once per machine (#930).
+  usage: deps => createUsageShare({
+    ...deps,
+    register: true,
+    canImport: async () => (await import("./cswap-install.mjs")).cswapImportsUsage(),
+    readStore: async () => (await import("./claude-accounts.mjs")).storedUsageReadings(),
+  }),
   readAccounts: async () => {
     const { fetchClaudeAccounts } = await import("./claude-accounts.mjs");
     const got = await fetchClaudeAccounts();
@@ -303,10 +309,6 @@ export const lanEngine = createEngine({
     if (what !== "other-group") console.error(`${PRODUCT}: lan sync (${what}):`, err?.message ?? err);
   },
 });
-
-// The status the account notifier reads "which deck is on what" from — see
-// lan-elsewhere.mjs, which says why it does not import this file for it.
-connectLanStatus(() => lanEngine.status());
 
 /**
  * What prefs is entitled to tell the LAN engine, and what it is not.

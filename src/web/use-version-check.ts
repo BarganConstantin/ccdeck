@@ -105,7 +105,21 @@ export type VersionInfo = {
    *  npx and global installs alike. The terminal row renders this same string
    *  from this same function, which is what keeps the two surfaces one answer. */
   renameFix?: string | null;
+  /** The ccdeck a terminal on this machine starts, when it is older than this
+   *  deck, and the line that updates it (src/server/terminal-cli.mjs). Null
+   *  when it is not older or cannot be identified. */
+  terminalCli?: TerminalCli | null;
 };
+
+export interface TerminalCli {
+  version: string;
+  command: string;
+  /** What the deck is doing about it (src/server/terminal-cli-update.mjs):
+   *  updating it soon, now, failed to with npm's `error`, or null — left to
+   *  the person, who runs `command`. Absent from a deck before it could. */
+  auto?: "pending" | "running" | "failed" | null;
+  error?: string | null;
+}
 
 export interface VersionCheck {
   /** The server's answer, or null until the first one lands. */

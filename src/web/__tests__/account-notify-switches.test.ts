@@ -1,7 +1,5 @@
-// The five switches the account notifications are governed by: one each, none
-// tied to another or to "Notifications while closed", each saved like the
-// menu's other settings, and all five held off by the launch veto. The fifth,
-// a login that a paired deck is on as well, came with #2192.
+// The four account notification switches: each is independent of the others
+// and of "Notifications while closed", and all obey the launch veto.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
@@ -13,16 +11,14 @@ import { ACCOUNT_NOTIFY_SWITCHES } from "../notify-reach";
 import { WEB_DIR } from "./client-source";
 
 describe("what each switch allows", () => {
-  it("is its own answer, whatever the other four and the closed-deck switch say", () => {
+  it("is its own answer, whatever the other three and the closed-deck switch say", () => {
     for (const notifySwap of [true, false]) {
       for (const notifyQuota of [true, false]) {
         for (const notifyReset of [true, false]) {
           for (const notifyStopped of [true, false]) {
-            for (const notifyElsewhere of [true, false]) {
-              for (const notifications of [true, false]) {
-                expect(accountNotifySettings({ notifications, notifySwap, notifyQuota, notifyReset, notifyStopped, notifyElsewhere }, {}))
-                  .toEqual({ swap: notifySwap, quota: notifyQuota, reset: notifyReset, stopped: notifyStopped, elsewhere: notifyElsewhere });
-              }
+            for (const notifications of [true, false]) {
+              expect(accountNotifySettings({ notifications, notifySwap, notifyQuota, notifyReset, notifyStopped }, {}))
+                .toEqual({ swap: notifySwap, quota: notifyQuota, reset: notifyReset, stopped: notifyStopped });
             }
           }
         }
@@ -30,15 +26,15 @@ describe("what each switch allows", () => {
     }
   });
 
-  it("is the default for a deck that saved nothing: the swap, the stopped sessions and the shared login on, the quota two off", () => {
-    expect(accountNotifySettings({}, {})).toEqual({ swap: true, quota: false, reset: false, stopped: true, elsewhere: true });
-    expect(accountNotifySettings(null, {})).toEqual({ swap: true, quota: false, reset: false, stopped: true, elsewhere: true });
+  it("is the default for a deck that saved nothing: swap and stopped sessions on, both quota alerts off", () => {
+    expect(accountNotifySettings({}, {})).toEqual({ swap: true, quota: false, reset: false, stopped: true });
+    expect(accountNotifySettings(null, {})).toEqual({ swap: true, quota: false, reset: false, stopped: true });
   });
 
   it("is nothing at all on a deck launched with AGENTS_DECK_NO_NOTIFY=1", () => {
-    const all = { notifySwap: true, notifyQuota: true, notifyReset: true, notifyStopped: true, notifyElsewhere: true };
+    const all = { notifySwap: true, notifyQuota: true, notifyReset: true, notifyStopped: true };
     expect(accountNotifySettings(all, { AGENTS_DECK_NO_NOTIFY: "1" }))
-      .toEqual({ swap: false, quota: false, reset: false, stopped: false, elsewhere: false });
+      .toEqual({ swap: false, quota: false, reset: false, stopped: false });
   });
 });
 
@@ -46,21 +42,20 @@ describe("the page's copy of them", () => {
   it("starts where the server starts, so the menu never draws a switch the deck does not hold", () => {
     expect(ACCOUNT_NOTIFY_DEFAULTS).toEqual({
       notifySwap: DEFAULTS.notifySwap, notifyQuota: DEFAULTS.notifyQuota, notifyReset: DEFAULTS.notifyReset,
-      notifyStopped: DEFAULTS.notifyStopped, notifyElsewhere: DEFAULTS.notifyElsewhere,
+      notifyStopped: DEFAULTS.notifyStopped,
     });
   });
 
   it("reads each from the prefs answer, and its default when the answer has no real boolean", () => {
     expect(accountNotifyFrom(undefined)).toEqual(ACCOUNT_NOTIFY_DEFAULTS);
     expect(accountNotifyFrom({ notifySwap: false, notifyQuota: true }))
-      .toEqual({ notifySwap: false, notifyQuota: true, notifyReset: false, notifyStopped: true, notifyElsewhere: true });
-    expect(accountNotifyFrom({ notifyElsewhere: false })).toEqual({ ...ACCOUNT_NOTIFY_DEFAULTS, notifyElsewhere: false });
+      .toEqual({ notifySwap: false, notifyQuota: true, notifyReset: false, notifyStopped: true });
     expect(accountNotifyFrom({ notifyReset: "true" as unknown as boolean })).toEqual(ACCOUNT_NOTIFY_DEFAULTS);
   });
 
-  it("names exactly the five fields the server keeps", () => {
+  it("names exactly the four fields the server keeps", () => {
     expect(ACCOUNT_NOTIFY_SWITCHES.map(s => s.kind))
-      .toEqual(["notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "notifyElsewhere"]);
+      .toEqual(["notifySwap", "notifyQuota", "notifyReset", "notifyStopped"]);
     for (const { kind } of ACCOUNT_NOTIFY_SWITCHES) expect(typeof DEFAULTS[kind], kind).toBe("boolean");
   });
 });
@@ -91,17 +86,16 @@ describe("Settings › Notifications, drawn", () => {
     new RegExp(`role="switch" aria-checked="(true|false)" aria-labelledby="sm-${kind}-label"`).exec(html)?.[1];
 
   it("shows each switch as its own state", () => {
-    const html = draw({ notifySwap: true, notifyQuota: false, notifyReset: true, notifyStopped: false, notifyElsewhere: false });
+    const html = draw({ notifySwap: true, notifyQuota: false, notifyReset: true, notifyStopped: false });
     expect(state(html, "notifySwap")).toBe("true");
     expect(state(html, "notifyQuota")).toBe("false");
     expect(state(html, "notifyReset")).toBe("true");
     expect(state(html, "notifyStopped")).toBe("false");
-    expect(state(html, "notifyElsewhere")).toBe("false");
     expect(html).toContain('id="sm-notifySwap-label">Account auto-switched<');
     expect(html).toContain('id="sm-notifyQuota-label">Quota at 90% and 100%<');
     expect(html).toContain('id="sm-notifyReset-label">Quota reset<');
     expect(html).toContain('id="sm-notifyStopped-label">Sessions stopped on login or limit<');
-    expect(html).toContain('id="sm-notifyElsewhere-label">Login active on another deck<');
+    expect(html).not.toContain("Login active on another deck");
     expect(html).toContain("For the Claude and Codex accounts you&#x27;re on, whether or not the deck is open.");
   });
 

@@ -91,7 +91,6 @@ const ACCOUNT_KEYWORDS: Record<(typeof ACCOUNT_NOTIFY_SWITCHES)[number]["kind"],
   notifyQuota: ["quota", "limit", "rate limit", "usage", "alerts"],
   notifyReset: ["quota", "limit", "window", "available", "alerts"],
   notifyStopped: ["stopped", "login", "expired", "usage limit", "continue", "alerts"],
-  notifyElsewhere: ["login", "signed out", "local network", "another deck", "same account", "alerts"],
 };
 
 const sectionLabel = (section: SettingsSection) => SETTINGS_SECTIONS.find(s => s.id === section)?.label ?? section;
@@ -206,6 +205,8 @@ function buildIndex(): SettingsEntry[] {
         keywords: ["changelog", "release notes", "changes", "news"] },
       { id: "licence", section: "about", group: "ccdeck", label: "Licence",
         keywords: ["license", "agpl", "source", "source code", "open source", "github"] },
+      { id: "sponsor", section: "about", group: "ccdeck", label: "Sponsor ccdeck",
+        keywords: ["sponsor", "support", "donate", "donation", "fund", "funding", "github sponsors", "coffee", "tip"] },
       { id: "tour", section: "about", group: "Tour and feedback", label: "Take the tour",
         keywords: ["tour", "guide", "help", "onboarding", "tutorial", "introduction"] },
       { id: "feedback", section: "about", group: "Tour and feedback", label: "Send feedback",

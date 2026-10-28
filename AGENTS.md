@@ -91,37 +91,27 @@ When preparing release notes for ccdeck, write them as concise product communica
 
 - Start from the actual release diff, merged issues, and user-visible behavior. Ask: **what would a user notice?**
 - Select only the meaningful changes. Do not turn the notes into a commit log, issue list, PR dump, or implementation summary.
+- Say only what the person sees in the app. Usage reports, telemetry and environment variables are documented in README, not in release notes.
 - Describe the result in user language: what is new, what got easier, what was fixed, or what changed in behavior.
 - Keep the tone polished, calm, and direct. Prefer a few strong lines over a long exhaustive changelog.
 - Mention implementation details only when a user needs them to understand a behavior change, migration, compatibility issue, or action they must take.
 - Invisible refactors, internal cleanup, test changes, and fixes that only preserve expected behavior usually do not deserve a product note.
 - Emoji are welcome when they help scanning, but keep them restrained and meaningful.
 
-For larger releases, prefer this shape when the content supports it:
-
-```md
-### ccdeck X.Y.Z
-
-**What’s new**
-
-- 🎵 **Claude FM** — choose your station and control the volume directly from Appearance.
-- 🌐 **Local Network improvements** — device discovery, pairing, and connection health are more reliable.
-- 🤖 **Better agent tracking** — Claude Code and Codex sessions report waiting and blocked states more clearly.
-
-**Improvements**
-
-- ✨ Cleaner account controls, board interactions, and accessibility details.
-
-**Fixes**
-
-Fixed several edge cases around project paths, stale agents, notifications, desktop startup, and session cleanup.
-
-**Under the hood**
-
-Improved reliability and security across the local server and desktop app.
-```
-
-Small releases do not need every heading. Two or three clear lines are better than empty sections.
+The precise in-app authoring contract lives in `release-notes.json`'s `//`
+instructions. Use its optional release summary and explicit note priorities:
+no more than three verified highlights, other improvements disclosed, and all
+breaking changes, settings changes, safety/privacy impact and mandatory actions
+visible. Keep titles specific and bodies to one or two useful sentences, retaining
+compatibility conditions and opt-outs. Separate essential technical details into
+always-visible `notice` text; the schema validates highlight length and metadata.
+Optional semantic icons must match the change and use the native glyph family.
+Use a short factual `noticeLabel` where useful (for example, Setup change).
+Keep a highlight body to one useful sentence; secondary `details` can expand
+below it. Consequential qualifications always belong in a visible `notice`.
+Manual notes are a running-release digest, with Release history linking to the
+full changelog. Upgrade notes retain all consequential changes in the actual range;
+unclassified legacy notes remain visible. Historical notes remain intact.
 
 For a release with no meaningful change the user would notice, use exactly
 `🐛 Bug fixes and performance improvements.` as the annotated tag message and

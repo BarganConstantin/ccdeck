@@ -79,7 +79,19 @@ describe("what an upgrade failure says", () => {
     // code, and the close handler replaced "spawn npm ENOENT" with
     // "npm exited -2" — the one message that says what is wrong, overwritten by
     // the one that does not.
-    expect(read("../../server/npm-upgrade.mjs")).toContain('} else if (!timedOut && _upgrade?.state !== "failed") {');
+    expect(read("../../server/npm-upgrade.mjs")).toContain("} else if (!timedOut && !failed) {");
+  });
+
+  it("says it once, when there is no npm to run", async () => {
+    // The same failure run for real: 'error' with ENOENT, then 'close'.
+    const { runInstall } = await import("../../server/npm-upgrade.mjs");
+    const said: [string, string | null][] = [];
+    const missing = { file: "/nonexistent/ccdeck-test-npm", args: [], opts: {} };
+    runInstall(missing, (state: string, error: string | null) => { said.push([state, error]); });
+    await new Promise(r => setTimeout(r, 300));
+    expect(said).toHaveLength(1);
+    expect(said[0][0]).toBe("failed");
+    expect(said[0][1]).toContain("ENOENT");
   });
 });
 

@@ -1003,45 +1003,14 @@ describe("how App.tsx wires it up", () => {
   it("draws the dialog out of the shared modal parts and nothing else", () => {
     expect(modal).toMatch(/const dialogRef = useModalDismiss\(onClose\);/);
     expect(modal).toMatch(/className="modal-backdrop"/);
-    expect(modal).toMatch(/role="dialog"\n\s*aria-modal="true"/);
+    expect(modal).toMatch(/role="dialog" aria-modal="true"/);
     // No decision logic in the component: it draws what it is handed. The title
     // split is release-notes.ts's for the same reason — the component calls it,
     // it does not carry a regex of its own.
-    expect(code(modal)).not.toMatch(/compareVersions|localStorage|decideReleaseNotes/);
+    expect(code(modal)).not.toMatch(/localStorage|decideReleaseNotes/);
     expect(code(modal)).not.toMatch(/Extended_Pictographic/);
     expect(modal).toMatch(/splitNoteTitle\(note\.title\)/);
   });
 
-  it("hands the first line the running version rather than answering for it", () => {
-    // A component that passed `running: null` here would compile, render, and
-    // quietly go back to the sentence that never names the release you are on —
-    // which is the whole thing #715 added the argument for.
-    expect(modal).toMatch(/releaseNotesIntro\(\{ since, running, firstRun, entries \}\)/);
-  });
 
-  it("gives the leading emoji a box of its own and the text the space", () => {
-    // The whole fix, in the two lines that carry it: an element the sheet can
-    // put a margin on, and the rest of the title — space included — beside it,
-    // so what a reader copies out of this dialog is the title unchanged.
-    expect(modal).toMatch(/\{icon && <span className="rn-note-icon">\{icon\}<\/span>\}/);
-    expect(modal).toMatch(/\{rest\}/);
-    // The rule's OWN body, not "somewhere after the selector": `[\s\S]*?` runs
-    // straight through a closing brace and would have found the margin on some
-    // later rule entirely, which is a green test for a stylesheet that no
-    // longer separates anything.
-    const rule = /\.release-notes \.rn-note-icon \{([^}]*)\}/.exec(sheetText());
-    expect(rule, ".rn-note-icon has no rule at all").not.toBeNull();
-    expect(rule![1]).toMatch(/margin-right:\s*[^;]+;/);
-    // Never a second space in the markup either — that is the same paper-over
-    // the JSON was not allowed to carry.
-    expect(modal).not.toMatch(/&nbsp;/);
-  });
-
-  it("shows each note as its title alone", () => {
-    // The owner's call (2026-10-27): one line per change is what a user takes
-    // in. The body stays in the file as the release's fuller account, and the
-    // day it is drawn again is a decision, not a slip.
-    expect(modal).toMatch(/<p className="rn-note-title">/);
-    expect(modal).not.toMatch(/note\.body/);
-  });
 });

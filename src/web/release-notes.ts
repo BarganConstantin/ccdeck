@@ -60,17 +60,28 @@
 
 import raw from "../../release-notes.json";
 
-/** One thing a user would notice. `title` is the one line the deck shows;
- *  `body` is the fuller account, kept in the file for the release text. */
+/** One thing a user would notice. `title` is what the eye catches; `body` is
+ *  what they need in order to act on it or stop worrying about it. */
 export interface ReleaseNote {
   title: string;
   body: string;
+  /** Optional supporting detail; consequential qualifications belong in notice. */
+  details?: string;
+  /** Explicit choice; required changes stay visible in current/upgrade notes. */
+  priority?: "highlight" | "required";
+  /** Essential details, visible with the current release and across upgrades. */
+  notice?: string;
+  /** Short factual notice heading; omitted labels retain the legacy default. */
+  noticeLabel?: string;
+  /** Optional semantic anchor, independent of title wording and release version. */
+  icon?: "plans" | "accounts" | "skills";
 }
 
 /** Everything one release had to say, and the version it shipped in. */
 export interface VersionNotes {
   version: string;
   notes: ReleaseNote[];
+  summary?: string;
 }
 
 /** Where the last-seen version is remembered. In the `agent-dag.*` namespace
@@ -172,11 +183,84 @@ export function readNotes(source: unknown): VersionNotes[] {
   const out: VersionNotes[] = [];
   for (const [version, value] of Object.entries(source as Record<string, unknown>)) {
     if (!isVersion(version) || !Array.isArray(value)) continue;
-    const notes = value.filter(isNote);
-    if (notes.length) out.push({ version, notes });
+    // Malformed optional metadata must not discard the original change.
+    const notes = value.filter(isNote).map(n => ({
+      title: n.title, body: n.body,
+      ...(typeof n.details === "string" && n.details.trim() ? { details: n.details } : {}),
+      ...(n.priority === "highlight" || n.priority === "required" ? { priority: n.priority } : {}),
+      ...(typeof n.notice === "string" && n.notice.trim() ? { notice: n.notice } : {}),
+      ...(typeof n.notice === "string" && n.notice.trim() && typeof n.noticeLabel === "string" && n.noticeLabel.trim() && n.noticeLabel.length <= 32 ? { noticeLabel: n.noticeLabel } : {}),
+      ...(n.icon === "plans" || n.icon === "accounts" || n.icon === "skills" ? { icon: n.icon } : {}),
+    }));
+    const summaries = (source as Record<string, unknown>)["//summaries"];
+    const summary = summaries && typeof summaries === "object" && Object.hasOwn(summaries, version)
+      ? (summaries as Record<string, unknown>)[version] : undefined;
+    if (notes.length) out.push({ version, notes, ...(typeof summary === "string" && summary.trim() ? { summary } : {}) });
   }
   // Newest first: the reason someone opens this is the release they just took.
   return out.sort((a, b) => compareVersions(b.version, a.version));
+}
+
+/** Explicit highlights only. Legacy notes remain fully visible: no guessed priorities. */
+export function groupReleaseNotes(notes: ReleaseNote[]) {
+  const highlights = notes.filter(n => n.priority === "highlight").slice(0, 3);
+  const hasEditorialChoice = highlights.length > 0;
+  const visible = notes.filter(n => !highlights.includes(n) &&
+    (!hasEditorialChoice || n.priority === "required" || n.priority === "highlight" || !!n.notice));
+  const more = notes.filter(n => !highlights.includes(n) && !visible.includes(n));
+  return { highlights, visible, more };
+}
+
+/** Manual digest only; upgrades retain their range and fail open for legacy changes. */
+export function presentReleaseNotes(entries: VersionNotes[], upgrading: boolean, running?: string | null) {
+  const [latest, ...previous] = entries;
+  if (!upgrading) return {
+    latest: isVersion(running) ? entries.find(entry => compareVersions(entry.version, running) === 0) : latest,
+    visiblePrevious: [], history: [],
+  };
+  const visiblePrevious: VersionNotes[] = [];
+  const history: VersionNotes[] = [];
+  for (const entry of previous) {
+    const classified = entry.notes.some(n => n.priority === "highlight" || n.priority === "required" || !!n.notice);
+    const visible = entry.notes.filter(n => !classified || n.priority === "required" || !!n.notice);
+    if (visible.length) visiblePrevious.push({ version: entry.version, notes: visible });
+    const remaining = entry.notes.filter(n => !visible.includes(n));
+    if (remaining.length) history.push({ ...entry, notes: remaining });
+  }
+  return { latest, visiblePrevious, history };
+}
+
+/** Strict authoring gate; reading old title/body arrays remains backward compatible. */
+export function validateReleaseEditorial(source: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+  for (const [version, value] of Object.entries(source)) {
+    if (version.startsWith("//") || !Array.isArray(value)) continue;
+    let highlights = 0;
+    for (const [i, item] of value.entries()) {
+      if (!item || typeof item !== "object") continue;
+      for (const key of Object.keys(item)) if (!["title", "body", "details", "priority", "notice", "noticeLabel", "icon"].includes(key)) errors.push(`${version}[${i}]: unknown ${key}`);
+      if (item.details !== undefined && (typeof item.details !== "string" || !item.details.trim())) errors.push(`${version}[${i}]: details must be non-empty text`);
+      if (item.priority !== undefined && !["highlight", "required"].includes(item.priority)) errors.push(`${version}[${i}]: invalid priority`);
+      if (item.icon !== undefined && !["plans", "accounts", "skills"].includes(item.icon)) errors.push(`${version}[${i}]: invalid semantic icon`);
+      if (item.notice !== undefined && (typeof item.notice !== "string" || !item.notice.trim())) errors.push(`${version}[${i}]: notice must be non-empty text`);
+      if (item.noticeLabel !== undefined && (typeof item.noticeLabel !== "string" || !item.noticeLabel.trim() || item.noticeLabel.length > 32 || typeof item.notice !== "string" || !item.notice.trim())) errors.push(`${version}[${i}]: noticeLabel needs a notice and 1–32 characters`);
+      if (item.priority === "highlight") {
+        highlights++;
+        if (typeof item.title === "string" && splitNoteTitle(item.title).rest.trim().length > 72) errors.push(`${version}[${i}]: highlight title exceeds 72 characters`);
+        if (typeof item.body === "string" && item.body.length > 240) errors.push(`${version}[${i}]: highlight description exceeds 240 characters; move essential qualifications to notice`);
+      }
+    }
+    if (highlights > 3) errors.push(`${version}: at most 3 highlights`);
+  }
+  const summaries = source["//summaries"];
+  if (summaries !== undefined) {
+    if (!summaries || typeof summaries !== "object" || Array.isArray(summaries)) errors.push("//summaries: expected version-to-summary object");
+    else for (const [version, summary] of Object.entries(summaries)) {
+      if (!isVersion(version) || !Object.hasOwn(source, version)) errors.push(`//summaries: unknown release ${version}`);
+      if (typeof summary !== "string" || !summary.trim() || summary.length > 120) errors.push(`${version}: summary must be 1–120 characters`);
+    }
+  }
+  return errors;
 }
 
 /** The notes that shipped in this build. */

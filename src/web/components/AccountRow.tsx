@@ -91,14 +91,9 @@ function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
 interface Props {
   a: Account;
   nowSec: number;
-  /** What Local network knows about this account's copies on other decks, and
-   *  the paired decks this deck offers it to — null when it offers it to none —
-   *  and whether this deck is on it and so keeps it here (#2192); and the
-   *  paired decks that say they are on it right now, null when none does —
-   *  which the live row warns about (account-issue.ts elsewhereIssue). */
+  /** Whether a paired deck can restore this account and which decks share it. */
   lan?: {
     noCopyWorksNearby?: boolean; sharedTo?: readonly string[] | null; sharedInUse?: boolean;
-    elsewhere?: readonly string[] | null;
   };
   /** The reader has opened this row's detail. */
   opened: boolean;
@@ -180,6 +175,10 @@ export default function AccountRow({
   // a hidden hot one. See lane-view.ts.
   const quick = fuller ? [...shown, fuller] : shown;
   const age = a.fetchedAt ? ago(a.fetchedAt, nowSec) : null;
+  // Every row says only the age; whose read it was waits in its tooltip.
+  const ageTitle = a.sharedFrom
+    ? `Read on ${a.sharedFrom}, a paired deck`
+    : "When claude-swap last read this account's usage";
   // What the account's organization sends, when the deck has seen it — said
   // before a switch, because Claude Code applies it without asking in its
   // non-interactive surfaces. See org-telemetry.ts.
@@ -395,7 +394,7 @@ export default function AccountRow({
           {/* How old the last reading is. On an open row the freshness
               line under the bars says it, so it is said once. */}
           {!open && (
-            <span className="ap-issue-age" title="When claude-swap last read this account's usage">
+            <span className="ap-issue-age" title={ageTitle}>
               {age ?? "never collected"}
             </span>
           )}
@@ -425,7 +424,7 @@ export default function AccountRow({
               ))
             : <span className="ap-q-label">no usage recorded yet</span>}
           {a.stale && !issue && (
-            <span className="ap-q-age" data-never={age ? undefined : ""} title="When claude-swap last read this account's usage">
+            <span className="ap-q-age" data-never={age ? undefined : ""} title={ageTitle}>
               {age ?? "never collected"}
             </span>
           )}
@@ -450,7 +449,9 @@ export default function AccountRow({
                   // account with a problem is old because of it, so
                   // the age stays quiet and the problem takes the ink.
                   className={`ap-age${a.stale && !issue ? " ap-stale" : ""}`}
-                  title={"When claude-swap last read this account's usage, and when it plans to read it again. "
+                  title={a.sharedFrom
+                    ? `Read on ${a.sharedFrom}, a paired deck. One deck reads each account you share and the others use its numbers, so the account's usage requests are not spent once per machine.`
+                    : "When claude-swap last read this account's usage, and when it plans to read it again. "
                        + "It sets that interval itself — 3 minutes at the fastest, wider while an account is "
                        + "recovering from a rate limit — and every surface, including `cswap watch`, follows "
                        + "the same plan."}

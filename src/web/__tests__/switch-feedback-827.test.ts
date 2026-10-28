@@ -85,9 +85,9 @@ describe("what a switch that took says (#827)", () => {
   });
 
   it("announces it through a region that is there before it is needed", () => {
-    // And, after it, what that switch costs when a paired deck is on the same
-    // login (#2192) — nothing at all on every other switch.
-    expect(panel).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">\s*\{switched \? `Now active: \$\{switched\.name\}` : ""\}\{switched \? switchedRisk : ""\}\s*<\/div>/);
+    // A successful switch is announced, even when another paired deck uses
+    // the same account. Shared activity alone needs no risk announcement.
+    expect(panel).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">\s*\{switched \? `Now active: \$\{switched\.name\}` : ""\}\s*<\/div>/);
   });
 
   it("draws both on the row's own inset, in the row's quiet type", () => {

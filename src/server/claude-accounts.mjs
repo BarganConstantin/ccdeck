@@ -47,7 +47,8 @@ import { verdictFor, verdictsAskedAt, verdictsNow } from "./claude-verdicts.mjs"
 export { verdictNow, verdictsNow } from "./claude-verdicts.mjs";
 // Asking claude-swap to collect, which every roster read does when something is
 // due, and when each account will next be read.
-import { nextReadAt, nudgeCollector } from "./claude-collector.mjs";
+import { heldNow, nextReadAt, nudgeCollector } from "./claude-collector.mjs";
+import { sharedReadingFrom } from "./usage-share.mjs";
 // Which accounts the deck signed in itself, and the incident one of them is in
 // (#1893). Pure, and keyed the way LAN sync keys accounts.
 import { hasRecovered, reauthFor } from "./account-origins.mjs";
@@ -600,6 +601,10 @@ function rosterRow({ activeNum, num, acct, row, identity, now, key, origin = nul
     // plan alone would promise "next in 15m" while the panel actually
     // updates in three.
     nextAt: nextReadAt(row, matches, fetchedAtMs, isActive, now),
+    // The paired deck these numbers were read on, while claude-swap holds this
+    // account for its readings (usage-share.mjs); null when this deck reads
+    // the account itself.
+    sharedFrom: matches && heldNow(row, now) ? sharedReadingFrom(key, now) : null,
     stale:     fetchedAtMs == null || now - fetchedAtMs > STALE_AFTER_MS,
     // Surfaced rather than hidden: a rate-limited or re-login-needed account
     // is exactly the one the user is about to try switching to.
@@ -750,6 +755,9 @@ export async function activeAccountUsage() {
     organizationUuid: acct.organizationUuid ?? null,
     lastGood:  row.lastGood,
     fetchedAt: Math.round(row.fetchedAt * 1000),
+    // Until when claude-swap holds this account for a paired deck's readings
+    // (usage-share.mjs), in ms, or null.
+    heldUntil: observedMs(row.heldUntil),
   };
 }
 
@@ -758,7 +766,11 @@ export async function activeAccountUsage() {
  * files activeAccountUsage reads, under the same identity guard, and nothing
  * else — no CLI, no verdicts, no repair. The record of how full each window was
  * at its reset (quota-close-watch.mjs) reads this on a timer, and a timer must
- * not start what a look at the accounts panel does.
+ * not start what a look at the accounts panel does. The readings a paired deck
+ * is sent (usage-share.mjs) come from here too, with the row's plan: when
+ * claude-swap polls it next, how long it is backing off, and how long it is
+ * held for another deck's reading — each in ms, or null — and why its last
+ * fetch failed, or null.
  */
 export async function storedUsageReadings() {
   const root = backupRoot();
@@ -769,7 +781,11 @@ export async function storedUsageReadings() {
     const row = rows[num];
     const fetchedAt = rowIsFor(row, acct) ? observedMs(row.fetchedAt) : null;
     return row?.lastGood && fetchedAt != null
-      ? [{ email: acct.email, organizationUuid: acct.organizationUuid ?? "", lastGood: row.lastGood, fetchedAt }]
+      ? [{
+          email: acct.email, organizationUuid: acct.organizationUuid ?? "", lastGood: row.lastGood, fetchedAt,
+          nextPollAt: observedMs(row.nextPollAt), backoffUntil: observedMs(row.backoffUntil), heldUntil: observedMs(row.heldUntil),
+          lastError: typeof row.lastError === "string" ? row.lastError : null,
+        }]
       : [];
   });
 }

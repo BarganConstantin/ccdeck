@@ -1,202 +1,171 @@
-// What changed, in the one place a user cannot miss it — once (#712).
-//
-// The deck's eighth modal, and like the seventh it is built entirely out of the
-// others' parts: `.modal-backdrop` and `.modal` carry the scrim and the
-// entrance, `useModalDismiss` carries Esc, the focus trap and the focus
-// hand-back, and `.modal-head` / `.modal-body` carry the frame. Nothing here is
-// a second spelling of any of that. What is its own is the list, and the list is
-// prose rather than data, so it is styled like something to read instead of
-// something to inspect.
-//
-// Every decision about WHICH notes reach this component is release-notes.ts's,
-// and deliberately not this file's. A component cannot be asked what it would
-// have shown a user upgrading 1.42 to 1.48 without a browser; a function can,
-// and __tests__/release-notes.test.ts asks it thirty different ways. All this
-// draws is the answer.
-//
-// The dialog is dismissible without regret because it is reachable again from
-// the version chip in the topbar — see versionChipLabel in version-chip.ts, and
-// #715 for why that is the chip itself rather than the separate button #712
-// put beside it. That matters more than it sounds: the "you have already seen
-// this" marker lives in the browser store, so clearing site data loses it, and
-// the chip is the only way back.
-//
-// A profile with no marker at all is not a stranger, which is what #717
-// corrected: it is usually the same person on a second machine. They are shown
-// the release they just installed — one release, never the history behind it —
-// and `firstRun` is how this component knows to say that rather than either of
-// the two sentences that came before it.
-import { releaseNotesIntro, splitNoteTitle, versionRangeLabel, type VersionNotes } from "../release-notes";
+// Release selection and seen-state stay upstream; this sheet only presents them.
+import { useEffect, useId, useRef, useState } from "react";
+import { groupReleaseNotes, presentReleaseNotes, splitNoteTitle, versionRangeLabel, isVersion, type ReleaseNote, type VersionNotes } from "../release-notes";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
+import { parseInline, type Inline } from "../inline-markdown";
 import { RESTART_TO_UPDATE } from "../desktop-update";
-import ReleaseActions, { type UpdateCheckWiring } from "./ReleaseActions";
+import ReleaseActions, { useReleaseUpdateCheck, type UpdateCheckWiring, RESTART_WHY } from "./ReleaseActions";
+import { ownRow } from "../own-row";
+import AnchoredPopover from "./AnchoredPopover";
+import { ExternalLinkGlyph } from "./action-glyphs";
+import { AccountsGlyph, SessionListGlyph, SkillActivityGlyph, UpdateCheckGlyph, RestartGlyph } from "./rail-glyphs";
 
 interface Props {
-  /** The releases to show, newest first — decideReleaseNotes' answer, or every
-   *  release this build knows about when the version chip opened it. */
   entries: VersionNotes[];
-  /** The version the user had already been caught up to, when the deck raised
-   *  this by itself. Null when they opened it from the chip, which is a
-   *  different sentence and not a missing one. */
   since: string | null;
-  /** The version the deck is running, so the first line can say whether the
-   *  release at the top of this list is the one the reader is on. */
   running: string | null;
-  /** True when this is the deck's first contact with the profile — #717's
-   *  welcome, which shows the running release and nothing behind it. `since` is
-   *  null here as it is on a browse, and the two need different first lines:
-   *  one says "here is what you just installed", the other "here is everything
-   *  there is". */
   firstRun: boolean;
   onClose: () => void;
-  /** Close this and open the tour. The version chip is one of the two doors a
-   *  reader always has to it, whatever is on the canvas. */
   onTour?: () => void;
-  /** A verified desktop-app update waiting on disk. Electron remains the
-   *  authority that decides whether this exact version may restart. */
   updateVersion?: string;
   updateBusy?: boolean;
   onUpdateRestart?: () => void;
-  /** Why the last press of the update's button did not restart anything, and
-   *  where to go instead. Absent until one fails. */
   updateFailure?: string;
-  /** Close this and restart the deck (#1163). Absent where the deck cannot be
-   *  restarted from the page — see `canRestart` — so no button offers what the
-   *  server would refuse. */
   onRestart?: () => void;
-  /** What Check for updates needs from the deck (ReleaseActions.tsx). Absent
-   *  while the app's own update is ready: the door at the top is then the
-   *  update, and a check beside it has nothing to add. */
   updateCheck?: UpdateCheckWiring;
 }
 
 export default function ReleaseNotesModal({ entries, since, running, firstRun, onClose, onTour, updateVersion, updateBusy, onUpdateRestart, updateFailure, onRestart, updateCheck }: Props) {
-  // No focusRef: the × is the first control in the dialog, so the hook's own
-  // default — the dialog's first tabbable — already lands there, and the body
-  // below holds no control that would be a better first stop.
   const dialogRef = useModalDismiss(onClose);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const scrimPress = useScrimDismiss(onClose);
-  const range = versionRangeLabel(entries);
+  const id = useId();
+  const [menu, setMenu] = useState<"first" | "last" | null>(null);
+  const update = useReleaseUpdateCheck(updateCheck);
+  const updating = update?.state.line.action?.kind === "install" || update?.state.line.action?.kind === "npx";
+  const canRestart = onRestart && !updateVersion && !updating;
+  const { latest, visiblePrevious, history } = presentReleaseNotes(entries, since !== null, running);
+  const historyId = `${id}-history`;
+  const hasMenu = !!canRestart || (!!update?.state.canCheck && !updateVersion);
+  // A new available update can remove the menu's last action while it is open.
+  useEffect(() => {
+    if (!hasMenu && menu) {
+      setMenu(null);
+      // The removed trigger cannot receive the popover's restored focus.
+      if (document.activeElement === document.body) closeRef.current?.focus();
+    }
+  }, [hasMenu, menu]);
+  const range = isVersion(running) ? `v${running}` : versionRangeLabel(entries.slice(0, 1));
+  const context = firstRun && running ? `New in v${running}.`
+    : since ? `Changes since v${since}.` : null;
+  const hasLegacyUpgrade = visiblePrevious.some(entry => entry.notes.some(note => !note.priority && !note.notice));
 
-  return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        className="modal release-notes"
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="release-notes-title"
-      >
-        <header className="modal-head">
-          <div className="modal-title">
-            {/* Named by its own visible title, the way the shortcuts sheet and
-                the tool inspector are. A heading here would claim this dialog
-                is part of the page's outline, which aria-modal says it is not
-                while it is up. */}
-            <span id="release-notes-title" className="modal-tool-name">What&apos;s new</span>
-            {/* The span of releases below, so the reader knows the size of what
-                they are looking at before they start scrolling it. Omitted
-                rather than left blank when there is nothing to span. */}
-            {range && <span className="modal-tool-id">{range}</span>}
-          </div>
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="glyph-btn"
-              onClick={onClose}
-              aria-label="Close (Esc)"
-              title="Close (Esc)"
-            >×</button>
-          </div>
-        </header>
-
-        <section className="modal-body">
-          {/* THE UPDATE FIRST, when the app has one ready. The chip that opens
-              this dialog in that state is the update's own chip, so the action
-              it is about goes where the eye lands, ahead of the notes and ahead
-              of the tour — which it used to sit below, a line about the deck's
-              pictures standing between a reader and the button they came for.
-              The notes underneath are this build's, not the update's (they
-              arrive with it), and the first line below says which release
-              they belong to. */}
-          {(updateVersion || updateFailure) && (
-            <div className="rn-update">
-              {updateVersion && onUpdateRestart && (
-                <div className="guide-door">
-                  <span>ccdeck v{updateVersion} is downloaded and verified.</span>
-                  {/* Busy, never disabled, while its request is out (#620): the
-                      second press is refused by App's ref, in askDesktopUpdateRestart,
-                      and focus stays where the reader was. */}
-                  <button type="button" className="btn" onClick={onUpdateRestart} aria-busy={updateBusy || undefined}>
-                    {updateBusy ? "Restarting…" : RESTART_TO_UPDATE}
-                  </button>
-                </div>
-              )}
-              {/* What became of the press, when it came to nothing. A live
-                  region, and mounted with the door rather than with its first
-                  sentence: text that arrives in the same tick as its region is
-                  the announcement screen readers most often drop, and the
-                  quickest failure here is a network round-trip after the door
-                  was drawn. Empty, it draws nothing — see .rn-update-said. */}
-              <p className="rn-update-said" role="status">{updateFailure}</p>
-            </div>
-          )}
-          {/* Why this is on screen, in the first line — the second when the
-              update above is the reason. A dialog that appears without being
-              asked and does not say why is the one people learn to dismiss
-              unread, which would make it worthless on the release it exists
-              for. */}
-          <p className="modal-note">{releaseNotesIntro({ since, running, firstRun, entries })}</p>
-          {/* THE ACTIONS: the way back to the tour, a check for updates and a
-              restart, as one strip of small buttons — ReleaseActions.tsx.
-              The tour opened once, by itself, and the only other door was the
-              empty canvas, which a deck with agents on it never shows; the
-              chip is always there, and "what is this thing" is a question
-              somebody opening release notes is asking. Not while an update is
-              ready: the chip opens this dialog for that update, and a second
-              door competes with the one it came for. Restart (#1163) is
-              where the deck's own lifecycle lives, and App leaves it out
-              while the app's update is ready for the same reason: the door
-              above restarts too, and two restarts side by side, only one of
-              which updates, is a guess nobody should have to make. */}
-          <ReleaseActions onTour={updateVersion ? undefined : onTour} onRestart={onRestart} updateCheck={updateCheck} />
-          {entries.map(entry => (
-            <section className="modal-section" key={entry.version}>
-              {/* h3, not h4: the level a dialog that names itself with
-                  aria-labelledby starts at, and the same choice the shortcuts
-                  sheet makes for its group captions. */}
-              <h3 className="rn-version">v{entry.version}</h3>
-              <ul className="rn-notes">
-                {entry.notes.map((note, i) => {
-                  // A leading emoji gets a box of its own so the sheet can give
-                  // it the side bearing its glyph does not have — see
-                  // splitNoteTitle, which is also where the reasoning lives for
-                  // why the space stays inside `rest` rather than being spelled
-                  // here. `icon` + `rest` is the title, character for character,
-                  // so nothing about the text this renders has changed.
-                  const { icon, rest } = splitNoteTitle(note.title);
-                  return (
-                    // The index is the key because a note has no identity
-                    // beyond its position in a file nobody edits at runtime:
-                    // this list is built once from a frozen import and never
-                    // reorders.
-                    // The title is the whole note on screen (owner, 2026-10-27):
-                    // one line a user takes in at a glance. The body stays in
-                    // release-notes.json as the release's fuller account.
-                    <li className="rn-note" key={i}>
-                      <p className="rn-note-title">
-                        {icon && <span className="rn-note-icon">{icon}</span>}
-                        {rest}
-                      </p>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
-        </section>
-      </div>
+  return <div className="modal-backdrop" {...scrimPress} role="presentation">
+    <div ref={dialogRef} className="modal release-notes" id={`${id}-dialog`} onClick={e => e.stopPropagation()}
+      role="dialog" aria-modal="true" aria-labelledby="release-notes-title">
+      <header className="modal-head">
+        <div className="modal-title">
+          <span id="release-notes-title" className="modal-tool-name">What&apos;s new</span>
+          {range && <span className="modal-tool-id">{range}</span>}
+        </div>
+        <div className="modal-actions">
+          {hasMenu && <button id={`${id}-options`} type="button" className="glyph-btn" aria-label="More options"
+            aria-haspopup="menu" aria-expanded={menu !== null} aria-controls={menu ? `${id}-menu` : undefined}
+            onClick={() => setMenu(menu ? null : "first")}
+            onKeyDown={e => { if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); setMenu(e.key === "ArrowUp" ? "last" : "first"); } }}>
+            <svg className="glyph" viewBox="0 0 14 14" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="3" cy="7" r="1"/><circle cx="7" cy="7" r="1"/><circle cx="11" cy="7" r="1"/></svg>
+          </button>}
+          <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+        </div>
+      </header>
+      <span className="rn-live-status" role="status">{updateVersion ? `ccdeck v${updateVersion} is downloaded and verified.` : update?.state.line.said}</span>
+      <section className="modal-body" role="region" aria-label="Release notes" tabIndex={0}>
+        {updateVersion ? <div className="rn-ready">
+          <p>ccdeck v{updateVersion} is downloaded and verified.</p>
+          <p className="rn-update-said" role="status">{updateFailure}</p>
+        </div> : <>{update?.needsAttention && <ReleaseActions update={update} />}
+          <p className="rn-update-said" role="status">{updateFailure}</p></>}
+        {context && <p className="rn-context">{context}</p>}
+        {!latest?.notes.length && !visiblePrevious.length && <p className="rn-empty">No release notes for this build.</p>}
+        {latest && <ReleaseSection key={latest.version} entry={latest} showVersion={since !== null && entries.length > 1} />}
+        {visiblePrevious.length > 0 && <section className="rn-upgrade-history" aria-label="Earlier changes in this upgrade">
+          <h2 className="rn-group-title">Earlier in this upgrade</h2>
+          {hasLegacyUpgrade && <p className="rn-context">Older notes are shown in full so setup and other important changes stay visible.</p>}
+          {visiblePrevious.map(entry => <ReleaseSection key={entry.version} entry={entry} showVersion />)}
+        </section>}
+        {history.length > 0 && <details className="rn-history">
+          <summary aria-controls={historyId}>Other changes since v{since}</summary>
+          <div id={historyId}>{history.map(entry => <ReleaseSection key={entry.version} entry={entry} showVersion />)}</div>
+        </details>}
+      </section>
+      <footer className="rn-footer">
+        <div className="rn-footer-links">
+          <a href="https://ccdeck.dev/changelog/" target="_blank" rel="noopener noreferrer" aria-label="Release history (opens in a new tab)">Release history <ExternalLinkGlyph /></a>
+          {onTour && !updateVersion && <button className="rn-text-button" type="button" onClick={onTour}>Take the tour</button>}
+        </div>
+        {updateVersion && onUpdateRestart ? <button className="btn primary" type="button" onClick={onUpdateRestart} aria-busy={updateBusy || undefined}>
+          {updateBusy ? "Restarting…" : RESTART_TO_UPDATE}
+        </button> : <button className="btn primary" type="button" onClick={onClose}>Done</button>}
+      </footer>
+      {menu && hasMenu && <AnchoredPopover anchorId={`${id}-options`} portalRootId={`${id}-dialog`} id={`${id}-menu`}
+        role="menu" labelledBy={`${id}-options`} start={menu} className="ap-pop rn-options-menu" onClose={() => setMenu(null)}>
+        {update && <p className="rn-menu-status" id={`${id}-check-status`}>{update.state.line.said}
+          {update.state.line.age && <span>{update.state.line.age}</span>}
+        </p>}
+        {update?.state.canCheck && <button type="button" className="ap-menu-item rn-act" role="menuitem"
+          title={update.checkWhy} aria-describedby={`${id}-check-status`} aria-busy={update.state.checking || undefined}
+          onClick={() => void update.check()}><UpdateCheckGlyph />Check for updates</button>}
+        {update?.state.canCheck && canRestart && <div className="rn-menu-separator" role="separator" />}
+        {canRestart && <button type="button" className="ap-menu-item" role="menuitem" title={RESTART_WHY} aria-describedby={`${id}-restart-why`}
+          onClick={() => { setMenu(null); onRestart?.(); }}><RestartGlyph />Restart ccdeck</button>}
+        <span hidden id={`${id}-restart-why`}>{RESTART_WHY}</span>
+      </AnchoredPopover>}
     </div>
-  );
+  </div>;
+}
+
+function ReleaseSection({ entry, showVersion }: { entry: VersionNotes; showVersion: boolean }) {
+  const { highlights, visible, more } = groupReleaseNotes(entry.notes);
+  const extraHighlights = highlights.filter(note => note.details);
+  const moreId = useId();
+  return <section className="rn-release">
+    {showVersion && <h2 className="rn-version">v{entry.version}</h2>}
+    {entry.summary && <h2 className="rn-summary">{entry.summary}</h2>}
+    <ul className="rn-notes">
+      {highlights.map((note, i) => <Note key={`h${i}`} note={note} highlight />)}
+      {visible.map((note, i) => <Note key={`v${i}`} note={note} />)}
+    </ul>
+    {(more.length > 0 || extraHighlights.length > 0) && <details className="rn-more">
+      <summary aria-controls={moreId}>
+        <span className="rn-more-start"><span className="rn-chevron" aria-hidden="true">›</span>
+          <span className="rn-more-label">{more.length ? `${more.length} more ${more.length === 1 ? "improvement" : "improvements"}` : "More details"}</span>
+        </span>
+        <span className="rn-more-hint"><span className="rn-show-details">Show details</span><span className="rn-hide-details">Hide details</span></span>
+      </summary>
+      <div id={moreId}>
+        <ul className="rn-notes">{more.map((note, i) => <Note key={i} note={note} />)}</ul>
+        {extraHighlights.length > 0 && <div className="rn-highlight-details" role="group" aria-labelledby={`${moreId}-highlights`}>
+          <h3 id={`${moreId}-highlights`} className="rn-details-title">More about the highlights</h3>
+          {extraHighlights.map((note, i) => <p key={i} className="rn-note-body"><strong className="rn-strong">{splitNoteTitle(note.title).rest.trimStart()}: </strong>{renderInline(parseInline(note.details!))}</p>)}
+        </div>}
+      </div>
+    </details>}
+  </section>;
+}
+
+const NOTE_ICONS = { plans: SessionListGlyph, accounts: AccountsGlyph, skills: SkillActivityGlyph };
+
+function Note({ note, highlight }: { note: ReleaseNote; highlight?: boolean }) {
+  // The title's own emoji leads it, as it did before the digest (owner,
+  // 2026-10-27), in a box of its own for the side bearing a colour glyph lacks
+  // (.rn-note-icon). The semantic glyph stands in only for a title without one,
+  // so a note never shows two marks.
+  const { icon: emoji, rest } = splitNoteTitle(note.title);
+  const Icon = !emoji && note.icon ? ownRow(NOTE_ICONS, note.icon) : undefined;
+  return <li className="rn-note" data-highlight={highlight || undefined} data-required={note.priority === "required" || undefined} data-has-icon={!!Icon || undefined}>
+    {Icon && <span className="rn-title-icon" aria-hidden="true"><Icon /></span>}
+    <div><h3 className="rn-note-title">{emoji && <span className="rn-note-icon">{emoji}</span>}{emoji ? rest : rest.trimStart()}</h3>
+      <p className="rn-note-body">{renderInline(parseInline(note.body))}</p>
+      {!highlight && note.details && <p className="rn-note-body rn-extra-detail">{renderInline(parseInline(note.details))}</p>}
+      {note.notice && <p className="rn-note-notice"><strong>{note.noticeLabel ?? "Important"}: </strong>{renderInline(parseInline(note.notice))}</p>}
+    </div>
+  </li>;
+}
+
+function renderInline(nodes: Inline[]): React.ReactNode[] {
+  return nodes.map((n, i) => {
+    if (n.kind === "text") return n.text;
+    if (n.kind === "code") return <code key={i} className="rn-code">{n.text}</code>;
+    return <strong key={i} className="rn-strong">{renderInline(n.kids)}</strong>;
+  });
 }
