@@ -21,11 +21,18 @@
 // poll without waiting. Every request is recorded, headers and body, so a
 // suite can count them — zero, for a deck with the account off — and check
 // what was never sent.
+//
+// FEEDBACK CONVERSATIONS (/v1/device/feedback/*) are account-fake-feedback.ts,
+// reached through `api.feedback`: the same rules, from the conversation
+// contracts' fixtures and parsers, and the team's side for a suite to play.
+// The status frame's answer carries the account's feedback summary, as the
+// conversation contracts' status-response.json does.
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
+import { createFeedbackFake, createProblems, readProblems, replyProblems, type FeedbackFake } from "./account-fake-feedback";
 
 export const FIXTURE_DIR = fileURLToPath(new URL("./fixtures/account-contract/", import.meta.url));
 
@@ -212,6 +219,9 @@ export const REQUEST_CHECKS: Record<string, (b: any) => string[]> = {
   "settings-mode": settingsModeProblems,
   "device-authorize": authorizeProblems,
   "device-token": tokenRequestProblems,
+  "feedback-thread-create": createProblems,
+  "feedback-reply": replyProblems,
+  "feedback-read": readProblems,
 };
 
 /** The dotted paths of every leaf in `obj` — how a frame's key set is compared. */
@@ -220,7 +230,7 @@ export function leafPaths(obj: any, prefix = ""): string[] {
   return Object.keys(obj).flatMap(k => leafPaths(obj[k], prefix ? `${prefix}.${k}` : k));
 }
 
-export interface Recorded { method: string; path: string; headers: IncomingMessage["headers"]; body: any; raw: string }
+export interface Recorded { method: string; path: string; headers: IncomingMessage["headers"]; body: any; raw: string; bytes: Buffer }
 interface Authorization {
   deviceCode: string; userCode: string; interval: number; expiresAt: number; lastPolledAt: number | null;
   state: "pending" | "approved" | "denied"; name: string; deliveredAt: number | null; deliveredToken: string | null;
@@ -262,6 +272,8 @@ export interface FakeApi {
   interval: number;
   /** Where the approval page is said to be. */
   appBase: string;
+  /** The account's feedback conversations, and the team's side of them. */
+  feedback: FeedbackFake;
 }
 
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -299,6 +311,7 @@ export async function startFakeApi({ now = Date.now, appBase = "https://app.ccde
     account_gone: "device-error.account-gone.json",
     stale_sequence: "device-error.stale-sequence.json",
     stale_boot: "device-error.stale-boot.json",
+    thread_not_found: "feedback-error.thread-not-found.json",
     revision_conflict: "settings-conflict.revision.json",
     profile_not_bound: "settings-conflict.not-bound.json",
     no_shared_profile: "settings-conflict.no-shared.json",
@@ -399,7 +412,16 @@ export async function startFakeApi({ now = Date.now, appBase = "https://app.ccde
     headers: { "content-type": "application/problem+json" },
   });
 
-  function route(req: Recorded): Reply {
+  const feedback = createFeedbackFake({
+    now, appBase: () => api.appBase!, fixture, problem,
+    validation: errors => ({
+      status: 400,
+      body: { type: "https://tools.ietf.org/html/rfc9110#section-15.5.1", title: "One or more validation errors occurred.", status: 400, errors },
+      headers: { "content-type": "application/problem+json" },
+    }),
+  });
+
+  async function route(req: Recorded): Promise<Reply> {
     const url = new URL(req.path, "http://fake");
     const path = url.pathname;
     const over = overrides.get(path) ?? overrides.get(`${req.method} ${path}`);
@@ -483,6 +505,9 @@ export async function startFakeApi({ now = Date.now, appBase = "https://app.ccde
     if ("reply" in who) return who.reply;
     const d = who.device;
 
+    const conversation = await feedback.route(req, d);
+    if (conversation) return conversation;
+
     if (req.method === "POST" && path === "/v1/device/token/rotate") {
       const t = `ccdd_${b64url(32)}`;
       if (d.nextToken) tokenToDevice.delete(d.nextToken);
@@ -517,7 +542,7 @@ export async function startFakeApi({ now = Date.now, appBase = "https://app.ccde
       const b = bound(d);
       return {
         status: 200,
-        body: { ...tpl, settings: { profileId: b.id, revision: b.revision }, rotateToken: d.rotateNext },
+        body: { ...tpl, settings: { profileId: b.id, revision: b.revision }, rotateToken: d.rotateNext, feedback: feedback.accountSummary(d.accountId) },
         headers: { "content-type": "application/json" },
       };
     }
@@ -606,15 +631,17 @@ export async function startFakeApi({ now = Date.now, appBase = "https://app.ccde
   }
 
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    let raw = "";
-    req.setEncoding("utf8");
-    req.on("data", c => { raw += c; });
-    req.on("end", () => {
+    // Bytes, not text: a form with images would not survive a utf8 decode.
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => { chunks.push(c); });
+    req.on("end", async () => {
+      const bytes = Buffer.concat(chunks);
+      const raw = bytes.toString("utf8");
       let body: any = undefined;
       if (raw) { try { body = JSON.parse(raw); } catch { body = undefined; } }
-      const rec: Recorded = { method: req.method ?? "", path: req.url ?? "", headers: req.headers, body, raw };
+      const rec: Recorded = { method: req.method ?? "", path: req.url ?? "", headers: req.headers, body, raw, bytes };
       requests.push(rec);
-      const reply = route(rec);
+      const reply = await route(rec);
       if (rec.path === "/v1/device/token" && reply.status === 200 && loseNextToken) {
         loseNextToken = false;
         req.socket.destroy();
@@ -673,5 +700,6 @@ export async function startFakeApi({ now = Date.now, appBase = "https://app.ccde
       else overrides.delete(path);
     },
     loseNextTokenResponse() { loseNextToken = true; },
+    feedback,
   }) as FakeApi;
 }

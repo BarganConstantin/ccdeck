@@ -1,0 +1,37 @@
+{
+  "threads": [
+    {
+      "id": "0199f3b1-2c4d-7e5f-8a6b-1c2d3e4f5a6b",
+      "kind": "bug",
+      "title": "Usage panel shows 0 after the laptop sleeps",
+      "status": { "code": "planned", "label": "Planned", "fixedIn": null, "reason": null, "released": false },
+      "createdAt": "2026-10-28T08:01:00Z",
+      "lastActivityAt": "2026-10-28T09:12:00Z",
+      "lastSeq": 3,
+      "readSeq": 1,
+      "hasUnread": true,
+      "preview": { "side": "team", "text": "Thanks! We can reproduce it after a sleep of more than an hour." },
+      "trackedIssue": null,
+      "images": 1,
+      "webUrl": "https://app.ccdeck.dev/conversations/0199f3b1-2c4d-7e5f-8a6b-1c2d3e4f5a6b"
+    },
+    {
+      "id": "0199f2a0-1b2c-7d3e-9f40-5a6b7c8d9e0f",
+      "kind": "idea",
+      "title": "A way to pin a session to the top",
+      "status": { "code": "fixed", "label": "Fixed in 3.49.0", "fixedIn": "3.49.0", "reason": null, "released": true },
+      "createdAt": "2026-10-20T12:30:00Z",
+      "lastActivityAt": "2026-10-27T16:45:00Z",
+      "lastSeq": 4,
+      "readSeq": 4,
+      "hasUnread": false,
+      "preview": { "side": "team", "text": "What you asked for is in ccdeck 3.49.0." },
+      "trackedIssue": { "number": 118, "url": "https://github.com/BarganConstantin/ccdeck/issues/118" },
+      "images": 0,
+      "webUrl": "https://app.ccdeck.dev/conversations/0199f2a0-1b2c-7d3e-9f40-5a6b7c8d9e0f"
+    }
+  ],
+  "next": "CN80SaQVDgABmfKgGyx9Pp9AWmt8jZ4P",
+  "unread": 1,
+  "latestAt": "2026-10-28T09:12:00Z"
+}
