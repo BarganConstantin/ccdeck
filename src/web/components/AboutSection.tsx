@@ -1,6 +1,6 @@
 // Settings › About: which ccdeck this is, what is waiting to replace it, the
-// doors to what it says about itself, and the licence it is offered under
-// (#2176).
+// doors to what it says about itself, the licence it is offered under (#2176),
+// and where to sponsor it.
 //
 // The last section, standing at the foot of the nav the way About does in the
 // desktop settings windows this dialog follows. It invents nothing: every row
@@ -38,6 +38,11 @@ export const LICENCE_NOTE = "GNU Affero General Public License, version 3 only."
  *  test. The AGPL is a licence about source, so the row that names it is the
  *  row that says where to get it. */
 export const SOURCE_URL = "https://github.com/BarganConstantin/ccdeck";
+/** Where a sponsorship goes: package.json's `funding`, the page `npm fund`
+ *  and the repository's Sponsor button (.github/FUNDING.yml) open too. Held
+ *  to both, and to the README's Support ccdeck, by settings-about-2176.test.ts. */
+export const SPONSOR_URL = "https://github.com/sponsors/BarganConstantin";
+export const SPONSOR_NOTE = "ccdeck is free to use. Sponsoring helps pay for its fixes and testing.";
 
 export const WHATS_NEW_NOTE = "What changed in each release, newest first.";
 export const FEEDBACK_NOTE = "Tell the people who make ccdeck what works and what does not.";
@@ -136,6 +141,20 @@ export default function AboutSection({
                 Source<span className="vis-hidden">: the source code, opens in your browser</span>
               </a>
             </>
+          }
+        />
+        {/* The Source link's kind of door: a page outside the deck, in the
+            browser. No count, no goal, no reminder anywhere else — the row
+            says it once, here, where the reader came to read about ccdeck. */}
+        <SettingRow
+          as="div"
+          settingId="sponsor"
+          name="Sponsor ccdeck"
+          note={SPONSOR_NOTE}
+          control={
+            <a className="settings-link" href={SPONSOR_URL} target="_blank" rel="noreferrer">
+              Sponsor<span className="vis-hidden">: GitHub Sponsors, opens in your browser</span>
+            </a>
           }
         />
       </SettingsGroup>
