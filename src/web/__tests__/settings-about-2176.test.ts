@@ -19,7 +19,8 @@ import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import SettingsModal, { type SettingsModalProps } from "../components/SettingsModal";
 import AboutSection, {
-  FEEDBACK_NOTE, LICENCE, LICENCE_NOTE, pageBehind, pageBehindNote, SOURCE_URL, updateOffer, WHATS_NEW_NOTE, type AboutProps,
+  FEEDBACK_NOTE, LICENCE, LICENCE_NOTE, pageBehind, pageBehindNote, SOURCE_URL, SPONSOR_NOTE, SPONSOR_URL, updateOffer,
+  WHATS_NEW_NOTE, type AboutProps,
 } from "../components/AboutSection";
 import UpdatesSection, {
   APP_UPDATES_NOTE, AUTO_UPDATE_CHECKS_OFF_NOTE, AUTO_UPDATE_LABEL, AUTO_UPDATE_NO_RESTART_NOTE, AUTO_UPDATE_NOTE, updatesShape,
@@ -247,6 +248,18 @@ describe("Settings › About says which ccdeck this is", () => {
     expect(html).toContain(`<span class="settings-read">${LICENCE}</span>`);
     expect(html).toContain(LICENCE_NOTE);
     expect(html).toContain(`<a class="settings-link" href="${SOURCE_URL}" target="_blank" rel="noreferrer">Source`);
+  });
+
+  it("links to the sponsor page package.json, FUNDING.yml and the README name, in a new tab", () => {
+    const pkg = JSON.parse(read("../../../package.json")) as { funding: { type: string; url: string } };
+    expect(pkg.funding).toEqual({ type: "github", url: SPONSOR_URL });
+    const login = SPONSOR_URL.replace("https://github.com/sponsors/", "");
+    expect(read("../../../.github/FUNDING.yml").trim()).toBe(`github: ${login}`);
+    expect(read("../../../README.md")).toContain(`](${SPONSOR_URL})`);
+    const html = drawAbout();
+    expect(html).toContain("Sponsor ccdeck");
+    expect(html).toContain(SPONSOR_NOTE);
+    expect(html).toContain(`<a class="settings-link" href="${SPONSOR_URL}" target="_blank" rel="noreferrer">Sponsor`);
   });
 });
 

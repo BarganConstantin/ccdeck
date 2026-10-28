@@ -72,6 +72,10 @@
     "url": "https://github.com/BarganConstantin/ccdeck/issues"
   },
   "homepage": "https://ccdeck.dev",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/BarganConstantin"
+  },
   "devDependencies": {
     "@types/dagre": "^0.7.54",
     "@types/node": "^22.20.1",

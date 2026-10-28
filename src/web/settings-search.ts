@@ -200,6 +200,8 @@ function buildIndex(): SettingsEntry[] {
         keywords: ["changelog", "release notes", "changes", "news"] },
       { id: "licence", section: "about", group: "ccdeck", label: "Licence",
         keywords: ["license", "agpl", "source", "source code", "open source", "github"] },
+      { id: "sponsor", section: "about", group: "ccdeck", label: "Sponsor ccdeck",
+        keywords: ["sponsor", "support", "donate", "donation", "fund", "funding", "github sponsors", "coffee", "tip"] },
       { id: "tour", section: "about", group: "Tour and feedback", label: "Take the tour",
         keywords: ["tour", "guide", "help", "onboarding", "tutorial", "introduction"] },
       { id: "feedback", section: "about", group: "Tour and feedback", label: "Send feedback",
