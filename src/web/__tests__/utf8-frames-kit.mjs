@@ -90,8 +90,8 @@ export function framesNotOnBoundary(frames) {
 /**
  * @xterm/headless (the version the panel ships: 6.0.0) and the graphemes
  * addon the panel loads, from CCDECK_TEST_XTERM (a directory whose
- * node_modules holds them) or from this checkout; null when neither has them.
- * Headless is not a dependency of the deck.
+ * node_modules holds them) or from this checkout, whose devDependencies have
+ * both; null when neither has them.
  */
 export function headlessXterm() {
   const roots = [process.env.CCDECK_TEST_XTERM, fileURLToPath(new URL("../../../", import.meta.url))];
@@ -106,6 +106,91 @@ export function headlessXterm() {
     } catch { /* not here */ }
   }
   return null;
+}
+
+/** Whether this is a CI run: GitHub sets CI=true for every step. */
+export const IN_CI = /^(1|true|yes)$/i.test(process.env.CI ?? "");
+
+const notTested = new Set();
+
+/**
+ * Whether a check's prerequisite is here. The screen comparisons need
+ * @xterm/headless and the real-tmux cases a tmux; on a machine without one,
+ * the check gives way (to the byte checks, or to nothing) and says so once on
+ * stderr as NOT TESTED. In CI, whose workflow installs both, a missing one
+ * fails the case instead: a check that cannot run there must not pass there.
+ */
+export function needed(what, present) {
+  if (present) return true;
+  if (IN_CI) throw new Error(`${what} is missing in a CI run, which installs it: the check cannot run, so the case fails rather than passing unchecked`);
+  if (!notTested.has(what)) {
+    notTested.add(what);
+    process.stderr.write(`NOT TESTED here: ${what} is missing (CI installs it and fails without it)\n`);
+  }
+  return false;
+}
+
+// ── one write longer than xterm.js decodes in one piece ─────────────────────
+
+/** xterm.js 6.0 decodes a write longer than this in pieces of this size. */
+export const PIECE = 131072;
+/** The byte the relay pads a long frame with (utf8-carry.mjs, padPieceEdges). */
+export const FILLER = 0xff;
+
+const leadLength = (b) => (b < 0x80 ? 1 : b >= 0xc2 && b <= 0xdf ? 2 : b >= 0xe0 && b <= 0xef ? 3 : b >= 0xf0 && b <= 0xf4 ? 4 : 0);
+
+/** `bytes` less every FILLER byte. No pane output in these tests has one, so
+ *  this is exactly what the pane wrote. */
+export function unpad(bytes) {
+  return Buffer.from(Uint8Array.prototype.filter.call(bytes, (b) => b !== FILLER));
+}
+
+/**
+ * The characters that piece edges cut when `bytes` is ONE write: for each
+ * edge (a multiple of `piece` short of the end) that falls after a
+ * character's first byte and before its last, the bytes of it xterm.js keeps
+ * across the edge (hex). `lossy` are the ones xterm.js 6.0 loses: what it
+ * keeps holds a 0x80.
+ */
+export function piecesCut(bytes, piece = PIECE) {
+  const cuts = [];
+  for (let edge = piece; edge < bytes.length; edge += piece) {
+    if ((bytes[edge] & 0xc0) !== 0x80) continue;
+    for (let k = 1; k <= 3; k++) {
+      const lead = bytes[edge - k];
+      if ((lead & 0xc0) === 0x80) continue;
+      if (leadLength(lead) > k) cuts.push({ edge, kept: toHex(bytes.subarray(edge - k, edge)) });
+      break;
+    }
+  }
+  return { cuts, lossy: cuts.filter((c) => c.kept.split(" ").includes("80")) };
+}
+
+/**
+ * About `size` bytes for one write: `prefix`, then lines of 64 'b' and CRLF,
+ * with the character `ch` laid so that it begins `cut` bytes before each of
+ * `edges` (counted from the first byte of the write). Answers the bytes and
+ * where each character begins, which is where a write may end so that no
+ * write cuts one.
+ */
+export function straddlingWrite(ch, cut, edges, size, prefix = "\x1bc") {
+  const pattern = Buffer.from(`${"b".repeat(64)}\r\n`);
+  const buf = Buffer.alloc(size);
+  for (let i = 0; i < size; i += pattern.length) pattern.copy(buf, i, 0, Math.min(pattern.length, size - i));
+  Buffer.from(prefix, "latin1").copy(buf, 0);
+  const c = Buffer.from(ch, "utf8");
+  const starts = edges.map((edge) => edge - cut);
+  for (const at of starts) c.copy(buf, at);
+  return { bytes: buf, starts };
+}
+
+/** `bytes` cut right before each of `starts`: writes that end between characters. */
+export function splitBefore(bytes, starts) {
+  const out = [];
+  let from = 0;
+  for (const at of [...starts].sort((a, b) => a - b)) { out.push(bytes.subarray(from, at)); from = at; }
+  out.push(bytes.subarray(from));
+  return out;
 }
 
 /** A fresh emulator: 120x40 by default, scrollback 0, the proposed API on. */

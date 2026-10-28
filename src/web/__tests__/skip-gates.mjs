@@ -231,6 +231,13 @@ export const GATES = [
   // file. The gate, the preview's verifier and the package's exclusion of it
   // are in the same file, un-gated, on every leg.
   { file: "command-panel-windows-preview.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
+  // The relay's whole characters on a real tmux pane — punctuation cut by
+  // tmux, and a seed longer than xterm.js decodes in one piece — with the
+  // panel's own emulator. Windows has no tmux. On macOS and Linux CI installs
+  // one, and a case that finds none (or no @xterm/headless) fails rather
+  // than passing unchecked. The same rules with a stand-in for tmux are
+  // terminal-bridge-utf8's, un-gated, on every leg.
+  { file: "terminal-utf8-tmux.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   // Allow capture's two root scripts, parsed by the machine's own `sh -n`. They
   // run on macOS and Linux only, and Windows has no `sh` to parse them; the

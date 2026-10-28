@@ -21,14 +21,16 @@
 //     never finish one (malformed input), which goes out as it is, at once;
 //   - never more than three bytes held, and never an empty frame;
 //   - written one frame per write to xterm.js, they draw what the whole input
-//     written at once draws. These comparisons need @xterm/headless (not a
-//     dependency of the deck; CCDECK_TEST_XTERM or this checkout), and
-//     without it the byte checks above are what runs — no skip gate, as in
-//     tmux-control-tmux.test.ts.
+//     written at once draws. These comparisons need @xterm/headless (a
+//     devDependency; CCDECK_TEST_XTERM points elsewhere). Without it the byte
+//     checks above are what runs, and the run says NOT TESTED — except in CI,
+//     where a missing emulator fails the case (kit.needed).
 //
 // The stream breaks — a %pause, a seed, output let go behind a congested
 // socket or past the ack window, the end, a new socket — each say what
-// happens to a character that was half sent when they came.
+// happens to a character that was half sent when they came. And a frame
+// longer than xterm.js decodes in one piece — a seed with two thousand lines
+// of history — must not have a character cut at a piece edge either.
 // terminal-utf8-tmux.test.ts does the same on a real tmux.
 import { describe, it, expect } from "vitest";
 import { EventEmitter } from "node:events";
@@ -67,7 +69,7 @@ async function expectWholeCharacters(input: Buffer, frames: Buffer[], label: str
   expect(kit.framesNotOnBoundary(out), `${label}: frames that end inside a character`).toBe(0);
   expect(out.filter(f => f.length === 0), `${label}: empty frames`).toEqual([]);
   expect(heldMost, `${label}: bytes held at once`).toBeLessThanOrEqual(3);
-  if (X) {
+  if (kit.needed("@xterm/headless", X)) {
     for (const graphemes of [false, true]) {
       const shown = await kit.screenOf(X, out, { graphemes });
       const whole = await kit.screenOf(X, [input], { graphemes });
@@ -149,7 +151,7 @@ describe("whole characters on the wire, however tmux cut the line", () => {
         expect(r.lost, `${name}: the unfinished character goes with its stream`).toBe(2);
         expect(r.after.at(-1)).toBe("exit");
       }
-      if (X) {
+      if (kit.needed("@xterm/headless", X)) {
         const shown = await kit.screenOf(X, r.framesOut);
         expect(shown, `${name}: the screen`).toBe(await kit.screenOf(X, [Buffer.concat(input)]));
       }
@@ -172,7 +174,7 @@ describe("whole characters on the wire, however tmux cut the line", () => {
       expect(kit.framesNotOnBoundary(out), `seed ${run.seed}: frames that end inside a character`).toBe(0);
       expect(out.filter(f => f.length === 0)).toEqual([]);
       expect(heldMost).toBeLessThanOrEqual(3);
-      if (X) {
+      if (kit.needed("@xterm/headless", X)) {
         // Every line, scrollback included: a character lost anywhere shows.
         const opts = { scrollback: run.repeat + 100 };
         expect(await kit.screenOf(X, out, opts), `seed ${run.seed}: the screen`).toBe(await kit.screenOf(X, [input], opts));
@@ -249,7 +251,7 @@ describe("a character half sent when the stream breaks", () => {
     await kit.settleUntil(() => resets(r.conn) === 2);
     r.control().emit("output", hex("94 42"));
     expect(wire(r.conn, from)).toEqual(["reset", "1B 63 41", "E2 80 94 42"]);
-    if (X) expect(await kit.screenOf(X, r.conn.binaries(from))).toBe(await kit.screenOf(X, [hex("1B 63 41 E2 80 94 42")]));
+    if (kit.needed("@xterm/headless", X)) expect(await kit.screenOf(X, r.conn.binaries(from))).toBe(await kit.screenOf(X, [hex("1B 63 41 E2 80 94 42")]));
   });
 
   it("another reseed while a seed's unfinished character is held: it goes with that seed's stream", async () => {
@@ -376,5 +378,162 @@ describe("a character half sent when the stream breaks", () => {
     control.emit("exit", { reason: "ended" });
     await kit.settleUntil(() => conn.closes.length > 0);
     expect(conn.sent.map((s: any) => (s.type === "text" ? s.msg.t : toHex(s.data)))).toEqual(["hello", "reset", "1B 63 41", "exit"]);
+  });
+});
+
+describe("a frame longer than xterm.js decodes in one piece", () => {
+  // xterm.js 6.0 decodes a write longer than 131072 bytes in pieces of that
+  // size, and loses a character a piece edge cuts right after a 0x80 as it
+  // loses one cut between two writes. The seed is ONE frame and the panel
+  // writes it in ONE write: with two thousand lines of coloured history it is
+  // 200 to 400 KB, so its characters cross 131072 and 262144. A %output line
+  // is far shorter (tmux 3.4 and 3.8 put at most 8192 / 3 bytes of output on
+  // one), but the relay treats every frame alike.
+  const LONG: [string, string][] = [
+    ["e acute", "é"], ["em dash", "—"], ["ellipsis", "…"], ["CJK", "世"],
+    ["rocket (F0 9F 9A 80)", "🚀"], ["mahjong tile (F0 9F 80 80)", "🀀"], ["linear B (F0 90 80 80)", "𐀀"],
+  ];
+  const SIZES = [200_000, 270_000, 330_000, 409_600];
+  const resets = (conn: any) => conn.sent.filter((s: any) => s.type === "text" && s.msg.t === "reset").length;
+
+  /** The screen, every line of the scrollback, and where the cursor is. */
+  async function drawn(frames: Buffer[], size: number) {
+    const t = kit.makeTerminal(X, { cols: 120, rows: 40, scrollback: Math.ceil(size / 60) + 100, graphemes: true });
+    for (const f of frames) t.write(Uint8Array.from(f));
+    await kit.writeTo(t, "");
+    const s = `${kit.screenText(t)}\ncursor ${t.buffer.active.cursorX},${t.buffer.active.cursorY}`;
+    t.dispose();
+    return s;
+  }
+
+  /** `size` bytes beginning with RIS, `ch` laid `cut` bytes before every
+   *  piece edge (`shifted`: one `cut` further back per edge, so that in the
+   *  padded write each lands `cut` bytes before its edge again). */
+  function longWrite(ch: string, cut: number, size: number, shifted: boolean) {
+    const edges: number[] = [];
+    for (let e = kit.PIECE, k = 1; e < size - 8; e += kit.PIECE, k++) edges.push(shifted ? e - (k - 1) * cut : e);
+    return kit.straddlingWrite(ch, cut, edges, size);
+  }
+
+  /** The n-th seed of a fresh relay is `seed`: the frame the panel got for it. */
+  async function seedThrough(seed: Buffer, options = {}) {
+    const r = await kit.openRelay(tb.terminalBridge, options);
+    r.control().seedBytes = (n: number) => (n === 2 ? seed : hex("1B 63"));
+    const from = r.mark();
+    r.control().emit("reseed");
+    await kit.settleUntil(() => resets(r.conn) === 2);
+    const frames = r.conn.binaries(from);
+    expect(frames, "one frame for the seed").toHaveLength(1);
+    return { r, frame: frames[0] as Buffer };
+  }
+
+  it("a seed of 200 to 400 KB with a 2-, 3- or 4-byte character across 131072 and 262144 draws every line as the same bytes written between characters", async () => {
+    const met = new Set<string>();
+    let lossy = 0;
+    let i = 0;
+    for (const [name, ch] of LONG) {
+      const len = Buffer.byteLength(ch);
+      for (let cut = 1; cut < len; cut++) {
+        const size = SIZES[i++ % SIZES.length];
+        for (const shifted of [false, true]) {
+          const { bytes: seed, starts } = longWrite(ch, cut, size, shifted);
+          const label = `${name} cut ${cut}${shifted ? " (shifted)" : ""}, ${size} bytes`;
+          const before = kit.piecesCut(seed);
+          expect(before.cuts.length, `${label}: the seed as tmux gave it is cut at a piece edge`).toBeGreaterThan(0);
+          for (const c of before.cuts) met.add(`${c.edge}`);
+          const { frame } = await seedThrough(seed);
+          expect(kit.unpad(frame).equals(seed), `${label}: the seed, unchanged but for the filler`).toBe(true);
+          expect(kit.piecesCut(frame).cuts, `${label}: piece edges that cut a character`).toEqual([]);
+          if (kit.needed("@xterm/headless", X)) {
+            const reference = await drawn(kit.splitBefore(seed, starts), size);
+            expect(await drawn([frame], size), `${label}: the screen and history`).toBe(reference);
+            // And the problem is met: the same seed unpadded, in one write,
+            // loses the character wherever an edge cut it after a 0x80.
+            if (before.lossy.length) {
+              lossy++;
+              expect(await drawn([seed], size), `${label}: one unpadded write`).not.toBe(reference);
+            }
+          }
+        }
+      }
+    }
+    expect([...met].map(Number).sort((a, b) => a - b), "the edges crossed").toEqual([kit.PIECE, 2 * kit.PIECE, 3 * kit.PIECE]);
+    if (X) expect(lossy, "seeds whose unpadded write loses a character").toBeGreaterThanOrEqual(8);
+  });
+
+  it("a seed with real history: two thousand coloured lines of —, … and 🀀, at the alignments where an edge cuts one after a 0x80, draw what the same lines draw written one by one", async () => {
+    // Lines whose length in bytes walks through every remainder mod 3 and 4,
+    // in colour, as an agent's output is. The first lines' length moves every
+    // edge; the alignments where one cuts a character after a 0x80 are found,
+    // not assumed.
+    const history = (shift: number) => {
+      const lines: string[] = [];
+      for (let n = 0; n < 2000; n++) {
+        const pad = "x".repeat((n % 12) + (n === 0 ? shift : 0));
+        const words = " agent — output … with ’quotes’ and 🀀 tiles — again …";
+        lines.push(`\x1b[3${n % 8}m${String(n).padStart(4, "0")}${pad}${words}${words}\x1b[0m`);
+      }
+      const seed = Buffer.from(`\x1bc${lines.join("\r\n")}`, "utf8");
+      // One write a line: none longer than a piece, each ending between characters.
+      const starts: number[] = [];
+      for (let at = seed.indexOf("\r\n"); at >= 0; at = seed.indexOf("\r\n", at + 2)) starts.push(at);
+      return { seed, starts };
+    };
+    const found: number[] = [];
+    for (let shift = 0; shift < 64 && found.length < 3; shift++) if (kit.piecesCut(history(shift).seed).lossy.length) found.push(shift);
+    expect(found.length, "alignments where an edge cuts a character after a 0x80").toBeGreaterThan(0);
+    for (const shift of found) {
+      const { seed, starts } = history(shift);
+      expect(seed.length).toBeGreaterThan(2 * kit.PIECE);
+      expect(seed.length).toBeLessThan(400 * 1024);
+      const { frame } = await seedThrough(seed);
+      expect(kit.unpad(frame).equals(seed), `shift ${shift}`).toBe(true);
+      expect(kit.piecesCut(frame).cuts, `shift ${shift}`).toEqual([]);
+      expect(frame.length - seed.length, `shift ${shift}: filler`).toBeLessThanOrEqual(3 * Math.floor(frame.length / kit.PIECE));
+      if (kit.needed("@xterm/headless", X)) {
+        const reference = await drawn(kit.splitBefore(seed, starts), seed.length);
+        expect(await drawn([frame], seed.length), `shift ${shift}: the screen and history`).toBe(reference);
+        expect(await drawn([seed], seed.length), `shift ${shift}: one unpadded write`).not.toBe(reference);
+      }
+    }
+  });
+
+  it("a live frame longer than a piece is padded the same way", async () => {
+    const r = await kit.openRelay(tb.terminalBridge);
+    const from = r.mark();
+    const { bytes: live, starts } = longWrite("—", 2, 300_000, true);
+    r.control().emit("output", live);
+    const frames = r.conn.binaries(from);
+    expect(frames).toHaveLength(1);
+    expect(kit.unpad(frames[0]).equals(live)).toBe(true);
+    expect(kit.piecesCut(live).lossy.length, "the live frame as tmux gave it").toBeGreaterThan(0);
+    expect(kit.piecesCut(frames[0]).cuts).toEqual([]);
+    if (kit.needed("@xterm/headless", X)) {
+      expect(await drawn(frames, live.length)).toBe(await drawn(kit.splitBefore(live, starts), live.length));
+    }
+  });
+
+  it("the window counts the filler: the panel acknowledges the bytes it was sent, and is believed to the byte", async () => {
+    const { bytes: seed } = longWrite("—", 2, 270_000, true);
+    const { r, frame } = await seedThrough(seed, { ackWindow: 4 });
+    const seedOnWire = total(r.conn.binaries());
+    expect(frame.length).toBeGreaterThan(seed.length);
+    r.text({ t: "ack", bytes: seedOnWire });
+    const { bytes: live } = longWrite("…", 2, 140_000, false);
+    const from = r.mark();
+    r.control().emit("output", live); // nothing in flight: it goes, padded
+    r.control().emit("output", hex("41")); // a whole padded frame in flight: over the window, let go
+    const sent = r.conn.binaries(from);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].length).toBe(live.length + 2);
+    // The panel acks what its terminal parsed: the frame as it came, filler
+    // and all. One byte past that is not believed; exactly that is, and the
+    // seed it asks for comes.
+    r.text({ t: "ack", bytes: seedOnWire + sent[0].length + 1 });
+    await kit.settleUntil(() => r.control().seeds === 3, 20);
+    expect(r.control().seeds).toBe(2);
+    r.text({ t: "ack", bytes: seedOnWire + sent[0].length });
+    await kit.settleUntil(() => r.control().seeds === 3);
+    expect(r.control().seeds).toBe(3);
   });
 });

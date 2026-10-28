@@ -47,7 +47,7 @@ jobs:
   # ── The gate ────────────────────────────────────────────────────────────
   # Three legs, because this suite does not test the same thing on all three.
   #
-  #   ubuntu-latest   the 34 sites gated `skipIf(process.platform === "win32")`
+  #   ubuntu-latest   the 36 sites gated `skipIf(process.platform === "win32")`
   #                   run here, plus the `runIf(posix)` family — the widest
   #                   coverage of the three. That number is not something a
   #                   reader has to take on trust: skip-gate-inventory.test.ts
@@ -57,7 +57,7 @@ jobs:
   #                   #585, because #532 deleted two of them along with
   #                   ccdeck-stub-exit.test.ts and nothing was watching.
   #   windows-latest  the whole reason for the matrix. Those sites are *skipped*
-  #                   here — 124 skipped cases in all — together with the
+  #                   here — 126 skipped cases in all — together with the
   #                   `runIf(posix)` family and the three read-only-directory
   #                   cases (sound-hook-park's, the macOS swap script's and the
   #                   macOS updater's), whose probe cannot block a write on
@@ -131,6 +131,25 @@ jobs:
       # is a check that cannot fail.
       - name: Typecheck
         run: npm run typecheck
+
+      # A real tmux for the suites that drive one: the relay's whole UTF-8
+      # characters drawn by the panel's own emulator (terminal-utf8-tmux), the
+      # control client, the socket. The runners have none, and without one
+      # those cases returned early and passed — green, having checked nothing.
+      # Now a case that needs tmux or @xterm/headless and finds it missing in
+      # CI fails instead (utf8-frames-kit.mjs, needed()). Windows has no tmux;
+      # its cases are gated off there in skip-gates.mjs.
+      - name: Install tmux (Linux and macOS)
+        if: ${{ runner.os != 'Windows' }}
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update -q
+            sudo apt-get install -y -q tmux
+          else
+            brew install tmux
+          fi
+          tmux -V
 
       # `npm test` verbatim, so CI runs what a contributor runs, plus a JSON
       # report on the side for the assertion below. The default reporter still

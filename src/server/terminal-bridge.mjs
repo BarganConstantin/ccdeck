@@ -21,13 +21,15 @@
 // (the seed boundary, %pause, the pane dying); this file only keeps the order
 // on the wire, never lets two seeds cross, and sends whole characters: a
 // frame never ends inside a UTF-8 character that its next bytes finish
-// (utf8-carry.mjs, and `carry` below).
+// (utf8-carry.mjs, and `carry` below), and a frame longer than xterm.js
+// decodes in one piece has no character cut at a piece edge (padPieceEdges,
+// in sendBinary).
 //
 // NOTHING THROWS OUT OF HERE, for the reason terminal-socket.mjs gives: a
 // socket callback has nothing above it to catch it.
 import { clampSize } from "./terminal-sessions.mjs";
 import { openControl } from "./tmux-control.mjs";
-import { utf8Carry } from "./utf8-carry.mjs";
+import { padPieceEdges, utf8Carry } from "./utf8-carry.mjs";
 
 /** How many bytes may sit unsent on one socket before the pane's output stops
  *  being forwarded. A tab in the background, or a slow link, otherwise makes
@@ -236,10 +238,16 @@ export function terminalBridge({
     seeded = true;
   }
 
-  /** A binary frame, counted for the window. */
+  /** A binary frame, counted for the window. The panel writes each frame in
+   *  one write, and xterm.js decodes a write longer than 131072 bytes in
+   *  pieces that can cut a character as two writes do — a long seed is the
+   *  usual one, a long output line could be — so the frame is padded first
+   *  (utf8-carry.mjs). The filler is counted: the panel acknowledges what it
+   *  was sent. */
   function sendBinary(bytes) {
-    sentBytes += bytes.length;
-    return conn.sendBinary(bytes);
+    const frame = padPieceEdges(bytes);
+    sentBytes += frame.length;
+    return conn.sendBinary(frame);
   }
 
   /** The panel's terminal has parsed `n` of the bytes sent so far. A count
