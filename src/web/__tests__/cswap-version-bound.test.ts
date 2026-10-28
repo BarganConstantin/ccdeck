@@ -49,7 +49,11 @@ const { probeOk, calls, pypi, machine } = vi.hoisted(() => ({
   // once the deck has run something that replaces it. Keeping the two apart is
   // the whole point — the interesting cases are the ones where they differ from
   // what was requested.
-  machine: { has: null as string | null, lands: null as string | null, changed: false },
+  machine: { has: null as string | null, lands: null as string | null, changed: false,
+    // `pinned` is uv holding a copy at the exact version its receipt names: the
+    // upgrade exits 0 and replaces nothing. `refuseInstall` is an install that
+    // fails outright.
+    pinned: false, refuseInstall: false },
 }));
 
 const ok = (stdout: string) => ({ ok: true, code: 0, killed: false, stdout, stderr: "" });
@@ -66,6 +70,10 @@ vi.mock("../../server/exec.mjs", () => ({
     // answered, never run: the tool it names is not on the machine running this
     // suite and must not be.
     if ((args.includes("install") || args.includes("upgrade")) && probeOk.is(cmd)) {
+      if (machine.pinned && args.includes("upgrade")) return ok("Nothing to upgrade");
+      if (machine.refuseInstall && args.includes("install")) {
+        return { ok: false, code: 1, killed: false, stdout: "", stderr: "error: No solution found" };
+      }
       machine.changed = true;
       return ok("");
     }
@@ -142,6 +150,8 @@ beforeEach(() => {
   machine.has = null;
   machine.lands = null;
   machine.changed = false;
+  machine.pinned = false;
+  machine.refuseInstall = false;
   pypi.reachable = true;
   pypi.body = registry(["0.25.0", "0.26.0"]);
   // uv is the tool on this machine, for every case that has one at all.
@@ -151,6 +161,7 @@ beforeEach(() => {
   // module instance.
   rmTempDir(join(FAKE_HOME, ".agents-deck"));
   rmTempDir(UV_TOOL_DIR);
+  rmTempDir(PIPX_HOME);
 });
 
 /**
@@ -377,17 +388,76 @@ describe("the background upgrade", () => {
   });
 
   it("says so when the version that arrived is outside the bound", async () => {
-    // Reachable only on an install that predates this bound — uv and pipx both
-    // re-resolve an upgrade against the requirement recorded at install time,
-    // so a receipt written with a specifier keeps it. That is exactly the
-    // population this matters for: every deck that installed claude-swap before
-    // there was a bound to record.
+    // Reachable on a uv install that predates this bound — its receipt has no
+    // specifier for the upgrade to stay inside — and on any pipx install,
+    // which upgrades past the specifier it recorded.
     machine.has = "0.25.0";
     machine.lands = "9.9.9";
 
     const { upgrade } = await boot({ owned: true });
 
     expect(upgrade).toMatchObject({ from: "0.25.0", to: "9.9.9", ok: false, reason: "unexpected_version" });
+  });
+
+  it("installs the chosen version again when uv kept the copy at its own pin", async () => {
+    // The deck installs `claude-swap==<exact>` whenever PyPI answers, and uv
+    // keeps every later `uv tool upgrade` inside that requirement: "Nothing to
+    // upgrade", exit 0, the same version, every day — recorded as a success.
+    // Reproduced with uv 0.12.13: installed ==0.26.0, upgraded, still 0.26.0.
+    machine.has = "0.25.0";
+    machine.lands = "0.26.0";
+    machine.pinned = true;
+
+    const { upgrade, calls } = await boot({ owned: true });
+
+    const steps = calls.filter(c => c.cmd === "uv" && (c.args.includes("upgrade") || c.args.includes("install")));
+    expect(steps).toEqual([
+      { cmd: "uv", args: ["tool", "upgrade", "claude-swap"] },
+      { cmd: "uv", args: ["tool", "install", "claude-swap==0.26.0"] },
+    ]);
+    expect(upgrade).toMatchObject({ from: "0.25.0", want: "0.26.0", to: "0.26.0", ok: true, reason: null });
+  });
+
+  it("leaves a copy the upgrade moved without a pin of its own", async () => {
+    // A receipt with no specifier (installed by hand, or before the bound)
+    // upgrades normally; giving it `==` now would hold the user's own
+    // `uv tool upgrade` still from then on.
+    machine.has = "0.25.0";
+    machine.lands = "0.26.0";
+
+    const { calls } = await boot({ owned: true });
+
+    expect(installArgv(calls)).toBeUndefined();
+  });
+
+  it("records an upgrade that moved nothing as not done", async () => {
+    // pipx has no pin to undo, so there is no second step to take; what is
+    // left is to stop calling it a success. Both versions inside the bound, so
+    // the reason is the one this case is about and not unexpected_version.
+    machine.has = "0.26.0";
+    machine.lands = "0.27.0";
+    machine.pinned = true;
+    pypi.body = registry(["0.26.0", "0.27.0"]);
+    probeOk.is = (cmd: string) => cmd === "pipx";
+    mkdirSync(join(PIPX_HOME, "venvs", "claude-swap"), { recursive: true });
+
+    const { upgrade, calls } = await boot();
+
+    expect(installArgv(calls)).toBeUndefined();
+    expect(upgrade).toMatchObject({ from: "0.26.0", want: "0.27.0", to: "0.26.0", ok: false, reason: "not_upgraded", via: "pipx" });
+  });
+
+  it("records a failed re-install as the command that failed", async () => {
+    machine.has = "0.26.0";
+    machine.lands = "0.27.0";
+    machine.pinned = true;
+    machine.refuseInstall = true;
+    pypi.body = registry(["0.26.0", "0.27.0"]);
+
+    const { upgrade } = await boot({ owned: true });
+
+    expect(upgrade).toMatchObject({ from: "0.26.0", to: "0.26.0", ok: false, reason: "command_failed" });
+    expect(upgrade.detail).toContain("No solution found");
   });
 });
 

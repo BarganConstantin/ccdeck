@@ -390,13 +390,16 @@ async function safePythons() {
  * probe still decides WHICH of an owner's spellings runs.
  *
  * The INSTALL line carries a version specifier and the UPGRADE line carries the
- * bare name, which is not an inconsistency: both installers record what they
- * were asked for and re-resolve an upgrade against that recorded requirement —
- * uv in the tool's `uv-receipt.toml`, pipx in `pipx_metadata.json`'s
- * `package_or_url` — and neither `uv tool upgrade` nor `pipx upgrade` accepts a
- * specifier in the first place. So the bound set here at install time is the
- * bound every later upgrade of that install is resolved inside, and the deck
- * states it once, where it is actually read.
+ * bare name, because neither `uv tool upgrade` nor `pipx upgrade` accepts a
+ * specifier. The two installers then part ways over what was recorded at
+ * install time. uv re-resolves an upgrade inside the requirement in its
+ * `uv-receipt.toml` — so a copy installed as `claude-swap==0.26.0`, which is
+ * what installCswap asks for whenever PyPI answers, is pinned there for good:
+ * `uv tool upgrade` prints "Nothing to upgrade" and exits 0, every day. pipx
+ * 1.18 upgrades past the `==` in `package_or_url` to the newest release on the
+ * index. The uv half is what upgradeInBackground's second step is for; the pipx
+ * half is why that step is uv's alone (and why the bound is re-checked on
+ * arrival, not trusted to the installer).
  */
 async function installers(spec = RANGE_SPEC) {
   const out = [
@@ -641,35 +644,49 @@ export function cswapInstalling() { return _installing; }
  * argv sent to a tool that does not own the package is just as invisible as a
  * wrong argv, and was the longer-lived of the two. Both are now written down.
  */
-function upgradeInBackground({ cmd, upgrade, via }, { from, want }) {
+function upgradeInBackground({ cmd, upgrade, pin, owner, via }, { from, want }) {
   _upgrade = (async () => {
     let entry;
     try {
-      const r = await run(cmd, upgrade, { timeout: INSTALL_TIMEOUT_MS });
+      let r = await run(cmd, upgrade, { timeout: INSTALL_TIMEOUT_MS });
       // The version read below must be taken AFTER the upgrade, and cswapBin
       // memoizes the last `--version` it saw for PROBE_FRESH_MS. An upgrade
       // that finds nothing to do returns in well under those five seconds, so
       // without this the recorded "to" could be the reading from before the
       // command ran — the one number this whole function exists to replace.
       resetCswapBin();
-      const to = await cswapVersion();
+      let to = await cswapVersion();
+      // PINNED BY ITS OWN INSTALL. uv keeps an upgrade inside the requirement it
+      // recorded, and a deck-installed copy recorded `claude-swap==<exact>` (see
+      // installers), so the upgrade above exits 0 with the same version. The
+      // install line again, naming the version the daily check just chose, is
+      // the move uv's own hint gives. It runs only when the upgrade left the
+      // copy behind, so a copy whose receipt has no pin is never given one.
+      if (r.ok && owner === "uv" && pin && behind(to, want)) {
+        r = await run(cmd, pin, { timeout: INSTALL_TIMEOUT_MS });
+        resetCswapBin();
+        to = await cswapVersion();
+      }
       entry = {
         from,
         want: want ?? null,
         to,
         at: new Date().toISOString(),
         via: via ?? null,
-        ok: r.ok && typeof to === "string" && (to === "installed" || isAcceptableVersion(to)),
+        ok: r.ok && typeof to === "string" && (to === "installed" || isAcceptableVersion(to)) && !behind(to, want),
         // Why not, when not. An upgrade that exits non-zero and one that lands
         // a version outside the bound are very different events, and the second
         // is the one worth a person's attention: the specifier this deck
         // installs with does not permit it, so something other than that
-        // specifier decided what to install.
+        // specifier decided what to install. The third, an upgrade that exited
+        // 0 and moved nothing, used to be recorded as a success.
         reason: !r.ok
           ? "command_failed"
           : (typeof to === "string" && to !== "installed" && !isAcceptableVersion(to))
             ? "unexpected_version"
-            : null,
+            : behind(to, want)
+              ? "not_upgraded"
+              : null,
         detail: r.ok ? null : failureDetail(r, 300),
       };
     } catch (e) {
@@ -689,13 +706,18 @@ function upgradeInBackground({ cmd, upgrade, via }, { from, want }) {
  * claude-swap came from pipx is skipped rather than handed an upgrade it will
  * refuse. A null owner probes nothing at all: there is no tool here to ask.
  */
-async function findUpgrader(owner) {
+async function findUpgrader(owner, want) {
   if (!owner) return null;
-  for (const { cmd, probe, upgrade, via, owner: speaksFor } of await installers()) {
+  for (const { cmd, probe, args, upgrade, via, owner: speaksFor } of await installers(`${PKG}==${want}`)) {
     if (speaksFor !== owner) continue;
-    if ((await run(cmd, probe, { timeout: 8_000 })).ok) return { cmd, upgrade, via };
+    if ((await run(cmd, probe, { timeout: 8_000 })).ok) return { cmd, upgrade, pin: args, owner, via };
   }
   return null;
+}
+
+/** True when `to` is a version this deck reads and it is still older than `want`. */
+function behind(to, want) {
+  return typeof to === "string" && to !== "installed" && typeof want === "string" && isOlder(to, want);
 }
 
 /**
@@ -751,7 +773,7 @@ export async function ensureCswap({ onInstalling = null } = {}) {
       // would then be a sentence printed daily about nothing. When nobody
       // offered here owns it, "present" is the whole truth and is what gets
       // said.
-      const found = await findUpgrader(cswapOwner(await cswapBin()));
+      const found = await findUpgrader(cswapOwner(await cswapBin()), latest);
       if (found) {
         upgradeInBackground(found, { from: existing, want: latest });
         return { state: "upgrading", version: existing, latest, via: found.via };
