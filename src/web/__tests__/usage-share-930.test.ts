@@ -17,6 +17,7 @@ type Win = { pct: number; resets_at?: string };
 type Row = {
   email: string; organizationUuid: string; lastGood: { five_hour?: Win; seven_day?: Win } | null;
   fetchedAt: number | null; nextPollAt: number | null; backoffUntil: number | null; heldUntil: number | null;
+  lastError?: string | null;
 };
 type Share = {
   refresh: (accounts: { key: string; alive: boolean; active?: boolean }[]) => Promise<void>;
@@ -149,24 +150,25 @@ describe("who owns an account", () => {
   });
 });
 
-describe("what goes over the wire", () => {
-  /** Two decks, `hi` outranking `lo` for every account here, each having
-   *  heard the other once. `hi` has a fresh reading of everything. */
-  async function pair() {
-    const clock = { t: 1_800_000_000_000 };
-    const fps = ["d1-111-111-111", "d2-222-222-222", "d3-333-333-333", "d4-444-444-444", "d5-555-555-555"];
-    // Two fingerprints ordered the same way for all three accounts.
-    let hiFp = "", loFp = "";
-    for (const x of fps) for (const y of fps) {
-      if (x !== y && !hiFp && ACCOUNTS.every(a => rank(a.key, x) > rank(a.key, y))) { hiFp = x; loFp = y; }
-    }
-    expect(hiFp).not.toBe("");
-    const hi = makeDeck(hiFp, clock);
-    const lo = makeDeck(loFp, clock);
-    hi.tick();
-    await round(hi, lo);      // they learn of each other; nothing is held yet
-    return { clock, hi, lo };
+/** Two decks, `hi` outranking `lo` for every account here, each having heard
+ *  the other once. `hi` has a fresh reading of everything. */
+async function pair() {
+  const clock = { t: 1_800_000_000_000 };
+  const fps = ["d1-111-111-111", "d2-222-222-222", "d3-333-333-333", "d4-444-444-444", "d5-555-555-555"];
+  // Two fingerprints ordered the same way for all three accounts.
+  let hiFp = "", loFp = "";
+  for (const x of fps) for (const y of fps) {
+    if (x !== y && !hiFp && ACCOUNTS.every(a => rank(a.key, x) > rank(a.key, y))) { hiFp = x; loFp = y; }
   }
+  expect(hiFp).not.toBe("");
+  const hi = makeDeck(hiFp, clock);
+  const lo = makeDeck(loFp, clock);
+  hi.tick();
+  await round(hi, lo);      // they learn of each other; nothing is held yet
+  return { clock, hi, lo };
+}
+
+describe("what goes over the wire", () => {
 
   it("sends the owner's readings and holds the lower deck off them until its next poll plus two rounds", async () => {
     const { hi, lo } = await pair();
@@ -261,6 +263,28 @@ describe("what goes over the wire", () => {
     expect(lo.imports[0].holdS).toBe(holdFor({ nextS: 300, backoffS: 900 }));
   });
 
+  it("says nothing of an account its own reads of are failing, so the others read for themselves", async () => {
+    // This machine's network, its login, a timeout: nothing about the account.
+    const { clock, hi, lo } = await pair();
+    for (const r of hi.store.values()) Object.assign(r, { lastError: "network", backoffUntil: clock.t + 300_000 });
+    await round(hi, lo);
+    expect(lo.imports).toEqual([]);
+  });
+
+  it("passes a rate limit on with its backoff: that budget is the account's, on every machine", async () => {
+    const { clock, hi, lo } = await pair();
+    for (const r of hi.store.values()) Object.assign(r, { lastError: "http-429", backoffUntil: clock.t + 900_000 });
+    await round(hi, lo);
+    expect(lo.imports[0].holdS).toBe(holdFor({ nextS: 300, backoffS: 900 }));
+  });
+
+  it("says nothing once its own plan has lapsed, as a collector that stopped would", async () => {
+    const { clock, hi, lo } = await pair();
+    clock.t += 300_000 + 181_000;   // hi's next poll was due 181 s ago, and nothing fetched
+    await round(hi, lo);
+    expect(lo.imports).toEqual([]);
+  });
+
   it("says nothing, and is no candidate, without import-usage", async () => {
     const clock = { t: 1_800_000_000_000 };
     const old = makeDeck("old-old-old-old", clock, { canImport: false });
@@ -280,6 +304,59 @@ describe("what goes over the wire", () => {
     const field = lo.share.fieldFor(key, third.fp, lo.list()) as { usage?: unknown };
     // Whatever lo says to a third deck, its held rows are not in it.
     expect(JSON.stringify(field)).not.toContain(ACCOUNTS[0].email);
+  });
+});
+
+// The manifest these ride in is what pairing and the shared logins run on, and
+// a promise nobody handles ends the deck's process. So nothing here may throw
+// into a round or reject, whatever a paired deck sends or claude-swap does.
+describe("what cannot be read or done", () => {
+  it("never breaks the manifest it came in, nor rejects", async () => {
+    const { hi, lo } = await pair();
+    const key = randomBytes(32);
+    const frames = [null, undefined, 42, "x", { usage: 7 }, { usage: { iv: 1, ct: [] } }, { usage: {}, current: { key: 5 } }];
+    for (const frame of frames) {
+      let answer: Promise<void> | undefined;
+      expect(() => { answer = lo.share.heard(key, frame, hi.fp, hi.list()); }).not.toThrow();
+      await expect(answer).resolves.toBeUndefined();
+    }
+    await expect(lo.share.heard(key, { usage: {} }, hi.fp, null as never)).resolves.toBeUndefined();
+    expect(lo.imports).toEqual([]);
+  });
+
+  it("leaves its own frame as an older deck sends it when the field cannot be sealed", async () => {
+    const { hi, lo } = await pair();
+    await hi.share.refresh(hi.list());
+    expect(() => hi.share.fieldFor("not a key" as never, lo.fp, hi.list())).not.toThrow();
+    expect(hi.share.fieldFor("not a key" as never, lo.fp, hi.list())).toEqual({});
+  });
+
+  it("sits the round out rather than throw into it when the store cannot be read", async () => {
+    const share = createUsageShare({
+      now: () => 0, myFp: () => "x", canImport: async () => true,
+      readStore: async () => ({ not: "rows" }),
+    });
+    await expect(share.refresh([{ key: ACCOUNTS[0].key, alive: true }])).resolves.toBeUndefined();
+    await expect(share.refresh(null as never)).resolves.toBeUndefined();
+  });
+
+  it("settles, never rejects, when claude-swap throws or the deck's name cannot be read", async () => {
+    const { clock, hi, lo } = await pair();
+    for (const [importUsage, peerName] of [
+      [async () => { throw new Error("cswap gone"); }, () => "iMac"],
+      [async () => true, () => { throw new Error("no name"); }],
+    ] as const) {
+      const share = createUsageShare({
+        now: () => clock.t, myFp: () => lo.fp, canImport: async () => true, readStore: async () => [],
+        importUsage, peerName, register: true,
+      });
+      await share.refresh(lo.list());
+      const key = randomBytes(32);
+      await hi.share.refresh(hi.list());
+      const frame = { t: "manifest", accounts: hi.list(), ...hi.share.fieldFor(key, lo.fp, hi.list()) };
+      await expect(share.heard(key, frame, hi.fp, hi.list())).resolves.toBeUndefined();
+      await expect(share.settled()).resolves.toBeUndefined();
+    }
   });
 });
 

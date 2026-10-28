@@ -53,6 +53,14 @@ const MAX_AGE_S = 3600;
 // When the owner's plan cannot be read: claude-swap's ceiling for an active
 // account (poll_policy.py).
 const DEFAULT_NEXT_S = 300;
+// A reading goes out only while the deck that took it keeps its plan: its
+// planned poll no further overdue than a few rounds to nudge the collector and
+// let it fetch, or, with no plan to read, no older than claude-swap's widest
+// normal cadence (CANDIDATE_MAX_INTERVAL_S) and a round.
+const OVERDUE_MS = 180_000;
+const UNPLANNED_MAX_AGE_S = 660;
+// What claude-swap records for a fetch the account's own budget refused.
+const RATE_LIMITED = "http-429";
 // A reading already handed over is handed over again only when it is a new
 // measurement, or when its hold would end within this.
 const RENEW_BEFORE_MS = 90_000;
@@ -220,18 +228,24 @@ export function createUsageShare({
   let chain = Promise.resolve();
 
   /** Read the store and the capability, and note which accounts this deck
-   *  holds. Called with the accounts the manifest is built from. */
+   *  holds. Called with the accounts the manifest is built from, and never
+   *  throws into that round: anything wrong here sits this deck out of the
+   *  sharing, polling for itself as before. */
   const refresh = async accounts => {
-    mine = new Set((accounts ?? []).map(a => a.key));
-    mineAlive = new Set((accounts ?? []).filter(a => a.alive).map(a => a.key));
-    myCurrent = (accounts ?? []).find(a => a.active)?.key ?? null;
-    try { capable = (await canImport()) === true; } catch { capable = false; }
-    if (!capable) return;
     try {
-      const rows = await readStore();
-      store = new Map(rows.map(r => [accountKey(r.email, r.organizationUuid), r]));
-    } catch { store = new Map(); }
-    release();
+      mine = new Set((accounts ?? []).map(a => a.key));
+      mineAlive = new Set((accounts ?? []).filter(a => a.alive).map(a => a.key));
+      myCurrent = (accounts ?? []).find(a => a.active)?.key ?? null;
+      try { capable = (await canImport()) === true; } catch { capable = false; }
+      if (!capable) return;
+      try {
+        const rows = await readStore();
+        store = new Map(rows.map(r => [accountKey(r.email, r.organizationUuid), r]));
+      } catch { store = new Map(); }
+      release();
+    } catch {
+      capable = false;
+    }
   };
 
   /** The decks that compete for `key`, this one included when it qualifies,
@@ -262,6 +276,16 @@ export function createUsageShare({
     if (typeof r.heldUntil === "number" && r.heldUntil > t) return null;
     const ageS = Math.max(0, (t - r.fetchedAt) / 1000);
     if (ageS > MAX_AGE_S) return null;
+    // Only while this deck's own reads of it work. A fetch that failed for any
+    // reason but the account's rate limit — this machine's network, its login,
+    // a timeout — says nothing about the account, so the others are not held
+    // on it: their holds run out and they read for themselves, as before. A
+    // 429 is the account's budget, the same on every machine, so that one is
+    // passed on with its backoff.
+    if (typeof r.lastError === "string" && r.lastError !== RATE_LIMITED) return null;
+    const backingOff = typeof r.backoffUntil === "number" && r.backoffUntil > t;
+    // Nor once its plan has lapsed: a collector that has stopped here.
+    if (!backingOff && (typeof r.nextPollAt === "number" ? t - r.nextPollAt > OVERDUE_MS : ageS > UNPLANNED_MAX_AGE_S)) return null;
     const usage = usageJson(r.lastGood);
     if (!usage) return null;
     const reading = { key, email: r.email, organizationUuid: r.organizationUuid, ageS: Math.round(ageS), usage };
@@ -278,19 +302,27 @@ export function createUsageShare({
    */
   const fieldFor = (connKey, toFp, sent) => {
     if (!capable || !connKey) return {};
-    const theirs = heardBy.get(toFp);
-    const readings = [];
-    for (const a of sent ?? []) {
-      if (readings.length >= MAX_READINGS) break;
-      if (!a?.alive || !theirs?.all.has(a.key) || ownerOf(a.key) !== myFp()) continue;
-      const r = readingOf(a.key);
-      if (r) readings.push(r);
+    // Never in the way of the manifest itself: a field that cannot be built
+    // leaves the frame as an older deck sends it.
+    try {
+      const theirs = heardBy.get(toFp);
+      const readings = [];
+      for (const a of sent ?? []) {
+        if (readings.length >= MAX_READINGS) break;
+        if (!a?.alive || !theirs?.all.has(a.key) || ownerOf(a.key) !== myFp()) continue;
+        const r = readingOf(a.key);
+        if (r) readings.push(r);
+      }
+      return { usage: seal(connKey, JSON.stringify({ v: VERSION, readings }), usageAad(myFp(), toFp)) };
+    } catch {
+      return {};
     }
-    return { usage: seal(connKey, JSON.stringify({ v: VERSION, readings }), usageAad(myFp(), toFp)) };
   };
 
-  /** Run one hand-over at a time: claude-swap writes one store. */
-  const enqueue = job => { chain = chain.then(job, job); return chain; };
+  /** Run one hand-over at a time: claude-swap writes one store. The chain
+   *  settles and never rejects: nothing awaits it but a test, and a rejection
+   *  nobody handles ends the deck's process. */
+  const enqueue = job => (chain = chain.then(job).catch(() => {}));
 
   /**
    * Lift the holds this deck took from a deck it now outranks, rather than sit
@@ -325,9 +357,20 @@ export function createUsageShare({
   /**
    * What `fromFp` said in its manifest: whether it speaks this, which
    * accounts it offers alive (`list`, as keepManifest read it), and the
-   * readings it sends. Answers the hand-over it started, for tests.
+   * readings it sends. Answers the hand-over it started, for tests. Whatever
+   * a paired deck sent, the manifest it came in is kept as before: this never
+   * throws, and what it answers never rejects.
    */
   const heard = (connKey, frame, fromFp, list) => {
+    try {
+      return hear(connKey, frame, fromFp, list);
+    } catch {
+      heardBy.delete(fromFp);
+      return Promise.resolve();
+    }
+  };
+
+  const hear = (connKey, frame, fromFp, list) => {
     const text = frame?.usage && typeof frame.usage === "object" ? open(connKey, frame.usage, usageAad(fromFp, myFp())) : null;
     let payload = null;
     try { payload = text == null ? null : JSON.parse(text); } catch { payload = null; }
@@ -384,7 +427,7 @@ export function createUsageShare({
   };
 
   /** Settles once every hand-over and lift queued so far has run, for tests. */
-  const settled = () => chain.then(() => {});
+  const settled = () => chain;
 
   // A deck that was unpaired sends no manifest, and stops counting once it has
   // not been heard for HEARD_FRESH_MS.

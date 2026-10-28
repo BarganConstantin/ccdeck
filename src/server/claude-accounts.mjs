@@ -769,7 +769,8 @@ export async function activeAccountUsage() {
  * not start what a look at the accounts panel does. The readings a paired deck
  * is sent (usage-share.mjs) come from here too, with the row's plan: when
  * claude-swap polls it next, how long it is backing off, and how long it is
- * held for another deck's reading — each in ms, or null.
+ * held for another deck's reading — each in ms, or null — and why its last
+ * fetch failed, or null.
  */
 export async function storedUsageReadings() {
   const root = backupRoot();
@@ -783,6 +784,7 @@ export async function storedUsageReadings() {
       ? [{
           email: acct.email, organizationUuid: acct.organizationUuid ?? "", lastGood: row.lastGood, fetchedAt,
           nextPollAt: observedMs(row.nextPollAt), backoffUntil: observedMs(row.backoffUntil), heldUntil: observedMs(row.heldUntil),
+          lastError: typeof row.lastError === "string" ? row.lastError : null,
         }]
       : [];
   });
