@@ -750,6 +750,9 @@ export async function activeAccountUsage() {
     organizationUuid: acct.organizationUuid ?? null,
     lastGood:  row.lastGood,
     fetchedAt: Math.round(row.fetchedAt * 1000),
+    // Until when claude-swap holds this account for a paired deck's readings
+    // (usage-share.mjs), in ms, or null.
+    heldUntil: observedMs(row.heldUntil),
   };
 }
 
@@ -758,7 +761,10 @@ export async function activeAccountUsage() {
  * files activeAccountUsage reads, under the same identity guard, and nothing
  * else — no CLI, no verdicts, no repair. The record of how full each window was
  * at its reset (quota-close-watch.mjs) reads this on a timer, and a timer must
- * not start what a look at the accounts panel does.
+ * not start what a look at the accounts panel does. The readings a paired deck
+ * is sent (usage-share.mjs) come from here too, with the row's plan: when
+ * claude-swap polls it next, how long it is backing off, and how long it is
+ * held for another deck's reading — each in ms, or null.
  */
 export async function storedUsageReadings() {
   const root = backupRoot();
@@ -769,7 +775,10 @@ export async function storedUsageReadings() {
     const row = rows[num];
     const fetchedAt = rowIsFor(row, acct) ? observedMs(row.fetchedAt) : null;
     return row?.lastGood && fetchedAt != null
-      ? [{ email: acct.email, organizationUuid: acct.organizationUuid ?? "", lastGood: row.lastGood, fetchedAt }]
+      ? [{
+          email: acct.email, organizationUuid: acct.organizationUuid ?? "", lastGood: row.lastGood, fetchedAt,
+          nextPollAt: observedMs(row.nextPollAt), backoffUntil: observedMs(row.backoffUntil), heldUntil: observedMs(row.heldUntil),
+        }]
       : [];
   });
 }

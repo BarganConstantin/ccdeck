@@ -12,9 +12,10 @@ import { openAbout, sealAbout } from "./lan-about.mjs";
  * is the engine's clock. `myFp` answers this deck's fingerprint as it is at
  * the moment of asking — a restart for a new key changes it — and `settings`
  * the settings in force, of which a manifest reads `shared`, `onward`,
- * `trusted`, `shareActive` and `sendInUse`.
+ * `trusted`, `shareActive` and `sendInUse`. `usage` is the deck's side of the
+ * usage readings paired decks share (usage-share.mjs), or null for none.
  */
-export function createManifests({ about, now, myFp, settings }) {
+export function createManifests({ about, now, myFp, settings, usage = null }) {
   /** What each paired deck said about itself — version, operating system,
    *  architecture — keyed by fingerprint, most recent only. Filled from both
    *  directions: the manifest a deck answers with, and the question a deck that
@@ -42,10 +43,14 @@ export function createManifests({ about, now, myFp, settings }) {
   const manifestFrame = (accounts, key, toFp) => {
     const cfg = settings();
     const shared = sharedWith(cfg, toFp);
+    const list = manifestFor(accounts, shared, { sendInUse: cfg.sendInUse === true, shareActive: cfg.shareActive });
     return {
-      t: "manifest", accounts: manifestFor(accounts, shared, { sendInUse: cfg.sendInUse === true, shareActive: cfg.shareActive }),
+      t: "manifest", accounts: list,
       ...currentFor(accounts, shared, cfg.shareActive),
       ...cardFor(key, toFp),
+      // The readings this deck owns for accounts in `list`, sealed like the
+      // card. An older deck ignores the key, as it ignores the card.
+      ...(usage ? usage.fieldFor(key, toFp, list) : {}),
     };
   };
 
@@ -63,6 +68,8 @@ export function createManifests({ about, now, myFp, settings }) {
     if (!Array.isArray(frame.accounts)) return null;
     const list = offered(frame.accounts);
     offersBy.set(fromFp, { at: now(), accounts: list, current: heardCurrent(frame.current, list) });
+    // Never awaited: handing a reading to claude-swap runs behind the round.
+    usage?.heard(key, frame, fromFp, list);
     return list;
   };
 

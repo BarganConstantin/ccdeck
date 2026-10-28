@@ -39,10 +39,21 @@ const FRESH_MIN_AGE_MS = 190_000;
 const RECENT_429_MS = 3_600_000;
 
 /**
+ * Whether this row is held for another deck's reading: `cswap import-usage
+ * --hold` keeps every claude-swap collector off it until `heldUntil`
+ * (usage-share.mjs). Exported for tests.
+ */
+export function heldNow(row, now) {
+  return typeof row?.heldUntil === "number" && row.heldUntil * 1000 > now;
+}
+
+/**
  * Whether anything is waiting to be collected.
  *
- * Judged per account that actually exists, and an account counts as waiting in
- * three cases:
+ * A held row is never waiting: claude-swap will not fetch it, so asking would
+ * only spawn a `cswap list` every minute that reads nothing. Otherwise judged
+ * per account that actually exists, and an account counts as waiting in three
+ * cases:
  *
  *   - it has no usage row at all;
  *   - it has a row whose fetchedAt is not a number. claude-swap writes a row
@@ -61,6 +72,7 @@ export function collectionDue(rows, slots, now) {
   for (const slot of slots) {
     const r = rows[slot];
     if (!r) return true;                                                  // never seen
+    if (heldNow(r, now)) continue;                                        // another deck reads it
     if (typeof r.fetchedAt !== "number") return true;                     // seen, never fetched
     if (typeof r.nextPollAt === "number" && r.nextPollAt * 1000 <= now) return true;
   }
@@ -93,6 +105,7 @@ export function collectionDue(rows, slots, now) {
 export function freshenAllowed(row, now, recent429Ms = RECENT_429_MS) {
   if (!row || typeof row.fetchedAt !== "number") return false;   // the list path owns this case
   if (process.env.AGENTS_DECK_NO_FRESHEN === "1") return false;
+  if (heldNow(row, now)) return false;
   if (typeof row.backoffUntil === "number" && row.backoffUntil * 1000 > now) return false;
   if ((row.consecutiveFailures ?? 0) > 0) return false;
   if (typeof row.last429At === "number" && now - row.last429At * 1000 < recent429Ms) return false;
@@ -114,6 +127,9 @@ export function freshenDue(row, now, { minAgeMs = FRESH_MIN_AGE_MS, recent429Ms 
  * own freshen tick gets there first. Exported for tests.
  */
 export function nextReadAt(row, matches, fetchedAtMs, isActive, now) {
+  // Held for another deck's reading: nothing here reads it, so there is no
+  // time to promise. The next number arrives with that deck's next poll.
+  if (matches && heldNow(row, now)) return null;
   const planned = matches && typeof row?.nextPollAt === "number"
     ? Math.round(row.nextPollAt * 1000)
     : null;
