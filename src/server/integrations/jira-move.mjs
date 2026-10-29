@@ -153,8 +153,8 @@ export function createJiraMover({ secret, origins, sign, authCheck, fetchImpl = 
         // Match Jira's issue normalizer, including renamed epic-level types.
         const type = issue.fields?.issuetype;
         const epic = type?.hierarchyLevel === 1 || /^epic$/i.test(String(type?.name ?? ""));
-        if (issueKeys.includes(key) && (epic || !["new", "indeterminate"].includes(issue.fields?.status?.statusCategory?.key))) {
-          throw invalid("Only unfinished top-level non-epic issues can be moved.");
+        if (issueKeys.includes(key) && (epic || !["new", "indeterminate", "done"].includes(issue.fields?.status?.statusCategory?.key))) {
+          throw invalid("Only top-level non-epic issues with a known status can be moved.");
         }
       }
       const sources = new Map();

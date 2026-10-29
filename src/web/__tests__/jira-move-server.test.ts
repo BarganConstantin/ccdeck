@@ -114,6 +114,12 @@ describe("the bounded Jira move", () => {
     assert.equal(r.state.writes.length, 1);
     assert.deepEqual(r.state.writes[0].json, { issues: ["MOCK-1"] });
   });
+  it("moves a done issue", async () => {
+    const r = rig();
+    r.state.issues[0].fields.status.statusCategory.key = "done";
+    assert.equal((await r.move()).status, 200);
+    assert.ok(r.state.writes.length > 0);
+  });
   it("allows a done top-level issue as a stationary rank anchor", async () => {
     const r = rig();
     r.state.issues[1].fields.status.statusCategory.key = "done";
@@ -140,14 +146,13 @@ describe("the bounded Jira move", () => {
     assert.equal((await r.move(body)).status, 400);
     assert.equal(r.state.writes.length, 0);
   });
-  for (const scenario of ["subtask", "anchor-subtask", "epic", "done", "unknown-status", "closed", "off-board", "wrong-anchor-group", "closed-source-missing", "multiple-sprints"])
+  for (const scenario of ["subtask", "anchor-subtask", "epic", "unknown-status", "closed", "off-board", "wrong-anchor-group", "closed-source-missing", "multiple-sprints"])
     it(`rejects ${scenario} without writing`, async () => {
       const r = rig();
       const f = r.state.issues[0].fields;
       if (scenario === "subtask") f.issuetype.subtask = true;
       if (scenario === "anchor-subtask") r.state.issues[1].fields.issuetype.subtask = true;
       if (scenario === "epic") f.issuetype.name = "Epic";
-      if (scenario === "done") f.status.statusCategory.key = "done";
       if (scenario === "unknown-status") f.status.statusCategory.key = "unknown";
       if (scenario === "closed") f.sprint = { id: 15, state: "closed" };
       if (scenario === "off-board") r.state.issues.shift();
@@ -453,13 +458,12 @@ describe("bounded ordered Jira batches", () => {
     assert.equal((await r.move({ ...batchInput, ...patch })).status, 400);
     assert.equal(r.state.writes.length, 0);
   });
-  for (const problem of ["done", "epic", "subtask", "closed", "off-board", "wrong-source", "anchor-subtask", "anchor-wrong-group"])
+  for (const problem of ["epic", "subtask", "closed", "off-board", "wrong-source", "anchor-subtask", "anchor-wrong-group"])
     it(`validates the entire batch before writes: ${problem}`, async () => {
       const r = rig();
       // The invalid issue is last in the ordered batch. Earlier keys must not
       // have been assigned while later validation is still pending.
       const f = r.state.issues[0].fields;
-      if (problem === "done") f.status.statusCategory.key = "done";
       if (problem === "epic") f.issuetype.name = "Epic";
       if (problem === "subtask") f.issuetype.subtask = true;
       if (problem === "closed") f.sprint = r.state.sprints[2];
