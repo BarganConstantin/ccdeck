@@ -75,6 +75,28 @@ function headlessXterm(): Xterm | null {
 }
 
 const TMUX = realTmux();
+/** TMUX's version as major * 100 + minor: "tmux 3.4" is 304, "tmux 3.6a" 306, "tmux next-3.7" 307. */
+const TMUX_VERSION = (() => {
+  if (!TMUX) return null;
+  const m = /^tmux (?:next-)?(\d+)\.(\d+)/.exec(spawnSync(TMUX, ["-V"], { encoding: "utf8", timeout: 5000 }).stdout ?? "");
+  return m ? Number(m[1]) * 100 + Number(m[2]) : null;
+})();
+// COMPATIBILITY RULE, tmux 3.2 to 3.5 only — for review. Those keep a wide
+// glyph in column 1 whose right half a run of ASCII from column 2 overwrote,
+// and put the run after it, so their screen is one cell off from the bytes
+// the pane wrote, until column 1 is written again; xterm.js and tmux 3.6 on
+// blank the glyph (upstream 9c07903a, "Correctly remove overwritten wide
+// characters at column 1", 2025-07-18, first in 3.6). The stress TUI does
+// exactly that now and then (four times in its first 240 frames at 100x30),
+// so on those versions the comparison found tmux's mistake, not the panel's,
+// and a reseed copied the shifted row into the panel (the %pause case failed
+// on every run on 3.4). There, and only there, the stress TUI leaves that one
+// write out (`stress pre-3.6`, tmux-control-tui.mjs), as it leaves out the two
+// things every tmux and xterm.js draw differently; nothing in the comparison
+// is relaxed. The "half" case below checks, on every tmux, that this rule and
+// the tmux at hand agree.
+const BEFORE_36 = TMUX_VERSION !== null && TMUX_VERSION < 306;
+const STRESS = BEFORE_36 ? ["stress", "pre-3.6"] : ["stress"];
 const X = headlessXterm();
 const SOCKET = `ccdeck-test-tc-${process.pid}-${randomBytes(3).toString("hex")}`;
 const FIXTURE = fileURLToPath(new URL("./tmux-control-tui.mjs", import.meta.url));
@@ -229,7 +251,7 @@ function mirror(c: any) {
 describe("against a real tmux", () => {
   it("draws what tmux draws: seed then stream match tmux's own screen through bursts, resizes and a reseed mid-burst", async () => {
     if (!TMUX) return;
-    tm("new-session", "-d", "-s", "fid", "-x", "120", "-y", "40", NODE, FIXTURE, "stress");
+    tm("new-session", "-d", "-s", "fid", "-x", "120", "-y", "40", NODE, FIXTURE, ...STRESS);
     await waitFor(() => onAlt("fid"), "the TUI to take the alternate screen");
     const c = open({ target: "fid" });
     await c.ready;
@@ -276,6 +298,22 @@ describe("against a real tmux", () => {
     await m.settle();
     expect(await differences(m.term, "fid"), "after a reseed in the middle of a burst").toEqual([]);
   }, 40_000);
+
+  it("leaves out of the stress TUI exactly what this tmux draws wrong: a wide glyph in column 1 half overwritten, before 3.6 only", async () => {
+    if (!TMUX) return;
+    // 界 in column 1, then Z in column 2 over its right half, then a title.
+    tm("new-session", "-d", "-s", "half", "-x", "20", "-y", "3", NODE, FIXTURE, "half");
+    await waitFor(() => tm("display-message", "-p", "-t", "half", "#{pane_title}").trim() === "half", "the title written after the glyphs");
+    const row = tm("capture-pane", "-p", "-t", "half").split("\n")[0].trimEnd();
+    if (BEFORE_36) expect(row, `tmux ${TMUX_VERSION} keeps 界 and puts Z after it; if it no longer does, the pre-3.6 rule goes`).toBe("界Z");
+    else expect(row, `tmux ${TMUX_VERSION} blanks 界, so the stress TUI keeps every write`).toBe(" Z");
+    if (X) {
+      const t = makeTerm(20, 3);
+      await write(t, "\x1b[2J\x1b[1;1H界\x1b[1;2HZ");
+      expect(t.buffer.active.getLine(0).translateToString(true).trimEnd(), "what the panel draws from the same bytes").toBe(" Z");
+      t.dispose();
+    }
+  });
 
   it("seeds the alternate screen with its modes, and the shell under it is there when the program leaves", async () => {
     if (!TMUX) return;
@@ -479,7 +517,7 @@ describe("against a real tmux", () => {
 
   it("recovers from a %pause: tmux is told to continue, 'reseed' fires, and the new seed matches tmux's screen", async () => {
     if (!TMUX) return;
-    tm("new-session", "-d", "-s", "slow", "-x", "100", "-y", "30", NODE, FIXTURE, "stress");
+    tm("new-session", "-d", "-s", "slow", "-x", "100", "-y", "30", NODE, FIXTURE, ...STRESS);
     await waitFor(() => onAlt("slow"), "the TUI");
     let child: ChildProcess | null = null;
     const c = open({ target: "slow", pauseAfter: 1,
@@ -530,7 +568,7 @@ describe("against a real tmux", () => {
 
   it("reports a program that exits as 'ended', and can still seed its last frame", async () => {
     if (!TMUX) return;
-    tm("new-session", "-d", "-s", "dies", "-x", "80", "-y", "24", NODE, FIXTURE, "stress");
+    tm("new-session", "-d", "-s", "dies", "-x", "80", "-y", "24", NODE, FIXTURE, ...STRESS);
     tm("set-option", "-p", "-t", "dies", "remain-on-exit", "on");
     await waitFor(() => onAlt("dies"), "the TUI");
     const c = open({ target: "dies" });
