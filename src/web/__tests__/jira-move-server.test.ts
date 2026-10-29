@@ -128,6 +128,21 @@ describe("the bounded Jira move", () => {
     assert.equal(result.status, 400);
     assert.equal(r.state.writes.length, 0);
   });
+  it("preserves a batch's requested order in an empty destination", async () => {
+    const r = rig();
+    const result = await r.move({ issueKeys: ["MOCK-3", "MOCK-2"], target: { kind: "sprint", sprintId: 14 }, atEnd: true });
+    assert.equal(result.status, 200);
+    assert.deepEqual(r.state.writes.map(w => w.method), ["POST", "PUT"]);
+    assert.deepEqual(r.state.writes[1].json, { issues: ["MOCK-2"], rankCustomFieldId: 10020, rankAfterIssue: "MOCK-3" });
+  });
+  it("reports a failed rank after moving a batch to an empty destination", async () => {
+    const r = rig({ state: { writeResponses: [new Response(null, { status: 204 }), new Response(null, { status: 403 })] } });
+    const result = await r.move({ issueKeys: ["MOCK-3", "MOCK-2"], target: { kind: "sprint", sprintId: 14 }, atEnd: true });
+    assert.equal(result.status, 403);
+    assert.deepEqual(result.body.outcomes.map(o => [o.issueKey, o.membership, o.rank]), [
+      ["MOCK-3", "moved", "unchanged"], ["MOCK-2", "moved", "failed"],
+    ]);
+  });
   it("rejects a conflicting explicit position before writing", async () => {
     const r = rig();
     const result = await r.move({ ...input, atEnd: true });

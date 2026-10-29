@@ -216,13 +216,17 @@ export function createJiraMover({ secret, origins, sign, authCheck, fetchImpl = 
         await write(suffix, "POST", { issues: needed }, needed, signal);
         for (const key of needed) outcomes.get(key).membership = "moved";
       }
+      // With no outside anchor, the destination contains only this batch (or
+      // is empty). Once membership is set, order the rest after its first item.
+      const rankKeys = !anchor && atEnd && issueKeys.length > 1 ? issueKeys.slice(1) : issueKeys;
+      if (!anchor && atEnd && rankKeys !== issueKeys) anchor = issueKeys[0];
       if (anchor) {
         stage = "rank";
         attempted = true;
-        pendingKeys = issueKeys;
-        await write("issue/rank", "PUT", { issues: issueKeys, rankCustomFieldId: capability.rankCustomFieldId,
-          ...(beforeIssue ? { rankBeforeIssue: beforeIssue } : { rankAfterIssue: anchor }) }, issueKeys, signal);
-        for (const key of issueKeys) outcomes.get(key).rank = "ranked";
+        pendingKeys = rankKeys;
+        await write("issue/rank", "PUT", { issues: rankKeys, rankCustomFieldId: capability.rankCustomFieldId,
+          ...(beforeIssue ? { rankBeforeIssue: beforeIssue } : { rankAfterIssue: anchor }) }, rankKeys, signal);
+        for (const key of rankKeys) outcomes.get(key).rank = "ranked";
       }
       return { status: 200, body: { ok: true, ...(batch ? { issueKeys } : { issueKey: issueKeys[0] }), target, refresh: true } };
     } catch (err) {
