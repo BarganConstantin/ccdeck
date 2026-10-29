@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { JiraApi } from "../jira-api";
-import { failureOf, readThrough } from "../integrations/client";
+import { failureOf, IntegrationFailure, readThrough } from "../integrations/client";
 
 type Transition = { id: string; name: string; to: string; requiresScreen: boolean };
 
@@ -11,8 +11,9 @@ export default function JiraTransition({ api, issueKey, onChanged }: { api: Jira
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [uncertain, setUncertain] = useState(false);
   const lock = useRef(false);
-  useEffect(() => { setOpen(false); setChoices(null); setValue(""); setError(""); }, [issueKey]);
+  useEffect(() => { setOpen(false); setChoices(null); setValue(""); setError(""); setUncertain(false); }, [issueKey]);
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
@@ -23,7 +24,7 @@ export default function JiraTransition({ api, issueKey, onChanged }: { api: Jira
     return () => controller.abort();
   }, [api, issueKey, open]);
   const submit = async () => {
-    if (!value || lock.current) return;
+    if (!value || lock.current || uncertain) return;
     lock.current = true; setBusy(true); setError("");
     let attempted = false;
     const controller = new AbortController();
@@ -35,7 +36,11 @@ export default function JiraTransition({ api, issueKey, onChanged }: { api: Jira
       const result = await response.json();
       if (!result?.ok || result.issueKey !== issueKey) throw new Error("Jira did not confirm the change. Refresh before trying again.");
       setOpen(false); setValue("");
-    } catch (err) { setError(controller.signal.aborted ? "Could not confirm the change. Refresh before trying again." : err instanceof Error ? err.message : "Could not confirm the change. Refresh before trying again."); }
+    } catch (err) {
+      const definite = err instanceof IntegrationFailure && ["invalid", "permission", "expired", "auth", "not-found", "rate-limit"].includes(err.kind);
+      setUncertain(!definite);
+      setError(definite && err instanceof Error ? err.message : "Could not confirm the change. Check the status before trying again.");
+    }
     finally { window.clearTimeout(timer); if (attempted) onChanged(); lock.current = false; setBusy(false); }
   };
   return <span className="jr-transition">
@@ -47,7 +52,8 @@ export default function JiraTransition({ api, issueKey, onChanged }: { api: Jira
           <option value="">Choose transition</option>
           {choices.map(t => <option key={t.id} value={t.id} disabled={t.requiresScreen}>{t.name}{t.to && t.to !== t.name ? ` → ${t.to}` : ""}{t.requiresScreen ? " (open in Jira)" : ""}</option>)}
         </select>
-        <button type="button" className="btn" onClick={submit} disabled={!value || busy}>{busy ? "Changing…" : "Apply"}</button></>}
+        <button type="button" className="btn" onClick={submit} disabled={!value || busy || uncertain}>{busy ? "Changing…" : "Apply"}</button></>}
+      {uncertain && <button type="button" className="btn" onClick={() => { setUncertain(false); setError(""); }}>I checked the status</button>}
       {!choices && !error && <span className="jr-dim">Loading transitions…</span>}
       {error && <span role="alert">{error}</span>}
     </span>}

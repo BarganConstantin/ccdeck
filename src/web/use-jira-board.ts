@@ -338,6 +338,7 @@ export function useJiraIssue(api: JiraApi, connId: string, key: string | null): 
   const [error, setError] = useState<IntegrationFailure | null>(null);
   const [nonce, setNonce] = useState(0);
   const forced = useRef(false);
+  const dataKey = useRef(cacheKey);
 
   useEffect(() => {
     const invalidated = (id: string) => {
@@ -348,9 +349,11 @@ export function useJiraIssue(api: JiraApi, connId: string, key: string | null): 
   }, [connId, key]);
 
   useEffect(() => {
+    const sameIssue = dataKey.current === cacheKey;
+    dataKey.current = cacheKey;
     if (!key) { setData(null); setError(null); return; }
     const hit = details.get(cacheKey);
-    setData(hit?.data ?? null);
+    setData(previous => hit?.data ?? (sameIssue ? previous : null));
     setError(null);
     if (hit && !forced.current && Date.now() - hit.at < DETAIL_STALE_MS) { setLoading(false); return; }
     forced.current = false;

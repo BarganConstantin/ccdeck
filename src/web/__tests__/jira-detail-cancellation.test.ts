@@ -3,7 +3,7 @@ import { mount, flush } from "./fake-react";
 vi.mock("react", async () => (await import("./fake-react")).react);
 vi.mock("../jira-api", () => ({ readBoard: vi.fn(), readIssues: vi.fn(), readClosedSprints: vi.fn(), readSubtasks: vi.fn(), readIssue: vi.fn() }));
 const { readIssue } = await import("../jira-api");
-const { useJiraIssue } = await import("../use-jira-board");
+const { useJiraIssue, invalidateJiraConnection } = await import("../use-jira-board");
 it("ignores cancelled detail responses without retaining them in the cache", async () => {
   const answers = new Map<string, (value: any) => void>();
   vi.mocked(readIssue).mockImplementation((_api, key) => new Promise(resolve => answers.set(key, resolve)));
@@ -19,4 +19,31 @@ it("ignores cancelled detail responses without retaining them in the cache", asy
   const next = mount(() => useJiraIssue(api, "synthetic-cancelled-detail", "MOCK-1"), {});
   expect(vi.mocked(readIssue).mock.calls.length).toBe(previousCalls + 1);
   next.unmount();
+});
+it("keeps the current issue visible while an invalidated detail refreshes", async () => {
+  let resolve!: (value: any) => void;
+  vi.mocked(readIssue).mockImplementation(() => new Promise(yes => { resolve = yes; }));
+  const api = vi.fn();
+  let shown!: ReturnType<typeof useJiraIssue>;
+  const view = mount(() => { shown = useJiraIssue(api, "synthetic-refresh", "MOCK-1"); return null; }, {});
+  resolve({ issue: { key: "MOCK-1" } }); await flush();
+  invalidateJiraConnection("synthetic-refresh");
+  expect(shown.data?.issue.key).toBe("MOCK-1");
+  expect(shown.loading).toBe(true);
+  resolve({ issue: { key: "MOCK-1", summary: "new" } }); await flush();
+  expect(shown.data?.issue.summary).toBe("new");
+  view.unmount();
+});
+it("does not retain the previous connection's issue while the new one loads", async () => {
+  let resolve!: (value: any) => void;
+  vi.mocked(readIssue).mockImplementation(() => new Promise(yes => { resolve = yes; }));
+  const api = vi.fn();
+  let shown!: ReturnType<typeof useJiraIssue>;
+  const view = mount(({ conn }: { conn: string }) => { shown = useJiraIssue(api, conn, "MOCK-1"); return null; }, { conn: "synthetic-a" });
+  resolve({ issue: { key: "MOCK-1", summary: "connection A" } }); await flush();
+  view.rerender({ conn: "synthetic-b" });
+  expect(shown.data).toBeNull();
+  resolve({ issue: { key: "MOCK-1", summary: "connection B" } }); await flush();
+  expect(shown.data?.issue.summary).toBe("connection B");
+  view.unmount();
 });
