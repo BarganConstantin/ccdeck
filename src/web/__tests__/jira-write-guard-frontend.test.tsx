@@ -134,3 +134,91 @@ it("releases idle cache entries but keeps unfinished work across unmounts", asyn
   expect(store.states.has(heldKey)).toBe(false);
   expect(store.revisions.has(heldKey)).toBe(false);
 });
+
+it("accepts acknowledgement when a poll observes the same completed write", async () => {
+  vi.useFakeTimers();
+  try {
+    const op = { ...operation, connectionId: "poll-ack", kind: "status", state: "uncertain" };
+    let guard = false;
+    let resolve!: (response: Response) => void;
+    const api = vi.fn((path: string) => path === "write-guard"
+      ? Promise.resolve(Response.json({ operations: guard ? [op] : [] }))
+      : new Promise<Response>(r => { resolve = r; }));
+    let write!: ReturnType<typeof useJiraWriteState>;
+    const view = mount(() => { write = useJiraWriteState("poll-ack", "MOCK-1", "transition", api); }, {});
+    await flush();
+    expect(write.begin()).toBe(true);
+    write.update({ busy: false });
+    const pending = write.acknowledge(op.operationId);
+    guard = true;
+    await vi.advanceTimersByTimeAsync(3000); await flush();
+    resolve(Response.json({ ok: true }));
+    expect(await pending).toBe(true);
+    expect(write.state.uncertain).toBe(false);
+    view.unmount();
+  } finally { vi.useRealTimers(); }
+});
+
+it("keeps a replacement move's context when the first move finishes", async () => {
+  const b = { ...operation, connectionId: "move-replaced", kind: "move", issueKey: undefined, issueKeys: ["MOCK-2"], boardId: 42, operationId: "22222222-2222-2222-2222-222222222222", state: "uncertain" };
+  let replaced = false;
+  const api = vi.fn(async (path: string) => path === "write-guard" ? Response.json({ operations: replaced ? [b] : [] }) : new Response("", { status: 409 }));
+  let write!: ReturnType<typeof useJiraWriteState>;
+  const view = mount(() => { write = useJiraWriteState("move-replaced", "", "move", api); }, {});
+  await flush();
+  // The move was already in flight when B was discovered.
+  write.update({ busy: true, uncertain: false, operation: undefined, draft: "MOCK-1 · Board 42" });
+  replaced = true;
+  expect(await write.acknowledge(operation.operationId)).toBe(false);
+  write.finishMove(true, "MOCK-1 · Board 42", operation.operationId);
+  expect(write.state.operation?.operationId).toBe(b.operationId);
+  expect(write.state.uncertain).toBe(true);
+  expect(write.state.draft).toContain("MOCK-2");
+  view.unmount();
+});
+
+it("discards a guard read that resolves after unmount and does not recreate its cache", async () => {
+  let resolve!: (response: Response) => void;
+  const api = vi.fn(() => new Promise<Response>(r => { resolve = r; }));
+  const key = JSON.stringify(["stale-read", "MOCK-1", "comment"]);
+  const view = mount(() => useJiraWriteState("stale-read", "MOCK-1", "comment", api), {});
+  view.unmount();
+  resolve(Response.json({ operations: [{ ...operation, connectionId: "stale-read", state: "uncertain" }] }));
+  await flush();
+  expect(store.states.has(key)).toBe(false);
+  expect(store.revisions.has(key)).toBe(false);
+});
+
+it("settles an acknowledgement across unmount without resurrecting idle state", async () => {
+  let resolve!: (response: Response) => void;
+  const api = vi.fn((path: string) => path === "write-guard" ? Promise.resolve(Response.json({ operations: [] })) : new Promise<Response>(r => { resolve = r; }));
+  let write!: ReturnType<typeof useJiraWriteState>;
+  const key = JSON.stringify(["unmounted-ack", "MOCK-1", "comment"]);
+  const view = mount(() => { write = useJiraWriteState("unmounted-ack", "MOCK-1", "comment", api); }, {});
+  await flush();
+  const pending = write.acknowledge(operation.operationId);
+  view.unmount();
+  resolve(Response.json({ ok: true }));
+  expect(await pending).toBe(true);
+  expect(store.states.has(key)).toBe(false);
+  expect(store.revisions.has(key)).toBe(false);
+});
+
+it("releases a stalled acknowledgement and keeps the write locked", async () => {
+  vi.useFakeTimers();
+  try {
+    const api = vi.fn((path: string, init?: RequestInit) => path === "write-guard" ? Promise.resolve(Response.json({ operations: [] })) : new Promise<Response>((_, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+    }));
+    let write!: ReturnType<typeof useJiraWriteState>;
+    const view = mount(() => { write = useJiraWriteState("ack-timeout", "MOCK-1", "comment", api); }, {});
+    await flush();
+    const pending = write.acknowledge(operation.operationId);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await pending).toBe(false);
+    expect(write.state.loading).toBe(false);
+    expect(write.state.uncertain).toBe(true);
+    expect(write.begin()).toBe(false);
+    view.unmount();
+  } finally { vi.useRealTimers(); }
+});

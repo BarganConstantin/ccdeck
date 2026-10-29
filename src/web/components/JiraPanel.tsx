@@ -186,8 +186,10 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
     if (!board || loading || readingGroups || !moveWrite.begin(context)) throw new Error("Wait for the board to finish updating.");
     let unconfirmed = false;
     let outcomeText = "";
+    let operationId: string | undefined;
     try {
       const result = await moveJiraIssue(api, board, move);
+      operationId = result.operationId;
       if (result.operationId && !await moveWrite.acknowledge(result.operationId)) unconfirmed = true;
       return result;
     }
@@ -202,7 +204,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       // Even a lost response can mean Jira saved the move. Re-read rather
       // than inventing local order or replaying a potentially completed write.
       try { await invalidateJiraConnection(conn.id, true); }
-      finally { moveWrite.update({ busy: false, uncertain: unconfirmed, draft: unconfirmed ? `${context}${outcomeText ? ` — ${outcomeText}` : ""}` : "" }); }
+      finally { moveWrite.finishMove(unconfirmed, unconfirmed ? `${context}${outcomeText ? ` — ${outcomeText}` : ""}` : "", operationId); }
     }
   };
   const overview = snap.overview && String(snap.overview.board.id) === board ? snap.overview : null;
