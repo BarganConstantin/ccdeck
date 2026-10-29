@@ -321,7 +321,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
         {moveWrite.state.uncertain && <div className="jr-board-note" role="alert">
           {moveWrite.state.draft && <>The move of {moveWrite.state.draft} needs verification. Check these issues in Jira before trying again. {" "}</>}
           {moveWrite.state.error && <span>{moveWrite.state.error} {" "}</span>}
-          <button type="button" className="btn" disabled={moveWrite.state.operation?.state === "pending"} onClick={event => { if (document.activeElement === event.currentTarget) rootRef.current?.querySelector<HTMLElement>(".jr-row-main, .jr-group-toggle")?.focus(); void moveWrite.acknowledge(); }}>I checked the issues</button>
+          <button type="button" className="btn" aria-disabled={moveWrite.state.operation?.state === "pending" || undefined} onClick={event => { if (document.activeElement === event.currentTarget) rootRef.current?.querySelector<HTMLElement>(".jr-row-main, .jr-group-toggle")?.focus(); void moveWrite.acknowledge(); }}>I checked the issues</button>
         </div>}
         <JiraBacklog
           key={board}

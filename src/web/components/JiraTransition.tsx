@@ -63,8 +63,8 @@ export default function JiraTransition({ api, connectionId, issueKey, onChanged 
           <option value="">Choose transition</option>
           {choices.map(t => <option key={t.id} value={t.id} disabled={t.requiresScreen}>{t.name}{t.to && t.to !== t.name ? ` → ${t.to}` : ""}{t.requiresScreen ? " (open in Jira)" : ""}</option>)}
         </select>
-        <button ref={applyRef} type="button" className="btn" onClick={submit} {...selfPressProps(busy, !value || uncertain || loading)}>{busy ? "Changing…" : "Apply"}</button></>}
-      {uncertain && <button ref={checkedRef} type="button" className="btn" disabled={operation?.state === "pending"} onClick={() => { if (typeof document !== "undefined" && document.activeElement === checkedRef.current) toggleRef.current?.focus(); void write.acknowledge(); setError(""); }}>I checked the status</button>}
+        <button ref={applyRef} type="button" className="btn" onClick={submit} {...selfPressProps(busy || !!loading, !value || uncertain)}>{busy ? "Changing…" : "Apply"}</button></>}
+      {uncertain && <button ref={checkedRef} type="button" className="btn" aria-disabled={operation?.state === "pending" || undefined} onClick={() => { if (typeof document !== "undefined" && document.activeElement === checkedRef.current) toggleRef.current?.focus(); void write.acknowledge(); setError(""); }}>I checked the status</button>}
       {!choices && !error && <span className="jr-dim">Loading transitions…</span>}
       {error && <span role="alert">{error}</span>}
       {write.state.error && <span role="alert">{write.state.error}</span>}
