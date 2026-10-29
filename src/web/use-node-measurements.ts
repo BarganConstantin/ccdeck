@@ -9,13 +9,14 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { useStoreApi } from "reactflow";
 import { SESSION_GROUP_TYPE } from "./minimap";
+import type { GraphState } from "./graph-state";
 
 /**
  * @param draggingRef True for the length of a drag. Cards do not change size
  *   while one is dragged, and the DOM pass forces a synchronous layout on a
  *   render that happens on every pointer move, so it is skipped for the gesture.
  */
-export function useNodeMeasurements(draggingRef: MutableRefObject<boolean>) {
+export function useNodeMeasurements(draggingRef: MutableRefObject<boolean>, stateRef: MutableRefObject<Pick<GraphState, "agents">>) {
   const store = useStoreApi();
   const measuredRef = useRef<Map<string, { width: number; height: number }>>(new Map());
   const measuredVersionRef = useRef(0);
@@ -27,10 +28,19 @@ export function useNodeMeasurements(draggingRef: MutableRefObject<boolean>) {
   const measure = useCallback(() => {
     pendingRef.current = null;
     let storeChanged = false;
+    const internals = store.getState().nodeInternals;
+    const agents = stateRef.current.agents;
+    const alive = (id: string) => internals.has(id) || agents.has(id)
+      || (id.startsWith("recap:") && agents.has(id.slice("recap:".length)));
+    // Retain filtered cards and nodes still finishing a render, but release
+    // dimensions once both the session and its rendered node have left.
+    for (const id of storeSizesRef.current.keys()) if (!alive(id)) storeSizesRef.current.delete(id);
+    for (const id of measuredRef.current.keys()) if (!alive(id)) { measuredRef.current.delete(id); storeChanged = true; }
+
     // Read the latest committed store once. A selector must not mutate a
     // measurement counter: ResizeObserver and controlled nodes can present
     // different sizes in one commit, recursively rendering their own writer.
-    for (const n of store.getState().nodeInternals.values()) {
+    for (const n of internals.values()) {
       if (n.type === SESSION_GROUP_TYPE) continue; // geometry derived from cards
       const w = n.width, h = n.height;
       if (w == null || h == null) continue;
@@ -63,7 +73,7 @@ export function useNodeMeasurements(draggingRef: MutableRefObject<boolean>) {
       }
     }
     if (domChanged) setDomSizeVersion(v => v + 1);
-  }, [store, draggingRef]);
+  }, [store, draggingRef, stateRef]);
 
   const schedule = useCallback(() => {
     if (pendingRef.current) return;

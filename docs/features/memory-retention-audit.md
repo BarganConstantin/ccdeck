@@ -72,3 +72,22 @@ is specific to this large-input workload, not a prediction for every running
 deck. Displayed preview text, Unicode, tool counts and the full-input retention
 window are unchanged. `tool-preview-memory.test.ts` covers both the preview
 function and the reducer workload, alongside the existing tool-history tests.
+
+## Session churn and canvas dimensions
+
+A reducer workload with 100 completed sessions and 2,000 Write calls (16 KiB
+inputs) retained about 32.4 MiB before pruning and 0.2 MiB afterward. Both the
+agent map and in-flight tool index were empty after pruning. No heavy-payload
+retention was demonstrated at that boundary.
+
+A separate hook-level test found stale canvas measurements: replacing 200
+sessions left 200 size records. The measurement pass now removes entries only
+when neither the graph nor React Flow holds the node. Hidden live sessions and
+their recap notes retain their dimensions. This bounds a small per-session
+retention; no whole-app MiB saving is claimed for it.
+
+The built UI was also exercised in isolated Chromium with three synthetic live
+sessions and 60 Settings cycles: 685 DOM nodes stayed constant, listeners were
+557 initially and 558 at the end, and JS heap went from 8.5 to 9.4 MiB. No render
+errors occurred. This checks the changed hook in the app, alongside tests for
+measurement feedback, dragging, node removal and hidden-session retention.

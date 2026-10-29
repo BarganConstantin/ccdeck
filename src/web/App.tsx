@@ -417,7 +417,7 @@ function Inner() {
 
   // Every card's size, from React Flow's store and from the DOM, with the two
   // counters the layout keys off: see use-node-measurements.ts.
-  const { measuredRef, measuredVersionRef, sizeVersion, domSizeVersion } = useNodeMeasurements(draggingRef);
+  const { measuredRef, measuredVersionRef, sizeVersion, domSizeVersion } = useNodeMeasurements(draggingRef, stateRef);
 
   // What Remove node has taken off the board, the way back, and the sentence
   // that says so — use-removals.ts.
