@@ -20,8 +20,11 @@ flow. Branches, pull requests and releases now follow
   Radar buffers, oversized backing strings behind tool previews, stale canvas
   dimensions and tracker request cancellation. Tests and controlled measurements
   are documented in [the memory audit](features/memory-retention-audit.md).
-- Settings cycles and 720 populated detail visits per tracker were measured in
-  isolated Chromium. Native desktop sampling was short and uncontrolled;
+- Settings cycles, 720 populated detail visits per tracker, 90 large Jira
+  boards, 330 paginated forge lists and 240 job-log expansions were measured
+  in isolated Chromium. The shared JSON reader now retains cancellation and
+  deadlines through body consumption; 80 real browser streaming requests
+  verified both paths. Native desktop sampling was short and uncontrolled;
   several-hour real-traffic stability and an overall before/after RAM percentage
   remain unverified. Do not add individual synthetic savings into a total.
 - Reusable checks: `scripts/verify-ui-memory.mjs` and

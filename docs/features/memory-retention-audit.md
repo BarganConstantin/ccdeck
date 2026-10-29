@@ -152,8 +152,8 @@ visit and that reopening the latest issue does not cause another API read.
 Both checks passed, with no browser errors. Initial cache filling accounts for
 most of the measured growth; another 480 distinct visits added about 0.2 MiB.
 This workload did not demonstrate unbounded detail retention. It does not
-establish the absence of a slower leak or cover populated board lists, merge
-request diffs, job logs, attachments or real network stalls.
+establish the absence of a slower leak. Additional surfaces and streaming
+cancellation checks are described separately below and above.
 
 Run from a checkout with dependencies installed:
 
@@ -166,6 +166,59 @@ node scripts/verify-tracker-memory.mjs
 No backend or temporary server is started. The script asserts rendering and
 cache reuse, and reports memory observations without a machine-dependent heap
 threshold. Its fixture also passes a separate strict TypeScript check.
+
+## Large lists and job logs
+
+The same isolated-browser fixture also renders the actual `JiraBacklog` with
+`useJiraBoard`, GitLab `IssuesTab` with paginated reads, and `JobStages` with its
+on-demand log expansion. Cache limits, rendered rows and line limits are the
+application's existing values; they were not reduced for this audit.
+
+| Surface | Workload per round | Round 1 heap, MiB | Round 2 | Round 3 |
+|---|---|---:|---:|---:|
+| Jira board | 30 boards × 1,000 issues | 14.49 | 14.57 | 14.63 |
+| GitLab issues | 110 projects × 500 issues, two pages each | 16.66 | 16.90 | 16.93 |
+| Job logs | 80 jobs, expanding 80 → 200 → 500 lines | 12.29 | 12.46 | 12.51 |
+
+Each round uses new board/project/job IDs and exceeds the respective cache's
+entry capacity. Across three rounds every expected row and requested log line
+count was rendered. After unmount and garbage collection all measurements had
+9 DOM nodes, 160 listeners and one document. Reopening the latest surface used
+cached data without another API read; there were no browser errors. The small
+second/third-round growth did not demonstrate an unbounded leak in these cases.
+
+Run these surfaces explicitly:
+
+```sh
+PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs \
+PLAYWRIGHT_EXECUTABLE=/path/to/chromium \
+node scripts/verify-tracker-memory.mjs jira-board forge-list job-log
+```
+
+The forge transport was also checked with twelve synthetic log responses, each
+containing a discarded 2 MiB line before an 80-line tail. The tails stayed exact
+and retained about 0.22 MiB of additional JS heap after collection. This workload
+already passed without a source change; `forge-log-retention.test.ts` preserves
+the check. It measures JS heap, not every native buffer allocation.
+
+Source inspection confirmed that the merge request Changes view displays file
+metadata and links to the forge, rather than keeping a patch viewer. GitLab's
+`changeFiles` normalizes upstream diffs into paths, status, counts and links;
+the raw patch is not part of that returned data. This is a narrower finding than
+a browser test of large merge-request discussions or a native-memory profile.
+
+## Audit completion boundary
+
+The local audit round is complete: controlled checks cover compressed assets,
+Radar buffers, tool history/pruning, canvas dimensions, Settings lifecycles,
+populated tracker details and lists, job-log expansion, request cancellation and
+stalled JSON bodies. Confirmed defects were fixed with regression coverage;
+passing cache workloads were retained without lowering their capacities.
+
+This is not a claim that every possible leak is absent. Several-hour real
+telemetry traffic, full merge-request discussion/attachment workloads, native
+Electron heap attribution and a comparable whole-app before/after baseline
+remain outside the completed checks. No overall RAM percentage is established.
 
 ## Running desktop process observations
 

@@ -1,4 +1,5 @@
-// Exercise actual Jira/GitLab detail rendering in an isolated Chromium page.
+// Exercise actual Jira/GitLab rendering in isolated Chromium pages. Defaults
+// to issue details; optional surfaces: jira-board, forge-list, job-log.
 // No server is needed. All network access is refused; API answers are synthetic.
 import { build } from "esbuild";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -16,7 +17,9 @@ const browser = await chromium.launch({
   ...(process.env.PLAYWRIGHT_EXECUTABLE ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE } : {}),
 });
 try {
-  for (const kind of ["jira", "gitlab"]) {
+  const kinds = process.argv.slice(2);
+  for (const kind of kinds.length ? kinds : ["jira", "gitlab"]) {
+    if (!["jira", "gitlab", "jira-board", "forge-list", "job-log"].includes(kind)) throw new Error(`Unknown surface: ${kind}`);
     const context = await browser.newContext();
     await context.route("**/*", route => route.abort());
     const page = await context.newPage();
@@ -29,9 +32,25 @@ try {
     await cdp.send("Performance.enable");
     async function show(id) {
       await page.evaluate(({ kind, id }) => window.trackerMemory.show(kind, id), { kind, id });
-      await page.getByRole("heading", { name: `Synthetic issue ${id}`, exact: true }).waitFor();
-      if (!await page.evaluate(() => document.getElementById("root").textContent.length >= 65536)) {
-        throw new Error("The full synthetic description was not rendered");
+      if (kind === "jira-board") {
+        await page.locator(`[data-key="MOCK-${id * 1000}"]`).waitFor();
+        await page.waitForFunction(() => document.querySelectorAll(".jr-row-main").length === 1000);
+      } else if (kind === "forge-list") {
+        await page.getByText(`Synthetic issue ${id * 1000}`, { exact: true }).waitFor();
+        const more = page.locator("button.fg-more");
+        if (await more.count()) await more.click();
+        await page.waitForFunction(() => document.querySelectorAll("button.fg-row").length === 500);
+      } else if (kind === "job-log") {
+        await page.getByRole("button", { name: "Show log", exact: true }).click();
+        for (const lines of [80, 200, 500]) {
+          await page.waitForFunction(count => document.querySelectorAll(".fd-log-line").length === count, lines);
+          if (lines < 500) await page.getByRole("button", { name: "Show more lines", exact: true }).click();
+        }
+      } else {
+        await page.getByRole("heading", { name: `Synthetic issue ${id}`, exact: true }).waitFor();
+        if (!await page.evaluate(() => document.getElementById("root").textContent.length >= 65536)) {
+          throw new Error("The full synthetic description was not rendered");
+        }
       }
       if (errors.length) throw new Error(errors.join("\n"));
     }
@@ -48,22 +67,23 @@ try {
     await show(1); await close();
     const warm = await measure();
     const rounds = [];
-    // Each round exceeds both existing cache capacities (60 Jira / 200 forge).
+    const perRound = kind === "jira-board" ? 30 : kind === "forge-list" ? 110 : kind === "job-log" ? 80 : 240;
+    // Each round exceeds the relevant existing cache capacity.
     // The cache remains alive between rounds, while the component unmounts.
     for (let round = 0; round < 3; round++) {
-      for (let n = 1; n <= 240; n++) {
-        await show(round * 240 + n);
+      for (let n = 1; n <= perRound; n++) {
+        await show(round * perRound + n);
         if (n % 20 === 0) await close();
       }
       await close();
       rounds.push(await measure());
     }
     const beforeReopen = await page.evaluate(() => window.trackerMemory.requests());
-    await show(720);
+    await show(perRound * 3);
     const afterReopen = await page.evaluate(() => window.trackerMemory.requests());
-    if (beforeReopen !== afterReopen) throw new Error("Fresh detail was lost on close/reopen");
+    if (beforeReopen !== afterReopen) throw new Error("Fresh cached data was lost on close/reopen");
     await close();
-    console.log(JSON.stringify({ kind, descriptionKiB: 64, details: 720, warm, rounds, cachedReopen: true, errors }));
+    console.log(JSON.stringify({ kind, visits: perRound * 3, warm, rounds, cachedReopen: true, errors }));
     await context.close();
   }
 } finally {
