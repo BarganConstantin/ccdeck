@@ -1,0 +1,22 @@
+import { expect, it, vi } from "vitest";
+import { mount, flush } from "./fake-react";
+vi.mock("react", async () => (await import("./fake-react")).react);
+vi.mock("../jira-api", () => ({ readBoard: vi.fn(), readIssues: vi.fn(), readClosedSprints: vi.fn(), readSubtasks: vi.fn(), readIssue: vi.fn() }));
+const { readIssue } = await import("../jira-api");
+const { useJiraIssue } = await import("../use-jira-board");
+it("ignores cancelled detail responses without retaining them in the cache", async () => {
+  const answers = new Map<string, (value: any) => void>();
+  vi.mocked(readIssue).mockImplementation((_api, key) => new Promise(resolve => answers.set(key, resolve)));
+  const api = vi.fn();
+  let shown!: ReturnType<typeof useJiraIssue>;
+  const view = mount(({ key }: { key: string }) => { shown = useJiraIssue(api, "synthetic-cancelled-detail", key); return null; }, { key: "MOCK-1" });
+  view.rerender({ key: "MOCK-2" });
+  answers.get("MOCK-2")!({ issue: { key: "MOCK-2" } }); await flush();
+  answers.get("MOCK-1")!({ issue: { key: "MOCK-1" } }); await flush();
+  expect(shown.data?.issue.key).toBe("MOCK-2");
+  view.unmount();
+  const previousCalls = vi.mocked(readIssue).mock.calls.length;
+  const next = mount(() => useJiraIssue(api, "synthetic-cancelled-detail", "MOCK-1"), {});
+  expect(vi.mocked(readIssue).mock.calls.length).toBe(previousCalls + 1);
+  next.unmount();
+});

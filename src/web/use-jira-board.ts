@@ -358,6 +358,7 @@ export function useJiraIssue(api: JiraApi, connId: string, key: string | null): 
     setLoading(true);
     readIssue(api, key, controller.signal)
       .then(answer => {
+        if (controller.signal.aborted) return;
         details.set(cacheKey, { at: Date.now(), data: answer });
         if (details.size > 60) details.delete(details.keys().next().value!);
         setData(answer);

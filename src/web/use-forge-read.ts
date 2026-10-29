@@ -61,6 +61,7 @@ export function useForgeRead<T>(api: ForgeApi, scope: string, read: string | nul
     const controller = new AbortController();
     fetchForge<T>(api, path, controller.signal).then(
       data => {
+        if (controller.signal.aborted) return;
         const next: Kept<T> = { data, loadedAt: Date.now(), error: null };
         keepRead(key, next);
         if (!controller.signal.aborted) setState({ key, read: view(next, false) });
@@ -120,6 +121,7 @@ export function useForgePages<T>(api: ForgeApi, scope: string, read: string | nu
   // is refused here, off a ref, because the state a handler closed over is a
   // render old and a quick second press would ask for the same page twice.
   const busyRef = useRef(false);
+  const pageRequest = useRef<AbortController | null>(null);
 
   // A new first page (a refresh, or another list) starts the pages over —
   // unless it is the same answer the appended pages were loaded after.
@@ -130,22 +132,37 @@ export function useForgePages<T>(api: ForgeApi, scope: string, read: string | nu
     setMore(saved.base != null && saved.base === firstAt ? { key, ...saved } : { key, items: [], next: undefined, base: firstAt });
   }, [key, firstAt]);
 
+  useEffect(() => {
+    busyRef.current = false;
+    setLoadingMore(false);
+    return () => {
+      pageRequest.current?.abort();
+      pageRequest.current = null;
+      busyRef.current = false;
+    };
+  }, [api, key, firstAt]);
+
   const next = more.next !== undefined ? more.next : first.data?.next ?? null;
   const loadMore = useCallback(() => {
     if (!read || !next || !key || !selfPressAccepted(busyRef.current)) return;
     busyRef.current = true;
+    const controller = new AbortController();
+    pageRequest.current = controller;
     setLoadingMore(true);
     setMoreError(null);
-    fetchForge<Page<T>>(api, forgeReadPath(read, { ...params, cursor: next })).then(
+    fetchForge<Page<T>>(api, forgeReadPath(read, { ...params, cursor: next }), controller.signal).then(
       page => {
+        if (controller.signal.aborted || pageRequest.current !== controller) return;
         setMore(m => {
           const updated = { key, items: [...m.items, ...page.items], next: page.next, base: m.base ?? firstAt };
           keepRead(key, { data: updated, loadedAt: Date.now(), error: null });
           return updated;
         });
       },
-      err => setMoreError(errorInfo(err)),
+      err => { if (!controller.signal.aborted && pageRequest.current === controller) setMoreError(errorInfo(err)); },
     ).finally(() => {
+      if (pageRequest.current !== controller) return;
+      pageRequest.current = null;
       busyRef.current = false;
       setLoadingMore(false);
     });

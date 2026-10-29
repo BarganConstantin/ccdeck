@@ -91,3 +91,22 @@ sessions and 60 Settings cycles: 685 DOM nodes stayed constant, listeners were
 557 initially and 558 at the end, and JS heap went from 8.5 to 9.4 MiB. No render
 errors occurred. This checks the changed hook in the app, alongside tests for
 measurement feedback, dragging, node removal and hidden-session retention.
+
+## Tracker request lifetimes
+
+Confirmed two cancellation gaps in tracker hooks:
+
+- GitLab/GitHub Load more requests had no AbortSignal or cleanup on project
+  changes, refresh or unmount. They now abort at those boundaries and ignore
+  late completions, including transports that do not honor cancellation.
+- Completed first-page forge reads and Jira issue reads could still populate
+  caches after cancellation. They now check ownership before storing results.
+  A delayed Jira detail previously replaced the newer issue's hook state.
+
+Regression tests cover unmount, changing projects, late detail completion and
+normal page append/cache behavior. An isolated Chromium harness using the real
+forge hook switched projects 40 times with a page pending: all 40 requests were
+aborted, the visible list remained correct and there were no render errors.
+This prevents unwanted work and retention; no whole-app MiB reduction was
+measured or claimed for this change. Cache capacities and completed pages that
+still belong to the open project are preserved.
