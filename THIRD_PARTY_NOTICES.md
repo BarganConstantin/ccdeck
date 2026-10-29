@@ -72,12 +72,14 @@ is off under `AGENTS_DECK_NO_INSTALL=1`.
 
 ### Server runtime dependencies
 
-The server uses `fs-native-extensions` for OS file locks. npm installs the
-following production dependency graph alongside ccdeck; desktop builds copy
-the same installed packages to `Resources/deck/node_modules`, outside
+The server uses `fs-native-extensions` for OS file locks. The npm tarball bundles
+the following production dependency graph for offline installation. Desktop builds
+copy the same installed packages to `Resources/deck/node_modules`, outside
 `app.asar`. Whole packages are retained, including their original `LICENSE`
 files, source files and platform prebuilds. Both macOS x64 and arm64 prebuilds
 are retained when producing the two macOS downloads from one installation.
+macOS release signing adds ccdeck's signatures to the bundled Mach-O binaries;
+their source files and licences are unchanged.
 
 | Package | Version | Licence | Source |
 | --- | --- | --- | --- |
