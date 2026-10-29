@@ -1,9 +1,12 @@
-import { expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { flush, mount, one, textOf } from "./fake-react";
 vi.mock("react", async () => (await import("./fake-react")).react);
 const { default: JiraCommentForm } = await import("../components/JiraCommentForm");
 const { default: JiraTransition } = await import("../components/JiraTransition");
 const { useJiraWriteState } = await import("../jira-write-state");
+
+beforeEach(() => vi.stubGlobal("window", globalThis));
+afterEach(() => vi.unstubAllGlobals());
 
 const button = (tree: unknown, label: string) => one(tree, el => el.type === "button" && textOf(el) === label)!;
 
