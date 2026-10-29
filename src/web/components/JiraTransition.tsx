@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { JiraApi } from "../jira-api";
-import { failureOf, readThrough } from "../integrations/client";
+import { failureOf, readThrough, IntegrationFailure } from "../integrations/client";
 import { definiteJiraWriteFailure, useJiraWriteState } from "../jira-write-state";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 
@@ -8,8 +8,8 @@ type Transition = { id: string; name: string; to: string; requiresScreen: boolea
 
 /** Only Jira's currently available workflow actions are offered. */
 export default function JiraTransition({ api, connectionId, issueKey, onChanged }: { api: JiraApi; connectionId: string; issueKey: string; onChanged: () => void }) {
-  const write = useJiraWriteState(connectionId, issueKey, "transition");
-  const { busy, uncertain } = write.state;
+  const write = useJiraWriteState(connectionId, issueKey, "transition", api);
+  const { busy, uncertain, loading, operation } = write.state;
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -45,11 +45,12 @@ export default function JiraTransition({ api, connectionId, issueKey, onChanged 
       if (!result?.ok || result.issueKey !== issueKey) throw new Error("Jira did not confirm the change. Refresh before trying again.");
       if (typeof document !== "undefined" && document.activeElement === applyRef.current) toggleRef.current?.focus();
       write.update({ busy: false, uncertain: false, error: "" });
+      if (result.operationId) await write.acknowledge(result.operationId);
       setOpen(false); setValue("");
     } catch (err) {
       const definite = definiteJiraWriteFailure(err);
       if (!definite && typeof document !== "undefined" && document.activeElement === applyRef.current) toggleRef.current?.focus();
-      write.update({ busy: false, uncertain: !definite, error: definite && err instanceof Error ? err.message : "Could not confirm the change. Check the status before trying again." });
+      write.update({ busy: false, operation: err instanceof IntegrationFailure ? err.operation : undefined, uncertain: !definite, error: definite && err instanceof Error ? err.message : "Could not confirm the change. Check the status before trying again." });
     }
     finally { window.clearTimeout(timer); busyRef.current = false; if (attempted) onChanged(); }
   };
@@ -62,8 +63,8 @@ export default function JiraTransition({ api, connectionId, issueKey, onChanged 
           <option value="">Choose transition</option>
           {choices.map(t => <option key={t.id} value={t.id} disabled={t.requiresScreen}>{t.name}{t.to && t.to !== t.name ? ` → ${t.to}` : ""}{t.requiresScreen ? " (open in Jira)" : ""}</option>)}
         </select>
-        <button ref={applyRef} type="button" className="btn" onClick={submit} {...selfPressProps(busy, !value || uncertain)}>{busy ? "Changing…" : "Apply"}</button></>}
-      {uncertain && <button ref={checkedRef} type="button" className="btn" onClick={() => { if (typeof document !== "undefined" && document.activeElement === checkedRef.current) toggleRef.current?.focus(); write.update({ uncertain: false, error: "" }); setError(""); }}>I checked the status</button>}
+        <button ref={applyRef} type="button" className="btn" onClick={submit} {...selfPressProps(busy, !value || uncertain || loading)}>{busy ? "Changing…" : "Apply"}</button></>}
+      {uncertain && <button ref={checkedRef} type="button" className="btn" disabled={operation?.state === "pending"} onClick={() => { if (typeof document !== "undefined" && document.activeElement === checkedRef.current) toggleRef.current?.focus(); void write.acknowledge(); setError(""); }}>I checked the status</button>}
       {!choices && !error && <span className="jr-dim">Loading transitions…</span>}
       {error && <span role="alert">{error}</span>}
       {write.state.error && <span role="alert">{write.state.error}</span>}

@@ -25,9 +25,10 @@ it("keeps a move locked across panel unmounts for the same connection", () => {
 it("keeps an in-flight comment locked when leaving and reopening its issue", async () => {
   vi.stubGlobal("window", globalThis);
   let finish!: (response: Response) => void;
-  const api = vi.fn(() => new Promise<Response>(resolve => { finish = resolve; }));
+  const api = vi.fn((path: string) => path === "write-guard" ? Promise.resolve(Response.json({ operations: [] })) : new Promise<Response>(resolve => { finish = resolve; }));
   const props = { api, connectionId: "lifecycle", issueKey: "MOCK-510", onChanged: vi.fn() };
   const first = mount(JiraCommentForm, props);
+  await flush();
   (one(first.tree, e => e.type === "textarea")!.props.onChange as (e: unknown) => void)({ target: { value: "draft" } });
   const pending = (button(first.tree, "Add comment").props.onClick as () => Promise<void>)();
   first.unmount();
@@ -40,14 +41,14 @@ it("keeps an in-flight comment locked when leaving and reopening its issue", asy
   expect(button(next.tree, "I checked the comments")).toBeTruthy();
   (one(next.tree, e => e.type === "textarea")!.props.onChange as (e: unknown) => void)({ target: { value: "edited draft" } });
   expect(one(next.tree, e => e.type === "textarea")!.props.value).toBe("edited draft");
-  (button(next.tree, "I checked the comments").props.onClick as () => void)();
+  (button(next.tree, "I checked the comments").props.onClick as () => void)(); await flush();
   expect(one(next.tree, e => e.type === "textarea")!.props.value).toBe("edited draft");
   next.unmount(); vi.unstubAllGlobals();
 });
 
 it("keeps an unconfirmed transition blocked after reopening its issue", async () => {
   vi.stubGlobal("window", globalThis);
-  const api = vi.fn(async (_path: string, init?: RequestInit) => init?.method === "POST"
+  const api = vi.fn(async (_path: string, init?: RequestInit) => _path === "write-guard" ? Response.json({ operations: [] }) : init?.method === "POST"
     ? Response.json({ error: { kind: "upstream", message: "unconfirmed" } }, { status: 502 })
     : Response.json({ transitions: [{ id: "11", name: "Start", to: "In Progress", requiresScreen: false }] }));
   const props = { api, connectionId: "lifecycle", issueKey: "MOCK-511", onChanged: vi.fn() };
@@ -67,9 +68,10 @@ it("keeps an unconfirmed transition blocked after reopening its issue", async ()
 it("clears a successful draft even when another form mounted during the write", async () => {
   vi.stubGlobal("window", globalThis);
   let finish!: (response: Response) => void;
-  const api = vi.fn(() => new Promise<Response>(resolve => { finish = resolve; }));
+  const api = vi.fn((path: string) => path === "write-guard" ? Promise.resolve(Response.json({ operations: [] })) : new Promise<Response>(resolve => { finish = resolve; }));
   const props = { api, connectionId: "lifecycle", issueKey: "MOCK-512", onChanged: vi.fn() };
   const first = mount(JiraCommentForm, props);
+  await flush();
   (one(first.tree, e => e.type === "textarea")!.props.onChange as (e: unknown) => void)({ target: { value: "draft" } });
   const pending = (button(first.tree, "Add comment").props.onClick as () => Promise<void>)();
   first.unmount();
@@ -83,9 +85,10 @@ it("clears a successful draft even when another form mounted during the write", 
 it("keeps locks separate between connections with the same issue key", async () => {
   vi.stubGlobal("window", globalThis);
   let finish!: (response: Response) => void;
-  const api = vi.fn(() => new Promise<Response>(resolve => { finish = resolve; }));
+  const api = vi.fn((path: string) => path === "write-guard" ? Promise.resolve(Response.json({ operations: [] })) : new Promise<Response>(resolve => { finish = resolve; }));
   const props = { api, connectionId: "connection-a", issueKey: "MOCK-513", onChanged: vi.fn() };
   const first = mount(JiraCommentForm, props);
+  await flush();
   (one(first.tree, e => e.type === "textarea")!.props.onChange as (e: unknown) => void)({ target: { value: "draft" } });
   const pending = (button(first.tree, "Add comment").props.onClick as () => Promise<void>)();
   const other = mount(JiraCommentForm, { ...props, connectionId: "connection-b" });
@@ -97,8 +100,9 @@ it("keeps locks separate between connections with the same issue key", async () 
 
 it("treats an explicit Jira 400 rejection as definite", async () => {
   vi.stubGlobal("window", globalThis);
-  const api = vi.fn(async () => Response.json({ error: { kind: "upstream", message: "Rejected", status: 400 } }, { status: 502 }));
+  const api = vi.fn(async (path: string) => path === "write-guard" ? Response.json({ operations: [] }) : Response.json({ error: { kind: "upstream", message: "Rejected", status: 400 } }, { status: 502 }));
   const view = mount(JiraCommentForm, { api, connectionId: "lifecycle", issueKey: "MOCK-514", onChanged: vi.fn() });
+  await flush();
   (one(view.tree, e => e.type === "textarea")!.props.onChange as (e: unknown) => void)({ target: { value: "draft" } });
   await (button(view.tree, "Add comment").props.onClick as () => Promise<void>)(); await flush();
   expect(button(view.tree, "Add comment").props.disabled).toBe(false);

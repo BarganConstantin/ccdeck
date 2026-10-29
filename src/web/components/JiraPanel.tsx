@@ -178,7 +178,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   const filters = useMemo(() => ({ mine, quick }), [mine, quick]);
   const jira = useJiraBoard(api, conn.id, board, filters);
   const { snap, groups, loading, error } = jira;
-  const moveWrite = useJiraWriteState(conn.id, "", "move");
+  const moveWrite = useJiraWriteState(conn.id, "", "move", api);
   const moving = moveWrite.state.busy;
   const readingGroups = Object.values(snap.groups).some(g => g.more || g.status === "loading");
   const moveIssue = async (move: JiraMove) => {
@@ -186,9 +186,14 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
     if (!board || loading || readingGroups || !moveWrite.begin(context)) throw new Error("Wait for the board to finish updating.");
     let unconfirmed = false;
     let outcomeText = "";
-    try { return await moveJiraIssue(api, board, move); }
+    try {
+      const result = await moveJiraIssue(api, board, move);
+      if (result.operationId && !await moveWrite.acknowledge(result.operationId)) unconfirmed = true;
+      return result;
+    }
     catch (err) {
       unconfirmed = !definiteJiraWriteFailure(err) || err.refreshRequired === true;
+      if (err instanceof IntegrationFailure && err.operation) moveWrite.update({ operation: err.operation });
       if (err instanceof IntegrationFailure && err.outcomes?.length) outcomeText = err.outcomes.map(o => `${o.issueKey}: membership ${o.membership}, rank ${o.rank}`).join("; ");
       else if (err instanceof IntegrationFailure && err.moveOutcome) outcomeText = `${moveKeys(move)[0]}: membership ${err.moveOutcome.membership}, rank ${err.moveOutcome.rank}`;
       throw err;
@@ -312,7 +317,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
         {error && <IntegrationFailureNote error={error} provider="Jira" host={host} stale onRetry={jira.refresh} onReconnect={onReconnect} />}
         {moveWrite.state.uncertain && <div className="jr-board-note" role="alert">
           The move of {moveWrite.state.draft} was not confirmed. Check these issues in Jira before trying again. {" "}
-          <button type="button" className="btn" onClick={event => { if (document.activeElement === event.currentTarget) rootRef.current?.querySelector<HTMLElement>(".jr-row-main, .jr-group-toggle")?.focus(); moveWrite.update({ uncertain: false, draft: "" }); }}>I checked the issues</button>
+          <button type="button" className="btn" disabled={moveWrite.state.operation?.state === "pending"} onClick={event => { if (document.activeElement === event.currentTarget) rootRef.current?.querySelector<HTMLElement>(".jr-row-main, .jr-group-toggle")?.focus(); void moveWrite.acknowledge().then(ok => { if (ok) moveWrite.update({ draft: "" }); }); }}>I checked the issues</button>
         </div>}
         <JiraBacklog
           key={board}
@@ -336,11 +341,11 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
           loadSubtasks={jira.loadSubtasks}
           onReconnect={onReconnect}
           onMove={moveIssue}
-          moveBusy={moving || moveWrite.state.uncertain || loading || readingGroups}
+          moveBusy={moving || moveWrite.state.uncertain || !!moveWrite.state.loading || loading || readingGroups}
           readBusy={moving || loading || readingGroups}
           moveUncertain={moveWrite.state.uncertain}
           moveOutcome={moveWrite.state.draft}
-          onMoveChecked={() => moveWrite.update({ uncertain: false, draft: "" })}
+          onMoveChecked={() => { void moveWrite.acknowledge().then(ok => { if (ok) moveWrite.update({ draft: "" }); }); }}
           scrollBoundaryId={scrollerId}
         />
       </>
