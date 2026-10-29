@@ -23,9 +23,12 @@ export function definiteJiraWriteFailure(error: unknown): error is IntegrationFa
 }
 function update(key: string, patch: Partial<State>) {
   const previous = states.get(key) ?? empty;
-  const changed = Object.entries(patch).some(([key, value]) => key !== "draft" && (key === "operation"
-    ? JSON.stringify(previous.operation) !== JSON.stringify(value)
-    : previous[key as keyof State] !== value));
+  // Finishing a move must not invalidate a concurrent acknowledgement: its
+  // loading lock still prevents another write while busy becomes false.
+  const changed = Object.entries(patch).some(([field, value]) => field !== "draft"
+    && !(field === "busy" && value === false && acknowledgements.has(key))
+    && (field === "operation" ? JSON.stringify(previous.operation) !== JSON.stringify(value)
+      : previous[field as keyof State] !== value));
   if (changed) revisions.set(key, ++nextRevision);
   const state = { ...previous, ...patch };
   states.set(key, state);
@@ -75,9 +78,12 @@ export function useJiraWriteState(connectionId: string, issueKey: string, kind: 
       return true;
     },
     update: (patch: Partial<State>) => update(key, patch),
-    finishMove(uncertain: boolean, draft: string, operationId?: string) {
+    checkpoint: () => revisions.get(key) ?? 0,
+    finishMove(uncertain: boolean, draft: string, operationId?: string, checkpoint?: number) {
       const current = states.get(key) ?? empty;
-      if (operationId && current.operation && current.operation.operationId !== operationId) {
+      if (checkpoint !== undefined && (revisions.get(key) ?? 0) !== checkpoint) {
+        update(key, { busy: false });
+      } else if (operationId && current.operation && current.operation.operationId !== operationId) {
         update(key, { busy: false, uncertain: true });
       } else {
         update(key, { busy: false, uncertain, draft });
@@ -99,21 +105,14 @@ export function useJiraWriteState(connectionId: string, issueKey: string, kind: 
         if (id) {
           const res = await api("write-guard/acknowledge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ operationId: id }), signal: controller.signal });
           if (!res.ok && res.status !== 409) throw new Error();
-          if (res.status === 409) {
-            const check = await api("write-guard", { cache: "no-store", signal: controller.signal });
-            if (!check.ok) throw new Error();
-            const body = await check.json();
-            if (!Array.isArray(body.operations)) throw new Error();
-            const op = body.operations.map(jiraGuardOperation).find((item: JiraGuardOperation | undefined) => item && matches(item));
-            if (!unchanged()) return false;
-            if (op) { update(key, { operation: op, uncertain: true, error: "Check Jira before trying again.", ...(kind === "move" && op.operationId !== id ? { draft: `${op.issueKeys?.join(", ")} · Board ${op.boardId}` } : {}) }); return false; }
-          }
-        } else {
-          const res = await api("write-guard", { cache: "no-store", signal: controller.signal });
-          if (!res.ok) throw new Error();
-          const body = await res.json();
-          if (!Array.isArray(body.operations) || body.operations.map(jiraGuardOperation).some((op: JiraGuardOperation | undefined) => op && matches(op))) throw new Error();
         }
+        const check = await api("write-guard", { cache: "no-store", signal: controller.signal });
+        if (!check.ok) throw new Error();
+        const body = await check.json();
+        if (!Array.isArray(body.operations)) throw new Error();
+        const op = body.operations.map(jiraGuardOperation).find((item: JiraGuardOperation | undefined) => item && matches(item));
+        if (!unchanged()) return false;
+        if (op) { update(key, { operation: op, uncertain: true, error: "Check Jira before trying again.", ...(kind === "move" && op.operationId !== id ? { draft: `${op.issueKeys?.join(", ")} · Board ${op.boardId}` } : {}) }); return false; }
         if (!unchanged()) return false;
         update(key, { uncertain: false, error: "", operation: undefined, ...(kind === "move" ? { draft: "" } : {}) }); return true;
       } catch { if (unchanged()) update(key, { uncertain: true, error: "Could not clear the Jira write guard. Check Jira and try again." }); return false; }

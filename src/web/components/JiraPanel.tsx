@@ -203,8 +203,9 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
     finally {
       // Even a lost response can mean Jira saved the move. Re-read rather
       // than inventing local order or replaying a potentially completed write.
+      const checkpoint = moveWrite.checkpoint();
       try { await invalidateJiraConnection(conn.id, true); }
-      finally { moveWrite.finishMove(unconfirmed, unconfirmed ? `${context}${outcomeText ? ` — ${outcomeText}` : ""}` : "", operationId); }
+      finally { moveWrite.finishMove(unconfirmed, unconfirmed ? `${context}${outcomeText ? ` — ${outcomeText}` : ""}` : "", operationId, checkpoint); }
     }
   };
   const overview = snap.overview && String(snap.overview.board.id) === board ? snap.overview : null;

@@ -152,6 +152,7 @@ it("accepts acknowledgement when a poll observes the same completed write", asyn
     const pending = write.acknowledge(op.operationId);
     guard = true;
     await vi.advanceTimersByTimeAsync(3000); await flush();
+    guard = false; // The successful acknowledgement removed the receipt.
     resolve(Response.json({ ok: true }));
     expect(await pending).toBe(true);
     expect(write.state.uncertain).toBe(false);
@@ -221,4 +222,70 @@ it("releases a stalled acknowledgement and keeps the write locked", async () => 
     expect(write.begin()).toBe(false);
     view.unmount();
   } finally { vi.useRealTimers(); }
+});
+
+it("checks for a replacement after an acknowledgement succeeds", async () => {
+  const a = { ...operation, connectionId: "ack-new-after-delete", state: "uncertain" };
+  const b = { ...a, operationId: "22222222-2222-2222-2222-222222222222" };
+  let current = a;
+  let resolve!: (response: Response) => void;
+  const api = vi.fn((path: string) => path === "write-guard"
+    ? Promise.resolve(Response.json({ operations: [current] }))
+    : new Promise<Response>(r => { resolve = r; }));
+  let write!: ReturnType<typeof useJiraWriteState>;
+  const view = mount(() => { write = useJiraWriteState(a.connectionId, "MOCK-1", "comment", api); }, {});
+  await flush();
+  const pending = write.acknowledge();
+  current = b; // A was deleted and another tab started B before A's response arrived.
+  resolve(Response.json({ ok: true }));
+  expect(await pending).toBe(false);
+  expect(write.state.operation?.operationId).toBe(b.operationId);
+  expect(write.begin()).toBe(false);
+  view.unmount();
+});
+
+it("does not restore a move warning after the replacement was checked", async () => {
+  const b = { ...operation, connectionId: "move-checked", kind: "move", issueKey: undefined, issueKeys: ["MOCK-2"], boardId: 42, operationId: "22222222-2222-2222-2222-222222222222", state: "uncertain" };
+  let current: typeof b | undefined;
+  const api = vi.fn(async (path: string, init?: RequestInit) => path === "write-guard"
+    ? Response.json({ operations: current ? [current] : [] })
+    : JSON.parse(String(init?.body)).operationId === current?.operationId ? (current = undefined, Response.json({ ok: true })) : new Response("", { status: 409 }));
+  let write!: ReturnType<typeof useJiraWriteState>;
+  const view = mount(() => { write = useJiraWriteState(b.connectionId, "", "move", api); }, {});
+  await flush();
+  write.update({ busy: true, draft: "MOCK-1 · Board 42" });
+  current = b;
+  expect(await write.acknowledge(operation.operationId)).toBe(false);
+  expect(write.state.operation?.operationId).toBe(b.operationId);
+  const checkpoint = write.checkpoint();
+  expect(await write.acknowledge()).toBe(true);
+  write.finishMove(true, "MOCK-1 · Board 42", operation.operationId, checkpoint);
+  expect(write.state.uncertain).toBe(false);
+  expect(write.state.draft).toBe("");
+  view.unmount();
+});
+
+it("lets a replacement acknowledgement finish while the old move refresh completes", async () => {
+  const b = { ...operation, connectionId: "move-check-inflight", kind: "move", issueKey: undefined, issueKeys: ["MOCK-2"], boardId: 42, operationId: "22222222-2222-2222-2222-222222222222", state: "uncertain" };
+  let current: typeof b | undefined;
+  let resolve!: (response: Response) => void;
+  const api = vi.fn((path: string, init?: RequestInit) => {
+    if (path === "write-guard") return Promise.resolve(Response.json({ operations: current ? [current] : [] }));
+    if (JSON.parse(String(init?.body)).operationId !== b.operationId) return Promise.resolve(new Response("", { status: 409 }));
+    return new Promise<Response>(r => { resolve = r; });
+  });
+  let write!: ReturnType<typeof useJiraWriteState>;
+  const view = mount(() => { write = useJiraWriteState(b.connectionId, "", "move", api); }, {});
+  await flush();
+  write.update({ busy: true, draft: "MOCK-1 · Board 42" });
+  current = b;
+  expect(await write.acknowledge(operation.operationId)).toBe(false);
+  const checkpoint = write.checkpoint();
+  const pending = write.acknowledge();
+  write.finishMove(true, "MOCK-1 · Board 42", operation.operationId, checkpoint);
+  current = undefined;
+  resolve(Response.json({ ok: true }));
+  expect(await pending).toBe(true);
+  expect(write.state).toMatchObject({ busy: false, uncertain: false, draft: "" });
+  view.unmount();
 });
