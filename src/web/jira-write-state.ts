@@ -2,12 +2,18 @@
 import { useEffect, useState } from "react";
 import { IntegrationFailure, jiraGuardOperation, type JiraGuardOperation } from "./integrations/client";
 import type { JiraApi } from "./jira-api";
+import { states, listeners, revisions, type JiraWriteState as State } from "./jira-write-store";
 
-type State = { busy: boolean; uncertain: boolean; error: string; draft: string; operation?: JiraGuardOperation; loading?: boolean };
 const empty: State = { busy: false, uncertain: false, error: "", draft: "" };
-const states = new Map<string, State>();
-const listeners = new Map<string, Set<(state: State) => void>>();
-const revisions = new Map<string, number>();
+let nextRevision = 0;
+
+function prune(key: string) {
+  const state = states.get(key);
+  if (!listeners.has(key) && state && !state.busy && !state.uncertain && !state.draft && !state.operation) {
+    states.delete(key);
+    revisions.delete(key);
+  }
+}
 
 export function definiteJiraWriteFailure(error: unknown): error is IntegrationFailure {
   if (!(error instanceof IntegrationFailure) || error.operation) return false;
@@ -15,16 +21,21 @@ export function definiteJiraWriteFailure(error: unknown): error is IntegrationFa
   return error.status != null && error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 409;
 }
 function update(key: string, patch: Partial<State>) {
-  if (Object.keys(patch).some(k => k !== "draft")) revisions.set(key, (revisions.get(key) ?? 0) + 1);
-  const state = { ...(states.get(key) ?? empty), ...patch };
+  const previous = states.get(key) ?? empty;
+  const changed = Object.entries(patch).some(([key, value]) => key !== "draft" && (key === "operation"
+    ? JSON.stringify(previous.operation) !== JSON.stringify(value)
+    : previous[key as keyof State] !== value));
+  if (changed) revisions.set(key, ++nextRevision);
+  const state = { ...previous, ...patch };
   states.set(key, state);
   for (const notify of listeners.get(key) ?? []) notify(state);
+  prune(key);
 }
 export function useJiraWriteState(connectionId: string, issueKey: string, kind: "comment" | "transition" | "move", api?: JiraApi) {
   const key = JSON.stringify([connectionId, issueKey, kind]);
   const [view, setView] = useState(() => ({ key, state: states.get(key) ?? (api ? { ...empty, loading: true } : empty) }));
   const matches = (op: JiraGuardOperation) => op.connectionId === connectionId && op.kind === (kind === "transition" ? "status" : kind) && (kind === "move" || op.issueKey === issueKey);
-  const refresh = async () => {
+  const refresh = async (isActive = () => true) => {
     if (!api) return;
     const revision = revisions.get(key) ?? 0;
     try {
@@ -33,24 +44,25 @@ export function useJiraWriteState(connectionId: string, issueKey: string, kind: 
       const body = await res.json();
       if (!Array.isArray(body.operations)) throw new Error();
       const op = body.operations.map(jiraGuardOperation).find((item: JiraGuardOperation | undefined) => item && matches(item));
-      if ((revisions.get(key) ?? 0) !== revision) return;
+      if (!isActive() || (revisions.get(key) ?? 0) !== revision) return;
       const current = states.get(key) ?? empty;
       if (current.busy) return;
       update(key, { loading: false, operation: op, uncertain: !!op || current.uncertain, ...(op && kind === "move" && !current.draft ? { draft: `${op.issueKeys?.join(", ")} · Board ${op.boardId}` } : {}), ...(op ? { error: op.state === "pending" ? "Jira is still processing this write. Wait before checking again." : "Check Jira before trying again." } : {}) });
     } catch {
-      if ((revisions.get(key) ?? 0) === revision) update(key, { loading: false, uncertain: true, error: "Could not check Jira write safety. Try again before writing." });
+      if (isActive() && (revisions.get(key) ?? 0) === revision) update(key, { loading: false, uncertain: true, error: "Could not check Jira write safety. Try again before writing." });
     }
   };
   useEffect(() => {
+    let mounted = true;
     const notify = (state: State) => setView({ key, state });
     let active = listeners.get(key);
     if (!active) listeners.set(key, active = new Set());
     active.add(notify);
     if (api && !(states.get(key)?.busy)) update(key, { loading: true });
     notify(states.get(key) ?? empty);
-    if (api) { void refresh(); }
-    const timer = api ? setInterval(() => { void refresh(); }, 3000) : undefined;
-    return () => { if (timer) clearInterval(timer); active!.delete(notify); if (!active!.size) listeners.delete(key); };
+    if (api) { void refresh(() => mounted); }
+    const timer = api ? setInterval(() => { void refresh(() => mounted); }, 3000) : undefined;
+    return () => { mounted = false; if (timer) clearInterval(timer); active!.delete(notify); if (!active!.size) listeners.delete(key); prune(key); };
   }, [key, api]);
   const state = view.key === key ? view.state : states.get(key) ?? (api ? { ...empty, loading: true } : empty);
   return {
@@ -63,22 +75,34 @@ export function useJiraWriteState(connectionId: string, issueKey: string, kind: 
     },
     update: (patch: Partial<State>) => update(key, patch),
     async acknowledge(operationId?: string) {
-      if (!api) { update(key, { uncertain: false, error: "" }); return true; }
+      if (!api) { update(key, { uncertain: false, error: "", ...(kind === "move" ? { draft: "" } : {}) }); return true; }
       const current = states.get(key) ?? empty;
       const id = operationId ?? current.operation?.operationId;
       if (current.operation?.state === "pending") { void refresh(); return false; }
+      const revision = revisions.get(key) ?? 0;
+      const unchanged = () => (revisions.get(key) ?? 0) === revision;
       try {
         if (id) {
           const res = await api("write-guard/acknowledge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ operationId: id }) });
-          if (!res.ok) throw new Error();
+          if (!res.ok && res.status !== 409) throw new Error();
+          if (res.status === 409) {
+            const check = await api("write-guard", { cache: "no-store" });
+            if (!check.ok) throw new Error();
+            const body = await check.json();
+            if (!Array.isArray(body.operations)) throw new Error();
+            const op = body.operations.map(jiraGuardOperation).find((item: JiraGuardOperation | undefined) => item && matches(item));
+            if (!unchanged()) return false;
+            if (op) { update(key, { operation: op, uncertain: true, error: "Check Jira before trying again.", ...(kind === "move" && op.operationId !== id ? { draft: `${op.issueKeys?.join(", ")} · Board ${op.boardId}` } : {}) }); return false; }
+          }
         } else {
           const res = await api("write-guard", { cache: "no-store" });
           if (!res.ok) throw new Error();
           const body = await res.json();
           if (!Array.isArray(body.operations) || body.operations.map(jiraGuardOperation).some((op: JiraGuardOperation | undefined) => op && matches(op))) throw new Error();
         }
-        update(key, { uncertain: false, error: "", operation: undefined }); return true;
-      } catch { update(key, { uncertain: true, error: "Could not clear the Jira write guard. Check Jira and try again." }); void refresh(); return false; }
+        if (!unchanged()) return false;
+        update(key, { uncertain: false, error: "", operation: undefined, ...(kind === "move" ? { draft: "" } : {}) }); return true;
+      } catch { if (unchanged()) { update(key, { uncertain: true, error: "Could not clear the Jira write guard. Check Jira and try again." }); void refresh(); } return false; }
     },
   };
 }

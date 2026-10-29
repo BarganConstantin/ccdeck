@@ -7,6 +7,17 @@ const { useJiraWriteState } = await import("../jira-write-state");
 
 const button = (tree: unknown, label: string) => one(tree, el => el.type === "button" && textOf(el) === label)!;
 
+it("finishes the initial guard check while a comment is being typed", async () => {
+  let resolve!: (response: Response) => void;
+  const api = vi.fn(() => new Promise<Response>(r => { resolve = r; }));
+  const view = mount(JiraCommentForm, { api, connectionId: "typing-check", issueKey: "MOCK-1", onChanged: vi.fn() });
+  (one(view.tree, e => e.type === "textarea")!.props.onChange as (e: unknown) => void)({ target: { value: "draft" } });
+  resolve(Response.json({ operations: [] })); await flush();
+  expect(button(view.tree, "Add comment").props.disabled).toBe(false);
+  expect(one(view.tree, e => e.type === "textarea")!.props.value).toBe("draft");
+  view.unmount();
+});
+
 it("keeps a move locked across panel unmounts for the same connection", () => {
   let write!: ReturnType<typeof useJiraWriteState>;
   const first = mount(() => { write = useJiraWriteState("move-test", "", "move"); }, {});

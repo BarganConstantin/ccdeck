@@ -39,7 +39,7 @@ export default function JiraCommentForm({ api, connectionId, issueKey, onChanged
   };
   return <div className="jr-comment-compose">
     <label htmlFor="jira-comment-text">Add a comment</label>
-    <textarea ref={textRef} id="jira-comment-text" value={text} maxLength={10000} rows={3} readOnly={busy} onChange={e => { if (busyRef.current) return; write.update({ draft: e.target.value, ...(!uncertain ? { error: "" } : {}) }); setSent(false); }} placeholder="Write a comment…" />
+    <textarea ref={textRef} id="jira-comment-text" value={text} maxLength={10000} rows={3} readOnly={busy} onChange={e => { if (busyRef.current) return; write.update({ draft: e.target.value, ...(!uncertain && error ? { error: "" } : {}) }); setSent(false); }} placeholder="Write a comment…" />
     <div className="jr-comment-actions">
       <button ref={sendRef} type="button" className="btn" {...selfPressProps(busy, !text.trim() || uncertain || loading)} onClick={send}>{busy ? "Sending…" : "Add comment"}</button>
       {uncertain && <button ref={checkedRef} type="button" className="btn" disabled={operation?.state === "pending"} onClick={() => { if (typeof document !== "undefined" && document.activeElement === checkedRef.current) textRef.current?.focus(); void write.acknowledge(); }}>I checked the comments</button>}

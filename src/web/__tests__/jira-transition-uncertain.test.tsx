@@ -22,3 +22,22 @@ it("blocks another transition after an unconfirmed write until the user checks",
     view.unmount();
   } finally { vi.unstubAllGlobals(); }
 });
+
+it("keeps recovery visible when acknowledging a successful transition fails", async () => {
+  vi.stubGlobal("window", globalThis);
+  try {
+    const api = vi.fn(async (path: string, init?: RequestInit) => path === "write-guard" ? Response.json({ operations: [] })
+      : path === "write-guard/acknowledge" ? new Response("", { status: 503 })
+      : init?.method === "POST" ? Response.json({ ok: true, issueKey: "MOCK-2", operationId: "11111111-1111-1111-1111-111111111111" })
+      : Response.json({ transitions: [{ id: "11", name: "Start", to: "In Progress", requiresScreen: false }] }));
+    const view = mount(JiraTransition, { api, connectionId: "transition-ack", issueKey: "MOCK-2", onChanged: vi.fn() });
+    const button = (label: string) => one(view.tree, el => el.type === "button" && textOf(el) === label)!;
+    (button("Change status").props.onClick as () => void)(); await flush();
+    (one(view.tree, el => el.type === "select")!.props.onChange as (event: unknown) => void)({ target: { value: "11" } });
+    await (button("Apply").props.onClick as () => Promise<void>)(); await flush();
+    expect(button("Change status").props["aria-expanded"]).toBe(true);
+    expect(button("I checked the status")).toBeTruthy();
+    expect(textOf(view.tree)).toContain("Could not clear the Jira write guard");
+    view.unmount();
+  } finally { vi.unstubAllGlobals(); }
+});

@@ -316,8 +316,9 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       <>
         {error && <IntegrationFailureNote error={error} provider="Jira" host={host} stale onRetry={jira.refresh} onReconnect={onReconnect} />}
         {moveWrite.state.uncertain && <div className="jr-board-note" role="alert">
-          The move of {moveWrite.state.draft} was not confirmed. Check these issues in Jira before trying again. {" "}
-          <button type="button" className="btn" disabled={moveWrite.state.operation?.state === "pending"} onClick={event => { if (document.activeElement === event.currentTarget) rootRef.current?.querySelector<HTMLElement>(".jr-row-main, .jr-group-toggle")?.focus(); void moveWrite.acknowledge().then(ok => { if (ok) moveWrite.update({ draft: "" }); }); }}>I checked the issues</button>
+          {moveWrite.state.draft && <>The move of {moveWrite.state.draft} needs verification. Check these issues in Jira before trying again. {" "}</>}
+          {moveWrite.state.error && <span>{moveWrite.state.error} {" "}</span>}
+          <button type="button" className="btn" disabled={moveWrite.state.operation?.state === "pending"} onClick={event => { if (document.activeElement === event.currentTarget) rootRef.current?.querySelector<HTMLElement>(".jr-row-main, .jr-group-toggle")?.focus(); void moveWrite.acknowledge(); }}>I checked the issues</button>
         </div>}
         <JiraBacklog
           key={board}
@@ -345,7 +346,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
           readBusy={moving || loading || readingGroups}
           moveUncertain={moveWrite.state.uncertain}
           moveOutcome={moveWrite.state.draft}
-          onMoveChecked={() => { void moveWrite.acknowledge().then(ok => { if (ok) moveWrite.update({ draft: "" }); }); }}
+          onMoveChecked={() => { void moveWrite.acknowledge(); }}
           scrollBoundaryId={scrollerId}
         />
       </>

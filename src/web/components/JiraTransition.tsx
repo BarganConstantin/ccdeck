@@ -45,7 +45,7 @@ export default function JiraTransition({ api, connectionId, issueKey, onChanged 
       if (!result?.ok || result.issueKey !== issueKey) throw new Error("Jira did not confirm the change. Refresh before trying again.");
       if (typeof document !== "undefined" && document.activeElement === applyRef.current) toggleRef.current?.focus();
       write.update({ busy: false, uncertain: false, error: "" });
-      if (result.operationId) await write.acknowledge(result.operationId);
+      if (result.operationId && !await write.acknowledge(result.operationId)) return;
       setOpen(false); setValue("");
     } catch (err) {
       const definite = definiteJiraWriteFailure(err);
