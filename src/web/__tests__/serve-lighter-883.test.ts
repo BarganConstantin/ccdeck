@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { brotliDecompressSync, gunzipSync } from "node:zlib";
+import { randomBytes } from "node:crypto";
 import { cacheControlFor, encodedBody, pickEncoding } from "../../server/static-cache.mjs";
 import { clientText, sourceOf } from "./client-source";
 
@@ -41,6 +42,35 @@ describe("compressed when the browser takes it (#883)", () => {
     expect(pickEncoding(undefined, ".html")).toBeNull();
     expect(pickEncoding("br, gzip", ".png")).toBeNull();
     expect(pickEncoding("br, gzip", ".woff2")).toBeNull();
+  });
+
+  it("does not retain a large compression buffer for a small file", () => {
+    const body = encodedBody("/synthetic/small.svg", 1, Buffer.from("small image"), "gzip");
+    expect(body.buffer.byteLength).toBeLessThanOrEqual(1024);
+    expect(gunzipSync(body).toString()).toBe("small image");
+  });
+
+  it("serves updated content after a rebuild", () => {
+    const first = encodedBody("/synthetic/rebuilt.js", 1, Buffer.from("before"), "gzip");
+    const second = encodedBody("/synthetic/rebuilt.js", 2, Buffer.from("after"), "gzip");
+    expect(gunzipSync(first).toString()).toBe("before");
+    expect(gunzipSync(second).toString()).toBe("after");
+  });
+
+  it("bounds retained compressed builds and keeps frequently used assets", () => {
+    const hot = randomBytes(256 * 1024);
+    const first = encodedBody("/synthetic/hot.js", 1, hot, "gzip");
+    for (let i = 0; i < 36; i++) {
+      encodedBody(`/synthetic/build-${i}.js`, 1, randomBytes(256 * 1024), "gzip");
+      encodedBody("/synthetic/hot.js", 1, hot, "gzip");
+    }
+    expect(encodedBody("/synthetic/hot.js", 1, hot, "gzip")).toBe(first);
+    const oldSource = Buffer.from("old content");
+    const old = encodedBody("/synthetic/old.js", 1, oldSource, "gzip");
+    for (let i = 36; i < 72; i++) encodedBody(`/synthetic/build-${i}.js`, 1, randomBytes(256 * 1024), "gzip");
+    const reread = encodedBody("/synthetic/old.js", 1, oldSource, "gzip");
+    expect(reread).not.toBe(old);
+    expect(gunzipSync(reread)).toEqual(oldSource);
   });
 
   it("round-trips both encodings, and compresses a build's file once", () => {

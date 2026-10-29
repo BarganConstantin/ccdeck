@@ -42,26 +42,44 @@ export function pickEncoding(acceptEncoding, ext) {
   return null;
 }
 
-/** Compressed bytes, made once per file, build and encoding. The key carries the
- *  file's mtime, so a rebuild is a new entry rather than a stale one; the set of
- *  files is the dist folder's, so the cache is as big as the build and no bigger.
- *  Quality 9 rather than 11: the first request after a build pays for it, and 11
- *  costs seconds there for a percent or two. */
+/** Compressed bytes shared across requests. Rebuilds can leave many old hashed
+ * files behind, so bound the total rather than assuming paths never change.
+ * LRU keeps frequently requested assets hot; oversized files are served but
+ * not retained. Small zlib results otherwise keep a full 16 KiB backing
+ * allocation per file, so copy them into an exactly-sized buffer. */
+const MAX_ENCODED_BYTES = 8 * 1024 * 1024;
+const MAX_ENCODED_ENTRIES = 1024;
 const encodedCache = new Map();
+let encodedBytes = 0;
 
 export function encodedBody(filePath, mtimeMs, buf, encoding) {
   const key = `${encoding}\0${mtimeMs}\0${filePath}`;
-  let out = encodedCache.get(key);
-  if (!out) {
-    out = encoding === "br"
-      ? brotliCompressSync(buf, {
-          params: {
-            [constants.BROTLI_PARAM_QUALITY]: 9,
-            [constants.BROTLI_PARAM_SIZE_HINT]: buf.length,
-          },
-        })
-      : gzipSync(buf, { level: 6 });
-    encodedCache.set(key, out);
+  const cached = encodedCache.get(key);
+  if (cached) {
+    encodedCache.delete(key);
+    encodedCache.set(key, cached);
+    return cached;
   }
+  let out = encoding === "br"
+    ? brotliCompressSync(buf, {
+        params: {
+          [constants.BROTLI_PARAM_QUALITY]: 9,
+          [constants.BROTLI_PARAM_SIZE_HINT]: buf.length,
+        },
+      })
+    : gzipSync(buf, { level: 6 });
+  if (out.buffer.byteLength !== out.length) {
+    const compact = Buffer.allocUnsafeSlow(out.length);
+    out.copy(compact);
+    out = compact;
+  }
+  if (out.length > MAX_ENCODED_BYTES) return out;
+  while (encodedCache.size && (encodedBytes + out.length > MAX_ENCODED_BYTES || encodedCache.size >= MAX_ENCODED_ENTRIES)) {
+    const oldest = encodedCache.keys().next().value;
+    encodedBytes -= encodedCache.get(oldest).length;
+    encodedCache.delete(oldest);
+  }
+  encodedCache.set(key, out);
+  encodedBytes += out.length;
   return out;
 }
