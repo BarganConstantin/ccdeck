@@ -8,6 +8,7 @@ import type { IntegrationConnection as Connection } from "../integrations/types"
 import { jiraImage, type JiraApi, type JiraIssue, type TimeTracking } from "../jira-api";
 import { detailNameTakesFocus, fileSize, jiraDate, shownResolution, timeLine } from "../jira-board";
 import JiraTransition from "./JiraTransition";
+import JiraCommentForm from "./JiraCommentForm";
 import JiraHtml, { type HtmlContext } from "../jira-html";
 import { useJiraIssue } from "../use-jira-board";
 import { connectionHost } from "../integrations/client";
@@ -204,6 +205,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
                 </li>
               ))}
             </ol>
+            {onStatusChanged && <JiraCommentForm key={issue.key} api={api} issueKey={issue.key} onChanged={onStatusChanged} />}
             {data!.comments.total > data!.comments.items.length && (
               <p className="jr-dim"><a className="jr-more-link" href={issue.url} target="_blank" rel="noreferrer noopener">The older comments are in Jira <ExternalLinkGlyph /></a></p>
             )}

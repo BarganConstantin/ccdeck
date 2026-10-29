@@ -30,6 +30,7 @@ import { createProxy, fetchImage, isLocalHost, isSafeTarget, normaliseBaseUrl, o
 import { createRouter } from "./registry.mjs";
 import { createJiraMover, readJiraMoveCapability } from "./jira-move.mjs";
 import { createJiraTransition, jiraTransitions } from "./jira-transition.mjs";
+import { createJiraComment } from "./jira-comment.mjs";
 
 export const MIN_SERVER_VERSION = [8, 14, 0];
 const ATLASSIAN_API = "https://api.atlassian.com";
@@ -985,6 +986,7 @@ export function createJiraClient(conn, secret, { fetchImpl, apiOrigin } = {}) {
     conn,
     get cache() { return cache; },
     moveIssue,
+    addComment: createJiraComment({ secret, origins: () => origins.slice(), sign: signJira, authCheck: jiraAuthCheck, fetchImpl, rest: restBase(conn), cloud: isCloud(conn), invalidate: () => { cache = createCache(); } }),
     transitionIssue: createJiraTransition({ secret, origins: () => origins.slice(), sign: signJira, authCheck: jiraAuthCheck, fetchImpl, reader: signal => ({ json: (url, opts = {}) => reader().json(url, { ...opts, signal }) }), rest: restBase(conn), invalidate: () => { cache = createCache(); } }),
     get allowedOrigins() { return origins.slice(); },
     async validate({ phase = "validate", signal } = {}) {
@@ -1026,6 +1028,11 @@ export async function jiraRoutes(client, method, subpath, searchParams, _req, { 
   if (method === "POST" && transition) {
     if ([...searchParams].length) return errorResponse(integrationError("invalid", "Transition parameters belong in the JSON body."));
     try { return await client.transitionIssue(transition[1], moveBody, signal); } catch (err) { return errorResponse(err); }
+  }
+  const comment = /^issue\/([A-Z][A-Z0-9_]{0,40}-[1-9]\d{0,11})\/comment$/.exec(subpath);
+  if (method === "POST" && comment) {
+    if ([...searchParams].length) return errorResponse(integrationError("invalid", "Comment parameters belong in the JSON body."));
+    try { return await client.addComment(comment[1], moveBody, signal); } catch (err) { return errorResponse(err); }
   }
   if (method !== "GET" && method !== "HEAD") return errorResponse(integrationError("invalid", "That Jira operation is not supported."));
   const route = jiraRouter.find(subpath);

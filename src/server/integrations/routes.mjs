@@ -459,13 +459,15 @@ export async function handleIntegrations(req, res, url, deps = {}) {
       && rest[0] === "board" && /^[1-9]\d{0,11}$/.test(rest[1]) && rest[2] === "move";
     const jiraTransition = kind === "jira" && method === "POST" && rest.length === 3 && rest[0] === "issue"
       && /^[A-Z][A-Z0-9_]{0,40}-[1-9]\d{0,11}$/.test(rest[1]) && rest[2] === "transitions";
-    if (method !== "GET" && method !== "HEAD" && !jiraMove && !jiraTransition) return notAllowed(res);
+    const jiraComment = kind === "jira" && method === "POST" && rest.length === 3 && rest[0] === "issue"
+      && /^[A-Z][A-Z0-9_]{0,40}-[1-9]\d{0,11}$/.test(rest[1]) && rest[2] === "comment";
+    if (method !== "GET" && method !== "HEAD" && !jiraMove && !jiraTransition && !jiraComment) return notAllowed(res);
     let moveBody;
-    if (jiraMove || jiraTransition) {
+    if (jiraMove || jiraTransition || jiraComment) {
       if (!/^application\/json(?:\s*;|$)/i.test(String(req.headers["content-type"] ?? ""))) {
         throw integrationError("invalid", "Send the move as application/json.");
       }
-      const bytes = await readBytes(req, res, 4096).catch(err => { if (!res.headersSent) throw err; return null; });
+      const bytes = await readBytes(req, res, jiraComment ? 65536 : 4096).catch(err => { if (!res.headersSent) throw err; return null; });
       if (bytes === null) return;
       try { moveBody = JSON.parse(bytes.toString("utf8")); }
       catch { throw integrationError("invalid", "The move body is not valid JSON."); }
@@ -502,7 +504,7 @@ export async function handleIntegrations(req, res, url, deps = {}) {
     if (secret == null) throw integrationError("expired", "No token is saved for this connection. Reconnect it in Settings.");
     const client = clientFor(provider, conn, secret, { fetchImpl });
 
-    const read = await provider.routes(client, method, rest.join("/"), url.searchParams, req, { signal, ...((jiraMove || jiraTransition) ? { moveBody } : {}) });
+    const read = await provider.routes(client, method, rest.join("/"), url.searchParams, req, { signal, ...((jiraMove || jiraTransition || jiraComment) ? { moveBody } : {}) });
     if (res.writableEnded || signal.aborted) return;
     const status = Number.isInteger(read?.status) ? read.status : 500;
     return answer(status, read?.body ?? errorBody(null));
