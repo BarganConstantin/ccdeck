@@ -19,9 +19,9 @@
 //   * a runtime file left out of `files` — the suite resolves it from the tree
 //     and stays green while the shipped package cannot start
 //   * a devDependency imported at runtime — installed here, absent there. This
-//     package declares NO dependencies at all, which makes the install offline
-//     and fast and makes any runtime import of a dev-only module fatal on the
-//     user's machine and invisible on ours
+//     package bundles its runtime graph for offline installation, so a missing
+//     runtime module still fails on the installed copy rather than hiding in
+//     the development checkout
 //   * a bin that does not execute: three names, three shims, and on Windows a
 //     `.cmd` per name that Node has refused to spawn without a shell since
 //     CVE-2024-27980
@@ -48,7 +48,7 @@ import { createServer } from "node:net";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
 
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
@@ -281,7 +281,7 @@ describe.skipIf(!existsSync(dist))("the tarball a user installs", () => {
     expect([...tops].sort()).toEqual(
       [
         "LICENSE", "LICENSING.md", "README.md", "THIRD_PARTY_NOTICES.md",
-        "bin", "dist", "hook", "package.json", "release-notes.json", "src",
+        "bin", "dist", "hook", "node_modules", "package.json", "release-notes.json", "src",
       ],
     );
     // src/ is src/server/ and nothing else: the whole client is compiled into
@@ -325,14 +325,25 @@ describe.skipIf(!existsSync(dist))("the tarball a user installs", () => {
     }
   });
 
-  it("needs no dependency to be fetched, because it declares none", () => {
-    // The install above ran `--offline`. This says why that is an assertion
-    // rather than a speed trick: the shipped manifest must keep claiming an
-    // empty runtime graph, because the moment it does not, `--offline` starts
-    // failing for a reason that has nothing to do with what this file tests.
+  it("needs no dependency to be fetched, because runtime dependencies are bundled", () => {
+    // Native runtime dependencies travel inside the tarball, preserving an
+    // offline install even with an empty registry cache.
     const shipped = JSON.parse(readFileSync(join(installed, "package.json"), "utf8"));
-    expect(shipped.dependencies ?? {}).toEqual({});
+    expect(Object.keys(shipped.dependencies ?? {}).sort()).toEqual([...(shipped.bundledDependencies ?? [])].sort());
+    expect(existsSync(join(installed, "node_modules/fs-native-extensions/prebuilds", `${process.platform}-${process.arch}`, "fs-native-extensions.node"))).toBe(true);
     expect(shipped.version).toBe(JSON.parse(readFileSync(join(REPO, "package.json"), "utf8")).version);
+  });
+
+  it("coordinates Jira writes using the installed native binary", () => {
+    const module = pathToFileURL(join(installed, "src/server/integrations/jira-write-guard.mjs")).href;
+    const script = `import {createJiraWriteGuard} from ${JSON.stringify(module)};
+      const g=createJiraWriteGuard({dir:()=>${JSON.stringify(join(DIR, "installed-write-guard"))}});
+      const {operation}=await g.begin({connectionId:"installed-test",kind:"comment",issueKey:"MOCK-1"});
+      await g.finish(operation,"confirmed");
+      if(!(await g.acknowledge("installed-test",operation.operationId)).ok) throw Error("ack failed");`;
+    const result = spawnSync(process.execPath, ["--input-type=module"], { cwd: APP, input: script, encoding: "utf8", timeout: 10000 });
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
   });
 
   it("serves its own page, from the install, over the port it announced", async () => {

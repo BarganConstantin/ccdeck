@@ -1,6 +1,6 @@
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, open, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile, spawn } from "node:child_process";
@@ -11,6 +11,11 @@ import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 // @ts-expect-error plain server module
 import { createJiraWriteGuard } from "../../server/integrations/jira-write-guard.mjs";
+
+import { createRequire } from "node:module";
+const native = createRequire(import.meta.url)(join(process.cwd(), 'node_modules/fs-native-extensions/prebuilds', `${process.platform}-${process.arch}`, 'fs-native-extensions.node'));
+const tryLock = (fd: number) => { try { native.tryLock(fd, 0, 0, true); return true; } catch (err: any) { if (err.code === 'EAGAIN') return false; throw err; } };
+const unlock = (fd: number) => native.unlock(fd, 0, 0);
 
 const dirs: string[] = [];
 async function rig() {
@@ -23,17 +28,25 @@ afterEach(async () => { await Promise.all(dirs.splice(0).map(dir => rm(dir, { re
 const comment = { connectionId: "synthetic-a", kind: "comment", issueKey: "MOCK-1" };
 
 describe("durable Jira write guard", () => {
+  it("refuses writes before reserving when filesystem locking is unsupported", async () => {
+    const { dir } = await rig();
+    const guard = createJiraWriteGuard({ dir: () => dir, locks: { tryLock() { throw Object.assign(new Error('unsupported'), { code: 'ENOTSUP' }); }, unlock() {} } });
+    await assert.rejects(guard.begin(comment), (err: any) => err.kind === 'unavailable');
+    assert.deepEqual(await guard.list(comment.connectionId), []);
+    assert.ok(!(await readdir(dir)).some(name => name.startsWith('running-')));
+  });
   it("waits for a concurrent acknowledgement before finalizing", async () => {
-    const { guard } = await rig();
+    const { guard, dir } = await rig();
     const { operation } = await guard.begin(comment);
     const digest = createHash('sha256').update(JSON.stringify([comment.connectionId, comment.kind, comment.issueKey])).digest('hex');
-    const port = 20000 + (parseInt(digest.slice(0, 8), 16) % 40000);
-    const blocker = createServer();
-    await new Promise<void>((resolve, reject) => blocker.once('error', reject).listen(port, '127.0.0.1', resolve));
+    const handle = await open(join(dir, `lock-${digest}`), 'a+', 0o600);
+    assert.equal(tryLock(handle.fd), true);
     const finishing = guard.finish(operation, 'confirmed');
     const acknowledging = guard.acknowledge(comment.connectionId, operation.operationId);
-    await new Promise(resolve => setTimeout(resolve, 50));
-    await new Promise<void>(resolve => blocker.close(() => resolve()));
+    try {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      assert.equal((await guard.list(comment.connectionId))[0].state, 'pending');
+    } finally { unlock(handle.fd); await handle.close(); }
     await finishing;
     const ack = await acknowledging;
     if (!ack.ok) assert.deepEqual(await guard.acknowledge(comment.connectionId, operation.operationId), { ok: true });
@@ -41,11 +54,11 @@ describe("durable Jira write guard", () => {
   });
 
   it("recovers a scope lock when its process is killed", async () => {
-    const { guard } = await rig();
+    const { guard, dir } = await rig();
     const { operation } = await guard.begin(comment);
     const digest = createHash('sha256').update(JSON.stringify([comment.connectionId, comment.kind, comment.issueKey])).digest('hex');
-    const port = 20000 + (parseInt(digest.slice(0, 8), 16) % 40000);
-    const child = spawn(process.execPath, ['--input-type=module', '-e', `import { createServer } from 'node:net'; createServer().listen(${port}, '127.0.0.1', () => console.log('ready'));`], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const nativeUrl = pathToFileURL(join(process.cwd(), 'node_modules/fs-native-extensions/prebuilds', `${process.platform}-${process.arch}`, 'fs-native-extensions.node')).href;
+    const child = spawn(process.execPath, ['--input-type=module', '-e', `import { open } from 'node:fs/promises'; import { createRequire } from 'node:module'; import { fileURLToPath } from 'node:url'; const native = createRequire(import.meta.url)(fileURLToPath(${JSON.stringify(nativeUrl)})); const h = await open(${JSON.stringify(join(dir, `lock-${digest}`))}, 'a+', 0o600); native.tryLock(h.fd, 0, 0, true); console.log('ready'); setInterval(() => {}, 1000);`], { stdio: ['ignore', 'pipe', 'pipe'] });
     try {
       await once(child.stdout!, 'data');
       const finishing = guard.finish(operation, 'confirmed');
@@ -57,6 +70,21 @@ describe("durable Jira write guard", () => {
       assert.deepEqual(await guard.acknowledge(comment.connectionId, operation.operationId), { ok: true });
     } finally { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); }
   });
+
+  it("confirms and acknowledges while the former scope port stays occupied", async () => {
+    const { guard } = await rig();
+    const { operation } = await guard.begin(comment);
+    const digest = createHash('sha256').update(JSON.stringify([comment.connectionId, comment.kind, comment.issueKey])).digest('hex');
+    const port = 20000 + (parseInt(digest.slice(0, 8), 16) % 40000);
+    const unrelated = createServer(socket => socket.destroy());
+    await new Promise<void>((resolve, reject) => unrelated.once('error', reject).listen(port, '127.0.0.1', resolve));
+    try {
+      await guard.finish(operation, 'confirmed');
+      assert.equal((await guard.list(comment.connectionId))[0].state, 'confirmed');
+      assert.deepEqual(await guard.acknowledge(comment.connectionId, operation.operationId), { ok: true });
+      assert.deepEqual(await guard.list(comment.connectionId), []);
+    } finally { await new Promise<void>(resolve => unrelated.close(() => resolve())); }
+  }, 3000);
 
   it("does not mistake a reused PID or port for the interrupted writer", async () => {
     const { guard, dir } = await rig();

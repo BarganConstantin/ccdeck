@@ -4,21 +4,41 @@ import { chmod, link, mkdir, open, readFile, readdir, unlink } from 'node:fs/pro
 import { join } from 'node:path';
 import { createConnection, createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
+import { createRequire } from 'node:module';
+import { dirname } from 'node:path';
+import { integrationError } from './errors.mjs';
 import { deckDataDir } from '../deck-home.mjs';
 import { createTemp, renameWithRetry } from '../atomic-write.mjs';
 import { STORE_DIR } from './store.mjs';
 
+const require = createRequire(import.meta.url);
+let binding;
+function nativeLock() {
+  if (!binding) {
+    // The exact dependency version pins this N-API layout and ABI. Loading the
+    // shipped binding directly avoids its resolver's Node 20-only Array.with.
+    // Keep this lazy so unsupported targets can still run the read-only deck.
+    const root = dirname(require.resolve('fs-native-extensions/package.json'));
+    binding = require(join(root, 'prebuilds', `${process.platform}-${process.arch}`, 'fs-native-extensions.node'));
+  }
+  return binding;
+}
+const nativeLocks = {
+  tryLock(fd) {
+    try { nativeLock().tryLock(fd, 0, 0, true); return true; }
+    catch (err) { if (err.code === 'EAGAIN') return false; throw err; }
+  },
+  unlock(fd) { nativeLock().unlock(fd, 0, 0); },
+};
 const active = new Set();
 const listeners = new Map();
 const keyPattern = /^[A-Z][A-Z0-9_]{0,40}-[1-9]\d{0,11}$/;
 const uuidPattern = /^[0-9a-f-]{36}$/;
 const scope = record => createHash('sha256').update(JSON.stringify([record.connectionId, record.kind, record.kind === 'move' ? '' : record.issueKey])).digest('hex');
-const lockPort = op => 20000 + (parseInt(scope(op).slice(0, 8), 16) % 40000);
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code !== 'ESRCH'; } };
 
-// The kernel releases listening sockets on process exit, including crashes.
-// A busy port is never reclaimed by age: an unrelated listener can only make
-// this guard fail closed. Hash collisions likewise serialize unrelated scopes.
+// Ephemeral sockets identify live writers without trusting reusable PIDs.
+// Scope synchronization uses OS file locks below, never a fixed TCP port.
 function listen(port, handler = socket => socket.destroy()) {
   return new Promise((resolve, reject) => {
     const server = createServer(handler);
@@ -38,7 +58,6 @@ async function startMarker(op) {
       socket.setTimeout(1000, () => socket.destroy());
       socket.end(token);
     });
-    if (server.address().port === lockPort(op)) { await close(server); server = null; }
   } while (!server);
   server.unref();
   listeners.set(op.operationId, server);
@@ -62,7 +81,7 @@ function markerAlive(marker) {
   });
 }
 
-export function createJiraWriteGuard({ dir = () => join(deckDataDir(), STORE_DIR, 'jira-write-guard') } = {}) {
+export function createJiraWriteGuard({ dir = () => join(deckDataDir(), STORE_DIR, 'jira-write-guard'), locks = nativeLocks } = {}) {
   async function prepare() {
     const root = dir();
     await mkdir(root, { recursive: true, mode: 0o700 });
@@ -97,16 +116,18 @@ export function createJiraWriteGuard({ dir = () => join(deckDataDir(), STORE_DIR
   }
   async function state(root, op) { return { ...op, state: await running(root, op) ? 'pending' : op.state === 'confirmed' ? 'confirmed' : 'uncertain' }; }
   async function lock(root, op, fn) {
-    const port = lockPort(op);
-    let server;
-    for (let attempt = 0; !server; attempt++) {
-      try { server = await listen(port); }
-      catch (e) {
-        if (e.code !== 'EADDRINUSE' || attempt >= 1000) throw e;
-        await delay(10);
-      }
+    // Keep the inode forever: unlinking/replacing a locked file would allow
+    // two processes to lock different inodes for the same scope. The kernel
+    // releases ownership on descriptor close or process death, not file age.
+    const handle = await open(join(root, `lock-${scope(op)}`), 'a+', 0o600);
+    let acquired = false;
+    try {
+      while (!(acquired = locks.tryLock(handle.fd))) await delay(10);
+      return await fn();
+    } finally {
+      try { if (acquired) locks.unlock(handle.fd); }
+      finally { await handle.close(); }
     }
-    try { return await fn(); } finally { await close(server); }
   }
   return {
     async begin(input) {
@@ -115,6 +136,9 @@ export function createJiraWriteGuard({ dir = () => join(deckDataDir(), STORE_DIR
       const op = { connectionId, kind, ...(kind === 'move' ? { boardId: input.boardId, issueKeys: input.issueKeys } : { issueKey: input.issueKey }), operationId: randomUUID(), state: 'pending' };
       if (kind === 'move' ? typeof op.boardId !== 'string' || !/^[1-9]\d{0,11}$/.test(op.boardId) || !Array.isArray(op.issueKeys) || op.issueKeys.length < 1 || op.issueKeys.length > 50 || op.issueKeys.some(k => !keyPattern.test(k)) : !keyPattern.test(op.issueKey)) throw new Error('Invalid guard issue keys');
       const root = await prepare();
+      // Check the actual filesystem and native support before any Jira write.
+      try { await lock(root, op, async () => {}); }
+      catch { throw integrationError('unavailable', 'Jira writes are unavailable because this system cannot safely coordinate them.'); }
       const path = join(root, `${scope(op)}.json`);
       const marker = join(root, `running-${op.operationId}-${process.pid}`);
       const temp = join(root, `tmp-${op.operationId}`);
