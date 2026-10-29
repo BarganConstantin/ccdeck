@@ -1,6 +1,6 @@
 // The server owns durable write receipts; this store also keeps drafts across mounts.
 import { useEffect, useState } from "react";
-import { IntegrationFailure, jiraGuardOperation, type JiraGuardOperation } from "./integrations/client";
+import { IntegrationFailure, jiraGuardOperation, readThrough, type JiraGuardOperation } from "./integrations/client";
 import type { JiraApi } from "./jira-api";
 import { states, listeners, revisions, type JiraWriteState as State } from "./jira-write-store";
 
@@ -39,34 +39,35 @@ export function useJiraWriteState(connectionId: string, issueKey: string, kind: 
   const key = JSON.stringify([connectionId, issueKey, kind]);
   const [view, setView] = useState(() => ({ key, state: states.get(key) ?? (api ? { ...empty, loading: true } : empty) }));
   const matches = (op: JiraGuardOperation) => op.connectionId === connectionId && op.kind === (kind === "transition" ? "status" : kind) && (kind === "move" || op.issueKey === issueKey);
-  const refresh = async (isActive = () => true) => {
-    if (!api || acknowledgements.has(key)) return;
-    const revision = revisions.get(key) ?? 0;
-    try {
-      const res = await api("write-guard", { cache: "no-store" });
-      if (!res.ok) throw new Error();
-      const body = await res.json();
-      if (!Array.isArray(body.operations)) throw new Error();
-      const op = body.operations.map(jiraGuardOperation).find((item: JiraGuardOperation | undefined) => item && matches(item));
-      if (!isActive() || acknowledgements.has(key) || (revisions.get(key) ?? 0) !== revision) return;
-      const current = states.get(key) ?? empty;
-      if (current.busy) return;
-      update(key, { loading: false, operation: op, uncertain: !!op || current.uncertain, ...(op && kind === "move" && !current.draft ? { draft: `${op.issueKeys?.join(", ")} · Board ${op.boardId}` } : {}), ...(op ? { error: op.state === "pending" ? "Jira is still processing this write. Wait before checking again." : "Check Jira before trying again." } : {}) });
-    } catch {
-      if (isActive() && !acknowledgements.has(key) && (revisions.get(key) ?? 0) === revision) update(key, { loading: false, uncertain: true, error: "Could not check Jira write safety. Try again before writing." });
-    }
-  };
   useEffect(() => {
     let mounted = true;
+    let inFlight = false;
+    const controller = new AbortController();
+    const refresh = async () => {
+      if (!api || !mounted || inFlight || acknowledgements.has(key)) return;
+      inFlight = true;
+      const revision = revisions.get(key) ?? 0;
+      try {
+        const body = await readThrough<{ operations: unknown[] }>((path, init) => api(path, { ...init, cache: "no-store" }), "write-guard", { signal: controller.signal, timeoutMs: 30_000 });
+        if (!Array.isArray(body.operations)) throw new Error();
+        const op = body.operations.map(jiraGuardOperation).find((item: JiraGuardOperation | undefined) => item && matches(item));
+        if (!mounted || acknowledgements.has(key) || (revisions.get(key) ?? 0) !== revision) return;
+        const current = states.get(key) ?? empty;
+        if (current.busy) return;
+        update(key, { loading: false, operation: op, uncertain: !!op || current.uncertain, ...(op && kind === "move" && !current.draft ? { draft: `${op.issueKeys?.join(", ")} · Board ${op.boardId}` } : {}), ...(op ? { error: op.state === "pending" ? "Jira is still processing this write. Wait before checking again." : "Check Jira before trying again." } : {}) });
+      } catch {
+        if (mounted && !acknowledgements.has(key) && (revisions.get(key) ?? 0) === revision) update(key, { loading: false, uncertain: true, error: "Could not check Jira write safety. Try again before writing." });
+      } finally { inFlight = false; }
+    };
     const notify = (state: State) => setView({ key, state });
     let active = listeners.get(key);
     if (!active) listeners.set(key, active = new Set());
     active.add(notify);
     if (api && !(states.get(key)?.busy) && !acknowledgements.has(key)) update(key, { loading: true });
     notify(states.get(key) ?? empty);
-    if (api) { void refresh(() => mounted); }
-    const timer = api ? setInterval(() => { void refresh(() => mounted); }, 3000) : undefined;
-    return () => { mounted = false; if (timer) clearInterval(timer); active!.delete(notify); if (!active!.size) listeners.delete(key); prune(key); };
+    if (api) { void refresh(); }
+    const timer = api ? setInterval(() => { void refresh(); }, 3000) : undefined;
+    return () => { mounted = false; controller.abort(); if (timer) clearInterval(timer); active!.delete(notify); if (!active!.size) listeners.delete(key); prune(key); };
   }, [key, api]);
   const state = view.key === key ? view.state : states.get(key) ?? (api ? { ...empty, loading: true } : empty);
   return {

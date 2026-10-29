@@ -1,10 +1,86 @@
-import { expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flush, mount } from "./fake-react";
 vi.mock("react", async () => (await import("./fake-react")).react);
 const { useJiraWriteState } = await import("../jira-write-state");
 const { failureOf } = await import("../integrations/client");
 const store = await import("../jira-write-store");
 const operation = { operationId: "11111111-1111-1111-1111-111111111111", connectionId: "guard-test", kind: "comment", issueKey: "MOCK-1", state: "pending" };
+beforeEach(() => { vi.stubGlobal("window", globalThis); });
+afterEach(() => { vi.unstubAllGlobals(); });
+
+describe("write guard polling lifetime", () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  function stalledRead(phase: "headers" | "body") {
+    const signals: Array<AbortSignal | null | undefined> = [];
+    const release: Array<() => void> = [];
+    const api = vi.fn((_path: string, init?: RequestInit): Promise<Response> => {
+      const signal = init?.signal;
+      signals.push(signal);
+      if (phase === "headers") return new Promise((resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+        release.push(() => resolve(Response.json({ operations: [] })));
+      });
+      return Promise.resolve(new Response(new ReadableStream<Uint8Array>({ start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"operations":['));
+        let ended = false;
+        signal?.addEventListener("abort", () => { if (!ended) { ended = true; controller.error(new DOMException("Aborted", "AbortError")); } }, { once: true });
+        release.push(() => { if (!ended) { ended = true; controller.enqueue(new TextEncoder().encode("]}")); controller.close(); } });
+      } })));
+    });
+    return { api, signals, release: () => release.forEach(finish => finish()) };
+  }
+
+  for (const phase of ["headers", "body"] as const) {
+    it(`bounds a stalled ${phase} read without overlapping polls, then recovers`, async () => {
+      const h = stalledRead(phase);
+      let write!: ReturnType<typeof useJiraWriteState>;
+      const view = mount(() => { write = useJiraWriteState(`poll-deadline-${phase}`, "MOCK-1", "comment", h.api); }, {});
+      try {
+        await flush();
+        write.update({ draft: "keep my draft" });
+        await vi.advanceTimersByTimeAsync(9000);
+        expect(h.api).toHaveBeenCalledTimes(1);
+        expect(write.begin()).toBe(false);
+        await vi.advanceTimersByTimeAsync(21000); await flush();
+        expect(h.signals[0]?.aborted).toBe(true);
+        expect(write.state).toMatchObject({ loading: false, uncertain: true, draft: "keep my draft" });
+        expect(write.state.error).toContain("Could not check Jira write safety");
+        expect(write.begin()).toBe(false);
+        h.release(); await flush();
+        h.api.mockImplementation(async () => Response.json({ operations: [] }));
+        const beforeRetry = h.api.mock.calls.length;
+        await vi.advanceTimersByTimeAsync(3000); await flush();
+        expect(h.api.mock.calls.length).toBeGreaterThan(beforeRetry);
+        expect(await write.acknowledge()).toBe(true);
+        expect(write.state.draft).toBe("keep my draft");
+        expect(write.begin("keep my draft")).toBe(true);
+        write.update({ busy: false, draft: "" });
+      } finally { view.unmount(); h.release(); await flush(); }
+    });
+
+    it.each(["unmount", "key switch"] as const)(`aborts a stalled ${phase} read on %s`, async lifecycle => {
+      const h = stalledRead(phase);
+      const connectionId = `poll-cleanup-${phase}-${lifecycle}`;
+      const key = JSON.stringify([connectionId, "MOCK-1", "comment"]);
+      const view = mount(({ issueKey }) => useJiraWriteState(connectionId, issueKey, "comment", h.api), { issueKey: "MOCK-1" });
+      try {
+        await flush();
+        if (lifecycle === "unmount") view.unmount();
+        else view.rerender({ issueKey: "MOCK-2" });
+        expect(h.signals[0]?.aborted).toBe(true);
+        await flush();
+        expect(store.states.has(key)).toBe(false);
+        const afterCleanup = h.api.mock.calls.length;
+        await vi.advanceTimersByTimeAsync(9000);
+        expect(h.api).toHaveBeenCalledTimes(afterCleanup);
+      } finally { view.unmount(); h.release(); await flush(); }
+      expect(h.signals.every(signal => signal?.aborted)).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+  }
+});
 
 it("parses a guard conflict and retains its operation", async () => {
   const failure = await failureOf(Response.json({ ok: false, code: "jira_write_guard_conflict", operation }, { status: 409 }));
