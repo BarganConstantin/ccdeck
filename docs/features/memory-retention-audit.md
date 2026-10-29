@@ -50,3 +50,25 @@ node scripts/verify-ui-memory.mjs http://127.0.0.1:4317
 
 The browser and its temporary profile close when the script finishes. Static
 files are read from the server; synthetic API requests do not reach it.
+
+## Tool preview strings
+
+Confirmed a retained-string problem in `shortPreview`: truncating a serialized
+input and appending an ellipsis left V8 holding the complete serialized string.
+That preview survives when the tool history releases the original input blob.
+The preview now materializes its short characters in an independent string.
+
+A synthetic reducer workload applied 80 completed Write calls, each with a
+1 MiB input. Both Node 22 and an isolated Chromium context measured:
+
+| Measurement | Before | After |
+|---|---:|---:|
+| Retained JS heap, MiB | 105.1 | 25.1 |
+| Retained tool calls | 80 | 80 |
+| Recent complete inputs | 25 | 25 |
+
+Measurements were taken after explicit garbage collection. The 80 MiB saving
+is specific to this large-input workload, not a prediction for every running
+deck. Displayed preview text, Unicode, tool counts and the full-input retention
+window are unchanged. `tool-preview-memory.test.ts` covers both the preview
+function and the reducer workload, alongside the existing tool-history tests.

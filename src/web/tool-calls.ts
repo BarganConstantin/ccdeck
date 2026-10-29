@@ -14,14 +14,21 @@ import type { AgentNodeData, HookEnvelope, HookPayload, ToolCall } from "./types
 import { withCutNotes } from "./tool-view";
 import { applyPlanCall, applyPlanOutcome } from "./agent-plan";
 
+// V8 may keep a slice's entire source string alive. A preview outlives the
+// full input when trimTools releases old blobs, so materialize its characters
+// into an independent string rather than retaining the serialized payload.
+function clippedPreview(text: string, max: number): string {
+  return text.length > max ? [...text.slice(0, max - 1), "…"].join("") : text;
+}
+
 export function shortPreview(raw: any, max = 80): string {
   // A field the hook cut for size reads as the note the dialog shows for it.
   const input = withCutNotes(raw);
   if (input == null) return "";
-  if (typeof input === "string") return input.length > max ? input.slice(0, max - 1) + "…" : input;
+  if (typeof input === "string") return clippedPreview(input, max);
   try {
     const s = JSON.stringify(input);
-    return s.length > max ? s.slice(0, max - 1) + "…" : s;
+    return clippedPreview(s, max);
   } catch {
     return String(input);
   }
