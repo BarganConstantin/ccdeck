@@ -11,11 +11,12 @@
 // controls (the WAI-ARIA disclosure pattern).
 //
 // SENT AS THE ACCOUNT (`account`), there is no contact to ask for: the account
-// is the way back, and replies come in the dialog and by email. The section
-// then says only where it goes, in WHERE_IT_GOES_ACCOUNT's words.
+// is the way back, and replies come in the dialog, on app.ccdeck.dev and, while
+// the API mails them (`mail`), by email. The section then says only where it
+// goes, in whereItGoesAccount's words.
 import { useId } from "react";
 import {
-  ADD_DETAILS, CONTACT_HINT, CONTACT_LABEL, CONTACT_MAX, CONTACT_PLACEHOLDER, WHERE_IT_GOES, WHERE_IT_GOES_ACCOUNT, isPlainEnter,
+  ADD_DETAILS, CONTACT_HINT, CONTACT_LABEL, CONTACT_MAX, CONTACT_PLACEHOLDER, WHERE_IT_GOES, isPlainEnter, whereItGoesAccount,
 } from "../feedback";
 
 export const DETAILS_ID = "fb-details";
@@ -39,9 +40,11 @@ interface Props {
   onContact: (contact: string) => void;
   /** Sent as the ccdeck account: no contact field, and the account's words. */
   account?: boolean;
+  /** The account's replies are also mailed (the API's `mail`). */
+  mail?: boolean;
 }
 
-export default function FeedbackDetails({ open, contact, onContact, account = false }: Props) {
+export default function FeedbackDetails({ open, contact, onContact, account = false, mail = true }: Props) {
   const hintId = useId();
   return (
     <div id={DETAILS_ID} className="fb-details" data-open={open || undefined}>
@@ -67,7 +70,7 @@ export default function FeedbackDetails({ open, contact, onContact, account = fa
             <p id={hintId} className="fb-hint">{CONTACT_HINT}</p>
           </div>}
           {account ? (
-            <div className="fb-where">{WHERE_IT_GOES_ACCOUNT.map(line => <p key={line}>{line}</p>)}</div>
+            <div className="fb-where">{whereItGoesAccount(mail).map(line => <p key={line}>{line}</p>)}</div>
           ) : (
             <div className="fb-where">
               {WHERE_IT_GOES.map(line => <p key={line}>{line}</p>)}

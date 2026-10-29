@@ -23,8 +23,8 @@ import ErrorBoundary from "../components/ErrorBoundary";
 import { publishFeedbackAccount, type FeedbackAccount } from "../feedback-unread";
 import { draftKey, feedbackDrafts, feedbackSeed } from "../feedback-draft";
 import {
-  ACCOUNT_UNAVAILABLE, CONTACT_LABEL, SEND_WITHOUT_ACCOUNT, SENT_LINE, SENT_LINE_ACCOUNT, WHERE_IT_GOES, WHERE_IT_GOES_ACCOUNT,
-  accountFailure, accountSentAs, outcomeAnnouncement, sentLine,
+  ACCOUNT_UNAVAILABLE, CONTACT_LABEL, SEND_WITHOUT_ACCOUNT, SENT_LINE, SENT_LINE_ACCOUNT, SENT_LINE_ACCOUNT_NO_MAIL, WHERE_IT_GOES, WHERE_IT_GOES_ACCOUNT,
+  WHERE_IT_GOES_ACCOUNT_NO_MAIL, accountFailure, accountSentAs, outcomeAnnouncement, sentLine, whereItGoesAccount,
 } from "../feedback";
 import { withoutComments } from "./tsx-scan";
 
@@ -79,6 +79,24 @@ describe("with an account connected", () => {
     expect(markup).not.toContain('id="fb-contact"');
     for (const line of WHERE_IT_GOES_ACCOUNT) expect(words(markup)).toContain(line);
     expect(words(markup)).not.toContain(WHERE_IT_GOES[1]);
+  });
+
+  it("promises no email while the API mails no replies, and says where they show instead", () => {
+    // The status frame's summary said `mail: false`: the API sends no mail.
+    const markup = html({ account: { ...ACCOUNT, mail: false } });
+    expect(words(markup)).toContain("Sent as me@example.com — you'll get replies here and on app.ccdeck.dev");
+    expect(accountSentAs(null, false)).toBe("Sent from your ccdeck account — you'll get replies here and on app.ccdeck.dev");
+    for (const line of WHERE_IT_GOES_ACCOUNT_NO_MAIL) expect(words(markup)).toContain(line);
+    expect(whereItGoesAccount(false)).toBe(WHERE_IT_GOES_ACCOUNT_NO_MAIL);
+    expect(whereItGoesAccount(true)).toBe(WHERE_IT_GOES_ACCOUNT);
+    expect(words(markup)).not.toMatch(/by email|emailed|mailed/i);
+    // Published the same way the account's chunk publishes it, and back on with the flag.
+    publishFeedbackAccount({ ...ACCOUNT, mail: false });
+    expect(html()).toBe(markup);
+    publishFeedbackAccount({ ...ACCOUNT, mail: true });
+    expect(words(html())).toContain(accountSentAs("me@example.com"));
+    // Left out, as from an API before the flag, replies are mailed.
+    expect(html({ account: ACCOUNT })).toBe(html({ account: { ...ACCOUNT, mail: true } }));
   });
 
   it("is today's form again with Send without my account ticked, and the draft keeps the tick", () => {
@@ -137,6 +155,11 @@ describe("the words for how it went", () => {
     expect(SENT_LINE_ACCOUNT).toBe("Sent — replies will show in Your conversations and by email.");
     expect(outcomeAnnouncement("sent", true)).toBe(SENT_LINE_ACCOUNT);
     expect(outcomeAnnouncement("sent")).toBe(SENT_LINE);
+    // While replies are not mailed, the thanks says where they show instead.
+    expect(sentLine(true, false)).toBe(SENT_LINE_ACCOUNT_NO_MAIL);
+    expect(SENT_LINE_ACCOUNT_NO_MAIL).toBe("Sent — replies will show in Your conversations and on app.ccdeck.dev.");
+    expect(outcomeAnnouncement("sent", true, false)).toBe(SENT_LINE_ACCOUNT_NO_MAIL);
+    expect(sentLine(false, false)).toBe(SENT_LINE);
   });
 
   it("says a limit with when to come back, and keeps the anonymous words for images and size", () => {

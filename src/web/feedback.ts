@@ -176,19 +176,21 @@ export const WHERE_IT_GOES = [
 //
 // With a ccdeck account connected, what is written goes as the account and
 // starts a conversation the people who make ccdeck answer — in the dialog's
-// second tab and by email. The anonymous path stays exactly as above, one
-// tick away: Send without my account.
+// second tab, on app.ccdeck.dev, and by email while the API mails replies
+// (the summary's `mail`; false when it sends no mail, and then no word here
+// promises one). The anonymous path stays exactly as above, one tick away:
+// Send without my account.
 
 export const ACCOUNT_DIALOG_TITLE = "Feedback";
 export const WRITE_TAB = "Write";
 export const CONVERSATIONS_TAB = "Your conversations";
 export const SEND_WITHOUT_ACCOUNT = "Send without my account";
 
-/** Who it goes as, under the message. The address once the deck has said. */
-export function accountSentAs(email: string | null): string {
-  return email
-    ? `Sent as ${email} — you'll get replies here and by email`
-    : "Sent from your ccdeck account — you'll get replies here and by email";
+/** Who it goes as, under the message, and where the replies come: the
+ *  address once the deck has said; by email only while `mail`. */
+export function accountSentAs(email: string | null, mail = true): string {
+  const replies = mail ? "you'll get replies here and by email" : "you'll get replies here and on app.ccdeck.dev";
+  return email ? `Sent as ${email} — ${replies}` : `Sent from your ccdeck account — ${replies}`;
 }
 
 /** WHERE_IT_GOES for a send as the account: no contact to keep off an issue,
@@ -198,8 +200,18 @@ export const WHERE_IT_GOES_ACCOUNT = [
   "Nothing becomes public by being sent. They may open a public GitHub issue from it, choosing its title and text; your email and screenshots are never put on one.",
 ] as const;
 
+/** WHERE_IT_GOES_ACCOUNT while replies are not mailed. */
+export const WHERE_IT_GOES_ACCOUNT_NO_MAIL = [
+  "It goes to the people who make ccdeck from your account, with the version and system below. They reply here and on app.ccdeck.dev.",
+  WHERE_IT_GOES_ACCOUNT[1],
+] as const;
+
+export const whereItGoesAccount = (mail = true) => (mail ? WHERE_IT_GOES_ACCOUNT : WHERE_IT_GOES_ACCOUNT_NO_MAIL);
+
 /** The thanks once a conversation has started. */
 export const SENT_LINE_ACCOUNT = "Sent — replies will show in Your conversations and by email.";
+/** SENT_LINE_ACCOUNT while replies are not mailed. */
+export const SENT_LINE_ACCOUNT_NO_MAIL = "Sent — replies will show in Your conversations and on app.ccdeck.dev.";
 
 /** The account's conversations could not be reached; the anonymous path is
  *  still there, and nothing typed was lost. */
@@ -282,8 +294,9 @@ export type Outcome =
 
 /** What the dialog shows, and says, once a report has arrived. */
 export const SENT_LINE = "Thanks — feedback sent.";
-/** The thanks for how it went: as the account, or as before. */
-export const sentLine = (asAccount: boolean) => (asAccount ? SENT_LINE_ACCOUNT : SENT_LINE);
+/** The thanks for how it went: as the account (by email only while `mail`), or as before. */
+export const sentLine = (asAccount: boolean, mail = true) =>
+  (asAccount ? (mail ? SENT_LINE_ACCOUNT : SENT_LINE_ACCOUNT_NO_MAIL) : SENT_LINE);
 
 /** What the server's answer means for the person who pressed Send. `errors` is
  *  a 400's, keyed by field; an image's is quoted, since it names which one. */
@@ -304,9 +317,9 @@ export function feedbackFailure(status: number, reason: unknown, errors?: unknow
 
 /** What the dialog's live region says for each outcome. The region is drawn from
  *  the first render, so the change is what a screen reader hears. */
-export function outcomeAnnouncement(outcome: Outcome["state"], asAccount = false): string {
+export function outcomeAnnouncement(outcome: Outcome["state"], asAccount = false, mail = true): string {
   if (outcome === "sending") return "Sending…";
-  if (outcome === "sent") return sentLine(asAccount);
+  if (outcome === "sent") return sentLine(asAccount, mail);
   return "";
 }
 

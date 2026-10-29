@@ -58,13 +58,15 @@ export interface AccountView {
   revokedReason: string | null;
   problem: string | null;
   /** The account's feedback conversations at a glance, from the last status
-   *  frame: null before the first one and whenever not connected. */
-  feedback?: { unread: number; latestAt: string | null } | null;
+   *  frame: null before the first one and whenever not connected. `mail` is
+   *  false while the API mails no replies. */
+  feedback?: { unread: number; latestAt: string | null; mail?: boolean } | null;
 }
 
 /** What the feedback doors are told about the account (feedback-unread.ts):
- *  whether a send can go as it, as whom, and what is unread. */
-export function feedbackAccountOf(view: AccountView | null): { connected: boolean; email: string | null; unread: number; latestAt: string | null } | null {
+ *  whether a send can go as it, as whom, what is unread, and whether replies
+ *  are also mailed (until the API says otherwise, they are). */
+export function feedbackAccountOf(view: AccountView | null): { connected: boolean; email: string | null; unread: number; latestAt: string | null; mail: boolean } | null {
   if (!view) return null;
   const connected = view.state === "connected";
   return {
@@ -72,6 +74,7 @@ export function feedbackAccountOf(view: AccountView | null): { connected: boolea
     email: connected ? view.account?.email ?? null : null,
     unread: connected ? view.feedback?.unread ?? 0 : 0,
     latestAt: connected ? view.feedback?.latestAt ?? null : null,
+    mail: !connected || view.feedback?.mail !== false,
   };
 }
 

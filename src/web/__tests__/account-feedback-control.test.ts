@@ -1,6 +1,6 @@
 // How the Feedback button's dot learns about a reply (feedback conversations,
 // design 4.3 and 4.5): every status frame's answer carries the account's
-// summary, `{ unread, latestAt }`, and the service keeps it in its view —
+// summary, `{ unread, latestAt, mail }`, and the service keeps it in its view —
 // in memory only, null before the first frame and whenever not connected — and
 // says so on the event stream only when it changed. A summary that is not one
 // changes nothing. Reading a thread answers the summary after it, so the dot
@@ -66,7 +66,7 @@ describe("the frame answer's feedback summary", () => {
     const { s, frame } = await connected();
     expect(s.view().feedback).toBeNull();
     await frame();
-    expect(s.view().feedback).toEqual({ unread: 0, latestAt: null });
+    expect(s.view().feedback).toEqual({ unread: 0, latestAt: null, mail: true });
   });
 
   it("lights up with a reply from the team, and says when it was written", async () => {
@@ -77,7 +77,7 @@ describe("the frame answer's feedback summary", () => {
     clock.advance(60_000);
     const reply = api.feedback.teamReply(t.body.thread.id, "Thanks, we can see it.");
     await frame();
-    expect(s.view().feedback).toEqual({ unread: 1, latestAt: reply.at });
+    expect(s.view().feedback).toEqual({ unread: 1, latestAt: reply.at, mail: true });
   });
 
   it("is said on the event stream only when it changed", async () => {
@@ -87,13 +87,29 @@ describe("the frame answer's feedback summary", () => {
     s.noteFeedback({ unread: 1, latestAt: "2026-10-28T09:12:00Z" });
     await settle(5);
     expect(said()).toBe(before + 1);
-    expect(views.at(-1).feedback).toEqual({ unread: 1, latestAt: "2026-10-28T09:12:00Z" });
+    expect(views.at(-1).feedback).toEqual({ unread: 1, latestAt: "2026-10-28T09:12:00Z", mail: true });
     s.noteFeedback({ unread: 1, latestAt: "2026-10-28T09:12:00Z" });
     await settle(5);
     expect(said(), "the same summary again is not news").toBe(before + 1);
     s.noteFeedback({ unread: 1, latestAt: "2026-10-28T09:30:00Z" });
     await settle(5);
     expect(said(), "a newer reply in the same conversation is").toBe(before + 2);
+    s.noteFeedback({ unread: 1, latestAt: "2026-10-28T09:30:00Z", mail: false });
+    await settle(5);
+    expect(said(), "replies no longer mailed is").toBe(before + 3);
+    expect(views.at(-1).feedback.mail).toBe(false);
+  });
+
+  it("says whether replies are mailed, as the API's answer does", async () => {
+    const { s, frame, api } = await connected();
+    await frame();
+    expect(s.view().feedback.mail).toBe(true);
+    api.feedback.setMail(false);
+    await frame();
+    expect(s.view().feedback).toEqual({ unread: 0, latestAt: null, mail: false });
+    api.feedback.setMail(true);
+    await frame();
+    expect(s.view().feedback.mail).toBe(true);
   });
 
   it("ignores a summary that is not one, and keeps the last good one", async () => {
@@ -102,11 +118,12 @@ describe("the frame answer's feedback summary", () => {
     for (const bad of [
       { unread: -1, latestAt: null }, { unread: "2", latestAt: null }, { unread: 1.5, latestAt: null },
       { unread: FEEDBACK_UNREAD_MAX + 1, latestAt: null }, { unread: 1, latestAt: "yesterday" }, { unread: 1 },
+      { unread: 1, latestAt: null, mail: "no" }, { unread: 1, latestAt: null, mail: null }, { unread: 1, latestAt: null, mail: 0 },
       [1, null], "1", 7,
     ]) {
       api.override("/v1/device/status", () => ({ status: 200, body: { ...fixture("status-response.json"), feedback: bad }, headers: { "content-type": "application/json" } }));
       await frame();
-      expect(s.view().feedback, JSON.stringify(bad)).toEqual({ unread: 2, latestAt: "2026-10-28T09:12:00Z" });
+      expect(s.view().feedback, JSON.stringify(bad)).toEqual({ unread: 2, latestAt: "2026-10-28T09:12:00Z", mail: true });
     }
     // An API from before conversations sends none: no summary, no dot.
     const { feedback: _gone, ...older } = fixture("status-response.json");
@@ -116,9 +133,13 @@ describe("the frame answer's feedback summary", () => {
     api.override("/v1/device/status", null);
   });
 
-  it("takes only the two fields, whatever else a summary holds", () => {
+  it("takes only the three fields, whatever else a summary holds", () => {
     expect(feedbackSummary({ unread: 3, latestAt: "2026-10-28T09:12:00Z", email: "x@example.com" }))
-      .toEqual({ unread: 3, latestAt: "2026-10-28T09:12:00Z" });
+      .toEqual({ unread: 3, latestAt: "2026-10-28T09:12:00Z", mail: true });
+    // An API from before `mail` mailed every reply.
+    expect(feedbackSummary({ unread: 3, latestAt: null })).toEqual({ unread: 3, latestAt: null, mail: true });
+    expect(feedbackSummary({ unread: 3, latestAt: null, mail: false })).toEqual({ unread: 3, latestAt: null, mail: false });
+    expect(feedbackSummary(fixture("status-response.no-mail.json").feedback)).toEqual(fixture("status-response.no-mail.json").feedback);
     expect(feedbackSummary(fixture("feedback-read.response.json"))).toEqual(fixture("feedback-read.response.json"));
     expect(feedbackSummary(fixture("status-response.json").feedback)).toEqual(fixture("status-response.json").feedback);
     expect(feedbackSummary(null)).toBeNull();
@@ -141,11 +162,11 @@ describe("reading a conversation", () => {
     clock.advance(60_000);
     const reply = api.feedback.teamReply(id, "Good idea.");
     await frame();
-    expect(s.view().feedback).toEqual({ unread: 1, latestAt: reply.at });
+    expect(s.view().feedback).toEqual({ unread: 1, latestAt: reply.at, mail: true });
     const said = views.length;
     const read = await s.feedbackRead(id, reply.seq);
     expect(read).toMatchObject({ ok: true, body: { unread: 0, latestAt: reply.at } });
-    expect(s.view().feedback, "no frame in between").toEqual({ unread: 0, latestAt: reply.at });
+    expect(s.view().feedback, "no frame in between").toEqual({ unread: 0, latestAt: reply.at, mail: true });
     await settle(5);
     expect(views.length).toBe(said + 1);
     expect(views.at(-1).feedback.unread).toBe(0);

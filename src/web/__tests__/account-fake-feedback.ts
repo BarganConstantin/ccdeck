@@ -180,12 +180,15 @@ export function createFeedbackFake({
     };
   }
 
-  /** The account level: conversations with an unseen team item, and when the
-   *  latest team item was written. */
+  /** Whether the API mails the team's replies: false as an API that sends no mail answers. */
+  let mail = true;
+
+  /** The account level: conversations with an unseen team item, when the
+   *  latest team item was written, and whether replies are also mailed. */
   function accountSummary(accountId: string) {
     const mine = [...threads.values()].filter(t => t.accountId === accountId);
     const team = mine.flatMap(t => t.items.filter(i => i.side === "team").map(i => i.at)).sort();
-    return { unread: mine.filter(hasUnread).length, latestAt: team.at(-1) ?? null };
+    return { unread: mine.filter(hasUnread).length, latestAt: team.at(-1) ?? null, mail };
   }
 
   function view(t: Thread, before?: number) {
@@ -386,6 +389,8 @@ export function createFeedbackFake({
     created,
     accountSummary,
     view,
+    /** The API stops (or starts) mailing replies: every summary says so from now on. */
+    setMail(on: boolean) { mail = on; },
     /** The team replies, signed as the admin is shown to users. */
     teamReply(id: string | undefined, text: string, signature = "Constantin · ccdeck team") {
       return push(thread(id), { type: "message", side: "team", text, signature });

@@ -57,7 +57,7 @@ import FeedbackKinds from "./FeedbackKinds";
 import FeedbackDetails, { DetailsToggle } from "./FeedbackDetails";
 import FeedbackShots, { AddScreenshot, ImageGlyph } from "./FeedbackShots";
 import FeedbackTabs, { ConversationsPanel } from "./FeedbackTabs";
-import { useFeedbackAccount, type FeedbackAccount } from "../feedback-unread";
+import { mailsReplies, useFeedbackAccount, type FeedbackAccount } from "../feedback-unread";
 import { carriesFiles, shouldAttachPaste } from "../feedback-images";
 import { platformName } from "../platform";
 import { useFeedbackImages } from "../use-feedback-images";
@@ -97,6 +97,9 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
   const published = useFeedbackAccount();
   const account = caught !== undefined ? caught : published;
   const connected = account?.connected === true;
+  // Whether the account's replies are also mailed: the dialog never promises
+  // an email the API will not send.
+  const mail = mailsReplies(account);
   const [tab, setTab] = useState<FeedbackTab>(connected && initialTab === "conversations" ? "conversations" : "write");
   // The conversations' chunk is fetched the first time their tab is drawn.
   const [conversationsSeen, setConversationsSeen] = useState(tab === "conversations");
@@ -303,7 +306,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
         {/* The one live region, which also says what an armed Discard will
             do: the button's new name alone is not reliably read out while it
             has the focus, and its tooltip is where the warning lived. */}
-        <p className="vis-hidden" role="status">{discard.armed ? DISCARD_ARMED_TITLE : conversationsShown ? said : outcomeAnnouncement(outcome.state, sentAsAccount)}</p>
+        <p className="vis-hidden" role="status">{discard.armed ? DISCARD_ARMED_TITLE : conversationsShown ? said : outcomeAnnouncement(outcome.state, sentAsAccount, mail)}</p>
         {connected && account ? (
           <FeedbackTabs
             tab={tab}
@@ -371,10 +374,10 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
                     <input type="checkbox" checked={anonymous} onChange={e => setAnonymous(e.target.checked)} />
                     {SEND_WITHOUT_ACCOUNT}
                   </label>
-                  {!anonymous && <p className="fc-sent-as">{accountSentAs(account?.email ?? null)}</p>}
+                  {!anonymous && <p className="fc-sent-as">{accountSentAs(account?.email ?? null, mail)}</p>}
                 </div>
               )}
-              <FeedbackDetails open={detailsOpen} contact={contact} onContact={setContact} account={asAccount} />
+              <FeedbackDetails open={detailsOpen} contact={contact} onContact={setContact} account={asAccount} mail={mail} />
             </div>
             <p className="fb-facts">
               {facts ? <><span className="fb-facts-value">{facts}</span> — {FACTS_SUFFIX}</> : FACTS_UNKNOWN}
@@ -414,7 +417,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
         {sent && (
           <div className="fb-done">
             <SuccessMark />
-            <p className="fb-done-line">{sentLine(sentAsAccount)}</p>
+            <p className="fb-done-line">{sentLine(sentAsAccount, mail)}</p>
           </div>
         )}
       </div>

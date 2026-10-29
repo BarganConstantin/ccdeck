@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { publishFeedbackAccount, readFeedbackAccount, unreadOf, useFeedbackAccount } from "../feedback-unread";
+import { mailsReplies, publishFeedbackAccount, readFeedbackAccount, unreadOf, useFeedbackAccount } from "../feedback-unread";
 import { feedbackAccountOf, type AccountView } from "../account-bridge";
 import { withoutComments } from "./tsx-scan";
 
@@ -23,7 +23,7 @@ describe("the store", () => {
     expect(seen).toEqual([null]);
     publishFeedbackAccount({ connected: true, email: "me@example.com", unread: 2, latestAt: "2026-10-28T09:12:00Z" });
     const first = readFeedbackAccount();
-    expect(first).toEqual({ connected: true, email: "me@example.com", unread: 2, latestAt: "2026-10-28T09:12:00Z" });
+    expect(first).toEqual({ connected: true, email: "me@example.com", unread: 2, latestAt: "2026-10-28T09:12:00Z", mail: true });
     publishFeedbackAccount({ connected: true, email: "me@example.com", unread: 2, latestAt: "2026-10-28T09:12:00Z" });
     expect(readFeedbackAccount(), "the same account again keeps the same object").toBe(first);
     renderToStaticMarkup(createElement(Reader));
@@ -34,7 +34,20 @@ describe("the store", () => {
 
   it("cleans what it is handed: no negative count, no empty address", () => {
     publishFeedbackAccount({ connected: true, email: "", unread: -3, latestAt: null });
-    expect(readFeedbackAccount()).toEqual({ connected: true, email: null, unread: 0, latestAt: null });
+    expect(readFeedbackAccount()).toEqual({ connected: true, email: null, unread: 0, latestAt: null, mail: true });
+    publishFeedbackAccount(null);
+  });
+
+  it("says whether replies are mailed: only false is false, and a change of it alone wakes the readers", () => {
+    publishFeedbackAccount({ connected: true, email: "me@example.com", unread: 0, latestAt: null });
+    const mailed = readFeedbackAccount();
+    expect(mailed?.mail).toBe(true);
+    expect(mailsReplies(mailed)).toBe(true);
+    publishFeedbackAccount({ connected: true, email: "me@example.com", unread: 0, latestAt: null, mail: false });
+    expect(readFeedbackAccount()).not.toBe(mailed);
+    expect(readFeedbackAccount()?.mail).toBe(false);
+    expect(mailsReplies(readFeedbackAccount())).toBe(false);
+    expect(mailsReplies(null)).toBe(true);
     publishFeedbackAccount(null);
   });
 
@@ -60,14 +73,16 @@ describe("what the account's chunk publishes", () => {
   });
 
   it("is the address, the count and when, while connected", () => {
-    expect(feedbackAccountOf(view({}))).toEqual({ connected: true, email: "me@example.com", unread: 1, latestAt: "2026-10-28T09:12:00Z" });
+    expect(feedbackAccountOf(view({}))).toEqual({ connected: true, email: "me@example.com", unread: 1, latestAt: "2026-10-28T09:12:00Z", mail: true });
     // Before the first frame the deck has no summary: nothing unread.
-    expect(feedbackAccountOf(view({ feedback: null }))).toEqual({ connected: true, email: "me@example.com", unread: 0, latestAt: null });
+    expect(feedbackAccountOf(view({ feedback: null }))).toEqual({ connected: true, email: "me@example.com", unread: 0, latestAt: null, mail: true });
+    // The API mails no replies: the dialog is told so.
+    expect(feedbackAccountOf(view({ feedback: { unread: 1, latestAt: null, mail: false } }))?.mail).toBe(false);
   });
 
   it("is not connected, with nothing lit, in every other state", () => {
     for (const state of ["disconnected", "connecting", "revoked", "error"] as const) {
-      expect(feedbackAccountOf(view({ state })), state).toEqual({ connected: false, email: null, unread: 0, latestAt: null });
+      expect(feedbackAccountOf(view({ state })), state).toEqual({ connected: false, email: null, unread: 0, latestAt: null, mail: true });
     }
     expect(feedbackAccountOf(null)).toBeNull();
   });

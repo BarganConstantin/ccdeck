@@ -17,8 +17,9 @@
 // thread, a new one, a reply, read — so the page never holds the token and
 // the routes never build an API path. Nothing of a conversation is kept here:
 // each is fetched when the page asks. What is kept is the account's summary,
-// `{ unread, latestAt }`, which every status frame's answer carries and the
-// view hands the page, in memory only, for the Feedback button's dot. A
+// `{ unread, latestAt, mail }`, which every status frame's answer carries and
+// the view hands the page, in memory only, for the Feedback button's dot and
+// for whether the dialog may say replies come by email. A
 // conversation started here carries the deck's version and system and never
 // the reports' fingerprint or a contact: the account is the way back.
 import { dirname, resolve } from "node:path";
@@ -71,7 +72,7 @@ function fieldErrors(body) {
 }
 
 /** Whether two summaries say the same thing (either may be null). */
-const sameSummary = (a, b) => (a === null || b === null ? a === b : a.unread === b.unread && a.latestAt === b.latestAt);
+const sameSummary = (a, b) => (a === null || b === null ? a === b : a.unread === b.unread && a.latestAt === b.latestAt && a.mail === b.mail);
 
 /** Where a machine's page in the console is, from the approval page's origin:
  *  the API hands that out (PublicAccounts:AppBaseUrl), so a development API

@@ -223,7 +223,7 @@ describe("a connected deck", () => {
     expect((await ask("GET", "/api/account/feedback/threads")).json.unread).toBe(51);
     const read = await ask("POST", `/api/account/feedback/threads/${threadId}/read`, { seq: got.json.item.seq });
     expect(read.status).toBe(200);
-    expect(read.json).toEqual({ unread: 50, latestAt: expect.any(String) });
+    expect(read.json).toEqual({ unread: 50, latestAt: expect.any(String), mail: true });
     expect(api.feedback.thread(threadId).readSeq).toBe(got.json.item.seq);
     // And the view says so at once: the dot does not wait for a frame.
     expect((await ask("GET", "/api/account")).json.feedback).toEqual(read.json);

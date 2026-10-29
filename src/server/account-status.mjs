@@ -26,7 +26,8 @@
 //   200  next interval, the bound profile's settings revision (a newer one is
 //        pulled), `rotateToken` — rotated, and the new token persisted,
 //        BEFORE it is used — and `feedback`, the account's unread
-//        conversations, which light the Feedback button's dot
+//        conversations, which light the Feedback button's dot, and whether
+//        replies are also mailed
 //   400  this frame is wrong: dropped, said once, the schedule carries on
 //   401  device_revoked / invalid_token / account_gone: final. Stop, and let
 //        the service forget the token
@@ -58,15 +59,19 @@ const ZONED = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,7})?)?(Z|z|[+-]\d{2}
 
 /**
  * The account's feedback summary as a frame answer (or a read) carries it —
- * `{ unread, latestAt }` — or null for anything that is not one. Only the two
- * fields, so nothing else an answer holds can ride into the page's view.
+ * `{ unread, latestAt, mail }` — or null for anything that is not one. Only the
+ * three fields, so nothing else an answer holds can ride into the page's view.
+ * `mail` says whether the team's replies are also mailed: false while the API
+ * sends no mail, when the dialog must not promise any. An API from before the
+ * field mailed every reply, so its absence is true.
  */
 export function feedbackSummary(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const { unread, latestAt } = raw;
+  const { unread, latestAt, mail = true } = raw;
   if (!Number.isInteger(unread) || unread < 0 || unread > FEEDBACK_UNREAD_MAX) return null;
   if (latestAt !== null && !(typeof latestAt === "string" && ZONED.test(latestAt) && Number.isFinite(Date.parse(latestAt)))) return null;
-  return { unread, latestAt };
+  if (typeof mail !== "boolean") return null;
+  return { unread, latestAt, mail };
 }
 
 /** A metric reading as the frame carries it: the named fields, or the reason
