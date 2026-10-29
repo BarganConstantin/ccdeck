@@ -44,6 +44,8 @@ import { rmTempDir } from "./rm-temp-dir";
 import { openControl, quoteTmuxArg } from "../../server/tmux-control.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { liveChildPids } from "../../server/exec-children.mjs";
+// @ts-expect-error — plain .mjs test kit, no types
+import { requireGraphemes } from "./utf8-frames-kit.mjs";
 
 /** A tmux this file may use, or null: CCDECK_TMUX, else `tmux` on PATH, 3.2+. */
 function realTmux(): string | null {
@@ -65,7 +67,8 @@ function headlessXterm(): Xterm | null {
     if (!root) continue;
     try {
       const req = createRequire(join(root, "resolve-from-here.js"));
-      return { Terminal: req("@xterm/headless").Terminal, Widths: req("@xterm/addon-unicode-graphemes").UnicodeGraphemesAddon };
+      // The addon as a browser loads it, or Node's Buffer pool decides its widths (requireGraphemes says how).
+      return { Terminal: req("@xterm/headless").Terminal, Widths: requireGraphemes(req) };
     } catch { /* not here */ }
   }
   return null;

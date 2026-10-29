@@ -537,3 +537,23 @@ describe("a frame longer than xterm.js decodes in one piece", () => {
     expect(r.control().seeds).toBe(3);
   });
 });
+
+describe("the emulator these comparisons draw with", () => {
+  it("gives each character the columns the panel's terminal gives it, on whichever Node runs the suite", async () => {
+    if (!kit.needed("@xterm/headless", X) || !kit.needed("@xterm/addon-unicode-graphemes", X.Graphemes)) return;
+    // What the addon gives in a browser (no Buffer: kit.requireGraphemes), measured on Node 22 and 24 alike. Loaded
+    // with Node's Buffer, its table header comes from the wrong bytes, and a plain Node 22 process gave 🚀 one column.
+    const widths: [string, number][] = [
+      ["a", 1], ["─", 1], ["✻", 1], ["é", 1], ["é", 1], ["ﬁ", 1], ["𐀀", 1],
+      ["世", 2], ["界", 2], ["🚀", 2], ["👍🏽", 2], ["🇷🇴", 2],
+    ];
+    const got: [string, number][] = [];
+    for (const [ch] of widths) {
+      const t = kit.makeTerminal(X, { cols: 20, rows: 2, graphemes: true });
+      await kit.writeTo(t, ch);
+      got.push([ch, t.buffer.active.cursorX]);
+      t.dispose();
+    }
+    expect(got).toEqual(widths);
+  });
+});

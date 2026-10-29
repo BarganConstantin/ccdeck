@@ -88,6 +88,34 @@ export function framesNotOnBoundary(frames) {
 }
 
 /**
+ * The graphemes addon's class, loaded the way a browser loads it.
+ *
+ * The addon unpacks its width table once, when its module is first evaluated,
+ * with `Buffer.from(table, "base64")` wherever a global Buffer exists and
+ * `atob` otherwise, and then reads the table's header through
+ * `new DataView(bytes.buffer)`: from offset 0 of the whole ArrayBuffer. A
+ * browser has no Buffer, so the panel always gets a fresh array and the right
+ * table. Node's Buffer.from hands back a slice of its shared pool instead
+ * (measured: byteOffset 1952 inside vitest on Node 22, 33192 on Node 24), so
+ * under Node the header comes from whatever the pool held before it, and the
+ * widths and the table's size with it. Inside the suite those bytes happen to
+ * give the right widths; in a plain Node 22 process they made 🚀 one column
+ * where the panel draws two. So the global Buffer is hidden for this require
+ * only, and put back before anything else runs. `require` caches the module,
+ * so whichever load evaluates it first decides: every test that loads the
+ * addon comes through here.
+ */
+export function requireGraphemes(req) {
+  const saved = globalThis.Buffer;
+  globalThis.Buffer = undefined;
+  try {
+    return req("@xterm/addon-unicode-graphemes").UnicodeGraphemesAddon;
+  } finally {
+    globalThis.Buffer = saved;
+  }
+}
+
+/**
  * @xterm/headless (the version the panel ships: 6.0.0) and the graphemes
  * addon the panel loads, from CCDECK_TEST_XTERM (a directory whose
  * node_modules holds them) or from this checkout, whose devDependencies have
@@ -101,7 +129,7 @@ export function headlessXterm() {
       const req = createRequire(join(root, "resolve-from-here.js"));
       const { Terminal } = req("@xterm/headless");
       let Graphemes = null;
-      try { Graphemes = req("@xterm/addon-unicode-graphemes").UnicodeGraphemesAddon; } catch { /* plain widths only */ }
+      try { Graphemes = requireGraphemes(req); } catch { /* plain widths only */ }
       return { Terminal, Graphemes, version: req("@xterm/headless/package.json").version };
     } catch { /* not here */ }
   }
