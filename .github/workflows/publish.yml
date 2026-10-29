@@ -140,13 +140,13 @@ jobs:
       # passed — green, having checked nothing. Windows has no tmux; its cases
       # are gated off there in skip-gates.mjs.
       #
-      # The step fails unless the deck itself would use what it installed:
-      # findTmux, the deck's own probe, with its 3.2 floor (MIN_TMUX_VERSION in
+      # The step then proves that the deck finds a usable tmux: findTmux, the
+      # deck's own probe, with its 3.2 floor (MIN_TMUX_VERSION in
       # src/server/tmux.mjs). Below the floor, three of the four files would
       # only check that the panel says "too old" or that there is no tmux, and
       # pass; terminal-utf8-tmux alone fails in CI on a missing tmux
-      # (utf8-frames-kit.mjs, needed()). It also fails when the deck cannot
-      # read the version, which the allowances below go by.
+      # (utf8-frames-kit.mjs, needed()). The step also fails when the deck
+      # cannot read the version, which the allowances below go by.
       #
       # Whatever the image's package manager has: Ubuntu 24.04's tmux 3.4 on
       # ubuntu-latest, Homebrew's current release on macos-latest. A tmux
