@@ -533,7 +533,9 @@ export async function handleIntegrations(req, res, url, deps = {}) {
         attempted = true;
         try {
           const response = await transport(url, opts);
-          if (!(response.status >= 400 && response.status < 500 && response.status !== 408)) possibleWrite = true;
+          // A response can come from an intermediary after the write reached
+          // Jira. No HTTP status alone proves the request had no effect.
+          possibleWrite = true;
           return response;
         } catch (err) { possibleWrite = true; throw err; }
       };

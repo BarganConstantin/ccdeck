@@ -8,6 +8,30 @@ import { handleIntegrations } from '../../server/integrations/routes.mjs';
 import { createJiraWriteGuard } from '../../server/integrations/jira-write-guard.mjs';
 
 describe('Jira HTTP write guard', () => {
+  it('retains an uncertain reservation when a proxy returns 403 after applying a comment', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'jira-guard-proxy-'));
+    const guard = createJiraWriteGuard({ dir: () => dir });
+    const conn = { id: 'synthetic-connection', kind: 'jira', baseUrl: 'https://jira.example.com', allowedOrigins: ['https://jira.example.com'], meta: { deployment: 'server' }, account: {} };
+    const store = { get: async () => conn, secret: async () => ({ auth: 'bearer', token: 'synthetic-token' }) };
+    let saved = 0;
+    const fetchImpl = async () => { saved++; return new Response(null, { status: 403 }); };
+    const server = createServer((req, res) => {
+      handleIntegrations(req, res, new URL(req.url!, 'http://localhost'), { store, fetchImpl, jiraWriteGuard: guard }).catch(() => { if (!res.headersSent) res.writeHead(500); res.end(); });
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const base = `http://127.0.0.1:${(server.address() as any).port}/api/integrations/jira/${conn.id}`;
+    const post = () => fetch(base + '/issue/MOCK-1/comment', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'comment' }) });
+    try {
+      const first = await post();
+      expect(first.status).toBe(403);
+      const result = await first.json();
+      expect(result.operation.state).toBe('uncertain');
+      const retry = await post();
+      expect(retry.status).toBe(409);
+      expect((await retry.json()).operation.operationId).toBe(result.operation.operationId);
+      expect(saved).toBe(1);
+    } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(dir, { recursive: true, force: true }); }
+  });
   it('blocks concurrent and lost comments until the matching operation is acknowledged', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'jira-guard-'));
     const guard = createJiraWriteGuard({ dir: () => dir });
@@ -70,10 +94,14 @@ describe('Jira HTTP write guard', () => {
       expect((await post('/write-guard/acknowledge', { operationId: timeoutOperation.operationId })).status).toBe(200);
       for (const status of [400, 401, 403, 404, 409, 429]) {
         nextStatus = status;
-        expect((await post('/issue/MOCK-1/comment', { text: 'rejected comment' })).status).not.toBe(200);
-        expect((await (await fetch(base + '/write-guard')).json()).operations).toEqual([]);
-        expect((await post('/issue/MOCK-1/transitions', { transitionId: '11' })).status).not.toBe(200);
-        expect((await (await fetch(base + '/write-guard')).json()).operations).toEqual([]);
+        for (const [path, body] of [['/issue/MOCK-1/comment', { text: 'rejected comment' }], ['/issue/MOCK-1/transitions', { transitionId: '11' }]] as const) {
+          const response = await post(path, body);
+          expect(response.status).not.toBe(200);
+          const operation = (await response.json()).operation;
+          expect(operation.state).toBe('uncertain');
+          expect((await post(path, body)).status).toBe(409);
+          expect((await post('/write-guard/acknowledge', { operationId: operation.operationId })).status).toBe(200);
+        }
       }
       nextStatus = 201;
       const success = await post('/issue/MOCK-1/comment', { text: 'confirmed comment' });

@@ -650,12 +650,12 @@ describe('durable guard for HTTP moves', () => {
       assert.equal(r.state.writes.length, 2);
     });
   });
-  it('clears a definitive write rejection and retains a rejection after a successful partial move', async () => {
+  it('retains write rejections and rejections after a successful partial move', async () => {
     const rejected = rig({ state: { writeResponses: [new Response(null, { status: 403 }), new Response(null, { status: 403 })] } });
     await withHost(rejected, async post => {
       assert.equal((await post(input)).status, 403);
-      assert.equal((await post(input)).status, 403);
-      assert.equal(rejected.state.writes.length, 2);
+      assert.equal((await post(input)).status, 409);
+      assert.equal(rejected.state.writes.length, 1);
     });
     const partial = rig({ state: { writeResponses: [new Response(null, { status: 204 }), new Response(null, { status: 403 })] } });
     await withHost(partial, async post => {
