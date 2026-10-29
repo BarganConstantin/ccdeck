@@ -31,7 +31,7 @@ import {
   findDeckSession, findLaunchedSession, killDeckSession, labelDeckSession, launchSession, listDeckSessions, pruneDeadDeckSessions,
 } from "../../server/terminal-sessions.mjs";
 
-type Found = { ok: boolean; path?: string; reason?: string; install?: string };
+type Found = { ok: boolean; path?: string; reason?: string; install?: string; version?: [number, number] | null };
 type Deck = { name: string; sessionId: string; agent: string; kind: string; launchKey: string; cwd: string; pane: string; panePid: number; dead: boolean; exitStatus: number | null; created: number; cols: number; rows: number };
 
 let found: Found = { ok: false };
@@ -72,6 +72,48 @@ async function screen(name: string): Promise<string> {
   expect(r.ok, r.stderr).toBe(true);
   return r.stdout;
 }
+
+/** `name`'s screen once it shows `text`, polled for two seconds. */
+async function screenWith(name: string, text: string): Promise<string> {
+  let shown = await screen(name);
+  for (const until = Date.now() + 2_000; !shown.includes(text) && Date.now() < until;) shown = await screen(name);
+  return shown;
+}
+
+// COMPATIBILITY RULES, for review: three things tmux does with a pane whose
+// program has exited, each fixed upstream and allowed for only before that
+// fix. Read in the sources of 3.4, 3.5a, 3.6a, 3.7c and 3.8, and measured.
+//  - Before 3.6, where tmux is built with utempter (Ubuntu 24.04's 3.4, the
+//    one ubuntu-latest installs, links it): at the pty's end,
+//    server_destroy_pane calls utempter_remove_record, which runs a helper
+//    with SIGCHLD set to SIG_DFL. A pane child that exits in that moment is
+//    never reaped, so tmux never learns its status, until another of its
+//    children exits. Upstream
+//    fa5f3cef ("Send SIGCHLD after utempter_remove_record as well", GitHub
+//    issue 4559, first in 3.6) has the server send itself SIGCHLD after the
+//    call, as spawn.c already did after utempter_add_record. So before 3.6,
+//    while the pane is listed dead without a status, the case below sends the
+//    server that SIGCHLD.
+//  - Before 3.7, `#{pane_dead}` is `wp->fd == -1` alone (format.c,
+//    format_cb_pane_dead); 3.7c also wants PANE_STATUSREADY, which only the
+//    reaped child sets (server.c, server_child_exited). With remain-on-exit,
+//    server_destroy_pane closes the pty at its end-of-file and returns until
+//    then, so a listing can say dead before it can say the exit status: the
+//    deck lists `exitStatus: null` for that moment. The case waits for the
+//    status as the listing settles to it.
+//  - Before 3.7, when the child is reaped first, server_child_exited destroys
+//    the pane at once with whatever the pty still held unread:
+//    window_pane_destroy_ready asks FIONREAD only for a piped pane ("Check
+//    FIONREAD for all panes not just piped panes", 3.7's CHANGES), so a
+//    program that prints and exits at once can leave a blank dead pane. The
+//    case's program exits only on Enter, given once tmux shows its words.
+// None is the deck's to fix: the program was run as itself (see "runs a
+// one-word command" below), and the status and the bytes are tmux's to keep.
+// From 3.7 the program exits at once, nothing is sent, and every listing that
+// says dead must carry the status. A tmux whose -V names no version gets the
+// older handling.
+const olderThan = (major: number, minor: number) =>
+  !found.version || found.version[0] < major || (found.version[0] === major && found.version[1] < minor);
 
 /** The listing, polled until `done` holds or two seconds pass: a pane's
  *  program runs on tmux's clock, not on this test's. */
@@ -144,22 +186,49 @@ describe("a deck session on a real tmux", () => {
     // sh asks before anything could have attached — the launch race a Codex
     // or a TUI with an auto theme runs — and writes the answer down, spelled
     // out by od so no escape reaches the screen.
-    const ask = ["sh", "-c", 'stty raw -echo min 0 time 5; printf "\\033]11;?\\033\\\\"; r=$(dd bs=64 count=1 2>/dev/null); stty sane; printf "%s" "$r" | od -An -c | tr -d " \\n"; echo'];
+    // Then a line that says it is done, and it stays: the screen is read once
+    // that line is on it, not once the program is dead, because a tmux before
+    // 3.7 can close a pane with its last output unread (the rules above), and
+    // a screen left blank would pass the second check without showing anything.
+    const ask = ["sh", "-c", 'stty raw -echo min 0 time 5; printf "\\033]11;?\\033\\\\"; r=$(dd bs=64 count=1 2>/dev/null); stty sane; printf "%s" "$r" | od -An -c | tr -d " \\n"; echo; echo "[asked]"; exec cat'];
     const lit = await launchSession({ ...opts(), agent: "codex", cwd: PROJECT, argv: ask, colours: { fg: "#1f2328", bg: "#fafaf8" } });
     const plain = await launchSession({ ...opts(), agent: "codex", cwd: PROJECT, argv: ask });
-    await listUntil(l => [lit.name, plain.name].every(n => l.find(x => x.name === n)?.dead));
-    expect(await screen(lit.name)).toContain("rgb:fafa/fafa/f8f8");
-    expect(await screen(plain.name), "without them tmux has no light background to give").not.toContain("rgb:fafa/fafa/f8f8");
+    const litShown = await screenWith(lit.name, "[asked]");
+    const plainShown = await screenWith(plain.name, "[asked]");
+    expect(litShown, "the answer was written out").toContain("[asked]");
+    expect(litShown).toContain("rgb:fafa/fafa/f8f8");
+    expect(plainShown, "the answer was written out").toContain("[asked]");
+    expect(plainShown, "without them tmux has no light background to give").not.toContain("rgb:fafa/fafa/f8f8");
   });
 
   it("keeps a pane whose program ended, dead, with its exit status and its own last frame", async () => {
     if (!found.ok) return expectNoTmux();
+    // The rules above: before 3.7 the program exits on Enter, given once tmux
+    // shows its words; before 3.6 the server is sent the SIGCHLD its utempter
+    // call may have swallowed, while the pane is listed dead with no status.
+    const before37 = olderThan(3, 7), before36 = olderThan(3, 6);
     const s = await launchSession({
       ...opts(), agent: "claude", kind: "resume", sessionId: randomUUID(), cwd: PROJECT,
-      argv: ["sh", "-c", 'printf "the last words\\n"; exit 3'],
+      argv: ["sh", "-c", before37 ? 'printf "the last words\\n"; read _; exit 3' : 'printf "the last words\\n"; exit 3'],
     });
-    const list = await listUntil(l => Boolean(l.find(x => x.name === s.name)?.dead));
+    if (before37) {
+      expect(await screenWith(s.name, "the last words"), "on tmux's screen before the program may exit").toContain("the last words");
+      const enter = await runTmux(found, socket, ["send-keys", "-t", `=${s.name}:`, "Enter"], { env });
+      expect(enter.ok, enter.stderr).toBe(true);
+    }
+    const server = before36
+      ? Number((await runTmux(found, socket, ["display-message", "-p", "-t", `=${s.name}:`, "#{pid}"], { env })).stdout.trim())
+      : 0;
+    if (before36) expect(server, "the tmux server's pid").toBeGreaterThan(1);
+    const seen: Deck[] = [];
+    const list = await listUntil(l => {
+      const mine = l.find(x => x.name === s.name);
+      if (mine) seen.push(mine);
+      if (before36 && mine?.dead && mine.exitStatus === null) process.kill(server, "SIGCHLD");
+      return Boolean(mine?.dead && mine.exitStatus !== null);
+    });
     expect(list.find(x => x.name === s.name), "remain-on-exit keeps it listed").toMatchObject({ kind: "resume", dead: true, exitStatus: 3 });
+    if (!before37) expect(seen.filter(x => x.dead && x.exitStatus === null), "from 3.7, dead and its status come together").toEqual([]);
     const shown = await screen(s.name);
     expect(shown).toContain("the last words");
     expect(shown, "tmux's caption would scroll the frame and is switched off").not.toContain("Pane is dead");
