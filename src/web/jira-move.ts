@@ -29,6 +29,12 @@ export function selectIssue(current: ReadonlySet<string>, visible: readonly stri
   return new Set([...(mode === "add-range" ? current : []), ...range]);
 }
 
+/** The selected set owns the highlight; the open detail is a fallback only
+ *  when no selection is being made. */
+export function issueIsHighlighted(key: string, picked: ReadonlySet<string>, current: string | null, selectionMode: boolean): boolean {
+  return picked.has(key) || (!selectionMode && picked.size === 0 && current === key);
+}
+
 export function moveDestination(group: GroupDef): JiraMove["target"] | null {
   if (group.kind === "backlog") return { kind: "backlog" };
   if ((group.kind === "active" || group.kind === "future") && group.sprint

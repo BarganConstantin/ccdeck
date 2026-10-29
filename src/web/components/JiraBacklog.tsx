@@ -23,7 +23,7 @@ import IntegrationAvatar, { IntegrationAvatarStack, UnassignedAvatar } from "./I
 import IntegrationFailureNote from "./IntegrationFailureNote";
 import IntegrationSkeleton from "./IntegrationSkeleton";
 import { Chevron, EpicChip, Estimate, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
-import { issueMoveBlocker, issuesMove, movableIssue, moveDestination, moveKeys, moveSelectionProblem, selectIssue, type JiraMove, type JiraMoveItem } from "../jira-move";
+import { issueIsHighlighted, issueMoveBlocker, issuesMove, movableIssue, moveDestination, moveKeys, moveSelectionProblem, selectIssue, type JiraMove, type JiraMoveItem } from "../jira-move";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import JiraMovePopover from "./JiraMovePopover";
 import JiraRowPreview from "./JiraRowPreview";
@@ -182,7 +182,6 @@ export default function JiraBacklog(props: JiraBacklogProps) {
   const boardId = useId();
   const drag = useRef<{ items: JiraMoveItem[] } | null>(null);
   const dragFromControl = useRef(false);
-  const openAfterDrag = useRef<string | null>(null);
   const [dragKeys, setDragKeys] = useState<string[]>([]);
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set());
   const [selectionMode, setSelectionMode] = useState(false);
@@ -404,7 +403,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     const hasActions = canMove && issue && depth === 0;
     return (
       <li key={key} className="jr-item" data-context={row.kind === "context" || undefined}>
-        <div className="jr-row ig-row" data-selected={picked.has(key) || selected === key || undefined} data-picked={picked.has(key) || undefined} data-done={issue?.status.category === "done" || undefined}
+        <div className="jr-row ig-row" data-selected={issueIsHighlighted(key, picked, selected, selectionMode) || undefined} data-picked={picked.has(key) || undefined} data-done={issue?.status.category === "done" || undefined}
           data-current={selected === key || undefined} data-move-blocked={Boolean(issue && picked.has(key) && issueMoveBlocker({ issue, group })) || undefined}
           data-mine={issue?.mine || undefined} data-dragging={dragKeys.includes(key) || undefined}
           data-drop={dropAt?.group === group.id && dropAt.key === key ? dropAt.side : undefined}
@@ -423,19 +422,13 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               selectionAnchor.current = key;
               setPicked(new Set([key]));
               setSelectionMode(false);
-              openAfterDrag.current = key;
             }
             drag.current = { items };
             event.dataTransfer.effectAllowed = "move";
             event.dataTransfer.setData("text/plain", items.map(i => i.issue.key).join("\n"));
             setDragKeys(items.map(i => i.issue.key));
             setMoveMenu(null);
-          }} onDragEnd={() => {
-            const keyToOpen = openAfterDrag.current;
-            openAfterDrag.current = null;
-            finishDrag();
-            if (keyToOpen) onOpen(keyToOpen);
-          }}
+          }} onDragEnd={finishDrag}
           onDragOver={event => {
             if (!drag.current || !canMove || moveBusy || !issue || issue.type.subtask || !moveDestination(group)) return;
             event.stopPropagation();
@@ -523,7 +516,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               const subNav = `${group.id}/${sub.key}/${nav}`;
               return (
                 <li key={sub.key} className="jr-item">
-                  <div className="jr-row jr-subrow ig-row" data-selected={picked.has(sub.key) || selected === sub.key || undefined} data-picked={picked.has(sub.key) || undefined} data-done={sub.status.category === "done" || undefined}
+                  <div className="jr-row jr-subrow ig-row" data-selected={issueIsHighlighted(sub.key, picked, selected, selectionMode) || undefined} data-picked={picked.has(sub.key) || undefined} data-done={sub.status.category === "done" || undefined}
                     data-current={selected === sub.key || undefined} data-move-blocked={Boolean(picked.has(sub.key) && issueMoveBlocker({ issue: sub, group })) || undefined}
                     data-mine={sub.mine || undefined}>
                     <span className="jr-toggle-space" aria-hidden />

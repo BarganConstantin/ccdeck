@@ -1,11 +1,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { issueMove, issueMoveBlocker, issuesMove, movableIssue, moveDestination, moveSelectionProblem, selectIssue } from "../jira-move";
+import { issueIsHighlighted, issueMove, issueMoveBlocker, issuesMove, movableIssue, moveDestination, moveSelectionProblem, selectIssue } from "../jira-move";
 import { moveJiraIssue, type JiraIssue } from "../jira-api";
 import type { GroupDef } from "../jira-board";
 
 const sprint: GroupDef = { id: "sprint:1", kind: "active", title: "Sprint 1", sprint: { id: 1, name: "Sprint 1", state: "active", goal: "", startDate: null, endDate: null, completeDate: null }, defaultOpen: true, paged: false };
 const backlog: GroupDef = { id: "backlog", kind: "backlog", title: "Backlog", defaultOpen: true, paged: true };
 const issue: JiraIssue = { id: "1", key: "MOCK-1", summary: "Move me", url: "", type: { name: "Task", subtask: false, epic: false, icon: null }, status: { name: "To Do", category: "new" }, priority: null, assignee: null, mine: true, parent: null, subtaskKeys: [], epic: null, fixVersions: [], estimate: null, remaining: null, points: null, flagged: false, updated: "" };
+
+describe("Jira selection highlighting", () => {
+  it("highlights only the chosen issue even when a different detail is open", () => {
+    const picked = new Set(["MOCK-2"]);
+    expect(issueIsHighlighted("MOCK-1", picked, "MOCK-1", false)).toBe(false);
+    expect(issueIsHighlighted("MOCK-2", picked, "MOCK-1", false)).toBe(true);
+  });
+  it("retains deliberate multi-selection and lets selection mode clear every row", () => {
+    const picked = new Set(["MOCK-2", "MOCK-3"]);
+    expect(issueIsHighlighted("MOCK-2", picked, "MOCK-1", true)).toBe(true);
+    expect(issueIsHighlighted("MOCK-3", picked, "MOCK-1", true)).toBe(true);
+    expect(issueIsHighlighted("MOCK-1", new Set(), "MOCK-1", true)).toBe(false);
+    expect(issueIsHighlighted("MOCK-1", new Set(), "MOCK-1", false)).toBe(true);
+  });
+});
 
 describe("visible issue selection", () => {
   const visible = ["MOCK-1", "MOCK-2", "MOCK-3", "MOCK-4"];
