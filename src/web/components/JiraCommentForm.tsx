@@ -1,17 +1,23 @@
 import { useRef, useState } from "react";
 import type { JiraApi } from "../jira-api";
-import { failureOf, IntegrationFailure } from "../integrations/client";
+import { failureOf } from "../integrations/client";
+import { definiteJiraWriteFailure, useJiraWriteState } from "../jira-write-state";
+import { selfPressAccepted, selfPressProps } from "../panel-press";
 
-export default function JiraCommentForm({ api, issueKey, onChanged }: { api: JiraApi; issueKey: string; onChanged: () => void }) {
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [uncertain, setUncertain] = useState(false);
+export default function JiraCommentForm({ api, connectionId, issueKey, onChanged }: { api: JiraApi; connectionId: string; issueKey: string; onChanged: () => void }) {
+  const write = useJiraWriteState(connectionId, issueKey, "comment");
+  const { busy, uncertain, error } = write.state;
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+  const sendRef = useRef<HTMLButtonElement>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const checkedRef = useRef<HTMLButtonElement>(null);
+  const text = write.state.draft;
   const [sent, setSent] = useState(false);
-  const lock = useRef(false);
   const send = async () => {
-    if (lock.current || !text.trim() || text.length > 10000 || uncertain) return;
-    lock.current = true; setBusy(true); setError(""); setSent(false);
+    if (!selfPressAccepted(busyRef.current) || !text.trim() || text.length > 10000 || !write.begin(text)) return;
+    busyRef.current = true;
+    setSent(false);
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), 30_000);
     try {
@@ -19,20 +25,21 @@ export default function JiraCommentForm({ api, issueKey, onChanged }: { api: Jir
       if (!res.ok) throw await failureOf(res);
       const result = await res.json();
       if (!result?.ok || result.issueKey !== issueKey) throw new Error("Unconfirmed comment");
-      setText(""); setSent(true); onChanged();
+      if (typeof document !== "undefined" && document.activeElement === sendRef.current) textRef.current?.focus();
+      setSent(true); write.update({ busy: false, draft: "", error: "", uncertain: false }); onChanged();
     } catch (err) {
-      const definite = err instanceof IntegrationFailure && ["invalid", "permission", "expired", "auth", "not-found", "rate-limit"].includes(err.kind);
-      setUncertain(!definite);
-      setError(definite && err instanceof Error ? err.message : "Could not confirm whether Jira saved the comment. Check the comments before sending again.");
+      const definite = definiteJiraWriteFailure(err);
+      if (!definite && typeof document !== "undefined" && document.activeElement === sendRef.current) textRef.current?.focus();
+      write.update({ busy: false, uncertain: !definite, error: definite && err instanceof Error ? err.message : "Could not confirm whether Jira saved the comment. Check the comments before sending again." });
       onChanged();
-    } finally { window.clearTimeout(timer); lock.current = false; setBusy(false); }
+    } finally { window.clearTimeout(timer); busyRef.current = false; }
   };
   return <div className="jr-comment-compose">
     <label htmlFor="jira-comment-text">Add a comment</label>
-    <textarea id="jira-comment-text" value={text} maxLength={10000} rows={3} disabled={busy} onChange={e => { setText(e.target.value); setSent(false); }} placeholder="Write a comment…" />
+    <textarea ref={textRef} id="jira-comment-text" value={text} maxLength={10000} rows={3} readOnly={busy} onChange={e => { if (busyRef.current) return; write.update({ draft: e.target.value, ...(!uncertain ? { error: "" } : {}) }); setSent(false); }} placeholder="Write a comment…" />
     <div className="jr-comment-actions">
-      <button type="button" className="btn" disabled={!text.trim() || busy || uncertain} onClick={send}>{busy ? "Sending…" : "Add comment"}</button>
-      {uncertain && <button type="button" className="btn" onClick={() => { setUncertain(false); setError(""); }}>I checked the comments</button>}
+      <button ref={sendRef} type="button" className="btn" {...selfPressProps(busy, !text.trim() || uncertain)} onClick={send}>{busy ? "Sending…" : "Add comment"}</button>
+      {uncertain && <button ref={checkedRef} type="button" className="btn" onClick={() => { if (typeof document !== "undefined" && document.activeElement === checkedRef.current) textRef.current?.focus(); write.update({ uncertain: false, error: "" }); }}>I checked the comments</button>}
       {sent && <span role="status">Comment added.</span>}
     </div>
     {error && <p role="alert">{error}</p>}

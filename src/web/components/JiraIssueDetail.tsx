@@ -137,7 +137,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
             <p className="jr-detail-state">
               <span className="jr-with-icon"><TypeIcon type={issue.type} />{issue.type.name}</span>
               <StatusLozenge status={issue.status} />
-              {onStatusChanged && <JiraTransition key={issue.key} api={api} issueKey={issue.key} onChanged={onStatusChanged} />}
+              {onStatusChanged && <JiraTransition key={issue.key} api={api} connectionId={conn.id} issueKey={issue.key} onChanged={onStatusChanged} />}
               {resolution && <span className="jr-dim">{resolution}</span>}
               {issue.priority && <span className="jr-with-icon"><PriorityIcon priority={issue.priority} />{issue.priority.name}</span>}
               {issue.flagged && <span className="jr-flagged"><FlagGlyph /> Flagged</span>}
@@ -205,7 +205,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
                 </li>
               ))}
             </ol>
-            {onStatusChanged && <JiraCommentForm key={issue.key} api={api} issueKey={issue.key} onChanged={onStatusChanged} />}
+            {onStatusChanged && <JiraCommentForm key={issue.key} api={api} connectionId={conn.id} issueKey={issue.key} onChanged={onStatusChanged} />}
             {data!.comments.total > data!.comments.items.length && (
               <p className="jr-dim"><a className="jr-more-link" href={issue.url} target="_blank" rel="noreferrer noopener">The older comments are in Jira <ExternalLinkGlyph /></a></p>
             )}

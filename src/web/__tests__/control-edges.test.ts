@@ -542,6 +542,8 @@ const CONTROLS: Control[] = [
   { at: 'button.btn.jr-chip[aria-pressed="true"]', fillFrom: 'button.btn.jr-chip[aria-pressed="true"]', beds: ["--panel"] },
   // Move's native destination/position fields sit on the anchored panel.
   { at: ".jr-move-pop select", beds: ["--panel"] },
+  // The workflow transition selector is drawn in Jira's detail panel.
+  { at: ".jr-transition select", beds: ["--panel"] },
   // The integrations' shared search field (#2178, #2179), which both panels'
   // fields become: on a toolbar over --bg in the modal, or over --panel.
   { at: ".ig-search-input", states: [".ig-search-input:hover"], beds: ["--panel", "--bg"] },

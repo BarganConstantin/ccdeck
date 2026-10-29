@@ -23,6 +23,8 @@ export interface ProviderInfo {
 
 /** A failure, as the envelope every integration route answers with says it:
  *  `{ ok: false, error: { kind, message, status?, retryAfter? } }`. */
+export type JiraMoveOutcome = { issueKey: string; membership: "moved" | "unchanged" | "unknown"; rank: "ranked" | "unchanged" | "failed" | "unknown" };
+export type JiraMoveSummary = Pick<JiraMoveOutcome, "membership" | "rank">;
 export class IntegrationFailure extends Error {
   kind: IntegrationErrorKind;
   /** The tracker's own HTTP status, when it answered one. */
@@ -30,7 +32,11 @@ export class IntegrationFailure extends Error {
   retryAfter?: number;
   field?: string;
   detail?: string;
-  constructor(kind: IntegrationErrorKind, message: string, extra: { status?: number; retryAfter?: number; field?: string; detail?: string } = {}) {
+  /** The server attempted a write and its board needs verification. */
+  refreshRequired?: boolean;
+  outcomes?: JiraMoveOutcome[];
+  moveOutcome?: JiraMoveSummary;
+  constructor(kind: IntegrationErrorKind, message: string, extra: { status?: number; retryAfter?: number; field?: string; detail?: string; refreshRequired?: boolean; outcomes?: JiraMoveOutcome[]; moveOutcome?: JiraMoveSummary } = {}) {
     super(message);
     this.name = "IntegrationFailure";
     this.kind = kind;
@@ -44,7 +50,16 @@ export async function failureOf(res: Response): Promise<IntegrationFailure> {
     const body = await res.json();
     const e = body?.error;
     if (e && typeof e.kind === "string" && typeof e.message === "string") {
-      return new IntegrationFailure(e.kind, e.message, { status: e.status, retryAfter: e.retryAfter, field: e.field, detail: e.detail });
+      const outcomes: JiraMoveOutcome[] = Array.isArray(body.outcomes) ? body.outcomes.slice(0, 50).filter((o: unknown): o is JiraMoveOutcome => {
+        if (!o || typeof o !== "object") return false;
+        const item = o as Record<string, unknown>;
+        return typeof item.issueKey === "string" && /^[A-Z][A-Z0-9_]{0,40}-[1-9]\d{0,11}$/.test(item.issueKey)
+          && ["moved", "unchanged", "unknown"].includes(String(item.membership))
+          && ["ranked", "unchanged", "failed", "unknown"].includes(String(item.rank));
+      }).map((o: JiraMoveOutcome) => ({ issueKey: o.issueKey, membership: o.membership, rank: o.rank })) : [];
+      const o = body.outcome;
+      const moveOutcome: JiraMoveSummary | undefined = o && ["moved", "unchanged", "unknown"].includes(o.membership) && ["ranked", "unchanged", "failed", "unknown"].includes(o.rank) ? { membership: o.membership, rank: o.rank } : undefined;
+      return new IntegrationFailure(e.kind, e.message, { status: e.status, retryAfter: e.retryAfter, field: e.field, detail: e.detail, ...(body.refresh === true ? { refreshRequired: true } : {}), ...(outcomes.length ? { outcomes } : {}), ...(moveOutcome ? { moveOutcome } : {}) });
     }
   } catch { /* not JSON */ }
   return new IntegrationFailure(res.status === 401 ? "auth" : "upstream", `The deck answered ${res.status}.`);

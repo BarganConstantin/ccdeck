@@ -167,6 +167,14 @@ describe("the bounded Jira move", () => {
     assert.equal((await r.move()).status, 200);
     assert.ok(r.state.writes.length > 0);
   });
+  it("refuses moving a done issue to the backlog before making writes", async () => {
+    const r = rig();
+    r.state.issues[1].fields.status.statusCategory.key = "done";
+    const result = await r.move({ issueKey: "MOCK-2", target: { kind: "backlog" }, atEnd: true });
+    assert.equal(result.status, 400);
+    assert.match(result.body.error.message, /done.*backlog/i);
+    assert.equal(r.state.writes.length, 0);
+  });
   it("allows a done top-level issue as a stationary rank anchor", async () => {
     const r = rig();
     r.state.issues[1].fields.status.statusCategory.key = "done";

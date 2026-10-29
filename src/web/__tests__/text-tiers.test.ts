@@ -246,6 +246,8 @@ describe("what was migrated to the secondary tier", () => {
       // field labels, a reading preview's version and epic, and Clear filters,
       // a worded action that steps up to --text under the pointer.
       ".jr-selection", ".jr-move-pop label", ".jr-row-preview dd", ".jr-clear",
+      // The explanation below an unsuccessful Jira comment.
+      '.jr-comment-compose [role="alert"]',
       // Jira's labels and sprint totals: words on a --ctl-fill pill, kept
       // here by their bed rather than their role, as the shared field's
       // placeholder is — --muted is 4.05:1 on that fill in dark. A status

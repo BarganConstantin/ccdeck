@@ -54,6 +54,10 @@ export interface JiraBacklogProps {
   onReconnect: () => void;
   onMove?: (move: JiraMove) => Promise<{ notice?: string }>;
   moveBusy?: boolean;
+  readBusy?: boolean;
+  moveUncertain?: boolean;
+  moveOutcome?: string;
+  onMoveChecked?: () => void;
   scrollBoundaryId?: string;
 }
 
@@ -177,7 +181,7 @@ function statusWidth(snap: BoardSnapshot): number {
 
 export default function JiraBacklog(props: JiraBacklogProps) {
   const { conn, overview, groups, snap, expanded, onToggleGroup, filter, mine, filtered, selected, onOpen, rowsOpen, onToggleRow,
-    onRetryGroup, onMore, onShowClosed, onMoreClosed, loadSubtasks, onReconnect, onMove, moveBusy = false } = props;
+    onRetryGroup, onMore, onShowClosed, onMoreClosed, loadSubtasks, onReconnect, onMove, moveBusy = false, readBusy = moveBusy, moveUncertain = false, moveOutcome = "", onMoveChecked } = props;
   const listRef = useRef<HTMLDivElement>(null);
   const boardId = useId();
   const drag = useRef<{ items: JiraMoveItem[] } | null>(null);
@@ -195,6 +199,8 @@ export default function JiraBacklog(props: JiraBacklogProps) {
   const submitting = useRef(false);
   const moveBusyRef = useRef(false);
   moveBusyRef.current = moveBusy;
+  const readBusyRef = useRef(false);
+  readBusyRef.current = readBusy;
   const closedLoadingRef = useRef(false);
   closedLoadingRef.current = snap.closed.loading;
   const canMove = overview.moves?.enabled === true && Boolean(onMove);
@@ -255,6 +261,11 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     } catch (error) {
       setMoveNotice("");
       setMoveError(error instanceof Error ? error.message : "The move could not be confirmed. Refresh before trying again.");
+      if (serial === menuSerial.current && document.activeElement === document.body && !opener?.isConnected) requestAnimationFrame(() => {
+        if (document.activeElement !== document.body) return;
+        const row = Array.from(listRef.current?.querySelectorAll<HTMLElement>(".jr-row-main[data-key]") ?? []).find(el => el.dataset.key === keys[0] && el.dataset.nav?.startsWith(`${destination.id}/`));
+        (row ?? document.getElementById(`jr-group-${destination.id.replace(/[^a-z0-9]/gi, "-")}-toggle`))?.focus();
+      });
       return false;
     } finally { submitting.current = false; }
   };
@@ -643,7 +654,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                 {rows.length > 0 && <ul className="jr-rows">{rows.map(row => renderRow(row, def, 0))}</ul>}
                 {data?.capped && <p className="jr-board-note">The first 600 issues are shown. Open the sprint in Jira for the rest.</p>}
                 {def.paged && data?.next && (
-                  <button type="button" className="btn jr-more" {...selfPressProps(moveBusy || Boolean(data.more))} onClick={() => { if (selfPressAccepted(moveBusyRef.current || Boolean(data.more))) onMore(def); }}>
+                  <button type="button" className="btn jr-more" {...selfPressProps(readBusy || Boolean(data.more))} onClick={() => { if (selfPressAccepted(readBusyRef.current || Boolean(data.more))) onMore(def); }}>
                     {data.more ? "Reading…" : data.total != null ? `Show more (${data.issues.length} of ${data.total})` : "Show more"}
                   </button>
                 )}
@@ -656,7 +667,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
 
       {moveMenu && <JiraMovePopover key={moveMenu.anchorId} items={moveMenu.items} groups={groups} snap={snap}
         initialView={moveMenu.initialView}
-        anchorId={moveMenu.anchorId} portalId={boardId} boundaryId={props.scrollBoundaryId} busy={moveBusy} error={moveError}
+        anchorId={moveMenu.anchorId} portalId={boardId} boundaryId={props.scrollBoundaryId} busy={moveBusy && !moveUncertain} uncertain={moveUncertain} outcome={moveOutcome} onChecked={onMoveChecked} error={moveError}
         onMove={saveMove} onClose={closeMoveMenu} />}
 
       {anySprint && (

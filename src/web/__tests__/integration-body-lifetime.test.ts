@@ -1,8 +1,19 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { integrationCall, readThrough } from "../integrations/client";
+import { failureOf, integrationCall, readThrough } from "../integrations/client";
 
 beforeEach(() => { vi.stubGlobal("window", globalThis); vi.useFakeTimers(); });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+it("preserves the server's signal that a failed move may have changed Jira", async () => {
+  const outcomes = [{ issueKey: "MOCK-1", membership: "moved", rank: "failed" }, { issueKey: "MOCK-2", membership: "unchanged", rank: "unknown" }];
+  const response = Response.json({ error: { kind: "permission", message: "Rank refused", status: 403 }, refresh: true, outcomes }, { status: 403 });
+  expect(await failureOf(response)).toMatchObject({ kind: "permission", status: 403, refreshRequired: true, outcomes });
+});
+
+it("keeps a single issue's partial move result", async () => {
+  const response = Response.json({ error: { kind: "permission", message: "Rank refused", status: 403 }, refresh: true, outcome: { membership: "moved", rank: "failed" } }, { status: 403 });
+  expect(await failureOf(response)).toMatchObject({ refreshRequired: true, moveOutcome: { membership: "moved", rank: "failed" } });
+});
 
 // Fetch resolves at headers, while a real fetch's body still listens to its
 // signal. Model that boundary with a readable body, not an unresolved fetch.

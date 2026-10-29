@@ -13,6 +13,9 @@ interface Props {
   portalId: string;
   boundaryId?: string;
   busy: boolean;
+  uncertain?: boolean;
+  outcome?: string;
+  onChecked?: () => void;
   onMove: (move: JiraMove, destination: GroupDef) => Promise<boolean>;
   onClose: () => void;
   error: string;
@@ -20,11 +23,12 @@ interface Props {
 }
 
 /** The same move as a pointer drop, with named controls for touch/keyboard. */
-export default function JiraMovePopover({ items, groups, anchorId, portalId, boundaryId, busy, onMove, onClose, error, initialView = "move" }: Props) {
+export default function JiraMovePopover({ items, groups, anchorId, portalId, boundaryId, busy, uncertain = false, outcome = "", onChecked, onMove, onClose, error, initialView = "move" }: Props) {
   const id = useId();
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const submitting = useRef(false);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const [view, setView] = useState(initialView);
   const [destination, setDestination] = useState(items[0].group.id);
   const isMenu = view === "menu";
@@ -40,7 +44,7 @@ export default function JiraMovePopover({ items, groups, anchorId, portalId, bou
   const blocker = items.length === 1 ? issueMoveBlocker(items[0]) : null;
   const problem = blocker ? `${items[0].issue.key} ${blocker}. This issue cannot be moved.` : moveSelectionProblem(items);
   const submit = async () => {
-    if (!move || !to || !selfPressAccepted(busyRef.current || submitting.current)) return;
+    if (!move || !to || uncertain || !selfPressAccepted(busyRef.current || submitting.current)) return;
     submitting.current = true;
     try { await onMove(move, to); }
     finally { submitting.current = false; }
@@ -64,9 +68,11 @@ export default function JiraMovePopover({ items, groups, anchorId, portalId, bou
         </select>
         <p className="jr-move-help">Saved at the end of the destination in Jira. Status stays the same.</p>
         {error && <p className="jr-move-error" role="alert">{error}</p>}
+        {uncertain && outcome && <p className="jr-move-help">{outcome}</p>}
         <div className="jr-move-actions">
-          <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn primary" {...selfPressProps(busy, !move)}>{busy ? "Moving…" : items.length === 1 ? "Move issue" : `Move ${items.length} issues`}</button>
+          <button ref={cancelRef} type="button" className="btn" onClick={onClose}>Cancel</button>
+          {uncertain && <button type="button" className="btn" onClick={event => { if (document.activeElement === event.currentTarget) cancelRef.current?.focus(); onChecked?.(); }}>I checked the issues</button>}
+          <button type="submit" className="btn primary" {...selfPressProps(busy, !move)} aria-disabled={uncertain || undefined}>{busy ? "Moving…" : items.length === 1 ? "Move issue" : `Move ${items.length} issues`}</button>
         </div>
       </form>}
     </AnchoredPopover>

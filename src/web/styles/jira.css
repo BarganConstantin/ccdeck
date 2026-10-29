@@ -607,7 +607,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 
 /* Workflow actions stay beside the current status, wrapping on narrow screens. */
 .jr-transition, .jr-transition-controls { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.jr-transition select { max-width: 100%; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--border); border-radius: 5px; padding: 4px 6px; }
+.jr-transition select { max-width: 100%; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 4px 6px; }
 .jr-transition [role="alert"] { flex-basis: 100%; }
 
 .jr-comment-compose { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }

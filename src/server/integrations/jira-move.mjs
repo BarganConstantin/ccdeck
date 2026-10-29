@@ -156,6 +156,9 @@ export function createJiraMover({ secret, origins, sign, authCheck, fetchImpl = 
         if (issueKeys.includes(key) && (epic || !["new", "indeterminate", "done"].includes(issue.fields?.status?.statusCategory?.key))) {
           throw invalid("Only top-level non-epic issues with a known status can be moved.");
         }
+        if (issueKeys.includes(key) && target.kind === "backlog" && issue.fields?.status?.statusCategory?.key === "done") {
+          throw invalid("Done issues cannot be moved to the backlog because Jira hides them there. Change the status first.");
+        }
       }
       const sources = new Map();
       const sameGroup = source => source.kind === target.kind && (source.kind === "backlog" || source.sprintId === target.sprintId);

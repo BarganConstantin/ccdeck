@@ -9,7 +9,7 @@ it("blocks another transition after an unconfirmed write until the user checks",
     const api = vi.fn(async (_path: string, init?: RequestInit) => init?.method === "POST"
       ? Response.json({ error: { kind: "upstream", message: "unconfirmed" } }, { status: 502 })
       : Response.json({ transitions: [{ id: "11", name: "Start", to: "In Progress", requiresScreen: false }] }));
-    const view = mount(JiraTransition, { api, issueKey: "MOCK-1", onChanged: vi.fn() });
+    const view = mount(JiraTransition, { api, connectionId: "transition-test", issueKey: "MOCK-1", onChanged: vi.fn() });
     const button = (label: string) => one(view.tree, el => el.type === "button" && textOf(el) === label)!;
     (button("Change status").props.onClick as () => void)(); await flush();
     const select = one(view.tree, el => el.type === "select")!;
