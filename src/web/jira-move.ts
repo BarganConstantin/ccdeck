@@ -75,5 +75,5 @@ export function issuesMove(items: readonly JiraMoveItem[], to: GroupDef, anchor?
     || items.some(i => !movableIssue(i.issue, i.group)) || (anchor && keys.includes(anchor.key))
     || (items.every(i => i.group.id === to.id) && !anchor)) return null;
   return { ...(keys.length === 1 ? { issueKey: keys[0] } : { issueKeys: keys }), target,
-    ...(anchor ? anchor.side === "before" ? { beforeIssue: anchor.key } : { afterIssue: anchor.key } : {}) };
+    ...(anchor ? anchor.side === "before" ? { beforeIssue: anchor.key } : { afterIssue: anchor.key } : { atEnd: true }) };
 }
