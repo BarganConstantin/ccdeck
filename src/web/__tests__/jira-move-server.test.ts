@@ -628,3 +628,28 @@ describe("batch 207 and uncertain-write outcomes", () => {
     }
   });
 });
+
+describe('durable guard for HTTP moves', () => {
+  it('blocks a retry after membership succeeded but ranking failed', async () => {
+    const r = rig({ state: { writeResponses: [new Response(null, { status: 204 }), new Response(null, { status: 500 })] } });
+    await withHost(r, async post => {
+      const failed = await post(input);
+      assert.notEqual(failed.status, 200);
+      assert.equal(r.state.writes.length, 2);
+      const retry = await post(input);
+      assert.equal(retry.status, 409);
+      assert.equal(retry.body.code, 'jira_write_guard_conflict');
+      assert.equal(retry.body.operation.state, 'uncertain');
+      assert.deepEqual(retry.body.operation.issueKeys, ['MOCK-1']);
+      assert.equal(r.state.writes.length, 2);
+    });
+  });
+  it('clears a definitively rejected preflight', async () => {
+    const r = rig({ state: { boardType: 'kanban' } });
+    await withHost(r, async post => {
+      assert.equal((await post(input)).status, 400);
+      assert.equal((await post(input)).status, 400);
+      assert.equal(r.state.writes.length, 0);
+    });
+  });
+});
