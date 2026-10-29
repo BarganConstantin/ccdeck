@@ -47,7 +47,9 @@ function rig(options = {}) {
     if (/\/board\/1\/(?:issue|backlog|sprint\/\d+\/issue)$/.test(path)) {
       const keys = (u.searchParams.get("jql") ?? "").match(/MOCK-\d+/g) ?? [];
       const group = path.endsWith("/backlog") ? "backlog" : /\/sprint\/(\d+)\/issue$/.test(path) ? `sprint:${path.match(/\/sprint\/(\d+)\/issue$/)[1]}` : null;
-      const matched = state.issues.filter(i => keys.includes(i.key) && (!group || state.groups[i.key] === group));
+      const reverseRank = u.searchParams.get("jql") === "ORDER BY Rank DESC";
+      const matched = state.issues.filter(i => (reverseRank || keys.includes(i.key)) && (!group || state.groups[i.key] === group));
+      if (reverseRank) matched.reverse();
       const startAt = Number(u.searchParams.get("startAt") ?? 0);
       const max = Math.min(Number(u.searchParams.get("maxResults") ?? 100), state.issuePageSize);
       return json({ issues: matched.slice(startAt, startAt + max), total: Object.hasOwn(state, "issueTotal") ? state.issueTotal : matched.length });
@@ -101,6 +103,36 @@ describe("the bounded Jira move", () => {
     assert.equal(result.status, 200);
     assert.deepEqual(r.state.writes.map(w => w.method), ["PUT"]);
     assert.equal(r.state.writes[0].json.rankAfterIssue, "MOCK-2");
+  });
+  it("moves to the actual end even when the visible list is incomplete", async () => {
+    const r = rig({ state: { issuePageSize: 1 } });
+    const result = await r.move({ issueKey: "MOCK-1", target: input.target, atEnd: true });
+    assert.equal(result.status, 200);
+    assert.equal(r.state.writes[1].json.rankAfterIssue, "MOCK-3");
+  });
+  it("skips the selected tail and ranks after the previous issue", async () => {
+    const r = rig({ state: { issuePageSize: 1 } });
+    const result = await r.move({ issueKey: "MOCK-3", target: input.target, atEnd: true });
+    assert.equal(result.status, 200);
+    assert.equal(r.state.writes[0].json.rankAfterIssue, "MOCK-2");
+  });
+  it("moves to an empty destination without a rank request", async () => {
+    const r = rig();
+    const result = await r.move({ issueKey: "MOCK-1", target: { kind: "sprint", sprintId: 14 }, atEnd: true });
+    assert.equal(result.status, 200);
+    assert.deepEqual(r.state.writes.map(w => w.method), ["POST"]);
+  });
+  it("does not write when the destination order cannot be read", async () => {
+    const r = rig({ state: { onRead: u => u.searchParams.get("jql") === "ORDER BY Rank DESC" ? json({}) : null } });
+    const result = await r.move({ issueKey: "MOCK-1", target: input.target, atEnd: true });
+    assert.equal(result.status, 400);
+    assert.equal(r.state.writes.length, 0);
+  });
+  it("rejects a conflicting explicit position before writing", async () => {
+    const r = rig();
+    const result = await r.move({ ...input, atEnd: true });
+    assert.equal(result.status, 400);
+    assert.equal(r.state.writes.length, 0);
   });
   it("moves to backlog then ranks relative to a backlog issue", async () => {
     const r = rig();

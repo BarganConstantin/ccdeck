@@ -7,6 +7,7 @@ export type JiraMove = {
   target: { kind: "sprint"; sprintId: number } | { kind: "backlog" };
   beforeIssue?: string;
   afterIssue?: string;
+  atEnd?: true;
 } & ({ issueKey: string; issueKeys?: never } | { issueKey?: never; issueKeys: string[] });
 
 export interface JiraMoveItem { issue: JiraIssue; group: GroupDef }

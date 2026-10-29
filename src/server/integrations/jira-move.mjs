@@ -14,7 +14,7 @@ const only = (v, keys) => object(v) && Object.keys(v).every(k => keys.includes(k
 const invalid = message => integrationError("invalid", message);
 
 export function parseJiraMove(body) {
-  if (!only(body, ["issueKey", "issueKeys", "target", "beforeIssue", "afterIssue"]) || Object.hasOwn(body, "issueKey") === Object.hasOwn(body, "issueKeys")) {
+  if (!only(body, ["issueKey", "issueKeys", "target", "beforeIssue", "afterIssue", "atEnd"]) || Object.hasOwn(body, "issueKey") === Object.hasOwn(body, "issueKeys")) {
     throw invalid("Supply either one issueKey or 2–50 ordered issueKeys and a sprint or backlog target.");
   }
   const key = value => typeof value === "string" && value === value.trim() && KEY.test(value) ? value : null;
@@ -27,10 +27,10 @@ export function parseJiraMove(body) {
     !(t.kind === "backlog" || (t.kind === "sprint" && positiveId(t.sprintId)))) throw invalid("Not a valid issue key or move target.");
   const beforeIssue = Object.hasOwn(body, "beforeIssue") ? key(body.beforeIssue) : undefined;
   const afterIssue = Object.hasOwn(body, "afterIssue") ? key(body.afterIssue) : undefined;
-  if (beforeIssue === null || afterIssue === null || (beforeIssue && afterIssue) || issueKeys.includes(beforeIssue) || issueKeys.includes(afterIssue)) {
+  if ((Object.hasOwn(body, "atEnd") && body.atEnd !== true) || (body.atEnd && (beforeIssue || afterIssue)) || beforeIssue === null || afterIssue === null || (beforeIssue && afterIssue) || issueKeys.includes(beforeIssue) || issueKeys.includes(afterIssue)) {
     throw invalid("Use at most one other issue as the rank anchor.");
   }
-  return { issueKeys: issueKeys.slice(), batch, target: t.kind === "sprint" ? { kind: "sprint", sprintId: t.sprintId } : { kind: "backlog" }, beforeIssue, afterIssue };
+  return { issueKeys: issueKeys.slice(), batch, target: t.kind === "sprint" ? { kind: "sprint", sprintId: t.sprintId } : { kind: "backlog" }, beforeIssue, afterIssue, atEnd: body.atEnd === true };
 }
 
 /** Conservative support, not a claim about the token's write permissions. */
@@ -115,8 +115,8 @@ export function createJiraMover({ secret, origins, sign, authCheck, fetchImpl = 
 
   return async (boardId, input, signal) => {
     const move = parseJiraMove(input);
-    const { issueKeys, batch, target, beforeIssue, afterIssue } = move;
-    const anchor = beforeIssue ?? afterIssue;
+    const { issueKeys, batch, target, beforeIssue, afterIssue, atEnd } = move;
+    let anchor = beforeIssue ?? afterIssue;
     const read = reader(signal);
     const outcomes = new Map(issueKeys.map(key => [key, { membership: "unchanged", rank: "unchanged" }]));
     let attempted = false;
@@ -188,6 +188,25 @@ export function createJiraMover({ secret, origins, sign, authCheck, fetchImpl = 
         const found = await readIssues(groupSuffix(group), keys, "issuetype");
         if (keys.some(key => !found.has(key))) throw invalid("An issue's source changed or is a closed sprint. Refresh the board.");
       }
+      if (atEnd) {
+        // Read Jira's full destination order, never a filtered or partial UI list.
+        // Jira's board endpoints are rank-ordered by default. Ask for the
+        // reverse order and find the first top-level issue outside this batch.
+        let complete = false;
+        for (let startAt = 0, page = 0; page < 200; page++) {
+          const q = new URLSearchParams({ jql: "ORDER BY Rank DESC", fields: "issuetype", startAt: String(startAt), maxResults: "50" });
+          const result = await read.json(`${agile}/board/${boardId}/${groupSuffix(target)}?${q}`);
+          if (!Array.isArray(result?.issues)) throw invalid("Could not determine the destination's last issue. Refresh and try again.");
+          const values = result.issues;
+          if (values.some(i => !KEY.test(i?.key ?? "") || typeof i.fields?.issuetype?.subtask !== "boolean")) throw invalid("Could not verify the destination order. Refresh and try again.");
+          if (!values.length && Number.isInteger(result.total) && startAt < result.total) throw invalid("Could not verify the destination order. Refresh and try again.");
+          const last = values.find(i => KEY.test(i?.key ?? "") && i.fields?.issuetype?.subtask === false && !issueKeys.includes(i.key));
+          if (last) { anchor = last.key; complete = true; break; }
+          if (result.isLast === true || values.length === 0 || (Number.isInteger(result.total) && startAt + values.length >= result.total)) { complete = true; break; }
+          startAt += values.length;
+        }
+        if (!complete) throw invalid("The destination is too large to determine the last issue. Refresh and try again.");
+      }
       if (anchor && !(await readIssues(groupSuffix(target), [anchor], "issuetype")).has(anchor)) throw invalid("The rank anchor must be in the target group. Refresh the board.");
       const needed = issueKeys.filter(key => !sameGroup(sources.get(key)));
       if (needed.length) {
@@ -202,7 +221,7 @@ export function createJiraMover({ secret, origins, sign, authCheck, fetchImpl = 
         attempted = true;
         pendingKeys = issueKeys;
         await write("issue/rank", "PUT", { issues: issueKeys, rankCustomFieldId: capability.rankCustomFieldId,
-          ...(beforeIssue ? { rankBeforeIssue: beforeIssue } : { rankAfterIssue: afterIssue }) }, issueKeys, signal);
+          ...(beforeIssue ? { rankBeforeIssue: beforeIssue } : { rankAfterIssue: anchor }) }, issueKeys, signal);
         for (const key of issueKeys) outcomes.get(key).rank = "ranked";
       }
       return { status: 200, body: { ok: true, ...(batch ? { issueKeys } : { issueKey: issueKeys[0] }), target, refresh: true } };
