@@ -110,10 +110,11 @@ async function screenWith(name: string, text: string): Promise<string> {
 // None is the deck's to fix: the program was run as itself (see "runs a
 // one-word command" below), and the status and the bytes are tmux's to keep.
 // From 3.7 the program exits at once, nothing is sent, and every listing that
-// says dead must carry the status. A tmux whose -V names no version gets the
-// older handling.
+// says dead must carry the status. So does a tmux whose -V names no version
+// the deck can read: nothing shows such a tmux has these faults, so it gets
+// none of the allowances (and CI never runs one: its tmux step fails first).
 const olderThan = (major: number, minor: number) =>
-  !found.version || found.version[0] < major || (found.version[0] === major && found.version[1] < minor);
+  !!found.version && (found.version[0] < major || (found.version[0] === major && found.version[1] < minor));
 
 /** The listing, polled until `done` holds or two seconds pass: a pane's
  *  program runs on tmux's clock, not on this test's. */
