@@ -44,7 +44,6 @@ export function movableIssue(issue: JiraIssue, group: GroupDef): boolean {
 export function issueMoveBlocker({ issue, group }: JiraMoveItem): string | null {
   if (issue.type.subtask) return "is a subtask";
   if (issue.type.epic) return "is an epic";
-  if (issue.status.category === "done") return `is ${issue.status.name}`;
   if (group.kind === "closed") return "is in a closed sprint";
   if (!moveDestination(group)) return "is not in an active/future sprint or the backlog";
   return null;

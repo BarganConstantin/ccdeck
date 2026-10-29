@@ -40,7 +40,7 @@ describe("visible issue selection", () => {
 describe("actionable blocked-selection feedback", () => {
   it("identifies the issue and its actual reason without dropping valid selections", () => {
     const done = { issue: { ...issue, key: "MOCK-6", status: { name: "Released", category: "done" as const } }, group: sprint };
-    expect(moveSelectionProblem([{ issue, group: sprint }, done])).toContain("MOCK-6 is Released");
+    expect(moveSelectionProblem([{ issue, group: sprint }, done])).toBe("");
     expect(moveSelectionProblem([{ issue, group: sprint }, done])).not.toContain("MOCK-1 is");
     expect(issueMoveBlocker({ issue, group: { ...sprint, kind: "closed" } })).toBe("is in a closed sprint");
     expect(issueMoveBlocker({ issue: { ...issue, type: { ...issue.type, subtask: true } }, group: sprint })).toBe("is a subtask");
@@ -69,7 +69,7 @@ describe("one explicit Jira move", () => {
     expect(moveDestination({ ...backlog, kind: "column", column: "todo" })).toBeNull();
     expect(movableIssue({ ...issue, type: { ...issue.type, subtask: true } }, sprint)).toBe(false);
     expect(movableIssue({ ...issue, type: { ...issue.type, epic: true } }, sprint)).toBe(false);
-    expect(movableIssue({ ...issue, status: { name: "Done", category: "done" } }, sprint)).toBe(false);
+    expect(movableIssue({ ...issue, status: { name: "Done", category: "done" } }, sprint)).toBe(true);
   });
 });
 
