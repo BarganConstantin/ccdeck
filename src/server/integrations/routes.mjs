@@ -516,10 +516,10 @@ export async function handleIntegrations(req, res, url, deps = {}) {
     const secret = hold(await store.secret(id));
     if (secret == null) throw integrationError("expired", "No token is saved for this connection. Reconnect it in Settings.");
     const mutation = jiraMove || jiraTransition || jiraComment;
-    let operation, attempted = false;
+    let operation, attempted = false, possibleWrite = false;
     let client;
     if (mutation) {
-      const scope = jiraMove ? { kind: "move", issueKeys: parseJiraMove(moveBody).issueKeys }
+      const scope = jiraMove ? { kind: "move", boardId: rest[1], issueKeys: parseJiraMove(moveBody).issueKeys }
         : { kind: jiraComment ? "comment" : "status", issueKey: rest[1] };
       const reservation = await guard.begin({ connectionId: id, ...scope });
       if (reservation.conflict) return answer(409, { ok: false, code: "jira_write_guard_conflict", operation: reservation.conflict });
@@ -527,9 +527,15 @@ export async function handleIntegrations(req, res, url, deps = {}) {
       // A private client associates each upstream write with this request; reads
       // and the existing cached client remain untouched.
       const transport = fetchImpl ?? globalThis.fetch;
-      const trackedFetch = (url, opts = {}) => {
-        if (opts.method && !["GET", "HEAD"].includes(String(opts.method).toUpperCase())) attempted = true;
-        return transport(url, opts);
+      const trackedFetch = async (url, opts = {}) => {
+        const write = opts.method && !["GET", "HEAD"].includes(String(opts.method).toUpperCase());
+        if (!write) return transport(url, opts);
+        attempted = true;
+        try {
+          const response = await transport(url, opts);
+          if (!(response.status >= 400 && response.status < 500 && response.status !== 408)) possibleWrite = true;
+          return response;
+        } catch (err) { possibleWrite = true; throw err; }
       };
       try { client = provider.createClient(conn, secret, { fetchImpl: trackedFetch }); }
       catch (err) { await guard.finish(operation, true); throw err; }
@@ -538,13 +544,27 @@ export async function handleIntegrations(req, res, url, deps = {}) {
     let read;
     try {
       read = await provider.routes(client, method, rest.join("/"), url.searchParams, req, { signal, ...(mutation ? { moveBody } : {}) });
+    } catch (err) {
+      if (!operation || !possibleWrite) throw err;
+      // Preserve typed provider errors; an unexpected failure after a write
+      // must still give the caller the durable operation to reconcile.
+      read = errorResponse(err);
     } finally {
       if (mutation && attempted) forgetConnection(id);
-      if (operation) await guard.finish(operation, !attempted || (read?.status >= 200 && read.status < 300 && read?.body?.ok === true));
+      if (operation) {
+        const confirmed = read?.status >= 200 && read.status < 300 && read?.body?.ok === true;
+        await guard.finish(operation, confirmed ? 'confirmed' : !attempted || !possibleWrite);
+      }
     }
     if (res.writableEnded || signal.aborted) return;
     const status = Number.isInteger(read?.status) ? read.status : 500;
-    return answer(status, read?.body ?? errorBody(null));
+    const body = read?.body ?? errorBody(null);
+    if (operation && status >= 200 && status < 300 && body.ok === true) return answer(status, { ...body, operationId: operation.operationId });
+    if (operation && possibleWrite) {
+      const current = (await guard.list(id)).find(entry => entry.operationId === operation.operationId);
+      if (current) return answer(status, { ...body, operation: current });
+    }
+    return answer(status, body);
   } catch (err) {
     if (isTypedError(err)) {
       const { status, body } = errorResponse(err);

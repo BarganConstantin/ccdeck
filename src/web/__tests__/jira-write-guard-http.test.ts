@@ -19,8 +19,18 @@ describe('Jira HTTP write guard', () => {
     const stalled = new Promise<void>(resolve => { release = resolve; });
     let writes = 0;
     let nextStatus = 0;
-    const fetchImpl = async () => { writes++; if (nextStatus) return new Response(null, { status: nextStatus }); started(); await stalled; throw new Error('synthetic network loss'); };
-    const server = createServer((req, res) => { handleIntegrations(req, res, new URL(req.url!, 'http://localhost'), { store, fetchImpl, jiraWriteGuard: guard }).catch(() => { res.writeHead(500); res.end(); }); });
+    let dropResponse = false;
+    const fetchImpl = async (_url: string, options: RequestInit = {}) => {
+      if (!options.method || options.method === 'GET') return new Response(JSON.stringify({ transitions: [{ id: '11', name: 'Start', to: { name: 'Started' } }] }), { headers: { 'content-type': 'application/json' } });
+      writes++; if (nextStatus) return new Response(null, { status: nextStatus }); started(); await stalled; throw new Error('synthetic network loss');
+    };
+    const server = createServer((req, res) => {
+      if (dropResponse && req.url?.endsWith('/comment')) {
+        dropResponse = false;
+        res.end = (() => { res.destroy(); return res; }) as typeof res.end;
+      }
+      handleIntegrations(req, res, new URL(req.url!, 'http://localhost'), { store, fetchImpl, jiraWriteGuard: guard }).catch(() => { if (!res.headersSent) res.writeHead(500); res.end(); });
+    });
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
     const base = `http://127.0.0.1:${(server.address() as any).port}/api/integrations/jira/${conn.id}`;
     const post = (path: string, body: object) => fetch(base + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -37,22 +47,48 @@ describe('Jira HTTP write guard', () => {
       expect(saved).not.toContain('private comment content');
       expect(saved).not.toContain('synthetic-secret-token');
       release();
-      expect((await first).status).not.toBe(200);
+      const firstResult = await first;
+      expect(firstResult.status).not.toBe(200);
+      const firstError = await firstResult.json();
+      expect(firstError.error).toBeDefined();
+      expect(firstError.operation).toMatchObject({ operationId: operation.operationId, connectionId: conn.id, kind: 'comment', issueKey: 'MOCK-1', state: 'uncertain' });
       const state = await (await fetch(base + '/write-guard')).json();
       expect(state.operations[0].state).toBe('uncertain');
       expect(writes).toBe(1);
       expect((await post('/write-guard/acknowledge', { operationId: operation.operationId })).status).toBe(200);
       expect((await (await fetch(base + '/write-guard')).json()).operations).toEqual([]);
       nextStatus = 408;
-      expect((await post('/issue/MOCK-1/comment', { text: 'another comment' })).status).not.toBe(200);
+      const timeoutResult = await post('/issue/MOCK-1/comment', { text: 'another comment' });
+      expect(timeoutResult.status).not.toBe(200);
+      const timeoutError = await timeoutResult.json();
+      expect(timeoutError.operation.state).toBe('uncertain');
       const timedOut = await post('/issue/MOCK-1/comment', { text: 'another comment' });
       expect(timedOut.status).toBe(409);
       const timeoutOperation = (await timedOut.json()).operation;
+      expect(timeoutError.operation.operationId).toBe(timeoutOperation.operationId);
       expect(timeoutOperation.state).toBe('uncertain');
       expect((await post('/write-guard/acknowledge', { operationId: timeoutOperation.operationId })).status).toBe(200);
+      for (const status of [400, 401, 403, 404, 409, 429]) {
+        nextStatus = status;
+        expect((await post('/issue/MOCK-1/comment', { text: 'rejected comment' })).status).not.toBe(200);
+        expect((await (await fetch(base + '/write-guard')).json()).operations).toEqual([]);
+        expect((await post('/issue/MOCK-1/transitions', { transitionId: '11' })).status).not.toBe(200);
+        expect((await (await fetch(base + '/write-guard')).json()).operations).toEqual([]);
+      }
       nextStatus = 201;
-      expect((await post('/issue/MOCK-1/comment', { text: 'confirmed comment' })).status).toBe(200);
+      const success = await post('/issue/MOCK-1/comment', { text: 'confirmed comment' });
+      expect(success.status).toBe(200);
+      const confirmedId = (await success.json()).operationId;
+      expect((await (await fetch(base + '/write-guard')).json()).operations[0]).toMatchObject({ operationId: confirmedId, state: 'confirmed' });
+      expect((await post('/issue/MOCK-1/comment', { text: 'confirmed comment' })).status).toBe(409);
+      expect((await post('/write-guard/acknowledge', { operationId: confirmedId })).status).toBe(200);
       expect((await (await fetch(base + '/write-guard')).json()).operations).toEqual([]);
+      dropResponse = true;
+      await expect(post('/issue/MOCK-1/comment', { text: 'response lost' })).rejects.toThrow();
+      const lost = (await (await fetch(base + '/write-guard')).json()).operations[0];
+      expect(lost.state).toBe('confirmed');
+      expect((await post('/issue/MOCK-1/comment', { text: 'response lost' })).status).toBe(409);
+      expect((await post('/write-guard/acknowledge', { operationId: lost.operationId })).status).toBe(200);
     } finally { release(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(dir, { recursive: true, force: true }); }
   });
 });

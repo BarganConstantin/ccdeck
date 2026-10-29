@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { chmod, link, mkdir, open, readFile, readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { deckDataDir } from '../deck-home.mjs';
+import { createTemp, renameWithRetry } from '../atomic-write.mjs';
 import { STORE_DIR } from './store.mjs';
 
 const active = new Set();
@@ -33,7 +34,7 @@ export function createJiraWriteGuard({ dir = () => join(deckDataDir(), STORE_DIR
     const prefix = `running-${op.operationId}-`;
     return names.some(name => name.startsWith(prefix) && alive(Number(name.slice(prefix.length))));
   }
-  async function state(root, op) { return { ...op, state: await running(root, op) ? 'pending' : 'uncertain' }; }
+  async function state(root, op) { return { ...op, state: await running(root, op) ? 'pending' : op.state === 'confirmed' ? 'confirmed' : 'uncertain' }; }
   async function lock(root, op, fn) {
     const name = join(root, `ack-${scope(op)}`);
     let h;
@@ -45,8 +46,8 @@ export function createJiraWriteGuard({ dir = () => join(deckDataDir(), STORE_DIR
     async begin(input) {
       const { connectionId, kind } = input;
       if (typeof connectionId !== 'string' || !connectionId || connectionId.length > 64 || !['comment', 'status', 'move'].includes(kind)) throw new Error('Invalid guard scope');
-      const op = { connectionId, kind, ...(kind === 'move' ? { issueKeys: input.issueKeys } : { issueKey: input.issueKey }), operationId: randomUUID() };
-      if (kind === 'move' ? !Array.isArray(op.issueKeys) || op.issueKeys.length < 1 || op.issueKeys.length > 50 || op.issueKeys.some(k => !keyPattern.test(k)) : !keyPattern.test(op.issueKey)) throw new Error('Invalid guard issue keys');
+      const op = { connectionId, kind, ...(kind === 'move' ? { boardId: input.boardId, issueKeys: input.issueKeys } : { issueKey: input.issueKey }), operationId: randomUUID(), state: 'pending' };
+      if (kind === 'move' ? typeof op.boardId !== 'string' || !/^[1-9]\d{0,11}$/.test(op.boardId) || !Array.isArray(op.issueKeys) || op.issueKeys.length < 1 || op.issueKeys.length > 50 || op.issueKeys.some(k => !keyPattern.test(k)) : !keyPattern.test(op.issueKey)) throw new Error('Invalid guard issue keys');
       const root = await prepare();
       const path = join(root, `${scope(op)}.json`);
       const marker = join(root, `running-${op.operationId}-${process.pid}`);
@@ -72,15 +73,28 @@ export function createJiraWriteGuard({ dir = () => join(deckDataDir(), STORE_DIR
         if (!returned) { active.delete(op.operationId); await unlink(marker).catch(() => {}); }
       }
     },
-    async finish(op, clear) {
+    async finish(op, outcome) {
       const root = await prepare();
       try {
-        if (clear) await lock(root, op, async () => {
-          const path = join(root, `${scope(op)}.json`);
-          const current = await read(path);
-          if (current?.operationId === op.operationId) { await unlink(path); await syncDir(root); }
-          return { ok: true };
-        });
+        if (outcome === true || outcome === 'confirmed') {
+          const result = await lock(root, op, async () => {
+            const path = join(root, `${scope(op)}.json`);
+            const current = await read(path);
+            if (current?.operationId !== op.operationId) return { ok: false };
+            if (outcome === true) await unlink(path);
+            else {
+              const { tmp, handle } = await createTemp(path, { mode: 0o600 });
+              try {
+                try { await handle.writeFile(JSON.stringify({ ...current, state: 'confirmed' })); await handle.sync(); }
+                finally { await handle.close(); }
+                await renameWithRetry(tmp, path);
+              } finally { await unlink(tmp).catch(() => {}); }
+            }
+            await syncDir(root);
+            return { ok: true };
+          });
+          if (!result.ok) throw new Error('Jira write guard could not finalize the operation');
+        }
       } finally {
         active.delete(op.operationId);
         await unlink(join(root, `running-${op.operationId}-${process.pid}`)).catch(() => {});

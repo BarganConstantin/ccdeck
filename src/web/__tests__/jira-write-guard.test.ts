@@ -61,6 +61,21 @@ describe("durable Jira write guard", () => {
     assert.ok((await restarted.begin(comment)).operation);
   });
 
+  it("retains a confirmed receipt across instances until the matching acknowledgement", async () => {
+    const { guard, dir } = await rig();
+    const { operation } = await guard.begin(comment);
+    await guard.finish(operation, 'confirmed');
+    const restarted = createJiraWriteGuard({ dir: () => dir });
+    assert.equal((await restarted.list(comment.connectionId))[0].state, 'confirmed');
+    const moduleUrl = pathToFileURL(join(process.cwd(), "src/server/integrations/jira-write-guard.mjs")).href;
+    const script = `import { createJiraWriteGuard } from ${JSON.stringify(moduleUrl)}; const guard = createJiraWriteGuard({dir: () => process.argv[1]}); console.log(JSON.stringify(await guard.list(${JSON.stringify(comment.connectionId)})));`;
+    const child = await promisify(execFile)(process.execPath, ["--input-type=module", "-e", script, dir]);
+    assert.equal(JSON.parse(child.stdout)[0].state, 'confirmed');
+    assert.equal((await restarted.begin(comment)).conflict.operationId, operation.operationId);
+    assert.deepEqual(await restarted.acknowledge(comment.connectionId, operation.operationId), { ok: true });
+    assert.ok((await restarted.begin(comment)).operation);
+  });
+
   it("uses a new operation id for each reservation and rejects stale acknowledgements and finishes", async () => {
     const { guard } = await rig();
     const first = (await guard.begin(comment)).operation;
@@ -69,7 +84,7 @@ describe("durable Jira write guard", () => {
     const second = (await guard.begin(comment)).operation;
     assert.notEqual(second.operationId, first.operationId);
     assert.deepEqual(await guard.acknowledge(comment.connectionId, first.operationId), { ok: false });
-    await guard.finish(first, true);
+    await assert.rejects(guard.finish(first, true));
     assert.equal((await guard.list(comment.connectionId))[0].operationId, second.operationId);
     assert.equal((await guard.begin(comment)).conflict.operationId, second.operationId);
     await guard.finish(second, true);
@@ -92,9 +107,12 @@ describe("durable Jira write guard", () => {
 
   it("serializes moves per connection even for disjoint issue batches", async () => {
     const { guard } = await rig();
-    const move = { connectionId: "synthetic-a", kind: "move", issueKeys: ["MOCK-1", "MOCK-2"] };
+    const move = { connectionId: "synthetic-a", kind: "move", boardId: "27", issueKeys: ["MOCK-1", "MOCK-2"] };
     const first = (await guard.begin(move)).operation;
-    assert.equal((await guard.begin({ ...move, issueKeys: ["MOCK-3"] })).conflict.operationId, first.operationId);
+    assert.equal(first.boardId, "27");
+    const conflict = (await guard.begin({ ...move, boardId: "28", issueKeys: ["MOCK-3"] })).conflict;
+    assert.equal(conflict.operationId, first.operationId);
+    assert.equal(conflict.boardId, "27");
     const otherConnection = (await guard.begin({ ...move, connectionId: "synthetic-b" })).operation;
     const otherKind = (await guard.begin(comment)).operation;
     assert.ok(otherConnection && otherKind);
@@ -114,7 +132,7 @@ describe("durable Jira write guard", () => {
     const raw = await readFile(join(dir, records[0]), "utf8");
     assert.ok(!raw.includes(secret));
     assert.deepEqual(JSON.parse(raw), {
-      connectionId: comment.connectionId, kind: comment.kind, issueKey: comment.issueKey, operationId: operation.operationId,
+      connectionId: comment.connectionId, kind: comment.kind, issueKey: comment.issueKey, operationId: operation.operationId, state: 'pending',
     });
     assert.ok(!JSON.stringify(await guard.list(comment.connectionId)).includes(secret));
     await guard.finish(operation, true);

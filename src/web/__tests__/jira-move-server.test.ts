@@ -635,13 +635,33 @@ describe('durable guard for HTTP moves', () => {
     await withHost(r, async post => {
       const failed = await post(input);
       assert.notEqual(failed.status, 200);
+      assert.equal(failed.body.refresh, true);
+      assert.equal(failed.body.outcome.membership, 'moved');
+      assert.equal(failed.body.operation.state, 'uncertain');
+      assert.equal(failed.body.operation.boardId, '1');
       assert.equal(r.state.writes.length, 2);
       const retry = await post(input);
       assert.equal(retry.status, 409);
       assert.equal(retry.body.code, 'jira_write_guard_conflict');
       assert.equal(retry.body.operation.state, 'uncertain');
+      assert.equal(retry.body.operation.operationId, failed.body.operation.operationId);
       assert.deepEqual(retry.body.operation.issueKeys, ['MOCK-1']);
+      assert.equal(retry.body.operation.boardId, '1');
       assert.equal(r.state.writes.length, 2);
+    });
+  });
+  it('clears a definitive write rejection and retains a rejection after a successful partial move', async () => {
+    const rejected = rig({ state: { writeResponses: [new Response(null, { status: 403 }), new Response(null, { status: 403 })] } });
+    await withHost(rejected, async post => {
+      assert.equal((await post(input)).status, 403);
+      assert.equal((await post(input)).status, 403);
+      assert.equal(rejected.state.writes.length, 2);
+    });
+    const partial = rig({ state: { writeResponses: [new Response(null, { status: 204 }), new Response(null, { status: 403 })] } });
+    await withHost(partial, async post => {
+      assert.equal((await post(input)).status, 403);
+      assert.equal((await post(input)).status, 409);
+      assert.equal(partial.state.writes.length, 2);
     });
   });
   it('clears a definitively rejected preflight', async () => {
