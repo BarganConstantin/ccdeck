@@ -3,7 +3,7 @@
 import { access, realpath, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { readCodexSelection, codexProfileId, codexSelectionError } from './codex-selection.mjs';
+import { readCodexSelection, codexProfileId, codexSelectionError, configuredCodexHomes } from './codex-selection.mjs';
 import { usesNativeCodexAccount } from './codex-auth.mjs';
 import { readNativeCodexAccount } from './codex-native-account.mjs';
 export { configuredCodexHomes } from './codex-selection.mjs';
@@ -11,8 +11,13 @@ export { configuredCodexHomes } from './codex-selection.mjs';
 /** Resolve each explicitly trusted home once before scanning rollout trees.
  * Deduping canonical directories avoids reading a symlink alias twice. */
 export async function codexProfileSessionDirs(options = {}) {
-  const selection = options.selection ?? await readCodexSelection(options);
-  const homes = selection.homes;
+  let homes;
+  try {
+    homes = (options.selection ?? await readCodexSelection(options)).homes;
+  } catch {
+    // A corrupt profile registry must not stop watching the homes that still work.
+    homes = configuredCodexHomes(options.env, options.home, options.platform);
+  }
   const seen = new Set();
   const result = [];
   for (const home of homes) {

@@ -14,6 +14,15 @@ describe('Codex profile discovery', () => {
         .toEqual([join(a, 'sessions'), join(b, 'sessions')]);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
+  it('keeps watching the configured homes when the profile registry is corrupt', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-corrupt-registry-'));
+    try {
+      const a = join(root, 'a'); const store = join(root, 'store');
+      await mkdir(a); await mkdir(store);
+      await writeFile(join(store, 'codex-accounts.json'), '{not json');
+      expect(await codexProfileSessionDirs({ store, env: { CODEX_HOME: a } })).toEqual([join(a, 'sessions')]);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
   it('detects Codex when only an explicitly configured alternate home exists', async () => {
     const root = await mkdtemp(join(tmpdir(), 'ccdeck-installed-profiles-'));
     const previousDefault = process.env.CODEX_HOME;
