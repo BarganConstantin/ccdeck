@@ -11,11 +11,13 @@ flow. Branches, pull requests and releases now follow
 
 - Owner requested lower memory use with existing behavior and retention intact.
   Audit branch: `fix/memory-retention`; its completed commits are also applied
-  locally to `feature/jira-write-actions`. No public push or release approval
-  is implied.
+  to `feature/jira-write-actions`, reviewed in public PR #2314. Check the
+  current PR and branch state before treating this as an integration record.
 - At verification time the single dashboard backend on `127.0.0.1:4317` served
-  the Jira feature worktree's built UI. The installed desktop shell connected
-  to it. Inspect the current listener and worktree before replacing anything.
+  a dedicated `development-runtime-2314` checkout of the reviewed Jira source.
+  After integration, that checkout follows the development merge commit so the
+  feature worktree can be removed. The installed desktop shell connects to it.
+  Inspect the current listener, commit and worktree before replacing anything.
 - Confirmed fixes cover compressed-asset cache bounds/backing buffers, consumed
   Radar buffers, oversized backing strings behind tool previews, stale canvas
   dimensions and tracker request cancellation. Tests and controlled measurements
