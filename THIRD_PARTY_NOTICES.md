@@ -70,6 +70,32 @@ arrives with its own licence beside it. They are named for completeness, so that
 "what ccdeck ships" and "what ccdeck can run" are not confused. Every one of them
 is off under `AGENTS_DECK_NO_INSTALL=1`.
 
+### Server runtime dependencies
+
+The server uses `fs-native-extensions` for OS file locks. npm installs the
+following production dependency graph alongside ccdeck; desktop builds copy
+the same installed packages to `Resources/deck/node_modules`, outside
+`app.asar`. Whole packages are retained, including their original `LICENSE`
+files, source files and platform prebuilds. Both macOS x64 and arm64 prebuilds
+are retained when producing the two macOS downloads from one installation.
+
+| Package | Version | Licence | Source |
+| --- | --- | --- | --- |
+| `fs-native-extensions` | 1.5.2 | Apache-2.0 | https://github.com/holepunchto/fs-native-extensions |
+| `require-addon` | 1.3.0 | Apache-2.0 | https://github.com/holepunchto/require-addon |
+| `which-runtime` | 1.4.0 | Apache-2.0 | https://github.com/holepunchto/which-runtime |
+| `bare-addon-resolve` | 1.11.0 | Apache-2.0 | https://github.com/holepunchto/bare-addon-resolve |
+| `bare-module-resolve` | 1.12.6 | Apache-2.0 | https://github.com/holepunchto/bare-module-resolve |
+| `bare-semver` | 1.1.0 | Apache-2.0 | https://github.com/holepunchto/bare-semver |
+
+These versions are recorded in `package-lock.json`. The Apache-2.0 text in
+§14 below also applies to these packages; each package retains its upstream
+licence verbatim. The installed distributions contain no separate `NOTICE`
+files. `fs-native-extensions` credits Kasper Isager Dalsgarð; the loader and
+resolver packages credit Holepunch. They are not compiled into the browser
+bundle listed below. Desktop also includes this file, `LICENSE` and
+`LICENSING.md` alongside the hosted server.
+
 ## Bundled packages (27)
 
 | Package | Version | Licence | Copyright |
