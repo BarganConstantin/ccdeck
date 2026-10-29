@@ -17,11 +17,6 @@ contextBridge.exposeInMainWorld("ccdeckNotificationAudio", {
   remove: id => ipcRenderer.invoke("ccdeck:notification-audio:remove", id),
 });
 
-// Read-only version check: the desktop app never runs or updates an npm CLI.
-contextBridge.exposeInMainWorld("ccdeckTerminalCli", {
-  version: () => ipcRenderer.invoke("ccdeck:cli:version"),
-});
-
 // No window handle or generic IPC is exposed to the page.
 if (!process.argv.includes("--ccdeck-native-chrome")) contextBridge.exposeInMainWorld("ccdeckWindow", {
   platform: process.platform,

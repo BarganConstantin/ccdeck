@@ -38,7 +38,6 @@ import { openAtLogin, replaceNpmLoginItem, setOpenAtLogin } from "./login-item.m
 import { createOwnDeck, discoverPlan, startOwnDeck, stopChild } from "./own-deck.mjs";
 import { trayIconFile } from "./tray-icon.mjs";
 import { windowChrome, titlebarColors, TITLEBAR_HEIGHT } from "./window-chrome.mjs";
-import { windowsNpmCliVersion } from "./terminal-cli.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -721,14 +720,6 @@ function installWindowChromeIpc() {
   });
 }
 
-function installTerminalCliIpc() {
-  ipcMain.handle("ccdeck:cli:version", event => {
-    if (process.platform !== "win32" || !fromDeckPage(event) || event.senderFrame !== event.sender.mainFrame) return null;
-    const version = windowsNpmCliVersion();
-    return version ? { version, desktopVersion: app.getVersion() } : null;
-  });
-}
-
 function installNotificationAudioIpc() {
   const handle = (name, run) => ipcMain.handle(`ccdeck:notification-audio:${name}`, (event, arg) => {
     if (!fromDeckPage(event)) throw new Error("Notification audio is only available to the deck.");
@@ -943,7 +934,6 @@ app.whenReady().then(async () => {
   if (!primary) return;
   installNotificationAudioIpc();
   installWindowChromeIpc();
-  installTerminalCliIpc();
   if (process.platform !== "darwin") {
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       { label: "File", submenu: [{ role: "close" }, { role: "quit" }] },

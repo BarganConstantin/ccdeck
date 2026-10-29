@@ -207,6 +207,11 @@ export const GATES = [
   // runs on all three legs.
   { file: "prefs-corrupt-1002.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
+  // The terminal's ccdeck followed through a real npm prefix: `<prefix>/bin/ccdeck`
+  // is a symlink into lib/node_modules, and a file symlink on Windows needs
+  // SeCreateSymbolicLinkPrivilege. Windows reads npm's .cmd/.ps1 shim instead,
+  // and that path runs on all three legs with injected files.
+  { file: "terminal-cli.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 2 },
   // Allow capture's two root scripts, parsed by the machine's own `sh -n`. They
   // run on macOS and Linux only, and Windows has no `sh` to parse them; the
   // assertions on what each script says run on all three legs.

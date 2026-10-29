@@ -81,12 +81,16 @@ export function deadLoginOf(row, { matches = false, signedInAt = null } = {}) {
  * No row, or one for somebody else, is read on the first pass. A struck row is
  * never read again, a row in backoff or claimed by another collector waits, and
  * otherwise it must be both older than the serve TTL and past its planned poll.
+ * A row held for another deck's reading (`cswap import-usage --hold`) is not
+ * read either, and that reading is trusted for the switch meanwhile.
  */
 export function collectionWouldRead(row, { matches = false, now }) {
   if (!matches || !row || typeof row !== "object") return true;
   if (Number(row.authDeadStrikes) >= 1) return false;
   const backoff = ms(row.backoffUntil);
   if (backoff != null && backoff > now) return false;
+  const held = ms(row.heldUntil);
+  if (held != null && held > now) return false;
   const claim = ms(row.claimUntil);
   if (claim != null && claim > now) return false;
   const fetched = ms(row.fetchedAt);

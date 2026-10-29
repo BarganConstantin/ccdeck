@@ -1,40 +1,33 @@
-// A separate npm CLI on Windows can lag behind an updated desktop install.
-// Show a fix only when the desktop shell identifies the installed npm shim.
-import { useEffect, useState } from "react";
-import { compareVersions, isVersion } from "../release-notes";
+// The ccdeck a terminal on this machine starts, in About, when it is older than
+// this deck (/api/version's terminalCli, src/server/terminal-cli.mjs). The app,
+// an npx run and a global npm install update separately, so a terminal can be
+// left behind on any platform. Where it can, the deck replaces that copy itself
+// (terminal-cli-update.mjs), and the row says so rather than asking.
+import { PRODUCT } from "../brand";
+import type { TerminalCli } from "../use-version-check";
 import { SettingRow } from "./SettingsParts";
 
-export interface TerminalCliVersion { version: string; desktopVersion: string }
-
-declare global {
-  interface Window {
-    ccdeckTerminalCli?: { version: () => Promise<TerminalCliVersion | null> };
+export default function TerminalCliNotice({ cli, running }: { cli: TerminalCli; running: string }) {
+  const versions = `The ${PRODUCT} your terminal starts is v${cli.version}; this deck is v${running}.`;
+  const run = <code>{cli.command}</code>;
+  if (cli.auto === "pending" || cli.auto === "running") {
+    return (
+      <SettingRow as="div" name="Terminal command" note={versions}
+        control={<span className="settings-read">{cli.auto === "running" ? "Updating…" : "Updating soon"}</span>}>
+        <span className="settings-row-said">
+          {cli.auto === "running" ? "The deck is updating it now." : <>The deck updates it within a few minutes. To do it now, run {run}.</>}
+        </span>
+      </SettingRow>
+    );
   }
-}
-
-export function outdatedTerminalCli(info: TerminalCliVersion | null): info is TerminalCliVersion {
-  return !!info && isVersion(info.version) && isVersion(info.desktopVersion)
-    && compareVersions(info.version, info.desktopVersion) < 0;
-}
-
-export function TerminalCliWarningRow({ info }: { info: TerminalCliVersion }) {
   return (
-    <SettingRow as="div" name="Terminal CLI"
-      note={`The npm CLI on Windows PATH is v${info.version}; the desktop app is v${info.desktopVersion}. Desktop updates do not update the npm CLI.`}
+    <SettingRow as="div" name="Terminal command"
+      note={cli.auto === "failed" ? versions : `${versions} Updating the app or the deck does not update it.`}
       control={<span className="settings-read">Update needed</span>}>
-      <span className="settings-row-said">Run <code>npm install -g ccdeck@latest</code>, then reopen PowerShell and run <code>ccdeck tui</code>.</span>
+      <span className="settings-row-said">
+        {cli.auto === "failed" && <>The deck could not update it{cli.error ? ` (${cli.error})` : ""}. </>}
+        Run {run}, then open a new terminal.
+      </span>
     </SettingRow>
   );
-}
-
-export default function TerminalCliNotice() {
-  const [info, setInfo] = useState<TerminalCliVersion | null>(null);
-  useEffect(() => {
-    let active = true;
-    window.ccdeckTerminalCli?.version().then(result => {
-      if (active && outdatedTerminalCli(result)) setInfo(result);
-    }).catch(() => {}); // Other shells/unknown installations are deliberately silent.
-    return () => { active = false; };
-  }, []);
-  return info ? <TerminalCliWarningRow info={info} /> : null;
 }

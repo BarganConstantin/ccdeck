@@ -26,6 +26,10 @@ const PROFILE_URL = "https://api.anthropic.com/api/oauth/profile";
 // out of a budget claude-swap plans to leave eight to ten of unspent. A forced
 // refresh, or an account not tried yet, waits SELF_POLL_MS.
 const CREDITS_POLL_MS = 30 * 60_000;
+// The floor while another paired deck reads this account's windows (#930): its
+// requests are what the hold saves, and two an hour from every machine on the
+// account would spend the saving again. A grant lasts weeks.
+const CREDITS_SHARED_POLL_MS = 3 * 60 * 60_000;
 
 // How long an inventory is shown after the last read that succeeded. Expiry is
 // worked out at every read, but a reset redeemed in Claude only leaves the
@@ -77,7 +81,7 @@ export function sameAccount(a, b) {
 /** The held inventory, if it was read for `account` and recently enough. */
 export function heldResetCredits(account, now) {
   if (!_credits || !sameAccount(_credits.account, account)) return null;
-  if (now - _credits.at > CREDITS_TRUSTED_MS) return null;
+  if (now - _credits.at > (_credits.trustedMs ?? CREDITS_TRUSTED_MS)) return null;
   return availableResetCredits(_credits.grants, now);
 }
 
@@ -94,9 +98,10 @@ export function heldResetCredits(account, now) {
  * token, one budget — so a 429 here holds source 2 off as well, and the other
  * way round.
  */
-export function resetCreditsDue({ now, force, triedAt, rateLimitedUntil, triedThisAccount }) {
+export function resetCreditsDue({ now, force, triedAt, rateLimitedUntil, triedThisAccount, shared = false }) {
   if (now < rateLimitedUntil) return false;
-  return now - triedAt >= (triedThisAccount && !force ? CREDITS_POLL_MS : SELF_POLL_MS);
+  const floor = shared ? CREDITS_SHARED_POLL_MS : CREDITS_POLL_MS;
+  return now - triedAt >= (triedThisAccount && !force ? floor : SELF_POLL_MS);
 }
 
 /**
@@ -171,10 +176,12 @@ async function fetchResetGrants(token) {
  * by `cswap` in a terminal or by claude-swap's auto-switch, cannot carry one
  * account's resets onto the next account's card.
  */
-export function refreshStoreResetCredits({ now, force = false, account }) {
+export function refreshStoreResetCredits({ now, force = false, account, shared = false }) {
   if (_creditsInflight || !account) return;
   const triedThisAccount = sameAccount(_creditsTriedFor, account);
-  if (!resetCreditsDue({ now, force, triedAt: _creditsTriedAt, rateLimitedUntil: cooldownUntil(), triedThisAccount })) return;
+  if (!resetCreditsDue({ now, force, triedAt: _creditsTriedAt, rateLimitedUntil: cooldownUntil(), triedThisAccount, shared })) return;
+  // Shown for three floors, whichever floor it was read on.
+  const trustedMs = 3 * (shared ? CREDITS_SHARED_POLL_MS : CREDITS_POLL_MS);
   _creditsTriedAt = now;
   _creditsTriedFor = account;
   const run = (async () => {
@@ -183,7 +190,7 @@ export function refreshStoreResetCredits({ now, force = false, account }) {
     const owner = await tokenOwner(token);
     if (!sameAccount(owner, account)) return;
     const grants = await fetchResetGrants(token);
-    if (grants !== undefined) _credits = { account, grants, at: now };
+    if (grants !== undefined) _credits = { account, grants, at: now, trustedMs };
   })();
   // Settles rather than rejects: nothing in here is news to anyone.
   _creditsInflight = run.catch(() => {}).finally(() => { _creditsInflight = null; });

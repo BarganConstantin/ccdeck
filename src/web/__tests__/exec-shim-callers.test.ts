@@ -153,6 +153,14 @@ describe("the Windows command line each run/runInteractive/runDetached caller pr
     expect(cmdTokens(args[3])[0]).toBe("npm.cmd");
   });
 
+  it("keeps the terminal copy's prefix one token when its path has a space", () => {
+    // terminal-cli-update.mjs installs into the prefix that copy lives in, and
+    // a Windows user name carries spaces often enough to matter.
+    const prefix = "C:\\Users\\Test User\\AppData\\Roaming\\npm";
+    const { args } = upgradeSpec("ccdeck", "win32", winDeps(`${APPDATA_NPM}\\npm.cmd`), prefix);
+    expect(cmdTokens(args[3]).slice(1, 5)).toEqual(["install", "-g", "--prefix", prefix]);
+  });
+
   it("leaves POSIX byte-identical to what it always spawned", () => {
     // Nothing about this is a Windows-shaped change to a POSIX path: `npm` there
     // is a real executable, isBatch is false, and the vector is the same one.

@@ -306,6 +306,7 @@ async function storeQuota() {
     const credits = heldResetCredits(account, Date.now());
     const reading = credits ? { ...quota, resetCredits: credits } : quota;
     if (account) _accountOfReading.set(reading, account);
+    if (entry.heldUntil) _heldUntilOfReading.set(reading, entry.heldUntil);
     return reading;
   } catch {
     return null;
@@ -357,6 +358,10 @@ export async function withClaudePlan(reading, { login, account = quotaAccount(re
 // it is, and an identity is not something the panel needs. Weak, so a reading
 // nothing holds any more takes its entry with it.
 const _accountOfReading = new WeakMap();
+// Until when a store reading's account is held for a paired deck's readings
+// (#930), beside the reading for the same reason: the inventory read slows
+// down while another deck spends the account's requests.
+const _heldUntilOfReading = new WeakMap();
 
 // After asking claude-swap to collect, how long to keep looking for the row it
 // writes. Its fetch is a single HTTPS call; three tries covers a slow one
@@ -470,7 +475,9 @@ async function _doFetch(now, force = false, gen = _generation) {
     if (!readingLapsed(store, now)) {
       // The saved limit resets are the one thing the store cannot say. Read
       // behind this answer, never in front of it; see refreshStoreResetCredits.
-      refreshStoreResetCredits({ now, force, account: _accountOfReading.get(store) });
+      refreshStoreResetCredits({
+        now, force, account: _accountOfReading.get(store), shared: (_heldUntilOfReading.get(store) ?? 0) > now,
+      });
       return publish(gen, store, now, { good: true, who });
     }
   }

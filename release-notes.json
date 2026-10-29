@@ -129,6 +129,12 @@
     "3.48.1",
     "3.49.1"
   ],
+  "3.50.0": [
+    {
+      "title": "🤝 Paired decks no longer each read a shared account's usage",
+      "body": "No more rate limits from every machine reading it: one deck reads the account and passes the numbers to the others. Hover the reading's age to see which deck read it."
+    }
+  ],
   "3.49.0": [
     {
       "title": "🗞️ What's new is shorter and easier to scan",

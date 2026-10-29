@@ -26,6 +26,7 @@ import { portHolder } from "./port-holder.mjs";
 import { createRouteCheck } from "./route-via.mjs";
 import { DISCOVERY_PORT } from "./lan-beacon.mjs";
 import { aboutThisDeck } from "./lan-about.mjs";
+import { createUsageShare } from "./usage-share.mjs";
 import { MAC_FW, PROBE_PS, UFW_CONF, UFW_DEFAULTS, isActive, localAliases, reachability, readMacProbe, readProbe, readUfw, silentInbound } from "./lan-reach.mjs";
 import { run } from "./exec.mjs";
 // A LAN round checks the imports it lands the way the paste box does.
@@ -73,6 +74,14 @@ export const lanEngine = createEngine({
   // nobody else. RUNNING_VERSION rather than a fresh read, for the reason it
   // is read at import: it is what this process actually runs.
   about: aboutThisDeck({ version: RUNNING_VERSION }),
+  // One paired deck polls each account they share and the others take its
+  // reading, so the same account is not polled once per machine (#930).
+  usage: deps => createUsageShare({
+    ...deps,
+    register: true,
+    canImport: async () => (await import("./cswap-install.mjs")).cswapImportsUsage(),
+    readStore: async () => (await import("./claude-accounts.mjs")).storedUsageReadings(),
+  }),
   readAccounts: async () => {
     const { fetchClaudeAccounts } = await import("./claude-accounts.mjs");
     const got = await fetchClaudeAccounts();
