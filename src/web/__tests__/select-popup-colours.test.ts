@@ -95,10 +95,14 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
     name: "a Claude Code setting's value",
     chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["settings-list"]), el("label", ["settings-row"]), el("span", ["settings-row-control"]), el("select", ["sm-select"])],
   }],
-  "components/JiraMovePopover.tsx": ["where a Jira move sends the issues", "where in that list they land"].map(name => ({
-    name,
+  "components/JiraMovePopover.tsx": [{
+    name: "where a Jira move sends the issues",
     chain: [el("body"), el("div", ["modal-backdrop"]), el("div", ["modal", "ig-modal"]), el("div", ["ig-body"]), el("div", ["jr-panel"]), el("div", ["ig-split"]), el("div", ["ig-list"]), el("div", ["jr-list-scroll"]), el("div", ["jr-board"]), el("div", ["anchored-popover", "jr-move-pop"]), el("form"), el("select")],
-  })),
+  }],
+  "components/JiraTransition.tsx": [{
+    name: "the Jira workflow action",
+    chain: [el("body"), el("div", ["modal-backdrop"]), el("div", ["modal", "ig-modal"]), el("div", ["ig-body"]), el("div", ["jr-panel"]), el("div", ["ig-split"]), el("div", ["ig-detail"]), el("article", ["jr-detail"]), el("header", ["jr-detail-head"]), el("p", ["jr-detail-state"]), el("span", ["jr-transition"]), el("span", ["jr-transition-controls"]), el("select")],
+  }],
   "components/AccountMenuPopover.tsx": [{
     name: "an account's slot",
     chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-pop"]), el("div", ["ap-pop-form"]), el("span", ["ap-field"]), el("select")],

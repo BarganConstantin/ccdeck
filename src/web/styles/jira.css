@@ -604,3 +604,14 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   .jr-board-item:active, .jr-crumb:active, .jr-group-toggle:active,
   .jr-link-btn:active, .jr-toggle:active, .jr-move-button:active:not(:disabled) { transform: none; }
 }
+
+/* Workflow actions stay beside the current status, wrapping on narrow screens. */
+.jr-transition, .jr-transition-controls { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.jr-transition select { max-width: 100%; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 4px 6px; }
+.jr-transition [role="alert"] { flex-basis: 100%; }
+
+.jr-comment-compose { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.jr-comment-compose label { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.jr-comment-compose textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 72px; padding: 8px; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); font: inherit; }
+.jr-comment-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.jr-comment-compose [role="alert"] { margin: 0; color: var(--text-secondary); }

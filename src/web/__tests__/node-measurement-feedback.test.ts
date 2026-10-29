@@ -29,8 +29,9 @@ function setup({ hidden = false, dragging = false, dom = [] as any[] } = {}) {
     clearTimeout: (id: number) => timers.delete(id),
   });
   const drag = { current: dragging };
+  const graph = { current: { agents: new Map<string, any>() } };
   let measurement!: ReturnType<typeof useNodeMeasurements>;
-  const view = mount(() => { renders++; measurement = useNodeMeasurements(drag); return null; }, {});
+  const view = mount(() => { renders++; measurement = useNodeMeasurements(drag, graph); return null; }, {});
   return {
     frames, timers, view, drag,
     get measurement() { return measurement; },

@@ -15,7 +15,7 @@
 // WHEN IT READS: when it opens on a board read more than five minutes ago, and
 // when Refresh is pressed. Never on a timer (use-jira-board.ts).
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { connectionHost, type IntegrationFailure } from "../integrations/client";
+import { connectionHost, IntegrationFailure } from "../integrations/client";
 import type { IntegrationPanelProps } from "../integrations/types";
 import { moveJiraIssue, readBoards, type JiraBoardSummary } from "../jira-api";
 import type { JiraMove } from "../jira-move";
@@ -23,6 +23,8 @@ import { boardRows, drawnIssues, shownQuickFilters, type GroupDef } from "../jir
 import { useListView } from "../integrations/use-list-view";
 import { keepList, keepSearch, listKey as listKeyOf, recallList, recallSearch, type Drawn } from "../integrations/view-memory";
 import { failureOf, invalidateJiraConnection, useJiraBoard } from "../use-jira-board";
+import { definiteJiraWriteFailure, useJiraWriteState } from "../jira-write-state";
+import { moveKeys } from "../jira-move";
 import { ExternalLinkGlyph } from "./action-glyphs";
 import AnchoredPopover from "./AnchoredPopover";
 import IntegrationFreshness from "./IntegrationFreshness";
@@ -176,23 +178,34 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   const filters = useMemo(() => ({ mine, quick }), [mine, quick]);
   const jira = useJiraBoard(api, conn.id, board, filters);
   const { snap, groups, loading, error } = jira;
-  const moveLock = useRef(false);
-  const [moving, setMoving] = useState(false);
+  const moveWrite = useJiraWriteState(conn.id, "", "move", api);
+  const moving = moveWrite.state.busy;
   const readingGroups = Object.values(snap.groups).some(g => g.more || g.status === "loading");
-  const boardRef = useRef(board);
-  boardRef.current = board;
   const moveIssue = async (move: JiraMove) => {
-    if (!board || moveLock.current || loading || readingGroups) throw new Error("Wait for the board to finish updating.");
-    moveLock.current = true;
-    setMoving(true);
-    try { return await moveJiraIssue(api, board, move); }
+    const context = `${moveKeys(move).join(", ")} · ${boardName || `Board ${board}`}`;
+    if (!board || loading || readingGroups || !moveWrite.begin(context)) throw new Error("Wait for the board to finish updating.");
+    let unconfirmed = false;
+    let outcomeText = "";
+    let operationId: string | undefined;
+    try {
+      const result = await moveJiraIssue(api, board, move);
+      operationId = result.operationId;
+      if (result.operationId && !await moveWrite.acknowledge(result.operationId)) unconfirmed = true;
+      return result;
+    }
+    catch (err) {
+      unconfirmed = !definiteJiraWriteFailure(err) || err.refreshRequired === true;
+      if (err instanceof IntegrationFailure && err.operation) moveWrite.update({ operation: err.operation });
+      if (err instanceof IntegrationFailure && err.outcomes?.length) outcomeText = err.outcomes.map(o => `${o.issueKey}: membership ${o.membership}, rank ${o.rank}`).join("; ");
+      else if (err instanceof IntegrationFailure && err.moveOutcome) outcomeText = `${moveKeys(move)[0]}: membership ${err.moveOutcome.membership}, rank ${err.moveOutcome.rank}`;
+      throw err;
+    }
     finally {
-      moveLock.current = false;
-      setMoving(false);
       // Even a lost response can mean Jira saved the move. Re-read rather
       // than inventing local order or replaying a potentially completed write.
-      invalidateJiraConnection(conn.id);
-      if (boardRef.current === board) await jira.refresh();
+      const checkpoint = moveWrite.checkpoint();
+      try { await invalidateJiraConnection(conn.id, true); }
+      finally { moveWrite.finishMove(unconfirmed, unconfirmed ? `${context}${outcomeText ? ` — ${outcomeText}` : ""}` : "", operationId, checkpoint); }
     }
   };
   const overview = snap.overview && String(snap.overview.board.id) === board ? snap.overview : null;
@@ -305,6 +318,11 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
     return (
       <>
         {error && <IntegrationFailureNote error={error} provider="Jira" host={host} stale onRetry={jira.refresh} onReconnect={onReconnect} />}
+        {moveWrite.state.uncertain && <div className="jr-board-note" role="alert">
+          {moveWrite.state.draft && <>The move of {moveWrite.state.draft} needs verification. Check these issues in Jira before trying again. {" "}</>}
+          {moveWrite.state.error && <span>{moveWrite.state.error} {" "}</span>}
+          <button type="button" className="btn" aria-disabled={moveWrite.state.operation?.state === "pending" || undefined} onClick={event => { if (document.activeElement === event.currentTarget) rootRef.current?.querySelector<HTMLElement>(".jr-row-main, .jr-group-toggle")?.focus(); void moveWrite.acknowledge(); }}>I checked the issues</button>
+        </div>}
         <JiraBacklog
           key={board}
           conn={conn}
@@ -327,7 +345,11 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
           loadSubtasks={jira.loadSubtasks}
           onReconnect={onReconnect}
           onMove={moveIssue}
-          moveBusy={moving || loading || readingGroups}
+          moveBusy={moving || moveWrite.state.uncertain || !!moveWrite.state.loading || loading || readingGroups}
+          readBusy={moving || loading || readingGroups}
+          moveUncertain={moveWrite.state.uncertain}
+          moveOutcome={moveWrite.state.draft}
+          onMoveChecked={() => { void moveWrite.acknowledge(); }}
           scrollBoundaryId={scrollerId}
         />
       </>
@@ -348,6 +370,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       narrow={narrow}
       auto={view.auto}
       onClose={back}
+      onStatusChanged={() => { void invalidateJiraConnection(conn.id, true); }}
     />
   ) : null;
 

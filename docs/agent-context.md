@@ -1,11 +1,37 @@
 # Owner's ccdeck work — continuation context
 
-Updated: 2026-10-15. This is a handoff, not a claim that processes or remote
+Updated: 2026-10-29. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
 
 The notes below that deliver work to `development` describe an earlier branch
 flow. Branches, pull requests and releases now follow
 [`release-workflow.md`](release-workflow.md).
+
+## Local memory audit — 2026-10-29
+
+- Owner requested lower memory use with existing behavior and retention intact.
+  Audit branch: `fix/memory-retention`; its completed commits are also applied
+  to `feature/jira-write-actions`, reviewed in public PR #2314. Check the
+  current PR and branch state before treating this as an integration record.
+- At verification time the single dashboard backend on `127.0.0.1:4317` served
+  a dedicated `development-runtime-2314` checkout of the reviewed Jira source.
+  After integration, that checkout follows the development merge commit so the
+  feature worktree can be removed. The installed desktop shell connects to it.
+  Inspect the current listener, commit and worktree before replacing anything.
+- Confirmed fixes cover compressed-asset cache bounds/backing buffers, consumed
+  Radar buffers, oversized backing strings behind tool previews, stale canvas
+  dimensions and tracker request cancellation. Tests and controlled measurements
+  are documented in [the memory audit](features/memory-retention-audit.md).
+- Settings cycles, 720 populated detail visits per tracker, 90 large Jira
+  boards, 330 paginated forge lists and 240 job-log expansions were measured
+  in isolated Chromium. The shared JSON reader now retains cancellation and
+  deadlines through body consumption; 80 real browser streaming requests
+  verified both paths. Native desktop sampling was short and uncontrolled;
+  several-hour real-traffic stability and an overall before/after RAM percentage
+  remain unverified. Do not add individual synthetic savings into a total.
+- Reusable checks: `scripts/verify-ui-memory.mjs` and
+  `scripts/verify-tracker-memory.mjs`. Both use synthetic API answers and an
+  external Playwright installation; preserve personal browser tabs and data.
 
 ## Tool activity redesign on Linux — 2026-10-15
 

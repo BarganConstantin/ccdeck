@@ -1,11 +1,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { issueMove, issueMoveBlocker, issuesMove, movableIssue, moveDestination, moveSelectionProblem, selectIssue } from "../jira-move";
+import { issueIsHighlighted, issueMove, issueMoveBlocker, issuesMove, movableIssue, moveDestination, moveSelectionProblem, selectIssue } from "../jira-move";
 import { moveJiraIssue, type JiraIssue } from "../jira-api";
 import type { GroupDef } from "../jira-board";
 
 const sprint: GroupDef = { id: "sprint:1", kind: "active", title: "Sprint 1", sprint: { id: 1, name: "Sprint 1", state: "active", goal: "", startDate: null, endDate: null, completeDate: null }, defaultOpen: true, paged: false };
 const backlog: GroupDef = { id: "backlog", kind: "backlog", title: "Backlog", defaultOpen: true, paged: true };
 const issue: JiraIssue = { id: "1", key: "MOCK-1", summary: "Move me", url: "", type: { name: "Task", subtask: false, epic: false, icon: null }, status: { name: "To Do", category: "new" }, priority: null, assignee: null, mine: true, parent: null, subtaskKeys: [], epic: null, fixVersions: [], estimate: null, remaining: null, points: null, flagged: false, updated: "" };
+
+describe("Jira selection highlighting", () => {
+  it("highlights only the chosen issue even when a different detail is open", () => {
+    const picked = new Set(["MOCK-2"]);
+    expect(issueIsHighlighted("MOCK-1", picked, "MOCK-1", false)).toBe(false);
+    expect(issueIsHighlighted("MOCK-2", picked, "MOCK-1", false)).toBe(true);
+  });
+  it("retains deliberate multi-selection and lets selection mode clear every row", () => {
+    const picked = new Set(["MOCK-2", "MOCK-3"]);
+    expect(issueIsHighlighted("MOCK-2", picked, "MOCK-1", true)).toBe(true);
+    expect(issueIsHighlighted("MOCK-3", picked, "MOCK-1", true)).toBe(true);
+    expect(issueIsHighlighted("MOCK-1", new Set(), "MOCK-1", true)).toBe(false);
+    expect(issueIsHighlighted("MOCK-1", new Set(), "MOCK-1", false)).toBe(true);
+  });
+});
 
 describe("visible issue selection", () => {
   const visible = ["MOCK-1", "MOCK-2", "MOCK-3", "MOCK-4"];
@@ -26,7 +41,7 @@ describe("visible issue selection", () => {
   });
   it("moves the complete ordered group and excludes every selected issue as an anchor", () => {
     const items = [issue, { ...issue, key: "MOCK-3" }].map(issue => ({ issue, group: sprint }));
-    expect(issuesMove(items, backlog)).toEqual({ issueKeys: ["MOCK-1", "MOCK-3"], target: { kind: "backlog" } });
+    expect(issuesMove(items, backlog)).toEqual({ issueKeys: ["MOCK-1", "MOCK-3"], target: { kind: "backlog" }, atEnd: true });
     expect(issuesMove(items, sprint, { key: "MOCK-2", side: "after" })).toEqual({ issueKeys: ["MOCK-1", "MOCK-3"], target: { kind: "sprint", sprintId: 1 }, afterIssue: "MOCK-2" });
     expect(issuesMove(items, sprint, { key: "MOCK-3", side: "before" })).toBeNull();
     expect(issuesMove(items, sprint)).toBeNull();
@@ -60,7 +75,7 @@ describe("one explicit Jira move", () => {
     expect(issueMove(issue, sprint, sprint, { key: "MOCK-2", side: "after" })).toEqual({ issueKey: "MOCK-1", target: { kind: "sprint", sprintId: 1 }, afterIssue: "MOCK-2" });
   });
   it("moves to backlog or before an explicit loaded neighbor, without changing status", () => {
-    expect(issueMove(issue, sprint, backlog)).toEqual({ issueKey: "MOCK-1", target: { kind: "backlog" } });
+    expect(issueMove(issue, sprint, backlog)).toEqual({ issueKey: "MOCK-1", target: { kind: "backlog" }, atEnd: true });
     expect(issueMove(issue, backlog, sprint, { key: "MOCK-2", side: "before" })).toEqual({ issueKey: "MOCK-1", target: { kind: "sprint", sprintId: 1 }, beforeIssue: "MOCK-2" });
   });
   it("never offers closed sprints, workflow columns, subtasks, epics or completed work", () => {
@@ -70,6 +85,21 @@ describe("one explicit Jira move", () => {
     expect(movableIssue({ ...issue, type: { ...issue.type, subtask: true } }, sprint)).toBe(false);
     expect(movableIssue({ ...issue, type: { ...issue.type, epic: true } }, sprint)).toBe(false);
     expect(movableIssue({ ...issue, status: { name: "Done", category: "done" } }, sprint)).toBe(true);
+  });
+});
+
+describe("group header drops", () => {
+  const future: GroupDef = { ...sprint, id: "sprint:2", kind: "future", sprint: { ...sprint.sprint!, id: 2, state: "future" } };
+  it.each([backlog, sprint, future])("places unanchored single and batch drops at the end of $id", destination => {
+    const source = destination === backlog ? sprint : backlog;
+    const target = moveDestination(destination);
+    expect(issueMove(issue, source, destination)).toEqual({ issueKey: issue.key, target, atEnd: true });
+    expect(issuesMove([{ issue, group: source }, { issue: { ...issue, key: "MOCK-2" }, group: source }], destination))
+      .toEqual({ issueKeys: [issue.key, "MOCK-2"], target, atEnd: true });
+  });
+  it("keeps a mixed-source batch ordered when part is already in the destination", () => {
+    expect(issuesMove([{ issue, group: sprint }, { issue: { ...issue, key: "MOCK-2" }, group: backlog }], backlog))
+      .toEqual({ issueKeys: [issue.key, "MOCK-2"], target: { kind: "backlog" }, atEnd: true });
   });
 });
 

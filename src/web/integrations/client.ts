@@ -23,14 +23,29 @@ export interface ProviderInfo {
 
 /** A failure, as the envelope every integration route answers with says it:
  *  `{ ok: false, error: { kind, message, status?, retryAfter? } }`. */
+export type JiraMoveOutcome = { issueKey: string; membership: "moved" | "unchanged" | "unknown"; rank: "ranked" | "unchanged" | "failed" | "unknown" };
+export type JiraMoveSummary = Pick<JiraMoveOutcome, "membership" | "rank">;
+export type JiraGuardOperation = { operationId: string; connectionId: string; kind: "comment" | "status" | "move"; state: "pending" | "uncertain" | "confirmed"; issueKey?: string; issueKeys?: string[]; boardId?: string };
+export function jiraGuardOperation(value: unknown): JiraGuardOperation | undefined {
+  if (!value || typeof value !== "object") return;
+  const o = value as JiraGuardOperation;
+  if (typeof o.operationId !== "string" || !/^[0-9a-f-]{36}$/.test(o.operationId) || typeof o.connectionId !== "string" || !["comment", "status", "move"].includes(o.kind) || !["pending", "uncertain", "confirmed"].includes(o.state)) return;
+  if (o.kind === "move" ? !Array.isArray(o.issueKeys) || !o.issueKeys.every(k => typeof k === "string") : typeof o.issueKey !== "string") return;
+  return o;
+}
 export class IntegrationFailure extends Error {
   kind: IntegrationErrorKind;
+  operation?: JiraGuardOperation;
   /** The tracker's own HTTP status, when it answered one. */
   status?: number;
   retryAfter?: number;
   field?: string;
   detail?: string;
-  constructor(kind: IntegrationErrorKind, message: string, extra: { status?: number; retryAfter?: number; field?: string; detail?: string } = {}) {
+  /** The server attempted a write and its board needs verification. */
+  refreshRequired?: boolean;
+  outcomes?: JiraMoveOutcome[];
+  moveOutcome?: JiraMoveSummary;
+  constructor(kind: IntegrationErrorKind, message: string, extra: { status?: number; retryAfter?: number; field?: string; detail?: string; refreshRequired?: boolean; outcomes?: JiraMoveOutcome[]; moveOutcome?: JiraMoveSummary; operation?: JiraGuardOperation } = {}) {
     super(message);
     this.name = "IntegrationFailure";
     this.kind = kind;
@@ -43,8 +58,19 @@ export async function failureOf(res: Response): Promise<IntegrationFailure> {
   try {
     const body = await res.json();
     const e = body?.error;
+    const operation = jiraGuardOperation(body?.operation);
+    if (body?.code === "jira_write_guard_conflict") return new IntegrationFailure("upstream", "A Jira write is already awaiting verification.", { status: res.status, operation });
     if (e && typeof e.kind === "string" && typeof e.message === "string") {
-      return new IntegrationFailure(e.kind, e.message, { status: e.status, retryAfter: e.retryAfter, field: e.field, detail: e.detail });
+      const outcomes: JiraMoveOutcome[] = Array.isArray(body.outcomes) ? body.outcomes.slice(0, 50).filter((o: unknown): o is JiraMoveOutcome => {
+        if (!o || typeof o !== "object") return false;
+        const item = o as Record<string, unknown>;
+        return typeof item.issueKey === "string" && /^[A-Z][A-Z0-9_]{0,40}-[1-9]\d{0,11}$/.test(item.issueKey)
+          && ["moved", "unchanged", "unknown"].includes(String(item.membership))
+          && ["ranked", "unchanged", "failed", "unknown"].includes(String(item.rank));
+      }).map((o: JiraMoveOutcome) => ({ issueKey: o.issueKey, membership: o.membership, rank: o.rank })) : [];
+      const o = body.outcome;
+      const moveOutcome: JiraMoveSummary | undefined = o && ["moved", "unchanged", "unknown"].includes(o.membership) && ["ranked", "unchanged", "failed", "unknown"].includes(o.rank) ? { membership: o.membership, rank: o.rank } : undefined;
+      return new IntegrationFailure(e.kind, e.message, { status: e.status, retryAfter: e.retryAfter, field: e.field, detail: e.detail, ...(body.refresh === true ? { refreshRequired: true } : {}), ...(outcomes.length ? { outcomes } : {}), ...(moveOutcome ? { moveOutcome } : {}), ...(operation ? { operation } : {}) });
     }
   } catch { /* not JSON */ }
   return new IntegrationFailure(res.status === 401 ? "auth" : "upstream", `The deck answered ${res.status}.`);
@@ -53,27 +79,41 @@ export async function failureOf(res: Response): Promise<IntegrationFailure> {
 /** One call to the deck's integration routes, as JSON. */
 export async function integrationCall<T>(path: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   const { timeoutMs = 30_000, ...rest } = init;
+  return withReadDeadline(rest.signal, timeoutMs, async signal => {
+    let res: Response;
+    try {
+      res = await fetch(path, {
+        ...rest, signal,
+        headers: rest.body ? { "Content-Type": "application/json", ...(rest.headers ?? {}) } : rest.headers,
+      });
+    } catch (err) {
+      if (signal.aborted) throw err;
+      throw new IntegrationFailure("network", "The deck could not be reached.");
+    }
+    if (!res.ok) throw await failureOf(res);
+    return res.json() as Promise<T>;
+  });
+}
+
+/** Fetch ends at headers; the deadline and parent cancellation must also
+ * cover the body, including an error response's JSON. */
+async function withReadDeadline<T>(outer: AbortSignal | null | undefined, timeoutMs: number, read: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
-  const outer = rest.signal;
-  const stop = () => controller.abort();
+  const stop = () => controller.abort(outer?.reason);
   outer?.addEventListener("abort", stop, { once: true });
-  let res: Response;
+  if (outer?.aborted) stop();
   try {
-    res = await fetch(path, {
-      ...rest,
-      signal: controller.signal,
-      headers: rest.body ? { "Content-Type": "application/json", ...(rest.headers ?? {}) } : rest.headers,
-    });
+    controller.signal.throwIfAborted();
+    return await read(controller.signal);
   } catch (err) {
-    if (outer?.aborted) throw err;
-    throw new IntegrationFailure("network", controller.signal.aborted ? "The deck took too long to answer." : "The deck could not be reached.");
+    if (outer?.aborted) throw outer.reason ?? err;
+    if (controller.signal.aborted) throw new IntegrationFailure("network", "The deck took too long to answer.");
+    throw err;
   } finally {
     window.clearTimeout(timer);
     outer?.removeEventListener("abort", stop);
   }
-  if (!res.ok) throw await failureOf(res);
-  return res.json() as Promise<T>;
 }
 
 /** Where one connection's reads live: /api/integrations/<kind>/<id>/. */
@@ -122,23 +162,20 @@ export function queryOf(params: Record<string, string | number | boolean | undef
 /** One JSON read through a panel's `api`, with a deadline, as data or an
  *  IntegrationFailure. An abort by the caller is rethrown as it came. */
 export async function readThrough<T>(api: (path: string, init?: RequestInit) => Promise<Response>, path: string, { signal, timeoutMs = 45_000 }: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<T> {
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
-  const stop = () => controller.abort();
-  signal?.addEventListener("abort", stop, { once: true });
-  let res: Response;
-  try {
-    res = await api(path, { signal: controller.signal, headers: { Accept: "application/json" } });
-  } catch (err) {
-    if (signal?.aborted) throw err;
-    throw new IntegrationFailure("network", controller.signal.aborted ? "The deck took too long to answer." : "The deck could not be reached.");
-  } finally {
-    window.clearTimeout(timer);
-    signal?.removeEventListener("abort", stop);
-  }
-  if (!res.ok) throw await failureOf(res);
-  try { return await res.json() as T; }
-  catch { throw new IntegrationFailure("upstream", "The deck answered with something that is not JSON."); }
+  return withReadDeadline(signal, timeoutMs, async inner => {
+    let res: Response;
+    try { res = await api(path, { signal: inner, headers: { Accept: "application/json" } }); }
+    catch (err) {
+      if (inner.aborted) throw err;
+      throw new IntegrationFailure("network", "The deck could not be reached.");
+    }
+    if (!res.ok) throw await failureOf(res);
+    try { return await res.json() as T; }
+    catch (err) {
+      if (inner.aborted) throw err;
+      throw new IntegrationFailure("upstream", "The deck answered with something that is not JSON.");
+    }
+  });
 }
 
 // ── the shared list ─────────────────────────────────────────────────────────
