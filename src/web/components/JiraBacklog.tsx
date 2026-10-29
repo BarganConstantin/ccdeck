@@ -182,6 +182,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
   const boardId = useId();
   const drag = useRef<{ items: JiraMoveItem[] } | null>(null);
   const dragFromControl = useRef(false);
+  const openAfterDrag = useRef<string | null>(null);
   const [dragKeys, setDragKeys] = useState<string[]>([]);
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set());
   const [selectionMode, setSelectionMode] = useState(false);
@@ -417,13 +418,24 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               setMoveError(moveSelectionProblem(items));
               return;
             }
-            if (!picked.has(key)) { selectionVersion.current++; setPicked(new Set([key])); setSelectionMode(false); }
+            if (!picked.has(key)) {
+              selectionVersion.current++;
+              selectionAnchor.current = key;
+              setPicked(new Set([key]));
+              setSelectionMode(false);
+              openAfterDrag.current = key;
+            }
             drag.current = { items };
             event.dataTransfer.effectAllowed = "move";
             event.dataTransfer.setData("text/plain", items.map(i => i.issue.key).join("\n"));
             setDragKeys(items.map(i => i.issue.key));
             setMoveMenu(null);
-          }} onDragEnd={finishDrag}
+          }} onDragEnd={() => {
+            const keyToOpen = openAfterDrag.current;
+            openAfterDrag.current = null;
+            finishDrag();
+            if (keyToOpen) onOpen(keyToOpen);
+          }}
           onDragOver={event => {
             if (!drag.current || !canMove || moveBusy || !issue || issue.type.subtask || !moveDestination(group)) return;
             event.stopPropagation();
