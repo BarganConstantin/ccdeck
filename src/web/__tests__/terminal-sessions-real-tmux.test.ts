@@ -73,10 +73,14 @@ async function screen(name: string): Promise<string> {
   return r.stdout;
 }
 
-/** `name`'s screen once it shows `text`, polled for two seconds. */
+/** `name`'s screen once it shows `text`, polled every 25 ms for two seconds. */
 async function screenWith(name: string, text: string): Promise<string> {
+  const until = Date.now() + 2_000;
   let shown = await screen(name);
-  for (const until = Date.now() + 2_000; !shown.includes(text) && Date.now() < until;) shown = await screen(name);
+  while (!shown.includes(text) && Date.now() < until) {
+    await new Promise(r => setTimeout(r, 25));
+    shown = await screen(name);
+  }
   return shown;
 }
 
