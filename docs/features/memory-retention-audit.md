@@ -110,3 +110,63 @@ aborted, the visible list remained correct and there were no render errors.
 This prevents unwanted work and retention; no whole-app MiB reduction was
 measured or claimed for this change. Cache capacities and completed pages that
 still belong to the open project are preserved.
+
+## Populated tracker detail churn
+
+`verify-tracker-memory.mjs` bundles and renders the actual Jira and GitLab issue
+detail components, including their read hooks and HTML rendering, in separate
+isolated Chromium contexts. Synthetic API functions generate a distinct 64 KiB
+description for each read. All browser network access is blocked; no deck,
+tracker, account or saved preference is touched.
+
+Each integration visits 720 distinct details in three rounds of 240, unmounting
+every twenty visits. A round exceeds both existing cache capacities (60 Jira
+details and 200 forge reads). Measurements follow two animation frames and
+explicit garbage collection after closing the detail.
+
+| Retained JS heap, MiB | Warm | 240 details | 480 details | 720 details |
+|---|---:|---:|---:|---:|
+| Jira | 2.62 | 7.16 | 7.25 | 7.34 |
+| GitLab | 2.62 | 15.92 | 16.04 | 16.13 |
+
+At every measurement both contexts had 9 DOM nodes, 160 event listeners and one
+document. The script verifies that the full description was rendered on every
+visit and that reopening the latest issue does not cause another API read.
+Both checks passed, with no browser errors. Initial cache filling accounts for
+most of the measured growth; another 480 distinct visits added about 0.2 MiB.
+This workload did not demonstrate unbounded detail retention. It does not
+establish the absence of a slower leak or cover populated board lists, merge
+request diffs, job logs, attachments or real network stalls.
+
+Run from a checkout with dependencies installed:
+
+```sh
+PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs \
+PLAYWRIGHT_EXECUTABLE=/path/to/chromium \
+node scripts/verify-tracker-memory.mjs
+```
+
+No backend or temporary server is started. The script asserts rendering and
+cache reuse, and reports memory observations without a machine-dependent heap
+threshold. Its fixture also passes a separate strict TypeScript check.
+
+## Running desktop process observations
+
+Four `vmmap -summary` samples of the already-running macOS app were collected
+sequentially, with thirty seconds between rounds. Physical footprint ranges:
+
+| Process | Observed footprint |
+|---|---:|
+| Electron renderer | 162.7–176.7 MiB |
+| Electron main | 89.7–90.2 MiB |
+| GPU | 68.3 MiB |
+| Network helper | about 6.5 MiB |
+| Audio helper | about 5.2 MiB |
+| Node server | 136.3–146.8 MiB |
+| Node supervisor | 15.5 MiB |
+
+These are physical footprint readings, not RSS or a breakdown by application
+feature. Processes were sampled at different moments under uncontrolled real
+traffic; their values are not a comparable before/after optimization baseline.
+The renderer rose and then fell within this short observation window. No
+long-duration native-leak verdict or total-app saving follows from these data.

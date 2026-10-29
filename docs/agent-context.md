@@ -1,11 +1,32 @@
 # Owner's ccdeck work — continuation context
 
-Updated: 2026-10-15. This is a handoff, not a claim that processes or remote
+Updated: 2026-10-29. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
 
 The notes below that deliver work to `development` describe an earlier branch
 flow. Branches, pull requests and releases now follow
 [`release-workflow.md`](release-workflow.md).
+
+## Local memory audit — 2026-10-29
+
+- Owner requested lower memory use with existing behavior and retention intact.
+  Audit branch: `fix/memory-retention`; its completed commits are also applied
+  locally to `feature/jira-write-actions`. No public push or release approval
+  is implied.
+- At verification time the single dashboard backend on `127.0.0.1:4317` served
+  the Jira feature worktree's built UI. The installed desktop shell connected
+  to it. Inspect the current listener and worktree before replacing anything.
+- Confirmed fixes cover compressed-asset cache bounds/backing buffers, consumed
+  Radar buffers, oversized backing strings behind tool previews, stale canvas
+  dimensions and tracker request cancellation. Tests and controlled measurements
+  are documented in [the memory audit](features/memory-retention-audit.md).
+- Settings cycles and 720 populated detail visits per tracker were measured in
+  isolated Chromium. Native desktop sampling was short and uncontrolled;
+  several-hour real-traffic stability and an overall before/after RAM percentage
+  remain unverified. Do not add individual synthetic savings into a total.
+- Reusable checks: `scripts/verify-ui-memory.mjs` and
+  `scripts/verify-tracker-memory.mjs`. Both use synthetic API answers and an
+  external Playwright installation; preserve personal browser tabs and data.
 
 ## Tool activity redesign on Linux — 2026-10-15
 
