@@ -2,6 +2,11 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 import { createServer, request } from "node:http";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+// @ts-expect-error plain server module
+import { createJiraWriteGuard } from "../../server/integrations/jira-write-guard.mjs";
 // @ts-expect-error plain server module
 import { createJiraClient, jiraRoutes, normaliseIssue } from "../../server/integrations/jira.mjs";
 // @ts-expect-error plain server module
@@ -356,13 +361,15 @@ describe("capabilities and transport boundaries", () => {
 });
 
 async function withHost(r, run) {
+  const guardDir = await mkdtemp(join(tmpdir(), 'jira-move-guard-'));
+  const jiraWriteGuard = createJiraWriteGuard({ dir: () => guardDir });
   const store = { get: async id => id === r.conn.id ? r.conn : null, secret: async () => r.secret };
   const server = createServer((req, res) => {
     // Same mutation gate used by index.mjs, before the integrations handler.
     if (req.method === "POST" && !isTrustedMutation({ origin: req.headers.origin, host: req.headers.host, secFetchSite: req.headers["sec-fetch-site"] })) {
       res.writeHead(403); res.end(); return;
     }
-    handleIntegrations(req, res, new URL(req.url, "http://localhost"), { store, fetchImpl: r.fetchImpl }).catch(() => { res.writeHead(500); res.end(); });
+    handleIntegrations(req, res, new URL(req.url, "http://localhost"), { store, fetchImpl: r.fetchImpl, jiraWriteGuard }).catch(() => { res.writeHead(500); res.end(); });
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const port = server.address().port;
@@ -374,7 +381,7 @@ async function withHost(r, run) {
     });
     req.on("error", reject); req.end(typeof body === "string" ? body : JSON.stringify(body));
   });
-  try { await run(post); } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); forgetConnection(r.conn.id); }
+  try { await run(post); } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); forgetConnection(r.conn.id); await rm(guardDir, { recursive: true, force: true }); }
 }
 
 describe("the HTTP move allowlist", () => {

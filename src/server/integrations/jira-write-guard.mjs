@@ -2,15 +2,65 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { chmod, link, mkdir, open, readFile, readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createConnection, createServer } from 'node:net';
+import { setTimeout as delay } from 'node:timers/promises';
 import { deckDataDir } from '../deck-home.mjs';
 import { createTemp, renameWithRetry } from '../atomic-write.mjs';
 import { STORE_DIR } from './store.mjs';
 
 const active = new Set();
+const listeners = new Map();
 const keyPattern = /^[A-Z][A-Z0-9_]{0,40}-[1-9]\d{0,11}$/;
 const uuidPattern = /^[0-9a-f-]{36}$/;
 const scope = record => createHash('sha256').update(JSON.stringify([record.connectionId, record.kind, record.kind === 'move' ? '' : record.issueKey])).digest('hex');
+const lockPort = op => 20000 + (parseInt(scope(op).slice(0, 8), 16) % 40000);
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code !== 'ESRCH'; } };
+
+// The kernel releases listening sockets on process exit, including crashes.
+// A busy port is never reclaimed by age: an unrelated listener can only make
+// this guard fail closed. Hash collisions likewise serialize unrelated scopes.
+function listen(port, handler = socket => socket.destroy()) {
+  return new Promise((resolve, reject) => {
+    const server = createServer(handler);
+    server.once('error', reject);
+    server.listen({ port, host: '127.0.0.1', exclusive: true }, () => {
+      server.removeListener('error', reject);
+      resolve(server);
+    });
+  });
+}
+const close = server => new Promise((resolve, reject) => server.close(err => err ? reject(err) : resolve()));
+async function startMarker(op) {
+  const token = randomUUID();
+  let server;
+  do {
+    server = await listen(0, socket => {
+      socket.setTimeout(1000, () => socket.destroy());
+      socket.end(token);
+    });
+    if (server.address().port === lockPort(op)) { await close(server); server = null; }
+  } while (!server);
+  server.unref();
+  listeners.set(op.operationId, server);
+  return { port: server.address().port, token };
+}
+async function stopMarker(op) {
+  const server = listeners.get(op.operationId);
+  if (server) { listeners.delete(op.operationId); await close(server); }
+}
+function markerAlive(marker) {
+  return new Promise(resolve => {
+    let data = '';
+    let settled = false;
+    const socket = createConnection({ host: '127.0.0.1', port: marker.port });
+    const done = value => { if (!settled) { settled = true; socket.destroy(); resolve(value); } };
+    // Ambiguous failures are treated as live; never acknowledge on a timeout.
+    socket.setTimeout(1000, () => done(true));
+    socket.on('data', chunk => { data += chunk.toString(); if (data.length >= marker.token.length) done(data === marker.token); });
+    socket.on('end', () => done(data === marker.token));
+    socket.on('error', err => done(err.code !== 'ECONNREFUSED'));
+  });
+}
 
 export function createJiraWriteGuard({ dir = () => join(deckDataDir(), STORE_DIR, 'jira-write-guard') } = {}) {
   async function prepare() {
@@ -32,15 +82,31 @@ export function createJiraWriteGuard({ dir = () => join(deckDataDir(), STORE_DIR
     if (active.has(op.operationId)) return true;
     const names = await readdir(root);
     const prefix = `running-${op.operationId}-`;
-    return names.some(name => name.startsWith(prefix) && alive(Number(name.slice(prefix.length))));
+    for (const name of names.filter(name => name.startsWith(prefix))) {
+      const marker = await read(join(root, name)).catch(err => {
+        // Older releases used empty PID-only marker files. Preserve their
+        // conservative behaviour while those processes may still be running.
+        if (err instanceof SyntaxError) return null;
+        throw err;
+      });
+      if (marker && Number.isInteger(marker.port) && marker.port > 0 && marker.port <= 65535 && typeof marker.token === 'string' && uuidPattern.test(marker.token)) {
+        if (await markerAlive(marker)) return true;
+      } else if (alive(Number(name.slice(prefix.length)))) return true;
+    }
+    return false;
   }
   async function state(root, op) { return { ...op, state: await running(root, op) ? 'pending' : op.state === 'confirmed' ? 'confirmed' : 'uncertain' }; }
   async function lock(root, op, fn) {
-    const name = join(root, `ack-${scope(op)}`);
-    let h;
-    try { h = await open(name, 'wx', 0o600); }
-    catch (e) { if (e.code === 'EEXIST') return { ok: false }; throw e; }
-    try { return await fn(); } finally { await h.close(); await unlink(name); }
+    const port = lockPort(op);
+    let server;
+    for (let attempt = 0; !server; attempt++) {
+      try { server = await listen(port); }
+      catch (e) {
+        if (e.code !== 'EADDRINUSE' || attempt >= 1000) throw e;
+        await delay(10);
+      }
+    }
+    try { return await fn(); } finally { await close(server); }
   }
   return {
     async begin(input) {
@@ -55,7 +121,9 @@ export function createJiraWriteGuard({ dir = () => join(deckDataDir(), STORE_DIR
       let returned = false;
       active.add(op.operationId);
       try {
-        const markerHandle = await open(marker, 'wx', 0o600); await markerHandle.close();
+        const identity = await startMarker(op);
+        const markerHandle = await open(marker, 'wx', 0o600);
+        try { await markerHandle.writeFile(JSON.stringify(identity)); } finally { await markerHandle.close(); }
         const h = await open(temp, 'wx', 0o600);
         try { await h.writeFile(JSON.stringify(op)); await h.sync(); } finally { await h.close(); }
         try { await link(temp, path); }
@@ -70,7 +138,7 @@ export function createJiraWriteGuard({ dir = () => join(deckDataDir(), STORE_DIR
         return { operation: { ...op, state: 'pending' } };
       } finally {
         await unlink(temp).catch(() => {});
-        if (!returned) { active.delete(op.operationId); await unlink(marker).catch(() => {}); }
+        if (!returned) { active.delete(op.operationId); await stopMarker(op); await unlink(marker).catch(() => {}); }
       }
     },
     async finish(op, outcome) {
@@ -97,6 +165,7 @@ export function createJiraWriteGuard({ dir = () => join(deckDataDir(), STORE_DIR
         }
       } finally {
         active.delete(op.operationId);
+        await stopMarker(op);
         await unlink(join(root, `running-${op.operationId}-${process.pid}`)).catch(() => {});
       }
     },

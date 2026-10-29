@@ -1,9 +1,12 @@
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { createServer } from "node:net";
+import { once } from "node:events";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 // @ts-expect-error plain server module
@@ -20,6 +23,76 @@ afterEach(async () => { await Promise.all(dirs.splice(0).map(dir => rm(dir, { re
 const comment = { connectionId: "synthetic-a", kind: "comment", issueKey: "MOCK-1" };
 
 describe("durable Jira write guard", () => {
+  it("waits for a concurrent acknowledgement before finalizing", async () => {
+    const { guard } = await rig();
+    const { operation } = await guard.begin(comment);
+    const digest = createHash('sha256').update(JSON.stringify([comment.connectionId, comment.kind, comment.issueKey])).digest('hex');
+    const port = 20000 + (parseInt(digest.slice(0, 8), 16) % 40000);
+    const blocker = createServer();
+    await new Promise<void>((resolve, reject) => blocker.once('error', reject).listen(port, '127.0.0.1', resolve));
+    const finishing = guard.finish(operation, 'confirmed');
+    const acknowledging = guard.acknowledge(comment.connectionId, operation.operationId);
+    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise<void>(resolve => blocker.close(() => resolve()));
+    await finishing;
+    const ack = await acknowledging;
+    if (!ack.ok) assert.deepEqual(await guard.acknowledge(comment.connectionId, operation.operationId), { ok: true });
+    assert.deepEqual(await guard.list(comment.connectionId), []);
+  });
+
+  it("recovers a scope lock when its process is killed", async () => {
+    const { guard } = await rig();
+    const { operation } = await guard.begin(comment);
+    const digest = createHash('sha256').update(JSON.stringify([comment.connectionId, comment.kind, comment.issueKey])).digest('hex');
+    const port = 20000 + (parseInt(digest.slice(0, 8), 16) % 40000);
+    const child = spawn(process.execPath, ['--input-type=module', '-e', `import { createServer } from 'node:net'; createServer().listen(${port}, '127.0.0.1', () => console.log('ready'));`], { stdio: ['ignore', 'pipe', 'pipe'] });
+    try {
+      await once(child.stdout!, 'data');
+      const finishing = guard.finish(operation, 'confirmed');
+      await new Promise(resolve => setTimeout(resolve, 50));
+      child.kill('SIGKILL');
+      await once(child, 'exit');
+      await finishing;
+      assert.equal((await guard.list(comment.connectionId))[0].state, 'confirmed');
+      assert.deepEqual(await guard.acknowledge(comment.connectionId, operation.operationId), { ok: true });
+    } finally { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); }
+  });
+
+  it("does not mistake a reused PID or port for the interrupted writer", async () => {
+    const { guard, dir } = await rig();
+    const moduleUrl = pathToFileURL(join(process.cwd(), "src/server/integrations/jira-write-guard.mjs")).href;
+    const script = `import { createJiraWriteGuard } from ${JSON.stringify(moduleUrl)}; const guard = createJiraWriteGuard({dir: () => process.argv[1]}); await guard.begin(${JSON.stringify(comment)});`;
+    await promisify(execFile)(process.execPath, ['--input-type=module', '-e', script, dir]);
+    const marker = (await readdir(dir)).find(name => name.startsWith('running-'))!;
+    const identity = JSON.parse(await readFile(join(dir, marker), 'utf8'));
+    const unrelated = createServer(socket => socket.end('unrelated process'));
+    await new Promise<void>((resolve, reject) => unrelated.once('error', reject).listen(identity.port, '127.0.0.1', resolve));
+    try {
+      // The current process is alive, simulating a reused PID.
+      const renamed = marker.replace(/-\d+$/, `-${process.pid}`);
+      await writeFile(join(dir, renamed), JSON.stringify(identity));
+      const [operation] = await guard.list(comment.connectionId);
+      assert.equal(operation.state, 'uncertain');
+      assert.deepEqual(await guard.acknowledge(comment.connectionId, operation.operationId), { ok: true });
+    } finally { await new Promise<void>(resolve => unrelated.close(() => resolve())); }
+  });
+
+  it("keeps a live writer pending across processes and recovers after it is killed", async () => {
+    const { guard, dir } = await rig();
+    const moduleUrl = pathToFileURL(join(process.cwd(), "src/server/integrations/jira-write-guard.mjs")).href;
+    const script = `import { createJiraWriteGuard } from ${JSON.stringify(moduleUrl)}; const guard = createJiraWriteGuard({dir: () => process.argv[1]}); const result = await guard.begin(${JSON.stringify(comment)}); console.log(JSON.stringify(result.operation)); setInterval(() => {}, 1000);`;
+    const child = spawn(process.execPath, ['--input-type=module', '-e', script, dir], { stdio: ['ignore', 'pipe', 'pipe'] });
+    try {
+      const [chunk] = await once(child.stdout!, 'data');
+      const operation = JSON.parse(chunk.toString());
+      assert.equal((await guard.list(comment.connectionId))[0].state, 'pending');
+      assert.equal((await guard.acknowledge(comment.connectionId, operation.operationId)).conflict.state, 'pending');
+      child.kill('SIGKILL');
+      await once(child, 'exit');
+      assert.equal((await guard.list(comment.connectionId))[0].state, 'uncertain');
+      assert.deepEqual(await guard.acknowledge(comment.connectionId, operation.operationId), { ok: true });
+    } finally { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); }
+  });
   it("retains an interrupted reservation after the server process exits", async () => {
     const { guard, dir } = await rig();
     const moduleUrl = pathToFileURL(join(process.cwd(), "src/server/integrations/jira-write-guard.mjs")).href;
