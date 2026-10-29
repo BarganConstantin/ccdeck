@@ -53,27 +53,41 @@ export async function failureOf(res: Response): Promise<IntegrationFailure> {
 /** One call to the deck's integration routes, as JSON. */
 export async function integrationCall<T>(path: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   const { timeoutMs = 30_000, ...rest } = init;
+  return withReadDeadline(rest.signal, timeoutMs, async signal => {
+    let res: Response;
+    try {
+      res = await fetch(path, {
+        ...rest, signal,
+        headers: rest.body ? { "Content-Type": "application/json", ...(rest.headers ?? {}) } : rest.headers,
+      });
+    } catch (err) {
+      if (signal.aborted) throw err;
+      throw new IntegrationFailure("network", "The deck could not be reached.");
+    }
+    if (!res.ok) throw await failureOf(res);
+    return res.json() as Promise<T>;
+  });
+}
+
+/** Fetch ends at headers; the deadline and parent cancellation must also
+ * cover the body, including an error response's JSON. */
+async function withReadDeadline<T>(outer: AbortSignal | null | undefined, timeoutMs: number, read: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
-  const outer = rest.signal;
-  const stop = () => controller.abort();
+  const stop = () => controller.abort(outer?.reason);
   outer?.addEventListener("abort", stop, { once: true });
-  let res: Response;
+  if (outer?.aborted) stop();
   try {
-    res = await fetch(path, {
-      ...rest,
-      signal: controller.signal,
-      headers: rest.body ? { "Content-Type": "application/json", ...(rest.headers ?? {}) } : rest.headers,
-    });
+    controller.signal.throwIfAborted();
+    return await read(controller.signal);
   } catch (err) {
-    if (outer?.aborted) throw err;
-    throw new IntegrationFailure("network", controller.signal.aborted ? "The deck took too long to answer." : "The deck could not be reached.");
+    if (outer?.aborted) throw outer.reason ?? err;
+    if (controller.signal.aborted) throw new IntegrationFailure("network", "The deck took too long to answer.");
+    throw err;
   } finally {
     window.clearTimeout(timer);
     outer?.removeEventListener("abort", stop);
   }
-  if (!res.ok) throw await failureOf(res);
-  return res.json() as Promise<T>;
 }
 
 /** Where one connection's reads live: /api/integrations/<kind>/<id>/. */
@@ -122,23 +136,20 @@ export function queryOf(params: Record<string, string | number | boolean | undef
 /** One JSON read through a panel's `api`, with a deadline, as data or an
  *  IntegrationFailure. An abort by the caller is rethrown as it came. */
 export async function readThrough<T>(api: (path: string, init?: RequestInit) => Promise<Response>, path: string, { signal, timeoutMs = 45_000 }: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<T> {
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
-  const stop = () => controller.abort();
-  signal?.addEventListener("abort", stop, { once: true });
-  let res: Response;
-  try {
-    res = await api(path, { signal: controller.signal, headers: { Accept: "application/json" } });
-  } catch (err) {
-    if (signal?.aborted) throw err;
-    throw new IntegrationFailure("network", controller.signal.aborted ? "The deck took too long to answer." : "The deck could not be reached.");
-  } finally {
-    window.clearTimeout(timer);
-    signal?.removeEventListener("abort", stop);
-  }
-  if (!res.ok) throw await failureOf(res);
-  try { return await res.json() as T; }
-  catch { throw new IntegrationFailure("upstream", "The deck answered with something that is not JSON."); }
+  return withReadDeadline(signal, timeoutMs, async inner => {
+    let res: Response;
+    try { res = await api(path, { signal: inner, headers: { Accept: "application/json" } }); }
+    catch (err) {
+      if (inner.aborted) throw err;
+      throw new IntegrationFailure("network", "The deck could not be reached.");
+    }
+    if (!res.ok) throw await failureOf(res);
+    try { return await res.json() as T; }
+    catch (err) {
+      if (inner.aborted) throw err;
+      throw new IntegrationFailure("upstream", "The deck answered with something that is not JSON.");
+    }
+  });
 }
 
 // ── the shared list ─────────────────────────────────────────────────────────

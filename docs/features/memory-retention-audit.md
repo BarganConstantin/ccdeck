@@ -111,6 +111,23 @@ This prevents unwanted work and retention; no whole-app MiB reduction was
 measured or claimed for this change. Cache capacities and completed pages that
 still belong to the open project are preserved.
 
+### JSON body lifetime
+
+A further gap existed in the shared integration client: its timeout and parent
+abort listener were removed when fetch returned headers, before JSON consumption.
+A partial body could therefore remain pending after either its deadline or panel
+closure. Both `readThrough` and `integrationCall` now keep those protections until
+the body completes, including structured error bodies. Already-cancelled reads
+do not start; successful reads release their timer and parent listener.
+
+Four failing tests demonstrated timeout and cancellation after headers before
+the fix. The expanded twelve-test suite also covers stalled error bodies,
+completed reads, already-aborted signals and preserved permission errors. Real
+Chromium fetches against a temporary synthetic streaming endpoint verified 80
+reads across both clients and both cancellation paths: all 80 requests closed
+and reported the expected result, with no page errors. No reduction in payload
+size, cache capacity or whole-app memory is claimed for this fix.
+
 ## Populated tracker detail churn
 
 `verify-tracker-memory.mjs` bundles and renders the actual Jira and GitLab issue
