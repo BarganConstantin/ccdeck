@@ -20,9 +20,11 @@
 // from CCDECK_TMUX or PATH and must be 3.2 or newer. The emulator is
 // @xterm/headless with the graphemes addon the stage itself loads (headless is
 // not a dependency of the deck): it is resolved from CCDECK_TEST_XTERM (a
-// directory whose node_modules holds both) or from this checkout, and without
-// it the screen comparisons
-// fall back to checks that need no emulator. To run the whole of it:
+// directory whose node_modules holds both) or from this checkout. Without it
+// the screen comparisons fall back to checks that need no emulator and say
+// NOT TESTED on stderr; in CI, whose `npm ci` installs both, a case that would
+// compare screens fails instead (utf8-frames-kit.mjs, needed(), as in the
+// sibling files). To run the whole of it:
 //
 //   CCDECK_TMUX=/path/to/tmux CCDECK_TEST_XTERM=/dir/with/node_modules \
 //     npx vitest run tmux-control-tmux
@@ -45,7 +47,7 @@ import { openControl, quoteTmuxArg } from "../../server/tmux-control.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { liveChildPids } from "../../server/exec-children.mjs";
 // @ts-expect-error — plain .mjs test kit, no types
-import { requireGraphemes } from "./utf8-frames-kit.mjs";
+import { needed, requireGraphemes } from "./utf8-frames-kit.mjs";
 
 /** A tmux this file may use, or null: CCDECK_TMUX, else `tmux` on PATH, 3.2+. */
 function realTmux(): string | null {
@@ -60,6 +62,8 @@ function realTmux(): string | null {
 }
 
 interface Xterm { Terminal: new (o: object) => any; Widths: new () => object }
+/** Why the emulator did not load from the last place tried, for the failure below. */
+let xtermError = "";
 /** @xterm/headless and the graphemes addon, if this machine has them. */
 function headlessXterm(): Xterm | null {
   const roots = [process.env.CCDECK_TEST_XTERM, fileURLToPath(new URL("../../../", import.meta.url))];
@@ -69,16 +73,17 @@ function headlessXterm(): Xterm | null {
       const req = createRequire(join(root, "resolve-from-here.js"));
       // The addon as a browser loads it, or Node's Buffer pool decides its widths (requireGraphemes says how).
       return { Terminal: req("@xterm/headless").Terminal, Widths: requireGraphemes(req) };
-    } catch { /* not here */ }
+    } catch (e) { xtermError = (e instanceof Error ? e.message : String(e)).split("\n")[0]; }
   }
   return null;
 }
 
 const TMUX = realTmux();
+/** What TMUX says it is ("tmux 3.4"), for messages. */
+const TMUX_V = TMUX ? (spawnSync(TMUX, ["-V"], { encoding: "utf8", timeout: 5000 }).stdout ?? "").trim() : "";
 /** TMUX's version as major * 100 + minor: "tmux 3.4" is 304, "tmux 3.6a" 306, "tmux next-3.7" 307. */
 const TMUX_VERSION = (() => {
-  if (!TMUX) return null;
-  const m = /^tmux (?:next-)?(\d+)\.(\d+)/.exec(spawnSync(TMUX, ["-V"], { encoding: "utf8", timeout: 5000 }).stdout ?? "");
+  const m = /^tmux (?:next-)?(\d+)\.(\d+)/.exec(TMUX_V);
   return m ? Number(m[1]) * 100 + Number(m[2]) : null;
 })();
 // COMPATIBILITY RULE, tmux 3.2 to 3.5 only — for review. Those keep a wide
@@ -98,6 +103,9 @@ const TMUX_VERSION = (() => {
 const BEFORE_36 = TMUX_VERSION !== null && TMUX_VERSION < 306;
 const STRESS = BEFORE_36 ? ["stress", "pre-3.6"] : ["stress"];
 const X = headlessXterm();
+/** Whether the screen comparisons can run: no emulator gives the checks that
+ *  need none outside CI (and NOT TESTED), and fails the case in CI. */
+const xterm = () => needed(`@xterm/headless with its graphemes addon${X ? "" : ` (${xtermError || "not found"})`}`, X);
 const SOCKET = `ccdeck-test-tc-${process.pid}-${randomBytes(3).toString("hex")}`;
 const FIXTURE = fileURLToPath(new URL("./tmux-control-tui.mjs", import.meta.url));
 const NODE = process.execPath;
@@ -256,7 +264,7 @@ describe("against a real tmux", () => {
     const c = open({ target: "fid" });
     await c.ready;
     expect(await c.resize(100, 30), "the dock sizes a window nobody else is attached to").toEqual({ ok: true, lines: [] });
-    if (!X) {
+    if (!xterm()) {
       // No emulator here: the stream must still flow after a seed that says
       // "alternate screen", and stop being dropped once seeded.
       let bytes = 0;
@@ -305,9 +313,9 @@ describe("against a real tmux", () => {
     tm("new-session", "-d", "-s", "half", "-x", "20", "-y", "3", NODE, FIXTURE, "half");
     await waitFor(() => tm("display-message", "-p", "-t", "half", "#{pane_title}").trim() === "half", "the title written after the glyphs");
     const row = tm("capture-pane", "-p", "-t", "half").split("\n")[0].trimEnd();
-    if (BEFORE_36) expect(row, `tmux ${TMUX_VERSION} keeps 界 and puts Z after it; if it no longer does, the pre-3.6 rule goes`).toBe("界Z");
-    else expect(row, `tmux ${TMUX_VERSION} blanks 界, so the stress TUI keeps every write`).toBe(" Z");
-    if (X) {
+    if (BEFORE_36) expect(row, `${TMUX_V} keeps 界 and puts Z after it; if it no longer does, the pre-3.6 rule goes`).toBe("界Z");
+    else expect(row, `${TMUX_V} blanks 界, so the stress TUI keeps every write`).toBe(" Z");
+    if (xterm()) {
       const t = makeTerm(20, 3);
       await write(t, "\x1b[2J\x1b[1;1H界\x1b[1;2HZ");
       expect(t.buffer.active.getLine(0).translateToString(true).trimEnd(), "what the panel draws from the same bytes").toBe(" Z");
@@ -329,7 +337,7 @@ describe("against a real tmux", () => {
     const c = open({ target: "alt" });
     await c.ready;
     await c.resize(100, 20);
-    if (!X) {
+    if (!xterm()) {
       const s = await c.seed();
       const text = s.bytes.toString("utf8");
       const enter = text.indexOf("\x1b[?1049h");
@@ -524,7 +532,7 @@ describe("against a real tmux", () => {
       spawn: (file: string, args: string[], opts: SpawnOptions) => (child = spawn(file, args, opts)) });
     await c.ready;
     await c.resize(100, 30);
-    const m = X ? mirror(c) : null;
+    const m = xterm() ? mirror(c) : null;
     let bytes = 0;
     c.on("output", (d: Buffer) => { bytes += d.length; });
     const reseeds: Promise<unknown>[] = [];
