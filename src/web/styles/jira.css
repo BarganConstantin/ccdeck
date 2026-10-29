@@ -604,3 +604,8 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   .jr-board-item:active, .jr-crumb:active, .jr-group-toggle:active,
   .jr-link-btn:active, .jr-toggle:active, .jr-move-button:active:not(:disabled) { transform: none; }
 }
+
+/* Workflow actions stay beside the current status, wrapping on narrow screens. */
+.jr-transition, .jr-transition-controls { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.jr-transition select { max-width: 100%; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--border); border-radius: 5px; padding: 4px 6px; }
+.jr-transition [role="alert"] { flex-basis: 100%; }

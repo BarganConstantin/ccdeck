@@ -348,6 +348,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       narrow={narrow}
       auto={view.auto}
       onClose={back}
+      onStatusChanged={() => { invalidateJiraConnection(conn.id); void jira.refresh(); }}
     />
   ) : null;
 

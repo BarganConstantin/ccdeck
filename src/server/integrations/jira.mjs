@@ -29,6 +29,7 @@ import { errorResponse, integrationError, IntegrationError } from "./errors.mjs"
 import { createProxy, fetchImage, isLocalHost, isSafeTarget, normaliseBaseUrl, originOf } from "./proxy.mjs";
 import { createRouter } from "./registry.mjs";
 import { createJiraMover, readJiraMoveCapability } from "./jira-move.mjs";
+import { createJiraTransition, jiraTransitions } from "./jira-transition.mjs";
 
 export const MIN_SERVER_VERSION = [8, 14, 0];
 const ATLASSIAN_API = "https://api.atlassian.com";
@@ -875,6 +876,8 @@ export function registerJiraRoutes(router) {
     };
   });
 
+  router.get("issue/:key/transitions", async ctx => ({ transitions: await jiraTransitions(ctx.client, restBase(ctx.conn), issueKey(ctx.params)) }));
+
   /** Every subtask of one issue, whoever has it. */
   router.get("issue/:key/subtasks", async ctx => {
     const key = issueKey(ctx.params);
@@ -982,6 +985,7 @@ export function createJiraClient(conn, secret, { fetchImpl, apiOrigin } = {}) {
     conn,
     get cache() { return cache; },
     moveIssue,
+    transitionIssue: createJiraTransition({ secret, origins: () => origins.slice(), sign: signJira, authCheck: jiraAuthCheck, fetchImpl, reader: signal => ({ json: (url, opts = {}) => reader().json(url, { ...opts, signal }) }), rest: restBase(conn), invalidate: () => { cache = createCache(); } }),
     get allowedOrigins() { return origins.slice(); },
     async validate({ phase = "validate", signal } = {}) {
       const result = await validateJira(conn, secret, { phase, signal, client: list => proxy(list, phase, signal) }, { apiOrigin });
@@ -1017,6 +1021,11 @@ export async function jiraRoutes(client, method, subpath, searchParams, _req, { 
     if ([...searchParams].length) return errorResponse(integrationError("invalid", "Move parameters belong in the JSON body."));
     try { return await client.moveIssue(move[1], moveBody, signal); }
     catch (err) { return errorResponse(err); }
+  }
+  const transition = /^issue\/([A-Z][A-Z0-9_]{0,40}-[1-9]\d{0,11})\/transitions$/.exec(subpath);
+  if (method === "POST" && transition) {
+    if ([...searchParams].length) return errorResponse(integrationError("invalid", "Transition parameters belong in the JSON body."));
+    try { return await client.transitionIssue(transition[1], moveBody, signal); } catch (err) { return errorResponse(err); }
   }
   if (method !== "GET" && method !== "HEAD") return errorResponse(integrationError("invalid", "That Jira operation is not supported."));
   const route = jiraRouter.find(subpath);

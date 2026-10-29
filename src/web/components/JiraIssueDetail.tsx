@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import type { IntegrationConnection as Connection } from "../integrations/types";
 import { jiraImage, type JiraApi, type JiraIssue, type TimeTracking } from "../jira-api";
 import { detailNameTakesFocus, fileSize, jiraDate, shownResolution, timeLine } from "../jira-board";
+import JiraTransition from "./JiraTransition";
 import JiraHtml, { type HtmlContext } from "../jira-html";
 import { useJiraIssue } from "../use-jira-board";
 import { connectionHost } from "../integrations/client";
@@ -37,6 +38,7 @@ export interface JiraIssueDetailProps {
   auto?: boolean;
   /** Close the issue: back to the row that opened it. */
   onClose: () => void;
+  onStatusChanged?: () => void;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -68,7 +70,7 @@ function SubtaskList({ issues, onOpen }: { issues: JiraIssue[]; onOpen: (key: st
   );
 }
 
-export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation, time, onOpen, onTrail, onReconnect, narrow, auto = false, onClose }: JiraIssueDetailProps) {
+export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation, time, onOpen, onTrail, onReconnect, narrow, auto = false, onClose, onStatusChanged }: JiraIssueDetailProps) {
   const key = trail[trail.length - 1] ?? null;
   const { data, loading, error, reload } = useJiraIssue(api, conn.id, key);
   const ctx = useMemo<HtmlContext>(() => ({ baseUrl: conn.baseUrl, image: abs => jiraImage(conn, assetUrl, abs) }), [conn, assetUrl]);
@@ -134,6 +136,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
             <p className="jr-detail-state">
               <span className="jr-with-icon"><TypeIcon type={issue.type} />{issue.type.name}</span>
               <StatusLozenge status={issue.status} />
+              {onStatusChanged && <JiraTransition key={issue.key} api={api} issueKey={issue.key} onChanged={onStatusChanged} />}
               {resolution && <span className="jr-dim">{resolution}</span>}
               {issue.priority && <span className="jr-with-icon"><PriorityIcon priority={issue.priority} />{issue.priority.name}</span>}
               {issue.flagged && <span className="jr-flagged"><FlagGlyph /> Flagged</span>}
