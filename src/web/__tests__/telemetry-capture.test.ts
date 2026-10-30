@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Readable, PassThrough } from 'node:stream';
+import { spawnSync } from 'node:child_process';
 import { createWireCapture } from '../../server/traffic-radar-wire.mjs';
 import { captureDestination, createTrafficCapture } from '../../server/traffic-radar-capture.mjs';
 import { streamCapture } from '../../server/traffic-radar-helper.mjs';
@@ -12,6 +13,26 @@ function reader() {
   return { decoder, events, receipts, issues };
 }
 describe('passive OTLP capture', () => {
+  it('releases consumed packet buffers while keeping idle connections usable', () => {
+    const wire = new URL('../../server/traffic-radar-wire.mjs', import.meta.url).href;
+    const fixture = new URL('./traffic-capture-fixture.mjs', import.meta.url).href;
+    // ArrayBuffer backing stores otherwise sweep concurrently after gc() returns,
+    // so this snapshot could count unreachable packets still awaiting the sweeper.
+    const result = spawnSync(process.execPath, ['--expose-gc', '--no-concurrent-array-buffer-sweeping', '--input-type=module', '-e', `
+      import {createWireCapture} from ${JSON.stringify(wire)};
+      import {request,response,packet,pcap} from ${JSON.stringify(fixture)};
+      let exports=0,receipts=0,issues=0;
+      const decoder=createWireCapture({host:'192.0.2.16',port:4317,onExport:()=>++exports,onResponse:()=>receipts++,onIssue:()=>issues++});
+      global.gc();const base=process.memoryUsage().arrayBuffers;
+      function run(){decoder.feed(pcap());for(let i=20;i<36;i++){const source='192.0.2.'+i;const data={resourceLogs:[{scopeLogs:[{logRecords:[{body:{stringValue:'x'.repeat(50000)}}]}]}]};decoder.feed(packet(request('logs',data),{source}));decoder.feed(packet(response(),{source,side:'in'}));}}
+      run();global.gc();console.log(JSON.stringify({exports,receipts,issues,retained:process.memoryUsage().arrayBuffers-base}));decoder.close();
+    `], { encoding: 'utf8', timeout: 10000 });
+    expect(result.status, result.stderr).toBe(0);
+    const reading = JSON.parse(result.stdout);
+    expect(reading).toMatchObject({ exports: 16, receipts: 16, issues: 0 });
+    expect(reading.retained).toBeLessThan(256 * 1024);
+  });
+
   it('decodes a real protobuf export and distinguishes observation from acceptance', () => {
     const r = reader(); r.decoder.feed(pcap(packet(request())));
     expect(r.events[0].payload).toEqual(LOGS); expect(r.receipts).toEqual([]);

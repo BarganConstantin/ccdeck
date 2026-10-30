@@ -38,6 +38,8 @@ import { errorBody, errorResponse, integrationError, isTypedError } from "./erro
 import { fetchImage, IMAGE_MAX_BYTES, isSafeTarget, normaliseBaseUrl, originOf, RASTER_TYPES, rasterTypeOf } from "./proxy.mjs";
 import { getProvider, isAvailable, providerList } from "./registry.mjs";
 import { integrationsStore } from "./store.mjs";
+import { jiraWriteGuard } from "./jira-write-guard.mjs";
+import { parseJiraMove } from "./jira-move.mjs";
 import "./providers.mjs";
 
 // ── one client per connection ───────────────────────────────────────────────
@@ -457,13 +459,19 @@ export async function handleIntegrations(req, res, url, deps = {}) {
     // The server's normal mutation authentication and CSRF gates still apply.
     const jiraMove = kind === "jira" && method === "POST" && rest.length === 3
       && rest[0] === "board" && /^[1-9]\d{0,11}$/.test(rest[1]) && rest[2] === "move";
-    if (method !== "GET" && method !== "HEAD" && !jiraMove) return notAllowed(res);
+    const jiraTransition = kind === "jira" && method === "POST" && rest.length === 3 && rest[0] === "issue"
+      && /^[A-Z][A-Z0-9_]{0,40}-[1-9]\d{0,11}$/.test(rest[1]) && rest[2] === "transitions";
+    const jiraComment = kind === "jira" && method === "POST" && rest.length === 3 && rest[0] === "issue"
+      && /^[A-Z][A-Z0-9_]{0,40}-[1-9]\d{0,11}$/.test(rest[1]) && rest[2] === "comment";
+    const guardRead = kind === "jira" && rest.length === 1 && rest[0] === "write-guard" && (method === "GET" || method === "HEAD");
+    const guardAck = kind === "jira" && rest.length === 2 && rest[0] === "write-guard" && rest[1] === "acknowledge" && method === "POST";
+    if (method !== "GET" && method !== "HEAD" && !jiraMove && !jiraTransition && !jiraComment && !guardAck) return notAllowed(res);
     let moveBody;
-    if (jiraMove) {
+    if (jiraMove || jiraTransition || jiraComment) {
       if (!/^application\/json(?:\s*;|$)/i.test(String(req.headers["content-type"] ?? ""))) {
         throw integrationError("invalid", "Send the move as application/json.");
       }
-      const bytes = await readBytes(req, res, 4096).catch(err => { if (!res.headersSent) throw err; return null; });
+      const bytes = await readBytes(req, res, jiraComment ? 65536 : 4096).catch(err => { if (!res.headersSent) throw err; return null; });
       if (bytes === null) return;
       try { moveBody = JSON.parse(bytes.toString("utf8")); }
       catch { throw integrationError("invalid", "The move body is not valid JSON."); }
@@ -495,15 +503,70 @@ export async function handleIntegrations(req, res, url, deps = {}) {
       return notFound(res);
     }
     if (!conn || conn.kind !== kind) throw integrationError("not-found", "That connection is not there any more.");
+    const guard = deps.jiraWriteGuard ?? jiraWriteGuard;
+    if (guardRead) return answer(200, { ok: true, operations: await guard.list(id) });
+    if (guardAck) {
+      const body = await readJsonBody(req, res);
+      if (body == null) return;
+      const result = await guard.acknowledge(id, body.operationId);
+      if (!result.ok) return answer(409, { ok: false, code: "jira_write_guard_conflict", ...(result.conflict ? { operation: result.conflict } : {}) });
+      return answer(200, { ok: true });
+    }
     if (!isAvailable(provider)) throw unavailable(provider.label);
     const secret = hold(await store.secret(id));
     if (secret == null) throw integrationError("expired", "No token is saved for this connection. Reconnect it in Settings.");
-    const client = clientFor(provider, conn, secret, { fetchImpl });
+    const mutation = jiraMove || jiraTransition || jiraComment;
+    let operation, attempted = false, possibleWrite = false;
+    let client;
+    if (mutation) {
+      const scope = jiraMove ? { kind: "move", boardId: rest[1], issueKeys: parseJiraMove(moveBody).issueKeys }
+        : { kind: jiraComment ? "comment" : "status", issueKey: rest[1] };
+      const reservation = await guard.begin({ connectionId: id, ...scope });
+      if (reservation.conflict) return answer(409, { ok: false, code: "jira_write_guard_conflict", operation: reservation.conflict });
+      operation = reservation.operation;
+      // A private client associates each upstream write with this request; reads
+      // and the existing cached client remain untouched.
+      const transport = fetchImpl ?? globalThis.fetch;
+      const trackedFetch = async (url, opts = {}) => {
+        const write = opts.method && !["GET", "HEAD"].includes(String(opts.method).toUpperCase());
+        if (!write) return transport(url, opts);
+        attempted = true;
+        try {
+          const response = await transport(url, opts);
+          // A response can come from an intermediary after the write reached
+          // Jira. No HTTP status alone proves the request had no effect.
+          possibleWrite = true;
+          return response;
+        } catch (err) { possibleWrite = true; throw err; }
+      };
+      try { client = provider.createClient(conn, secret, { fetchImpl: trackedFetch }); }
+      catch (err) { await guard.finish(operation, true); throw err; }
+    } else client = clientFor(provider, conn, secret, { fetchImpl });
 
-    const read = await provider.routes(client, method, rest.join("/"), url.searchParams, req, { signal, ...(jiraMove ? { moveBody } : {}) });
+    let read;
+    try {
+      read = await provider.routes(client, method, rest.join("/"), url.searchParams, req, { signal, ...(mutation ? { moveBody } : {}) });
+    } catch (err) {
+      if (!operation || !possibleWrite) throw err;
+      // Preserve typed provider errors; an unexpected failure after a write
+      // must still give the caller the durable operation to reconcile.
+      read = errorResponse(err);
+    } finally {
+      if (mutation && attempted) forgetConnection(id);
+      if (operation) {
+        const confirmed = read?.status >= 200 && read.status < 300 && read?.body?.ok === true;
+        await guard.finish(operation, confirmed ? 'confirmed' : !attempted || !possibleWrite);
+      }
+    }
     if (res.writableEnded || signal.aborted) return;
     const status = Number.isInteger(read?.status) ? read.status : 500;
-    return answer(status, read?.body ?? errorBody(null));
+    const body = read?.body ?? errorBody(null);
+    if (operation && status >= 200 && status < 300 && body.ok === true) return answer(status, { ...body, operationId: operation.operationId });
+    if (operation && possibleWrite) {
+      const current = (await guard.list(id)).find(entry => entry.operationId === operation.operationId);
+      if (current) return answer(status, { ...body, operation: current });
+    }
+    return answer(status, body);
   } catch (err) {
     if (isTypedError(err)) {
       const { status, body } = errorResponse(err);

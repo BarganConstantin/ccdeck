@@ -116,7 +116,7 @@ export interface JiraIssueDetail {
 export type JiraApi = (path: string, init?: RequestInit) => Promise<Response>;
 
 /** A write is never retried: a lost response may still mean Jira saved it. */
-export async function moveJiraIssue(api: JiraApi, boardId: string, move: JiraMove): Promise<{ notice?: string }> {
+export async function moveJiraIssue(api: JiraApi, boardId: string, move: JiraMove): Promise<{ notice?: string; operationId?: string }> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), 45_000);
   try {
@@ -158,7 +158,7 @@ export async function moveJiraIssue(api: JiraApi, boardId: string, move: JiraMov
       || ("notice" in result && (typeof result.notice !== "string" || result.notice.length > 1_000))) {
       throw new Error("Unconfirmed result");
     }
-    return "notice" in result ? { notice: result.notice as string } : {};
+    return { ...("notice" in result ? { notice: result.notice as string } : {}), ...("operationId" in result && typeof result.operationId === "string" ? { operationId: result.operationId } : {}) };
   } catch (error) {
     if (error instanceof IntegrationFailure) throw error;
     throw new IntegrationFailure("network", "The move could not be confirmed. Refresh the board before trying again.");

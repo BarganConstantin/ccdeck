@@ -237,12 +237,11 @@ describe("the dependency it replaced", () => {
   const pkg = JSON.parse(readFileSync(
     fileURLToPath(new URL("../../../package.json", import.meta.url)), "utf8"));
 
-  it("is gone, and nothing has taken its place", () => {
-    // The install-time claim this whole change is for. `open` pulled in nine
-    // transitive packages; a runtime dependency added later would put the cost
-    // back without anybody noticing, so the assertion is on the count and not
-    // on the name.
-    expect(pkg.dependencies ?? {}).toEqual({});
+  it("stays removed and runtime packages need no extra registry fetch", () => {
+    // Jira's native locking package is bundled. Opening a browser still uses
+    // only built-ins and does not restore the old install-time fetch graph.
+    expect(pkg.dependencies ?? {}).not.toHaveProperty("open");
+    expect(Object.keys(pkg.dependencies ?? {}).sort()).toEqual([...(pkg.bundledDependencies ?? [])].sort());
   });
 
   it("is not imported from anywhere any more", () => {

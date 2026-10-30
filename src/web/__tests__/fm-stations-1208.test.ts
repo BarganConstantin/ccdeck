@@ -151,7 +151,7 @@ describe("custom FM stations (#1208)", () => {
     expect(player).toContain('import("hls.js")');
     // Bundled by Vite like react, so a devDependency: `npx ccdeck` installs
     // nothing, which tarball-install-smoke.test.ts holds the tarball to.
-    expect(pkg.dependencies ?? {}).toEqual({});
+    expect(pkg.dependencies ?? {}).not.toHaveProperty("hls.js");
     expect(pkg.devDependencies["hls.js"]).toBeTruthy();
   });
 });

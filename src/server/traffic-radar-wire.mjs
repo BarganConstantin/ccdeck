@@ -42,6 +42,8 @@ export function createWireCapture({ host, port, onExport, onResponse, onIssue, o
         stream.partial = data.partialSuccess ?? null;
       }
     }
+    // An empty subarray still owns the entire consumed gRPC message.
+    if (stream[key].length === 0) stream[key] = Buffer.alloc(0);
   }
   function finishResponse(stream, at) {
     if (!stream.eventId) return;
@@ -120,6 +122,9 @@ export function createWireCapture({ host, port, onExport, onResponse, onIssue, o
         throw new Error('connection_closed');
       }
     }
+    // Keep the HPACK/sequence state for idle connections, without retaining
+    // the backing allocation of a frame that was consumed completely.
+    if (d.buffer.length === 0) d.buffer = Buffer.alloc(0);
     let buffered = flow.out.buffer.length + flow.in.buffer.length;
     for (const stream of flow.streams.values()) buffered += (stream.request?.length ?? 0) + (stream.response?.length ?? 0);
     if (buffered > LIMIT * 4) throw new Error('stream_limit');
@@ -223,6 +228,7 @@ export function createWireCapture({ host, port, onExport, onResponse, onIssue, o
         else tcp(pending.subarray(16, 16 + size), at);
         pending = pending.subarray(size + 16);
       }
+      if (pending.length === 0) pending = Buffer.alloc(0);
     },
     close() { pending = Buffer.alloc(0); flows.clear(); },
   };

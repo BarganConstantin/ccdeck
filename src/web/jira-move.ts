@@ -7,6 +7,7 @@ export type JiraMove = {
   target: { kind: "sprint"; sprintId: number } | { kind: "backlog" };
   beforeIssue?: string;
   afterIssue?: string;
+  atEnd?: true;
 } & ({ issueKey: string; issueKeys?: never } | { issueKey?: never; issueKeys: string[] });
 
 export interface JiraMoveItem { issue: JiraIssue; group: GroupDef }
@@ -28,6 +29,12 @@ export function selectIssue(current: ReadonlySet<string>, visible: readonly stri
   return new Set([...(mode === "add-range" ? current : []), ...range]);
 }
 
+/** The selected set owns the highlight; the open detail is a fallback only
+ *  when no selection is being made. */
+export function issueIsHighlighted(key: string, picked: ReadonlySet<string>, current: string | null, selectionMode: boolean): boolean {
+  return picked.has(key) || (!selectionMode && picked.size === 0 && current === key);
+}
+
 export function moveDestination(group: GroupDef): JiraMove["target"] | null {
   if (group.kind === "backlog") return { kind: "backlog" };
   if ((group.kind === "active" || group.kind === "future") && group.sprint
@@ -44,7 +51,6 @@ export function movableIssue(issue: JiraIssue, group: GroupDef): boolean {
 export function issueMoveBlocker({ issue, group }: JiraMoveItem): string | null {
   if (issue.type.subtask) return "is a subtask";
   if (issue.type.epic) return "is an epic";
-  if (issue.status.category === "done") return `is ${issue.status.name}`;
   if (group.kind === "closed") return "is in a closed sprint";
   if (!moveDestination(group)) return "is not in an active/future sprint or the backlog";
   return null;
@@ -69,5 +75,5 @@ export function issuesMove(items: readonly JiraMoveItem[], to: GroupDef, anchor?
     || items.some(i => !movableIssue(i.issue, i.group)) || (anchor && keys.includes(anchor.key))
     || (items.every(i => i.group.id === to.id) && !anchor)) return null;
   return { ...(keys.length === 1 ? { issueKey: keys[0] } : { issueKeys: keys }), target,
-    ...(anchor ? anchor.side === "before" ? { beforeIssue: anchor.key } : { afterIssue: anchor.key } : {}) };
+    ...(anchor ? anchor.side === "before" ? { beforeIssue: anchor.key } : { afterIssue: anchor.key } : { atEnd: true }) };
 }

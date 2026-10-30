@@ -3,6 +3,8 @@
 // The app id is permanent: macOS keys notification permission to it and
 // Windows keys the Start menu entry and toasts to it, so changing it later
 // orphans every install.
+const { runtimeResources, validateRuntime } = require("./scripts/deck-runtime.cjs");
+
 module.exports = {
   appId: "dev.ccdeck.app",
   productName: "ccdeck",
@@ -30,10 +32,17 @@ module.exports = {
     { from: "../src/server", to: "deck/src/server" },
     { from: "../dist/web", to: "deck/dist/web" },
     { from: "../package.json", to: "deck/package.json" },
+    { from: "../THIRD_PARTY_NOTICES.md", to: "deck/THIRD_PARTY_NOTICES.md" },
+    { from: "../LICENSE", to: "deck/LICENSE" },
+    { from: "../LICENSING.md", to: "deck/LICENSING.md" },
+    ...runtimeResources(),
     // The deck's two tones, at the top of Resources where macOS looks up a
     // notification's sound by name (scripts/chimes.mjs).
     { from: "dist/sounds", to: "." },
   ],
+  // Fail before packing if a target's native addon is unavailable. Keep all
+  // prebuilds: the same install builds both Intel and Apple Silicon artifacts.
+  beforePack: validateRuntime,
   // Signed by scripts/sign-mac.cjs with ccdeck's own certificate, never by
   // electron-builder — see that file for why.
   afterPack: "./scripts/sign-mac.cjs",

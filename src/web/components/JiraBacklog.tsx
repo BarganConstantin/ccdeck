@@ -23,7 +23,7 @@ import IntegrationAvatar, { IntegrationAvatarStack, UnassignedAvatar } from "./I
 import IntegrationFailureNote from "./IntegrationFailureNote";
 import IntegrationSkeleton from "./IntegrationSkeleton";
 import { Chevron, EpicChip, Estimate, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
-import { issueMoveBlocker, issuesMove, movableIssue, moveDestination, moveKeys, moveSelectionProblem, selectIssue, type JiraMove, type JiraMoveItem } from "../jira-move";
+import { issueIsHighlighted, issueMoveBlocker, issuesMove, movableIssue, moveDestination, moveKeys, moveSelectionProblem, selectIssue, type JiraMove, type JiraMoveItem } from "../jira-move";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import JiraMovePopover from "./JiraMovePopover";
 import JiraRowPreview from "./JiraRowPreview";
@@ -54,6 +54,10 @@ export interface JiraBacklogProps {
   onReconnect: () => void;
   onMove?: (move: JiraMove) => Promise<{ notice?: string }>;
   moveBusy?: boolean;
+  readBusy?: boolean;
+  moveUncertain?: boolean;
+  moveOutcome?: string;
+  onMoveChecked?: () => void;
   scrollBoundaryId?: string;
 }
 
@@ -177,7 +181,7 @@ function statusWidth(snap: BoardSnapshot): number {
 
 export default function JiraBacklog(props: JiraBacklogProps) {
   const { conn, overview, groups, snap, expanded, onToggleGroup, filter, mine, filtered, selected, onOpen, rowsOpen, onToggleRow,
-    onRetryGroup, onMore, onShowClosed, onMoreClosed, loadSubtasks, onReconnect, onMove, moveBusy = false } = props;
+    onRetryGroup, onMore, onShowClosed, onMoreClosed, loadSubtasks, onReconnect, onMove, moveBusy = false, readBusy = moveBusy, moveUncertain = false, moveOutcome = "", onMoveChecked } = props;
   const listRef = useRef<HTMLDivElement>(null);
   const boardId = useId();
   const drag = useRef<{ items: JiraMoveItem[] } | null>(null);
@@ -195,6 +199,8 @@ export default function JiraBacklog(props: JiraBacklogProps) {
   const submitting = useRef(false);
   const moveBusyRef = useRef(false);
   moveBusyRef.current = moveBusy;
+  const readBusyRef = useRef(false);
+  readBusyRef.current = readBusy;
   const closedLoadingRef = useRef(false);
   closedLoadingRef.current = snap.closed.loading;
   const canMove = overview.moves?.enabled === true && Boolean(onMove);
@@ -255,6 +261,11 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     } catch (error) {
       setMoveNotice("");
       setMoveError(error instanceof Error ? error.message : "The move could not be confirmed. Refresh before trying again.");
+      if (serial === menuSerial.current && document.activeElement === document.body && !opener?.isConnected) requestAnimationFrame(() => {
+        if (document.activeElement !== document.body) return;
+        const row = Array.from(listRef.current?.querySelectorAll<HTMLElement>(".jr-row-main[data-key]") ?? []).find(el => el.dataset.key === keys[0] && el.dataset.nav?.startsWith(`${destination.id}/`));
+        (row ?? document.getElementById(`jr-group-${destination.id.replace(/[^a-z0-9]/gi, "-")}-toggle`))?.focus();
+      });
       return false;
     } finally { submitting.current = false; }
   };
@@ -403,7 +414,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     const hasActions = canMove && issue && depth === 0;
     return (
       <li key={key} className="jr-item" data-context={row.kind === "context" || undefined}>
-        <div className="jr-row ig-row" data-selected={picked.has(key) || selected === key || undefined} data-picked={picked.has(key) || undefined} data-done={issue?.status.category === "done" || undefined}
+        <div className="jr-row ig-row" data-selected={issueIsHighlighted(key, picked, selected, selectionMode) || undefined} data-picked={picked.has(key) || undefined} data-done={issue?.status.category === "done" || undefined}
           data-current={selected === key || undefined} data-move-blocked={Boolean(issue && picked.has(key) && issueMoveBlocker({ issue, group })) || undefined}
           data-mine={issue?.mine || undefined} data-dragging={dragKeys.includes(key) || undefined}
           data-drop={dropAt?.group === group.id && dropAt.key === key ? dropAt.side : undefined}
@@ -417,7 +428,12 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               setMoveError(moveSelectionProblem(items));
               return;
             }
-            if (!picked.has(key)) { selectionVersion.current++; setPicked(new Set([key])); setSelectionMode(false); }
+            if (!picked.has(key)) {
+              selectionVersion.current++;
+              selectionAnchor.current = key;
+              setPicked(new Set([key]));
+              setSelectionMode(false);
+            }
             drag.current = { items };
             event.dataTransfer.effectAllowed = "move";
             event.dataTransfer.setData("text/plain", items.map(i => i.issue.key).join("\n"));
@@ -511,7 +527,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               const subNav = `${group.id}/${sub.key}/${nav}`;
               return (
                 <li key={sub.key} className="jr-item">
-                  <div className="jr-row jr-subrow ig-row" data-selected={picked.has(sub.key) || selected === sub.key || undefined} data-picked={picked.has(sub.key) || undefined} data-done={sub.status.category === "done" || undefined}
+                  <div className="jr-row jr-subrow ig-row" data-selected={issueIsHighlighted(sub.key, picked, selected, selectionMode) || undefined} data-picked={picked.has(sub.key) || undefined} data-done={sub.status.category === "done" || undefined}
                     data-current={selected === sub.key || undefined} data-move-blocked={Boolean(picked.has(sub.key) && issueMoveBlocker({ issue: sub, group })) || undefined}
                     data-mine={sub.mine || undefined}>
                     <span className="jr-toggle-space" aria-hidden />
@@ -638,7 +654,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                 {rows.length > 0 && <ul className="jr-rows">{rows.map(row => renderRow(row, def, 0))}</ul>}
                 {data?.capped && <p className="jr-board-note">The first 600 issues are shown. Open the sprint in Jira for the rest.</p>}
                 {def.paged && data?.next && (
-                  <button type="button" className="btn jr-more" {...selfPressProps(moveBusy || Boolean(data.more))} onClick={() => { if (selfPressAccepted(moveBusyRef.current || Boolean(data.more))) onMore(def); }}>
+                  <button type="button" className="btn jr-more" {...selfPressProps(readBusy || Boolean(data.more))} onClick={() => { if (selfPressAccepted(readBusyRef.current || Boolean(data.more))) onMore(def); }}>
                     {data.more ? "Reading…" : data.total != null ? `Show more (${data.issues.length} of ${data.total})` : "Show more"}
                   </button>
                 )}
@@ -651,7 +667,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
 
       {moveMenu && <JiraMovePopover key={moveMenu.anchorId} items={moveMenu.items} groups={groups} snap={snap}
         initialView={moveMenu.initialView}
-        anchorId={moveMenu.anchorId} portalId={boardId} boundaryId={props.scrollBoundaryId} busy={moveBusy} error={moveError}
+        anchorId={moveMenu.anchorId} portalId={boardId} boundaryId={props.scrollBoundaryId} busy={moveBusy && !moveUncertain} uncertain={moveUncertain} outcome={moveOutcome} onChecked={onMoveChecked} error={moveError}
         onMove={saveMove} onClose={closeMoveMenu} />}
 
       {anySprint && (

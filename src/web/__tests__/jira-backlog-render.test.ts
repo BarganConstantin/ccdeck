@@ -98,6 +98,14 @@ describe("explicit moves without changing the existing read-only contract", () =
   });
 });
 
+describe("dragging the selected first issue", () => {
+  it("allows dragging an opened Done issue", () => {
+    const html = drawBoard([issue("MOCK-1", { status: status("Done", "done") })],
+      { selected: "MOCK-1", onMove: async () => ({}) }, { ...OVERVIEW, moves: { enabled: true } });
+    expect(html).toMatch(/class="jr-row ig-row"[^>]*data-current="true"[^>]*draggable="true"/);
+  });
+});
+
 describe("row selection and current-detail highlight", () => {
   it("keeps the current issue highlighted without an extra icon", () => {
     const html = drawBoard([issue("MOCK-1"), issue("MOCK-2")], { selected: "MOCK-1" });
