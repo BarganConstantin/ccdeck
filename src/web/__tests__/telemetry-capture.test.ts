@@ -16,7 +16,9 @@ describe('passive OTLP capture', () => {
   it('releases consumed packet buffers while keeping idle connections usable', () => {
     const wire = new URL('../../server/traffic-radar-wire.mjs', import.meta.url).href;
     const fixture = new URL('./traffic-capture-fixture.mjs', import.meta.url).href;
-    const result = spawnSync(process.execPath, ['--expose-gc', '--input-type=module', '-e', `
+    // ArrayBuffer backing stores otherwise sweep concurrently after gc() returns,
+    // so this snapshot could count unreachable packets still awaiting the sweeper.
+    const result = spawnSync(process.execPath, ['--expose-gc', '--no-concurrent-array-buffer-sweeping', '--input-type=module', '-e', `
       import {createWireCapture} from ${JSON.stringify(wire)};
       import {request,response,packet,pcap} from ${JSON.stringify(fixture)};
       let exports=0,receipts=0,issues=0;
