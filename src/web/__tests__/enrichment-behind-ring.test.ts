@@ -31,6 +31,8 @@ process.env.XDG_DATA_HOME = join(DIR, "data");
 const { startServer, hookToken, replayLog, eventBufferStats, MAX_BUFFER } = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { evictedStats } = await import("../../server/evicted-enrichment.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const { flushAppends } = await import("../../server/log-writer.mjs");
 
 const streams: IncomingMessage[] = [];
 let server: Server;
@@ -245,11 +247,15 @@ describe("a page that connects behind the ring's head", () => {
     const watcher = livePage();
     await watcher.ready;
     const { newestSeq, events } = eventBufferStats();
+    // Hooks acknowledge before their queued disk writes finish. Compare two
+    // settled snapshots so setup writes cannot look like replay side effects.
+    expect(await flushAppends(LOG)).toBe(true);
     const logged = readFileSync(LOG, "utf8");
     await page();
     await new Promise(r => setTimeout(r, 200));
     expect(eventBufferStats().newestSeq).toBe(newestSeq);
     expect(eventBufferStats().events).toBe(events);
+    expect(await flushAppends(LOG)).toBe(true);
     expect(readFileSync(LOG, "utf8")).toBe(logged);
     expect(watcher.frames).toEqual([]);
   });
