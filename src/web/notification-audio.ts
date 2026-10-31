@@ -1,5 +1,6 @@
 import type { Chime } from "./sound";
 import { t } from "./i18n";
+import { OwnError } from "./own-error";
 
 export const MAX_CUSTOM_AUDIO_BYTES = 1024 * 1024;
 export const MAX_CUSTOM_AUDIO_SECONDS = 5;
@@ -172,16 +173,16 @@ export async function importCustomAudio(
 ): Promise<CustomAudioAsset> {
   const name = file.name?.trim() || t("radio.audio.customSound");
   const firstError = validateAudioImport({ name, type: file.type, size: file.size });
-  if (firstError) throw new Error(firstError);
+  if (firstError) throw new OwnError(firstError);
   const bytes = await file.arrayBuffer();
   let decoded: DecodedAudio;
   try {
     decoded = await decode(bytes.slice(0));
   } catch {
-    throw new Error(t("radio.audio.errDecode"));
+    throw new OwnError(t("radio.audio.errDecode"));
   }
   const decodedError = validateAudioImport({ name, type: file.type, size: file.size }, decoded.duration);
-  if (decodedError) throw new Error(decodedError);
+  if (decodedError) throw new OwnError(decodedError);
   const channels = Array.from({ length: decoded.numberOfChannels }, (_, channel) => decoded.getChannelData(channel));
   return {
     id,
@@ -203,7 +204,7 @@ export function createCustomVoice(input: {
 }, id = newAssetId()): CustomVoiceAsset {
   const name = input.name.trim() || t("radio.audio.customVoice");
   const text = input.text.trim();
-  if (!text) throw new Error(t("radio.audio.errVoiceText"));
+  if (!text) throw new OwnError(t("radio.audio.errVoiceText"));
   const rate = Number.isFinite(input.rate) ? input.rate! : 1;
   const pitch = Number.isFinite(input.pitch) ? input.pitch! : 1;
   return {
@@ -259,7 +260,7 @@ function openDb(): Promise<IDBDatabase> {
       };
     };
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error ?? new Error(t("radio.audio.storeOpen")));
+    req.onerror = () => reject(req.error ?? new OwnError(t("radio.audio.storeOpen")));
   });
 }
 
@@ -276,7 +277,7 @@ async function idbRun<T>(
     return await new Promise<T | undefined>((resolve, reject) => {
       const tx = db.transaction(stores, mode);
       const req = run(tx);
-      const failed = () => reject(tx.error ?? new Error(t("radio.audio.storeFailed")));
+      const failed = () => reject(tx.error ?? new OwnError(t("radio.audio.storeFailed")));
       tx.oncomplete = () => resolve(req ? req.result : undefined);
       tx.onerror = failed;
       tx.onabort = failed;
@@ -303,7 +304,7 @@ export async function getCustomNotificationAsset(id: string): Promise<CustomNoti
 export async function saveCustomNotificationAsset(asset: CustomNotificationAsset): Promise<void> {
   const bridge = desktopBridge();
   if (bridge) { await bridge.put(asset); return; }
-  if (typeof indexedDB === "undefined") throw new Error(t("radio.audio.storeUnavailable"));
+  if (typeof indexedDB === "undefined") throw new OwnError(t("radio.audio.storeUnavailable"));
   await idbRun([STORE, SUMMARIES], "readwrite", tx => {
     tx.objectStore(STORE).put(asset);
     tx.objectStore(SUMMARIES).put(summarizeCustomAsset(asset));
@@ -325,7 +326,7 @@ export async function renameCustomNotificationAsset(id: string, name: string): P
     if (found) await bridge.put({ ...found, name });
     return;
   }
-  if (typeof indexedDB === "undefined") throw new Error(t("radio.audio.storeUnavailable"));
+  if (typeof indexedDB === "undefined") throw new OwnError(t("radio.audio.storeUnavailable"));
   await idbRun([STORE, SUMMARIES], "readwrite", tx => {
     const assets = tx.objectStore(STORE);
     const read = assets.get(id);

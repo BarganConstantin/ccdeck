@@ -304,6 +304,7 @@ const catalog: Catalog = {
 
   "forge.err.noAnswer": "ccdeck から応答がありませんでした",
   "forge.err.deckAnswered": "ccdeck が {status} を返しました",
+  "forge.err.readFailed": "読み取りに失敗しました",
   "forge.err.auth.title": "{name} がトークンを拒否しました",
   "forge.err.auth.detail": "失効した可能性があります。{where}で更新してください。",
   "forge.err.expired.title": "{name} のトークンの有効期限が切れました",
@@ -344,6 +345,22 @@ const catalog: Catalog = {
   "forge.token.gh.approval": "組織によっては、きめ細かい権限のトークンの承認や、クラシックトークンのシングルサインオン認可が必要で、それが済むまでリポジトリは表示されません。",
   "forge.token.gl.scope": "{scope} スコープだけを持つパーソナルアクセストークン。それ以上は不要です。",
   "forge.token.gl.expire": "GitLab のトークンには有効期限があります。切れるとパネルがお知らせし、ここに戻ります。",
+  "forge.srv.timeout": "{origin} から時間内に応答がありませんでした",
+  "forge.srv.cert": "{origin}：証明書が信頼されていません（{code}）",
+  "forge.srv.noAnswer": "{origin}：応答がありません",
+  "forge.srv.notHost": "{origin} は、この接続が読み取るホストではありません",
+  "forge.srv.redirects": "リダイレクトが多すぎます",
+  "forge.srv.sentElsewhere": "{origin} はこの読み取りを、この接続のアドレスではなく {next} に送りました",
+  "forge.srv.notApi": "{origin} が API ではなく {type} を返しました",
+  "forge.srv.answerLarge": "応答が大きすぎます",
+  "forge.srv.answerCut": "応答が途中で切れました",
+  "forge.srv.badJson": "読み取れない JSON",
+  "forge.srv.logLarge": "ログが大きすぎて末尾を読み取れません",
+  "forge.srv.imageLarge": "画像が大きすぎます",
+  "forge.srv.imageCut": "画像が途中で切れました",
+  "forge.srv.notImage": "画像ではありません（{type}）",
+  "forge.srv.cursorPage": "そのカーソルはこの一覧のページではありません",
+  "forge.srv.cursorList": "そのカーソルはこの一覧のものではありません",
 };
 
 export default catalog;

@@ -34,7 +34,7 @@ import {
 } from "../signin-stages";
 import { prefersReducedMotion } from "../viewport-motion";
 import { createLoginAnnouncer } from "../login-announce";
-import { arrivalCheck, explainFailure } from "../admin-failure";
+import { arrivalCheck, explainFailure, loginErrorText } from "../admin-failure";
 import { tabStripMove } from "../tablist-keys";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
@@ -449,7 +449,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   // All end the same way — no spinner, no poll, and a sentence that says which
   // happened.
   const view = loginTabView({ login, started: startedRef.current, loginError, loginBusy });
-  const notice = loginEndNotice({ state: login?.state, serverError: login?.error, localError: loginError }, t);
+  const notice = loginEndNotice({ state: login?.state, serverError: loginErrorText(login?.error, t), localError: loginError }, t);
 
   // ── the stage list (signin-stages.ts) ─────────────────────────────────────
   // Where a sign-in that is still moving is, and where an ended one stopped.
@@ -689,7 +689,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                       {/* A rejected code leaves the flow in awaiting_code — which
                           is right, the CLI is still asking — so the reason is
                           printed here, under the field it is about. */}
-                      {(loginError || login.error) && <p className="aa-err">{loginError ?? login.error}</p>}
+                      {(loginError || login.error) && <p className="aa-err">{loginError ?? loginErrorText(login.error, t)}</p>}
                       <p className="aa-note">{t("accounts.add.codePrivacy")}</p>
                     </details>
                   </>

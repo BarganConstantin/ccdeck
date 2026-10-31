@@ -527,6 +527,32 @@ function rankCcusageFailure(out: CcusageFailure, fallback: string, t: TFunction)
   return out?.reason || fallback;
 }
 
+// The sentences the deck's sign-in flow ends with in `error` (cswap-admin.mjs),
+// which the dialog prints as they came. A reason the REASONS table already
+// says is found by its English; the others have a key of their own; the CLI's
+// own words (a diagnosis cut from its output) are shown as they came.
+const LOGIN_ERRORS = new Map<string, string>(Object.entries({
+  "the claude CLI did not print a sign-in link": "accounts.fail.login.noLink",
+  "the sign-in could not be finished \u2014 see the deck's log": "accounts.fail.login.couldNotFinish",
+  "the sign-in window expired": "accounts.fail.login.windowExpired",
+  "the sign-in did not complete \u2014 nothing new was signed in": "accounts.fail.login.didNotComplete",
+  "signed in, but the claude CLI still reports nobody logged in": "accounts.fail.login.signedInNobody",
+  "the claude CLI could not be run: not on PATH. Set AGENTS_DECK_CLAUDE to its full path.": "accounts.fail.login.claudeMissing",
+  "cswap could not be run: not on PATH, and not in the places uv and pipx install to. Set AGENTS_DECK_CSWAP to its full path.": "accounts.fail.login.cswapMissing",
+}));
+
+/** A sign-in flow's ending in the language on show; any other text as it came. */
+export function loginErrorText<T extends string | null | undefined>(text: T, t: TFunction = tNow): T | string {
+  if (!text) return text;
+  const key = LOGIN_ERRORS.get(text);
+  if (key) return t(key);
+  const reason = Object.keys(REASONS).find(name => REASONS[name] === text);
+  if (reason) return sentenceFor(REASONS, reason, "admin", t) ?? text;
+  const long = /^(.+) took too long and was stopped$/.exec(text);
+  if (long) return t("accounts.fail.login.tookLong", { what: long[1] });
+  return text;
+}
+
 /** The one sentence to show for a refusal, most specific first. */
 export function explainFailure(out: AdminFailure, fallback: string, status?: number, t: TFunction = tNow): string {
   // The gate first, for the reason explainCommandFailure takes it first: this

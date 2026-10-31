@@ -2,7 +2,7 @@ import React, { memo, useEffect, useLayoutEffect, useRef, useState } from "react
 import { flushSync } from "react-dom";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { sessionHue } from "../reducer";
-import { fmtCost, UNPRICED_LABEL } from "../pricing";
+import { fmtCost } from "../pricing";
 import { otherModelIds } from "../usage-models";
 // What the cost chip holds, and its tooltip with the multiplication written
 // out. See card-cost.ts.
@@ -381,7 +381,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         )}
         {cost?.kind === "unpriced" && (
           <span className="cost-unpriced" title={cost.tt}>
-            {UNPRICED_LABEL}
+            {t("insights.cost.notPriced")}
           </span>
         )}
         {cost?.kind === "spent" && (

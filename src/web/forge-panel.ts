@@ -19,6 +19,7 @@ import type {
   CiState, ForgeBranch, ForgeChange, ForgeErrorInfo, ForgeErrorKind, ForgeKind, ChangeFilter, ChangeState,
 } from "./forge-types";
 import { forgeWords } from "./forge-types";
+import { integrationText } from "./integrations/server-text";
 import { currentLanguage, t as tGlobal, type TFunction } from "./i18n";
 
 /** How long an answer is fresh enough to draw without asking again. */
@@ -66,10 +67,10 @@ export async function fetchForge<T>(api: ForgeApi, path: string, signal?: AbortS
   try { body = await res.json(); } catch { /* handled below */ }
   if (res.ok && body?.ok) return body.data as T;
   const error = body?.error;
-  if (error && typeof error === "object" && typeof error.kind === "string") throw new ForgeReadError(error);
+  if (error && typeof error === "object" && typeof error.kind === "string") throw new ForgeReadError({ ...error, message: integrationText(error.message) });
   throw new ForgeReadError({
     kind: "upstream",
-    message: typeof error === "string" ? error : tGlobal("forge.err.deckAnswered", { status: res.status }),
+    message: typeof error === "string" ? integrationText(error) : tGlobal("forge.err.deckAnswered", { status: res.status }),
     status: res.status,
   });
 }

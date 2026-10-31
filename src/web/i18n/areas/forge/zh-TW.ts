@@ -303,6 +303,7 @@ const catalog: Catalog = {
 
   "forge.err.noAnswer": "ccdeck 沒有回應",
   "forge.err.deckAnswered": "ccdeck 回應了 {status}",
+  "forge.err.readFailed": "讀取失敗",
   "forge.err.auth.title": "{name} 拒絕了此權杖",
   "forge.err.auth.detail": "它可能已被撤銷。請到「{where}」更新。",
   "forge.err.expired.title": "{name} 權杖已過期",
@@ -343,6 +344,22 @@ const catalog: Catalog = {
   "forge.token.gh.approval": "組織可能需要先核准精細權限權杖，或讓傳統權杖通過其單一登入授權，才會顯示該組織的儲存庫。",
   "forge.token.gl.scope": "只需要 {scope} 權限範圍的個人存取權杖，不需要其他權限。",
   "forge.token.gl.expire": "GitLab 權杖會過期。屆時面板會告知，並帶您回到這裡。",
+  "forge.srv.timeout": "{origin} 沒有在時限內回應",
+  "forge.srv.cert": "{origin}：憑證不受信任（{code}）",
+  "forge.srv.noAnswer": "{origin}：沒有回應",
+  "forge.srv.notHost": "{origin} 不是此連線讀取的主機",
+  "forge.srv.redirects": "重新導向次數過多",
+  "forge.srv.sentElsewhere": "{origin} 將這次讀取導向 {next}，而不是此連線的位址",
+  "forge.srv.notApi": "{origin} 回應的是 {type}，不是 API",
+  "forge.srv.answerLarge": "回應過大",
+  "forge.srv.answerCut": "回應被截斷",
+  "forge.srv.badJson": "無法讀取的 JSON",
+  "forge.srv.logLarge": "記錄過大，無法讀取結尾",
+  "forge.srv.imageLarge": "圖片過大",
+  "forge.srv.imageCut": "圖片被截斷",
+  "forge.srv.notImage": "不是圖片（{type}）",
+  "forge.srv.cursorPage": "該游標不屬於此清單的任何一頁",
+  "forge.srv.cursorList": "該游標不屬於此清單",
 };
 
 export default catalog;

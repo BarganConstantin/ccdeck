@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useT } from "../i18n";
+import { OwnError, ownMessage } from "../own-error";
 import { parseTelemetryFile, type TelemetryFileRow } from "../telemetry-inspection";
 export function TelemetryFile({ sessionFilter = "all", onSessions }: { sessionFilter?: string; onSessions?: (ids: string[]) => void }) {
   const t = useT();
@@ -16,14 +17,14 @@ export function TelemetryFile({ sessionFilter = "all", onSessions }: { sessionFi
     const current = ++request.current;
     setError(""); setLoading(true); setCopied(false);
     try {
-      if (file.size > 10 * 1024 * 1024) throw new Error(t("radar.fileview.tooBig"));
+      if (file.size > 10 * 1024 * 1024) throw new OwnError(t("radar.fileview.tooBig"));
       const contents = await file.text();
       const parsed = parseTelemetryFile(contents);
       if (current !== request.current) return;
       onSessions?.([...new Set(parsed.flatMap(row => row.sessionIds))]);
       setRows(parsed); setName(file.name); setSelected(null); setSearch("");
       if (!parsed.length) setError(t("radar.fileview.empty"));
-    } catch (value) { if (current === request.current) setError(value instanceof Error ? value.message : t("radar.fileview.readFailed")); }
+    } catch (value) { if (current === request.current) setError(ownMessage(value, t("radar.fileview.readFailed"))); }
     finally { if (current === request.current) setLoading(false); }
   };
   const matches = rows.filter(row => (sessionFilter === "all" || (sessionFilter === "unidentified" ? !row.sessionIds.length : row.sessionIds.includes(sessionFilter))) && (!search || row.raw.toLowerCase().includes(search.toLowerCase())));

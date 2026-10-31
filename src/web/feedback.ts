@@ -215,6 +215,20 @@ export type Outcome =
 /** What the dialog shows, and says, once a report has arrived. */
 export const sentLine = (): string => t("shell.feedback.sent");
 
+/** The deck's own sentence about an image it refused, in the language on show;
+ *  anything else (the API's own words) as it came. The two sentences about a
+ *  form built by hand ("Send each image as a file part.") are not here: the
+ *  dialog cannot send that shape. */
+export function imageProblem(text: string): string {
+  const count = /^At most (\d+) images\.$/.exec(text);
+  if (count) return t("shell.feedback.problem.count", { n: count[1] });
+  const size = /^Image (\d+) is over (\d+) MB\.$/.exec(text);
+  if (size) return t("shell.feedback.problem.size", { n: size[1], mb: size[2] });
+  const format = /^Image (\d+) is not a PNG or a JPEG\.$/.exec(text);
+  if (format) return t("shell.feedback.problem.format", { n: format[1] });
+  return text;
+}
+
 /** What the server's answer means for the person who pressed Send. `errors` is
  *  a 400's, keyed by field; an image's is quoted, since it names which one. */
 export function feedbackFailure(status: number, reason: unknown, errors?: unknown): string {
@@ -223,7 +237,7 @@ export function feedbackFailure(status: number, reason: unknown, errors?: unknow
   if (status === 413 || reason === "too_large") return t("shell.feedback.fail.tooLarge");
   const imageError = (errors as { images?: unknown } | null | undefined)?.images;
   if (status === 400 && Array.isArray(imageError) && typeof imageError[0] === "string") {
-    return t("shell.feedback.fail.image", { reason: imageError[0] });
+    return t("shell.feedback.fail.image", { reason: imageProblem(imageError[0]) });
   }
   if (status === 400) return t("shell.feedback.fail.rejected");
   // One line at the dialog's width, so the failure that invites pressing Send

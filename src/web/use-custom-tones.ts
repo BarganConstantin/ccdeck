@@ -21,6 +21,7 @@ import { clearCustomAssetSelections, createCustomVoice, CUSTOM_AUDIO_KEYS, delet
 import type { createChimePlayer } from "./chime-player";
 import { CHIME_ORDER, DEFAULT_FIGURE_ID, DEFAULT_LEVEL, FIGURE_KEYS, type Chime } from "./sound";
 import { t as tNow } from "./i18n";
+import { OwnError } from "./own-error";
 import { readStored, removeStored, writeStored } from "./storage";
 import { useMirroredRef } from "./use-mirrored-ref";
 import type { TonePrefsControls } from "./use-tone-prefs";
@@ -94,10 +95,10 @@ export function useCustomTones({ chimesRef, setTonePrefs, tonePrefsRef, previewT
 
   const importNotificationAudio = useCallback(async (file: File) => {
     const full = libraryFullReason(customAssets.length);
-    if (full) throw new Error(full);
+    if (full) throw new OwnError(full);
     const Ctx = window.AudioContext
       ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) throw new Error(tNow("settings.sounds.custom.decodeFail"));
+    if (!Ctx) throw new OwnError(tNow("settings.sounds.custom.decodeFail"));
     const decoder = new Ctx();
     try {
       const asset = await importCustomAudio(file, bytes => decoder.decodeAudioData(bytes));
@@ -115,7 +116,7 @@ export function useCustomTones({ chimesRef, setTonePrefs, tonePrefsRef, previewT
     name: string; text: string; voiceURI: string; rate: number; pitch: number;
   }) => {
     const full = libraryFullReason(customAssets.length);
-    if (full) throw new Error(full);
+    if (full) throw new OwnError(full);
     const asset = createCustomVoice(input);
     await saveCustomNotificationAsset(asset);
     const row = summarizeCustomAsset(asset);

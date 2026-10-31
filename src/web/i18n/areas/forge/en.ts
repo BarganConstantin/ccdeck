@@ -329,6 +329,7 @@ const catalog: Catalog = {
   // Failures (forge-panel.ts forgeErrorWords)
   "forge.err.noAnswer": "the deck did not answer",
   "forge.err.deckAnswered": "the deck answered {status}",
+  "forge.err.readFailed": "the read failed",
   "forge.err.auth.title": "{name} refused the token",
   "forge.err.auth.detail": "It may have been revoked. Update it in {where}.",
   "forge.err.expired.title": "The {name} token has expired",
@@ -370,6 +371,22 @@ const catalog: Catalog = {
   "forge.token.gh.approval": "An organization may have to approve a fine-grained token, or a classic one be authorized for its single sign-on, before its repositories show.",
   "forge.token.gl.scope": "A personal access token with the {scope} scope, and nothing more.",
   "forge.token.gl.expire": "GitLab tokens expire. When this one does, the panel says so and brings you back here.",
+  "forge.srv.timeout": "{origin} did not answer in time",
+  "forge.srv.cert": "{origin}: the certificate is not trusted ({code})",
+  "forge.srv.noAnswer": "{origin}: no answer",
+  "forge.srv.notHost": "{origin} is not a host this connection reads from",
+  "forge.srv.redirects": "too many redirects",
+  "forge.srv.sentElsewhere": "{origin} sent this read to {next}, not to this connection's address",
+  "forge.srv.notApi": "{origin} answered {type}, not the API",
+  "forge.srv.answerLarge": "answer too large",
+  "forge.srv.answerCut": "answer cut off",
+  "forge.srv.badJson": "unreadable JSON",
+  "forge.srv.logLarge": "log too large to read the end of",
+  "forge.srv.imageLarge": "image too large",
+  "forge.srv.imageCut": "image cut off",
+  "forge.srv.notImage": "not an image ({type})",
+  "forge.srv.cursorPage": "that cursor is not a page of this list",
+  "forge.srv.cursorList": "that cursor is not one of this list",
 };
 
 export default catalog;

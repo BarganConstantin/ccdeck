@@ -393,6 +393,9 @@ const catalog: Catalog = {
   "shell.feedback.resizing": "縮放中…",
   "shell.feedback.removeImage": "移除第 {n} 張圖片",
   "shell.feedback.imageRemoved": "已移除圖片，目前 {count}／{max}。",
+  "shell.board.removed": "已將 {label} 從畫布移除。",
+  "shell.feedback.imagesAdded.other": "已加入 {count} 張圖片，目前 {total}／{max}。",
+  "shell.feedback.imageReplaced": "已替換第 {n} 張圖片，目前 {total}／{max}。",
   "shell.feedback.lost.other": "重新載入頁面後，{count} 張螢幕截圖沒有保留下來。請重新加入以便送出。",
   "shell.feedback.discard": "捨棄",
   "shell.feedback.discardConfirm": "確認捨棄",
@@ -419,6 +422,9 @@ const catalog: Catalog = {
   "shell.announce.blockMore.answer.other": "{label} 與另外 {count} 個工作階段正在等待您的回答。",
   "shell.announce.blockMore.you.one": "{label} 與另外 {count} 個工作階段正在等您處理。",
   "shell.announce.blockMore.you.other": "{label} 與另外 {count} 個工作階段正在等您處理。",
+  "shell.feedback.problem.count": "最多 {n} 張圖片。",
+  "shell.feedback.problem.size": "第 {n} 張圖片超過 {mb} MB。",
+  "shell.feedback.problem.format": "第 {n} 張圖片不是 PNG 或 JPEG。",
 };
 
 export default catalog;

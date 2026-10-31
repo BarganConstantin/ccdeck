@@ -385,6 +385,9 @@ const catalog: Catalog = {
   "shell.feedback.resizing": "縮小中…",
   "shell.feedback.removeImage": "画像{n}を削除",
   "shell.feedback.imageRemoved": "画像を削除しました。{count}／{max}。",
+  "shell.board.removed": "{label}をキャンバスから外しました。",
+  "shell.feedback.imagesAdded.other": "画像を{count}枚追加しました。{total}／{max}。",
+  "shell.feedback.imageReplaced": "画像{n}を置き換えました。{total}／{max}。",
   "shell.feedback.lost.other": "ページの再読み込みで、スクリーンショット{count}枚は保持されませんでした。送信するには追加し直してください。",
   "shell.feedback.discard": "破棄",
   "shell.feedback.discardConfirm": "破棄を確定",
@@ -411,6 +414,9 @@ const catalog: Catalog = {
   "shell.announce.blockMore.answer.other": "{label} ほか{count}件のセッションが回答を待っています。",
   "shell.announce.blockMore.you.one": "{label} ほか{count}件のセッションが待っています。",
   "shell.announce.blockMore.you.other": "{label} ほか{count}件のセッションが待っています。",
+  "shell.feedback.problem.count": "画像は最大 {n} 枚までです。",
+  "shell.feedback.problem.size": "{n} 枚目の画像が {mb} MB を超えています。",
+  "shell.feedback.problem.format": "{n} 枚目の画像は PNG でも JPEG でもありません。",
 };
 
 export default catalog;

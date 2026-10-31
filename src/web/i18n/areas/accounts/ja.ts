@@ -616,6 +616,14 @@ const catalog: Catalog = {
   "accounts.signin.said.active": "、進行中",
   "accounts.signin.said.failed": "、失敗",
   "accounts.lane.scoped": "{name}（{n}日）",
+  "accounts.fail.login.noLink": "claude CLI がサインインリンクを出力しませんでした",
+  "accounts.fail.login.couldNotFinish": "サインインを完了できませんでした。ccdeck のログを確認してください",
+  "accounts.fail.login.windowExpired": "サインインの有効時間が切れました",
+  "accounts.fail.login.didNotComplete": "サインインが完了しませんでした。新たにサインインしたアカウントはありません",
+  "accounts.fail.login.signedInNobody": "サインインしましたが、claude CLI はまだ誰もログインしていないと報告しています",
+  "accounts.fail.login.claudeMissing": "claude CLI を実行できません：PATH にありません。AGENTS_DECK_CLAUDE にフルパスを設定してください。",
+  "accounts.fail.login.cswapMissing": "cswap を実行できません：PATH にも、uv や pipx のインストール先にもありません。AGENTS_DECK_CSWAP にフルパスを設定してください。",
+  "accounts.fail.login.tookLong": "{what} に時間がかかりすぎたため停止しました",
 };
 
 export default catalog;

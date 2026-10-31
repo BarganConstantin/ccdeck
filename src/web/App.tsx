@@ -764,7 +764,7 @@ function Inner() {
           topbar's alarm region is (#372): words that arrive with their region
           are the ones screen readers drop. */}
       <div className="vis-hidden" role="status" aria-atomic="true">
-        {removalNotice ? `${removalNotice.label} removed from the board.` : ""}
+        {removalNotice ? t("shell.board.removed", { label: removalNotice.label }) : ""}
       </div>
       {/* At most one banner under the topbar, and which — components/DeckBanner.tsx. */}
       <DeckBanner

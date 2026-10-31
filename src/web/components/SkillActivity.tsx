@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEve
 import { readAuditReport, type AuditProvider, type SkillReport, type SkillRow } from '../tool-audit';
 import { auditDay, callTime, countOf, periodIn } from '../tool-audit-report';
 import { t as translate, useLanguage, useT, currentLanguage } from '../i18n';
+import { ownMessage } from '../own-error';
 import { rich } from '../insights-rich';
 import { countingStartedLate, findSkillHighlights, originLine, originShares, skillOrigins, skillParts, skillSortLabel, skillSorts, skillSummary, sortSkills, typedCommandsNote,
   type SkillHighlight, type SkillOrigin, type SkillSort } from '../skill-activity';
@@ -87,7 +88,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
           else setSelected(current => !current || reply.rows.some(row => row.name === current) ? current
             : sortSkills(reply.rows, sortRef.current, searchRef.current).find(row => row.uses > 0)?.name ?? null);
         }
-      } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : t('insights.audit.err.slow')); }
+      } catch (e) { if (live) setError(ownMessage(e, t('insights.audit.err.slow'))); }
       finally { window.clearTimeout(deadline); if (live) { reading.current = false; setLoading(false); } }
     })();
     return () => { live = false; controller.abort(); window.clearTimeout(deadline); reading.current = false; };

@@ -5,6 +5,8 @@
 // arrives, so nothing is ever lost or invented.
 import { t as translateNow, type TFunction } from "./i18n";
 
+// Not only the Radar's: any fixed sentence of the deck's server a screen shows
+// as it came (the usage lookup's, for one), under the key of the area that owns it.
 const EXACT: Record<string, string> = {
   "Settings could not be verified. Try again after they can be read.": "radar.srv.unverified",
   "Controlled by organization or managed settings. Ask your administrator to change this flag.": "radar.srv.managedBlock",
@@ -40,6 +42,9 @@ const EXACT: Record<string, string> = {
   "Invalid settings request.": "radar.srv.badRequest",
   "This event is no longer retained.": "radar.srv.eventGone",
   "Request too large.": "radar.srv.tooLarge",
+  "Choose a Claude or Codex session and a supported pricing mode.": "insights.srv.badSession",
+  "Usage reports are already being read. Try again in a moment.": "insights.srv.busy",
+  "Invalid session lookup.": "insights.srv.invalidLookup",
   "Enabled": "radar.val.enabled",
   "Disabled": "radar.val.disabled",
   "Enabled (file destination hidden)": "radar.val.enabledFile",
@@ -55,7 +60,7 @@ const EXACT: Record<string, string> = {
 /** A sentence from the server in the language on show; any other text as it came. */
 export function serverText(text: string | null | undefined, tr: TFunction = translateNow): string {
   if (!text) return "";
-  const key = EXACT[text];
+  const key = Object.hasOwn(EXACT, text) ? EXACT[text] : undefined;
   if (key) return tr(key);
   const launch = /^Process launch environment · PID (.+?)(?: and (\d+) more)?$/.exec(text);
   if (launch) return launch[2] ? tr("radar.src.launchMore", { pid: launch[1], n: launch[2] }) : tr("radar.src.launch", { pid: launch[1] });

@@ -9,6 +9,7 @@
 // output, a file and its text — and everything else into its values with real
 // newlines. The raw payload is still one press away, behind the copy buttons.
 import { fmtBytes } from "./byte-format";
+import { t as tr } from "./i18n";
 
 export type Tone = "del" | "add" | "ctx";
 
@@ -59,7 +60,7 @@ function cutChars(v: unknown): number | null {
  */
 export function withCutNotes(v: unknown): unknown {
   const cut = cutChars(v);
-  if (cut != null) return `(too large to show — ${fmtBytes(cut)}, cut by the hook)`;
+  if (cut != null) return tr("insights.tv.cut", { size: fmtBytes(cut) });
   if (Array.isArray(v)) {
     const out = v.map(withCutNotes);
     return out.some((x, i) => x !== v[i]) ? out : v;
@@ -82,7 +83,7 @@ export function withCutNotes(v: unknown): unknown {
  * indent. Everything JSON.stringify escapes, this prints.
  */
 export function readable(v: unknown, indent = ""): string {
-  if (v === undefined || v === null) return "(none)";
+  if (v === undefined || v === null) return tr("insights.tv.none");
   if (typeof v === "string") return v;
   if (typeof v !== "object") return String(v);
   const list = Array.isArray(v);
@@ -99,7 +100,7 @@ export function readable(v: unknown, indent = ""): string {
       if (inner === "[]" || inner === "{}") out.push(`${key} ${inner}`);
       else out.push(key, inner);
     } else {
-      out.push(`${key} ${x === undefined ? "(none)" : String(x)}`);
+      out.push(`${key} ${x === undefined ? tr("insights.tv.none") : String(x)}`);
     }
   }
   return out.join("\n");
@@ -133,14 +134,18 @@ export function clip(lines: Line[], open: boolean): { shown: Line[]; cut: boolea
  *  held to the budget, "show less" once it is open, or null for a block that
  *  fits. One disclosure rather than a button drawn on `cut` (#1762), which the
  *  press that opened the block took away, dropping focus to the page. */
-export function moreControl(lines: Line[], open: boolean): { label: "show all" | "show less"; expanded: boolean } | null {
+export function moreControl(lines: Line[], open: boolean): { label: string; expanded: boolean } | null {
   if (!clip(lines, false).cut) return null;
-  return open ? { label: "show less", expanded: true } : { label: "show all", expanded: false };
+  return open ? { label: tr("insights.tv.showLess"), expanded: true } : { label: tr("insights.tv.showAll"), expanded: false };
 }
 
-const text = (label: string | undefined, t: string, err = false): Block =>
-  ({ ...(label ? { label } : {}), text: t, ...(err ? { err: true } : {}) });
-const inline = (label: string, t: string): Block => ({ label, text: t, inline: true });
+/** The names a block can carry, in the language on show. */
+type BlockLabel = "result" | "note" | "applied" | "lines" | "content" | "output" | "errors" | "file" | "command" | "why";
+const labelOf = (label: BlockLabel): string => tr(`insights.tv.label.${label}`);
+
+const text = (label: BlockLabel | undefined, t: string, err = false): Block =>
+  ({ ...(label ? { label: labelOf(label) } : {}), text: t, ...(err ? { err: true } : {}) });
+const inline = (label: BlockLabel, t: string): Block => ({ label: labelOf(label), text: t, inline: true });
 const diff = (label: string, lines: Line[]): Block => ({ label, text: lines.map(l => l.text).join("\n"), lines });
 
 /** Before and after, each line marked with its side in a character as well as
@@ -174,11 +179,11 @@ function writeResponse(response: unknown): Block[] {
   if (!isRec(response)) return [text(undefined, readable(response))];
   const out: Block[] = [];
   const kind = str(response.type);
-  if (kind === "create") out.push(inline("result", "created the file"));
+  if (kind === "create") out.push(inline("result", tr("insights.tv.created")));
   const patch = patchLines(response.structuredPatch);
-  if (patch) out.push(diff("applied", patch));
-  if (response.userModified === true) out.push(inline("note", "the user changed it before it was applied"));
-  return out.length ? out : [inline("result", kind === "update" ? "updated the file" : "done")];
+  if (patch) out.push(diff(labelOf("applied"), patch));
+  if (response.userModified === true) out.push(inline("note", tr("insights.tv.userChanged")));
+  return out.length ? out : [inline("result", kind === "update" ? tr("insights.tv.updated") : tr("insights.tv.done"))];
 }
 
 function rangeOf(i: Rec): string | null {
@@ -186,7 +191,7 @@ function rangeOf(i: Rec): string | null {
   const limit = typeof i.limit === "number" ? i.limit : null;
   if (offset == null && limit == null) return null;
   const from = offset ?? 1;
-  return limit != null ? `${from}–${from + limit - 1}` : `from ${from}`;
+  return limit != null ? `${from}–${from + limit - 1}` : tr("insights.tv.from", { from });
 }
 
 function readResponse(response: unknown): Block[] {
@@ -197,15 +202,15 @@ function readResponse(response: unknown): Block[] {
     const out: Block[] = [];
     const shown = Number(file.numLines), total = Number(file.totalLines), start = Number(file.startLine);
     if (Number.isFinite(shown) && Number.isFinite(total) && total > 0) {
-      out.push(inline("lines", shown >= total ? `all ${total}`
-        : Number.isFinite(start) ? `${start}–${start + shown - 1} of ${total}` : `${shown} of ${total}`));
+      out.push(inline("lines", shown >= total ? tr("insights.tv.allLines", { total })
+        : Number.isFinite(start) ? tr("insights.tv.range", { from: start, to: start + shown - 1, total }) : tr("insights.tv.someOf", { shown, total })));
     }
     out.push(text("content", content));
     return out;
   }
   // An image, a PDF or a notebook: said as what it was, not dumped.
   const kind = isRec(response) ? str(response.type) : null;
-  if (kind && kind !== "text") return [inline("result", `${/^[aeiou]/i.test(kind) ? "an" : "a"} ${kind} file`)];
+  if (kind && kind !== "text") return [inline("result", tr(/^[aeiou]/i.test(kind) ? "insights.tv.anFile" : "insights.tv.aFile", { kind }))];
   return [text(undefined, readable(response))];
 }
 
@@ -217,8 +222,8 @@ function bashResponse(response: unknown): Block[] {
   const out: Block[] = [];
   if (stdout) out.push(text("output", stdout.replace(/\n$/, "")));
   if (stderr) out.push(text("errors", stderr.replace(/\n$/, ""), true));
-  if (response.interrupted === true) out.push(inline("note", "interrupted before it finished"));
-  return out.length ? out : [inline("output", "none")];
+  if (response.interrupted === true) out.push(inline("note", tr("insights.tv.interrupted")));
+  return out.length ? out : [inline("output", tr("insights.tv.noneWord"))];
 }
 
 /** One call's input and response, as blocks a person reads. */
@@ -233,8 +238,8 @@ export function toolView(name: string, rawInput: unknown, rawResponse: unknown):
     if (file && edits.length) {
       const blocks: Block[] = [inline("file", file)];
       edits.forEach((e, n) => {
-        const every = e.replace_all === true ? ", every occurrence" : "";
-        blocks.push(diff(edits.length > 1 ? `change ${n + 1}${every}` : `change${every}`,
+        const every = e.replace_all === true;
+        blocks.push(diff(tr(edits.length > 1 ? (every ? "insights.tv.changeNEvery" : "insights.tv.changeN") : (every ? "insights.tv.changeEvery" : "insights.tv.change"), { n: n + 1 }),
           changeLines(e.old_string as string, e.new_string as string)));
       });
       return { input: blocks, response: writeResponse(response) };

@@ -9,6 +9,8 @@
 
 import { useEffect, useState } from "react";
 import { t } from "../i18n";
+import { OwnError, ownMessage } from "../own-error";
+import { integrationText } from "./server-text";
 import type { IntegrationConnection, IntegrationErrorKind, IntegrationKind } from "./types";
 
 type Connection = IntegrationConnection;
@@ -34,7 +36,7 @@ export function jiraGuardOperation(value: unknown): JiraGuardOperation | undefin
   if (o.kind === "move" ? !Array.isArray(o.issueKeys) || !o.issueKeys.every(k => typeof k === "string") : typeof o.issueKey !== "string") return;
   return o;
 }
-export class IntegrationFailure extends Error {
+export class IntegrationFailure extends OwnError {
   kind: IntegrationErrorKind;
   operation?: JiraGuardOperation;
   /** The tracker's own HTTP status, when it answered one. */
@@ -71,7 +73,7 @@ export async function failureOf(res: Response): Promise<IntegrationFailure> {
       }).map((o: JiraMoveOutcome) => ({ issueKey: o.issueKey, membership: o.membership, rank: o.rank })) : [];
       const o = body.outcome;
       const moveOutcome: JiraMoveSummary | undefined = o && ["moved", "unchanged", "unknown"].includes(o.membership) && ["ranked", "unchanged", "failed", "unknown"].includes(o.rank) ? { membership: o.membership, rank: o.rank } : undefined;
-      return new IntegrationFailure(e.kind, e.message, { status: e.status, retryAfter: e.retryAfter, field: e.field, detail: e.detail, ...(body.refresh === true ? { refreshRequired: true } : {}), ...(outcomes.length ? { outcomes } : {}), ...(moveOutcome ? { moveOutcome } : {}), ...(operation ? { operation } : {}) });
+      return new IntegrationFailure(e.kind, integrationText(e.message), { status: e.status, retryAfter: e.retryAfter, field: e.field, detail: e.detail, ...(body.refresh === true ? { refreshRequired: true } : {}), ...(outcomes.length ? { outcomes } : {}), ...(moveOutcome ? { moveOutcome } : {}), ...(operation ? { operation } : {}) });
     }
   } catch { /* not JSON */ }
   return new IntegrationFailure(res.status === 401 ? "auth" : "upstream", t("integrations.error.deckAnswered", { status: res.status }));
@@ -218,7 +220,7 @@ export function refreshIntegrations(): Promise<void> {
       }
       publish({ connections: connections as Connection[], providers: providers as ProviderInfo[], error: "" });
     } catch (err) {
-      publish({ error: err instanceof Error ? err.message : t("integrations.error.readConnections") });
+      publish({ error: ownMessage(err, t("integrations.error.readConnections")) });
       // A first read that failed (the deck restarting, say) is tried again
       // after 5, 10 and 20 s, before the minute's read takes over.
       if (snapshot.connections === null && listeners.size > 0 && retry === null && retries < RETRIES) {

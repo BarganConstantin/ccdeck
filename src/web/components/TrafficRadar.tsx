@@ -11,6 +11,7 @@ import { useTelemetryCapture } from "../use-telemetry-capture";
 import { TelemetryCapture } from "./TelemetryCapture";
 import { TelemetryFile } from "./TelemetryFile";
 import { useT } from "../i18n";
+import { OwnError, ownMessage } from "../own-error";
 import { serverText } from "../radar-server-text";
 
 export default function TrafficRadar({ onClose, sessions = [] }: { onClose: () => void; sessions?: RadarSession[] }) {
@@ -114,11 +115,11 @@ export function Configuration({ snapshot, sessionLabel, stale = false, onConfigC
     try {
       const response = await fetch("/api/system/traffic-radar/configuration", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, enabled }), signal: request.signal });
       const result = await response.json();
-      if (!response.ok || !result.ok) throw new Error(result.error ? serverText(result.error) : t("radar.config.saveFailed"));
+      if (!response.ok || !result.ok) throw new OwnError(result.error ? serverText(result.error) : t("radar.config.saveFailed"));
       setSavedConfig(result.config);
       onConfigChange?.(result.config);
       setNotice(t("radar.config.saved"));
-    } catch (err) { setError(request.signal.aborted ? t("radar.config.saveTimeout") : err instanceof Error ? err.message : t("radar.config.saveRetry")); }
+    } catch (err) { setError(request.signal.aborted ? t("radar.config.saveTimeout") : ownMessage(err, t("radar.config.saveRetry"))); }
     finally {
       clearTimeout(timeout);
       savingRef.current = null; setSaving(null);

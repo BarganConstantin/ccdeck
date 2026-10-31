@@ -313,6 +313,7 @@ const catalog: Catalog = {
 
   "forge.err.noAnswer": "ccdeck hat nicht geantwortet",
   "forge.err.deckAnswered": "ccdeck hat mit {status} geantwortet",
+  "forge.err.readFailed": "Das Lesen ist fehlgeschlagen",
   "forge.err.auth.title": "{name} hat das Token abgelehnt",
   "forge.err.auth.detail": "Es wurde möglicherweise widerrufen. Aktualisiere es unter {where}.",
   "forge.err.expired.title": "Das {name}-Token ist abgelaufen",
@@ -353,6 +354,22 @@ const catalog: Catalog = {
   "forge.token.gh.approval": "Eine Organisation muss ein Fine-grained-Token eventuell freigeben oder ein Classic-Token für ihr Single Sign-on autorisieren, bevor ihre Repositories erscheinen.",
   "forge.token.gl.scope": "Ein persönliches Zugriffstoken mit dem Scope {scope} und nichts weiter.",
   "forge.token.gl.expire": "GitLab-Tokens laufen ab. Wenn es so weit ist, meldet das Panel das und bringt dich hierher zurück.",
+  "forge.srv.timeout": "{origin} hat nicht rechtzeitig geantwortet",
+  "forge.srv.cert": "{origin}: Dem Zertifikat wird nicht vertraut ({code})",
+  "forge.srv.noAnswer": "{origin}: keine Antwort",
+  "forge.srv.notHost": "{origin} ist kein Host, von dem diese Verbindung liest",
+  "forge.srv.redirects": "zu viele Weiterleitungen",
+  "forge.srv.sentElsewhere": "{origin} hat diesen Lesezugriff an {next} weitergeleitet, nicht an die Adresse dieser Verbindung",
+  "forge.srv.notApi": "{origin} hat mit {type} geantwortet, nicht mit der API",
+  "forge.srv.answerLarge": "Antwort zu groß",
+  "forge.srv.answerCut": "Antwort abgeschnitten",
+  "forge.srv.badJson": "JSON nicht lesbar",
+  "forge.srv.logLarge": "Protokoll zu groß, um das Ende zu lesen",
+  "forge.srv.imageLarge": "Bild zu groß",
+  "forge.srv.imageCut": "Bild abgeschnitten",
+  "forge.srv.notImage": "kein Bild ({type})",
+  "forge.srv.cursorPage": "dieser Cursor ist keine Seite dieser Liste",
+  "forge.srv.cursorList": "dieser Cursor gehört nicht zu dieser Liste",
 };
 
 export default catalog;

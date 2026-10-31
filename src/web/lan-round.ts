@@ -8,7 +8,7 @@
 // dialog draw on the other. silenceNote is here for the same reason. It is
 // what a round that timed out means when a beacon from the same machine says
 // more than the socket could.
-import { arrivalCheck, KEYCHAIN } from "./admin-failure";
+import { arrivalCheck, keychainText } from "./admin-failure";
 import type { LanStranger, Peer } from "./lan-types";
 import { ownRow } from "./own-row";
 import { t } from "./i18n";
@@ -82,7 +82,7 @@ const ROUND_WHY: Record<string, { short: string; long: string }> = {
 export function roundWhy(d: DoneRow): { short: string; long: string } | null {
   if (!d.why) return null;
   const mine = ownRow(ROUND_WHY, d.why);
-  return mine ? { short: t(mine.short), long: t(mine.long, { keychain: KEYCHAIN }) } : arrivalCheck(d.why);
+  return mine ? { short: t(mine.short), long: t(mine.long, { keychain: keychainText() }) } : arrivalCheck(d.why);
 }
 
 /**

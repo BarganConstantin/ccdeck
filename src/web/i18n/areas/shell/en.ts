@@ -398,6 +398,10 @@ const catalog: Catalog = {
   "shell.feedback.resizing": "Resizing…",
   "shell.feedback.removeImage": "Remove image {n}",
   "shell.feedback.imageRemoved": "Image removed, {count} of {max}.",
+  "shell.board.removed": "{label} removed from the board.",
+  "shell.feedback.imagesAdded.one": "Image added, {total} of {max}.",
+  "shell.feedback.imagesAdded.other": "{count} images added, {total} of {max}.",
+  "shell.feedback.imageReplaced": "Image {n} replaced, {total} of {max}.",
   "shell.feedback.lost.one": "The screenshot was not kept through the page reload. Add it again to send it.",
   "shell.feedback.lost.other": "The {count} screenshots were not kept through the page reload. Add them again to send them.",
   "shell.feedback.discard": "Discard",
@@ -427,6 +431,9 @@ const catalog: Catalog = {
   "shell.announce.blockMore.answer.other": "{label} and {count} more sessions are waiting for your answer.",
   "shell.announce.blockMore.you.one": "{label} and {count} more session are waiting for you.",
   "shell.announce.blockMore.you.other": "{label} and {count} more sessions are waiting for you.",
+  "shell.feedback.problem.count": "At most {n} images.",
+  "shell.feedback.problem.size": "Image {n} is over {mb} MB.",
+  "shell.feedback.problem.format": "Image {n} is not a PNG or a JPEG.",
 };
 
 export default catalog;

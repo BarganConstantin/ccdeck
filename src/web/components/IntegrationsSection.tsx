@@ -18,6 +18,7 @@ import {
   takeIntegrationAdd, takeIntegrationFocus, testConnection, updateConnection, useIntegrations,
 } from "../integrations/client";
 import { useT } from "../i18n";
+import { ownMessage } from "../own-error";
 import { clearConnectionPrefs } from "../integrations/prefs";
 import { integrationDef, integrationDefs } from "../integrations/registry";
 import type { IntegrationConnection as Connection, IntegrationKind } from "../integrations/types";
@@ -154,7 +155,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
       const fresh = await testConnection(conn.id);
       note(conn.id, "ok", t("integrations.settings.testPassed", { name: fresh.account.name || fresh.account.login }));
     } catch (err) {
-      note(conn.id, "err", err instanceof Error ? err.message : t("integrations.settings.testFailed"));
+      note(conn.id, "err", ownMessage(err, t("integrations.settings.testFailed")));
     }
   });
 
@@ -185,7 +186,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
           return target;
         };
       } catch (err) {
-        note(conn.id, "err", err instanceof Error ? err.message : t("integrations.settings.removeFailed"), "disconnect");
+        note(conn.id, "err", ownMessage(err, t("integrations.settings.removeFailed")), "disconnect");
       }
     });
   };

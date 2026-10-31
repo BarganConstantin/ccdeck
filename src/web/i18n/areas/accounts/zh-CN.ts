@@ -616,6 +616,14 @@ const catalog: Catalog = {
   "accounts.signin.said.active": "，进行中",
   "accounts.signin.said.failed": "，失败",
   "accounts.lane.scoped": "{name}（{n} 天）",
+  "accounts.fail.login.noLink": "claude CLI 没有输出登录链接",
+  "accounts.fail.login.couldNotFinish": "无法完成登录——请查看 ccdeck 的日志",
+  "accounts.fail.login.windowExpired": "登录时限已过",
+  "accounts.fail.login.didNotComplete": "登录未完成——没有新增已登录的账号",
+  "accounts.fail.login.signedInNobody": "已登录，但 claude CLI 仍显示没有人登录",
+  "accounts.fail.login.claudeMissing": "无法运行 claude CLI：不在 PATH 中。请将 AGENTS_DECK_CLAUDE 设为其完整路径。",
+  "accounts.fail.login.cswapMissing": "无法运行 cswap：不在 PATH 中，也不在 uv 和 pipx 的安装位置。请将 AGENTS_DECK_CSWAP 设为其完整路径。",
+  "accounts.fail.login.tookLong": "{what} 耗时过长，已被停止",
 };
 
 export default catalog;

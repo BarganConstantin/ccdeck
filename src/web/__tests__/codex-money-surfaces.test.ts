@@ -234,7 +234,7 @@ describe("a model with no rate says so instead of vanishing", () => {
     expect(card + "\n" + cardCost).not.toMatch(/data\.model && ratesForModel\(data\.model\) &&/);
     expect(cardCost).toMatch(/const rates = ratesForModel\(data\.model\);/);
     expect(card).toMatch(/className="cost-unpriced"/);
-    expect(card).toMatch(/\{UNPRICED_LABEL\}/);
+    expect(card).toMatch(/\{t\("insights\.cost\.notPriced"\)\}/);
     // And only once there are tokens: a card that has not reported usage yet
     // has nothing to be unpriced about.
     expect(cardCost).toMatch(/data\.usage\.inputTokens \+ data\.usage\.outputTokens\) <= 0\) return null/);

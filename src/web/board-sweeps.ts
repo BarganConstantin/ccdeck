@@ -10,6 +10,7 @@ import { canvasSessions } from "./canvas-session";
 import { forgetParkedEnrichment } from "./parked-enrichment";
 import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { releaseToolIds, settleUnanswered } from "./tool-calls";
+import { t as translateNow } from "./i18n";
 import type { AgentNodeData } from "./types";
 
 /** Record that a sweep changed something, and pass its answer through.
@@ -425,7 +426,7 @@ export function sweepStaleTools(state: GraphState, now: number, maxMs: number): 
         // the sweep guessed wrong and the session comes back, its late
         // PostToolUse resurrects the call, the way `noteSessionHeard` un-reaps
         // the root. See `settleUnanswered`.
-        settleUnanswered(state, a, t, silentSince, "session ended before this call returned");
+        settleUnanswered(state, a, t, silentSince, translateNow("board.tool.sessionEnded"));
         changed = true;
       }
     }

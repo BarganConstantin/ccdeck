@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../i18n";
+import { ownMessage } from "../own-error";
 import type { JiraApi } from "../jira-api";
 import { failureOf, readThrough, IntegrationFailure } from "../integrations/client";
 import { definiteJiraWriteFailure, useJiraWriteState } from "../jira-write-state";
@@ -52,7 +53,7 @@ export default function JiraTransition({ api, connectionId, issueKey, onChanged 
     } catch (err) {
       const definite = definiteJiraWriteFailure(err);
       if (!definite && typeof document !== "undefined" && document.activeElement === applyRef.current) toggleRef.current?.focus();
-      write.update({ busy: false, operation: err instanceof IntegrationFailure ? err.operation : undefined, uncertain: !definite, error: definite && err instanceof Error ? err.message : t("integrations.transition.cannotConfirm") });
+      write.update({ busy: false, operation: err instanceof IntegrationFailure ? err.operation : undefined, uncertain: !definite, error: definite ? ownMessage(err, t("integrations.transition.cannotConfirm")) : t("integrations.transition.cannotConfirm") });
     }
     finally { window.clearTimeout(timer); busyRef.current = false; if (attempted) onChanged(); }
   };

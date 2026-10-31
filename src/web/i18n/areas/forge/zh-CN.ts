@@ -305,6 +305,7 @@ const catalog: Catalog = {
 
   "forge.err.noAnswer": "ccdeck 没有响应",
   "forge.err.deckAnswered": "ccdeck 返回了 {status}",
+  "forge.err.readFailed": "读取失败",
   "forge.err.auth.title": "{name} 拒绝了此令牌",
   "forge.err.auth.detail": "它可能已被撤销。请在“{where}”中更新。",
   "forge.err.expired.title": "{name} 令牌已过期",
@@ -345,6 +346,22 @@ const catalog: Catalog = {
   "forge.token.gh.approval": "组织可能需要先批准细粒度令牌，或为经典令牌授权其单点登录，才会显示该组织的仓库。",
   "forge.token.gl.scope": "只需要 {scope} 权限范围的个人访问令牌，不需要其他权限。",
   "forge.token.gl.expire": "GitLab 令牌会过期。届时面板会提示，并带您回到这里。",
+  "forge.srv.timeout": "{origin} 未在限定时间内响应",
+  "forge.srv.cert": "{origin}：证书不受信任（{code}）",
+  "forge.srv.noAnswer": "{origin}：没有响应",
+  "forge.srv.notHost": "{origin} 不是此连接读取的主机",
+  "forge.srv.redirects": "重定向次数过多",
+  "forge.srv.sentElsewhere": "{origin} 将这次读取重定向到 {next}，而不是此连接的地址",
+  "forge.srv.notApi": "{origin} 返回的是 {type}，不是 API",
+  "forge.srv.answerLarge": "响应过大",
+  "forge.srv.answerCut": "响应被截断",
+  "forge.srv.badJson": "无法读取的 JSON",
+  "forge.srv.logLarge": "日志过大，无法读取末尾",
+  "forge.srv.imageLarge": "图片过大",
+  "forge.srv.imageCut": "图片被截断",
+  "forge.srv.notImage": "不是图片（{type}）",
+  "forge.srv.cursorPage": "该游标不属于此列表的任何一页",
+  "forge.srv.cursorList": "该游标不属于此列表",
 };
 
 export default catalog;

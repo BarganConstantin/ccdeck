@@ -8,6 +8,7 @@
 // sound each tone plays stays with the menu's own select; this is handed the
 // library and the callbacks that change it.
 import { useEffect, useRef, useState } from "react";
+import { ownMessage } from "../own-error";
 import { armedPress, focusDropped } from "../panel-press";
 import { CONFIRM_GAP_MS } from "./LanSyncSection";
 import { useClipRecorder } from "../use-clip-recorder";
@@ -67,7 +68,7 @@ export default function CustomSoundsSection({
   const runCustom = async (work: () => Promise<void>) => {
     setCustomError("");
     try { await work(); }
-    catch (error) { setCustomError(error instanceof Error ? error.message : t("settings.sounds.custom.saveFail")); }
+    catch (error) { setCustomError(ownMessage(error, t("settings.sounds.custom.saveFail"))); }
   };
 
   const pressDelete = (id: string, pressed: HTMLButtonElement) => {

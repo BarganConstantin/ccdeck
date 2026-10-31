@@ -11,6 +11,7 @@ import { captureAddress, configuredDestinations, type RadarSession } from "../te
 import type { CaptureAction, CaptureSnapshot, CapturedExport, PermissionResult } from "../use-telemetry-capture";
 import { readStored, writeStored } from "../storage";
 import { currentLanguage, t as translateNow, useT, type TFunction } from "../i18n";
+import { OwnError, ownMessage } from "../own-error";
 import { formatNumber } from "../i18n/format";
 import { serverText } from "../radar-server-text";
 
@@ -288,10 +289,10 @@ export function TelemetryCapture({ capture, radar, failed, busy, pendingAction =
     let alive = true;
     const timeout = setTimeout(() => controller.abort(), 5000);
     fetch(`/api/system/traffic-radar/capture/event?id=${id}`, { signal: controller.signal }).then(async response => {
-      if (!response.ok) throw new Error(t("radar.insp.expired"));
+      if (!response.ok) throw new OwnError(t("radar.insp.expired"));
       const data = await response.json();
       if (alive && !controller.signal.aborted) setDetail({ id, payload: data.payload });
-    }).catch(value => { if (alive) setDetail({ id, error: controller.signal.aborted ? t("radar.insp.timeout") : value instanceof Error ? value.message : t("radar.insp.readFailed") }); })
+    }).catch(value => { if (alive) setDetail({ id, error: controller.signal.aborted ? t("radar.insp.timeout") : ownMessage(value, t("radar.insp.readFailed")) }); })
       .finally(() => clearTimeout(timeout));
     return () => { alive = false; clearTimeout(timeout); controller.abort(); };
   }, [id, selectedObservation, retry]);

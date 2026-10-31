@@ -616,6 +616,14 @@ const catalog: Catalog = {
   "accounts.signin.said.active": ", in progress",
   "accounts.signin.said.failed": ", failed",
   "accounts.lane.scoped": "{name} ({n}d)",
+  "accounts.fail.login.noLink": "the claude CLI did not print a sign-in link",
+  "accounts.fail.login.couldNotFinish": "the sign-in could not be finished — see the deck's log",
+  "accounts.fail.login.windowExpired": "the sign-in window expired",
+  "accounts.fail.login.didNotComplete": "the sign-in did not complete — nothing new was signed in",
+  "accounts.fail.login.signedInNobody": "signed in, but the claude CLI still reports nobody logged in",
+  "accounts.fail.login.claudeMissing": "the claude CLI could not be run: not on PATH. Set AGENTS_DECK_CLAUDE to its full path.",
+  "accounts.fail.login.cswapMissing": "cswap could not be run: not on PATH, and not in the places uv and pipx install to. Set AGENTS_DECK_CSWAP to its full path.",
+  "accounts.fail.login.tookLong": "{what} took too long and was stopped",
 };
 
 export default catalog;

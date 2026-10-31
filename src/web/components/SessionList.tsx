@@ -7,7 +7,6 @@
 import { useMemo } from "react";
 import { isAlarming } from "../ambient-counts";
 import { fmtCost } from "../pricing";
-import { SESSION_SPEND_LABEL } from "../board-usage";
 // Per-model pricing. A session that switched model has tokens from two rate
 // cards in one bucket, and the row used to bill the lot at whichever model the
 // session was last seen on — see usage-models.ts (#686).
@@ -271,7 +270,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                       agents lost 67.10M tokens out of its roll-up in one sweep.
                       So "total" was a claim this figure cannot keep, and the
                       scope it CAN claim is the session named beside it. */}
-                  {r.cost > 0 && <span className="sl-cost" title={SESSION_SPEND_LABEL}><b>{fmtCost(r.cost)}</b></span>}
+                  {r.cost > 0 && <span className="sl-cost" title={t("insights.board.sessionSpend")}><b>{fmtCost(r.cost)}</b></span>}
                   {/* How long it has been stuck, in the slot the run time had.
                       On a blocked row that is the number worth the space: the
                       session's own age says nothing about whether to go look,

@@ -12,6 +12,7 @@
 // ends. One row at a time is a Tab stop, so Tab leaves the list in one press.
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type DragEvent } from "react";
 import { useT, type TFunction } from "../i18n";
+import { ownMessage } from "../own-error";
 import type { IntegrationConnection as Connection } from "../integrations/types";
 import type { JiraBoardOverview, JiraIssue, TimeTracking } from "../jira-api";
 import {
@@ -269,7 +270,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
       return true;
     } catch (error) {
       setMoveNotice("");
-      setMoveError(error instanceof Error ? error.message : t("integrations.error.moveUnconfirmed"));
+      setMoveError(ownMessage(error, t("integrations.error.moveUnconfirmed")));
       if (serial === menuSerial.current && document.activeElement === document.body && !opener?.isConnected) requestAnimationFrame(() => {
         if (document.activeElement !== document.body) return;
         const row = Array.from(listRef.current?.querySelectorAll<HTMLElement>(".jr-row-main[data-key]") ?? []).find(el => el.dataset.key === keys[0] && el.dataset.nav?.startsWith(`${destination.id}/`));

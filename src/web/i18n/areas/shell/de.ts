@@ -396,6 +396,10 @@ const catalog: Catalog = {
   "shell.feedback.resizing": "Verkleinere …",
   "shell.feedback.removeImage": "Bild {n} entfernen",
   "shell.feedback.imageRemoved": "Bild entfernt, {count} von {max}.",
+  "shell.board.removed": "{label} wurde vom Canvas entfernt.",
+  "shell.feedback.imagesAdded.one": "Bild hinzugefügt, {total} von {max}.",
+  "shell.feedback.imagesAdded.other": "{count} Bilder hinzugefügt, {total} von {max}.",
+  "shell.feedback.imageReplaced": "Bild {n} ersetzt, {total} von {max}.",
   "shell.feedback.lost.one": "Der Screenshot blieb beim Neuladen der Seite nicht erhalten. Füge ihn erneut hinzu, um ihn zu senden.",
   "shell.feedback.lost.other": "Die {count} Screenshots blieben beim Neuladen der Seite nicht erhalten. Füge sie erneut hinzu, um sie zu senden.",
   "shell.feedback.discard": "Verwerfen",
@@ -424,6 +428,9 @@ const catalog: Catalog = {
   "shell.announce.blockMore.answer.other": "{label} und {count} weitere Sitzungen warten auf deine Antwort.",
   "shell.announce.blockMore.you.one": "{label} und {count} weitere Sitzung warten auf dich.",
   "shell.announce.blockMore.you.other": "{label} und {count} weitere Sitzungen warten auf dich.",
+  "shell.feedback.problem.count": "Höchstens {n} Bilder.",
+  "shell.feedback.problem.size": "Bild {n} ist größer als {mb} MB.",
+  "shell.feedback.problem.format": "Bild {n} ist weder PNG noch JPEG.",
 };
 
 export default catalog;

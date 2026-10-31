@@ -393,6 +393,9 @@ const catalog: Catalog = {
   "shell.feedback.resizing": "缩放中…",
   "shell.feedback.removeImage": "移除第 {n} 张图片",
   "shell.feedback.imageRemoved": "已移除图片，当前 {count} / {max}。",
+  "shell.board.removed": "已将 {label} 从画布移除。",
+  "shell.feedback.imagesAdded.other": "已添加 {count} 张图片，当前 {total} / {max}。",
+  "shell.feedback.imageReplaced": "已替换第 {n} 张图片，当前 {total} / {max}。",
   "shell.feedback.lost.other": "重新加载页面后，{count} 张截图没有保留下来。请重新添加以便发送。",
   "shell.feedback.discard": "丢弃",
   "shell.feedback.discardConfirm": "确认丢弃",
@@ -419,6 +422,9 @@ const catalog: Catalog = {
   "shell.announce.blockMore.answer.other": "{label} 和另外 {count} 个会话正在等待您的回答。",
   "shell.announce.blockMore.you.one": "{label} 和另外 {count} 个会话正在等您处理。",
   "shell.announce.blockMore.you.other": "{label} 和另外 {count} 个会话正在等您处理。",
+  "shell.feedback.problem.count": "最多 {n} 张图片。",
+  "shell.feedback.problem.size": "第 {n} 张图片超过 {mb} MB。",
+  "shell.feedback.problem.format": "第 {n} 张图片不是 PNG 或 JPEG。",
 };
 
 export default catalog;

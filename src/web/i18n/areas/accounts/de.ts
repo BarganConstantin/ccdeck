@@ -616,6 +616,14 @@ const catalog: Catalog = {
   "accounts.signin.said.active": ", läuft",
   "accounts.signin.said.failed": ", fehlgeschlagen",
   "accounts.lane.scoped": "{name} ({n} Tage)",
+  "accounts.fail.login.noLink": "die claude-CLI hat keinen Anmeldelink ausgegeben",
+  "accounts.fail.login.couldNotFinish": "die Anmeldung konnte nicht abgeschlossen werden – siehe das Protokoll von ccdeck",
+  "accounts.fail.login.windowExpired": "das Anmeldefenster ist abgelaufen",
+  "accounts.fail.login.didNotComplete": "die Anmeldung wurde nicht abgeschlossen – es wurde nichts Neues angemeldet",
+  "accounts.fail.login.signedInNobody": "angemeldet, aber die claude-CLI meldet weiterhin, dass niemand angemeldet ist",
+  "accounts.fail.login.claudeMissing": "die claude-CLI konnte nicht ausgeführt werden: nicht im PATH. Setze AGENTS_DECK_CLAUDE auf den vollständigen Pfad.",
+  "accounts.fail.login.cswapMissing": "cswap konnte nicht ausgeführt werden: nicht im PATH und nicht an den Orten, an die uv und pipx installieren. Setze AGENTS_DECK_CSWAP auf den vollständigen Pfad.",
+  "accounts.fail.login.tookLong": "{what} hat zu lange gedauert und wurde gestoppt",
 };
 
 export default catalog;

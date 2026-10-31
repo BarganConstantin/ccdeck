@@ -211,7 +211,7 @@ export function useFeedbackImages(restore?: KeptImages): FeedbackImages {
     setProblem(problems.join(" "));
     const count = shotsRef.current.length;
     // A refusal is said by the alert beside the images; this says the rest.
-    if (added > 0) setAnnouncement(`${added === 1 ? "Image" : `${added} images`} added, ${count} of ${MAX_IMAGES}.`);
+    if (added > 0) setAnnouncement(t("shell.feedback.imagesAdded", { count: added, total: count, max: MAX_IMAGES }));
   }, [addOne, setProblem]);
 
   const replaceOne = useCallback(async (id: number, file: File) => {
@@ -223,7 +223,7 @@ export function useFeedbackImages(restore?: KeptImages): FeedbackImages {
     if (!open.current) return;
     setProblem(said);
     const at = shotsRef.current.findIndex(shot => shot.id === id);
-    if (!said && at !== -1) setAnnouncement(`Image ${at + 1} replaced, ${shotsRef.current.length} of ${MAX_IMAGES}.`);
+    if (!said && at !== -1) setAnnouncement(t("shell.feedback.imageReplaced", { n: at + 1, total: shotsRef.current.length, max: MAX_IMAGES }));
   }, [addAll, addOne, setProblem]);
 
   /** A job queued before a `clear` never starts. */

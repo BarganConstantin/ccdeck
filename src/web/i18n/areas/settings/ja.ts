@@ -561,6 +561,14 @@ const catalog: Catalog = {
   "settings.claudeTopic.privacy-and-telemetry": "プライバシーとテレメトリ",
   "settings.claudeTopic.enterprise-and-managed-settings": "エンタープライズと管理対象の設定",
   "settings.claudeTopic.global-config-settings": "グローバル設定",
+  "settings.bw.deckAnswered": "ccdeck が {status} を返しました",
+  "settings.bw.noAnswer": "ccdeck から応答がありませんでした",
+  "settings.claude.reason.localOnly": "Claude Code の設定は、このコンピューターでのみ変更できます。",
+  "settings.claude.reason.readFail": "Claude Code の設定を読み取れませんでした。もう一度お試しください。",
+  "settings.claude.reason.notSaved": "変更を保存できませんでした。settings.json は変更されていません。",
+  "settings.claude.reason.permissionsShape": "settings.json の permissions の値がオブジェクトではありません。変更は保存されていません。",
+  "settings.claude.reason.denyShape": "settings.json の permissions.deny の値がリストではありません。変更は保存されていません。",
+  "settings.claude.reason.attribution": "settings.json にカスタムの attribution があります。そこで編集してください。",
 };
 
 export default catalog;

@@ -14,6 +14,7 @@
 // place matters, the host; a panel can still pass its own sentence.
 import { currentLanguage, t as translateNow, type TFunction } from "../i18n";
 import type { IntegrationErrorKind } from "./types";
+import { integrationText } from "./server-text";
 
 export type FailureAction = "reconnect" | "settings" | "retry" | "none";
 
@@ -61,7 +62,7 @@ export function waitLabel(label: string, when: string, t: TFunction = translateN
 
 /** The heading and the sentence under it, by kind, in the provider's name. */
 export function failureWords(error: FailureInfo, provider: string, host = provider, now = Date.now(), t: TFunction = translateNow): { title: string; body: string } {
-  const said = error.message?.trim() || "";
+  const said = integrationText(error.message?.trim() || "", t);
   switch (error.kind) {
     case "auth":
       return { title: t("integrations.failure.auth.title", { provider }), body: t("integrations.failure.auth.body") };

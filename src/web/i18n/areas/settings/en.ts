@@ -562,6 +562,14 @@ const catalog: Catalog = {
   "settings.claudeTopic.privacy-and-telemetry": "Privacy and telemetry",
   "settings.claudeTopic.enterprise-and-managed-settings": "Enterprise and managed settings",
   "settings.claudeTopic.global-config-settings": "Global config settings",
+  "settings.bw.deckAnswered": "the deck answered {status}",
+  "settings.bw.noAnswer": "the deck did not answer",
+  "settings.claude.reason.localOnly": "Claude Code settings can be changed on this computer only.",
+  "settings.claude.reason.readFail": "Could not read Claude Code settings. Try again.",
+  "settings.claude.reason.notSaved": "Could not save the change. Your settings.json was not modified.",
+  "settings.claude.reason.permissionsShape": "Your settings.json has a permissions value that is not an object. No changes were saved.",
+  "settings.claude.reason.denyShape": "Your settings.json has a permissions.deny value that is not a list. No changes were saved.",
+  "settings.claude.reason.attribution": "Your settings.json holds a custom attribution. Edit it there.",
 };
 
 export default catalog;

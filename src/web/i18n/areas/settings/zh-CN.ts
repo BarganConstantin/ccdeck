@@ -561,6 +561,14 @@ const catalog: Catalog = {
   "settings.claudeTopic.privacy-and-telemetry": "隐私与遥测",
   "settings.claudeTopic.enterprise-and-managed-settings": "企业与托管设置",
   "settings.claudeTopic.global-config-settings": "全局设置",
+  "settings.bw.deckAnswered": "ccdeck 返回了 {status}",
+  "settings.bw.noAnswer": "ccdeck 没有响应",
+  "settings.claude.reason.localOnly": "Claude Code 设置只能在这台电脑上更改。",
+  "settings.claude.reason.readFail": "无法读取 Claude Code 设置，请重试。",
+  "settings.claude.reason.notSaved": "无法保存这项更改，您的 settings.json 未被修改。",
+  "settings.claude.reason.permissionsShape": "您的 settings.json 中的 permissions 值不是对象，未保存任何更改。",
+  "settings.claude.reason.denyShape": "您的 settings.json 中的 permissions.deny 值不是列表，未保存任何更改。",
+  "settings.claude.reason.attribution": "您的 settings.json 中有自定义的署名设置，请直接在该文件中编辑。",
 };
 
 export default catalog;

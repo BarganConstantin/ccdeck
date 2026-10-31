@@ -291,7 +291,7 @@ describe("the report's own failure is said apart from ccusage", () => {
     m.deck.report(1).fail(new TypeError("Failed to fetch"));
     await settle();
     expect(m.state.report).toBeNull();
-    expect(m.state.error).toBe("Failed to fetch");
+    expect(m.state.error).toBe("Could not load");
   });
 });
 

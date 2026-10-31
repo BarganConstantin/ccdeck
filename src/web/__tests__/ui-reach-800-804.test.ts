@@ -324,7 +324,7 @@ describe("#803 — a failed write in Browser Watch", () => {
     // read", and the ten-second poll's `setError(null)` wiped it — leaving a
     // panel that looked healthy with the setting unchanged.
     expect(watchModal).toContain("const [writeError, setWriteError] = useState<string | null>(null);");
-    expect(watchModal).toContain("setWriteError(e instanceof Error ? e.message : String(e));");
+    expect(watchModal).toContain('setWriteError(ownMessage(e, t("settings.bw.noAnswer")));');
     // The read path still clears the read error, which is correct: a poll that
     // succeeded IS the answer to "can the deck be reached".
     expect(watchModal).toContain("setError(null);");

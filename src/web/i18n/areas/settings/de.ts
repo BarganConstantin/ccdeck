@@ -562,6 +562,14 @@ const catalog: Catalog = {
   "settings.claudeTopic.privacy-and-telemetry": "Datenschutz und Telemetrie",
   "settings.claudeTopic.enterprise-and-managed-settings": "Unternehmen und verwaltete Einstellungen",
   "settings.claudeTopic.global-config-settings": "Globale Konfiguration",
+  "settings.bw.deckAnswered": "ccdeck hat mit {status} geantwortet",
+  "settings.bw.noAnswer": "ccdeck hat nicht geantwortet",
+  "settings.claude.reason.localOnly": "Die Claude-Code-Einstellungen lassen sich nur auf diesem Rechner ändern.",
+  "settings.claude.reason.readFail": "Die Claude-Code-Einstellungen konnten nicht gelesen werden. Versuche es erneut.",
+  "settings.claude.reason.notSaved": "Die Änderung konnte nicht gespeichert werden. Deine settings.json wurde nicht verändert.",
+  "settings.claude.reason.permissionsShape": "In deiner settings.json ist permissions kein Objekt. Es wurde nichts gespeichert.",
+  "settings.claude.reason.denyShape": "In deiner settings.json ist permissions.deny keine Liste. Es wurde nichts gespeichert.",
+  "settings.claude.reason.attribution": "Deine settings.json enthält eine eigene Attribution. Bearbeite sie dort.",
 };
 
 export default catalog;

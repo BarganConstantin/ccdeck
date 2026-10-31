@@ -1,4 +1,5 @@
 import { currentLanguage, t } from './i18n';
+import { OwnError } from './own-error';
 export type AuditProvider = 'all' | 'claude' | 'codex';
 export interface AuditRow {
   operation: string; calls: number; completed: number; failed: number; errorRate: number | null;
@@ -89,8 +90,8 @@ export async function readAuditReport<Report = AuditReport>(query: string, signa
       });
       continue;
     }
-    if (!res.ok || !reply.ok || !Array.isArray(reply.rows)) throw new Error(t('insights.audit.err.build'));
+    if (!res.ok || !reply.ok || !Array.isArray(reply.rows)) throw new OwnError(t('insights.audit.err.build'));
     return reply as Report;
   }
-  throw new Error(t('insights.audit.err.busy'));
+  throw new OwnError(t('insights.audit.err.busy'));
 }

@@ -9,6 +9,7 @@ import { sessionFailure, type SessionReply, type SessionSelection, type SessionS
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { RefreshGlyph } from "./action-glyphs";
 import SessionUsageLoading from "./SessionUsageLoading";
+import { serverText } from "../radar-server-text";
 
 const count = (n: number) => n.toLocaleString(currentLanguage());
 const at = (value: string) => new Date(value).toLocaleString(currentLanguage(), {
@@ -79,7 +80,7 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
             </select>
           </label>}
           {!reply && <SessionUsageLoading />}
-          {reply && !reply.ok && <p className="su-message" role="status" title={reply.error}>
+          {reply && !reply.ok && <p className="su-message" role="status" title={serverText(reply.error, t) || undefined}>
             {sessionFailure(reply)} {t("insights.session.useRefresh")}
           </p>}
           {detail && <div className="su-result">

@@ -557,7 +557,7 @@ describe("where Remove lives and what follows it", () => {
   });
 
   it("says the removal through a region that is mounted before the words arrive", () => {
-    expect(app).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">\s*\{removalNotice \? `\$\{removalNotice\.label\} removed from the board\.` : ""\}/);
+    expect(app).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">\s*\{removalNotice \? t\("shell\.board\.removed", \{ label: removalNotice\.label \}\) : ""\}/);
   });
 
   it("brings a waiting session back instead of leaving the alarm pointing at nothing", () => {

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useT } from "../i18n";
+import { ownMessage } from "../own-error";
 import type { JiraApi } from "../jira-api";
 import { failureOf, IntegrationFailure } from "../integrations/client";
 import { definiteJiraWriteFailure, useJiraWriteState } from "../jira-write-state";
@@ -35,7 +36,7 @@ export default function JiraCommentForm({ api, connectionId, issueKey, onChanged
       const definite = definiteJiraWriteFailure(err);
       const operation = err instanceof IntegrationFailure ? err.operation : undefined;
       if (!definite && typeof document !== "undefined" && document.activeElement === sendRef.current) textRef.current?.focus();
-      write.update({ busy: false, operation, uncertain: !definite, error: definite && err instanceof Error ? err.message : t("integrations.comment.cannotConfirm") });
+      write.update({ busy: false, operation, uncertain: !definite, error: definite ? ownMessage(err, t("integrations.comment.cannotConfirm")) : t("integrations.comment.cannotConfirm") });
       onChanged();
     } finally { window.clearTimeout(timer); busyRef.current = false; }
   };

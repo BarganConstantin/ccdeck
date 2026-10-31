@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEve
 import { createPortal } from 'react-dom';
 import { auditDuration, readAuditReport, type AuditProvider, type AuditReport, type AuditRow } from '../tool-audit';
 import { auditDay, countOf, failureShare, findHighlights, periodIn, periodLabel, periodLabels, sortTools, summaryParts, toolSortLabel, toolSorts, toolSortValue, type Highlight, type ToolSort } from '../tool-audit-report';
+import { ownMessage } from '../own-error';
 import { t as translate, useLanguage, useT, currentLanguage } from '../i18n';
 import { rich } from '../insights-rich';
 import { operationDescription, operationName } from '../operation-glossary';
@@ -109,7 +110,7 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
           // Open details whose tool the new period lacks move to its first, rather than closing.
           else if (selectedRef.current && !reply.rows.some(row => row.operation === selectedRef.current)) setSelected(sortTools(reply.rows, sortRef.current, searchRef.current)[0]?.operation ?? null);
         }
-      } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : t('insights.audit.err.slow')); }
+      } catch (e) { if (live) setError(ownMessage(e, t('insights.audit.err.slow'))); }
       finally { window.clearTimeout(deadline); if (live) { busy.current = false; setLoading(false); } }
     })();
     return () => { live = false; controller.abort(); window.clearTimeout(deadline); busy.current = false; };
