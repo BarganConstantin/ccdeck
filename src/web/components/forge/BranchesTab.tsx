@@ -17,8 +17,9 @@
 // reads them after the button's name.
 import { useMemo } from "react";
 import type { ForgeBranch, ForgeKind } from "../../forge-types";
-import { forgeWords } from "../../forge-types";
-import { changeBadge, ciMark, divergeCount, matchesQuery, splitBranches } from "../../forge-panel";
+import { forgeNouns } from "../../forge-types";
+import { useT } from "../../i18n";
+import { changeBadge, ciMark, divergeCount, markWord, matchesQuery, splitBranches } from "../../forge-panel";
 import {
   defaultFirst, divergeWords, listPhase, moreLabel, newChangeUrl, noMatchWords, useReportFreshness,
 } from "../../forge-lists";
@@ -36,6 +37,7 @@ function branchTarget(repo: string, b: ForgeBranch): ForgeSelection {
 
 export default function BranchesTab({ view, query }: ForgeTabProps) {
   const { kind, api, scope, refresh, reportFreshness, isOpen } = useForge();
+  const t = useT();
   // The panel picks a project before this tab draws; until then it reads nothing.
   const repo = view.repo ?? "";
   const read = useForgePages<ForgeBranch>(api, scope, repo ? "branches" : null, { repo }, refresh);
@@ -65,27 +67,27 @@ export default function BranchesTab({ view, query }: ForgeTabProps) {
   return (
     <div className="fgl">
       {read.error && read.data && <ReadFailure error={read.error} onRetry={read.reload} compact />}
-      {phase === "loading" && <LoadingRows label="Loading branches" />}
+      {phase === "loading" && <LoadingRows label={t("forge.loadingNoun", { noun: t("forge.noun.branches") })} />}
       {phase === "failed" && read.error && <ReadFailure error={read.error} onRetry={read.reload} />}
-      {phase === "empty" && <p className="fg-empty">This {forgeWords[kind].repo.toLowerCase()} has no branches.</p>}
-      {phase === "no-match" && <p className="fg-empty">{noMatchWords("branches", query)}</p>}
+      {phase === "empty" && <p className="fg-empty">{t("forge.empty.branches", { repo: forgeNouns(kind, t).repoLc })}</p>}
+      {phase === "no-match" && <p className="fg-empty">{noMatchWords(t("forge.noun.branches"), query, t)}</p>}
       {phase === "rows" && (
         <>
-          <FoldGroup id="branches-active" title="Active branches" count={groups.active.length} defaultOpen>
+          <FoldGroup id="branches-active" title={t("forge.branches.active")} count={groups.active.length} defaultOpen>
             {groups.active.length
               ? rows(groups.active)
-              : <p className="fgl-group-empty">{query.trim() ? noMatchWords("active branches", query) : "Every branch loaded so far is stale."}</p>}
+              : <p className="fgl-group-empty">{query.trim() ? noMatchWords(t("forge.noun.activeBranches"), query, t) : t("forge.branches.allStale")}</p>}
           </FoldGroup>
           {groups.stale.length > 0 && (
-            <FoldGroup id="branches-stale" title="Stale branches" count={groups.stale.length} defaultOpen={false}
-              aside={<span className="fgl-group-note">No commits in 90 days</span>}>
+            <FoldGroup id="branches-stale" title={t("forge.branches.stale")} count={groups.stale.length} defaultOpen={false}
+              aside={<span className="fgl-group-note">{t("forge.branches.staleNote")}</span>}>
               {rows(groups.stale)}
             </FoldGroup>
           )}
         </>
       )}
       {read.data && (
-        <ListEnd pages={read} label={moreLabel(items.length, read.data.total)} />
+        <ListEnd pages={read} label={moreLabel(items.length, read.data.total, t)} />
       )}
     </div>
   );
@@ -95,11 +97,13 @@ function BranchRow({ kind, repo, branch: b, defaultBranch }: {
   kind: ForgeKind; repo: string; branch: ForgeBranch; defaultBranch: string | null;
 }) {
   const { selected, select } = useForge();
-  const words = forgeWords[kind];
+  const t = useT();
+  const words = forgeNouns(kind, t);
+  const sigil = kind === "gitlab" ? "!" : "#";
   const target = branchTarget(repo, b);
   const isSelected = sameSelection(selected, target);
-  const diverge = b.isDefault ? null : divergeWords(b.behind, b.ahead, defaultBranch);
-  const changeName = b.change ? `${words.changeSigil}${b.change.number}` : null;
+  const diverge = b.isDefault ? null : divergeWords(b.behind, b.ahead, defaultBranch, t);
+  const changeName = b.change ? `${sigil}${b.change.number}` : null;
   const badge = b.change ? changeBadge(b.change) : null;
 
   return (
@@ -109,13 +113,13 @@ function BranchRow({ kind, repo, branch: b, defaultBranch }: {
         className="fgl-hit"
         data-nav=""
         aria-current={isSelected || undefined}
-        aria-label={b.change ? `${b.name}, ${words.change.toLowerCase()} ${changeName}` : b.name}
+        aria-label={b.change ? t("forge.branches.rowAria", { name: b.name, change: words.changeLc, ref: changeName ?? "" }) : b.name}
         onClick={() => select(target)}
       />
       <span className="fgl-branch-name">
-        <Copyable value={b.name} label="branch name"><code className="fgl-branch-code">{b.name}</code></Copyable>
-        {b.isDefault && <span className="fg-badge">default</span>}
-        {b.protected && <span className="fg-badge">protected</span>}
+        <Copyable value={b.name} label={t("forge.copy.branchName")}><code className="fgl-branch-code">{b.name}</code></Copyable>
+        {b.isDefault && <span className="fg-badge">{t("forge.badge.default")}</span>}
+        {b.protected && <span className="fg-badge">{t("forge.badge.protected")}</span>}
       </span>
       <span className="fg-meta fgl-commit">
         <code>{b.commit.shortSha}</code>
@@ -141,13 +145,13 @@ function BranchRow({ kind, repo, branch: b, defaultBranch }: {
       <span className="fgl-branch-change">
         {badge && changeName
           ? (
-            <span className="fg-badge" data-tone={badge.tone} title={`${words.change} ${changeName}: ${badge.word}`}>
-              <StateGlyph name={badge.mark} /> <code>{changeName}</code> {badge.word}
+            <span className="fg-badge" data-tone={badge.tone} title={t("forge.branches.badgeTitle", { change: words.change, ref: changeName, word: markWord(badge, t) })}>
+              <StateGlyph name={badge.mark} /> <code>{changeName}</code> {markWord(badge, t)}
             </span>
           )
           : !b.isDefault && (
             <a className="ig-open fgl-create" href={newChangeUrl(kind, b)} target="_blank" rel="noreferrer noopener">
-              Create {words.change.toLowerCase()}<ExternalLinkGlyph />
+              {t("forge.createChange", { change: words.changeLc })}<ExternalLinkGlyph />
             </a>
           )}
       </span>

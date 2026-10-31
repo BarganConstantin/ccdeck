@@ -23,8 +23,9 @@
 // listener hears it first.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { ForgeRepo } from "../../forge-types";
-import { forgeWords } from "../../forge-types";
+import { forgeNouns } from "../../forge-types";
 import { allReposLabel, repoNounPlural, splitRepoPath } from "../../forge-lists";
+import { useT } from "../../i18n";
 import { useForgePages } from "../../use-forge-read";
 import AnchoredPopover from "../AnchoredPopover";
 import { CheckGlyph } from "../integration-glyphs";
@@ -40,11 +41,13 @@ interface Props {
 
 export default function RepoPicker({ value, allowAll, onChange }: Props) {
   const { kind } = useForge();
+  const t = useT();
   const id = useId();
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
-  const noun = forgeWords[kind].repo;
-  const shown = value ?? (allowAll ? allReposLabel(kind) : `Choose a ${noun.toLowerCase()}`);
+  const nouns = forgeNouns(kind, t);
+  const noun = nouns.repo;
+  const shown = value ?? (allowAll ? allReposLabel(kind, t) : t("forge.repo.choose", { repo: nouns.repoLc }));
   const parts = value ? splitRepoPath(value) : null;
 
   const close = useCallback(() => {
@@ -59,7 +62,7 @@ export default function RepoPicker({ value, allowAll, onChange }: Props) {
         id={`${id}-trigger`}
         type="button"
         className="btn fgl-repo-trigger"
-        aria-label={`${noun}: ${shown}`}
+        aria-label={t("forge.repo.aria", { repo: noun, shown })}
         aria-haspopup="dialog"
         aria-expanded={open}
         title={value ?? undefined}
@@ -97,12 +100,13 @@ function RepoOptions({ value, allowAll, onPick, onEscape }: {
   value: string | null; allowAll: boolean; onPick: (repo: string | null) => void; onEscape: () => void;
 }) {
   const { kind, api, scope, refresh } = useForge();
+  const t = useT();
   const id = useId();
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  const plural = repoNounPlural(kind);
+  const plural = repoNounPlural(kind, t);
 
   // The forge searches; one request per pause in typing, not per key.
   useEffect(() => {
@@ -164,13 +168,13 @@ function RepoOptions({ value, allowAll, onPick, onEscape }: {
       }}
     >
       <label className="fgl-repo-search">
-        <span className="fg-sr">Search {plural}</span>
+        <span className="fg-sr">{t("forge.repo.search", { repos: plural })}</span>
         <SearchGlyph />
         <input
           ref={input}
           className="ap-manage-input"
           role="combobox"
-          placeholder={`Search ${plural}…`}
+          placeholder={t("forge.repo.searchPlaceholder", { repos: plural })}
           autoComplete="off"
           spellCheck={false}
           value={query}
@@ -185,12 +189,12 @@ function RepoOptions({ value, allowAll, onPick, onEscape }: {
       </label>
       <div ref={list} className="fgl-repo-scroll">
         {repos.error && items && <ReadFailure error={repos.error} onRetry={repos.reload} compact />}
-        {phase === "loading" && <LoadingRows rows={4} label={`Loading ${plural}`} />}
+        {phase === "loading" && <LoadingRows rows={4} label={t("forge.loadingNoun", { noun: plural })} />}
         {phase === "failed" && repos.error && <ReadFailure error={repos.error} onRetry={repos.reload} />}
         {phase === "empty" && (
-          <p className="fgl-repo-none" role="status">{search ? `No ${plural} match “${search}”.` : `This token can see no ${plural}.`}</p>
+          <p className="fgl-repo-none" role="status">{search ? t("forge.noMatch", { noun: plural, query: search }) : t("forge.repos.none", { repos: plural })}</p>
         )}
-        <div id={`${id}-options`} className="fgl-repo-options" role="listbox" aria-label={forgeWords[kind].repo} hidden={phase !== "rows"}>
+        <div id={`${id}-options`} className="fgl-repo-options" role="listbox" aria-label={forgeNouns(kind, t).repo} hidden={phase !== "rows"}>
           {phase === "rows" && options.map((o, i) => (
             <RepoOption
               key={o.value ?? "(all)"}
@@ -204,7 +208,7 @@ function RepoOptions({ value, allowAll, onPick, onEscape }: {
           ))}
         </div>
         {repos.data && (
-          <ListEnd pages={repos} label={`More ${plural}`} />
+          <ListEnd pages={repos} label={t("forge.repo.more", { repos: plural })} />
         )}
       </div>
     </div>
@@ -215,6 +219,7 @@ function RepoOption({ id, option, selected, active, onHover, onPick }: {
   id: string; option: Option; selected: boolean; active: boolean; onHover: () => void; onPick: () => void;
 }) {
   const { kind } = useForge();
+  const t = useT();
   const parts = option.value ? splitRepoPath(option.value) : null;
   return (
     <button
@@ -234,9 +239,9 @@ function RepoOption({ id, option, selected, active, onHover, onPick }: {
               <span className="fgl-repo-option-name">{parts.name}</span>
               {parts.group && <span className="fgl-repo-option-group">{parts.group.slice(0, -1)}</span>}
             </>
-          : <span className="fgl-repo-option-name">{allReposLabel(kind)}</span>}
+          : <span className="fgl-repo-option-name">{allReposLabel(kind, t)}</span>}
       </span>
-      {option.repo?.archived && <span className="fg-badge">archived</span>}
+      {option.repo?.archived && <span className="fg-badge">{t("forge.badge.archived")}</span>}
       {option.repo?.lastActivityAt != null && <span className="fgl-repo-option-when"><Ago at={option.repo.lastActivityAt} /></span>}
       <span className="fgl-repo-check" aria-hidden="true">{selected && <CheckGlyph />}</span>
     </button>

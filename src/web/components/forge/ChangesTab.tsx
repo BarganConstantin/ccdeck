@@ -17,10 +17,12 @@
 // on the Issues tab, which takes them from here.
 import { useId, useMemo, useState } from "react";
 import type { ChangeCounts, ChangeFilter, ChangeState, ForgeChange, ForgeKind, ForgeLabel, ForgeReviewer, ForgeUser } from "../../forge-types";
-import { forgeWords } from "../../forge-types";
-import { changeBadge, ciMark, matchesQuery, reviewerMark, splitReviews, type Mark } from "../../forge-panel";
+import { forgeNouns } from "../../forge-types";
+import { changeBadge, ciMark, markWord, matchesQuery, reviewerMark, splitReviews, type Mark } from "../../forge-panel";
+import { useT } from "../../i18n";
+import { formatNumber } from "../../i18n/format";
 import {
-  changeMoment, countWords, draftTitle, emptyChangesWords, itemLabel, labelColor, listPhase, moreLabel, noMatchWords,
+  changeMoment, momentPhrase, countWords, draftTitle, emptyChangesWords, itemLabel, labelColor, listPhase, moreLabel, noMatchWords,
   useReportFreshness,
 } from "../../forge-lists";
 import { labelParts } from "../../forge-detail";
@@ -28,21 +30,21 @@ import { useForgePages, useForgeRead } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
 import { sameSelection, useForge, useReportRows } from "./ForgeContext";
 import { IntegrationAvatarStack } from "../IntegrationAvatar";
-import { Ago, Badge, Face, FoldGroup, ListEnd, LoadingRows, ReadFailure, StateMark, useFaceOf } from "./ForgeParts";
+import { AgoIn, Badge, Face, FoldGroup, ListEnd, LoadingRows, ReadFailure, StateMark, useFaceOf } from "./ForgeParts";
 import { CheckGlyph } from "../integration-glyphs";
 import { ChevronGlyph, StateGlyph } from "./ForgeGlyphs";
 import AnchoredPopover from "../AnchoredPopover";
 
 const STATES: { state: ChangeState; label: string }[] = [
-  { state: "open", label: "Open" },
-  { state: "merged", label: "Merged" },
-  { state: "closed", label: "Closed" },
+  { state: "open", label: "forge.state.open" },
+  { state: "merged", label: "forge.state.merged" },
+  { state: "closed", label: "forge.state.closed" },
 ];
 
 const FILTERS: { filter: ChangeFilter; label: string }[] = [
-  { filter: "all", label: "All" },
-  { filter: "mine", label: "Mine" },
-  { filter: "review", label: "Review requests" },
+  { filter: "all", label: "forge.filter.all" },
+  { filter: "mine", label: "forge.filter.mine" },
+  { filter: "review", label: "forge.filter.review" },
 ];
 
 const DRAFT: Mark = changeBadge({ state: "open", draft: true, approved: false });
@@ -50,7 +52,8 @@ const APPROVED: Mark = changeBadge({ state: "open", draft: false, approved: true
 
 export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
   const { kind, api, scope, refresh, reportFreshness, isOpen } = useForge();
-  const words = forgeWords[kind];
+  const t = useT();
+  const words = forgeNouns(kind, t);
   const repo = view.repo ?? undefined;
   const acrossRepos = view.repo == null;
   const read = useForgePages<ForgeChange>(api, scope, "changes", { repo, filter: view.filter, state: view.state, sort: view.sort }, refresh);
@@ -64,7 +67,7 @@ export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
   );
   const phase = listPhase(read, items.length, shown.length);
   const reviews = view.filter === "review" && view.state === "open" ? splitReviews(shown) : null;
-  const noun = words.changes.toLowerCase();
+  const noun = words.changesLc;
   // The rows on screen: review requests as their two groups draw them, the
   // approved ones folded until the reader opens them.
   const drawn = useMemo(() => {
@@ -86,12 +89,12 @@ export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
   return (
     <div className="fgl">
       <div className="fgl-controls">
-        <div className="uh-range fgl-seg" role="group" aria-label={`${words.changes} by state`}>
+        <div className="uh-range fgl-seg" role="group" aria-label={t("forge.changes.byState", { changes: words.changes })}>
           {STATES.map(({ state, label }) => {
             const count = countWords(counts.data?.[state]);
             return (
               <button key={state} type="button" className="uh-range-btn" aria-pressed={view.state === state} onClick={() => setView({ state })}>
-                {label}{count && <span className="fgl-seg-count">{count}</span>}
+                {t(label)}{count && <span className="fgl-seg-count">{count}</span>}
               </button>
             );
           })}
@@ -100,10 +103,10 @@ export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
             by the current choice where it does not (a phone, or the column
             beside an open item). Both are drawn and the list's width shows
             one, so the choice never moves when the pane is resized. */}
-        <div className="uh-range fgl-seg fgl-scope-seg" role="group" aria-label={`Which ${noun}`}>
+        <div className="uh-range fgl-seg fgl-scope-seg" role="group" aria-label={t("forge.changes.which", { changes: noun })}>
           {FILTERS.map(({ filter, label }) => (
             <button key={filter} type="button" className="uh-range-btn" aria-pressed={view.filter === filter} onClick={() => setView({ filter })}>
-              {label}
+              {t(label)}
             </button>
           ))}
         </div>
@@ -112,20 +115,20 @@ export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
       </div>
 
       {read.error && read.data && <ReadFailure error={read.error} onRetry={read.reload} compact />}
-      {phase === "loading" && <LoadingRows label={`Loading ${noun}`} />}
+      {phase === "loading" && <LoadingRows label={t("forge.loadingNoun", { noun })} />}
       {phase === "failed" && read.error && <ReadFailure error={read.error} onRetry={read.reload} />}
-      {phase === "empty" && <p className="fg-empty">{emptyChangesWords(kind, { state: view.state, filter: view.filter, acrossRepos })}</p>}
-      {phase === "no-match" && <p className="fg-empty">{noMatchWords(noun, query)}</p>}
+      {phase === "empty" && <p className="fg-empty">{emptyChangesWords(kind, { state: view.state, filter: view.filter, acrossRepos }, t)}</p>}
+      {phase === "no-match" && <p className="fg-empty">{noMatchWords(noun, query, t)}</p>}
       {phase === "rows" && (reviews
         ? (
           <>
-            <FoldGroup id="reviews-waiting" title="Waiting for my review" count={reviews.waiting.length} defaultOpen>
+            <FoldGroup id="reviews-waiting" title={t("forge.reviews.waiting")} count={reviews.waiting.length} defaultOpen>
               {reviews.waiting.length
                 ? rows(reviews.waiting)
-                : <p className="fgl-group-empty">{query.trim() ? noMatchWords(`${noun} waiting for you`, query) : "Nothing loaded is waiting for you; you approved every one."}</p>}
+                : <p className="fgl-group-empty">{query.trim() ? noMatchWords(t("forge.noun.waitingForYou", { changes: noun }), query, t) : t("forge.reviews.allApproved")}</p>}
             </FoldGroup>
             {reviews.approved.length > 0 && (
-              <FoldGroup id="reviews-approved" title="Approved by me" count={reviews.approved.length} defaultOpen={false}>
+              <FoldGroup id="reviews-approved" title={t("forge.reviews.approvedByMe")} count={reviews.approved.length} defaultOpen={false}>
                 {rows(reviews.approved)}
               </FoldGroup>
             )}
@@ -133,7 +136,7 @@ export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
         )
         : <div className="fgl-flat">{rows(shown)}</div>)}
       {read.data && (
-        <ListEnd pages={read} label={moreLabel(items.length, read.data.total)} />
+        <ListEnd pages={read} label={moreLabel(items.length, read.data.total, t)} />
       )}
     </div>
   );
@@ -143,6 +146,7 @@ export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
  *  list: the button says the current choice, the menu checks it. */
 function ScopeMenu({ filter, noun, onChange }: { filter: ChangeFilter; noun: string; onChange: (filter: ChangeFilter) => void }) {
   const id = useId();
+  const t = useT();
   const [menu, setMenu] = useState<"first" | "last" | null>(null);
   const current = FILTERS.find(f => f.filter === filter) ?? FILTERS[0];
   const trigger = `${id}-trigger`;
@@ -157,7 +161,7 @@ function ScopeMenu({ filter, noun, onChange }: { filter: ChangeFilter; noun: str
         id={trigger}
         type="button"
         className="btn fgl-scope-trigger"
-        aria-label={`Which ${noun}: ${current.label}`}
+        aria-label={t("forge.changes.whichNow", { changes: noun, current: t(current.label) })}
         aria-haspopup="menu"
         aria-expanded={menu != null}
         aria-controls={menu ? `${id}-menu` : undefined}
@@ -168,7 +172,7 @@ function ScopeMenu({ filter, noun, onChange }: { filter: ChangeFilter; noun: str
           setMenu(e.key === "ArrowUp" ? "last" : "first");
         }}
       >
-        {current.label}
+        {t(current.label)}
         <ChevronGlyph />
       </button>
       {menu && (
@@ -178,7 +182,7 @@ function ScopeMenu({ filter, noun, onChange }: { filter: ChangeFilter; noun: str
             <button key={f.filter} type="button" role="menuitem" className="ap-menu-item fgl-scope-item"
               aria-current={f.filter === filter || undefined} onClick={() => pick(f.filter)}>
               <span className="fgl-scope-check" aria-hidden="true">{f.filter === filter && <CheckGlyph />}</span>
-              {f.label}
+              {t(f.label)}
             </button>
           ))}
         </AnchoredPopover>
@@ -190,25 +194,27 @@ function ScopeMenu({ filter, noun, onChange }: { filter: ChangeFilter; noun: str
 /** Created or Updated, newest first. On a narrow list only its glyph shows;
  *  its name says the rest, and its tooltip says it to the pointer. */
 function SortToggle({ sort, onChange }: { sort: "created" | "updated"; onChange: (sort: "created" | "updated") => void }) {
+  const t = useT();
   const next = sort === "created" ? "updated" : "created";
   return (
     <button
       type="button"
       className="btn fgl-sort"
-      title={`Newest ${sort} first. Sort by ${next} instead.`}
-      aria-label={`Sorted by ${sort === "created" ? "date created" : "last updated"}, newest first. Sort by ${next === "created" ? "date created" : "last updated"} instead.`}
+      title={t(sort === "created" ? "forge.sort.titleCreated" : "forge.sort.titleUpdated")}
+      aria-label={t(sort === "created" ? "forge.sort.ariaCreated" : "forge.sort.ariaUpdated")}
       onClick={() => onChange(next)}
     >
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true">
         <path d="M2 3h8M3.5 6h5M5 9h2" />
       </svg>
-      <span className="fgl-sort-word">{sort === "created" ? "Created" : "Updated"}</span>
+      <span className="fgl-sort-word">{t(sort === "created" ? "forge.sort.created" : "forge.sort.updated")}</span>
     </button>
   );
 }
 
 function ChangeRow({ kind, change: c, acrossRepos }: { kind: ForgeKind; change: ForgeChange; acrossRepos: boolean }) {
   const { selected, select } = useForge();
+  const t = useT();
   const target = { type: "change" as const, repo: c.repo, number: c.number };
   const isSelected = sameSelection(selected, target);
   const moment = changeMoment(c);
@@ -235,11 +241,12 @@ function ChangeRow({ kind, change: c, acrossRepos }: { kind: ForgeKind; change: 
           <CommentCount count={c.comments} />
         </span>
         <span className="fg-meta fgl-meta">
-          <code>{itemLabel(forgeWords[kind].changeSigil, c, acrossRepos)}</code>
-          {c.createdAt != null && <> · created <Ago at={c.createdAt} /></>}
-          {author && <> by {author}</>}
+          <code>{itemLabel(kind === "gitlab" ? "!" : "#", c, acrossRepos)}</code>
+          {c.createdAt != null
+            ? <> · <AgoIn at={c.createdAt} text={t(author ? "forge.meta.createdBy" : "forge.meta.created", { author: author ?? "" })} /></>
+            : author && <> {t("forge.meta.by", { author })}</>}
         </span>
-        <span className="fgl-when">{moment.at != null && <><span className="fgl-when-verb">{moment.verb} </span><Ago at={moment.at} /></>}</span>
+        <span className="fgl-when">{moment.at != null && <AgoIn at={moment.at} text={momentPhrase(moment.verb, t)} verb="fgl-when-verb" />}</span>
       </button>
     </li>
   );
@@ -251,19 +258,21 @@ function ChangeRow({ kind, change: c, acrossRepos }: { kind: ForgeKind; change: 
  *  screen reader hears the same list in words — "Reviewers: Bob, approved;
  *  Carol, pending" — because a plain span cannot carry a label of its own. */
 function Reviewers({ reviewers }: { reviewers: ForgeReviewer[] }) {
+  const t = useT();
   if (!reviewers.length) return null;
   return (
     <span className="fgl-people">
-      <span className="fg-sr">{reviewers.length === 1 ? "Reviewer: " : "Reviewers: "}</span>
+      <span className="fg-sr">{t(reviewers.length === 1 ? "forge.reviewer.one" : "forge.reviewer.many")}</span>
       {reviewers.slice(0, 3).map((r, i) => {
         const m = reviewerMark(r.state);
+        const word = markWord(m, t);
         return (
-          <span key={r.login} className="fgl-reviewer" data-tone={m.tone} title={`${r.name || r.login}: ${m.word}`}>
+          <span key={r.login} className="fgl-reviewer" data-tone={m.tone} title={`${r.name || r.login}: ${word}`}>
             {i > 0 && <span className="fg-sr">; </span>}
             <Face user={r} />
             <span className="fg-sr">{r.name || r.login}</span>
             {r.state !== "pending" && <span className="fgl-reviewer-mark" aria-hidden="true"><StateGlyph name={m.mark} size={9} weight={1.8} /></span>}
-            <span className="fg-sr">, {m.word}</span>
+            <span className="fg-sr">, {word}</span>
           </span>
         );
       })}
@@ -283,25 +292,27 @@ export function People({ users, label }: { users: ForgeUser[]; label: string }) 
 
 /** "+2" for the eye, "and 2 more" for the ear. */
 function More({ count }: { count: number }) {
+  const t = useT();
   if (count <= 0) return null;
   return (
     <>
       <span className="fgl-people-more" aria-hidden="true">+{count}</span>
-      <span className="fg-sr"> and {count} more</span>
+      <span className="fg-sr"> {t("forge.andMore", { count, n: formatNumber(count, 0) })}</span>
     </>
   );
 }
 
 /** How many comments, beside a speech mark; nothing for none. */
 export function CommentCount({ count }: { count: number }) {
+  const t = useT();
   if (!count) return null;
   return (
-    <span className="fgl-comments" title={`${count} ${count === 1 ? "comment" : "comments"}`}>
+    <span className="fgl-comments" title={t("forge.comments", { count, n: formatNumber(count, 0) })}>
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" aria-hidden="true">
         <path d="M2.5 3.5h11v7.5h-6l-3 2.5v-2.5h-2z" />
       </svg>
-      {count.toLocaleString("en-US")}
-      <span className="fg-sr"> {count === 1 ? "comment" : "comments"}</span>
+      {formatNumber(count, 0)}
+      <span className="fg-sr"> {t("forge.commentsWord", { count })}</span>
     </span>
   );
 }
