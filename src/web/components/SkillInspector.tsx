@@ -30,24 +30,24 @@ export default function SkillInspector({ row, details, loading, pending = false,
   const days = details?.history?.days.filter(day => day.status !== 'outside-history') ?? [];
   const reading = (loading || pending) && !details;
   const n = (value: ReactNode) => pending ? <Pending /> : value;
-  const asides = [row.subagent ? t('insights.skills.insp.subagent', { n: row.subagent.toLocaleString() }) : '', row.detected && row.agent ? t('insights.skills.insp.pickedByCodex', { n: row.detected.toLocaleString() }) : ''].filter(Boolean);
+  const asides = [row.subagent ? t('insights.skills.insp.subagent', { n: row.subagent.toLocaleString(currentLanguage()) }) : '', row.detected && row.agent ? t('insights.skills.insp.pickedByCodex', { n: row.detected.toLocaleString(currentLanguage()) }) : ''].filter(Boolean);
   return <section className="ta-inspector" aria-label={t('insights.audit.insp.details', { name: row.name })} id="tool-operation-inspector">
     <header className="ta-inspector-head">
       <div>
         <h3 tabIndex={-1} id="tool-operation-heading">{namespace && <span className="sa-namespace">{namespace}</span>}{short}</h3>
         <p>{pending ? <><Pending width="9em" /><br /><Pending width="12em" /></>
-          : <>{claude && codex ? t('insights.audit.by.both', { claude: claude.toLocaleString(), codex: codex.toLocaleString() }) : t('insights.skills.insp.allBy', { agent: skillAgents(row) })}<br />{t('insights.skills.insp.lastUsed', { when: last })}</>}</p>
+          : <>{claude && codex ? t('insights.audit.by.both', { claude: claude.toLocaleString(currentLanguage()), codex: codex.toLocaleString(currentLanguage()) }) : t('insights.skills.insp.allBy', { agent: skillAgents(row) })}<br />{t('insights.skills.insp.lastUsed', { when: last })}</>}</p>
       </div>
       <button type="button" className="glyph-btn" aria-label={t('insights.audit.insp.close')} onClick={onClose}><AuditCloseGlyph /></button>
     </header>
 
     <dl className="ta-facts" aria-busy={pending || undefined}>
-      <div><dt>{t('insights.skills.col.uses')}</dt><dd>{n(row.uses.toLocaleString())}</dd></div>
+      <div><dt>{t('insights.skills.col.uses')}</dt><dd>{n(row.uses.toLocaleString(currentLanguage()))}</dd></div>
       {!pending && row.failed > 0
-        ? <div><dt>{t('insights.audit.col.failed')}</dt><dd data-bad>{row.failed.toLocaleString()}</dd></div>
-        : <div><dt>{t('insights.skills.insp.sessions')}</dt><dd>{n(row.sessions.toLocaleString())}</dd></div>}
-      <div data-lane="agent"><dt>{t('insights.skills.insp.pickedBy', { who: pickers })}</dt><dd>{n(picked.toLocaleString())}</dd></div>
-      <div data-lane="typed"><dt>{t('insights.skills.origin.typed')}</dt><dd>{n(row.typed.toLocaleString())}</dd></div>
+        ? <div><dt>{t('insights.audit.col.failed')}</dt><dd data-bad>{row.failed.toLocaleString(currentLanguage())}</dd></div>
+        : <div><dt>{t('insights.skills.insp.sessions')}</dt><dd>{n(row.sessions.toLocaleString(currentLanguage()))}</dd></div>}
+      <div data-lane="agent"><dt>{t('insights.skills.insp.pickedBy', { who: pickers })}</dt><dd>{n(picked.toLocaleString(currentLanguage()))}</dd></div>
+      <div data-lane="typed"><dt>{t('insights.skills.origin.typed')}</dt><dd>{n(row.typed.toLocaleString(currentLanguage()))}</dd></div>
     </dl>
     {!pending && (asides.length > 0 || row.repeats > 0) && <p className="ta-note">
       {asides.join(' · ')}
@@ -65,7 +65,7 @@ export default function SkillInspector({ row, details, loading, pending = false,
       {details && <>
         <LatestUses uses={details.recent} now={now} sessionLabel={sessionLabel} onOpenSession={onOpenSession} />
         {!details.recent.length && <p className="ta-note">{t('insights.skills.insp.none')}</p>}
-        {details.total > details.recent.length && details.recent.length > 0 && <p className="ta-note">{t('insights.audit.insp.latestOf', { n: details.recent.length, total: details.total.toLocaleString() })}</p>}
+        {details.total > details.recent.length && details.recent.length > 0 && <p className="ta-note">{t('insights.audit.insp.latestOf', { n: details.recent.length, total: details.total.toLocaleString(currentLanguage()) })}</p>}
       </>}
     </section>
   </section>;

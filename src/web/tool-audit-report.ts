@@ -58,7 +58,7 @@ export function findHighlights(rows: AuditRow[], totalMs: number | null): Highli
     .sort((a, b) => b.failed / b.completed - a.failed / a.completed || b.failed - a.failed)[0];
   if (failing) {
     found.push({ kind: 'failing', operation: failing.operation, title: t('insights.audit.hl.failing'),
-      detail: t('insights.audit.hl.failing.detail', { failed: failing.failed.toLocaleString(), calls: countOf(failing.completed, 'call'), share: failureShare(failing) ?? '' }) });
+      detail: t('insights.audit.hl.failing.detail', { failed: failing.failed.toLocaleString(currentLanguage()), calls: countOf(failing.completed, 'call'), share: failureShare(failing) ?? '' }) });
   }
   const slow = rows.filter(row => row.medianMs !== null && row.measured >= 3 && row.medianMs >= 10000 && row.operation !== hog?.operation)
     .sort((a, b) => b.medianMs! - a.medianMs!)[0];
@@ -69,11 +69,11 @@ export function findHighlights(rows: AuditRow[], totalMs: number | null): Highli
   return found;
 }
 
-export const count = (n: number, noun: string) => `${n.toLocaleString()} ${noun}${n === 1 ? '' : 's'}`;
+export const count = (n: number, noun: string) => `${n.toLocaleString(currentLanguage())} ${noun}${n === 1 ? '' : 's'}`;
 
 /** What `count` counts, in the language on show: "1 call", "3 tool calls", "2 sessions". */
 export type Countable = 'call' | 'toolCall' | 'use' | 'session' | 'repeat' | 'repeatedRun' | 'time' | 'reply' | 'turn' | 'skill' | 'moreProject';
-export const countOf = (n: number, kind: Countable) => t(`insights.count.${kind}`, { count: n, n: n.toLocaleString() });
+export const countOf = (n: number, kind: Countable) => t(`insights.count.${kind}`, { count: n, n: n.toLocaleString(currentLanguage()) });
 
 export const periodLabels: Record<string, string> = { '1': '24 hours', '7': '7 days', '30': '30 days', '90': '90 days' };
 const who: Record<AuditProvider, string> = { all: 'your agents', claude: 'Claude', codex: 'Codex' };

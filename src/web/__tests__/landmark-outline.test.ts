@@ -270,7 +270,7 @@ describe("the deck's five regions are five landmarks (#381)", () => {
     // now, both of its class spellings carry the role, and the three panels
     // import it. The assertion got stronger rather than narrower — it is no
     // longer possible for one surface to have the role and another not.
-    expect(code(costBar)).toMatch(/className=\{large \? "cost-bar cost-bar-lg" : "cost-bar"\} role="img" aria-label="Cost breakdown"/);
+    expect(code(costBar)).toMatch(/className=\{large \? "cost-bar cost-bar-lg" : "cost-bar"\} role="img" aria-label=\{t\("insights\.cost\.breakdown"\)\}/);
     for (const [file, src] of [["components/Detail.tsx", detail], ["UsagePanel.tsx", usage], ["SessionSummary.tsx", summary]] as const) {
       expect(code(src), `${file} imports the bar`).toMatch(/import CostBar from "\.(\/components)?\/CostBar";/);
       expect(code(src), `${file} draws no bar of its own`).not.toMatch(/className="cost-bar/);
@@ -723,7 +723,7 @@ describe("the usage-history chart stopped hiding the days inside it (#381)", () 
     // The `ref` in front of the class list is #539's — the chart is a scroller
     // now and something has to park it on today — so the match allows the
     // attributes before `className` while still pinning the role and the name.
-    expect(code(history)).toMatch(/<div [^>]*className="uh-chart" role="group" aria-label="Daily cost by model">/);
+    expect(code(history)).toMatch(/<div [^>]*className="uh-chart" role="group" aria-label=\{t\("insights\.usage\.daily"\)\}>/);
     expect(code(historyAll)).not.toMatch(/role="img"/);
   });
 
@@ -739,7 +739,7 @@ describe("the usage-history chart stopped hiding the days inside it (#381)", () 
     // which is what the issue proposed — carries exactly the same unmet
     // contract, so the swap is to group + aria-pressed, which is the shape the
     // canvas category chips already use.
-    expect(code(history)).toMatch(/<div className="uh-range" role="group" aria-label="Range">/);
+    expect(code(history)).toMatch(/<div className="uh-range" role="group" aria-label=\{t\("insights\.usage\.range"\)\}>/);
     expect(code(historyAll)).not.toMatch(/role="tab(list)?"/);
     expect(code(historyAll)).not.toMatch(/aria-selected/);
   });

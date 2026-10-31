@@ -1,4 +1,4 @@
-import { t } from './i18n';
+import { t, currentLanguage } from './i18n';
 import { auditDay, countOf, percent, periodLabel, whoLabel } from './tool-audit-report';
 import type { AuditProvider, SkillDay, SkillReport, SkillRow, SkillUse } from './tool-audit';
 
@@ -42,7 +42,7 @@ export const useOrigin = (use: Pick<SkillUse, 'origin' | 'provider'>) =>
 
 /** A day's uses by who started them, a part each: "3 picked by Claude". */
 export const dayOriginParts = (day: Pick<SkillDay, SkillOrigin>) =>
-  skillOrigins.filter(id => day[id] > 0).map(id => ({ id, text: t(`insights.skills.day.${id}`, { n: day[id].toLocaleString() }) }));
+  skillOrigins.filter(id => day[id] > 0).map(id => ({ id, text: t(`insights.skills.day.${id}`, { n: day[id].toLocaleString(currentLanguage()) }) }));
 /** The same in one line: "3 picked by Claude, 1 typed by you". */
 export const dayOrigins = (day: Pick<SkillDay, SkillOrigin>) => dayOriginParts(day).map(part => part.text).join(t('insights.split.listSep'));
 export interface OriginShare { id: SkillOrigin; label: string; uses: number; share: string; fact: string }
@@ -73,9 +73,9 @@ export function originShares(report: Pick<SkillReport, 'rows' | 'typedCommands'>
 export function originLine(row: SkillRow) {
   const mixed = skillOrigins.filter(id => row[id] > 0).length > 1;
   const pickers = ([['Claude', row.agent], ['Codex', row.detected]] as const).filter(([, n]) => n > 0);
-  const picked = !pickers.length ? '' : mixed ? t('insights.skills.line.pickedMixed', { list: pickers.map(([who, n]) => `${who} ${n.toLocaleString()}`).join(t('insights.split.listSep')) })
+  const picked = !pickers.length ? '' : mixed ? t('insights.skills.line.pickedMixed', { list: pickers.map(([who, n]) => `${who} ${n.toLocaleString(currentLanguage())}`).join(t('insights.split.listSep')) })
     : t(row.agent > 0 ? 'insights.skills.origin.agent' : 'insights.skills.origin.detected');
-  const typed = !row.typed ? '' : mixed ? t('insights.skills.line.typedMixed', { n: row.typed.toLocaleString() })
+  const typed = !row.typed ? '' : mixed ? t('insights.skills.line.typedMixed', { n: row.typed.toLocaleString(currentLanguage()) })
     : t(row.providers.codex && !row.providers.claude ? 'insights.skills.line.typedInCodex' : 'insights.skills.origin.typed');
   return [picked, typed].filter(Boolean).join(' · ');
 }
@@ -95,9 +95,9 @@ export function findSkillHighlights(report: Pick<SkillReport, 'rows' | 'total' |
   const watched = report.until - Math.max(report.since, report.countedSince);
 
   add(used.filter(row => row.failed >= 2).sort((a, b) => b.failed - a.failed)[0], 'failing', t('insights.skills.hl.failing'),
-    row => t('insights.skills.hl.failing.detail', { failed: row.failed.toLocaleString(), uses: countOf(row.uses, 'use') }));
+    row => t('insights.skills.hl.failing.detail', { failed: row.failed.toLocaleString(currentLanguage()), uses: countOf(row.uses, 'use') }));
   if (used.length >= 2 && used[0].uses >= 3 && used[0].uses >= report.total * 0.2) add(used[0], 'top', t('insights.skills.hl.top'),
-    row => t('insights.skills.hl.top.detail', { n: row.uses.toLocaleString(), total: report.total.toLocaleString(), share: percent(row.uses, report.total), sessions: countOf(row.sessions, 'session') }));
+    row => t('insights.skills.hl.top.detail', { n: row.uses.toLocaleString(currentLanguage()), total: report.total.toLocaleString(currentLanguage()), share: percent(row.uses, report.total), sessions: countOf(row.sessions, 'session') }));
   if (typedCounted(report, provider)) add(used.filter(row => row.typed >= 3 && !row.agent && !row.detected).sort((a, b) => b.typed - a.typed)[0],
     'typed', t('insights.skills.hl.typed'),
     row => t('insights.skills.hl.typed.detail', { times: countOf(row.typed, 'time'), agent: row.providers.codex && !row.providers.claude ? 'Codex' : 'Claude' }));
@@ -115,7 +115,7 @@ export function skillSummary(report: Pick<SkillReport, 'total' | 'rows' | 'faile
     period: periodLabel(period),
     who: whoLabel(provider),
     skills: countOf(used, 'skill'),
-    uses: t('insights.skills.times', { count: report.total, n: report.total.toLocaleString() }),
+    uses: t('insights.skills.times', { count: report.total, n: report.total.toLocaleString(currentLanguage()) }),
     failed: report.failed,
     repeats: report.repeats,
   };

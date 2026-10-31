@@ -272,7 +272,7 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
       // behind the modal this opens (#1765). The recap pin beside it stops the
       // click for the same reason.
       onClick={e => { e.stopPropagation(); onClick?.(); }}
-      title={t("insights.context.donutTitle", { current: currentContextTokens.toLocaleString(), window: window.toLocaleString(), pct: fmt1(pct * 100) })}
+      title={t("insights.context.donutTitle", { current: currentContextTokens.toLocaleString(currentLanguage()), window: window.toLocaleString(currentLanguage()), pct: fmt1(pct * 100) })}
       /* THE NUMBER, not only the verb. `aria-label` on a button overrides its
          contents, so the <text> percentage inside the svg was never read, and
          `title` is not consulted once a label is present — leaving a screen
@@ -281,7 +281,7 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
          red escalations that exist so you know a session is about to compact.
          Inside the modal the same value is a role="progressbar" with
          aria-valuenow; this is the surface that was silent. */
-      aria-label={t("insights.context.donutAria", { pct: Math.round(pct * 100), window: window.toLocaleString() })}
+      aria-label={t("insights.context.donutAria", { pct: Math.round(pct * 100), window: window.toLocaleString(currentLanguage()) })}
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
         <circle cx={c} cy={c} r={r} stroke="var(--line)" strokeWidth="2.5" fill="none" />

@@ -119,7 +119,7 @@ function ClaudeLevel({ split }: { split: TimeSplit }) {
       <div><dt>{t('insights.split.f.answers')}</dt><dd>{auditDuration(replies.medianMs)}</dd></div>
       <div><dt>{t('insights.split.f.slowest')}</dt><dd>{replies.p90Ms === null ? '—' : t('insights.split.f.over', { time: auditDuration(replies.p90Ms) })}</dd></div>
       <div><dt>{t('insights.split.f.longest')}</dt><dd>{auditDuration(replies.maxMs)}</dd></div>
-      <div><dt>{t('insights.split.f.replies')}</dt><dd>{replies.count.toLocaleString()}</dd></div>
+      <div><dt>{t('insights.split.f.replies')}</dt><dd>{replies.count.toLocaleString(currentLanguage())}</dd></div>
     </dl>
     {days.length >= 2 && <div className="tt-days">
       <div className="tt-days-bars" role="img" style={{ "--ta-days": days.length, "--tt-usual": (replies.medianMs ?? 0) / most } as CSSProperties} onPointerLeave={() => setShown(null)}

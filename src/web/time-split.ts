@@ -1,6 +1,6 @@
 // "Where the time went", read off a report's split: what each lane is called, what
 // its share reads as, and what each lane opens into when it is pressed.
-import { t } from './i18n';
+import { t, currentLanguage } from './i18n';
 import { operationDescription, operationName } from './operation-glossary';
 import { percent } from './tool-audit-report';
 import { auditDuration, type TimePart, type TimeSplit } from './tool-audit';
@@ -22,7 +22,7 @@ export function laneShares(split: TimeSplit): LaneShare[] {
 }
 
 /** A long time as the ring's centre and the legend say it: whole hours from an hour up. */
-export const glanceTime = (ms: number) => ms >= 3600000 ? `${Math.round(ms / 3600000).toLocaleString()} h` : auditDuration(ms);
+export const glanceTime = (ms: number) => ms >= 3600000 ? `${Math.round(ms / 3600000).toLocaleString(currentLanguage())} h` : auditDuration(ms);
 
 /** A ring's arcs, on a circle 100 long from the top: each part its share, less the
  *  gap that separates it from the next. One part alone closes the ring. */
@@ -93,5 +93,5 @@ export function stopsLine(stops: Record<string, number>) {
   const entries = Object.entries(stops).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
   const total = entries.reduce((sum, [, n]) => sum + n, 0);
   if (!total) return null;
-  return t('insights.split.stops', { count: total, n: total.toLocaleString(), list: entries.map(([kind, n]) => `${stopName(kind)} ${n.toLocaleString()}`).join(t('insights.split.listSep')) });
+  return t('insights.split.stops', { count: total, n: total.toLocaleString(currentLanguage()), list: entries.map(([kind, n]) => `${stopName(kind)} ${n.toLocaleString(currentLanguage())}`).join(t('insights.split.listSep')) });
 }

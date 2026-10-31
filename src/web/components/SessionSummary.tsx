@@ -4,7 +4,7 @@
 // don't re-open on refresh (the dismissed list is in localStorage).
 import { useMemo, useRef } from "react";
 import { costForUsage, fmtCost } from "../pricing";
-import { t as translate, useT } from "../i18n";
+import { t as translate, useT, currentLanguage } from "../i18n";
 import { sessionSpendLabel } from "../board-usage";
 import { agentCost, agentModelIds } from "../usage-models";
 import type { GraphState } from "../reducer";
@@ -93,7 +93,7 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
             <Stat label={t("insights.summary.subagents")} value={summary.subagentCount} />
             <Stat label={t("insights.summary.toolCalls")} value={summary.toolCount} />
             <Stat label={t("insights.summary.prompts")} value={summary.promptCount} />
-            <Stat label={t("insights.usage.tokens")} value={summary.tokensSum.toLocaleString()} />
+            <Stat label={t("insights.usage.tokens")} value={summary.tokensSum.toLocaleString(currentLanguage())} />
             {summary.errCount > 0 && <Stat label={t("insights.summary.errors")} value={summary.errCount} tone="err" />}
           </section>
 

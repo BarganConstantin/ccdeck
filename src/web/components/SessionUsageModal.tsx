@@ -10,7 +10,7 @@ import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { RefreshGlyph } from "./action-glyphs";
 import SessionUsageLoading from "./SessionUsageLoading";
 
-const count = (n: number) => n.toLocaleString();
+const count = (n: number) => n.toLocaleString(currentLanguage());
 const at = (value: string) => new Date(value).toLocaleString(currentLanguage(), {
   month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
 });

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEve
 import { createPortal } from 'react-dom';
 import { auditDuration, readAuditReport, type AuditProvider, type AuditReport, type AuditRow } from '../tool-audit';
 import { auditDay, countOf, failureShare, findHighlights, periodLabel, periodLabels, sortTools, summaryParts, toolSortLabel, toolSorts, toolSortValue, type Highlight, type ToolSort } from '../tool-audit-report';
-import { t as translate, useLanguage, useT } from '../i18n';
+import { t as translate, useLanguage, useT, currentLanguage } from '../i18n';
 import { rich } from '../insights-rich';
 import { operationDescription, operationName } from '../operation-glossary';
 import ToolAuditDrawer from './ToolAuditDrawer';
@@ -35,7 +35,7 @@ const highlightGlyph: Record<Highlight['kind'], ReactNode> = {
 
 /** What a screen reader hears for a row: every value, with its meaning. */
 function rowLabel(row: AuditRow) {
-  const failed = row.failed ? translate('insights.audit.row.failed', { n: row.failed.toLocaleString(), share: failureShare(row) ?? '' }) : translate('insights.audit.row.noneFailed');
+  const failed = row.failed ? translate('insights.audit.row.failed', { n: row.failed.toLocaleString(currentLanguage()), share: failureShare(row) ?? '' }) : translate('insights.audit.row.noneFailed');
   const time = row.totalMs === null ? translate('insights.audit.row.notTimed') : translate('insights.audit.row.timed', { total: auditDuration(row.totalMs), usual: auditDuration(row.medianMs) });
   const description = operationDescription(row.operation);
   return translate('insights.audit.row.label', { name: operationName(row.operation), description: description ? `, ${description}` : '', calls: countOf(row.calls, 'call'), time, failed });
@@ -195,7 +195,7 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
           </div> : <>
             <p className="ta-summary">
               {rich(t(summary.time ? 'insights.audit.summary.timed' : 'insights.audit.summary.untimed', { period: summary.period, who: summary.who }), { calls: <strong>{summary.calls}</strong>, time: <strong>{summary.time}</strong> })}{' '}
-              {summary.failed ? rich(t(summary.failedShare ? 'insights.audit.summary.failedShare' : 'insights.audit.summary.failedOnly', { share: summary.failedShare ?? '' }), { failed: <strong className="ta-bad">{t('insights.audit.nFailed', { n: summary.failed.toLocaleString() })}</strong> }) : t('insights.audit.noneFailed')}
+              {summary.failed ? rich(t(summary.failedShare ? 'insights.audit.summary.failedShare' : 'insights.audit.summary.failedOnly', { share: summary.failedShare ?? '' }), { failed: <strong className="ta-bad">{t('insights.audit.nFailed', { n: summary.failed.toLocaleString(currentLanguage()) })}</strong> }) : t('insights.audit.noneFailed')}
             </p>
             {(!data.storageOk || data.dropped > 0 || data.corrupt > 0) && <p className="ta-warning" role="status">{t('insights.audit.warning')}{!data.storageOk && ` ${t('insights.audit.diskSpace')}`}</p>}
 
@@ -213,7 +213,7 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
 
             <section className="ta-tools" aria-labelledby="ta-tools-title">
               <div className="ta-tools-head">
-                <h3 id="ta-tools-title">{t('insights.audit.tools')} <span className="ta-count">{data.rows.length.toLocaleString()}</span></h3>
+                <h3 id="ta-tools-title">{t('insights.audit.tools')} <span className="ta-count">{data.rows.length.toLocaleString(currentLanguage())}</span></h3>
                 <label className="ta-search"><SearchGlyph /><input type="search" aria-label={t('insights.audit.find')} placeholder={t('insights.audit.find')} value={search} onChange={event => setSearch(event.target.value)} /></label>
               </div>
               <div className="uh-range ta-sorts" role="group" aria-label={t('insights.audit.sortBy')}>{toolSorts.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={sort === item.id} onClick={() => setSort(item.id)}>{toolSortLabel(item.id)}</button>)}</div>
@@ -223,14 +223,14 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
                 const description = operationDescription(row.operation);
                 return <li key={row.operation}><button type="button" className="ta-row" data-operation={row.operation} data-selected={selected === row.operation || undefined} aria-expanded={selected === row.operation} aria-controls={selected === row.operation ? 'tool-operation-inspector' : undefined} aria-label={rowLabel(row)} onClick={select(row.operation)}>
                   <span className="ta-row-name"><span className="ta-op">{operationName(row.operation)}</span>{description && <span className="ta-desc">{description}</span>}<span className="ta-bar" aria-hidden="true" style={{ "--ta-share": top && value ? Math.max(0.015, value / top) : 0 } as CSSProperties} /></span>
-                  <span className="ta-cell" data-col="calls">{row.calls.toLocaleString()}<span className="ta-unit"> {t('insights.audit.unit.calls', { count: row.calls })}</span></span>
+                  <span className="ta-cell" data-col="calls">{row.calls.toLocaleString(currentLanguage())}<span className="ta-unit"> {t('insights.audit.unit.calls', { count: row.calls })}</span></span>
                   <span className="ta-cell" data-col="time">{auditDuration(row.totalMs)}<span className="ta-unit"> {t('insights.audit.unit.total')}</span></span>
                   <span className="ta-cell" data-col="slowest"><span className="ta-unit">{t('insights.audit.unit.usually')} </span>{auditDuration(row.medianMs)}</span>
-                  <span className="ta-cell" data-col="failed" data-bad={row.failed > 0 || undefined}>{row.failed ? <>{row.failed.toLocaleString()}<span className="ta-unit"> {t('insights.audit.unit.failed')}</span><small>{failureShare(row)}</small></> : <span className="ta-zero">0<span className="ta-unit"> {t('insights.audit.unit.failed')}</span></span>}</span>
+                  <span className="ta-cell" data-col="failed" data-bad={row.failed > 0 || undefined}>{row.failed ? <>{row.failed.toLocaleString(currentLanguage())}<span className="ta-unit"> {t('insights.audit.unit.failed')}</span><small>{failureShare(row)}</small></> : <span className="ta-zero">0<span className="ta-unit"> {t('insights.audit.unit.failed')}</span></span>}</span>
                 </button></li>;
               })}</ul>
               {!rows.length && <p className="ta-note ta-no-match">{t('insights.audit.noMatch', { search: search.trim() })}</p>}
-              {!search && !showAll && rows.length > FIRST_ROWS && <button type="button" className="btn ta-more" onClick={() => setShowAll(true)}>{t('insights.audit.showAll', { n: rows.length.toLocaleString() })}</button>}
+              {!search && !showAll && rows.length > FIRST_ROWS && <button type="button" className="btn ta-more" onClick={() => setShowAll(true)}>{t('insights.audit.showAll', { n: rows.length.toLocaleString(currentLanguage()) })}</button>}
             </section>
 
             <details className="ta-explain">

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { readAuditReport, type AuditProvider, type SkillReport, type SkillRow } from '../tool-audit';
 import { auditDay, callTime, countOf, periodLabel } from '../tool-audit-report';
-import { t as translate, useLanguage, useT } from '../i18n';
+import { t as translate, useLanguage, useT, currentLanguage } from '../i18n';
 import { rich } from '../insights-rich';
 import { countingStartedLate, findSkillHighlights, originLine, originShares, skillOrigins, skillParts, skillSortLabel, skillSorts, skillSummary, sortSkills, typedCommandsNote,
   type SkillHighlight, type SkillOrigin, type SkillSort } from '../skill-activity';
@@ -28,7 +28,7 @@ const highlightGlyph: Record<SkillHighlight['kind'], ReactNode> = {
 export interface ReportStatus { loading: boolean; detailLoading: boolean; capturedAt: number | null; hasData: boolean }
 
 function rowLabel(row: SkillRow) {
-  return translate(row.failed ? 'insights.skills.rowFailed' : 'insights.skills.row', { name: row.name, uses: countOf(row.uses, 'use'), last: callTime(row.lastAt, Date.now(), true), failed: row.failed.toLocaleString() });
+  return translate(row.failed ? 'insights.skills.rowFailed' : 'insights.skills.row', { name: row.name, uses: countOf(row.uses, 'use'), last: callTime(row.lastAt, Date.now(), true), failed: row.failed.toLocaleString(currentLanguage()) });
 }
 
 /** Skill activity (#2181): the Skills view of the Tool activity modal, opened
@@ -158,7 +158,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
       </div> : <>
         <p className="ta-summary">
           {rich(t(data.total > 0 ? 'insights.skills.summary.uses' : 'insights.skills.summary.skills', { period: summary.period, who: summary.who }), { skills: <strong>{summary.skills}</strong>, uses: <strong>{summary.uses}</strong> })}{' '}
-          {summary.failed > 0 && <>{rich(t('insights.skills.summary.failed'), { failed: <strong className="ta-bad">{t('insights.audit.nFailed', { n: summary.failed.toLocaleString() })}</strong> })} </>}
+          {summary.failed > 0 && <>{rich(t('insights.skills.summary.failed'), { failed: <strong className="ta-bad">{t('insights.audit.nFailed', { n: summary.failed.toLocaleString(currentLanguage()) })}</strong> })} </>}
           {summary.repeats > 0 && rich(t('insights.skills.summary.repeats', { count: summary.repeats, n: countOf(summary.repeats, 'repeatedRun') }), { loop: <code>/loop</code> })}
         </p>
         {late && <p className="ta-note sa-since">{t('insights.skills.since', { date: auditDay(data.countedSince) })}</p>}
@@ -179,7 +179,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
 
         <section className="ta-tools" aria-labelledby="sa-skills-title">
           <div className="ta-tools-head">
-            <h3 id="sa-skills-title">{t('insights.skills.title')} <span className="ta-count">{kept ? t('insights.skills.countOf', { n: rows.length.toLocaleString(), total: data.rows.length.toLocaleString() }) : data.rows.length.toLocaleString()}</span></h3>
+            <h3 id="sa-skills-title">{t('insights.skills.title')} <span className="ta-count">{kept ? t('insights.skills.countOf', { n: rows.length.toLocaleString(currentLanguage()), total: data.rows.length.toLocaleString(currentLanguage()) }) : data.rows.length.toLocaleString(currentLanguage())}</span></h3>
             <label className="ta-search"><SearchGlyph /><input type="search" aria-label={t('insights.skills.find')} placeholder={t('insights.skills.find')} value={search} onChange={event => setSearch(event.target.value)} /></label>
           </div>
           <div className="uh-range ta-sorts sa-sorts" role="group" aria-label={t('insights.audit.sortBy')}>{skillSorts.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={sort === item.id} onClick={() => setSort(item.id)}>{skillSortLabel(item.id)}</button>)}</div>
@@ -190,13 +190,13 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
               <span className="ta-row-name"><span className="ta-op">{namespace && <span className="sa-namespace">{namespace}</span>}{short}</span><span className="ta-desc">{[originLine(row), countOf(row.sessions, 'session'), row.repeats > 0 && countOf(row.repeats, 'repeat')].filter(Boolean).join(' · ')}</span>
                 <span className="ta-bar" aria-hidden="true" style={{ "--ta-share": top && sort === 'uses' ? Math.max(0.015, row.uses / top) : 0 } as CSSProperties}>
                   {skillOrigins.filter(id => row[id] > 0).map(id => <i key={id} data-lane={id} style={{ flexGrow: row[id] }} />)}</span></span>
-              <span className="ta-cell" data-col="uses">{row.uses.toLocaleString()}<span className="ta-unit"> {t('insights.skills.unit.uses', { count: row.uses })}</span></span>
+              <span className="ta-cell" data-col="uses">{row.uses.toLocaleString(currentLanguage())}<span className="ta-unit"> {t('insights.skills.unit.uses', { count: row.uses })}</span></span>
               <span className="ta-cell" data-col="recent"><span className="ta-unit">{t('insights.skills.unit.last')} </span>{callTime(row.lastAt)}</span>
-              {failures && <span className="ta-cell" data-col="failed" data-bad={row.failed > 0 || undefined}>{row.failed ? <>{row.failed.toLocaleString()}<span className="ta-unit"> {t('insights.audit.unit.failed')}</span></> : <span className="ta-zero">0<span className="ta-unit"> {t('insights.audit.unit.failed')}</span></span>}</span>}
+              {failures && <span className="ta-cell" data-col="failed" data-bad={row.failed > 0 || undefined}>{row.failed ? <>{row.failed.toLocaleString(currentLanguage())}<span className="ta-unit"> {t('insights.audit.unit.failed')}</span></> : <span className="ta-zero">0<span className="ta-unit"> {t('insights.audit.unit.failed')}</span></span>}</span>}
             </button></li>;
           })}</ul>
           {!rows.length && search.trim() && <p className="ta-note ta-no-match">{t(kept ? 'insights.skills.noMatchAmong' : 'insights.skills.noMatch', { search: search.trim() })}</p>}
-          {!search && !showAll && rows.length > FIRST_ROWS && <button type="button" className="btn ta-more" onClick={() => setShowAll(true)}>{t('insights.audit.showAll', { n: rows.length.toLocaleString() })}</button>}
+          {!search && !showAll && rows.length > FIRST_ROWS && <button type="button" className="btn ta-more" onClick={() => setShowAll(true)}>{t('insights.audit.showAll', { n: rows.length.toLocaleString(currentLanguage()) })}</button>}
         </section>
 
         <details className="ta-explain">

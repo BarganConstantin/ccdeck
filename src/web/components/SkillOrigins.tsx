@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useT } from '../i18n';
+import { useT, currentLanguage } from '../i18n';
 import { countOf } from '../tool-audit-report';
 import { ringArcs } from '../time-split';
 import type { OriginShare, SkillOrigin } from '../skill-activity';
@@ -29,7 +29,7 @@ export default function SkillOrigins({ shares, total, filter, onFilter }: {
             onPointerEnter={() => setHot(arc.id)} onClick={() => toggle(arc.id)} />)}
         </svg>
         <div className="tt-center" aria-hidden="true">
-          {focus ? <><strong>{focus.share}</strong><span>{focus.label}</span></> : <><strong>{total.toLocaleString()}</strong><span>{t('insights.skills.unit.uses', { count: total })}</span></>}
+          {focus ? <><strong>{focus.share}</strong><span>{focus.label}</span></> : <><strong>{total.toLocaleString(currentLanguage())}</strong><span>{t('insights.skills.unit.uses', { count: total })}</span></>}
         </div>
       </div>
       <ul className="tt-lanes">
@@ -38,7 +38,7 @@ export default function SkillOrigins({ shares, total, filter, onFilter }: {
             aria-label={t('insights.skills.origins.aria', { label: part.label, value: part.uses ? t('insights.skills.origins.value', { share: part.share, uses: countOf(part.uses, 'use') }) : t('insights.skills.origins.notCounted'), fact: part.fact, action: t(filter === part.id ? 'insights.skills.origins.showing' : 'insights.skills.origins.show') })}
             onClick={() => toggle(part.id)} onPointerEnter={() => setHot(part.id)} onFocus={() => setHot(part.id)} onBlur={() => setHot(null)}>
             <i aria-hidden="true" /><span className="tt-lane-name">{part.label}</span><strong>{part.uses ? part.share : '—'}</strong>
-            <span className="tt-lane-time">{part.uses.toLocaleString()}</span>{part.uses > 0 && <FilterGlyph />}
+            <span className="tt-lane-time">{part.uses.toLocaleString(currentLanguage())}</span>{part.uses > 0 && <FilterGlyph />}
             <span className="tt-lane-fact">{part.fact}</span>
           </button>
         </li>)}

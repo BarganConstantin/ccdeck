@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { t as translate, useT } from '../i18n';
+import { t as translate, useT, currentLanguage } from '../i18n';
 import ToolAuditHistory, { HistorySkeleton } from './ToolAuditHistory';
 import { operationDescription, operationName } from '../operation-glossary';
 import { auditDuration, type AuditCall, type AuditReport, type AuditRow } from '../tool-audit';
@@ -22,7 +22,7 @@ const StateGlyph = ({ state }: { state: AuditCall['state'] }) => <svg width="12"
 
 function whoUsed(row: AuditRow) {
   const { claude, codex } = row.providers;
-  if (claude && codex) return translate('insights.audit.by.both', { claude: claude.toLocaleString(), codex: codex.toLocaleString() });
+  if (claude && codex) return translate('insights.audit.by.both', { claude: claude.toLocaleString(currentLanguage()), codex: codex.toLocaleString(currentLanguage()) });
   return translate(claude ? 'insights.audit.by.claude' : 'insights.audit.by.codex');
 }
 
@@ -53,10 +53,10 @@ export default function ToolAuditInspector({ row, details, loading, pending = fa
     </header>
 
     <dl className="ta-facts" aria-busy={pending || undefined}>
-      <div><dt>{t('insights.audit.col.calls')}</dt><dd>{n(row.calls.toLocaleString())}</dd></div>
+      <div><dt>{t('insights.audit.col.calls')}</dt><dd>{n(row.calls.toLocaleString(currentLanguage()))}</dd></div>
       <div><dt>{t('insights.audit.col.time')}</dt><dd>{n(auditDuration(row.totalMs))}</dd></div>
       <div><dt>{t('insights.audit.col.usually')}</dt><dd>{n(auditDuration(row.medianMs))}</dd></div>
-      <div><dt>{t('insights.audit.col.failed')}</dt><dd data-bad={(!pending && row.failed > 0) || undefined}>{n(<>{row.failed.toLocaleString()}{share && <small>{share}</small>}</>)}</dd></div>
+      <div><dt>{t('insights.audit.col.failed')}</dt><dd data-bad={(!pending && row.failed > 0) || undefined}>{n(<>{row.failed.toLocaleString(currentLanguage())}{share && <small>{share}</small>}</>)}</dd></div>
     </dl>
     <p className="ta-note">
       {pending ? <Pending width="14em" /> : <>
@@ -87,7 +87,7 @@ export default function ToolAuditInspector({ row, details, loading, pending = fa
           <span className="ta-call-state"><StateGlyph state={call.state} />{stateWord(call.state)}</span>
         </li>)}</ul>
         {!calls.length && <p className="ta-note">{kind === 'slowest' ? t('insights.audit.insp.noneTimed') : t('insights.audit.insp.noCalls')}</p>}
-        {details.total > calls.length && calls.length > 0 && <p className="ta-note">{t(kind === 'recent' ? 'insights.audit.insp.latestOf' : 'insights.audit.insp.slowestOf', { n: calls.length, total: details.total.toLocaleString() })}</p>}
+        {details.total > calls.length && calls.length > 0 && <p className="ta-note">{t(kind === 'recent' ? 'insights.audit.insp.latestOf' : 'insights.audit.insp.slowestOf', { n: calls.length, total: details.total.toLocaleString(currentLanguage()) })}</p>}
       </>}
     </section>
     <p className="ta-note ta-inspector-foot">{t('insights.audit.insp.foot')}</p>

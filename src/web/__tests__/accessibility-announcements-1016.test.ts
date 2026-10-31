@@ -49,7 +49,7 @@ describe("the deck announces state that is already visible (#1016)", () => {
 
   it("puts the context number in the button name and hides the decorative svg", () => {
     const context = strip(read("../components/ContextModal.tsx"));
-    expect(context).toContain('aria-label={`Context ${Math.round(pct * 100)}% of ${window.toLocaleString()} tokens — show breakdown`}');
+    expect(context).toContain('aria-label={t("insights.context.donutAria", { pct: Math.round(pct * 100), window: window.toLocaleString(currentLanguage()) })}');
     expect(context).toMatch(/<svg[^>]*aria-hidden="true"/);
   });
 
@@ -57,7 +57,7 @@ describe("the deck announces state that is already visible (#1016)", () => {
     // 4.1.2: a progressbar needs a name of its own; the percentage beside it
     // is a sibling, not a label.
     const modal = strip(read("../components/ContextModal.tsx"));
-    expect(modal).toMatch(/role="progressbar" aria-label="Context window used"/);
+    expect(modal).toMatch(/role="progressbar" aria-label=\{t\("insights\.context\.used"\)\}/);
   });
 
   it("resets native list chrome without changing row width", () => {
