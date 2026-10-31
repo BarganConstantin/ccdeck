@@ -1,9 +1,9 @@
 // Machine-local metadata only. This module never opens or copies credentials.
-import { link, lstat, mkdir, open, readFile, realpath, rm, stat, unlink } from 'node:fs/promises';
+import { link, lstat, mkdir, open, readFile, realpath, rename, rm, stat, unlink } from 'node:fs/promises';
 import { createHash, randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { createServer } from 'node:net';
-import { join, posix, win32, resolve } from 'node:path';
+import { basename, join, posix, win32, resolve } from 'node:path';
 import { codexHome } from './codex-dir.mjs';
 import { deckDataDir } from './deck-home.mjs';
 import { createTemp, renameWithRetry } from './atomic-write.mjs';
@@ -27,7 +27,7 @@ export function codexSelectionError(code) {
 const fail = code => { throw codexSelectionError(code); };
 const idPattern = /^[a-f0-9]{20}$/;
 const operationPattern = /^[A-Za-z0-9_-]{1,128}$/;
-const safeCodes = new Set(['selection_conflict', 'operation_conflict', 'selection_busy', 'unknown_profile', 'profile_unavailable', 'registry_corrupt', 'registry_write_failed', 'invalid_operation', 'invalid_revision', 'invalid_label']);
+const safeCodes = new Set(['not_removable', 'selection_conflict', 'operation_conflict', 'selection_busy', 'unknown_profile', 'profile_unavailable', 'registry_corrupt', 'registry_write_failed', 'invalid_operation', 'invalid_revision', 'invalid_label']);
 const storeDir = options => resolve(options.store ?? deckDataDir(options.platform, options.env, options.home));
 export const codexSelectionPath = (options = {}) => join(storeDir(options), 'codex-accounts.json');
 
@@ -264,3 +264,38 @@ export async function addCodexProfile({ label, operationId: operation } = {}, op
   });
 }
 
+
+/** Take a managed profile out of the registry. Its folder is not deleted: it is
+ *  moved to `codex-profiles-removed/` beside the live ones, with its sign-in and
+ *  Codex history, so nothing is lost and nothing signed in stays listed. Only a
+ *  profile this deck made can go; the original home and any home named in
+ *  CCDECK_CODEX_HOMES are the user's own and stay. */
+export async function removeCodexProfile({ id, expectedRevision } = {}, options = {}) {
+  if (typeof id !== 'string' || !idPattern.test(id)) fail('unknown_profile');
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) fail('invalid_revision');
+  return locked(options, async () => {
+    const state = await initial(options);
+    if (state.revision !== expectedRevision) fail('selection_conflict');
+    const profile = state.profiles.find(p => p.id === id);
+    if (!profile) fail('unknown_profile');
+    if (!profile.managed) fail('not_removable');
+    state.profiles = state.profiles.filter(p => p.id !== id);
+    // What this profile's add and select left behind would name a profile that
+    // is gone, which the registry's own check refuses.
+    state.operations = state.operations.filter(op => op.id !== id);
+    if (state.selectedProfileId === id) {
+      // The default falls back to the home that was the default before any
+      // account was added.
+      state.selectedProfileId = state.profiles.find(p => p.home === state.originalHome).id;
+    }
+    state.revision++;
+    const result = await snapshot(state, options);
+    await persist(state, options);
+    const trash = join(storeDir(options), 'codex-profiles-removed');
+    try {
+      await mkdir(trash, { recursive: true, mode: 0o700 });
+      await rename(profile.home, join(trash, `${basename(profile.home)}-${Date.now()}`));
+    } catch { /* The folder stays where it was, unlisted: nothing is lost. */ }
+    return { ...result, status: 'removed' };
+  });
+}

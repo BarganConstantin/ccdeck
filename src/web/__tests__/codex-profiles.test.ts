@@ -10,7 +10,7 @@ describe('Codex profile discovery', () => {
     try {
       const a = join(root, 'a'); const b = join(root, 'b'); const alias = join(root, 'alias');
       await mkdir(a); await mkdir(b); await symlink(a, alias);
-      expect(await codexProfileSessionDirs({ env: { CODEX_HOME: a, CCDECK_CODEX_HOMES: JSON.stringify([alias, b, a]) } }))
+      expect(await codexProfileSessionDirs({ store: join(root, 'store'), env: { CODEX_HOME: a, CCDECK_CODEX_HOMES: JSON.stringify([alias, b, a]) } }))
         .toEqual([join(a, 'sessions'), join(b, 'sessions')]);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
@@ -85,7 +85,7 @@ describe('Codex profile discovery', () => {
       const b = join(root, 'b');
       await mkdir(a); await mkdir(b);
       await writeFile(join(a, 'auth.json'), JSON.stringify({ tokens: { access_token: 'PRIVATE_TOKEN' } }));
-      const profiles = await discoverCodexProfiles({ env: { CODEX_HOME: a, CCDECK_CODEX_HOMES: JSON.stringify([b]) } });
+      const profiles = await discoverCodexProfiles({ store: join(root, 'store'), env: { CODEX_HOME: a, CCDECK_CODEX_HOMES: JSON.stringify([b]) } });
       expect(profiles).toHaveLength(2);
       expect(profiles[0].signedInFilePresent).toBe(true);
       expect(profiles[1].signedInFilePresent).toBe(false);

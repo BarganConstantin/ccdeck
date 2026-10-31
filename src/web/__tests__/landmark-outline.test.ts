@@ -384,6 +384,7 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       // Weekly resets is an h3 within Account capacity; its day groups are h4.
       "components/AccountResetCalendar.tsx",
       "components/AddAccountDialog.tsx",
+      "components/AddCodexAccountDialog.tsx",
       // Browser Watch's sections, lifted out of BrowserWatchModal.tsx and still
       // rendered inside its dialog: their <h4>s are the dialog's, and the
       // dialog's own file has none left.

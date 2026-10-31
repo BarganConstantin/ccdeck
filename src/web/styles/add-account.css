@@ -540,3 +540,20 @@
   .reauth-row { grid-template-columns: minmax(0, 1fr) auto; }
   .reauth-what { display: none; }
 }
+
+/* The one-time code a Codex sign-in prints: read off this screen and typed on
+   OpenAI's page, so it is large, spaced and selectable in one press. */
+.aa-device-code {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  background: var(--panel);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: calc(18px + var(--ui-text-increase, 0px));
+  letter-spacing: 0.12em;
+  text-align: center;
+  user-select: all;
+}

@@ -58,10 +58,7 @@
 }
 .ap-scroll > * { flex: none; }
 .ap-codex { padding: 14px var(--panel-inset); border-top: 1px solid var(--line-soft); }
-.ap-codex-add { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
-.ap-codex-add .ap-codex-label { margin: 0; flex: 1; }
 .ap-codex-hint { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 4px 0 0; }
-.ap-codex-label { display: block; box-sizing: border-box; width: 100%; min-width: 0; margin: 4px 0; border: 1px solid var(--ctl-edge); border-radius: 4px; background: var(--ctl-fill); color: var(--text); padding: 6px 8px; font: inherit; }
 .ap-foot {
   flex-shrink: 0;
   padding: calc(10px * var(--ui-space, 1)) var(--panel-inset) calc(12px * var(--ui-space, 1));
@@ -785,4 +782,4 @@
    (.ap-account, .ap-rest); the section only drops its inline-block padding and
    insets the lines that are not rows. */
 .codex-accounts-panel .ap-codex { border-top: 0; padding: 0 0 14px; }
-.codex-accounts-panel .ap-codex > .ap-codex-hint, .codex-accounts-panel .ap-codex-add { margin-inline: var(--panel-inset); }
+.codex-accounts-panel .ap-codex > .ap-codex-hint { margin-inline: var(--panel-inset); }

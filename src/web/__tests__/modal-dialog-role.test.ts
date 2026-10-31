@@ -58,7 +58,7 @@ describe("the deck's modals", () => {
     // sheet on phones. The thirtieth is a connected tracker's panel — Jira's
     // backlog and its issues — opened from its stripe control or I (#2178).
     // Explore integrations follows every shared dialog assertion below.
-    expect(MODALS.length).toBe(31);
+    expect(MODALS.length).toBe(32);
   });
 
   it("never calls the dismiss scrim a dialog", () => {

@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import { copyText } from "../copy-text";
 import AnchoredPopover from "./AnchoredPopover";
+import AddCodexAccountDialog from "./AddCodexAccountDialog";
 import { LaneBar } from "./AccountRow";
 import { ago } from "../account-freshness";
 import { type Lane } from "../claude-accounts";
@@ -21,6 +22,8 @@ interface CodexProfile {
   metadataUnavailable?: boolean;
   metadataReason?: string;
   available?: boolean;
+  /** Present on an account this deck made, which is the only kind it removes. */
+  managedLabel?: string;
 }
 
 interface ProfileQuota {
@@ -68,8 +71,8 @@ function accountState(profile: CodexProfile): string {
 }
 
 function signInWord(profile: CodexProfile): string {
-  return profile.metadataUnavailable ? "Open sign-in command"
-    : (profile.authSource === "native" ? profile.signedIn : profile.signedInFilePresent) ? "Sign in again" : "Sign in";
+  return !profile.metadataUnavailable && (profile.authSource === "native" ? profile.signedIn : profile.signedInFilePresent)
+    ? "Sign in again" : "Sign in";
 }
 
 const ready = (profile: CodexProfile) => profile.available !== false && (profile.signedIn || profile.signedInFilePresent);
@@ -88,12 +91,13 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
   const [action, setAction] = useState<string | null>(null);
   const actionRequest = useRef(false);
   const [message, setMessage] = useState("");
-  const [newLabel, setNewLabel] = useState("");
   const [clock, setClock] = useState(Date.now);
   /** Which profile's ⋯ menu is open. */
   const [menu, setMenu] = useState<string | null>(null);
-  /** The label field and Add are not drawn until the + asks for them. */
-  const [adding, setAdding] = useState(false);
+  /** The Add / Sign in dialog: a new account, or one signed in again. */
+  const [dialog, setDialog] = useState<null | { id?: string; label?: string }>(null);
+  /** The account whose Remove has been pressed once and is waiting for the second. */
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   /** The "Other accounts" row, folded the way Claude's is until asked. */
   const [restOpen, setRestOpen] = useState(false);
 
@@ -102,23 +106,22 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
     return () => clearInterval(timer);
   }, []);
 
-  async function mutate(action: 'select' | 'add', id?: string) {
+  async function mutate(action: 'select' | 'remove', id: string) {
     if (actionRequest.current) return;
     actionRequest.current = true;
-    setAction(id ?? 'add');
+    setAction(id);
     setMessage('');
     try {
       const response = await fetch(`/api/codex-profile-${action}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, label: newLabel.trim(), expectedRevision: revision, operationId: crypto.randomUUID() }),
+        body: JSON.stringify({ id, expectedRevision: revision, operationId: crypto.randomUUID() }),
       });
       const result = await response.json() as { ok: boolean; reason?: string; id?: string };
       if (!response.ok || !result.ok) throw new Error(result.reason ?? 'operation_failed');
-      if (action === 'add' && result.id) {
-        setNewLabel('');
-        setAdding(false);
-        await copyCommand('login', result.id);
-        setMessage('Profile created. Run its sign-in command in a terminal, then complete the official Codex login.');
+      if (action === 'remove') {
+        readFor.current.clear();
+        setQuotas(current => { const { [id]: _gone, ...rest } = current; return rest; });
+        setMessage('Account removed. Its sign-in and history are kept aside in the deck\'s data folder, not deleted.');
       } else setMessage('Default saved for new sessions. Restart open Codex sessions to use this account. Enable terminal integration once to apply it to the codex command.');
       await refreshProfiles().catch(() => setError(true));
     } catch (error) {
@@ -126,6 +129,27 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
       setMessage(conflict ? 'Another selection changed the default. Refreshing accounts; try again.' : 'Could not complete the operation. Refresh accounts and try again.');
       await refreshProfiles().catch(() => {});
     } finally { actionRequest.current = false; setAction(null); }
+  }
+
+  /** Make an account for the dialog, and read the roster again so it is listed.
+   *  Resolves its id, or null when the deck refused. */
+  async function createProfile(label: string): Promise<string | null> {
+    try {
+      const response = await fetch('/api/codex-profile-add', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label, expectedRevision: revision, operationId: crypto.randomUUID() }),
+      });
+      const result = await response.json() as { ok: boolean; id?: string };
+      if (!response.ok || !result.ok || !result.id) return null;
+      await refreshProfiles().catch(() => setError(true));
+      return result.id;
+    } catch { return null; }
+  }
+
+  /** Two presses within four seconds, like Claude's Remove: the first arms it. */
+  function pressRemove(id: string) {
+    if (confirmRemove === id) { setConfirmRemove(null); setMenu(null); void mutate('remove', id); }
+    else setConfirmRemove(id);
   }
 
   async function copyCommand(kind: 'login' | 'terminal', id?: string, remove = false) {
@@ -233,6 +257,12 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
   const nowSec = Math.floor(clock / 1000);
   const menuProfile = profiles?.find(profile => profile.id === menu) ?? null;
   const pick = (run: () => void) => () => { setMenu(null); run(); };
+  useEffect(() => {
+    if (!confirmRemove) return;
+    const timer = setTimeout(() => setConfirmRemove(null), 4000);
+    return () => clearTimeout(timer);
+  }, [confirmRemove]);
+  useEffect(() => { if (!menu) setConfirmRemove(null); }, [menu]);
   const reload = () => {
     void refreshProfiles().catch(() => setError(true));
     for (const profile of profiles ?? []) if (profile.available !== false) void checkQuota(profile.id, 'poll');
@@ -314,7 +344,7 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
         <h2>Codex accounts</h2>
         <div className="ap-header-right">
           <button type="button" className="glyph-btn ap-add" aria-label="Add a Codex account" title="Add a Codex account"
-            aria-expanded={adding} onClick={() => setAdding(open => !open)}>
+            aria-haspopup="dialog" onClick={() => setDialog({})}>
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden>
               <path d="M7 2.2v9.6M2.2 7h9.6" />
             </svg>
@@ -362,13 +392,6 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
                   <ul className="ap-list ap-others">{rest.map((profile, index) => accountRow(profile, index + 2))}</ul>
                 </div>
               )}
-              {adding && (
-                <form className="ap-codex-add" onSubmit={event => { event.preventDefault(); void mutate('add'); }}>
-                  <input required autoFocus className="ap-codex-label" aria-label="New Codex account label" placeholder="Account label"
-                    value={newLabel} maxLength={80} onChange={event => setNewLabel(event.target.value)} />
-                  <button className="ap-switch" type="submit" aria-busy={action === 'add'}>Add</button>
-                </form>
-              )}
               {message && <p className="ap-codex-hint" role="status">{message}</p>}
               {launch.terminal && <p className="ap-codex-hint" role="status">{launch.terminal}</p>}
               <p className="ap-codex-hint" title="Terminal selection needs a one-time setup (in the default account's ⋯ menu); an explicit CODEX_HOME takes priority. Codex manages sign-in and renewal. A login file does not guarantee an active session.">
@@ -387,7 +410,7 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
           <button type="button" role="menuitem" className="ap-menu-item"
             onClick={pick(() => void copyLaunch(menuProfile.id))}>Copy launch command</button>
           <button type="button" role="menuitem" className="ap-menu-item"
-            onClick={pick(() => void copyCommand('login', menuProfile.id))}>{signInWord(menuProfile)}</button>
+            onClick={pick(() => setDialog({ id: menuProfile.id, label: menuProfile.label }))}>{signInWord(menuProfile)}</button>
           {menuProfile.active && (
             <>
               <button type="button" role="menuitem" className="ap-menu-item"
@@ -397,7 +420,28 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
                 onClick={pick(() => void copyCommand('terminal', undefined, true))}>Remove terminal selection</button>
             </>
           )}
+          {menuProfile.managedLabel !== undefined && (
+            <button type="button" role="menuitem"
+              className={`ap-menu-item danger${confirmRemove === menuProfile.id ? " armed" : ""}`}
+              aria-label={confirmRemove === menuProfile.id ? "Confirm remove" : undefined}
+              title={confirmRemove === menuProfile.id
+                ? "Press again within four seconds to remove it"
+                : "Take this account out of the deck. Its sign-in and history are kept aside, not deleted."}
+              onClick={() => pressRemove(menuProfile.id)}>{confirmRemove === menuProfile.id ? "Confirm" : "Remove"}</button>
+          )}
         </AnchoredPopover>
+      )}
+      {dialog && (
+        <AddCodexAccountDialog
+          profile={dialog.id && dialog.label ? { id: dialog.id, label: dialog.label } : undefined}
+          onCreate={createProfile}
+          onCopyCommand={id => void copyCommand('login', id)}
+          onSignedIn={() => {
+            readFor.current.clear();
+            void refreshProfiles().catch(() => setError(true));
+          }}
+          onClose={() => { setDialog(null); void refreshProfiles().catch(() => setError(true)); }}
+        />
       )}
     </>
   );

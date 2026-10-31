@@ -51,9 +51,10 @@ export async function handleCodexProfileMutation(req, res, action) {
   let body;
   try { body = JSON.parse(raw ?? ''); } catch { return send(res, 400, { ok: false, reason: 'bad_request' }); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return send(res, 400, { ok: false, reason: 'bad_request' });
-  const { selectCodexProfile, addCodexProfile } = await import('./codex-selection.mjs');
+  const { selectCodexProfile, addCodexProfile, removeCodexProfile } = await import('./codex-selection.mjs');
   try {
-    const result = action === 'select' ? await selectCodexProfile(body) : await addCodexProfile(body);
+    const result = action === 'select' ? await selectCodexProfile(body)
+      : action === 'remove' ? await removeCodexProfile(body) : await addCodexProfile(body);
     // Registry paths are local implementation details; only explicit command
     // requests below return a home as part of a copyable terminal command.
     send(res, 200, { ok: true, id: result.id ?? result.profileId, revision: result.revision, status: result.status });
@@ -70,6 +71,24 @@ export async function handleCodexProfileLogin(req, res) {
   const directory = await resolveCodexProfile(new URL(req.url, 'http://localhost').searchParams.get('id'));
   if (!directory) return send(res, 404, { ok: false, reason: 'unknown_profile' });
   send(res, 200, { command: codexLoginCommand(directory) });
+}
+
+/** Signing a Codex profile in from the deck: start it, read how it is going, or
+ *  cancel it. See codex-login.mjs. */
+export async function handleCodexProfileLoginFlow(req, res, action) {
+  const { startCodexLogin, codexLoginState, cancelCodexLogin } = await import('./codex-login.mjs');
+  let id;
+  if (action === 'state') id = new URL(req.url, 'http://localhost').searchParams.get('id');
+  else {
+    const raw = await readBody(req, res, 1024).catch(() => null);
+    try { id = JSON.parse(raw ?? '').id; } catch { return send(res, 400, { ok: false, reason: 'bad_request' }); }
+  }
+  if (typeof id !== 'string' || !/^[a-f0-9]{20}$/.test(id)) return send(res, 404, { ok: false, reason: 'unknown_profile' });
+  if (action === 'start') {
+    const result = await startCodexLogin(id);
+    return send(res, result.ok ? 200 : 404, result);
+  }
+  send(res, 200, action === 'cancel' ? cancelCodexLogin(id) : codexLoginState(id));
 }
 
 export async function handleCodexTerminalCommand(req, res) {

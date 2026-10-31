@@ -449,6 +449,7 @@ export const GUARDED_READS = new Set([
   "/api/codex-profile-quota",
   "/api/codex-profile-launch",
   "/api/codex-profile-login",
+  "/api/codex-profile-login-state",
   "/api/codex-terminal-command",
   "/api/claude-accounts/login",
   "/api/browser-watch",

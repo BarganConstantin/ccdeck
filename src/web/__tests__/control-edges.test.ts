@@ -714,7 +714,6 @@ const CONTROLS: Control[] = [
   ], beds: ACCOUNTS },
   { at: ".ap-proj-copy", states: [".ap-proj-copy:hover"], beds: ["--panel"] },
   { at: ".ap-manage-btn", states: [".ap-manage-btn:hover:not(:disabled)"], beds: ACCOUNTS },
-  { at: ".ap-codex-label", beds: ACCOUNTS },
   { at: ".ap-manage-btn.danger", fillFrom: ".ap-manage-btn",
     states: [".ap-manage-btn.danger:hover:not(:disabled)", ".ap-manage-btn.danger.armed"], beds: ACCOUNTS },
   { at: ".ap-share-foot .ap-manage-btn", fillFrom: ".ap-share-foot .ap-manage-btn",
