@@ -11,8 +11,9 @@
    SHOW AND HIDE, NOT TABS. Each stripe button shows or hides a panel BESIDE
    the canvas, any number of them can be open at once, and the canvas never
    leaves the screen — "One canvas. No tabs." (PRODUCT.md) holds. That is why
-   an open button is drawn as a line on the edge it opened from, the seam the
-   panel and its button share, and never as a tab joined to a page. */
+   an open button is a fill on the button and a line on the edge it opened
+   from, the seam the panel and its button share, and never a tab joined to a
+   page. */
 .app { padding-inline: var(--edge-w); }
 .app > .topbar { margin-inline: calc(-1 * var(--edge-w)); }
 
@@ -29,11 +30,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* 14px between two groups — each a run of doors that answer one question
-     (rail-items.tsx) — and 4px between two buttons of one group. */
-  gap: 14px;
-  padding: 8px 0;
-  background: var(--bg-soft);
+  /* V4's Panel bar: 2px between every child — a door, a group's rule, the
+     next door — and 6px of air at the top and the foot. */
+  gap: 2px;
+  padding: 6px 0;
+  background: var(--panel);
   user-select: none;
 }
 .edge-rail-left { left: 0; border-right: 1px solid var(--line); }
@@ -42,33 +43,37 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
-/* A rule between two groups, the same on both stripes. The 14px gap alone
-   measured 26px of ink to ink against 22 inside a group, which read as one
-   run, and a press on History then dropped a dialog where the stripe had
-   promised a panel. */
-.edge-rail .rail-group + .rail-group {
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+/* A rule between two groups, the same on both stripes: V4 draws it 16 wide and
+   1 tall in --line-soft as the first child of the next group, so a door, 2px,
+   the rule, 2px, the next door. A gap alone would read as one run, and a press
+   on History then dropped a dialog where the stripe had promised a panel. It is
+   a flex item and not a border so the 16px stays 16 whatever the stripe's
+   width, and the group's own 2px gap spaces it from the door under it. */
+.edge-rail .rail-group + .rail-group::before {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 1px;
+  background: var(--line-soft);
 }
 
 /* Discovery stays at the foot of the left toolbar, in its existing roving
    sequence. Short windows can scroll the rail rather than clipping actions. */
 .edge-rail-left { overflow-y: auto; }
 .edge-rail-left .rail-group { flex-shrink: 0; }
-.edge-rail-left .rail-group[data-rail-group="explore"] {
-  margin-top: auto;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-}
+/* Its rule is the one every group after the first draws, above; this group
+   only takes the free space above itself. */
+.edge-rail-left .rail-group[data-rail-group="explore"] { margin-top: auto; }
 
 /* One control, three placements: a stripe, the phone's dock, the topbar's
    corner. The toolbar button of the old bar with the chrome taken off: no
    edge and no fill at rest, the glyph and its word in --muted, and the whole
-   foreground and the control fill under the pointer and when open.
-   THE FADE IS THE POINTER'S ONLY. The colour eases in over 120ms on the way
-   in, because the rule that carries the transition is the hovered one, and
+   foreground and a light wash under the pointer; open is the --selected fill
+   with the whole foreground, and the line below.
+   THE FADE IS THE POINTER'S ONLY. The colour eases in over --dur-fast on the
+   way in, because the rule that carries the transition is the hovered one, and
    snaps back on the way out: a pointer crossing a stripe leaves no trail of
    half-lit buttons behind it, and the press, the keyboard and an open panel
    arriving from a key change it at once. */
@@ -93,42 +98,50 @@
    the air back on both sides at once and it sits as close to its word as the
    others do. */
 .rail-btn .glyph-narrow { margin-inline: -2px; }
-/* Open is a step past hover, not the same fill: a hovered closed button and an
-   open one beside it were told apart by the line alone. */
-.rail-btn[aria-expanded="true"] { color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent); }
-@media (hover: hover) {
+/* Open is V4's --selected fill, at once (docs/design-v4/motion.md: "A selected
+   Panel bar door goes selected at once"), and a step past hover, not the same
+   fill. V4's hover wash, --ctl-fill, is the foreground at 8%, and --selected
+   is the foreground at 8% over --panel, the stripe's own colour: over the
+   stripe the two are one colour, so a hovered closed door would read as open.
+   The door's hover is a lighter wash, 5%, so the pointer never reads as open.
+   Under the pointer an open door goes a step past open, never back to the
+   hover fill, which would take the open door's fill away while the pointer is
+   on it. */
+.rail-btn[aria-expanded="true"] { color: var(--text); background: var(--selected); }
+@media (hover: hover) and (pointer: fine) {
   .rail-btn:hover {
     color: var(--text);
-    background: var(--ctl-fill);
-    transition: color 120ms ease, background-color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+    background: color-mix(in srgb, var(--text) 5%, transparent);
+    transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease), transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
   }
-  .rail-btn[aria-expanded="true"]:hover { background: color-mix(in srgb, var(--text) 14%, transparent); }
+  .rail-btn[aria-expanded="true"]:hover { background: color-mix(in srgb, var(--text) 6%, var(--selected)); }
 }
 
 /* Upright icons, centred in a fixed target. Labels live in the hint on
    desktop; the phone dock and topbar keep their normal horizontal words. */
 .rail-btn-stripe {
-  width: 36px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   justify-content: center;
   padding: 0;
+  border-radius: var(--r-ctl);
 }
-.rail-btn-stripe .glyph { width: 17px; height: 17px; }
+.rail-btn-stripe .glyph { width: 14px; height: 14px; }
 .rail-btn-stripe .glyph-narrow { margin-inline: 0; }
 /* The ring inside the stripe: drawn 1px out, as buttons draw it elsewhere, it
    ran off the window on the left edge. */
 .rail-btn-stripe:focus-visible { outline-offset: 0; }
 
-/* OPEN IS A LINE ON THE STRIPE'S INNER EDGE, facing the panel, drawn over the
-   stripe's own border: the panel and the button that opened it meet at the
-   seam they share. In --text, not the accent: the accent on this chrome is
-   focus and live data, and a panel that is showing is neither (the same call
-   the old bar made when it dropped its cyan underline). The fill says the
-   same thing for a reader who misses the line.
-   It grows from its centre over 160ms, the panel's own arrival (rail-in), the
-   only motion here, because it is the one change that is spatial: something
-   has come out of this edge. Short, because a key opens these as often as a
-   pointer does, and a key's answer must not lag behind it. */
+/* OPEN IS A FILL AND A LINE ON THE STRIPE'S INNER EDGE, facing the panel,
+   drawn over the stripe's own border: the panel and the button that opened it
+   meet at the seam they share. V4's Panel bar draws the fill alone, but the
+   --selected fill stands about 1.2:1 off the stripe, and the state difference
+   is held to 3:1 (#370): the line is what carries it, so it stays. In --text,
+   not the accent: the accent on this chrome is focus and live data, and a
+   panel that is showing is neither (the same call the old bar made when it
+   dropped its cyan underline).
+   At once, like the fill: V4's motion says a selected door goes selected at
+   once, so the line no longer grows from its centre. */
 .rail-btn-stripe::before {
   content: "";
   position: absolute;
@@ -138,14 +151,15 @@
   border-radius: 1px;
   background: var(--text);
   opacity: 0;
-  transform: scaleY(0.3);
-  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), opacity 120ms ease-out;
 }
-/* Keep the left indicator inside its scrollable rail. Even while transparent,
-   the old -3px seam extended scrollWidth and created a horizontal scrollbar. */
-.edge-rail-left .rail-btn-stripe::before { right: -1px; }
-.edge-rail-right .rail-btn-stripe::before { left: -3px; }
-.rail-btn-stripe[aria-expanded="true"]::before { opacity: 1; transform: none; }
+/* The door is 28 in a 39px column (the stripe less its border), so it starts
+   5.5px in. On the left stripe the line ends a pixel inside the border, where
+   it always has: the rail scrolls, and a line past its edge widened
+   scrollWidth into a horizontal scrollbar even while transparent. On the right
+   stripe it lies over the border. */
+.edge-rail-left .rail-btn-stripe::before { right: -5px; }
+.edge-rail-right .rail-btn-stripe::before { left: -7px; }
+.rail-btn-stripe[aria-expanded="true"]::before { opacity: 1; }
 
 /* Unread findings, Browser watch's: a count, not an alarm, so --muted and
    never --warn. Amber belongs to the waiting count, the one thing the deck
@@ -185,8 +199,8 @@
 
 .rail-btn-stripe .rail-badge {
   position: absolute;
-  top: -2px;
-  right: 0;
+  top: -3px;
+  right: -3px;
   min-width: 14px;
   height: 14px;
   padding: 0 3px;
@@ -203,11 +217,15 @@
 .rail-btn-bar {
   height: var(--ctl-h);
   gap: 6px;
-  padding: 0 10px;
+  padding: 0 8px;
 }
-/* The bar's glyph starts 10px in: its top right corner is where the dot sits. */
-.rail-btn-bar .rail-dot { top: calc(50% - 9px); left: 21px; }
-.rail-btn-stripe .rail-dot { top: 5px; right: 6px; }
+.rail-btn-bar .glyph { width: 14px; height: 14px; }
+/* The bar's glyph starts 8px in and is 14 wide: its top right corner is where
+   the dot sits. */
+.rail-btn-bar .rail-dot { top: calc(50% - 9px); left: 19px; }
+/* On a 28px door the glyph spans 7 to 21, so 4 in from the top and the right
+   puts the 6px dot on its top right corner. */
+.rail-btn-stripe .rail-dot { top: 4px; right: 4px; }
 
 /* ── the phone: one dock along the bottom ────────────────────────────────── */
 /* Under 641px the stripes would take 80px of a 390px screen, so the four
@@ -231,7 +249,7 @@
     display: flex;
     align-items: flex-start;
     padding: 4px 2px env(safe-area-inset-bottom);
-    background: var(--bg-soft);
+    background: var(--panel);
     border-top: 1px solid var(--line);
     user-select: none;
   }
@@ -260,8 +278,9 @@
     left: calc(50% + 4px);
   }
   .rail-btn-dock .rail-dot { top: 8px; left: calc(50% + 5px); }
-  /* Open is the same line, on the dock's top edge, the seam it shares with
-     the panel above it. */
+  /* Open is the --selected fill the stripes draw (`.rail-btn[aria-expanded]`
+     above) and the same line, on the dock's top edge, the seam it shares with
+     the panel above it. At once, like the stripes'. */
   .rail-btn-dock::before {
     content: "";
     position: absolute;
@@ -272,10 +291,8 @@
     border-radius: 1px;
     background: var(--text);
     opacity: 0;
-    transform: scaleX(0.3);
-    transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), opacity 120ms ease-out;
   }
-  .rail-btn-dock[aria-expanded="true"]::before { opacity: 1; transform: none; }
+  .rail-btn-dock[aria-expanded="true"]::before { opacity: 1; }
   /* The detail sheet and the rail panels end above the dock instead of under
      it. */
   .app .detail { bottom: calc(var(--dock-h) + env(safe-area-inset-bottom)); }
@@ -287,11 +304,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rail-btn,
-  .rail-btn-stripe::before,
-  .rail-btn-dock::before { transition: none; }
+  .rail-btn { transition: none; }
   .rail-btn:active { transform: none; }
 }
-@media (prefers-reduced-motion: reduce) and (hover: hover) {
+@media (prefers-reduced-motion: reduce) and (hover: hover) and (pointer: fine) {
   .rail-btn:hover { transition: none; }
 }

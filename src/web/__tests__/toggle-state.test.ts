@@ -50,15 +50,14 @@
 // and manage-block.test.ts do, and computes every ratio from the sheet's own
 // token values. The helpers are re-declared rather than imported from another
 // *.test.ts: importing one registers its suites into this file as well. The
-// gradient reader below is the exception that proves it — it lives in a plain
-// module, `./gradient-stops`, which declares no suites and so can be shared by
-// the five files that read the same two gradient tokens (#664, #665).
+// gradient reader the other sweeps share lives in a plain module,
+// `./gradient-stops`, which declares no suites; this file no longer reads a
+// gradient, because the topbar it measured against is flat --panel now.
 import { describe, it, expect } from "vitest";
 import { KEY_HELP } from "../key-help";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { gradientStops } from "./gradient-stops";
 import { clientText } from "./client-source";
 import { soundMenuSurface } from "./sound-menu-surface";
 import { sheetText } from "./sheet-source";
@@ -197,7 +196,7 @@ function mediaBodyOf(query: string, selector: string): string {
   if (!hits.length) throw new Error(`no rule for ${selector} in @media ${query}`);
   return hits.join(";");
 }
-const HOVER = "(hover: hover)";
+const HOVER = "(hover: hover) and (pointer: fine)";
 const PHONE = "(max-width: 640px)";
 
 const themes = ["dark", "light"] as const;
@@ -225,32 +224,21 @@ function resolve(value: string, theme: Theme): Rgba {
   return parseColor(ref ? TOK[theme][ref[1]] : v);
 }
 
-/** Both ends of the topbar gradient. A 30px button centred in 52px of it is
- *  read against the darker end as much as the lighter one, so a state delta
- *  that only holds at one of them does not hold.
- *
- *  Which is exactly why answering with NO ends was the wrong failure. This
- *  ended in `?? []` until #649: neither `var()` nor `#rrggbb` occurs inside an
- *  `oklch()`, so respelling --topbar-grad in the notation a designer reaches for
- *  next matched nothing, and the three sweeps below that are quantified over
- *  these ends — the on-fill against the bare bar, and the machine meter's ring
- *  against the bar and against its own hover wash — each ran their loop zero
- *  times and passed. The file did go red, but somewhere else: the three cases
- *  that index `barEnds(theme)[0]` threw `Cannot read properties of undefined`,
- *  which names neither the token nor the notation and is a crash rather than
- *  this sweep catching anything. A sweep that cannot read the value it was
- *  pointed at has to fail, and name the value.
- *
- *  Exactly two, because the two labels below ARE the two ends: a third stop
- *  would be announced as a second dark end and quietly measured as one.
- *
- *  The grammar itself moved to `./gradient-stops` with #664 and #665 — three
- *  more files were reading these same gradients through their own copy of the
- *  `?? []` this paragraph describes, and one grammar in five places is one
- *  blind spot in five places. */
-function barEnds(theme: Theme): Array<[string, Rgba]> {
-  const stops = gradientStops("--topbar-grad", theme, TOK[theme], { exactly: 2 });
-  return stops.map((s, i) => [i === 0 ? "the topbar's light end" : "the topbar's dark end", resolve(s, theme)]);
+/** What a fill paints once it is on `bed`: a token (or a literal) that is the
+ *  foreground at some alpha over transparent, or over another opaque token —
+ *  `--selected` is the foreground at 8% over --panel, which is already opaque,
+ *  so it composites onto nothing. Opaque result. */
+function paint(value: string, theme: Theme, bed: Rgba): Rgba {
+  const name = /^var\((--[\w-]+)\)$/.exec(value.trim())?.[1];
+  const raw = ((name ? TOK[theme][name] : value) ?? value).trim();
+  const blend = /^color-mix\(in srgb,\s*var\((--[\w-]+)\)\s+(\d+(?:\.\d+)?)%,\s*(.+)\)$/.exec(raw);
+  if (blend && blend[3].trim() !== "transparent") {
+    const p = Number(blend[2]) / 100;
+    const a = resolve(`var(${blend[1]})`, theme);
+    const b = paint(blend[3], theme, bed);
+    return [0, 1, 2].map(i => a[i] * p + b[i] * (1 - p)).concat(1) as Rgba;
+  }
+  return over(layer(value, theme), bed);
 }
 
 /** A colour as a layer: `resolve`, except that a token spelled as the
@@ -265,7 +253,7 @@ function layer(value: string, theme: Theme): Rgba {
   return [r, g, b, Number(m[2]) / 100];
 }
 
-/** A chrome button whose panel is open: the control fill and the foreground. */
+/** A chrome button whose panel is open: the --selected fill and the foreground. */
 const OPEN = '.rail-btn[aria-expanded="true"]';
 /** And its line on the edge the panel came out of: a stripe's inner edge, the
  *  dock's top edge. Drawn always, shown only while open. */
@@ -275,11 +263,12 @@ const LINE_SHOWN = {
   ".rail-btn-dock::before": '.rail-btn-dock[aria-expanded="true"]::before',
 } as const;
 /** The bed the chrome's buttons stand on: a stripe and the dock are both
- *  --bg-soft (edge-rails.css). */
-const CHROME_BED = (theme: Theme) => resolve("var(--bg-soft)", theme);
+ *  --panel (edge-rails.css; V4's Panel bar, it was --bg-soft). */
+const CHROME_BED = (theme: Theme) => resolve("var(--panel)", theme);
 /** A fill mixed from the foreground: the control fill, or the same mix at
- *  another strength. Never a hue. */
-const NEUTRAL_FILL = /^(?:var\(--ctl-fill\)|color-mix\(in srgb, var\(--text\) \d+%, transparent\))$/;
+ *  another strength, over transparent or over --panel (--selected). Never a
+ *  hue. */
+const NEUTRAL_FILL = /^(?:var\(--(?:ctl-fill|selected)\)|color-mix\(in srgb, var\(--text\) \d+%, (?:transparent|var\(--panel\)|var\(--selected\))\))$/;
 
 describe("the contrast maths, against the two ends everybody knows", () => {
   it("puts white on black at 21:1 and a colour on itself at 1:1", () => {
@@ -347,16 +336,16 @@ describe("what the toggle state used to be worth (#370)", () => {
 
 describe("the open state, as the sheet draws it now", () => {
   it("keys it off aria-expanded, in neutrals, so no toggle can be styled and mute", () => {
-    // An open chrome button is the pressed look of the old toolbar: the
-    // control fill and the whole foreground. No accent anywhere in the state —
-    // the accent on the chrome is focus and live data, and a panel that is
-    // showing is neither.
+    // An open chrome button is V4's selected door: the --selected fill (the
+    // foreground at 8% over --panel) and the whole foreground. No accent
+    // anywhere in the state — the accent on the chrome is focus and live data,
+    // and a panel that is showing is neither.
     const open = RULES.find(r => selectors(r.selector).includes(OPEN));
     expect(open, "no rule keyed on aria-expanded").toBeTruthy();
-    // A wash of the foreground itself, so it exists in both themes by
-    // construction (the derived-tier rule in DESIGN.md), at whatever strength
-    // the measurements below allow.
+    // A wash of the foreground itself, so it exists in every theme by
+    // construction (the derived-tier rule in DESIGN.md).
     expect(declIn(open!.body, "background")).toMatch(NEUTRAL_FILL);
+    expect(declIn(open!.body, "background")).toBe("var(--selected)");
     expect(declIn(open!.body, "color")).toBe("var(--text)");
     expect(open!.body, "an open chrome button is painted in the accent again").not.toMatch(/--accent/);
     // Closed, it draws no fill and no edge, which is what makes the fill and
@@ -366,7 +355,7 @@ describe("the open state, as the sheet draws it now", () => {
     expect(decl(".rail-btn", "color")).toBe("var(--muted)");
   });
 
-  it("draws a line on the edge the panel opened from, shown only while it is open", () => {
+  it("draws a line on the edge the panel opened from, shown only while it is open, at once", () => {
     // The dock's line is drawn at a phone's width only, where the dock is.
     const at = (sel: string, prop: string) =>
       sel.includes("dock") ? declIn(mediaBodyOf(PHONE, sel), prop) : decl(sel, prop);
@@ -374,23 +363,33 @@ describe("the open state, as the sheet draws it now", () => {
       expect(at(line, "background"), line).toBe("var(--text)");
       expect(at(line, "opacity"), `${line} at rest`).toBe("0");
       expect(at(LINE_SHOWN[line], "opacity"), `${line} open`).toBe("1");
+      // V4's motion: a selected door goes selected at once, so the line is
+      // shown at once too; it no longer grows from its centre.
+      expect(at(line, "transition"), `${line} grows in`).toBeNull();
     }
     // The stripe's line stands on the inner edge — the right of the left
-    // stripe, the left of the right one. Keep the scrollable left rail's
-    // indicator inside its viewport so it does not create horizontal overflow.
-    expect(decl(".edge-rail-left .rail-btn-stripe::before", "right")).toBe("-1px");
-    expect(decl(".edge-rail-right .rail-btn-stripe::before", "left")).toBe("-3px");
+    // stripe, the left of the right one. The door is 28 in a 39px column, 5.5px
+    // in, so these are the old -1px and -3px seams moved by the door's 4px of
+    // narrowing. Keep the scrollable left rail's indicator inside its viewport
+    // so it does not create horizontal overflow.
+    expect(decl(".edge-rail-left .rail-btn-stripe::before", "right")).toBe("-5px");
+    expect(decl(".edge-rail-right .rail-btn-stripe::before", "left")).toBe("-7px");
     expect(decl(".rail-btn-stripe::before", "width")).toBe("2px");
     expect(declIn(mediaBodyOf(PHONE, ".rail-btn-dock::before"), "height")).toBe("2px");
+    // And the open fill itself arrives at once.
+    const open = RULES.find(r => selectors(r.selector).includes(OPEN))!;
+    expect(declIn(open.body, "transition"), "an open door fades in").toBeNull();
   });
 
   it("holds the line 3:1 or better off the stripe, and off the open fill beside it, in both themes", () => {
-    // The 3:1 #370 asked of the state difference, now carried by the line: it
-    // is what a closed button does not have. Against the bare stripe it stands
-    // beside, and against the open fill, which is the button's own bed.
+    // The 3:1 #370 asked of the state difference, carried by the line: it is
+    // what a closed button does not have. Against the bare stripe it stands
+    // beside, and against the open fill, which is the button's own bed. V4's
+    // --selected fill alone stands about 1.2:1 off the stripe, which is why
+    // the line stays beside it.
     for (const theme of themes) {
       const bed = CHROME_BED(theme);
-      const fill = over(layer(decl(OPEN, "background")!, theme), bed);
+      const fill = paint(decl(OPEN, "background")!, theme, bed);
       const line = resolve(decl(".rail-btn-stripe::before", "background")!, theme);
       expect(contrastRatio(line, bed), `${theme} line vs the stripe`).toBeGreaterThanOrEqual(NON_TEXT);
       expect(contrastRatio(line, fill), `${theme} line vs the open fill`).toBeGreaterThanOrEqual(NON_TEXT);
@@ -403,7 +402,7 @@ describe("the open state, as the sheet draws it now", () => {
     // the open fill.
     for (const theme of themes) {
       const bed = CHROME_BED(theme);
-      const fill = over(layer(decl(OPEN, "background")!, theme), bed);
+      const fill = paint(decl(OPEN, "background")!, theme, bed);
       expect(contrastRatio(resolve(decl(".rail-btn", "color")!, theme), bed), `${theme} word at rest`)
         .toBeGreaterThanOrEqual(BODY);
       expect(contrastRatio(resolve(decl(OPEN, "color")!, theme), fill), `${theme} word open`)
@@ -412,22 +411,25 @@ describe("the open state, as the sheet draws it now", () => {
   });
 
   it("keeps the pointer's own feedback on an open button, and out-specifies the hover it has to beat", () => {
-    // Hover lifts a closed button to the control fill — the open look — so an
+    // Hover lifts a closed button to a light wash of the foreground, so an
     // open button answers the pointer with a deeper fill of its own rather
     // than with nothing.
-    // Only where there is a hover: a tap on the phone's dock left a fill behind.
-    // Measured as the alpha each fill lays down, in both themes: an open
-    // button under the pointer is deeper than an open one at rest, which is
-    // itself deeper than a closed one under the pointer — so hover never
-    // reads as open, and open never stops answering the pointer.
+    // Only where there is a real pointer: a tap on the phone's dock left a
+    // fill behind.
+    // Measured as how far each fill paints from the stripe under it, in both
+    // themes (--selected is already opaque, so an alpha alone cannot rank it):
+    // an open button under the pointer is deeper than an open one at rest,
+    // which is itself deeper than a closed one under the pointer — so hover
+    // never reads as open, and open never stops answering the pointer.
     const hoverOpen = declIn(mediaBodyOf(HOVER, `${OPEN}:hover`), "background")!;
     const hoverClosed = declIn(mediaBodyOf(HOVER, ".rail-btn:hover"), "background")!;
     const resting = decl(OPEN, "background")!;
-    for (const v of [hoverOpen, hoverClosed]) expect(v).toMatch(NEUTRAL_FILL);
+    for (const v of [hoverOpen, hoverClosed, resting]) expect(v).toMatch(NEUTRAL_FILL);
     for (const theme of themes) {
-      const alpha = (v: string) => layer(v, theme)[3];
-      expect(alpha(hoverOpen), `${theme} open under the pointer`).toBeGreaterThan(alpha(resting));
-      expect(alpha(resting), `${theme} open at rest`).toBeGreaterThan(alpha(hoverClosed));
+      const bed = CHROME_BED(theme);
+      const away = (v: string) => Math.abs(relativeLuminance(paint(v, theme, bed)) - relativeLuminance(bed));
+      expect(away(hoverOpen), `${theme} open under the pointer`).toBeGreaterThan(away(resting));
+      expect(away(resting), `${theme} open at rest`).toBeGreaterThan(away(hoverClosed));
     }
     const specificity = (sel: string): number =>
       (sel.match(/\.[\w-]+|\[[^\]]*\]|:(?!:)[\w-]+/g) ?? []).length;

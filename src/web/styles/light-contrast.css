@@ -2,25 +2,11 @@
    Hardcoded rgba() tints elsewhere in this file were picked for dark
    surfaces; on white they vanish. Re-tint with deeper, more saturated
    versions only when the light theme is active. */
-/* Opaque tints, for the reason the node rings below are opaque: a 10% wash is
-   whatever it is painted over, and these three sit on the topbar GRADIENT,
-   which runs from #ffffff to #eef1f6 across the 52px they are centred in. The
-   pill's own word therefore had a different ratio at the top of the bar than
-   at the bottom — 4.39:1 and 3.90:1 for `live`, so the state of the connection
-   was under AA at the darker end. Composited against white once, here, the
-   number is the same wherever the pill lands. */
-:root[data-color-scheme="light"] .topbar .status .pill.live {
-  border-color: rgba(21,128,61,0.45);
-  background: #e8f2eb;
-}
-:root[data-color-scheme="light"] .topbar .status .pill.paused {
-  border-color: rgba(180,83,9,0.50);
-  background: #f8eee6;
-}
-:root[data-color-scheme="light"] .topbar .status .pill.dead {
-  border-color: rgba(185,28,28,0.50);
-  background: #f8e8e8;
-}
+/* The stream pill's three light tints were here, opaque so the pill's word had
+   one ratio wherever it landed on the topbar's gradient. V4's pill has no fill
+   and the bar no gradient, so the word is --text on --panel in every theme and
+   the state is the edge and the dot (topbar-controls.css); the tints went with
+   the fill they coloured. */
 :root[data-color-scheme="light"] .agent-node.state-active {
   border-color: rgba(126,34,206,0.65);
   /* The dark rule's reasoning, in the other theme — including its silence

@@ -357,29 +357,26 @@ function resolve(value: string, theme: Theme): Rgba {
 }
 
 /** Every opaque bed a control is ever painted on, by the name the sheet gives
- *  it. The topbar is a gradient, so both of its ends count: a pill centred in
- *  52px of it is read against the darker one as much as the lighter.
+ *  it. The topbar is flat --panel now (V4's Top bar; it was a gradient between
+ *  --panel and --bg-soft in dark and two lights in light, so it counted twice:
+ *  "light end" and "dark end"). Its old ends were --panel and --bg-soft (and
+ *  their light twins), and both are still beds in this list under their own
+ *  names, so every floor is still held on them; the bar's own name stays, now
+ *  naming the one bed it is painted with. No floor is lowered.
  *
- *  The two ends are read by `./gradient-stops` now (#664). This file used to
- *  scrape them with a regex ending in `?? []` and then index `top[0]` and
- *  `top[1]` — so a --topbar-grad respelled in a notation that regex could not
- *  see handed four cases here `Cannot read properties of undefined`, a crash
- *  naming neither the token nor the notation, and a --node-grad respelled the
- *  same way went the other way entirely: `textBeds` below simply came back two
- *  beds shorter and 25 of 25 cases passed. Exactly two, because the two labels
- *  ARE the two ends — a third stop would be announced as a second dark end. */
+ *  The beds are read from the sheet by name and checked by VALUE in `bedFloor`
+ *  (#664), so a token respelled in a notation this file cannot read fails
+ *  loudly instead of shortening the list. */
 function surfaces(theme: Theme): Record<string, Rgba> {
   const panel = parseColor(TOK[theme]["--panel"]);
   const bg = parseColor(TOK[theme]["--bg"]);
-  const top = gradientStops("--topbar-grad", theme, TOK[theme], { exactly: 2 }).map(s => resolve(s, theme));
   const bannerTint = resolve(colourIn(decl(".ver-banner", "background")!), theme);
   const activeTint = resolve(colourIn(decl(".ap-account.active", "background")!), theme);
   return {
     "--panel": panel,
     "--bg-soft": parseColor(TOK[theme]["--bg-soft"]),
     "--bg": bg,
-    "the topbar's light end": top[0],
-    "the topbar's dark end": top[1],
+    "the topbar": panel,
     "the version banner": over(bannerTint, bg),
     "the active account row": over(activeTint, panel),
   };
@@ -389,22 +386,20 @@ function surfaces(theme: Theme): Record<string, Rgba> {
  *  themselves against it. */
 const BEDS = [
   "--panel", "--bg-soft", "--bg",
-  "the topbar's light end", "the topbar's dark end",
+  "the topbar",
   "the version banner", "the active account row",
 ];
 
 /** The floor every bed sweep below opens with, outside the quantification it is
- *  the floor for (#627's lesson, by way of #648 and #662). `gradientStops`
- *  already refuses a --topbar-grad it cannot read, so this is the second line
- *  rather than the first: it is what still fails if that reader is ever softened
- *  back to a `?? []`.
+ *  the floor for (#627's lesson, by way of #648 and #662). It is the line that
+ *  still fails if a bed's reader is ever softened back to a `?? []`.
  *
  *  It checks the VALUES and not only the names, and that is the whole lesson of
  *  #664. Every sweep here looks a bed up BY NAME out of a Record whose keys are
- *  written by hand, so an unreadable gradient does not shorten the key list — it
- *  leaves `beds["the topbar's light end"]` holding `undefined`, and the key
- *  sweep sails straight over it into the same bare TypeError this file used to
- *  report. A floor that counts names is not a floor on the colours. */
+ *  written by hand, so an unreadable token does not shorten the key list — it
+ *  leaves `beds["the topbar"]` holding `undefined`, and the key sweep sails
+ *  straight over it into a bare TypeError. A floor that counts names is not a
+ *  floor on the colours. */
 function bedFloor(beds: Record<string, Rgba>, theme: Theme): void {
   expect(Object.keys(beds), `${theme}: the beds this sweep measures against`).toEqual(BEDS);
   expect(Object.entries(beds).filter(([, c]) => !Array.isArray(c)).map(([n]) => n),
@@ -419,8 +414,9 @@ function bedFloor(beds: Record<string, Rgba>, theme: Theme): void {
 function textBeds(theme: Theme): Array<[string, Rgba]> {
   const named: Array<[string, Rgba]> = (["--panel", "--bg-soft", "--bg"] as const)
     .map(t => [t, parseColor(TOK[theme][t])]);
-  const top = gradientStops("--topbar-grad", theme, TOK[theme], { exactly: 2 }).map((s, i): [string, Rgba] =>
-    [`the topbar, stop ${i}`, resolve(s, theme)]);
+  // The topbar is flat --panel now, which `named` already holds; it keeps its
+  // own name here so a sweep that reads "on the topbar" still says so.
+  const top: Array<[string, Rgba]> = [["the topbar", parseColor(TOK[theme]["--panel"])]];
   const node = gradientStops("--node-grad", theme, TOK[theme]).map((s, i): [string, Rgba] =>
     [`a node, stop ${i}`, resolve(s, theme)]);
   return [...named, ...top, ...node];
@@ -430,11 +426,11 @@ function textBeds(theme: Theme): Array<[string, Rgba]> {
  *  --node-grad used to shorten in silence. */
 const TEXT_BEDS = [
   "--panel", "--bg-soft", "--bg",
-  "the topbar, stop 0", "the topbar, stop 1",
+  "the topbar",
   "a node, stop 0", "a node, stop 1",
 ];
 
-const TOPBAR = ["the topbar's light end", "the topbar's dark end"];
+const TOPBAR = ["the topbar"];
 const BANNER = ["the version banner", "--bg"];
 const ACCOUNTS = ["--panel", "the active account row"];
 
@@ -548,13 +544,12 @@ const CONTROLS: Control[] = [
   // fields become: on a toolbar over --bg in the modal, or over --panel.
   { at: ".ig-search-input", states: [".ig-search-input:hover"], beds: ["--panel", "--bg"] },
   // topbar
-  // The up-to-date version chip draws no boundary any more: it is metadata
-  // beside the wordmark, identified by its own text, and it wears the
-  // toolbar's resting look. The stale chip is a warning and keeps its edge.
-  { at: ".topbar .brand button.v.stale", states: [".topbar .brand button.v.stale:hover"], beds: TOPBAR },
-  // The app's ready update (#1187): good news, so the accent rather than the
-  // stale chip's amber, and an edge that has to clear 3:1 on its own.
-  { at: ".topbar .brand button.v.ready", states: [".topbar .brand button.v.ready:hover"], beds: TOPBAR },
+  // The version chip draws no boundary in any state now. The up-to-date one is
+  // metadata beside the wordmark, identified by its own text; V4 draws a newer
+  // version, a ready update and the press (#1187) as the --accent-16 wash with
+  // NO edge, so there is no boundary left for this sweep to measure, the way
+  // `.detail-close` left it below. What identifies them is their words, held
+  // to 4.5:1 by the "chip words" case at the foot of this file.
   { at: ".selected-ribbon", states: [".selected-ribbon:hover"], beds: TOPBAR },
   { at: "button.btn", states: ["button.btn:hover"], beds: [...TOPBAR, "--panel"] },
   { at: "button.btn", fillFrom: "button.btn.ig-manage:not(.primary)", states: ["button.btn:hover"], beds: ["--panel"] },
@@ -1516,25 +1511,46 @@ describe("the two status hues, on the canvas as well as on the panels", () => {
     }
   });
 
-  it("reads each status pill's own word at 4.5:1 wherever in the topbar it lands", () => {
-    // The pill is centred in 52px of a gradient, so an alpha wash gave its word
-    // one ratio at the top of the bar and another at the bottom — 4.39:1 and
-    // 3.90:1 for `live`. The light tints are opaque now, which is the same fix
-    // #268 applied to the node rings for the same reason.
+  it("reads each status pill's own word at 4.5:1, and its state edge at 3:1, on the topbar", () => {
+    // V4's stream chip is an outline pill: no fill, the word in --text, and the
+    // state in the 1px edge (--ok, --warn, --err) and the dot. The tints this
+    // sweep used to composite the word over — a wash on the topbar's gradient,
+    // opaque in light so the word had one ratio wherever it landed — went with
+    // the fill, and the bar is one flat bed, so the word is measured on it
+    // directly. The edge is the state's whole signal now, so it is held to the
+    // 3:1 a boundary owes (1.4.11), against the same bed.
     for (const theme of themes) {
       const beds = surfaces(theme);
       bedFloor(beds, theme);
+      expect(decl(".topbar .status .pill", "background"), "the pill has a fill again").toBe("transparent");
+      const word = resolve(decl(".topbar .status .pill", "color")!, theme);
       for (const [state, token] of [["live", "--ok"], ["paused", "--warn"], ["dead", "--err"]] as const) {
-        const light = RULES.find(r =>
-          selectors(r.selector).includes(`:root[data-color-scheme="light"] .topbar .status .pill.${state}`));
-        const fillRaw = (theme === "light" ? declIn(light!.body, "background") : null)
-          ?? decl(".topbar .status .pill", "background")!;
-        if (theme === "light") expect(fillRaw, state).not.toMatch(/rgba\(/);
-        const fg = parseColor(TOK[theme][token]);
+        const edge = parseColor(TOK[theme][token]);
+        expect(borderColour(`.topbar .status .pill.${state}`), state).toBe(`var(${token})`);
         for (const bedName of TOPBAR) {
-          const fill = over(resolve(fillRaw, theme), beds[bedName]);
-          expect(contrastRatio(fg, fill), `${theme} .pill.${state} on ${bedName}`).toBeGreaterThanOrEqual(BODY);
+          expect(contrastRatio(word, beds[bedName]), `${theme} the word on ${bedName}`).toBeGreaterThanOrEqual(BODY);
+          expect(contrastRatio(edge, beds[bedName]), `${theme} .pill.${state} edge on ${bedName}`).toBeGreaterThanOrEqual(NON_TEXT);
         }
+      }
+    }
+  });
+
+  it("reads the chip words at 4.5:1: --text on the accent wash of a newer version, --warn on the bar for the count", () => {
+    // The version chip has no edge to sweep, so its word carries it: --text on
+    // --accent-16 over the bar, and on the stronger 24% under the pointer. The
+    // count's word is --warn on the bare bar, like the pill's edge.
+    for (const theme of themes) {
+      const beds = surfaces(theme);
+      const text = resolve("var(--text)", theme);
+      for (const bedName of TOPBAR) {
+        const wash = (pct: number) => {
+          const [r, g, b] = resolve("var(--accent)", theme);
+          return over([r, g, b, pct / 100], beds[bedName]);
+        };
+        for (const pct of [16, 24]) {
+          expect(contrastRatio(text, wash(pct)), `${theme} --text on the accent at ${pct}% over ${bedName}`).toBeGreaterThanOrEqual(BODY);
+        }
+        expect(contrastRatio(resolve("var(--warn)", theme), beds[bedName]), `${theme} the count on ${bedName}`).toBeGreaterThanOrEqual(BODY);
       }
     }
   });

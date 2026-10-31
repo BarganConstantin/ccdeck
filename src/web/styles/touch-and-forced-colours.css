@@ -167,12 +167,11 @@
   .state-pill.state-active::before,
   .bw-mode-dot.on,
   .ap-live::before,
-  .topbar .brand button.v .v-dot,
-  .topbar .brand button.v.ready .v-dot { forced-color-adjust: none; background: Highlight; }
+  .topbar .brand button.v .v-dot { forced-color-adjust: none; background: Highlight; }
   /* An open panel's line on its stripe, or on the dock's top edge, is a
      fill, which the theme paints Canvas like the stripe under it: it opts out
      and draws in the highlight, so open and closed still differ once the
-     control fill has gone too. */
+     --selected fill has gone too. */
   .rail-btn-stripe::before,
   .rail-btn-dock::before { forced-color-adjust: none; background: Highlight; }
   /* What's new's Check for updates while a check is out: the accent every

@@ -47,10 +47,10 @@ describe("the topbar keeps its controls on screen (#849)", () => {
     // and has no run of controls left to tighten. The pixel on top stays at
     // every width: it is what puts every height on the bar on whole pixels
     // under its 1px rule.
-    expect(narrow).toMatch(/\.topbar\s*\{[^}]*padding:\s*1px 10px 0/);
+    expect(narrow).toMatch(/\.topbar\s*\{[^}]*padding:\s*1px 12px 0/); // V4: 12 both sides
     expect(narrow).toMatch(/\.topbar\s*\{[^}]*gap:\s*12px/);
     expect(narrow).toMatch(/\.topbar \.readout\s*\{[^}]*gap:\s*12px/);
-    expect(rule(".topbar")).toMatch(/padding:\s*1px 6px 0 18px/);
+    expect(rule(".topbar")).toMatch(/padding:\s*1px 8px 0 12px/); // V4: 12 start, 8 end
     expect(narrow).not.toMatch(/\.topbar \.actions|action-run/);
   });
 });

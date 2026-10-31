@@ -776,8 +776,9 @@ const LIVE_PULSE = [
  *  are running, the health of the event stream and a tool in flight are one
  *  fact. A new pulse fails this suite until it is either in the family above or
  *  written down here with a reason. */
+const NEWER_VERSION_DOT = ".topbar .brand button.v .v-dot";
 const OTHER_PULSES: [selector: string, meaning: string][] = [
-  [".topbar .brand button.v .v-dot", "--warn: a newer ccdeck is published"],
+  [".topbar .brand button.v .v-dot", "--accent: a newer ccdeck is published"],
   // `.armed`, not the dot itself: it is still at rest for as long as the
   // notice is only a notice, and pulses only once a restart is actually
   // counting down — which is the one thing in this banner that IS happening
@@ -821,15 +822,25 @@ describe("one tempo for one meaning: the live pulse", () => {
     expect(decl(declared[0].body, "--pulse-live")).toBe("1.2s ease-in-out");
   });
 
-  it("leaves the four that answer a different question alone", () => {
-    // Two --warn, one --ok, one --err. None of them may quietly adopt the live
-    // token: that would say a stale version and a running tool are one fact.
-    for (const [sel, meaning] of OTHER_PULSES) {
+  it("leaves the three that answer a different question alone", () => {
+    // One --warn, one --ok, one --err. None of them may quietly adopt the live
+    // token: that would say an armed restart and a running tool are one fact.
+    for (const [sel, meaning] of OTHER_PULSES.filter(([sel]) => sel !== NEWER_VERSION_DOT)) {
       const rule = pulsing.find(r => r.selector === sel)!;
       const value = decl(rule.body, "animation")!;
       expect(value, `${sel} — ${meaning}`).not.toContain("--pulse-live");
       expect(value, `${sel} — ${meaning}`).toMatch(/^pulse \d/);
     }
+  });
+
+  it("gives the newer-version chip's dot the live token on purpose (V4's Top bar chip)", () => {
+    // V4's motion page draws the top bar chip's one dot on the deck's live
+    // pulse, and the chip's amber left with the redesign (v4-bars.test.ts), so
+    // the dot is no longer a --warn fact on its own tempo: it is the accent,
+    // and a newer version arriving is a thing the deck is telling you live.
+    // The other three keep their rates.
+    const rule = pulsing.find(r => r.selector === NEWER_VERSION_DOT)!;
+    expect(decl(rule.body, "animation")).toBe("pulse var(--pulse-live) infinite");
   });
 
   it("earns its reduced-motion exemption on the keyframes, not on a promise", () => {

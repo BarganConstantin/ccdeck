@@ -73,12 +73,17 @@ describe("the topbar mark is the kit's small mark", () => {
     expect(rule(':root[data-color-scheme="light"] .topbar .brand .logo-on-light')).toMatch(/display:\s*block/);
   });
 
-  it("follows the kit's chrome pattern: height in fours, the name as tall, half of it between", () => {
+  it("follows V4's chrome pattern: the mark's height in fours, the name at the 14/20 card title, 6 between", () => {
+    // The brand kit set the name as tall as the 16px mark with half of that
+    // between; V4 pairs the same 16px mark (never redrawn) with its 14px
+    // Semibold card title on a 20px line, 6px from it.
     const height = px(logo, "height");
     expect(height % 4, "the mark's height is not a multiple of 4, so its strokes miss whole pixels").toBe(0);
+    expect(height, "the mark is redrawn").toBe(16);
     expect(logo, "the mark is not sized by height alone").toMatch(/width:\s*auto/);
-    expect(px(brand, "font-size"), "the name is not as tall as the mark").toBe(height);
-    expect(px(brand, "gap"), "the gap is not half the mark's height").toBe(height / 2);
+    expect(px(brand, "font-size"), "the name is not V4's 14px card title").toBe(14);
+    expect(px(brand, "line-height"), "the name is not on V4's 20px line").toBe(20);
+    expect(px(brand, "gap"), "the gap is not V4's 6px").toBe(6);
     expect(brand).toMatch(/font-weight:\s*600/);
     expect(brand).toMatch(/letter-spacing:\s*0;/);
   });

@@ -79,7 +79,8 @@ const V4_AHEAD_OF_READERS = [
   "--statusbar-h", "--rail-w", "--inspector-w", "--pane-head-h",
   "--row-rail", "--row-group", "--row-tool", "--row-option", "--row-settings",
   // V4's banner: --ctl-h-lg is read now (the banner strip's min-height).
-  "--ctl-h-sm", "--r-pill",
+  // V4's bars: --r-pill is read now (the top bar's chips).
+  "--ctl-h-sm",
   "--fs-hero", "--lh-hero", "--fs-title", "--lh-title", "--fs-card-title",
   "--fs-body", "--fs-small", "--lh-small", "--fs-code", "--lh-code", "--fs-meta", "--lh-meta",
   "--dur-stage-in", "--dur-stage-out", "--dur-slow",

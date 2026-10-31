@@ -359,11 +359,20 @@ describe("the tray", () => {
 describe("the sheet", () => {
   const css = sheetText();
 
-  it("never draws the chip in the alarm's shape or colour", () => {
+  it("draws the chip as V4's incident pill: the pill corner by token, a --warn edge, and the alarm's own count apart", () => {
+    // It was a neutral --r-tag control that never wore the alarm's shape or
+    // colour. V4's chip is a pill with the --warn edge for an incident (a
+    // major outage --err, maintenance --line), which is the same pill the
+    // count wears; what still tells them apart is the fill and the word: the
+    // chip has none and says --text, where the count says --warn.
     const chip = css.match(/\.topbar \.provider-incident \{\s*display: inline-flex;[^}]*\}/)![0];
-    expect(chip).toContain("border-radius: var(--r-tag);");
+    expect(chip).toContain("border-radius: var(--r-pill);");
     expect(chip).not.toContain("999px");
-    expect(chip).not.toContain("--warn");
+    expect(chip).toContain("border: 1px solid var(--warn);");
+    expect(chip).toContain("color: var(--text);");
+    expect(chip).not.toMatch(/background:/);
+    expect(css).toContain('.topbar .provider-incident[data-state="major_outage"] { border-color: var(--err); }');
+    expect(css).toContain('.topbar .provider-incident[data-state="maintenance"] { border-color: var(--line); }');
   });
 
   it("keeps the focus ring inside a readout that clips", () => {

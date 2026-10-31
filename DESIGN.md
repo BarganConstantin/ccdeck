@@ -458,7 +458,7 @@ offset is a mark, not elevation: `0 0 8px var(--ok|warn|err|inflight)`,
 *this one*, never to lift something off the page.
 
 **A gradient is a token when two rules share it or a theme retunes it** (#1287):
-`--node-grad`, `--topbar-grad`,
+`--node-grad`,
 `--burst-live-wash` (a running tool bubble) and `--hero-core` (the empty-canvas orb)
 in both theme blocks; `--meter-grad` (the context meter and the session summary's
 tool bars) and `--wire-dashed` (a LAN wire that is down or cut) once, in a

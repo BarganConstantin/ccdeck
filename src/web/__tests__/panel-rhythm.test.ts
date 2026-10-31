@@ -509,18 +509,14 @@ describe("the 24px target floor", () => {
     // re-litigated one control at a time.
     //
     // Two different mechanisms, because the two kinds of miss are different.
-    // The chip and the alarm may simply grow: `min-height`, which costs the
-    // version chip 2.06px and the waiting chip 0.06px and moves no width. More
-    // padding was the issue's proposal and is the wrong lever for 2px — a third
-    // pixel top and bottom lands the chip at 23.94 and still misses, a fourth
-    // overshoots to 25.94 — and the floor is the thing being asked for, so the
-    // floor is what the rule says.
-    expect(px(decl(".topbar .brand button.v", "min-height"))).toBeGreaterThanOrEqual(24);
-    expect(px(decl(".topbar .waiting-stat", "min-height"))).toBeGreaterThanOrEqual(24);
-    // Neither may buy it back by shrinking on the other axis, and neither may
-    // pin a height that would cap what min-height raises.
+    // The chip and the alarm used to grow with `min-height`; V4 draws every
+    // chip on the bar exactly 24 tall, so each one declares `height: 24px`
+    // (border-box) and the floor is met by the box itself: a declared 24 is
+    // the floor, and nothing may cap it lower with a max-height.
+    expect(px(decl(".topbar .brand button.v", "height"))).toBeGreaterThanOrEqual(24);
+    expect(px(decl(".topbar .waiting-stat", "height"))).toBeGreaterThanOrEqual(24);
     for (const sel of [".topbar .brand button.v", ".topbar .waiting-stat"]) {
-      expect(declIn(bodyOf(sel), "height"), `${sel} pins a height over its floor`).toBeNull();
+      expect(declIn(bodyOf(sel), "box-sizing"), `${sel} would add its border to the 24`).toBe("border-box");
       expect(declIn(bodyOf(sel), "max-height"), sel).toBeNull();
     }
 
