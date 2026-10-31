@@ -38,6 +38,7 @@ import {
   SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph, SkillActivityGlyph, SearchGlyph,
 } from "./components/rail-glyphs";
 import type { ToolActivityView } from "./components/ToolAuditModal";
+import { t, type TFunction } from "./i18n";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
 
@@ -78,11 +79,9 @@ export interface IntegrationRail {
 /** What Browser watch's hint adds under its name: whether it is watching, and
  *  what is unread. The glyph says the first as a pupil or a slash and the
  *  stripe's badge the second as a number; this says both in words. */
-export function browserWatchDetail(watchOn: boolean | null, unread: number): string {
-  const state = watchOn
-    ? "Watching — the deck keeps its own copy of the history"
-    : "Not watching — reads the browser's history when opened";
-  return unread > 0 ? `${state}\n${unread} unread` : state;
+export function browserWatchDetail(watchOn: boolean | null, unread: number, tr: TFunction = t): string {
+  const state = watchOn ? tr("board.rail.watch.on") : tr("board.rail.watch.off");
+  return unread > 0 ? `${state}\n${tr("board.rail.unreadCount", { n: unread })}` : state;
 }
 
 /** A run of doors on a stripe that answer one question, named for the group a
@@ -138,15 +137,15 @@ export function railItems({
   // IDREF that resolves to nothing is a dangling pointer, and closed is
   // exactly when there is nothing to point at.
   const sessionList: RailItem = {
-    id: "session-list", label: "Session list", short: "Sessions", key: { cap: "L", aria: "L", single: true },
-    ariaLabel: "Session list", glyph: <SessionListGlyph />, kind: "panel",
+    id: "session-list", label: t("board.rail.sessionList"), short: t("board.rail.sessionList.short"), key: { cap: "L", aria: "L", single: true },
+    ariaLabel: t("board.rail.sessionList"), glyph: <SessionListGlyph />, kind: "panel",
     open: sessionListOpen, controls: "session-list", onPress: toggleSessionList, buttonRef: toggles.sessionList,
   };
   // Gone without Claude Code rather than present and inert: every account in
   // the panel is a Claude account, and a Codex-only machine has none to show.
   const accounts: RailItem = {
-    id: "accounts", label: "Accounts", short: "Accounts", key: { cap: "A", aria: "A", single: true },
-    ariaLabel: "Accounts", hint: "Claude accounts", glyph: <AccountsGlyph />, kind: "panel",
+    id: "accounts", label: t("board.rail.accounts"), short: t("board.rail.accounts"), key: { cap: "A", aria: "A", single: true },
+    ariaLabel: t("board.rail.accounts"), hint: t("board.rail.accounts.hint"), glyph: <AccountsGlyph />, kind: "panel",
     open: accountsPanelOpen, controls: "accounts-panel", onPress: toggleAccountsPanel, buttonRef: toggles.accounts,
   };
   // ACCOUNT CAPACITY AND RESET CALENDAR, ON THE STRIPE. Both lived behind the
@@ -155,22 +154,22 @@ export function railItems({
   // each door opens its own view, over whatever is open, and the left column
   // is not touched.
   const capacity: RailItem[] = openCapacity ? [{
-    id: "account-capacity", label: "Account capacity", short: "Capacity", ariaLabel: "Account capacity",
-    detail: "How many accounts are ready, and what the 5h and 7d windows have left",
+    id: "account-capacity", label: t("board.rail.capacity"), short: t("board.rail.capacity.short"), ariaLabel: t("board.rail.capacity"),
+    detail: t("board.rail.capacity.detail"),
     glyph: <CapacityGlyph />, kind: "dialog", onPress: () => openCapacity("accounts"),
   }, {
-    id: "reset-calendar", label: "Reset calendar", short: "Calendar", ariaLabel: "Reset calendar",
-    detail: "When each account's 5h and 7d windows come back",
+    id: "reset-calendar", label: t("board.rail.calendar"), short: t("board.rail.calendar.short"), ariaLabel: t("board.rail.calendar"),
+    detail: t("board.rail.calendar.detail"),
     glyph: <ResetCalendarGlyph />, kind: "dialog", onPress: () => openCapacity("calendar"),
   }] : [];
   const usage: RailItem = {
-    id: "usage", label: "Usage", short: "Usage", key: { cap: "U", aria: "U", single: true },
-    ariaLabel: "Usage", glyph: <UsageGlyph />, kind: "panel",
+    id: "usage", label: t("board.rail.usage"), short: t("board.rail.usage"), key: { cap: "U", aria: "U", single: true },
+    ariaLabel: t("board.rail.usage"), glyph: <UsageGlyph />, kind: "panel",
     open: usagePanelOpen, controls: "usage-panel", onPress: () => setUsagePanelOpen(o => !o), buttonRef: toggles.usage,
   };
   const machine: RailItem = {
-    id: "machine", label: "Machine", short: "Machine", key: { cap: "S", aria: "S", single: true },
-    ariaLabel: "Machine", hint: "This machine", glyph: <MachineGlyph />, kind: "panel",
+    id: "machine", label: t("board.rail.machine"), short: t("board.rail.machine"), key: { cap: "S", aria: "S", single: true },
+    ariaLabel: t("board.rail.machine"), hint: t("board.rail.machine.hint"), glyph: <MachineGlyph />, kind: "panel",
     open: machinePanelOpen, controls: "system-panel", onPress: () => setMachinePanelOpen(o => !o), buttonRef: toggles.machine,
   };
   // The four below open a modal: aria-haspopup="dialog" and no state, since
@@ -179,60 +178,60 @@ export function railItems({
   const history: RailItem = {
     // "Usage history" whole on the stripe: "History" alone, over Browser watch,
     // read as the browser's.
-    id: "history", label: "Usage history", short: "History", key: { cap: "H", aria: "H", single: true },
-    ariaLabel: "Usage history", glyph: <HistoryGlyph />, kind: "dialog",
+    id: "history", label: t("board.rail.history"), short: t("board.rail.history.short"), key: { cap: "H", aria: "H", single: true },
+    ariaLabel: t("board.rail.history"), glyph: <HistoryGlyph />, kind: "dialog",
     onPress: () => setUsageHistoryOpen(o => !o),
   };
   const browserWatch: RailItem = {
-    id: "browser-watch", label: "Browser watch", short: "Watch", key: { cap: "B", aria: "B", single: true },
-    ariaLabel: `Browser watch, ${watchOn ? "watching" : "not watching"}${watchUnseen > 0 ? `, ${watchUnseen} unread` : ""}`,
-    detail: browserWatchDetail(watchOn, watchUnseen),
+    id: "browser-watch", label: t("board.rail.browserWatch"), short: t("board.rail.browserWatch.short"), key: { cap: "B", aria: "B", single: true },
+    ariaLabel: `${t("board.rail.browserWatch")}${t("board.listSep")}${watchOn ? t("board.rail.watching") : t("board.rail.notWatching")}${watchUnseen > 0 ? `${t("board.listSep")}${t("board.rail.unreadCount", { n: watchUnseen })}` : ""}`,
+    detail: browserWatchDetail(watchOn, watchUnseen, t),
     glyph: <BrowserWatchGlyph watching={watchOn === true || watchUnseen > 0} />, kind: "dialog",
     onPress: () => setBrowserWatchOpen(o => !o), badge: watchUnseen,
   };
   // A chord, not a single key: it stays in the hint and in
   // aria-keyshortcuts whichever way the single-key switch is set.
   const settings: RailItem = {
-    id: "settings", label: "Settings", short: "Settings", key: { cap: settingsCap, aria: "Control+, Meta+,", single: false },
-    ariaLabel: "Settings", glyph: <SettingsGlyph />, kind: "dialog", onPress: () => openSettings(),
+    id: "settings", label: t("board.rail.settings"), short: t("board.rail.settings"), key: { cap: settingsCap, aria: "Control+, Meta+,", single: false },
+    ariaLabel: t("board.rail.settings"), glyph: <SettingsGlyph />, kind: "dialog", onPress: () => openSettings(),
   };
   // The field every door is also behind, by name. A chord, like Settings',
   // so it answers with the single-key shortcuts off.
   const search: RailItem = {
-    id: "quick-open", label: "Search", short: "Search",
+    id: "quick-open", label: t("board.rail.search"), short: t("board.rail.search"),
     key: { cap: quickOpenChordLabel(apple), aria: apple ? "Meta+K" : "Control+K", single: false },
-    ariaLabel: "Search", detail: "Panels, sessions, settings, actions and themes",
+    ariaLabel: t("board.rail.search"), detail: t("board.rail.search.detail"),
     glyph: <SearchGlyph />, kind: "dialog", onPress: openQuickOpen,
   };
   const feedback: RailItem = {
-    id: "feedback", label: "Feedback", short: "Feedback", menu: "Send feedback",
-    ariaLabel: "Send feedback", glyph: <FeedbackGlyph />, kind: "dialog", onPress: onFeedback,
+    id: "feedback", label: t("board.rail.feedback"), short: t("board.rail.feedback"), menu: t("board.rail.feedback.menu"),
+    ariaLabel: t("board.rail.feedback.menu"), glyph: <FeedbackGlyph />, kind: "dialog", onPress: onFeedback,
   };
   // TOOLS AND SKILLS, ONE DOOR EACH. Skills were a tab inside Tool activity,
   // and users said they could not find them. Each door opens its own view,
   // titled for itself, the way Account capacity and Reset calendar do; the
   // tabs between them are gone.
   const activity: RailItem[] = openToolActivity ? [{
-    id: "tool-activity", label: "Tool activity", short: "Tools", ariaLabel: "Tool activity",
+    id: "tool-activity", label: t("board.rail.tools.activity"), short: t("board.rail.tools.short"), ariaLabel: t("board.rail.tools.activity"),
     glyph: <ToolActivityGlyph />, kind: "dialog",
-    detail: "Which tools your agents run, how long they take and what fails", onPress: () => openToolActivity("tools"),
+    detail: t("board.rail.tools.detail"), onPress: () => openToolActivity("tools"),
   }, {
-    id: "skill-activity", label: "Skill activity", short: "Skills", ariaLabel: "Skill activity",
+    id: "skill-activity", label: t("board.rail.skills"), short: t("board.rail.skills.short"), ariaLabel: t("board.rail.skills"),
     glyph: <SkillActivityGlyph />, kind: "dialog",
-    detail: "Which skills your agents use, whether you typed them or the agent called them", onPress: () => openToolActivity("skills"),
+    detail: t("board.rail.skills.detail"), onPress: () => openToolActivity("skills"),
   }] : [];
   const radar: RailItem[] = setTrafficRadarOpen ? [{
-    id: "traffic-radar", label: "Telemetry Radar", short: "Radar", ariaLabel: "Telemetry Radar",
+    id: "traffic-radar", label: t("board.rail.radar"), short: t("board.rail.radar.short"), ariaLabel: t("board.rail.radar"),
     glyph: <TrafficRadarGlyph />, kind: "dialog",
-    detail: "Claude telemetry configuration and observed connections", onPress: () => setTrafficRadarOpen(true),
+    detail: t("board.rail.radar.detail"), onPress: () => setTrafficRadarOpen(true),
   }] : [];
   // A dialog, like the doors above it: the explorer is a modal over the deck
   // (RadioPanel.tsx), so the button says it opens one rather than claiming a
   // panel beside the canvas that is never there.
   const radio: RailItem[] = setRadioOpen ? [{
-    id: "radio", label: "Radio", short: "Radio", ariaLabel: "Radio",
+    id: "radio", label: t("board.rail.radio"), short: t("board.rail.radio"), ariaLabel: t("board.rail.radio"),
     glyph: <RadioGlyph />, kind: "dialog",
-    detail: "Explore stations around the world", onPress: () => setRadioOpen(true),
+    detail: t("board.rail.radio.detail"), onPress: () => setRadioOpen(true),
   }] : [];
   return {
     // Accounts first, at the top of the stripe and the start of the dock: the
@@ -242,19 +241,19 @@ export function railItems({
     // The owner's order (2026-10-22): Claude accounts, Account capacity,
     // Reset calendar, Session list — the first three one group, since all
     // three are about the accounts.
-    leftStripe: providers.claude ? [named("Claude accounts", [accounts, ...capacity]), [sessionList]] : [[sessionList]],
+    leftStripe: providers.claude ? [named(t("board.rail.group.accounts"), [accounts, ...capacity]), [sessionList]] : [[sessionList]],
     capacity: providers.claude ? capacity : [],
     right: [
-      named("Usage and machine", [usage, machine]),
-      named("Activity history", [history, ...activity]),
-      named("Watchers", [browserWatch, ...radar]),
+      named(t("board.rail.group.usage"), [usage, machine]),
+      named(t("board.rail.group.activity"), [history, ...activity]),
+      named(t("board.rail.group.watchers"), [browserWatch, ...radar]),
       radio,
     ].filter(group => group.length > 0),
     utilities: [settings, feedback],
     search,
     explore: openExploreIntegrations ? [{
-      id: "explore-integrations", label: "Explore integrations", short: "Integrations",
-      ariaLabel: "Explore integrations", glyph: <IntegrationsGlyph />, kind: "dialog", onPress: openExploreIntegrations,
+      id: "explore-integrations", label: t("board.rail.explore"), short: t("board.rail.explore.short"),
+      ariaLabel: t("board.rail.explore"), glyph: <IntegrationsGlyph />, kind: "dialog", onPress: openExploreIntegrations,
     }] : [],
     // Each opens its large modal, so a dialog: aria-haspopup and no state.
     integrations: integrations.map(({ provider, onPress }): RailItem => ({

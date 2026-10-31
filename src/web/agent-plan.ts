@@ -31,6 +31,7 @@
 // not in what the hook sees, so both spellings are read.
 //
 // No model is asked anything. Every word shown is one the agent wrote.
+import { t, type TFunction } from "./i18n";
 import type { AgentNodeData, AgentPlan, PlanItem, PlanStatus } from "./types";
 
 /** The tools whose input (the first two) or result (the Task tools) is a plan. */
@@ -236,17 +237,17 @@ export function planSummary(plan: AgentPlan | undefined | null): PlanSummary | n
 }
 
 /** "3/7 · Writing the migration", "3/7 · next: Run the tests", "7/7 · done". */
-export function planLine(s: PlanSummary): string {
+export function planLine(s: PlanSummary, tr: TFunction = t): string {
   const count = `${s.done}/${s.total}`;
-  if (s.allDone || !s.current) return `${count} · done`;
-  return `${count} · ${s.next ? "next: " : ""}${s.current}`;
+  if (s.allDone || !s.current) return `${count} · ${tr("board.state.done")}`;
+  return `${count} · ${s.next ? tr("board.plan.next") : ""}${s.current}`;
 }
 
 /** The same, for a screen reader, which reads "3/7" as a date. */
-export function planSpoken(s: PlanSummary): string {
-  const count = `plan ${s.done} of ${s.total} done`;
+export function planSpoken(s: PlanSummary, tr: TFunction = t): string {
+  const count = tr("board.plan.spoken", { done: s.done, total: s.total });
   if (s.allDone || !s.current) return count;
-  return `${count}, ${s.next ? "next" : "now"}: ${s.current}`;
+  return tr(s.next ? "board.plan.spokenNext" : "board.plan.spokenNow", { count, step: s.current });
 }
 
 /** Every step on a line of its own, marked done, under way or waiting — the

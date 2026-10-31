@@ -15,7 +15,7 @@ import {
 } from "./layout-storage";
 import type { Provisional } from "./placement";
 import {
-  createUndoWindow, REARRANGE_RESTORED_SAID, REARRANGE_UNDO_SAID, restoreArrangement, snapshotArrangement,
+  createUndoWindow, rearrangeRestoredSaid, rearrangeUndoSaid, restoreArrangement, snapshotArrangement,
   type Arrangement, type RearrangeSnapshot, type UndoHold,
 } from "./rearrange-undo";
 import { restoreLayout } from "./stored-layout";
@@ -97,7 +97,7 @@ export function useBoardLayout({ fitLeft, moveCamera, currentViewport }: Pick<Ca
   const [undoSaid, setUndoSaid] = useState("");
   const undoWindow = useState(() => createUndoWindow<RearrangeSnapshot>(open => {
     setUndoOffered(open);
-    if (!open) setUndoSaid(said => (said === REARRANGE_RESTORED_SAID ? said : ""));
+    if (!open) setUndoSaid(said => (said === rearrangeRestoredSaid() ? said : ""));
   }))[0];
   useEffect(() => () => undoWindow.close(), [undoWindow]);
   useEffect(() => {
@@ -125,7 +125,7 @@ export function useBoardLayout({ fitLeft, moveCamera, currentViewport }: Pick<Ca
     // clock again. (Inside the first press's 80ms there would be nothing
     // whole to copy anyway: the maps half rebuilt, storage empty.)
     undoWindow.open(undoWindow.snapshot ?? snapshotArrangement(arrangement(), readStoredArrangement(), currentViewport()));
-    setUndoSaid(REARRANGE_UNDO_SAID);
+    setUndoSaid(rearrangeUndoSaid());
     pinnedRef.current.clear();
     positionsRef.current.clear();
     lastLayoutSigRef.current = "";
@@ -162,7 +162,7 @@ export function useBoardLayout({ fitLeft, moveCamera, currentViewport }: Pick<Ca
     // The cards snap back as R snapped them away; the camera travels back over
     // the 500ms R's fit took, through the door that keeps auto-fit as it was.
     if (kept.viewport) moveCamera(kept.viewport, 500);
-    setUndoSaid(REARRANGE_RESTORED_SAID);
+    setUndoSaid(rearrangeRestoredSaid());
     return true;
   }, [moveCamera, undoWindow]);
   const dismissRearrangeUndo = useCallback(() => undoWindow.close(), [undoWindow]);
