@@ -410,21 +410,13 @@ describe("version-drift banner (#272)", () => {
     expect(decl(rule(".ver-banner.done"), "color")).toBeNull();
   });
 
-  it("clears 4.5:1 at both ends of the wash, in both themes and both states", () => {
-    const wash = /(color-mix\(in srgb,\s*var\(--[\w-]+\)\s*[\d.]+%,\s*transparent\))/;
-    const gradients = [
-      decl(banner, "background")!,
-      decl(rule(".ver-banner.done"), "background")!,
-    ];
+  it("clears 4.5:1 on its flat --panel fill, in both themes", () => {
+    // V4's banner: no wash any more, so there is one bed, not two ends of a gradient.
+    expect(decl(banner, "background")).toBe("var(--panel)");
     for (const theme of themes) {
       const fg = resolve(decl(banner, "color")!, theme);
-      const canvas = parseColor(TOK[theme]["--bg"]);
-      for (const g of gradients) {
-        const tint = resolve(wash.exec(g)![1], theme);
-        expect(contrastRatio(fg, over(tint, canvas)), `${theme} tinted end of ${g.slice(0, 40)}`)
-          .toBeGreaterThanOrEqual(BODY);
-      }
-      expect(contrastRatio(fg, canvas), `${theme} transparent end`).toBeGreaterThanOrEqual(BODY);
+      const panel = parseColor(TOK[theme]["--panel"]);
+      expect(contrastRatio(fg, panel), `${theme} on --panel`).toBeGreaterThanOrEqual(BODY);
     }
   });
 

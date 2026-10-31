@@ -27,7 +27,6 @@
     "chrome-edge": "#43454a",
     "node-grad": "var(--panel)",
     "topbar-grad": "var(--panel)",
-    "conn-wash": "#eb938d18",
     "burst-live-wash": "#f0abfc12",
     "hero-core": "#83acfc",
     "grid-line": "#303237",

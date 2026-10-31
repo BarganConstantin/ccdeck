@@ -24,16 +24,23 @@
   grid-row: 2;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 18px;
-  background: var(--conn-wash);
-  border-bottom: 1px solid rgba(252,165,165,0.30);
-  color: var(--err);
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  font-weight: 500;
+  /* V4's banner: one frame for every tone (Banner 68:394). Panel fill, a
+     bottom --line rule and nothing else; the tone lives in the 14px dot slot.
+     The kit's 32 includes the rule, so the foot pads 3px: 4 + 24 + 3 + 1. */
+  gap: 8px;
+  min-height: var(--ctl-h-lg);
+  padding: 4px 4px 3px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: var(--lh-body);
+  font-weight: 400;
   animation: fadeIn 200ms ease;
 }
 .conn-banner .conn-dot {
+  flex: 0 0 auto;
+  margin: 0 3.5px;
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--err);
   box-shadow: 0 0 8px var(--err);
@@ -61,17 +68,17 @@
   grid-row: 2;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 18px;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--warn) 13%, transparent), transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
-  /* The accent stays in the dot, the rule and the button; the running text is
-     --text. --warn on its own 13% wash is 3.74:1 in the light theme, and this
-     row is the one that asks the user to restart — the worst place in the app
-     to make someone squint. Dark was fine either way. */
+  /* V4's banner: the same frame as .conn-banner, no wash, no tint. The tone is
+     the dot's colour alone; the running text is --text. */
+  gap: 8px;
+  min-height: var(--ctl-h-lg);
+  padding: 4px 4px 3px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
   color: var(--text);
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  font-weight: 500;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: var(--lh-body);
+  font-weight: 400;
   animation: fadeIn 200ms ease;
 }
 /* STILL AT REST, and it pulses only while a restart is actually counting down.
@@ -83,17 +90,20 @@
    says the fuse is burning, which is a fact about right now and is the only
    thing here that ever was. */
 .ver-banner .ver-dot {
-  flex: none;
+  flex: 0 0 auto;
+  margin: 0 3.5px; /* V4's banner: 7px dot + margins = the kit's 14px slot */
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--warn);
   box-shadow: 0 0 8px var(--warn);
 }
 .ver-banner .ver-dot.armed { animation: pulse 2.4s infinite; }
-.ver-banner strong { font-weight: 600; }
+.ver-banner strong { font-weight: 400; } /* V4's banner: the message is regular */
 /* The consequence, in the voice of the person who has to act on it. Dimmer
    than the headline so the two read in order rather than competing. */
 .ver-banner strong, .ver-banner .ver-sub { white-space: nowrap; }
 .ver-banner .ver-sub {
+  /* --muted on the banner's flat --panel is 4.70:1 at its lowest (dark), so
+     the consequence can step down from the headline again now the wash is gone. */
   color: var(--muted);
   font-weight: 400;
   min-width: 0;
@@ -140,58 +150,39 @@
 /* Restart landed. Same shape, --ok instead of --warn, and it removes itself
    after a few seconds — a confirmation that outstayed its welcome would be
    just another thing to dismiss. */
-.ver-banner.done {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 13%, transparent), transparent);
-  border-bottom-color: color-mix(in srgb, var(--ok) 30%, transparent);
-  /* No colour override: --ok on its own 13% wash is the same 3.75:1 trap the
-     --warn variant fell into, and the tint plus the dot already say "done". */
-}
+/* V4's banner: Done has no rule of its own on the frame; only the dot is --ok. */
 .ver-banner.done .ver-dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: none; }
 
 /* A note about something the reader just did, not a warning. Remove from board
    is undoable, so its row keeps the banner's shape and drops the amber the
    restart rows use: the dot goes quiet and Undo is an ordinary control. */
-.ver-banner.note {
-  background: var(--bg-soft);
-  border-bottom-color: var(--line);
-}
+/* V4's banner: Info is the same frame; the dot goes --muted. */
 .ver-banner.note .ver-dot { background: var(--muted); box-shadow: none; }
 
-/* The one action in the row. Filled, because everything else here is text. */
+/* The one action in the row. V4's banner: NOT a button — plain text in the
+   accent, 12/16 weight 500, no fill, no border. The radius only shapes the
+   focus ring. 24px tall is the target floor (SC 2.5.8). */
 .ver-banner .ver-act {
-  padding: 3px 12px;
-  border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--warn) 16%, transparent);
-  /* THE LABEL IS NOT AMBER, and it used to be. Measured on the real render:
-     --warn on this button's own 16% fill over the banner's wash comes to
-     7.41:1 in dark and 3.39:1 in light — under AA at 11px/600, on the most
-     consequential control in the deck. It is also POSITIONAL: the wash is a
-     gradient that only reaches 0% at the bar's right edge, so the figure gets
-     worse the wider the window and the shorter the sentence in front of it.
-     The sheet had already diagnosed this exact trap for the running text a few
-     rules up and not carried the fix to the button.
-     The warn identity is unhurt: the border is 85% warn and the fill is 16%,
-     which is what makes this read as the banner's own button — the ink is just
-     no longer the same hue as the thing it sits on. */
-  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--accent);
   font: inherit;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  font-weight: 600;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 130ms, border-color 130ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.ver-banner .ver-act:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--warn) 26%, transparent);
-  border-color: var(--warn);
-}
+.ver-banner .ver-act:hover:not(:disabled) { text-decoration: underline; }
 /* The most consequential control in the deck — it restarts the process — sat in
    a banner where .ver-cmd, .ver-auto and .ver-close all answered a press and it
    alone did not. */
 .ver-banner .ver-act:active:not(:disabled) { transform: scale(0.97); }
-.ver-banner.note .ver-act { border-color: var(--ctl-edge); background: transparent; }
-.ver-banner.note .ver-act:hover:not(:disabled) { border-color: var(--text); background: var(--panel); }
 .ver-banner .ver-act:disabled { opacity: var(--dim-off); cursor: default; }
 /* A failed install is not a warning, it is a failure, and the command beside it
    is now the only way forward — so it reads in the error colour. */
@@ -230,7 +221,7 @@
   width: 24px; height: 24px;
   padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--r-ctl); /* V4's banner: was 999px */
   background: none;
   color: var(--muted);
   font: inherit;

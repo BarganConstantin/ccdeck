@@ -44,7 +44,6 @@
   --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: linear-gradient(180deg, var(--panel), var(--bg-soft));
   --topbar-grad: linear-gradient(to bottom, var(--panel), var(--bg-soft));
-  --conn-wash: linear-gradient(90deg, rgba(252,165,165,0.12), transparent);
   --burst-live-wash: linear-gradient(180deg, rgba(240,171,252,0.10), rgba(125,211,252,0.05));
   --hero-core: radial-gradient(circle at 30% 30%, #c4b5fd, #7dd3fc 55%, #14161b);
   --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);
@@ -121,7 +120,6 @@
   --shadow-overlay: 0 16px 40px rgba(0,0,0,0.16);
   --node-grad: linear-gradient(180deg, #ffffff, #f2f5fa);
   --topbar-grad: linear-gradient(to bottom, #ffffff, #eef1f6);
-  --conn-wash: linear-gradient(90deg, rgba(185,28,28,0.14), transparent);
   --burst-live-wash: linear-gradient(180deg, rgba(126,34,206,0.06), transparent);
   --hero-core: radial-gradient(circle at 30% 30%, #a78bfa, #0ea5e9 55%, #1e293b);
   --live-bloom: color-mix(in srgb, var(--ok) 12%, transparent);
@@ -198,7 +196,6 @@
   --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
-  --conn-wash: #eb938d18;
   --burst-live-wash: #f0abfc12;
   --hero-core: #83acfc;
   --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);
@@ -275,7 +272,6 @@
   --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
-  --conn-wash: #f4877118;
   --burst-live-wash: #f0abfc12;
   --hero-core: #4daafc;
   --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);
@@ -352,7 +348,6 @@
   --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
-  --conn-wash: #f7768e18;
   --burst-live-wash: #bb9af712;
   --hero-core: #7aa2f7;
   --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);
@@ -429,7 +424,6 @@
   --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
-  --conn-wash: #e9787018;
   --burst-live-wash: #f0abfc12;
   --hero-core: #3cbf5c;
   --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);
@@ -506,7 +500,6 @@
   --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
-  --conn-wash: #fca5a518;
   --burst-live-wash: #f0abfc12;
   --hero-core: #76cfff;
   --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);
@@ -583,7 +576,6 @@
   --shadow-overlay: 0 16px 40px rgba(0,0,0,0.16);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
-  --conn-wash: #a3162114;
   --burst-live-wash: #6712a20c;
   --hero-core: #0046a8;
   --live-bloom: color-mix(in srgb, var(--ok) 12%, transparent);
@@ -660,7 +652,6 @@
   --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
-  --conn-wash: #f38ba818;
   --burst-live-wash: #f5c2e712;
   --hero-core: #cba6f7;
   --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);
@@ -737,7 +728,6 @@
   --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
-  --conn-wash: #ff786518;
   --burst-live-wash: #d3869b12;
   --hero-core: #fabd2f;
   --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);
@@ -814,7 +804,6 @@
   --shadow-overlay: 0 16px 40px rgba(60,56,54,0.16);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
-  --conn-wash: #9d000614;
   --burst-live-wash: #8f3f710c;
   --hero-core: #875a12;
   --live-bloom: color-mix(in srgb, var(--ok) 12%, transparent);
@@ -891,7 +880,6 @@
   --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
-  --conn-wash: #f5a69e18;
   --burst-live-wash: #e9b1c112;
   --hero-core: #e7bd7b;
   --live-bloom: color-mix(in srgb, var(--ok) 24%, transparent);

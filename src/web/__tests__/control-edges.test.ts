@@ -599,10 +599,9 @@ const CONTROLS: Control[] = [
   { at: ".skip-link", beds: TOPBAR },
   // version banner
   { at: ".ver-banner .ver-cmd", states: [".ver-banner .ver-cmd:hover"], beds: BANNER },
-  { at: ".ver-banner .ver-act", states: [".ver-banner .ver-act:hover:not(:disabled)"], beds: BANNER },
-  // The Undo row keeps the banner's shape on a plain --bg-soft bed, and its
-  // button trades the amber edge for the controls' own.
-  { at: ".ver-banner.note .ver-act", states: [".ver-banner.note .ver-act:hover:not(:disabled)"], beds: ["--bg-soft"] },
+  // V4's banner: .ver-act is plain accent text with no edge, so it left this
+  // sweep (a text control has no boundary to measure; its ink is held to 4.5:1
+  // on --panel by v4-banner.test.ts).
   // The auto-restart switch is the shared one since #886. Armed, it fills with
   // the banner's warning colour, measured here on the banner's own beds.
   { at: '.ver-banner .switch[aria-checked="true"]', beds: BANNER },
@@ -985,16 +984,14 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     expect(borderColourIn("border-bottom-color: var(--accent);")).toBe("var(--accent)");
   });
 
-  it("reads the two rules in the sheet that this widening newly sees", () => {
-    // Both recolour the `border-bottom` their base rule declares, and neither
-    // is a control — which is why RING_RULES and EDGED_CONTROLS are unchanged
-    // by #655 and why the case above them could be written from the values the
-    // narrow list produced.
-    expect(borderColourIn(bodyOf(".ver-banner.done")))
-      .toBe("color-mix(in srgb, var(--ok) 30%, transparent)");
-    expect(borderColourIn(bodyOf(':root[data-color-scheme="light"] .conn-banner')))
-      .toBe("rgba(185,28,28,0.45)");
-    for (const s of [".ver-banner.done", ':root[data-color-scheme="light"] .conn-banner']) {
+  it("reads the banners' bottom rule, which is the one border they draw", () => {
+    // V4's banner: the two tinted `-color` longhand rules this case read
+    // (.ver-banner.done and the light .conn-banner) are gone — the banners draw
+    // one flat --line rule in every theme. The banners still are not controls,
+    // so RING_RULES and EDGED_CONTROLS do not move for them.
+    expect(borderColourIn(bodyOf(".ver-banner"))).toBe("var(--line)");
+    expect(borderColourIn(bodyOf(".conn-banner"))).toBe("var(--line)");
+    for (const s of [".ver-banner", ".conn-banner"]) {
       expect(isControlRule(s), `${s} became a control rule — the sets above move`).toBe(false);
     }
   });

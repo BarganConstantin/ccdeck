@@ -29,7 +29,6 @@
     "inflight": "#d3869b",
     "node-grad": "var(--panel)",
     "topbar-grad": "var(--panel)",
-    "conn-wash": "#ff786518",
     "burst-live-wash": "#d3869b12",
     "hero-core": "#fabd2f",
     "grid-line": "#3c3836",

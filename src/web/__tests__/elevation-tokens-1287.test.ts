@@ -124,7 +124,8 @@ describe("a gradient two rules share, or a theme retunes, is a token (#1287)", (
   it("declares every themed gradient in both theme blocks, and the shared ones once for both", () => {
     // The node and topbar gradients are themed too; ./gradient-stops and the
     // sweeps that read it hold those two, so this names only the three #1287 made.
-    const themed = ["--conn-wash", "--burst-live-wash", "--hero-core"];
+    // V4's banner: --conn-wash is gone (the banners are flat --panel), so two.
+    const themed = ["--burst-live-wash", "--hero-core"];
     for (const t of themed) {
       expect(tokens(blocks.dark, t)[t], `dark ${t}`).toMatch(/gradient\(/);
       expect(tokens(blocks.light, t)[t], `light ${t}`).toMatch(/gradient\(/);

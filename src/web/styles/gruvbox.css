@@ -174,9 +174,6 @@
   border-color: var(--err);
   background: color-mix(in srgb, var(--err) 8%, var(--panel));
 }
-:root[data-theme="gruvbox-light"] .conn-banner {
-  border-bottom-color: var(--err);
-}
 :root[data-theme="gruvbox-light"] .react-flow__minimap-node {
   stroke: color-mix(in srgb, var(--text) 25%, transparent);
 }

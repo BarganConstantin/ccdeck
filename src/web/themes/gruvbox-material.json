@@ -27,7 +27,6 @@
     "warn": "#efb581",
     "err": "#f5a69e",
     "inflight": "#e9b1c1",
-    "conn-wash": "#f5a69e18",
     "burst-live-wash": "#e9b1c112",
     "hero-core": "#e7bd7b",
     "grid-line": "#48423d",
