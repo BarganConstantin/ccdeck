@@ -7,6 +7,8 @@
 // every active sprint open, the future sprints and the backlog folded below
 // them, closed sprints on demand, issues in Rank order.
 
+import { currentLanguage, t as translateNow, type TFunction } from "./i18n";
+import { formatNumber } from "./i18n/format";
 import type { JiraBoardOverview, JiraIssue, JiraParent, JiraPerson, JiraSprint, StatusCategory, TimeTracking } from "./jira-api";
 
 // ── groups ──────────────────────────────────────────────────────────────────
@@ -24,6 +26,16 @@ export interface GroupDef {
   defaultOpen: boolean;
   /** Read a page at a time, with a Show more, rather than whole. */
   paged: boolean;
+}
+
+/** A group's heading as the language on show writes it: the board's own
+ *  groups (Backlog, the kanban columns) are named here, a sprint by Jira. */
+export function groupTitle(group: Pick<GroupDef, "kind" | "column" | "title">, t: TFunction = translateNow): string {
+  if (group.kind === "backlog") return t("integrations.group.backlog");
+  if (group.kind === "column") {
+    return group.column === "todo" ? t("integrations.group.todo") : group.column === "progress" ? t("integrations.group.progress") : t("integrations.group.done14");
+  }
+  return group.title;
 }
 
 export const sprintGroupId = (sprint: Pick<JiraSprint, "id">) => `sprint:${sprint.id}`;
@@ -370,7 +382,7 @@ export function jiraDuration(totalSeconds: number | null | undefined, time: Time
 /** A total as its header chip says it. */
 export function totalLabel(value: number, estimation: "time" | "points" | "count", time: TimeTracking): string {
   if (estimation === "time") return jiraDuration(value, time) || "0m";
-  if (estimation === "points") return `${Number.isInteger(value) ? value : value.toFixed(1)}`;
+  if (estimation === "points") return Number.isInteger(value) ? String(value) : formatNumber(value, 1);
   return String(value);
 }
 
@@ -378,17 +390,17 @@ export function totalLabel(value: number, estimation: "time" | "points" | "count
 export function shortDate(iso: string | null | undefined): string {
   if (!iso) return "";
   const at = new Date(iso);
-  return Number.isNaN(at.getTime()) ? "" : at.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return Number.isNaN(at.getTime()) ? "" : at.toLocaleDateString(currentLanguage(), { day: "numeric", month: "short" });
 }
 
 /** The work on an issue as one line: "3d estimated · 1d left · 2d logged",
  *  each part only when Jira has it, and "left" only when it says more than
  *  the estimate did. */
-export function timeLine(issue: { estimate: number | null; remaining: number | null; timeSpent: number | null }, time: TimeTracking): string {
+export function timeLine(issue: { estimate: number | null; remaining: number | null; timeSpent: number | null }, time: TimeTracking, t: TFunction = translateNow): string {
   const estimate = jiraDuration(issue.estimate, time);
   const spent = jiraDuration(issue.timeSpent, time);
   const left = issue.remaining != null && (issue.remaining !== issue.estimate || spent) ? jiraDuration(issue.remaining, time) : "";
-  return [estimate && `${estimate} estimated`, left && `${left} left`, spent && `${spent} logged`].filter(Boolean).join(" · ");
+  return [estimate && t("integrations.time.estimated", { value: estimate }), left && t("integrations.time.left", { value: left }), spent && t("integrations.time.logged", { value: spent })].filter(Boolean).join(" · ");
 }
 
 /** Jira's timestamps (`2026-10-14T09:12:33.000+0300`) as a readable date. */
@@ -398,14 +410,14 @@ export function jiraDate(iso: string | null | undefined, withTime = false): stri
   const at = new Date(String(iso).replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
   if (Number.isNaN(at.getTime())) return String(iso);
   return withTime
-    ? at.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
-    : at.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    ? at.toLocaleString(currentLanguage(), { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : at.toLocaleDateString(currentLanguage(), { day: "numeric", month: "short", year: "numeric" });
 }
 
 /** Bytes as a file list says them. */
 export function fileSize(bytes: number | null): string {
   if (bytes == null) return "";
   if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024) return `${formatNumber(bytes / 1024, bytes < 10 * 1024 ? 1 : 0)} KB`;
+  return `${formatNumber(bytes / (1024 * 1024), 1)} MB`;
 }
