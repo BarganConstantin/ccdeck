@@ -211,7 +211,7 @@ describe("the way in", () => {
     // do and moved it under the reference the reader opened the sheet for.
     expect(KEY_HELP_NOTE).toMatch(/Esc/);
     expect(KEY_HELP_NOTE.split(/\s+/).length).toBeLessThanOrEqual(10);
-    expect(sheet.indexOf("{KEY_HELP_NOTE}")).toBeGreaterThan(sheet.indexOf('className="shortcuts"'));
+    expect(sheet.indexOf('t("settings.key.note")')).toBeGreaterThan(sheet.indexOf('className="shortcuts"'));
   });
 });
 
