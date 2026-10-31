@@ -74,7 +74,7 @@ describe("the pace note opens the number it is measured against (#856)", () => {
   });
 
   it("says the number on screen when open, which was a title on a 2px tick", () => {
-    expect(quotaBar).toMatch(/<div id=\{whyId\} className="qb-why">\{perDay != null\s*\? t\("quota\.pace\.whyPerDay", \{ pct: Math\.round\(pace\.expectedPct\), n: [^\n]*\}\)\s*: t\("quota\.pace\.why", \{ pct: Math\.round\(pace\.expectedPct\) \}\)\}<\/div>/);
+    expect(quotaBar).toMatch(/<div id=\{whyId\} className="qb-why">\{perDay != null\s*\? t\("usage\.quota\.pace\.whyPerDay", \{ pct: Math\.round\(pace\.expectedPct\), n: [^\n]*\}\)\s*: t\("usage\.quota\.pace\.why", \{ pct: Math\.round\(pace\.expectedPct\) \}\)\}<\/div>/);
   });
 
   it("keeps the 11px the note set, and a 24px target", () => {

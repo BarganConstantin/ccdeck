@@ -5,7 +5,10 @@
 // a {placeholder} set that differs from English's, or a registry entry that is
 // malformed. Only WARNS on a key a catalog lacks, because English fills it in.
 import { describe, expect, it } from "vitest";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { en } from "../i18n/en";
+import { AREA_FILES, AREAS } from "../i18n/catalogs";
 import { detectLanguage, knownLanguage } from "../i18n/detect";
 import { LANGUAGES, PLANNED_LANGUAGES, languageLabel } from "../i18n/registry";
 import { fill, translate } from "../i18n/translate";
@@ -40,6 +43,59 @@ describe("registry", () => {
   });
 });
 
+describe("area files", () => {
+  it("has an en.ts in every area, and a stub file per shipped language", () => {
+    for (const area of AREAS) {
+      const codes = AREA_FILES.filter(f => f.area === area).map(f => f.code);
+      expect(codes, area).toContain("en");
+      for (const l of LANGUAGES) expect(codes, `${area} needs ${l.code}.ts`).toContain(l.code);
+    }
+  });
+
+  it("keeps every key inside its own area's namespace", () => {
+    const outside = AREA_FILES.flatMap(f => Object.keys(f.catalog).filter(k => !k.startsWith(`${f.area}.`)).map(k => `${f.path}: ${k}`));
+    expect(outside).toEqual([]);
+  });
+
+  it("defines no key in two areas", () => {
+    const seen = new Map<string, string>();
+    const dupes: string[] = [];
+    for (const f of AREA_FILES.filter(f => f.code === "en")) {
+      for (const k of Object.keys(f.catalog)) {
+        if (seen.has(k)) dupes.push(`${k} (${seen.get(k)} and ${f.area})`);
+        seen.set(k, f.area);
+      }
+    }
+    expect(dupes).toEqual([]);
+  });
+
+  it("has a catalog file only for a registered language", () => {
+    const known = new Set(LANGUAGES.map(l => l.code));
+    expect(AREA_FILES.filter(f => !known.has(f.code)).map(f => f.path)).toEqual([]);
+  });
+
+  it("asks only for keys English has", () => {
+    // Every t("literal") in the app. A key built at run time (t(`a.${b}`)) is not seen here.
+    const root = join(__dirname, "..");
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        if (name === "__tests__" || name === "i18n" || name === "node_modules") continue;
+        const path = join(dir, name);
+        if (statSync(path).isDirectory()) walk(path);
+        else if (/\.tsx?$/.test(name)) files.push(path);
+      }
+    };
+    walk(root);
+    const missing: string[] = [];
+    for (const file of files) {
+      const text = readFileSync(file, "utf8");
+      for (const m of text.matchAll(/\bt\(\s*"([a-z][\w.]*)"/g)) if (!(m[1] in en) && !(`${m[1]}.other` in en)) missing.push(`${file.slice(root.length + 1)}: ${m[1]}`);
+    }
+    expect(missing).toEqual([]);
+  });
+});
+
 describe.each(LANGUAGES.filter(l => l.code !== "en"))("catalog $code", ({ code, catalog }) => {
   const keys = Object.keys(catalog);
 
@@ -59,7 +115,9 @@ describe.each(LANGUAGES.filter(l => l.code !== "en"))("catalog $code", ({ code, 
 
   it("reports what is missing (a warning, English fills it in)", () => {
     const missing = enKeys.filter(k => !(k in catalog));
-    if (missing.length) console.warn(`[i18n] ${code}: ${missing.length} of ${enKeys.length} keys missing, falling back to English:\n  ${missing.join("\n  ")}`);
+    const byArea = new Map<string, number>();
+    for (const k of missing) byArea.set(k.split(".")[0], (byArea.get(k.split(".")[0]) ?? 0) + 1);
+    if (missing.length) console.warn(`[i18n] ${code}: ${missing.length} of ${enKeys.length} keys missing, falling back to English (${[...byArea].map(([a, n]) => `${a} ${n}`).join(", ")}):\n  ${missing.join("\n  ")}`);
     expect(missing.length).toBeLessThanOrEqual(enKeys.length);
   });
 });
@@ -130,7 +188,7 @@ describe("translate", () => {
   it("fills {placeholders} and leaves unknown ones", () => {
     expect(fill("{n}% over pace", { n: 12 })).toBe("12% over pace");
     expect(fill("a {x} b {y}", { x: "1" })).toBe("a 1 b {y}");
-    expect(translate("en", en, "quota.pace.over", { n: 5 })).toBe("5% over pace");
+    expect(translate("en", en, "usage.quota.pace.over", { n: 5 })).toBe("5% over pace");
   });
 
   it("picks plural forms by count, then .other, then the plain key", () => {

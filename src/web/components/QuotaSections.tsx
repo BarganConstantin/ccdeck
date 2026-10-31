@@ -28,28 +28,28 @@ import QuotaBar from "./QuotaBar";
  *  "Rate limit", or "<model family> · 7-day window") in the reader's language.
  *  A label this does not recognise is shown as the server sent it. */
 export function windowLabel(t: TFunction, label: string): string {
-  if (label === "Rate limit") return t("quota.window.rateLimit");
+  if (label === "Rate limit") return t("usage.quota.window.rateLimit");
   const m = /^(?:(.*) · )?(?:(\d+)-hour|(\d+)-day) window$/.exec(label);
   if (!m) return label;
-  const name = m[2] ? t("quota.window.hours", { n: m[2] }) : t("quota.window.days", { n: m[3] });
+  const name = m[2] ? t("usage.quota.window.hours", { n: m[2] }) : t("usage.quota.window.days", { n: m[3] });
   return m[1] ? `${m[1]} · ${name}` : name;
 }
 
 function ageLabel(t: TFunction, ms: number | undefined, nowSec: number): string | null {
   if (!ms) return null;
   const s = nowSec - Math.floor(ms / 1000);
-  if (s < 10)   return t("quota.age.now");
-  if (s < 60)   return t("quota.age.seconds", { n: s });
-  if (s < 3600) return t("quota.age.minutes", { n: Math.floor(s / 60) });
-  return t("quota.age.hours", { n: Math.floor(s / 3600) });
+  if (s < 10)   return t("usage.quota.age.now");
+  if (s < 60)   return t("usage.quota.age.seconds", { n: s });
+  if (s < 3600) return t("usage.quota.age.minutes", { n: Math.floor(s / 60) });
+  return t("usage.quota.age.hours", { n: Math.floor(s / 3600) });
 }
 
 /** Which of the three sources answered, in words. */
 function quotaSourceHint(t: TFunction, source?: string): string {
-  if (source === "claude-swap") return t("quota.source.swap");
-  if (source === "api")         return t("quota.source.api");
-  if (source === "cli")         return t("quota.source.cli");
-  return t("quota.source.other");
+  if (source === "claude-swap") return t("usage.quota.source.swap");
+  if (source === "api")         return t("usage.quota.source.api");
+  if (source === "cli")         return t("usage.quota.source.cli");
+  return t("usage.quota.source.other");
 }
 
 /**
@@ -67,28 +67,28 @@ function quotaSourceHint(t: TFunction, source?: string): string {
 function claudeQuotaHint(t: TFunction, reason?: string): string {
   switch (reason) {
     case "no_subscription":
-      return t("quota.hint.noSubscription");
-    case "rate_limited":  return t("quota.hint.rateLimitedAnthropic");
-    case "waiting":       return t("quota.hint.waiting");
-    default:              return t("quota.hint.runUsage");
+      return t("usage.quota.hint.noSubscription");
+    case "rate_limited":  return t("usage.quota.hint.rateLimitedAnthropic");
+    case "waiting":       return t("usage.quota.hint.waiting");
+    default:              return t("usage.quota.hint.runUsage");
   }
 }
 
 /** Why the Codex section is empty, in words that say what to do about it. */
 function codexHint(t: TFunction, reason?: string): string {
   switch (reason) {
-    case "no_token":         return t("quota.hint.codexNoToken");
-    case "api_key_mode":     return t("quota.hint.codexApiKey");
-    case "refresh_rejected": return t("quota.hint.codexExpired");
-    case "refresh_failed":   return t("quota.hint.codexRefreshFailed");
+    case "no_token":         return t("usage.quota.hint.codexNoToken");
+    case "api_key_mode":     return t("usage.quota.hint.codexApiKey");
+    case "refresh_rejected": return t("usage.quota.hint.codexExpired");
+    case "refresh_failed":   return t("usage.quota.hint.codexRefreshFailed");
     // The deck will not put a live ChatGPT token on the wire to somewhere it
     // read out of a config file it does not own, so it says which file.
-    case "untrusted_base_url": return t("quota.hint.codexUntrusted");
+    case "untrusted_base_url": return t("usage.quota.hint.codexUntrusted");
     // The two states a refused read is answered with, said as the Claude
     // section says them: the API did answer, and ↻ is what the wait refuses.
-    case "rate_limited":     return t("quota.hint.rateLimitedOpenai");
-    case "waiting":          return t("quota.hint.waiting");
-    default:                 return t("quota.hint.codexUnreachable");
+    case "rate_limited":     return t("usage.quota.hint.rateLimitedOpenai");
+    case "waiting":          return t("usage.quota.hint.waiting");
+    default:                 return t("usage.quota.hint.codexUnreachable");
   }
 }
 
@@ -116,7 +116,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
   return (
     <section className="up-section up-quota-section">
       <h3 className="up-section-title">
-        {t("quota.claude.title")}
+        {t("usage.quota.claude.title")}
         {quota?.ok && quota.planLabel && (
           <span className="up-plan-badge">{quota.planLabel}</span>
         )}
@@ -130,7 +130,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
             {/* Said when the server is holding the last reading it has rather
                 than a new one, as a bar says its window has reset: the age
                 alone reads as the last poll's. */}
-            {claudeAge}{quota?.stale && ` · ${t("quota.noNewer")}`}
+            {claudeAge}{quota?.stale && ` · ${t("usage.quota.noNewer")}`}
           </span>
         )}
       </h3>
@@ -142,7 +142,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
         <div className="up-quota-bars">
           {quota.session5hPct != null && (
             <QuotaBar
-              label={t("quota.window.hours", { n: 5 })}
+              label={t("usage.quota.window.hours", { n: 5 })}
               pct={quota.session5hPct}
               reset={quota.session5hReset}
               resetAt={quota.session5hResetAt}
@@ -156,7 +156,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
               used to print, and not a missing row, which is how the CLI's
               reading showed the same gap. */}
           <QuotaBar
-            label={t("quota.window.days", { n: 7 })}
+            label={t("usage.quota.window.days", { n: 7 })}
             pct={quota.week7dPct ?? null}
             reset={quota.week7dReset}
             resetAt={quota.week7dResetAt}
@@ -165,10 +165,10 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
           />
           <WeekEnds weeks={weekEnds} />
           {quota.weekSonnetPct != null && (
-            <QuotaBar label={t("quota.sonnet7d")} pct={quota.weekSonnetPct} nowSec={nowSec} />
+            <QuotaBar label={t("usage.quota.sonnet7d")} pct={quota.weekSonnetPct} nowSec={nowSec} />
           )}
           {quota.weekOpusPct != null && (
-            <QuotaBar label={t("quota.opus7d")} pct={quota.weekOpusPct} nowSec={nowSec} />
+            <QuotaBar label={t("usage.quota.opus7d")} pct={quota.weekOpusPct} nowSec={nowSec} />
           )}
           {/* The top-up, when there is one. A bar because it is the same kind
               of fact as the two above — a fraction of an allowance with a
@@ -177,7 +177,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
           {quota.extraEnabled && quota.extraUsedCredits != null && quota.extraMonthlyLimit
             ? (
               <QuotaBar
-                label={quota.extraCurrency ? t("quota.extraCurrency", { currency: quota.extraCurrency }) : t("quota.extra")}
+                label={quota.extraCurrency ? t("usage.quota.extraCurrency", { currency: quota.extraCurrency }) : t("usage.quota.extra")}
                 pct={Math.min(100, Math.round((quota.extraUsedCredits / quota.extraMonthlyLimit) * 100))}
                 nowSec={nowSec}
               />
@@ -185,7 +185,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
             : quota.extraEnabled && (
               /* Enabled with no ceiling to measure against: say that it is on
                  rather than draw a bar with no denominator. */
-              <div className="up-quota-sub up-credits">{t("quota.extraOn")}</div>
+              <div className="up-quota-sub up-credits">{t("usage.quota.extraOn")}</div>
             )}
           {/* Saved limit resets (#1308). Not the windows' own reset times
               above — those say when a window rolls over by itself; these are
@@ -199,11 +199,11 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
         </div>
       ) : quota?.ok === false ? (
         <div className="up-quota-na">
-          <span>{quota.reason === "no_subscription" ? t("quota.none") : t("quota.unavailable")}</span>
+          <span>{quota.reason === "no_subscription" ? t("usage.quota.none") : t("usage.quota.unavailable")}</span>
           <span className="up-quota-hint">{claudeQuotaHint(t, quota.reason)}</span>
         </div>
       ) : (
-        <div className="up-quota-na up-quota-loading">{t("quota.checking")}</div>
+        <div className="up-quota-na up-quota-loading">{t("usage.quota.checking")}</div>
       )}
     </section>
   );
@@ -226,12 +226,12 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
   return (
     <section className="up-section up-quota-section">
       <h3 className="up-section-title">
-        {t("quota.codex.title")}
+        {t("usage.quota.codex.title")}
         {codexQuota?.ok && codexQuota.planLabel && (
           <span className="up-plan-badge">{codexQuota.planLabel}</span>
         )}
         {codexAge && !codexLoading && (
-          <span className="up-section-age" title={t("quota.source.codex")}>{codexAge}</span>
+          <span className="up-section-age" title={t("usage.quota.source.codex")}>{codexAge}</span>
         )}
       </h3>
       <QuotaIncident incident={incident} />
@@ -270,7 +270,7 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
               pretending to be a rate-limit lane. */}
           {codexQuota.creditLimit && (
             <QuotaBar
-              label={t("quota.spendCap", { used: `$${Math.round(codexQuota.creditLimit.used)}`, limit: `$${Math.round(codexQuota.creditLimit.limit)}` })}
+              label={t("usage.quota.spendCap", { used: `$${Math.round(codexQuota.creditLimit.used)}`, limit: `$${Math.round(codexQuota.creditLimit.limit)}` })}
               pct={codexQuota.creditLimit.usedPct}
               reset={codexQuota.creditLimit.reset ?? undefined}
               resetAt={codexQuota.creditLimit.resetAt ?? undefined}
@@ -281,12 +281,12 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
 
           {codexQuota.creditsBalance && !codexQuota.creditsUnlimited && (
             <div className="up-quota-sub up-credits">
-              {t("quota.creditsBalance", { amount: `$${codexQuota.creditsBalance}` })}
-              {codexQuota.overageReached && ` · ${t("quota.overage")}`}
+              {t("usage.quota.creditsBalance", { amount: `$${codexQuota.creditsBalance}` })}
+              {codexQuota.overageReached && ` · ${t("usage.quota.overage")}`}
             </div>
           )}
           {codexQuota.creditsUnlimited && (
-            <div className="up-quota-sub up-credits">{t("quota.creditsUnlimited")}</div>
+            <div className="up-quota-sub up-credits">{t("usage.quota.creditsUnlimited")}</div>
           )}
           {codexQuota.resetCredits && codexQuota.resetCredits.availableCount > 0 && (
             <div className="up-quota-sub up-reset-credits" title={`Redeem in the Codex CLI or ChatGPT — ${PRODUCT} only reports them`}>
@@ -298,17 +298,17 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
           )}
           {codexQuota.partial && (
             <div className="up-quota-sub up-quota-hint">
-              {t("quota.partial")}
+              {t("usage.quota.partial")}
             </div>
           )}
         </div>
       ) : codexQuota?.ok === false ? (
         <div className="up-quota-na">
-          <span>{t("quota.unavailable")}</span>
+          <span>{t("usage.quota.unavailable")}</span>
           <span className="up-quota-hint">{codexHint(t, codexQuota.reason)}</span>
         </div>
       ) : (
-        <div className="up-quota-na up-quota-loading">{t("quota.checking")}</div>
+        <div className="up-quota-na up-quota-loading">{t("usage.quota.checking")}</div>
       )}
 
     </section>

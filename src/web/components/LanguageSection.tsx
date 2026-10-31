@@ -12,12 +12,12 @@ export default function LanguageSection() {
   const t = useT();
   const language = useLanguage();
   return (
-    <SettingsGroup id="settings-language-caption" title={t("language.group")}>
+    <SettingsGroup id="settings-language-caption" title={t("settings.language.group")}>
       <SettingRow
         settingId="language"
-        name={t("language.name")}
+        name={t("settings.language.name")}
         nameId="settings-language-label"
-        note={t("language.note")}
+        note={t("settings.language.note")}
         noteId="settings-language-note"
         control={
           <select

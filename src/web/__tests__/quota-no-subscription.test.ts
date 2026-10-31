@@ -103,17 +103,17 @@ describe("what the panel says about it", () => {
     // The sentence is still there for the case it fits — a subscription install
     // whose CLI has not printed the lines yet — and no longer for the one it
     // does not.
-    expect(panel).toContain('t("quota.hint.runUsage")');
-    expect(en["quota.hint.runUsage"]).toBe("Run /usage in a claude session, then click ↻");
+    expect(panel).toContain('t("usage.quota.hint.runUsage")');
+    expect(en["usage.quota.hint.runUsage"]).toBe("Run /usage in a claude session, then click ↻");
     const hint = panel.slice(panel.indexOf("function claudeQuotaHint"), panel.indexOf("function codexHint"));
     expect(hint).toContain('case "no_subscription":');
-    expect(hint).toContain('t("quota.hint.noSubscription")');
-    expect(en["quota.hint.noSubscription"]).toMatch(/billed per token and has no session window/);
+    expect(hint).toContain('t("usage.quota.hint.noSubscription")');
+    expect(en["usage.quota.hint.noSubscription"]).toMatch(/billed per token and has no session window/);
     expect(hint).toContain('case "rate_limited":');
     expect(hint).toContain('case "waiting":');
   });
 
   it("changes the headline too, because 'unavailable' implies a retry", () => {
-    expect(panel).toContain('{quota.reason === "no_subscription" ? t("quota.none") : t("quota.unavailable")}');
+    expect(panel).toContain('{quota.reason === "no_subscription" ? t("usage.quota.none") : t("usage.quota.unavailable")}');
   });
 });

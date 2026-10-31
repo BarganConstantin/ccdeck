@@ -255,7 +255,7 @@ describe("a model with no rate says so instead of vanishing", () => {
     expect(panel).toMatch(/const boardModelRows\s+= byModel\.filter\(worthALine\);/);
     expect(panel).toMatch(/const boardSessionRows = bySessions\.filter\(worthALine\);/);
     expect(rules).toContain("return dollars > 0 || (row.inputTokens + row.outputTokens) > 0;");
-    expect(panel).toMatch(/\{UNPRICED_LABEL\}/);
+    expect(panel).toMatch(/label: UNPRICED_LABEL/);
   });
 
   it("shows the breakdown even when nothing in the deck could be priced at all", () => {

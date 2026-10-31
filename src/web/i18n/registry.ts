@@ -1,8 +1,9 @@
 // The languages the deck ships, and the ones that are planned.
 //
-// ADDING A LANGUAGE = one catalog file in this folder + one entry in LANGUAGES
-// below (docs/translating.md). Nothing else changes: the Settings select, the
-// detection and the completeness test all read this list.
+// ADDING A LANGUAGE = a <code>.ts file in each areas/<area>/ folder + one entry
+// in LANGUAGES below (docs/translating.md). The catalog is found by code, so
+// nothing else changes: the Settings select, the detection and the completeness
+// test all read this list.
 //
 // `name` is the language's own name, never translated: a reader who cannot
 // read the current language must still find theirs. `beta` marks a catalog
@@ -10,12 +11,7 @@
 // "(beta)". `dir` is the text direction written to <html dir>; every shipped
 // language is "ltr" and "rtl" is reserved for ar/fa/he. No RTL layout exists
 // yet, so an rtl entry would only flip the attribute.
-import type { Catalog } from "./en";
-import { en } from "./en";
-import { zhTW } from "./zh-TW";
-import { zhCN } from "./zh-CN";
-import { de } from "./de";
-import { ja } from "./ja";
+import { catalogFor, type Catalog } from "./catalogs";
 
 export type Direction = "ltr" | "rtl";
 
@@ -31,11 +27,11 @@ export interface Language {
 
 /** English first: it is the source of truth and the fallback. */
 export const LANGUAGES: readonly Language[] = [
-  { code: "en", name: "English", dir: "ltr", catalog: en },
-  { code: "zh-TW", name: "繁體中文", dir: "ltr", beta: true, catalog: zhTW },
-  { code: "zh-CN", name: "简体中文", dir: "ltr", beta: true, catalog: zhCN },
-  { code: "de", name: "Deutsch", dir: "ltr", beta: true, catalog: de },
-  { code: "ja", name: "日本語", dir: "ltr", beta: true, catalog: ja },
+  { code: "en", name: "English", dir: "ltr", catalog: catalogFor("en") },
+  { code: "zh-TW", name: "繁體中文", dir: "ltr", beta: true, catalog: catalogFor("zh-TW") },
+  { code: "zh-CN", name: "简体中文", dir: "ltr", beta: true, catalog: catalogFor("zh-CN") },
+  { code: "de", name: "Deutsch", dir: "ltr", beta: true, catalog: catalogFor("de") },
+  { code: "ja", name: "日本語", dir: "ltr", beta: true, catalog: catalogFor("ja") },
 ];
 
 export const DEFAULT_LANGUAGE = "en";

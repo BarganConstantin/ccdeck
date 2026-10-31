@@ -118,7 +118,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   // "33.33333333333333%" (#1804). Under 1% reads "< 1%" like a zero does:
   // 0.25% of the track is a fill nobody can see.
   const underOne = capped < 1;
-  const pctLabel = rolled ? t("quota.rolled") : !known ? t("quota.noReading") : underOne ? "< 1%" : `${Math.round(capped)}%`;
+  const pctLabel = rolled ? t("usage.quota.rolled") : !known ? t("usage.quota.noReading") : underOne ? "< 1%" : `${Math.round(capped)}%`;
   // minimum 2% visual fill so a bar under 1% is still visible as a thin sliver
   const fillW    = underOne ? 2 : capped;
 
@@ -134,7 +134,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
       <div className="qb-meta">
         <span className="qb-label">
           {label}
-          {limitReached && !rolled && <span className="qb-limit-badge" title={t("quota.rateLimitReached")}>⛔</span>}
+          {limitReached && !rolled && <span className="qb-limit-badge" title={t("usage.quota.rateLimitReached")}>⛔</span>}
         </span>
         <span className="qb-pct" style={{ color: known ? color : "var(--muted)" }}>{pctLabel}</span>
       </div>
@@ -152,18 +152,18 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
               aria-hidden
               className="qb-pace-marker"
               style={{ background: pace.isDeficit ? "var(--err)" : "var(--ok)" }}
-              title={t("quota.pace.target", { pct: Math.round(pace.expectedPct) })}
+              title={t("usage.quota.pace.target", { pct: Math.round(pace.expectedPct) })}
             />
           </div>
         )}
       </div>
       <div className="qb-reset-row">
         {rolled
-          ? <span className="qb-reset">{t("quota.waitingReading")}</span>
+          ? <span className="qb-reset">{t("usage.quota.waitingReading")}</span>
           : countdown
-            ? <span className="qb-reset">{t("quota.resetsIn", { time: countdown })}</span>
+            ? <span className="qb-reset">{t("usage.quota.resetsIn", { time: countdown })}</span>
             : reset
-              ? <span className="qb-reset">{t("quota.resetsAt", { when: reset })}</span>
+              ? <span className="qb-reset">{t("usage.quota.resetsAt", { when: reset })}</span>
               : null}
         {pace && (
           <button
@@ -178,13 +178,13 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
                 that says the tick on the bar is the pace these words are
                 measured against (#850). */}
             <i className="qb-pace-key" aria-hidden style={{ background: pace.isDeficit ? "var(--err)" : "var(--ok)" }} />
-            {pace.runsOutIn ? t("quota.pace.runsOut", { time: durationLabel(t, pace.runsOutSec ?? 0) }) : t(`quota.pace.${pace.kind}`, { n: pace.n ?? 0 })}
+            {pace.runsOutIn ? t("usage.quota.pace.runsOut", { time: durationLabel(t, pace.runsOutSec ?? 0) }) : t(`usage.quota.pace.${pace.kind}`, { n: pace.n ?? 0 })}
           </button>
         )}
       </div>
       {why && pace && <div id={whyId} className="qb-why">{perDay != null
-        ? t("quota.pace.whyPerDay", { pct: Math.round(pace.expectedPct), n: formatNumber(Number(perDay.toFixed(1))) })
-        : t("quota.pace.why", { pct: Math.round(pace.expectedPct) })}</div>}
+        ? t("usage.quota.pace.whyPerDay", { pct: Math.round(pace.expectedPct), n: formatNumber(Number(perDay.toFixed(1))) })
+        : t("usage.quota.pace.why", { pct: Math.round(pace.expectedPct) })}</div>}
     </div>
   );
 }

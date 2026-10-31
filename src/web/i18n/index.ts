@@ -6,7 +6,7 @@
 // the tree.
 //
 //   const t = useT();            // in a component; re-renders on a change
-//   t("quota.window.week", { n: 7 })
+//   t("usage.quota.window.days", { n: 7 })
 //
 // <html lang> and <html dir> follow the language (applyDocumentLanguage).
 import { useSyncExternalStore } from "react";
@@ -93,7 +93,14 @@ export function t(key: MessageKey, vars?: Vars): string {
 
 /** The language code, re-read when it changes. */
 export function useLanguage(): string {
-  return useSyncExternalStore(subscribeLanguage, currentLanguage, () => DEFAULT_LANGUAGE);
+  // Some tests call a component as a plain function, with no React rendering
+  // it, where a hook throws. There the language is simply read once, which is
+  // all such a call can use. Inside React this never throws.
+  try {
+    return useSyncExternalStore(subscribeLanguage, currentLanguage, () => DEFAULT_LANGUAGE);
+  } catch {
+    return currentLanguage();
+  }
 }
 
 /** t() bound to the language on show; a new function when the language

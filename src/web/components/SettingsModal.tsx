@@ -301,7 +301,7 @@ export default function SettingsModal({
   const paneAction = section === "reading"
     ? <ReadingReset textSize={appearance.textSize} density={appearance.density} onTextSize={appearance.setTextSize} onDensity={appearance.setDensity} />
     : section === "integrations" && integrations.connections !== null
-      ? <span className="ig-total">{integrations.connections.length} saved connection{integrations.connections.length === 1 ? "" : "s"}</span>
+      ? <span className="ig-total">{t("settings.savedConnections", { count: integrations.connections.length })}</span>
       : null;
 
   return (

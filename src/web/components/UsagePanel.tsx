@@ -511,8 +511,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
 
           {hasUnpriced && (
             <div className="up-hint">
-              “{UNPRICED_LABEL}” means this build holds no published rate for that model —
-              those tokens are counted above and their dollars are not.
+              {t("usage.unpricedNote", { label: UNPRICED_LABEL })}
             </div>
           )}
         </>

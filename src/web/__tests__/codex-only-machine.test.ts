@@ -498,8 +498,8 @@ describe("which panels the UI draws for each machine", () => {
     const second = sectionsSrc.indexOf(SECTION, first + 1);
     expect(first, "the quota sections are gone or renamed").toBeGreaterThan(-1);
     expect(second, "there is no longer a second quota section").toBeGreaterThan(first);
-    expect(sectionsSrc.slice(first + SECTION.length, second)).toContain("quota.claude.title");
-    expect(sectionsSrc.slice(second)).toContain("quota.codex.title");
+    expect(sectionsSrc.slice(first + SECTION.length, second)).toContain("usage.quota.claude.title");
+    expect(sectionsSrc.slice(second)).toContain("usage.quota.codex.title");
     expect(usageSrc).toMatch(/\{providers\.claude && \(\s*<ClaudeQuotaSection /);
     expect(usageSrc).toMatch(/\{providers\.codex && \(\s*<CodexQuotaSection /);
   });

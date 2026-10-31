@@ -16,6 +16,6 @@ export function durationLabel(t: TFunction, seconds: number): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  if (d > 0) return t("time.dh", { d, h });
-  return h > 0 ? t("time.hm", { h, m }) : t("time.m", { m });
+  if (d > 0) return t("common.time.dh", { d, h });
+  return h > 0 ? t("common.time.hm", { h, m }) : t("common.time.m", { m });
 }
