@@ -1,3 +1,4 @@
+import { stationCountry } from "../radio-country";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import world from "../assets/radio-world.json";
 import type { RadioStation } from "../radio-library";
@@ -126,7 +127,7 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
           const grouped = marker.stations.length > 1, station = marker.stations[0], active = marker.stations.some(item => selected?.id === item.id), audible = playing && marker.stations.some(item => current?.id === item.id);
           return <g key={marker.id} className={`radio-pin${grouped ? " clustered" : ""}${active ? " selected" : ""}${audible ? " playing" : ""}`} role="button" tabIndex={marker.x >= view.x - size.width / view.zoom / 2 && marker.x <= view.x + size.width / view.zoom / 2 && marker.y >= view.y - size.height / view.zoom / 2 && marker.y <= view.y + size.height / view.zoom / 2 ? 0 : -1}
             onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); event.currentTarget.dispatchEvent(new MouseEvent("click", { bubbles: true })); } }}
-            aria-label={grouped ? t("radio.map.explore", { n: marker.stations.length }) : t(current?.id === station.id && playing ? "radio.aria.pause" : "radio.aria.play", { name: t("radio.withCountry", { name: station.name, country: station.radio.country }) })} transform={`translate(${marker.x} ${marker.y})`}
+            aria-label={grouped ? t("radio.map.explore", { n: marker.stations.length }) : t(current?.id === station.id && playing ? "radio.aria.pause" : "radio.aria.play", { name: t("radio.withCountry", { name: station.name, country: stationCountry(station.radio) }) })} transform={`translate(${marker.x} ${marker.y})`}
             onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()} onClick={() => {
               if (!grouped) { setCluster(null); onPick(station); return; }
               setCluster(marker.stations); setRegion(""); moveCamera({ x: marker.x, y: marker.y, zoom: Math.min(MAX_RADIO_ZOOM, camera.current.zoom * 2) }, true);
@@ -139,7 +140,7 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
         })}</g>
       </svg>
       <div className="radio-map-tools" role="group" aria-label={t("radio.map.zoom")}><button className="btn radio-map-button" type="button" aria-label={t("radio.map.zoomIn")} onClick={() => changeZoom(1.5)} disabled={view.zoom >= MAX_RADIO_ZOOM}>+</button><button className="btn radio-map-button" type="button" aria-label={t("radio.map.zoomOut")} onClick={() => changeZoom(1 / 1.5)} disabled={view.zoom <= 1}>−</button></div>
-      {cluster && <div className="radio-cluster-preview"><header><strong>{t("radio.map.nearby", { n: cluster.length })}</strong><button type="button" className="icon-btn" aria-label={t("radio.map.nearby.close")} onClick={() => { setCluster(null); svg.current?.focus(); }}><RadioIcon name="close" /></button></header><div>{cluster.map(station => <button className="radio-cluster-station" key={station.id} type="button" onClick={() => { setCluster(null); svg.current?.focus({ preventScroll: true }); onPick(station); }}>{station.name}<span>{station.radio.country}</span></button>)}</div></div>}
+      {cluster && <div className="radio-cluster-preview"><header><strong>{t("radio.map.nearby", { n: cluster.length })}</strong><button type="button" className="icon-btn" aria-label={t("radio.map.nearby.close")} onClick={() => { setCluster(null); svg.current?.focus(); }}><RadioIcon name="close" /></button></header><div>{cluster.map(station => <button className="radio-cluster-station" key={station.id} type="button" onClick={() => { setCluster(null); svg.current?.focus({ preventScroll: true }); onPick(station); }}>{station.name}<span>{stationCountry(station.radio)}</span></button>)}</div></div>}
     </div>
     <p id="radio-map-help" className="radio-map-help">{t("radio.map.help")} <span className="vis-hidden">{t("radio.map.helpKeys")}</span></p>
   </section>;

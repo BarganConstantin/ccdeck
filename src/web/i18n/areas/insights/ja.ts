@@ -8,7 +8,7 @@ const catalog: Catalog = {
   "insights.cost.cacheRead": "キャッシュ読込",
   "insights.cost.cacheWrite": "キャッシュ書込",
   "insights.cost.breakdown": "コストの内訳",
-  "insights.cost.notPriced": "価格なし",
+  "insights.cost.notPriced": "価格未設定",
   "insights.cost.missingPrice": "一部のモデルは価格が不明です。トークンは集計されますが、そのコストは合計に含まれません。",
   "insights.cost.stored": "ログに記録：{recorded} · その他の報告コスト：{other}。どちらも合計に含まれます。記録されたコストは確認済みの請求額ではありません。",
   "insights.count.call.one": "{n}回の呼び出し",

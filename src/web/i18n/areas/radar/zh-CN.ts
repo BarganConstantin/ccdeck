@@ -475,6 +475,23 @@ const catalog: Catalog = {
   "radar.org.switchedWhat": "您的{words}",
   "radar.org.switchedTo": "，发送至{list}",
   "radar.org.switched": "{who}已对它们开启：会发送{what}{where}。",
+  "radar.srv.ipv4": "请选择 IPv4 地址和 TCP 端口。",
+  "radar.srv.platform": "实时抓取支持 macOS、Linux 和 Windows。",
+  "radar.srv.destCount": "请选择一到八个目的地。",
+  "radar.srv.portUnavailable": "本机 ccdeck 端口不可用。",
+  "radar.srv.ifaceUnavailable": "网络接口不可用。请检查目的地后重试。",
+  "radar.srv.cancelled": "监控设置已取消。",
+  "radar.srv.chunkLarge": "抓取的数据块过大。",
+  "radar.srv.permissionNeeded": "需要抓包权限。",
+  "radar.srv.disconnected": "抓取已断开。将自动重试。",
+  "radar.srv.ifaceLost": "抓取接口不可用。将自动重试。",
+  "radar.srv.npcapIfaces": "无法使用 Npcap 接口。请确认已安装 Npcap，且其抓取权限允许此用户。",
+  "radar.srv.toolFailed": "抓取工具失败。请检查 Npcap 和抓取权限。",
+  "radar.srv.inputInterrupted": "抓取输入已中断。",
+  "radar.srv.localOnly": "遥测内容只能在这台电脑上查看。",
+  "radar.srv.badRequest": "设置请求无效。",
+  "radar.srv.eventGone": "此事件已不再保留。",
+  "radar.srv.tooLarge": "请求过大。",
 };
 
 export default catalog;

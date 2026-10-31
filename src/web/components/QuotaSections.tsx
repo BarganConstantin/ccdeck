@@ -10,7 +10,7 @@
 // (#402).
 import { PRODUCT } from "../brand";
 import { useT, type TFunction } from "../i18n";
-import { resetCreditsLine } from "../reset-credits";
+import { resetCreditsText } from "../reset-credits";
 import type { Incident } from "../provider-status";
 import type { CodexQuotaData, QuotaData } from "../use-quota";
 import { weekEndsLine, weekEndsTitle, type QuotaClose } from "../quota-closes";
@@ -192,8 +192,8 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
               one-off resets the account holds. Counted, never spent: the
               deck has no way to redeem one and does not want one. */}
           {quota.resetCredits && quota.resetCredits.availableCount > 0 && (
-            <div className="up-quota-sub up-reset-credits" title={`Saved in Claude as "Reset for free". Redeem one in Claude on the web or desktop — ${PRODUCT} only reports them`}>
-              {resetCreditsLine("limit reset", quota.resetCredits)}
+            <div className="up-quota-sub up-reset-credits" title={t("usage.credits.claudeTitle", { product: PRODUCT })}>
+              {resetCreditsText("limit", quota.resetCredits, t)}
             </div>
           )}
         </div>
@@ -289,8 +289,8 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
             <div className="up-quota-sub up-credits">{t("usage.quota.creditsUnlimited")}</div>
           )}
           {codexQuota.resetCredits && codexQuota.resetCredits.availableCount > 0 && (
-            <div className="up-quota-sub up-reset-credits" title={`Redeem in the Codex CLI or ChatGPT — ${PRODUCT} only reports them`}>
-              {resetCreditsLine("rate-limit reset", codexQuota.resetCredits)}
+            <div className="up-quota-sub up-reset-credits" title={t("usage.credits.codexTitle", { product: PRODUCT })}>
+              {resetCreditsText("rate", codexQuota.resetCredits, t)}
             </div>
           )}
           {codexQuota.promo && (

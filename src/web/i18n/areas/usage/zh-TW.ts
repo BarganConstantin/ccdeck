@@ -90,6 +90,15 @@ const catalog: Catalog = {
   "usage.quota.window.days": "{n} 天區間",
   "usage.quota.window.rateLimit": "速率限制",
   "usage.unpricedNote": "「{label}」表示此版本沒有該模型的公開費率——這些 token 已計入上方，但其費用未計入。",
+  "usage.credits.limit.one": "有 {count} 次額度重設可用{expiry}",
+  "usage.credits.limit.other": "有 {count} 次額度重設可用{expiry}",
+  "usage.credits.rate.one": "有 {count} 次速率限制重設可用{expiry}",
+  "usage.credits.rate.other": "有 {count} 次速率限制重設可用{expiry}",
+  "usage.credits.expires": " · {at} 到期",
+  "usage.credits.claudeTitle": "在 Claude 中顯示為「Reset for free」。請在 Claude 網頁版或桌面版兌換——{product} 只負責顯示",
+  "usage.credits.codexTitle": "請在 Codex CLI 或 ChatGPT 中兌換——{product} 只負責顯示",
+  "usage.sessionNote": "{noun}有活動的工作階段，以及 ccusage 為每個工作階段記下的內容。",
+  "usage.sessionNote.over": "它們合計 {sum}，高於上方的 {total}：一個工作階段的花費與一天的花費是兩種不同的度量，不一定相符。",
 };
 
 export default catalog;

@@ -19,6 +19,7 @@ import AccountTelemetry from "./AccountTelemetry";
 import AccountHint from "./AccountHint";
 import { accountIssue } from "../account-issue";
 import { agoLabel as ago, dueLabel as due } from "../accounts-time";
+import { laneLabel } from "../lane-label";
 import { useT } from "../i18n";
 import { type Failure } from "../accounts-reload";
 import { type SwapNote } from "../account-move";
@@ -64,7 +65,7 @@ function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
   const before = rolled ? resetSinceReading(lane, readAt, nowSec, t) : null;
   return (
     <div className="ap-lane" data-sort-key={sortedBy ? "" : undefined}>
-      <span className="ap-lane-label" title={lane.label}>{lane.label}</span>
+      <span className="ap-lane-label" title={laneLabel(lane.label, t)}>{laneLabel(lane.label, t)}</span>
       <div className="ap-lane-track">
         {/* EMPTY ONCE IT HAS RESET, the way the Usage panel draws a window
             that has: the totals count it as unused, and a bar still 96% full
@@ -83,7 +84,7 @@ function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
           line under it: two resets under two bars made the live row five lines
           tall for two facts. The word is said to a screen reader and in the
           title; on screen a countdown beside a quota reads as one. */}
-      <span className="ap-lane-reset" title={reset ? t("accounts.row.laneResetsIn", { label: lane.label, time: reset }) : undefined}>
+      <span className="ap-lane-reset" title={reset ? t("accounts.row.laneResetsIn", { label: laneLabel(lane.label, t), time: reset }) : undefined}>
         {reset && <><span className="vis-hidden">{t("accounts.row.resetsInSr")}</span>{reset}</>}
       </span>
     </div>
@@ -413,7 +414,7 @@ export default function AccountRow({
           {quick.length
             ? quick.map(l => (
                 <span key={l.id} className="ap-q" data-sort-key={l.id === keyLane?.id ? "" : undefined}>
-                  <span className="ap-q-label">{l.label}</span>{" "}
+                  <span className="ap-q-label">{laneLabel(l.label, t)}</span>{" "}
                   {/* A window that has reset since it was read is said to
                       have, as its open bar says it: its number is the old
                       window's, and in the warning ink it read as a reason not

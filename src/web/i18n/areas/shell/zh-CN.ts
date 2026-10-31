@@ -412,6 +412,15 @@ const catalog: Catalog = {
   "shell.closes.hour": "{n} 小时",
   "shell.closes.week": "{date}：已用 {pct}%，在重置前 {before} 读取",
   "shell.closes.average": "每次重置前，每周窗口最后一次读数的平均值",
+  "shell.announce.block.permission": "{label} 正在等待您的授权。",
+  "shell.announce.block.answer": "{label} 正在等待您的回答。",
+  "shell.announce.block.you": "{label} 正在等您处理。",
+  "shell.announce.blockMore.permission.one": "{label} 和另外 {count} 个会话正在等待您的授权。",
+  "shell.announce.blockMore.permission.other": "{label} 和另外 {count} 个会话正在等待您的授权。",
+  "shell.announce.blockMore.answer.one": "{label} 和另外 {count} 个会话正在等待您的回答。",
+  "shell.announce.blockMore.answer.other": "{label} 和另外 {count} 个会话正在等待您的回答。",
+  "shell.announce.blockMore.you.one": "{label} 和另外 {count} 个会话正在等您处理。",
+  "shell.announce.blockMore.you.other": "{label} 和另外 {count} 个会话正在等您处理。",
 };
 
 export default catalog;

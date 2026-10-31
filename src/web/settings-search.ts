@@ -27,6 +27,7 @@
 // and cannot drift from it. Keywords are what people type instead: synonyms,
 // the other spelling, the word another app uses.
 
+import { claudeGroupTitle, claudeRowLabel } from "./claude-settings-text";
 import { CLAUDE_SETTING_GROUPS, CLAUDE_SETTINGS } from "../server/claude-settings-catalog.mjs";
 import { CHARACTERS } from "./character";
 import type { IntegrationsReach } from "./integrations/client";
@@ -191,7 +192,7 @@ function buildIndex(): SettingsEntry[] {
     claude: [
       ...CLAUDE_SETTINGS.map((entry): SettingsEntry => entryOf({
         id: `claude-${entry.id}`, claudeOnly: true, section: "claude",
-        group: () => CLAUDE_SETTING_GROUPS.find(g => g.id === entry.group)?.title as string, label: () => entry.label, words: entry.keywords,
+        group: () => claudeGroupTitle(entry.group, CLAUDE_SETTING_GROUPS.find(g => g.id === entry.group)?.title as string), label: () => claudeRowLabel(entry), words: entry.keywords,
       })),
       entryOf({ id: "claude-all-settings", claudeOnly: true, section: "claude", label: L("settings.claudeIndex.title") }),
     ],

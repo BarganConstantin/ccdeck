@@ -615,6 +615,7 @@ const catalog: Catalog = {
   "accounts.signin.said.done": ", done",
   "accounts.signin.said.active": ", in progress",
   "accounts.signin.said.failed": ", failed",
+  "accounts.lane.scoped": "{name} ({n}d)",
 };
 
 export default catalog;

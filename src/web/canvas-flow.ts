@@ -281,6 +281,7 @@ export function snapshotToFlow(
         id: `e:${a.parentId}->${a.id}`,
         source: a.parentId,
         target: a.id,
+        ariaLabel: t("board.edge.aria", { label: a.label }),
         animated: (a.state === "active" || isSelectedEdge) && !fading,
         type: "smoothstep",
         // No edge label — the target node already displays the agent name.

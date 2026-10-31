@@ -474,6 +474,23 @@ const catalog: Catalog = {
   "radar.org.switchedWhat": "your {words}",
   "radar.org.switchedTo": " to {list}",
   "radar.org.switched": "{who} is on for them: it sends {what}{where}.",
+  "radar.srv.ipv4": "Choose an IPv4 address and TCP port.",
+  "radar.srv.platform": "Live capture is available on macOS, Linux and Windows.",
+  "radar.srv.destCount": "Choose between one and eight destinations.",
+  "radar.srv.portUnavailable": "Local ccdeck port unavailable.",
+  "radar.srv.ifaceUnavailable": "Network interface unavailable. Check the destination and retry.",
+  "radar.srv.cancelled": "Monitoring setup was cancelled.",
+  "radar.srv.chunkLarge": "Capture chunk too large.",
+  "radar.srv.permissionNeeded": "Packet capture permission is required.",
+  "radar.srv.disconnected": "Capture disconnected. Retrying automatically.",
+  "radar.srv.ifaceLost": "Capture interface unavailable. Retrying automatically.",
+  "radar.srv.npcapIfaces": "Npcap interfaces are unavailable. Check that Npcap is installed and its capture permissions allow this user.",
+  "radar.srv.toolFailed": "Capture tool failed. Check Npcap and capture permissions.",
+  "radar.srv.inputInterrupted": "Capture input interrupted.",
+  "radar.srv.localOnly": "Telemetry contents are available on this machine only.",
+  "radar.srv.badRequest": "Invalid settings request.",
+  "radar.srv.eventGone": "This event is no longer retained.",
+  "radar.srv.tooLarge": "Request too large.",
 };
 
 export default catalog;

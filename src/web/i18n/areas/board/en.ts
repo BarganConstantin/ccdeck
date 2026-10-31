@@ -429,6 +429,14 @@ const catalog: Catalog = {
   "board.hist.chartMultiple": " ({multiple})",
   "board.hist.unpin": "Stop showing this reading",
   "board.hist.routeSince": "Since {at} — {label}",
+  "board.spark.none": "nothing in the last 60s",
+  "board.spark.tools.one": "{count} tool call",
+  "board.spark.tools.other": "{count} tool calls",
+  "board.spark.blocks.one": "{count} block of thinking and writing",
+  "board.spark.blocks.other": "{count} blocks of thinking and writing",
+  "board.spark.title": "{parts} in last 60s · peak {peak}/s",
+  "board.edge.aria": "Link to {label}",
+  "board.minimap": "Minimap",
 };
 
 export default catalog;

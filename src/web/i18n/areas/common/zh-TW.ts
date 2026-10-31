@@ -9,6 +9,10 @@ const catalog: Catalog = {
   "common.details": "詳細資料",
   "common.aboutBefore": "（",
   "common.aboutAfter": "）",
+  "common.ago.now": "剛剛",
+  "common.ago.m": "{n} 分鐘前",
+  "common.ago.h": "{n} 小時前",
+  "common.ago.d": "{n} 天前",
 };
 
 export default catalog;

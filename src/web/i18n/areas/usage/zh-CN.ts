@@ -90,6 +90,15 @@ const catalog: Catalog = {
   "usage.quota.window.days": "{n} 天窗口",
   "usage.quota.window.rateLimit": "速率限制",
   "usage.unpricedNote": "“{label}”表示此版本没有该模型的公开费率——这些 token 已计入上方，但其费用未计入。",
+  "usage.credits.limit.one": "有 {count} 次额度重置可用{expiry}",
+  "usage.credits.limit.other": "有 {count} 次额度重置可用{expiry}",
+  "usage.credits.rate.one": "有 {count} 次速率限制重置可用{expiry}",
+  "usage.credits.rate.other": "有 {count} 次速率限制重置可用{expiry}",
+  "usage.credits.expires": " · {at} 到期",
+  "usage.credits.claudeTitle": "在 Claude 中显示为“Reset for free”。请在 Claude 网页版或桌面版兑换——{product} 只负责显示",
+  "usage.credits.codexTitle": "请在 Codex CLI 或 ChatGPT 中兑换——{product} 只负责显示",
+  "usage.sessionNote": "{noun}有活动的会话，以及 ccusage 为每个会话记下的内容。",
+  "usage.sessionNote.over": "它们合计 {sum}，高于上方的 {total}：一个会话的花费与一天的花费是两种不同的度量，不一定一致。",
 };
 
 export default catalog;

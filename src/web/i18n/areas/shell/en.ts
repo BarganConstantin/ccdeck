@@ -418,6 +418,15 @@ const catalog: Catalog = {
   "shell.closes.hour": "{n} h",
   "shell.closes.week": "{date}: {pct}% used, read {before} before the reset",
   "shell.closes.average": "An average of the weekly window's last reading before each reset",
+  "shell.announce.block.permission": "{label} is waiting for your permission.",
+  "shell.announce.block.answer": "{label} is waiting for your answer.",
+  "shell.announce.block.you": "{label} is waiting for you.",
+  "shell.announce.blockMore.permission.one": "{label} and {count} more session are waiting for your permission.",
+  "shell.announce.blockMore.permission.other": "{label} and {count} more sessions are waiting for your permission.",
+  "shell.announce.blockMore.answer.one": "{label} and {count} more session are waiting for your answer.",
+  "shell.announce.blockMore.answer.other": "{label} and {count} more sessions are waiting for your answer.",
+  "shell.announce.blockMore.you.one": "{label} and {count} more session are waiting for you.",
+  "shell.announce.blockMore.you.other": "{label} and {count} more sessions are waiting for you.",
 };
 
 export default catalog;

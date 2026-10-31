@@ -24,6 +24,7 @@
 //
 // Every door stayed, in the owner's order (2026-10-22): only the rules
 // between them moved.
+import { providerText } from "./integrations/provider-text";
 import type { Dispatch, SetStateAction } from "react";
 import type { Providers } from "./providers";
 import type { PanelToggles } from "./use-panel-return";
@@ -258,7 +259,7 @@ export function railItems({
     // Each opens its large modal, so a dialog: aria-haspopup and no state.
     integrations: integrations.map(({ provider, onPress }): RailItem => ({
       id: `integration-${provider.kind}`, label: provider.label, short: provider.label,
-      ariaLabel: provider.label, detail: provider.detail,
+      ariaLabel: provider.label, detail: providerText(t, provider.detail),
       key: provider.shortcut ? { cap: provider.shortcut.toUpperCase(), aria: provider.shortcut.toUpperCase(), single: true } : undefined,
       glyph: <provider.Glyph />, kind: "dialog", onPress,
     })),

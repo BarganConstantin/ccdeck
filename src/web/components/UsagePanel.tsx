@@ -2,10 +2,10 @@
 // across all sessions, by model and by session. Toggled via $ button
 // in the topbar or the U keyboard shortcut.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fmtCost, UNPRICED_LABEL } from "../pricing";
+import { fmtCost } from "../pricing";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
 import {
-  boardScopeTitle, boardSessionTable, BOARD_SCOPE_LABEL, BOARD_SPEND_LABEL,
+  boardScopeTitle, boardSessionTable, boardScopeLabel, boardSpendLabel,
   type BoardSessionRow,
 } from "../board-usage";
 import {
@@ -416,7 +416,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             <span className={!hasCost && hasUnpriced ? "up-total-value up-unpriced" : "up-total-value"}>
               {hasCost ? <>{fmtCost(shownCost)}{hasUnpriced && "+"}</> : reportedCost(0, hasUnpriced)}
             </span>
-            {hasCost && <span className="up-total-label">{fromRange ? periodWord : BOARD_SPEND_LABEL}</span>}
+            {hasCost && <span className="up-total-label">{fromRange ? periodWord : boardSpendLabel()}</span>}
           </div>
           {hasCost && (
             <>
@@ -450,7 +450,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
                 The same word the headline's label takes, on the same rule:
                 under ccusage the strip is the period's reading from the logs,
                 and "on this board" there named a canvas it does not count. */}
-            {!hasCost && <span className="up-tok up-scope">{fromRange ? periodWord : BOARD_SCOPE_LABEL}</span>}
+            {!hasCost && <span className="up-tok up-scope">{fromRange ? periodWord : boardScopeLabel()}</span>}
           </div>
 
           {/* NO BOARD FIGURE UNDER A ccusage HEADLINE.
@@ -511,7 +511,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
 
           {hasUnpriced && (
             <div className="up-hint">
-              {t("usage.unpricedNote", { label: UNPRICED_LABEL })}
+              {t("usage.unpricedNote", { label: t("insights.cost.notPriced") })}
             </div>
           )}
         </>

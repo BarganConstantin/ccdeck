@@ -89,6 +89,15 @@ const catalog: Catalog = {
   "usage.quota.pace.why": "To last until reset, stay near {pct}% by now.",
   "usage.quota.pace.whyPerDay": "To last until reset, stay near {pct}% by now. About {n}% a day left.",
   "usage.unpricedNote": "“{label}” means this build holds no published rate for that model — those tokens are counted above and their dollars are not.",
+  "usage.credits.limit.one": "{count} limit reset available{expiry}",
+  "usage.credits.limit.other": "{count} limit resets available{expiry}",
+  "usage.credits.rate.one": "{count} rate-limit reset available{expiry}",
+  "usage.credits.rate.other": "{count} rate-limit resets available{expiry}",
+  "usage.credits.expires": " · expires {at}",
+  "usage.credits.claudeTitle": "Saved in Claude as \"Reset for free\". Redeem one in Claude on the web or desktop — {product} only reports them",
+  "usage.credits.codexTitle": "Redeem in the Codex CLI or ChatGPT — {product} only reports them",
+  "usage.sessionNote": "Sessions with activity {noun}, and what ccusage puts against each one.",
+  "usage.sessionNote.over": "They add up to {sum}, more than the {total} above: what a session cost and what a day cost are two different measurements, and they need not agree.",
 };
 
 export default catalog;

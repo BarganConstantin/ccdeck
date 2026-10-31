@@ -340,7 +340,7 @@ describe("the join to the canvas", () => {
     // rather than `rangeSessionRows`, which is cut at twelve.
     expect(sessions).toContain('>{t("insights.usage.active", { period: periodNoun })}</span>');
     expect(panel).toContain("sessionListScale(range, rangeSum.cost)");
-    expect(sessions).toContain("title={sessionListNote(periodNoun, sessionScale, fmtCost)}");
+    expect(sessions).toContain("title={sessionListNote(periodNoun, sessionScale, fmtCost, t)}");
   });
 
   it("says why the session list is empty rather than dropping the section", () => {
@@ -511,7 +511,7 @@ describe("markup, read as source", () => {
     expect(sessions).toContain('<section className="up-section">');
     // The words that carry it: the noun of the period SHOWN, not the one pressed.
     expect(panel).toContain("const periodNoun = nounFor(shownPeriod, period);");
-    expect(panel).toContain('<span className="up-total-label">{fromRange ? periodWord : BOARD_SPEND_LABEL}</span>');
+    expect(panel).toContain('<span className="up-total-label">{fromRange ? periodWord : boardSpendLabel()}</span>');
   });
 
   it("reads the seam through the functions rather than re-deciding it here", () => {

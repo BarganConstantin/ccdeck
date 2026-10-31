@@ -412,6 +412,15 @@ const catalog: Catalog = {
   "shell.closes.hour": "{n}時間",
   "shell.closes.week": "{date}：使用{pct}%、リセットの{before}前に読み取り",
   "shell.closes.average": "各リセット直前の、週間ウィンドウ最終読み取り値の平均",
+  "shell.announce.block.permission": "{label} があなたの許可を待っています。",
+  "shell.announce.block.answer": "{label} があなたの回答を待っています。",
+  "shell.announce.block.you": "{label} があなたを待っています。",
+  "shell.announce.blockMore.permission.one": "{label} ほか {count} 件のセッションがあなたの許可を待っています。",
+  "shell.announce.blockMore.permission.other": "{label} ほか {count} 件のセッションがあなたの許可を待っています。",
+  "shell.announce.blockMore.answer.one": "{label} ほか {count} 件のセッションがあなたの回答を待っています。",
+  "shell.announce.blockMore.answer.other": "{label} ほか {count} 件のセッションがあなたの回答を待っています。",
+  "shell.announce.blockMore.you.one": "{label} ほか {count} 件のセッションがあなたを待っています。",
+  "shell.announce.blockMore.you.other": "{label} ほか {count} 件のセッションがあなたを待っています。",
 };
 
 export default catalog;

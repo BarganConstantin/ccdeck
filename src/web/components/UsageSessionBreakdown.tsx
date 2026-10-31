@@ -104,7 +104,7 @@ export default function UsageSessionBreakdown({
           {fromRange && (
             <span
               className="up-section-age"
-              title={sessionListNote(periodNoun, sessionScale, fmtCost)}
+              title={sessionListNote(periodNoun, sessionScale, fmtCost, t)}
             >{t("insights.usage.active", { period: periodNoun })}</span>
           )}
           {/* Drawn, not typed. `.bw-chev` swaps two Unicode glyphs and

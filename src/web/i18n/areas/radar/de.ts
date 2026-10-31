@@ -475,6 +475,23 @@ const catalog: Catalog = {
   "radar.org.switchedWhat": "deine {words}",
   "radar.org.switchedTo": " an {list}",
   "radar.org.switched": "{who} ist für sie eingeschaltet: Sie sendet {what}{where}.",
+  "radar.srv.ipv4": "Wähle eine IPv4-Adresse und einen TCP-Port.",
+  "radar.srv.platform": "Live-Mitschnitt gibt es unter macOS, Linux und Windows.",
+  "radar.srv.destCount": "Wähle ein bis acht Ziele.",
+  "radar.srv.portUnavailable": "Der lokale ccdeck-Port ist nicht verfügbar.",
+  "radar.srv.ifaceUnavailable": "Netzwerkschnittstelle nicht verfügbar. Prüfe das Ziel und versuche es erneut.",
+  "radar.srv.cancelled": "Die Einrichtung der Überwachung wurde abgebrochen.",
+  "radar.srv.chunkLarge": "Der Mitschnitt-Block ist zu groß.",
+  "radar.srv.permissionNeeded": "Für den Paket-Mitschnitt ist eine Berechtigung nötig.",
+  "radar.srv.disconnected": "Mitschnitt getrennt. Es wird automatisch erneut versucht.",
+  "radar.srv.ifaceLost": "Mitschnitt-Schnittstelle nicht verfügbar. Es wird automatisch erneut versucht.",
+  "radar.srv.npcapIfaces": "Npcap-Schnittstellen sind nicht verfügbar. Prüfe, ob Npcap installiert ist und seine Mitschnitt-Rechte diesen Benutzer zulassen.",
+  "radar.srv.toolFailed": "Das Mitschnitt-Tool ist fehlgeschlagen. Prüfe Npcap und die Mitschnitt-Rechte.",
+  "radar.srv.inputInterrupted": "Die Mitschnitt-Eingabe wurde unterbrochen.",
+  "radar.srv.localOnly": "Telemetrie-Inhalte sind nur auf diesem Rechner verfügbar.",
+  "radar.srv.badRequest": "Ungültige Einstellungsanfrage.",
+  "radar.srv.eventGone": "Dieses Ereignis wird nicht mehr aufbewahrt.",
+  "radar.srv.tooLarge": "Die Anfrage ist zu groß.",
 };
 
 export default catalog;

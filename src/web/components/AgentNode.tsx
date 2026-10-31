@@ -546,8 +546,9 @@ function WaitingRow({ waiting }: { waiting: WaitingBlock }) {
  *  bucket lives on the right and is highlighted while it's the active one. */
 function ToolRateSpark({ tools, outputs }: { tools: ToolCall[]; outputs?: number[] }) {
   // Its own beat (#873): the window slides under a card that has not changed.
+  const t = useT();
   const now = useNow(1000);
-  const { counts, title } = sparkWindow(tools, outputs, now);
+  const { counts, title } = sparkWindow(tools, outputs, now, t);
   const barW = SPARK_W / BUCKETS;
   return (
     <div className="tool-spark-row" title={title}>

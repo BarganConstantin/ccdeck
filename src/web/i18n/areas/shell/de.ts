@@ -419,6 +419,15 @@ const catalog: Catalog = {
   "shell.closes.hour": "{n} Std.",
   "shell.closes.week": "{date}: {pct}% genutzt, gelesen {before} vor dem Reset",
   "shell.closes.average": "Ein Durchschnitt des letzten Messwerts des Wochenfensters vor jedem Reset",
+  "shell.announce.block.permission": "{label} wartet auf deine Erlaubnis.",
+  "shell.announce.block.answer": "{label} wartet auf deine Antwort.",
+  "shell.announce.block.you": "{label} wartet auf dich.",
+  "shell.announce.blockMore.permission.one": "{label} und {count} weitere Sitzung warten auf deine Erlaubnis.",
+  "shell.announce.blockMore.permission.other": "{label} und {count} weitere Sitzungen warten auf deine Erlaubnis.",
+  "shell.announce.blockMore.answer.one": "{label} und {count} weitere Sitzung warten auf deine Antwort.",
+  "shell.announce.blockMore.answer.other": "{label} und {count} weitere Sitzungen warten auf deine Antwort.",
+  "shell.announce.blockMore.you.one": "{label} und {count} weitere Sitzung warten auf dich.",
+  "shell.announce.blockMore.you.other": "{label} und {count} weitere Sitzungen warten auf dich.",
 };
 
 export default catalog;

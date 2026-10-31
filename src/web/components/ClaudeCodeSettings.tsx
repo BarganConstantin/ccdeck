@@ -19,7 +19,8 @@
 // for "not known", and a default drawn there would read as the user's own.
 // A file that is not there yet is Claude Code on its defaults, and is said to
 // be. A variable that outranks a row is said under it.
-import { CLAUDE_SETTING_GROUPS, CLAUDE_SETTINGS, daysLabel, type ClaudeSettingEntry, type ClaudeSettingOption } from "../../server/claude-settings-catalog.mjs";
+import { claudeDaysLabel, claudeGroupTitle, claudeOptionLabel, claudeRowLabel, claudeRowNote } from "../claude-settings-text";
+import { CLAUDE_SETTING_GROUPS, CLAUDE_SETTINGS, type ClaudeSettingEntry, type ClaudeSettingOption } from "../../server/claude-settings-catalog.mjs";
 import { claudeReasonText, refreshClaudeSettings, setClaudeSetting, useClaudeSettings, type ClaudeSettingRow, type ClaudeSettingsState } from "../use-claude-settings";
 import ClaudeSettingsIndex from "./ClaudeSettingsIndex";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
@@ -60,11 +61,11 @@ function Control({ entry, row, saving, nameId, noteId }: {
   const disabled = row ? !row.editable : undefined;
   if (entry.kind === "choice" || entry.kind === "days") {
     const options: ClaudeSettingOption[] = entry.kind === "days"
-      ? (entry.options as number[]).map(days => ({ value: String(days), label: daysLabel(days) }))
-      : (entry.options as ClaudeSettingOption[]);
+      ? (entry.options as number[]).map(days => ({ value: String(days), label: claudeDaysLabel(days, t) }))
+      : (entry.options as ClaudeSettingOption[]).map(o => ({ ...o, label: claudeOptionLabel(entry.id, o.value, o.label, t) }));
     const current = row ? (row.custom ? CUSTOM : row.value === null ? "" : String(row.value)) : "";
     const shown = entry.kind === "days" && row && !row.custom && !options.some(o => o.value === current)
-      ? [...options, { value: current, label: daysLabel(Number(current)) }].sort((a, b) => Number(a.value) - Number(b.value))
+      ? [...options, { value: current, label: claudeDaysLabel(Number(current), t) }].sort((a, b) => Number(a.value) - Number(b.value))
       : options;
     return (
       <select
@@ -140,7 +141,7 @@ export function ClaudeCodeSettingsView({ state }: { state: ClaudeSettingsState }
         </SettingsGroup>
       )}
       {rowsKnown && CLAUDE_SETTING_GROUPS.map(group => (
-        <SettingsGroup key={group.id} id={`claude-group-${group.id}`} title={group.title}>
+        <SettingsGroup key={group.id} id={`claude-group-${group.id}`} title={claudeGroupTitle(group.id, group.title, t)}>
           {CLAUDE_SETTINGS.filter(entry => entry.group === group.id).map(entry => {
             const row = reading?.settings.find(r => r.id === entry.id);
             const nameId = `claude-${entry.id}-label`, noteId = `claude-${entry.id}-note`;
@@ -151,9 +152,9 @@ export function ClaudeCodeSettingsView({ state }: { state: ClaudeSettingsState }
               <SettingRow
                 key={entry.id}
                 settingId={`claude-${entry.id}`}
-                name={entry.label}
+                name={claudeRowLabel(entry, t)}
                 nameId={nameId}
-                note={entry.note}
+                note={claudeRowNote(entry, t)}
                 noteId={noteId}
                 control={<Control entry={entry} row={row} saving={saving} nameId={nameId} noteId={noteId} />}
               >

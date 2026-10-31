@@ -8,6 +8,10 @@ const catalog: Catalog = {
   "common.time.m": "{m} Min.",
   "common.details": "Details",
   "common.aboutBefore": " zu ",
+  "common.ago.now": "gerade eben",
+  "common.ago.m": "vor {n} Min.",
+  "common.ago.h": "vor {n} Std.",
+  "common.ago.d": "vor {n} T.",
 };
 
 export default catalog;

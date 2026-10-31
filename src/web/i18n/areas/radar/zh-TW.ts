@@ -475,6 +475,23 @@ const catalog: Catalog = {
   "radar.org.switchedWhat": "您的{words}",
   "radar.org.switchedTo": "，傳送至{list}",
   "radar.org.switched": "{who}已對它們開啟：會傳送{what}{where}。",
+  "radar.srv.ipv4": "請選擇 IPv4 位址與 TCP 連接埠。",
+  "radar.srv.platform": "即時擷取支援 macOS、Linux 與 Windows。",
+  "radar.srv.destCount": "請選擇一到八個目的地。",
+  "radar.srv.portUnavailable": "本機 ccdeck 連接埠無法使用。",
+  "radar.srv.ifaceUnavailable": "網路介面無法使用。請檢查目的地後再試一次。",
+  "radar.srv.cancelled": "監控設定已取消。",
+  "radar.srv.chunkLarge": "擷取的資料區塊過大。",
+  "radar.srv.permissionNeeded": "需要封包擷取權限。",
+  "radar.srv.disconnected": "擷取已中斷。將自動重試。",
+  "radar.srv.ifaceLost": "擷取介面無法使用。將自動重試。",
+  "radar.srv.npcapIfaces": "無法使用 Npcap 介面。請確認已安裝 Npcap，且其擷取權限允許此使用者。",
+  "radar.srv.toolFailed": "擷取工具失敗。請檢查 Npcap 與擷取權限。",
+  "radar.srv.inputInterrupted": "擷取輸入已中斷。",
+  "radar.srv.localOnly": "遙測內容只能在這台電腦上檢視。",
+  "radar.srv.badRequest": "設定請求無效。",
+  "radar.srv.eventGone": "此事件已不再保留。",
+  "radar.srv.tooLarge": "請求過大。",
 };
 
 export default catalog;

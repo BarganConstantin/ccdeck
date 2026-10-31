@@ -430,6 +430,14 @@ const catalog: Catalog = {
   "board.hist.chartMultiple": "（{multiple}）",
   "board.hist.unpin": "この測定値の表示を終了",
   "board.hist.routeSince": "{at} から — {label}",
+  "board.spark.none": "過去 60 秒間は何もありません",
+  "board.spark.tools.one": "ツール呼び出し {count} 回",
+  "board.spark.tools.other": "ツール呼び出し {count} 回",
+  "board.spark.blocks.one": "思考と執筆 {count} ブロック",
+  "board.spark.blocks.other": "思考と執筆 {count} ブロック",
+  "board.spark.title": "過去 60 秒：{parts} · ピーク {peak}/秒",
+  "board.edge.aria": "{label} へのリンク",
+  "board.minimap": "ミニマップ",
 };
 
 export default catalog;

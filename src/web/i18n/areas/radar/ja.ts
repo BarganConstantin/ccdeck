@@ -475,6 +475,23 @@ const catalog: Catalog = {
   "radar.org.switchedWhat": "あなたの{words}",
   "radar.org.switchedTo": "（送信先：{list}）",
   "radar.org.switched": "{who}は、これらのセッションでオンです。送信内容：{what}{where}。",
+  "radar.srv.ipv4": "IPv4 アドレスと TCP ポートを選んでください。",
+  "radar.srv.platform": "ライブキャプチャは macOS、Linux、Windows で使えます。",
+  "radar.srv.destCount": "送信先を 1〜8 件選んでください。",
+  "radar.srv.portUnavailable": "ローカルの ccdeck ポートを使えません。",
+  "radar.srv.ifaceUnavailable": "ネットワークインターフェースを使えません。送信先を確認して、もう一度お試しください。",
+  "radar.srv.cancelled": "監視の設定はキャンセルされました。",
+  "radar.srv.chunkLarge": "キャプチャのデータが大きすぎます。",
+  "radar.srv.permissionNeeded": "パケットキャプチャの権限が必要です。",
+  "radar.srv.disconnected": "キャプチャが切断されました。自動的に再試行します。",
+  "radar.srv.ifaceLost": "キャプチャ用インターフェースを使えません。自動的に再試行します。",
+  "radar.srv.npcapIfaces": "Npcap のインターフェースを使えません。Npcap がインストールされ、このユーザーにキャプチャ権限があるか確認してください。",
+  "radar.srv.toolFailed": "キャプチャツールが失敗しました。Npcap とキャプチャ権限を確認してください。",
+  "radar.srv.inputInterrupted": "キャプチャの入力が中断されました。",
+  "radar.srv.localOnly": "テレメトリの内容はこのマシンでのみ見られます。",
+  "radar.srv.badRequest": "設定リクエストが正しくありません。",
+  "radar.srv.eventGone": "このイベントはもう保持されていません。",
+  "radar.srv.tooLarge": "リクエストが大きすぎます。",
 };
 
 export default catalog;

@@ -90,6 +90,15 @@ const catalog: Catalog = {
   "usage.quota.window.days": "{n}日間ウィンドウ",
   "usage.quota.window.rateLimit": "レート制限",
   "usage.unpricedNote": "「{label}」は、このビルドにそのモデルの公開料金がないことを示します。トークンは上に計上されていますが、金額は含まれていません。",
+  "usage.credits.limit.one": "使えるリミットリセット {count} 回{expiry}",
+  "usage.credits.limit.other": "使えるリミットリセット {count} 回{expiry}",
+  "usage.credits.rate.one": "使えるレート制限リセット {count} 回{expiry}",
+  "usage.credits.rate.other": "使えるレート制限リセット {count} 回{expiry}",
+  "usage.credits.expires": " · {at} に期限切れ",
+  "usage.credits.claudeTitle": "Claude では「Reset for free」として保存されています。Claude の Web 版またはデスクトップ版で使ってください。{product} は表示するだけです",
+  "usage.credits.codexTitle": "Codex CLI または ChatGPT で使ってください。{product} は表示するだけです",
+  "usage.sessionNote": "{noun}に動きのあったセッションと、ccusage が各セッションに計上した内容。",
+  "usage.sessionNote.over": "合計は {sum} で、上の {total} より多くなっています。セッションの費用と一日の費用は別の計測のため、一致するとは限りません。",
 };
 
 export default catalog;

@@ -44,8 +44,8 @@ export interface Blocked {
  *  waiting-block.ts gives the kinds: a permission prompt stops for your
  *  permission, and an agent that asked a question stops for the answer. */
 const WAITING_FOR: Partial<Record<WaitingBlock["kind"], string>> = {
-  permission: "your permission",
-  asked: "your answer",
+  permission: "permission",
+  asked: "answer",
 };
 
 /**
@@ -111,10 +111,9 @@ export function blockedAnnouncement(blocked: readonly Blocked[]): string {
   if (blocked.length === 0) return "";
   const [first, ...rest] = blocked;
   const kind = first.waiting.kind;
-  const what = rest.every(b => b.waiting.kind === kind) ? WAITING_FOR[kind] ?? "you" : "you";
-  if (rest.length === 0) return `${first.label} is waiting for ${what}.`;
-  const others = `${rest.length} more session${rest.length === 1 ? "" : "s"}`;
-  return `${first.label} and ${others} are waiting for ${what}.`;
+  const what = rest.every(b => b.waiting.kind === kind) ? (WAITING_FOR[kind] ?? "you") : "you";
+  if (rest.length === 0) return t(`shell.announce.block.${what}`, { label: first.label });
+  return t(`shell.announce.blockMore.${what}`, { label: first.label, count: rest.length });
 }
 
 /**

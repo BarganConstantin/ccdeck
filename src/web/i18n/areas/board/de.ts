@@ -430,6 +430,14 @@ const catalog: Catalog = {
   "board.hist.chartMultiple": " ({multiple})",
   "board.hist.unpin": "Diesen Messwert nicht mehr anzeigen",
   "board.hist.routeSince": "Seit {at} – {label}",
+  "board.spark.none": "nichts in den letzten 60 s",
+  "board.spark.tools.one": "{count} Tool-Aufruf",
+  "board.spark.tools.other": "{count} Tool-Aufrufe",
+  "board.spark.blocks.one": "{count} Block Denken und Schreiben",
+  "board.spark.blocks.other": "{count} Blöcke Denken und Schreiben",
+  "board.spark.title": "{parts} in den letzten 60 s · Spitze {peak}/s",
+  "board.edge.aria": "Verbindung zu {label}",
+  "board.minimap": "Übersichtskarte",
 };
 
 export default catalog;

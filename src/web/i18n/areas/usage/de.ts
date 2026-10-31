@@ -90,6 +90,15 @@ const catalog: Catalog = {
   "usage.quota.window.days": "{n}-Tage-Fenster",
   "usage.quota.window.rateLimit": "Ratenlimit",
   "usage.unpricedNote": "„{label}“ bedeutet, dass diese Version keinen veröffentlichten Preis für das Modell kennt – die Tokens sind oben mitgezählt, ihre Dollar nicht.",
+  "usage.credits.limit.one": "{count} Limit-Reset verfügbar{expiry}",
+  "usage.credits.limit.other": "{count} Limit-Resets verfügbar{expiry}",
+  "usage.credits.rate.one": "{count} Ratenlimit-Reset verfügbar{expiry}",
+  "usage.credits.rate.other": "{count} Ratenlimit-Resets verfügbar{expiry}",
+  "usage.credits.expires": " · läuft {at} ab",
+  "usage.credits.claudeTitle": "In Claude als „Reset for free“ gespeichert. Löse einen in Claude im Web oder auf dem Desktop ein – {product} zeigt sie nur an",
+  "usage.credits.codexTitle": "In der Codex CLI oder in ChatGPT einlösen – {product} zeigt sie nur an",
+  "usage.sessionNote": "Sitzungen mit Aktivität {noun} und das, was ccusage jeder einzelnen zuordnet.",
+  "usage.sessionNote.over": "Zusammen ergibt das {sum}, mehr als die {total} oben: Was eine Sitzung kostet und was ein Tag kostet, sind zwei verschiedene Messungen und müssen nicht übereinstimmen.",
 };
 
 export default catalog;
