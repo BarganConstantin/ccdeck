@@ -138,7 +138,7 @@ describe("where the guides open from", () => {
     // `Turn it on` goes through `toggle`, so the setup dialog still opens on
     // the press that puts this deck on the network — the guide is a longer
     // road to the same switch, not a way round what the switch does.
-    expect(lan).toMatch(/finish=\{on \? undefined : \{ label: "Turn it on", act: \(\) => \{ setGuideOpen\(false\); void toggle\(\); \} \}\}/);
+    expect(lan).toMatch(/finish=\{on \? undefined : \{ label: t\("lan\.sync\.turnOn"\), act: \(\) => \{ setGuideOpen\(false\); void toggle\(\); \} \}\}/);
   });
 
   it("keeps two doors to the tour that are there whatever is on the canvas", () => {

@@ -7,9 +7,10 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { accountsSurface } from "./accounts-surface";
+import { english } from "./lan-english-source";
 
 const components = fileURLToPath(new URL("../components", import.meta.url));
-const read = (name: string) => readFileSync(join(components, name), "utf8");
+const read = (name: string) => english(readFileSync(join(components, name), "utf8"));
 /** The ⋯ menu, which is where Remove is drawn. */
 const accounts = read("AccountMenuPopover.tsx");
 const lan = read("LanSyncSection.tsx");

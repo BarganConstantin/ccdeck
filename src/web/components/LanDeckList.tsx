@@ -7,6 +7,7 @@
 // an invite, and its arming for unpair. The arming stays the section's state so
 // that an armed row outlives this list the way it always has. What is here is
 // how a row is drawn.
+import { useT } from "../i18n";
 import type { DeckRow } from "../lan-roster";
 import type { LanStatus } from "../lan-types";
 import type { useLanSection } from "../use-lan-section";
@@ -32,6 +33,7 @@ export default function LanDeckList({
   /** An invite-only deck's one way to pair a nearby machine. */
   onInvite: () => void;
 }) {
+  const t = useT();
   return (
     <ul className="ap-lan-here">
       {rows.map((p, i) => (
@@ -59,7 +61,7 @@ export default function LanDeckList({
             {p.name}
             {/* Which route, only when it is the unusual one: a row
                 reached over the tailnet says so beside its name. */}
-            {p.via === "tailscale" && <span className="ap-lan-via"> · Tailscale</span>}
+            {p.via === "tailscale" && <span className="ap-lan-via"> · {t("lan.list.via")}</span>}
           </span>
           {/* Described by the row's own sentence, which sits outside the
               button: a row reached with Tab is announced with what is
@@ -67,7 +69,7 @@ export default function LanDeckList({
           <button type="button" className="ap-lan-who-open" aria-haspopup="dialog"
             aria-describedby={`lan-who-state-${i}`}
             onClick={() => onOpenPeer(p.fp)}>
-            <span className="vis-hidden">{p.name}{p.via === "tailscale" ? ", over Tailscale" : ""}, details</span>
+            <span className="vis-hidden">{t(p.via === "tailscale" ? "lan.list.detailsTs" : "lan.list.details", { name: p.name })}</span>
           </button>
           {/* One node, two presentations. A row with nothing to report
               keeps its sentence for anybody being read the list and
@@ -77,9 +79,9 @@ export default function LanDeckList({
           {p.kind === "nearby" && pairingMode !== "invite" && (
             <button type="button" className="ap-manage-btn ap-lan-do" {...pressProps(`accept:${p.fp}`)}
               onClick={() => void answer("accept", p.fp, "reach that deck")}
-              aria-label={`Ask ${p.name} to pair`}
-              title={`Send ${p.name} a request. Somebody at that machine has to accept it before anything is shared. Its fingerprint is ${p.fp}.`}>
-              ask
+              aria-label={t("lan.list.askAria", { name: p.name })}
+              title={t("lan.list.askTitle", { name: p.name, fp: p.fp })}>
+              {t("lan.list.ask")}
             </button>
           )}
           {/* INVITE-ONLY TAKES THE ASK AWAY, AND THIS IS WHAT IT
@@ -90,9 +92,9 @@ export default function LanDeckList({
           {(p.kind === "nearby" || p.kind === "declined") && pairingMode === "invite" && (
             <button type="button" className="ap-manage-btn ap-lan-do" aria-haspopup="dialog"
               onClick={onInvite}
-              aria-label={`Invite ${p.name} to pair`}
-              title={`This deck pairs only by invite. Make one and send it to whoever is at ${p.name}.`}>
-              invite
+              aria-label={t("lan.list.inviteAria", { name: p.name })}
+              title={t("lan.list.inviteTitle", { name: p.name })}>
+              {t("lan.list.invite")}
             </button>
           )}
           {p.kind === "paired" && (
@@ -105,31 +107,31 @@ export default function LanDeckList({
               className={`ap-manage-btn ap-lan-do danger${armed === p.fp ? " armed" : ""}`}
               {...pressProps(`unpair:${p.fp}`)}
               onClick={() => onUnpair(p)}
-              aria-label={armed === p.fp ? `Confirm unpairing ${p.name}` : `Unpair ${p.name}`}
+              aria-label={t(armed === p.fp ? "lan.unpair.confirmAria" : "lan.unpair.aria", { name: p.name })}
               title={armed === p.fp
-                ? "Press again to stop talking to this deck. Logins it already has stay with it."
-                : "Stop talking to this deck from now on"}>
+                ? t("lan.unpair.confirmTitle")
+                : t("lan.unpair.title")}>
               {/* The word the account row's armed remove says (#839):
                   one arm-then-confirm idiom for every in-panel act that
                   cannot be undone here; only Clear, which destroys the
                   most, asks in a dialog. */}
-              {armed === p.fp ? "confirm" : "unpair"}
+              {armed === p.fp ? t("lan.list.confirm") : t("lan.list.unpair")}
             </button>
           )}
           {p.kind === "dialling" && (
             <button type="button" className="ap-manage-btn ap-lan-do" {...pressProps(`drop:${p.fp}`)}
               onClick={() => void dropAddress(p.fp)}
-              aria-label={`Stop dialling ${p.name}`}
-              title="Stop trying this address. Nothing was ever paired here.">
-              stop
+              aria-label={t("lan.list.stopAria", { name: p.name })}
+              title={t("lan.foot.dropTitle")}>
+              {t("lan.list.stop")}
             </button>
           )}
           {p.kind === "declined" && pairingMode !== "invite" && (
             <button type="button" className="ap-manage-btn ap-lan-do" {...pressProps(`allow:${p.fp}`)}
               onClick={() => void answer("allow", p.fp, "let that deck ask again")}
-              aria-label={`Let ${p.name} ask again`}
-              title="Take the no back. That deck is still trying, so the request comes round again on its own.">
-              allow
+              aria-label={t("lan.list.allowAria", { name: p.name })}
+              title={t("lan.list.allowTitle")}>
+              {t("lan.list.allow")}
             </button>
           )}
         </li>

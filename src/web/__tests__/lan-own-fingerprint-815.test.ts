@@ -15,8 +15,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { english } from "./lan-english-source";
 
-const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
+const read = (p: string) => english(readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8"));
 const setup = read("../components/LanSetupModal.tsx");
 const ask = read("../components/LanPairRequestModal.tsx");
 

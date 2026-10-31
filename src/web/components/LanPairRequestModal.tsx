@@ -28,6 +28,8 @@ import { pressState } from "../panel-press";
 import { promptShows } from "../reauth-attention";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { askedLabel } from "../lan-roster";
+import { useT } from "../i18n";
+import { Fill } from "./LanAsks";
 import type { LanStranger } from "../lan-types";
 import type { useLanPairRequests } from "../use-lan-pair-requests";
 
@@ -62,6 +64,7 @@ interface Props {
 }
 
 export default function LanPairRequestModal({ request, waiting, busy, now, onAccept, onDecline, onLater }: Props) {
+  const t = useT();
   // Decline takes focus, for the reason the clear prompt gives Cancel: a stray
   // Enter or Space has to land on the answer that shares nothing. Declining
   // costs the other person one more press; accepting by accident costs a login.
@@ -89,11 +92,11 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
         <header className="modal-head">
           <div className="modal-title">
             <i className="ap-pulse" aria-hidden />
-            <span id="lan-ask-title" className="modal-tool-name">A deck wants to pair</span>
+            <span id="lan-ask-title" className="modal-tool-name">{t("lan.ask.title")}</span>
           </div>
           <div className="modal-actions">
             <button type="button" className="glyph-btn" onClick={onLater}
-              aria-label="Answer later (Esc)" title="Answer later (Esc)">×</button>
+              aria-label={t("lan.ask.later")} title={t("lan.ask.later")}>×</button>
           </div>
         </header>
 
@@ -101,27 +104,26 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
           {/* The dialog's description, because its title is the same sentence
               for every request: entering it has to say which deck is asking. */}
           <p id="lan-ask-who" className="lan-ask-who">
-            <strong className="lan-ask-name">{request.name}</strong>
-            {" at "}<code className="ap-lan-code">{request.addr}</code>
-            {" · asked "}{askedLabel(request.at, now)}
+            <Fill text={t("lan.ask.who", { when: askedLabel(request.at, now) })} parts={{
+              name: <strong className="lan-ask-name">{request.name}</strong>,
+              addr: <code className="ap-lan-code">{request.addr}</code>,
+            }} />
           </p>
 
           <p className="modal-note">
-            Paired decks repair each other&apos;s expired logins. Accept only if you know this
-            machine — what it shares is an account, not a screen.
+            {t("lan.ask.note")}
           </p>
 
           {/* The one value worth comparing, printed rather than described — and
               where the other machine prints its own (#815), because comparing
               with a screen nobody can find is not a check. */}
           <p className="lan-ask-fp">
-            Its fingerprint is <code className="ap-lan-code">{request.fp}</code> — that machine
-            shows its own under This deck on the network; the two should match.
+            <Fill text={t("lan.ask.fp")} parts={{ fp: <code className="ap-lan-code">{request.fp}</code> }} />
           </p>
 
           {waiting > 0 && (
             <p className="lan-ask-more">
-              {waiting === 1 ? "One more deck is waiting behind this one." : `${waiting} more decks are waiting behind this one.`}
+              {t("lan.ask.more", { count: waiting })}
             </p>
           )}
 
@@ -129,14 +131,14 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
             <button type="button" ref={declineRef} className="btn"
               disabled={decline.disabled} aria-busy={decline.busy}
               onClick={onDecline}
-              title="Nothing is shared. If that deck asks again, this comes back.">
-              {busy === "dismiss" ? "declining…" : "Decline"}
+              title={t("lan.ask.declineTitle")}>
+              {busy === "dismiss" ? t("lan.ask.declining") : t("lan.ask.decline")}
             </button>
             <button type="button" className="btn primary"
               disabled={accept.disabled} aria-busy={accept.busy}
               onClick={onAccept}
-              title="Talk to this deck from now on, and repair its expired logins with this deck's own.">
-              {busy === "accept" ? "accepting…" : "Accept"}
+              title={t("lan.ask.acceptTitle")}>
+              {busy === "accept" ? t("lan.ask.accepting") : t("lan.ask.accept")}
             </button>
           </div>
         </section>

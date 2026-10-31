@@ -6,10 +6,11 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { english } from "./lan-english-source";
 
 /** The dialog with its comments taken out, so a rule cannot be satisfied by a
  *  paragraph that describes it. */
-const MODAL = readFileSync(fileURLToPath(new URL("../components/LanSetupModal.tsx", import.meta.url)), "utf8")
+const MODAL = english(readFileSync(fileURLToPath(new URL("../components/LanSetupModal.tsx", import.meta.url)), "utf8"))
   .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 
 describe("the setup dialog's way out", () => {
