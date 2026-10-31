@@ -80,8 +80,15 @@ describe("what a switch that took says (#827)", () => {
   });
 
   it("says what happens to sessions already running, as claude-swap does", () => {
+    // The row renders the voice's sentence...
     const said = /<p className="ap-switched">([\s\S]*?)<\/p>/.exec(row)?.[1].replace(/\s+/g, " ").trim() ?? "";
-    expect(said).toBe("Now active. New sessions start on it; ones already running pick it up on their next message, up to about 30 seconds later on macOS.");
+    expect(said).toBe("{voice.switched}");
+    // ...and Claude's voice, the default, still holds the original words.
+    const voiceBlock = /export const CLAUDE_VOICE: RowVoice = \{[\s\S]*?\n\};/.exec(row)?.[0] ?? "";
+    const spoken = /\n  switched: ((?:"[^"\n]*"(?:\s*\+\s*)?\s*)+),/.exec(voiceBlock)?.[1] ?? "";
+    const joined = [...spoken.matchAll(/"([^"\n]*)"/g)].map(m => m[1]).join("");
+    expect(joined).toBe("Now active. New sessions start on it; ones already running pick it up on their next message, up to about 30 seconds later on macOS.");
+    expect(row).toMatch(/voice = CLAUDE_VOICE/);
   });
 
   it("announces it through a region that is there before it is needed", () => {

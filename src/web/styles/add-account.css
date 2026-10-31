@@ -116,7 +116,8 @@
   /* From 0.97, never from 0 — nothing in the real world appears from nothing. */
   animation: aa-done-in 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
-.aa-done h4 {
+.aa-done h4,
+.aa-step .aa-repeat-title {
   margin: 0;
   color: var(--text);
   font-size: calc(13px + var(--ui-text-increase, 0px));

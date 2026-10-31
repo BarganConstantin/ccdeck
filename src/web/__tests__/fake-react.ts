@@ -82,6 +82,10 @@ export const react = {
     });
     return [s.state, s.set] as const;
   },
+  useReducer<S, A>(reduce: (state: S, action: A) => S, init: S) {
+    const [state, set] = react.useState<S>(init);
+    return [state, (action: A) => set(previous => reduce(previous, action))] as const;
+  },
   useEffect(run: () => void | (() => void), deps?: readonly unknown[]) { effect(false, run, deps); },
   useLayoutEffect(run: () => void | (() => void), deps?: readonly unknown[]) { effect(true, run, deps); },
   useCallback<F>(fn: F, deps: readonly unknown[]) { return memo(() => fn, deps); },

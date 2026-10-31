@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount, one, textOf, flush } from './fake-react';
+import { isFold, openOthers, openMenuOf } from './codex-panel-helpers';
 
 vi.mock('react', async () => (await import('./fake-react')).react);
 const { default: CodexProfilesSection } = await import('../components/CodexProfilesSection');
@@ -26,30 +27,28 @@ async function setup() {
   }));
   const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
   await flush();
-  (one(view.tree, el => el.type === 'button' && textOf(el).startsWith('Other accounts'))!.props.onClick as () => void)();
+  openOthers(view);
   return { view, removes };
 }
 
-const moreOf = (view: { tree: unknown }, label: string) =>
-  one(view.tree, el => el.type === 'button' && el.props['aria-label'] === `More actions for ${label}`)!;
 const removeItem = (view: { tree: unknown }) =>
   one(view.tree, el => el.type === 'button' && el.props.role === 'menuitem' && /^(Remove|Confirm)$/.test(textOf(el)));
 
 describe('Remove, in a Codex account\'s menu', () => {
   it('is offered on an account the deck made and not on the one it did not', async () => {
     const { view } = await setup();
-    (moreOf(view, 'Default Codex').props.onClick as () => void)();
+    openMenuOf(view, 'Default Codex');
     expect(removeItem(view)).toBeFalsy();
-    (moreOf(view, 'Default Codex').props.onClick as () => void)(); // shut it
-    (moreOf(view, 'Work').props.onClick as () => void)();
+    openMenuOf(view, 'Work');
     expect(removeItem(view)).toBeTruthy();
   });
 
   it('asks twice, like Claude\'s: the first press arms it, the second removes it', async () => {
     const { view, removes } = await setup();
-    (moreOf(view, 'Work').props.onClick as () => void)();
+    openMenuOf(view, 'Work');
     expect(textOf(removeItem(view))).toBe('Remove');
     (removeItem(view)!.props.onClick as () => void)();
+    await flush();
     expect(removes).toEqual([]);
     expect(textOf(removeItem(view))).toBe('Confirm');
     expect(String(removeItem(view)!.props.className)).toContain('armed');
@@ -57,12 +56,12 @@ describe('Remove, in a Codex account\'s menu', () => {
     await flush();
     expect(removes).toEqual([expect.objectContaining({ id: 'b'.repeat(20), expectedRevision: 3 })]);
     expect(textOf(view.tree)).toContain('Account removed');
-    expect(textOf(view.tree)).not.toContain('Other accounts');
+    expect(one(view.tree, isFold)).toBeFalsy();
   });
 
   it('disarms by itself after four seconds, so a later press starts over', async () => {
     const { view, removes } = await setup();
-    (moreOf(view, 'Work').props.onClick as () => void)();
+    openMenuOf(view, 'Work');
     (removeItem(view)!.props.onClick as () => void)();
     expect(textOf(removeItem(view))).toBe('Confirm');
     await vi.advanceTimersByTimeAsync(4100);

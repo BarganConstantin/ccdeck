@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mount, one, textOf, flush } from './fake-react';
+import { mount, textOf, flush } from './fake-react';
+import { openOthers, rowOf } from './codex-panel-helpers';
 
 vi.mock('react', async () => (await import('./fake-react')).react);
 const { default: CodexProfilesSection } = await import('../components/CodexProfilesSection');
@@ -22,11 +23,8 @@ function roster(active = 'a', revision = 0) {
 const noQuota = { ok: false, json: async () => ({}) };
 const isRoster = (url: string) => url === '/api/codex-profiles';
 const rosterReads = (fetcher: { mock: { calls: unknown[][] } }) => fetcher.mock.calls.filter(call => isRoster(call[0] as string)).length;
-/** The "Other accounts" row is folded until pressed, with the Switch buttons in it. */
-function openOthers(view: { tree: unknown }) {
-  (one(view.tree, el => el.type === 'button' && textOf(el).startsWith('Other accounts'))!.props.onClick as () => void)();
-}
-const switchButton = (view: { tree: unknown }) => one(view.tree, el => el.type === 'button' && textOf(el) === 'Switch')!;
+const pressSwitch = (view: { tree: unknown }) => (rowOf(view, 'Work')!.props.onSwitch as (num: number, name: string) => void)(2, 'Work');
+const isDefault = (view: { tree: unknown }) => (rowOf(view, 'Work')!.props.a as { active: boolean }).active;
 
 describe('Codex roster polling', () => {
   it('lets a roster slower than several poll intervals finish and resumes polling afterward', async () => {
@@ -43,8 +41,8 @@ describe('Codex roster polling', () => {
     await vi.advanceTimersByTimeAsync(45_000);
     expect(rosterReads(fetcher)).toBe(1);
     pending.resolve(roster()); await flush();
-    expect(textOf(view.tree)).toContain('Personal');
-    expect(textOf(view.tree)).not.toContain('Checking profiles');
+    expect(rowOf(view, 'Personal')).toBeTruthy();
+    expect(textOf(view.tree)).not.toContain('Checking…');
     await vi.advanceTimersByTimeAsync(15_000);
     expect(rosterReads(fetcher)).toBe(2);
   });
@@ -63,17 +61,17 @@ describe('Codex roster polling', () => {
     await flush();
     await vi.advanceTimersByTimeAsync(15_000);
     openOthers(view);
-    (switchButton(view).props.onClick as () => void)();
+    pressSwitch(view);
     await flush();
     expect(reads).toBe(3);
-    expect(textOf(one(view.tree, el => el.type === 'li' && textOf(el).includes('Work')))).toContain('Default account');
+    expect(isDefault(view)).toBe(true);
     await vi.advanceTimersByTimeAsync(30_000);
     expect(reads).toBe(3); // the older poll is still pending
     if (outcome === 'success') oldPoll.resolve(roster('a'));
     else oldPoll.reject(new Error('old roster failed'));
     await flush();
     expect(textOf(view.tree)).not.toContain('Could not refresh');
-    expect(textOf(one(view.tree, el => el.type === 'li' && textOf(el).includes('Work')))).toContain('Default account');
+    expect(isDefault(view)).toBe(true);
     await vi.advanceTimersByTimeAsync(15_000);
     expect(reads).toBe(4);
   });
@@ -93,7 +91,7 @@ describe('Codex roster polling', () => {
     const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
     await flush();
     openOthers(view);
-    (switchButton(view).props.onClick as () => void)();
+    pressSwitch(view);
     await flush();
     expect(reads).toBe(2);
     expect(signal?.aborted).toBe(false);

@@ -192,7 +192,10 @@ describe("the wash stopped being asked to be a state channel (#519)", () => {
 // The verb stayed under the account; it lost its edge rather than gaining one.
 describe("three tiers, one per kind of thing a row says", () => {
   it("marks the live account with a dot in the accent, and says it in words to a screen reader", () => {
-    expect(clientText()).toMatch(/<span className="ap-live" title=\{`Active account · slot \$\{a\.num\}`\}>\s*<span className="vis-hidden">Active account, slot \{a\.num\}:<\/span>/);
+    expect(clientText()).toMatch(/<span className="ap-live" title=\{voice\.liveTitle\(a\.num\)\}>\s*<span className="vis-hidden">\{voice\.liveSpoken\(a\.num\)\}<\/span>/);
+    // Claude's words stay pinned where they now live.
+    expect(clientText()).toMatch(/liveTitle: num => `Active account · slot \$\{num\}`,/);
+    expect(clientText()).toMatch(/liveSpoken: num => `Active account, slot \$\{num\}:`,/);
     expect(clientText()).toMatch(/aria-current=\{a\.active \? "true" : undefined\}/);
     expect(declOf(".ap-live::before", "background")).toBe("var(--accent)");
     // A mark with no word beside it on screen is non-text contrast (1.4.11).
@@ -314,7 +317,7 @@ describe("a press never disables the control it came from (#518)", () => {
     expect(rescueSelectors(null)).toEqual([".accounts-panel .ap-refresh"]);
     // Both targets are real, named controls in the panel rather than a
     // container nobody can hear.
-    expect(clientText()).toMatch(/id=\{`ap-more-\$\{a\.num\}`\}/);
+    expect(clientText()).toMatch(/id=\{`ap-\$\{ids\}more-\$\{a\.num\}`\}/);
     expect(readFileSync(fileURLToPath(new URL("../components/AccountsHeader.tsx", import.meta.url)), "utf8"))
       .toMatch(/className="glyph-btn ap-refresh"/);
     // And only when focus was really dropped — a reader who tabbed elsewhere

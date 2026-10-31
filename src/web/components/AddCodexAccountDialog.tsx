@@ -1,10 +1,16 @@
 // Adding a Codex account, or signing one in again, without a terminal.
 //
 // The same journey as Claude's Add account dialog, shorter because Codex has
-// one way in: a name for a new account, then "Sign in with ChatGPT", which has
-// the deck start `codex login --device-auth` for that account's own home
-// (codex-login.mjs). Codex prints a link and a one-time code; the dialog shows
-// both and watches until the sign-in lands. The deck never sees the login.
+// one way in: "Sign in with ChatGPT", which has the deck start
+// `codex login --device-auth` for that account's own home (codex-login.mjs).
+// Codex prints a link and a one-time code; the dialog shows both and watches
+// until the sign-in lands. The deck never sees the login.
+//
+// OpenAI's page takes whichever account the browser is already signed in to, so
+// the easiest way to fail at adding a second account is to add the first one
+// again. That is checked when the sign-in lands: Claude's dialog replaces the
+// stored login of an account it already holds, and this one drops the repeat, so
+// either way there is one row per account, and it says what happened and why.
 //
 // Nothing starts until asked, and closing the dialog cancels a sign-in that is
 // still waiting, so no process is left behind.
@@ -21,7 +27,7 @@ import SuccessMark from "./SuccessMark";
 import { copyText } from "../copy-text";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
-type Stage = "ready" | "starting" | "waiting" | "done" | "failed";
+type Stage = "ready" | "starting" | "waiting" | "checking" | "done" | "repeat" | "failed";
 
 interface LoginAnswer {
   ok: boolean;
@@ -39,8 +45,11 @@ interface Props {
   onCreate: () => Promise<string | null>;
   /** Copy the terminal command for an account, for a machine without Codex here. */
   onCopyCommand: (id: string) => void;
-  /** A sign-in landed: the roster and the numbers are read again. */
-  onSignedIn: () => void;
+  /** A sign-in landed: the roster and the numbers are read again. Resolves the
+   *  name of the account this one turned out to repeat, or null. */
+  onSignedIn: (id: string) => Promise<string | null>;
+  /** Take back an account made here that repeats one already listed. */
+  onDiscard: (id: string) => Promise<boolean>;
   onClose: () => void;
 }
 
@@ -53,7 +62,7 @@ function reasonText(reason: string | null | undefined): string {
   return "The sign-in did not finish.";
 }
 
-export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand, onSignedIn, onClose }: Props) {
+export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand, onSignedIn, onDiscard, onClose }: Props) {
   const [stage, setStage] = useState<Stage>("ready");
   const [id, setId] = useState<string | null>(profile?.id ?? null);
   const [login, setLogin] = useState<LoginAnswer | null>(null);
@@ -66,6 +75,10 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
   const tabRef = useRef<Window | null>(null);
   /** The sign-in page is open in a tab the dialog opened. */
   const [opened, setOpened] = useState(false);
+  /** The account the sign-in landed on already had a row: this one's name. */
+  const [repeats, setRepeats] = useState<string | null>(null);
+  /** The poll can answer "done" again while the roster is being read. */
+  const settling = useRef(false);
   const stageRef = useRef(stage);
   stageRef.current = stage;
   const idRef = useRef(id);
@@ -124,10 +137,28 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
     setLogin(answer);
     if (answer.state === "waiting") sendTab(answer.url);
     else if (["failed", "expired", "cancelled", "done"].includes(answer.state ?? "")) closeTab();
-    if (answer.state === "done") { stopPolling(); setStage("done"); onSignedIn(); }
+    if (answer.state === "done") { stopPolling(); void settle(); }
     else if (["failed", "expired", "cancelled"].includes(answer.state ?? "")) { stopPolling(); setStage("failed"); }
     else if (answer.state === "waiting") setStage("waiting");
     else setStage("starting");
+  }
+
+  /** The sign-in landed: see who it landed on before calling it a new account. */
+  async function settle() {
+    const target = idRef.current;
+    if (settling.current || !target) return;
+    settling.current = true;
+    setStage("checking");
+    const same = await onSignedIn(target).catch(() => null);
+    setRepeats(same);
+    // A row asked to sign in again stays: it is the person's own row, and the
+    // done step says what it now repeats. One made just now goes.
+    if (same && !profile) {
+      await onDiscard(target).catch(() => false);
+      setId(null);
+      setStage("repeat");
+    } else setStage("done");
+    settling.current = false;
   }
 
   async function begin(profileId: string) {
@@ -190,6 +221,9 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
                   ? "The login is saved for this account only."
                   : "The account is named after its email, and keeps its own login, settings and history, apart from your other Codex accounts."}
               </p>
+              {!profile && (
+                <p className="aa-note">The page uses the account your browser is signed in to, so sign out of ChatGPT there first to add a different one.</p>
+              )}
               {error && <p className="aa-err" role="alert">{error}</p>}
               <div className="aa-actions">
                 <button ref={primaryRef} type="button" className="btn primary" aria-busy={busy}
@@ -245,12 +279,38 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
             </div>
           )}
 
+          {stage === "checking" && (
+            <div className="aa-step">
+              <p className="aa-live-line" role="status">
+                <svg className="aa-spin" viewBox="0 0 16 16" aria-hidden>
+                  <circle className="aa-spin-track" cx="8" cy="8" r="6" />
+                  <circle className="aa-spin-arc" cx="8" cy="8" r="6" />
+                </svg>
+                <span>Signed in. Reading the account…</span>
+              </p>
+            </div>
+          )}
+
           {stage === "done" && (
             <div className="aa-done">
               <SuccessMark />
               <h4>Signed in</h4>
-              <p className="aa-note">The account is ready. New Codex sessions can use it once you make it the default.</p>
-              <div className="aa-actions"><button type="button" className="btn primary" onClick={close}>Done</button></div>
+              <p className="aa-note">{repeats
+                ? `This is the same ChatGPT account as ${repeats}, so the two share one quota.`
+                : "The account is ready. New Codex sessions can use it once you make it the default."}</p>
+              <div className="aa-actions"><button ref={primaryRef} type="button" className="btn primary" onClick={close}>Done</button></div>
+            </div>
+          )}
+
+          {stage === "repeat" && (
+            <div className="aa-step">
+              <h4 className="aa-repeat-title">Already in your accounts</h4>
+              <p className="aa-note"><strong>{repeats}</strong> is already here, so nothing was added.</p>
+              <p className="aa-note">The sign-in page uses the ChatGPT account your browser is signed in to. To add a different one, sign out of ChatGPT in the browser first, or open the page in a private window.</p>
+              <div className="aa-actions">
+                <button ref={primaryRef} type="button" className="btn primary" onClick={() => { setLogin(null); setOpened(false); setStage("ready"); }}>Try another account</button>
+                <button type="button" className="btn" onClick={close}>Done</button>
+              </div>
             </div>
           )}
 
