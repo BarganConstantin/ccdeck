@@ -21,14 +21,16 @@ import { fileURLToPath } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
 
 import {
-  CHECK_MIN_BUSY_MS, CHECKS_OFF, DECK_UNREACHABLE, NPM_UNREACHABLE, runUpdateCheck, runDesktopUpdateCheck, updateCheckState,
+  CHECK_MIN_BUSY_MS, CHECKS_OFF, deckUnreachable, npmUnreachable, runUpdateCheck, runDesktopUpdateCheck, updateCheckState,
   type UpdateCheckFacts,
 } from "../update-check";
 import * as useNowClock from "../use-now";
 import type { VersionInfo } from "../use-version-check";
 import { UPGRADE_BLOCK_TEXT } from "../components/VersionBanner";
 import ReleaseNotesModal from "../components/ReleaseNotesModal";
-import ReleaseActions, { useReleaseUpdateCheck, RESTART_WHY, TOUR_WHY, UpdateLineView } from "../components/ReleaseActions";
+import ReleaseActions, { useReleaseUpdateCheck, restartWhy, TOUR_WHY, UpdateLineView } from "../components/ReleaseActions";
+
+const NPM_UNREACHABLE = npmUnreachable(), DECK_UNREACHABLE = deckUnreachable(), RESTART_WHY = restartWhy();
 
 const { homeRef } = vi.hoisted(() => ({ homeRef: { dir: null as string | null } }));
 vi.mock("node:os", async importOriginal => {

@@ -145,10 +145,10 @@ describe("the fields the server computed and the client dropped (#1046)", () => 
     // lifted out of Inner; what matters is that the client declares the field.
     expect(declares(decl(clientText(), "VersionInfo"), "checkFailedAt")).toBe(true);
     expect(declares(decl(chip, "VersionChipCopy"), "checkFailedAgo")).toBe(true);
-    expect(chip).toMatch(/could not reach npm/);
+    expect(chip).toMatch(/shell\.chip\.couldNotReach/);
     // And the accessible name too: the chip looks identical either way, so a
     // reader who cannot see the tooltip needs it most.
-    expect(chip).toMatch(/npm could not be reached/);
+    expect(chip).toMatch(/shell\.chip\.labelFailed/);
   });
 
   it("only says it when the failure is newer than the last success", () => {

@@ -30,6 +30,7 @@ import { fileURLToPath } from "node:url";
 import { crashReportBody } from "../components/ErrorBoundary";
 import { forwardCaughtError, scrubReport } from "../report-errors";
 import { feedbackSeed } from "../feedback-draft";
+import shellEn from "../i18n/areas/shell/en";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
@@ -324,10 +325,12 @@ describe("the error boundary catches a render crash and offers a report", () => 
     // The card is the alert, not the pane, so the report dialog is not read
     // out inside it (crash-pane-alert.test.ts draws it).
     expect(boundary).toMatch(/className="error-fallback-card" role="alert"/);
-    expect(boundary).toMatch(/Something went wrong/);
+    expect(boundary).toMatch(/t\("shell\.error\.title"\)/);
+    expect(shellEn["shell.error.title"]).toBe("Something went wrong");
     expect(boundary).toMatch(/onClick=\{\(\) => window\.location\.reload\(\)\}/);
-    expect(boundary).toMatch(/>\s*Reload\s*</);
-    expect(boundary).toMatch(/>\s*Send report\s*</);
+    expect(boundary).toMatch(/\{t\("shell\.reload"\)\}/);
+    expect(boundary).toMatch(/\{t\("shell\.error\.report"\)\}/);
+    expect(shellEn["shell.error.report"]).toBe("Send report");
     // The fallback title is not a heading — the page's one <h1> is the wordmark
     // (landmark-outline.test.ts) — and there is no scrim class that would fold
     // it into the modal sweeps.

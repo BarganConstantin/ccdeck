@@ -17,6 +17,7 @@ import { entryLine, type DeckRow } from "../lan-roster";
 import { accountsSurface } from "./accounts-surface";
 import { lanSectionSurface } from "./lan-section-surface";
 import { sheetText } from "./sheet-source";
+import shellEn from "../i18n/areas/shell/en";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/AccountsPanel.tsx");
@@ -262,6 +263,7 @@ describe("the view (#844)", () => {
 describe("the tour no longer has to say where it is (#844)", () => {
   it("points at the row instead of describing the panel's layout", () => {
     expect(guide).not.toMatch(/last section of the Claude accounts panel/);
-    expect(guide).toMatch(/tip: "Open it from the row at the foot of the Claude accounts panel\."/);
+    expect(guide).toContain('"shell.guide.welcome.7.tip"');
+    expect(shellEn["shell.guide.welcome.7.tip"]).toBe("Open it from the row at the foot of the Claude accounts panel.");
   });
 });

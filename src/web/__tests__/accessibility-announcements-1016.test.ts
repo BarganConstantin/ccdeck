@@ -24,8 +24,8 @@ describe("the deck announces state that is already visible (#1016)", () => {
     // positive.
     const app = strip(read("../App.tsx") + "\n" + read("../use-live-announcements.ts")
       + "\n" + read("../components/TopbarReadouts.tsx"));
-    expect(app).toMatch(/const watchNow = watchUnseen > 0[\s\S]*?Browser watch has/);
-    expect(app).toContain('nextAnnouncement(said, watchNow, "Browser watch has no unread findings.")');
+    expect(app).toMatch(/const watchNow = watchUnseen > 0 \? t\("shell\.announce\.watch", \{ count: watchUnseen \}\)/);
+    expect(app).toContain('nextAnnouncement(said, watchNow, t("shell.announce.watchNone"))');
     expect(app).toContain('<div className="vis-hidden" role="status" aria-atomic="true">{watchSaid}</div>');
     expect(strip(read("../App.tsx"))).toMatch(/<ReadoutGroup\b[^>]*\bannouncements=\{announcements\}/);
   });

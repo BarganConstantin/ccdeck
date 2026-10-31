@@ -37,6 +37,7 @@ import type { VersionInfo } from "../use-version-check";
 import { DEFAULT_PREFS } from "../sound";
 import { ACCOUNT_NOTIFY_DEFAULTS } from "../use-os-notifications";
 import { AWAY_QUIET_MS } from "../../server/auto-update.mjs";
+import shellEn from "../i18n/areas/shell/en";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const flat = (text: string) => text.replace(/\s+/g, " ");
@@ -156,7 +157,7 @@ describe("Settings › About says which ccdeck this is", () => {
     // The sentence the deck says when a dialog fails to load for this reason.
     const said = "The deck has most likely been updated since this tab opened, and a reload picks up the new version.";
     expect(pageBehindNote("3.40.0")).toBe(`This page is from v3.40.0. ${said}`);
-    expect(flat(read("../components/LazyDialog.tsx"))).toContain(said);
+    expect(shellEn["shell.lazy.didNotLoad"]).toContain(said);
   });
 
   it("draws no update row while nothing is waiting", () => {
@@ -201,8 +202,10 @@ describe("Settings › About says which ccdeck this is", () => {
     expect(upgrade).toContain("ccdeck v3.42.0 is out — you are on v3.41.0.");
     // The banner's own first sentences.
     const banner = flat(read("../components/VersionBanner.tsx"));
-    expect(banner).toContain("<strong>v{notice.to} is installed — this deck still runs v{notice.from}.</strong>");
-    expect(banner).toContain("<strong>{PRODUCT} v{notice.to} is out — you are on v{notice.from}.</strong>");
+    expect(banner).toContain('t("shell.banner.installedStale"');
+    expect(shellEn["shell.banner.installedStale"]).toBe("v{to} is installed — this deck still runs v{from}.");
+    expect(banner).toContain('t("shell.banner.isOut"');
+    expect(shellEn["shell.banner.isOut"]).toBe("{product} v{to} is out — you are on v{from}.");
 
     const d = doors();
     const update = buttons(AboutSection(aboutProps({ notice: { kind: "upgrade", from: "3.41.0", to: "3.42.0" }, doors: d })))
