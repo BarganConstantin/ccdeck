@@ -8,7 +8,7 @@ afterEach(() => { cleanup?.(); cleanup = undefined; vi.unstubAllGlobals(); vi.us
 
 const profiles = [
   { id: 'a'.repeat(20), label: 'Default Codex', active: true, signedInFilePresent: true, identityVersion: 'a' },
-  { id: 'b'.repeat(20), label: 'Work', managedLabel: 'Work', active: false, signedInFilePresent: false, identityVersion: 'b' },
+  { id: 'b'.repeat(20), label: 'Work', managed: true, active: false, signedInFilePresent: false, identityVersion: 'b' },
 ];
 
 async function setup() {

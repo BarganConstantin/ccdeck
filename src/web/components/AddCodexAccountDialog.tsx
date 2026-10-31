@@ -14,7 +14,7 @@ import SuccessMark from "./SuccessMark";
 import { copyText } from "../copy-text";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
-type Stage = "name" | "ready" | "starting" | "waiting" | "done" | "failed";
+type Stage = "ready" | "starting" | "waiting" | "done" | "failed";
 
 interface LoginAnswer {
   ok: boolean;
@@ -28,8 +28,8 @@ interface LoginAnswer {
 interface Props {
   /** Signing an account that exists in again; absent, a new one is made first. */
   profile?: { id: string; label: string };
-  /** Make an account of this name. Resolves its id, or null when it was refused. */
-  onCreate: (label: string) => Promise<string | null>;
+  /** Make an account. Resolves its id, or null when it was refused. */
+  onCreate: () => Promise<string | null>;
   /** Copy the terminal command for an account, for a machine without Codex here. */
   onCopyCommand: (id: string) => void;
   /** A sign-in landed: the roster and the numbers are read again. */
@@ -47,8 +47,7 @@ function reasonText(reason: string | null | undefined): string {
 }
 
 export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand, onSignedIn, onClose }: Props) {
-  const [stage, setStage] = useState<Stage>(profile ? "ready" : "name");
-  const [label, setLabel] = useState("");
+  const [stage, setStage] = useState<Stage>("ready");
   const [id, setId] = useState<string | null>(profile?.id ?? null);
   const [login, setLogin] = useState<LoginAnswer | null>(null);
   const [busy, setBusy] = useState(false);
@@ -60,7 +59,6 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
   stageRef.current = stage;
   const idRef = useRef(id);
   idRef.current = id;
-  const fieldRef = useRef<HTMLInputElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
 
   const stopPolling = useCallback(() => {
@@ -78,7 +76,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
     onClose();
   }, [onClose, stopPolling]);
 
-  const dialogRef = useModalDismiss(close, { focusRef: profile ? primaryRef : fieldRef });
+  const dialogRef = useModalDismiss(close, { focusRef: primaryRef });
   const scrimPress = useScrimDismiss(close);
 
   useEffect(() => stopPolling, [stopPolling]);
@@ -126,7 +124,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
     try {
       let target = id;
       if (!target) {
-        target = await onCreate(label.trim());
+        target = await onCreate();
         if (!target) { setError("Could not add the account. Try again."); return; }
         setId(target);
       }
@@ -147,24 +145,16 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
           </div>
         </header>
         <section className="modal-body aa-body">
-          {(stage === "name" || stage === "ready") && (
+          {stage === "ready" && (
             <div className="aa-step aa-primer">
               <p className="aa-note">
-                {stage === "name"
-                  ? "Name the account, then sign in to ChatGPT with a link and a one-time code. It keeps its own login, settings and history, apart from your other Codex accounts."
-                  : "Sign in with a link and a one-time code. The login is saved for this account only."}
+                Sign in to ChatGPT with a link and a one-time code. {profile
+                  ? "The login is saved for this account only."
+                  : "The account is named after its email, and keeps its own login, settings and history, apart from your other Codex accounts."}
               </p>
-              {stage === "name" && (
-                <div className="aa-field">
-                  <input ref={fieldRef} type="text" value={label} maxLength={80} placeholder="Account name, like Work"
-                    aria-label="Account name" spellCheck={false} autoComplete="off"
-                    onChange={event => setLabel(event.target.value)}
-                    onKeyDown={event => { if (event.key === "Enter" && label.trim()) void submit(); }} />
-                </div>
-              )}
               {error && <p className="aa-err" role="alert">{error}</p>}
               <div className="aa-actions">
-                <button ref={primaryRef} type="button" className="btn primary" aria-busy={busy} disabled={stage === "name" && !label.trim()}
+                <button ref={primaryRef} type="button" className="btn primary" aria-busy={busy}
                   onClick={() => void submit()}>Sign in with ChatGPT</button>
               </div>
             </div>

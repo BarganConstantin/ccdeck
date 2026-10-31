@@ -51,7 +51,8 @@ export async function discoverCodexProfiles(options = {}) {
     } catch { /* Missing or malformed login metadata uses the profile label. */ }
     if (await credentialFileVersion(directory) !== credentialVersion) identity = null;
     const id = selection.profiles?.find(p => p.home === directory)?.id ?? await codexProfileId(directory);
-    const managedLabel = selection.managedProfiles?.find(p => p.id === id)?.label;
+    const managedEntry = selection.managedProfiles?.find(p => p.id === id);
+    const managedLabel = managedEntry?.label ?? null;
     const available = await stat(directory).then(info => info.isDirectory(), () => false);
     const authoritative = options.enableNative && await usesNativeCodexAccount(directory, selection.selectionEnabled);
     const native = options.enableNative && (authoritative || !installed) && available
@@ -62,6 +63,7 @@ export async function discoverCodexProfiles(options = {}) {
       identityVersion: native?.signedIn ? native.identityVersion : createHash('sha256').update(credentialVersion).digest('hex'),
       label: managedLabel ? `${managedLabel}${accountLabel ? ` · ${accountLabel}` : ''}` : accountLabel ?? (profiles.length === 0 ? 'Default Codex' : `Codex profile ${profiles.length + 1}`),
       ...(managedLabel ? { managedLabel } : {}),
+      ...(managedEntry ? { managed: true } : {}),
       active: id === selection.profileId,
       available,
       ...(native ? { signedIn: native.ok && native.signedIn, authSource: 'native', metadataUnavailable: !native.ok, metadataReason: native.reason ?? null } : {}),

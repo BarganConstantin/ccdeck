@@ -68,7 +68,7 @@ async function validate(state, options) {
       || !['add', 'select'].includes(op.kind) || !ids.has(op.id) || !Number.isSafeInteger(op.revision)
       || op.revision < 1 || op.revision > state.revision
       || (op.kind === 'select' && (!Number.isSafeInteger(op.expectedRevision) || op.expectedRevision < 0))
-      || (op.kind === 'add' && !validLabel(op.label))) fail('registry_corrupt');
+      || (op.kind === 'add' && !(op.label === null || validLabel(op.label)))) fail('registry_corrupt');
     operations.add(op.operationId);
   }
   return state;
@@ -240,9 +240,11 @@ export async function selectCodexProfile({ id, expectedRevision, operationId: op
     return { ...result, status: 'applied_for_new_sessions' };
   });
 }
-export async function addCodexProfile({ label, operationId: operation } = {}, options = {}) {
+/** Add an account this deck keeps the home of. The name is optional: without
+ *  one it is called by its email once it is signed in, the way Claude's are. */
+export async function addCodexProfile({ label = null, operationId: operation } = {}, options = {}) {
   operationId(operation);
-  if (!validLabel(label)) fail('invalid_label');
+  if (label !== null && !validLabel(label)) fail('invalid_label');
   return locked(options, async () => {
     const state = await initial(options);
     const previous = replay(state, operation, 'add', o => o.label === label);

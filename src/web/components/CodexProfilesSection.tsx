@@ -22,8 +22,8 @@ interface CodexProfile {
   metadataUnavailable?: boolean;
   metadataReason?: string;
   available?: boolean;
-  /** Present on an account this deck made, which is the only kind it removes. */
-  managedLabel?: string;
+  /** An account this deck made, which is the only kind it removes. */
+  managed?: boolean;
 }
 
 interface ProfileQuota {
@@ -132,12 +132,13 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
   }
 
   /** Make an account for the dialog, and read the roster again so it is listed.
+   *  It has no name of its own: it is called by its email once it is signed in.
    *  Resolves its id, or null when the deck refused. */
-  async function createProfile(label: string): Promise<string | null> {
+  async function createProfile(): Promise<string | null> {
     try {
       const response = await fetch('/api/codex-profile-add', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label, expectedRevision: revision, operationId: crypto.randomUUID() }),
+        body: JSON.stringify({ expectedRevision: revision, operationId: crypto.randomUUID() }),
       });
       const result = await response.json() as { ok: boolean; id?: string };
       if (!response.ok || !result.ok || !result.id) return null;
@@ -420,7 +421,7 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
                 onClick={pick(() => void copyCommand('terminal', undefined, true))}>Remove terminal selection</button>
             </>
           )}
-          {menuProfile.managedLabel !== undefined && (
+          {menuProfile.managed && (
             <button type="button" role="menuitem"
               className={`ap-menu-item danger${confirmRemove === menuProfile.id ? " armed" : ""}`}
               aria-label={confirmRemove === menuProfile.id ? "Confirm remove" : undefined}
