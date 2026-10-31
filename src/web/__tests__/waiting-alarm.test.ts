@@ -84,7 +84,7 @@ describe("what raises an alarm", () => {
     const blocked = [root("a", PERMISSION), root("b", IDLE)];
     const waiting = blocked.filter(a => alarming(a.waiting)).length;
     expect(ambientSignal({ waiting, running: 2 }).icon).toBe("waiting");
-    expect(ambientSignal({ waiting, running: 2 }).title).toBe("(1) ccdeck");
+    expect(ambientSignal({ waiting, running: 2 }).title).toBe("(1) waiting · ccdeck");
   });
 });
 

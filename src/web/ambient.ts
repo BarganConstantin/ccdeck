@@ -26,18 +26,23 @@ export interface AmbientSignal {
 /**
  * What the tab should say and wear, given what the canvas currently holds.
  *
- * THE COUNT LEADS THE STRING: `(2) ccdeck`, never `ccdeck (2)`. Every browser
- * truncates a tab title from the END, and a tab in a strip of fifteen is a few
- * characters wide — so a count appended to the name is the first thing clipped
- * and the deck is back to saying nothing at exactly the moment it has something
- * to say. `(2) c…` is readable down to almost nothing. This ordering is the
- * whole feature, it looks like a typo to anyone tidying the file, and
+ * THE COUNT LEADS THE STRING: `(2) waiting · ccdeck`, never `ccdeck (2)`.
+ * Every browser truncates a tab title from the END, and a tab in a strip of
+ * fifteen is a few characters wide — so a count appended to the name is the
+ * first thing clipped and the deck is back to saying nothing at exactly the
+ * moment it has something to say. `(2) w…` is readable down to almost
+ * nothing. This ordering is the whole feature, it looks like a typo to anyone
+ * tidying the file, and
  * ambient-signal.test.ts asserts the count is at index 0 rather than merely
  * present so that the tidy fails there instead of in a user's tab strip.
  *
- * Never `(0) ccdeck`. Zero is the resting state and has to look like one: a
- * parenthesised zero is a badge that reports nothing is wrong, which is a badge
- * that gets ignored — and a badge that gets ignored is ignored at `(1)` too.
+ * `waiting` follows the count because V4's copy deck says what is being counted:
+ * a bare `(2)` does not. It sits after the count so the clipped end loses the
+ * name first, not the number.
+ *
+ * Never `(0) waiting · ccdeck`. Zero is the resting state and has to look like
+ * one: a parenthesised zero is a badge that reports nothing is wrong, which is
+ * a badge that gets ignored — and a badge that gets ignored is ignored at `(1)` too.
  *
  * The name comes from PRODUCT rather than a literal because this is a surface a
  * human reads, which is the line brand.ts draws; index.html holds the only copy
@@ -54,7 +59,7 @@ export function ambientSignal(
     // that vanished the moment the connection dropped would read as "they were
     // dealt with". `(2)` beside a broken mark is the honest pair: two sessions
     // were waiting, and contact has been lost.
-    title: waiting > 0 ? `(${waiting}) ${PRODUCT}` : PRODUCT,
+    title: waiting > 0 ? `(${waiting}) waiting · ${PRODUCT}` : PRODUCT,
     // Offline outranks everything, and not because a blocked session matters
     // less than a dropped socket (#719). While the stream is down, `waiting`
     // and `running` are both frozen readings of a board that has moved on

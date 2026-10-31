@@ -7,7 +7,7 @@
 //
 // Three things are pinned here, and only one of them is the arithmetic.
 //
-// The first is the ORDER of the title. `(2) ccdeck` and `ccdeck (2)` differ by
+// The first is the ORDER of the title. `(2) waiting · ccdeck` and `ccdeck (2)` differ by
 // nothing a reviewer would defend and by everything a user sees: browsers
 // truncate a tab title from the end, so the appended form is clipped away at
 // exactly the widths a deck is read at. It looks like a mistake, which means
@@ -55,7 +55,7 @@ const codeOf = (text: string) =>
 
 describe("the title", () => {
   it("is exactly the product name when nothing is waiting", () => {
-    // Not `(0) ccdeck`. Zero is the resting state and a badge that reports
+    // Not `(0) waiting · ccdeck`. Zero is the resting state and a badge that reports
     // nothing is wrong is a badge that stops being read at (1) as well.
     const title = ambientSignal({ waiting: 0, running: 0 }).title;
     expect(title).toBe(PRODUCT);
@@ -76,10 +76,21 @@ describe("the title", () => {
     // characters wide and browsers cut from the END.
     for (const waiting of [1, 7]) {
       const title = ambientSignal({ waiting, running: 0 }).title;
-      expect(title).toBe(`(${waiting}) ${PRODUCT}`);
+      expect(title).toBe(`(${waiting}) waiting · ${PRODUCT}`);
       expect(title.indexOf(`(${waiting})`)).toBe(0);
       expect(title.startsWith(PRODUCT)).toBe(false);
     }
+  });
+
+  it("is V4's copy-deck row, word for word, with the middle dot U+00B7", () => {
+    // The row is `({n}) waiting · ccdeck`: the count says how many, `waiting`
+    // says what is counted, one space each side of the dot.
+    expect(ambientSignal({ waiting: 1, running: 0 }).title).toBe("(1) waiting · ccdeck");
+    expect(ambientSignal({ waiting: 12, running: 0 }).title).toBe("(12) waiting · ccdeck");
+    expect(ambientSignal({ waiting: 0, running: 0 }).title).toBe("ccdeck");
+    const title = ambientSignal({ waiting: 3, running: 0 }).title;
+    expect(title.codePointAt(title.indexOf("·"))).toBe(0xb7);
+    expect(title.split("·")).toEqual(["(3) waiting ", " ccdeck"]);
   });
 
   it("names the deck with PRODUCT rather than a literal of its own", () => {
@@ -94,7 +105,7 @@ describe("the title", () => {
 
   it("goes back to plain when the last block clears", () => {
     // The classic failure of this feature is a count that only ever goes up.
-    expect(ambientSignal({ waiting: 1, running: 2 }).title).toBe(`(1) ${PRODUCT}`);
+    expect(ambientSignal({ waiting: 1, running: 2 }).title).toBe(`(1) waiting · ${PRODUCT}`);
     expect(ambientSignal({ waiting: 0, running: 2 }).title).toBe(PRODUCT);
     expect(ambientSignal({ waiting: 0, running: 0 }).title).toBe(PRODUCT);
   });
@@ -428,7 +439,7 @@ describe("what App.tsx does with it", () => {
 // which is that only a permission block is an alarm at all.
 //
 // Real hook payloads through the real reducer into the real counters, so the
-// whole path from "CC sent a notification" to "the tab says (1) ccdeck" is
+// whole path from "CC sent a notification" to "the tab says (1) waiting · ccdeck" is
 // pinned end to end and no step of it is a restatement of another step.
 
 const PERMISSION = { notification_type: "permission_prompt", message: "Claude needs your permission" };
@@ -471,7 +482,7 @@ describe("the counts the signal is handed", () => {
     expect(ambientSignal(counts(state))).toEqual({ title: PRODUCT, icon: "running" });
 
     state = send(state, "s1", { hook_event_name: "Notification", ...PERMISSION });
-    expect(ambientSignal(counts(state))).toEqual({ title: `(1) ${PRODUCT}`, icon: "waiting" });
+    expect(ambientSignal(counts(state))).toEqual({ title: `(1) waiting · ${PRODUCT}`, icon: "waiting" });
 
     // Answering it is the case that matters: a count that only goes up is the
     // classic failure here, and the icon has to fall back to running rather
@@ -492,7 +503,7 @@ describe("the counts the signal is handed", () => {
     }
     state = send(state, "s1", { hook_event_name: "Notification", ...PERMISSION });
     state = send(state, "s2", { hook_event_name: "Notification", ...PERMISSION });
-    expect(ambientSignal(counts(state)).title).toBe(`(2) ${PRODUCT}`);
+    expect(ambientSignal(counts(state)).title).toBe(`(2) waiting · ${PRODUCT}`);
   });
 
   it("says nothing at all for a session that merely ended its turn", () => {
@@ -530,7 +541,7 @@ describe("the counts the signal is handed", () => {
     state = send(state, "s2", { hook_event_name: "Notification", ...IDLE });
     state = send(state, "s3", { hook_event_name: "Notification", ...IDLE });
     expect(counts(state).waiting).toBe(1);
-    expect(ambientSignal(counts(state))).toEqual({ title: `(1) ${PRODUCT}`, icon: "waiting" });
+    expect(ambientSignal(counts(state))).toEqual({ title: `(1) waiting · ${PRODUCT}`, icon: "waiting" });
   });
 
   it("leaves no phantom in the title when an old session is evicted", () => {
@@ -555,11 +566,11 @@ describe("the counts the signal is handed", () => {
       state = send(state, s, { hook_event_name: "Stop" }, 3_000);
       state = send(state, s, { hook_event_name: "Notification", ...PERMISSION }, 4_000);
     }
-    expect(ambientSignal(counts(state))).toEqual({ title: `(2) ${PRODUCT}`, icon: "waiting" });
+    expect(ambientSignal(counts(state))).toEqual({ title: `(2) waiting · ${PRODUCT}`, icon: "waiting" });
 
     expect(pruneOldAgents(state, 1_000_000, 1, 0)).toBe(true);
     expect(state.agents.size).toBe(1);
-    expect(ambientSignal(counts(state)).title).toBe(`(1) ${PRODUCT}`);
+    expect(ambientSignal(counts(state)).title).toBe(`(1) waiting · ${PRODUCT}`);
   });
 
   it("lands on the truth after a replay, not on the sum of it", () => {
@@ -575,7 +586,7 @@ describe("the counts the signal is handed", () => {
       if (upTo > 1) state = send(state, "s1", { hook_event_name: "UserPromptSubmit", prompt: "yes" });
       return state;
     };
-    expect(ambientSignal(counts(replay(1))).title).toBe(`(1) ${PRODUCT}`);
+    expect(ambientSignal(counts(replay(1))).title).toBe(`(1) waiting · ${PRODUCT}`);
     expect(ambientSignal(counts(replay(2))).title).toBe(PRODUCT);
   });
 });
