@@ -342,6 +342,7 @@ export function snapshotToFlow(
         source: noteId,
         target: a.id,
         type: "recapTie",
+        ariaLabel: t("board.edge.aria", { label: a.label }),
         className: "recap-edge",
         // Decoration: not a stop for Tab. It draws no hit area to click either
         // (RecapTieEdge renders none, and the sheet gives it no pointer).
