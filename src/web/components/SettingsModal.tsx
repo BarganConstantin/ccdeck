@@ -17,6 +17,8 @@
 // component, lifted whole out of the menu it used to live in; this file is
 // only the frame, the nav and the search above it (SettingsSearch.tsx).
 import { useMediaQuery } from "../use-media-query";
+import { useT } from "../i18n";
+import LanguageSection from "./LanguageSection";
 import SessionRecoverySettings from "./SessionRecoverySettings";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
@@ -86,6 +88,7 @@ export default function SettingsModal({
   // Focus starts on the section's own tab, not on the ×: the nav is what this
   // dialog is walked by, and a door that opened it at Sounds lands the reader
   // on "Sounds", which says where they are.
+  const t = useT();
   const leaveGuardRef = useRef<SettingsLeaveGuard | null>(null);
   const registerLeaveGuard = useCallback((guard: SettingsLeaveGuard | null) => { leaveGuardRef.current = guard; }, []);
   function requestLeave(action: () => void, back = false) {
@@ -282,6 +285,7 @@ export default function SettingsModal({
         // the preferences that live in a panel of their own (#2176).
         return (
           <>
+            <LanguageSection />
             <BoardSection />
             <SessionRecoverySettings provider="Codex" />
             {providers.claude && <SessionRecoverySettings provider="Claude" />}
@@ -314,15 +318,15 @@ export default function SettingsModal({
       >
         <header className="modal-head">
           <div className="modal-title">
-            <span id="settings-title" className="modal-tool-name">Settings</span>
+            <span id="settings-title" className="modal-tool-name">{t("settings.title")}</span>
           </div>
           <div className="modal-actions">
             <button
               type="button"
               className="glyph-btn"
               onClick={() => requestLeave(onClose)}
-              aria-label="Close settings"
-              title="Close (Esc)"
+              aria-label={t("settings.close")}
+              title={t("settings.closeTip")}
             >×</button>
           </div>
         </header>
@@ -349,7 +353,7 @@ export default function SettingsModal({
             <div
               className="settings-nav"
               role="tablist"
-              aria-label="Settings sections"
+              aria-label={t("settings.sections")}
               aria-orientation={narrowNav ? "horizontal" : "vertical"}
               onKeyDown={moveSection}
             >
@@ -370,7 +374,7 @@ export default function SettingsModal({
                   onClick={() => chooseSection(choice.id)}
                 >
                   <SettingsSectionGlyph section={choice.id} />
-                  <span className="settings-tab-label">{choice.label}</span>
+                  <span className="settings-tab-label">{t(`settings.section.${choice.id}.label`)}</span>
                 </button>
               ))}
             </div>
@@ -397,8 +401,8 @@ export default function SettingsModal({
                 page and a Raycast preference pane open on. */}
             <div className="settings-pane-head">
               <div className="settings-pane-heading">
-                <h2 className="settings-pane-title">{SETTINGS_SECTIONS[at].label}</h2>
-                <p className="settings-pane-note">{SETTINGS_SECTIONS[at].note}</p>
+                <h2 className="settings-pane-title">{t(`settings.section.${SETTINGS_SECTIONS[at].id}.label`)}</h2>
+                <p className="settings-pane-note">{t(`settings.section.${SETTINGS_SECTIONS[at].id}.note`)}</p>
               </div>
               {paneAction}
             </div>

@@ -109,6 +109,8 @@ function buildIndex(): SettingsEntry[] {
       { id: "claude-session-recovery", claudeOnly: true, section: "general", group: "Claude sessions", label: "Restore unfinished sessions", keywords: ["claude", "recover", "restore", "startup", "restart", "busy"] },
       { id: "claude-continue-stopped", claudeOnly: true, section: "general", group: "Claude sessions", label: "Continue stopped background sessions", keywords: ["claude", "continue", "background", "stopped", "login", "usage limit", "automatically"] },
       { id: "codex-session-recovery", section: "general", group: "Codex sessions", label: "Restore unfinished sessions", keywords: ["codex", "recover", "restore", "startup", "restart", "unfinished"] },
+      { id: "language", section: "general", group: "Language", label: "Interface language",
+        keywords: ["language", "locale", "translation", "translate", "english", "deutsch", "german", "日本語", "japanese", "中文", "chinese", "繁體中文", "简体中文"] },
       { id: "hide-finished", section: "general", group: "Board", label: "Hide finished sessions after",
         keywords: ["finished", "done", "completed", "idle", "clean up", "auto hide", "canvas", "board", "remove"] },
       { id: "auto-update", section: "general", group: "Updates", label: "Update when idle",
