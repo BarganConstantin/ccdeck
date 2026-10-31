@@ -1,5 +1,5 @@
 import { t, currentLanguage } from './i18n';
-import { auditDay, countOf, percent, periodLabel, whoLabel } from './tool-audit-report';
+import { auditDay, countOf, percent, periodIn, whoLabel } from './tool-audit-report';
 import type { AuditProvider, SkillDay, SkillReport, SkillRow, SkillUse } from './tool-audit';
 
 const DAY = 86400000;
@@ -112,7 +112,7 @@ export function findSkillHighlights(report: Pick<SkillReport, 'rows' | 'total' |
 export function skillSummary(report: Pick<SkillReport, 'total' | 'rows' | 'failed' | 'repeats'>, provider: AuditProvider, period: string) {
   const used = report.rows.filter(row => row.uses > 0).length;
   return {
-    period: periodLabel(period),
+    period: periodIn(period),
     who: whoLabel(provider),
     skills: countOf(used, 'skill'),
     uses: t('insights.skills.times', { count: report.total, n: report.total.toLocaleString(currentLanguage()) }),

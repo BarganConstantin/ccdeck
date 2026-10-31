@@ -79,12 +79,14 @@ export const periodLabels: Record<string, string> = { '1': '24 hours', '7': '7 d
 const who: Record<AuditProvider, string> = { all: 'your agents', claude: 'Claude', codex: 'Codex' };
 /** The period in words, in the language on show ("7 days", "24 hours"). */
 export const periodLabel = (period: string) => periodLabels[period] ? t(`insights.audit.period.${period}`) : t('insights.audit.period.days', { n: period });
+/** The period for the middle of a sentence ("in the last 7 Tagen": German wants the dative). */
+export const periodIn = (period: string) => periodLabels[period] ? t(`insights.audit.periodIn.${period}`) : t('insights.audit.periodIn.days', { n: period });
 export const whoLabel = (provider: AuditProvider) => provider === 'all' ? t('insights.audit.who.all') : who[provider];
 
 /** The report in one sentence, as parts so the numbers can be emphasised. */
 export function summaryParts(report: Pick<AuditReport, 'total' | 'totalMs' | 'failed' | 'completed'>, provider: AuditProvider, period: string) {
   return {
-    period: periodLabel(period),
+    period: periodIn(period),
     who: whoLabel(provider),
     calls: countOf(report.total, 'toolCall'),
     time: report.totalMs ? auditDuration(report.totalMs) : null,

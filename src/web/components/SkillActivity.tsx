@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { readAuditReport, type AuditProvider, type SkillReport, type SkillRow } from '../tool-audit';
-import { auditDay, callTime, countOf, periodLabel } from '../tool-audit-report';
+import { auditDay, callTime, countOf, periodIn } from '../tool-audit-report';
 import { t as translate, useLanguage, useT, currentLanguage } from '../i18n';
 import { rich } from '../insights-rich';
 import { countingStartedLate, findSkillHighlights, originLine, originShares, skillOrigins, skillParts, skillSortLabel, skillSorts, skillSummary, sortSkills, typedCommandsNote,
@@ -151,7 +151,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
       {error && <div className="ta-message" role="alert"><p>{data && `${t('insights.audit.lastNumbers')} `}{error}</p></div>}
 
       {data && summary && (data.total === 0 && data.repeats === 0 ? <div className="ta-empty">
-        <h3>{t('insights.skills.empty.title', { period: periodLabel(period) })}</h3>
+        <h3>{t('insights.skills.empty.title', { period: periodIn(period) })}</h3>
         <p>{t(provider === 'all' ? 'insights.skills.empty.all' : provider === 'claude' ? 'insights.skills.empty.claude' : 'insights.skills.empty.codex', { since: auditDay(data.countedSince) })}</p>
         {typedNote && <p className="sa-typed-note">{typedNote}</p>}
         {period !== '90' && !late && <button type="button" className="btn" onClick={() => setPeriod('90')}>{t('insights.audit.show90')}</button>}

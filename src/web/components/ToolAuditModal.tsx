@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { auditDuration, readAuditReport, type AuditProvider, type AuditReport, type AuditRow } from '../tool-audit';
-import { auditDay, countOf, failureShare, findHighlights, periodLabel, periodLabels, sortTools, summaryParts, toolSortLabel, toolSorts, toolSortValue, type Highlight, type ToolSort } from '../tool-audit-report';
+import { auditDay, countOf, failureShare, findHighlights, periodIn, periodLabel, periodLabels, sortTools, summaryParts, toolSortLabel, toolSorts, toolSortValue, type Highlight, type ToolSort } from '../tool-audit-report';
 import { t as translate, useLanguage, useT, currentLanguage } from '../i18n';
 import { rich } from '../insights-rich';
 import { operationDescription, operationName } from '../operation-glossary';
@@ -189,7 +189,7 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
           {error && <div className="ta-message" role="alert"><p>{data && `${t('insights.audit.lastNumbers')} `}{error}</p><button type="button" className="btn" onClick={doRefresh}>{t('insights.audit.tryAgain')}</button></div>}
 
           {data && summary && (data.total === 0 ? <div className="ta-empty">
-            <h3>{t('insights.audit.empty.title', { period: periodLabel(period) })}</h3>
+            <h3>{t('insights.audit.empty.title', { period: periodIn(period) })}</h3>
             <p>{t(provider === 'all' ? 'insights.audit.empty.all' : provider === 'claude' ? 'insights.audit.empty.claude' : 'insights.audit.empty.codex', { since: auditDay(data.startedAt) })}</p>
             {period !== '90' && <button type="button" className="btn" onClick={() => setPeriod('90')}>{t('insights.audit.show90')}</button>}
           </div> : <>
