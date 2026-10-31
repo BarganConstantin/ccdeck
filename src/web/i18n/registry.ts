@@ -32,6 +32,11 @@ export const LANGUAGES: readonly Language[] = [
   { code: "zh-CN", name: "简体中文", dir: "ltr", catalog: catalogFor("zh-CN") },
   { code: "de", name: "Deutsch", dir: "ltr", catalog: catalogFor("de") },
   { code: "ja", name: "日本語", dir: "ltr", catalog: catalogFor("ja") },
+  { code: "ko", name: "한국어", dir: "ltr", beta: true, catalog: catalogFor("ko") },
+  { code: "fr", name: "Français", dir: "ltr", beta: true, catalog: catalogFor("fr") },
+  { code: "es", name: "Español", dir: "ltr", beta: true, catalog: catalogFor("es") },
+  { code: "pt-BR", name: "Português (Brasil)", dir: "ltr", beta: true, catalog: catalogFor("pt-BR") },
+  { code: "ro", name: "Română", dir: "ltr", beta: true, catalog: catalogFor("ro") },
 ];
 
 export const DEFAULT_LANGUAGE = "en";
@@ -41,17 +46,14 @@ export const DEFAULT_LANGUAGE = "en";
  *  native names are agreed once, and so the detection test can prove each of
  *  them would be found. */
 export const PLANNED_LANGUAGES: ReadonlyArray<Omit<Language, "catalog">> = [
-  { code: "ko", name: "한국어", dir: "ltr" },
-  { code: "fr", name: "Français", dir: "ltr" },
-  { code: "es", name: "Español", dir: "ltr" },
-  { code: "pt-BR", name: "Português (Brasil)", dir: "ltr" },
   { code: "it", name: "Italiano", dir: "ltr" },
   { code: "pl", name: "Polski", dir: "ltr" },
   { code: "vi", name: "Tiếng Việt", dir: "ltr" },
-  { code: "ro", name: "Română", dir: "ltr" },
   { code: "id", name: "Bahasa Indonesia", dir: "ltr" },
   { code: "th", name: "ไทย", dir: "ltr" },
   { code: "cs", name: "Čeština", dir: "ltr" },
+  { code: "ru", name: "Русский", dir: "ltr" },
+  { code: "tr", name: "Türkçe", dir: "ltr" },
 ];
 
 /** The select's text for a language: its own name, plus "(beta)" while its
