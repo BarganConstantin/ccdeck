@@ -50,7 +50,7 @@ const header = sourceOf("components/LanViewHeader.tsx");
 describe("the Local network copy names the add control it draws (#1800)", () => {
   it("draws that control as a link named Add a deck, with no + in it", () => {
     const add = /<button type="button" className="glyph-btn ap-lan-plus"[\s\S]*?<\/button>/.exec(header)?.[0] ?? "";
-    expect(add).toMatch(/aria-label="Add a deck"/);
+    expect(add).toMatch(/aria-label=\{t\("lan\.add\.title"\)\}/);
     expect(add).not.toMatch(/>\s*\+\s*</);
   });
 

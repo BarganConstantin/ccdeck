@@ -20,11 +20,12 @@ import { faultText, roundLabel } from "../lan-round";
 import { askedLabel, checkedLabel, deckRows, isOnline, rosterSplit, sectionState, ONLINE_MS } from "../lan-roster";
 import { writeFailure } from "../use-lan-section";
 import { defaultReadingSheetText as sheetText } from "./sheet-source";
+import { english } from "./lan-english-source";
 
-const SRC = readFileSync(
+const SRC = english(readFileSync(
   fileURLToPath(new URL("../components/LanSyncSection.tsx", import.meta.url)),
   "utf8",
-);
+));
 /** The server's side of the section: the route table in index.mjs, the engine
  *  wiring and the rule about what prefs may tell it, which moved to
  *  lan-deck.mjs, and the panel's routes, which moved to lan-routes.mjs. */
@@ -47,17 +48,17 @@ const SERVER_ROUND_RECORD = readFileSync(
   fileURLToPath(new URL("../../server/lan-round-record.mjs", import.meta.url)),
   "utf8",
 );
-const MODAL = readFileSync(
+const MODAL = english(readFileSync(
   fileURLToPath(new URL("../components/LanSetupModal.tsx", import.meta.url)),
   "utf8",
-).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+)).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 /** The dialog behind `+ add a deck`, which is the other half of "who this deck
  *  talks to" — the half that takes an address or a token rather than naming a
  *  machine already on the list. */
-const ADD = readFileSync(
+const ADD = english(readFileSync(
   fileURLToPath(new URL("../components/LanAddDeckModal.tsx", import.meta.url)),
   "utf8",
-).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+)).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 /** The file with its comments taken out, so a rule cannot be satisfied by a
  *  paragraph that describes it. */
 const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
@@ -65,21 +66,21 @@ const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ")
  *  panel's close — which moved out of the component into its own. */
 /** The requests still waiting for an answer, which moved out of the component
  *  into their own. */
-const ASKS = readFileSync(fileURLToPath(new URL("../components/LanAsks.tsx", import.meta.url)), "utf8")
+const ASKS = english(readFileSync(fileURLToPath(new URL("../components/LanAsks.tsx", import.meta.url)), "utf8"))
   .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
-const HEADER = readFileSync(fileURLToPath(new URL("../components/LanViewHeader.tsx", import.meta.url)), "utf8")
+const HEADER = english(readFileSync(fileURLToPath(new URL("../components/LanViewHeader.tsx", import.meta.url)), "utf8"))
   .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 /** The section's conversation with its deck — the poll, the request slot and
  *  every write — which moved out of the component into its own hook. The rules
  *  about the writes and the poll are asked of it, where they now live. */
-const HOOK_SRC = readFileSync(fileURLToPath(new URL("../use-lan-section.ts", import.meta.url)), "utf8");
+const HOOK_SRC = english(readFileSync(fileURLToPath(new URL("../use-lan-section.ts", import.meta.url)), "utf8"));
 /** The failure box the section and its dialog both draw (#1711). */
 const FAILURE_LINE = readFileSync(fileURLToPath(new URL("../components/SettingsFailureLine.tsx", import.meta.url)), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 const HOOK = HOOK_SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 /** The list of machines, which the section draws through a component of its
  *  own. The rules about how a row is drawn are asked of it. */
-const LIST = readFileSync(fileURLToPath(new URL("../components/LanDeckList.tsx", import.meta.url)), "utf8")
+const LIST = english(readFileSync(fileURLToPath(new URL("../components/LanDeckList.tsx", import.meta.url)), "utf8"))
   .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 /** The section's whole surface: the component and the files lifted out of it,
  *  comments gone the same way. Every rule below that says what the section
@@ -88,7 +89,7 @@ const LIST = readFileSync(fileURLToPath(new URL("../components/LanDeckList.tsx",
  *  so a file lifted out of the section joins every such sweep at once; each
  *  file is stripped on its own, as each always was. */
 const SURFACE = LAN_SECTION_FILES
-  .map(rel => readFileSync(`${WEB_DIR}${rel}`, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " "))
+  .map(rel => english(readFileSync(`${WEB_DIR}${rel}`, "utf8")).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " "))
   .join("\n");
 
 const NOW = 1_700_000_000_000;
@@ -818,7 +819,7 @@ describe("the pairing that replaced the passphrase", () => {
     // PRINTED, not only in a `title`. A mouse-only, screen-reader-silent place
     // is not where the feature's one security decision can live.
     expect(ASKS).toMatch(/fingerprint is \$\{p\.fp\}/);
-    expect(ASKS).toMatch(/fingerprint <code className="ap-lan-code">\{p\.fp\}<\/code>/);
+    expect(ASKS).toMatch(/fingerprint \{fp\}[\s\S]*fp: <code className="ap-lan-code">\{p\.fp\}<\/code>/);
   });
 
   it("has no passphrase left anywhere in the surface", () => {
@@ -1455,7 +1456,7 @@ describe("what did not change", () => {
     // AND THE FINGERPRINT IS STILL PRINTED WHERE IT IS ACTED ON. It is not a
     // decoration anywhere it appears: it is the one value whoever is asking
     // cannot choose, so it belongs on both surfaces that answer a request.
-    expect(ASKS).toMatch(/fingerprint <code className="ap-lan-code">\{p\.fp\}/);
+    expect(ASKS).toMatch(/fingerprint \{fp\}[\s\S]*fp: <code className="ap-lan-code">\{p\.fp\}/);
     expect(readFileSync(
       fileURLToPath(new URL("../components/LanPairRequestModal.tsx", import.meta.url)), "utf8",
     )).toMatch(/fingerprint/);

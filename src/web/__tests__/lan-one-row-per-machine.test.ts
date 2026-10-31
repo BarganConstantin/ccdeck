@@ -9,9 +9,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { deckRows, oneRowPerMachine, rowSource } from "../lan-roster";
 import { sheetText } from "./sheet-source";
+import { english } from "./lan-english-source";
 
 const NOW = 1_700_000_000_000;
-const code = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8")
+const code = (rel: string) => english(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8"))
   .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 const SECTION = code("../components/LanSyncSection.tsx");
 const MODAL = code("../components/LanPeerModal.tsx");

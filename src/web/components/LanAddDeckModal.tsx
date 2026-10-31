@@ -39,6 +39,7 @@ import LanReachNote from "./LanReachNote";
 import { leftLabel, parseAddress } from "../lan-add-deck";
 import type { LanStatus } from "../lan-types";
 import { writeFailure } from "../use-lan-section";
+import { t as tNow, useT } from "../i18n";
 
 async function post(url: string, body: Record<string, unknown>) {
   const res = await fetch(url, {
@@ -59,13 +60,13 @@ async function post(url: string, body: Record<string, unknown>) {
  * swallowed by a guess.
  */
 const JOIN_FAULTS: Record<string, string> = {
-  not_an_invite: "That is not an invite — paste the whole line they sent you.",
-  expired: "That invite has run out. Ask them for a fresh one.",
-  not_running: "This deck is not on the network yet. Turn Local network on, then try again.",
+  get not_an_invite() { return tNow("lan.add.faultNotInvite"); },
+  get expired() { return tNow("lan.add.faultExpired"); },
+  get not_running() { return tNow("lan.add.faultJoinOff"); },
 };
 
 const MINT_FAULTS: Record<string, string> = {
-  not_running: "This deck is not on the network yet. Turn Local network on, then make one.",
+  get not_running() { return tNow("lan.add.faultMakeOff"); },
 };
 
 export function faultLine(
@@ -92,6 +93,7 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
   /** Something landed — reload the section behind this. */
   onChanged: () => void;
 }) {
+  const t = useT();
   const addrRef = useRef<HTMLInputElement>(null);
   const joinRef = useRef<HTMLInputElement>(null);
   const copyRef = useRef<HTMLButtonElement>(null);
@@ -167,11 +169,11 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
     // yet.
     const met = status.peers.find(p => p.addr === parsed.addr && p.port === parsed.port && p.paired);
     if (met) {
-      setFailure({ text: `Already paired with ${met.name} at that address.`, field: "addr" });
+      setFailure({ text: t("lan.add.alreadyPaired", { name: met.name }), field: "addr" });
       return;
     }
     if (manual.includes(entry)) {
-      setFailure({ text: "This deck already calls that address.", field: "addr" });
+      setFailure({ text: t("lan.add.alreadyCalls"), field: "addr" });
       return;
     }
     if (!claim("add")) return;
@@ -185,7 +187,7 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
     } finally {
       release();
     }
-  }, [addrDraft, inviteOnly, manual, status.peers, onChanged, onClose, claim, release]);
+  }, [addrDraft, inviteOnly, manual, status.peers, onChanged, onClose, claim, release, t]);
 
   const invite = useCallback(async (action: "make" | "withdraw") => {
     if (!claim(`invite:${action}`)) return;
@@ -232,9 +234,9 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
       setCopied(tag);
       window.setTimeout(() => { if (alive.current) setCopied(c => (c === tag ? null : c)); }, 1_600);
     } catch {
-      setFailure({ text: "Could not copy it — select the text and copy it by hand." });
+      setFailure({ text: t("lan.fail.copyText") });
     }
-  }, []);
+  }, [t]);
 
   const live = status.invite && status.invite.expiresAt > now ? status.invite : null;
   // THE DOOR FROM A NEARBY ROW'S INVITE. That press already asked for one, so
@@ -280,10 +282,10 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
         role="dialog" aria-modal="true" aria-labelledby="lan-add-title">
         <header className="modal-head">
           <div className="modal-title">
-            <span id="lan-add-title" className="modal-tool-name">Add a deck</span>
+            <span id="lan-add-title" className="modal-tool-name">{t("lan.add.title")}</span>
           </div>
           <div className="modal-actions">
-            <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+            <button className="glyph-btn" onClick={onClose} aria-label={t("lan.closeEsc")} title={t("lan.closeEsc")}>×</button>
           </div>
         </header>
 
@@ -292,7 +294,7 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
             <div className="ap-failure" role="alert">
               <span id="lan-add-failure" className="ap-failure-text">{failure.text}</span>
               <button type="button" className="ap-failure-x" onClick={() => setFailure(null)}
-                aria-label="Dismiss this message" title="Dismiss">×</button>
+                aria-label={t("lan.dismissMsg")} title={t("lan.dismiss")}>×</button>
             </div>
           )}
 
@@ -315,16 +317,16 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
               — so the place it was says why, in the panel's quiet ink. */}
           {inviteOnly && (
             <div className="modal-section">
-              <p className="lan-note">Adding by address is off while this deck pairs only by invite.</p>
+              <p className="lan-note">{t("lan.add.inviteOnlyNote")}</p>
             </div>
           )}
           {!inviteOnly && <div className="modal-section">
-            <h3 className="lan-h">By address</h3>
+            <h3 className="lan-h">{t("lan.add.byAddress")}</h3>
             <div className="ap-lan-row">
               <input
                 ref={addrRef}
                 className="ap-manage-input ap-lan-input"
-                aria-label="Another deck's address"
+                aria-label={t("lan.add.addrAria")}
                 value={addrDraft}
                 placeholder="192.168.1.5:54340"
                 spellCheck={false}
@@ -342,10 +344,10 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
               {addrDraft.trim() !== "" && (
                 <button type="button" className="ap-manage-btn" {...pressProps("add")}
                   onClick={() => void addAddress()}
-                  title="Add it to the decks this one calls, starting now.">add</button>
+                  title={t("lan.add.addTitle")}>{t("lan.add.add")}</button>
               )}
             </div>
-            <p className="lan-note">This deck calls that address until somebody there accepts.</p>
+            <p className="lan-note">{t("lan.add.callsNote")}</p>
             {/* THE OTHER HALF OF "TYPE THEIR ADDRESS", and it was missing.
                 Nothing in this panel ever printed this deck's own address and
                 port, so the person on the far machine had nowhere to read the
@@ -362,17 +364,17 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
                 and says nothing rather than half of one. */}
             {status.port != null && mine.length > 0 && (
               <p className="lan-note">
-                They type this deck&rsquo;s own address into the same field on theirs:{" "}
+                {t("lan.add.theyType")}{" "}
                 {mine.map((a, i) => (
                   <span key={a}>
-                    {i > 0 && " or "}
+                    {i > 0 && t("lan.or")}
                     <code className="ap-lan-code">{a}</code>
                   </span>
                 ))}
                 <button type="button" className="ap-lan-word lan-copy" {...pressProps("copy:mine")}
                   onClick={() => void copyText(mine.join(" "), "mine")}
-                  title="Copy this deck's address, to send to whoever is adding it">
-                  {copied === "mine" ? "copied" : "copy"}
+                  title={t("lan.add.copyAddrTitle")}>
+                  {copied === "mine" ? t("lan.copied") : t("lan.copy")}
                 </button>
               </p>
             )}
@@ -383,12 +385,12 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
                 is the one field this method has; beside it is the way to be on
                 the other end of somebody else's. */}
             <h3 className="lan-h">
-              With an invite
+              {t("lan.add.withInvite")}
               {!live && (
                 <button type="button" className="ap-lan-word lan-h-act" ref={makeRef} {...pressProps("invite:make")}
                   onClick={() => void invite("make")}
-                  title="One piece of text you send them. They paste it, and the two decks pair — nobody has to press anything here.">
-                  {busy === "invite:make" ? "making…" : "make one to send"}
+                  title={t("lan.add.makeTitle")}>
+                  {busy === "invite:make" ? t("lan.add.making") : t("lan.add.makeOne")}
                 </button>
               )}
             </h3>
@@ -396,9 +398,9 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
               <input
                 ref={joinRef}
                 className="ap-manage-input ap-lan-input"
-                aria-label="An invite you were sent"
+                aria-label={t("lan.add.joinAria")}
                 value={joinDraft}
-                placeholder="paste one you were sent"
+                placeholder={t("lan.add.joinPlaceholder")}
                 spellCheck={false}
                 {...fieldProps("join")}
                 onChange={e => { setJoinDraft(e.target.value); setTried(null); clearFor("join"); }}
@@ -407,23 +409,22 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
               {joinDraft.trim() !== "" && (
                 <button type="button" className="ap-manage-btn" {...pressProps("join")}
                   onClick={() => void join()}
-                  title="Reach that deck and pair with it. Nobody has to press anything there.">
-                  {busy === "join" ? "joining…" : "join"}
+                  title={t("lan.add.joinTitle")}>
+                  {busy === "join" ? t("lan.add.joining") : t("lan.add.join")}
                 </button>
               )}
             </div>
-            <p className="lan-note">Pasting one pairs both decks on the spot — nobody has to accept.</p>
+            <p className="lan-note">{t("lan.add.pasteNote")}</p>
 
             {tried && (
               <div className="ap-lan-tried">
                 <span className="lan-note">
-                  Nothing answered at any address in that invite. Check that deck is running
-                  with its Local network switch on.
+                  {t("lan.add.triedNote")}
                 </span>
-                {tried.map(t => (
-                  <span key={t.addr} className="ap-lan-tried-row">
-                    <code className="ap-lan-code">{t.addr}</code>
-                    <span className="ap-lan-bad">{t.why}</span>
+                {tried.map(tr => (
+                  <span key={tr.addr} className="ap-lan-tried-row">
+                    <code className="ap-lan-code">{tr.addr}</code>
+                    <span className="ap-lan-bad">{tr.why}</span>
                   </span>
                 ))}
               </div>
@@ -432,8 +433,8 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
             {live && (
               <div className="ap-lan-invite">
                 <div className="ap-lan-invite-head">
-                  <span className="ap-lan-invite-title">Send this to them</span>
-                  <span className="ap-lan-invite-left" id="lan-invite-left">{leftLabel(live.expiresAt, now)} left</span>
+                  <span className="ap-lan-invite-title">{t("lan.add.sendThis")}</span>
+                  <span className="ap-lan-invite-left" id="lan-invite-left">{t("lan.add.left", { time: leftLabel(live.expiresAt, now) })}</span>
                 </div>
                 <code className="ap-lan-token">{live.token}</code>
                 <div className="ap-lan-acts">
@@ -442,20 +443,20 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
                       named nothing. It is named for what it copies and
                       described by how long the invite has left. */}
                   <button type="button" className="ap-manage-btn" ref={copyRef} {...pressProps("copy:invite")}
-                    aria-label={copied === "invite" ? "Invite copied" : "Copy invite"}
+                    aria-label={copied === "invite" ? t("lan.add.inviteCopied") : t("lan.add.copyInvite")}
                     aria-describedby="lan-invite-left"
                     onClick={() => void copyText(live.token, "invite")}
-                    title="Copy it, and send it however you already talk to them">
-                    {copied === "invite" ? "copied" : "copy"}
+                    title={t("lan.add.copyInviteTitle")}>
+                    {copied === "invite" ? t("lan.copied") : t("lan.copy")}
                   </button>
                   <button type="button" className="ap-manage-btn" {...pressProps("invite:withdraw")}
                     onClick={() => void invite("withdraw")}
-                    title="Cancel it. Anybody already holding the text can no longer use it.">
-                    cancel
+                    title={t("lan.add.cancelTitle")}>
+                    {t("lan.cancel")}
                   </button>
                 </div>
                 <p className="lan-warn">
-                  Anyone who gets this text can pair with this deck until it runs out.
+                  {t("lan.add.warn")}
                 </p>
               </div>
             )}
@@ -478,17 +479,17 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
  */
 export function addressFault(raw: string): string {
   const s = (raw ?? "").trim();
-  if (s === "") return "Type an address and a port, like 192.168.1.5:54340.";
+  if (s === "") return tNow("lan.addr.empty");
   // An unbracketed IPv6 address splits on the wrong colon, so it is refused
   // rather than dialled at whatever the last group happens to look like. The
   // message promises nothing about IPv6, because nothing here delivers it: it
   // names the two forms this deck does dial.
   if (!s.startsWith("[") && (s.match(/:/g) ?? []).length > 1) {
-    return "Too many colons to split. Use that deck's IPv4 address or its name, like 192.168.1.5:54340.";
+    return tNow("lan.addr.colons");
   }
-  if (!s.includes(":")) return `Add the port too, like ${s}:54340.`;
+  if (!s.includes(":")) return tNow("lan.addr.noPort", { s });
   const port = s.slice(s.lastIndexOf(":") + 1).trim();
-  if (port === "") return "That is missing its port — try 192.168.1.5:54340.";
-  if (!/^\d+$/.test(port)) return `A port is a number, and this one is "${port}".`;
-  return `A port runs from 1 to 65535, and this one is ${port}.`;
+  if (port === "") return tNow("lan.addr.missingPort");
+  if (!/^\d+$/.test(port)) return tNow("lan.addr.portNum", { port });
+  return tNow("lan.addr.portRange", { port });
 }

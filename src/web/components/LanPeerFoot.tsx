@@ -6,6 +6,7 @@
 // and the row's own press lights this. The unpair's arming is the dialog's, in
 // use-peer-unpair.ts; the check and every other verb go through the dialog's
 // own `run`, so what went wrong is said in the dialog.
+import { useT } from "../i18n";
 import type { DeckRow, RowSource } from "../lan-roster";
 import type { LanStatus } from "../lan-types";
 
@@ -33,6 +34,7 @@ export default function LanPeerFoot({
   /** The one way to pair a nearby machine while this deck pairs only by invite. */
   onInvite?: () => void;
 }) {
+  const t = useT();
   return (
     // A ROW CAN CHANGE KIND UNDER AN OPEN DIALOG. A nearby deck that
     // sends its request on the next poll comes back as `asks`, which has
@@ -44,7 +46,7 @@ export default function LanPeerFoot({
     // needs telling what changed.
     <footer className="lan-peer-foot">
       {row.kind === "asks" && (
-        <p className="lan-foot-note">This deck is now asking to pair. Answer it from the panel behind this.</p>
+        <p className="lan-foot-note">{t("lan.foot.asking")}</p>
       )}
       {/* Not drawn for a deck that only calls in, rather than drawn dead:
           there is no address here to call it on, the note above says so,
@@ -53,8 +55,8 @@ export default function LanPeerFoot({
       {paired && !peer?.waiting && (
         <button type="button" className="btn" {...press(`check:${row.fp}`)}
           onClick={checkNow}
-          title="Ask this deck now instead of waiting for the next round">
-          {busy === `check:${row.fp}` ? "Checking…" : "Check now"}
+          title={t("lan.foot.checkTitle")}>
+          {busy === `check:${row.fp}` ? t("lan.foot.checking") : t("lan.foot.checkNow")}
         </button>
       )}
       {row.kind === "paired" && (
@@ -69,32 +71,32 @@ export default function LanPeerFoot({
           onClick={() => pressOwn()}
           // The row's own unpair names the machine; this one said only
           // "Unpair", and it is the same irreversible verb.
-          aria-label={armed ? `Confirm unpairing ${row.name}` : `Unpair ${row.name}`}
+          aria-label={t(armed ? "lan.unpair.confirmAria" : "lan.unpair.aria", { name: row.name })}
           title={armed
-            ? "Press again to stop talking to this deck. Logins it already has stay with it."
-            : "Stop talking to this deck from now on"}>
-          {busy === `unpair:${row.fp}` ? "Unpairing…" : armed ? "Confirm unpair" : "Unpair"}
+            ? t("lan.unpair.confirmTitle")
+            : t("lan.unpair.title")}>
+          {busy === `unpair:${row.fp}` ? t("lan.unpair.working") : armed ? t("lan.unpair.confirm") : t("lan.unpair.word")}
         </button>
       )}
       {row.kind === "nearby" && status.pairingMode !== "invite" && (
         <button type="button" className="btn primary lan-peer-verb" {...press(`accept:${row.fp}`)}
           onClick={() => void run(onVerb)}
-          title="Send it a request. Somebody at that machine has to accept it before anything is shared.">
-          {busy === `accept:${row.fp}` ? "Asking…" : "Ask to pair"}
+          title={t("lan.foot.askTitle")}>
+          {busy === `accept:${row.fp}` ? t("lan.foot.asking2") : t("lan.foot.askToPair")}
         </button>
       )}
       {row.kind === "dialling" && (
         <button type="button" className="btn lan-peer-verb" {...press(`drop:${row.fp}`)}
           onClick={() => void run(onVerb)}
-          title="Stop trying this address. Nothing was ever paired here.">
-          {busy === `drop:${row.fp}` ? "Stopping…" : "Stop dialling"}
+          title={t("lan.foot.dropTitle")}>
+          {busy === `drop:${row.fp}` ? t("lan.foot.stopping") : t("lan.foot.stopDialling")}
         </button>
       )}
       {row.kind === "declined" && status.pairingMode !== "invite" && (
         <button type="button" className="btn lan-peer-verb" {...press(`allow:${row.fp}`)}
           onClick={() => void run(onVerb)}
-          title="Take the no back. That deck is still trying, so its request comes round again on its own.">
-          {busy === `allow:${row.fp}` ? "Allowing…" : "Let it ask again"}
+          title={t("lan.foot.allowTitle")}>
+          {busy === `allow:${row.fp}` ? t("lan.foot.allowing") : t("lan.foot.letAsk")}
         </button>
       )}
       {/* INVITE-ONLY LEAVES THIS FOOTER ONE VERB, not none. Without it a
@@ -104,8 +106,8 @@ export default function LanPeerFoot({
       {(row.kind === "nearby" || row.kind === "declined") && status.pairingMode === "invite" && onInvite && (
         <button type="button" className="btn primary lan-peer-verb"
           onClick={onInvite}
-          title="This deck pairs only by invite. Make one and send it to whoever is at that machine.">
-          Invite to pair
+          title={t("lan.foot.inviteTitle")}>
+          {t("lan.foot.invite")}
         </button>
       )}
     </footer>

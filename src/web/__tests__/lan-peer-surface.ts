@@ -14,6 +14,7 @@
 import { readFileSync } from "node:fs";
 
 import { WEB_DIR } from "./client-source";
+import { english } from "./lan-english-source";
 
 /** The dialog and what was lifted out of it, relative to `src/web`. */
 export const LAN_PEER_FILES = [
@@ -28,5 +29,5 @@ export const LAN_PEER_FILES = [
 /** Every file in LAN_PEER_FILES, raw, each passed through `strip` and joined by
  *  a newline. */
 export function lanPeerSurface(strip: (src: string) => string = s => s): string {
-  return LAN_PEER_FILES.map(rel => strip(readFileSync(`${WEB_DIR}${rel}`, "utf8"))).join("\n");
+  return LAN_PEER_FILES.map(rel => strip(english(readFileSync(`${WEB_DIR}${rel}`, "utf8")))).join("\n");
 }

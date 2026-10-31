@@ -28,7 +28,9 @@ import {
   nodeName, ownAddresses, presenceLine, sharedLoginsTitle, troubleFirst, ZONE_LABEL_INSET, zoneLabel, type MapLayout,
   type MapNode, type MapZone,
 } from "../lan-network-map";
-import { HERE_SAID, laneSaid, peerView, runsLine, sinceLabel, THERE_SAID } from "../lan-peer";
+import { hereSaid, laneSaid, peerView, runsLine, thereSaid } from "../lan-peer";
+import { useT } from "../i18n";
+import { Fill } from "./LanAsks";
 import { rowSource, type DeckRow } from "../lan-roster";
 import type { LanAccount, LanStatus } from "../lan-types";
 import { Machine } from "./LanPeerMap";
@@ -80,6 +82,7 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
   onOpenDeck: (fp: string) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
   const scrimPress = useScrimDismiss(onClose);
@@ -241,7 +244,7 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
   }, []);
 
   const on = status?.enabled === true;
-  const headline = !status ? "checking…" : !on ? "Local network is off" : mapHeadline(summary);
+  const headline = !status ? t("lan.checking") : !on ? t("lan.nm.off") : mapHeadline(summary);
   // The dwell's timer goes too: Back hands focus to the deck's ring button
   // first (#1748), and that focus must not bring the deck back 80ms later.
   const toNetwork = () => { stopShowing(); showKey(null, "swap"); setFocusKey(null); };
@@ -262,12 +265,12 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
         role="dialog" aria-modal="true" aria-labelledby="nm-title" aria-describedby="nm-sub">
         <header className="modal-head nm-head">
           <div className="nm-heading">
-            <h2 id="nm-title" className="modal-title nm-title">Network map</h2>
+            <h2 id="nm-title" className="modal-title nm-title">{t("lan.nm.title")}</h2>
             <p id="nm-sub" className="nm-sub">{headline}</p>
           </div>
           <div className="modal-actions">
             <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose}
-              aria-label="Close (Esc)" title="Close (Esc)">×</button>
+              aria-label={t("lan.closeEsc")} title={t("lan.closeEsc")}>×</button>
           </div>
         </header>
 
@@ -289,8 +292,8 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
                   return <Wire key={key} node={n} angle={angles.get(key) ?? n.angle} lit={litKey === key} />;
                 })}
                 <Core status={status} />
-                <span id="nm-ring-hint" className="vis-hidden">Arrow keys move between decks. Enter opens the deck's own dialog.</span>
-                <div className="nm-ring" role="group" aria-label={`Decks around this deck, ${nodes.length}`}
+                <span id="nm-ring-hint" className="vis-hidden">{t("lan.nm.ringHint")}</span>
+                <div className="nm-ring" role="group" aria-label={t("lan.nm.ringAria", { count: nodes.length })}
                   aria-describedby="nm-ring-hint" onKeyDown={onRingKey}>
                   {nodes.map((n, i) => {
                     const key = machineKey(n.row);
@@ -317,7 +320,7 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
           <Legend slice={layout?.zone != null} />
           </div>
 
-          <aside className="nm-side" aria-label="Details">
+          <aside className="nm-side" aria-label={t("lan.nm.details")}>
             {shownRow && status
               ? <DeckDetails key={machineKey(shownRow)} row={shownRow} status={status} accounts={accounts} now={now}
                   entrance={entrance}
@@ -470,13 +473,14 @@ function Wire({ node, angle, lit }: { node: MapNode; angle: number; lit: boolean
 
 /** This deck, at the centre of everything it can see. */
 function Core({ status }: { status: LanStatus | null }) {
+  const t = useT();
   const listening = status?.enabled === true && status.running;
   return (
     <div className="nm-core" data-listening={listening || undefined}>
       <span className="nm-core-orb" aria-hidden />
       <span className="nm-core-label">
         <span className="nm-core-name">{status?.name ?? "…"}</span>
-        <span className="nm-core-what">this deck</span>
+        <span className="nm-core-what">{t("lan.nm.thisDeck")}</span>
       </span>
     </div>
   );
@@ -547,13 +551,13 @@ function DeckNode({ node, angle, os, lit, shown, tabbable, register, onHold, onR
 }
 
 function EmptyNote({ status }: { status: LanStatus | null }) {
+  const t = useT();
   const on = status?.enabled === true;
   return (
     <p className="nm-empty">
-      {!status ? "Asking this deck about the network…"
-        : !on ? "Local network is off, so this deck is not looking for any other."
-        : "No other deck yet. Decks on one network usually find each other within a minute; one on another "
-          + "network needs its address, through Add a deck in Local network."}
+      {!status ? t("lan.nm.emptyAsking")
+        : !on ? t("lan.nm.emptyOff")
+        : t("lan.nm.emptyNone")}
     </p>
   );
 }
@@ -568,12 +572,13 @@ export function Legend({ slice }: {
    *  says what it is. Not drawn, it has no key: see NetworkDetails. */
   slice: boolean;
 }) {
+  const t = useT();
   return (
     <ul className="nm-legend">
-      <li><span className="nm-key" aria-hidden><i className="nm-key-wire" data-tier="online" /><i className="nm-key-mark" data-tier="online" /></span>online</li>
-      <li><span className="nm-key" aria-hidden><i className="nm-key-wire" data-tier="offline" /><i className="nm-key-mark" data-tier="offline" /></span>away</li>
-      <li><span className="nm-key" aria-hidden><i className="nm-key-wire" data-tier="loose" /><i className="nm-key-mark" data-tier="loose" /></span>not paired</li>
-      {slice && <li><i className="nm-key-zone" aria-hidden />over Tailscale</li>}
+      <li><span className="nm-key" aria-hidden><i className="nm-key-wire" data-tier="online" /><i className="nm-key-mark" data-tier="online" /></span>{t("lan.online")}</li>
+      <li><span className="nm-key" aria-hidden><i className="nm-key-wire" data-tier="offline" /><i className="nm-key-mark" data-tier="offline" /></span>{t("lan.away")}</li>
+      <li><span className="nm-key" aria-hidden><i className="nm-key-wire" data-tier="loose" /><i className="nm-key-mark" data-tier="loose" /></span>{t("lan.nm.notPaired")}</li>
+      {slice && <li><i className="nm-key-zone" aria-hidden />{t("lan.peer.how.ts")}</li>}
     </ul>
   );
 }
@@ -604,34 +609,35 @@ export function NetworkDetails({ status, summary, entrance, slice }: {
    *  tailnet, nor where it would leave the names no room — see mapLayout. */
   slice: boolean;
 }) {
+  const t = useT();
   const addresses = ownAddresses(status);
   const runs = runsLine(status?.about);
   const facts: Array<{ label: string; value: ReactNode; quiet?: boolean }> = [];
-  if (runs) facts.push({ label: "Runs", value: runs });
+  if (runs) facts.push({ label: t("lan.nm.runs"), value: runs });
   facts.push({
-    label: addresses.length > 1 ? "Addresses" : "Address",
+    label: addresses.length > 1 ? t("lan.nm.addresses") : t("lan.nm.address"),
     value: addresses.length
       ? <span className="nm-addrs">{addresses.map(a => <code key={a} className="ap-lan-code">{a}</code>)}</span>
-      : "none yet",
+      : t("lan.nm.none"),
     quiet: addresses.length === 0,
   });
   if (status?.pairingMode) {
-    facts.push({ label: "Pairing", value: status.pairingMode === "invite" ? "by invite only" : "asks and answers" });
+    facts.push({ label: t("lan.setup.pairing"), value: status.pairingMode === "invite" ? t("lan.nm.byInvite") : t("lan.nm.asksAnswers") });
   }
   // The same words the decks and the key use, inside out.
   const counts: Array<{ key: string; n: number; words: string; mark: ReactNode }> = [
-    { key: "online", n: summary.online, words: "online", mark: <i className="nm-key-mark" data-tier="online" aria-hidden /> },
-    { key: "away", n: summary.offline, words: "away", mark: <i className="nm-key-mark" data-tier="offline" aria-hidden /> },
-    { key: "asks", n: summary.asks, words: "asking to pair", mark: <i className="nm-key-mark" data-tier="loose" data-kind="asks" aria-hidden /> },
-    { key: "nearby", n: summary.nearby, words: "nearby, not paired", mark: <i className="nm-key-mark" data-tier="loose" aria-hidden /> },
-    { key: "dialling", n: summary.dialling, words: "still dialling", mark: <i className="nm-key-mark" data-tier="loose" aria-hidden /> },
-    { key: "declined", n: summary.declined, words: "declined, not drawn", mark: <i aria-hidden /> },
+    { key: "online", n: summary.online, words: t("lan.online"), mark: <i className="nm-key-mark" data-tier="online" aria-hidden /> },
+    { key: "away", n: summary.offline, words: t("lan.away"), mark: <i className="nm-key-mark" data-tier="offline" aria-hidden /> },
+    { key: "asks", n: summary.asks, words: t("lan.nm.cAsks"), mark: <i className="nm-key-mark" data-tier="loose" data-kind="asks" aria-hidden /> },
+    { key: "nearby", n: summary.nearby, words: t("lan.nm.cNearby"), mark: <i className="nm-key-mark" data-tier="loose" aria-hidden /> },
+    { key: "dialling", n: summary.dialling, words: t("lan.nm.cDialling"), mark: <i className="nm-key-mark" data-tier="loose" aria-hidden /> },
+    { key: "declined", n: summary.declined, words: t("lan.nm.cDeclined"), mark: <i aria-hidden /> },
   ];
   const next = networkNextStep(summary, status?.pairingMode);
   return (
     <div className="nm-panel" data-view="network" data-entrance={entrance}>
       <h3 className="nm-panel-name">{status?.name ?? "…"}</h3>
-      <p className="nm-panel-self">this deck, at the centre of the map</p>
+      <p className="nm-panel-self">{t("lan.nm.self")}</p>
       <ul className="nm-counts">
         {counts.filter(c => c.n > 0).map(c => (
           <li key={c.key} data-count={c.key}>
@@ -643,12 +649,12 @@ export function NetworkDetails({ status, summary, entrance, slice }: {
       </ul>
       {summary.tailnet > 0 && (
         <p className="nm-counts-note">
-          {summary.tailnet} reached over Tailscale{slice ? " — the shaded slice, lower right" : ""}
+          {t(slice ? "lan.nm.tailnetSlice" : "lan.nm.tailnet", { n: summary.tailnet })}
         </p>
       )}
       {next && <p className="nm-next">{next}</p>}
       <Facts facts={facts} />
-      <p className="nm-panel-hint">Point at a deck, or reach one with the arrow keys, to see it here. Press it to open its own dialog.</p>
+      <p className="nm-panel-hint">{t("lan.nm.hint")}</p>
     </div>
   );
 }
@@ -671,19 +677,20 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
   onOpen: () => void;
   onBack: () => void;
 }) {
+  const t = useT();
   const view = peerView({ row, source: rowSource(status, row), status, accounts, now });
   // Only what is known: an unknown fact is a sentence about what the deck has
   // not said, and the dialog says that better.
   const facts: Array<{ label: string; value: ReactNode; quiet?: boolean }> = [];
-  if (view.where) facts.push({ label: "Address", value: <code className="ap-lan-code">{view.where}</code> });
+  if (view.where) facts.push({ label: t("lan.nm.address"), value: <code className="ap-lan-code">{view.where}</code> });
   if (view.thereRuns) {
     facts.push({
-      label: "Runs",
-      value: `${view.thereRuns}${view.order ? ` · ${view.order < 0 ? "older than this deck" : "newer than this deck"}` : ""}`,
+      label: t("lan.nm.runs"),
+      value: `${view.thereRuns}${view.order ? ` · ${view.order < 0 ? t("lan.nm.older") : t("lan.nm.newer")}` : ""}`,
     });
   }
-  if (view.hiddenThere) facts.push({ label: "Signed in to", value: "not said — its owner hides it", quiet: true });
-  if (view.otherThere) facts.push({ label: "Signed in to", value: "an account it does not share", quiet: true });
+  if (view.hiddenThere) facts.push({ label: t("lan.nm.signedIn"), value: t("lan.nm.hiddenValue"), quiet: true });
+  if (view.otherThere) facts.push({ label: t("lan.nm.signedIn"), value: t("lan.nm.otherValue"), quiet: true });
 
   const emits = (row.kind === "paired" && row.here) || row.kind === "asks";
   const next = deckNextStep(row, status.pairingMode);
@@ -695,14 +702,14 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
   const title = sharedLoginsTitle(lanes);
   // What that deck offers, when it has not said: one line, not a paragraph.
   const unknown = view.unknown && view.peer?.waiting && !view.peer.offers
-    ? "Its side is not known until it next calls."
+    ? t("lan.nm.unknown")
     : view.unknown;
 
   return (
     <div className="nm-panel" data-view="deck" data-entrance={entrance}
       data-tier={row.kind === "paired" ? (row.here ? "online" : "offline") : "loose"}>
       <button type="button" className="ap-lan-word nm-back" onClick={onBack}>
-        <span aria-hidden>‹ </span>the whole network
+        <span aria-hidden>‹ </span>{t("lan.nm.back")}
       </button>
       <div className="nm-panel-head">
         <h3 className="nm-panel-name">
@@ -712,14 +719,14 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
           <i className={emits ? "ap-pulse" : "ap-dot"} data-kind={row.kind} aria-hidden />
           <span className="nm-panel-title">{row.name}</span>
         </h3>
-        <button type="button" className="btn nm-open" onClick={onOpen} aria-label={`Open ${row.name}`}>Open</button>
+        <button type="button" className="btn nm-open" onClick={onOpen} aria-label={t("lan.nm.openAria", { name: row.name })}>{t("lan.nm.open")}</button>
       </div>
-      {row.self && <p className="nm-panel-self">calls itself {row.self}</p>}
+      {row.self && <p className="nm-panel-self"><Fill text={t("lan.peer.callsItself")} parts={{ name: row.self }} /></p>}
       <p className="nm-panel-state" data-kind={row.kind}>{presenceLine(row)}</p>
       {next && <p className="nm-next">{next}</p>}
       {facts.length > 0 && <Facts facts={facts} />}
       {view.paired && (
-        <section className="nm-logins" aria-label="Logins the two decks share">
+        <section className="nm-logins" aria-label={t("lan.nm.loginsAria")}>
           <p className="nm-logins-title">{title}</p>
           {total > 0 && (
             <ul className="nm-lanes">
@@ -730,7 +737,7 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
                   {/* A mark and a word, on the email's own line: which end is
                       wrong or what comes next, in the lane's own caption. */}
                   {laneWords(l) && <span className="nm-lane-said" aria-hidden>{laneWords(l)}</span>}
-                  {l.usedThere && <span className="nm-lane-used" aria-hidden>in use there</span>}
+                  {l.usedThere && <span className="nm-lane-used" aria-hidden>{t("lan.there.inUse")}</span>}
                   <span className="vis-hidden">{l.email}: {laneSaid(l)}</span>
                 </li>
               ))}
@@ -748,7 +755,7 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
 function laneWords(l: ReturnType<typeof peerView>["lanes"][number]): string | null {
   if (l.caption) return l.caption;
   if (l.tone === "ok") return null;
-  return `${HERE_SAID[l.here]} · ${THERE_SAID[l.there]}`;
+  return `${hereSaid(l.here)} · ${thereSaid(l.there)}`;
 }
 
 /** A short id that belongs to one machine: FNV-1a over its key, in base 36. */
