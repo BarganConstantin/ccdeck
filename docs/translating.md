@@ -55,6 +55,8 @@ detection already finds them from then on.
 - `dir` in the registry is `"ltr"` for every language today. `"rtl"` is reserved for Arabic, Persian and Hebrew; it sets `<html dir>` only, and the layouts do not mirror yet.
 - Strings shared by many areas (Close, Cancel, durations) belong to `common` and are added by the lead, not by an area.
 - A string built in a `.ts` helper (`export const X_LABEL = "..."`) should become a function that takes `t`, or a key the component passes through, rather than a literal.
+- The server sends sentences, not codes, and stays in English. A fixed sentence a person can see gets a row in `src/web/integrations/server-text.ts` (or `serverText` in `radar-server-text.ts`), which shows it in the language on show; text a provider wrote itself is shown as it came. A test fails when a row no longer matches what `src/server` sends.
+- A `catch` that puts an error on screen uses `ownMessage(err, fallback)` from `src/web/own-error.ts`. What the code means to show is thrown as `OwnError`; anything else, such as a browser's "Failed to fetch", gives way to the translated fallback.
 
 ## The language and the document
 
