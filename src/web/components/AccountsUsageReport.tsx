@@ -84,7 +84,7 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
   return (
     <section className="ap-report-sum" aria-labelledby={id}>
       <h3 className="ap-report-win" id={id}>{t("accounts.rep.winTitle", { win })}</h3>
-      <p className="ap-report-left"><Rich text={t("accounts.rep.avgLeft", { left: shownLeft })} /></p>
+      <p className="ap-report-left"><Rich text={t("accounts.rep.avgLeft", { left: shownLeft })} bold="b" /></p>
       {/* A transform, not a width, as the Usage panel's quota bars are: a new
           reading moves it on the compositor, and it grows in from the left
           when the dialog opens (see the sheet). */}
@@ -216,7 +216,7 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
           accounts can be worked on now. The same count as the rows that say
           Ready, by construction. */}
       <div className="ap-report-overview"><p className="ap-report-lead">
-        <Rich text={t("accounts.rep.lead", { ready: shownReady, count: total })} />
+        <Rich text={t("accounts.rep.lead", { ready: shownReady, count: total })} bold="b" />
       </p><p className="ap-report-confidence">{t("accounts.rep.basedOn")}{report.rows.some(row => Object.values(row.cells).some(cell => !cell.counted && cell.reset)) && t("accounts.rep.elapsedNeedFresh")}{report.rows.some(row => row.heldOut) && t("accounts.rep.heldN", { n: report.rows.filter(row => row.heldOut).length })}</p></div>
       <div className="ap-report-sums">
         {report.windows.map(w => <WindowSum key={w.id} w={w} nowSec={nowSec} />)}
@@ -268,8 +268,8 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
       <details className="ap-report-how">
         <summary><InfoMark />{t("accounts.rep.how")}</summary>
         <div className="ap-report-how-body">
-          <p><Rich text={t("accounts.rep.howOne")} /></p>
-          <p><Rich text={t("accounts.rep.howTwo")} /></p>
+          <p><Rich text={t("accounts.rep.howOne")} bold="b" /></p>
+          <p><Rich text={t("accounts.rep.howTwo")} bold="b" /></p>
         </div>
       </details>
     </div>

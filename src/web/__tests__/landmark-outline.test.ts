@@ -189,7 +189,7 @@ describe("the deck's five regions are five landmarks (#381)", () => {
     // complementary, complementary" is a list nobody can navigate.
     const named: Array<[string, string, string]> = [
       ["UsagePanel.tsx", "usage-panel", '\\{t\\("usage\\.title"\\)\\}'],
-      ["AccountsPanel.tsx", "accounts-panel", '"Claude accounts"'],
+      ["AccountsPanel.tsx", "accounts-panel", '\\{t\\("accounts\\.panel\\.label"\\)\\}'],
       ["SessionList.tsx", "session-list", '"Sessions"'],
     ];
     for (const [file, cls, label] of named) {
@@ -328,7 +328,7 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     expect(code(usage)).toMatch(/<h2>\{t\("usage\.title"\)\}<\/h2>/);
     // `Claude accounts`, and the same string as the landmark name below: this
     // panel holds Claude logins only, on a deck that also draws Codex.
-    expect(code(accountsHeader)).toMatch(/<h2>Claude accounts<\/h2>/);
+    expect(code(accountsHeader)).toMatch(/<h2>\{t\("accounts\.header\.title"\)\}<\/h2>/);
     expect(code(sessions)).toMatch(/<h2>Sessions <span className="sl-count">/);
     // The detail panel has one state left. It used to draw a second one — a
     // "Detail" h2 over "Click an agent to see its tools" and a shortcut list —
@@ -654,8 +654,8 @@ describe("no control is named by its title attribute alone (#381)", () => {
   });
 
   it("names the + and keeps its longer tooltip as the hint", () => {
-    expect(code(accountsHeader)).toMatch(/aria-label="Add an account"/);
-    expect(code(accountsHeader)).toMatch(/title="Sign in to another Claude account/);
+    expect(code(accountsHeader)).toMatch(/aria-label=\{t\("accounts\.header\.add"\)\}/);
+    expect(code(accountsHeader)).toMatch(/title=\{t\("accounts\.header\.addTip"\)\}/);
   });
 });
 

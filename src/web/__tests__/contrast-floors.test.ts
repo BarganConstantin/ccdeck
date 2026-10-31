@@ -1283,7 +1283,7 @@ describe("an opacity over text is a contrast ratio too (#1289)", () => {
     expect(src("components/UsagePanel.tsx"))
       .toContain('<span className="up-total-label">{fromRange ? periodWord : BOARD_SPEND_LABEL}</span>');
     // The share dialog's heading, and the popover's countdown.
-    expect(src("components/ShareAccountsDialog.tsx")).toContain('"This share has expired"');
+    expect(src("components/ShareAccountsDialog.tsx")).toContain('t("accounts.sd.expired")');
     expect(src("components/AccountMenuPopover.tsx")).toContain("<span className={`ap-share-expiry ${exp.tone}`}>{exp.text}</span>");
     // And none of those words sits inside anything that still dims.
     for (const box of [".uh-sub", ".up-total", ".ap-share-blob", ".ap-share-expiry"]) {

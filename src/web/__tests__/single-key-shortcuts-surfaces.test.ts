@@ -260,7 +260,7 @@ describe("titles drop the letter when the switch is off", () => {
       ["components/CanvasControls.tsx", "dropped: pauseGate.dropped, singleKeys })"],
       ["components/SessionList.tsx", 'withKey("Hide sidebar", "L", singleKeys)'],
       ["components/UsagePanel.tsx", 'withKey(t("usage.close"), "U", singleKeys)'],
-      ["components/AccountsPanel.tsx", 'withKey("Close", "A", singleKeys)'],
+      ["components/AccountsPanel.tsx", 'withKey(t("accounts.close"), "A", singleKeys)'],
       ["components/SelectedRibbon.tsx", '"Z", singleKeys)'],
       ["components/Detail.tsx", 'withKey("The session list", "L", singleKeys)'],
     ] as const) {

@@ -1043,7 +1043,7 @@ describe("the scan everything below is built on (#513)", () => {
     // The panel's own example is its empty state's, which is a component of
     // its own now, so the sentence is asked of the file that renders it.
     const empty = COMPONENTS.find(([name]) => name === "components/AccountsEmptyState.tsx")![1];
-    expect(withoutComments(empty)).toContain("Couldn't read the account store.");
+    expect(withoutComments(empty)).toContain('t("accounts.empty.unreadable")');
   });
 
   it("closes a quote at the end of a line, because a string cannot span one", () => {

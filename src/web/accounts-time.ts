@@ -23,5 +23,5 @@ export function dueLabel(nextAt: number | null, nowSec: number, t: TFunction = t
 
 /** "A", "A and B", "A, B and C" — in the language's own way of joining. */
 export function listNames(names: readonly string[]): string {
-  try { return new Intl.ListFormat(currentLanguage(), { style: "long", type: "conjunction" }).format(names); } catch { return names.join(", "); }
+  try { return new Intl.ListFormat(currentLanguage() === "en" ? "en-GB" : currentLanguage(), { style: "long", type: "conjunction" }).format(names); } catch { return names.join(", "); }
 }

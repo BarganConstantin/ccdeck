@@ -198,16 +198,16 @@ describe("the auto-switch toggle says what it switches, not what it is set to", 
     // so the contents still spell nothing and the aria-label stays the whole
     // name. What this guards is words coming back inside it.
     expect(policy, "the switch has contents again").toMatch(
-      /: "Switch accounts automatically when the active one nears its limit"\}\s*>\s*<span className="switch-knob" \/>\s*<\/button>/);
-    expect(/aria-label="[^"]+"/.test(toggle), NAMELESS).toBe(true);
+      /: t\("accounts\.policy\.startTip"\)\}\s*>\s*<span className="switch-knob" \/>\s*<\/button>/);
+    expect(/aria-label=(\{t\("[^"]+"\)\}|"[^"]+")/.test(toggle), NAMELESS).toBe(true);
   });
 
   it("names itself with the words already on the screen above it", () => {
     // SC 2.5.3: what a voice-control user has to pronounce is what they can
     // read. The section's visible title is the h3 this switch sits under.
-    const heading = /<h3 className="ap-auto-title">([^<]+)<\/h3>/.exec(policy);
+    const heading = /<h3 className="ap-auto-title">(\{t\("[^"]+"\)\})<\/h3>/.exec(policy);
     expect(heading, "the auto-switch section lost its visible title").not.toBeNull();
-    const name = /aria-label="([^"]+)"/.exec(toggle);
+    const name = /aria-label=(\{t\("[^"]+"\)\})/.exec(toggle);
     expect(name, NAMELESS).not.toBeNull();
     expect(name![1]).toBe(heading![1]);
   });
@@ -232,11 +232,11 @@ describe("the auto-switch toggle says what it switches, not what it is set to", 
     // The #381 sweep this one was missed by. Named here so that a later change
     // stripping any of them fails beside the switch rather than silently.
     for (const named of [
-      'aria-label="Add an account"',
-      'aria-label="Reload accounts"',
+      'aria-label={t("accounts.header.add")}',
+      'aria-label={t("accounts.header.reload")}',
       // The threshold is named by the words beside it now, a real label.
       'htmlFor={thresholdId}',
-      'aria-label="Dismiss this message"',
+      'aria-label={t("accounts.row.dismissLabel")}',
     ]) expect(strip(accountsSurface())).toContain(named);
   });
 });
@@ -330,7 +330,7 @@ describe("the failure box's dismiss is a target as well as a glyph", () => {
 
   it("still names itself, which is the half of this control that was already right", () => {
     const dismiss = tagCarrying(accounts, 'className="ap-failure-x"');
-    expect(dismiss).toContain('aria-label="Dismiss this message"');
+    expect(dismiss).toContain('aria-label={t("accounts.row.dismissLabel")}');
   });
 });
 

@@ -236,7 +236,7 @@ describe("the row, in Local network's idiom and with its timings", () => {
   });
 
   it("drops the freest number once the list is open, where every row says its own", () => {
-    expect(fold).toMatch(/const line = restLine\(peers, \{ strained: strained && !open, armed, threshold \}\);/);
+    expect(fold).toMatch(/const line = restLine\(peers, \{ strained: strained && !open, armed, threshold \}, t\);/);
   });
 
   it("is not hover-only: every name on the card is in the list the row opens", () => {

@@ -407,7 +407,7 @@ describe("the deck's ten overlays", () => {
     // the dialog that opens a browser tab did it with focus outside itself.
     const src = read("AddAccountDialog.tsx");
     expect(src).toMatch(/useModalDismiss\(close, \{ focusRef: primerRef \}\)/);
-    expect(src).toMatch(/<button type="button" ref=\{primerRef\}[\s\S]*?Open the sign-in page/);
+    expect(src).toMatch(/<button type="button" ref=\{primerRef\}[\s\S]*?accounts\.add\.openSignIn/);
   });
 });
 

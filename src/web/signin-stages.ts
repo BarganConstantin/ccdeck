@@ -80,13 +80,6 @@ export function failedStage(
   return "link";
 }
 
-const LABELS: Record<SignInStage, Record<"pending" | "active" | "done", string>> = {
-  link:    { pending: "Open the sign-in page",   active: "Opening the sign-in page",                  done: "Sign-in page opened" },
-  approve: { pending: "Approve in your browser", active: "Waiting for you to approve in the browser", done: "Approved in the browser" },
-  confirm: { pending: "Confirm who signed in",   active: "Confirming who signed in",                  done: "Sign-in confirmed" },
-  save:    { pending: "Save the credentials",    active: "Saving the credentials",                    done: "Credentials saved" },
-};
-
 /**
  * A row's words for its status. A failed row says what went wrong in a few
  * words — its heading — and the sentence under it says why; `state` tells a
@@ -135,13 +128,6 @@ export function stageDetail(id: SignInStage, step?: string | null, t: TFunction 
       : t("accounts.signin.detail.save");
   }
 }
-
-const FAILED_TITLES: Record<SignInStage, string> = {
-  link: "The sign-in page did not open",
-  approve: "The sign-in did not finish in the browser",
-  confirm: "The sign-in could not be confirmed",
-  save: "claude-swap could not save the account",
-};
 
 /** The heading a failed stage gets — or "Sign-in ended" for a flow the server
  *  forgot, which is not a failure of any stage. */

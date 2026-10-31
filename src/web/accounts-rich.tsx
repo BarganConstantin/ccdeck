@@ -6,21 +6,23 @@ import type { TFunction } from "./i18n";
 
 const MARK = /<(b|c)>(.*?)<\/\1>/g;
 
-export function richParts(text: string): ReactNode[] {
+export function richParts(text: string, bold: "strong" | "b" = "strong"): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   let i = 0;
   for (const m of text.matchAll(MARK)) {
-    if (m.index > last) out.push(<Fragment key={i++}>{text.slice(last, m.index)}</Fragment>);
-    out.push(m[1] === "b" ? <strong key={i++}>{m[2]}</strong> : <code key={i++}>{m[2]}</code>);
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push(m[1] === "c" ? <code key={i++}>{m[2]}</code> : bold === "b" ? <b key={i++}>{m[2]}</b> : <strong key={i++}>{m[2]}</strong>);
     last = m.index + m[0].length;
   }
-  if (last < text.length) out.push(<Fragment key={i++}>{text.slice(last)}</Fragment>);
+  if (last < text.length) out.push(text.slice(last));
   return out;
 }
 
-export function Rich({ text }: { text: string }) {
-  return <>{richParts(text)}</>;
+/** `bold` picks the element a <b> mark draws: <strong> by default, <b> where the
+ *  surface always used the plain one. */
+export function Rich({ text, bold = "strong" }: { text: string; bold?: "strong" | "b" }) {
+  return <>{richParts(text, bold)}</>;
 }
 
 /** A translated sentence with components in it: "{name}" is replaced by the

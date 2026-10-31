@@ -65,7 +65,7 @@ describe("a switch answers on the row it was about (#827)", () => {
     const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     expect(ACCOUNTS_FILES.filter(rel => /\bsetSwitched\(/.test(code(read(`../${rel}`)))))
       .toEqual(["use-account-switching.ts"]);
-    expect(clientText()).toMatch(/const name = a\.alias \?\? a\.email \?\? `account \$\{a\.num\}`;/);
+    expect(clientText()).toMatch(/const name = a\.alias \?\? a\.email \?\? t\("accounts\.accountNLower", \{ n: a\.num \}\);/);
     expect(clientText()).toMatch(/onClick=\{\(\) => onSwitch\(a\.num, name\)\}/);
     // The row presses the panel's own doSwitch — the one above that says it —
     // handed in as its onSwitch.
@@ -81,13 +81,15 @@ describe("what a switch that took says (#827)", () => {
 
   it("says what happens to sessions already running, as claude-swap does", () => {
     const said = /<p className="ap-switched">([\s\S]*?)<\/p>/.exec(row)?.[1].replace(/\s+/g, " ").trim() ?? "";
-    expect(said).toBe("Now active. New sessions start on it; ones already running pick it up on their next message, up to about 30 seconds later on macOS.");
+    expect(said).toBe('{t("accounts.row.nowActive")}');
+    expect(readFileSync(fileURLToPath(new URL("../i18n/areas/accounts/en.ts", import.meta.url)), "utf8"))
+      .toContain("Now active. New sessions start on it; ones already running pick it up on their next message, up to about 30 seconds later on macOS.");
   });
 
   it("announces it through a region that is there before it is needed", () => {
     // A successful switch is announced, even when another paired deck uses
     // the same account. Shared activity alone needs no risk announcement.
-    expect(panel).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">\s*\{switched \? `Now active: \$\{switched\.name\}` : ""\}\s*<\/div>/);
+    expect(panel).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">\s*\{switched \? t\("accounts\.panel\.nowActive", \{ name: switched\.name \}\) : ""\}\s*<\/div>/);
   });
 
   it("draws both on the row's own inset, in the row's quiet type", () => {

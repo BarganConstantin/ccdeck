@@ -413,8 +413,8 @@ describe("where it opens from", () => {
 
   it("opens one view, titled for itself, with no tabs between the two", () => {
     const modal = sourceOf("components/AccountsUsageReport.tsx");
-    expect(modal).toContain('const VIEW_TITLE: Record<CapacityView, string> = { accounts: "Account capacity", calendar: "Reset calendar" };');
-    expect(modal).toContain('<h2 id="ap-report-title">{VIEW_TITLE[view]}</h2>');
+    expect(modal).toContain('const VIEW_TITLE_KEY: Record<CapacityView, string> = { accounts: "accounts.rep.viewAccounts", calendar: "accounts.rep.viewCalendar" };');
+    expect(modal).toContain('<h2 id="ap-report-title">{t(VIEW_TITLE_KEY[view])}</h2>');
     expect(modal).not.toMatch(/ap-report-views?\b|setView\(/);
   });
 
@@ -428,7 +428,7 @@ describe("where it opens from", () => {
     // The panel's order, until a column is pressed; then that column's, taken
     // at the press from the panel's order and held the same way.
     expect(modal).toContain("const rows = holdOrder(shown, sorted?.order ?? order);");
-    expect(modal).toContain("const byPanel = usageReport(holdOrder(shown, order), nowSec).rows;");
+    expect(modal).toContain("const byPanel = usageReport(holdOrder(shown, order), nowSec, t).rows;");
   });
 
   it("is a dialog in the Projects report's shell: portalled, dismissed and focused the shared way", () => {
@@ -438,7 +438,7 @@ describe("where it opens from", () => {
     expect(modal).toContain('role="dialog" aria-modal="true" aria-labelledby="ap-report-title"');
     expect(modal).not.toContain("ap-proj-sub");
     expect(modal).toMatch(/return createPortal\(\s*(?:\/\/[^\n]*\n\s*)*<div className="modal-backdrop"/);
-    expect(modal).toContain('<h2 id="ap-report-title">{VIEW_TITLE[view]}</h2>');
+    expect(modal).toContain('<h2 id="ap-report-title">{t(VIEW_TITLE_KEY[view])}</h2>');
   });
 });
 

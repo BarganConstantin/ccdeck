@@ -445,7 +445,7 @@ describe("what the dialog says", () => {
     expect(modal).toMatch(/const dialogRef = useModalDismiss\(onLater, \{ focusRef: firstRef \}\)/);
     expect(modal).toMatch(/const scrimPress = useScrimDismiss\(onLater\);/);
     expect(modal).toMatch(/<div className="modal-backdrop" \{\.\.\.scrimPress\} role="presentation">/);
-    expect(modal).toMatch(/aria-label="Not now \(Esc\)"/);
+    expect(modal).toMatch(/aria-label=\{t\("accounts\.reauth\.laterEsc"\)\}/);
   });
 });
 

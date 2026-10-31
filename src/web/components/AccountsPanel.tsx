@@ -681,7 +681,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                     slots={(data.accounts ?? []).map(x => x.num)}
                     boundaryId={rowBoundary(a.num)} nowSec={nowSec}
                     busy={busy} pressProps={pressProps}
-                    onProjects={() => { setProjectsFor({ num: a.num, name: a.alias ?? a.email ?? `account ${a.num}` }); closeMenu(a.num); }}
+                    onProjects={() => { setProjectsFor({ num: a.num, name: a.alias ?? a.email ?? t("accounts.accountNLower", { n: a.num }) }); closeMenu(a.num); }}
                     onRotation={() => post({ action: "account", account: a.num, enabled: a.disabled }, `rot-${a.num}`, "menu")
                       .then(out => { load(true); if (out?.ok) closeMenu(a.num); })}
                     home={isHome(a, auto?.choice?.home)}
@@ -693,6 +693,8 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                 const a = data.accounts?.find(x => x.num === issueOpen.num);
                 const issue = a ? accountIssue(a, nowSec, lanFor(a), t) : null;
                 if (!a || !issue) return null;
+                // The report goes to the makers, who read English.
+                const reported = accountIssue(a, nowSec, lanFor(a), (key, vars) => translate("en", undefined, key, vars)) ?? issue;
                 return (
                   <AccountIssuePopover
                     anchorId={issueOpen.anchor}
@@ -700,7 +702,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                     // closes against the column however the roster is drawn.
                     boundaryId={issueOpen.anchor === "ap-notice" ? "ap-scroll" : rowBoundary(a.num)}
                     issue={issue}
-                    who={a.alias ?? a.email ?? `account ${a.num}`}
+                    who={a.alias ?? a.email ?? t("accounts.accountNLower", { n: a.num })}
                     fetchedAt={a.fetchedAt}
                     nowSec={nowSec}
                     onClose={closeIssue}
@@ -711,11 +713,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                     // report; a quiet, self-clearing state is "something else".
                     onReport={onReport && (() => onReport({
                       initialKind: issue.tone === "warn" ? "bug" : "other",
-                      initialBody: (() => {
-                        // The report goes to the makers, who read English.
-                        const en = a ? accountIssue(a, nowSec, lanFor(a), (key, vars) => translate("en", undefined, key, vars)) : issue;
-                        return `Account issue: ${(en ?? issue).text}. ${(en ?? issue).hint}`;
-                      })(),
+                      initialBody: `Account issue: ${reported.text}. ${reported.hint}`,
                     }))}
                   />
                 );
@@ -790,7 +788,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
         return (
           <AccountProjectsModal
             num={projectsFor.num}
-            name={a ? (a.alias ?? a.email ?? `account ${a.num}`) : projectsFor.name}
+            name={a ? (a.alias ?? a.email ?? t("accounts.accountNLower", { n: a.num })) : projectsFor.name}
             onClose={() => setProjectsFor(null)}
           />
         );

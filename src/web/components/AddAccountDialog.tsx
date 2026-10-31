@@ -41,7 +41,7 @@ import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { type ImportResult, importRowKey, importSummary, outcomeWord, replaceImportRow } from "../share-bundle";
 import { useFeatureUse } from "../feature-use";
 import { useT } from "../i18n";
-import { Rich } from "../accounts-rich";
+import { richParts } from "../accounts-rich";
 
 /** Server-side login progress, polled while the dialog is open. */
 type LoginState = {
@@ -602,7 +602,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                 {celebrates({ added: done.added, reducedMotion: reduced }) && <Confetti anchor={markRef} />}
                 <h4>{doneTitle(done, t)}</h4>
                 <p className="aa-note">
-                  <Rich text={t(done.added ? (restoreNote ? "accounts.add.addedRestored" : "accounts.add.addedKept") : "accounts.add.alreadyHere", { email: done.email })} />
+                  {richParts(t(done.added ? (restoreNote ? "accounts.add.addedRestored" : "accounts.add.addedKept") : "accounts.add.alreadyHere", { email: done.email }))}
                 </p>
                 {restoreNote ? <p className="aa-note aa-warn" role="status">{restoreNote}</p> : null}
                 <button type="button" ref={doneRef} className="btn primary" onClick={close}>{t("accounts.done")}</button>
@@ -624,7 +624,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                   </>
                 ) : live === "approve" && login ? (
                   <>
-                    <p className="aa-note"><Rich text={email ? t("accounts.add.approveEmail", { email }) : t("accounts.add.approve")} /></p>
+                    <p className="aa-note">{richParts(email ? t("accounts.add.approveEmail", { email }) : t("accounts.add.approve"))}</p>
                     {/* The page the CLI printed, in THIS browser — which is
                         the only way to reach it from a deck opened on another
                         machine, where the tab the CLI opened is on that
@@ -708,7 +708,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
               // on someone who wanted the other tab.
               <div className="aa-step aa-primer">
                 {cancelNote ? <p className="aa-note aa-warn" role="status">{cancelNote}</p> : null}
-                <h4>{email ? <Rich text={t("accounts.add.againAs", { email })} /> : t("accounts.add.toAnthropic")}</h4>
+                <h4>{email ? richParts(t("accounts.add.againAs", { email })) : t("accounts.add.toAnthropic")}</h4>
                 <p className="aa-note">{t(email ? "accounts.add.primerNoteEmail" : "accounts.add.primerNote")}</p>
                 <div className="aa-actions">
                   {/* No `disabled={busy}`: the press takes this control away
@@ -774,7 +774,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                   quarantined without being asked, and that is the point of it.
                   A reassurance a reader can see is false costs more than it
                   buys. */}
-              <p className="aa-note"><Rich text={t("accounts.add.importNote")} /></p>
+              <p className="aa-note">{richParts(t("accounts.add.importNote"))}</p>
               <div className="aa-actions">
                 <button type="button" className="btn primary" onClick={close}>{t("accounts.done")}</button>
                 <button type="button" className="btn"
@@ -821,7 +821,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                   <span>{slowImport ?? t("accounts.add.importLive")}</span>
                 </p>
               ) : null}
-              <p className="aa-note"><Rich text={t("accounts.add.pasteNote")} /></p>
+              <p className="aa-note">{richParts(t("accounts.add.pasteNote"))}</p>
             </div>
           )}
           {/* One polite voice for the whole panel, mounted for as long as the
