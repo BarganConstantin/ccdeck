@@ -95,6 +95,20 @@ describe('native Codex account adapter (synthetic children only)', () => {
     expect(f.spawn).toHaveBeenCalledTimes(5);
   });
 
+  it('holds no floor for a home nobody is signed in to, so the first read after a sign-in has its numbers', async () => {
+    let signedIn = false; let clock = 100000;
+    const f = fake((m, c) => {
+      if (m.id !== undefined) reply(c, m.id, m.method === 'initialize' ? {} : m.method === 'account/read' ? { account: signedIn ? account : null } : limits);
+    });
+    const options = { ...f.options, now: () => clock, includeQuota: true, force: true };
+    expect(await readNativeCodexAccount(HOME, options)).toMatchObject({ ok: true, signedIn: false, windows: [] });
+    expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(0);
+    // Signed in seconds later, inside the minute a real read would have held.
+    signedIn = true; clock += 5000;
+    expect(await readNativeCodexAccount(HOME, options)).toMatchObject({ ok: true, signedIn: true, label: 'person@example.com', windows: [{ usedPercent: 130 }, { usedPercent: 22 }] });
+    expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(1);
+  });
+
   it('limits forced quota bursts to one usage RPC per minute and preserves data age', async () => {
     const f = fake(); let clock = 100000; const now = () => clock;
     const options = { ...f.options, now, includeQuota: true, force: true };

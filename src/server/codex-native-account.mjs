@@ -232,6 +232,14 @@ export async function readNativeCodexAccount(home, options = {}) {
     }
     if (includeQuota) { attemptedQuota = true; entry.quotaAt = started; entry.quotaFileVersion = fileVersion; }
     const value = await rpcRead(home, { ...options, platform, env, now, includeQuota, deadlineMs: initialRemaining });
+    // No usage request goes out for a home nobody is signed in to, or one on an
+    // API key, so there is no floor to hold. Held, it refused the first real
+    // read after a sign-in for the rest of the minute, as a "changed" login.
+    if (includeQuota && value.ok && (!value.signedIn || value.plan === 'api')) {
+      attemptedQuota = false;
+      entry.quotaAt = entry.quotaValue = entry.quotaFileVersion = undefined;
+      return value;
+    }
     if (includeQuota) entry.quotaValue = value;
     if (!includeQuota || !value.ok || !value.signedIn || value.plan === 'api') return value;
     const remaining = deadline - Date.now();
