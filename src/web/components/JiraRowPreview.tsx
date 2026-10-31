@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactElement } from "react";
+import { useT } from "../i18n";
 import HoverHint from "./HoverHint";
 
 interface Item {
@@ -14,6 +15,7 @@ export default function JiraRowPreview({ item, portalRootId, children }: {
   portalRootId: string;
   children: ReactElement<HTMLAttributes<HTMLElement>>;
 }) {
+  const t = useT();
   const versions = item.fixVersions ?? [];
   const clipped = (anchor: HTMLElement) => {
     // The draggable source is the row wrapper, outside this hint's child.
@@ -28,8 +30,8 @@ export default function JiraRowPreview({ item, portalRootId, children }: {
       <div className="jr-preview-key">{item.key}</div>
       <div className="jr-preview-summary">{item.summary}</div>
       {(versions.length > 0 || item.epic) && <dl>
-        {versions.length > 0 && <><dt>{versions.length === 1 ? "Version" : "Versions"}</dt><dd>{versions.join(", ")}</dd></>}
-        {item.epic && <><dt>Epic</dt><dd>{item.epic.key}: {item.epic.name}</dd></>}
+        {versions.length > 0 && <><dt>{t("integrations.preview.version", { count: versions.length })}</dt><dd>{versions.join(", ")}</dd></>}
+        {item.epic && <><dt>{t("integrations.parts.epic")}</dt><dd>{item.epic.key}: {item.epic.name}</dd></>}
       </dl>}
     </>}>
     {children}
