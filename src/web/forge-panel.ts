@@ -19,6 +19,7 @@ import type {
   CiState, ForgeBranch, ForgeChange, ForgeErrorInfo, ForgeErrorKind, ForgeKind, ChangeFilter, ChangeState,
 } from "./forge-types";
 import { forgeWords } from "./forge-types";
+import { currentLanguage, t as tGlobal, type TFunction } from "./i18n";
 
 /** How long an answer is fresh enough to draw without asking again. */
 export const FRESH_MS = 120_000;
@@ -59,7 +60,7 @@ export async function fetchForge<T>(api: ForgeApi, path: string, signal?: AbortS
     res = await api(path, { signal, headers: { accept: "application/json" } });
   } catch (err) {
     if ((err as Error)?.name === "AbortError") throw err;
-    throw new ForgeReadError({ kind: "unreachable", message: "the deck did not answer" });
+    throw new ForgeReadError({ kind: "unreachable", message: tGlobal("forge.err.noAnswer") });
   }
   let body: { ok?: boolean; data?: T; error?: ForgeErrorInfo | string } | null = null;
   try { body = await res.json(); } catch { /* handled below */ }
@@ -68,7 +69,7 @@ export async function fetchForge<T>(api: ForgeApi, path: string, signal?: AbortS
   if (error && typeof error === "object" && typeof error.kind === "string") throw new ForgeReadError(error);
   throw new ForgeReadError({
     kind: "upstream",
-    message: typeof error === "string" ? error : `the deck answered ${res.status}`,
+    message: typeof error === "string" ? error : tGlobal("forge.err.deckAnswered", { status: res.status }),
     status: res.status,
   });
 }
@@ -141,6 +142,29 @@ const CI_MARKS: Record<CiState, Mark> = {
   none: { mark: "none", word: "no pipeline", tone: "idle" },
 };
 
+/** The English word of each mark and the catalog key that says it in the
+ *  language on show. A mark keeps its English word (tests and callers match on
+ *  it); the screen draws markWord(). */
+const MARK_KEYS: Record<string, string> = {
+  passed: "forge.mark.passed", failed: "forge.mark.failed", running: "forge.mark.running", pending: "forge.mark.pending",
+  canceled: "forge.mark.canceled", skipped: "forge.mark.skipped", manual: "forge.mark.manual", "no pipeline": "forge.mark.none",
+  "passed with warnings": "forge.mark.passedWarnings",
+  Open: "forge.mark.open", Draft: "forge.mark.draft", Merged: "forge.mark.merged", Closed: "forge.mark.closed",
+  Approved: "forge.mark.approvedBadge", "Not planned": "forge.mark.notPlanned", Duplicate: "forge.mark.duplicate",
+  "Closed · not planned": "forge.mark.closedNotPlanned", "Closed · duplicate": "forge.mark.closedDuplicate",
+  approved: "forge.mark.approved", "changes requested": "forge.mark.changesRequested", commented: "forge.mark.commented",
+  "review pending": "forge.mark.reviewPending", "approval required": "forge.mark.approvalRequired",
+  "All threads resolved": "forge.mark.allResolved", open: "forge.mark.openLc", closed: "forge.mark.closedLc",
+  failure: "forge.mark.failure", warning: "forge.mark.warning", notice: "forge.mark.notice",
+};
+
+/** The word of a mark in the language on show; a word the table does not know
+ *  (already in the language, like a forge's own noun) is returned as it is. */
+export function markWord(mark: Pick<Mark, "word">, t: TFunction = tGlobal): string {
+  const key = MARK_KEYS[mark.word];
+  return key ? t(key) : mark.word;
+}
+
 export function ciMark(state: CiState | null | undefined): Mark {
   return CI_MARKS[state ?? "none"] ?? CI_MARKS.none;
 }
@@ -178,12 +202,12 @@ export function divergeCount(n: number | null): string {
 }
 
 /** A run's length as a person says it: "45s", "3m 12s", "1h 04m". */
-export function durationWords(sec: number | null): string | null {
+export function durationWords(sec: number | null, t: TFunction = tGlobal): string | null {
   if (sec == null || !Number.isFinite(sec) || sec < 0) return null;
   const s = Math.round(sec);
-  if (s < 60) return `${s}s`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
-  return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m`;
+  if (s < 60) return t("forge.dur.s", { s });
+  if (s < 3600) return t("forge.dur.ms", { m: Math.floor(s / 60), s: String(s % 60).padStart(2, "0") });
+  return t("forge.dur.hm", { h: Math.floor(s / 3600), m: String(Math.floor((s % 3600) / 60)).padStart(2, "0") });
 }
 
 export interface ErrorWords {
@@ -193,33 +217,36 @@ export interface ErrorWords {
   action: "connection" | "retry";
 }
 
-/** The sentence and the recovery for each failure, in the forge's own name. */
-export function forgeErrorWords(kind: ForgeKind, err: ForgeErrorInfo, now = Date.now()): ErrorWords {
+/** The sentence and the recovery for each failure, in the forge's own name.
+ *  A detail that is the server's own text (a missing scope, an upstream
+ *  message) is kept as it arrived after the translated lead-in. */
+export function forgeErrorWords(kind: ForgeKind, err: ForgeErrorInfo, now = Date.now(), t: TFunction = tGlobal): ErrorWords {
   const name = forgeWords[kind].name;
+  const where = t("forge.settingsPath");
   const words: Record<ForgeErrorKind, ErrorWords> = {
-    auth: { title: `${name} refused the token`, detail: "It may have been revoked. Update it in Settings › Integrations.", action: "connection" },
-    expired: { title: `The ${name} token has expired`, detail: "Create a new one and paste it in Settings › Integrations.", action: "connection" },
-    permission: { title: `The token cannot read this`, detail: `${err.message}. Check the token's scopes in Settings › Integrations.`, action: "connection" },
-    unreachable: { title: `${name} did not answer`, detail: "Check the network or VPN, and whether the instance is up.", action: "retry" },
-    tls: { title: `${name}'s certificate is not trusted`, detail: "This machine does not trust the instance's certificate. Add its CA to the system, or set NODE_EXTRA_CA_CERTS.", action: "retry" },
+    auth: { title: t("forge.err.auth.title", { name }), detail: t("forge.err.auth.detail", { where }), action: "connection" },
+    expired: { title: t("forge.err.expired.title", { name }), detail: t("forge.err.expired.detail", { where }), action: "connection" },
+    permission: { title: t("forge.err.permission.title"), detail: t("forge.err.permission.detail", { message: err.message, where }), action: "connection" },
+    unreachable: { title: t("forge.err.unreachable.title", { name }), detail: t("forge.err.unreachable.detail"), action: "retry" },
+    tls: { title: t("forge.err.tls.title", { name }), detail: t("forge.err.tls.detail"), action: "retry" },
     "rate-limit": {
-      title: `${name} asked to slow down`,
-      detail: err.retryAfter != null ? `Try again ${retryWords(err.retryAfter, now)}.` : "Try again in a minute.",
+      title: t("forge.err.rate.title", { name }),
+      detail: err.retryAfter != null ? retryWords(err.retryAfter, now, t) : t("forge.err.rate.minute"),
       action: "retry",
     },
-    incompatible: { title: `This is not a ${name} API`, detail: `${err.message}. Check the address in Settings › Integrations.`, action: "connection" },
-    "not-found": { title: "Not found", detail: "It was deleted, moved, or this token cannot see it.", action: "retry" },
-    upstream: { title: `${name} answered with an error`, detail: err.message, action: "retry" },
-    invalid: { title: "The deck could not ask for that", detail: err.message, action: "retry" },
-    unavailable: { title: `${name} is unavailable on this deck`, detail: "The deck cannot read it right now. Try again in a moment.", action: "retry" },
+    incompatible: { title: t("forge.err.incompatible.title", { name }), detail: t("forge.err.incompatible.detail", { message: err.message, where }), action: "connection" },
+    "not-found": { title: t("forge.err.notFound.title"), detail: t("forge.err.notFound.detail"), action: "retry" },
+    upstream: { title: t("forge.err.upstream.title", { name }), detail: err.message, action: "retry" },
+    invalid: { title: t("forge.err.invalid.title"), detail: err.message, action: "retry" },
+    unavailable: { title: t("forge.err.unavailable.title", { name }), detail: t("forge.err.unavailable.detail"), action: "retry" },
   };
   return words[err.kind] ?? words.upstream;
 }
 
-function retryWords(seconds: number, now: number): string {
-  if (seconds < 60) return `in ${Math.max(1, seconds)}s`;
+function retryWords(seconds: number, now: number, t: TFunction): string {
+  if (seconds < 60) return t("forge.err.rate.in", { s: Math.max(1, seconds) });
   const at = new Date(now + seconds * 1000);
-  return `after ${at.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
+  return t("forge.err.rate.after", { time: at.toLocaleTimeString(currentLanguage(), { hour: "2-digit", minute: "2-digit" }) });
 }
 
 // ── groups ───────────────────────────────────────────────────────────────

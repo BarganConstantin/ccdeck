@@ -12,6 +12,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ForgeJob, LogTail } from "../../forge-types";
 import { durationWords } from "../../forge-panel";
+import { useT } from "../../i18n";
+import { formatNumber } from "../../i18n/format";
 import {
   annotationMark, jobMark, jobStartsOpen, LOG_STEPS, logLineTone, nextLogLines, stageMark, stagesOf, stageStartsOpen,
 } from "../../forge-detail";
@@ -23,8 +25,9 @@ import { DetailFold } from "./DetailParts";
 
 /** The jobs by stage. */
 export function JobStages({ repo, jobs }: { repo: string; jobs: ForgeJob[] }) {
+  const t = useT();
   const stages = stagesOf(jobs);
-  if (!jobs.length) return <p className="fg-empty">This pipeline has no jobs.</p>;
+  if (!jobs.length) return <p className="fg-empty">{t("forge.jobs.none")}</p>;
   // A forge without stages (GitHub's check runs) is one list, not one fold.
   if (stages.length === 1 && stages[0].name == null) return <JobList repo={repo} jobs={jobs} />;
   return (
@@ -32,7 +35,7 @@ export function JobStages({ repo, jobs }: { repo: string; jobs: ForgeJob[] }) {
       {stages.map(stage => (
         <DetailFold
           key={stage.name ?? ""}
-          title={stage.name ?? "Other jobs"}
+          title={stage.name ?? t("forge.jobs.other")}
           count={stage.jobs.length}
           startsOpen={stageStartsOpen(stage, jobs.length)}
           aside={<StateMark mark={stageMark(stage)} />}
@@ -49,8 +52,9 @@ function JobList({ repo, jobs }: { repo: string; jobs: ForgeJob[] }) {
 }
 
 function JobRow({ repo, job }: { repo: string; job: ForgeJob }) {
+  const t = useT();
   const [open, setOpen] = useState(() => jobStartsOpen(job));
-  const time = durationWords(job.durationSec);
+  const time = durationWords(job.durationSec, t);
   const bodyId = `fd-job-${job.id}`;
   return (
     <li className="fd-job" data-open={open || undefined}>
@@ -58,7 +62,7 @@ function JobRow({ repo, job }: { repo: string; job: ForgeJob }) {
         <span className="fg-fold-chevron" aria-hidden="true" />
         <StateMark mark={jobMark(job)} />
         <span className="fd-job-name">{job.name}</span>
-        {job.allowFailure && job.state === "failed" && <span className="fd-job-note">allowed to fail</span>}
+        {job.allowFailure && job.state === "failed" && <span className="fd-job-note">{t("forge.jobs.allowedToFail")}</span>}
         {time && <span className="fd-job-time">{time}</span>}
       </button>
       {open && (
@@ -78,7 +82,7 @@ function JobRow({ repo, job }: { repo: string; job: ForgeJob }) {
           )}
           {job.logAvailable
             ? <JobLog repo={repo} job={job} />
-            : <p className="fd-log-bar"><OpenOnForge href={job.webUrl}>Open the job</OpenOnForge></p>}
+            : <p className="fd-log-bar"><OpenOnForge href={job.webUrl}>{t("forge.jobs.open")}</OpenOnForge></p>}
         </div>
       )}
     </li>
@@ -87,6 +91,7 @@ function JobRow({ repo, job }: { repo: string; job: ForgeJob }) {
 
 function JobLog({ repo, job }: { repo: string; job: ForgeJob }) {
   const { api, scope, refresh } = useForge();
+  const t = useT();
   const [lines, setLines] = useState<number | null>(null);
   const read = useForgeRead<LogTail>(api, scope, lines ? "job-log" : null, { repo, id: job.id, lines }, refresh);
   // The longer tail is a new read; the shorter one stays on screen until it lands.
@@ -122,8 +127,8 @@ function JobLog({ repo, job }: { repo: string; job: ForgeJob }) {
   if (!lines) {
     return (
       <p className="fd-log-bar">
-        <button type="button" className="btn" onClick={() => setLines(LOG_STEPS[0])}>Show log</button>
-        <OpenOnForge href={full}>Full log</OpenOnForge>
+        <button type="button" className="btn" onClick={() => setLines(LOG_STEPS[0])}>{t("forge.log.show")}</button>
+        <OpenOnForge href={full}>{t("forge.log.full")}</OpenOnForge>
       </p>
     );
   }
@@ -131,17 +136,19 @@ function JobLog({ repo, job }: { repo: string; job: ForgeJob }) {
     <div className="fd-log-wrap">
       <p className="fd-log-bar">
         <span className="fd-log-count">
-          {tail ? (tail.truncated ? `Last ${tail.lines.length.toLocaleString()} lines` : `All ${tail.lines.length.toLocaleString()} lines`) : "Log"}
+          {tail
+            ? t(tail.truncated ? "forge.log.last" : "forge.log.all", { count: tail.lines.length, n: formatNumber(tail.lines.length, 0) })
+            : t("forge.log.title")}
         </span>
         {tail?.truncated && more && (
           <button type="button" className="btn" onClick={askMore} {...selfPressProps(read.loading)}>
-            {read.loading ? "Loading…" : "Show more lines"}
+            {read.loading ? t("forge.loading") : t("forge.log.more")}
           </button>
         )}
-        <OpenOnForge href={full}>Full log</OpenOnForge>
+        <OpenOnForge href={full}>{t("forge.log.full")}</OpenOnForge>
       </p>
       {read.error && (tail ? <ReadFailure error={read.error} onRetry={read.reload} compact /> : <ReadFailure error={read.error} onRetry={read.reload} />)}
-      {!tail && !read.error && <LoadingRows rows={3} label="Loading the log" />}
+      {!tail && !read.error && <LoadingRows rows={3} label={t("forge.log.loading")} />}
       {tail && (
         tail.lines.length
           ? (
@@ -149,14 +156,14 @@ function JobLog({ repo, job }: { repo: string; job: ForgeJob }) {
             // line on a phone; the log scrolls sideways instead. It is a
             // stop of its own so the keyboard can scroll it either way, and
             // a named region so a reader knows which job's log it is.
-            <pre ref={pre} className="fd-log" tabIndex={0} role="region" aria-label={`${job.name} log`}>
+            <pre ref={pre} className="fd-log" tabIndex={0} role="region" aria-label={t("forge.log.region", { job: job.name })}>
               {tail.lines.map((line, i) => {
                 const tone = logLineTone(line);
                 return <span key={i} className="fd-log-line" data-tone={tone ?? undefined}>{line || " "}</span>;
               })}
             </pre>
           )
-          : <p className="fd-none">The log is empty.</p>
+          : <p className="fd-none">{t("forge.log.empty")}</p>
       )}
     </div>
   );
