@@ -3,6 +3,10 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "radio.volume": "音量",
+  "radio.disabled.connecting": "デッキに接続しています…",
+  "radio.disabled.off": "このデッキでは音楽がオフになっています。",
+  "radio.disabled.unreachable": "デッキに接続できません。再接続したらラジオを開き直してください。",
   "radio.title": "ラジオ",
   "radio.title.explorer": "探す",
   "radio.tagline": "ワークスペースのためのサウンドトラック",

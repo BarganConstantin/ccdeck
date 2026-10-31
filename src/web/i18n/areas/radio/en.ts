@@ -2,6 +2,10 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "radio.volume": "Volume",
+  "radio.disabled.connecting": "Connecting to the deck…",
+  "radio.disabled.off": "Music is turned off on this deck.",
+  "radio.disabled.unreachable": "Cannot reach the deck. Reopen Radio when it reconnects.",
   // Panel frame
   "radio.title": "Radio",
   "radio.title.explorer": "Explorer",

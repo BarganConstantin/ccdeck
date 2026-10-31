@@ -3,6 +3,10 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "radio.volume": "Lautstärke",
+  "radio.disabled.connecting": "Verbindung zum Deck wird hergestellt …",
+  "radio.disabled.off": "Musik ist auf diesem Deck ausgeschaltet.",
+  "radio.disabled.unreachable": "Das Deck ist nicht erreichbar. Öffne das Radio erneut, sobald die Verbindung wieder steht.",
   "radio.title": "Radio",
   "radio.title.explorer": "Entdecken",
   "radio.tagline": "Ein Soundtrack für deinen Workspace",
