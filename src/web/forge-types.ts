@@ -21,6 +21,8 @@
 // flavour, references, Jira links and emoji included — and they are NOT safe
 // to insert as they come. The page sanitises them before drawing.
 
+import { t as tGlobal, type TFunction } from "./i18n";
+
 export type ForgeKind = "github" | "gitlab";
 
 /** The failures a panel has words and a recovery for. The first seven are the
@@ -371,3 +373,38 @@ export const forgeWords: Record<ForgeKind, {
     pipeline: "Pipeline", pipelines: "Pipelines", repo: "Project",
   },
 };
+
+/** The same words in the language on show (forge.word.*): a merge request on
+ *  GitLab and a pull request on GitHub, in the wording each language uses for
+ *  them. The Lc forms are for the middle of a sentence; `runs` is the plural of
+ *  what the forge calls a pipeline ("workflow runs"), `pipelinesLc` the tab as
+ *  a sentence names it ("Actions" stays capitalised on GitHub). */
+export interface ForgeNouns {
+  change: string; changeLc: string; changes: string; changesLc: string;
+  pipeline: string; pipelineLc: string; pipelines: string; pipelinesLc: string; runs: string;
+  repo: string; repoLc: string; repos: string;
+}
+
+const NOUN_KEYS = {
+  github: {
+    change: "forge.word.github.change", changeLc: "forge.word.github.changeLc", changes: "forge.word.github.changes",
+    changesLc: "forge.word.github.changesLc", pipeline: "forge.word.github.pipeline", pipelineLc: "forge.word.github.pipelineLc",
+    pipelines: "forge.word.github.pipelines", pipelinesLc: "forge.word.github.pipelinesLc", runs: "forge.word.github.runs",
+    repo: "forge.word.github.repo", repoLc: "forge.word.github.repoLc", repos: "forge.word.github.repos",
+  },
+  gitlab: {
+    change: "forge.word.gitlab.change", changeLc: "forge.word.gitlab.changeLc", changes: "forge.word.gitlab.changes",
+    changesLc: "forge.word.gitlab.changesLc", pipeline: "forge.word.gitlab.pipeline", pipelineLc: "forge.word.gitlab.pipelineLc",
+    pipelines: "forge.word.gitlab.pipelines", pipelinesLc: "forge.word.gitlab.pipelinesLc", runs: "forge.word.gitlab.runs",
+    repo: "forge.word.gitlab.repo", repoLc: "forge.word.gitlab.repoLc", repos: "forge.word.gitlab.repos",
+  },
+} as const;
+
+export function forgeNouns(kind: ForgeKind, t: TFunction = tGlobal): ForgeNouns {
+  const k = NOUN_KEYS[kind];
+  return {
+    change: t(k.change), changeLc: t(k.changeLc), changes: t(k.changes), changesLc: t(k.changesLc),
+    pipeline: t(k.pipeline), pipelineLc: t(k.pipelineLc), pipelines: t(k.pipelines), pipelinesLc: t(k.pipelinesLc), runs: t(k.runs),
+    repo: t(k.repo), repoLc: t(k.repoLc), repos: t(k.repos),
+  };
+}
