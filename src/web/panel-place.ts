@@ -135,10 +135,13 @@ function scheduleFit(): void {
 /** The room as the sheet sees it, measured rather than read from the tokens
  *  (nothing here calls getComputedStyle; see render-path-cost-612-613): the
  *  stripe's width, and the home slot's top, which is the sheet's least top,
- *  under the bar and under the rating row while it is shown. */
+ *  under the bar and under the rating row while it is shown. The window's
+ *  height ends where the status bar begins (none on a phone, or before it is
+ *  drawn: 0). */
 function roomOf(home: DOMRect): PanelRoom {
   const stripe = document.querySelector(".edge-rail-right")?.getBoundingClientRect().width ?? 0;
-  return { w: window.innerWidth, h: window.innerHeight, side: stripe + 8, top: home.top };
+  const status = document.querySelector(".statusbar")?.getBoundingClientRect().height ?? 0;
+  return { w: window.innerWidth, h: window.innerHeight - status, side: stripe + 8, top: home.top };
 }
 
 type Drag = {

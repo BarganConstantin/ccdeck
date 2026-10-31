@@ -336,6 +336,9 @@
      a fade is what that rule leaves behind everywhere else in this sheet. */
   animation: fadeIn 110ms ease-out;
 }
+/* V4 motion: a card opened by a key (P, a Tab onto a card) arrives at once; the
+   last input decides (input-modality.ts), a pointer press brings the fade back. */
+:root[data-motion="instant"] .ap-peek { animation: none; }
 /* The label over the names sits UNDER them in weight, not over. A card this
    small cannot have two loud lines, and the names are what was asked for — the
    label only says what list this is. */
