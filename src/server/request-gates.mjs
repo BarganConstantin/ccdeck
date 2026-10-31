@@ -447,6 +447,7 @@ export const GUARDED_READS = new Set([
   // credentials are deliberately omitted from the response.
   "/api/codex-profiles",
   "/api/codex-profile-quota",
+  "/api/codex-auto",
   "/api/codex-profile-launch",
   "/api/codex-profile-login",
   "/api/codex-profile-login-state",

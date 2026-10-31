@@ -31,6 +31,7 @@ export async function discoverCodexProfiles(options = {}) {
   const homes = selection.homes;
   const seen = new Set();
   const profiles = [];
+  const logins = new Map();
   for (const directory of homes) {
     let canonical;
     try { canonical = await realpath(directory); } catch { canonical = directory; }
@@ -52,7 +53,7 @@ export async function discoverCodexProfiles(options = {}) {
     if (await credentialFileVersion(directory) !== credentialVersion) identity = null;
     const id = selection.profiles?.find(p => p.home === directory)?.id ?? await codexProfileId(directory);
     const managedEntry = selection.managedProfiles?.find(p => p.id === id);
-    const managedLabel = managedEntry?.label ?? null;
+    const managedLabel = selection.profileLabels?.find(p => p.id === id)?.label ?? managedEntry?.label ?? null;
     const available = await stat(directory).then(info => info.isDirectory(), () => false);
     const authoritative = options.enableNative && await usesNativeCodexAccount(directory, selection.selectionEnabled);
     const native = options.enableNative && (authoritative || !installed) && available
@@ -64,11 +65,29 @@ export async function discoverCodexProfiles(options = {}) {
       label: managedLabel ? `${managedLabel}${accountLabel ? ` · ${accountLabel}` : ''}` : accountLabel ?? (profiles.length === 0 ? 'Default Codex' : `Codex profile ${profiles.length + 1}`),
       ...(managedLabel ? { managedLabel } : {}),
       ...(managedEntry ? { managed: true } : {}),
+      /** Who it is signed in as, or null: the row's name when it has no other. */
+      account: accountLabel,
       active: id === selection.profileId,
       available,
       ...(native ? { signedIn: native.ok && native.signedIn, authSource: 'native', metadataUnavailable: !native.ok, metadataReason: native.reason ?? null } : {}),
       signedInFilePresent: installed, // file presence is NOT authentication validity
     });
+    logins.set(id, native?.signedIn ? native.identityVersion : identity);
+  }
+  return withSameAccount(profiles, logins);
+}
+
+/** Two rows signed in to one ChatGPT account share one quota, and the second adds
+ *  nothing: the sign-in page takes whichever account the browser is already in,
+ *  so this is how a second account usually fails to be one. The default keeps its
+ *  place, and every other row with its login names the one it repeats. */
+function withSameAccount(profiles, logins) {
+  const first = new Map();
+  for (const profile of [...profiles].sort((a, b) => Number(b.active) - Number(a.active))) {
+    const login = logins.get(profile.id);
+    if (!login) continue;
+    if (first.has(login)) profile.sameAccountAs = first.get(login);
+    else first.set(login, profile.id);
   }
   return profiles;
 }

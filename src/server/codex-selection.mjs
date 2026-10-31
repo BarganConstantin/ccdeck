@@ -108,6 +108,8 @@ async function snapshot(state, options) {
     revision: state?.revision ?? 0, selectionEnabled: state !== null,
     available: await directoryExists(home), homes, profiles,
     managedProfiles: (state?.profiles ?? []).filter(p => p.managed).map(({ id, label }) => ({ id, label })),
+    /** The name somebody gave each account, the deck's own or not. */
+    profileLabels: (state?.profiles ?? []).filter(p => p.label).map(({ id, label }) => ({ id, label })),
   };
 }
 export async function readCodexSelection(options = {}) { return snapshot(await load(options), options); }
@@ -266,6 +268,33 @@ export async function addCodexProfile({ label = null, operationId: operation } =
   });
 }
 
+
+/** Give an account a short name, or take it away with an empty one, as Claude's
+ *  Rename does. Any account can have one: it is the deck's note about a home, so
+ *  the user's own home is named here and nothing in it is touched. */
+export async function renameCodexProfile({ id, label, expectedRevision } = {}, options = {}) {
+  if (typeof id !== 'string' || !idPattern.test(id)) fail('unknown_profile');
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) fail('invalid_revision');
+  const name = label === null || label === undefined || label === '' ? null : label;
+  if (name !== null && !validLabel(name)) fail('invalid_label');
+  return locked(options, async () => {
+    const state = await initial(options);
+    if (state.revision !== expectedRevision) fail('selection_conflict');
+    let profile = state.profiles.find(p => p.id === id);
+    if (!profile) {
+      // A home named only in the environment has no entry until it is needed.
+      for (const home of await homesFor(state, options)) {
+        if (await codexProfileId(home) === id) { profile = { id, home, label: null, managed: false }; state.profiles.push(profile); break; }
+      }
+    }
+    if (!profile) fail('unknown_profile');
+    profile.label = name;
+    state.revision++;
+    const result = await snapshot(state, options);
+    await persist(state, options);
+    return { ...result, id, status: 'renamed' };
+  });
+}
 
 /** Take a managed profile out of the registry. Its folder is not deleted: it is
  *  moved to `codex-profiles-removed/` beside the live ones, with its sign-in and
