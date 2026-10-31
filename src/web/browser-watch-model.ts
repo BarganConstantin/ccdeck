@@ -7,6 +7,7 @@
 // them, and so does the suite, without loading a component to reach a sum.
 
 import { fmtBytes } from "./byte-format";
+import { t as tNow, type TFunction } from "./i18n";
 
 export interface WatchEpisode {
   host: string;
@@ -161,8 +162,8 @@ export function watchedBrowsers(browsers: WatchBrowser[] | undefined): WatchBrow
  * other panel. fmtBytes keeps the rule above without help: it goes down to
  * bytes, and a count of one reads "1.0 B".
  */
-export function logBytesLabel(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "empty";
+export function logBytesLabel(bytes: number, t: TFunction = tNow): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return t("settings.bw.logEmpty");
   return fmtBytes(bytes);
 }
 
@@ -193,16 +194,16 @@ export function visitTotals(
 /** `12 sec ago`, `4 min ago`, or null when nothing has been read yet. Said in
  *  full words rather than `12s`: this sits beside figures, and two numbers side
  *  by side invite being read as one quantity. */
-export function agoLabel(atMs: number | null, nowMs: number): string | null {
+export function agoLabel(atMs: number | null, nowMs: number, t: TFunction = tNow): string | null {
   if (atMs === null) return null;
   const secs = Math.max(0, Math.round((nowMs - atMs) / 1000));
   // "0 sec ago" is a machine reading a clock out loud. Under five seconds the
   // honest thing a person says is "just now".
-  if (secs < 5) return "just now";
-  if (secs < 60) return `${secs} sec ago`;
+  if (secs < 5) return t("settings.bw.ago.now");
+  if (secs < 60) return t("settings.bw.ago.sec", { n: secs });
   const mins = Math.round(secs / 60);
-  if (mins < 60) return `${mins} min ago`;
-  return `${Math.round(mins / 60)} hr ago`;
+  if (mins < 60) return t("settings.bw.ago.min", { n: mins });
+  return t("settings.bw.ago.hr", { n: Math.round(mins / 60) });
 }
 
 /**
@@ -221,7 +222,7 @@ export function agoLabel(atMs: number | null, nowMs: number): string | null {
 export function watchTrouble(snap: {
   profiles: { name: string; profile: string; degraded: boolean; reason: string | null }[];
   browsers: WatchBrowser[];
-}): { kind: "no-profiles" | "none-running" | "unreadable"; text: string } | null {
+}, t: TFunction = tNow): { kind: "no-profiles" | "none-running" | "unreadable"; text: string } | null {
   const unreadable = snap.profiles.filter(p => p.degraded);
   if (unreadable.length > 0) {
     // The reason comes from the reader that failed — "database is locked",
@@ -231,22 +232,22 @@ export function watchTrouble(snap: {
     const rest = unreadable.length - 1;
     return {
       kind: "unreadable",
-      text: `${first.name}/${first.profile} could not be read — ${first.reason ?? "no reason given"}`
-        + (rest > 0 ? `, and ${rest} more` : "")
-        + ". The watch continues on the profiles it can read.",
+      text: t(rest > 0 ? "settings.bw.trouble.unreadableMore" : "settings.bw.trouble.unreadable", {
+        browser: first.name, profile: first.profile, reason: first.reason ?? t("settings.bw.trouble.noReason"), more: rest,
+      }),
     };
   }
   const watched = watchedBrowsers(snap.browsers);
   if (watched.length === 0) {
     return {
       kind: "no-profiles",
-      text: "No browser on this machine has a profile to read. Open one of the browsers below once and it will be watched from then on.",
+      text: t("settings.bw.trouble.noProfiles"),
     };
   }
   if (!watched.some(b => b.running)) {
     return {
       kind: "none-running",
-      text: "No watched browser is running, so nothing can be navigated right now. Their history is still read, and anything found while they were open is still here.",
+      text: t("settings.bw.trouble.noneRunning"),
     };
   }
   return null;

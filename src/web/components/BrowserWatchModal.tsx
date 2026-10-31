@@ -25,6 +25,7 @@ import type { Palette } from "../palette";
 import { selfPressProps } from "../panel-press";
 import { watchedBrowsers, watchTrouble } from "../browser-watch-model";
 import { useBrowserWatch } from "../use-browser-watch";
+import { useT } from "../i18n";
 import { RefreshGlyph } from "./action-glyphs";
 
 /* NO TABS. Two views were never two modes: one of them is the product — what
@@ -51,6 +52,7 @@ export default function BrowserWatchModal({
   /** Handed down rather than read here — see WatchRadar. */
   palette: Palette;
 }) {
+  const t = useT();
   const dialogRef = useModalDismiss(onClose);
   const scrimPress = useScrimDismiss(onClose);
   const { snap, error, writeError, setWriteError, busy, quiet, setQuiet, saving, load, dismiss, save } =
@@ -80,7 +82,7 @@ export default function BrowserWatchModal({
   // take their half, and the header counts from the first.
   const watching = watchedBrowsers(snap?.browsers);
   const rest = (snap?.browsers ?? []).filter(b => !(b.installed && b.profiles > 0));
-  const trouble = snap ? watchTrouble(snap) : null;
+  const trouble = snap ? watchTrouble(snap, t) : null;
   /** Watched profiles, summed — the header's scope line, which is the shortest
    *  true answer to "how much is this looking at". */
   const profileCount = watching.reduce((n, b) => n + b.profiles, 0);
@@ -105,11 +107,9 @@ export default function BrowserWatchModal({
             it rather than reads past it. */}
         <header className="modal-head">
           <div className="modal-title">
-            <span className="modal-tool-name" id="bw-title">Browser watch</span>
+            <span className="modal-tool-name" id="bw-title">{t("settings.bw.title")}</span>
             <span className="modal-tool-id">
-              {snap
-                ? `${profileCount} ${profileCount === 1 ? "profile" : "profiles"} · local only`
-                : "local only"}
+              {snap ? t("settings.bw.scope.profiles", { count: profileCount }) : t("settings.bw.scope.localOnly")}
             </span>
           </div>
           <div className="modal-actions">
@@ -123,10 +123,10 @@ export default function BrowserWatchModal({
               className="glyph-btn"
               onClick={() => void load(true)}
               {...selfPressProps(busy)}
-              aria-label="Re-read every profile now"
-              title="Re-read every profile now"
+              aria-label={t("settings.bw.reread")}
+              title={t("settings.bw.reread")}
             >{busy ? "…" : <RefreshGlyph />}</button>
-            <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+            <button className="glyph-btn" onClick={onClose} aria-label={t("settings.bw.close")} title={t("settings.bw.close")}>×</button>
           </div>
         </header>
 
@@ -134,7 +134,7 @@ export default function BrowserWatchModal({
           {!snap && !error && (
             <div className="bw-loading">
               <span className="bw-loading-bar" aria-hidden />
-              <p>Reading each browser&apos;s history. The first look copies the file, which takes a moment.</p>
+              <p>{t("settings.bw.loading")}</p>
             </div>
           )}
 
@@ -142,7 +142,7 @@ export default function BrowserWatchModal({
             <div className="bw-state">
               <div className="bw-row err">
                 <span className="bw-dot" aria-hidden />
-                <span className="bw-row-label">Could not read</span>
+                <span className="bw-row-label">{t("settings.bw.readFail")}</span>
                 <span className="bw-row-detail">{error}</span>
               </div>
             </div>
@@ -198,13 +198,13 @@ export default function BrowserWatchModal({
             <div className="bw-state bw-write-err" role="alert">
               <div className="bw-row err">
                 <span className="bw-dot" aria-hidden />
-                <span className="bw-row-label">Could not save that setting</span>
-                <span className="bw-row-detail">{writeError} — the switches below show what is stored, not what you pressed.</span>
+                <span className="bw-row-label">{t("settings.bw.saveFail")}</span>
+                <span className="bw-row-detail">{t("settings.bw.saveFailDetail", { error: writeError })}</span>
                 <button
                   className="glyph-btn bw-write-err-x"
                   onClick={() => setWriteError(null)}
-                  aria-label="Dismiss"
-                  title="Dismiss"
+                  aria-label={t("settings.bw.dismiss")}
+                  title={t("settings.bw.dismiss")}
                 >×</button>
               </div>
             </div>
