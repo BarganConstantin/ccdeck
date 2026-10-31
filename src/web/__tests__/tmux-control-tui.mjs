@@ -18,6 +18,19 @@
 //                  SAME bytes (an erase under a live background, a glyph in the
 //                  last column) are left out, so a difference that remains is
 //                  the wire's, not the emulators'.
+//   stress pre-3.6 The same frames, but for one thing a tmux older than 3.6
+//                  draws wrong, left out there too: a run of ASCII written from
+//                  column 2 over the right half of a wide glyph in column 1.
+//                  Before 3.6 tmux keeps the wide glyph and puts the run after
+//                  it (screen_write_collect_end walks back to find the glyph and
+//                  stops before column 0; upstream 9c07903a "Correctly remove
+//                  overwritten wide characters at column 1", first in 3.6);
+//                  xterm.js and tmux 3.6 on blank it. Such a run starts in
+//                  column 1 instead, over the whole glyph. Every random draw is
+//                  made as before, so without the option the bytes are the same.
+//   half           Writes 界 in column 1 and then Z in column 2, over its right
+//                  half, then the title "half", and waits: that disagreement
+//                  alone, for tmux-control-tmux.test.ts to check which tmux has it.
 //   record FILE [bracketed]
 //                  Raw mode; every byte the pane receives is appended to FILE.
 //                  With `bracketed` it first asks for bracketed paste. Writes
@@ -49,6 +62,10 @@ if (mode === "record") {
     process.stdin.setRawMode(false);
     process.exit(0);
   });
+} else if (mode === "half") {
+  // The title last: once tmux shows it, it has drawn every byte before it.
+  out("\x1b[2J\x1b[1;1H界\x1b[1;2HZ\x1b]2;half\x07");
+  setInterval(() => {}, 60_000);
 } else {
   stress();
 }
@@ -76,6 +93,7 @@ function stress() {
   let frames = 0;
   let left = 0;
   let forever = false;
+  const pre36 = process.argv[3] === "pre-3.6";
 
   const frame = () => {
     const [cols, rows] = size();
@@ -83,9 +101,15 @@ function stress() {
     const top = 3, bot = rows - 2;
     s += `\x1b[${top};${bot}r`;
     for (let i = 0; i < 40; i++) {
-      s += `\x1b[${range(1, rows + 1)};${range(1, cols - 26 + 1)}H${sgr()}`;
+      // Drawn in the order they always were: row, column, pen, length, glyphs.
+      const row = range(1, rows + 1);
+      let col = range(1, cols - 26 + 1);
+      const pen = sgr();
       const n = range(1, 12);
-      for (let j = 0; j < n; j++) s += pick(GLYPHS);
+      let run = "";
+      for (let j = 0; j < n; j++) run += pick(GLYPHS);
+      if (pre36 && col === 2 && run.charCodeAt(0) < 0x80) col = 1;
+      s += `\x1b[${row};${col}H${pen}${run}`;
     }
     const op = rnd();
     s += `\x1b[${range(top, bot + 1)};1H\x1b[0m`;

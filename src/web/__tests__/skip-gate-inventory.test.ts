@@ -193,6 +193,7 @@ describe("the register of conditionally-skipped cases", () => {
         "sound-hook-park.test.ts": 1,
         "supervisor-exit.test.ts": 3,
         "terminal-cli.test.ts": 2,
+        "terminal-utf8-tmux.test.ts": 2,
         "traffic-radar-permission.test.ts": 1,
         "uv-bootstrap-atomic.test.ts": 1,
       },
@@ -386,7 +387,7 @@ describe("the workflow the register is enforced from", () => {
     const win32Sites = gates()
       .filter((g) => g.condition === 'process.platform === "win32"')
       .reduce((n, g) => n + g.sites, 0);
-    expect(win32Sites).toBe(35);
+    expect(win32Sites).toBe(37);
 
     const stated = publishYml().match(/the (\d+) sites gated `skipIf\(process\.platform === "win32"\)`/);
     expect(stated, "publish.yml no longer states the win32 gate count in the form this reads").not.toBeNull();
