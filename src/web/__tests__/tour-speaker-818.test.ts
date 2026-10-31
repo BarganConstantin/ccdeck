@@ -49,7 +49,7 @@ describe("the tour names the sound control by what it looks like (#818)", () => 
     // App.tsx draws in the topbar, which holds Settings first.
     expect(bar).toMatch(/<UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\}/);
     expect(run).toMatch(/utilities: \[settings, feedback\]/);
-    expect(run).toMatch(/ariaLabel: "Settings", glyph: <SettingsGlyph \/>/);
+    expect(run).toMatch(/ariaLabel: t\("board\.rail\.settings"\), glyph: <SettingsGlyph \/>/);
     expect(run).toContain(GEAR_PATH);
   });
 });

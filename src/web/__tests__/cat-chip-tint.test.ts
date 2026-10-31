@@ -399,7 +399,7 @@ describe("the words beside the tint", () => {
   });
 
   it("says the same thing in the tooltip, which is where the count already lived", () => {
-    expect(app).toMatch(/title=\{one \? `\$\{calls\}, all to \$\{one\.label\}` : calls\}/);
+    expect(app).toMatch(/title=\{one \? t\("board\.detail\.catAllTo", \{ calls, server: one\.label \}\) : calls\}/);
   });
 
   it("gives that name a rule, and one that cannot carry a uuid out of the panel", () => {

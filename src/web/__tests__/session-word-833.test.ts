@@ -23,8 +23,8 @@ function modulesUnder(dir: string): string[] {
 
 describe("a session is called a session everywhere (#833)", () => {
   it("says session or subagent in the details rail, as the card does", () => {
-    expect(app).toContain('<span className="hero-meta-item">{agentKindLabel(agent)}</span>');
-    expect(node).toContain("{agentKindLabel(data)}");
+    expect(app).toContain('<span className="hero-meta-item">{agentKindLabel(agent, t)}</span>');
+    expect(node).toContain("{agentKindLabel(data, t)}");
     expect(agentKindLabel({ kind: "root", provider: "claude" })).toBe("session");
     expect(agentKindLabel({ kind: "subagent", provider: "claude", parentId: "parent" })).toBe("subagent");
     expect(agentKindLabel({ kind: "root", provider: "codex" })).toBe("session");

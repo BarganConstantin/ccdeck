@@ -12,6 +12,7 @@ import { copyText } from "../copy-text";
 import { selfPressProps } from "../panel-press";
 import type { AgentNodeData } from "../types";
 import { useNow } from "../use-now";
+import { useT, type TFunction } from "../i18n";
 import {
   CONTINUED_SHOWN_MS, continueView, pressContinue, useStopContinueSnapshot, type ContinueView,
 } from "../use-stop-continue";
@@ -23,14 +24,14 @@ type Bearing = Pick<AgentNodeData, "kind" | "sessionId" | "stopFailure" | "job" 
 
 /** Why the button is what it is, as its tooltip: what it will do, or why not
  *  yet, then what the automatic continue will do, then how the last one went. */
-function buttonTitle(v: ContinueView, now: number): string {
+function buttonTitle(v: ContinueView, now: number, t: TFunction): string {
   const lines = [
-    v.pressing ? "Continuing…"
-      : !v.loaded ? "Checking for a working login…"
-        : v.gate.ready ? "Run the turn that failed again, in place, through Claude Code's background commands."
-          : gateSentence(v.gate.reason),
-    v.stop ? autoSentence({ auto: v.auto, kind: v.stop.kind, held: v.held, tried: v.tried }) : "",
-    v.last && v.stop && v.last.at >= v.stop.at ? `${outcomeLabel(v.last, now)}. ${outcomeTooltip(v.last)}` : "",
+    v.pressing ? t("board.continue.pressing")
+      : !v.loaded ? t("board.continue.checking")
+        : v.gate.ready ? t("board.continue.runAgain")
+          : gateSentence(v.gate.reason, t),
+    v.stop ? autoSentence({ auto: v.auto, kind: v.stop.kind, held: v.held, tried: v.tried }, t) : "",
+    v.last && v.stop && v.last.at >= v.stop.at ? t("board.continue.outcomeTip", { label: outcomeLabel(v.last, now, t), tip: outcomeTooltip(v.last, t) }) : "",
   ];
   return lines.filter(Boolean).join("\n");
 }
@@ -53,6 +54,7 @@ function usePress(v: ContinueView | null, sessionId: string) {
  * stopped here, as the context donut's is.
  */
 export function CardContinue({ data }: { data: Bearing }) {
+  const t = useT();
   const s = useStopContinueSnapshot();
   const now = useNow(15_000);
   const v = continueView(data, s);
@@ -65,9 +67,9 @@ export function CardContinue({ data }: { data: Bearing }) {
       type="button"
       className="stop-continue"
       {...selfPressProps(v.pressing, !(v.loaded && v.gate.ready))}
-      title={buttonTitle(v, now)}
+      title={buttonTitle(v, now, t)}
       onClick={e => { e.stopPropagation(); press(); }}
-    >{v.pressing ? "Continuing…" : "Continue"}</button>
+    >{v.pressing ? t("board.continue.pressing") : t("board.continue.button")}</button>
   );
 }
 
@@ -77,14 +79,15 @@ export function CardContinue({ data }: { data: Bearing }) {
  * row's tooltip instead.
  */
 export function ContinuedRow({ data }: { data: Bearing }) {
+  const t = useT();
   const s = useStopContinueSnapshot();
   const now = useNow(15_000);
   const v = continueView(data, s);
   if (!v || v.stop || !v.last || now - v.last.at > CONTINUED_SHOWN_MS) return null;
   return (
-    <div className={`continued-row${v.last.ok ? "" : " failed"}`} title={outcomeTooltip(v.last)}>
+    <div className={`continued-row${v.last.ok ? "" : " failed"}`} title={outcomeTooltip(v.last, t)}>
       <span className="waiting-dot" aria-hidden />
-      <span className="continued-said">{outcomeLabel(v.last, now)}</span>
+      <span className="continued-said">{outcomeLabel(v.last, now, t)}</span>
     </div>
   );
 }
@@ -95,6 +98,7 @@ export function ContinuedRow({ data }: { data: Bearing }) {
  * surface with room for all of it.
  */
 export function StopContinueSection({ agent }: { agent: AgentNodeData }) {
+  const t = useT();
   const s = useStopContinueSnapshot();
   const now = useNow(15_000);
   const v = continueView(agent, s);
@@ -108,57 +112,57 @@ export function StopContinueSection({ agent }: { agent: AgentNodeData }) {
   if (!v) return null;
 
   const lastLine = v.last && (!v.stop || v.last.at >= v.stop.at) && now - v.last.at <= CONTINUED_SHOWN_MS
-    ? <p className={`detail-continue-last${v.last.ok ? "" : " failed"}`} title={outcomeTooltip(v.last)}>
-        {outcomeLabel(v.last, now)}. {outcomeTooltip(v.last)}
+    ? <p className={`detail-continue-last${v.last.ok ? "" : " failed"}`} title={outcomeTooltip(v.last, t)}>
+        {t("board.continue.outcomeTip", { label: outcomeLabel(v.last, now, t), tip: outcomeTooltip(v.last, t) })}
       </p>
     : null;
 
   if (!v.stop) {
-    return lastLine ? <section className="detail-section"><h3>Continue</h3>{lastLine}</section> : null;
+    return lastLine ? <section className="detail-section"><h3>{t("board.continue.button")}</h3>{lastLine}</section> : null;
   }
 
-  const gateLine = !v.loaded ? "Checking for a working login…"
-    : v.gate.ready ? (v.stop.kind === "api-error" ? "" : "A working login with room is active now.")
-      : gateSentence(v.gate.reason);
+  const gateLine = !v.loaded ? t("board.continue.checking")
+    : v.gate.ready ? (v.stop.kind === "api-error" ? "" : t("board.continue.loginReady"))
+      : gateSentence(v.gate.reason, t);
 
   if (!v.background) {
     return (
       <section className="detail-section">
-        <h3>Continue</h3>
-        <p className="detail-recap">{interactiveSentence(v.stop.kind)}</p>
+        <h3>{t("board.continue.button")}</h3>
+        <p className="detail-recap">{interactiveSentence(v.stop.kind, t)}</p>
         {gateLine && <p className="detail-continue-state">{gateLine}</p>}
         <div className="detail-continue-actions">
           <button type="button" className="btn detail-continue-btn" onClick={() => { void copy("word", "continue"); }}>
-            {copied === "word" ? "Copied" : "Copy “continue”"}
+            {copied === "word" ? t("board.continue.copied") : t("board.continue.copyWord")}
           </button>
         </div>
       </section>
     );
   }
 
-  const auto = autoSentence({ auto: v.auto, kind: v.stop.kind, held: v.held, tried: v.tried });
+  const auto = autoSentence({ auto: v.auto, kind: v.stop.kind, held: v.held, tried: v.tried }, t);
   const commands = v.jobId ? continueCommands(v.jobId, agent.sessionId) : null;
   return (
     <section className="detail-section">
-      <h3>Continue</h3>
+      <h3>{t("board.continue.button")}</h3>
       <p className="detail-recap">
-        A background session: ccdeck can run the turn that failed again, in place, through Claude Code's own background commands.
+        {t("board.continue.background")}
       </p>
       {gateLine && <p className="detail-continue-state">{gateLine}</p>}
       {auto && <p className="detail-continue-state">{auto}</p>}
       {lastLine}
       <div className="detail-continue-actions">
-        <button type="button" className="btn primary detail-continue-btn" {...selfPressProps(v.pressing, !(v.loaded && v.gate.ready))} title={buttonTitle(v, now)} onClick={press}>
-          {v.pressing ? "Continuing…" : "Continue"}
+        <button type="button" className="btn primary detail-continue-btn" {...selfPressProps(v.pressing, !(v.loaded && v.gate.ready))} title={buttonTitle(v, now, t)} onClick={press}>
+          {v.pressing ? t("board.continue.pressing") : t("board.continue.button")}
         </button>
       </div>
       {commands && (
         <details className="detail-continue-how">
-          <summary>The commands it runs</summary>
+          <summary>{t("board.continue.commands")}</summary>
           <pre className="detail-continue-cmd"><code>{commands}</code></pre>
-          <p className="detail-continue-note">The stop runs only while its process is alive and idle, and the resume only once Claude Code lists no live process for it.</p>
+          <p className="detail-continue-note">{t("board.continue.commandsNote")}</p>
           <button type="button" className="btn detail-continue-btn" onClick={() => { void copy("commands", commands); }}>
-            {copied === "commands" ? "Copied" : "Copy"}
+            {copied === "commands" ? t("board.continue.copied") : t("board.continue.copy")}
           </button>
         </details>
       )}

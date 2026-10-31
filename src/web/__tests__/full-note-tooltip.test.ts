@@ -41,9 +41,9 @@ describe("the note at the full card's size", () => {
 
   it("carries the whole suggested reply on hover, as the line reads, here and in the session list", () => {
     // `note?.`: a note can hold the session's plan alone (session-note.ts, boardNote).
-    expect(node).toContain("{note?.reply && <p className=\"recap-note-reply\" title={`suggested reply “${note.reply}”`}>suggested reply “{note.reply}”</p>}");
+    expect(node).toContain("{note?.reply && <p className=\"recap-note-reply\" title={t(\"board.list.reply\", { reply: note.reply })}>{t(\"board.list.reply\", { reply: note.reply })}</p>}");
     // The list's line is cut the same way, and was the other place it had no tooltip.
     expect(body(".session-list .sl-status-reply")).toMatch(/text-overflow:\s*ellipsis;/);
-    expect(list).toContain("{r.status?.reply && <span className=\"sl-status-reply\" title={`suggested reply “${r.status.reply}”`}>suggested reply “{r.status.reply}”</span>}");
+    expect(list).toContain("{r.status?.reply && <span className=\"sl-status-reply\" title={t(\"board.list.reply\", { reply: r.status.reply })}>{t(\"board.list.reply\", { reply: r.status.reply })}</span>}");
   });
 });

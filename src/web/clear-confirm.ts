@@ -24,6 +24,8 @@
 // Kept out of App.tsx so the rule can be tested without React or a DOM, and so
 // a confirmation the button honours but the shortcut skips is not expressible.
 
+import { t, type TFunction } from "./i18n";
+
 /** Where a request to clear came from. `confirmation` is the dialog's own
  *  confirm button — the one source allowed to destroy anything. */
 export type ClearSource = "button" | "shortcut" | "confirmation";
@@ -127,10 +129,10 @@ export function readClearPlan(body: unknown): ClearPlan | null {
   };
 }
 
-/** "the one agent" / "all 4 agents", or null when the canvas is already empty. */
-function agentsOn(count: number): string | null {
+/** "the one agent on the canvas" / "all 4 agents on the canvas", or null when the canvas is already empty. */
+function agentsOn(count: number, tr: TFunction): string | null {
   if (count <= 0) return null;
-  return count === 1 ? "the one agent" : `all ${count} agents`;
+  return tr("board.clear.goes.agents", { count });
 }
 
 /**
@@ -141,21 +143,22 @@ function agentsOn(count: number): string | null {
  * no words for: a log this deck shares with others and is about to empty, and a
  * log that is not this deck's to empty at all.
  */
-export function clearCopy(agentCount: number, plan: ClearPlan | null): ClearCopy {
-  const on = agentsOn(agentCount);
+export function clearCopy(agentCount: number, plan: ClearPlan | null, tr: TFunction = t): ClearCopy {
+  const on = agentsOn(agentCount, tr);
   // Every case loses the canvas and the view state; they differ in the log.
   const goes = (...log: string[]) =>
-    [on ? `${on} on the canvas` : null, ...log, "layout, pins and selection"]
+    [on, ...log, tr("board.clear.goes.view")]
       .filter((line): line is string => line !== null);
-  const FINAL = "This cannot be undone.";
+  const FINAL = tr("board.clear.final");
+  const CLEAR_ALL = tr("board.clear.confirmAll");
 
   // The answer never came. Say the worst thing that may be true.
   if (!plan) {
     return {
-      goes: goes("the event log on disk — the file a restarted deck replays to rebuild what you see, and the file every deck on this machine shares unless one was told otherwise"),
+      goes: goes(tr("board.clear.goes.logUnknown")),
       stays: [],
       final: FINAL,
-      confirm: "Clear everything",
+      confirm: CLEAR_ALL,
     };
   }
 
@@ -164,8 +167,8 @@ export function clearCopy(agentCount: number, plan: ClearPlan | null): ClearCopy
     return {
       goes: goes(),
       stays: [],
-      final: `This deck keeps no event log, so nothing on disk changes — and nothing can bring the canvas back. ${FINAL}`,
-      confirm: "Clear everything",
+      final: tr("board.clear.final.noLog", { final: FINAL }),
+      confirm: CLEAR_ALL,
     };
   }
 
@@ -174,27 +177,27 @@ export function clearCopy(agentCount: number, plan: ClearPlan | null): ClearCopy
   // actually meant.
   if (!plan.mine) {
     const owner = plan.ownerPort === null
-      ? "another running deck owns that file"
-      : `the deck on port ${plan.ownerPort} owns that file`;
-    const shared = plan.decks > 2 ? `, one of ${plan.decks} decks sharing it` : "";
+      ? tr("board.clear.owner.other")
+      : tr("board.clear.owner.port", { port: plan.ownerPort });
+    const shared = plan.decks > 2 ? tr("board.clear.owner.shared", { decks: plan.decks }) : "";
     return {
       goes: goes(),
       stays: [
-        `the event log — ${owner}${shared}`,
-        "restart this deck and the log replays back onto it",
+        tr("board.clear.stays.log", { owner, shared }),
+        tr("board.clear.stays.replay"),
       ],
       final: null,
-      confirm: "Clear this canvas",
+      confirm: tr("board.clear.confirmCanvas"),
     };
   }
 
   // Ours, and ours alone: the deck the old copy was written for.
   if (plan.decks <= 1) {
     return {
-      goes: goes("this deck's event log — the file a restarted deck replays to rebuild what you see"),
+      goes: goes(tr("board.clear.goes.logOwn")),
       stays: [],
       final: FINAL,
-      confirm: "Clear everything",
+      confirm: CLEAR_ALL,
     };
   }
 
@@ -202,11 +205,9 @@ export function clearCopy(agentCount: number, plan: ClearPlan | null): ClearCopy
   // goes is not only this deck's.
   const others = plan.decks - 1;
   return {
-    goes: goes(`the event log ${others === 1 ? "1 other running deck shares" : `${others} other running decks share`} with this one — every session recorded in it, not just the ones drawn here`),
-    stays: [others === 1
-      ? "what that deck shows, until it restarts — then it is gone there too"
-      : "what those decks show, until they restart — then it is gone there too"],
+    goes: goes(tr("board.clear.goes.logShared", { count: others })),
+    stays: [tr("board.clear.stays.shared", { count: others })],
     final: FINAL,
-    confirm: "Clear everything",
+    confirm: CLEAR_ALL,
   };
 }

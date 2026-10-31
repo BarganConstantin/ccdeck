@@ -29,8 +29,8 @@ const got = (chain: ReturnType<typeof STATUS>, prop: string, width = 1440) => ca
 
 describe("a session list row's status line", () => {
   it("is the row's tooltip, whole, so a clamp cuts nothing a reader cannot reach", () => {
-    expect(list).toContain('<span className={`sl-status status-${r.status.kind}`} title={statusTooltip(r.status)}>');
-    expect(list).toMatch(/return \[s\.text, s\.reply \? `Suggested reply: \$\{s\.reply\}` : "", noteSource\(s\)\]/);
+    expect(list).toContain('<span className={`sl-status status-${r.status.kind}`} title={statusTooltip(r.status, t)}>');
+    expect(list).toMatch(/return \[s\.text, s\.reply \? t\("board\.list\.suggestedReply", \{ reply: s\.reply \}\) : "", noteSource\(s\)\]/);
   });
 
   for (const kind of ["now", "last", "needs", "done", "failed"]) {

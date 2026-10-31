@@ -34,6 +34,7 @@ import { sessionHue, type GraphState } from "./reducer";
 import { boardNote, noteTag } from "./session-note";
 import type { AgentNodeData } from "./types";
 import type React from "react";
+import { t } from "./i18n";
 
 // A recap note's size before React Flow has measured it, and the gap it keeps
 // to its card: layout-geometry.ts's, since the gap pass reserves the note's
@@ -332,7 +333,7 @@ export function snapshotToFlow(
         // focused node selects its id, and a note's id is not an agent's. Its ×
         // is still a button, and still reached by Tab.
         focusable: false,
-        ariaLabel: !note ? `${a.label}: plan` : note.kind === "recap" ? `Claude Code's recap for ${a.label}` : `${a.label}: ${noteTag(note.kind)}`,
+        ariaLabel: !note ? t("board.note.planFor", { label: a.label }) : note.kind === "recap" ? t("board.note.recapFor", { label: a.label }) : `${a.label}: ${noteTag(note.kind)}`,
         ...(mn ? { width: mn.width, height: mn.height } : null),
       } as unknown as (typeof nodes)[number]);
       edges.push({

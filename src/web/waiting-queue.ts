@@ -10,6 +10,7 @@
 // goes to the name after it.
 import type { WaitingBlock } from "./types";
 import { blockedToolTooltip, waitingSentence } from "./agent-copy";
+import { t, type TFunction } from "./i18n";
 
 /**
  * How many names the queue's room holds, from the left: the most names whose
@@ -41,9 +42,9 @@ export function namesThatFit({ widths, room, gap, more }: {
 /** What a queued session is stopped on, in a word: the tool the prompt is
  *  most likely about — the session list's row prints the same name — and
  *  otherwise the kind of stop. */
-export function waitWhat(waiting: WaitingBlock): string {
+export function waitWhat(waiting: WaitingBlock, tr: TFunction = t): string {
   if (waiting.tool) return waiting.tool.name;
-  return waiting.kind === "asked" ? "question" : "permission";
+  return waiting.kind === "asked" ? tr("board.queue.question") : tr("board.queue.permission");
 }
 
 /** The longest a name stands on the bar, in characters, before its middle
@@ -67,31 +68,29 @@ export function queueName(label: string, max: number = QUEUE_NAME_CHARS): string
 
 /** A wait in words, for the ear: "less than a minute", "6 minutes",
  *  "1 hour 5 minutes". The eye gets the session list's "6m". */
-export function spokenWait(ms: number): string {
+export function spokenWait(ms: number, tr: TFunction = t): string {
   const minutes = Math.floor(Math.max(0, ms) / 60_000);
-  if (minutes < 1) return "less than a minute";
-  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`;
-  if (minutes < 60) return plural(minutes, "minute");
+  if (minutes < 1) return tr("board.queue.lessThanMinute");
+  if (minutes < 60) return tr("board.queue.minutes", { count: minutes });
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return m === 0 ? plural(h, "hour") : `${plural(h, "hour")} ${plural(m, "minute")}`;
+  return m === 0 ? tr("board.queue.hours", { count: h }) : tr("board.queue.hoursMinutes", { h: tr("board.queue.hours", { count: h }), m: tr("board.queue.minutes", { count: m }) });
 }
 
 /** A queued session's accessible name: who, how long, on what, and what a
  *  press does — "web-api, waiting 6 minutes on Bash; go to session". The
  *  count's own region already says how many are waiting, so nothing here
  *  speaks on its own. */
-export function queueEntryName(label: string, waiting: WaitingBlock, waitedMs: number): string {
-  const on = waiting.tool
-    ? `on ${waiting.tool.name}`
-    : waiting.kind === "asked" ? "for an answer" : "for permission";
-  return `${label}, waiting ${spokenWait(waitedMs)} ${on}; go to session`;
+export function queueEntryName(label: string, waiting: WaitingBlock, waitedMs: number, tr: TFunction = t): string {
+  const wait = spokenWait(waitedMs, tr);
+  const key = waiting.tool ? "board.queue.entry.tool" : waiting.kind === "asked" ? "board.queue.entry.answer" : "board.queue.entry.permission";
+  return tr(key, { label, wait, tool: waiting.tool?.name ?? "" });
 }
 
 /** What a queued session's hint adds under its whole name: Claude Code's own
  *  sentence, and the tool the deck inferred, hedged as the guess it is. */
-export function queueEntryDetail(waiting: WaitingBlock): string {
-  const said = waitingSentence(waiting);
-  const guess = blockedToolTooltip(waiting, said);
+export function queueEntryDetail(waiting: WaitingBlock, tr: TFunction = t): string {
+  const said = waitingSentence(waiting, tr);
+  const guess = blockedToolTooltip(waiting, said, tr);
   return guess ? `${said}\n${guess}` : said;
 }

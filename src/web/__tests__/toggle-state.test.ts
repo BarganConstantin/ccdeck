@@ -517,7 +517,7 @@ describe("what each of the four toggles announces", () => {
     expect(attr(buttons(dock).get("session-list")!, "aria-expanded")).toBe("false");
     // The panel keeps its landmark name either way, and wears `leaving` while
     // it animates out of the left column (2026-10-08).
-    expect(sessionList).toMatch(/<aside className=\{`session-list\$\{leaving \? " leaving" : ""\}`\} id="session-list" aria-label="Sessions">/);
+    expect(sessionList).toMatch(/<aside className=\{`session-list\$\{leaving \? " leaving" : ""\}`\} id="session-list" aria-label=\{t\("board\.list\.title"\)\}>/);
     // Enumerated rather than asked of one state, so a control that appeared
     // with some other state would fail here. Four, the four panels: the
     // speaker's popover left with the speaker (2026-10-07), the gear opens a
@@ -640,7 +640,7 @@ describe("the category filter chips, handed over from #368", () => {
     // Every chip here is its own tab stop. group keeps the naming, which is
     // what the role was really doing.
     expect(bar).not.toMatch(/role="toolbar"/);
-    expect(bar).toMatch(/role="group"\s*\n\s*aria-label="Filter tools by category"/);
+    expect(bar).toMatch(/role="group"\s*\n\s*aria-label=\{t\("board\.cat\.filter"\)\}/);
     // The deck's toolbars since the panel toggles reached the window's edges
     // are the stripes and the dock, and they keep the promise the role makes:
     // one stop, the arrows inside, Home and End (EdgeRails.tsx).

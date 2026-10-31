@@ -32,6 +32,7 @@
 import { isAlarming } from "./ambient-counts";
 import type { BlockedSession } from "./ambient-counts";
 import type { WaitingBlock } from "./types";
+import { t, type TFunction } from "./i18n";
 
 /** What `Notification.permission` can say. Mirrored rather than imported from
  *  lib.dom so this module still typechecks in the bare-node suite. */
@@ -113,10 +114,10 @@ export function guessLine(block: WaitingBlock, said: string): string | null {
   return named ? null : name;
 }
 
-export function noticeBody(block: WaitingBlock): string {
-  const said = block.message || "Needs your permission";
+export function noticeBody(block: WaitingBlock, tr: TFunction = t): string {
+  const said = block.message || tr("board.waiting.permission");
   const tool = guessLine(block, said);
-  return tool ? `${said}\nLikely on: ${tool}` : said;
+  return tool ? `${said}\n${tr("board.likelyOn", { label: tool })}` : said;
 }
 
 /**

@@ -248,7 +248,7 @@ describe("the four docked panels are one idiom again", () => {
     // Each names its key through withKey, which drops the letter while
     // Settings › General's single-key switch is off (WCAG 2.1.4).
     ["UsagePanel.tsx and the files lifted out of it", usageSurface(), 'withKey(t("usage.close"), "U", singleKeys)'],
-    ["SessionList.tsx", sessionList, 'withKey("Hide sidebar", "L", singleKeys)'],
+    ["SessionList.tsx", sessionList, 'withKey(t("board.list.hideSidebar"), "L", singleKeys)'],
     ["AccountsPanel.tsx", accountsPanel, 'withKey(t("accounts.close"), "A", singleKeys)'],
     // The machine panel as a whole: the component and every file lifted out of it.
     ["MachinePanel.tsx and the files lifted out of it", meterSurface, 'aria-label={t("insights.usage.close")} title={t("insights.usage.close")}'],
