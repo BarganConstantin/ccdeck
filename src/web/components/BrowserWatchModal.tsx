@@ -114,8 +114,8 @@ export default function BrowserWatchModal({
           </div>
           <div className="modal-actions">
             {/* Two glyphs, one component, which is what every other header in
-                the deck is. `…` while it works, so the box does not change
-                size mid-press. No `disabled` (#620/#518): a control that
+                the deck is. The arrow stays while it works and turns, so the
+                box does not change size mid-press. No `disabled` (#620/#518): a control that
                 removes itself on press takes the focus with it, so the handler
                 refuses the second press instead. */}
             <button
@@ -125,7 +125,7 @@ export default function BrowserWatchModal({
               {...selfPressProps(busy)}
               aria-label="Re-read every profile now"
               title="Re-read every profile now"
-            >{busy ? "…" : <RefreshGlyph />}</button>
+            ><RefreshGlyph /></button>
             <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
           </div>
         </header>

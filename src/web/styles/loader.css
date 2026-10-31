@@ -1,0 +1,60 @@
+/* V4's Loader (kit 143:1174): the grid the app shows while it waits on data.
+   Nine pixels and a soft wave, corner to corner. Nothing turns and nothing
+   travels: each pixel changes its opacity and breathes a little, and the
+   passes overlap, so the grid never goes dark. A ring is an agent working;
+   the grid is the app fetching something, and the two are never swapped.
+   Accent on its own, currentColor inside a button, never a status colour.
+   A loop has no entrance, so the wave uses ease-in-out and not --ease. */
+.loader {
+  display: inline-grid;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  grid-template: repeat(3, 3px) / repeat(3, 3px);
+  gap: 2px;
+  color: var(--accent);
+  --pass: var(--loop-loader);
+  /* Waiting: under 150 ms nothing shows, then the grid comes in over Fast.
+     The grid holds its slot from the first frame (fill both), so the words
+     beside it never move when it arrives. */
+  animation: loader-in var(--dur-fast) linear var(--delay-loader) both;
+}
+.loader[data-size="m"] {
+  width: 24px;
+  height: 24px;
+  grid-template: repeat(5, 3px) / repeat(5, 3px);
+}
+/* A wait on a person runs the same wave at half the speed. */
+.loader[data-pace="person"] { --pass: var(--loop-loader-person); }
+.loader i {
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.2;
+  transform: scale(0.8);
+  animation: loader-wave var(--pass) ease-in-out infinite;
+  /* The diagonal --d (row + column) delays each pixel by an eighth of a pass
+     on S, a sixteenth on M, and the pass is subtracted so the loop is already
+     running when the grid appears. */
+  animation-delay: calc(var(--d) * var(--pass) / 8 - var(--pass));
+}
+.loader[data-size="m"] i { animation-delay: calc(var(--d) * var(--pass) / 16 - var(--pass)); }
+@keyframes loader-wave {
+  0%, 75%, 100% { opacity: 0.2; transform: scale(0.8); }
+  25% { opacity: 1; transform: scale(1); }
+}
+@keyframes loader-in { from { opacity: 0; } }
+/* The hidden window stops it, the way .su-loading does. */
+.loader[data-paused], .loader[data-paused] i { animation-play-state: paused; }
+/* Reduced motion: no wave, the pixels hold at 0.6 and the whole grid pulses,
+   so the wait still shows. The entrance stays first and the pulse takes over
+   only once it is done, since both move the grid's opacity. */
+@media (prefers-reduced-motion: reduce) {
+  .loader {
+    animation:
+      loader-in var(--dur-fast) linear var(--delay-loader) both,
+      pulse var(--pulse-live) calc(var(--delay-loader) + var(--dur-fast)) infinite;
+  }
+  .loader i { animation: none; opacity: 0.6; transform: none; }
+}
+/* The grid and the words that say what it is waiting for. */
+.loader-line { display: flex; align-items: center; gap: 8px; }

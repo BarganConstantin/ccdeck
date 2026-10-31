@@ -737,7 +737,8 @@ button.qb-pace::after {
   overflow: hidden;
   overflow-wrap: anywhere;
 }
-.up-quota-loading { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-dim); }
+/* A row, unlike the column .up-quota-na is: the grid, then the words. */
+.up-quota-loading { flex-direction: row; align-items: center; gap: 8px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-dim); }
 .up-quota-sub { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-dim); margin-top: 4px; }
 /* Both of these are .up-quota-sub lines, so they have to come after it to win
    on source order — they read as dim grey otherwise. */

@@ -194,7 +194,7 @@
 .ig-refresh:disabled { opacity: var(--dim-off); cursor: default; }
 .ig-refresh[aria-busy="true"] { cursor: progress; }
 .ig-refresh[aria-busy="true"]:active { transform: none; }
-.ig-refresh[data-loading] svg { animation: ta-spin 1000ms linear infinite; }
+.ig-refresh[data-loading] svg { animation: ta-spin 900ms linear infinite; }
 
 /* A failed read (IntegrationFailureNote): the error mark and a heading, the
    sentence under it, the way out on the right, wrapping under on a phone. No

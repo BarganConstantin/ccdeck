@@ -328,14 +328,14 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
                the nine to lose focus on: the panel is docked with no focus
                trap, and the Codex leg of this refresh is a full second or
                more, all of it with focus on `<body>` and nothing to hand it
-               back. The glyph goes on saying which state it is in. */
+               back. The arrow stays and turns while it reads (panel-glyph.css). */
             {...selfPressProps(anyLoading)}
             aria-label={refreshLabel}
             title={refreshLabel}
-          >{anyLoading ? "…" : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          ><svg className="refresh-glyph" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5" />
-            </svg>}</button>
+            </svg></button>
           )}
           <button
             type="button"

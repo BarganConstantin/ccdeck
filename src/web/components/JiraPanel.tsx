@@ -27,6 +27,7 @@ import { definiteJiraWriteFailure, useJiraWriteState } from "../jira-write-state
 import { moveKeys } from "../jira-move";
 import { ExternalLinkGlyph } from "./action-glyphs";
 import AnchoredPopover from "./AnchoredPopover";
+import { Loader } from "./Loader";
 import IntegrationFreshness from "./IntegrationFreshness";
 import IntegrationSearch from "./IntegrationSearch";
 import IntegrationSkeleton from "./IntegrationSkeleton";
@@ -111,7 +112,7 @@ function BoardPicker({ api, current, layerId, onPick, onClose }: {
             </li>
           ))}
         </ul>
-        {page.loading && <p className="jr-board-pop-note" role="status">Reading boards…</p>}
+        {page.loading && <p className="jr-board-pop-note loader-line" role="status"><Loader />Reading boards…</p>}
         {!page.loading && page.error && <p className="jr-board-pop-note" role="alert">{page.error.message}</p>}
         {!page.loading && !page.error && page.boards.length === 0 && <p className="jr-board-pop-note">{query ? "No board by that name." : "No boards this account can see."}</p>}
         {!page.loading && !page.isLast && page.boards.length > 0 && (

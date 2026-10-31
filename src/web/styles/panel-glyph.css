@@ -101,3 +101,13 @@
    that; the guard comes with them rather than being left behind. */
 .glyph-btn:active:not(:disabled) { transform: scale(0.94); }
 
+/* Refresh keeps its arrow while it reads and turns it, one tempo of 900 ms
+   (V4: "Stays, one tempo of 900"). The button says it is busy through
+   selfPressProps' aria-busy. ig-refresh and the tool-activity button turn their
+   own svg by data-loading with the same 900 ms; where both rules reach one
+   arrow the spin is the same, so nothing doubles. */
+.glyph-btn[aria-busy="true"] > .refresh-glyph { animation: spin 900ms linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .glyph-btn[aria-busy="true"] > .refresh-glyph { animation: none; }
+}
+
