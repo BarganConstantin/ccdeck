@@ -39,7 +39,7 @@ function fullness(pct: number): "mid" | "hi" | undefined {
   return pct >= 90 ? "hi" : pct >= 70 ? "mid" : undefined;
 }
 
-function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
+export function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
   lane: Lane; nowSec: number; readAt: number | null; frozen?: boolean; sortedBy?: boolean;
 }) {
   const capped = Math.min(100, Math.max(0, lane.pct));

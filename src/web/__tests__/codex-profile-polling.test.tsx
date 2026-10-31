@@ -18,21 +18,35 @@ function roster(active = 'a', revision = 0) {
     identityVersion: id, signedInFilePresent: false,
   })) }) };
 }
+/** A quota read that says nothing: these cases are about the roster. */
+const noQuota = { ok: false, json: async () => ({}) };
+const isRoster = (url: string) => url === '/api/codex-profiles';
+const rosterReads = (fetcher: { mock: { calls: unknown[][] } }) => fetcher.mock.calls.filter(call => isRoster(call[0] as string)).length;
+/** The "Other accounts" row is folded until pressed, with the Switch buttons in it. */
+function openOthers(view: { tree: unknown }) {
+  (one(view.tree, el => el.type === 'button' && textOf(el).startsWith('Other accounts'))!.props.onClick as () => void)();
+}
+const switchButton = (view: { tree: unknown }) => one(view.tree, el => el.type === 'button' && textOf(el) === 'Switch')!;
 
 describe('Codex roster polling', () => {
   it('lets a roster slower than several poll intervals finish and resumes polling afterward', async () => {
     vi.useFakeTimers();
     const pending = deferred<ReturnType<typeof roster>>();
-    const fetcher = vi.fn().mockImplementationOnce(() => pending.promise).mockResolvedValue(roster());
+    let first = true;
+    const fetcher = vi.fn(async (url: string) => {
+      if (!isRoster(url)) return noQuota;
+      if (first) { first = false; return pending.promise; }
+      return roster();
+    });
     vi.stubGlobal('fetch', fetcher);
     const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
     await vi.advanceTimersByTimeAsync(45_000);
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(rosterReads(fetcher)).toBe(1);
     pending.resolve(roster()); await flush();
     expect(textOf(view.tree)).toContain('Personal');
     expect(textOf(view.tree)).not.toContain('Checking profiles');
     await vi.advanceTimersByTimeAsync(15_000);
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(rosterReads(fetcher)).toBe(2);
   });
 
   it.each(['success', 'failure'])('allows a selection refresh to supersede a pending poll and ignores its late %s', async outcome => {
@@ -41,23 +55,25 @@ describe('Codex roster polling', () => {
     let reads = 0;
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url === '/api/codex-profile-select') return { ok: true, json: async () => ({ ok: true }) };
+      if (!isRoster(url)) return noQuota;
       reads++;
       return reads === 2 ? oldPoll.promise : roster(reads > 2 ? 'b' : 'a', reads > 2 ? 1 : 0);
     }));
     const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
     await flush();
     await vi.advanceTimersByTimeAsync(15_000);
-    (one(view.tree, el => el.type === 'button' && textOf(el) === 'Use')!.props.onClick as () => void)();
+    openOthers(view);
+    (switchButton(view).props.onClick as () => void)();
     await flush();
     expect(reads).toBe(3);
-    expect(textOf(one(view.tree, el => el.type === 'li' && textOf(el).includes('Work')))).toContain('Default');
+    expect(textOf(one(view.tree, el => el.type === 'li' && textOf(el).includes('Work')))).toContain('Default account');
     await vi.advanceTimersByTimeAsync(30_000);
     expect(reads).toBe(3); // the older poll is still pending
     if (outcome === 'success') oldPoll.resolve(roster('a'));
     else oldPoll.reject(new Error('old roster failed'));
     await flush();
     expect(textOf(view.tree)).not.toContain('Could not refresh');
-    expect(textOf(one(view.tree, el => el.type === 'li' && textOf(el).includes('Work')))).toContain('Default');
+    expect(textOf(one(view.tree, el => el.type === 'li' && textOf(el).includes('Work')))).toContain('Default account');
     await vi.advanceTimersByTimeAsync(15_000);
     expect(reads).toBe(4);
   });
@@ -69,13 +85,15 @@ describe('Codex roster polling', () => {
     let signal: AbortSignal | undefined;
     vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
       if (url === '/api/codex-profile-select') return { ok: true, json: async () => ({ ok: true }) };
+      if (!isRoster(url)) return noQuota;
       reads++;
       signal = options?.signal ?? undefined;
       return reads === 1 ? roster() : pending.promise;
     }));
     const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
     await flush();
-    (one(view.tree, el => el.type === 'button' && textOf(el) === 'Use')!.props.onClick as () => void)();
+    openOthers(view);
+    (switchButton(view).props.onClick as () => void)();
     await flush();
     expect(reads).toBe(2);
     expect(signal?.aborted).toBe(false);

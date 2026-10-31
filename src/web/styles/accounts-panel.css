@@ -58,32 +58,9 @@
 }
 .ap-scroll > * { flex: none; }
 .ap-codex { padding: 14px var(--panel-inset); border-top: 1px solid var(--line-soft); }
-.ap-codex-head { display: flex; align-items: center; margin-bottom: 4px; }
-.ap-codex-head .ap-more:first-of-type { margin-left: auto; }
-.ap-codex-title { font-weight: 600; font-size: 12px; }
-.ap-codex-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.ap-codex-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ap-codex-default { flex: none; color: var(--muted); font-size: 11px; }
 .ap-codex-add { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
 .ap-codex-add .ap-codex-label { margin: 0; flex: 1; }
-.ap-codex-list { margin: 0; padding: 0; list-style: none; }
-.ap-codex-row { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-top: 1px solid var(--line-soft); font-size: 12px; }
 .ap-codex-hint { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 4px 0 0; }
-.ap-codex-check {
-  align-self: flex-start;
-  border: 1px solid var(--ctl-edge);
-  background: var(--ctl-fill);
-  color: var(--text);
-  border-radius: 4px;
-  padding: 4px 8px;
-  margin-top: 3px;
-  font-size: 11px;
-  cursor: pointer;
-  transition: transform 120ms ease, border-color 120ms ease;
-}
-.ap-codex-check:hover:not(:disabled) { border-color: var(--text); }
-.ap-codex-check:active:not(:disabled) { transform: scale(0.97); }
-.ap-codex-check:disabled { cursor: default; opacity: var(--dim-off); }
 .ap-codex-label { display: block; box-sizing: border-box; width: 100%; min-width: 0; margin: 4px 0; border: 1px solid var(--ctl-edge); border-radius: 4px; background: var(--ctl-fill); color: var(--text); padding: 6px 8px; font: inherit; }
 .ap-foot {
   flex-shrink: 0;
@@ -804,7 +781,8 @@
 
 
 .ap-report-upd-h { text-align: left; }
-/* Codex has its own account column beside Claude's; its rows are the compact
-   ones, so the column only drops the inline section's top rule. */
-.codex-accounts-panel .ap-codex { border-top: 0; padding-top: 6px; }
-.codex-accounts-panel .ap-codex-title { flex: 1; }
+/* Codex has its own account column beside Claude's, drawn with the same rows
+   (.ap-account, .ap-rest); the section only drops its inline-block padding and
+   insets the lines that are not rows. */
+.codex-accounts-panel .ap-codex { border-top: 0; padding: 0 0 14px; }
+.codex-accounts-panel .ap-codex > .ap-codex-hint, .codex-accounts-panel .ap-codex-add { margin-inline: var(--panel-inset); }
