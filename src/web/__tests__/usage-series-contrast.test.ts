@@ -551,7 +551,10 @@ describe("no band wears a state colour (#1284)", () => {
     expect(WAS.haiku).toBe(TOK.dark["--ok"]);
     expect(WAS["gpt-5"]).toBe(TOK.dark["--warn"]);
     expect(WAS.gpt).toBe(TOK.dark["--err"]);
-    expect(deltaE(parseColor("#b0490c"), parseColor(TOK.light["--warn"]))).toBeCloseTo(3.9, 1);
+    // V4 aligned the live light --warn to Figma (#9c5600) on 2026-10-31, so the
+    // history is held to the value that shipped when #1284 measured: #ad4e08.
+    const SHIPPED_LIGHT_WARN = "#ad4e08";
+    expect(deltaE(parseColor("#b0490c"), parseColor(SHIPPED_LIGHT_WARN))).toBeCloseTo(3.9, 1);
   });
 
   it("keeps every palette member — and so every series — 16 ΔE from --ok, --warn and --err, in both themes", () => {
@@ -666,11 +669,15 @@ describe("the selected range is a state you can see (#583)", () => {
   const pressed = ".uh-range-btn[aria-pressed=\"true\"]";
 
   it("reproduces what the on-state used to be worth, in both themes", () => {
+    // V4 aligned light --bg-soft (the strip's track) to Figma's #f7f8fa on
+    // 2026-10-31, so the history is held to the track that shipped when #583
+    // measured: white.
+    const shippedTrack = (theme: Theme) => (theme === "light" ? parseColor("#ffffff") : track(theme));
     for (const theme of themes) {
-      const wash = over(parseColor(TOK[theme]["--accent-dim"]), track(theme));
+      const wash = over(parseColor(TOK[theme]["--accent-dim"]), shippedTrack(theme));
       const rest = parseColor(TOK[theme]["--muted"]);
       const on = parseColor(TOK[theme]["--text"]);
-      expect(contrastRatio(wash, track(theme))).toBeCloseTo(theme === "light" ? 1.392 : 1.895, 3);
+      expect(contrastRatio(wash, shippedTrack(theme))).toBeCloseTo(theme === "light" ? 1.392 : 1.895, 3);
       expect(contrastRatio(rest, on)).toBeCloseTo(theme === "light" ? 2.403 : 2.752, 3);
     }
   });

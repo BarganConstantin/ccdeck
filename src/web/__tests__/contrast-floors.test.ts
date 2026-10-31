@@ -1073,7 +1073,11 @@ describe("the scrollbar thumb, in every state it has (#1290)", () => {
   });
 
   it("reproduces what the keyboard was shown — --line, at the ratios #1290 measured", () => {
-    const line = (theme: Theme) => contrastRatio(parseColor(TOK[theme]["--line"]), parseColor(TOK[theme]["--panel"]));
+    // V4 aligned the live light --line to Figma (#d5d9e0) on 2026-10-31, so the
+    // history is held to the value that shipped when #1290 measured: #c8cdd6.
+    const SHIPPED_LIGHT_LINE = "#c8cdd6";
+    const line = (theme: Theme) => contrastRatio(
+      parseColor(theme === "light" ? SHIPPED_LIGHT_LINE : TOK[theme]["--line"]), parseColor(TOK[theme]["--panel"]));
     expect(line("dark")).toBeCloseTo(1.14, 2);
     expect(line("light")).toBeCloseTo(1.60, 2);
   });
@@ -1518,7 +1522,10 @@ describe("words quietened with an opacity, measured as what they composite to (#
     const panel = (theme: Theme) => parseColor(TOK[theme]["--panel"]);
     expect(through(tier("--muted", "dark"), 0.75, canvas("dark"))).toBeCloseTo(3.33, 2);
     expect(through(tier("--muted", "light"), 0.75, canvas("light"))).toBeCloseTo(3.83, 2);
-    expect(through(tier("--warn", "light"), 0.75, panel("light"))).toBeCloseTo(3.41, 2);
+    // V4 aligned the live light --warn to Figma (#9c5600) on 2026-10-31; this
+    // line is held to the value that shipped when #1787 measured: #ad4e08.
+    const SHIPPED_LIGHT_WARN = parseColor("#ad4e08");
+    expect(through(SHIPPED_LIGHT_WARN, 0.75, panel("light"))).toBeCloseTo(3.41, 2);
     expect(through(tier("--muted", "dark"), 0.55, panel("dark"))).toBeCloseTo(2.29, 2);
     expect(through(tier("--muted", "light"), 0.55, panel("light"))).toBeCloseTo(2.63, 2);
     expect(through(tier("--text", "light"), 0.55, panel("light"))).toBeCloseTo(4.18, 2);
@@ -1688,7 +1695,12 @@ describe("the placeholder in the deck's shared text field (#1789)", () => {
 
   it("reproduces the ratios #1789 measured for the browser's grey on the field", () => {
     expect(contrastRatio(parseColor(CHROMIUM), bed("dark"))).toBeCloseTo(3.38, 2);
-    expect(contrastRatio(parseColor(CHROMIUM), bed("light"))).toBeCloseTo(3.98, 2);
+    // V4 raised the live light --ctl-fill from 7% to 8% of --text on 2026-10-31,
+    // so the light figure is held to the field that shipped when #1789
+    // measured: --text at 7% over the white --panel.
+    const text = parseColor(TOK.light["--text"]);
+    const shippedLightField = over([text[0], text[1], text[2], 0.07], parseColor(TOK.light["--panel"]));
+    expect(contrastRatio(parseColor(CHROMIUM), shippedLightField)).toBeCloseTo(3.98, 2);
   });
 
   it("reads the placeholder at 4.5:1 on the field's own fill, in both themes", () => {

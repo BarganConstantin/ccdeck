@@ -25,6 +25,7 @@
     "warn": "#843600",
     "err": "#a31621",
     "inflight": "#6712a2",
+    "ctl-fill": "color-mix(in srgb, var(--text) 7%, transparent)",
     "ctl-edge": "#555555",
     "sm-edge": "#686868",
     "chrome-bg": "#ffffff",

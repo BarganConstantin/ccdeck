@@ -79,17 +79,17 @@
 
 :root[data-theme="light"] {
   --bg: #eef1f6;
-  --bg-soft: #ffffff;
+  --bg-soft: #f7f8fa;
   --panel: #ffffff;
-  --line: #c8cdd6;
-  --line-soft: #dde1e8;
+  --line: #d5d9e0;
+  --line-soft: #e4e7ec;
   --text: #0d1117;
   --pixel-metal-light: #cbd5e1;
   --pixel-metal-shadow: #64748b;
   --pixel-metal-edge: #475569;
   --pixel-character-body: #38bdf8;
   --text-secondary: #303845;
-  --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
+  --ctl-fill: color-mix(in srgb, var(--text) 8%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
   --chrome-bg: color-mix(in srgb, var(--panel) 60%, var(--bg));
   --chrome-edge: color-mix(in srgb, var(--line) 60%, var(--bg));
@@ -112,7 +112,7 @@
   --accent: #0369a1;
   --accent-dim: rgba(3,105,161,0.22);
   --ok: #157a3a;
-  --warn: #ad4e08;
+  --warn: #9c5600;
   --err: #b91c1c;
   --inflight: #7e22ce;
   --shadow-1: 0 4px 14px rgba(15,23,42,0.10);
@@ -159,14 +159,14 @@
   --bg-soft: #25262a;
   --panel: #2b2d30;
   --line: #393b40;
-  --line-soft: #35373b;
+  --line-soft: #333539;
   --text: #dfe1e5;
   --pixel-metal-light: #cbd5e1;
   --pixel-metal-shadow: #64748b;
   --pixel-metal-edge: #475569;
   --pixel-character-body: #38bdf8;
   --text-secondary: #b4b8bf;
-  --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
+  --ctl-fill: color-mix(in srgb, var(--text) 8%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
   --chrome-bg: #2b2d30;
   --chrome-edge: #43454a;
@@ -183,8 +183,8 @@
   --selected: color-mix(in srgb, var(--text) 8%, var(--panel));
   --sunken: color-mix(in srgb, var(--bg) 90%, #000000);
   --your-message: color-mix(in srgb, var(--accent) 14%, var(--panel));
-  --muted: #9da0a8;
-  --muted-dim: #6f737a;
+  --muted: #a3a6ae;
+  --muted-dim: #72767d;
   --text-dim: #9da0a8;
   --accent: #83acfc;
   --accent-dim: #3574f050;
@@ -927,7 +927,7 @@
 .appearance-preview[data-swatch="light"] {
   --tp-canvas: #eef1f6;
   --tp-surface: #ffffff;
-  --tp-rule: #c8cdd6;
+  --tp-rule: #d5d9e0;
   --tp-mark: #7c8493;
   --tp-accent: #0369a1;
 }
@@ -944,7 +944,7 @@
   --tp-canvas: #1e1f22;
   --tp-surface: #2b2d30;
   --tp-rule: #393b40;
-  --tp-mark: #6f737a;
+  --tp-mark: #72767d;
   --tp-accent: #83acfc;
 }
 :root[data-theme="rider-black"] ::selection {

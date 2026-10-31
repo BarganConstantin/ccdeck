@@ -1364,23 +1364,30 @@ describe("the control surface, promoted (#332)", () => {
     // The property that made #325's fix work and the reason it is safe to
     // promote: a value derived from var(--text) exists in both themes by
     // construction. A value borrowed from another surface does not — --bg-soft
-    // is the proof, byte-identical to --panel on white.
+    // was the proof, byte-identical to --panel on white. V4 aligned light
+    // --bg-soft to Figma's #f7f8fa on 2026-10-31, so it is no longer the same
+    // bytes; the guard is what it always meant: the fill is mixed from the
+    // foreground and borrows from neither surface.
     for (const theme of themes) {
       expect(TOK[theme]["--ctl-fill"], theme).toMatch(/var\(--text\)/);
       expect(TOK[theme]["--ctl-edge"], theme).toMatch(/var\(--text\)/);
+      expect(TOK[theme]["--ctl-fill"], theme).not.toMatch(/var\(--(?:bg-soft|panel)\)/);
+      expect(TOK[theme]["--ctl-edge"], theme).not.toMatch(/var\(--(?:bg-soft|panel)\)/);
     }
-    expect(TOK.light["--bg-soft"]).toBe(TOK.light["--panel"]);
   });
 
   it("did not buy any of it by lifting --line", () => {
     // The trap #325 named and refused. --line is the app's structural hairline
     // — panel edges, table rules, separators, card outlines, the scrollbar
     // thumb — and lifting it to clear 3:1 would redraw all of them to fix a
-    // defect that is the controls'. Pinned by value, in both themes.
+    // defect that is the controls'. Pinned by value, in both themes. V4 aligned
+    // the light pair to Figma on 2026-10-31 (#c8cdd6/#dde1e8 to #d5d9e0/#e4e7ec):
+    // lighter, not darker, so the refusal — contrast bought by darkening the
+    // hairline — still holds.
     expect(TOK.dark["--line"]).toBe("#1f2229");
-    expect(TOK.light["--line"]).toBe("#c8cdd6");
+    expect(TOK.light["--line"]).toBe("#d5d9e0");
     expect(TOK.dark["--line-soft"]).toBe("#1a1c22");
-    expect(TOK.light["--line-soft"]).toBe("#dde1e8");
+    expect(TOK.light["--line-soft"]).toBe("#e4e7ec");
   });
 
   it("left no control reading --line for its own edge", () => {

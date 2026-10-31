@@ -198,7 +198,7 @@
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
   min-width: 0;
 }
-/* Both states were carried by a --bg-soft wash, which on white is --panel — so
+/* Both states were carried by a --bg-soft wash, which on white was --panel — so
    hovering a session row and selecting one looked exactly like doing neither.
    The fill cannot become --ctl-fill here: the row's meta line is --muted, and a
    fill mixed from the foreground would take it to 4.05:1 in dark. So the wash

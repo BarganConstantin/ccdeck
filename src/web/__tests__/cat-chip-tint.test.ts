@@ -556,10 +556,14 @@ describe("the per-server tint, measured on both canvases", () => {
     // the strongest of them. #877 gave them a light tier of their own, and they
     // now sit inside the band the hued edge spans: one weight for the family.
     const light = sweep(tierOf("light"), CHIP_BED("light"));
-    expect(light.worst).toBeCloseTo(1.60, 2);
-    expect(light.best).toBeCloseTo(2.38, 2);
+    // V4 aligned light --bg-soft (the chip's bed) to Figma's #f7f8fa on
+    // 2026-10-31, so the pin below is the measurement on that bed: the faintest
+    // hued edge went from 1.60:1 to 1.58:1 and the strongest from 2.38:1 to 2.35:1.
+    expect(light.worst).toBeCloseTo(1.58, 2);
+    expect(light.best).toBeCloseTo(2.35, 2);
     const before = Math.max(...literalEdges("light", "dark").map(e => e.ratio));
-    expect(before, "the dark pastels on the white chip").toBeCloseTo(1.40, 2);
+    // Same bed change as above: 1.40:1 on the white chip, 1.38:1 on #f7f8fa.
+    expect(before, "the dark pastels on the white chip").toBeCloseTo(1.38, 2);
     const now = literalEdges("light").map(e => e.ratio);
     expect(Math.min(...now)).toBeGreaterThan(before);
     expect(Math.min(...now)).toBeGreaterThanOrEqual(light.worst);
@@ -625,7 +629,10 @@ describe("the per-server tint, measured on both canvases", () => {
       expect(ratio, `${theme} ${token} on the chip`).toBeGreaterThanOrEqual(4.5);
     }
     expect(contrastRatio(parseColor(TOK.dark[token]), CHIP_BED("dark"))).toBeCloseTo(4.91, 2);
-    expect(contrastRatio(parseColor(TOK.light[token]), CHIP_BED("light"))).toBeCloseTo(7.87, 2);
+    // The light pin moved from 7.87:1 to 7.41:1 when V4 aligned the chip's bed
+    // (light --bg-soft) to Figma's #f7f8fa on 2026-10-31; the 4.5:1 floor above
+    // is untouched and still holds.
+    expect(contrastRatio(parseColor(TOK.light[token]), CHIP_BED("light"))).toBeCloseTo(7.41, 2);
   });
 
   it("agrees with the ends everybody already knows, so the sweep is trustworthy", () => {

@@ -354,9 +354,9 @@
    every state the word does: quieter at rest, lit on hover, muted when off. */
 .cat-filter .cat-glyph { flex: none; }
 .cat-filter .cat-name { text-transform: lowercase; }
-/* --bg-soft was this hover's whole feedback and it is --panel's own value on
+/* --bg-soft was this hover's whole feedback and it was --panel's own value on
    white, so on the light canvas hovering a category chip did nothing at all.
-   --ctl-fill is 7% of the foreground, which exists in both themes. The resting
+   --ctl-fill is 7–8% of the foreground, which exists in both themes. The resting
    border stays transparent: the chip is named by its glyph and its word, which
    is the identification 1.4.11 accepts in place of a boundary. */
 .cat-filter:hover { background: var(--ctl-fill); color: var(--text); }
