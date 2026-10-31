@@ -647,13 +647,13 @@ input, textarea { caret-color: var(--accent); }
      half a beat apart each way, so an exchange reads as two turns rather
      than as traffic. */
   .lan-lane .lan-wire {
-    animation: lan-draw-both 560ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i, 0) * 70ms + 80ms) both;
+    animation: lan-draw-both 560ms var(--ease) calc(var(--i, 0) * 70ms + 80ms) both;
   }
   .lan-lane[data-draw="in"] .lan-wire {
-    animation: lan-draw-in 560ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i, 0) * 70ms + 80ms) both;
+    animation: lan-draw-in 560ms var(--ease) calc(var(--i, 0) * 70ms + 80ms) both;
   }
   .lan-lane[data-draw="out"] .lan-wire {
-    animation: lan-draw-out 560ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i, 0) * 70ms + 80ms) both;
+    animation: lan-draw-out 560ms var(--ease) calc(var(--i, 0) * 70ms + 80ms) both;
   }
   .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="out"] {
     animation: lan-run-out 4.2s cubic-bezier(0.65, 0, 0.35, 1) calc(var(--i, 0) * 0.35s + 0.7s) infinite;
@@ -1067,7 +1067,7 @@ input, textarea { caret-color: var(--accent); }
    is the one moving thing in a section whose job is to be read. */
 .ap-lan-chev {
   display: inline-block;
-  transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 150ms var(--ease);
   transform: rotate(0deg);
   opacity: 0.7;
 }

@@ -25,8 +25,6 @@
    is the list's own row in long form. A fixed height rather than a maximum, so
    the stage does not jump each time a deck arrives or leaves. */
 .modal.nm-modal {
-  --nm-ease: cubic-bezier(0.23, 1, 0.32, 1);
-  --nm-draw: cubic-bezier(0.16, 1, 0.3, 1);
   --nm-wire: color-mix(in srgb, var(--text) 26%, transparent);
   --nm-wire-quiet: color-mix(in srgb, var(--text) 12%, transparent);
   /* A CONNECTED LINK'S INKS: this deck's accent where it leaves the centre,
@@ -153,11 +151,11 @@
   background: var(--nm-wire);
   pointer-events: none;
   transition:
-    --nm-a var(--nm-move) var(--nm-ease),
-    --nm-d var(--nm-move) var(--nm-ease),
-    opacity var(--nm-fade) var(--nm-ease),
-    background-color 160ms var(--nm-ease),
-    box-shadow 160ms var(--nm-ease);
+    --nm-a var(--nm-move) var(--ease),
+    --nm-d var(--nm-move) var(--ease),
+    opacity var(--nm-fade) var(--ease),
+    background-color 160ms var(--ease),
+    box-shadow 160ms var(--ease);
 }
 .nm-wire[data-tier="offline"],
 .nm-key-wire[data-tier="offline"] { background: repeating-linear-gradient(90deg, var(--nm-away-ink) 0 4px, transparent 4px 8px); }
@@ -344,14 +342,14 @@
   translate: calc(cos(var(--nm-a)) * var(--nm-d)) calc(sin(var(--nm-a)) * var(--nm-d));
   box-shadow: var(--shadow-contact);
   transition:
-    --nm-a var(--nm-move) var(--nm-ease),
-    --nm-d var(--nm-move) var(--nm-ease),
-    opacity var(--nm-fade) var(--nm-ease),
-    border-color 140ms var(--nm-ease),
-    color 140ms var(--nm-ease),
-    background-color 140ms var(--nm-ease),
-    box-shadow 160ms var(--nm-ease),
-    transform 140ms var(--nm-ease);
+    --nm-a var(--nm-move) var(--ease),
+    --nm-d var(--nm-move) var(--ease),
+    opacity var(--nm-fade) var(--ease),
+    border-color 140ms var(--ease),
+    color 140ms var(--ease),
+    background-color 140ms var(--ease),
+    box-shadow 160ms var(--ease),
+    transform 140ms var(--ease);
 }
 /* FAST IN, SLOW OUT. A transition takes its timing from the state it lands
    in, so looking at a deck — and the rest stepping back — takes 120ms, and the
@@ -416,11 +414,11 @@
 .nm-stage[data-focus] .nm-node:not([data-on]) :is(.lan-machine, .nm-addr-dot, .nm-halo, .nm-mark) { opacity: 0.34; }
 .nm-stage[data-focus] .nm-node:not([data-on]) { background: var(--bg); box-shadow: none; }
 .nm-stage[data-focus] .nm-node:not([data-on]) .nm-name { color: var(--muted); }
-.nm-node :is(.lan-machine, .nm-addr-dot, .nm-halo, .nm-mark) { transition: opacity var(--nm-fade) var(--nm-ease); }
+.nm-node :is(.lan-machine, .nm-addr-dot, .nm-halo, .nm-mark) { transition: opacity var(--nm-fade) var(--ease); }
 .nm-stage[data-focus] .nm-wire:not([data-on]) { opacity: 0.22; }
 .nm-stage[data-focus] .nm-wire:not([data-on]) .nm-glint { visibility: hidden; }
 .nm-zone,
-.nm-zone-label { transition: opacity 200ms var(--nm-ease); }
+.nm-zone-label { transition: opacity 200ms var(--ease); }
 .nm-stage[data-focus]:not([data-focus-via="tailscale"]) :is(.nm-zone, .nm-zone-label) { opacity: 0.4; }
 
 /* THE MARK, at four o'clock on the disc: a shape as well as a colour, so the
@@ -492,7 +490,7 @@
 }
 .nm-node[data-tier="offline"] .nm-name,
 .nm-node[data-tier="loose"] .nm-name { color: var(--muted); }
-.nm-name { transition: color var(--nm-fade) var(--nm-ease); }
+.nm-name { transition: color var(--nm-fade) var(--ease); }
 /* An address nothing has answered at: named by its host in the data voice,
    and drawn as a point rather than a machine, because it is not one yet. */
 .nm-node[data-kind="dialling"] .nm-name { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
@@ -719,16 +717,16 @@
 @keyframes nm-land-b { from { opacity: 0; } }
 @keyframes nm-land-c { from { opacity: 0; } }
 @media (prefers-reduced-motion: no-preference) {
-  .nm-orbit { animation: nm-orbit-in 620ms var(--nm-ease) calc(var(--ring, 0) * 90ms + 60ms) both; }
+  .nm-orbit { animation: nm-orbit-in 620ms var(--ease) calc(var(--ring, 0) * 90ms + 60ms) both; }
   /* Backwards only: held clipped until it starts, then let go of, so the
      round's dot — taller than the wire — is not clipped to it afterwards. */
-  .nm-wire { animation: nm-wire-in 520ms var(--nm-draw) calc(min(var(--i, 0) * 38ms, 460ms) + 160ms) backwards; }
-  .nm-node { animation: nm-node-in 440ms var(--nm-ease) calc(min(var(--i, 0) * 38ms, 460ms) + 300ms) both; }
-  .nm-core-orb { animation: nm-core-in 420ms var(--nm-ease) both; }
-  .nm-core-label, .nm-legend { animation: nm-fade-in 320ms var(--nm-ease) 180ms both; }
-  .nm-zone, .nm-zone-label { animation: nm-fade-in 600ms var(--nm-ease) 240ms both; }
+  .nm-wire { animation: nm-wire-in 520ms var(--ease) calc(min(var(--i, 0) * 38ms, 460ms) + 160ms) backwards; }
+  .nm-node { animation: nm-node-in 440ms var(--ease) calc(min(var(--i, 0) * 38ms, 460ms) + 300ms) both; }
+  .nm-core-orb { animation: nm-core-in 420ms var(--ease) both; }
+  .nm-core-label, .nm-legend { animation: nm-fade-in 320ms var(--ease) 180ms both; }
+  .nm-zone, .nm-zone-label { animation: nm-fade-in 600ms var(--ease) 240ms both; }
   .nm-panel[data-entrance="full"] > *,
-  .nm-panel[data-entrance="full"] .nm-lane { animation: nm-rise 200ms var(--nm-ease) backwards; }
+  .nm-panel[data-entrance="full"] .nm-lane { animation: nm-rise 200ms var(--ease) backwards; }
   .nm-panel[data-entrance="full"] > :nth-child(2) { animation-delay: 24ms; }
   .nm-panel[data-entrance="full"] > :nth-child(3) { animation-delay: 48ms; }
   .nm-panel[data-entrance="full"] > :nth-child(4) { animation-delay: 72ms; }
@@ -739,14 +737,14 @@
      rule per part: `:is()` takes the specificity of its most specific
      argument, so a delay rule for one part lost to the shared rule and every
      part started at once. */
-  .nm-panel[data-view="deck"][data-entrance="swap"] :is(.nm-panel-name, .nm-panel-self, .nm-panel-state, .nm-next, .lan-fact dd, .nm-logins, .nm-open) { animation: nm-swap 180ms var(--nm-ease) var(--nm-swap-at, 0ms) backwards; }
+  .nm-panel[data-view="deck"][data-entrance="swap"] :is(.nm-panel-name, .nm-panel-self, .nm-panel-state, .nm-next, .lan-fact dd, .nm-logins, .nm-open) { animation: nm-swap 180ms var(--ease) var(--nm-swap-at, 0ms) backwards; }
   .nm-panel-self,
   .nm-panel-state { --nm-swap-at: 15ms; }
   .nm-next { --nm-swap-at: 30ms; }
   .nm-open { --nm-swap-at: 45ms; }
   .nm-facts { --nm-swap-at: 60ms; }
   .nm-logins { --nm-swap-at: 75ms; }
-  .nm-panel[data-view="network"][data-entrance="swap"] { animation: nm-swap 160ms var(--nm-ease) backwards; }
+  .nm-panel[data-view="network"][data-entrance="swap"] { animation: nm-swap 160ms var(--ease) backwards; }
   /* ONE CALM LOOP: the round, on the connected wires only, and most of the
      time at rest. The centre's beacon plays once as the map opens — this
      deck saying it is here — and the panel's own live dot keeps still. */
@@ -771,13 +769,13 @@
   .nm-core-label,
   .nm-legend,
   .nm-zone,
-  .nm-zone-label { animation: nm-fade-in 160ms var(--nm-ease) both; }
+  .nm-zone-label { animation: nm-fade-in 160ms var(--ease) both; }
   .nm-node[data-tier="online"],
-  .nm-wire[data-tier="online"] { animation: nm-land-a 200ms var(--nm-ease) backwards; }
+  .nm-wire[data-tier="online"] { animation: nm-land-a 200ms var(--ease) backwards; }
   .nm-node[data-tier="offline"],
-  .nm-wire[data-tier="offline"] { animation: nm-land-b 200ms var(--nm-ease) backwards; }
+  .nm-wire[data-tier="offline"] { animation: nm-land-b 200ms var(--ease) backwards; }
   .nm-node[data-tier="loose"],
-  .nm-wire[data-tier="loose"] { animation: nm-land-c 200ms var(--nm-ease) backwards; }
+  .nm-wire[data-tier="loose"] { animation: nm-land-c 200ms var(--ease) backwards; }
   /* Travel, redefined rather than deleted: a deck that changes ring is at its
      new place at once, and fades in there. */
   .nm-stage { --nm-move: 0ms; }
@@ -789,5 +787,5 @@
   .nm-panel[data-entrance="full"] > *,
   .nm-panel[data-entrance="full"] .nm-lane,
   .nm-panel[data-view="deck"][data-entrance="swap"] :is(.nm-panel-name, .nm-panel-self, .nm-panel-state, .nm-next, .lan-fact dd, .nm-logins, .nm-open),
-  .nm-panel[data-view="network"][data-entrance="swap"] { animation: nm-fade-in 120ms var(--nm-ease) both; }
+  .nm-panel[data-view="network"][data-entrance="swap"] { animation: nm-fade-in 120ms var(--ease) both; }
 }

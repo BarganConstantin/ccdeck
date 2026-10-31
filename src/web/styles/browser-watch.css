@@ -283,7 +283,7 @@
    this fires on the line that is new and not on the fifteen that shifted down
    to make room for it. */
 @media (prefers-reduced-motion: no-preference) {
-  .bw-log-line { animation: bw-line-in 260ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .bw-log-line { animation: bw-line-in 260ms var(--ease); }
 }
 @keyframes bw-line-in {
   from { opacity: 0; transform: translateY(-4px); }
@@ -293,7 +293,7 @@
    accent washes out of the row rather than the row sliding in. One authored
    moment, spent on the one line anybody is meant to catch. */
 @media (prefers-reduced-motion: no-preference) {
-  .bw-log-line.find { animation: bw-find-in 900ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .bw-log-line.find { animation: bw-find-in 900ms var(--ease); }
 }
 @keyframes bw-find-in {
   from { background: color-mix(in srgb, var(--accent) 22%, transparent); }
@@ -446,7 +446,7 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--text);
   font-weight: 600;
-  animation: bw-state-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: bw-state-in 220ms var(--ease);
 }
 /* Fires when the MEANING changes — the mode word is keyed on the kind, so a
    render that leaves the state where it was does not restart it. Opacity and a
@@ -476,7 +476,7 @@
   transform-origin: top;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .bw-settings { animation: bw-settings-in 240ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .bw-settings { animation: bw-settings-in 240ms var(--ease); }
 }
 @keyframes bw-settings-in {
   from { opacity: 0; transform: translateY(-6px) scaleY(0.96); }

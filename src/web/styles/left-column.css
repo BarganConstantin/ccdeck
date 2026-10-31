@@ -24,12 +24,8 @@
      · close: the panel slides out with the edge as the column closes, and
        fades as it goes, a little faster than it came.
    240ms on the iOS drawer curve, brisk because the column changes tens of
-   times a day and half of those are from the keyboard. */
-:root {
-  --column-move: 240ms;
-  --column-ease: cubic-bezier(0.32, 0.72, 0, 1);
-}
-
+   times a day and half of those are from the keyboard: V4's --dur-move and
+   --ease-stage (tokens.css), the tempo of the stage and the sliding panels. */
 .left-column {
   grid-column: 1;
   grid-row: 2 / -1;
@@ -39,7 +35,7 @@
   overflow: hidden;
   background: var(--panel);
   border-right: 1px solid var(--line);
-  transition: width var(--column-move) var(--column-ease);
+  transition: width var(--dur-move) var(--ease-stage);
 }
 /* Out is faster than in, and the panel that leaves is held exactly this long. */
 .left-column.closing { transition-duration: var(--side-exit); }
@@ -59,7 +55,7 @@
   z-index: 1;
   border-right-color: transparent;
   transition:
-    transform var(--column-move) var(--column-ease),
+    transform var(--dur-move) var(--ease-stage),
     opacity 180ms cubic-bezier(0.23, 1, 0.32, 1) 40ms;
 }
 /* How a panel arrives: alone, it came with the column and slides in with the
@@ -78,13 +74,13 @@
   pointer-events: none;
   transition:
     opacity 120ms cubic-bezier(0.23, 1, 0.32, 1),
-    transform var(--column-move) var(--column-ease);
+    transform var(--dur-move) var(--ease-stage);
 }
 .left-column.closing > .leaving {
   transform: translateX(-100%);
   transition:
     opacity var(--side-exit) linear,
-    transform var(--side-exit) var(--column-ease);
+    transform var(--side-exit) var(--ease-stage);
 }
 
 /* REDUCED MOTION: the column is at its new width on the first frame and does

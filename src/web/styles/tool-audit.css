@@ -207,7 +207,7 @@
 
 /* Opening details makes room in the report; resizing remains direct. */
 @media (min-width: 960px) {
-  .ta-workspace { grid-template-columns: minmax(0, 1fr) 0px 0px; transition: grid-template-columns 180ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .ta-workspace { grid-template-columns: minmax(0, 1fr) 0px 0px; transition: grid-template-columns 180ms var(--ease); }
   .ta-workspace[data-inspecting] { transition-duration: 220ms; }
   .ta-workspace[data-resizing] { transition: none; }
 }

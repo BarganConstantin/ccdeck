@@ -86,6 +86,7 @@
           "shadow-1",
           "shadow-2",
           "shadow-contact",
+          "shadow-overlay",
           "node-grad",
           "topbar-grad",
           "conn-wash",

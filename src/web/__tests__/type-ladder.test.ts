@@ -121,9 +121,11 @@ const FONT_SIZES: FontSize[] = RULES.flatMap(r => {
 // ── §3, the ladder ──────────────────────────────────────────────────────────
 
 /** The closed set. Eleven steps, declared in styles.css beside the tokens and
- *  asserted here; there is deliberately no --fs-* token behind any of them,
- *  because no two rules in this sheet have to change size together and a token
- *  that says they do would be worse than the literals it replaced. */
+ *  asserted here; there is deliberately no --fs-* token behind any of these
+ *  rules, because no two of them have to change size together and a token
+ *  that says they do would be worse than the literals it replaced. V4's type
+ *  roles (tokens.css) are the one set that must move together, and each is a
+ *  step of this ladder (v4-tokens.test.ts). */
 const LADDER = [9, 10, 11, 12, 13, 14, 16, 18, 22, 26, 34];
 
 /** The resolution floor the report measured and this issue acts on: a step

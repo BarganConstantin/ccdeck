@@ -41,6 +41,7 @@
   --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
   --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
   --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: linear-gradient(180deg, var(--panel), var(--bg-soft));
   --topbar-grad: linear-gradient(to bottom, var(--panel), var(--bg-soft));
   --conn-wash: linear-gradient(90deg, rgba(252,165,165,0.12), transparent);
@@ -117,6 +118,7 @@
   --shadow-1: 0 4px 14px rgba(15,23,42,0.10);
   --shadow-2: 0 10px 28px rgba(15,23,42,0.16);
   --shadow-contact: 0 1px 2px rgba(15,23,42,0.10);
+  --shadow-overlay: 0 16px 40px rgba(0,0,0,0.16);
   --node-grad: linear-gradient(180deg, #ffffff, #f2f5fa);
   --topbar-grad: linear-gradient(to bottom, #ffffff, #eef1f6);
   --conn-wash: linear-gradient(90deg, rgba(185,28,28,0.14), transparent);
@@ -193,6 +195,7 @@
   --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
   --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
   --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
   --conn-wash: #eb938d18;
@@ -269,6 +272,7 @@
   --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
   --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
   --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
   --conn-wash: #f4877118;
@@ -345,6 +349,7 @@
   --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
   --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
   --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
   --conn-wash: #f7768e18;
@@ -421,6 +426,7 @@
   --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
   --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
   --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
   --conn-wash: #e9787018;
@@ -497,6 +503,7 @@
   --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
   --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
   --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
   --conn-wash: #fca5a518;
@@ -573,6 +580,7 @@
   --shadow-1: 0 4px 14px rgba(15,23,42,0.10);
   --shadow-2: 0 10px 28px rgba(15,23,42,0.16);
   --shadow-contact: 0 1px 2px rgba(15,23,42,0.10);
+  --shadow-overlay: 0 16px 40px rgba(0,0,0,0.16);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
   --conn-wash: #a3162114;
@@ -649,6 +657,7 @@
   --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
   --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
   --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
   --conn-wash: #f38ba818;
@@ -725,6 +734,7 @@
   --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
   --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
   --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
   --conn-wash: #ff786518;
@@ -801,6 +811,7 @@
   --shadow-1: 0 4px 14px rgba(60,56,54,0.10);
   --shadow-2: 0 10px 24px rgba(60,56,54,0.16);
   --shadow-contact: 0 1px 2px rgba(60,56,54,0.12);
+  --shadow-overlay: 0 16px 40px rgba(60,56,54,0.16);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
   --conn-wash: #9d000614;
@@ -877,6 +888,7 @@
   --shadow-1: 0 6px 18px rgba(0,0,0,0.25);
   --shadow-2: 0 10px 24px rgba(0,0,0,0.32);
   --shadow-contact: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-overlay: 0 16px 40px rgba(0,0,0,0.45);
   --node-grad: var(--panel);
   --topbar-grad: var(--panel);
   --conn-wash: #f5a69e18;

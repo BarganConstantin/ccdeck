@@ -198,7 +198,7 @@
 /* It settles onto the ledge instead of being there suddenly. Nothing in this
    scene should pop: a thing that exists between one frame and the next is the
    same cheapness as headphones blinking off a head. */
-.fm-prop { animation: fm-settle 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+.fm-prop { animation: fm-settle 320ms var(--ease); }
 
 /* KICKED, IT GOES THE WAY THE FOOT WAS POINTING. This rolled a fixed -132px,
    which is fine exactly half the time: approach the ball from the left and the

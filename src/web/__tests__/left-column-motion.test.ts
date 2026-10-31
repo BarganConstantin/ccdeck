@@ -131,11 +131,11 @@ describe("no panel can size the column by its content (2026-10-08)", () => {
     expect(decl(inside?.body ?? "", "position")).toBe("absolute");
   });
 
-  it("is as wide as App says, eased over --column-move", () => {
+  it("is as wide as App says, eased over V4's --dur-move on --ease-stage", () => {
     const body = rules.find(r => r.selector === ".left-column")?.body ?? "";
     expect(decl(body, "width")).toBe("var(--left-col-w)");
-    expect(decl(body, "transition")).toMatch(/^width var\(--column-move\) var\(--column-ease\)$/);
-    expect(css).toMatch(new RegExp(`--column-move:\\s*${column.COLUMN_MOVE_MS}ms;`));
+    expect(decl(body, "transition")).toMatch(/^width var\(--dur-move\) var\(--ease-stage\)$/);
+    expect(css).toMatch(new RegExp(`--dur-move:\\s*${column.COLUMN_MOVE_MS}ms;`));
     // App's width, plus the reading preference's panel increase while open:
     // 0px at the Default text size, so the column is exactly App's width.
     expect(sourceOf("components/LeftColumn.tsx")).toMatch(/"--left-col-w": width === 0 \? "0px" : `calc\(\$\{width\}px \+ var\(--ui-panel-increase, 0px\)\)`/);

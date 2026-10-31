@@ -29,7 +29,9 @@ describe("the session box moves by translate (#864)", () => {
   });
 
   it("eases that translate on the nodes' own curve, and no longer left or top", () => {
-    expect(transition).toContain("transform 320ms cubic-bezier(0.22,1,0.36,1)");
+    // The nodes' curve is V4's one --ease now, the value the literal was within
+    // a few hundredths of.
+    expect(transition).toContain("transform 320ms var(--ease)");
     expect(transition).not.toMatch(/\b(left|top) \d+ms/);
     // The size still eases with it, and the fade is not travel.
     expect(transition).toMatch(/width 320ms/);

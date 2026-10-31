@@ -78,7 +78,14 @@
      canvas object reads as a thing you can pick up, and chrome reads as the
      frame around it. That was true and unwritten, so the first reader of the
      three steps above would have brought the node down to 8px. The tier is
-     named now, and nothing in the chrome may read it. */
+     named now, and nothing in the chrome may read it.
+     V4'S SIX RADII (2026-10-31) are these values, one job each in its Figma
+     foundations: 4 keys (--r-tag), 6 inputs, segments and number keys
+     (--r-ctl), 8 rows, options and controls (--r-panel), 10 cards, the
+     decision and the usage card (--r-node), 12 overlays, dialogs and your
+     message (--r-overlay, below), and the pill for a count. Where V4 gives a
+     job a different step than today, a button at 8 or the usage card at 10,
+     that component's PR moves it. */
   --r-tag: 4px;
   --r-ctl: 6px;
   --r-panel: 8px;
@@ -230,6 +237,35 @@
    about drift, and a step you can resolve is not drift. Express secondary rank
    with --muted at one size before reaching for a twelfth. */
 
+/* V4'S TYPE ROLES (2026-10-31), V4's Figma text styles: six sizes, each a step
+   of the ladder above, and the line height that goes with each. The argument
+   above still holds for every rule that keeps its literal. These are the case
+   it names as the exception, sizes that MUST move together: every Body in the
+   V4 components is one decision, and so is every Title. Raw pixels, because a
+   size on this sheet adds --ui-text-increase where it is read, at the element;
+   a sum resolved here on :root would miss the dock's own increase
+   (reading.css). A reader adds it to the line height too, so a larger text
+   size keeps its leading. Nothing reads them yet; the components of the next
+   PRs do. The weights are the components': 600 for Hero, Title and Card
+   title, 400 for Body and Small, with 600 for a name and 500 for a label.
+   Meta and Code are set in --font-mono. */
+:root {
+  --fs-hero: 22px;
+  --lh-hero: 28px;
+  --fs-title: 18px;
+  --lh-title: 24px;
+  --fs-card-title: 14px;
+  --lh-card-title: 20px;
+  --fs-body: 13px;
+  --lh-body: 20px;
+  --fs-small: 12px;
+  --lh-small: 16px;
+  --fs-code: 12px;
+  --lh-code: 16px;
+  --fs-meta: 11px;
+  --lh-meta: 14px;
+}
+
 /* The two transitions this deck writes from JS, declared here so that the
    cascade can still reach them.
 
@@ -282,6 +318,37 @@
    this sheet writes out why. */
 :root {
   --pulse-live: 1.2s ease-in-out;
+}
+
+/* V4'S MOTION (2026-10-31), V4's Figma motion variables: seven durations,
+   three delays, two loops, two curves and three scales. --ease is the one
+   curve for everything that answers a person, and the two out-curves the
+   sheet used to spell, (0.22, 1, 0.36, 1) and (0.16, 1, 0.3, 1), are it now:
+   they were within a few hundredths of each other and of it, three spellings
+   of one decision. --ease-stage is for the stage and the panels that slide
+   from an edge, the left column's 240ms included. Loops stay ease-in-out, as
+   --pulse-live does. A curve read from TypeScript cannot be a var():
+   motion-ease.ts's EASE and navigator-flip.ts's FLIP_EASE are held to these
+   by v4-tokens.test.ts. Reduced motion is each rule's business, as it is
+   today: these are tempos, not permissions. */
+:root {
+  --dur-fast: 120ms;
+  --dur-exit: 150ms;
+  --dur-base: 200ms;
+  --dur-move: 240ms;
+  --dur-stage-in: 280ms;
+  --dur-stage-out: 200ms;
+  --dur-slow: 400ms;
+  --delay-step: 40ms;
+  --delay-loader: 150ms;
+  --delay-tooltip: 450ms;
+  --loop-loader: 1200ms;
+  --loop-loader-person: 2400ms;
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-stage: cubic-bezier(0.32, 0.72, 0, 1);
+  --press: 0.97;
+  --press-small: 0.94;
+  --enter-scale: 0.96;
 }
 
 /* THE MONO STACK, written once. Every value on this deck — a number, an id, a

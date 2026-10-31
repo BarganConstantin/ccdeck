@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useModalDismiss, useScrimDismiss } from './use-modal-dismiss';
 import { useMediaQuery } from '../use-media-query';
 import { modalStack } from '../modal-dismiss';
+import { EASE } from '../motion-ease';
 
 /** The details of one row, a tool's or a skill's: `itemKey` names the row, and
  *  `children` is its inspector, whose heading is #tool-operation-heading. */
@@ -34,7 +35,7 @@ function IntegratedInspector({ keyboard, itemKey, onClose, children }: Props) {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const content = root.current?.querySelector<HTMLElement>('.ta-inspector');
     const motion = content?.animate?.([{ opacity: 0.65, transform: 'translateX(6px)' }, { opacity: 1, transform: 'translateX(0)' }], {
-      duration: 140, easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+      duration: 140, easing: EASE,
     });
     return () => motion?.cancel();
   }, [itemKey]);

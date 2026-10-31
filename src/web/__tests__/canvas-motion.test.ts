@@ -889,7 +889,9 @@ describe("one entrance for one interaction: the modal", () => {
     // to origin-awareness, and nothing in this UI is anchored to its trigger.
     for (const [, panel] of DIALOGS) {
       const rule = all.find(r => !r.reduced && r.selector === panel)!;
-      expect(decl(rule.body, "animation"), panel).toBe("popIn 180ms cubic-bezier(0.22,1,0.36,1)");
+      // On V4's one curve, --ease, which the literal here was within a few
+      // hundredths of.
+      expect(decl(rule.body, "animation"), panel).toBe("popIn 180ms var(--ease)");
     }
     expect(/@keyframes popIn\b[^}]*\}/.exec(css)![0]).toMatch(/transform\s*:/);
   });

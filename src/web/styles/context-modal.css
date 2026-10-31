@@ -837,7 +837,7 @@
   opacity: 1;
   transform-box: fill-box;
   transform-origin: bottom;
-  animation: spark-land 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: spark-land 180ms var(--ease) both;
 }
 @keyframes spark-land {
   from { transform: scaleY(0.14); }

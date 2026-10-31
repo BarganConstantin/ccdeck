@@ -4,8 +4,8 @@
 
 /* Smooth layout transitions on every node move EXCEPT during user drag. */
 .react-flow__node {
-  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
-  animation: nodeSpawn 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 320ms var(--ease);
+  animation: nodeSpawn 360ms var(--ease) both;
 }
 /* No terminal keyframe, and that is the whole rule for entrances on this canvas.
    The animation is declared on the base class, so it stays attached for the

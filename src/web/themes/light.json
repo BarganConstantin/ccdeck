@@ -34,6 +34,7 @@
     "shadow-1": "0 4px 14px rgba(15,23,42,0.10)",
     "shadow-2": "0 10px 28px rgba(15,23,42,0.16)",
     "shadow-contact": "0 1px 2px rgba(15,23,42,0.10)",
+    "shadow-overlay": "0 16px 40px rgba(0,0,0,0.16)",
     "node-grad": "linear-gradient(180deg, #ffffff, #f2f5fa)",
     "topbar-grad": "linear-gradient(to bottom, #ffffff, #eef1f6)",
     "conn-wash": "linear-gradient(90deg, rgba(185,28,28,0.14), transparent)",

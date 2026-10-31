@@ -84,9 +84,9 @@
      as a translate in layout space, so the same 320ms move no longer runs
      through left and top. The size stays width and height, which change only
      when a session gains or loses a node. */
-  transition: opacity 200ms ease, transform 320ms cubic-bezier(0.22,1,0.36,1),
-              width 320ms cubic-bezier(0.22,1,0.36,1),
-              height 320ms cubic-bezier(0.22,1,0.36,1);
+  transition: opacity 200ms ease, transform 320ms var(--ease),
+              width 320ms var(--ease),
+              height 320ms var(--ease);
   overflow: visible;
   /* The wrapper itself is a drag handle — grab the background behind the nodes
      to move the whole session. Nodes sit above this layer, so clicking/dragging
