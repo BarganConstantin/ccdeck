@@ -150,3 +150,11 @@ export function thresholdCommit(picked: string, stored: string, t: TFunction = t
     title: t("accounts.pick.thresholdTip", { picked }),
   };
 }
+
+/** A slot option's text in the language on show: "slot 3", "slot 4 · swap",
+ *  "slot 5 · free". The kind rides on the option, as slotChoices made it. */
+export function slotChoiceLabel(c: SlotChoice, t: TFunction = tNow): string {
+  const slot = t("accounts.slotN", { n: c.slot });
+  if (c.kind === "here") return slot;
+  return `${slot} · ${t(c.kind === "swap" ? "accounts.pick.swap" : "accounts.pick.free")}`;
+}
