@@ -40,6 +40,8 @@ import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { type ImportResult, importRowKey, importSummary, outcomeWord, replaceImportRow } from "../share-bundle";
 import { useFeatureUse } from "../feature-use";
+import { useT } from "../i18n";
+import { richParts } from "../accounts-rich";
 
 /** Server-side login progress, polled while the dialog is open. */
 type LoginState = {
@@ -83,8 +85,8 @@ function hostOf(url: string | null): string {
  *  whichever tab is selected, which is the clause of role="tab" that this
  *  dialog used to leave empty. */
 const TABS = [
-  { id: "login", label: "Sign in" },
-  { id: "paste", label: "Paste a share" },
+  { id: "login", label: "Sign in", key: "accounts.row.signIn" },
+  { id: "paste", label: "Paste a share", key: "accounts.add.pasteShare" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 const PANEL_ID = "aa-panel";
@@ -102,6 +104,7 @@ async function admin(body: Record<string, unknown>) {
 export default function AddAccountDialog({ onClose, onChanged, email = null, onSignedIn }: Props) {
   // Opened: one of the features the usage reports name (feature-use.ts).
   useFeatureUse("add-account");
+  const t = useT();
   const [tab, setTab] = useState<TabId>("login");
   const [login, setLogin] = useState<LoginState | null>(null);
   const [code, setCode] = useState("");
@@ -229,7 +232,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
     if (attempt !== attemptRef.current) return;
     busyRef.current = false;
     setLoginBusy(false);
-    if (!out?.ok) { setLoginError(explainFailure(out, "could not start the sign-in")); return; }
+    if (!out?.ok) { setLoginError(explainFailure(out, t("accounts.add.couldNotStart"), undefined, t)); return; }
     setLogin(out as LoginState);
   }, [email]);
 
@@ -269,7 +272,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
     refocusPrimerRef.current = true;
     if (!req) return;
     const out = await admin(req).catch(() => null);
-    setCancelNote(restoreWarning({ restored: out?.restored, activeAccount: out?.activeAccount }));
+    setCancelNote(restoreWarning({ restored: out?.restored, activeAccount: out?.activeAccount }, t));
   }, [login?.state]);
 
   const retry = useCallback(() => {
@@ -338,7 +341,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   }, [tab]);
 
   const onTabKeys = useCallback((e: React.KeyboardEvent<HTMLSpanElement>) => {
-    const move = tabStripMove(e, TABS.findIndex(t => t.id === tab), TABS.length);
+    const move = tabStripMove(e, TABS.findIndex(tb => tb.id === tab), TABS.length);
     if (move.kind === "pass") return;
     // Only now: an unclaimed Tab still has to leave the strip, and an unclaimed
     // Escape still has to reach the window listener that closes the dialog.
@@ -359,7 +362,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
     busyRef.current = false;
     setLoginBusy(false);
     if (!out?.ok) {
-      setLoginError(explainFailure(out, "the code was not accepted"));
+      setLoginError(explainFailure(out, t("accounts.add.codeRejected"), undefined, t));
       // A rejected code does not end the sign-in — the CLI is still asking, so
       // the field stays open with the bad value selected for retyping.
       if (out?.state) setLogin(out as LoginState);
@@ -378,7 +381,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
     const out = await admin({ action: "import", blob }).catch(() => null);
     busyRef.current = false;
     setPasteBusy(false);
-    if (!out?.ok) { setPasteError(explainFailure(out, "the import failed")); return; }
+    if (!out?.ok) { setPasteError(explainFailure(out, t("accounts.add.importFailed"), undefined, t)); return; }
     // The field is cleared so the text is not left sitting on screen, but the
     // bundle is kept out of sight until this result list is dismissed — see
     // bundleRef, and the "update anyway" that needs it.
@@ -426,7 +429,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
     setPasteBusy(false);
     setForcing(null);
     if (!out?.ok) {
-      setRowError({ key, text: explainFailure(out, "that account could not be updated") });
+      setRowError({ key, text: explainFailure(out, t("accounts.add.updateFailed"), undefined, t) });
       return;
     }
     const fresh = ((out.results ?? []) as ImportResult[])[0];
@@ -438,7 +441,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   const done = login?.state === "done" ? login.account : null;
   // The success screen's qualification: the account was added, and the machine
   // did not go back to the one it was on. Null on every ordinary sign-in.
-  const restoreNote = restoreWarning({ restored: login?.restored, activeAccount: login?.activeAccount });
+  const restoreNote = restoreWarning({ restored: login?.restored, activeAccount: login?.activeAccount }, t);
   // Which branch the Sign in tab draws, from the sign-in's own state and never
   // the paste tab's — see loginTabView (#1795). "ended" is a sign-in over
   // without having succeeded: the server's own "failed", the "idle" it reports
@@ -446,7 +449,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   // All end the same way — no spinner, no poll, and a sentence that says which
   // happened.
   const view = loginTabView({ login, started: startedRef.current, loginError, loginBusy });
-  const notice = loginEndNotice({ state: login?.state, serverError: login?.error, localError: loginError });
+  const notice = loginEndNotice({ state: login?.state, serverError: login?.error, localError: loginError }, t);
 
   // ── the stage list (signin-stages.ts) ─────────────────────────────────────
   // Where a sign-in that is still moving is, and where an ended one stopped.
@@ -466,23 +469,23 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   const face: "primer" | "progress" | "done" =
     view === "primer" ? "primer" : view === "done" && done && !holding ? "done" : "progress";
   const phase: ProgressPhase = stoppedAt ? "failed" : holding ? "resolving" : "live";
-  const rows = stageRows(holding ? { done: true } : stoppedAt ? { failed: stoppedAt, state: login?.state } : { live });
-  const failTitle = stoppedAt ? stageFailureTitle(stoppedAt, login?.state) : "";
-  const failText = asSentence(notice.message);
-  const hint = live === "approve" ? approveHint({ since: approveSince, now, expiresAt: login?.expiresAt }) : null;
-  const slowImport = pasteBusy ? importHint({ since: importSince, now }) : null;
+  const rows = stageRows(holding ? { done: true } : stoppedAt ? { failed: stoppedAt, state: login?.state } : { live }, t);
+  const failTitle = stoppedAt ? stageFailureTitle(stoppedAt, login?.state, t) : "";
+  const failText = asSentence(notice.message, t);
+  const hint = live === "approve" ? approveHint({ since: approveSince, now, expiresAt: login?.expiresAt }, t) : null;
+  const slowImport = pasteBusy ? importHint({ since: importSince, now }, t) : null;
 
   // What a screen reader hears, said politely and only when it changes: once
   // per stage, once for the verdict, once for an import starting and ending.
   // Derived rather than pushed, so a poll that changed nothing says nothing.
   const said = tab === "login"
-    ? face === "done" && done ? `${doneTitle(done)}.`
-      : phase === "failed" ? `${failTitle}. ${failText}`
-      : face === "progress" && !holding ? stageAnnouncement(live) ?? ""
+    ? face === "done" && done ? `${doneTitle(done, t)}${t("accounts.endMark")}`
+      : phase === "failed" ? `${failTitle}${t("accounts.endMark")} ${failText}`
+      : face === "progress" && !holding ? stageAnnouncement(live, t) ?? ""
       : ""
-    : pasteBusy ? "Importing the share."
-      : pasteError ? asSentence(pasteError)
-      : imported ? asSentence(importSummary(imported))
+    : pasteBusy ? t("accounts.add.importing")
+      : pasteError ? asSentence(pasteError, t)
+      : imported ? asSentence(importSummary(imported, t), t)
       : "";
 
   useEffect(() => { if (live) lastLiveRef.current = live; }, [live]);
@@ -490,8 +493,8 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
 
   useEffect(() => {
     if (!holding || !doneKey) return;
-    const t = window.setTimeout(() => setSettledKey(doneKey), HANDOFF_MS);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setSettledKey(doneKey), HANDOFF_MS);
+    return () => window.clearTimeout(timer);
   }, [holding, doneKey]);
 
   // The clock behind the two "still going" hints. Started when one of them
@@ -537,7 +540,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   // centred on the screen. At <body>, no panel rule can reach it.
   return createPortal(
     <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal aa-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add a Claude account">
+      <div ref={dialogRef} className="modal aa-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("accounts.add.dialogLabel")}>
         <header className="modal-head">
           <div className="modal-title">
             {/* A real tablist, finally (#581). It announced one and delivered
@@ -552,30 +555,30 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                 two swap two genuinely different journeys through this dialog.
                 So this one keeps the role and pays for it. The arrow rule is in
                 tablist-keys.ts, out where it can be read without a DOM. */}
-            <span className="aa-tabs" role="tablist" aria-label="How to add the account" onKeyDown={onTabKeys}>
-              {TABS.map((t, i) => (
+            <span className="aa-tabs" role="tablist" aria-label={t("accounts.add.tabsLabel")} onKeyDown={onTabKeys}>
+              {TABS.map((tb, i) => (
                 <button
-                  key={t.id}
+                  key={tb.id}
                   type="button"
                   role="tab"
-                  id={tabDomId(t.id)}
+                  id={tabDomId(tb.id)}
                   ref={el => { tabRefs.current[i] = el; }}
-                  aria-selected={tab === t.id}
+                  aria-selected={tab === tb.id}
                   aria-controls={PANEL_ID}
                   // The roving tab stop. One stop for the whole strip is half
                   // of what role="tab" means, and the focus trap in
                   // modal-dismiss.ts already skips a negative tabIndex, so Tab
                   // inside the dialog goes strip → panel and back without ever
                   // stopping on the tab that is not selected.
-                  tabIndex={tab === t.id ? 0 : -1}
-                  className={`aa-tab${tab === t.id ? " on" : ""}`}
-                  onClick={() => { arrowedRef.current = false; setTab(t.id); }}
-                >{t.label}</button>
+                  tabIndex={tab === tb.id ? 0 : -1}
+                  className={`aa-tab${tab === tb.id ? " on" : ""}`}
+                  onClick={() => { arrowedRef.current = false; setTab(tb.id); }}
+                >{t(tb.key)}</button>
               ))}
             </span>
           </div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={close} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+            <button type="button" className="glyph-btn" onClick={close} aria-label={t("accounts.closeEsc")} title={t("accounts.closeEsc")}>×</button>
           </div>
         </header>
 
@@ -597,18 +600,12 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
               <div className={`aa-done${settledKey === doneKey ? " from-orbit" : ""}`}>
                 <SuccessMark ref={markRef} />
                 {celebrates({ added: done.added, reducedMotion: reduced }) && <Confetti anchor={markRef} />}
-                <h4>{doneTitle(done)}</h4>
+                <h4>{doneTitle(done, t)}</h4>
                 <p className="aa-note">
-                  <strong>{done.email}</strong>
-                  {done.added
-                    // The second half of this sentence is a CLAIM about the
-                    // machine, and it is only the deck's to make when the
-                    // server says the switch back actually took (#951).
-                    ? (restoreNote ? " is in the rotation." : " is in the rotation. The account you were using is still active.")
-                    : " was already in the rotation, so its stored login was replaced with this one."}
+                  {richParts(t(done.added ? (restoreNote ? "accounts.add.addedRestored" : "accounts.add.addedKept") : "accounts.add.alreadyHere", { email: done.email }))}
                 </p>
                 {restoreNote ? <p className="aa-note aa-warn" role="status">{restoreNote}</p> : null}
-                <button type="button" ref={doneRef} className="btn primary" onClick={close}>Done</button>
+                <button type="button" ref={doneRef} className="btn primary" onClick={close}>{t("accounts.done")}</button>
               </div>
             ) : face === "progress" ? (
               <SignInProgress
@@ -621,16 +618,13 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                         browser and all, and the button says so. */}
                     <div className="aa-actions">
                       <button type="button" ref={retryRef} className="btn primary" onClick={retry}>
-                        {stoppedAt === "link" ? "Try again" : "Start over"}
+                        {stoppedAt === "link" ? t("accounts.add.tryAgain") : t("accounts.add.startOver")}
                       </button>
                     </div>
                   </>
                 ) : live === "approve" && login ? (
                   <>
-                    <p className="aa-note">
-                      Approve the sign-in in the tab that opened{email ? <>, with <strong>{email}</strong> filled in</> : null}.
-                      This moves on by itself.
-                    </p>
+                    <p className="aa-note">{richParts(email ? t("accounts.add.approveEmail", { email }) : t("accounts.add.approve"))}</p>
                     {/* The page the CLI printed, in THIS browser — which is
                         the only way to reach it from a deck opened on another
                         machine, where the tab the CLI opened is on that
@@ -638,7 +632,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                         sign-in page" again one line under "Sign-in page
                         opened". */}
                     <a ref={linkRef} className="aa-link" href={login.url ?? "#"} target="_blank" rel="noreferrer noopener">
-                      <span>Open it in this browser</span>
+                      <span>{t("accounts.add.openHere")}</span>
                       <span className="aa-link-host">
                         {hostOf(login.url)}
                         <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor"
@@ -664,11 +658,9 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                           strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                           <path d="M3.6 2.2 6.4 5 3.6 7.8" />
                         </svg>
-                        Paste a code, if the page shows one
+                        {t("accounts.add.pasteCode")}
                       </summary>
-                      <p className="aa-note">
-                        It usually finishes on its own — if the page says you are all set, there is nothing to do here.
-                      </p>
+                      <p className="aa-note">{t("accounts.add.codeNote")}</p>
                       <div className="aa-field">
                         <input
                           ref={codeRef}
@@ -676,10 +668,10 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                           value={code}
                           onChange={e => setCode(e.target.value)}
                           onKeyDown={e => { if (e.key === "Enter" && code.trim() && !busy) submitCode(); }}
-                          placeholder="paste the code here"
+                          placeholder={t("accounts.add.codePlaceholder")}
                           spellCheck={false}
                           autoComplete="off"
-                          aria-label="Sign-in code"
+                          aria-label={t("accounts.add.codeLabel")}
                           disabled={login.state === "registering"}
                         />
                         {/* #620: `busy` reached `disabled` here — submitCode sets
@@ -691,25 +683,23 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                         <button type="button" className="btn primary"
                           {...selfPressProps(busy, !code.trim() || login.state === "registering")}
                           onClick={submitCode}>
-                          Continue
+                          {t("accounts.add.continue")}
                         </button>
                       </div>
                       {/* A rejected code leaves the flow in awaiting_code — which
                           is right, the CLI is still asking — so the reason is
                           printed here, under the field it is about. */}
                       {(loginError || login.error) && <p className="aa-err">{loginError ?? login.error}</p>}
-                      <p className="aa-note">
-                        The code goes straight to the claude CLI on this machine. It is never stored or sent anywhere else.
-                      </p>
+                      <p className="aa-note">{t("accounts.add.codePrivacy")}</p>
                     </details>
                   </>
                 ) : live ? (
-                  <p className="aa-note">{stageDetail(live, login?.step)}</p>
+                  <p className="aa-note">{stageDetail(live, login?.step, t)}</p>
                 ) : null}
                 // Only while the sign-in is still waiting on the CLI or the
                 // browser — see `cancel` for why not after.
                 actions={live === "link" || live === "approve"
-                  ? <button type="button" className="btn" onClick={cancel}>Cancel</button>
+                  ? <button type="button" className="btn" onClick={cancel}>{t("accounts.cancel")}</button>
                   : null}
               />
             ) : (
@@ -718,14 +708,8 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
               // on someone who wanted the other tab.
               <div className="aa-step aa-primer">
                 {cancelNote ? <p className="aa-note aa-warn" role="status">{cancelNote}</p> : null}
-                <h4>{email ? <>Sign in again as <strong>{email}</strong></> : "Sign in to Anthropic"}</h4>
-                <p className="aa-note">
-                  Opens a browser tab where you approve the sign-in{email ? ", with this address already filled in" : ""}.
-                  It normally completes by itself; only if the page hands you a code does it need pasting back here.
-                  {email
-                    ? " claude-swap replaces the expired login in place — the account keeps its slot, its alias and its history — and the account you are using now stays active."
-                    : " claude-swap records the account when it completes, and the account you are using now stays active."}
-                </p>
+                <h4>{email ? richParts(t("accounts.add.againAs", { email })) : t("accounts.add.toAnthropic")}</h4>
+                <p className="aa-note">{t(email ? "accounts.add.primerNoteEmail" : "accounts.add.primerNote")}</p>
                 <div className="aa-actions">
                   {/* No `disabled={busy}`: the press takes this control away
                       rather than disabling it, which is the half #518 answers
@@ -735,14 +719,14 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                       press until it is back — so it says aria-busy then, as
                       Continue and Import do (#620). */}
                   <button type="button" ref={primerRef} className="btn primary" {...selfPressProps(busy)} onClick={start}>
-                    Open the sign-in page
+                    {t("accounts.add.openSignIn")}
                   </button>
                 </div>
               </div>
             )
           ) : imported ? (() => {
             const arrived = imported.filter(r => r.state === "imported").length;
-            const needsAttention = imported.some(r => arrivalCheck(r.check));
+            const needsAttention = imported.some(r => arrivalCheck(r.check, t));
             return (
             <div className="aa-done">
               {!needsAttention && <SuccessMark ref={markRef} />}
@@ -753,16 +737,16 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                   makes somebody run it again and then wonder whether they
                   doubled something; this is the sentence they need before they
                   trust the deck and close the tab. */}
-              <h4>{importSummary(imported)}</h4>
+              <h4>{importSummary(imported, t)}</h4>
               {imported.length > 0 && (
                 <ul className="aa-results">
                   {imported.map(r => {
                     const key = importRowKey(r);
-                    const check = arrivalCheck(r.check);
+                    const check = arrivalCheck(r.check, t);
                     return (
                       <li key={key} className={`aa-result ${r.state}`}>
-                        <span className="aa-result-who">{r.email || (r.num ? `slot ${r.num}` : "an account")}</span>
-                        <span className="aa-result-what">{outcomeWord(r.state)}</span>
+                        <span className="aa-result-who">{r.email || (r.num ? t("accounts.slotN", { n: r.num }) : t("accounts.add.unknownAccount"))}</span>
+                        <span className="aa-result-what">{outcomeWord(r.state, t)}</span>
                         {/* The way out of the one case the default import
                             cannot see: a token that died on a deck which never
                             used it, so nothing quarantined the slot and the
@@ -770,10 +754,9 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                             never a flag over the whole paste. */}
                         {r.state === "present" && (
                           <button type="button" className="aa-result-fix" aria-busy={forcing === key}
-                            title={`Overwrite the stored login for ${r.email} with the one in this share. `
-                                 + "Do this when that account has stopped working here; if it works, leave it."}
+                            title={t("accounts.add.updateTip", { email: r.email })}
                             onClick={() => forceOne(r)}>
-                            {forcing === key ? "updating…" : "update anyway"}
+                            {forcing === key ? t("accounts.add.updating") : t("accounts.add.updateAnyway")}
                           </button>
                         )}
                         {/* It landed, and this Mac cannot use it yet — the
@@ -791,23 +774,19 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                   quarantined without being asked, and that is the point of it.
                   A reassurance a reader can see is false costs more than it
                   buys. */}
-              <p className="aa-note">
-                Nothing changed on the deck you copied this from. An account already here
-                is left as it is, unless its stored login was dead or you pressed
-                <strong> update anyway</strong>.
-              </p>
+              <p className="aa-note">{richParts(t("accounts.add.importNote"))}</p>
               <div className="aa-actions">
-                <button type="button" className="btn primary" onClick={close}>Done</button>
+                <button type="button" className="btn primary" onClick={close}>{t("accounts.done")}</button>
                 <button type="button" className="btn"
                   onClick={() => { bundleRef.current = ""; setRowError(null); setImported(null); }}>
-                  Import another
+                  {t("accounts.add.importAnother")}
                 </button>
               </div>
             </div>
             );
           })() : (
             <div className="aa-step">
-              <h4>Paste an account shared from another deck</h4>
+              <h4>{t("accounts.add.pasteTitle")}</h4>
               <div className="aa-field">
                 <input
                   ref={blobRef}
@@ -818,14 +797,14 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                   placeholder="ccdeck2:…"
                   spellCheck={false}
                   autoComplete="off"
-                  aria-label="Shared account"
+                  aria-label={t("accounts.add.sharedLabel")}
                 />
                 {/* #620, the same as Continue: `busy` disabled the control the
                     press came from. An empty field still disables it — that is
                     an unavailability and not a press in flight — and the label
                     goes on saying which state it is in. */}
                 <button type="button" className="btn primary" {...selfPressProps(busy, !blob.trim())} onClick={submitBlob}>
-                  {pasteBusy ? "importing…" : "Import"}
+                  {pasteBusy ? t("accounts.add.importing2") : t("accounts.add.import")}
                 </button>
               </div>
               {pasteError && <p className="aa-err">{pasteError}</p>}
@@ -839,14 +818,10 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                     <circle className="aa-spin-track" cx="8" cy="8" r="6" />
                     <circle className="aa-spin-arc" cx="8" cy="8" r="6" />
                   </svg>
-                  <span>{slowImport ?? "claude-swap is adding the accounts in this share. Any already here are left as they are."}</span>
+                  <span>{slowImport ?? t("accounts.add.importLive")}</span>
                 </p>
               ) : null}
-              <p className="aa-note">
-                Use <strong>share</strong> on one account in the other deck, or <strong>↗</strong> above
-                its list to send several at once. A share carries a live login for every account in it and
-                expires ten minutes after it is made.
-              </p>
+              <p className="aa-note">{richParts(t("accounts.add.pasteNote"))}</p>
             </div>
           )}
           {/* One polite voice for the whole panel, mounted for as long as the

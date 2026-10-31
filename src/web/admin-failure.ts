@@ -33,6 +33,7 @@
 import { isLoginOver } from "./login-flow";
 import { PRODUCT } from "./brand";
 import { ownRow } from "./own-row";
+import { t as tNow, type TFunction } from "./i18n";
 
 /** A refusal from the admin route: the login actions carry the polled login
  *  state with them, the share/import ones answer with a reason alone. */
@@ -54,8 +55,27 @@ export type AdminFailure = {
  * where a sentence belongs. Asking whether the map has a ROW is the question
  * all three callers were already trying to ask, so no known code moves.
  */
-function sentenceFor(map: Record<string, string>, reason: string | undefined): string | undefined {
-  return reason ? ownRow(map, reason) : undefined;
+/** The sentence for a reason in the language on show: the English row is the
+ *  list of reasons that exist, and `accounts.fail.<group>.<reason>` is its
+ *  translation; a reason with no key keeps the English row. */
+function sentenceFor(map: Record<string, string>, reason: string | undefined, group: string, t: TFunction): string | undefined {
+  const english = reason ? ownRow(map, reason) : undefined;
+  if (english === undefined || !reason) return undefined;
+  const key = `accounts.fail.${group}.${reason}`;
+  const said = t(key, { product: PRODUCT });
+  return said === key ? english : said;
+}
+
+/** The keychain sentence in the language on show (KEYCHAIN stays English). */
+export const keychainText = (t: TFunction = tNow): string => t("accounts.fail.keychain", { product: PRODUCT });
+
+/** The gate's sentence for an HTTP status, in the language on show. */
+function gateText(status: number | undefined, t: TFunction): string | null {
+  const english = status == null ? null : GATE_REASONS[status];
+  if (!english) return null;
+  const key = `accounts.fail.gate.${status}`;
+  const said = t(key);
+  return said === key ? english : said;
 }
 
 // Each is a decision the server made on purpose, so each gets a sentence rather
@@ -157,8 +177,14 @@ const ARRIVAL_CHECK: Record<string, { short: string; long: string }> = {
 
 /** The words for one arrival check, or null for none — or for a code this
  *  build does not know, prototype keys included. */
-export function arrivalCheck(code: string | null | undefined): { short: string; long: string } | null {
-  return code ? ownRow(ARRIVAL_CHECK, code) ?? null : null;
+export function arrivalCheck(code: string | null | undefined, t: TFunction = tNow): { short: string; long: string } | null {
+  const row = code ? ownRow(ARRIVAL_CHECK, code) : undefined;
+  if (!code || !row) return null;
+  const say = (part: "short" | "long"): string => {
+    if (code === "unreadable_here" && part === "long") return `${keychainText(t)}.`;
+    return t(`accounts.fail.arrival.${code}.${part}`);
+  };
+  return { short: say("short"), long: say("long") };
 }
 
 /**
@@ -196,16 +222,16 @@ export const GATE_REASONS: Record<number, string> = {
  * caller keeps it for the element's title, where a traceback is one hover away
  * instead of on screen.
  */
-export function explainCommandFailure(out: CommandFailure, fallback: string, status?: number): string {
+export function explainCommandFailure(out: CommandFailure, fallback: string, status?: number, t: TFunction = tNow): string {
   // BEFORE ANYTHING ELSE, because it happened before anything else: a request
   // the deck's own gate turned away never reached a command to fail. See
   // GATE_REASONS.
-  const gate = status == null ? null : GATE_REASONS[status];
+  const gate = gateText(status, t);
   if (gate) return gate;
   // A tool that never started printed nothing of its own — anything in the
   // output there came from the shell that could not find it.
-  if (out?.reason !== "no_cswap" && /keychain/i.test(commandOutput(out))) return KEYCHAIN;
-  const mapped = sentenceFor(COMMAND_REASONS, out?.reason);
+  if (out?.reason !== "no_cswap" && /keychain/i.test(commandOutput(out))) return keychainText(t);
+  const mapped = sentenceFor(COMMAND_REASONS, out?.reason, "cmd", t);
   if (mapped) return mapped;
   // A reason this build has no sentence for still names the thing that
   // happened, which is more than the subprocess's last line ever did.
@@ -437,8 +463,8 @@ function installLine(out: CcusageFailure): string {
  * an older deck, or a caller building the object by hand, and neither has an
  * answer to give.
  */
-export function explainCcusageFailure(out: CcusageFailure, fallback: string): string {
-  const said = rankCcusageFailure(out, fallback);
+export function explainCcusageFailure(out: CcusageFailure, fallback: string, t: TFunction = tNow): string {
+  const said = rankCcusageFailure(out, fallback, t);
   const install = installLine(out);
   switch (out?.stage) {
     case "npx":
@@ -446,10 +472,10 @@ export function explainCcusageFailure(out: CcusageFailure, fallback: string): st
       // goes FIRST because it failed first and because it is the half nobody
       // has been able to see; the fallback's remedy follows, still whole.
       return install
-        ? `ccusage failed on both of its paths. The managed install failed first — ${install} — and the deck then fell back to npx, where ${lowerFirst(said)}`
-        : `there is no managed copy of ccusage on this machine, and the npx fallback failed: ${lowerFirst(said)}`;
+        ? t("accounts.fail.ccusage.stageNpxBoth", { install, said: lowerFirst(said) })
+        : t("accounts.fail.ccusage.stageNpx", { said: lowerFirst(said) });
     case "managed":
-      return `${MANAGED} failed to run: ${lowerFirst(said)}`;
+      return t("accounts.fail.ccusage.stageManaged", { what: t("accounts.fail.ccusage.managed", { product: PRODUCT }), said: lowerFirst(said) });
     case "path":
       // The copy the reader provided, and the one sentence where naming the
       // file is not a detail. This path is reached because the deck FOUND
@@ -458,8 +484,8 @@ export function explainCcusageFailure(out: CcusageFailure, fallback: string): st
       // and a stale global copy shadowing a good one is the likeliest way to
       // land here at all.
       return out.bin
-        ? `the ccusage this deck found at ${out.bin} failed to run: ${lowerFirst(said)}`
-        : `the ccusage this deck found on your PATH failed to run: ${lowerFirst(said)}`;
+        ? t("accounts.fail.ccusage.stagePathBin", { bin: out.bin, said: lowerFirst(said) })
+        : t("accounts.fail.ccusage.stagePath", { said: lowerFirst(said) });
     default:
       // Including a stage this build has no wording for — a newer deck must not
       // cost the reader the sentence that is already correct.
@@ -479,22 +505,22 @@ const lowerFirst = (s: string): string =>
  * explainCommandFailure: the map speaks, and `error` stays evidence the modal
  * hangs on the status line's title.
  */
-function rankCcusageFailure(out: CcusageFailure, fallback: string): string {
+function rankCcusageFailure(out: CcusageFailure, fallback: string, t: TFunction): string {
   const text = commandOutput(out);
   if (cannotLoad(text)) {
     // The deck's own fetched copy first. A file under `_npx` is one npx put
     // there because this deck asked for it, so it is never evidence about the
     // user's npm installation — even on the exotic day the unloadable file
     // inside that cache happens to be an npm program file itself.
-    if (NPX_CACHE.test(text)) return NPX_CACHE_UNLOADABLE;
-    if (NPM_OWN_PROGRAM.test(text)) return NPX_UNLOADABLE;
+    if (NPX_CACHE.test(text)) return t("accounts.fail.ccusage.npxCacheUnloadable");
+    if (NPM_OWN_PROGRAM.test(text)) return t("accounts.fail.ccusage.npxUnloadable");
     // Everything else that cannot load a module is the managed install under
     // ~/.agents-deck, which ccusage.mjs discards and rebuilds by itself — so the
     // reason map's "try again" is not a shrug here, it is the instruction that
     // triggers the repair.
   }
-  if (npxMissing(text)) return NO_NPX;
-  const mapped = sentenceFor(CCUSAGE_REASONS, out?.reason);
+  if (npxMissing(text)) return t("accounts.fail.ccusage.noNpx");
+  const mapped = sentenceFor(CCUSAGE_REASONS, out?.reason, "ccusage", t);
   if (mapped) return mapped;
   // A build talking to a newer server still names the thing that happened,
   // which is more than the CLI's last line ever did.
@@ -502,18 +528,18 @@ function rankCcusageFailure(out: CcusageFailure, fallback: string): string {
 }
 
 /** The one sentence to show for a refusal, most specific first. */
-export function explainFailure(out: AdminFailure, fallback: string, status?: number): string {
+export function explainFailure(out: AdminFailure, fallback: string, status?: number, t: TFunction = tNow): string {
   // The gate first, for the reason explainCommandFailure takes it first: this
   // route is guarded by the same two checks, and `cross-site request blocked`
   // reaching a reader verbatim is a sentence written for a log, not for them.
-  const gate = status == null ? null : GATE_REASONS[status];
+  const gate = gateText(status, t);
   if (gate) return gate;
   // Written for this response and nothing else, so it needs no vetting.
   if (out?.detail) return out.detail;
   // The ending's own words, and the server knows the machine — which keychain,
   // which missing binary — in a way this map never can.
   if (out?.error && isLoginOver(out.state)) return out.error;
-  const mapped = sentenceFor(REASONS, out?.reason);
+  const mapped = sentenceFor(REASONS, out?.reason, "admin", t);
   if (mapped) return mapped;
   // A crash in the handler sends `error` with no reason at all. Without this it
   // reached the user as the generic fallback, indistinguishable from a refusal,

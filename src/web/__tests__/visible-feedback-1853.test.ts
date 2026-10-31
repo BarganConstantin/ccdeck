@@ -363,7 +363,8 @@ describe("an account warning's popover can report itself", () => {
     expect(at, "the panel does not wire the popover's report").toBeGreaterThan(-1);
     const wiring = accounts.slice(at, accounts.indexOf("})}", at));
     expect(wiring).toMatch(/initialKind: issue\.tone === "warn" \? "bug" : "other"/);
-    expect(wiring).toMatch(/initialBody: `[^`]*\$\{issue\.text\}[^`]*\$\{issue\.hint\}`/);
+    // English on purpose: the report goes to the makers, so the panel asks accountIssue for its English words.
+    expect(wiring).toMatch(/initialBody: `[^`]*\$\{reported\.text\}[^`]*\$\{reported\.hint\}`/);
     expect(wiring).not.toContain("who");
     // And App hands the panel the one door.
     expect(app).toMatch(/<AccountsPanel[^>]*onReport=\{dialogs\.openFeedback\}/);

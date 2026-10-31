@@ -2,22 +2,25 @@
 //
 // Moved out of App.tsx's markup unchanged. The switch is use-auto-fit-switch's
 // and App.tsx shows the chip only while it is off (#820).
+import { useT } from "../i18n";
+
 export default function AutoFitChip({ enableAutoFitAndRefit }: {
   enableAutoFitAndRefit: () => void;
 }) {
+  const t = useT();
   return (
     <div className="autofit-chip">
-      <span className="autofit-state" title="New sessions are not brought into view while you are moving it yourself">
-        Auto-fit off
+      <span className="autofit-state" title={t("accounts.autoFit.offTip")}>
+        {t("accounts.autoFit.off")}
       </span>
       <button
         type="button"
         className="autofit-resume"
         onClick={enableAutoFitAndRefit}
-        title="Bring new sessions into view again"
-        aria-label="Resume auto-fit"
+        title={t("accounts.autoFit.resumeTip")}
+        aria-label={t("accounts.autoFit.resumeLabel")}
       >
-        Resume
+        {t("accounts.autoFit.resume")}
       </button>
     </div>
   );

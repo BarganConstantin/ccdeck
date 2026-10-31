@@ -10,6 +10,7 @@
 // it, the list lifts away, and the card that follows draws only the tick.
 import React from "react";
 import type { StageRow, StageStatus } from "../signin-stages";
+import { useT } from "../i18n";
 
 export type ProgressPhase = "live" | "failed" | "resolving";
 
@@ -24,7 +25,8 @@ type Props = {
 
 /** What a screen reader adds after each row's words. Pending says nothing:
  *  "Save the credentials" in a list of steps is already a step not yet taken. */
-const SAID: Record<StageStatus, string> = { done: ", done", active: ", in progress", failed: ", failed", pending: "" };
+/** What a screen reader hears after a stage's label (accounts.signin.said.*). */
+const SAID: Record<StageStatus, string | null> = { done: "accounts.signin.said.done", active: "accounts.signin.said.active", failed: "accounts.signin.said.failed", pending: null };
 
 function StageIcon({ status }: { status: StageStatus }) {
   return (
@@ -38,6 +40,7 @@ function StageIcon({ status }: { status: StageStatus }) {
 }
 
 export default function SignInProgress({ rows, phase, detail, actions }: Props) {
+  const t = useT();
   // Which stage is running, for the ring: it turns briskly while the deck is
   // working and slows right down while it is the reader the deck waits on.
   const at = rows.find(r => r.status === "active")?.id;
@@ -56,7 +59,7 @@ export default function SignInProgress({ rows, phase, detail, actions }: Props) 
           return (
             <li key={row.id} className="aa-stage" data-status={row.status} aria-current={row.status === "active" ? "step" : undefined}>
               <StageIcon status={row.status} />
-              <span className="aa-stage-label">{row.label}<span className="vis-hidden">{SAID[row.status]}</span></span>
+              <span className="aa-stage-label">{row.label}<span className="vis-hidden">{SAID[row.status] ? t(SAID[row.status]!) : ""}</span></span>
               {open && detail ? <div className="aa-stage-more">{detail}</div> : null}
             </li>
           );

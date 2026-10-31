@@ -23,6 +23,8 @@
 /** One account standing behind the fold, in the only terms the row and its peek
  *  need. The panel builds these from its roster; nothing here knows about slots,
  *  organizations or lanes. */
+import { t as tNow, type TFunction } from "./i18n";
+
 export interface Peer {
   /** Stable across a `cswap move`, because it is an identity and not a slot —
    *  see lane-open.ts, whose `laneKey` is what the panel passes here. */
@@ -97,7 +99,7 @@ export function restLine(peers: readonly Peer[], mode: {
    *  has not read it yet. Printed because the control that sets it now lives
    *  behind this row — see the tail clause below. */
   threshold?: string | null;
-}): {
+}, t: TFunction = tNow): {
   text: string;
   tone: "ok" | "idle" | "bad";
   /** The best headroom among the ready, when the row is saying it. Returned so
@@ -109,26 +111,26 @@ export function restLine(peers: readonly Peer[], mode: {
     // Named rather than counted. `none of 2 ready` is the same fact in the
     // calm tier, and the reader it is for is about to hit a wall the policy
     // promised to keep them off. The control it names is the next row down.
-    return { text: "Auto-switch has nowhere to go", tone: "bad", free: null };
+    return { text: t("accounts.rest.nowhere"), tone: "bad", free: null };
   }
   const base = ready.length === peers.length
-    ? `${peers.length} ready`
+    ? t("accounts.rest.allReady", { count: peers.length })
     : ready.length === 0
       // `none of 1 ready` is arithmetic about a set of one. The singular says it
       // as a state instead, which is what it is.
-      ? peers.length === 1 ? "not ready" : `none of ${peers.length} ready`
-      : `${ready.length} of ${peers.length} ready`;
+      ? peers.length === 1 ? t("accounts.rest.notReady") : t("accounts.rest.noneReady", { total: peers.length })
+      : t("accounts.rest.someReady", { ready: ready.length, total: peers.length });
   const tone = ready.length ? "ok" as const : "idle" as const;
   const free = mode.strained && !mode.armed ? bestFree(ready) : null;
   const clauses = [base];
-  if (free != null) clauses.push(`${free}% free`);
+  if (free != null) clauses.push(t("accounts.rest.free", { free }));
   // THE TAIL IS ALWAYS THE POLICY, and it is here because the control moved
   // behind this row. A toggle nobody can see is a toggle nobody can tell the
   // state of, and `off` has to be as sayable as `on`: a row that only spoke
   // when the policy was armed would leave a reader unable to tell a deck that
   // will not switch from a row that does not mention switching. The threshold
   // rides with `on` because it is the whole of what on MEANS here.
-  clauses.push(mode.armed ? `auto ${mode.threshold ?? "on"}${mode.threshold ? "%" : ""}` : "auto off");
+  clauses.push(mode.armed ? (mode.threshold ? t("accounts.rest.autoAt", { pct: mode.threshold }) : t("accounts.rest.autoOn")) : t("accounts.rest.autoOff"));
   return { text: clauses.join(" · "), tone, free };
 }
 
@@ -153,7 +155,7 @@ function bestFree(peers: readonly Peer[]): number | null {
  * be the emptiest account there is, and saying so on no evidence is how a
  * summary earns a reader who stops believing it.
  */
-export function foldPeek(peers: readonly Peer[]): {
+export function foldPeek(peers: readonly Peer[], t: TFunction = tNow): {
   title: string;
   shown: Peer[];
   /** The tail line: the names too many to print, or null when none were cut. */
@@ -171,8 +173,8 @@ export function foldPeek(peers: readonly Peer[]): {
   const shown = order.slice(0, FOLD_NAMES);
   const cut = order.length - shown.length;
   return {
-    title: peers.some(p => p.ready) ? "Where you could switch" : "Nothing to switch to",
+    title: t(peers.some(p => p.ready) ? "accounts.rest.peekReady" : "accounts.rest.peekNone"),
     shown,
-    rest: cut > 0 ? `and ${cut} more` : null,
+    rest: cut > 0 ? t("accounts.rest.more", { n: cut }) : null,
   };
 }

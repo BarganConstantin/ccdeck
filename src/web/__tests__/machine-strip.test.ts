@@ -563,7 +563,7 @@ describe("the dialog's type", () => {
     // into SortHead.tsx when the account report's columns sorted too: the
     // note is handed to it here and worded into the tooltip there.
     expect(modalSrc).toMatch(/<SortHead[^>]*\bnote=/);
-    expect(readFileSync(at("../components/SortHead.tsx"), "utf8")).toContain("note ? `Sort by ${label}");
+    expect(readFileSync(at("../components/SortHead.tsx"), "utf8")).toContain('note ? `${t("accounts.sort.by", { label })}');
   });
 });
 

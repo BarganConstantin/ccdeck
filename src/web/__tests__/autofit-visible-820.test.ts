@@ -49,9 +49,9 @@ describe("the canvas says when auto-fit is off (#820)", () => {
     expect(app).toMatch(/<BoardFlow\b[^>]*\bautoFit=\{autoFit\}/);
     expect(board).toMatch(/\{autoFitDisabled && <AutoFitChip enableAutoFitAndRefit=\{enableAutoFitAndRefit\} \/>\}/);
     expect(chip).toMatch(/return \(\s*<div className="autofit-chip">/);
-    expect(chip).toMatch(/<span className="autofit-state"[^>]*>\s*Auto-fit off\s*<\/span>/);
+    expect(chip).toMatch(/<span className="autofit-state"[^>]*>\s*\{t\("accounts\.autoFit\.off"\)\}\s*<\/span>/);
     expect(chip).toMatch(/<button\s+type="button"\s+className="autofit-resume"\s+onClick=\{enableAutoFitAndRefit\}/);
-    expect(chip).toMatch(/aria-label="Resume auto-fit"/);
+    expect(chip).toMatch(/aria-label=\{t\("accounts\.autoFit\.resumeLabel"\)\}/);
   });
 
   it("draws it on the canvas, clear of the corners, on the canvas chrome's surface", () => {
