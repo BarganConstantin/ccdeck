@@ -318,10 +318,13 @@ describe("every control in the manage block has a perceivable boundary (1.4.11)"
       expect(TOK[theme]["--ctl-edge"], theme).toMatch(/var\(--text\)/);
     }
     // Light theme is where the old value was indistinguishable from the panel,
-    // and #332 decided it stays that way: on white there is no room between
-    // #ffffff and the canvas for a third tier, and this block's controls take
-    // their recess from --ctl-fill instead. See the token's own note.
-    expect(TOK.light["--bg-soft"]).toBe(TOK.light["--panel"]);
+    // and #332 decided the controls take their recess from --ctl-fill instead.
+    // V4 aligned light --bg-soft to Figma's #f7f8fa on 2026-10-31, so it is no
+    // longer the same bytes as --panel; what stays pinned is the decision: the
+    // fill borrows from neither surface. See the token's own note.
+    for (const theme of themes) {
+      expect(TOK[theme]["--ctl-fill"], theme).not.toMatch(/var\(--(?:bg-soft|panel)\)/);
+    }
   });
 
   it("keeps the lift off --line, which is the trap this issue named (#332)", () => {
@@ -335,7 +338,8 @@ describe("every control in the manage block has a perceivable boundary (1.4.11)"
     expect(bodyOf(".ap-account")).not.toMatch(/--ctl-/);
     for (const theme of themes) expect(bodyOf(`:root[data-theme="${theme}"]`)).toMatch(/--ctl-edge\s*:/);
     expect(TOK.dark["--line"]).toBe("#1f2229");
-    expect(TOK.light["--line"]).toBe("#c8cdd6");
+    // V4 aligned light --line to Figma (#c8cdd6 to #d5d9e0, lighter) on 2026-10-31.
+    expect(TOK.light["--line"]).toBe("#d5d9e0");
     // And every control in this block now reads the promoted token outright —
     // a fallback to a value that cannot be reached is dead code claiming to be
     // a safety net.

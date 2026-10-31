@@ -1,9 +1,10 @@
 // V4's tokens (its Figma variables of 2026-10-31): the colours Phase 1
 // adds, in every shipped theme, at the values
 // Figma draws them on its Dark (the Rider Black theme) and its Light; the
-// size ladder, Compact (V4's default density) and Default; the type roles of
-// its text styles; its motion, with the one curve the sheet now spells; and
-// the one shadow it casts.
+// colours the palette already had, aligned to Figma on those two; the size
+// ladder, Compact (V4's default density) and Default; the type roles of its
+// text styles; its motion, with the one curve the sheet now spells; and the
+// one shadow it casts.
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -35,10 +36,17 @@ const TINTS: Record<string, [string, number]> = {
   "warn-35": ["warn", 0.35],
   "inflight-30": ["inflight", 0.3],
 };
-/** Bases today's palette does not share with Figma yet (the owner's open
- *  decisions: Rider Black's muted text, Light's Waiting colour); their tints
- *  are held to the theme's base and to Figma's share only. */
-const BASE_DIFFERS = new Set(["rider-black muted-30", "light warn-35"]);
+/** Colours the palette had before V4 that Figma draws too: its value on Dark
+ *  (Rider Black) and on Light. The ones that differed were aligned to Figma. */
+const SHARED: Record<string, [string, string]> = {
+  muted: ["#a3a6ae", "#4a5260"],
+  "muted-dim": ["#72767d", "#7c8493"],
+  line: ["#393b40", "#d5d9e0"],
+  "line-soft": ["#333539", "#e4e7ec"],
+  "bg-soft": ["#25262a", "#f7f8fa"],
+  warn: ["#f2c55c", "#9c5600"],
+  "ctl-fill": ["#dfe1e514", "#0d111714"],
+};
 
 const near = (got: Rgba, want: Rgba) => {
   for (let i = 0; i < 3; i++) expect(Math.abs(got[i] - want[i])).toBeLessThanOrEqual(1);
@@ -70,15 +78,15 @@ describe("V4's new colours", () => {
     ["light", 1],
   ] as const)("%s draws them as Figma does", (theme, side) => {
     const scope = palette(theme);
-    for (const [name, values] of Object.entries(FIGMA)) {
-      const want = hex(values[side]);
-      const got = color(scope[name], scope);
-      if (BASE_DIFFERS.has(`${theme} ${name}`)) {
-        expect(Math.abs(got[3] - want[3])).toBeLessThanOrEqual(1 / 255 + 1e-9);
-        continue;
-      }
-      near(got, want);
-    }
+    for (const [name, values] of Object.entries(FIGMA)) near(color(scope[name], scope), hex(values[side]));
+  });
+
+  it.each([
+    ["rider-black", 0],
+    ["light", 1],
+  ] as const)("%s draws the colours it shares with V4 as Figma does", (theme, side) => {
+    const scope = palette(theme);
+    for (const [name, values] of Object.entries(SHARED)) near(color(scope[name], scope), hex(values[side]));
   });
 });
 

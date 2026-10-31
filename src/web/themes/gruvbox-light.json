@@ -17,6 +17,7 @@
     "muted": "#665c54",
     "text-dim": "#665c54",
     "muted-dim": "#a89984",
+    "ctl-fill": "color-mix(in srgb, var(--text) 7%, transparent)",
     "ctl-edge": "#7c6f64",
     "sm-edge": "#7c6f64",
     "chrome-bg": "#faf7e8",
