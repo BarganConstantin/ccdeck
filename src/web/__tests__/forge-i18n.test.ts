@@ -36,7 +36,7 @@ describe("forge sentences in another language", () => {
     expect(namesWords(["A", "B", "C"])).toBe("A, B und C");
     setLanguage("ja");
     expect(durationWords(3840)).toBe("1時間04分");
-    expect(moreLabel(20, 56)).toBe("さらに読み込む · 20 / 56");
+    expect(moreLabel(20, 56)).toBe("さらに読み込む · 20/56");
   });
 
   it("builds empty and failure sentences around the right nouns", () => {
