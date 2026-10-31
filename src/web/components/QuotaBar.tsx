@@ -61,6 +61,22 @@ export function computePace(pct: number, resetAtSec: number, windowSec: number, 
   return { label: `${Math.round(-delta)}% under pace`, color: "var(--ok)", expectedPct, isDeficit: false };
 }
 
+/** What a monthly window can spend per day to last until it resets: the
+ *  percentage still left over the local calendar days remaining. Today and a
+ *  part-day on the reset date both count; a reset exactly at midnight adds no
+ *  extra day (CodexBar #4677). Null for any window that is not a month long
+ *  (28 to 31 days, as reported), a spent one, or a reset already past. */
+export function monthlyDailyTarget(pct: number, resetAtSec: number, windowSec: number, nowSec: number): number | null {
+  const d = windowSec / 86400;
+  if (!(d >= 28 && d <= 31) || !(pct >= 0) || pct >= 100 || resetAtSec <= nowSec) return null;
+  const day = new Date(nowSec * 1000);
+  day.setHours(0, 0, 0, 0);
+  const reset = resetAtSec * 1000;
+  let days = 0;
+  while (day.getTime() < reset && days < 40) { days++; day.setDate(day.getDate() + 1); }
+  return days > 0 ? (100 - pct) / days : null;
+}
+
 // ── Quota bar ──────────────────────────────────────────────────────────────
 interface QuotaBarProps {
   /** How full the window is, or null when the source sent no reading for it.
@@ -100,6 +116,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
 
   const countdown = resetAt && !rolled ? resetCountdown(resetAt, nowSec) : null;
   const pace = (known && resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec, limitReached) : null;
+  const perDay = (pace && resetAt && windowSec && !limitReached) ? monthlyDailyTarget(capped, resetAt, windowSec, nowSec) : null;
   // The note opens the number it is measured against (#856).
   const [why, setWhy] = useState(false);
   const whyId = useId();
@@ -157,7 +174,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
           </button>
         )}
       </div>
-      {why && pace && <div id={whyId} className="qb-why">To last until reset, stay near {Math.round(pace.expectedPct)}% by now.</div>}
+      {why && pace && <div id={whyId} className="qb-why">To last until reset, stay near {Math.round(pace.expectedPct)}% by now.{perDay != null && ` About ${Number(perDay.toFixed(1))}% a day left.`}</div>}
     </div>
   );
 }
