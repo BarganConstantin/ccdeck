@@ -103,6 +103,19 @@ export const DEFAULTS = Object.freeze({
   // `auto when idle`, which defaulted on as a localStorage key; it moved here so
   // the server can read it with no page open.
   autoUpdate: true,
+  // THE COMMAND PANEL, OFF until somebody turns it on: a terminal you can
+  // type into is the first thing in the deck that reaches into an agent rather
+  // than watching one. The switch in Settings › Experimental (a Beta switch in
+  // Settings › General from 2026-10-18), so in PAGE_FIELDS, behind the gates
+  // every other switch is behind. Those
+  // turn away every other site, a rebound name and the network; they cannot
+  // turn away a process on this machine that writes a loopback Origin itself
+  // (request-gates.mjs says so), and such a process can now switch on a way to
+  // type into the user's sessions — where before it had to write prefs.json.
+  // Accepted for the experiment, knowingly: that process can already read the
+  // ring and the accounts through the same gates. The switch is the only way
+  // on: no launch variable turns it on. See terminal-routes.mjs.
+  terminal: false,
   // USAGE REPORTS (#1853), ON unless somebody turns them off — the owner's
   // decision, 2026-09-30: nobody is asked and the README says what is sent; the
   // page has no switch since 2026-10-01. See reports.mjs for what is sent, and
@@ -354,6 +367,7 @@ export function normalise(raw) {
     continueStopped: flagOr(src.continueStopped, DEFAULTS.continueStopped),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
+    terminal: flagOr(src.terminal, DEFAULTS.terminal),
     reports: flagOr(src.reports, DEFAULTS.reports),
     report: normaliseReport(src.report),
     accounts: normaliseOrigins(src.accounts),
@@ -738,7 +752,7 @@ export function publicPrefs(prefs) {
 export const PAGE_FIELDS = Object.freeze({
   top: Object.freeze([
     "notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "continueStopped",
-    "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions",
+    "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal",
   ]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "sendInUse", "pairingMode",
@@ -801,6 +815,22 @@ export function accountNotifySettings(prefs, env = process.env) {
 export function lanEnabled(prefs, env = process.env) {
   if (env.AGENTS_DECK_NO_LAN === "1") return false;
   return normalise(prefs).lan.enabled;
+}
+
+/**
+ * Is the Command Panel switched on? The stored `terminal` switch, a real true,
+ * and nothing else: no environment variable or launch flag turns it on.
+ *
+ * The opposite polarity from lanEnabled's veto, on purpose: the panel is the
+ * feature that is off unless somebody chose it, in Settings or in the
+ * settings file.
+ *
+ * Asked on every request and every upgrade rather than once at boot, so the
+ * routes and the socket answer from the same settings at every moment and can
+ * never disagree about whether the panel exists.
+ */
+export function terminalOn(prefs) {
+  return prefs?.terminal === true;
 }
 
 /**

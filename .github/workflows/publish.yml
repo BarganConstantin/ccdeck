@@ -47,7 +47,7 @@ jobs:
   # ── The gate ────────────────────────────────────────────────────────────
   # Three legs, because this suite does not test the same thing on all three.
   #
-  #   ubuntu-latest   the 32 sites gated `skipIf(process.platform === "win32")`
+  #   ubuntu-latest   the 37 sites gated `skipIf(process.platform === "win32")`
   #                   run here, plus the `runIf(posix)` family — the widest
   #                   coverage of the three. That number is not something a
   #                   reader has to take on trust: skip-gate-inventory.test.ts
@@ -57,7 +57,7 @@ jobs:
   #                   #585, because #532 deleted two of them along with
   #                   ccdeck-stub-exit.test.ts and nothing was watching.
   #   windows-latest  the whole reason for the matrix. Those sites are *skipped*
-  #                   here — 67 skipped cases in all — together with the
+  #                   here — 128 skipped cases in all — together with the
   #                   `runIf(posix)` family and the three read-only-directory
   #                   cases (sound-hook-park's, the macOS swap script's and the
   #                   macOS updater's), whose probe cannot block a write on
@@ -131,6 +131,56 @@ jobs:
       # is a check that cannot fail.
       - name: Typecheck
         run: npm run typecheck
+
+      # A real tmux for the suites that drive one: the relay's whole UTF-8
+      # characters drawn by the panel's own emulator (terminal-utf8-tmux), the
+      # control client (tmux-control-tmux), deck sessions
+      # (terminal-sessions-real-tmux) and the socket (terminal-socket-tmux).
+      # The runners have none, and without one those cases returned early and
+      # passed — green, having checked nothing. Windows has no tmux; its cases
+      # are gated off there in skip-gates.mjs.
+      #
+      # The step then proves that the deck finds a usable tmux: findTmux, the
+      # deck's own probe, with its 3.2 floor (MIN_TMUX_VERSION in
+      # src/server/tmux.mjs). Below the floor, three of the four files would
+      # only check that the panel says "too old" or that there is no tmux, and
+      # pass; terminal-utf8-tmux alone fails in CI on a missing tmux
+      # (utf8-frames-kit.mjs, needed()). The step also fails when the deck
+      # cannot read the version, which the allowances below go by.
+      #
+      # Whatever the image's package manager has: Ubuntu 24.04's tmux 3.4 on
+      # ubuntu-latest, Homebrew's current release on macos-latest. A tmux
+      # before 3.6 draws one write differently from xterm.js and, built with
+      # utempter as Ubuntu's is, can miss a pane's exit; one before 3.7 can
+      # list a pane dead before its exit status, or close it with its last
+      # output unread. The two files concerned say how they allow for each, on
+      # those versions only (the COMPATIBILITY RULE blocks in
+      # tmux-control-tmux and terminal-sessions-real-tmux), so both legs run
+      # every case.
+      - name: Install tmux (Linux and macOS)
+        if: ${{ runner.os != 'Windows' }}
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update -q
+            sudo apt-get install -y -q tmux
+          else
+            brew install tmux
+          fi
+          tmux -V
+          node --input-type=module -e '
+            const { findTmux } = await import("./src/server/tmux.mjs");
+            const found = await findTmux();
+            console.log("the deck finds: " + JSON.stringify(found));
+            if (!found.ok) {
+              console.log("::error::the deck would not run this tmux, so the real-tmux cases would check nothing");
+              process.exit(1);
+            }
+            if (!found.version) {
+              console.log("::error::the deck cannot read this tmux version, so the real-tmux cases cannot tell which allowances apply");
+              process.exit(1);
+            }
+          '
 
       # `npm test` verbatim, so CI runs what a contributor runs, plus a JSON
       # report on the side for the assertion below. The default reporter still

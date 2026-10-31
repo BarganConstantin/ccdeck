@@ -38,6 +38,43 @@
   .autofit-resume,
   .rearrange-undo-act { min-height: 32px; }
   .rearrange-undo-key { display: none; }
+  /* The terminal stage's keys bar (terminal-stage.css) names keys the same
+     way: j k, n, Esc, the release chord. They go; "type here" stays, as the
+     button it is. */
+  .ts-keys .ts-hint:not(:has(button)) { display: none; }
+  .ts-keys .ts-kbd { display: none; }
+  /* Its first-run line then reads whole without them: the clause that names
+     Esc goes with the key, and ✕, the header's own control, which a
+     fingertip presses too, stays (KeysBar). */
+  .ts-keys .ts-first-keys { display: none; }
+  .ts-keys .ts-kbd[data-control] { display: inline-flex; }
+  /* And every control the Command Panel draws takes the floor: the keys bar's
+     buttons (Got it, type here, Reopen here, Attach again, Next ask, Answer),
+     32px inside its 36px, so the bar keeps its height; the cards' (New
+     session, Reopen here, Check again, Try again, Not now); New session's
+     strips, projects, field and buttons; and the navigator's New session. */
+  .ts-keys .btn,
+  .ts-asks .ts-next,
+  .ts-acts .btn,
+  .ns-pop .uh-range-btn,
+  .ns-pop .ns-option,
+  .ns-pop .ns-field,
+  .ns-pop .ns-acts .btn,
+  .board-nav button.btn.nav-new { min-height: 32px; }
+  .board-nav[data-density="rail"] button.btn.nav-new { width: 32px; }
+  /* The header's glyphs (✕, ⤢, ⌨, ‹, and the install line's copy) are 32px
+     squares: their reach above and below stays, the 2px aside goes, so two
+     neighbours 2px apart never share a pixel of target. In the takeover the
+     spine moves with the name it stands before, past the wider ‹. */
+  .ts-stage .glyph-btn { min-width: 32px; min-height: 32px; }
+  .ts-stage .glyph-btn::after { inset: -4px 0; }
+  .ts-stage[data-takeover] .ts-spine { left: 52px; }
+  /* The divider is 32px wide: 8px over the navigator and 24px over the
+     stage's inset before its first column, so it covers no cell. Its line
+     and grip stay on the stage's edge. */
+  .ts-divider { left: -8px; width: 32px; }
+  .ts-divider::before { left: 7px; }
+  .ts-grip { left: 4px; }
   /* What's new's update line: its one button takes the floor, and the line
      keeps that height whether the button is there or not, so an answer that
      brings one still moves nothing. */
@@ -278,6 +315,50 @@
   .sm-row input[type="range"]::-moz-range-track { background: GrayText; }
   .sm-row input[type="range"]::-moz-range-progress { background: Highlight; }
   .sm-row input[type="range"]::-moz-range-thumb { background: Highlight; }
+
+  /* The board navigator beside the terminal stage (board-navigator.css). The
+     theme repaints the session's hue and drops the socket's washes and inset
+     ring, so the tile on the stage keeps its rim and its face's edge in the
+     highlight, the chevron with them, the way a chosen row does. The trunk's
+     branches are strokes the theme leaves in the session's hue, and are drawn
+     in the text colour; live and settled stay apart by the dash. */
+  .nav-tile[data-attached] .nav-face,
+  .nav-tile[data-attached] .nav-rim { border-color: Highlight; }
+  .nav-socket { color: Highlight; }
+  .nav-trunk .sess-edge.sess-live,
+  .nav-trunk .sess-edge.sess-idle { stroke: CanvasText; }
+
+  /* The terminal stage (terminal-stage.css). Its marks are fills the theme
+     would paint over: the spine is the session on stage, so it is the
+     highlight (grey when nothing is on stage); the keys bar's lamp is lit in
+     the highlight when the pane has the keys and hollow when the board does;
+     the state marks beside a sentence are the text colour, hollow ones kept
+     hollow; the asks track keeps its segments, the one on stage and the
+     answered ones filled. The divider's line is drawn in the text colour,
+     and the terminal itself is drawn by xterm's DOM renderer here, whose
+     glyphs the theme recolours like any text (use-terminal-session.ts). */
+  .ts-spine,
+  .ts-lamp,
+  .ts-mark,
+  .ts-end-mark,
+  .ts-fact-mark,
+  .ts-track i { forced-color-adjust: none; }
+  .ts-spine { background: Highlight; }
+  .ts-stage[data-empty] .ts-spine { background: GrayText; }
+  .ts-lamp { background: Canvas; border-color: CanvasText; }
+  .ts-keys[data-owner="pane"] .ts-lamp { background: Highlight; border-color: Highlight; box-shadow: none; }
+  .ts-mark,
+  .ts-end-mark,
+  .ts-fact-mark { background: CanvasText; }
+  .ts-l2[data-state="idle"] .ts-mark,
+  .ts-l2[data-state="ready"] .ts-mark,
+  .ts-l2[data-state="elsewhere"] .ts-mark,
+  .ts-fact-mark[data-kind="tmux"],
+  .ts-fact-mark[data-kind="gone"] { background: Canvas; border-color: CanvasText; }
+  .ts-track i { background: Canvas; border-color: CanvasText; }
+  .ts-track i[data-s="now"],
+  .ts-track i[data-s="done"] { background: Highlight; border-color: Highlight; }
+  .ts-divider::before { background: CanvasText; }
 
   /* The canvas strips' words — Resume, and Re-arrange's Undo — are set apart
      from the status beside them by weight and by a fill under the pointer,

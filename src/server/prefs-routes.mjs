@@ -7,13 +7,16 @@
 // engine had (lan-deck.mjs): what is left of them is a body read, a write
 // through the one, a push to the other, and an answer. The notifier stays in
 // index.mjs, beside the desktop-app connections it notifies through.
-import { notificationsOn, notificationsVetoed, pagePatch, prefsRefusalDetail, prefsWriteRefusal, publicPrefs, reportsVetoed } from "./deck-prefs.mjs";
+import { notificationsOn, notificationsVetoed, pagePatch, prefsRefusalDetail, prefsWriteRefusal, publicPrefs, reportsVetoed, terminalOn } from "./deck-prefs.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { applyLanPrefs, forgetReach, resetLanLoaded } from "./lan-deck.mjs";
 import { giveBackDeckFolders } from "./prefs-give-back.mjs";
 import { readBody, send } from "./http-io.mjs";
 import { noteContinueSwitchedOn } from "./stop-continue.mjs";
+import { closeOpenTerminals } from "./terminal-socket.mjs";
+import { commandPanel, commandPanelSupported } from "./command-panel-engine.mjs";
+import { panelInSessionHost } from "./command-panel-platform.mjs";
 
 /**
  * GET the deck's settings, and what the machine is allowing.
@@ -28,7 +31,7 @@ import { noteContinueSwitchedOn } from "./stop-continue.mjs";
  * was somebody else's doing. `notificationsVetoed` answers only the machine's
  * half.
  */
-function prefsPayload() {
+function prefsPayload(panel) {
   const prefs = heldPrefs.current();
   return {
     ok: true,
@@ -40,15 +43,35 @@ function prefsPayload() {
     notificationsAllowed: notificationsOn(prefs),
     notificationsVetoed: notificationsVetoed(),
     reportsVetoed: reportsVetoed(),
+    // The Command Panel's switch: the page renders no panel at all, and
+    // never fetches its code, unless this is true. It is here rather than on
+    // a route of its own because this is the one read every page already
+    // makes at boot — and a route of its own would have to exist with the
+    // switch off, which is the state it reports.
+    terminalOn: terminalOn(prefs),
+    // Whether this deck's platform has the panel at all (Linux and macOS, for now), so
+    // Settings can say so rather than offer a switch that leads nowhere. The
+    // deck's platform, not the browser's: the panel runs where the deck does.
+    // `panel` is startServer's one answer for this deck
+    // (command-panel-platform.mjs: on Windows false, but for the test-only
+    // preview); a caller with none asks the platform, as this always did.
+    terminalSupported: panel ? panel.supported === true : commandPanelSupported(),
+    // Whether the panel's sessions run in the Windows session host rather than
+    // tmux — only ever in the test-only Windows preview — so the page's words
+    // name the place they keep running in.
+    terminalWindows: panelInSessionHost(panel),
   };
 }
 
-export function handlePrefsRead(req, res) {
-  return send(res, 200, prefsPayload());
+/** What a panel that was open says once the switch in Settings has closed it. */
+export const TERMINAL_TURNED_OFF = "The Command Panel was turned off in Settings. The session is still running.";
+
+export function handlePrefsRead(req, res, panel) {
+  return send(res, 200, prefsPayload(panel));
 }
 
 /** POST a patch. Fields nobody sent keep their value — see writePrefs. */
-export async function handlePrefsWrite(req, res) {
+export async function handlePrefsWrite(req, res, panel) {
   const raw = await readBody(req, res).catch(() => null);
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
@@ -57,6 +80,7 @@ export async function handlePrefsWrite(req, res) {
   // reports switch (#1853), the reporter's state, the accounts the deck signed
   // in (#1893) — are the deck's own and keep what is on disk; see pagePatch.
   const patch = pagePatch(body);
+  const terminalWasOn = terminalOn(heldPrefs.current());
   try {
     await heldPrefs.write(patch);
   } catch (err) {
@@ -71,6 +95,21 @@ export async function handlePrefsWrite(req, res) {
     const detail = prefsRefusalDetail(err);
     return send(res, 500, detail ? { ok: false, reason, detail } : { ok: false, reason });
   }
+  // Off means no way in, not only no new one: a panel still open in another
+  // tab is a write channel into the session, so it is closed with a sentence,
+  // at once rather than after the LAN engine has had its turn. Asked of what
+  // was written, not of what was sent — any value that is not true turns the
+  // switch off. The sessions keep running; closing a panel never stops an
+  // agent. The engine that served them stops once they have closed.
+  const terminalNowOn = terminalOn(heldPrefs.current());
+  if (terminalWasOn && !terminalNowOn) {
+    closeOpenTerminals("error", TERMINAL_TURNED_OFF);
+    commandPanel.switchedOff();
+  } else if (!terminalWasOn && terminalNowOn) {
+    // On again before the engine's stop has begun: the stop is called off,
+    // and the engine kept with what it holds (command-panel-engine.mjs).
+    commandPanel.switchedOn();
+  }
   // The engine reads its settings from here rather than holding its own copy,
   // so turning the switch off in the panel really does stop the sockets rather
   // than only changing what the panel says.
@@ -82,7 +121,7 @@ export async function handlePrefsWrite(req, res) {
   // A stopped background session already waiting for a working login is
   // looked at now, not at the next pass (stop-continue.mjs).
   if (patch.continueStopped === true) noteContinueSwitchedOn();
-  return send(res, 200, prefsPayload());
+  return send(res, 200, prefsPayload(panel));
 }
 
 /**
@@ -97,12 +136,12 @@ export async function handlePrefsWrite(req, res) {
  * the file again — the stored key and pairings — which is what a restart would
  * have done, without the restart.
  */
-export async function handlePrefsGiveBack(req, res) {
+export async function handlePrefsGiveBack(req, res, panel) {
   const out = await giveBackDeckFolders();
   if (!out.ok) return send(res, 409, { ok: false, reason: out.reason });
   if ((await heldPrefs.reload()) === "file") {
     resetLanLoaded();
     await applyLanPrefs();
   }
-  return send(res, 200, { ...prefsPayload(), changed: out.changed });
+  return send(res, 200, { ...prefsPayload(panel), changed: out.changed });
 }

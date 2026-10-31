@@ -10,6 +10,7 @@
 //   graph-state.ts         the state, and the keys it is filed under
 //   agent-attribution.ts   which agent an event belongs to; roots and subagents
 //   parked-enrichment.ts   the server's scans that reach a session before its card
+//   panel-launch.ts        the Command Panel launch that started a session
 //   session-lifecycle.ts   SessionStart, prompts, Stop, StopFailure and SessionEnd
 //   subagent-lifecycle.ts  SubagentStart and SubagentStop
 //   tool-calls.ts          a call's start and outcome, and its history window
@@ -25,6 +26,7 @@ import { claudeEffort } from "./payload-effort";
 import { initialState, rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { explicitSubagentKey, noteKeyedSubagent, resolveOwner } from "./agent-attribution";
 import { adoptParkedEnrichment, parkEnrichment } from "./parked-enrichment";
+import { adoptPanelLaunch } from "./panel-launch";
 import { applySessionStart, applyTurnEnd, applyUserPromptSubmit, clearStopFailure, noteSessionHeard } from "./session-lifecycle";
 import { stopFailureOf } from "../server/stop-failure.mjs";
 import { applySubagentStart, applySubagentStop } from "./subagent-lifecycle";
@@ -84,6 +86,14 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
     // cached at revision 7 must not be handed a fresh 0 and conclude nothing
     // has happened since.
     return { ...initialState(), lastSeq: env.seq, seqEpoch: state.seqEpoch, revision: state.revision + 1 };
+  }
+
+  // The deck's own record of what its Command Panel started (the server's
+  // panel-provenance.mjs), which the panel reads from the deck when it needs
+  // it. Not a session speaking, and nothing on the board changes.
+  if (name === "__panel_launch") {
+    state.lastSeq = env.seq;
+    return state;
   }
 
   state.totalEvents += 1;
@@ -159,7 +169,10 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   }
   // The card exists now, if this event made it: what reached the session before
   // it lands first, so everything this event says, being newer, lands on top.
+  // So does the Command Panel launch that started it, when the stage knew it
+  // first (panel-launch.ts).
   adoptParkedEnrichment(state, sessionId);
+  adoptPanelLaunch(state, sessionId);
   // A subagent naming itself on its own traffic settles, for the rest of the
   // session, that an event naming nobody is the root's — and the root takes
   // back what the stack lent its subagents before this said so. See

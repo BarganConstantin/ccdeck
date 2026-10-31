@@ -179,6 +179,25 @@ import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage
 // Connected trackers (#2178) and each provider's own reads. See
 // integrations/routes.mjs; nothing in it is shared with paired decks.
 import { handleIntegrations } from "./integrations/routes.mjs";
+// The Command Panel's eight routes, every one absent while the panel is
+// switched off and answered by the optional local engine while it is on —
+// see terminal-routes.mjs — and the WebSocket upgrade that carries a session,
+// which runs its own gates because the route table never sees an upgrade
+// (terminal-socket.mjs).
+import {
+  handleTerminalAdopt, handleTerminalClaim, handleTerminalEndHosts, handleTerminalHosts, handleTerminalLaunch, handleTerminalOpen,
+  handleTerminalStatus, handleTerminalTarget, terminalUpgradeOptions,
+} from "./terminal-routes.mjs";
+import { installTerminalUpgrade } from "./terminal-socket.mjs";
+// Whether this deck's platform has the Command Panel, which Settings' switch
+// follows: Linux and macOS; on Windows only the test-only preview, which no
+// production entry can ask for (command-panel-platform.mjs).
+import { commandPanelPlatform } from "./command-panel-platform.mjs";
+// For bin/deck.js's shutdown: an upgraded socket is not in the HTTP server's
+// connection list, so closeAllConnections() never reaches a terminal; and the
+// Command Panel's engine, a child of this process, is stopped beside them.
+export { closeAllTerminals } from "./terminal-socket.mjs";
+export { stopCommandPanelEngine } from "./command-panel-engine.mjs";
 // The port fallback, one listen attempt, and the words for a failed one — see
 // listen.mjs. The loop that uses them is startServer's.
 import { listenFailure, portRetryable, randomPort, tryListen } from "./listen.mjs";
@@ -203,13 +222,25 @@ export function requestUrl(rawUrl) {
   catch { return null; }
 }
 
-export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null } = {}) {
+// `terminal` is handed to the Command Panel's routes and its upgrade as their
+// stand-ins (see terminalDeps in terminal-routes.mjs). The product passes
+// nothing. A test passes an engine's terminal as `terminal.engine`
+// (engineTerminals in pro-engine-terminal.mjs), or the JS backend as
+// `terminal.jsBackend` (terminal-js-routes.mjs) to run the routes on a tmux
+// server of its own: only a caller of startServer can, and nothing the deck
+// runs imports that backend, so no setting, variable, flag or request reaches
+// it.
+export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null, terminal = {} } = {}) {
   startQuotaHistory();
   startQuotaCloses();
   await startToolAudit();
   armLifecycle({ onRestart, onStop, persist, onSelfUpdate: () => reporter.noteSelfUpdate() });
   // Which tree and which CLIs, normalised once — see setDeckScope.
   setDeckScope({ workspace, claude, codex });
+  // Whether the Command Panel's switch is offered here, asked once: off Windows
+  // the platform's answer, nothing loaded; on Windows `unsupported`, but for
+  // the test-only preview (command-panel-platform.mjs).
+  const panelPlatform = await commandPanelPlatform(terminal);
   // A boot is the one moment the file, and not the engine, is the authority on
   // the key, the pairings and the port. See lanApplyFields.
   resetLanLoaded();
@@ -340,13 +371,13 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/codex-usage")  return guard(handleCodexUsage(req, res), res);
     // Machine state, not session state: sampled on the server's own timer and
     // deliberately kept out of the event stream. See src/server/system-metrics.mjs.
-    if (req.method === "GET"  && url.pathname === "/api/prefs")        return handlePrefsRead(req, res);
+    if (req.method === "GET"  && url.pathname === "/api/prefs")        return handlePrefsRead(req, res, panelPlatform);
     if (req.method === "GET"  && url.pathname === "/api/lan")          return handleLanStatus(req, res);
     if (req.method === "POST" && url.pathname === "/api/lan/peer")     return guard(handleLanPeer(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/lan/invite")   return guard(handleLanInvite(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/lan/sync")     return guard(handleLanSync(req, res), res);
-    if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res), res);
-    if (req.method === "POST" && url.pathname === "/api/prefs/give-back") return guard(handlePrefsGiveBack(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res, panelPlatform), res);
+    if (req.method === "POST" && url.pathname === "/api/prefs/give-back") return guard(handlePrefsGiveBack(req, res, panelPlatform), res);
     if (req.method === "POST" && url.pathname === "/api/reports")      return guard(handleReportsWrite(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/feedback")     return handleFeedbackFacts(req, res);
     if (req.method === "POST" && url.pathname === "/api/feedback")     return guard(handleFeedback(req, res), res);
@@ -450,6 +481,19 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // once per name per day. A name, never what was in it. See feature-use.mjs.
     if (req.method === "POST" && url.pathname === "/api/feature") return guard(handleFeature(req, res), res);
 
+    // The Command Panel. While it is switched off each of these answers the
+    // 404 below, word for word, without asking anything of anyone — see
+    // terminal-routes.mjs. Session ids ride in the query or the body, never in
+    // the path, so GUARDED_READS can name the three reads exactly.
+    if (req.method === "GET"  && url.pathname === "/api/terminal/status") return guard(handleTerminalStatus(req, res, terminal), res);
+    if (req.method === "GET"  && url.pathname === "/api/terminal/target") return guard(handleTerminalTarget(req, res, url, terminal), res);
+    if (req.method === "GET"  && url.pathname === "/api/terminal/hosts")  return guard(handleTerminalHosts(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/hosts/end") return guard(handleTerminalEndHosts(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/open")   return guard(handleTerminalOpen(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/adopt")  return guard(handleTerminalAdopt(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/launch") return guard(handleTerminalLaunch(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/claim")  return guard(handleTerminalClaim(req, res, terminal), res);
+
     // AN UNMATCHED /api/ PATH IS A 404, not the SPA shell.
     //
     // serveStatic falls back to index.html for a path it cannot find, which is
@@ -516,6 +560,16 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       failed(res, err);
     }
   });
+
+  // THE ONE 'upgrade' LISTENER, and what having one costs: while it is there
+  // Node hands every request that carries an Upgrade header to it instead of
+  // to `route`, on any path and past every gate above. So it answers a 404 to
+  // everything that is not the terminal's own socket, and runs the gates again
+  // itself for the one path it takes. It is there only while the panel is
+  // switched on (installTerminalUpgrade follows the switch), so a deck with
+  // the panel off answers an offered upgrade the way it always did. Before the
+  // listen loop, so it is armed on whichever port binds.
+  installTerminalUpgrade(server, terminalUpgradeOptions(terminal));
 
   // Try requested port first, then up to 10 random ports from portRange.
   const candidates = [port];

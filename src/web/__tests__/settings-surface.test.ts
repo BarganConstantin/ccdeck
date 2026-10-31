@@ -97,6 +97,7 @@ describe("a door into Settings opens it at the section it names", () => {
       ["data", />Tool history<\/h3>/],
       ["claude", />Messages from other sessions</],
       ["radar", /data-setting="radar-open"/],
+      ["experimental", />Features still being tested, each off until you turn it on\.</],
       ["about", />Version</],
     ];
     expect(cases.map(([id]) => id)).toEqual(SETTINGS_SECTIONS.map(s => s.id));
@@ -117,6 +118,19 @@ describe("a door into Settings opens it at the section it names", () => {
       expect(html, id).toContain(`<p class="settings-pane-note">${note}</p>`);
       expect(note.split(/\s+/).length, id).toBeLessThanOrEqual(16);
     }
+  });
+
+  it("draws the Command Panel's switch alone in Experimental, only when App hands it over, and nowhere in General", () => {
+    const terminal = { on: false, supported: true, toggle: noop };
+    expect(drawSettings({ section: "experimental" })).not.toContain("settings-terminal-label");
+    const html = drawSettings({ section: "experimental", terminal });
+    expect(html).toMatch(/role="switch" aria-checked="false" aria-labelledby="settings-terminal-label"/);
+    expect(html).toContain(">Command Panel<");
+    expect(html.match(/role="switch"/g), "one switch, in an untitled group").toHaveLength(1);
+    expect(html).not.toContain("</h3>");
+    const general = drawSettings({ section: "general", terminal });
+    expect(general).not.toContain("settings-terminal-label");
+    expect(general).not.toContain(">Terminal</h3>");
   });
 
   it("gives each subject its own section: the board in General, the look in Appearance, the keys in Keyboard, history in Data", () => {
@@ -146,8 +160,9 @@ describe("a door into Settings opens it at the section it names", () => {
 
   it("names the eleven sections in the nav, in order, About last", () => {
     // Integrations since #2178: the trackers this deck reads, between Sounds and Data.
-    // Claude Code beside Radar, the other section that writes Claude Code's settings.
-    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Data", "Claude Code", "Radar", "About"];
+    // Claude Code beside Radar, the other section that writes Claude Code's settings;
+    // Experimental since the Command Panel: what is still being tested, before About.
+    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Data", "Claude Code", "Radar", "Experimental", "About"];
     expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(names);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all

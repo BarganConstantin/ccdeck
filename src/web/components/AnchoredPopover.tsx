@@ -50,7 +50,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { menuMove } from "../menu-keys";
-import { placePopover } from "../popover-place";
+import { placePopover, type PopoverAlign } from "../popover-place";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { useOutsidePress } from "./use-outside-press";
 
@@ -58,8 +58,6 @@ interface Props {
   /** The control this hangs off, by id. Looked up at each placement rather
    *  than held, so a row re-rendered under it is followed rather than lost. */
   anchorId: string;
-  /** Board pickers may align to the start of their trigger. */
-  align?: "start" | "end";
   /** Keep modal-owned controls inside its accessibility boundary. */
   portalRootId?: string;
   /** The element the anchor scrolls inside. Once the anchor has left it, the
@@ -86,6 +84,9 @@ interface Props {
    *  anchor if it was inside — or to fallbackFocus, when the anchor is no
    *  longer drawn — so the caller only has to stop rendering it. */
   onClose: () => void;
+  /** Which edge lines up with the anchor's (popover-place.ts). "end" unless
+   *  the anchor sits at the left end of the surface the popover belongs to. */
+  align?: PopoverAlign;
   children: ReactNode;
 }
 
@@ -99,7 +100,7 @@ function itemsIn(root: HTMLElement | null): HTMLButtonElement[] {
 }
 
 export default function AnchoredPopover({
-  anchorId, align = "end", boundaryId, portalRootId, id, className, role, labelledBy, start = "first", focusRef, fallbackFocus, onClose, children,
+  anchorId, boundaryId, portalRootId, id, className, role, labelledBy, start = "first", focusRef, fallbackFocus, onClose, align = "end", children,
 }: Props) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -142,15 +143,20 @@ export default function AnchoredPopover({
       return;
     }
     // Measured at its natural height, so a popover that was squeezed last time
-    // is allowed to grow back when there is room again.
+    // is allowed to grow back when there is room again. Uncapped it has nothing
+    // to scroll, and the browser takes its scroll back to the top as it
+    // measures: kept here and handed back under the cap, or a render undoes a
+    // scroll down to the last controls (popover-keeps-scroll.test.ts).
+    const scrolled = el.scrollTop;
     el.style.maxHeight = "";
     const p = placePopover(box, { width: el.offsetWidth, height: el.offsetHeight },
       { width: window.innerWidth, height: window.innerHeight }, align);
     el.style.top = `${p.top}px`;
     el.style.left = `${p.left}px`;
     el.style.maxHeight = p.maxHeight == null ? "" : `${p.maxHeight}px`;
+    if (scrolled) el.scrollTop = scrolled;
     el.dataset.side = p.side;
-  }, [anchorId, align, boundaryId, ref]);
+  }, [anchorId, boundaryId, ref, align]);
 
   // Before paint, every render: the first one is what puts it beside the
   // anchor at all, and the rest follow a row that moved.

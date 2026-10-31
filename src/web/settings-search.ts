@@ -73,6 +73,7 @@ const SECTION_KEYWORDS: Record<SettingsSection, readonly string[]> = {
   data: ["privacy", "local data"],
   claude: ["claude", "claude code", "cli", "settings.json", "config", "configuration"],
   radar: ["telemetry", "collector", "monitoring"],
+  experimental: ["beta", "labs", "preview", "early access"],
   about: ["information"],
 };
 
@@ -192,6 +193,10 @@ function buildIndex(): SettingsEntry[] {
     radar: [
       { id: "radar-open", section: "radar", label: "Radar",
         keywords: ["telemetry", "collector", "monitoring", "traffic", "background", "automatic", "packet capture"] },
+    ],
+    experimental: [
+      { id: "terminal", section: "experimental", label: "Command Panel",
+        keywords: ["terminal", "tmux", "shell", "console", "command line", "cli", "pane", "attach", "type", "beta", "experimental"] },
     ],
     about: [
       { id: "version", section: "about", group: "ccdeck", label: "Version",
