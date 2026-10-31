@@ -31,6 +31,7 @@
 // label.
 import React, { useEffect, useMemo, useState } from "react";
 import { areaPath, band, linePath, spanLabel, yFor, SPARK_PAD, type History, type Series } from "./SectionHistoryModal";
+import { t as translate, useT } from "../i18n";
 import { fmtReading, fmtThreshold, liveReadings, type LiveSource } from "../machine-live";
 
 /** The panel's own order, so the strip reads as the same machine described in
@@ -89,9 +90,9 @@ export function worthACell(s: Series): boolean {
  *    "Swap memory" would have been wrong on the one platform nobody re-reads.
  */
 export function cellLabel(s: Series): string {
-  if (s.unit === "C") return `${s.label} temp`;
-  if (s.key === "mem:physical") return "Physical RAM";
-  if (s.key === "mem:swap") return `${s.label} memory`;
+  if (s.unit === "C") return translate("insights.strip.temp", { label: s.label });
+  if (s.key === "mem:physical") return translate("insights.strip.ram");
+  if (s.key === "mem:swap") return translate("insights.strip.swap", { label: s.label });
   return s.label;
 }
 
@@ -101,6 +102,7 @@ export function windowOf(s: Series, n = WINDOW_BUCKETS): Series {
 }
 
 export default function MachineStrip({ sys }: { sys: LiveSource }) {
+  const t = useT();
   const [hist, setHist] = useState<Record<string, History>>({});
 
   useEffect(() => {
@@ -154,7 +156,7 @@ export default function MachineStrip({ sys }: { sys: LiveSource }) {
       from = Math.min(from, p[0].t);
       to = Math.max(to, p[p.length - 1].t);
     }
-    return Number.isFinite(from) ? spanLabel(from, to) : "less than a minute";
+    return Number.isFinite(from) ? spanLabel(from, to) : t("insights.strip.lessMinute");
   }, [cells]);
 
   // Nothing at all on a machine that publishes nothing — not an empty band, not
@@ -171,7 +173,7 @@ export default function MachineStrip({ sys }: { sys: LiveSource }) {
   if (!Object.keys(live).length) return null;
 
   return (
-    <div className="pl-strip" role="group" aria-label={`This machine, over the last ${span}`}>
+    <div className="pl-strip" role="group" aria-label={t("insights.strip.aria", { span })}>
       {cells.map(({ series, stepMs }) => (
         <Cell key={series.key} series={series} stepMs={stepMs} now={live[series.key]} span={span} />
       ))}
@@ -180,6 +182,7 @@ export default function MachineStrip({ sys }: { sys: LiveSource }) {
 }
 
 function Cell({ series, stepMs, now, span }: { series: Series; stepMs: number; now: number | undefined; span: string }) {
+  const t = useT();
   const { points, top, unit, warnAt, critAt } = series;
   const label = cellLabel(series);
   // The live reading where the snapshot has one, and the last bucket where it
@@ -196,13 +199,13 @@ function Cell({ series, stepMs, now, span }: { series: Series; stepMs: number; n
     <div
       className={`pl-cell${tone ? ` ${tone}` : ""}`}
       title={[
-        `${label} · peak ${fmtReading(peak, unit)} over the last ${span}`,
+        t("insights.strip.peakTitle", { label, peak: fmtReading(peak, unit), span }),
         // The dashed line says WHERE the threshold is; this says what it is.
         // The number is not drawn in the box: the tag the full chart prints
         // needs a 30px gutter, and taking that out of a 116px sparkline costs
         // more of the shape than the digits return.
-        warnAt != null ? `over ${fmtThreshold(warnAt, unit)} is uncomfortable` : "",
-        critAt != null ? `over ${fmtThreshold(critAt, unit)} the machine acts` : "",
+        warnAt != null ? t("insights.strip.warn", { n: fmtThreshold(warnAt, unit) }) : "",
+        critAt != null ? t("insights.strip.crit", { n: fmtThreshold(critAt, unit) }) : "",
       ].filter(Boolean).join(" · ")}
     >
       <div className="pl-cell-head">
@@ -251,9 +254,9 @@ function Cell({ series, stepMs, now, span }: { series: Series; stepMs: number; n
           looking. Said in words for a screen reader, which gets no shape at
           all. */}
       <span className="vis-hidden">
-        peak {fmtReading(peak, unit)} over the last {span}
-        {warnAt != null && `, uncomfortable over ${fmtThreshold(warnAt, unit)}`}
-        {critAt != null && `, the machine acts over ${fmtThreshold(critAt, unit)}`}
+        {t("insights.strip.peak", { peak: fmtReading(peak, unit), span })}
+        {warnAt != null && `, ${t("insights.strip.warnShort", { n: fmtThreshold(warnAt, unit) })}`}
+        {critAt != null && `, ${t("insights.strip.critShort", { n: fmtThreshold(critAt, unit) })}`}
       </span>
     </div>
   );

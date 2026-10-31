@@ -1,4 +1,5 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment } from "react/jsx-runtime";
+import type { ReactNode } from "react";
 
 /** A translated sentence with parts that are not text (bold numbers, <code>):
  *  `rich(t(key), { calls: <strong>3</strong> })` puts each node where
