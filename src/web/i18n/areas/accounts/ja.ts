@@ -254,7 +254,7 @@ const catalog: Catalog = {
   "accounts.rest.allReady": "{count} 件が利用可能",
   "accounts.rest.notReady": "利用不可",
   "accounts.rest.noneReady": "{total} 件とも利用不可",
-  "accounts.rest.someReady": "{total} 件中 {ready} 件が利用可能",
+  "accounts.rest.someReady": "{ready}/{total} 件が利用可能",
   "accounts.rest.free": "空き {free}%",
   "accounts.rest.autoAt": "自動 {pct}%",
   "accounts.rest.autoOn": "自動オン",
