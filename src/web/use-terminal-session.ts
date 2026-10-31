@@ -212,6 +212,26 @@ export function showCursorFromTheStart(term: unknown): void {
   if (service && typeof service.isCursorInitialized === "boolean") service.isCursorInitialized = true;
 }
 
+/**
+ * Forget a key the pane saw go down but will never see come up.
+ *
+ * xterm takes text that comes with no key — an emoji panel, dictation, an
+ * on-screen keyboard — only while no key of its own is down: it marks one on
+ * keydown and clears the mark on the keyup in its textarea, never on blur
+ * (CoreBrowserTerminal `_keyDownSeen`, `_keyPressHandled`, `_inputEvent`). A
+ * key let go elsewhere leaves the mark: the deck's Ctrl+Shift+X gives the keys
+ * to the board on the press, Alt+Tab lets go in another window. The first such
+ * text after the pane has the keys again was then lost. Cleared as the pane
+ * loses them; xterm 6 has no public switch for this, and a version without
+ * these flags is left as it is. Exported for its test.
+ */
+export function forgetKeyInFlight(term: unknown): void {
+  const core = (term as { _core?: { _keyDownSeen?: unknown; _keyPressHandled?: unknown } } | null)?._core;
+  if (!core) return;
+  if (typeof core._keyDownSeen === "boolean") core._keyDownSeen = false;
+  if (typeof core._keyPressHandled === "boolean") core._keyPressHandled = false;
+}
+
 /** The byte Ctrl+V sends in a terminal: Claude Code and Codex read an image
  *  from the clipboard on it. */
 export const CTRL_V = "\x16";
@@ -388,7 +408,10 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
   host.addEventListener("paste", onPaste, true);
   const textarea = term.textarea;
   const onFocus = () => events.onFocusChange(true);
-  const onBlur = () => events.onFocusChange(false);
+  const onBlur = () => {
+    forgetKeyInFlight(term);
+    events.onFocusChange(false);
+  };
   textarea?.addEventListener("focus", onFocus);
   textarea?.addEventListener("blur", onBlur);
 

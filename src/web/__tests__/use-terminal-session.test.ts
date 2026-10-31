@@ -40,6 +40,7 @@ import {
   TMUX_SETUP_GIVE_UP_MS,
   TMUX_SETUP_POLL_MS,
   createTerminalSession,
+  forgetKeyInFlight,
   pasteHoldsImage,
   showCursorFromTheStart,
   subjectKey,
@@ -1392,5 +1393,49 @@ describe("the cursor of a pane nobody has focused yet", () => {
     expect(pub).toMatch(/private _core: ITerminal/);
     const core = readFileSync(resolve(xterm, "common/services/CoreService.ts"), "utf8");
     expect(core).toMatch(/public isCursorInitialized: boolean = false/);
+  });
+});
+
+describe("a key let go outside the pane", () => {
+  it("is forgotten, so the text an emoji panel or dictation sends next is not dropped", () => {
+    const term = { _core: { _keyDownSeen: true, _keyPressHandled: true, other: 1 } };
+    forgetKeyInFlight(term);
+    expect(term._core).toEqual({ _keyDownSeen: false, _keyPressHandled: false, other: 1 });
+  });
+
+  it("leaves a terminal without those flags as it is, rather than inventing them", () => {
+    const term = { _core: {} as Record<string, unknown> };
+    forgetKeyInFlight(term);
+    expect(term._core).toEqual({});
+    expect(() => forgetKeyInFlight(null)).not.toThrow();
+    expect(() => forgetKeyInFlight({})).not.toThrow();
+  });
+
+  it("is forgotten each time the pane loses the keys, before the stage hears of it", () => {
+    // mountXterm's blur (source-pinned: it needs a real xterm).
+    const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../use-terminal-session.ts"), "utf8");
+    const mount = src.slice(src.indexOf("export const mountXterm"), src.indexOf("// The controller."));
+    expect(mount).toMatch(/const onBlur = \(\) => \{\s*forgetKeyInFlight\(term\);\s*events\.onFocusChange\(false\);\s*\};/);
+    expect(mount).toMatch(/textarea\?\.addEventListener\("blur", onBlur\);/);
+    expect(mount).toMatch(/textarea\?\.removeEventListener\("blur", onBlur\);/);
+  });
+
+  it("still finds xterm keeping that mark until a keyup of its own, so an upgrade that changes it fails here", () => {
+    const xterm = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "node_modules", "@xterm", "xterm");
+    const core = readFileSync(resolve(xterm, "src/browser/CoreBrowserTerminal.ts"), "utf8");
+    expect(core).toMatch(/private _keyDownSeen: boolean = false;/);
+    expect(core).toMatch(/private _keyPressHandled: boolean = false;/);
+    // Text with no key is dropped while either is set …
+    expect(core).toMatch(/if \(ev\.data && ev\.inputType === 'insertText' && \(!ev\.composed \|\| !this\._keyDownSeen\)[^\n]*\{\s*if \(this\._keyPressHandled\) \{\s*return false;/);
+    // … and only a keyup in its textarea clears the first: its blur does not.
+    expect(core.match(/this\._keyDownSeen = false;/g)).toHaveLength(1);
+    const keyUp = core.slice(core.indexOf("protected _keyUp(ev: KeyboardEvent): void {"));
+    expect(keyUp).toMatch(/^protected _keyUp\(ev: KeyboardEvent\): void \{\s*this\._keyDownSeen = false;/);
+    const blur = core.slice(core.indexOf("private _handleTextAreaBlur(): void {"), core.indexOf("private _syncTextArea(): void {"));
+    expect(blur).not.toMatch(/_keyDownSeen|_keyPressHandled/);
+    // The bundle the deck loads keeps the names the fix sets.
+    const bundle = readFileSync(resolve(xterm, "lib/xterm.mjs"), "utf8");
+    expect(bundle).toMatch(/\._keyDownSeen=/);
+    expect(bundle).toMatch(/\._keyPressHandled=/);
   });
 });
