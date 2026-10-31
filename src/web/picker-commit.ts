@@ -37,6 +37,7 @@
 // plain node with no DOM, so a rule that only exists inside JSX is a rule
 // nothing can check.
 import type { SlotChoice } from "./account-move";
+import { t as tNow, type TFunction } from "./i18n";
 
 /** What a picker's commit control reads, and what pressing it does. */
 export interface PickerCommit {
@@ -81,38 +82,37 @@ export function slotShowing(choices: SlotChoice[], draft: number | null, current
  * so the button and the option it commits are reading the same answer — the
  * button says `swap` exactly when the option said `· swap`.
  */
-export function slotCommit(choices: SlotChoice[], picked: number, current: number): PickerCommit {
+export function slotCommit(choices: SlotChoice[], picked: number, current: number, t: TFunction = tNow): PickerCommit {
   // A pick that is not in the list at all is the account's own slot as far as
   // this is concerned: there is nowhere to send it, so the control does not.
   const kind = choices.find(c => c.slot === picked)?.kind ?? "here";
 
   if (kind === "swap") {
     return {
-      label: "swap",
-      done: "swapped",
+      label: t("accounts.pick.swap"),
+      done: t("accounts.pick.swapped"),
       sends: true,
       swaps: true,
-      title: `Send this account to slot ${picked}. That slot is taken, so the two accounts trade places `
-           + `and the one standing there moves to slot ${current}.`,
+      title: t("accounts.pick.swapTip", { slot: picked, current }),
     };
   }
 
   if (kind === "free") {
     return {
-      label: "move",
-      done: "moved",
+      label: t("accounts.pick.move"),
+      done: t("accounts.pick.moved"),
       sends: true,
       swaps: false,
-      title: `Send this account to slot ${picked}. That slot is empty, so no other account moves.`,
+      title: t("accounts.pick.moveTip", { slot: picked }),
     };
   }
 
   return {
-    label: "move",
-    done: "here",
+    label: t("accounts.pick.move"),
+    done: t("accounts.pick.here"),
     sends: false,
     swaps: false,
-    title: `This account already holds slot ${current}.`,
+    title: t("accounts.pick.hereTip", { current }),
   };
 }
 
@@ -122,15 +122,13 @@ export function slotCommit(choices: SlotChoice[], picked: number, current: numbe
  * destructive, a keystroke is not a decision — with its hover saying what the
  * picked option does.
  */
-export function nextCommit(picked: string, stored: string): PickerCommit {
+export function nextCommit(picked: string, stored: string, t: TFunction = tNow): PickerCommit {
   return {
-    label: "save",
-    done: "saved",
+    label: t("accounts.pick.save"),
+    done: t("accounts.pick.saved"),
     sends: picked !== stored,
     swaps: false,
-    title: picked === "weekly"
-      ? "Move to the account whose weekly limit resets soonest, within 4 days."
-      : "Move to the account with the most room left.",
+    title: t(picked === "weekly" ? "accounts.pick.nextWeeklyTip" : "accounts.pick.nextRoomTip"),
   };
 }
 
@@ -143,12 +141,12 @@ export function nextCommit(picked: string, stored: string): PickerCommit {
  * setting per keystroke. `save` and `saved` are the words the alias field
  * already uses for a stored value, and this is one.
  */
-export function thresholdCommit(picked: string, stored: string): PickerCommit {
+export function thresholdCommit(picked: string, stored: string, t: TFunction = tNow): PickerCommit {
   return {
-    label: "save",
-    done: "saved",
+    label: t("accounts.pick.save"),
+    done: t("accounts.pick.saved"),
     sends: picked !== stored,
     swaps: false,
-    title: `Switch the active account out once it passes ${picked}% of its limit.`,
+    title: t("accounts.pick.thresholdTip", { picked }),
   };
 }

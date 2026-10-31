@@ -12,6 +12,7 @@ import { useRef } from "react";
 import AnchoredPopover from "./AnchoredPopover";
 import { type AccountIssue } from "../account-issue";
 import { ago } from "../account-freshness";
+import { useT } from "../i18n";
 
 /** The panel's one warning mark, drawn at the header icons' spec — a triangle
  *  and a stroke, in whatever ink the words beside it are in. */
@@ -57,6 +58,7 @@ export default function AccountIssuePopover({ anchorId, boundaryId, issue, who, 
   // Focus opens on Done. Report this is first in the DOM, held left, and was
   // the first control the dismiss hook found: a keyboard Enter after opening
   // the popover filed a report instead of answering it.
+  const t = useT();
   const doneRef = useRef<HTMLButtonElement>(null);
   return (
     <AnchoredPopover
@@ -78,7 +80,7 @@ export default function AccountIssuePopover({ anchorId, boundaryId, issue, who, 
         <p className="ap-pop-note ap-issue-when">
           <span className="ap-issue-who">{who}</span>
           {" · "}
-          {fetchedAt ? `last collected ${ago(fetchedAt, nowSec)}` : "never collected"}
+          {fetchedAt ? t("accounts.issuePop.lastCollected", { ago: ago(fetchedAt, nowSec) }) : t("accounts.issuePop.neverCollected")}
         </p>
         <div className="ap-pop-actions">
           {/* Subordinate to Done and the fix — a quiet word on the left, no box,
@@ -88,13 +90,13 @@ export default function AccountIssuePopover({ anchorId, boundaryId, issue, who, 
               while the two answers stay right. */}
           {onReport && (
             <button type="button" className="ap-issue-report" onClick={() => { onClose(); onReport(); }}>
-              Report this
+              {t("accounts.issuePop.report")}
             </button>
           )}
-          <button type="button" ref={doneRef} className="btn" onClick={() => onClose(true)}>Done</button>
+          <button type="button" ref={doneRef} className="btn" onClick={() => onClose(true)}>{t("accounts.done")}</button>
           {issue.fix && (
             <button type="button" className="btn primary" onClick={() => { onClose(true); onSignIn(); }}
-              title="Open the sign-in dialog. Signing in as this account puts its login back in this slot — it keeps its slot, its alias and its history.">
+              title={t("accounts.issuePop.fixTip")}>
               {issue.fix}
             </button>
           )}
