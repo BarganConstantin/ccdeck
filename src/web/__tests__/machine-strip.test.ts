@@ -380,7 +380,7 @@ describe("the process section is one way in, and draws nothing", () => {
     expect(block).toContain('className="sd-open sd-door"');
     // Named with the words on its plate first (#1771), so a voice-control user
     // who says "Busiest processes" reaches it.
-    expect(block).toContain('aria-label="Busiest processes: show every process the deck is watching"');
+    expect(block).toContain('aria-label={t("insights.machine.processesAria")}');
   });
 
   it("says what is behind it, because it has no reading to say it with", () => {
@@ -389,8 +389,8 @@ describe("the process section is one way in, and draws nothing", () => {
     // that failed to load rather than as a way through — and it is the whole
     // replacement for eight rows somebody was reading yesterday.
     const block = processes();
-    expect(block).toContain("Busiest processes");
-    expect(block).toContain("every process, with its command line");
+    expect(block).toContain('{t("insights.proc.title")}');
+    expect(block).toContain('{t("insights.machine.processesSub")}');
     expect(block).toContain('<i className="sd-row-more" aria-hidden>›</i>');
     // The name is in the reading colour, not the heading grey. The door is a
     // row now, not a card inside the panel: no plate fill, no radius and no
@@ -553,8 +553,8 @@ describe("the dialog's type", () => {
     // refreshed every four seconds. The heading says "Busiest processes", the
     // count beside it says how many of how many, and the numbers move while you
     // watch: a caption for what the reader could already see.
-    expect(modalSrc).toContain("macOS Activity Monitor shows a different figure.");
-    expect(modalSrc).toMatch(/which is a filter and not a guarantee/);
+    expect(modalSrc).toContain('note={t("insights.proc.memoryNote")}');
+    expect(modalSrc).toContain('note={t("insights.proc.processNote")}');
     // On the headers, not in a band of their own.
     expect(modalSrc).not.toContain("pl-foot");
     expect(css).not.toContain(".pl-foot");
@@ -719,11 +719,11 @@ describe("the thresholds the sparkline draws", () => {
     // The full chart prints `90` and `75` in a 30px gutter it reserves for
     // them. Taking that out of a 116px sparkline costs more of the shape than
     // the digits return, so the dashed line says WHERE and the title says WHAT.
-    expect(strip).toContain("is uncomfortable");
-    expect(strip).toContain("the machine acts");
+    expect(strip).toContain('t("insights.strip.warn"');
+    expect(strip).toContain('t("insights.strip.crit"');
     // And a screen reader, which gets no dashes at all, is told both.
     const sr = strip.slice(strip.indexOf('<span className="vis-hidden">'));
-    expect(sr.slice(0, sr.indexOf("</span>"))).toContain("uncomfortable over");
+    expect(sr.slice(0, sr.indexOf("</span>"))).toContain('t("insights.strip.warnShort"');
   });
 });
 

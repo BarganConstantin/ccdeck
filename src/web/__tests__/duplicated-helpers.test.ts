@@ -343,7 +343,7 @@ describe("a tool call's duration", () => {
   it("is one function, called from the row and the dialog it opens", () => {
     expect(toolModal).toMatch(/import \{ toolDuration \} from "\.\.\/duration";/);
     expect(code(detail)).toMatch(/const durLabel = toolDuration\(t, "…"\);/);
-    expect(code(toolModal)).toMatch(/toolDuration\(tool, "in-flight…"\)/);
+    expect(code(toolModal)).toMatch(/toolDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
     expect(code(toolModal)).not.toMatch(/function dur\(/);
     expect(code(app)).not.toMatch(/toFixed\(1\)\}s/);
     expect(code(detail)).not.toMatch(/toFixed\(1\)\}s/);

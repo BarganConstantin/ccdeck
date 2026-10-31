@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { auditDuration, readAuditReport, type AuditProvider, type AuditReport, type AuditRow } from '../tool-audit';
-import { auditDay, count, failureShare, findHighlights, periodLabels, sortTools, summaryParts, toolSorts, toolSortValue, type Highlight, type ToolSort } from '../tool-audit-report';
+import { auditDay, countOf, failureShare, findHighlights, periodIn, periodLabel, periodLabels, sortTools, summaryParts, toolSortLabel, toolSorts, toolSortValue, type Highlight, type ToolSort } from '../tool-audit-report';
+import { t as translate, useLanguage, useT, currentLanguage } from '../i18n';
+import { rich } from '../insights-rich';
 import { operationDescription, operationName } from '../operation-glossary';
 import ToolAuditDrawer from './ToolAuditDrawer';
 import ToolAuditInspector from './ToolAuditInspector';
@@ -14,12 +16,13 @@ import { useMediaQuery } from '../use-media-query';
 import { useModalDismiss, useScrimDismiss } from './use-modal-dismiss';
 
 const FIRST_ROWS = 12;
-const providers: { id: AuditProvider; label: string }[] = [{ id: 'all', label: 'All agents' }, { id: 'claude', label: 'Claude' }, { id: 'codex', label: 'Codex' }];
+const providers: { id: AuditProvider; label: string }[] = [{ id: 'all', label: translate('insights.audit.agents.all') }, { id: 'claude', label: 'Claude' }, { id: 'codex', label: 'Codex' }];
+const agentLabel = (id: AuditProvider) => id === 'all' ? translate('insights.audit.agents.all') : id === 'claude' ? 'Claude' : 'Codex';
 /** The two views, each opened by a door of its own on the right stripe (rail-items.tsx). */
 export type ToolActivityView = 'tools' | 'skills';
 type View = ToolActivityView;
 /** Each view's title, and the stripe door that opens it — where focus goes back to. */
-const viewTitle: Record<View, string> = { tools: 'Tool activity', skills: 'Skill activity' };
+const viewTitle = (view: View) => translate(view === 'tools' ? 'insights.audit.title.tools' : 'insights.audit.title.skills');
 const viewDoor: Record<View, string> = { tools: 'tool-activity', skills: 'skill-activity' };
 
 const RefreshGlyph = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5" /></svg>;
@@ -32,15 +35,17 @@ const highlightGlyph: Record<Highlight['kind'], ReactNode> = {
 
 /** What a screen reader hears for a row: every value, with its meaning. */
 function rowLabel(row: AuditRow) {
-  const failed = row.failed ? `${row.failed.toLocaleString()} failed (${failureShare(row)})` : 'none failed';
-  const time = row.totalMs === null ? 'not timed' : `${auditDuration(row.totalMs)} in total, usually ${auditDuration(row.medianMs)}`;
-  return `${operationName(row.operation)}${operationDescription(row.operation) ? `, ${operationDescription(row.operation)}` : ''}: ${count(row.calls, 'call')}, ${time}, ${failed}`;
+  const failed = row.failed ? translate('insights.audit.row.failed', { n: row.failed.toLocaleString(currentLanguage()), share: failureShare(row) ?? '' }) : translate('insights.audit.row.noneFailed');
+  const time = row.totalMs === null ? translate('insights.audit.row.notTimed') : translate('insights.audit.row.timed', { total: auditDuration(row.totalMs), usual: auditDuration(row.medianMs) });
+  const description = operationDescription(row.operation);
+  return translate('insights.audit.row.label', { name: operationName(row.operation), description: description ? `, ${description}` : '', calls: countOf(row.calls, 'call'), time, failed });
 }
 
 export default function ToolAuditModal({ view: door = 'tools', onClose, sessionLabel, onOpenSession }: SessionLinks & { view?: View; onClose: () => void }) {
   // Tools and Skills read the same journal for the same period and agent (#2181).
   // No tabs between them: each opens from its own door. The Skill tool's details
   // still lead on to the skills it loaded, so the view can change once open.
+  const t = useT();
   const [view, setView] = useState<View>(door);
   const [provider, setProvider] = useState<AuditProvider>('all');
   const [period, setPeriod] = useState('7');
@@ -104,7 +109,7 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
           // Open details whose tool the new period lacks move to its first, rather than closing.
           else if (selectedRef.current && !reply.rows.some(row => row.operation === selectedRef.current)) setSelected(sortTools(reply.rows, sortRef.current, searchRef.current)[0]?.operation ?? null);
         }
-      } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'Reading the history took too long. Try again, or keep less history in Settings.'); }
+      } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : t('insights.audit.err.slow')); }
       finally { window.clearTimeout(deadline); if (live) { busy.current = false; setLoading(false); } }
     })();
     return () => { live = false; controller.abort(); window.clearTimeout(deadline); busy.current = false; };
@@ -121,14 +126,16 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
       try {
         const reply = await readAuditReport(`${query}&operation=${encodeURIComponent(selected)}&history=1`, controller.signal);
         if (live) { if (reply.details?.measurements === null) setSelected(null); else setDetails(reply.details); }
-      } catch { if (live) setDetailError('Could not read the calls for this tool. Close it and open it again to retry.'); }
+      } catch { if (live) setDetailError(t('insights.audit.err.calls')); }
       finally { window.clearTimeout(deadline); if (live) setDetailLoading(false); }
     })();
     return () => { live = false; controller.abort(); window.clearTimeout(deadline); };
   }, [selected, data, loading, query, view]);
 
   const rows = useMemo(() => sortTools(data?.rows ?? [], sort, search), [data, sort, search]);
-  const highlights = useMemo(() => data ? findHighlights(data.rows, data.totalMs) : [], [data]);
+  const language = useLanguage();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const highlights = useMemo(() => data ? findHighlights(data.rows, data.totalMs) : [], [data, language]);
   const visible = showAll || search ? rows : rows.slice(0, FIRST_ROWS);
   const top = rows.length ? toolSortValue(rows[0], sort) ?? 0 : 0;
   const liveRow = data?.rows.find(row => row.operation === selected);
@@ -158,18 +165,18 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
   const reading = view === 'skills' ? skillStatus.loading : loading;
   const shown = view === 'skills' ? (skillStatus.hasData ? skillStatus.capturedAt : null) : data?.capturedAt ?? null;
   const filters = <div className="ta-filters">
-    <div className="uh-range" role="group" aria-label="Period">{Object.entries(periodLabels).map(([days, label]) => <button key={days} type="button" className="uh-range-btn" aria-pressed={period === days} onClick={() => setPeriod(days)}>{label}</button>)}</div>
-    <div className="uh-range" role="group" aria-label="Agent">{providers.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={provider === item.id} onClick={() => setProvider(item.id)}>{item.label}</button>)}</div>
+    <div className="uh-range" role="group" aria-label={t('insights.audit.period')}>{Object.keys(periodLabels).map(days => <button key={days} type="button" className="uh-range-btn" aria-pressed={period === days} onClick={() => setPeriod(days)}>{periodLabel(days)}</button>)}</div>
+    <div className="uh-range" role="group" aria-label={t('insights.audit.agent')}>{providers.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={provider === item.id} onClick={() => setProvider(item.id)}>{agentLabel(item.id)}</button>)}</div>
   </div>;
 
   return createPortal(<div className="modal-backdrop" role="presentation" {...scrimPress}>
     <div className="modal ta-report" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title" data-view={view}>
       <header className="modal-head ta-report-header">
-        <h2 id="tool-audit-title">{viewTitle[view]}</h2>
+        <h2 id="tool-audit-title">{viewTitle(view)}</h2>
         <div className="ta-actions">
-          <span className="ta-freshness" role="status">{reading ? shown !== null ? 'Updating…' : 'Reading history…' : shown !== null ? `Updated ${new Date(shown).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
-          <button type="button" className="glyph-btn" aria-label={view === 'skills' ? 'Refresh skill activity' : 'Refresh tool activity'} title="Refresh" data-loading={reading || undefined} aria-busy={view === 'skills' ? skillStatus.loading || skillStatus.detailLoading : loading || detailLoading} onClick={doRefresh}><RefreshGlyph /></button>
-          <button type="button" ref={closeRef} className="glyph-btn" onClick={closeReport} aria-label={`Close ${viewTitle[view].toLowerCase()}`} title="Close (Esc)">×</button>
+          <span className="ta-freshness" role="status">{reading ? shown !== null ? t('insights.audit.updating') : t('insights.audit.reading') : shown !== null ? t('insights.audit.updated', { time: new Date(shown).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' }) }) : ''}</span>
+          <button type="button" className="glyph-btn" aria-label={view === 'skills' ? t('insights.audit.refresh.skills') : t('insights.audit.refresh.tools')} title={t('insights.audit.refresh')} data-loading={reading || undefined} aria-busy={view === 'skills' ? skillStatus.loading || skillStatus.detailLoading : loading || detailLoading} onClick={doRefresh}><RefreshGlyph /></button>
+          <button type="button" ref={closeRef} className="glyph-btn" onClick={closeReport} aria-label={view === 'skills' ? t('insights.audit.close.skills') : t('insights.audit.close.tools')} title={t('insights.audit.closeEsc')}>×</button>
         </div>
       </header>
       <div className="ta-view-panel">
@@ -178,25 +185,24 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
         <div className="ta-body"><div className="ta-report-content">
           {filters}
 
-          {loading && !data && <div className="ta-loading" role="status" aria-label="Reading tool history"><i /><i /><i /><i /><i /></div>}
-          {error && <div className="ta-message" role="alert"><p>{data && 'Showing the last numbers. '}{error}</p><button type="button" className="btn" onClick={doRefresh}>Try again</button></div>}
+          {loading && !data && <div className="ta-loading" role="status" aria-label={t('insights.audit.readingTools')}><i /><i /><i /><i /><i /></div>}
+          {error && <div className="ta-message" role="alert"><p>{data && `${t('insights.audit.lastNumbers')} `}{error}</p><button type="button" className="btn" onClick={doRefresh}>{t('insights.audit.tryAgain')}</button></div>}
 
           {data && summary && (data.total === 0 ? <div className="ta-empty">
-            <h3>No tool calls in the last {periodLabels[period]}</h3>
-            <p>ccdeck records each tool {provider === 'all' ? 'Claude Code and Codex use' : provider === 'claude' ? 'Claude Code uses' : 'Codex uses'} on this device, starting {auditDay(data.startedAt)}. Run a session and the calls show up here.</p>
-            {period !== '90' && <button type="button" className="btn" onClick={() => setPeriod('90')}>Show the last 90 days</button>}
+            <h3>{t('insights.audit.empty.title', { period: periodIn(period) })}</h3>
+            <p>{t(provider === 'all' ? 'insights.audit.empty.all' : provider === 'claude' ? 'insights.audit.empty.claude' : 'insights.audit.empty.codex', { since: auditDay(data.startedAt) })}</p>
+            {period !== '90' && <button type="button" className="btn" onClick={() => setPeriod('90')}>{t('insights.audit.show90')}</button>}
           </div> : <>
             <p className="ta-summary">
-              {summary.lead} <strong>{summary.calls}</strong>
-              {summary.time && <> and spent <strong>{summary.time}</strong> running them</>}.{' '}
-              {summary.failed ? <><strong className="ta-bad">{summary.failed.toLocaleString()} failed</strong> ({summary.failedShare}).</> : 'None failed.'}
+              {rich(t(summary.time ? 'insights.audit.summary.timed' : 'insights.audit.summary.untimed', { period: summary.period, who: summary.who }), { calls: <strong>{summary.calls}</strong>, time: <strong>{summary.time}</strong> })}{' '}
+              {summary.failed ? rich(t(summary.failedShare ? 'insights.audit.summary.failedShare' : 'insights.audit.summary.failedOnly', { share: summary.failedShare ?? '' }), { failed: <strong className="ta-bad">{t('insights.audit.nFailed', { n: summary.failed.toLocaleString(currentLanguage()) })}</strong> }) : t('insights.audit.noneFailed')}
             </p>
-            {(!data.storageOk || data.dropped > 0 || data.corrupt > 0) && <p className="ta-warning" role="status">Some calls could not be saved or read, so these numbers may be a little low.{!data.storageOk && ' Check free disk space.'}</p>}
+            {(!data.storageOk || data.dropped > 0 || data.corrupt > 0) && <p className="ta-warning" role="status">{t('insights.audit.warning')}{!data.storageOk && ` ${t('insights.audit.diskSpace')}`}</p>}
 
             {/* At a glance: what is worth a look beside where the time went. */}
             {(highlights.length > 0 || data.split) && <div className="ta-glance" data-single={!(highlights.length > 0 && data.split) || undefined}>
               {highlights.length > 0 && <section className="ta-highlights" aria-labelledby="ta-highlights-title">
-                <h3 id="ta-highlights-title">Worth a look</h3>
+                <h3 id="ta-highlights-title">{t('insights.audit.worth')}</h3>
                 <ul>{highlights.map(item => <li key={item.kind}><button type="button" className="ta-highlight" data-kind={item.kind} data-operation={item.operation} aria-expanded={selected === item.operation} aria-controls={selected === item.operation ? 'tool-operation-inspector' : undefined} onClick={select(item.operation)}>
                   <span className="ta-highlight-glyph">{highlightGlyph[item.kind]}</span>
                   <span className="ta-highlight-text"><span><code>{operationName(item.operation)}</code> {item.title}</span><small>{item.detail}</small></span>
@@ -207,36 +213,36 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
 
             <section className="ta-tools" aria-labelledby="ta-tools-title">
               <div className="ta-tools-head">
-                <h3 id="ta-tools-title">Tools and commands <span className="ta-count">{data.rows.length.toLocaleString()}</span></h3>
-                <label className="ta-search"><SearchGlyph /><input type="search" aria-label="Find a tool or command" placeholder="Find a tool or command" value={search} onChange={event => setSearch(event.target.value)} /></label>
+                <h3 id="ta-tools-title">{t('insights.audit.tools')} <span className="ta-count">{data.rows.length.toLocaleString(currentLanguage())}</span></h3>
+                <label className="ta-search"><SearchGlyph /><input type="search" aria-label={t('insights.audit.find')} placeholder={t('insights.audit.find')} value={search} onChange={event => setSearch(event.target.value)} /></label>
               </div>
-              <div className="uh-range ta-sorts" role="group" aria-label="Sort by">{toolSorts.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={sort === item.id} onClick={() => setSort(item.id)}>{item.label}</button>)}</div>
-              <div className="ta-list-head" aria-hidden="true" data-sort={sort}><span>Name</span><span data-col="calls">Calls</span><span data-col="time">Total time</span><span data-col="slowest">Usually</span><span data-col="failed">Failed</span></div>
+              <div className="uh-range ta-sorts" role="group" aria-label={t('insights.audit.sortBy')}>{toolSorts.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={sort === item.id} onClick={() => setSort(item.id)}>{toolSortLabel(item.id)}</button>)}</div>
+              <div className="ta-list-head" aria-hidden="true" data-sort={sort}><span>{t('insights.audit.col.name')}</span><span data-col="calls">{t('insights.audit.col.calls')}</span><span data-col="time">{t('insights.audit.col.time')}</span><span data-col="slowest">{t('insights.audit.col.usually')}</span><span data-col="failed">{t('insights.audit.col.failed')}</span></div>
               <ul className="ta-list" data-sort={sort}>{visible.map(row => {
                 const value = toolSortValue(row, sort);
                 const description = operationDescription(row.operation);
                 return <li key={row.operation}><button type="button" className="ta-row" data-operation={row.operation} data-selected={selected === row.operation || undefined} aria-expanded={selected === row.operation} aria-controls={selected === row.operation ? 'tool-operation-inspector' : undefined} aria-label={rowLabel(row)} onClick={select(row.operation)}>
                   <span className="ta-row-name"><span className="ta-op">{operationName(row.operation)}</span>{description && <span className="ta-desc">{description}</span>}<span className="ta-bar" aria-hidden="true" style={{ "--ta-share": top && value ? Math.max(0.015, value / top) : 0 } as CSSProperties} /></span>
-                  <span className="ta-cell" data-col="calls">{row.calls.toLocaleString()}<span className="ta-unit"> {row.calls === 1 ? 'call' : 'calls'}</span></span>
-                  <span className="ta-cell" data-col="time">{auditDuration(row.totalMs)}<span className="ta-unit"> total</span></span>
-                  <span className="ta-cell" data-col="slowest"><span className="ta-unit">usually </span>{auditDuration(row.medianMs)}</span>
-                  <span className="ta-cell" data-col="failed" data-bad={row.failed > 0 || undefined}>{row.failed ? <>{row.failed.toLocaleString()}<span className="ta-unit"> failed</span><small>{failureShare(row)}</small></> : <span className="ta-zero">0<span className="ta-unit"> failed</span></span>}</span>
+                  <span className="ta-cell" data-col="calls">{row.calls.toLocaleString(currentLanguage())}<span className="ta-unit"> {t('insights.audit.unit.calls', { count: row.calls })}</span></span>
+                  <span className="ta-cell" data-col="time">{auditDuration(row.totalMs)}<span className="ta-unit"> {t('insights.audit.unit.total')}</span></span>
+                  <span className="ta-cell" data-col="slowest"><span className="ta-unit">{t('insights.audit.unit.usually')} </span>{auditDuration(row.medianMs)}</span>
+                  <span className="ta-cell" data-col="failed" data-bad={row.failed > 0 || undefined}>{row.failed ? <>{row.failed.toLocaleString(currentLanguage())}<span className="ta-unit"> {t('insights.audit.unit.failed')}</span><small>{failureShare(row)}</small></> : <span className="ta-zero">0<span className="ta-unit"> {t('insights.audit.unit.failed')}</span></span>}</span>
                 </button></li>;
               })}</ul>
-              {!rows.length && <p className="ta-note ta-no-match">No tool or command matches “{search.trim()}”.</p>}
-              {!search && !showAll && rows.length > FIRST_ROWS && <button type="button" className="btn ta-more" onClick={() => setShowAll(true)}>Show all {rows.length.toLocaleString()}</button>}
+              {!rows.length && <p className="ta-note ta-no-match">{t('insights.audit.noMatch', { search: search.trim() })}</p>}
+              {!search && !showAll && rows.length > FIRST_ROWS && <button type="button" className="btn ta-more" onClick={() => setShowAll(true)}>{t('insights.audit.showAll', { n: rows.length.toLocaleString(currentLanguage()) })}</button>}
             </section>
 
             <details className="ta-explain">
-              <summary>How this is counted</summary>
+              <summary>{t('insights.audit.how')}</summary>
               <ul>
-                <li>A call’s time runs from when the agent starts the tool until it reports back, so it can include waiting for your approval.</li>
-                <li>Where the time went follows each Claude Code turn by the clock, from your prompt until Claude stops: this machine while a tool runs or its hooks start it, you while Claude waits for your approval or answer, and Claude for the rest. Calls that ran together count once, and a pipeline’s time goes to the command feeding it, not to the <code>tail</code> reading its output.</li>
-                <li>Total time adds every call together. Calls that ran at the same time each count, so it can be more than the time that actually passed.</li>
-                <li>“Usually” is the middle value: half of the calls were quicker, half took longer.</li>
-                <li>A command line such as <code>git add . &amp;&amp; git commit</code> counts once for each command in it, and shares its time and result with both.</li>
-                <li>Claude and Codex report times in different ways, so do not compare one with the other.</li>
-                <li>Recorded on this device since {auditDay(data.startedAt)} and kept for {data.retentionDays} days. Commands are grouped by name; their arguments and output are never saved. Change this in Settings.</li>
+                <li>{t('insights.audit.how.1')}</li>
+                <li>{rich(t('insights.audit.how.2'), { tail: <code>tail</code> })}</li>
+                <li>{t('insights.audit.how.3')}</li>
+                <li>{t('insights.audit.how.4')}</li>
+                <li>{rich(t('insights.audit.how.5'), { example: <code>git add . &amp;&amp; git commit</code> })}</li>
+                <li>{t('insights.audit.how.6')}</li>
+                <li>{t('insights.audit.how.7', { since: auditDay(data.startedAt), days: data.retentionDays })}</li>
               </ul>
             </details>
           </>)}

@@ -390,7 +390,7 @@ describe("the deck's ten overlays", () => {
     // default is already the right answer there, and this is what makes that
     // true.
     const firstButton = (/<button(?:=>|[^>])*>/.exec(code(read("ToolModal.tsx"))) ?? [""])[0];
-    expect(firstButton).toContain('aria-label="Close (Esc)"');
+    expect(firstButton).toContain('aria-label={t("insights.audit.closeEsc")}');
   });
 
   it("greets the usage modal's keyboard with Close and not with a range tab", () => {

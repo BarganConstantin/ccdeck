@@ -16,7 +16,7 @@ const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("the machine panel has a heading (#879)", () => {
   it("draws its title as an h2", () => {
-    expect(panel).toMatch(/<h2 className="sd-title" id="sd-title">This machine<\/h2>/);
+    expect(panel).toMatch(/<h2 className="sd-title" id="sd-title">\{t\("insights\.machine\.title"\)\}<\/h2>/);
     expect(panel).not.toMatch(/<span className="sd-title">/);
   });
 

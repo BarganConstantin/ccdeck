@@ -338,7 +338,7 @@ describe("the join to the canvas", () => {
     // What survives every version is the arithmetic on screen, so the panel
     // sums the rows and compares. `sessionListScale` is given the WHOLE range
     // rather than `rangeSessionRows`, which is cut at twelve.
-    expect(sessions).toContain(">active {periodNoun}</span>");
+    expect(sessions).toContain('>{t("insights.usage.active", { period: periodNoun })}</span>');
     expect(panel).toContain("sessionListScale(range, rangeSum.cost)");
     expect(sessions).toContain("title={sessionListNote(periodNoun, sessionScale, fmtCost)}");
   });
@@ -848,8 +848,8 @@ describe("the session section's disclosure", () => {
     // one fact the collapse actually takes away. The heading already carries
     // two things; a third in ink would be the noise this panel is short of.
     expect(sessions).toContain("const sessionCount = fromRange ? rangeSessionRows.length : boardSessionRows.length;");
-    expect(sessions).toMatch(/Show the per-session breakdown — \$\{sessionCount\} session\$\{sessionCount === 1 \? "" : "s"\}/);
-    expect(sessions).toContain('"Hide the per-session breakdown"');
+    expect(sessions).toMatch(/t\("insights\.usage\.showSessions", \{ count: sessionCount, n: sessionCount \}\)/);
+    expect(sessions).toContain('t("insights.usage.hideSessions")');
   });
 });
 

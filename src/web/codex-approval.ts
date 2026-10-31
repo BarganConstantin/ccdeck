@@ -68,6 +68,7 @@
 // Pure and importing only types, like ambient-counts.ts and for the same
 // reason: the suite runs in bare node with no DOM, so a rule that decides what a
 // card says has to be callable without rendering one.
+import { t } from "./i18n";
 import type { AgentNodeData } from "./types";
 
 /**
@@ -161,16 +162,11 @@ export function codexApprovalTell(a: AgentNodeData): ApprovalTell | null {
   // least, and treating it as `never` would be an assertion the deck has not
   // earned.
   const why = asks === true
-    ? `This session's approval policy is "${a.approvalPolicy}", so Codex can stop and ask you to approve a command.`
-    : "This session's approval policy has not been read yet, so it may be able to stop and ask you to approve a command.";
+    ? t("insights.approval.known", { policy: String(a.approvalPolicy) })
+    : t("insights.approval.unknown");
 
   return {
-    label: "approvals not visible",
-    detail:
-      `${why}\n\n`
-      + "Codex writes no approval request to its rollout files, which are the only "
-      + "thing this deck can read — so when it does ask, this card, the sidebar, "
-      + "the topbar count, the tab title and the favicon will all stay silent. "
-      + "Check the terminal.",
+    label: t("insights.approval.label"),
+    detail: `${why}\n\n${t("insights.approval.detail")}`,
   };
 }

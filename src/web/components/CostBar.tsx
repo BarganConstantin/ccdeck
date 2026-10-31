@@ -1,3 +1,4 @@
+import { useT } from "../i18n";
 import { fmtCost, type CostBreakdown } from "../pricing";
 
 // The stacked cost bar, once, for the three panels that draw it.
@@ -52,6 +53,7 @@ export type CostBarSize = "md" | "lg";
  * possible for it to say anything.
  */
 export default function CostBar({ cost, size = "md" }: { cost: CostBreakdown; size?: CostBarSize }) {
+  const t = useT();
   const total = cost.total;
   if (total <= 0) return null;
   const seg = (val: number, cls: string, label: string) => {
@@ -74,11 +76,11 @@ export default function CostBar({ cost, size = "md" }: { cost: CostBreakdown; si
   // be read as a class of its own.
   const large = size === "lg";
   return (
-    <div className={large ? "cost-bar cost-bar-lg" : "cost-bar"} role="img" aria-label="Cost breakdown">
-      {seg(cost.input, "cb-input", "input")}
-      {seg(cost.output, "cb-output", "output")}
-      {seg(cost.cacheRead, "cb-cache-r", "cache read")}
-      {seg(cost.cacheWrite, "cb-cache-w", "cache write")}
+    <div className={large ? "cost-bar cost-bar-lg" : "cost-bar"} role="img" aria-label={t("insights.cost.breakdown")}>
+      {seg(cost.input, "cb-input", t("insights.cost.input"))}
+      {seg(cost.output, "cb-output", t("insights.cost.output"))}
+      {seg(cost.cacheRead, "cb-cache-r", t("insights.cost.cacheRead"))}
+      {seg(cost.cacheWrite, "cb-cache-w", t("insights.cost.cacheWrite"))}
     </div>
   );
 }

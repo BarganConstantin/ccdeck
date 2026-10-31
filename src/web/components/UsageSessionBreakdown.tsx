@@ -8,7 +8,8 @@
 // name and dot is the panel's too, handed in under the names the markup used.
 import type { Dispatch, SetStateAction, ReactNode } from "react";
 import type { BoardSessionRow } from "../board-usage";
-import { fmtCost, UNPRICED_LABEL } from "../pricing";
+import { useT } from "../i18n";
+import { fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
 import type { AgentState } from "../types";
 import { sessionListNote, type SessionCostRow, type SessionListScale } from "../usage-from-ccusage";
@@ -19,14 +20,15 @@ import { canInspectSession, type SessionSelection } from "../session-usage";
 function SessionRow({ sessionId, agent, label, onOpen, children }: {
   sessionId: string; agent: string; label: string; onOpen?: (session: SessionSelection) => void; children: ReactNode;
 }) {
+  const t = useT();
   return onOpen && canInspectSession(agent, sessionId)
-    ? <button type="button" className="up-session-row up-session-open" title={`Inspect session usage · ${label}`}
+    ? <button type="button" className="up-session-row up-session-open" title={t("insights.usage.inspect", { label })}
         onClick={() => onOpen({ sessionId, agent, label })}>{children}
         <svg className="up-session-inspect" width="10" height="10" viewBox="0 0 10 10" fill="none"
           stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="m3.5 2 3 3-3 3" />
         </svg>
-        <span className="vis-hidden">Open session usage</span>
+        <span className="vis-hidden">{t("insights.usage.openSession")}</span>
       </button>
     : <div className="up-session-row">{children}</div>;
 }
@@ -53,6 +55,7 @@ export default function UsageSessionBreakdown({
   onOpenSession?: (session: SessionSelection) => void;
   boardProviders?: ReadonlyMap<string, string>;
 }) {
+  const t = useT();
   const sessionCount = fromRange ? rangeSessionRows.length : boardSessionRows.length;
   return (
     <section className="up-section">
@@ -93,16 +96,16 @@ export default function UsageSessionBreakdown({
           aria-expanded={sessionsOpen}
           aria-controls="up-sessions"
           title={sessionsOpen
-            ? "Hide the per-session breakdown"
-            : `Show the per-session breakdown — ${sessionCount} session${sessionCount === 1 ? "" : "s"}`}
+            ? t("insights.usage.hideSessions")
+            : t("insights.usage.showSessions", { count: sessionCount, n: sessionCount })}
           onClick={() => setSessionsOpen(o => !o)}
         >
-          By session
+          {t("insights.usage.bySession")}
           {fromRange && (
             <span
               className="up-section-age"
               title={sessionListNote(periodNoun, sessionScale, fmtCost)}
-            >active {periodNoun}</span>
+            >{t("insights.usage.active", { period: periodNoun })}</span>
           )}
           {/* Drawn, not typed. `.bw-chev` swaps two Unicode glyphs and
               is at the mercy of whichever font answers for them on
@@ -154,7 +157,7 @@ export default function UsageSessionBreakdown({
                   "not priced" is for a session ccusage could not price. */}
               {s.cost > 0 || s.priced
                 ? <span className="up-session-cost" title={s.models.join(", ") || undefined}>{fmtCost(s.cost)}</span>
-                : <span className="up-session-cost up-unpriced">{UNPRICED_LABEL}</span>}
+                : <span className="up-session-cost up-unpriced">{t("insights.cost.notPriced")}</span>}
             </SessionRow>
           );
         })}
@@ -183,11 +186,11 @@ export default function UsageSessionBreakdown({
                 <span
                   className="up-session-cost"
                   title={s.unpricedTokens > 0
-                    ? `${fmtTokens(s.unpricedTokens)} tokens in this session are on an unpriced model, so this is a floor`
+                    ? t("insights.usage.floor", { tokens: fmtTokens(s.unpricedTokens) })
                     : undefined}
                 >{fmtCost(s.cost)}{s.unpricedTokens > 0 ? "+" : ""}</span>
               )
-              : <span className="up-session-cost up-unpriced">{UNPRICED_LABEL}</span>}
+              : <span className="up-session-cost up-unpriced">{t("insights.cost.notPriced")}</span>}
           </SessionRow>
         ))}
       </div>

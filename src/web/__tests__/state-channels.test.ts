@@ -463,8 +463,8 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // than a literal in a function body. What this test is about did not
     // change: the word the modal prints where the duration goes is still
     // `in-flight…`, and it is still written in this file.
-    expect(toolModal).toMatch(/toolDuration\(tool, "in-flight…"\)/);
-    expect(toolModal).toMatch(/<span className="err-tag">error<\/span>/);
+    expect(toolModal).toMatch(/toolDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
+    expect(toolModal).toMatch(/<span className="err-tag">\{t\("insights\.tool\.error"\)\}<\/span>/);
   });
 
   it("left the row's name to its contents — no aria-label, and no reliance on title", () => {

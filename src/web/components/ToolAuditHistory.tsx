@@ -1,22 +1,26 @@
 import { useState, type CSSProperties } from 'react';
 import { auditDuration, type AuditDay } from '../tool-audit';
-import { count } from '../tool-audit-report';
+import { currentLanguage, t as translate, useT } from '../i18n';
+import { countOf, type Countable } from '../tool-audit-report';
 
-const dateLabel = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString(undefined, { timeZone: 'UTC', month: 'short', day: 'numeric' });
+const dateLabel = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString(currentLanguage(), { timeZone: 'UTC', month: 'short', day: 'numeric' });
 /** A day as the bars need it: a tool's calls, or a skill's uses under the same name. */
 type HistoryDay = Pick<AuditDay, 'date' | 'calls' | 'status'> & { medianMs?: number | null };
 
+const kindOf = (noun: string): Countable => noun === 'use' ? 'use' : 'call';
+
 function dayText(day: HistoryDay, noun: string) {
-  if (day.status === 'outside-history') return `${dateLabel(day.date)} · before recording started`;
-  if (!day.calls) return `${dateLabel(day.date)} · no ${noun}s`;
-  return `${dateLabel(day.date)} · ${count(day.calls, noun)}${day.medianMs != null ? ` · usually ${auditDuration(day.medianMs)}` : ''}`;
+  if (day.status === 'outside-history') return translate('insights.audit.hist.before', { date: dateLabel(day.date) });
+  if (!day.calls) return translate(noun === 'use' ? 'insights.audit.hist.noUses' : 'insights.audit.hist.noCalls', { date: dateLabel(day.date) });
+  return `${dateLabel(day.date)} · ${countOf(day.calls, kindOf(noun))}${day.medianMs != null ? ` · ${translate('insights.audit.hist.usually', { time: auditDuration(day.medianMs) })}` : ''}`;
 }
 
 /** The chart's shape while its days are read, in its place and at its height, so
  *  nothing below moves when the bars land. */
 export function HistorySkeleton({ noun = 'call' }: { noun?: string }) {
+  const t = useT();
   return <section className="ta-history" aria-hidden="true">
-    <h4>{noun[0].toUpperCase()}{noun.slice(1)}s per day</h4>
+    <h4>{t(noun === 'use' ? 'insights.audit.hist.usesPerDay' : 'insights.audit.hist.callsPerDay')}</h4>
     <div className="ta-history-bars ta-history-skeleton" style={{ "--ta-days": 7 } as CSSProperties}>{[0.35, 0.6, 0.25, 0.8, 0.45, 0.3, 0.7].map((height, at) => <span key={at}><i className="ta-skel" style={{ "--ta-height": height } as CSSProperties} /></span>)}</div>
     <div className="ta-history-axis"><span>&nbsp;</span></div>
     <p className="ta-note ta-history-day"><i className="ta-skel" style={{ width: '9em' }} /></p>
@@ -26,6 +30,7 @@ export function HistorySkeleton({ noun = 'call' }: { noun?: string }) {
 /** Calls per day. A pointer over a bar names that day; the label below always
  *  says which day it is describing, so nothing depends on hover alone. */
 export default function ToolAuditHistory({ history, noun = 'call' }: { history: { days: HistoryDay[] }; noun?: string }) {
+  const t = useT();
   const days = history.days;
   const last = [...days].reverse().find(day => day.calls > 0) ?? days.at(-1);
   const [shown, setShown] = useState<string | null>(null);
@@ -33,10 +38,10 @@ export default function ToolAuditHistory({ history, noun = 'call' }: { history: 
   const day = days.find(item => item.date === shown) ?? last;
   const most = days.reduce((best, item) => item.calls > best.calls ? item : best, days[0]);
   const max = Math.max(1, most.calls);
-  const title = `${noun[0].toUpperCase()}${noun.slice(1)}s`;
+  const title = t(noun === 'use' ? 'insights.audit.hist.usesPerDay' : 'insights.audit.hist.callsPerDay');
   return <section className="ta-history" aria-labelledby="ta-history-title">
-    <h4 id="ta-history-title">{title} per day</h4>
-    <div className="ta-history-bars" role="img" aria-label={`${title} per day from ${dateLabel(days[0].date)} to ${dateLabel(days.at(-1)!.date)}. The busiest day was ${dateLabel(most.date)} with ${count(most.calls, noun)}.`} onPointerLeave={() => setShown(null)} style={{ "--ta-days": days.length } as CSSProperties}>
+    <h4 id="ta-history-title">{title}</h4>
+    <div className="ta-history-bars" role="img" aria-label={t('insights.audit.hist.aria', { title, from: dateLabel(days[0].date), to: dateLabel(days.at(-1)!.date), busiest: dateLabel(most.date), count: countOf(most.calls, kindOf(noun)) })} onPointerLeave={() => setShown(null)} style={{ "--ta-days": days.length } as CSSProperties}>
       {days.map(item => <span key={item.date} data-shown={item.date === day.date || undefined} data-outside={item.status === 'outside-history' || undefined} onPointerEnter={() => setShown(item.date)}><i style={{ "--ta-height": item.calls / max } as CSSProperties} /></span>)}
     </div>
     <div className="ta-history-axis" aria-hidden="true"><span>{dateLabel(days[0].date)}</span><span>{dateLabel(days.at(-1)!.date)}</span></div>

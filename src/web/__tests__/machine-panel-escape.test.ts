@@ -186,7 +186,7 @@ describe("the queue still ranks the dialogs against each other", () => {
 
 describe("the panel's label and the panel's behaviour agree", () => {
   it("names no key on its ×, because it answers none", () => {
-    expect(meter).toMatch(/className="glyph-btn sd-close" onClick=\{onClose\} aria-label="Close" title="Close"/);
+    expect(meter).toMatch(/className="glyph-btn sd-close" onClick=\{onClose\} aria-label=\{t\("insights\.usage\.close"\)\} title=\{t\("insights\.usage\.close"\)\}/);
     // Asked of what the control SAYS, not of the file: the prose above quotes
     // the label this used to carry, and a rule that could not tell a comment
     // from a tooltip would forbid writing down why it changed.
@@ -251,7 +251,7 @@ describe("the four docked panels are one idiom again", () => {
     ["SessionList.tsx", sessionList, 'withKey("Hide sidebar", "L", singleKeys)'],
     ["AccountsPanel.tsx", accountsPanel, 'withKey(t("accounts.close"), "A", singleKeys)'],
     // The machine panel as a whole: the component and every file lifted out of it.
-    ["MachinePanel.tsx and the files lifted out of it", meterSurface, 'aria-label="Close" title="Close"'],
+    ["MachinePanel.tsx and the files lifted out of it", meterSurface, 'aria-label={t("insights.usage.close")} title={t("insights.usage.close")}'],
   ] as const;
 
   it("names on its close button only what that button really does", () => {

@@ -1277,7 +1277,7 @@ describe("an opacity over text is a contrast ratio too (#1289)", () => {
     const src = (file: string) => MARKUP.find(m => m.file === file)!.src;
     // The history modal: the subtitle says what is running while a re-run is out.
     expect(src("components/UsageHistoryModal.tsx"))
-      .toContain('<div className="uh-sub">{view.stale ? "running ccusage…" : usageSubtitle(');
+      .toContain('<div className="uh-sub">{view.stale ? t("insights.usage.running") : usageSubtitle(');
     expect(declFor(".uh-sub", "color")).toBe("var(--text-dim)");
     // The usage panel: the headline names the period its figures are from.
     expect(src("components/UsagePanel.tsx"))

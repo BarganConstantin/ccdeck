@@ -38,8 +38,10 @@
 // because a share of the machine's cores IS what that section measures and the
 // strip under it is the only reading in the panel with no number of its own.
 import React, { useState } from "react";
+import { currentLanguage, useT } from "../i18n";
 import { attentionFlag, loadQueueNote, thermalTone, throttleRow, uptime } from "../machine-readings";
 import { fmtBytes } from "../byte-format";
+import { rich } from "../insights-rich";
 import type { Memory, Snapshot, Swap, Thermal } from "../machine-snapshot";
 import { useSystem } from "../use-system";
 import ProcessListModal from "./ProcessListModal";
@@ -75,6 +77,7 @@ function Shell({ usageOpen, leaving, sub, flag, onClose, children }: {
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const t = useT();
   const place = usePanelPlace(PLACE_KEYS.machine);
   return (
     // Named by its own heading (#879). The title was a styled <span>, so this
@@ -87,9 +90,9 @@ function Shell({ usageOpen, leaving, sub, flag, onClose, children }: {
       {...place.panel}>
       <div className="sd-top" {...place.grip}>
         <div className="sd-head">
-          <h2 className="sd-title" id="sd-title">This machine</h2>
+          <h2 className="sd-title" id="sd-title">{t("insights.machine.title")}</h2>
           {sub && <span className="sd-sub">{sub}</span>}
-          <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label="Close" title="Close">×</button>
+          <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label={t("insights.usage.close")} title={t("insights.usage.close")}>×</button>
         </div>
         {flag && <p className="sd-flag">{flag}</p>}
       </div>
@@ -129,6 +132,7 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
   leaving?: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const sys = useSystem();
 
   // The first snapshot is one localhost round trip away, and until it lands
@@ -140,7 +144,7 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
   if (!sys || sys.cpu == null || !sys.memory) {
     return (
       <Shell usageOpen={usageOpen} leaving={leaving} onClose={onClose}>
-        <div className="sd-note">reading this machine…</div>
+        <div className="sd-note">{t("insights.machine.reading")}</div>
       </Shell>
     );
   }
@@ -151,7 +155,7 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
     <Shell
       usageOpen={usageOpen}
       leaving={leaving}
-      sub={`up ${uptime(uptimeSec)} · ${cores} cores`}
+      sub={t("insights.machine.sub", { up: uptime(uptimeSec), cores })}
       flag={attentionFlag(sys)}
       onClose={onClose}
     >
@@ -187,13 +191,14 @@ function CpuSection({ cpu, perCore, loadavg, cores }: {
   loadavg: number[] | null;
   cores: number;
 }) {
+  const t = useT();
   const loadNote = loadQueueNote(loadavg?.[0], cores);
   const hasStrip = !!perCore && perCore.length > 0;
   if (!hasStrip && !loadavg) return null;
   return (
     <div className="sd-section sd-cpu" role="group" aria-label="CPU">
       {hasStrip && (
-        <OpensHistory group="cores" title="Core history" action="Show core history" label="CPU"
+        <OpensHistory group="cores" title={t("insights.machine.coreHistory")} action={t("insights.machine.showCore")} label="CPU"
           value={cpu == null ? null : `${Math.round(cpu)}%`}>
           {/* One column per logical core — what `os.cpus()` counts, which is
               threads on a machine with SMT and physical cores on one without.
@@ -216,10 +221,10 @@ function CpuSection({ cpu, perCore, loadavg, cores }: {
           <div
             className="sd-cores"
             role="img"
-            aria-label={`${perCore!.length} logical cores, busiest at ${Math.round(Math.max(...perCore!))}%`}
+            aria-label={t("insights.machine.coresAria", { count: perCore!.length, n: perCore!.length, pct: Math.round(Math.max(...perCore!)) })}
           >
             {perCore!.map((v, i) => (
-              <span key={i} className="sd-core" title={`logical core ${i + 1} · ${v}% busy`}>
+              <span key={i} className="sd-core" title={t("insights.machine.coreTitle", { n: i + 1, pct: v })}>
                 {/* A fraction of a full-height column, not a height (#505).
                     One element per core, restyled every 3 seconds while this
                     panel is open, so the difference between a composited
@@ -235,9 +240,9 @@ function CpuSection({ cpu, perCore, loadavg, cores }: {
       )}
       {loadavg && (
         <OpensHistory
-          group="load" title="Load history" action="Show load history" label="Load average"
+          group="load" title={t("insights.machine.loadHistory")} action={t("insights.machine.showLoad")} label={t("insights.machine.loadAverage")}
           liveNote={loadNote}
-          hint="the queue for the cores, counted in tasks rather than as a share of them"
+          hint={t("insights.machine.loadHint")}
         >
           {/* The figures keep the number on top and the window under it: these
               are three samples of ONE reading rather than three named ones, and
@@ -245,10 +250,10 @@ function CpuSection({ cpu, perCore, loadavg, cores }: {
               named, and it puts the name on top for that reason. */}
           <div
             className="sd-figs"
-            title="The queue for this machine's cores, averaged over one, five and fifteen minutes. A count of tasks, not a share of the CPU."
+            title={t("insights.machine.loadTitle")}
           >
             {loadavg.map((v, i) => (
-              <Fig key={i} value={v.toFixed(2)} cap={["1m", "5m", "15m"][i]} />
+              <Fig key={i} value={v.toLocaleString(currentLanguage(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} cap={["1m", "5m", "15m"][i]} />
             ))}
           </div>
           {/* NOTHING HERE WHEN THE QUEUE FITS. It read "within 16 cores" on
@@ -285,25 +290,26 @@ function MemorySection({ memory, swap, platform }: {
   swap: Swap | null;
   platform: string;
 }) {
+  const t = useT();
   const used = memory.total - memory.available;
   // Windows has no swap file in the Unix sense; what the same query reports
   // there is commit charge, so it is named for what it is.
-  const swapLabel = platform === "win32" ? "Commit" : "Swap";
+  const swapLabel = platform === "win32" ? t("insights.machine.commit") : t("insights.machine.swap");
   const swapPct = swap && swap.total > 0 ? (swap.used / swap.total) * 100 : 0;
   return (
-    <div className="sd-section" role="group" aria-label="Memory">
-      <OpensHistory group="memory" title="Memory history" action="Show memory history" label="Memory">
+    <div className="sd-section" role="group" aria-label={t("insights.machine.memory")}>
+      <OpensHistory group="memory" title={t("insights.machine.memoryHistory")} action={t("insights.machine.showMemory")} label={t("insights.machine.memory")}>
         <Row
-          label="Physical"
-          value={<><b>{fmtBytes(used)}</b> of {fmtBytes(memory.total)}</>}
+          label={t("insights.machine.physical")}
+          value={rich(t("insights.machine.of", { total: fmtBytes(memory.total) }), { used: <b>{fmtBytes(used)}</b> })}
           pct={memory.usedPct}
           tone={memory.usedPct >= 90 ? "warn" : "calm"}
-          note={`${fmtBytes(memory.available)} available`}
+          note={t("insights.machine.available", { n: fmtBytes(memory.available) })}
         />
         {swap && swap.total > 0 && (
           <Row
             label={swapLabel}
-            value={<><b>{fmtBytes(swap.used)}</b> of {fmtBytes(swap.total)}</>}
+            value={rich(t("insights.machine.of", { total: fmtBytes(swap.total) }), { used: <b>{fmtBytes(swap.used)}</b> })}
             pct={swapPct}
             tone={swapPct >= 90 ? "warn" : "calm"}
           />
@@ -343,11 +349,12 @@ function MemorySection({ memory, swap, platform }: {
  * exist. On a platform with no sensor this section has never existed.
  */
 function ThermalSection({ thermal }: { thermal: Thermal | null }) {
+  const t = useT();
   if (!thermal) return null;
   const held = thermal.throttle ? throttleRow(thermal.throttle, thermal.heldBack) : null;
   return (
-    <div className="sd-section" role="group" aria-label="Thermal">
-      <OpensHistory group="thermal" title="Thermal history" action="Show thermal history" label="Thermal">
+    <div className="sd-section" role="group" aria-label={t("insights.machine.thermal")}>
+      <OpensHistory group="thermal" title={t("insights.machine.thermalHistory")} action={t("insights.machine.showThermal")} label={t("insights.machine.thermal")}>
         {thermal.celsius.map(r => (
           <Row
             key={r.label}
@@ -363,12 +370,12 @@ function ThermalSection({ thermal }: { thermal: Thermal | null }) {
             // publishes one and the server's 90 where it does not, and nothing
             // in the snapshot says which. A sentence that named the hardware
             // would be right on one machine and wrong on the next.
-            title={`bar runs 0–${r.critAt} °C · amber from ${r.warnAt} °C, red at ${r.critAt} °C`}
-            trackLabel={`${r.celsius} °C on a bar that runs to ${r.critAt} °C, amber from ${r.warnAt} °C`}
+            title={t("insights.machine.barTitle", { crit: r.critAt, warn: r.warnAt })}
+            trackLabel={t("insights.machine.trackLabel", { c: r.celsius, crit: r.critAt, warn: r.warnAt })}
           />
         ))}
         {held && (
-          <Row label="Throttling" value={<b>{held.value}</b>} pct={held.pct} tone={held.tone} note={held.note} />
+          <Row label={t("insights.machine.throttling")} value={<b>{held.value}</b>} pct={held.pct} tone={held.tone} note={held.note} />
         )}
       </OpensHistory>
     </div>
@@ -411,6 +418,7 @@ function Processes({ sys }: {
    *  disagree by a tick. */
   sys: Snapshot;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <div className="sd-section sd-door-section">
@@ -425,14 +433,14 @@ function Processes({ sys }: {
            the one thing here a reader has not seen before. The accessible name
            stays, because a screen reader gets no plate — and it starts with the
            words on the plate, so "click Busiest processes" finds it (#1771). */
-        aria-label="Busiest processes: show every process the deck is watching"
+        aria-label={t("insights.machine.processesAria")}
       >
         <span className="sd-door-plate">
           <span className="sd-door-name">
-            Busiest processes
+            {t("insights.proc.title")}
             <i className="sd-row-more" aria-hidden>›</i>
           </span>
-          <span className="sd-door-sub">every process, with its command line</span>
+          <span className="sd-door-sub">{t("insights.machine.processesSub")}</span>
         </span>
       </button>
       {open && <ProcessListModal sys={sys} onClose={() => setOpen(false)} />}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { count } from '../tool-audit-report';
+import { useT, currentLanguage } from '../i18n';
+import { countOf } from '../tool-audit-report';
 import { ringArcs } from '../time-split';
 import type { OriginShare, SkillOrigin } from '../skill-activity';
 
@@ -14,11 +15,12 @@ const FilterGlyph = () => <svg className="tt-caret" width="10" height="10" viewB
 export default function SkillOrigins({ shares, total, filter, onFilter }: {
   shares: OriginShare[]; total: number; filter: SkillOrigin | null; onFilter: (origin: SkillOrigin | null) => void;
 }) {
+  const t = useT();
   const [hot, setHot] = useState<SkillOrigin | null>(null);
   const focus = shares.find(part => part.id === (hot ?? filter) && part.uses > 0) ?? null;
   const toggle = (id: SkillOrigin) => onFilter(filter === id ? null : id);
   return <section className="tt" aria-labelledby="sa-origins-title" data-focus={focus?.id}>
-    <div className="tt-head"><h3 id="sa-origins-title">Who starts your skills</h3><span className="tt-scope">{count(total, 'use')}</span></div>
+    <div className="tt-head"><h3 id="sa-origins-title">{t('insights.skills.origins.title')}</h3><span className="tt-scope">{countOf(total, 'use')}</span></div>
     <div className="tt-card" onPointerLeave={() => setHot(null)}>
       <div className="tt-donut">
         <svg viewBox="0 0 120 120" aria-hidden="true">
@@ -27,16 +29,16 @@ export default function SkillOrigins({ shares, total, filter, onFilter }: {
             onPointerEnter={() => setHot(arc.id)} onClick={() => toggle(arc.id)} />)}
         </svg>
         <div className="tt-center" aria-hidden="true">
-          {focus ? <><strong>{focus.share}</strong><span>{focus.label}</span></> : <><strong>{total.toLocaleString()}</strong><span>{total === 1 ? 'use' : 'uses'}</span></>}
+          {focus ? <><strong>{focus.share}</strong><span>{focus.label}</span></> : <><strong>{total.toLocaleString(currentLanguage())}</strong><span>{t('insights.skills.unit.uses', { count: total })}</span></>}
         </div>
       </div>
       <ul className="tt-lanes">
         {shares.map(part => <li key={part.id}>
           <button type="button" className="tt-lane" data-lane={part.id} aria-pressed={filter === part.id} disabled={!part.uses}
-            aria-label={`${part.label}: ${part.uses ? `${part.share}, ${count(part.uses, 'use')}` : 'not counted'}. ${part.fact}. ${filter === part.id ? 'Showing only these skills.' : 'Show only these skills.'}`}
+            aria-label={t('insights.skills.origins.aria', { label: part.label, value: part.uses ? t('insights.skills.origins.value', { share: part.share, uses: countOf(part.uses, 'use') }) : t('insights.skills.origins.notCounted'), fact: part.fact, action: t(filter === part.id ? 'insights.skills.origins.showing' : 'insights.skills.origins.show') })}
             onClick={() => toggle(part.id)} onPointerEnter={() => setHot(part.id)} onFocus={() => setHot(part.id)} onBlur={() => setHot(null)}>
             <i aria-hidden="true" /><span className="tt-lane-name">{part.label}</span><strong>{part.uses ? part.share : '—'}</strong>
-            <span className="tt-lane-time">{part.uses.toLocaleString()}</span>{part.uses > 0 && <FilterGlyph />}
+            <span className="tt-lane-time">{part.uses.toLocaleString(currentLanguage())}</span>{part.uses > 0 && <FilterGlyph />}
             <span className="tt-lane-fact">{part.fact}</span>
           </button>
         </li>)}
