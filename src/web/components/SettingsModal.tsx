@@ -49,6 +49,7 @@ import ReadingSection, { ReadingReset } from "./ReadingSection";
 import AboutSection from "./AboutSection";
 import UpdatesSection from "./UpdatesSection";
 import CharacterSection from "./CharacterSection";
+import TerminalSection, { type TerminalSwitch } from "./TerminalSection";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SettingsSearchField, SettingsSearchResults, SettingsSearchStatus } from "./SettingsSearch";
 import { useSettingsJump } from "./use-settings-jump";
@@ -77,11 +78,13 @@ export interface SettingsModalProps {
   restart: ReturnType<typeof useAutoRestart>;
   /** Where About and General send the reader, each closing this first. */
   doors: SettingsDoors;
+  /** The Command Panel's switch (use-stage.ts); Experimental draws it when given. */
+  terminal?: TerminalSwitch;
 }
 
 export default function SettingsModal({
   section, landOn, onSection, onClose, providers, sound, tones, customTones, notify, appearance,
-  versionCheck, desktopUpdate, restart, doors,
+  versionCheck, desktopUpdate, restart, doors, terminal,
 }: SettingsModalProps) {
   // Focus starts on the section's own tab, not on the ×: the nav is what this
   // dialog is walked by, and a door that opened it at Sounds lands the reader
@@ -212,6 +215,8 @@ export default function SettingsModal({
         return <RadarSettings onOpen={doors.radar} />;
       case "claude":
         return <ClaudeCodeSettings />;
+      case "experimental":
+        return terminal ? <TerminalSection terminal={terminal} /> : null;
       case "appearance":
         return (
           <>
@@ -278,8 +283,9 @@ export default function SettingsModal({
           />
         );
       default:
-        // General: how the board behaves, how the deck updates itself, and
-        // the preferences that live in a panel of their own (#2176).
+        // General: how the board behaves, the sessions recovered at startup,
+        // how the deck updates itself, and the preferences that live in a
+        // panel of their own (#2176).
         return (
           <>
             <BoardSection />

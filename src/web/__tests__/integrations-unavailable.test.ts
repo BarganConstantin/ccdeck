@@ -275,7 +275,7 @@ describe("Settings draws Integrations only where it holds something", () => {
   it("leaves Integrations out of the nav of a deck that offers none, and walks the arrows over what it draws", async () => {
     await deckSays([], []);
     const html = draw(createElement(SettingsModal, settingsProps()));
-    expect(tabsOf(html)).toEqual(["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Data", "Claude Code", "Radar", "About"]);
+    expect(tabsOf(html)).toEqual(["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Data", "Claude Code", "Radar", "Experimental", "About"]);
     expect(html).not.toContain('id="settings-tab-integrations"');
     const modal = sourceOf("components/SettingsModal.tsx");
     expect(modal).toContain("const SETTINGS_SECTIONS = sectionsDrawn(integrationsReachHere, section, providers.claude);");

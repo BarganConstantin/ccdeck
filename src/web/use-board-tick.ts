@@ -8,6 +8,10 @@
 // it tells the server, and the selection and modals it closes behind them.
 import { useEffect, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { sweepTick } from "./prune";
+import { inTerminalPanel } from "./terminal-keys";
+
+/** While the terminal pane has the keys, one tick in this many runs. */
+export const TYPING_EVERY = 4;
 import type { GraphState } from "./reducer";
 
 export function useBoardTick({ stateRef, rerender, pruneSelectionToBoard, setContextFor, setSummaryFor }: {
@@ -21,7 +25,15 @@ export function useBoardTick({ stateRef, rerender, pruneSelectionToBoard, setCon
 }): number {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
+    let beat = 0;
     const id = setInterval(() => {
+      // Once a second rather than four times while someone types into the
+      // terminal pane: each tick renders the whole deck, and a render landing
+      // between a key and its echo is felt there as lag. Nothing on the tick
+      // needs the quarter second then — the board is under the stage, and the
+      // stage's clocks count whole seconds.
+      beat += 1;
+      if (beat % TYPING_EVERY !== 0 && typeof document !== "undefined" && inTerminalPanel(document.activeElement)) return;
       const t = Date.now();
       setNow(t);
       // Every sweep this tick runs, on the shipped constants, with the whole

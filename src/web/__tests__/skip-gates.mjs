@@ -115,7 +115,7 @@ export const CONDITIONS = {
     //
     // Four sites now, and each raises the stakes: theme-first-paint's one case
     // reads the built page, tarball-install-smoke's eleven PACK that build and run
-    // what comes out, notices-bundle's four read the built chunks to decide
+    // what comes out, notices-bundle's five read the built chunks to decide
     // what THIRD_PARTY_NOTICES.md must attribute — an artifact question with a
     // licensing answer, which no amount of reading the sources can settle — and
     // guarded-reads' six ask the running server for those files. A leg
@@ -124,6 +124,10 @@ export const CONDITIONS = {
     // skip in the register.
     holdsOn: () => false,
     why: "publish.yml runs `npm run build` before the suite, so dist/web/index.html is always on disk in CI.",
+  },
+  "!['darwin', 'linux'].includes(process.platform)": {
+    holdsOn: (platform) => !["darwin", "linux"].includes(platform),
+    why: "The optional local engine is verified and launched on macOS and Linux only; Windows' ownership and ACL checks are not written yet, and pro-engine-client.test.ts asserts its refusal there on every leg.",
   },
 };
 
@@ -206,6 +210,27 @@ export const GATES = [
   // including every assertion about what is kept and what refuses to write,
   // runs on all three legs.
   { file: "prefs-corrupt-1002.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
+  // The terminal socket relayed to the optional local engine, against a signed
+  // test double started as the engine. An engine installation is verified and
+  // launched on macOS and Linux only — Windows' ownership and ACL checks are
+  // not there yet — so neither block can start one on Windows. What a deck
+  // with no engine does is pro-engine-terminal-off, un-gated, on every leg.
+  { file: "pro-engine-terminal.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 27 },
+  // The optional engine's own boundary: install verification, the signed
+  // handshake and the request lifecycle, against the same test double. Written
+  // on the two platforms the installer accepts rather than on win32, so a
+  // fourth platform skips rather than failing an installation it never accepts.
+  { file: "pro-engine-client.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 21 },
+  // The panel's routes answered by the same signed double started as the
+  // engine, on a real deck, on the same two platforms. What a deck with no
+  // engine answers is pro-engine-routes-off, un-gated, on every leg.
+  { file: "pro-engine-routes.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 10 },
+  // The test-only Windows preview's client started against the same double,
+  // answering as a Windows engine under an `.exe` name: a script with a
+  // shebang, which macOS and Linux run and Windows cannot, as it is not a PE
+  // file. The gate, the preview's verifier and the package's exclusion of it
+  // are in the same file, un-gated, on every leg.
+  { file: "command-panel-windows-preview.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   // The terminal's ccdeck followed through a real npm prefix: `<prefix>/bin/ccdeck`
   // is a symlink into lib/node_modules, and a file symlink on Windows needs
@@ -258,8 +283,10 @@ export const GATES = [
   // packages THIRD_PARTY_NOTICES.md must attribute. Same gate as its two
   // neighbours because the same build step satisfies it, and the same stakes —
   // without a build there is no artifact to derive the notices from, and the
-  // document would be checked against nothing at all.
-  { file: "notices-bundle.test.ts", gate: "describe.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 4 },
+  // document would be checked against nothing at all. Five since the terminal
+  // panel's packages arrived: the fifth reads index.html for what every visit
+  // loads, and holds xterm out of it.
+  { file: "notices-bundle.test.ts", gate: "describe.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 5 },
   // The whole tarball block. It packs what is on disk with `--ignore-scripts`,
   // so a leg that has not built has nothing honest to pack — and a tarball
   // without dist/web does not boot at all, which would make this a timeout

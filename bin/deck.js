@@ -215,7 +215,9 @@ const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled, leftove
 // here is how the banner came to print ~/.codex/sessions on machines whose
 // sessions are somewhere else entirely — see the Codex sessions row in
 // bin/cli/startup.js.
-const { startServer, hookToken, releaseRestart, markDeckReady, CODEX_SESSIONS_DIR, canonicalWorkspace } =
+// closeAllTerminals and stopCommandPanelEngine because shutdown, below, has to
+// reach the Command Panel's sockets and its engine itself — see the note there.
+const { startServer, hookToken, releaseRestart, markDeckReady, CODEX_SESSIONS_DIR, canonicalWorkspace, closeAllTerminals, stopCommandPanelEngine } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/index.mjs")).href);
 // What this boot set up, for the usage reports — see activation.mjs.
 const { noteSetup, respawnHooksJob } = await import(pathToFileURL(join(PKG_ROOT, "src/server/activation.mjs")).href);
@@ -670,6 +672,26 @@ async function shutdown(code = 0) {
     const hungUp = code === hangupCode();
     if (tty && code !== RESTART_CODE && code !== UPGRADE_CODE && !hungUp) {
       write(`\n\n  ${P.warn}${G.stop}  shutting down${G.ellipsis}${P.reset}\n`);
+    }
+    // THE TERMINAL PANELS ARE TOLD BEFORE ANYTHING IS REAPED. Each open panel
+    // has a `tmux -C` client among the children killed just below, and a panel
+    // whose client died first would draw an unexplained error instead of "the
+    // deck went away". Upgraded sockets are also not in the HTTP server's
+    // connection list, so the closeAllConnections() at the end never sees
+    // them, and server.close() would sit out the whole fallback waiting on
+    // them. The sessions themselves keep running in tmux; only the views go.
+    //
+    // Behind `server` because that is what says the import above has run:
+    // `server` is only ever set from startServer, which came out of the same
+    // destructuring as this, so a shutdown that arrives earlier — when there
+    // can be no terminal open — never touches a binding still in its TDZ.
+    //
+    // Then the Command Panel's engine, which the panels were relayed to: told
+    // to stop and not waited for. It has already been handed each panel's
+    // shutdown, and an engine that outlives the deck ends with its stdin.
+    if (server) {
+      try { closeAllTerminals("server-shutdown"); } catch { /* nothing open, or nothing left to tell */ }
+      try { stopCommandPanelEngine(); } catch { /* none was started */ }
     }
     // WHAT THIS DECK STARTED, ENDED WITH IT. Every deadline in exec.mjs lives
     // in a timer in THIS process — `run` states the outcome and only then kills

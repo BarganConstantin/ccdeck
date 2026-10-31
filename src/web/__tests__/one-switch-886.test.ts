@@ -52,11 +52,13 @@ describe("every switch is the one switch (#886)", () => {
     // prompt", an on/off filter over its activity list.
     // Twenty-three with Claude sessions' "Continue stopped background sessions"
     // (#2193), off until it is turned on.
-    // Twenty-two again since Settings › Radar's "Monitor automatically" went
+    // Twenty-two since Settings › Radar's "Monitor automatically" went
     // (2026-10-23): Radar monitors by itself, always.
     // Twenty-three with Settings › Claude Code, whose on/off rows are drawn by
     // one `role="switch"` from its short list of Claude Code settings.
-    expect(switches, "the twenty-three switches in the source").toBe(23);
+    // Twenty-four with the Command Panel's switch (TerminalSection.tsx), in
+    // Settings › Experimental.
+    expect(switches, "the twenty-four switches in the source").toBe(24);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

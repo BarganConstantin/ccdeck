@@ -1,0 +1,410 @@
+// The terminal panel's eight HTTP calls, answered by a fake fetch.
+//
+// What these pin is the edge between "the deck answered" and "the deck said
+// yes": a 200 that says a session cannot be attached is a state the panel
+// draws, a 409 is the one refusal it has words for, the 404 every route gives
+// while the flag is off is a fact and not a crash, and a network failure or a
+// mangled body is never mistaken for a ticket. Each case hands the call a
+// fetch that records what it was asked and answers with a real Response, so
+// the request (path, method, body, headers) and the reading of the answer are
+// both checked against the shapes src/server/terminal-routes.mjs speaks.
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import {
+  PANEL_SAID_REFUSALS,
+  PANEL_RECOVERING,
+  PANEL_UNAVAILABLE,
+  STILL_RUNNING,
+  TERMINAL_ROUTES,
+  adoptTerminal,
+  claimLaunch,
+  endHostSessions,
+  launchTerminal,
+  openTerminal,
+  panelUnavailable,
+  terminalHosts,
+  terminalStatus,
+  terminalTarget,
+  type SessionRef,
+} from "../terminal-api";
+import { withoutComments } from "./tsx-scan";
+
+type Asked = { url: string; method: string; headers: Record<string, string>; body: unknown; signal?: AbortSignal };
+
+/** A fetch that answers every request with `status` and `body`, and records
+ *  each request it saw. `body` may be a string to send something that is not
+ *  JSON at all. */
+function answering(status: number, body: unknown) {
+  const asked: Asked[] = [];
+  const fetchFn = async (url: string, init?: RequestInit) => {
+    asked.push({
+      url,
+      method: init?.method ?? "GET",
+      headers: Object.fromEntries(new Headers(init?.headers).entries()),
+      body: typeof init?.body === "string" ? JSON.parse(init.body) : init?.body,
+      signal: init?.signal ?? undefined,
+    });
+    const text = typeof body === "string" ? body : JSON.stringify(body);
+    return new Response(text, { status, headers: { "content-type": "application/json" } });
+  };
+  return { fetchFn, asked };
+}
+
+/** The engine's own refusals of a launch, in its own words: the Windows
+ *  console's (agent-missing, full, stopping, host-generations), and for
+ *  `exists`, which only an attach is ever answered, the tmux backend's. */
+const ENGINE_SAID = {
+  "agent-missing": "Claude Code is not installed here as a program the deck can start. Install it with the standalone installer or WinGet.",
+  exists: "The deck is already attached to that session.",
+  full: "The deck is running as many sessions as it can; end one to start another.",
+  stopping: "The deck is stopping, so it starts nothing new.",
+  "host-generations": "Sessions still run on two older session hosts. End or restart them to start new sessions.",
+} as const;
+
+const SESSION: SessionRef = {
+  sessionId: "0b7c4e2a-9f1d-4c3b-8a6e-2d5f7e9a1c3b",
+  provider: "claude",
+  cwd: "/home/someone/My Project/ünïcode & more",
+};
+
+const ATTACHABLE = { kind: "A", label: "A deck session — attached live." };
+const STARTED_ELSEWHERE = {
+  kind: "C",
+  label: "This session was started outside the deck, so there is no pane to attach to.",
+  adoptable: true,
+};
+
+describe("the requests themselves", () => {
+  it("asks only same-origin paths under /api/terminal/, the ones the deck routes", () => {
+    // One word under /api/terminal/, and the end of an older host's sessions
+    // under the hosts it ends them on.
+    for (const path of Object.values(TERMINAL_ROUTES)) expect(path).toMatch(/^\/api\/terminal\/(?:[a-z]+|hosts\/end)$/);
+    expect(Object.keys(TERMINAL_ROUTES).sort()).toEqual(["adopt", "claim", "endHosts", "hosts", "launch", "open", "status", "target"]);
+    expect([TERMINAL_ROUTES.hosts, TERMINAL_ROUTES.endHosts]).toEqual(["/api/terminal/hosts", "/api/terminal/hosts/end"]);
+  });
+
+  it("reads the status with a plain GET", async () => {
+    const { fetchFn, asked } = answering(200, { ok: true, platform: "linux", tmux: { ok: true, version: [3, 6] } });
+    await terminalStatus({ fetchFn });
+    expect(asked).toEqual([{ url: "/api/terminal/status", method: "GET", headers: {}, body: undefined, signal: undefined }]);
+  });
+
+  it("puts the session, provider and cwd in the target's query, encoded", async () => {
+    const { fetchFn, asked } = answering(200, { ok: true, target: ATTACHABLE });
+    await terminalTarget(SESSION, { fetchFn });
+    const url = new URL(asked[0].url, "http://127.0.0.1/");
+    expect(url.pathname).toBe("/api/terminal/target");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      session: SESSION.sessionId,
+      provider: "claude",
+      cwd: "/home/someone/My Project/ünïcode & more",
+    });
+    expect(asked[0].method).toBe("GET");
+  });
+
+  it("reads a case C target's provenance when it is one of the deck's three words, and nothing else (F6-R)", async () => {
+    for (const provenance of ["panel", "external", "unknown"] as const) {
+      const { fetchFn } = answering(200, { ok: true, target: { ...STARTED_ELSEWHERE, provenance } });
+      expect(await terminalTarget(SESSION, { fetchFn })).toEqual({ ok: true, target: { ...STARTED_ELSEWHERE, provenance } });
+    }
+    for (const provenance of ["PANEL", "launched", 1, true, null, { panel: true }]) {
+      const { fetchFn } = answering(200, { ok: true, target: { ...STARTED_ELSEWHERE, provenance } });
+      expect(await terminalTarget(SESSION, { fetchFn }), JSON.stringify(provenance)).toEqual({ ok: true, target: STARTED_ELSEWHERE });
+    }
+  });
+
+  it("POSTs a claim with the launch's key and the session's three fields, and reads the deck's yes or no", async () => {
+    const yes = answering(200, { ok: true, claimed: true, target: ATTACHABLE });
+    expect(await claimLaunch({ ...SESSION, extra: "not sent" } as SessionRef, "launch-k1", { fetchFn: yes.fetchFn }))
+      .toEqual({ ok: true, claimed: true, target: ATTACHABLE });
+    expect(yes.asked[0]).toMatchObject({ url: "/api/terminal/claim", method: "POST", headers: { "content-type": "application/json" } });
+    expect(yes.asked[0].body).toEqual({ key: "launch-k1", sessionId: SESSION.sessionId, provider: "claude", cwd: SESSION.cwd });
+    const no = answering(200, { ok: true, claimed: false, target: STARTED_ELSEWHERE });
+    expect(await claimLaunch(SESSION, "launch-k1", { fetchFn: no.fetchFn })).toEqual({ ok: true, claimed: false, target: STARTED_ELSEWHERE });
+    for (const odd of [{ ok: true, claimed: "yes", target: ATTACHABLE }, { ok: true, target: ATTACHABLE }, { ok: true, claimed: true }]) {
+      const got = await claimLaunch(SESSION, "launch-k1", { fetchFn: answering(200, odd).fetchFn });
+      expect(got.ok, `${JSON.stringify(odd)} is not an answer`).toBe(false);
+    }
+  });
+
+  it("POSTs open and adopt as JSON with exactly the session's three fields", async () => {
+    for (const call of [openTerminal, adoptTerminal]) {
+      const { fetchFn, asked } = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });
+      await call({ ...SESSION, extra: "not sent" } as SessionRef, { fetchFn });
+      expect(asked[0].method).toBe("POST");
+      expect(asked[0].headers["content-type"]).toBe("application/json");
+      expect(asked[0].body).toEqual({ sessionId: SESSION.sessionId, provider: "claude", cwd: SESSION.cwd });
+    }
+  });
+
+  it("POSTs launch with the agent and the project", async () => {
+    const { fetchFn, asked } = answering(200, { ok: true, sessionId: "", name: "ccdeck-codex-1a2b3c4d", ticket: "tk" });
+    await launchTerminal({ agent: "codex", cwd: "/srv/app" }, { fetchFn });
+    expect(asked[0]).toMatchObject({ url: "/api/terminal/launch", method: "POST", body: { agent: "codex", cwd: "/srv/app" } });
+  });
+
+  it("starts a launch or a reopen at the panel's size, with New session's options when there are any", async () => {
+    const { fetchFn, asked } = answering(200, { ok: true, sessionId: "", name: "ccdeck-claude-1a2b3c4d", ticket: "tk" });
+    await launchTerminal({ agent: "claude", cwd: "/srv/app", size: { cols: 132, rows: 41 }, launch: { model: "haiku", worktree: true } }, { fetchFn });
+    expect(asked[0].body).toEqual({ agent: "claude", cwd: "/srv/app", cols: 132, rows: 41, options: { model: "haiku", worktree: true } });
+    await launchTerminal({ agent: "claude", cwd: "/srv/app", launch: {} }, { fetchFn });
+    expect(asked[1].body, "no options is no options key").toEqual({ agent: "claude", cwd: "/srv/app" });
+    await launchTerminal({ agent: "claude", cwd: "/srv/app", key: "launch-mgx1-1-k2v9q0" }, { fetchFn });
+    expect(asked[2].body, "named, so asking again is safe").toEqual({ agent: "claude", cwd: "/srv/app", key: "launch-mgx1-1-k2v9q0" });
+    const adopt = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });
+    await adoptTerminal(SESSION, { fetchFn: adopt.fetchFn }, { cols: 90, rows: 30 });
+    expect(adopt.asked[0].body).toEqual({ sessionId: SESSION.sessionId, provider: "claude", cwd: SESSION.cwd, cols: 90, rows: 30 });
+  });
+
+  it("starts a launch or a reopen in the panel's colours when it has them", async () => {
+    const { fetchFn, asked } = answering(200, { ok: true, sessionId: "", name: "ccdeck-codex-1a2b3c4d", ticket: "tk" });
+    const colours = { fg: "#1f2328", bg: "#fafaf8" };
+    await launchTerminal({ agent: "codex", cwd: "/srv/app", colours }, { fetchFn });
+    expect(asked[0].body).toEqual({ agent: "codex", cwd: "/srv/app", colours });
+    const adopt = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });
+    await adoptTerminal(SESSION, { fetchFn: adopt.fetchFn }, undefined, colours);
+    expect(adopt.asked[0].body).toEqual({ sessionId: SESSION.sessionId, provider: "claude", cwd: SESSION.cwd, colours });
+  });
+
+  it("hands the panel's AbortSignal to fetch, so a switched-away panel can drop the request", async () => {
+    const { fetchFn, asked } = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });
+    const signal = new AbortController().signal;
+    await openTerminal(SESSION, { fetchFn, signal });
+    expect(asked[0].signal).toBe(signal);
+  });
+});
+
+describe("reading the answers", () => {
+  it("returns the status, tmux missing included, as a fact rather than a failure", async () => {
+    const tmux = { ok: false, reason: "missing", install: "sudo apt install tmux" };
+    const { fetchFn } = answering(200, { ok: true, platform: "linux", tmux });
+    expect(await terminalStatus({ fetchFn })).toEqual({ ok: true, platform: "linux", tmux });
+  });
+
+  it("keeps a download's progress only when it is one", async () => {
+    const status = async (progress: unknown) =>
+      (await terminalStatus({ fetchFn: answering(200, { ok: true, platform: "linux", tmux: { ok: false, reason: "installing", progress } }).fetchFn })) as { tmux: { progress?: unknown } };
+    expect((await status({ stage: "downloading", received: 10, total: 100 })).tmux.progress).toEqual({ stage: "downloading", received: 10, total: 100 });
+    expect((await status({ stage: "downloading", received: 10 })).tmux.progress, "no size given").toEqual({ stage: "downloading", received: 10, total: null });
+    expect((await status({ stage: "downloading", received: 10, total: 0 })).tmux.progress).toEqual({ stage: "downloading", received: 10, total: null });
+    expect((await status({ stage: "checking", received: "x" })).tmux.progress).toEqual({ stage: "checking" });
+    for (const bad of [null, "50%", { stage: "downloading" }, { stage: "downloading", received: -1 }, { stage: "downloading", received: Infinity }, { stage: "done" }]) {
+      expect((await status(bad)).tmux, JSON.stringify(bad)).not.toHaveProperty("progress");
+    }
+  });
+
+  it("returns a ticket and its target when the session can be attached", async () => {
+    const { fetchFn } = answering(200, { ok: true, ticket: "Zm9vYmFy", target: ATTACHABLE });
+    expect(await openTerminal(SESSION, { fetchFn })).toEqual({ ok: true, ticket: "Zm9vYmFy", target: ATTACHABLE });
+  });
+
+  it("passes a 200 'not attachable' through with its target, distinct from any failure", async () => {
+    const { fetchFn } = answering(200, { ok: false, target: STARTED_ELSEWHERE });
+    const answer = await openTerminal(SESSION, { fetchFn });
+    expect(answer).toEqual({ ok: false, target: STARTED_ELSEWHERE });
+    expect("status" in answer, "a state to draw must not look like an HTTP failure").toBe(false);
+  });
+
+  it("keeps the engine's refusal code beside its sentence, and no other code a route answers", async () => {
+    const said = "The Command Panel's engine is not installed on this machine.";
+    expect(await openTerminal(SESSION, { fetchFn: answering(409, { ok: false, error: said, code: "not-installed" }).fetchFn }))
+      .toEqual({ ok: false, status: 409, error: said, code: "not-installed" });
+    expect(await terminalStatus({ fetchFn: answering(503, { ok: false, error: "The Command Panel's engine is restarting.", code: "restarting" }).fetchFn }))
+      .toEqual({ ok: false, status: 503, error: "The Command Panel's engine is restarting.", code: "restarting" });
+    expect(await launchTerminal({ agent: "claude", cwd: "/srv" }, { fetchFn: answering(409, { ok: false, error: "tmux is not here.", code: "tmux-unavailable" }).fetchFn }))
+      .toEqual({ ok: false, status: 409, error: "tmux is not here." });
+    for (const code of PANEL_UNAVAILABLE) expect(panelUnavailable(code), code).toBe(true);
+    for (const code of [...PANEL_RECOVERING, "tmux-unavailable", "", null, undefined]) expect(panelUnavailable(code), String(code)).toBe(false);
+  });
+
+  it("keeps the engine's own refusals of a launch with its sentence, refusals that are not tmux's", async () => {
+    for (const [code, said] of Object.entries(ENGINE_SAID)) {
+      expect(await launchTerminal({ agent: "claude", cwd: "/srv", key: "n1" }, { fetchFn: answering(409, { ok: false, error: said, code }).fetchFn }), code)
+        .toEqual({ ok: false, status: 409, error: said, code });
+    }
+    expect([...PANEL_SAID_REFUSALS].sort(), "exactly the engine's 409s of a launch that are not tmux's").toEqual(Object.keys(ENGINE_SAID).sort());
+    for (const code of PANEL_SAID_REFUSALS) {
+      expect(panelUnavailable(code), `${code}: not a state the card checks again by itself`).toBe(false);
+      expect((PANEL_RECOVERING as readonly string[]).includes(code), `${code}: not a moment waited out`).toBe(false);
+    }
+  });
+
+  it("reads adopt's 409 as the still-running refusal the panel has a sentence for", async () => {
+    const { fetchFn } = answering(409, { ok: false, error: "still-running" });
+    expect(await adoptTerminal(SESSION, { fetchFn })).toEqual({ ok: false, status: 409, error: STILL_RUNNING });
+  });
+
+  it("returns a launch's session id, which is empty for Codex until it has written a rollout", async () => {
+    const claude = answering(200, { ok: true, sessionId: SESSION.sessionId, name: "ccdeck-claude-0b7c4e2a", ticket: "tk" });
+    expect(await launchTerminal({ agent: "claude", cwd: "/srv" }, { fetchFn: claude.fetchFn }))
+      .toEqual({ ok: true, sessionId: SESSION.sessionId, name: "ccdeck-claude-0b7c4e2a", ticket: "tk" });
+    const codex = answering(200, { ok: true, name: "ccdeck-codex-1a2b3c4d", ticket: "tk" });
+    expect(await launchTerminal({ agent: "codex", cwd: "/srv" }, { fetchFn: codex.fetchFn }))
+      .toEqual({ ok: true, sessionId: "", name: "ccdeck-codex-1a2b3c4d", ticket: "tk" });
+  });
+});
+
+describe("failures are values, never throws", () => {
+  const ALL = [
+    () => terminalStatus,
+    () => (o: object) => terminalTarget(SESSION, o),
+    () => (o: object) => openTerminal(SESSION, o),
+    () => (o: object) => adoptTerminal(SESSION, o),
+    () => (o: object) => launchTerminal({ agent: "claude", cwd: "/srv" }, o),
+  ];
+
+  it("reads the flag-off 404 on every route as 'not switched on', not as the router's 'not found'", async () => {
+    // With the flag off every terminal route answers exactly as an /api path
+    // with no route does — src/server/index.mjs sends `{ error: "not found" }`
+    // — and that word is the router's, not a sentence for the panel.
+    for (const make of ALL) {
+      for (const body of [{ error: "not found" }, "Not Found", {}]) {
+        const { fetchFn } = answering(404, body);
+        expect(await make()({ fetchFn }), JSON.stringify(body))
+          .toEqual({ ok: false, status: 404, error: "The Command Panel is not switched on for this deck." });
+      }
+    }
+    const server = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+    expect(server, "the deck's unmatched-/api answer changed; terminal-api.ts reads it by its words")
+      .toContain('send(res, 404, { error: "not found" })');
+  });
+
+  it("still passes along a 404 that comes with a sentence of the deck's own", async () => {
+    const { fetchFn } = answering(404, { ok: false, error: "That session is not on this deck." });
+    expect(await openTerminal(SESSION, { fetchFn })).toEqual({ ok: false, status: 404, error: "That session is not on this deck." });
+  });
+
+  it("reads a request-gate refusal as the deck refusing this page, not in the gate's own words", async () => {
+    // The bodies src/server/index.mjs's gates send: diagnostics, not sentences.
+    for (const [status, body] of [[401, { error: "unauthenticated" }], [403, { error: "cross-site request blocked" }], [403, {}]] as const) {
+      const { fetchFn } = answering(status, body);
+      expect(await openTerminal(SESSION, { fetchFn }), JSON.stringify(body))
+        .toEqual({ ok: false, status, error: "The deck refused the request from this page." });
+    }
+  });
+
+  it("carries the deck's own short reason when it gave one", async () => {
+    const { fetchFn } = answering(400, { ok: false, error: "That folder does not exist." });
+    expect(await launchTerminal({ agent: "claude", cwd: "/nope" }, { fetchFn }))
+      .toEqual({ ok: false, status: 400, error: "That folder does not exist." });
+  });
+
+  it("adds what to do about a tmux failure when the deck names it", async () => {
+    const { fetchFn } = answering(500, { ok: false, error: "tmux could not start the session.", code: "tmux-failed", hint: "The path to tmux's socket is too long here." });
+    expect(await launchTerminal({ agent: "claude", cwd: "/srv" }, { fetchFn }))
+      .toEqual({ ok: false, status: 500, error: "tmux could not start the session. The path to tmux's socket is too long here." });
+  });
+
+  it("says the deck did not answer when the fetch itself fails, on every route", async () => {
+    for (const make of ALL) {
+      const fetchFn = async () => { throw new TypeError("Failed to fetch"); };
+      expect(await make()({ fetchFn })).toEqual({ ok: false, status: null, error: "The deck did not answer." });
+    }
+  });
+
+  it("says the request was cancelled, not that the deck is down, when the panel aborted it", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetchFn = async () => { throw new DOMException("The operation was aborted.", "AbortError"); };
+    expect(await openTerminal(SESSION, { fetchFn, signal: controller.signal }))
+      .toEqual({ ok: false, status: null, error: "The request was cancelled." });
+  });
+
+  it("never mistakes a 200 it cannot read for a ticket", async () => {
+    const bodies: unknown[] = [
+      "<!doctype html>",                                   // the SPA shell, if a route ever fell through to it
+      { ok: true, target: ATTACHABLE },                    // no ticket
+      { ok: true, ticket: "", target: ATTACHABLE },        // an empty one
+      { ok: true, ticket: 42, target: ATTACHABLE },        // not a string
+      { ok: true, ticket: "tk" },                          // no target
+      { ok: true, ticket: "tk", target: { kind: "A" } },   // a target with no sentence
+      { ok: "yes", ticket: "tk", target: ATTACHABLE },     // ok that is not a boolean
+    ];
+    for (const body of bodies) {
+      const { fetchFn } = answering(200, body);
+      const answer = await openTerminal(SESSION, { fetchFn });
+      expect(answer.ok, JSON.stringify(body)).toBe(false);
+      expect(answer, JSON.stringify(body)).toEqual({ ok: false, status: 200, error: "The deck answered in a form this page cannot read." });
+    }
+  });
+
+  it("does not hand over a launch with no ticket or no session name", async () => {
+    for (const body of [{ ok: true, name: "ccdeck-claude-x" }, { ok: true, ticket: "tk" }, { ok: true, ticket: "tk", name: "" }]) {
+      const { fetchFn } = answering(200, body);
+      expect((await launchTerminal({ agent: "claude", cwd: "/srv" }, { fetchFn })).ok, JSON.stringify(body)).toBe(false);
+    }
+  });
+
+  it("does not take a status without a tmux verdict", async () => {
+    const { fetchFn } = answering(200, { ok: true, platform: "linux" });
+    expect((await terminalStatus({ fetchFn })).ok).toBe(false);
+  });
+});
+
+describe("the older session hosts (Windows)", () => {
+  const ID = "0123456789abcdef0123456789abcdef";
+  const SESSION_ON_HOST = { id: ID, name: "paycore", agent: "claude", cwd: "C:\\work\\paycore", conversation: "", started: 1_700_000_000_000 };
+  const HOSTS = { ok: true, hosts: [{ generation: 2, state: "security", sessions: [SESSION_ON_HOST] }], launchesRefused: null };
+
+  it("reads the hosts with a plain GET, and each host and session as the deck lists them", async () => {
+    const { fetchFn, asked } = answering(200, HOSTS);
+    expect(await terminalHosts({ fetchFn })).toEqual(HOSTS);
+    expect(asked).toEqual([{ url: "/api/terminal/hosts", method: "GET", headers: {}, body: undefined, signal: undefined }]);
+    const refused = { ...HOSTS, launchesRefused: ENGINE_SAID["host-generations"] };
+    expect(await terminalHosts({ fetchFn: answering(200, refused).fetchFn })).toEqual(refused);
+  });
+
+  it("POSTs an end with exactly the generation and the ids it was handed, and reads how many ended", async () => {
+    const { fetchFn, asked } = answering(200, { ok: true, ended: 1 });
+    expect(await endHostSessions({ generation: 2, sessions: [ID] }, { fetchFn })).toEqual({ ok: true, ended: 1 });
+    expect(asked).toEqual([{ url: "/api/terminal/hosts/end", method: "POST", headers: { "content-type": "application/json" }, body: { generation: 2, sessions: [ID] }, signal: undefined }]);
+  });
+
+  it("keeps the engine's refusals of an end with their sentences", async () => {
+    const said: Array<[number, string, string]> = [
+      [409, "consent-outdated", "The sessions on that session host changed. Review them again."],
+      [409, "host-gone", "That session host is no longer running."],
+      [500, "end-failed", "The deck could not end those sessions. Try again."],
+    ];
+    for (const [status, code, error] of said) {
+      const got = await endHostSessions({ generation: 2, sessions: [ID] }, { fetchFn: answering(status, { ok: false, error, code }).fetchFn });
+      expect(got, code).toEqual({ ok: false, status, error, code });
+    }
+    const bad = await endHostSessions({ generation: 2, sessions: [ID] }, { fetchFn: answering(400, { ok: false, error: "That is the current session host." }).fetchFn });
+    expect(bad).toEqual({ ok: false, status: 400, error: "That is the current session host." });
+  });
+
+  it("reads a deck with no session host, and the panel switched off, as failures", async () => {
+    const none = await terminalHosts({ fetchFn: answering(409, { ok: false, error: "This deck has no terminal for the Command Panel.", code: "no-terminal" }).fetchFn });
+    expect([none.ok, !none.ok && none.code]).toEqual([false, "no-terminal"]);
+    expect((await terminalHosts({ fetchFn: answering(404, { error: "not found" }).fetchFn })).ok).toBe(false);
+  });
+
+  it("refuses a list it cannot read whole: a host or a session that is not one is not half-listed", async () => {
+    const host = HOSTS.hosts[0];
+    const bad = [
+      { ...HOSTS, hosts: [{ ...host, state: "old" }] },
+      { ...HOSTS, hosts: [{ ...host, generation: 1.5 }] },
+      { ...HOSTS, hosts: [{ ...host, sessions: [SESSION_ON_HOST, { ...SESSION_ON_HOST, id: "not-an-id" }] }] },
+      { ...HOSTS, hosts: [{ ...host, sessions: [{ ...SESSION_ON_HOST, id: ID.toUpperCase() }] }] },
+      { ...HOSTS, hosts: [{ ...host, sessions: [{ ...SESSION_ON_HOST, agent: "gemini" }] }] },
+      { ...HOSTS, hosts: [{ ...host, sessions: [{ ...SESSION_ON_HOST, started: "yesterday" }] }] },
+      { ...HOSTS, hosts: [{ ...host, sessions: [{ ...SESSION_ON_HOST, name: "" }] }] },
+      { ...HOSTS, launchesRefused: "" },
+      { ...HOSTS, launchesRefused: undefined },
+      { ok: true, launchesRefused: null },
+    ];
+    for (const body of bad) expect((await terminalHosts({ fetchFn: answering(200, body).fetchFn })).ok, JSON.stringify(body)).toBe(false);
+    expect((await endHostSessions({ generation: 2, sessions: [ID] }, { fetchFn: answering(200, { ok: true, ended: "1" }).fetchFn })).ok).toBe(false);
+  });
+});
+
+describe("the module's footprint", () => {
+  it("imports nothing, and in particular nothing from xterm", () => {
+    const src = withoutComments(readFileSync(fileURLToPath(new URL("../terminal-api.ts", import.meta.url)), "utf8"));
+    expect(src).not.toMatch(/^\s*import\b/m);
+    expect(src).not.toMatch(/\bimport\(/);
+  });
+});

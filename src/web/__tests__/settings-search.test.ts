@@ -21,6 +21,7 @@ import { ACCOUNT_NOTIFY_SWITCHES } from "../notify-reach";
 import { CHIME_ORDER } from "../sound";
 import { CLAUDE_SETTINGS } from "../../server/claude-settings-catalog.mjs";
 import { TONE_LABEL } from "../components/ToneSection";
+import { TERMINAL_LABEL } from "../components/TerminalSection";
 import SettingsModal, { type SettingsModalProps } from "../components/SettingsModal";
 import { DEFAULT_PREFS } from "../sound";
 import { ACCOUNT_NOTIFY_DEFAULTS } from "../use-os-notifications";
@@ -110,6 +111,15 @@ describe("the index holds every place a result can land", () => {
     for (const chime of CHIME_ORDER) {
       expect(SETTINGS_INDEX.find(e => e.id === `tone-${chime}`)?.label).toBe(TONE_LABEL[chime]);
     }
+  });
+
+  it("names the Command Panel's switch as Experimental names it, and finds it by the words people use for one", () => {
+    const entry = SETTINGS_INDEX.find(e => e.id === "terminal")!;
+    expect(entry.label).toBe(TERMINAL_LABEL);
+    expect(entry.section).toBe("experimental");
+    expect(resultPlace(entry)).toBe("Experimental");
+    for (const q of ["command panel", "terminal", "tmux", "shell", "command line", "experimental", "beta"]) expect(ids(searchSettings(q)), q).toContain("terminal");
+    expect(ids(searchSettings("experimental"))[0], "the section first, its one row beside it").toBe("section:experimental");
   });
 
   it("names every theme by its name, under Appearance › Theme", () => {

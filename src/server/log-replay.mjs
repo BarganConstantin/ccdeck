@@ -135,6 +135,10 @@ export function replayScope(workspace, platform = process.platform, providers = 
   function admits(payload) {
     if (!payload || typeof payload !== "object") return false;
     if (payload.hook_event_name === "__clear") return true;
+    // The deck's record of what its Command Panel started (panel-provenance.mjs):
+    // no cwd and no session_id, and not a session's own event, so neither scope
+    // decides it. Admitted, like `__clear`, only when the server recorded it.
+    if (payload.hook_event_name === "__panel_launch") return true;
     // The provider gate, ahead of the workspace one and exempting `__clear` for
     // the same reason it does: the marker carries no provider, and a deck that
     // dropped it would replay a canvas the user had explicitly cleared.

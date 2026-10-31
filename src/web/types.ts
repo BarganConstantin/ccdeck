@@ -437,6 +437,12 @@ export interface AgentNodeData {
    *  never cleared by a subagent's traffic: a background Task working on does
    *  not run the turn that failed again. Root only. */
   stopFailure?: StopFacts | null;
+  /** The key of the Command Panel launch on this tab that started this
+   *  session, kept for its life (panel-launch.ts). Root only. A session the
+   *  reader started from the panel is never the do-nothing ghost the board
+   *  hides while it runs (visibility.ts), and on Windows the stage says one
+   *  it cannot reach is the deck's own launch (stage-board.ts). */
+  panelLaunch?: string;
   /** When this session was last heard from: the newest `receivedAt` of any
    *  event carrying its session id, whichever agent that event was attributed
    *  to. Only the root carries it, for the same reason only the root carries

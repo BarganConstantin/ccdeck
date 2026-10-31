@@ -15,7 +15,8 @@ import { isApplePlatform } from "./platform";
 
 /** A section of Settings, in nav order. */
 export type SettingsSection =
-  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "integrations" | "data" | "claude" | "radar" | "about";
+  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "integrations" | "data" | "claude" | "radar"
+  | "experimental" | "about";
 
 /** One section's nav entry: the word on its tab, and the line under its name
  *  at the head of the pane, saying what the section holds before anything in
@@ -47,6 +48,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "data", label: "Data", note: "What the deck keeps on this device." },
   { id: "claude", label: "Claude Code", note: "Claude Code settings, saved to your settings.json. Most changes reach running sessions." },
   { id: "radar", label: "Radar", note: "What Claude Code sends to its telemetry collector, watched all the time." },
+  { id: "experimental", label: "Experimental", note: "Features still being tested, each off until you turn it on." },
   { id: "about", label: "About", note: "The version you are running, and where to say what you think of it." },
 ];
 
