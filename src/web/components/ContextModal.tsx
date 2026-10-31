@@ -12,6 +12,7 @@
 // scan and the rollout watcher skips a session's history when it attaches. That
 // section says so instead of printing five zeroes (#399).
 import { useRef } from "react";
+import { currentLanguage, t, useT } from "../i18n";
 import type { AgentNodeData, Provider } from "../types";
 import { fmtBytes } from "../byte-format";
 import { fmtCost } from "../pricing";
@@ -53,29 +54,27 @@ export function contextCopy(provider: Provider | undefined): ContextCopy {
       // itself, on every token_count record, so nothing here is reconstructed —
       // but both figures describe the CLI's most recent request rather than
       // this instant, and that is the only caveat they carry.
-      subtitle: "reported by the Codex CLI — as of its most recent request",
-      windowScope: "last request",
+      subtitle: t("insights.context.codex.subtitle"),
+      windowScope: t("insights.context.codex.scope"),
       compositionCounted: false,
-      compositionUncounted:
-        "Not counted for Codex — the deck reconstructs the session from its rollout file "
-        + "and skips whatever was written before it attached, so a message and tool-call "
-        + "breakdown here would be short by an unknown amount. The window figure above is "
-        + "the CLI's own and is unaffected.",
-      memoryHeading: "AGENTS.md files in scope",
-      memoryEmpty: "No AGENTS.md files found on the path from cwd to the filesystem root, or in $CODEX_HOME.",
+      compositionUncounted: t("insights.context.codex.uncounted"),
+      memoryHeading: t("insights.context.codex.memory"),
+      memoryEmpty: t("insights.context.codex.memoryEmpty"),
     };
   }
   return {
-    subtitle: "approximation — CC's /context isn't hook-exposed",
-    windowScope: "current turn",
+    subtitle: t("insights.context.claude.subtitle"),
+    windowScope: t("insights.context.claude.scope"),
     compositionCounted: true,
     compositionUncounted: "",
-    memoryHeading: "CLAUDE.md files in scope",
-    memoryEmpty: "No CLAUDE.md files found on the path from cwd to ~/.claude.",
+    memoryHeading: t("insights.context.claude.memory"),
+    memoryEmpty: t("insights.context.claude.memoryEmpty"),
   };
 }
 
-function fmtN(n: number): string { return n.toLocaleString(); }
+function fmtN(n: number): string { return n.toLocaleString(currentLanguage()); }
+/** One decimal in the language's own separator: 12.0 reads "12,0" in German. */
+const fmt1 = (n: number): string => n.toLocaleString(currentLanguage(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 /** Widest path the row can print. `.ctx-md-path` is 12px monospace inside a
  *  560px modal, sharing the row with the size column, so ~60 columns is what
@@ -104,6 +103,7 @@ interface Props {
 }
 
 export default function ContextModal({ agent, onClose }: Props) {
+  const t = useT();
   // Opened from the .ctx-donut on a node header, which is where a keyboard
   // user has to end up again — this modal used to answer neither Escape nor
   // the question of where focus went when it closed.
@@ -153,39 +153,39 @@ export default function ContextModal({ agent, onClose }: Props) {
 
   return (
     <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal ctx-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Context breakdown">
+      <div ref={dialogRef} className="modal ctx-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("insights.context.aria")}>
         <header className="modal-head ctx-modal-head">
           <div>
-            <div className="modal-tool-name">Context · {agent.label}</div>
+            <div className="modal-tool-name">{t("insights.context.title", { label: agent.label })}</div>
             <div className="ctx-modal-sub">{copy.subtitle}</div>
           </div>
-          <button type="button" ref={closeRef} className="glyph-btn ctx-modal-close" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+          <button type="button" ref={closeRef} className="glyph-btn ctx-modal-close" onClick={onClose} aria-label={t("insights.audit.closeEsc")} title={t("insights.audit.closeEsc")}>×</button>
         </header>
 
         <section className="ctx-window-row">
           {/* A progressbar needs a name of its own (4.1.2): the percentage
               beside it is a sibling, not a label, so without one a reader
               heard "progress bar, 42" with nothing to say what was 42. */}
-          <div className="ctx-window-bar" role="progressbar" aria-label="Context window used" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>
+          <div className="ctx-window-bar" role="progressbar" aria-label={t("insights.context.used")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>
             <div className="ctx-window-fill" style={{ transform: `scaleX(${Math.min(100, Math.max(0, pct)) / 100})` }} />
           </div>
           <div className="ctx-window-meta">
-            <span className="ctx-window-pct">{pct.toFixed(1)}%</span>
-            <span>{fmtN(current)} / {fmtN(window)} tok ({copy.windowScope})</span>
+            <span className="ctx-window-pct">{fmt1(pct)}%</span>
+            <span>{t("insights.context.tok", { current: fmtN(current), window: fmtN(window), scope: copy.windowScope })}</span>
           </div>
         </section>
 
-        <h3 className="ctx-section-title">Cumulative usage · whole session</h3>
+        <h3 className="ctx-section-title">{t("insights.context.cumulative")}</h3>
         <div className="ctx-grid">
-          <Row label="input tokens"        val={fmtN(usage.inputTokens)} />
-          <Row label="output tokens"       val={fmtN(usage.outputTokens)} />
-          <Row label="cache reads"         val={fmtN(usage.cacheReadTokens)} />
-          <Row label="cache writes"        val={fmtN(usage.cacheCreateTokens)} />
-          <Row label="cumulative total"    val={fmtN(cumulative)} />
-          <Row label="estimated cost"      val={fmtCost(cost.total)} accent />
+          <Row label={t("insights.context.inputTokens")} val={fmtN(usage.inputTokens)} />
+          <Row label={t("insights.context.outputTokens")} val={fmtN(usage.outputTokens)} />
+          <Row label={t("insights.usage.cacheReads")} val={fmtN(usage.cacheReadTokens)} />
+          <Row label={t("insights.context.cacheWrites")} val={fmtN(usage.cacheCreateTokens)} />
+          <Row label={t("insights.context.total")} val={fmtN(cumulative)} />
+          <Row label={t("insights.context.cost")} val={fmtCost(cost.total)} accent />
         </div>
 
-        <h3 className="ctx-section-title">Transcript composition</h3>
+        <h3 className="ctx-section-title">{t("insights.context.composition")}</h3>
         {/* Five counts, or the reason there are none. On Claude they come from a
             regex scan of a transcript the server has read from byte zero. Codex
             has no transcript to scan — the deck reconstructs the session by
@@ -204,11 +204,11 @@ export default function ContextModal({ agent, onClose }: Props) {
             occupied. */}
         {copy.compositionCounted ? (
           <div className="ctx-grid">
-            <Row label="user messages"       val={fmtN(ctx?.msgsUser ?? 0)} />
-            <Row label="assistant messages"  val={fmtN(ctx?.msgsAssistant ?? 0)} />
-            <Row label="tool uses"           val={fmtN(ctx?.toolUses ?? 0)} />
-            <Row label="tool results"        val={fmtN(ctx?.toolResults ?? 0)} />
-            <Row label="system-reminders"    val={fmtN(ctx?.systemReminders ?? 0)} />
+            <Row label={t("insights.context.userMsgs")} val={fmtN(ctx?.msgsUser ?? 0)} />
+            <Row label={t("insights.context.assistantMsgs")} val={fmtN(ctx?.msgsAssistant ?? 0)} />
+            <Row label={t("insights.context.toolUses")} val={fmtN(ctx?.toolUses ?? 0)} />
+            <Row label={t("insights.context.toolResults")} val={fmtN(ctx?.toolResults ?? 0)} />
+            <Row label={t("insights.context.reminders")} val={fmtN(ctx?.systemReminders ?? 0)} />
           </div>
         ) : (
           <div className="ctx-empty">{copy.compositionUncounted}</div>
@@ -251,6 +251,7 @@ interface DonutProps {
   onClick?: () => void;
 }
 export function ContextDonut({ currentContextTokens, modelId, contextWindow, size = 26, onClick }: DonutProps) {
+  const t = useT();
   const window = effectiveContextWindow(contextWindow, modelId);
   const pct = Math.min(1, currentContextTokens / window);
   const r = size / 2 - 3;
@@ -271,7 +272,7 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
       // behind the modal this opens (#1765). The recap pin beside it stops the
       // click for the same reason.
       onClick={e => { e.stopPropagation(); onClick?.(); }}
-      title={`context: ${currentContextTokens.toLocaleString()} / ${window.toLocaleString()} (${(pct * 100).toFixed(1)}%)`}
+      title={t("insights.context.donutTitle", { current: currentContextTokens.toLocaleString(), window: window.toLocaleString(), pct: fmt1(pct * 100) })}
       /* THE NUMBER, not only the verb. `aria-label` on a button overrides its
          contents, so the <text> percentage inside the svg was never read, and
          `title` is not consulted once a label is present — leaving a screen
@@ -280,7 +281,7 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
          red escalations that exist so you know a session is about to compact.
          Inside the modal the same value is a role="progressbar" with
          aria-valuenow; this is the surface that was silent. */
-      aria-label={`Context ${Math.round(pct * 100)}% of ${window.toLocaleString()} tokens — show breakdown`}
+      aria-label={t("insights.context.donutAria", { pct: Math.round(pct * 100), window: window.toLocaleString() })}
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
         <circle cx={c} cy={c} r={r} stroke="var(--line)" strokeWidth="2.5" fill="none" />
