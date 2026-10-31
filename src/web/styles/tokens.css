@@ -99,6 +99,33 @@
   --dialog-head-h: 52px;
 }
 
+/* V4'S SIZES (2026-10-31), V4's Figma size variables at their Default
+   density. Compact, the V4 default, and the two steps below
+   it restate them in styles/reading.css, as they already restate --ctl-h; the
+   Comfortable step keeps these. Nothing reads them yet: the V4 components do,
+   as each one is built, so declaring them moves no pixel. The status bar, the
+   rail, the inspector and the pane header are Phase 2 and 3's chrome; they are
+   named now so the whole ladder is one decision, not five. */
+:root {
+  --statusbar-h: 28px;
+  --rail-w: 288px;
+  --inspector-w: 360px;
+  --pane-head-h: 44px;
+  --row-rail: 60px;
+  --row-group: 28px;
+  --row-tool: 28px;
+  --row-table: 36px;
+  --row-option: 56px;
+  --row-settings: 64px;
+  --ctl-h-lg: 36px;
+  --ctl-h-sm: 26px;
+  --dialog-foot-h: 56px;
+  /* The overlay step of the radius hierarchy above — a dialog, a menu, a
+     popover — and the pill, which keeps 999px for the shapes that are pills. */
+  --r-overlay: 12px;
+  --r-pill: 999px;
+}
+
 /* The two dimmings, in their own block and in neither theme for the same reason
    the geometry above is: an alpha is the same number on white as it is on black.
 

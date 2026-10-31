@@ -37,7 +37,9 @@ export const THEME_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
 export const UI_FIELDS: readonly UiField[] = [
   { key: "theme", kind: "theme", storage: "agent-dag.theme", fallback: "rider-black" },
   { key: "textSize", kind: "choice", choices: TEXT_SIZES, storage: "agent-dag.text-size", fallback: "default" },
-  { key: "density", kind: "choice", choices: DENSITIES, storage: "agent-dag.density", fallback: "default" },
+  // Compact: reading-preferences.ts's DEFAULT_DENSITY, written out because
+  // this file imports nothing (the mirror test holds the two together).
+  { key: "density", kind: "choice", choices: DENSITIES, storage: "agent-dag.density", fallback: "compact" },
   { key: "panels.sessionList", kind: "bool", storage: "agent-dag.sessionListOpen", fallback: false },
   { key: "panels.accounts", kind: "bool", storage: "agent-dag.accountsPanelOpen", fallback: true },
   { key: "panels.detail", kind: "bool", storage: "agent-dag.detailOpen", fallback: false },
@@ -87,7 +89,7 @@ export function decodeStored(field: UiField, raw: string | null): UiValue {
   switch (field.key) {
     case "theme": return THEME_ID.test(raw) ? raw : field.fallback;
     case "textSize":
-    case "density": return (field.choices ?? []).includes(raw) ? raw : "default";
+    case "density": return (field.choices ?? []).includes(raw) ? raw : field.fallback;
     case "panels.sessionList":
     case "panels.accounts":
     case "panels.detail":

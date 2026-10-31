@@ -3,12 +3,14 @@ import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
+  DEFAULT_DENSITY,
   DENSITY_KEY,
   TEXT_SIZE_INCREASE,
   TEXT_SIZES,
   TEXT_SIZE_KEY,
   resolveDensity,
   resolveTextSize,
+  type Density,
 } from "../reading-preferences";
 import { CARD_BODY_PX, cardBodyPx, fitZoomForDrawnLanes, nextLod } from "../semantic-zoom";
 import ReadingSection, { ReadingReset } from "../components/ReadingSection";
@@ -17,14 +19,18 @@ const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].find((m) =>
   m[1].includes(TEXT_SIZE_KEY),
 )![1];
-function boot(size: string | null, density: string | null, denied = false) {
+/** The boot script against a store. `store` is changed in place, so a test can
+ *  read what the script wrote back. */
+function bootStore(store: Record<string, string>, denied = false) {
   const attrs: Record<string, string> = {};
   const window = Object.defineProperty({}, "localStorage", {
     get() {
       if (denied) throw new Error("Blocked");
       return {
-        getItem: (key: string) =>
-          key === TEXT_SIZE_KEY ? size : key === DENSITY_KEY ? density : null,
+        getItem: (key: string) => (key in store ? store[key] : null),
+        setItem: (key: string, value: string) => {
+          store[key] = value;
+        },
       };
     },
   });
@@ -37,15 +43,28 @@ function boot(size: string | null, density: string | null, denied = false) {
   });
   return attrs;
 }
+const MIGRATED_KEY = "agent-dag.density-v4";
+/** A page that has already had V4's one-time move to Compact, so what is
+ *  stored is read as it is. */
+function boot(size: string | null, density: string | null, denied = false) {
+  const store: Record<string, string> = { [MIGRATED_KEY]: "1" };
+  if (size !== null) store[TEXT_SIZE_KEY] = size;
+  if (density !== null) store[DENSITY_KEY] = density;
+  return bootStore(store, denied);
+}
 describe("reading preferences before first paint", () => {
+  // V4 draws at Compact by default (its Figma size variables), so a page with
+  // no density stored, or one it cannot read, falls back to Compact; the text
+  // size keeps falling back to Default.
   it.each([null, "", "invalid", "LARGER", "2", "largest "])(
-    "keeps the existing appearance for invalid stored values %s",
+    "falls back to Default text and Compact density for invalid stored values %s",
     (value) => {
       expect(resolveTextSize(value)).toBe("default");
-      expect(resolveDensity(value)).toBe("default");
+      expect(resolveDensity(value)).toBe("compact");
+      expect(DEFAULT_DENSITY).toBe("compact");
       expect(boot(value, value)).toEqual({
         "data-text-size": "default",
-        "data-density": "default",
+        "data-density": "compact",
       });
     },
   );
@@ -65,21 +84,46 @@ describe("reading preferences before first paint", () => {
       );
     },
   );
+  // Before V4 the app stored "default" on its first start whether or not
+  // anyone chose it, so that value moves to Compact once, and only once.
+  it("moves a density stored before V4 as default to Compact, once", () => {
+    const store: Record<string, string> = { [DENSITY_KEY]: "default" };
+    expect(bootStore(store)["data-density"]).toBe("compact");
+    expect(store).toEqual({ [DENSITY_KEY]: "compact", [MIGRATED_KEY]: "1" });
+    store[DENSITY_KEY] = "default"; // chosen again after the move
+    expect(bootStore(store)["data-density"]).toBe("default");
+    expect(store[DENSITY_KEY]).toBe("default");
+  });
+  it.each(["tightest", "tighter", "compact", "comfortable"])(
+    "keeps a density stored before V4 as %s, and marks the move done",
+    (value) => {
+      const store: Record<string, string> = { [DENSITY_KEY]: value };
+      expect(bootStore(store)["data-density"]).toBe(value);
+      expect(store).toEqual({ [DENSITY_KEY]: value, [MIGRATED_KEY]: "1" });
+    },
+  );
+  it("a first start stores no density, draws Compact and marks the move done", () => {
+    const store: Record<string, string> = {};
+    expect(bootStore(store)["data-density"]).toBe("compact");
+    expect(store).toEqual({ [MIGRATED_KEY]: "1" });
+  });
   it("boot survives blocked storage", () => {
     expect(boot(null, null, true)).toEqual({
       "data-text-size": "default",
-      "data-density": "default",
+      "data-density": "compact",
     });
   });
-  it("uses separately named native radio groups and a reset disabled at default", () => {
-    const props = (textSize: "default" | "largest") => ({ textSize, density: "default" as const, onTextSize() {}, onDensity() {} });
+  it("uses separately named native radio groups and a reset disabled at the defaults", () => {
+    const props = (textSize: "default" | "largest", density: Density = DEFAULT_DENSITY) => ({ textSize, density, onTextSize() {}, onDensity() {} });
     const draw = (textSize: "default" | "largest") => renderToStaticMarkup(createElement(ReadingSection, props(textSize)));
     // Reset is drawn in the pane's head beside the section's name (#2176).
-    const reset = (textSize: "default" | "largest") => renderToStaticMarkup(createElement(ReadingReset, props(textSize)));
+    const reset = (textSize: "default" | "largest", density?: Density) => renderToStaticMarkup(createElement(ReadingReset, props(textSize, density)));
     expect(draw("default").match(/name="text-size"/g)).toHaveLength(5);
     expect(draw("default").match(/name="density"/g)).toHaveLength(5);
     expect(reset("default")).toMatch(/disabled="">Reset to defaults/);
     expect(reset("largest")).not.toMatch(/disabled="">Reset to defaults/);
+    // The step named Default is no longer the default density since V4.
+    expect(reset("default", "default")).not.toMatch(/disabled="">Reset to defaults/);
   });
 });
 

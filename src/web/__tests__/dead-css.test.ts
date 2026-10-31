@@ -64,6 +64,20 @@ const readInCss = new Set([...rules.matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[
  *  a comment about a rule is not a rule. */
 const readInTsx = new Set([...withoutComments(tsx).matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[1]));
 
+/** V4's tokens (its Figma variables) that Phase 1's first PR declares
+ *  ahead of the components that read them: the build order lands the whole
+ *  ladder first, and the button, field, menu, dialog, bars and Settings rows of
+ *  the PRs after it read it. Only these names, and only while nothing reads
+ *  them — a name that gains a reader fails the check below until it leaves this
+ *  list, so the list only shrinks, to nothing once every one has its reader. */
+const V4_AHEAD_OF_READERS = [
+  "--accent-16", "--err-12", "--muted-30", "--secondary-30", "--warn-35", "--inflight-30",
+  "--dock", "--scrim", "--selected", "--sunken", "--your-message",
+  "--statusbar-h", "--rail-w", "--inspector-w", "--pane-head-h",
+  "--row-rail", "--row-group", "--row-tool", "--row-table", "--row-option", "--row-settings",
+  "--ctl-h-lg", "--ctl-h-sm", "--dialog-foot-h", "--r-overlay", "--r-pill",
+];
+
 describe("custom properties have both a writer and a reader", () => {
   it("reads no property from the stylesheet that nothing anywhere writes", () => {
     expect([...readInCss].filter(t => !declared.has(t) && !namedInJs.has(t))).toEqual([]);
@@ -84,7 +98,11 @@ describe("custom properties have both a writer and a reader", () => {
     // makes a component's var() the ONLY reader either one has. Reading a
     // property from markup is not the same defect as declaring one nobody
     // reads, and this check is for the second.
-    expect([...declared].filter(t => !readInCss.has(t) && !namedInJs.has(t) && !readInTsx.has(t))).toEqual([]);
+    const unread = [...declared].filter(t => !readInCss.has(t) && !namedInJs.has(t) && !readInTsx.has(t));
+    expect(unread.filter(t => !V4_AHEAD_OF_READERS.includes(t))).toEqual([]);
+    // A V4 token that is read now leaves the list, so nothing it names can
+    // hide a property that has gone dead since.
+    expect(V4_AHEAD_OF_READERS.filter(t => !unread.includes(t)), "read now: take it off V4_AHEAD_OF_READERS").toEqual([]);
   });
 
   it("still sees the properties JS owns, so the writer side is not vacuous", () => {
