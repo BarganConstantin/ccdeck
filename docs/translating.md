@@ -37,7 +37,7 @@ your to-do list and never fails a build.
 ## Add a language
 
 1. In every `areas/<area>/` folder add `<code>.ts` (copy `de.ts`, translate the values, keep the keys).
-2. Add one line to `LANGUAGES` in `src/web/i18n/registry.ts`: the code, the language's name in that language, `dir`, and `beta: true` until a native speaker has reviewed it.
+2. Add one line to `LANGUAGES` in `src/web/i18n/registry.ts`: the code, the language's name in that language, `dir`, and, only if the translation has not been checked yet, `beta: true` (the select then shows "(beta)"; the shipped languages carry no flag).
 3. Run `npx vitest run src/web/__tests__/i18n.test.ts`. It fails on unknown keys, changed `{placeholders}` and empty values, and lists what is still missing.
 
 Languages already agreed but not shipped (`ko`, `fr`, `es`, `pt-BR`, `it`, `pl`,

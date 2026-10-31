@@ -28,10 +28,10 @@ export interface Language {
 /** English first: it is the source of truth and the fallback. */
 export const LANGUAGES: readonly Language[] = [
   { code: "en", name: "English", dir: "ltr", catalog: catalogFor("en") },
-  { code: "zh-TW", name: "繁體中文", dir: "ltr", beta: true, catalog: catalogFor("zh-TW") },
-  { code: "zh-CN", name: "简体中文", dir: "ltr", beta: true, catalog: catalogFor("zh-CN") },
-  { code: "de", name: "Deutsch", dir: "ltr", beta: true, catalog: catalogFor("de") },
-  { code: "ja", name: "日本語", dir: "ltr", beta: true, catalog: catalogFor("ja") },
+  { code: "zh-TW", name: "繁體中文", dir: "ltr", catalog: catalogFor("zh-TW") },
+  { code: "zh-CN", name: "简体中文", dir: "ltr", catalog: catalogFor("zh-CN") },
+  { code: "de", name: "Deutsch", dir: "ltr", catalog: catalogFor("de") },
+  { code: "ja", name: "日本語", dir: "ltr", catalog: catalogFor("ja") },
 ];
 
 export const DEFAULT_LANGUAGE = "en";
