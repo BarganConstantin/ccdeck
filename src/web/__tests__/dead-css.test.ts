@@ -83,7 +83,8 @@ const V4_AHEAD_OF_READERS = [
   "--fs-hero", "--lh-hero", "--fs-title", "--lh-title", "--fs-card-title",
   "--fs-body", "--fs-small", "--lh-small", "--fs-code", "--lh-code", "--fs-meta", "--lh-meta",
   "--dur-stage-in", "--dur-stage-out", "--dur-slow",
-  "--delay-step", "--delay-loader", "--delay-tooltip", "--loop-loader", "--loop-loader-person",
+  // V4's Loader: --delay-loader, --loop-loader and --loop-loader-person are read by loader.css now.
+  "--delay-step", "--delay-tooltip",
   "--press-small",
 ];
 

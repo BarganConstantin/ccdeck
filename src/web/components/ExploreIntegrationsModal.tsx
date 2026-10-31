@@ -6,6 +6,7 @@ import { integrationDefs } from "../integrations/registry";
 import type { IntegrationKind } from "../integrations/types";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { ExternalLinkGlyph } from "./action-glyphs";
+import { Loader } from "./Loader";
 
 export interface ExploreIntegrationsProps {
   integrations: IntegrationsState;
@@ -55,7 +56,7 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
           <p id="explore-integrations-description" className="explore-intro">Connect your project tools and keep the work behind each agent close by.</p>
           {integrations.error && <p className="explore-status" role="alert">{integrations.error} Connection status may be out of date. Manage connections in Settings.</p>}
           {integrations.connections === null ? (
-            <p className="explore-status" role="status">{integrations.error ? "Connection status is unavailable." : "Reading integrations…"}</p>
+            <p className="explore-status" role="status">{integrations.error ? "Connection status is unavailable." : <span className="loader-line"><Loader />Reading integrations…</span>}</p>
           ) : providers.length === 0 ? (
             <p className="explore-status" role="status">No integrations are available on this deck.</p>
           ) : <>

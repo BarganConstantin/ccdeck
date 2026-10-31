@@ -35,7 +35,9 @@ describe("Browser Watch refresh stays independent of system fonts", () => {
     state.busy = true;
     const button = refreshMarkup();
     expect(button).toContain('aria-busy="true"');
-    expect(button).toContain("…");
+    // V4 (Refresh, while reading): the arrow stays and turns, it is not swapped for "…".
+    expect(button).not.toContain("…");
+    expect(button).toContain("refresh-glyph");
     expect(button).not.toMatch(/\sdisabled(?:=|\s|>)/);
     state.busy = false;
   });

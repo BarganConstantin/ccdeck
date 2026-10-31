@@ -15,6 +15,7 @@ import type { CodexQuotaData, QuotaData } from "../use-quota";
 import { weekEndsLine, weekEndsTitle, type QuotaClose } from "../quota-closes";
 import { QuotaIncident } from "./ProviderIncidents";
 import QuotaBar from "./QuotaBar";
+import { Loader } from "./Loader";
 
 /** "just now" / "40s ago" / "17m ago" / "2h ago", or null when never fetched.
  *
@@ -190,7 +191,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
           <span className="up-quota-hint">{claudeQuotaHint(quota.reason)}</span>
         </div>
       ) : (
-        <div className="up-quota-na up-quota-loading">Checking…</div>
+        <div className="up-quota-na up-quota-loading loader-line"><Loader /><span role="status">Checking…</span></div>
       )}
     </section>
   );
@@ -294,7 +295,7 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
           <span className="up-quota-hint">{codexHint(codexQuota.reason)}</span>
         </div>
       ) : (
-        <div className="up-quota-na up-quota-loading">Checking…</div>
+        <div className="up-quota-na up-quota-loading loader-line"><Loader /><span role="status">Checking…</span></div>
       )}
 
     </section>

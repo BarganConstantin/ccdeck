@@ -92,7 +92,7 @@ export default function QuotaHistoryModal({ providers, accounts, onClose, instan
       <header className="modal-head">
         <h2 id="quota-history-title">Quota history</h2>
         <div className="qh-header-actions">
-          <button type="button" className="glyph-btn" aria-label="Refresh quota history" title="Read recorded quota history" {...selfPressProps(loading)} onClick={refreshHistory}>{loading ? "…" : <RefreshGlyph />}</button>
+          <button type="button" className="glyph-btn" aria-label="Refresh quota history" title="Read recorded quota history" {...selfPressProps(loading)} onClick={refreshHistory}><RefreshGlyph /></button>
           <button type="button" ref={closeRef} className="glyph-btn" onClick={onClose} aria-label="Close quota history">×</button>
         </div>
       </header>

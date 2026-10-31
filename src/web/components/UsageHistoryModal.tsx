@@ -165,7 +165,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
             {...selfPressProps(loading)}
             title="Re-run ccusage"
             aria-label="Reload"
-          >{loading ? "…" : <RefreshGlyph />}</button>
+          ><RefreshGlyph /></button>
           <button ref={closeRef} className="glyph-btn uh-close" onClick={onClose} aria-label="Close">×</button>
         </header>
 

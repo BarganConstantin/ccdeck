@@ -7,7 +7,7 @@
 .ta-freshness { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 .ta-inspector-head .glyph-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; flex: none; }
 .ta-actions [aria-busy=true] { cursor: wait; }
-.ta-actions [data-loading] svg { animation: ta-spin 1000ms linear infinite; }
+.ta-actions [data-loading] svg { animation: ta-spin 900ms linear infinite; }
 .ta-highlight:focus-visible, .ta-row:focus-visible { outline-offset: -2px; }
 .ta-report ::selection, .ta-drawer ::selection { background: var(--accent-dim); color: var(--text); }
 .ta-report code, .ta-drawer code { font-family: var(--font-mono); }
