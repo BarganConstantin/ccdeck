@@ -6,6 +6,7 @@
 // recording is for — the library's ceiling, the error line and the import —
 // and passes them in under the names the body already used.
 import { useEffect, useRef, useState } from "react";
+import { t } from "./i18n";
 
 /** The containers a recording is asked for, most wanted first. The first the
  *  browser can write is the one it records in; if it can write none of them,
@@ -26,7 +27,7 @@ export const RECORDING_LIMIT_MS = 4400;
 export function recordedClipName(mimeType: string): { name: string; type: string } {
   const mime = mimeType.split(";")[0];
   const extension = mime === "audio/mp4" ? "m4a" : mime === "audio/ogg" ? "ogg" : "webm";
-  return { name: `Recorded voice.${extension}`, type: mime };
+  return { name: `${t("radio.rec.name")}.${extension}`, type: mime };
 }
 
 export function useClipRecorder({ full, setCustomError, runCustom, onImportCustom }: {
@@ -56,12 +57,12 @@ export function useClipRecorder({ full, setCustomError, runCustom, onImportCusto
     if (full) return;
     setCustomError("");
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      setCustomError("Microphone recording is unavailable in this browser.");
+      setCustomError(t("radio.rec.noMic"));
       return;
     }
     let stream: MediaStream;
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    catch { if (!disposedRef.current) setCustomError("Microphone access was denied or unavailable."); return; }
+    catch { if (!disposedRef.current) setCustomError(t("radio.rec.denied")); return; }
     if (disposedRef.current || recorderRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
     try {
       const format = recordingFormat(type => MediaRecorder.isTypeSupported(type));
@@ -69,7 +70,7 @@ export function useClipRecorder({ full, setCustomError, runCustom, onImportCusto
       const chunks: Blob[] = [];
       recorderRef.current = recorder;
       recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
-      recorder.onerror = () => setCustomError("Recording failed. Please try again.");
+      recorder.onerror = () => setCustomError(t("radio.rec.failed"));
       recorder.onstop = () => {
         stream.getTracks().forEach(track => track.stop());
         if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
@@ -88,7 +89,7 @@ export function useClipRecorder({ full, setCustomError, runCustom, onImportCusto
     } catch {
       recorderRef.current = null;
       stream.getTracks().forEach(track => track.stop());
-      setCustomError("This browser cannot record a supported audio format.");
+      setCustomError(t("radio.rec.format"));
     }
   };
 

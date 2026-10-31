@@ -18,7 +18,9 @@ import { WarnGlyph } from "./AccountIssuePopover";
 import AccountTelemetry from "./AccountTelemetry";
 import AccountHint from "./AccountHint";
 import { accountIssue } from "../account-issue";
-import { ago, due } from "../account-freshness";
+import { agoLabel as ago, dueLabel as due } from "../accounts-time";
+import { laneLabel } from "../lane-label";
+import { useT } from "../i18n";
 import { type Failure } from "../accounts-reload";
 import { type SwapNote } from "../account-move";
 import { type Account, type Lane } from "../claude-accounts";
@@ -42,6 +44,7 @@ function fullness(pct: number): "mid" | "hi" | undefined {
 function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
   lane: Lane; nowSec: number; readAt: number | null; frozen?: boolean; sortedBy?: boolean;
 }) {
+  const t = useT();
   const capped = Math.min(100, Math.max(0, lane.pct));
   // A window whose reset has passed since it was read is over, and the number
   // is the old window's: a record too, however recent the collection.
@@ -59,10 +62,10 @@ function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
   // 96% for a window the shut row above it and the report both called reset.
   // Not 0% either, which nobody has read. When it reset and what it read
   // before are on hover and said, in the report's words.
-  const before = rolled ? resetSinceReading(lane, readAt, nowSec) : null;
+  const before = rolled ? resetSinceReading(lane, readAt, nowSec, t) : null;
   return (
     <div className="ap-lane" data-sort-key={sortedBy ? "" : undefined}>
-      <span className="ap-lane-label" title={lane.label}>{lane.label}</span>
+      <span className="ap-lane-label" title={laneLabel(lane.label, t)}>{laneLabel(lane.label, t)}</span>
       <div className="ap-lane-track">
         {/* EMPTY ONCE IT HAS RESET, the way the Usage panel draws a window
             that has: the totals count it as unused, and a bar still 96% full
@@ -74,15 +77,15 @@ function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
           one window read two ways. */}
       {rolled
         ? <span className="ap-lane-pct" style={{ color }} data-reset="" title={before ?? undefined}>
-            {before ? <><span aria-hidden>reset</span><span className="vis-hidden">{before}</span></> : "reset"}
+            {before ? <><span aria-hidden>{t("accounts.row.resetWord")}</span><span className="vis-hidden">{before}</span></> : t("accounts.row.resetWord")}
           </span>
         : <span className="ap-lane-pct" style={{ color }}>{Math.round(capped)}%</span>}
       {/* When the window rolls over, at the end of its own bar rather than on a
           line under it: two resets under two bars made the live row five lines
           tall for two facts. The word is said to a screen reader and in the
           title; on screen a countdown beside a quota reads as one. */}
-      <span className="ap-lane-reset" title={reset ? `${lane.label} resets in ${reset}` : undefined}>
-        {reset && <><span className="vis-hidden">resets in </span>{reset}</>}
+      <span className="ap-lane-reset" title={reset ? t("accounts.row.laneResetsIn", { label: laneLabel(lane.label, t), time: reset }) : undefined}>
+        {reset && <><span className="vis-hidden">{t("accounts.row.resetsInSr")}</span>{reset}</>}
       </span>
     </div>
   );
@@ -139,6 +142,7 @@ export default function AccountRow({
   refusal, onDismissRefusal, onSignIn, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null, home = null,
   rotating = false, telemetryBoundaryId,
 }: Props) {
+  const t = useT();
   // The windows that have not reset since they were read: the only ones whose
   // numbers say anything about this window (lane-view.ts's lapsed).
   const live = a.lanes.filter(l => !lapsed(l, nowSec));
@@ -153,7 +157,7 @@ export default function AccountRow({
   const keyLane = sortKey === "room"
     ? live.reduce<Lane | null>((x, l) => (x && x.pct >= l.pct ? x : l), null)
     : sortKey ? a.lanes.find(l => laneName(l) === sortKey) ?? null : null;
-  const issue = accountIssue(a, nowSec, lan);
+  const issue = accountIssue(a, nowSec, lan, t);
   // THE ACTIVE ROW IS OPEN, AND EVERY OTHER ROW IS SHUT UNTIL ASKED.
   // The live account is the one whose windows are being spent, so
   // its bars, resets and freshness are the reading this column is
@@ -161,7 +165,7 @@ export default function AccountRow({
   // is it worth switching to — and two numbers answer it. The rest
   // is one press on the row away, and held by account (#542).
   const open = a.active || opened;
-  const name = a.alias ?? a.email ?? `account ${a.num}`;
+  const name = a.alias ?? a.email ?? t("accounts.accountNLower", { n: a.num });
   // The whole identity, for the door. The head clips both names with an
   // ellipsis and the door lies over them, so the door is where a pointer
   // lands and where the full string has to be (#1115).
@@ -174,11 +178,11 @@ export default function AccountRow({
   // only when it is the fullest, so two calm numbers never sit over
   // a hidden hot one. See lane-view.ts.
   const quick = fuller ? [...shown, fuller] : shown;
-  const age = a.fetchedAt ? ago(a.fetchedAt, nowSec) : null;
+  const age = a.fetchedAt ? ago(a.fetchedAt, nowSec, t) : null;
   // Every row says only the age; whose read it was waits in its tooltip.
   const ageTitle = a.sharedFrom
-    ? `Read on ${a.sharedFrom}, a paired deck`
-    : "When claude-swap last read this account's usage";
+    ? t("accounts.row.readOn", { from: a.sharedFrom })
+    : t("accounts.row.lastRead");
   // What the account's organization sends, when the deck has seen it — said
   // before a switch, because Claude Code applies it without asking in its
   // non-interactive surfaces. See org-telemetry.ts.
@@ -213,7 +217,7 @@ export default function AccountRow({
             telemetry ? `ap-telemetry-${a.num}` : null,
           ].filter(Boolean).join(" ") || undefined}
           onClick={() => onToggleLanes()}>
-          <span className="vis-hidden">{name}, {open ? "hide details" : "details"}</span>
+          <span className="vis-hidden">{t(open ? "accounts.row.hideDetails" : "accounts.row.showDetails", { name })}</span>
         </button>
       )}
       <div className="ap-account-head">
@@ -222,8 +226,8 @@ export default function AccountRow({
             live. The slot is still its name for the CLI, so it rides
             in the title and in what a screen reader is told. */}
         {a.active
-          ? <span className="ap-live" title={`Active account · slot ${a.num}`}>
-              <span className="vis-hidden">Active account, slot {a.num}:</span>
+          ? <span className="ap-live" title={t("accounts.row.activeTitle", { n: a.num })}>
+              <span className="vis-hidden">{t("accounts.row.activeSr", { n: a.num })}</span>
             </span>
           : <span className="ap-num">{a.num}</span>}
         {/* Both of these are clipped with an ellipsis so a long one
@@ -241,7 +245,7 @@ export default function AccountRow({
             right now, and why, is its title. */}
         {home && (
           <AccountHint detail={home}>
-            <span className="ap-home" id={`ap-home-${a.num}`} title={home} role="img" aria-label="Home account">
+            <span className="ap-home" id={`ap-home-${a.num}`} title={home} role="img" aria-label={t("accounts.row.homeLabel")}>
               <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
                 strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M2.2 6.6 7 2.6l4.8 4" />
@@ -262,8 +266,8 @@ export default function AccountRow({
             over the door so the pointer gets it — and what a screen reader
             hears, on the row and in the door's description. */}
         {lan?.sharedTo && (
-          <AccountHint detail={sharedLine(lan.sharedTo, lan.sharedInUse)}>
-            <span className="ap-shared" id={`ap-shared-${a.num}`} title={sharedLine(lan.sharedTo, lan.sharedInUse)} role="img" aria-label="Account sharing">
+          <AccountHint detail={sharedLine(lan.sharedTo, lan.sharedInUse, t)}>
+            <span className="ap-shared" id={`ap-shared-${a.num}`} title={sharedLine(lan.sharedTo, lan.sharedInUse, t)} role="img" aria-label={t("accounts.row.sharingLabel")}>
               <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
                 strokeWidth="1.3" strokeLinecap="round" aria-hidden>
                 <circle cx="10.5" cy="3.2" r="1.7" />
@@ -271,7 +275,7 @@ export default function AccountRow({
                 <circle cx="10.5" cy="10.8" r="1.7" />
                 <path d="M5.2 6.1 8.8 4.1M5.2 7.9l3.6 2" />
               </svg>
-              <span className="vis-hidden">{sharedLine(lan.sharedTo, lan.sharedInUse)}</span>
+              <span className="vis-hidden">{sharedLine(lan.sharedTo, lan.sharedInUse, t)}</span>
             </span>
           </AccountHint>
         )}
@@ -279,7 +283,7 @@ export default function AccountRow({
             `Switch` would, because a switch to a held-out account is
             refused and a control that can never act is worse than
             none (#519). Putting it back is in the ⋯. */}
-        {a.disabled && <span className="ap-held">held out</span>}
+        {a.disabled && <span className="ap-held">{t("accounts.heldOut")}</span>}
         {/* The one verb a row carries, and quieter than the account it
             is about: a word on the control fill, no edge. Not offered
             where it cannot work — to a login that is dead or was never
@@ -290,9 +294,9 @@ export default function AccountRow({
             className="ap-switch"
             {...pressProps(`switch-${a.num}`)}
             onClick={() => onSwitch(a.num, name)}
-            aria-label={`Switch to ${name}`}
-            title={`Switch to ${a.alias ?? a.email}`}
-          >{busy === `switch-${a.num}` ? "…" : "Switch"}</button>
+            aria-label={t("accounts.row.switchTo", { name })}
+            title={t("accounts.row.switchTo", { name: a.alias ?? a.email ?? name })}
+          >{busy === `switch-${a.num}` ? "…" : t("accounts.row.switch")}</button>
         )}
         {/* THE WAY IN TO EVERYTHING ELSE. It opens a menu over the
             column rather than opening the row, so pressing it moves
@@ -302,10 +306,10 @@ export default function AccountRow({
             identical "More actions" is a column of buttons a screen
             reader cannot tell apart. */}
         <button type="button" id={`ap-more-${a.num}`} className="ap-more"
-          aria-label={`More actions for ${a.email ?? a.alias ?? `account ${a.num}`}`}
+          aria-label={t("accounts.row.moreFor", { who: a.email ?? a.alias ?? t("accounts.accountNLower", { n: a.num }) })}
           aria-haspopup="menu" aria-expanded={menuOpen}
           aria-controls={menuOpen ? `ap-menu-${a.num}` : undefined}
-          title="More actions"
+          title={t("accounts.row.more")}
           onClick={() => (menuOpen ? onCloseMenu() : onOpenMenu(a.num))}
           onKeyDown={e => {
             // Down opens at the first item and Up at the last, the way
@@ -336,19 +340,18 @@ export default function AccountRow({
               is: the sign-in dialog, filled in with this account. */}
           {refusal.signIn && onSignIn && (
             <button type="button" className="ap-fix ap-failure-fix" onClick={() => onSignIn(a.email)}
-              aria-label={`Sign in again as ${a.email ?? name}`}
-              title="Open the sign-in dialog. Signing in as this account replaces its expired login in place — it keeps its slot, its alias and its history.">
-              Sign in again
+              aria-label={t("accounts.reauth.againAs", { name: a.email ?? name })}
+              title={t("accounts.row.reauthTip")}>
+              {t("accounts.reauth.again")}
             </button>
           )}
           <button type="button" className="ap-failure-x" onClick={() => onDismissRefusal()}
-            aria-label="Dismiss this message" title="Dismiss">×</button>
+            aria-label={t("accounts.row.dismissLabel")} title={t("accounts.row.dismiss")}>×</button>
         </div>
       )}
       {a.active && switchedHere && (
         <p className="ap-switched">
-          Now active. New sessions start on it; ones already running pick it up on
-          their next message, up to about 30 seconds later on macOS.
+          {t("accounts.row.nowActive")}
         </p>
       )}
       {/* What the switch just turned on, said where the switch is answered: a
@@ -360,12 +363,11 @@ export default function AccountRow({
           is the only place that says so, for eight seconds. The
           sentence naming who went where is its title. */}
       {swapped && (() => {
-        const who = displaced?.alias ?? displaced?.email ?? "the account that was there";
+        const who = displaced?.alias ?? displaced?.email ?? t("accounts.row.whoWasThere");
         return (
           <p className="ap-note ap-swap-note"
-            title={`Slot ${swapped.at} was taken, so the two accounts traded places: `
-                 + `${who} now holds slot ${swapped.displaced}.`}>
-            swapped with slot {swapped.displaced}
+            title={t("accounts.row.swapTitle", { at: swapped.at, who, displaced: swapped.displaced })}>
+            {t("accounts.row.swapped", { n: swapped.displaced })}
           </p>
         );
       })()}
@@ -388,14 +390,14 @@ export default function AccountRow({
           </button>
           {issue.fix && onSignIn && (
             <button type="button" className="ap-sign-in"
-              aria-label={`${issue.fix} as ${a.email ?? name}`} title={issue.hint}
-              onClick={() => onSignIn(a.email)}>Sign in</button>
+              aria-label={t("accounts.row.fixAs", { fix: issue.fix, name: a.email ?? name })} title={issue.hint}
+              onClick={() => onSignIn(a.email)}>{t("accounts.row.signIn")}</button>
           )}
           {/* How old the last reading is. On an open row the freshness
               line under the bars says it, so it is said once. */}
           {!open && (
             <span className="ap-issue-age" title={ageTitle}>
-              {age ?? "never collected"}
+              {age ?? t("accounts.row.ageNever")}
             </span>
           )}
         </div>
@@ -412,20 +414,20 @@ export default function AccountRow({
           {quick.length
             ? quick.map(l => (
                 <span key={l.id} className="ap-q" data-sort-key={l.id === keyLane?.id ? "" : undefined}>
-                  <span className="ap-q-label">{l.label}</span>{" "}
+                  <span className="ap-q-label">{laneLabel(l.label, t)}</span>{" "}
                   {/* A window that has reset since it was read is said to
                       have, as its open bar says it: its number is the old
                       window's, and in the warning ink it read as a reason not
                       to switch to an account that has the room. */}
                   {lapsed(l, nowSec)
-                    ? <span className="ap-q-pct" title={`${l.label} has reset since this reading`}>reset</span>
+                    ? <span className="ap-q-pct" title={t("accounts.row.laneReset", { label: l.label })}>{t("accounts.row.resetWord")}</span>
                     : <span className="ap-q-pct" data-level={frozen ? undefined : fullness(l.pct)}>{Math.round(l.pct)}%</span>}
                 </span>
               ))
-            : <span className="ap-q-label">no usage recorded yet</span>}
+            : <span className="ap-q-label">{t("accounts.row.noUsageLower")}</span>}
           {a.stale && !issue && (
             <span className="ap-q-age" data-never={age ? undefined : ""} title={ageTitle}>
-              {age ?? "never collected"}
+              {age ?? t("accounts.row.ageNever")}
             </span>
           )}
         </p>
@@ -440,7 +442,7 @@ export default function AccountRow({
           <div className="ap-lanes">
             {a.lanes.length
               ? a.lanes.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} readAt={a.fetchedAt} frozen={frozen} sortedBy={l.id === keyLane?.id} />)
-              : <div className="ap-hint">No usage recorded yet.</div>}
+              : <div className="ap-hint">{t("accounts.row.noUsage")}</div>}
           </div>
           <div className="ap-meta">
             {a.fetchedAt
@@ -450,13 +452,10 @@ export default function AccountRow({
                   // the age stays quiet and the problem takes the ink.
                   className={`ap-age${a.stale && !issue ? " ap-stale" : ""}`}
                   title={a.sharedFrom
-                    ? `Read on ${a.sharedFrom}, a paired deck. One deck reads each account you share and the others use its numbers, so the account's usage requests are not spent once per machine.`
-                    : "When claude-swap last read this account's usage, and when it plans to read it again. "
-                       + "It sets that interval itself — 3 minutes at the fastest, wider while an account is "
-                       + "recovering from a rate limit — and every surface, including `cswap watch`, follows "
-                       + "the same plan."}
-                >collected {ago(a.fetchedAt, nowSec)}{issue?.blocksSwitch ? "" : due(a.nextAt, nowSec)}</span>
-              : <span className="ap-age ap-stale" title="claude-swap has not read this account yet">never collected</span>}
+                    ? t("accounts.row.readOnLong", { from: a.sharedFrom })
+                    : t("accounts.row.lastReadLong")}
+                >{t("accounts.row.collected", { ago: ago(a.fetchedAt, nowSec, t) })}{issue?.blocksSwitch ? "" : due(a.nextAt, nowSec, t)}</span>
+              : <span className="ap-age ap-stale" title={t("accounts.row.notReadYet")}>{t("accounts.row.ageNever")}</span>}
           </div>
         </div>
       )}

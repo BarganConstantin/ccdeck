@@ -9,6 +9,8 @@
 import { type Account } from "./claude-accounts";
 import { isOnline, pairedDeckName } from "./lan-roster";
 import { type LanAccount, type LanStatus } from "./lan-types";
+import { listNames } from "./accounts-time";
+import { t as tNow, type TFunction } from "./i18n";
 
 export function lanAccounts(accounts: readonly Account[]): LanAccount[] {
   return accounts.map(a => ({
@@ -184,13 +186,13 @@ export function sharedMarks(
  *  THE LOGIN THIS DECK IS ON is still ticked, and still marked, but it is not
  *  sent while this deck is on it (#2192) — so its line says that, in the setup
  *  dialog's own words, instead of naming decks it is not going to. */
-export function sharedLine(to: readonly string[], inUse = false): string {
-  const names = to.length === 1 ? to[0] : `${to.slice(0, -1).join(", ")} and ${to[to.length - 1]}`;
+export function sharedLine(to: readonly string[], inUse = false, t: TFunction = tNow): string {
+  const names = listNames(to);
   if (inUse) {
     return to.length
-      ? `Shared on Local network: in use here · not sent to ${names} while this deck is on it.`
-      : "Shared on Local network: in use here · not sent while this deck is on it. None is paired yet.";
+      ? t("accounts.lan.sharedInUse", { names })
+      : t("accounts.lan.sharedInUseNone");
   }
-  if (!to.length) return "Shared on Local network: offered to every deck you pair with. None is paired yet.";
-  return `Shared on Local network: offered to ${names}.`;
+  if (!to.length) return t("accounts.lan.sharedNone");
+  return t("accounts.lan.shared", { names });
 }

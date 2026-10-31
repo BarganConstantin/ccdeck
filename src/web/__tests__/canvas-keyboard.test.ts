@@ -338,7 +338,7 @@ describe("the tool bubbles are decoration, and now say so (#367, finding 3)", ()
     // This is what makes decoration the right answer rather than the other one:
     // the tools are already a keyboard-reachable, ordered, announced list.
     expect(app).toMatch(/<button className="tool clickable"/);
-    expect(app).toMatch(/<ToolRow key=\{t\.id\}[^>]*onClick=\{\(\) => onOpenTool\(agent\.id, t\.id\)\}/);
+    expect(app).toMatch(/<ToolRow key=\{call\.id\}[^>]*onClick=\{\(\) => onOpenTool\(agent\.id, call\.id\)\}/);
   });
 });
 
@@ -393,8 +393,8 @@ describe("nothing else in the deck invents a focus stop", () => {
       "components/RadioPanel.tsx", "components/ReleaseNotesModal.tsx", "components/ToolAuditSplitter.tsx",
       "components/forge/DetailJobs.tsx", "jira-html.tsx",
     ]);
-    expect(code(readFileSync(`${web}components/ReleaseNotesModal.tsx`, "utf8"))).toMatch(/<section className="modal-body" role="region" aria-label="Release notes" tabIndex=\{0\}>/);
-    expect(code(readFileSync(`${web}jira-html.tsx`, "utf8"))).toMatch(/tabIndex=\{0\} role="region" aria-label="Table"/);
+    expect(code(readFileSync(`${web}components/ReleaseNotesModal.tsx`, "utf8"))).toMatch(/<section className="modal-body" role="region" aria-label=\{t\("shell\.notes\.region"\)\} tabIndex=\{0\}>/);
+    expect(code(readFileSync(`${web}jira-html.tsx`, "utf8"))).toMatch(/tabIndex=\{0\} role="region" aria-label=\{translateNow\("integrations\.html\.table"\)\}/);
     expect(code(readFileSync(`${web}components/forge/DetailJobs.tsx`, "utf8"))).toMatch(/<pre[^>]*className="fd-log" tabIndex=\{0\} role="region" aria-label=/);
     expect(code(readFileSync(`${web}components/ForgeHtml.tsx`, "utf8"))).toMatch(/<pre key=\{i\} tabIndex=\{0\}/);
     expect(code(readFileSync(`${web}components/IntegrationSplit.tsx`, "utf8"))).toMatch(/role="separator"[\s\S]*?tabIndex=\{0\}/);

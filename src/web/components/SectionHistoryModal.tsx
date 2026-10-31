@@ -27,6 +27,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { figureText, latencyFigure, rateFigure, type Figure } from "../net-format";
+import { currentLanguage, t as translate, useT, type TFunction } from "../i18n";
 
 export interface Point { t: number; v: number }
 export interface Series {
@@ -227,13 +228,13 @@ export function band(v: number, warnAt: number | null, critAt: number | null): "
  * one minute an hour ago is a different machine from one held back for forty of
  * the last sixty.
  */
-export function throttleNote(points: Point[], stepMs: number, at = (t: number) => clock(t)): string | null {
+export function throttleNote(points: Point[], stepMs: number, at = (t: number) => clock(t), tr: TFunction = translate): string | null {
   const held = points.filter(p => p.v > 0);
   if (!points.length) return null;
-  if (!held.length) return "never held back";
+  if (!held.length) return tr("board.hist.neverHeld");
   const minutes = held.length * (stepMs / 60_000);
   const last = held[held.length - 1];
-  return `held back for ${minutes === 1 ? "1 minute" : `${minutes} minutes`}, last at ${at(last.t)}`;
+  return tr("board.hist.heldBack", { span: tr("board.time.minutes", { count: minutes }), at: at(last.t) });
 }
 
 /**
@@ -246,9 +247,9 @@ export function throttleNote(points: Point[], stepMs: number, at = (t: number) =
  * one, under the cores too: 0.4× is as much an answer to "how busy was it" as
  * 40× is.
  */
-export function coreMultiple(load: number, cores: number | undefined): string | null {
+export function coreMultiple(load: number, cores: number | undefined, tr: TFunction = translate): string | null {
   if (cores == null || !Number.isFinite(cores) || cores <= 0 || !Number.isFinite(load) || load < 0) return null;
-  return `${(load / cores).toFixed(1)}× the core count`;
+  return tr("board.hist.coreMultiple", { n: oneDecimal(load / cores) });
 }
 
 /** 24-hour, always, like every other clock in this panel. A locale that prints
@@ -266,13 +267,18 @@ export function clock(ms: number): string {
  * argument is that it never reports what it did not measure. Truncating can
  * only ever understate, and understating an elapsed time costs nothing.
  */
-export function spanLabel(fromMs: number, toMs: number): string {
+/** One decimal with the language's separator, "4.0" kept as written. */
+function oneDecimal(v: number): string {
+  try { return new Intl.NumberFormat(currentLanguage(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v); } catch { return v.toFixed(1); }
+}
+
+export function spanLabel(fromMs: number, toMs: number, tr: TFunction = translate): string {
   const mins = Math.max(0, Math.floor((toMs - fromMs) / 60_000));
-  if (mins < 1) return "less than a minute";
-  if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"}`;
+  if (mins < 1) return tr("board.time.lessThanMinute");
+  if (mins < 60) return tr("board.time.minutes", { count: mins });
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
+  return m ? tr("board.time.hm", { h, m }) : tr("board.time.h", { h });
 }
 
 export default function SectionHistoryModal({ group, title, liveNote, onClose }: {
@@ -284,6 +290,7 @@ export default function SectionHistoryModal({ group, title, liveNote, onClose }:
   liveNote?: string | null;
   onClose: () => void;
 }) {
+  const t = useT();
   const dialogRef = useModalDismiss(onClose);
   const scrimPress = useScrimDismiss(onClose);
   const [hist, setHist] = useState<History | null>(null);
@@ -357,26 +364,26 @@ export default function SectionHistoryModal({ group, title, liveNote, onClose }:
               own timezone, printed as an hour this morning. */}
           {hist && oldest > 0 && (
             <span className="hist-since">
-              since {clock(oldest)} · {spanLabel(oldest, newest || Date.now())}
+              {t("board.hist.since", { at: clock(oldest), span: spanLabel(oldest, newest || Date.now(), t) })}
             </span>
           )}
-          <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+          <button type="button" className="glyph-btn" onClick={onClose} aria-label={t("board.hist.closeEsc")} title={t("board.hist.closeEsc")}>×</button>
         </div>
 
         <div className="hist-body">
           {hist == null ? (
-            <ReadActivity kind="history" title="Reading sensor history…" note="Loading the readings recorded on this machine." delayed />
+            <ReadActivity kind="history" title={t("board.hist.reading")} note={t("board.hist.loading")} delayed />
           ) : series.length === 0 ? (
             // Reachable only if the modal outlives its own section, which can
             // happen: a sensor that stops answering retires its row.
-            <p className="hist-empty">Nothing has been measured yet.</p>
+            <p className="hist-empty">{t("board.hist.empty")}</p>
           ) : (
             <div className="read-result">{series.map(s => (
               <Chart key={s.label} series={s} stepMs={hist.stepMs} domain={domain} />
             ))}</div>
           )}
           {group === "load" && liveNote && <p className="hist-note hist-load-summary">
-            <span>Current 1-minute load</span>
+            <span>{t("board.hist.load")}</span>
             <strong>{liveNote}</strong>
           </p>}
         </div>
@@ -387,6 +394,7 @@ export default function SectionHistoryModal({ group, title, liveNote, onClose }:
 }
 
 function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; domain?: Domain }) {
+  const t = useT();
   const boxRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(560);
   const [hover, setHover] = useState<number | null>(null);
@@ -412,7 +420,7 @@ function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; dom
   const { now, peak } = summary(points);
   const nowF = now != null ? figureOf(now, unit) : null;
   const peakF = peak != null ? figureOf(peak, unit) : null;
-  const note = label === "Throttling" ? throttleNote(points, stepMs) : null;
+  const note = label === "Throttling" ? throttleNote(points, stepMs, undefined, t) : null;
 
   // The most recent minute at the peak, which the peak figure jumps to. None on
   // a chart of one point, which has no line to read along.
@@ -422,7 +430,7 @@ function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; dom
   }
   const kept = pinned != null ? points.find(p => p.t === pinned) ?? null : null;
   const at = hover != null ? points[hover] : kept;
-  const atMultiple = at ? coreMultiple(at.v, cores) : null;
+  const atMultiple = at ? coreMultiple(at.v, cores, t) : null;
   // The dialog's span, shared by every chart in it; the series' own only when
   // it has no points to say anything about.
   const [t0, t1]: Domain = domain ?? (points.length ? [points[0].t, points[points.length - 1].t] : [0, 0]);
@@ -455,22 +463,22 @@ function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; dom
     setPinned(prev => (prev === t ? null : t));
   };
   const peakFig = peak != null && peakF && (
-    <><b className={band(peak, warnAt, critAt)}>{peakF.value}</b><span>{peakF.unit} peak</span></>
+    <><b className={band(peak, warnAt, critAt)}>{peakF.value}</b><span>{t("board.hist.peak", { unit: peakF.unit })}</span></>
   );
-  const peakMultiple = peak != null ? coreMultiple(peak, cores) : null;
+  const peakMultiple = peak != null ? coreMultiple(peak, cores, t) : null;
 
   return (
-    <section className="hist-series" aria-label={`${label} history`}>
+    <section className="hist-series" aria-label={t("board.hist.history", { label })}>
       <div className="hist-head">
         <span className="hist-label">{label}</span>
         <span className="hist-stats">
-          {nowF && <><b>{nowF.value}</b><span>{nowF.unit} now</span></>}
+          {nowF && <><b>{nowF.value}</b><span>{t("board.hist.now", { unit: nowF.unit })}</span></>}
           {/* The peak is the minute people open this to find, so it is also
               the way to it: pressing it keeps that minute's reading under
               the chart, with its time. */}
           {peakFig && (peakAt
             ? <button type="button" className="hist-peak" onClick={() => setPinned(peakAt!.t)}
-                title="Show when it peaked">{peakFig}</button>
+                title={t("board.hist.showPeak")}>{peakFig}</button>
             : peakFig)}
         </span>
       </div>
@@ -490,10 +498,13 @@ function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; dom
           // spread across three hours.
           aria-label={
             nowF == null || peakF == null
-              ? `${label}: nothing measured yet`
-              : `${label}: ${figureText(nowF)} now, peak ${figureText(peakF)}${
-                  peakAt ? ` at ${clock(peakAt.t)}` : ""}${peakMultiple ? ` (${peakMultiple})` : ""}, over ${
-                  spanLabel(points[0].t, points[points.length - 1].t)}`
+              ? t("board.hist.chartNone", { label })
+              : t("board.hist.chartLabel", {
+                  label, now: figureText(nowF), peak: figureText(peakF),
+                  at: peakAt ? t("board.hist.chartAt", { at: clock(peakAt.t) }) : "",
+                  multiple: peakMultiple ? t("board.hist.chartMultiple", { multiple: peakMultiple }) : "",
+                  span: spanLabel(points[0].t, points[points.length - 1].t, t),
+                })
           }
           onPointerMove={read}
           onPointerLeave={() => setHover(null)}
@@ -555,7 +566,7 @@ function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; dom
         )}
         {kept && (
           <button type="button" className="glyph-btn hist-unpin" onClick={() => setPinned(null)}
-            aria-label="Stop showing this reading" title="Stop showing this reading">×</button>
+            aria-label={t("board.hist.unpin")} title={t("board.hist.unpin")}>×</button>
         )}
       </div>
 
@@ -567,7 +578,7 @@ function Chart({ series, stepMs, domain }: { series: Series; stepMs: number; dom
       {changes?.slice(-3).map(c => (
         <div key={c.t} className="hist-note hist-route">
           {c.from == null
-            ? `Since ${clock(c.t)} — ${c.label}`
+            ? t("board.hist.routeSince", { at: clock(c.t), label: c.label })
             : `${clock(c.t)} — ${c.label.charAt(0).toUpperCase() + c.label.slice(1)}`}
         </div>
       ))}

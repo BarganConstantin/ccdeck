@@ -16,7 +16,7 @@ const prompt = /\.session-summary \.ss-prompt\s*\{([^}]*)\}/.exec(css)?.[1] ?? "
 
 describe("the opening prompt is a plain inset block (#862)", () => {
   it("still renders the prompt in its box", () => {
-    expect(summary).toMatch(/<h4>Opening prompt<\/h4>\s*<div className="ss-prompt">\{summary\.firstPrompt\}<\/div>/);
+    expect(summary).toMatch(/<h4>\{t\("insights\.summary\.opening"\)\}<\/h4>\s*<div className="ss-prompt">\{summary\.firstPrompt\}<\/div>/);
   });
 
   it("keeps the soft ground and one hairline all the way round", () => {

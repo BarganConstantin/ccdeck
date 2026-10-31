@@ -8,6 +8,9 @@
 // and that copy does not hold the deck's change. The second reading is what
 // tells the reader, where the switch alone would have looked saved.
 import { useEffect, useState } from "react";
+import { t as tNow, type TFunction } from "./i18n";
+import { OwnError, ownMessage } from "./own-error";
+import { serverText } from "./radar-server-text";
 
 export type ClaudeSettingValue = boolean | string | number | null;
 
@@ -84,7 +87,7 @@ export async function refreshClaudeSettings() {
   try {
     const reading = await read(controller.signal);
     if (observed === revision && !controller.signal.aborted) publish({ reading, error: "" });
-  } catch { if (observed === revision && (timedOut || !controller.signal.aborted)) publish({ error: "Could not read Claude Code settings. Try again." }); }
+  } catch { if (observed === revision && (timedOut || !controller.signal.aborted)) publish({ error: tNow("settings.claude.readFail") }); }
   finally { clearTimeout(timeout); inFlight = false; if (request === controller) request = null; }
 }
 
@@ -105,7 +108,7 @@ export async function setClaudeSetting(id: string, value: ClaudeSettingValue) {
       body: JSON.stringify({ id, value }), signal: controller.signal,
     });
     const data = await res.json().catch(() => null);
-    if (!res.ok || !valid(data)) throw new Error(typeof data?.error === "string" ? data.error : "Could not save the change. Try again.");
+    if (!res.ok || !valid(data)) throw new OwnError(typeof data?.error === "string" && data.error ? claudeReasonText(data.error) : tNow("settings.claude.saveFail"));
     publish({ reading: data });
     // What the save left the row reading, taken now: the ten-second reading
     // may land first and already hold the session's copy.
@@ -118,8 +121,36 @@ export async function setClaudeSetting(id: string, value: ClaudeSettingValue) {
       }).catch(() => {}).finally(() => clearTimeout(timeout));
     }, RECHECK_MS);
   } catch (error) {
-    publish({ error: error instanceof Error && error.message ? error.message : "Could not save the change. Try again." });
+    publish({ error: ownMessage(error, tNow("settings.claude.saveFail")) });
   } finally { clearTimeout(timeout); publish({ saving: null }); }
+}
+
+/** The deck's own sentence for a reason or refusal the server wrote in
+ *  English, when it is one of the fixed ones; anything else (a message from the
+ *  file system, say) is shown as it came. */
+const REASON_KEYS: Record<string, string> = {
+  "Your settings.json is not valid JSON, so Claude Code skips all of it, hooks included. Fix it in an editor; this section reads it again by itself.": "settings.claude.reason.invalid",
+  "Your settings.json could not be read here, so nothing is shown or changed until it can.": "settings.claude.reason.unreadable",
+  "Your organization's settings could not be read, so nothing here can be changed until they can.": "settings.claude.reason.othersUnknown",
+  "Set by your organization. Ask your administrator to change it.": "settings.claude.reason.locked",
+  "Your settings.json holds a custom value. Edit it there.": "settings.claude.reason.custom",
+  "Choose a setting this section offers and one of its values.": "settings.claude.reason.choose",
+  "Your settings.json could not be read as JSON. No changes were saved.": "settings.claude.reason.parse",
+  "Your settings.json changed while saving. Nothing was written. Try again.": "settings.claude.reason.changed",
+  "Claude Code settings can be changed on this computer only.": "settings.claude.reason.localOnly",
+  "Could not read Claude Code settings. Try again.": "settings.claude.reason.readFail",
+  "Could not save the change. Your settings.json was not modified.": "settings.claude.reason.notSaved",
+  "Your settings.json has a permissions value that is not an object. No changes were saved.": "settings.claude.reason.permissionsShape",
+  "Your settings.json has a permissions.deny value that is not a list. No changes were saved.": "settings.claude.reason.denyShape",
+  "Your settings.json holds a custom attribution. Edit it there.": "settings.claude.reason.attribution",
+};
+
+export function claudeReasonText(text: string, t: TFunction = tNow): string {
+  const fixed = REASON_KEYS[text];
+  if (fixed) return t(fixed);
+  const needs = /^Needs Claude Code (\S+) or newer(, and the version installed here could not be read)?\.$/.exec(text);
+  if (needs) return t(needs[2] ? "settings.claude.reason.needsUnread" : "settings.claude.reason.needs", { version: needs[1] });
+  return serverText(text, t);
 }
 
 export function useClaudeSettings() {

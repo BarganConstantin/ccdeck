@@ -42,6 +42,10 @@ import { useThresholdDraft } from "../use-threshold-draft";
 import { useNextDraft } from "../use-next-draft";
 import { homeTitle, isHome } from "../auto-choice";
 import { POLL_MS, useAccountRoster } from "../use-account-roster";
+import { reloadText } from "../accounts-reload";
+import { useT } from "../i18n";
+import { translate } from "../i18n/translate";
+import { tNodes } from "../accounts-rich";
 import { useRosterFocus } from "../use-roster-focus";
 import { usePanelClock } from "../use-panel-clock";
 import { type Account, type AccountsData } from "../claude-accounts";
@@ -69,6 +73,7 @@ interface Props {
 export default function AccountsPanel({ onClose, leaving, onReport, onRoster, lanWanted = false, onLanShown }: Props) {
   // Opened: one of the features the usage reports name (feature-use.ts).
   useFeatureUse("accounts-panel");
+  const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   // The one request the panel has out, and the attributes it puts on every
   // control that request makes inert — see use-request-slot.ts (#518).
@@ -252,7 +257,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
     };
   };
   const activeAcct = data?.accounts?.find(a => a.active);
-  const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec, lanFor(activeAcct)) : null;
+  const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec, lanFor(activeAcct), t) : null;
   // ── the fold ──
   // WHO THE COLUMN DRAWS AT ONCE, and who stands behind one row. The live
   // account is the reading the panel is opened for and never folds; the others
@@ -267,7 +272,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   const others = activeAcct ? roster.filter(a => !a.active) : [];
   // In the reader's order (#1579), and held where it was while they are in the
   // list. An order stored for a model no account has any more is slot order.
-  const choices = orderChoices(others);
+  const choices = orderChoices(others, t);
   const shownOrder = validOrder(order, others);
   const rest = holdOrder(sortAccounts(others, shownOrder, a => reachable(a, nowSec), nowSec), held);
   /**
@@ -329,7 +334,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // What the fold's row says about them — how many can be reached, whether
   // the live account is past the threshold, whether anything will switch
   // without a press — is read in account-fold.ts.
-  const peers = peersOf(rest, nowSec, lanFor);
+  const peers = peersOf(rest, nowSec, lanFor, t);
   const strained = pastThreshold(activeAcct, threshold, nowSec);
   const autoArmed = isAutoArmed(auto);
   /** The box a row scrolls inside, which is what a popover hanging off it
@@ -426,7 +431,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // The one close, drawn in whichever header is up: the accounts' own, or Local
   // network's while that view has the column.
   const closeBtn = (
-    <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close accounts panel" title={withKey("Close", "A", singleKeys)}>
+    <button type="button" className="glyph-btn" onClick={onClose} aria-label={t("accounts.panel.closeLabel")} title={withKey(t("accounts.close"), "A", singleKeys)}>
       <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
         strokeWidth="1.3" strokeLinecap="round" aria-hidden>
         {/* A diagonal cross reads about a seventh larger than an
@@ -512,7 +517,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
     // aria-label on a roleless <div> resolved to `generic` and the tree threw
     // the name away (#381). This panel is the left sidebar beside the canvas,
     // which is complementary content by any reading.
-    <aside className={`accounts-panel${leaving ? " leaving" : ""}`} id="accounts-panel" aria-label="Claude accounts"
+    <aside className={`accounts-panel${leaving ? " leaving" : ""}`} id="accounts-panel" aria-label={t("accounts.panel.label")}
       onFocus={rosterFocus.onFocus} onBlur={rosterFocus.onBlur}>
       {view === "accounts" && (
         <AccountsHeader canShare={(data?.accounts?.length ?? 0) > 0}
@@ -540,11 +545,8 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
           {data == null ? (
             failure ? (
               <div className="ap-empty" role="alert">
-                <span title={failure.raw || undefined}>{failure.text}</span>
-                <span className="ap-hint">
-                  No accounts have arrived, so there is nothing to show yet. The panel keeps
-                  trying every {POLL_MS / 1000} seconds.
-                </span>
+                <span title={failure.raw || undefined}>{reloadText(failure, t)}</span>
+                <span className="ap-hint">{t("accounts.panel.noRoster", { seconds: POLL_MS / 1000 })}</span>
                 {/* This was `disabled={reloading}`, #518's one pinned exclusion:
                     the only control in this branch, so no busy lock had anything
                     to protect it from. It still dropped focus to <body> the
@@ -557,11 +559,11 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                     every rescue in this panel keeps. */}
                 <button type="button" className="ap-fix" {...pressProps("reload", reloading)}
                   onClick={() => load(true).then(() => rescueFocus(null))}>
-                  {reloading ? "trying…" : "try again"}
+                  {reloading ? t("accounts.panel.trying") : t("accounts.panel.tryAgain")}
                 </button>
               </div>
             ) : (
-              <div className="ap-empty">Checking…</div>
+              <div className="ap-empty">{t("accounts.panel.checking")}</div>
             )
           ) : !data.ok ? (
             <AccountsEmptyState data={data} />
@@ -580,12 +582,12 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                     aria-controls={issueOpen?.anchor === "ap-notice" ? "ap-issue-pop" : undefined}
                     onClick={() => openIssue(activeAcct.num, "ap-notice")}>
                     <WarnGlyph />
-                    <span className="ap-issue-text">Current account needs attention</span>
+                    <span className="ap-issue-text">{t("accounts.panel.needsAttention")}</span>
                   </button>
                   {activeIssue.fix && (
                     <button type="button" className="ap-notice-fix" onClick={() => setAddOpen(true)}
-                      title="Open the sign-in dialog. Signing in as this account replaces its stored login in place.">
-                      Sign in
+                      title={t("accounts.panel.signInTip")}>
+                      {t("accounts.row.signIn")}
                     </button>
                   )}
                 </div>
@@ -598,11 +600,11 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
               {!activeAcct && data.unlistedLogin && (
                 <div className="ap-notice">
                   <span className="ap-notice-text">
-                    Claude Code is signed in to <strong>{data.unlistedLogin}</strong>, which isn't in your accounts.
+                    {tNodes(t, "accounts.panel.unlisted", { email: <strong>{data.unlistedLogin}</strong> })}
                   </span>
                   <button type="button" className="ap-notice-fix" onClick={() => setAddOpen(true)}
-                    title="Open the add dialog. Once this login is one of your accounts, the deck can switch to it and back.">
-                    Add account
+                    title={t("accounts.panel.addTip")}>
+                    {t("accounts.panel.addAccount")}
                   </button>
                 </div>
               )}
@@ -666,9 +668,9 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                   row that was pressed (#827). */}
               {failure && failure.row == null && (
                 <div className="ap-failure" role="alert">
-                  <span className="ap-failure-text" title={failure.raw || undefined}>{failure.text}</span>
+                  <span className="ap-failure-text" title={failure.raw || undefined}>{reloadText(failure, t)}</span>
                   <button type="button" className="ap-failure-x" onClick={() => clearFailure()}
-                    aria-label="Dismiss this message" title="Dismiss">×</button>
+                    aria-label={t("accounts.row.dismissLabel")} title={t("accounts.row.dismiss")}>×</button>
                 </div>
               )}
 
@@ -680,7 +682,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                     slots={(data.accounts ?? []).map(x => x.num)}
                     boundaryId={rowBoundary(a.num)} nowSec={nowSec}
                     busy={busy} pressProps={pressProps}
-                    onProjects={() => { setProjectsFor({ num: a.num, name: a.alias ?? a.email ?? `account ${a.num}` }); closeMenu(a.num); }}
+                    onProjects={() => { setProjectsFor({ num: a.num, name: a.alias ?? a.email ?? t("accounts.accountNLower", { n: a.num }) }); closeMenu(a.num); }}
                     onRotation={() => post({ action: "account", account: a.num, enabled: a.disabled }, `rot-${a.num}`, "menu")
                       .then(out => { load(true); if (out?.ok) closeMenu(a.num); })}
                     home={isHome(a, auto?.choice?.home)}
@@ -690,8 +692,10 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
               })()}
               {issueOpen && (() => {
                 const a = data.accounts?.find(x => x.num === issueOpen.num);
-                const issue = a ? accountIssue(a, nowSec, lanFor(a)) : null;
+                const issue = a ? accountIssue(a, nowSec, lanFor(a), t) : null;
                 if (!a || !issue) return null;
+                // The report goes to the makers, who read English.
+                const reported = accountIssue(a, nowSec, lanFor(a), (key, vars) => translate("en", undefined, key, vars)) ?? issue;
                 return (
                   <AccountIssuePopover
                     anchorId={issueOpen.anchor}
@@ -699,7 +703,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                     // closes against the column however the roster is drawn.
                     boundaryId={issueOpen.anchor === "ap-notice" ? "ap-scroll" : rowBoundary(a.num)}
                     issue={issue}
-                    who={a.alias ?? a.email ?? `account ${a.num}`}
+                    who={a.alias ?? a.email ?? t("accounts.accountNLower", { n: a.num })}
                     fetchedAt={a.fetchedAt}
                     nowSec={nowSec}
                     onClose={closeIssue}
@@ -710,7 +714,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                     // report; a quiet, self-clearing state is "something else".
                     onReport={onReport && (() => onReport({
                       initialKind: issue.tone === "warn" ? "bug" : "other",
-                      initialBody: `Account issue: ${issue.text}. ${issue.hint}`,
+                      initialBody: `Account issue: ${reported.text}. ${reported.hint}`,
                     }))}
                   />
                 );
@@ -728,7 +732,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
           appears already holding its text is one a screen reader may never
           read. */}
       <div className="vis-hidden" role="status" aria-atomic="true">
-        {switched ? `Now active: ${switched.name}` : ""}
+        {switched ? t("accounts.panel.nowActive", { name: switched.name }) : ""}
       </div>
 
       {/* LOCAL NETWORK: A WAY IN AT THE FOOT, AND A VIEW OF ITS OWN. It is not
@@ -785,7 +789,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
         return (
           <AccountProjectsModal
             num={projectsFor.num}
-            name={a ? (a.alias ?? a.email ?? `account ${a.num}`) : projectsFor.name}
+            name={a ? (a.alias ?? a.email ?? t("accounts.accountNLower", { n: a.num })) : projectsFor.name}
             onClose={() => setProjectsFor(null)}
           />
         );

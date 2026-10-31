@@ -7,6 +7,8 @@ import { Fragment, useCallback, useState } from "react";
 
 import type { RelayGuard } from "../browser-watch-model";
 import { copyText } from "../copy-text";
+import { useT } from "../i18n";
+import { slot } from "./Slot";
 
 /**
  * "Can somebody else's Claude Code drive this browser?" — the panel half of
@@ -33,6 +35,7 @@ import { copyText } from "../copy-text";
  * hand over the command.
  */
 export default function RemoteControl({ relay }: { relay: RelayGuard }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   // Offer the one that matches the state: a machine already blocked is offered
@@ -51,13 +54,13 @@ export default function RemoteControl({ relay }: { relay: RelayGuard }) {
 
   return (
     <section className="bw-sec">
-      <h4 className="bw-sec-head">Remote control</h4>
+      <h4 className="bw-sec-head">{t("shell.remote.title")}</h4>
       <p className={`bw-rc-verdict ${relay.verdict}`} role="status">
         {relay.verdict === "exposed"
-          ? "Claude in Chrome is live here, so any Claude Code session signed in to your Anthropic account can drive this browser — from any machine, with no prompt on this one."
+          ? t("shell.remote.exposed")
           : relay.verdict === "protected"
-            ? `The relay is black-holed in ${relay.hostsPath}, so no new connection to it can be made from this machine.`
-            : "Claude in Chrome is not installed and enabled in any profile here, so there is nothing for the relay to drive."}
+            ? t("shell.remote.protected", { path: relay.hostsPath })
+            : t("shell.remote.nothing")}
       </p>
 
       {relay.killswitch.foreign.length > 0 && (
@@ -67,14 +70,14 @@ export default function RemoteControl({ relay }: { relay: RelayGuard }) {
            `blocked` is not `ours.length > 0`, and why the line to go and look
            at is named here. */
         <p className="bw-rc-foreign">
-          Another entry for this host is already in {relay.hostsPath}, and ccdeck will not touch it:
+          {t("shell.remote.foreign", { path: relay.hostsPath })}
           {relay.killswitch.foreign.map(l => <code key={l} className="bw-path">{l}</code>)}
         </p>
       )}
 
       <button className="bw-why" onClick={() => setOpen(v => !v)} aria-expanded={open}>
         <span className="bw-chev" aria-hidden>{open ? "▾" : "▸"}</span>{" "}
-        {relay.verdict === "protected" ? "How to undo the block" : "What it can reach, and how to stop it"}
+        {relay.verdict === "protected" ? t("shell.remote.undo") : t("shell.remote.reach")}
       </button>
 
       {open && (
@@ -85,8 +88,10 @@ export default function RemoteControl({ relay }: { relay: RelayGuard }) {
                 <Fragment key={`${p.browser}/${p.profile}`}>
                   <dt>{p.name}{p.profile === "Default" ? "" : ` · ${p.profile}`}</dt>
                   <dd>
-                    {p.report!.enabled ? "enabled" : "installed but switched off"}
-                    {p.report!.allUrls ? ", can act on every site" : ", limited to the sites it was granted"}
+                    {t("shell.remote.detail", {
+                      state: p.report!.enabled ? t("shell.remote.enabled") : t("shell.remote.switchedOff"),
+                      scope: p.report!.allUrls ? t("shell.remote.allSites") : t("shell.remote.limited"),
+                    })}
                     {p.report!.sensitiveApis.length > 0 && <> — {p.report!.sensitiveApis.join(", ")}</>}
                   </dd>
                 </Fragment>
@@ -98,25 +103,22 @@ export default function RemoteControl({ relay }: { relay: RelayGuard }) {
                the same fact, and this is the one screen where saying the
                reassuring one by mistake matters. */
             <p className="bw-rc-note">
-              {unreadable.map(p => p.name).join(", ")} — its settings file could not be read, so
-              nothing is claimed about it either way.
+              {t("shell.remote.unreadable", { names: unreadable.map(p => p.name).join(", ") })}
             </p>
           )}
           {!relay.hostsRead && (
             <p className="bw-rc-note">
-              {relay.hostsPath} could not be read, so whether the relay is already blocked is unknown.
+              {t("shell.remote.hostsUnread", { path: relay.hostsPath })}
             </p>
           )}
           {granted.some(p => p.report!.allUrls) && (
             <p className="bw-rc-note">
-              Narrowing the sites in <code className="bw-path">chrome://extensions</code> does not
-              change this: the grant is held at the browser level and the per-site list is enforced
-              inside the extension, by the extension.
+              {slot(t("shell.remote.narrow"), "code", <code className="bw-path">chrome://extensions</code>)}
             </p>
           )}
           <div className="bw-rc-cmd">
             <code>{cmd.command}</code>
-            <button className="btn bw-rc-copy" onClick={copy}>{copied ? "Copied" : "Copy"}</button>
+            <button className="btn bw-rc-copy" onClick={copy}>{copied ? t("shell.copied") : t("shell.copy")}</button>
           </div>
           <p className="bw-rc-note">{cmd.note}</p>
         </div>

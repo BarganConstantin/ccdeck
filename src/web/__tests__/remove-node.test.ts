@@ -531,7 +531,7 @@ describe("where Remove lives and what follows it", () => {
     const detail = /function Detail\([\s\S]*?\n}\n/.exec(panel)?.[0] ?? "";
     expect(detail, "no Detail in components/Detail.tsx").not.toBe("");
     expect(panel).not.toMatch(/>\s*Remove node\s*</);
-    expect(detail).toMatch(/className="btn hero-action-btn"\s+onClick=\{onRemove\}[\s\S]*?>Remove from board<\/button>/);
+    expect(detail).toMatch(/className="btn hero-action-btn"\s+onClick=\{onRemove\}[\s\S]*?>\{t\("board\.detail\.remove"\)\}<\/button>/);
     expect(app).toMatch(/<DetailAside\b[^>]*\bremoveSelectedNode=\{removeSelectedNode\}/);
     const aside = readFileSync(fileURLToPath(new URL("../components/DetailAside.tsx", import.meta.url)), "utf8");
     expect(aside).toMatch(/onRemove=\{removeSelectedNode\}/);
@@ -557,7 +557,7 @@ describe("where Remove lives and what follows it", () => {
   });
 
   it("says the removal through a region that is mounted before the words arrive", () => {
-    expect(app).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">\s*\{removalNotice \? `\$\{removalNotice\.label\} removed from the board\.` : ""\}/);
+    expect(app).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">\s*\{removalNotice \? t\("shell\.board\.removed", \{ label: removalNotice\.label \}\) : ""\}/);
   });
 
   it("brings a waiting session back instead of leaving the alarm pointing at nothing", () => {
@@ -572,8 +572,8 @@ describe("where Remove lives and what follows it", () => {
     expect(app).toMatch(/onSelect=\{pickSession\}[\s\S]*?removedIds=\{removedAgentIds\}/);
     expect(app).toMatch(/const pickSession = useCallback\(\(sessionId: string\) => \{\s*openSession\(sessionId\);/);
     expect(app).toMatch(/if \(removedAgentIds\.has\(sessionId\)\) bringBack\(\[sessionId\]\);\s*focusSession\(sessionId\);/);
-    expect(list).toMatch(/\{removed && <span className="sl-removed">off the board<\/span>\}/);
-    expect(list).toMatch(/Bring back \{count\} removed \{count === 1 \? "card" : "cards"\}/);
+    expect(list).toMatch(/\{removed && <span className="sl-removed">\{t\("board\.list\.offBoard"\)\}<\/span>\}/);
+    expect(list).toMatch(/\{t\("board\.list\.bringBack", \{ count \}\)\}/);
     expect(css).toMatch(/\.session-list \.sl-row\.removed \.sl-label \{ color: var\(--muted\); \}/);
   });
 

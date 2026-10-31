@@ -18,6 +18,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { createPortal } from "react-dom";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { focusDropped } from "../panel-press";
+import { useT } from "../i18n";
 
 export interface GuideStep {
   /** The drawing, which is the step. Decorative to a screen reader — the line
@@ -41,6 +42,7 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
   aside?: Act;
   onClose: () => void;
 }) {
+  const t = useT();
   const nextRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: nextRef });
   const scrimPress = useScrimDismiss(onClose);
@@ -88,7 +90,7 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
           </div>
           <div className="modal-actions">
             <button type="button" className="glyph-btn" onClick={onClose}
-              aria-label="Close (Esc)" title="Close (Esc)">×</button>
+              aria-label={t("shell.closeEsc")} title={t("shell.closeEsc")}>×</button>
           </div>
         </header>
 
@@ -106,7 +108,7 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
             <div className="guide-dots">
               {steps.map((_, i) => (
                 <button key={i} type="button" className="glyph-btn guide-dot"
-                  aria-label={`Step ${i + 1} of ${steps.length}`}
+                  aria-label={t("shell.guide.step", { n: i + 1, total: steps.length })}
                   aria-current={i === at ? "step" : undefined}
                   onClick={() => go(i)} />
               ))}
@@ -117,10 +119,10 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
               </button>
             )}
             {at > 0 && (
-              <button type="button" className="btn" onClick={() => go(at - 1)}>Back</button>
+              <button type="button" className="btn" onClick={() => go(at - 1)}>{t("shell.back")}</button>
             )}
             <button ref={nextRef} type="button" className="btn primary" onClick={next}>
-              {last ? (finish?.label ?? "Done") : "Next"}
+              {last ? (finish?.label ?? t("shell.done")) : t("shell.next")}
             </button>
           </div>
         </section>

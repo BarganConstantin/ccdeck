@@ -1,5 +1,6 @@
 import type { Json } from "./components/JsonInspector";
 import type { RadarSession } from "./telemetry-inspection";
+import { t } from "./i18n";
 
 export type TelemetryFields = Record<string, Json>;
 export const PROMPT_FIELDS = ["prompt_text", "user_prompt", "prompt", "gen_ai.prompt", "gen_ai.input.messages"];
@@ -39,7 +40,7 @@ export function promptPreview(payload: Json | undefined): string | null {
       }
     }
   }
-  return hidden ? "Prompt redacted" : null;
+  return hidden ? t("radar.payload.promptRedacted") : null;
 }
 export function recordPriority(record: TelemetryFields) {
   const fields = attributes(record.attributes);

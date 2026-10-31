@@ -77,7 +77,7 @@ describe("character appearance preference", () => {
   });
 
   it("is titled, and names each control from the words on screen", () => {
-    expect(modal()).toContain('<span id="settings-title" className="modal-tool-name">Settings</span>');
+    expect(modal()).toContain('<span id="settings-title" className="modal-tool-name">{t("settings.title")}</span>');
     // The pair is named by its visible caption, and the key that switches it
     // from anywhere is declared on it — while that key does anything, which
     // Settings › Keyboard's single-key switch decides (WCAG 2.1.4).

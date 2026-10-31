@@ -11,6 +11,7 @@
 // another site, which the ↗ says before the press. `noopener noreferrer`, so
 // the page opened learns nothing about the deck, not even its port.
 import type { Incident } from "../provider-status";
+import { useT } from "../i18n";
 import { ExternalLinkGlyph } from "./action-glyphs";
 
 /**
@@ -24,6 +25,7 @@ import { ExternalLinkGlyph } from "./action-glyphs";
  * always what is visible, plus the vis-hidden tail that says where it goes.
  */
 export function IncidentChips({ incidents }: { incidents: Incident[] }) {
+  const t = useT();
   return (
     <>
       {incidents.map(i => (
@@ -41,9 +43,9 @@ export function IncidentChips({ incidents }: { incidents: Incident[] }) {
           <span className="pi-name">{i.name}</span>
           <span className="pi-words">· {i.chipWords}</span>
           <span className="pi-short">· {i.shortWords}</span>
-          {i.asOf && <span className="pi-asof">· as of {i.asOf}</span>}
+          {i.asOf && <span className="pi-asof">· {t("shell.incident.asOf", { time: i.asOf })}</span>}
           <span className="pi-go" aria-hidden><ExternalLinkGlyph /></span>
-          <span className="vis-hidden">, on {i.host}, opens in a new tab</span>
+          <span className="vis-hidden">, {t("shell.incident.opens", { host: i.host })}</span>
         </a>
       ))}
     </>
@@ -52,6 +54,7 @@ export function IncidentChips({ incidents }: { incidents: Incident[] }) {
 
 /** The line under a quota section's heading, or nothing without an incident. */
 export function QuotaIncident({ incident }: { incident: Incident | null | undefined }) {
+  const t = useT();
   if (!incident) return null;
   return (
     <a
@@ -68,14 +71,14 @@ export function QuotaIncident({ incident }: { incident: Incident | null | undefi
       <span className="up-incident-words">
         <span className="vis-hidden">{incident.name}: </span>
         {/* "Partial outage": it opens the line, where the chip's words follow a name. */}
-        {incident.words[0].toUpperCase() + incident.words.slice(1)}{incident.asOf ? ` · as of ${incident.asOf}` : ""}
+        {incident.words[0].toUpperCase() + incident.words.slice(1)}{incident.asOf ? ` · ${t("shell.incident.asOf", { time: incident.asOf })}` : ""}
       </span>
       <span className="up-incident-go" aria-hidden><ExternalLinkGlyph /></span>
       {/* Its own row, under the state: the panel is a 280px column, and on one
           line with the state and the page's host the title was cut to four
           letters. The host is said to a screen reader and in the title. */}
       {incident.what && <span className="up-incident-what">{incident.what}</span>}
-      <span className="vis-hidden">, on {incident.host}, opens in a new tab</span>
+      <span className="vis-hidden">, {t("shell.incident.opens", { host: incident.host })}</span>
     </a>
   );
 }

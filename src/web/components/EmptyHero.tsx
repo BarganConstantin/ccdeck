@@ -10,6 +10,14 @@ import { captureHints } from "../provider-copy";
 import type { Providers } from "../providers";
 import { emptyScope } from "../scope";
 import FilmLink from "./FilmLink";
+import { useT, type TFunction } from "../i18n";
+
+/** A translated sentence with the given words set in <code>, wherever the
+ *  language put them. */
+function coded(text: string, codes: readonly string[]) {
+  const parts = text.split(new RegExp(`(${codes.map(c => c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`));
+  return parts.map((part, i) => (codes.includes(part) ? <code key={i}>{part}</code> : part));
+}
 
 function TerminalSymbol({ active = false }: { active?: boolean }) {
   const [visible, setVisible] = useState(() => typeof document === "undefined" || !document.hidden);
@@ -28,15 +36,12 @@ function TerminalSymbol({ active = false }: { active?: boolean }) {
  *  browser are live. Said as what to do, because the browser connects this tab
  *  the moment one of the others closes. */
 export function TabCapHero({ reservedRight = 0 }: { reservedRight?: number }) {
+  const t = useT();
   return (
     <div className="empty-stage" style={{ right: reservedRight }}><div className="empty-hero">
       <TerminalSymbol />
-      <h2>Too many {PRODUCT} tabs are open</h2>
-      <p>
-        This browser keeps at most six live connections to one address, and
-        other <code>{PRODUCT}</code> tabs are holding them. Close one and this
-        tab connects on its own.
-      </p>
+      <h2>{t("board.hero.tabs", { product: PRODUCT })}</h2>
+      <p>{coded(t("board.hero.tabsBody", { product: PRODUCT }), [PRODUCT])}</p>
     </div></div>
   );
 }
@@ -45,24 +50,21 @@ export function EmptyHero({ live, everConnected, providers, workspace, onTour, r
   live: boolean; everConnected: boolean; providers: Providers; workspace: string | null;
   onTour: () => void; reservedRight?: number;
 }) {
+  const t = useT();
   const offline = !live;
   return (
     <div className="empty-stage" style={{ right: reservedRight }}><div className="empty-hero">
       <TerminalSymbol active={live} />
       {offline ? (
         <>
-          <h2>{everConnected ? "Disconnected from server" : "Server unreachable"}</h2>
+          <h2>{everConnected ? t("board.hero.disconnected") : t("board.hero.unreachable")}</h2>
           {/* In the reader's words, not the route's (#832): `/events` is the
               stream's endpoint and means nothing to somebody who typed
               `npx ccdeck`. What they need is which of the two happened and
               where to look. */}
-          <p>
-            {everConnected ? "This page lost its connection to " : "This page cannot reach "}
-            <code>{PRODUCT}</code>. Check that it is still running in your terminal —
-            the page picks up again on its own.
-          </p>
+          <p>{coded(t(everConnected ? "board.hero.lost" : "board.hero.cannotReach", { product: PRODUCT }), [PRODUCT])}</p>
         </>
-      ) : agentNoneCopy(providers, workspace)}
+      ) : agentNoneCopy(providers, workspace, t)}
       {/* THE WAY BACK TO THE TOUR, on the one screen a person who has not yet
           seen anything is looking at. It is a control on a hero that is
           pointer-transparent by design (a drag starting here still pans), so
@@ -70,8 +72,8 @@ export function EmptyHero({ live, everConnected, providers, workspace, onTour, r
           is about the server, and the tour would be a promise about a canvas
           that cannot fill. */}
       {!offline && (
-        <div className="empty-actions" role="group" aria-label="Explore ccdeck">
-          <button type="button" className="btn empty-tour" onClick={onTour}>Take the tour</button>
+        <div className="empty-actions" role="group" aria-label={t("board.hero.explore")}>
+          <button type="button" className="btn empty-tour" onClick={onTour}>{t("board.hero.tour")}</button>
           <FilmLink film="tour" action />
         </div>
       )}
@@ -79,7 +81,7 @@ export function EmptyHero({ live, everConnected, providers, workspace, onTour, r
   );
 }
 
-function agentNoneCopy(providers: Providers, workspace: string | null) {
+function agentNoneCopy(providers: Providers, workspace: string | null, t: TFunction) {
   // THE SCOPE SENTENCE BELONGS HERE, not only in the detail rail (#802). This
   // hero said "run it in any folder" whatever the deck was watching, and the
   // one user for whom the canvas stays empty is exactly the one who started it
@@ -90,19 +92,17 @@ function agentNoneCopy(providers: Providers, workspace: string | null) {
   // text that appears when nothing shows up told that user scope could not be
   // the cause" — and it still did, for anyone who had not opened the rail,
   // which is closed on a fresh install.
-  const scope = emptyScope(workspace);
+  const scope = emptyScope(workspace, t);
   return (
     <>
-      <h2>Waiting for Claude Code or Codex</h2>
+      <h2>{t("board.hero.waiting")}</h2>
       {scope.kind === "scoped" ? (
         <p>
           {scope.lead} <code>{scope.workspace}</code>{scope.tail}
         </p>
       ) : (
         <p>
-          Run <code>claude</code> or <code>codex</code> in any folder. As soon as
-          a session sends an event, a node appears here and grows as subagents
-          fork and tools are called.
+          {coded(t("board.hero.run"), ["claude", "codex"])}
         </p>
       )}
       {/* This used to be one sentence for both CLIs, and it sent Codex users to
@@ -117,7 +117,7 @@ function agentNoneCopy(providers: Providers, workspace: string | null) {
           it told a connected reader to check the one thing the page already
           knew. What can really keep the canvas empty is a capture path, and
           each of those says so below. */}
-      <details className="empty-help"><summary>Session not showing up?</summary>
+      <details className="empty-help"><summary>{t("board.hero.notShowing")}</summary>
       {captureHints(providers).map(hint => (
         <p className="hint-row" key={hint.provider}>
           {hint.spans.map((span, i) =>

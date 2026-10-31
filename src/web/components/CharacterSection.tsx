@@ -10,6 +10,7 @@
 import CharacterPicker from "./CharacterPicker";
 import type { Character } from "../character";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
+import { useT } from "../i18n";
 
 export const CHARACTER_NOTE = "Stands beside the minimap. Press it to play the radio.";
 
@@ -17,14 +18,15 @@ export default function CharacterSection({ characterEnabled, onToggleCharacter, 
   characterEnabled: boolean; onToggleCharacter: () => void;
   character: Character; onCharacter: (character: Character) => void;
 }) {
+  const t = useT();
   return (
-    <SettingsGroup id="appearance-character-caption" title="Character" list={false}>
+    <SettingsGroup id="appearance-character-caption" title={t("settings.character.title")} list={false}>
       <div className="settings-list">
         <SettingRow
           settingId="character"
-          name="Show the character"
+          name={t("settings.character.show")}
           nameId="appearance-character-label"
-          note={CHARACTER_NOTE}
+          note={t("settings.character.note")}
           noteId="appearance-character-note"
           control={
             <button

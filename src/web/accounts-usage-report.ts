@@ -26,7 +26,8 @@
 //
 // Pure, so the suite can call it. The modal is components/AccountsUsageReport.tsx.
 import { accountIssue } from "./account-issue";
-import { ago } from "./account-freshness";
+import { agoLabel as ago } from "./accounts-time";
+import { t as tNow, type TFunction } from "./i18n";
 import type { Account } from "./claude-accounts";
 import { laneKey } from "./lane-open";
 
@@ -117,14 +118,14 @@ export function statusOf(cells: Record<WindowId, Cell>): Status {
  * cannot speak for says why instead of when: a login no switch gets past, or a
  * window never read. `old` is whether the reader should notice it.
  */
-export function freshness(row: ReportRow, nowSec: number): { text: string; old: boolean } {
+export function freshness(row: ReportRow, nowSec: number, t: TFunction = tNow): { text: string; old: boolean } {
   const cells = REPORT_WINDOWS.map(w => row.cells[w.id]);
   for (const c of cells) {
     if (!c.counted && (c.why === "login" || c.why === "none")) return { text: c.say, old: true };
   }
-  if (row.updatedAt == null) return { text: "never read", old: true };
-  if (cells.every(c => c.counted)) return { text: "now", old: false };
-  return { text: ago(row.updatedAt, nowSec), old: true };
+  if (row.updatedAt == null) return { text: t("accounts.report.neverReadLower"), old: true };
+  if (cells.every(c => c.counted)) return { text: t("accounts.report.now"), old: false };
+  return { text: ago(row.updatedAt, nowSec, t), old: true };
 }
 
 /** How old a reading may be and still count — the server's own line. */
@@ -161,7 +162,7 @@ export interface UsageReport {
 }
 
 /** The name the panel calls an account by. */
-export const accountName = (a: Account) => a.alias ?? a.email ?? `account ${a.num}`;
+export const accountName = (a: Account, t: TFunction = tNow) => a.alias ?? a.email ?? t("accounts.accountNLower", { n: a.num });
 
 /** The actual recorded timestamp, rather than a rounded countdown or a
  *  future-only reading. Missing or unrepresentable dates cannot be sorted. */
@@ -171,14 +172,14 @@ function recordedReset(a: Account, id: WindowId): number | null {
 }
 
 /** One account's reading of one window, or why it does not count. */
-export function readingOf(a: Account, id: WindowId, nowSec: number): Cell {
+export function readingOf(a: Account, id: WindowId, nowSec: number, t: TFunction = tNow): Cell {
   const label = REPORT_WINDOWS.find(w => w.id === id)!.label;
   const lane = (a.lanes ?? []).find(l => l.id === id);
   const last = lane && Number.isFinite(lane.pct) ? clamp(lane.pct) : null;
-  const issue = accountIssue(a, nowSec);
+  const issue = accountIssue(a, nowSec, undefined, t);
   const at = recordedReset(a, id);
   const lapsed = at != null && at <= nowSec;
-  const reset = resetSinceReading(lane, a.fetchedAt, nowSec);
+  const reset = resetSinceReading(lane, a.fetchedAt, nowSec, t);
   const unread = (why: Unread, say: string): Cell => ({
     counted: false, why, say, last,
     estimate: last,
@@ -188,12 +189,12 @@ export function readingOf(a: Account, id: WindowId, nowSec: number): Cell {
   // In the order a reader would fix them: a login that cannot be used says
   // more than anything about the numbers it left behind.
   if (issue?.blocksSwitch) return unread("login", issue.text);
-  if (last == null) return unread("none", `No ${label} reading`);
+  if (last == null) return unread("none", t("accounts.report.noReading", { label }));
   // An elapsed reported time is uncertainty, not evidence of renewed quota.
   if (reset) return unread("reset", reset);
   const observed = observationAt(a.fetchedAt);
   const old = a.stale || a.staleCopy === true || a.stopped === true || observed == null || nowSec * 1000 - observed > REPORT_STALE_MS;
-  if (old) return unread("stale", observed != null ? `Updated ${ago(observed, nowSec)}` : "Never read");
+  if (old) return unread("stale", observed != null ? t("accounts.report.updated", { ago: ago(observed, nowSec, t) }) : t("accounts.report.neverRead"));
   return { counted: true, pct: last, resetAt: recordedReset(a, id) };
 }
 
@@ -213,11 +214,12 @@ export function resetSinceReading(
   lane: { pct: number; resetAt: number | null } | undefined,
   fetchedAt: number | null,
   nowSec: number,
+  t: TFunction = tNow,
 ): string | null {
   if (lane?.resetAt == null || lane.resetAt <= 0 || !Number.isFinite(lane.resetAt) || !Number.isFinite(new Date(lane.resetAt * 1000).getTime()) || lane.resetAt > nowSec || !Number.isFinite(lane.pct)) return null;
   const observed = observationAt(fetchedAt);
-  const read = observed != null ? `read ${ago(observed, nowSec)}` : "last read";
-  return `Reported reset time passed ${ago(lane.resetAt * 1000, nowSec)}, ${shownUsed(clamp(lane.pct))}% when ${read}`;
+  const when = observed != null ? t("accounts.report.whenRead", { ago: ago(observed, nowSec, t) }) : t("accounts.report.whenLastRead");
+  return t("accounts.report.resetPassed", { ago: ago(lane.resetAt * 1000, nowSec, t), pct: shownUsed(clamp(lane.pct)), when });
 }
 
 /** A window's total over the rows. */
@@ -266,16 +268,16 @@ export function windowTotal(rows: readonly ReportRow[], id: WindowId): WindowTot
  * over as it lists them, the live account first — so the rows under the totals
  * are the rows the reader already knows.
  */
-export function usageReport(accounts: readonly Account[], nowSec: number): UsageReport {
+export function usageReport(accounts: readonly Account[], nowSec: number, t: TFunction = tNow): UsageReport {
   const rows: ReportRow[] = accounts.map(a => {
     const cells = {
-      five_hour: readingOf(a, "five_hour", nowSec),
-      seven_day: readingOf(a, "seven_day", nowSec),
+      five_hour: readingOf(a, "five_hour", nowSec, t),
+      seven_day: readingOf(a, "seven_day", nowSec, t),
     };
     return {
       num: a.num,
       key: laneKey(a),
-      name: accountName(a),
+      name: accountName(a, t),
       active: a.active,
       heldOut: a.disabled === true,
       cells,
@@ -380,8 +382,8 @@ export function usedAndAvailable(used: number): { used: number; available: numbe
  * answer a store gives while claude-swap rewrites it. Null when nothing is
  * being held back — including an empty roster the report never had rows for.
  */
-export function heldNote(failed: string | null, empty: boolean, hadRows: boolean): string | null {
-  if (failed) return `${failed} These are the last readings.`;
-  if (empty && hadRows) return "The account store could not be read just now. These are the last readings.";
+export function heldNote(failed: string | null, empty: boolean, hadRows: boolean, t: TFunction = tNow): string | null {
+  if (failed) return t("accounts.report.heldFailed", { failed });
+  if (empty && hadRows) return t("accounts.report.heldEmpty");
   return null;
 }

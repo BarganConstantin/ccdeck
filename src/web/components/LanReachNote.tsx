@@ -33,6 +33,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { copyText } from "../copy-text";
 import type { LanReach } from "../lan-types";
+import { t as tNow, useT } from "../i18n";
+import { Fill } from "./LanAsks";
 
 /**
  * The way out that needs no firewall rule at all, per surface.
@@ -48,10 +50,8 @@ import type { LanReach } from "../lan-types";
  * deck nothing can reach still does every part of this by dialling out.
  */
 export const REACH_WAY_OUT: Record<"panel" | "dialog", string> = {
-  panel: "Nothing here is stuck: whoever pastes an invite is the one dialling out. "
-    + "Ask them for one and paste it behind Add a deck, the link above, where an address can be typed too.",
-  dialog: "Nothing here is stuck: whoever pastes an invite is the one dialling out. "
-    + "Ask them for one and paste it below, or type their address.",
+  get panel() { return tNow("lan.rn.wayOutPanel"); },
+  get dialog() { return tNow("lan.rn.wayOutDialog"); },
 };
 
 /** How long the copy verb reads `copied` before it goes back to saying what it
@@ -71,6 +71,7 @@ export default function LanReachNote({ reach, where }: {
   /** Which surface is drawing it — see REACH_WAY_OUT. */
   where: "panel" | "dialog";
 }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
@@ -109,19 +110,17 @@ export default function LanReachNote({ reach, where }: {
         // no administrator at all. This is the other one, for a reader who
         // wants the discovery half working rather than a deck that dials.
         <details className="ap-lan-reach-fix">
-          <summary>or let them find this deck on their own</summary>
+          <summary>{t("lan.rn.orFind")}</summary>
           <p className="lan-note">
             {linux ? (
-              <>Run this in a terminal on this machine. It applies at once, and this note goes
-              away when another deck connects.</>
+              <>{t("lan.rn.linux")}</>
             ) : sh ? (
-              <>Run this in a terminal on this machine, then restart the deck.</>
+              <>{t("lan.rn.sh")}</>
             ) : (
-              <>Run this in PowerShell <strong>as Administrator</strong>, then restart the deck.</>
+              <><Fill text={t("lan.rn.ps")} parts={{ admin: <strong>{t("lan.rn.admin")}</strong> }} /></>
             )}
             {reach.category === "Public" && (
-              <> The first line marks this network as a home or office one — leave it
-              out on a network you do not trust.</>
+              <>{t("lan.rn.public")}</>
             )}
             {/* The Linux verdict knows what it could not check, and says so here
                 rather than letting the command imply a certainty it does not
@@ -130,9 +129,9 @@ export default function LanReachNote({ reach, where }: {
           </p>
           <pre className="ap-lan-cmd"><code>{steps.join("\n")}</code></pre>
           <button type="button" className="ap-manage-btn" onClick={() => void copy()}
-            title={sh ? "Copy these lines, then paste them into a terminal"
-              : "Copy these lines, then paste them into an elevated PowerShell"}>
-            {copied ? "copied" : "copy command"}
+            title={sh ? t("lan.rn.copyShTitle")
+              : t("lan.rn.copyPsTitle")}>
+            {copied ? t("lan.copied") : t("lan.rn.copyCmd")}
           </button>
         </details>
       )}

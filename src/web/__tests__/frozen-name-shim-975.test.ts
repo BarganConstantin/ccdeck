@@ -239,7 +239,7 @@ describe("a flat install of a retired name will not reinstall itself", () => {
     // mount, the way prototype-keys-474.test.ts reads the lookup beside it.
     // The map moved out of App.tsx with the version banner that reads it.
     const banner = readFileSync(join(repo, "src", "web", "components", "VersionBanner.tsx"), "utf8");
-    expect(banner).toMatch(/^\s*retired_name: "[^"]+",$/m);
+    expect(banner).toMatch(/^\s*get retired_name\(\) \{ return t\("shell\.banner\.block\.retired_name"\); \},$/m);
   });
 
   it("keeps the unattended path away from it too", () => {

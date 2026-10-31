@@ -24,6 +24,7 @@
 // door to a wall.
 import type { SettingsDoors } from "../settings";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
+import { useT } from "../i18n";
 
 export const ACCOUNTS_ROW = "Accounts and auto-switch";
 export const ACCOUNTS_ROW_NOTE = "Your Claude accounts, and Auto-switch, which moves Claude Code to another one before the account in use runs out.";
@@ -42,17 +43,18 @@ interface Props {
 }
 
 export default function ElsewhereSection({ claudeHere, singleKeys, doors }: Props) {
+  const t = useT();
   return (
-    <SettingsGroup id="settings-elsewhere-caption" title="Elsewhere on the deck">
+    <SettingsGroup id="settings-elsewhere-caption" title={t("lan.ew.group")}>
       {claudeHere && (
-        <DoorRow settingId="accounts" name={ACCOUNTS_ROW} note={ACCOUNTS_ROW_NOTE} onOpen={doors.accounts}
-          cap={singleKeys ? { key: "A", title: "Press A anywhere to show or hide the accounts panel" } : null} />
+        <DoorRow settingId="accounts" name={t("lan.ew.accounts")} note={t("lan.ew.accountsNote")} onOpen={doors.accounts}
+          cap={singleKeys ? { key: "A", title: t("lan.ew.pressA") } : null} />
       )}
       {claudeHere && (
-        <DoorRow settingId="local-network" name={LAN_ROW} note={LAN_ROW_NOTE} onOpen={doors.localNetwork} cap={null} />
+        <DoorRow settingId="local-network" name={t("lan.ew.lan")} note={t("lan.ew.lanNote")} onOpen={doors.localNetwork} cap={null} />
       )}
-      <DoorRow settingId="browser-watch" name={WATCH_ROW} note={WATCH_ROW_NOTE} onOpen={doors.browserWatch} dialog
-        cap={singleKeys ? { key: "B", title: "Press B anywhere to open or close Browser Watch" } : null} />
+      <DoorRow settingId="browser-watch" name={t("lan.ew.watch")} note={t("lan.ew.watchNote")} onOpen={doors.browserWatch} dialog
+        cap={singleKeys ? { key: "B", title: t("lan.ew.pressB") } : null} />
     </SettingsGroup>
   );
 }
@@ -72,6 +74,7 @@ function DoorRow({ settingId, name, note, onOpen, cap, dialog = false }: {
 }) {
   // From the row's own id, which is unique in Settings by construction (the
   // search jumps by it), and leaves this component calling no hooks.
+  const t = useT();
   const id = `settings-${settingId}`;
   return (
     <SettingRow
@@ -91,7 +94,7 @@ function DoorRow({ settingId, name, note, onOpen, cap, dialog = false }: {
             aria-haspopup={dialog ? "dialog" : undefined}
             aria-keyshortcuts={cap ? cap.key : undefined}
             onClick={onOpen}
-          >Open</button>
+          >{t("lan.ew.open")}</button>
         </>
       }
     />

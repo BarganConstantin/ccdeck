@@ -37,6 +37,7 @@
 // tone's reserved width with it.
 
 import { withKey } from "./single-key-shortcuts";
+import { t, type TFunction } from "./i18n";
 
 export interface StatusPill {
   /** Modifier class on `.pill`, and the word it shows. */
@@ -100,9 +101,9 @@ export interface StatusPill {
 }
 
 /** "1 event" / "42 events" — the unit the count never carried. */
-export function heldEvents(held: number): string {
+export function heldEvents(held: number, tr: TFunction = t): string {
   const n = Math.max(0, Math.floor(held));
-  return `${n} event${n === 1 ? "" : "s"}`;
+  return tr("board.pill.events", { count: n });
 }
 
 /** The point past which the PILL stops counting and says "99+" (#504).
@@ -142,6 +143,9 @@ export function heldShort(held: number): string {
  *  is `pauseTitle` below, which is a description and is allowed to be one. */
 export const PAUSE_LABEL = "Pause the canvas";
 
+/** PAUSE_LABEL in the language on show; the constant stays the English one. */
+export const pauseLabel = (tr: TFunction = t): string => tr("board.pill.pause");
+
 /** The pause control's tooltip. The half that does flip.
  *
  *  The label is capped and the title is not, which is the whole of the split:
@@ -152,11 +156,11 @@ export const PAUSE_LABEL = "Pause the canvas";
  *  These are the three sentences the topbar button carried, unchanged, for the
  *  reason #527 gave when it moved Re-arrange and Clear: the strings a user
  *  already knows survive the move, and only the box around them changes. */
-export function pauseTitle(s: { paused: boolean; held: number; dropped?: number; singleKeys?: boolean }): string {
+export function pauseTitle(s: { paused: boolean; held: number; dropped?: number; singleKeys?: boolean }, tr: TFunction = t): string {
   // Space is named only while the single-key shortcuts answer it (Settings ›
   // General); a caller that does not say is on the default, which is on.
   const keys = s.singleKeys ?? true;
-  if (!s.paused) return withKey("Pause live updates — events keep arriving and are applied when you resume", "Space", keys);
+  if (!s.paused) return withKey(tr("board.pill.title.pause"), "Space", keys);
   // The overflow outranks the count, because it is the sentence that changes
   // what the user should do about it: a pause holding 42 events will be applied
   // whole, and a pause that has started dropping will not. Said in full here
@@ -164,11 +168,10 @@ export function pauseTitle(s: { paused: boolean; held: number; dropped?: number;
   // box has to fit does not.
   const dropped = Math.max(0, Math.floor(s.dropped ?? 0));
   if (dropped > 0) {
-    return withKey(`The pause is full — ${heldEvents(s.held)} held and ${dropped} older `
-      + `${dropped === 1 ? "one" : "ones"} already dropped. Resume to follow the canvas again`, "Space", keys);
+    return withKey(tr("board.pill.title.full", { held: heldEvents(s.held, tr), count: dropped }), "Space", keys);
   }
-  if (s.held <= 0) return withKey("Nothing has arrived since you paused. Resume to follow the canvas again", "Space", keys);
-  return withKey(`${heldEvents(s.held)} arrived while paused and will be applied in order when you resume`, "Space", keys);
+  if (s.held <= 0) return withKey(tr("board.pill.title.nothing"), "Space", keys);
+  return withKey(tr("board.pill.title.arrived", { held: heldEvents(s.held, tr) }), "Space", keys);
 }
 
 /**
@@ -206,9 +209,9 @@ export function pauseTitle(s: { paused: boolean; held: number; dropped?: number;
  * a queue that is not being fed, not about events being destroyed; the sentence
  * below keeps that scope.
  */
-export function outageSentence(s: { connected: boolean; paused: boolean }): string | null {
+export function outageSentence(s: { connected: boolean; paused: boolean }, tr: TFunction = t): string | null {
   if (s.connected || !s.paused) return null;
-  return "The canvas is paused as well — Space resumes it, but nothing new arrives until the stream is back.";
+  return tr("board.pill.outage");
 }
 
 /** The paused pill counts its queue in the label as well as the title.
@@ -228,38 +231,36 @@ export function outageSentence(s: { connected: boolean; paused: boolean }): stri
  *  paused tone can render, one glyph past `paused · 99+`. That glyph is the
  *  whole cost of the change and it is charged to the paused tone alone: `live`,
  *  the tone the deck rests in, reserves nothing extra. */
-const PAUSED_FULL = "paused · full";
+const pausedFull = (tr: TFunction) => tr("board.pill.pausedFull");
 
-const pausedLabel = (held: number, dropped: number) => {
+const pausedLabel = (held: number, dropped: number, tr: TFunction) => {
   // A hold that has hit its ceiling has stopped being a queue you can read a
   // number off. The count is pinned at the limit while events fall off the
   // back of it, so `paused · 99+` there would be a figure that is no longer
   // measuring anything — and worse, it would look exactly like the deep pause
   // one event earlier, which is still going to be applied whole. `full` is the
   // one true thing to say: at capacity, and dropping. See PAUSE_QUEUE_LIMIT.
-  if (dropped > 0) return PAUSED_FULL;
-  return held > 0 ? `paused · ${heldShort(held)}` : "paused";
+  if (dropped > 0) return pausedFull(tr);
+  return held > 0 ? tr("board.pill.pausedCount", { held: heldShort(held) }) : tr("board.pill.paused");
 };
 
-export function statusPill(s: { connected: boolean; paused: boolean; held: number; dropped?: number; singleKeys?: boolean }): StatusPill {
+export function statusPill(s: { connected: boolean; paused: boolean; held: number; dropped?: number; singleKeys?: boolean }, tr: TFunction = t): StatusPill {
   const dropped = Math.max(0, Math.floor(s.dropped ?? 0));
   const keys = s.singleKeys ?? true;
   if (!s.connected) {
     return {
       tone: "dead",
       resting: false,
-      label: "offline",
-      widest: "offline",
-      title: s.paused
-        ? "SSE disconnected — and the canvas is paused, so resuming will not bring events back until it reconnects"
-        : "SSE disconnected",
+      label: tr("board.pill.offline"),
+      widest: tr("board.pill.offline"),
+      title: s.paused ? tr("board.pill.title.offlinePaused") : tr("board.pill.title.offline"),
     };
   }
   if (s.paused) {
     return {
       tone: "paused",
       resting: false,
-      label: pausedLabel(s.held, dropped),
+      label: pausedLabel(s.held, dropped, tr),
       // Every label this tone can render is `paused · ` plus one of "0".."99",
       // "99+" or "full", and "full" is the longest of those — so the ghost is
       // that one, unconditionally, whether or not this particular pill has
@@ -268,13 +269,12 @@ export function statusPill(s: { connected: boolean; paused: boolean; held: numbe
       // which is the thing this field exists to prevent. That is an argument
       // from construction rather than from a measurement, which is what a
       // string shipped to three font stacks needs.
-      widest: PAUSED_FULL,
+      widest: pausedFull(tr),
       title: withKey(dropped > 0
-        ? `Connected — the pause is full at ${heldEvents(s.held)}; the oldest are being dropped `
-          + `as new ones arrive. Resume to catch up`
+        ? tr("board.pill.title.connectedFull", { held: heldEvents(s.held, tr) })
         : s.held > 0
-          ? `Connected — ${heldEvents(s.held)} held until you resume`
-          : "Connected — updates held until you resume", "Space", keys),
+          ? tr("board.pill.title.connectedHeld", { held: heldEvents(s.held, tr) })
+          : tr("board.pill.title.connectedNone"), "Space", keys),
     };
   }
   // `label`, `widest` and `title` are still filled in, and that is not dead
@@ -284,5 +284,5 @@ export function statusPill(s: { connected: boolean; paused: boolean; held: numbe
   // status line — should get the same words from the same place rather than
   // inventing a second "live". Returning a hollow object would make this file
   // the reason that second copy had to exist.
-  return { tone: "live", resting: true, label: "live", widest: "live", title: "Receiving events" };
+  return { tone: "live", resting: true, label: tr("board.pill.live"), widest: tr("board.pill.live"), title: tr("board.pill.title.live") };
 }

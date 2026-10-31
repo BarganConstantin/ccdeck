@@ -1,6 +1,7 @@
 import { FM_SOURCE_OPTIONS } from "./appearance";
 import { customFmSelection, parseFmStationUrl, type CustomFmStation, type FmSelection } from "./fm-stations";
 import type { RadioIconName } from "./components/RadioIcon";
+import { t as translateNow, type TFunction } from "./i18n";
 
 export type RadioCollection = "discover" | "favorites" | "recent";
 export interface RadioFilters { country: string; genre: string; language: string }
@@ -11,13 +12,13 @@ const icons: Partial<Record<FmSelection, RadioIconName>> = {
 };
 const cleanLabel = (label: string) => label.replace(/^[^\p{L}\p{N}]+/u, "");
 
-export function workspaceStreams(custom: readonly CustomFmStation[]): WorkspaceStream[] {
+export function workspaceStreams(custom: readonly CustomFmStation[], t: TFunction = translateNow): WorkspaceStream[] {
   return [
     ...FM_SOURCE_OPTIONS.map(source => ({ id: source.value, selection: source.value,
       name: `${source.group?.includes("Lofi Girl") ? "Lofi Girl · " : ""}${cleanLabel(source.label)}`,
-      metadata: "Global · YouTube", icon: icons[source.value] ?? "radio" })),
+      metadata: t("radio.stream.youtube"), icon: icons[source.value] ?? "radio" })),
     ...custom.filter(station => !station.radio).map(station => ({ id: station.id, selection: customFmSelection(station.id),
-      name: station.name, metadata: parseFmStationUrl(station.url)?.kind === "direct-audio" ? "Global · Custom stream" : "Global · YouTube", icon: "radio" as const })),
+      name: station.name, metadata: parseFmStationUrl(station.url)?.kind === "direct-audio" ? t("radio.stream.custom") : t("radio.stream.youtube"), icon: "radio" as const })),
   ];
 }
 
@@ -30,9 +31,9 @@ export function filterWorkspaceStreams(streams: readonly WorkspaceStream[], quer
   return ids.flatMap(id => pool.get(id) ?? []);
 }
 
-export function discoverySummary(stationCount: number, streamCount: number): string {
+export function discoverySummary(stationCount: number, streamCount: number, t: TFunction = translateNow): string {
   const parts = [];
-  if (streamCount) parts.push(`${streamCount} workspace ${streamCount === 1 ? "stream" : "streams"}`);
-  if (stationCount) parts.push(`${stationCount} radio ${stationCount === 1 ? "station" : "stations"}`);
-  return parts.join(" · ") || "No matching results";
+  if (streamCount) parts.push(t("radio.summary.streams", { count: streamCount }));
+  if (stationCount) parts.push(t("radio.summary.stations", { count: stationCount }));
+  return parts.join(" · ") || t("radio.summary.none");
 }

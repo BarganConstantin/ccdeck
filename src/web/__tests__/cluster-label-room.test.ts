@@ -199,10 +199,10 @@ describe("the pill's tooltip", () => {
   it("leads with the words a screen reader hears for a session waiting on you", () => {
     const h = clusterHeader("shop-api-auth", undefined, "e3200d5a-1f4e", false, [], { alarm: true });
     expect(h.title.split("\n")[0]).toBe("waiting on you: shop-api-auth");
-    expect(component).toContain('<span className="cluster-label-said">waiting on you: </span>');
+    expect(component).toContain('<span className="cluster-label-said">{t("board.cluster.waitingOnYou")}</span>');
   });
 
   it("is the title the pill wears", () => {
-    expect(component).toContain("title={c.title}");
+    expect(component).toContain("title={clusterTooltip(c, t)}");
   });
 });

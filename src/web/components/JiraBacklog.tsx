@@ -11,10 +11,12 @@
 // closes or goes to the parent, Enter opens the issue, Home and End go to the
 // ends. One row at a time is a Tab stop, so Tab leaves the list in one press.
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type DragEvent } from "react";
+import { useT, type TFunction } from "../i18n";
+import { ownMessage } from "../own-error";
 import type { IntegrationConnection as Connection } from "../integrations/types";
 import type { JiraBoardOverview, JiraIssue, TimeTracking } from "../jira-api";
 import {
-  boardRows, groupOpen, groupStats, readsSubtasks, rowKey, rowOpen, shortDate, subtaskRows, totalLabel,
+  boardRows, groupOpen, groupStats, groupTitle, readsSubtasks, rowKey, rowOpen, shortDate, subtaskRows, totalLabel,
   type GroupDef, type GroupStats, type Row, type RowFilter,
 } from "../jira-board";
 import type { BoardSnapshot, GroupData } from "../use-jira-board";
@@ -61,7 +63,7 @@ export interface JiraBacklogProps {
   scrollBoundaryId?: string;
 }
 
-const TOTAL_LABELS = { new: "To do", indeterminate: "In progress", done: "Done" } as const;
+const TOTAL_LABELS = { new: "integrations.total.new", indeterminate: "integrations.total.indeterminate", done: "integrations.total.done" } as const;
 const CATEGORIES = ["new", "indeterminate", "done"] as const;
 
 /** Rows the reader opens fade in, once, as they mount (120ms, jira.css). A
@@ -75,13 +77,14 @@ const fades = (rows: number) => rows <= 30;
 function Totals({ def, totals, estimation, time }: {
   def: GroupDef; totals: GroupStats["totals"]; estimation: "time" | "points" | "count"; time: TimeTracking;
 }) {
+  const t = useT();
   if (estimation === "count") return null;
-  const unit = estimation === "points" ? "story points" : "estimated";
+  const unit = estimation === "points" ? t("integrations.total.unit.points") : t("integrations.total.unit.time");
   if (def.kind === "column") {
     const sum = totals.new + totals.indeterminate + totals.done;
     if (sum <= 0) return null;
     const value = totalLabel(sum, estimation, time);
-    return <span className="jr-totals"><span className="jr-total" title={`Total: ${value} ${unit}`}>Total {value}</span></span>;
+    return <span className="jr-totals"><span className="jr-total" title={t("integrations.total.tip", { label: t("integrations.total.totalName"), value, unit })}>{t("integrations.total.label", { value })}</span></span>;
   }
   const shown = CATEGORIES.filter(c => totals[c] > 0);
   if (shown.length === 0) return null;
@@ -89,7 +92,7 @@ function Totals({ def, totals, estimation, time }: {
     <span className="jr-totals">
       {shown.map(c => {
         const value = totalLabel(totals[c], estimation, time);
-        return <span key={c} className="jr-total" data-cat={c} title={`${TOTAL_LABELS[c]}: ${value} ${unit}`}>{TOTAL_LABELS[c]} {value}</span>;
+        return <span key={c} className="jr-total" data-cat={c} title={t("integrations.total.tip", { label: t(TOTAL_LABELS[c]), value, unit })}>{t(TOTAL_LABELS[c])} {value}</span>;
       })}
     </span>
   );
@@ -99,14 +102,15 @@ function Totals({ def, totals, estimation, time }: {
  *  it is there: "3 yours · 1 flagged · 1 highest". With Only my issues on,
  *  every issue is the reader's, so theirs reads as how many are done. */
 function Tally({ stats, mine }: { stats: GroupStats; mine: boolean }) {
+  const t = useT();
   const parts: { key: string; text: string; title: string }[] = [];
   if (stats.mine > 0) {
     parts.push(mine
-      ? { key: "mine", text: `${stats.mineDone} of ${stats.mine} done`, title: `${stats.mineDone} of your ${stats.mine} done` }
-      : { key: "mine", text: `${stats.mine} yours`, title: `${stats.mineDone} of ${stats.mine} yours done` });
+      ? { key: "mine", text: t("integrations.tally.mineDone", { done: stats.mineDone, n: stats.mine }), title: t("integrations.tally.mineDoneTip", { done: stats.mineDone, n: stats.mine }) }
+      : { key: "mine", text: t("integrations.tally.yours", { n: stats.mine }), title: t("integrations.tally.yoursTip", { done: stats.mineDone, n: stats.mine }) });
   }
-  if (stats.flagged > 0) parts.push({ key: "flagged", text: `${stats.flagged} flagged`, title: "Flagged and not done" });
-  if (stats.highest > 0) parts.push({ key: "highest", text: `${stats.highest} highest`, title: "Highest priority (or Blocker, Critical) and not done" });
+  if (stats.flagged > 0) parts.push({ key: "flagged", text: t("integrations.tally.flagged", { n: stats.flagged }), title: t("integrations.tally.flaggedTip") });
+  if (stats.highest > 0) parts.push({ key: "highest", text: t("integrations.tally.highest", { n: stats.highest }), title: t("integrations.tally.highestTip") });
   if (parts.length === 0) return null;
   return (
     <span className="jr-tally">
@@ -118,9 +122,13 @@ function Tally({ stats, mine }: { stats: GroupStats; mine: boolean }) {
 }
 
 /** A row's own label for a screen reader: what it is, not everything on it. */
-function rowLabel(issue: JiraIssue, extra = ""): string {
-  const who = issue.assignee ? `${issue.assignee.name}${issue.mine ? ", assigned to you" : ""}` : "unassigned";
-  return `${issue.key}: ${issue.summary}. ${issue.type.name}, ${issue.status.name}, ${who}${issue.priority ? `, priority ${issue.priority.name}` : ""}${issue.flagged ? ", flagged" : ""}${extra}`;
+function rowLabel(t: TFunction, issue: JiraIssue, extra = ""): string {
+  const who = issue.assignee ? (issue.mine ? t("integrations.who.you", { name: issue.assignee.name }) : issue.assignee.name) : t("integrations.who.unassigned");
+  return t("integrations.row.label", {
+    key: issue.key, summary: issue.summary, type: issue.type.name, status: issue.status.name, who,
+    priority: issue.priority ? t("integrations.row.priority", { name: issue.priority.name }) : "",
+    flagged: issue.flagged ? t("integrations.row.flagged") : "", extra,
+  });
 }
 
 /**
@@ -135,6 +143,7 @@ function rowLabel(issue: JiraIssue, extra = ""): string {
  * (jira.css, "narrow").
  */
 function IssueLine({ issue, estimation, time }: { issue: JiraIssue; estimation: JiraBoardOverview["estimation"]["kind"]; time: JiraBoardOverview["timeTracking"] }) {
+  const t = useT();
   const done = issue.status.category === "done";
   return (
     <>
@@ -144,9 +153,9 @@ function IssueLine({ issue, estimation, time }: { issue: JiraIssue; estimation: 
       <span className="jr-summary">{issue.summary}</span>
       <span className="jr-facts">
         <span className="jr-meta">
-          {issue.flagged && <span className="jr-flagged" title="Flagged"><FlagGlyph /></span>}
+          {issue.flagged && <span className="jr-flagged" title={t("integrations.flagged")}><FlagGlyph /></span>}
           {issue.fixVersions.length > 0 && <span className="jr-version" title={issue.fixVersions.join(", ")}>
-            {issue.fixVersions.length === 1 ? issue.fixVersions[0] : `${issue.fixVersions.length} versions`}
+            {issue.fixVersions.length === 1 ? issue.fixVersions[0] : t("integrations.row.versions", { n: issue.fixVersions.length })}
           </span>}
           {issue.epic && <EpicChip epic={issue.epic} />}
         </span>
@@ -155,7 +164,7 @@ function IssueLine({ issue, estimation, time }: { issue: JiraIssue; estimation: 
       </span>
       {/* The reader's own issues: their face ringed in the accent, and
           "assigned to you" in the row's label. */}
-      <span className="jr-assignee" title={issue.assignee ? `${issue.assignee.name}${issue.mine ? " (you)" : ""}` : "Unassigned"}>
+      <span className="jr-assignee" title={issue.assignee ? (issue.mine ? t("integrations.row.assigneeYou", { name: issue.assignee.name }) : issue.assignee.name) : t("integrations.unassigned")}>
         {issue.assignee
           ? <IntegrationAvatar src={issue.assignee.avatar} name={issue.assignee.name} size={20} you={issue.mine} />
           : <UnassignedAvatar size={20} />}
@@ -182,6 +191,7 @@ function statusWidth(snap: BoardSnapshot): number {
 export default function JiraBacklog(props: JiraBacklogProps) {
   const { conn, overview, groups, snap, expanded, onToggleGroup, filter, mine, filtered, selected, onOpen, rowsOpen, onToggleRow,
     onRetryGroup, onMore, onShowClosed, onMoreClosed, loadSubtasks, onReconnect, onMove, moveBusy = false, readBusy = moveBusy, moveUncertain = false, moveOutcome = "", onMoveChecked } = props;
+  const t = useT();
   const listRef = useRef<HTMLDivElement>(null);
   const boardId = useId();
   const drag = useRef<{ items: JiraMoveItem[] } | null>(null);
@@ -208,7 +218,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     if (!selfPressAccepted(moveBusyRef.current || submitting.current)) return;
     const items = picked.has(issue.key) ? selectedItems : [{ issue, group: from }];
     if (initialView === "move" && (items.length > 50 || items.some(i => !movableIssue(i.issue, i.group)))) {
-      setMoveError(moveSelectionProblem(items));
+      setMoveError(moveSelectionProblem(items, t));
       return;
     }
     menuSerial.current++;
@@ -237,15 +247,15 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     const serial = menuSerial.current;
     const selectionAtStart = selectionVersion.current;
     const keys = moveKeys(move);
-    const label = keys.length === 1 ? keys[0] : `${keys.length} issues`;
+    const label = keys.length === 1 ? keys[0] : t("integrations.list.nIssues", { count: keys.length });
     const opener = document.activeElement;
     const popup = opener?.closest(".jr-move-pop");
     submitting.current = true;
     setMoveError("");
-    setMoveNotice(`Moving ${label}…`);
+    setMoveNotice(t("integrations.list.moving", { label }));
     try {
       const result = await onMove(move);
-      setMoveNotice(result.notice || `${label} moved to ${destination.title}.`);
+      setMoveNotice(result.notice || t("integrations.list.moved", { label, destination: groupTitle(destination, t) }));
       if (selectionAtStart === selectionVersion.current) setPicked(new Set(keys));
       const stillOwnsFocus = serial === menuSerial.current && (document.activeElement === opener
         || Boolean(popup?.contains(document.activeElement))
@@ -260,7 +270,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
       return true;
     } catch (error) {
       setMoveNotice("");
-      setMoveError(error instanceof Error ? error.message : "The move could not be confirmed. Refresh before trying again.");
+      setMoveError(ownMessage(error, t("integrations.error.moveUnconfirmed")));
       if (serial === menuSerial.current && document.activeElement === document.body && !opener?.isConnected) requestAnimationFrame(() => {
         if (document.activeElement !== document.body) return;
         const row = Array.from(listRef.current?.querySelectorAll<HTMLElement>(".jr-row-main[data-key]") ?? []).find(el => el.dataset.key === keys[0] && el.dataset.nav?.startsWith(`${destination.id}/`));
@@ -313,7 +323,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
   const visibleKeys = visibleItems.map(i => i.issue.key);
   const selectedItems = visibleItems.filter(i => picked.has(i.issue.key));
   const blockedItems = selectedItems.filter(i => issueMoveBlocker(i));
-  const selectionProblem = moveSelectionProblem(selectedItems);
+  const selectionProblem = moveSelectionProblem(selectedItems, t);
   useEffect(() => {
     const visible = new Set(visibleItems.map(i => i.issue.key));
     setPicked(previous => [...previous].every(key => visible.has(key)) ? previous : new Set([...previous].filter(key => visible.has(key))));
@@ -405,8 +415,8 @@ export default function JiraBacklog(props: JiraBacklogProps) {
     const childList = subtaskRows(row, all, filter);
     const mineCount = (all?.status === "ready" ? all.issues : row.matched).filter(s => s.mine).length;
     const label = row.kind === "issue"
-      ? rowLabel(row.issue, expandable ? `, ${subtasksKnown || row.matched.length} sub-tasks${mineCount ? `, ${mineCount} yours` : ""}` : "")
-      : `${row.parent.key}: ${row.parent.summary}. ${mine ? "Not assigned to you" : "Parent not in this list"}; shown for ${row.matched.length} sub-task${row.matched.length === 1 ? "" : "s"}`;
+      ? rowLabel(t, row.issue, expandable ? `${t("integrations.row.subtasks", { count: subtasksKnown || row.matched.length })}${mineCount ? t("integrations.row.yours", { count: mineCount }) : ""}` : "")
+      : t("integrations.row.context", { key: row.parent.key, summary: row.parent.summary, why: mine ? t("integrations.row.notYours") : t("integrations.row.parentMissing"), count: row.matched.length });
     const issue = row.kind === "issue" ? row.issue : null;
     const movable = canMove && issue && movableIssue(issue, group) && depth === 0;
     const moveId = `${boardId}-move-${group.id}-${key}`;
@@ -425,7 +435,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
             const items = picked.has(key) ? selectedItems : [{ issue, group }];
             if (items.length > 50 || items.some(i => !movableIssue(i.issue, i.group))) {
               event.preventDefault();
-              setMoveError(moveSelectionProblem(items));
+              setMoveError(moveSelectionProblem(items, t));
               return;
             }
             if (!picked.has(key)) {
@@ -460,7 +470,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
           }}>
           {expandable ? (
             <button type="button" id={toggleId} className="jr-toggle" tabIndex={-1} aria-expanded={open}
-              aria-label={`${open ? "Hide" : "Show"} sub-tasks of ${key}`} onClick={() => toggleRow(key, !open)}>
+              aria-label={t(open ? "integrations.row.toggleHide" : "integrations.row.toggleShow", { key })} onClick={() => toggleRow(key, !open)}>
               <Chevron open={open} />
             </button>
           ) : <span className="jr-toggle-space" aria-hidden />}
@@ -478,7 +488,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                   event.preventDefault(); event.stopPropagation(); openMoveMenu(issue, group, rowId, true);
                 }
               }}
-              aria-label={`${label}${picked.has(key) ? ". Selected" : ""}`} onFocus={() => setCurrent(nav)} onClick={event => {
+              aria-label={`${label}${picked.has(key) ? t("integrations.row.selected") : ""}`} onFocus={() => setCurrent(nav)} onClick={event => {
                 if (issue) { event.preventDefault(); pick(key, event); }
                 else if (!event.ctrlKey && !event.metaKey && !event.shiftKey) { setPicked(new Set()); setSelectionMode(false); onOpen(key); }
               }} onContextMenu={event => {
@@ -496,7 +506,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                   <span className="jr-key" data-done={row.parent.status.category === "done" || undefined}>{row.parent.key}</span>
                   <span className="jr-summary">{row.parent.summary}</span>
                   <span className="jr-facts">
-                    <span className="jr-meta"><span className="jr-context-tag">{mine ? "not assigned to you" : "parent not in this list"}</span></span>
+                    <span className="jr-meta"><span className="jr-context-tag">{mine ? t("integrations.row.notYoursTag") : t("integrations.row.parentMissingTag")}</span></span>
                     <span className="jr-status-cell"><StatusLozenge status={row.parent.status} /></span>
                   </span>
                 </>
@@ -504,7 +514,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
             </button>
           </JiraRowPreview>
           {hasActions && <button id={moveId} type="button" className="jr-move-button" {...selfPressProps(moveBusy)}
-            aria-label={`Actions for ${key}`} title={`Actions for ${key}`} aria-haspopup="menu"
+            aria-label={t("integrations.row.actions", { key })} title={t("integrations.row.actions", { key })} aria-haspopup="menu"
             aria-expanded={moveMenu?.anchorId === moveId} tabIndex={tabStop(nav)}
             onKeyDown={event => {
               if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -518,10 +528,10 @@ export default function JiraBacklog(props: JiraBacklogProps) {
           </button>}
         </div>
         {expandable && open && (
-          <ul id={`${toggleId}-children`} className="jr-subrows" role="list" aria-label={`Sub-tasks of ${key}`} data-fade={(rowsOpenedHere.has(key) && fades(childList.length)) || undefined}>
-            {all?.status === "loading" && childList.length === 0 && <li className="jr-subnote" role="status">Reading sub-tasks…</li>}
+          <ul id={`${toggleId}-children`} className="jr-subrows" role="list" aria-label={t("integrations.row.subtasksOf", { key })} data-fade={(rowsOpenedHere.has(key) && fades(childList.length)) || undefined}>
+            {all?.status === "loading" && childList.length === 0 && <li className="jr-subnote" role="status">{t("integrations.row.readingSubtasks")}</li>}
             {all?.status === "error" && (
-              <li className="jr-subnote" role="alert">Sub-tasks could not be read. <button type="button" className="jr-link-btn" onClick={() => loadSubtasks(key)}>Try again</button></li>
+              <li className="jr-subnote" role="alert">{t("integrations.row.subtasksFailed")} <button type="button" className="jr-link-btn" onClick={() => loadSubtasks(key)}>{t("integrations.failure.retry")}</button></li>
             )}
             {childList.map(sub => {
               const subNav = `${group.id}/${sub.key}/${nav}`;
@@ -534,7 +544,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                     <JiraRowPreview item={sub} portalRootId={boardId}>
                       <button type="button" className="jr-row-main" data-nav={subNav} data-key={sub.key} data-parent={nav} tabIndex={tabStop(subNav)}
                         data-has-meta={Boolean(sub.flagged || sub.fixVersions.length || sub.epic) || undefined}
-                        aria-current={selected === sub.key || undefined} aria-label={`${rowLabel(sub)}${picked.has(sub.key) ? ". Selected" : ""}`}
+                        aria-current={selected === sub.key || undefined} aria-label={`${rowLabel(t, sub)}${picked.has(sub.key) ? t("integrations.row.selected") : ""}`}
                         aria-describedby={`${boardId}-instructions`}
                         onFocus={() => setCurrent(subNav)} onClick={event => { event.preventDefault(); pick(sub.key, event); }}
                         onContextMenu={event => { if (event.ctrlKey) { event.preventDefault(); event.currentTarget.focus(); pick(sub.key, event); } }}>
@@ -545,7 +555,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                 </li>
               );
             })}
-            {all?.status === "ready" && childList.length === 0 && <li className="jr-subnote">{filter.attention ? "No sub-task needs attention." : filter.hideDone ? "Every sub-task is done." : "No sub-tasks."}</li>}
+            {all?.status === "ready" && childList.length === 0 && <li className="jr-subnote">{filter.attention ? t("integrations.row.noneAttention") : filter.hideDone ? t("integrations.row.allDone") : t("integrations.row.noSubtasks")}</li>}
           </ul>
         )}
       </li>
@@ -561,25 +571,25 @@ export default function JiraBacklog(props: JiraBacklogProps) {
 
   return (
     <div className="jr-board" id={boardId} ref={listRef} onKeyDown={onKeyDown} style={{ "--jr-status-ch": statusCh } as CSSProperties}>
-      <p className="vis-hidden" id={`${boardId}-instructions`}>Use Up and Down to navigate, Right to expand and Left to collapse. Enter opens the issue. Ctrl or Command click toggles selection; Shift click selects a range. Space toggles the focused issue.{canMove ? " Drag selected issues to reorder or change sprint. Right-click or Shift+F10 opens actions. Alt+M opens Move." : ""}</p>
-      {selectionMode && selectedItems.length > 0 && <div className="jr-selection" role="group" aria-label="Selected issues">
-        <span role="status">{selectedItems.length} selected</span>
+      <p className="vis-hidden" id={`${boardId}-instructions`}>{t("integrations.list.instructions")}{canMove ? t("integrations.list.instructionsMove") : ""}</p>
+      {selectionMode && selectedItems.length > 0 && <div className="jr-selection" role="group" aria-label={t("integrations.list.selectedGroup")}>
+        <span role="status">{t("integrations.list.selectedCount", { n: selectedItems.length })}</span>
         {canMove && <button type="button" className="btn" id={`${boardId}-move-selected`} {...selfPressProps(moveBusy, Boolean(selectionProblem))}
           aria-haspopup="dialog" aria-expanded={moveMenu?.anchorId === `${boardId}-move-selected`}
-          onClick={() => { if (!selectionProblem) openMoveMenu(selectedItems[0].issue, selectedItems[0].group, `${boardId}-move-selected`); }}>Move selected</button>}
-        <button type="button" className="btn" aria-label="Clear selection" onClick={() => {
+          onClick={() => { if (!selectionProblem) openMoveMenu(selectedItems[0].issue, selectedItems[0].group, `${boardId}-move-selected`); }}>{t("integrations.list.moveSelected")}</button>}
+        <button type="button" className="btn" aria-label={t("integrations.list.clearSelectionAria")} onClick={() => {
           selectionVersion.current++; setPicked(new Set()); setSelectionMode(true); selectionAnchor.current = null;
-        }}>Clear</button>
+        }}>{t("integrations.list.clear")}</button>
         {selectionProblem && canMove && <span className="jr-selection-note" id={`${boardId}-blocked`}>{selectionProblem}</span>}
         {blockedItems.length > 0 && canMove && <button type="button" className="btn" onClick={() => {
           selectionVersion.current++;
           setPicked(new Set(selectedItems.filter(i => !issueMoveBlocker(i)).map(i => i.issue.key)));
           setMoveError("");
-        }}>Remove blocked ({blockedItems.length})</button>}
+        }}>{t("integrations.list.removeBlocked", { n: blockedItems.length })}</button>}
       </div>}
       <p className="jr-move-status" role="status" aria-live="polite">{moveNotice}</p>
       {moveError && !moveMenu && <p className="jr-move-error" role="alert">{moveError}</p>}
-      {noActive && <p className="jr-board-note">No sprint is active on this board. The future sprints and the backlog are below.</p>}
+      {noActive && <p className="jr-board-note">{t("integrations.list.noActive")}</p>}
       {built.map(({ def, data, rows, stats }, index) => {
         const open = groupOpen(def, expanded);
         const bodyId = `jr-group-${def.id.replace(/[^a-z0-9]/gi, "-")}`;
@@ -598,7 +608,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
         const people = stats.assignees;
         return (
           <Fragment key={def.id}>
-          {index === firstClosed && <h3 className="jr-closed-title">Closed sprints</h3>}
+          {index === firstClosed && <h3 className="jr-closed-title">{t("integrations.list.closedTitle")}</h3>}
           <section className="jr-group" data-kind={def.kind} aria-labelledby={`${bodyId}-title`}
             data-drop-group={dropAt?.group === def.id && !dropAt.key || undefined}
             onDragOver={event => overGroup(event, def)} onDrop={event => dropGroup(event, def)}>
@@ -612,13 +622,13 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                   }}>
                   <Chevron open={open} />
                   <span className="jr-group-identity">
-                    <span className="jr-group-name">{def.title}</span>
-                    {def.kind === "active" && <span className="jr-badge">Active</span>}
+                    <span className="jr-group-name">{groupTitle(def, t)}</span>
+                    {def.kind === "active" && <span className="jr-badge">{t("integrations.list.active")}</span>}
                     {dates && <span className="jr-group-dates">{dates}</span>}
                     {onDemand ? (
-                      <span className="jr-group-count" title="Counted when you open it"><span aria-hidden>—</span><span className="vis-hidden">issues counted when opened</span></span>
+                      <span className="jr-group-count" title={t("integrations.list.countOnOpen")}><span aria-hidden>—</span><span className="vis-hidden">{t("integrations.list.countOnOpenSr")}</span></span>
                     ) : (
-                      <span className="jr-group-count">{countText} {loaded ? (stats.count === 1 && !totalKnown ? "issue" : "issues") : <span className="vis-hidden">issues, not read yet</span>}</span>
+                      <span className="jr-group-count">{loaded ? t("integrations.list.count", { count: stats.count === 1 && !totalKnown ? 1 : 2, text: countText }) : <>{countText} <span className="vis-hidden">{t("integrations.list.notReadSr")}</span></>}</span>
                     )}
                   </span>
                 </button>
@@ -626,7 +636,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               {loaded && (
                 <div className="jr-group-facts">
                   <Tally stats={stats} mine={mine} />
-                  <IntegrationAvatarStack label="Assigned to"
+                  <IntegrationAvatarStack label={t("integrations.list.assignedTo")}
                     people={people.map(p => ({ key: p.id, name: p.name, src: p.avatar, you: p.id === stats.youId }))} />
                   <Totals def={def} totals={stats.totals} estimation={estimation} time={time} />
                 </div>
@@ -637,25 +647,25 @@ export default function JiraBacklog(props: JiraBacklogProps) {
               <div id={bodyId} className="jr-group-body" data-empty={data?.status === "ready" && rows.length === 0 && !data.error && !data.next && !data.capped || undefined} data-fade={(openedHere.has(def.id) && fades(rows.length)) || undefined}>
                 {data?.error && (
                   <IntegrationFailureNote error={data.error} provider="Jira" host={connectionHost(conn)} stale={data.issues.length > 0}
-                    title={data.status === "ready" ? "More issues could not be read" : undefined}
+                    title={data.status === "ready" ? t("integrations.list.moreFailed") : undefined}
                     onRetry={() => {
                       document.getElementById(`${bodyId}-toggle`)?.focus();
                       if (data.status === "ready" && data.next) onMore(def); else onRetryGroup(def);
                     }} onReconnect={onReconnect} />
                 )}
                 {(!data || data.status === "idle" || (data.status === "loading" && data.issues.length === 0)) && (
-                  <IntegrationSkeleton label={`Reading ${def.title}`} rows={3} />
+                  <IntegrationSkeleton label={t("integrations.list.readingGroup", { title: groupTitle(def, t) })} rows={3} />
                 )}
                 {loaded && rows.length === 0 && (
                   <p className="jr-empty-group">
-                    {(data?.issues.length ?? 0) > 0 ? "Nothing here matches the filters." : mine ? "None of your issues are here." : filtered ? "Nothing here matches the filters." : "No issues."}
+                    {(data?.issues.length ?? 0) > 0 ? t("integrations.list.noMatch") : mine ? t("integrations.list.noneMine") : filtered ? t("integrations.list.noMatch") : t("integrations.list.noIssues")}
                   </p>
                 )}
                 {rows.length > 0 && <ul className="jr-rows">{rows.map(row => renderRow(row, def, 0))}</ul>}
-                {data?.capped && <p className="jr-board-note">The first 600 issues are shown. Open the sprint in Jira for the rest.</p>}
+                {data?.capped && <p className="jr-board-note">{t("integrations.list.capped")}</p>}
                 {def.paged && data?.next && (
                   <button type="button" className="btn jr-more" {...selfPressProps(readBusy || Boolean(data.more))} onClick={() => { if (selfPressAccepted(readBusyRef.current || Boolean(data.more))) onMore(def); }}>
-                    {data.more ? "Reading…" : data.total != null ? `Show more (${data.issues.length} of ${data.total})` : "Show more"}
+                    {data.more ? t("integrations.list.reading") : data.total != null ? t("integrations.list.showMoreCount", { n: data.issues.length, total: data.total }) : t("integrations.list.showMore")}
                   </button>
                 )}
               </div>
@@ -674,20 +684,20 @@ export default function JiraBacklog(props: JiraBacklogProps) {
         <div className="jr-closed-foot">
           <button id={`${boardId}-closed-toggle`} type="button" className="btn" aria-expanded={closedState.shown}
             aria-busy={closedState.loading || undefined} onClick={() => onShowClosed(!closedState.shown)}>
-            {closedState.shown ? "Hide closed sprints" : "Show closed sprints"}
+            {closedState.shown ? t("integrations.list.hideClosed") : t("integrations.list.showClosed")}
           </button>
           {closedState.shown && <>
-            {closedState.loading && <p className="jr-subnote" role="status">Reading closed sprints…</p>}
+            {closedState.loading && <p className="jr-subnote" role="status">{t("integrations.list.readingClosed")}</p>}
             {closedState.error && <IntegrationFailureNote error={closedState.error} provider="Jira" host={connectionHost(conn)}
-              title="Closed sprints could not be read" stale={closedState.sprints.length > 0}
+              title={t("integrations.list.closedFailed")} stale={closedState.sprints.length > 0}
               onRetry={() => {
                 document.getElementById(`${boardId}-closed-toggle`)?.focus();
                 if (closedState.sprints.length) onMoreClosed(); else onShowClosed(true);
               }} onReconnect={onReconnect} />}
-            {!closedState.error && !closedState.loading && closedState.sprints.length === 0 && <p className="jr-subnote">No closed sprints on this board.</p>}
+            {!closedState.error && !closedState.loading && closedState.sprints.length === 0 && <p className="jr-subnote">{t("integrations.list.noClosed")}</p>}
             {!closedState.error && !closedState.isLast && closedState.sprints.length > 0 && (
               <button type="button" className="btn" {...selfPressProps(closedState.loading)} onClick={() => { if (selfPressAccepted(closedLoadingRef.current)) onMoreClosed(); }}>
-                {closedState.loading ? "Reading…" : `Show older sprints (${closedState.sprints.length} of ${closedState.total})`}
+                {closedState.loading ? t("integrations.list.reading") : t("integrations.list.showOlder", { n: closedState.sprints.length, total: closedState.total })}
               </button>
             )}
           </>}

@@ -53,6 +53,7 @@
 // went with it, and the switch and the volumes are pinned where they live now.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { en } from "../i18n/en";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
@@ -934,8 +935,8 @@ describe("M silences the deck from anywhere, and the switch is in Settings › S
     // Two uses of `soundOn` in there, and they are the sentence rather than a
     // state: the tooltip and the description that says the preview will sound.
     expect([...row.matchAll(/\bsoundOn\b/g)]).toHaveLength(2);
-    expect(row).toMatch(/title=\{soundOn\n\s+\? "Play this tone now, at what it is set to"/);
-    expect(row).toMatch(/: "Plays even when sounds are off"\}/);
+    expect(row).toMatch(/title=\{soundOn\n\s+\? t\("settings\.sounds\.hearTip"\)/);
+    expect(row).toMatch(/: t\("settings\.sounds\.hearTipMuted"\)\}/);
     expect(row).toMatch(/aria-describedby=\{soundOn \? undefined : "sm-preview-note"\}/);
     // The slice above ran to the menu's last </div>, so it also held the custom
     // sounds, which moved to CustomSoundsSection.tsx. Their markup is held to the
@@ -961,8 +962,10 @@ describe("M silences the deck from anywhere, and the switch is in Settings › S
     // The switch was "Sounds" until Settings headed its section "Sounds" right
     // above it; it says "Play sounds" now, so the exception names the state the
     // switch leaves, not the switch's old word.
-    const tip = toneSection.match(/: "(Plays even when sounds are off[^"]*)"\}/)![1];
-    const said = soundsSection.match(/<span id="sm-preview-note" className="vis-hidden">\s*([^<]+)/)![1].trim();
+    expect(toneSection).toContain(': t("settings.sounds.hearTipMuted")}');
+    expect(soundsSection).toMatch(/<span id="sm-preview-note" className="vis-hidden">\s*\{t\("settings\.sounds\.previewNote"\)\}/);
+    const tip = en["settings.sounds.hearTipMuted"];
+    const said = en["settings.sounds.previewNote"];
     expect(tip).toBe("Plays even when sounds are off");
     expect(said.length).toBeGreaterThan(tip.length);
     expect(said).toContain("before turning sounds back on");
@@ -1001,7 +1004,7 @@ describe("hearing it is the point, not a nicety", () => {
   it("gives each tone its own preview, and auditions rather than reports", () => {
     // Two buttons, one per tone, each playing THAT tone.
     expect(toneSection).toMatch(/onClick=\{\(\) => onPreview\(chime\)\}/);
-    expect(toneSection).toMatch(/aria-label=\{`Hear the \$\{TONE_LABEL\[chime\]\.toLowerCase\(\)\} tone`\}/);
+    expect(toneSection).toMatch(/aria-label=\{t\("settings\.sounds\.hearAria", \{ tone: TONE_LABEL\[chime\] \}\)\}/);
     expect(client).toMatch(/onPreview=\{chime => previewTone\(chime\)\}/);
     expect(client).toMatch(/chimesRef\.current\?\.play\(chime, true\)/);
   });

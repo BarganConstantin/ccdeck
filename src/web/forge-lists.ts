@@ -15,21 +15,22 @@ import { useEffect } from "react";
 import type {
   ChangeFilter, ChangeState, ForgeBranch, ForgeChange, ForgeKind,
 } from "./forge-types";
-import { forgeWords } from "./forge-types";
+import { forgeNouns } from "./forge-types";
+import { t as tGlobal, type TFunction } from "./i18n";
+import { formatNumber } from "./i18n/format";
 import type { Mark } from "./forge-panel";
 import type { Freshness } from "./components/forge/ForgeContext";
 
 // ── projects ─────────────────────────────────────────────────────────────
 
 /** "projects" on GitLab, "repositories" on GitHub. */
-export function repoNounPlural(kind: ForgeKind): string {
-  const noun = forgeWords[kind].repo.toLowerCase();
-  return noun.endsWith("y") ? `${noun.slice(0, -1)}ies` : `${noun}s`;
+export function repoNounPlural(kind: ForgeKind, t: TFunction = tGlobal): string {
+  return forgeNouns(kind, t).repos;
 }
 
 /** The picker's "every project" choice. */
-export function allReposLabel(kind: ForgeKind): string {
-  return `All ${repoNounPlural(kind)}`;
+export function allReposLabel(kind: ForgeKind, t: TFunction = tGlobal): string {
+  return t("forge.allRepos", { repos: repoNounPlural(kind, t) });
 }
 
 /** A path as the picker draws it: the group quiet, the project's own name
@@ -56,6 +57,16 @@ export function draftTitle(title: string, draft: boolean): string {
   if (!draft) return title;
   const bare = title.replace(DRAFT_PREFIX, "");
   return bare || title;
+}
+
+/** The verb of changeMoment() ("merged", "closed", "updated") as a phrase
+ *  with a {ago} where the time goes, in the language on show. */
+export function momentPhrase(verb: string, t: TFunction = tGlobal): string {
+  switch (verb) {
+    case "merged": return t("forge.when.merged");
+    case "closed": return t("forge.when.closed");
+    default: return t("forge.when.updated");
+  }
 }
 
 /** The moment a change row ends on: when it was merged or closed, if it was,
@@ -85,7 +96,7 @@ export function defaultFirst<T extends { isDefault: boolean }>(branches: T[]): T
 
 /** A count on a state chip, or nothing when the forge did not say. */
 export function countWords(n: number | null | undefined): string | null {
-  return n == null || !Number.isFinite(n) || n < 0 ? null : n.toLocaleString("en-US");
+  return n == null || !Number.isFinite(n) || n < 0 ? null : formatNumber(n, 0);
 }
 
 /** A label's colour, kept only when it is a plain hex colour: it is the
@@ -95,11 +106,11 @@ export function labelColor(color: string | null | undefined): string | null {
 }
 
 /** Behind | ahead as a sentence, for the hover and for a screen reader. */
-export function divergeWords(behind: number | null, ahead: number | null, defaultBranch: string | null): string | null {
+export function divergeWords(behind: number | null, ahead: number | null, defaultBranch: string | null, t: TFunction = tGlobal): string | null {
   if (behind == null || ahead == null) return null;
-  const target = defaultBranch ? `“${defaultBranch}”` : "the default branch";
-  const n = (count: number) => (count >= 1000 ? "999+" : String(count));
-  return `${n(behind)} ${behind === 1 ? "commit" : "commits"} behind, ${n(ahead)} ahead of ${target}`;
+  const target = defaultBranch ? `“${defaultBranch}”` : t("forge.defaultBranch");
+  const n = (count: number) => (count >= 1000 ? "999+" : formatNumber(count, 0));
+  return t("forge.diverge", { count: behind, behind: n(behind), ahead: n(ahead), target });
 }
 
 /**
@@ -137,29 +148,30 @@ export function pipelineTitle(kind: ForgeKind, title: string | null): { workflow
 }
 
 const SOURCES: Record<string, string> = {
-  push: "push",
-  merge_request_event: "merge request",
-  pull_request: "pull request",
-  pull_request_target: "pull request",
-  merge_group: "merge queue",
-  schedule: "schedule",
-  workflow_dispatch: "manual",
-  web: "manual",
-  api: "API",
-  trigger: "trigger",
-  pipeline: "multi-project",
-  parent_pipeline: "child pipeline",
-  release: "release",
-  external: "external",
-  chat: "chat",
-  ondemand_dast_scan: "DAST scan",
-  security_orchestration_policy: "security policy",
+  push: "forge.src.push",
+  merge_request_event: "forge.src.mr",
+  pull_request: "forge.src.pr",
+  pull_request_target: "forge.src.pr",
+  merge_group: "forge.src.list.mergeQueue",
+  schedule: "forge.src.schedule",
+  workflow_dispatch: "forge.src.list.manual",
+  web: "forge.src.list.manual",
+  api: "forge.src.api",
+  trigger: "forge.src.trigger",
+  pipeline: "forge.src.list.multiProject",
+  parent_pipeline: "forge.src.list.child",
+  release: "forge.src.list.release",
+  external: "forge.src.list.external",
+  chat: "forge.src.list.chat",
+  ondemand_dast_scan: "forge.src.list.dast",
+  security_orchestration_policy: "forge.src.list.policy",
 };
 
 /** What started a pipeline or a workflow run, in words. */
-export function pipelineSourceWords(source: string | null | undefined): string | null {
+export function pipelineSourceWords(source: string | null | undefined, t: TFunction = tGlobal): string | null {
   if (!source) return null;
-  return SOURCES[source] ?? source.replace(/_/g, " ");
+  const key = SOURCES[source];
+  return key ? t(key) : source.replace(/_/g, " ");
 }
 
 // ── what a list says ─────────────────────────────────────────────────────
@@ -176,43 +188,45 @@ export function listPhase(read: { data: unknown; error: unknown }, loaded: numbe
 }
 
 /** The sentence for a search that hid every loaded row. */
-export function noMatchWords(nounPlural: string, query: string): string {
-  return `No ${nounPlural} match “${query.trim()}”.`;
+export function noMatchWords(nounPlural: string, query: string, t: TFunction = tGlobal): string {
+  return t("forge.noMatch", { noun: nounPlural, query: query.trim() });
 }
 
 /** The Load more button's words: how many are on screen of how many. */
-export function moreLabel(shown: number, total: number | null): string {
-  return total != null && total > shown ? `Load more · ${shown.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}` : "Load more";
+export function moreLabel(shown: number, total: number | null, t: TFunction = tGlobal): string {
+  return total != null && total > shown ? t("forge.moreOf", { shown: formatNumber(shown, 0), total: formatNumber(total, 0) }) : t("forge.more");
 }
 
 /** What an empty Merge requests / Pull requests list is, in a sentence. */
-export function emptyChangesWords(kind: ForgeKind, o: { state: ChangeState; filter: ChangeFilter; acrossRepos: boolean }): string {
-  const noun = forgeWords[kind].changes.toLowerCase();
-  const where = o.acrossRepos ? "" : ` in this ${forgeWords[kind].repo.toLowerCase()}`;
-  if (o.filter === "mine") return `You have no ${o.state} ${noun}${where}.`;
-  if (o.filter === "review") {
-    return o.state === "open"
-      ? `Nothing is waiting for your review${where}.`
-      : `No ${o.state} ${noun} asked for your review${where}.`;
+export function emptyChangesWords(kind: ForgeKind, o: { state: ChangeState; filter: ChangeFilter; acrossRepos: boolean }, t: TFunction = tGlobal): string {
+  const nouns = forgeNouns(kind, t);
+  const noun = nouns.changesLc;
+  const where = o.acrossRepos ? "" : t("forge.where", { repo: nouns.repoLc });
+  const vars = { noun, where };
+  if (o.filter === "mine") {
+    return o.state === "open" ? t("forge.empty.mine.open", vars) : o.state === "merged" ? t("forge.empty.mine.merged", vars) : t("forge.empty.mine.closed", vars);
   }
-  return `No ${o.state} ${noun}${where}.`;
+  if (o.filter === "review") {
+    return o.state === "open" ? t("forge.empty.review.open", vars) : o.state === "merged" ? t("forge.empty.review.merged", vars) : t("forge.empty.review.closed", vars);
+  }
+  return o.state === "open" ? t("forge.empty.all.open", vars) : o.state === "merged" ? t("forge.empty.all.merged", vars) : t("forge.empty.all.closed", vars);
 }
 
 /** What an empty Pipelines / Actions list is. */
-export function emptyPipelinesWords(kind: ForgeKind, acrossRepos: boolean): string {
-  const noun = `${forgeWords[kind].pipeline.toLowerCase()}s`;
+export function emptyPipelinesWords(kind: ForgeKind, acrossRepos: boolean, t: TFunction = tGlobal): string {
+  const nouns = forgeNouns(kind, t);
   return acrossRepos
-    ? `No ${noun} in your most recently active ${repoNounPlural(kind)}.`
-    : `No ${noun} in this ${forgeWords[kind].repo.toLowerCase()} yet.`;
+    ? t("forge.empty.pipelines.across", { noun: nouns.runs, repos: nouns.repos })
+    : t("forge.empty.pipelines.here", { noun: nouns.runs, repo: nouns.repoLc });
 }
 
 /** What an empty Issues list is: GitLab's is the issues assigned to the
  *  user, GitHub's a repository's issues. */
-export function emptyIssuesWords(kind: ForgeKind, state: "open" | "closed", acrossRepos: boolean): string {
-  const repo = forgeWords[kind].repo.toLowerCase();
-  if (kind === "github") return `This ${repo} has no ${state} issues.`;
-  const where = acrossRepos ? "" : ` in this ${repo}`;
-  return state === "open" ? `No open issues are assigned to you${where}.` : `No closed issues were assigned to you${where}.`;
+export function emptyIssuesWords(kind: ForgeKind, state: "open" | "closed", acrossRepos: boolean, t: TFunction = tGlobal): string {
+  const repo = forgeNouns(kind, t).repoLc;
+  if (kind === "github") return t(state === "open" ? "forge.empty.issues.gh.open" : "forge.empty.issues.gh.closed", { repo });
+  const where = acrossRepos ? "" : t("forge.where", { repo });
+  return t(state === "open" ? "forge.empty.issues.gl.open" : "forge.empty.issues.gl.closed", { where });
 }
 
 // ── the toolbar's "updated" line ─────────────────────────────────────────

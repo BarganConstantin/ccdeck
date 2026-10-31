@@ -22,6 +22,8 @@
 // The vocabulary is the user's throughout. Not "permission", not "tab hidden",
 // not "sseClients": away, this tab, closed.
 
+import { t as tNow, type TFunction } from "./i18n";
+
 /** What `Notification.permission` can say, plus the case where the API is not
  *  there at all. Mirrored rather than imported from lib.dom so this still
  *  typechecks in the bare-node suite. */
@@ -37,8 +39,8 @@ export const NOTIFY_NOTE = "With no deck tab open, get a notification wherever a
 export const NOTIFY_NOTE_APP = "With the ccdeck window closed, get a notification wherever a sound would have played.";
 
 /** The note under the switch, for where the page is running. */
-export function notifyNote(inApp: boolean): string {
-  return inApp ? NOTIFY_NOTE_APP : NOTIFY_NOTE;
+export function notifyNote(inApp: boolean, t: TFunction = tNow): string {
+  return inApp ? t("settings.notify.noteApp") : t("settings.notify.note");
 }
 
 /** AGENTS_DECK_NO_NOTIFY=1 at launch. Not the same as the switch being off:
@@ -53,10 +55,11 @@ export const NOTIFY_VETO_NOTE =
  *  each switch is called, and the line its tooltip adds about when it fires.
  *  The rules are src/server/account-notify.mjs's; this is only their names. */
 export const ACCOUNT_NOTIFY_SWITCHES = [
-  { kind: "notifySwap", label: "Account auto-switched", title: "When auto-switch moves Claude Code to another account" },
-  { kind: "notifyQuota", label: "Quota at 90% and 100%", title: "When a quota window of the account you're on reaches 90%, and again at 100%" },
-  { kind: "notifyReset", label: "Quota reset", title: "When a quota window that reached 90% is available again" },
-  { kind: "notifyStopped", label: "Sessions stopped on login or limit", title: "When Claude Code sessions stop on an expired login or a usage limit — once for all of them, with what to type to resume" },
+  // label and title read the language on show each time they are read.
+  { kind: "notifySwap", get label() { return tNow("settings.notify.swap.label"); }, get title() { return tNow("settings.notify.swap.title"); } },
+  { kind: "notifyQuota", get label() { return tNow("settings.notify.quota.label"); }, get title() { return tNow("settings.notify.quota.title"); } },
+  { kind: "notifyReset", get label() { return tNow("settings.notify.reset.label"); }, get title() { return tNow("settings.notify.reset.title"); } },
+  { kind: "notifyStopped", get label() { return tNow("settings.notify.stopped.label"); }, get title() { return tNow("settings.notify.stopped.title"); } },
 ] as const;
 
 /** Under the four: whose accounts, and that a closed deck is not required —
@@ -85,25 +88,23 @@ export interface Channel {
 }
 
 /** What this channel buys, in both of the states where it can still be had. */
-const AWAY = "Get notified when you're away from this tab.";
-
-export function browserChannel(permission: NotifyPermission): Channel {
+export function browserChannel(permission: NotifyPermission, t: TFunction = tNow): Channel {
   switch (permission) {
     case "granted":
-      return { status: "Enabled", ask: false, ok: true, note: AWAY };
+      return { status: t("settings.notify.enabled"), ask: false, ok: true, note: t("settings.notify.away") };
     case "default":
-      return { status: null, ask: true, ok: false, note: AWAY };
+      return { status: null, ask: true, ok: false, note: t("settings.notify.away") };
     case "denied":
       // Where the remedy lives, and then the half that is still working — a
       // refusal here costs the page's notifier, not the deck's.
       return {
-        status: "Blocked", ask: false, ok: false,
-        note: "Your browser is blocking them; only its own site settings can undo that. You'll still be told once this tab is closed.",
+        status: t("settings.notify.blocked"), ask: false, ok: false,
+        note: t("settings.notify.blockedNote"),
       };
     default:
       return {
-        status: "Unavailable", ask: false, ok: false,
-        note: "This browser cannot show them. You'll still be told once this tab is closed.",
+        status: t("settings.notify.unavailable"), ask: false, ok: false,
+        note: t("settings.notify.unavailableNote"),
       };
   }
 }

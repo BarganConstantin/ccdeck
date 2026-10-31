@@ -12,6 +12,7 @@
 // node with no DOM, so a rule that only exists inside JSX is a rule nothing can
 // check.
 import { type PickerCommit } from "./picker-commit";
+import { t as tNow, type TFunction } from "./i18n";
 
 const THRESHOLDS = [70, 80, 85, 90, 95];
 
@@ -36,6 +37,10 @@ export const CUSTOM_HINT = `A whole percent from ${CUSTOM_MIN} to ${CUSTOM_MAX}.
  *  it is none of them — `cswap config set` takes any number, and a picker that
  *  cannot show the stored value shows its first option instead, which is a
  *  setting the loop is not using. */
+export function customHint(t: TFunction = tNow): string {
+  return t("accounts.threshold.hint", { min: CUSTOM_MIN, max: CUSTOM_MAX });
+}
+
 export function thresholdChoices(stored: string): number[] {
   const n = Number(stored);
   const all = Number.isFinite(n) && n > 0 && !THRESHOLDS.includes(n) ? [...THRESHOLDS, n] : THRESHOLDS;
@@ -53,16 +58,17 @@ export type ThresholdCheck =
  * or choose reaches the route outside CUSTOM_MIN to CUSTOM_MAX. A trailing `%`
  * is allowed, since the field draws one, and leading zeros are dropped.
  */
-export function checkThreshold(text: string): ThresholdCheck {
+export function checkThreshold(text: string, t: TFunction = tNow): ThresholdCheck {
+  const range = { min: CUSTOM_MIN, max: CUSTOM_MAX };
   const typed = text.trim().replace(/\s*%$/, "");
-  if (typed === "") return { ok: false, reason: "empty", message: `Enter a number from ${CUSTOM_MIN} to ${CUSTOM_MAX}.` };
+  if (typed === "") return { ok: false, reason: "empty", message: t("accounts.threshold.enter", range) };
   if (!/^\d+(\.\d*)?$|^\.\d+$/.test(typed)) {
-    return { ok: false, reason: "not_a_number", message: `Enter a number from ${CUSTOM_MIN} to ${CUSTOM_MAX}.` };
+    return { ok: false, reason: "not_a_number", message: t("accounts.threshold.enter", range) };
   }
   const n = Number(typed);
-  if (!Number.isInteger(n)) return { ok: false, reason: "not_whole", message: `Use a whole number from ${CUSTOM_MIN} to ${CUSTOM_MAX}.` };
-  if (n < CUSTOM_MIN) return { ok: false, reason: "too_low", message: `The lowest is ${CUSTOM_MIN}%.` };
-  if (n > CUSTOM_MAX) return { ok: false, reason: "too_high", message: `The highest is ${CUSTOM_MAX}%.` };
+  if (!Number.isInteger(n)) return { ok: false, reason: "not_whole", message: t("accounts.threshold.whole", range) };
+  if (n < CUSTOM_MIN) return { ok: false, reason: "too_low", message: t("accounts.threshold.lowest", range) };
+  if (n > CUSTOM_MAX) return { ok: false, reason: "too_high", message: t("accounts.threshold.highest", range) };
   return { ok: true, value: String(n) };
 }
 

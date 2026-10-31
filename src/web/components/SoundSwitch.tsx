@@ -6,6 +6,7 @@
 // onToggleSound is use-sound-switch.ts's toggle, the one M reaches too.
 import { useId } from "react";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import { useT } from "../i18n";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 
 export const PLAY_SOUNDS_NOTE = "A tone when a turn finishes, and when Claude asks for something.";
@@ -18,6 +19,7 @@ interface Props {
 export default function SoundSwitch({ soundOn, onToggleSound }: Props) {
   // Its own ids wherever it is drawn: an id that two mounts could share is a
   // name that could resolve to the wrong one.
+  const t = useT();
   const labelId = useId();
   const singleKeys = useSingleKeyShortcuts();
   const noteId = useId();
@@ -32,16 +34,16 @@ export default function SoundSwitch({ soundOn, onToggleSound }: Props) {
     <SettingsGroup>
       <SettingRow
         settingId="play-sounds"
-        name="Play sounds"
+        name={t("radio.sound.name")}
         nameId={labelId}
-        note={PLAY_SOUNDS_NOTE}
+        note={t("radio.sound.note")}
         noteId={noteId}
         control={
           <>
             {/* The key, drawn as a key, beside the switch it flips: M is the
                 one-press route to silence from anywhere on the deck — while
                 the single-key shortcuts are on, and only then is it shown. */}
-            {singleKeys && <kbd className="settings-key" aria-hidden title="Press M anywhere to mute or unmute">M</kbd>}
+            {singleKeys && <kbd className="settings-key" aria-hidden title={t("radio.sound.keyTitle")}>M</kbd>}
             <button
               type="button"
               role="switch"

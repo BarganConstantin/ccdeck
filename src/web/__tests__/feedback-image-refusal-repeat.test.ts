@@ -18,7 +18,9 @@ import "./web-globals";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { FULL_MESSAGE } from "../feedback-images";
+import { fullMessage } from "../feedback-images";
+
+const FULL_MESSAGE = fullMessage();
 import { useFeedbackImages, type FeedbackImages } from "../use-feedback-images";
 
 /** A PNG small enough to be sent as it is, so no canvas is asked for. */

@@ -9,8 +9,10 @@
 // outlive that.
 import { type KeyboardEvent, type Ref, useId } from "react";
 
-import { NEXT_OPTIONS, type NextChoice, WEEKLY_HINT } from "../auto-choice";
-import { CUSTOM_HINT, CUSTOM_PICK, thresholdChoices } from "../auto-switch-threshold";
+import { NEXT_OPTIONS, type NextChoice, nextOptionLabel, weeklyHint } from "../auto-choice";
+import { Rich } from "../accounts-rich";
+import { useT } from "../i18n";
+import { customHint, CUSTOM_PICK, thresholdChoices } from "../auto-switch-threshold";
 import { type AutoStatus } from "../claude-accounts";
 import { type PickerCommit } from "../picker-commit";
 import { type useRequestSlot } from "../use-request-slot";
@@ -70,6 +72,7 @@ export default function AutoSwitchPolicy({
   proposeThreshold, typeThreshold, cancelThreshold, leaveThreshold, doThreshold,
   nextPick, nextCtl, nextSaved, nextRef, nextSaveRef, proposeNext, doNext, pressProps, post, load,
 }: Props) {
+  const t = useT();
   const noteId = useId();
   const thresholdId = useId();
   const nextId = useId();
@@ -81,7 +84,7 @@ export default function AutoSwitchPolicy({
             should find the policy. It says what the switch's name says
             (#546), so what is heard and what a voice-control user has to
             pronounce are the words on the screen. */}
-        <h3 className="ap-auto-title">Auto-switch</h3>
+        <h3 className="ap-auto-title">{t("accounts.policy.title")}</h3>
         {/* Always a control, never a read-out: a terminal loop's state is
             said beside it, not instead of it. Named in aria-label because
             the contents cannot carry it (#546). */}
@@ -90,12 +93,12 @@ export default function AutoSwitchPolicy({
           className="switch ap-auto-state"
           role="switch"
           aria-checked={auto.enabled}
-          aria-label="Auto-switch"
+          aria-label={t("accounts.policy.title")}
           {...pressProps("enable")}
           onClick={() => post({ action: "enable", enabled: !auto.enabled }, "enable").then(() => load(true))}
           title={auto.enabled
-            ? "Stop switching accounts automatically"
-            : "Switch accounts automatically when the active one nears its limit"}
+            ? t("accounts.policy.stopTip")
+            : t("accounts.policy.startTip")}
         >
           <span className="switch-knob" />
         </button>
@@ -107,7 +110,7 @@ export default function AutoSwitchPolicy({
           the words on the screen. */}
       <div className="ap-policy ap-setting" onKeyDown={thresholdCustom ? cancelThreshold : undefined}>
         <label className="ap-setting-label" htmlFor={thresholdId}
-          title="Switch once the active account passes this much of its limit">Switch at</label>
+          title={t("accounts.policy.switchAtTip")}>{t("accounts.policy.switchAt")}</label>
         {/* The picker proposes and `save` stores (#516): a select fires
             `change` on a keystroke, and one letter used to write a setting.
             A value set from the terminal or the custom field that is not one
@@ -123,7 +126,7 @@ export default function AutoSwitchPolicy({
           <form className="ap-threshold-form" noValidate
             onSubmit={e => { e.preventDefault(); doThreshold(thresholdPick, thresholdCtl); }}
           >
-            <span className="ap-threshold-field" title="Switch once the active account passes this much of its limit">
+            <span className="ap-threshold-field" title={t("accounts.policy.switchAtTip")}>
               <input
                 ref={thresholdFieldRef}
                 id={thresholdId}
@@ -143,7 +146,7 @@ export default function AutoSwitchPolicy({
             </span>
           </form>
         ) : (
-          <span className="ap-field" title="Switch once the active account passes this much of its limit">
+          <span className="ap-field" title={t("accounts.policy.switchAtTip")}>
             <select
               ref={thresholdRef}
               id={thresholdId}
@@ -151,8 +154,8 @@ export default function AutoSwitchPolicy({
               {...pressProps("threshold")}
               onChange={e => proposeThreshold(e.target.value)}
             >
-              {thresholdChoices(threshold).map(t => <option key={t} value={t}>{t}%</option>)}
-              <option value={CUSTOM_PICK}>Custom…</option>
+              {thresholdChoices(threshold).map(n => <option key={n} value={n}>{n}%</option>)}
+              <option value={CUSTOM_PICK}>{t("accounts.policy.custom")}</option>
             </select>
           </span>
         )}
@@ -173,7 +176,7 @@ export default function AutoSwitchPolicy({
       {thresholdRefusal ? (
         <p key="refusal" id={noteId} className="ap-threshold-note" role="alert" data-tone="err">{thresholdRefusal}</p>
       ) : thresholdCustom ? (
-        <p key="hint" id={noteId} className="ap-threshold-note">{CUSTOM_HINT}</p>
+        <p key="hint" id={noteId} className="ap-threshold-note">{customHint(t)}</p>
       ) : null}
 
       {/* WHERE IT GOES, whether the switch is on or off: it is set up before
@@ -182,7 +185,7 @@ export default function AutoSwitchPolicy({
           threshold (#516). Home is not here — it is a mark on its row and a
           word in that row's ⋯. */}
       <div className="ap-policy ap-setting ap-next">
-        <label className="ap-setting-label" htmlFor={nextId}>Next account</label>
+        <label className="ap-setting-label" htmlFor={nextId}>{t("accounts.policy.next")}</label>
         <span className="ap-field">
           <select
             id={nextId}
@@ -192,7 +195,7 @@ export default function AutoSwitchPolicy({
             {...pressProps("next")}
             onChange={e => proposeNext(e.target.value)}
           >
-            {NEXT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {NEXT_OPTIONS.map(o => <option key={o.value} value={o.value}>{nextOptionLabel(o.value, t)}</option>)}
           </select>
         </span>
         {(nextCtl.sends || nextSaved) && (
@@ -205,16 +208,15 @@ export default function AutoSwitchPolicy({
       {/* The option that is not obvious says what it does, in one quiet
           line, and only while it is the one showing. */}
       {nextPick === "weekly" && (
-        <p id={hintId} className="ap-threshold-note">{WEEKLY_HINT}</p>
+        <p id={hintId} className="ap-threshold-note">{weeklyHint(t)}</p>
       )}
 
       {/* Which engine is actually switching right now. The deck stands down
           while a terminal loop runs, and says so. */}
       {auto.external && (
         <p className="ap-auto-note">
-          <i className="ap-pulse" aria-hidden /> A <code>cswap auto</code> loop in your terminal is
-          doing the switching. The deck stands down while it runs
-          {auto.enabled ? " — this toggle takes over when you stop it." : "."}
+          <i className="ap-pulse" aria-hidden />{" "}
+          <Rich text={t(auto.enabled ? "accounts.policy.externalOn" : "accounts.policy.externalOff", { note: t("accounts.policy.externalBefore") })} />
         </p>
       )}
     </div>

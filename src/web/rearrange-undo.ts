@@ -15,6 +15,7 @@
 // the chord.
 import type { StoredArrangement } from "./layout-storage";
 import { isApplePlatform } from "./platform";
+import { t, type TFunction } from "./i18n";
 
 type Point = { x: number; y: number };
 export type Viewport = { x: number; y: number; zoom: number };
@@ -88,6 +89,11 @@ export const REARRANGE_UNDO_EXIT_MS = 140;
 export const REARRANGE_UNDO_TEXT = "Layout re-arranged";
 export const REARRANGE_UNDO_SAID = "Layout re-arranged. Undo available.";
 export const REARRANGE_RESTORED_SAID = "Layout restored.";
+
+/** The same three in the language on show; the constants stay the English ones. */
+export const rearrangeUndoText = (tr: TFunction = t): string => tr("board.rearrange.text");
+export const rearrangeUndoSaid = (tr: TFunction = t): string => tr("board.rearrange.said");
+export const rearrangeRestoredSaid = (tr: TFunction = t): string => tr("board.rearrange.restored");
 
 /** Why the clock is held: the pointer is on the strip, focus is in it, or the
  *  tab is not being looked at — an offer that ran out behind another window

@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { readAuditReport, type AuditProvider, type SkillReport, type SkillRow } from '../tool-audit';
-import { auditDay, callTime, count, periodLabels } from '../tool-audit-report';
-import { countingStartedLate, findSkillHighlights, originLine, originShares, skillOrigins, skillParts, skillSorts, skillSummary, sortSkills, typedCommandsNote,
+import { auditDay, callTime, countOf, periodIn } from '../tool-audit-report';
+import { t as translate, useLanguage, useT, currentLanguage } from '../i18n';
+import { ownMessage } from '../own-error';
+import { rich } from '../insights-rich';
+import { countingStartedLate, findSkillHighlights, originLine, originShares, skillOrigins, skillParts, skillSortLabel, skillSorts, skillSummary, sortSkills, typedCommandsNote,
   type SkillHighlight, type SkillOrigin, type SkillSort } from '../skill-activity';
 import { readDetailsWidth, writeDetailsWidth } from '../tool-audit-layout';
 import { useMediaQuery } from '../use-media-query';
@@ -26,7 +29,7 @@ const highlightGlyph: Record<SkillHighlight['kind'], ReactNode> = {
 export interface ReportStatus { loading: boolean; detailLoading: boolean; capturedAt: number | null; hasData: boolean }
 
 function rowLabel(row: SkillRow) {
-  return `${row.name}: ${count(row.uses, 'use')}, last used ${callTime(row.lastAt)}${row.failed ? `, ${row.failed.toLocaleString()} failed` : ''}`;
+  return translate(row.failed ? 'insights.skills.rowFailed' : 'insights.skills.row', { name: row.name, uses: countOf(row.uses, 'use'), last: callTime(row.lastAt, Date.now(), true), failed: row.failed.toLocaleString(currentLanguage()) });
 }
 
 /** Skill activity (#2181): the Skills view of the Tool activity modal, opened
@@ -37,6 +40,8 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
   refresh: number; onStatus: (status: ReportStatus) => void;
 }) {
   useFeatureUse('skill-activity');
+  const t = useT();
+  const language = useLanguage();
   const [sort, setSort] = useState<SkillSort>('uses');
   const [search, setSearch] = useState('');
   const sortRef = useRef(sort); sortRef.current = sort;
@@ -83,7 +88,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
           else setSelected(current => !current || reply.rows.some(row => row.name === current) ? current
             : sortSkills(reply.rows, sortRef.current, searchRef.current).find(row => row.uses > 0)?.name ?? null);
         }
-      } catch (e) { if (live) setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'Reading the history took too long. Try again, or keep less history in Settings.'); }
+      } catch (e) { if (live) setError(ownMessage(e, t('insights.audit.err.slow'))); }
       finally { window.clearTimeout(deadline); if (live) { reading.current = false; setLoading(false); } }
     })();
     return () => { live = false; controller.abort(); window.clearTimeout(deadline); reading.current = false; };
@@ -100,14 +105,16 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
       try {
         const reply = await readAuditReport<SkillReport>(`${query}&skill=${encodeURIComponent(selected)}&history=1&timeZone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`, controller.signal);
         if (live) { if (!reply.details?.row) setSelected(null); else setDetails(reply.details); }
-      } catch { if (live) setDetailError('Could not read the uses of this skill. Close it and open it again to retry.'); }
+      } catch { if (live) setDetailError(t('insights.skills.err.uses')); }
       finally { window.clearTimeout(deadline); if (live) setDetailLoading(false); }
     })();
     return () => { live = false; controller.abort(); window.clearTimeout(deadline); };
   }, [selected, data, loading, query]);
 
-  const shares = useMemo(() => data ? originShares(data, provider) : [], [data, provider]);
-  const highlights = useMemo(() => data ? findSkillHighlights(data, provider) : [], [data, provider]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const shares = useMemo(() => data ? originShares(data, provider) : [], [data, provider, language]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const highlights = useMemo(() => data ? findSkillHighlights(data, provider) : [], [data, provider, language]);
   // A lane that left with a new period or agent no longer filters.
   const kept = origin && shares.some(part => part.id === origin && part.uses > 0) ? origin : null;
   const rows = useMemo(() => sortSkills(data?.rows ?? [], sort, search).filter(row => !kept || row[kept] > 0), [data, sort, search, kept]);
@@ -141,28 +148,28 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
     <div className="ta-body"><div className="ta-report-content">
       {filters}
 
-      {loading && !data && <div className="ta-loading" role="status" aria-label="Reading skill history"><i /><i /><i /><i /><i /></div>}
-      {error && <div className="ta-message" role="alert"><p>{data && 'Showing the last numbers. '}{error}</p></div>}
+      {loading && !data && <div className="ta-loading" role="status" aria-label={t('insights.skills.reading')}><i /><i /><i /><i /><i /></div>}
+      {error && <div className="ta-message" role="alert"><p>{data && `${t('insights.audit.lastNumbers')} `}{error}</p></div>}
 
       {data && summary && (data.total === 0 && data.repeats === 0 ? <div className="ta-empty">
-        <h3>No skills used in the last {periodLabels[period]}</h3>
-        <p>ccdeck counts each skill {provider === 'all' ? 'Claude Code and Codex load' : provider === 'claude' ? 'Claude Code loads' : 'Codex loads'} on this device, starting {auditDay(data.countedSince)}. Sessions from before that are not imported. Use a skill and it shows up here.</p>
+        <h3>{t('insights.skills.empty.title', { period: periodIn(period) })}</h3>
+        <p>{t(provider === 'all' ? 'insights.skills.empty.all' : provider === 'claude' ? 'insights.skills.empty.claude' : 'insights.skills.empty.codex', { since: auditDay(data.countedSince) })}</p>
         {typedNote && <p className="sa-typed-note">{typedNote}</p>}
-        {period !== '90' && !late && <button type="button" className="btn" onClick={() => setPeriod('90')}>Show the last 90 days</button>}
+        {period !== '90' && !late && <button type="button" className="btn" onClick={() => setPeriod('90')}>{t('insights.audit.show90')}</button>}
       </div> : <>
         <p className="ta-summary">
-          {summary.lead} <strong>{summary.skills}</strong>{data.total > 0 && <> <strong>{summary.uses}</strong></>}.{' '}
-          {summary.failed > 0 && <><strong className="ta-bad">{summary.failed.toLocaleString()} failed</strong>. </>}
-          {summary.repeats > 0 && <>{count(summary.repeats, 'repeated run')}, such as <code>/loop</code> ticks, {summary.repeats === 1 ? 'is' : 'are'} left out.</>}
+          {rich(t(data.total > 0 ? 'insights.skills.summary.uses' : 'insights.skills.summary.skills', { period: summary.period, who: summary.who }), { skills: <strong>{summary.skills}</strong>, uses: <strong>{summary.uses}</strong> })}{' '}
+          {summary.failed > 0 && <>{rich(t('insights.skills.summary.failed'), { failed: <strong className="ta-bad">{t('insights.audit.nFailed', { n: summary.failed.toLocaleString(currentLanguage()) })}</strong> })} </>}
+          {summary.repeats > 0 && rich(t('insights.skills.summary.repeats', { count: summary.repeats, n: countOf(summary.repeats, 'repeatedRun') }), { loop: <code>/loop</code> })}
         </p>
-        {late && <p className="ta-note sa-since">Counting started {auditDay(data.countedSince)}, so the days before it are empty rather than unused.</p>}
+        {late && <p className="ta-note sa-since">{t('insights.skills.since', { date: auditDay(data.countedSince) })}</p>}
         {typedNote && <p className="ta-note sa-typed-note">{typedNote}</p>}
-        {(!data.storageOk || data.dropped > 0 || data.corrupt > 0) && <p className="ta-warning" role="status">Some uses could not be saved or read, so these numbers may be a little low.{!data.storageOk && ' Check free disk space.'}</p>}
+        {(!data.storageOk || data.dropped > 0 || data.corrupt > 0) && <p className="ta-warning" role="status">{t('insights.skills.warning')}{!data.storageOk && ` ${t('insights.audit.diskSpace')}`}</p>}
 
         {/* At a glance: what is worth a look beside who starts the skills. */}
         {(highlights.length > 0 || data.total > 0) && <div className="ta-glance" data-single={!(highlights.length > 0 && data.total > 0) || undefined}>
           {highlights.length > 0 && <section className="ta-highlights" aria-labelledby="sa-highlights-title">
-            <h3 id="sa-highlights-title">Worth a look</h3>
+            <h3 id="sa-highlights-title">{t('insights.audit.worth')}</h3>
             <ul>{highlights.map(item => <li key={item.kind}><button type="button" className="ta-highlight" data-kind={item.kind} data-skill={item.skill} aria-expanded={selected === item.skill} aria-controls={selected === item.skill ? 'tool-operation-inspector' : undefined} onClick={select(item.skill)}>
               <span className="ta-highlight-glyph">{highlightGlyph[item.kind]}</span>
               <span className="ta-highlight-text"><span><code>{skillParts(item.skill).short}</code> {item.title}</span><small>{item.detail}</small></span>
@@ -173,36 +180,36 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
 
         <section className="ta-tools" aria-labelledby="sa-skills-title">
           <div className="ta-tools-head">
-            <h3 id="sa-skills-title">Skills <span className="ta-count">{kept ? `${rows.length.toLocaleString()} of ${data.rows.length.toLocaleString()}` : data.rows.length.toLocaleString()}</span></h3>
-            <label className="ta-search"><SearchGlyph /><input type="search" aria-label="Find a skill" placeholder="Find a skill" value={search} onChange={event => setSearch(event.target.value)} /></label>
+            <h3 id="sa-skills-title">{t('insights.skills.title')} <span className="ta-count">{kept ? t('insights.skills.countOf', { n: rows.length.toLocaleString(currentLanguage()), total: data.rows.length.toLocaleString(currentLanguage()) }) : data.rows.length.toLocaleString(currentLanguage())}</span></h3>
+            <label className="ta-search"><SearchGlyph /><input type="search" aria-label={t('insights.skills.find')} placeholder={t('insights.skills.find')} value={search} onChange={event => setSearch(event.target.value)} /></label>
           </div>
-          <div className="uh-range ta-sorts sa-sorts" role="group" aria-label="Sort by">{skillSorts.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={sort === item.id} onClick={() => setSort(item.id)}>{item.label}</button>)}</div>
-          <div className="ta-list-head sa-list-head" aria-hidden="true" data-sort={sort} data-failures={failures || undefined}><span>Name</span><span data-col="uses">Uses</span><span data-col="recent">Last used</span>{failures && <span data-col="failed">Failed</span>}</div>
+          <div className="uh-range ta-sorts sa-sorts" role="group" aria-label={t('insights.audit.sortBy')}>{skillSorts.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={sort === item.id} onClick={() => setSort(item.id)}>{skillSortLabel(item.id)}</button>)}</div>
+          <div className="ta-list-head sa-list-head" aria-hidden="true" data-sort={sort} data-failures={failures || undefined}><span>{t('insights.audit.col.name')}</span><span data-col="uses">{t('insights.skills.col.uses')}</span><span data-col="recent">{t('insights.skills.col.last')}</span>{failures && <span data-col="failed">{t('insights.audit.col.failed')}</span>}</div>
           <ul className="ta-list sa-list" ref={listRef} data-sort={sort} data-failures={failures || undefined}>{visible.map(row => {
             const { namespace, short } = skillParts(row.name);
             return <li key={row.name}><button type="button" className="ta-row" data-skill={row.name} data-selected={selected === row.name || undefined} aria-expanded={selected === row.name} aria-controls={selected === row.name ? 'tool-operation-inspector' : undefined} aria-label={rowLabel(row)} onClick={select(row.name)}>
-              <span className="ta-row-name"><span className="ta-op">{namespace && <span className="sa-namespace">{namespace}</span>}{short}</span><span className="ta-desc">{[originLine(row), count(row.sessions, 'session'), row.repeats > 0 && count(row.repeats, 'repeat')].filter(Boolean).join(' · ')}</span>
+              <span className="ta-row-name"><span className="ta-op">{namespace && <span className="sa-namespace">{namespace}</span>}{short}</span><span className="ta-desc">{[originLine(row), countOf(row.sessions, 'session'), row.repeats > 0 && countOf(row.repeats, 'repeat')].filter(Boolean).join(' · ')}</span>
                 <span className="ta-bar" aria-hidden="true" style={{ "--ta-share": top && sort === 'uses' ? Math.max(0.015, row.uses / top) : 0 } as CSSProperties}>
                   {skillOrigins.filter(id => row[id] > 0).map(id => <i key={id} data-lane={id} style={{ flexGrow: row[id] }} />)}</span></span>
-              <span className="ta-cell" data-col="uses">{row.uses.toLocaleString()}<span className="ta-unit"> {row.uses === 1 ? 'use' : 'uses'}</span></span>
-              <span className="ta-cell" data-col="recent"><span className="ta-unit">last </span>{callTime(row.lastAt)}</span>
-              {failures && <span className="ta-cell" data-col="failed" data-bad={row.failed > 0 || undefined}>{row.failed ? <>{row.failed.toLocaleString()}<span className="ta-unit"> failed</span></> : <span className="ta-zero">0<span className="ta-unit"> failed</span></span>}</span>}
+              <span className="ta-cell" data-col="uses">{row.uses.toLocaleString(currentLanguage())}<span className="ta-unit"> {t('insights.skills.unit.uses', { count: row.uses })}</span></span>
+              <span className="ta-cell" data-col="recent"><span className="ta-unit">{t('insights.skills.unit.last')} </span>{callTime(row.lastAt, Date.now(), true)}</span>
+              {failures && <span className="ta-cell" data-col="failed" data-bad={row.failed > 0 || undefined}>{row.failed ? <>{row.failed.toLocaleString(currentLanguage())}<span className="ta-unit"> {t('insights.audit.unit.failed')}</span></> : <span className="ta-zero">0<span className="ta-unit"> {t('insights.audit.unit.failed')}</span></span>}</span>}
             </button></li>;
           })}</ul>
-          {!rows.length && search.trim() && <p className="ta-note ta-no-match">No skill matches “{search.trim()}”{kept ? ' among these' : ''}.</p>}
-          {!search && !showAll && rows.length > FIRST_ROWS && <button type="button" className="btn ta-more" onClick={() => setShowAll(true)}>Show all {rows.length.toLocaleString()}</button>}
+          {!rows.length && search.trim() && <p className="ta-note ta-no-match">{t(kept ? 'insights.skills.noMatchAmong' : 'insights.skills.noMatch', { search: search.trim() })}</p>}
+          {!search && !showAll && rows.length > FIRST_ROWS && <button type="button" className="btn ta-more" onClick={() => setShowAll(true)}>{t('insights.audit.showAll', { n: rows.length.toLocaleString(currentLanguage()) })}</button>}
         </section>
 
         <details className="ta-explain">
-          <summary>How this is counted</summary>
+          <summary>{t('insights.audit.how')}</summary>
           <ul>
-            <li>A use is a skill loaded into an agent: Claude calling its Skill tool, a slash command you type, or a skill you pick in Codex with <code>$</code> or <code>/skills</code>. Custom commands count as skills.</li>
-            <li>When Codex picks a skill itself, it only reads the skill’s <code>SKILL.md</code> or runs one of its scripts. That counts once per turn, only for a skill Codex listed for the session, and shows as Picked by Codex.</li>
-            <li>Typed commands reach the deck through Claude Code’s <code>UserPromptExpansion</code> hook, which the deck adds when every Claude Code on this device is 2.1.116 or newer. Starting the deck with <code>AGENTS_DECK_SKILL_HOOK=0</code> leaves it out, and then only the skills Claude calls itself are counted.</li>
-            <li>The same command run again in one session with the same arguments, such as a <code>/loop</code> tick, is a repeat and stays out of the ranking.</li>
-            <li>Built-in commands such as <code>/clear</code> or <code>/model</code>, MCP prompts and a skill’s name typed inside a message are not uses. Skills that are installed but never ran do not appear.</li>
-            <li>Failures are shown only when Claude reports that loading a skill failed; Codex reports none.</li>
-            <li>Recorded on this device since {auditDay(data.countedSince)} and kept with the tool history for {data.retentionDays} days. The skill’s name, the session and the project folder’s name are saved; arguments and paths never are. Change this in Settings.</li>
+            <li>{rich(t('insights.skills.how.1'), { dollar: <code>$</code>, skills: <code>/skills</code> })}</li>
+            <li>{rich(t('insights.skills.how.2'), { file: <code>SKILL.md</code> })}</li>
+            <li>{rich(t('insights.skills.how.3'), { hook: <code>UserPromptExpansion</code>, env: <code>AGENTS_DECK_SKILL_HOOK=0</code> })}</li>
+            <li>{rich(t('insights.skills.how.4'), { loop: <code>/loop</code> })}</li>
+            <li>{rich(t('insights.skills.how.5'), { clear: <code>/clear</code>, model: <code>/model</code> })}</li>
+            <li>{t('insights.skills.how.6')}</li>
+            <li>{t('insights.skills.how.7', { since: auditDay(data.countedSince), days: data.retentionDays })}</li>
           </ul>
         </details>
       </>)}

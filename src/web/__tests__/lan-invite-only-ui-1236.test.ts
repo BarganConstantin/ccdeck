@@ -11,8 +11,9 @@ import { fileURLToPath } from "node:url";
 import { deckRows } from "../lan-roster";
 import { roundLabel } from "../lan-round";
 import { normalise } from "../../server/deck-prefs.mjs";
+import { english } from "./lan-english-source";
 
-const read = (file: string) => readFileSync(fileURLToPath(new URL(file, import.meta.url)), "utf8");
+const read = (file: string) => english(readFileSync(fileURLToPath(new URL(file, import.meta.url)), "utf8"));
 const setup = read("../components/LanSetupModal.tsx");
 /** The deck dialog's foot, where its verbs are drawn, which moved out of
  *  LanPeerModal.tsx into a component of its own. */

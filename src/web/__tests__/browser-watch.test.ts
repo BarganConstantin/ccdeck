@@ -265,7 +265,7 @@ describe("how App.tsx wires it up", () => {
     expect(app, "the armed icon needs its filled pupil").toMatch(/<circle cx="7" cy="7" r="1\.8" fill="currentColor"/);
     expect(app, "the resting icon needs its slash").toMatch(/<line x1="2\.4" y1="11\.6" x2="11\.6" y2="2\.4"/);
     // And in words, for anyone who reads the button rather than sees it.
-    expect(app).toMatch(/Browser watch, \$\{watchOn \? "watching" : "not watching"\}/);
+    expect(app).toMatch(/watchOn \? t\("board\.rail\.watching"\) : t\("board\.rail\.notWatching"\)/);
   });
 
   it("learns the armed state from the poll it already runs", () => {

@@ -1,4 +1,6 @@
 import type { Chime } from "./sound";
+import { t } from "./i18n";
+import { OwnError } from "./own-error";
 
 export const MAX_CUSTOM_AUDIO_BYTES = 1024 * 1024;
 export const MAX_CUSTOM_AUDIO_SECONDS = 5;
@@ -116,19 +118,19 @@ export function audioMime(name: string, declared: string): string {
 
 export function validateAudioImport(meta: { name: string; type: string; size: number }, duration?: number): string | null {
   const mime = audioMime(meta.name, meta.type);
-  if (!ALLOWED_AUDIO_TYPES.has(mime)) return "Use a WAV, MP3, OGG, or browser-recorded audio file.";
-  if (!Number.isFinite(meta.size) || meta.size <= 0) return "The audio file is empty.";
-  if (meta.size > MAX_CUSTOM_AUDIO_BYTES) return "Audio must be 1 MB or smaller.";
+  if (!ALLOWED_AUDIO_TYPES.has(mime)) return t("radio.audio.errType");
+  if (!Number.isFinite(meta.size) || meta.size <= 0) return t("radio.audio.errEmpty");
+  if (meta.size > MAX_CUSTOM_AUDIO_BYTES) return t("radio.audio.errSize");
   if (duration !== undefined) {
-    if (!Number.isFinite(duration) || duration <= 0) return "The audio file could not be decoded.";
-    if (duration > MAX_CUSTOM_AUDIO_SECONDS) return `Audio must be ${MAX_CUSTOM_AUDIO_SECONDS} seconds or shorter.`;
+    if (!Number.isFinite(duration) || duration <= 0) return t("radio.audio.errDecode");
+    if (duration > MAX_CUSTOM_AUDIO_SECONDS) return t("radio.audio.errLong", { seconds: MAX_CUSTOM_AUDIO_SECONDS });
   }
   return null;
 }
 
 /** Why another custom sound cannot be added, or null when it can. */
 export function libraryFullReason(count: number): string | null {
-  return count >= MAX_CUSTOM_ASSETS ? `There are already ${MAX_CUSTOM_ASSETS} custom sounds. Delete one first.` : null;
+  return count >= MAX_CUSTOM_ASSETS ? t("radio.audio.errFull", { n: MAX_CUSTOM_ASSETS }) : null;
 }
 
 /**
@@ -169,22 +171,22 @@ export async function importCustomAudio(
   decode: (bytes: ArrayBuffer) => Promise<DecodedAudio>,
   id = newAssetId(),
 ): Promise<CustomAudioAsset> {
-  const name = file.name?.trim() || "Custom sound";
+  const name = file.name?.trim() || t("radio.audio.customSound");
   const firstError = validateAudioImport({ name, type: file.type, size: file.size });
-  if (firstError) throw new Error(firstError);
+  if (firstError) throw new OwnError(firstError);
   const bytes = await file.arrayBuffer();
   let decoded: DecodedAudio;
   try {
     decoded = await decode(bytes.slice(0));
   } catch {
-    throw new Error("The audio file could not be decoded.");
+    throw new OwnError(t("radio.audio.errDecode"));
   }
   const decodedError = validateAudioImport({ name, type: file.type, size: file.size }, decoded.duration);
-  if (decodedError) throw new Error(decodedError);
+  if (decodedError) throw new OwnError(decodedError);
   const channels = Array.from({ length: decoded.numberOfChannels }, (_, channel) => decoded.getChannelData(channel));
   return {
     id,
-    name: name.replace(/\.(wav|wave|mp3|ogg|oga|webm|m4a|mp4)$/i, "") || "Custom sound",
+    name: name.replace(/\.(wav|wave|mp3|ogg|oga|webm|m4a|mp4)$/i, "") || t("radio.audio.customSound"),
     kind: "audio",
     mime: audioMime(name, file.type),
     duration: decoded.duration,
@@ -200,9 +202,9 @@ export function createCustomVoice(input: {
   rate?: number;
   pitch?: number;
 }, id = newAssetId()): CustomVoiceAsset {
-  const name = input.name.trim() || "Custom voice";
+  const name = input.name.trim() || t("radio.audio.customVoice");
   const text = input.text.trim();
-  if (!text) throw new Error("Enter the words this voice should say.");
+  if (!text) throw new OwnError(t("radio.audio.errVoiceText"));
   const rate = Number.isFinite(input.rate) ? input.rate! : 1;
   const pitch = Number.isFinite(input.pitch) ? input.pitch! : 1;
   return {
@@ -258,7 +260,7 @@ function openDb(): Promise<IDBDatabase> {
       };
     };
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error ?? new Error("Could not open local audio storage."));
+    req.onerror = () => reject(req.error ?? new OwnError(t("radio.audio.storeOpen")));
   });
 }
 
@@ -275,7 +277,7 @@ async function idbRun<T>(
     return await new Promise<T | undefined>((resolve, reject) => {
       const tx = db.transaction(stores, mode);
       const req = run(tx);
-      const failed = () => reject(tx.error ?? new Error("Local audio storage failed."));
+      const failed = () => reject(tx.error ?? new OwnError(t("radio.audio.storeFailed")));
       tx.oncomplete = () => resolve(req ? req.result : undefined);
       tx.onerror = failed;
       tx.onabort = failed;
@@ -302,7 +304,7 @@ export async function getCustomNotificationAsset(id: string): Promise<CustomNoti
 export async function saveCustomNotificationAsset(asset: CustomNotificationAsset): Promise<void> {
   const bridge = desktopBridge();
   if (bridge) { await bridge.put(asset); return; }
-  if (typeof indexedDB === "undefined") throw new Error("Local audio storage is unavailable in this browser.");
+  if (typeof indexedDB === "undefined") throw new OwnError(t("radio.audio.storeUnavailable"));
   await idbRun([STORE, SUMMARIES], "readwrite", tx => {
     tx.objectStore(STORE).put(asset);
     tx.objectStore(SUMMARIES).put(summarizeCustomAsset(asset));
@@ -324,7 +326,7 @@ export async function renameCustomNotificationAsset(id: string, name: string): P
     if (found) await bridge.put({ ...found, name });
     return;
   }
-  if (typeof indexedDB === "undefined") throw new Error("Local audio storage is unavailable in this browser.");
+  if (typeof indexedDB === "undefined") throw new OwnError(t("radio.audio.storeUnavailable"));
   await idbRun([STORE, SUMMARIES], "readwrite", tx => {
     const assets = tx.objectStore(STORE);
     const read = assets.get(id);

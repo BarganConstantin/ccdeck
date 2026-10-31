@@ -37,7 +37,7 @@ describe("a clock whose start the deck did not see reads as a floor (#822)", () 
   });
 
   it("says why in the clock's title", () => {
-    expect(card).toMatch(/joined this session after it began/);
+    expect(card).toMatch(/board\.node\.joinedLate/);
   });
 
   it("does the same in the detail panel", () => {

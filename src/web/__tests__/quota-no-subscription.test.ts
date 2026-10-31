@@ -16,6 +16,7 @@
 // Codex has answered this properly all along, with `api_key_mode` as its own
 // reason and its own sentence. This is the Claude half catching up.
 import { describe, it, expect, afterAll } from "vitest";
+import { en } from "../i18n/en";
 import { mkdtempSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
@@ -95,22 +96,24 @@ describe("what the server publishes when the CLI prints no windows", () => {
 describe("what the panel says about it", () => {
   it("carries the reason it used to drop on the floor", () => {
     expect(quotaReads).toMatch(/reason\?: string;/);
-    expect(panel).toContain('<span className="up-quota-hint">{claudeQuotaHint(quota.reason)}</span>');
+    expect(panel).toContain('<span className="up-quota-hint">{claudeQuotaHint(t, quota.reason)}</span>');
   });
 
   it("does not tell an API-key install to run /usage", () => {
     // The sentence is still there for the case it fits — a subscription install
     // whose CLI has not printed the lines yet — and no longer for the one it
     // does not.
-    expect(panel).toContain("Run /usage in a claude session, then click ↻");
+    expect(panel).toContain('t("usage.quota.hint.runUsage")');
+    expect(en["usage.quota.hint.runUsage"]).toBe("Run /usage in a claude session, then click ↻");
     const hint = panel.slice(panel.indexOf("function claudeQuotaHint"), panel.indexOf("function codexHint"));
     expect(hint).toContain('case "no_subscription":');
-    expect(hint).toMatch(/billed per token and has no session window/);
+    expect(hint).toContain('t("usage.quota.hint.noSubscription")');
+    expect(en["usage.quota.hint.noSubscription"]).toMatch(/billed per token and has no session window/);
     expect(hint).toContain('case "rate_limited":');
     expect(hint).toContain('case "waiting":');
   });
 
   it("changes the headline too, because 'unavailable' implies a retry", () => {
-    expect(panel).toContain('{quota.reason === "no_subscription" ? "No quota to show." : "Quota unavailable."}');
+    expect(panel).toContain('{quota.reason === "no_subscription" ? t("usage.quota.none") : t("usage.quota.unavailable")}');
   });
 });

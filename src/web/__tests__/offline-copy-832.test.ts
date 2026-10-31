@@ -27,11 +27,11 @@ describe("the offline screen speaks the reader's words (#832)", () => {
   });
 
   it("says whether the page lost the deck or never found it", () => {
-    expect(offline).toMatch(/everConnected \? "This page lost its connection to " : "This page cannot reach "/);
+    expect(offline).toMatch(/everConnected \? "board\.hero\.lost" : "board\.hero\.cannotReach"/);
   });
 
   it("still says where to look and that the page recovers by itself", () => {
-    expect(offline).toMatch(/still running in your terminal/);
-    expect(offline).toMatch(/picks up again on its own/);
+    expect(readFileSync(fileURLToPath(new URL("../i18n/areas/board/en.ts", import.meta.url)), "utf8")).toMatch(/still running in your terminal/);
+    expect(readFileSync(fileURLToPath(new URL("../i18n/areas/board/en.ts", import.meta.url)), "utf8")).toMatch(/picks up again on its own/);
   });
 });

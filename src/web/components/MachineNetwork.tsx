@@ -6,6 +6,8 @@
 // figures are set apart rather than in a row, is below.
 import { useState } from "react";
 
+import { useT } from "../i18n";
+import { rich } from "../insights-rich";
 import { pathText } from "../machine-readings";
 import type { NetRoute, Network } from "../machine-snapshot";
 import { figureText, latencyFigure, rateFigure } from "../net-format";
@@ -30,13 +32,14 @@ import { Fig, OpensHistory } from "./MachineReadout";
  * (net-format.ts).
  */
 export default function NetworkSection({ network }: { network: Network }) {
+  const t = useT();
   const { down, up, api, route } = network;
   const [details, setDetails] = useState(false);
   const latency = api && api.ms != null ? latencyFigure(api.ms) : null;
   const rates = down != null && up != null;
   return (
-    <div className="sd-section" role="group" aria-label="Network">
-      <OpensHistory group="network" title="Network history" action="Show network history" label="Network">
+    <div className="sd-section" role="group" aria-label={t("insights.machine.network")}>
+      <OpensHistory group="network" title={t("insights.machine.networkHistory")} action={t("insights.machine.showNetwork")} label={t("insights.machine.network")}>
         {(rates || latency) && (
           /* THE NAME ON TOP HERE, and under it the value with its unit beside
              it. These three columns are three different measurements, so the
@@ -45,22 +48,22 @@ export default function NetworkSection({ network }: { network: Network }) {
              round the caption had to carry both the unit and the name, and
              "KB/s down" puts the unit where the name belongs. */
           <div className="sd-figs sd-figs-named">
-            {rates && ([["Download", down!], ["Upload", up!]] as const).map(([name, v]) => {
+            {rates && ([["download", down!], ["upload", up!]] as const).map(([name, v]) => {
               const f = rateFigure(v);
-              return <Fig key={name} value={f.value} unit={f.unit} cap={name} />;
+              return <Fig key={name} value={f.value} unit={f.unit} cap={t(name === "download" ? "insights.machine.download" : "insights.machine.upload")} />;
             })}
-            {latency && <Fig value={latency.value} unit={latency.unit} cap="Claude API" />}
+            {latency && <Fig value={latency.value} unit={latency.unit} cap={t("insights.machine.claudeApi")} />}
           </div>
         )}
         {/* The first rate needs two readings five seconds apart, and the two
             probes do not land together: a latency that has arrived is drawn
             rather than held back until the counters catch up. */}
-        {!rates && <div className="sd-note">measuring…</div>}
+        {!rates && <div className="sd-note">{t("insights.machine.measuring")}</div>}
         {api && api.ms == null && (
           // The one network state that is a fault rather than a figure stays in
           // the panel, never folded into the disclosure below: a connection
           // that cannot be asked is exactly what somebody opens this to find.
-          <div className="sd-note sd-note-warn">Can’t reach Claude</div>
+          <div className="sd-note sd-note-warn">{t("insights.machine.cantReach")}</div>
         )}
       </OpensHistory>
       {route && (
@@ -80,8 +83,8 @@ export default function NetworkSection({ network }: { network: Network }) {
             aria-haspopup="dialog"
             onClick={() => setDetails(o => !o)}
           >
-            Connection details
-            {route.relay && <span className="sd-route-relay"> · relayed</span>}
+            {t("insights.machine.connDetails")}
+            {route.relay && <span className="sd-route-relay"> · {t("insights.machine.relayed")}</span>}
             <i className="sd-row-more" aria-hidden>›</i>
           </button>
           {details && <ConnectionDetails route={route} api={api} onClose={() => setDetails(false)} />}
@@ -112,6 +115,7 @@ function ConnectionDetails({ route, api, onClose }: {
   api: Network["api"];
   onClose: () => void;
 }) {
+  const t = useT();
   return (
     <AnchoredPopover
       anchorId="sd-conn"
@@ -122,30 +126,29 @@ function ConnectionDetails({ route, api, onClose }: {
       labelledBy="sd-conn-title"
       onClose={onClose}
     >
-      <p className="sd-pop-title" id="sd-conn-title">Connection</p>
+      <p className="sd-pop-title" id="sd-conn-title">{t("insights.machine.connection")}</p>
       <dl className="sd-pop-rows">
         <div className="sd-pop-row">
-          <dt>{route.to === "claude" ? "Traffic to Claude" : "Internet traffic"}</dt>
-          <dd>through {pathText(route)}</dd>
+          <dt>{route.to === "claude" ? t("insights.machine.trafficClaude") : t("insights.machine.trafficInternet")}</dt>
+          <dd>{t("insights.machine.through", { path: pathText(route) })}</dd>
         </div>
         {route.relay && (
           <div className="sd-pop-row">
-            <dt>Relay</dt>
+            <dt>{t("insights.machine.relay")}</dt>
             <dd>
-              <span className="sd-route-relay">{route.relay}</span> — not a direct path, so every packet
-              carries one more round trip than it has to
+              {rich(t("insights.machine.relayNote"), { relay: <span className="sd-route-relay">{route.relay}</span> })}
             </dd>
           </div>
         )}
         {api && (
           <div className="sd-pop-row">
-            <dt>Round trip</dt>
-            <dd>{api.ms == null ? `${api.host} did not answer` : `${figureText(latencyFigure(api.ms))} to open a connection to ${api.host}`}</dd>
+            <dt>{t("insights.machine.roundTrip")}</dt>
+            <dd>{api.ms == null ? t("insights.machine.noAnswer", { host: api.host }) : t("insights.machine.rtt", { time: figureText(latencyFigure(api.ms)), host: api.host })}</dd>
           </div>
         )}
         <div className="sd-pop-row">
-          <dt>Throughput</dt>
-          <dd>every interface on this machine, not this path alone</dd>
+          <dt>{t("insights.machine.throughput")}</dt>
+          <dd>{t("insights.machine.throughputNote")}</dd>
         </div>
       </dl>
     </AnchoredPopover>

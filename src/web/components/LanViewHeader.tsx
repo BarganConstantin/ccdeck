@@ -8,6 +8,7 @@
 // accounts. What is here is which acts are drawn when, and how.
 import type { ReactNode } from "react";
 
+import { useT } from "../i18n";
 import type { LanStatus } from "../lan-types";
 import type { useLanSection } from "../use-lan-section";
 import { MapGlyph } from "./LanNetworkMap";
@@ -37,16 +38,17 @@ export default function LanViewHeader({
   /** The panel's close, drawn in this view's header as it is in the accounts'. */
   closeButton?: ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="ap-header">
       <button type="button" id="ap-lan-back" className="glyph-btn ap-back" onClick={onBack}
-        aria-label="Back to Claude accounts" title="Back to Claude accounts">
+        aria-label={t("lan.header.back")} title={t("lan.header.back")}>
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
           strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M8.4 3.4 4.8 7l3.6 3.6" />
         </svg>
       </button>
-      <h2 id="ap-lan-title">Local network</h2>
+      <h2 id="ap-lan-title">{t("lan.header.title")}</h2>
       <div className="ap-header-right">
         {/* THE ROUND, BESIDE THE SWITCH. It was a full-width button at the foot
             of the section, under the list it refreshes and under a tooltip that
@@ -76,18 +78,18 @@ export default function LanViewHeader({
             nothing, and it is about every deck on the list at once. */}
         {on && (
           <button type="button" className="glyph-btn" onClick={() => setMapOpen(true)}
-            aria-label="Show the network map"
-            title="Network map — every deck this one knows, drawn around it">
+            aria-label={t("lan.map.show")}
+            title={t("lan.map.showTitle")}>
             <MapGlyph />
           </button>
         )}
         {on && (
           <button type="button" className="glyph-btn ap-lan-plus"
             onClick={() => setAddOpen("add")}
-            aria-label="Add a deck"
+            aria-label={t("lan.add.title")}
             title={status?.pairingMode === "invite"
-              ? "Send an invite, or use one you were sent. This deck pairs only by invite."
-              : "Reach a deck that has not turned up on its own — by address, or with an invite"}>
+              ? t("lan.header.addInvite")
+              : t("lan.header.addAddr")}>
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
               strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M6.1 7.9a2.6 2.6 0 0 0 3.7 0l1.9-1.9a2.6 2.6 0 0 0-3.7-3.7l-.9.9" />
@@ -98,8 +100,8 @@ export default function LanViewHeader({
         {on && paired > 0 && (
           <button type="button" className="glyph-btn ap-lan-check" {...pressProps("check")}
             onClick={() => void checkNow()}
-            aria-label={busy === "check" ? "Checking every paired deck" : "Check every paired deck now"}
-            title="Ask every paired deck now for anything this deck's expired logins need, instead of waiting for the next round">
+            aria-label={busy === "check" ? t("lan.header.checking") : t("lan.header.check")}
+            title={t("lan.header.checkTitle")}>
             {/* A broadcast: a point and two rings of arcs, one ask sent to every
                 paired deck at once (#838). The round it replaced is the accounts
                 header's reload, two sections up. */}
@@ -120,8 +122,8 @@ export default function LanViewHeader({
         {on && (
           <button type="button" className="glyph-btn ap-lan-set" {...pressProps("setup")}
             onClick={() => setSetupOpen(true)}
-            aria-label="This deck's name and shared logins"
-            title="This deck's name on the network, and which of its logins it offers">
+            aria-label={t("lan.header.setup")}
+            title={t("lan.header.setupTitle")}>
             {/* SLIDERS, NOT A COG, and the reason is what came back from the
                 render. The browser-watch modal draws its settings as a circle
                 with eight straight radial spokes, and at 13px that is the

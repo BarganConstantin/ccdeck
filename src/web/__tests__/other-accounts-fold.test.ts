@@ -236,7 +236,7 @@ describe("the row, in Local network's idiom and with its timings", () => {
   });
 
   it("drops the freest number once the list is open, where every row says its own", () => {
-    expect(fold).toMatch(/const line = restLine\(peers, \{ strained: strained && !open, armed, threshold \}\);/);
+    expect(fold).toMatch(/const line = restLine\(peers, \{ strained: strained && !open, armed, threshold \}, t\);/);
   });
 
   it("is not hover-only: every name on the card is in the list the row opens", () => {
@@ -303,7 +303,7 @@ describe("what the column folds, and when it does not", () => {
     expect(accountFold).toMatch(/ready: reachable\(a, nowSec\),/);
     // The panel hands the fold what Local network knows as well, so a folded
     // row's reason reads as its unfolded row does; who is ready is unchanged.
-    expect(panel).toMatch(/const peers = peersOf\(rest, nowSec, lanFor\);/);
+    expect(panel).toMatch(/const peers = peersOf\(rest, nowSec, lanFor, t\);/);
     expect(clientText()).toMatch(/!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
     // Identity, not slot: a `cswap move` must not hand one account's key to
     // another. lane-open.ts holds that rule for the rows; this reuses it.

@@ -6,24 +6,26 @@
 // list is the one a keyboard, a screen reader and a touch screen already know.
 // The note says where a hidden session went and what brings it back, which is
 // the question a card that has left the board raises.
-import { HIDE_FINISHED_CHOICES, hideFinishedLabel, setHideFinishedAfter } from "../hide-finished";
+import { HIDE_FINISHED_CHOICES, setHideFinishedAfter } from "../hide-finished";
 import { useHideFinishedAfter } from "../use-hide-finished";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
+import { useT } from "../i18n";
 
 export const HIDE_FINISHED_LABEL = "Hide finished sessions after";
 export const HIDE_FINISHED_NOTE =
   "A finished session leaves the canvas after this long. It stays in the session list (L), and comes back when it starts working again or needs you.";
 
 export default function BoardSection() {
+  const t = useT();
   const minutes = useHideFinishedAfter();
   return (
-    <SettingsGroup id="settings-board-caption" title="Board">
+    <SettingsGroup id="settings-board-caption" title={t("settings.board.title")}>
       <SettingRow
         settingId="hide-finished"
-        name={HIDE_FINISHED_LABEL}
+        name={t("settings.board.hideLabel")}
         nameId="settings-hide-finished-label"
-        note="Hidden sessions stay available in the session list."
-        details={HIDE_FINISHED_NOTE}
+        note={t("settings.board.hideNote")}
+        details={t("settings.board.hideDetails")}
         noteId="settings-hide-finished-note"
         control={
           <select
@@ -34,7 +36,7 @@ export default function BoardSection() {
             onChange={event => setHideFinishedAfter(Number(event.target.value))}
           >
             {HIDE_FINISHED_CHOICES.map(choice => (
-              <option key={choice} value={choice}>{hideFinishedLabel(choice)}</option>
+              <option key={choice} value={choice}>{choice === 0 ? t("settings.board.never") : t("settings.board.minutes", { n: choice })}</option>
             ))}
           </select>
         }

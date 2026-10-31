@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import shellEn from "../i18n/areas/shell/en";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const MODAL = read("../components/ReleaseNotesModal.tsx");
@@ -27,7 +28,8 @@ describe("restart in the page", () => {
     expect(MODAL).toContain('const canRestart = onRestart && !updateVersion && !updating;');
     expect(MODAL).toContain('role="menuitem"');
     expect(MODAL).toContain('onRestart?.();');
-    expect(STRIP).toContain('RESTART_WHY = "Restart the deck. Sessions, settings and pairings come back as they were."');
+    expect(STRIP).toContain('restartWhy = (): string => t("shell.notes.restartWhy")');
+    expect(shellEn["shell.notes.restartWhy"]).toBe("Restart the deck. Sessions, settings and pairings come back as they were.");
   });
 
   it("is offered only where the server would do it, and goes through the page's own restart", () => {

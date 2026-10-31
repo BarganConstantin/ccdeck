@@ -38,6 +38,7 @@ import {
 import AnchoredPopover from "./AnchoredPopover";
 import { useHint, type HintSide, type HintSpec } from "./use-hint";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import { useT } from "../i18n";
 
 /** The key a control answers: its keycap, its aria-keyshortcuts spelling, and
  *  whether it is one character — which the single-key switch silences — or a
@@ -232,6 +233,7 @@ function DockMore({ items, tabbable, onFocusIndex, index }: {
   onFocusIndex: (i: number) => void;
   index: number;
 }) {
+  const t = useT();
   const [menu, setMenu] = useState<"first" | "last" | null>(null);
   const open = menu !== null;
   const unread = items.reduce((n, item) => n + (item.badge ?? 0), 0);
@@ -248,7 +250,7 @@ function DockMore({ items, tabbable, onFocusIndex, index }: {
         data-rail-item="more"
         className={BUTTON_CLASS.dock}
         tabIndex={tabbable ? 0 : -1}
-        aria-label={`More: ${items.map(i => i.ariaLabel).join(", ")}`}
+        aria-label={t("board.rail.moreLabel", { items: items.map(i => i.ariaLabel).join(t("board.listSep")) })}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? DOCK_MENU_ID : undefined}
@@ -264,7 +266,7 @@ function DockMore({ items, tabbable, onFocusIndex, index }: {
           strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <circle cx="2.8" cy="7" r="0.7" /><circle cx="7" cy="7" r="0.7" /><circle cx="11.2" cy="7" r="0.7" />
         </svg>
-        <span className="rail-word">More</span>
+        <span className="rail-word">{t("board.rail.more")}</span>
         {unread > 0 && <span className="rail-badge" aria-hidden>{unread}</span>}
       </button>
       {open && (
@@ -273,7 +275,7 @@ function DockMore({ items, tabbable, onFocusIndex, index }: {
           {items.map(item => (
             <button key={item.id} type="button" role="menuitem" className="ap-menu-item" data-rail-item={item.id}
               onFocus={() => { handover = item.id; }} onClick={pick(item)}>
-              {item.badge ? `${item.menu ?? item.label} · ${item.badge} unread` : item.menu ?? item.label}
+              {item.badge ? t("board.rail.unread", { label: item.menu ?? item.label, n: item.badge }) : item.menu ?? item.label}
             </button>
           ))}
         </AnchoredPopover>
@@ -284,12 +286,13 @@ function DockMore({ items, tabbable, onFocusIndex, index }: {
 
 /** The phone's one dock: the four panels and Settings, and a More for the rest. */
 export function EdgeDock({ items, more }: { items: RailItem[]; more: RailItem[] }) {
+  const t = useT();
   const hint = useHint("above");
   const roving = useRoving(items.length + 1, "horizontal");
   const ref = useRef<HTMLDivElement>(null);
   useFocusHandover(ref);
   return (
-    <div ref={ref} className="edge-dock" role="toolbar" aria-label="Panels and tools" onKeyDown={roving.onKeyDown}>
+    <div ref={ref} className="edge-dock" role="toolbar" aria-label={t("board.rail.tools")} onKeyDown={roving.onKeyDown}>
       {items.map((item, i) => (
         <RailButton key={item.id} item={item} index={i} tabbable={i === roving.active}
           onFocusIndex={roving.setCurrent} hint={hint} variant="dock" />

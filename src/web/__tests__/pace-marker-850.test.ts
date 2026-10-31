@@ -32,7 +32,7 @@ const background = (jsx: string) => /background:\s*([^,}]+?)\s*[,}]/.exec(jsx)![
 describe("the pace note is the marker's legend (#850)", () => {
   it("leads the note with a key, before the words", () => {
     expect(key, "no .qb-pace-key inside the pace note").not.toBeNull();
-    expect(note.indexOf("qb-pace-key")).toBeLessThan(note.indexOf("pace.label"));
+    expect(note.indexOf("qb-pace-key")).toBeLessThan(note.indexOf("quota.pace"));
   });
 
   it("draws the key in the marker's colour, for every state the marker has", () => {

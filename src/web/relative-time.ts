@@ -47,12 +47,14 @@
  * on "just now" — the same answer the unclamped copy gave, since any negative
  * count is also below sixty.
  */
+import { t } from "./i18n";
+
 export function shortAgoSec(seconds: number): string {
   const s = Math.max(0, seconds);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+  if (s < 60) return t("common.ago.now");
+  if (s < 3600) return t("common.ago.m", { n: Math.floor(s / 60) });
+  if (s < 86400) return t("common.ago.h", { n: Math.floor(s / 3600) });
+  return t("common.ago.d", { n: Math.floor(s / 86400) });
 }
 
 /** "just now" / "12m ago" / "3h ago" / "5d ago", from an age in milliseconds. */
@@ -85,8 +87,8 @@ export function resetCountdown(resetAtSec: number, nowSec: number): string | nul
   const d = Math.floor(diff / 86400);
   const h = Math.floor((diff % 86400) / 3600);
   const m = Math.floor((diff % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  if (d > 0) return t("common.time.dh", { d, h });
+  return h > 0 ? t("common.time.hm", { h, m }) : t("common.time.m", { m });
 }
 
 /** Same local calendar day — the user's own day, in the browser's zone, which

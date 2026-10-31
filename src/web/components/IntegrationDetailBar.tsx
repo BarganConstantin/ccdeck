@@ -14,6 +14,7 @@
 // panel gives as --ig-detail-pad (20px unless it says otherwise).
 import { useEffect, useState } from "react";
 import { copyText } from "../copy-text";
+import { useT, type TFunction } from "../i18n";
 import { ExternalLinkGlyph } from "./action-glyphs";
 import { CheckGlyph, CopyGlyph, CrossGlyph } from "./integration-glyphs";
 
@@ -25,8 +26,24 @@ export function referenceParts(reference: string): { path: string; num: string }
   return { path: reference, num: "" };
 }
 
+/** What is copied, in words: a known label ("key", "reference", "pipeline id")
+ *  in the language on show; any other label comes back as written. */
+function copyThing(t: TFunction, label: string): string {
+  return label === "key" ? t("integrations.bar.thing.key")
+    : label === "reference" ? t("integrations.bar.thing.reference")
+    : label === "pipeline id" ? t("integrations.bar.thing.pipelineId") : label;
+}
+
+/** The provider link's words: "Open in GitHub" says its name in any language. */
+function openText(t: TFunction, label: string): string {
+  const named = /^Open in (.+)$/.exec(label);
+  return named ? t("integrations.bar.openIn", { name: named[1] }) : label;
+}
+
 /** Copy, with a moment of "copied" after it lands. `label` names what is copied. */
 export function IntegrationCopy({ value, label }: { value: string; label: string }) {
+  const t = useT();
+  const thing = copyThing(t, label);
   const [done, setDone] = useState(false);
   useEffect(() => {
     if (!done) return;
@@ -36,11 +53,11 @@ export function IntegrationCopy({ value, label }: { value: string; label: string
   return (
     <>
       <button type="button" className="glyph-btn ig-copy" data-done={done || undefined}
-        aria-label={`Copy ${label}`} title={done ? "Copied" : `Copy ${label}`}
+        aria-label={t("integrations.bar.copy", { thing })} title={done ? t("integrations.bar.copied") : t("integrations.bar.copy", { thing })}
         onClick={event => { event.stopPropagation(); void copyText(value).then(ok => setDone(!!ok)); }}>
         {done ? <CheckGlyph /> : <CopyGlyph />}
       </button>
-      <span className="vis-hidden" role="status">{done ? `${label[0].toUpperCase()}${label.slice(1)} copied` : ""}</span>
+      <span className="vis-hidden" role="status">{done ? t("integrations.bar.copiedThing", { thing: `${thing[0].toUpperCase()}${thing.slice(1)}` }) : ""}</span>
     </>
   );
 }
@@ -62,6 +79,7 @@ export default function IntegrationDetailBar({ reference, context, copyValue, co
   narrow: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const { path, num } = referenceParts(reference);
   return (
     <div className="ig-detail-bar">
@@ -76,11 +94,11 @@ export default function IntegrationDetailBar({ reference, context, copyValue, co
       <span className="ig-detail-bar-end">
         {href && (
           <a className="ig-open" href={href} target="_blank" rel="noreferrer noopener">
-            {openLabel}<ExternalLinkGlyph />
+            {openText(t, openLabel)}<ExternalLinkGlyph />
           </a>
         )}
         {!narrow && (
-          <button type="button" className="glyph-btn ig-detail-close" aria-label="Close details" title="Close" onClick={onClose}>
+          <button type="button" className="glyph-btn ig-detail-close" aria-label={t("integrations.bar.closeDetails")} title={t("integrations.close")} onClick={onClose}>
             <CrossGlyph />
           </button>
         )}

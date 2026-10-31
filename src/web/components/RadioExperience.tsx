@@ -10,25 +10,28 @@ import { scheduleRadioFailover } from "../radio-failover";
 import { useScrimDismiss } from "./use-modal-dismiss";
 import { ClaudeFmCharacter, FmPlaybackFrame, sourceLabel } from "./ClaudeFm";
 import { RadioOpening } from "./RadioLoading";
+import { useT } from "../i18n";
 
 const RadioPanel = lazy(() => import("./RadioPanel"));
 
 export default function RadioExperience({ fm, characterEnabled, character, open, onClose }: { fm: ReturnType<typeof useClaudeFm>; characterEnabled: boolean; character: Character; open: boolean; onClose: () => void }) {
   const [enabled, setEnabled] = useState(false);
-  const [disabledReason, setDisabledReason] = useState("Connecting to the deck…");
+  const t = useT();
+  const [disabledCode, setDisabledCode] = useState<"connecting" | "off" | "unreachable">("connecting");
+  const disabledReason = t(`radio.disabled.${disabledCode}`);
   const library = useRadioLibrary();
   const [queue, setQueue] = useState<RadioStation[] | null>(null);
   const failedStations = useRef(new Set<string>());
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/music-config", { signal: controller.signal }).then(response => response.ok ? response.json() : null)
-      .then(answer => { if (!controller.signal.aborted) { setEnabled(answer?.enabled === true); setDisabledReason(answer ? "Music is turned off on this deck." : "Cannot reach the deck. Reopen Radio when it reconnects."); } }).catch(() => { if (!controller.signal.aborted) setDisabledReason("Cannot reach the deck. Reopen Radio when it reconnects."); });
+      .then(answer => { if (!controller.signal.aborted) { setEnabled(answer?.enabled === true); setDisabledCode(answer ? "off" : "unreachable"); } }).catch(() => { if (!controller.signal.aborted) setDisabledCode("unreachable"); });
     return () => controller.abort();
   }, [open]);
   const customStation = fm.customFmStations.find(station => customFmSelection(station.id) === fm.fmSource);
   const selected = customStation?.radio ? customStation as RadioStation : undefined;
   const player = useFmPlayer({ volume: fm.fmVolume, muted: fm.fmMuted, source: fm.fmSource, playRequest: fm.fmPlayRequest, customStation, enabled, onAvailabilityChange: fm.markFmStationAvailability });
-  const label = sourceLabel(fm.fmSource, customStation);
+  const label = sourceLabel(fm.fmSource, customStation, t);
   const autoNext = enabled && selected && player.dead && fm.fmPlayRequest > 0
     ? nextAvailableRadioStation(queue ?? library.catalogue, selected.id, failedStations.current) : null;
   const { remember } = library;

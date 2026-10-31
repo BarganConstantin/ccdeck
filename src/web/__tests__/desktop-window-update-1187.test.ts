@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { matchesReadyUpdate, restartReadyUpdate } from "../../../desktop/window-update.mjs";
 import { clientText } from "./client-source";
+import shellEn from "../i18n/areas/shell/en";
 import {
   desktopAppVersion,
   readDesktopUpdate,
@@ -100,8 +101,9 @@ describe("the one-button window wiring", () => {
     expect(app).toContain("readyChipCopy(desktopAppVersion() ?? chipVersion, readyAppUpdate.version)");
     // One restart door: the deck's own Restart is not offered beside it.
     expect(app).toContain("onRestart={!readyAppUpdate && version?.canRestart");
-    expect(modal).toContain("ccdeck v{updateVersion} is downloaded and verified.");
-    expect(modal).toContain('{updateBusy ? "Restarting…" : RESTART_TO_UPDATE}');
+    expect(modal).toContain('t("shell.notes.downloaded", { version: updateVersion })');
+    expect(shellEn["shell.notes.downloaded"]).toBe("ccdeck v{version} is downloaded and verified.");
+    expect(modal).toContain('{updateBusy ? t("shell.notes.restarting") : restartToUpdate()}');
     // Busy but never disabled (#620); the guard is App's ref.
     expect(modal).toContain("onClick={onUpdateRestart} aria-busy={updateBusy || undefined}>");
     expect(app).toContain("if (!selfPressAccepted(desktopUpdateAskedRef.current)) return;");
@@ -119,7 +121,7 @@ describe("the one-button window wiring", () => {
     // ...and its restart takes Done's place as the footer's one primary action.
     expect(body).toMatch(/\{updateVersion && onUpdateRestart \? <button className="btn primary" type="button" onClick=\{onUpdateRestart\}/);
     // The tour and the deck's own Restart are held back while it is ready.
-    expect(body).toMatch(/\{onTour && !updateVersion && <button className="rn-text-button" type="button" onClick=\{onTour\}>Take the tour<\/button>\}/);
+    expect(body).toMatch(/\{onTour && !updateVersion && <button className="rn-text-button" type="button" onClick=\{onTour\}>\{t\("shell\.notes\.tour"\)\}<\/button>\}/);
     expect(modal).toContain("const canRestart = onRestart && !updateVersion && !updating;");
   });
 
@@ -171,7 +173,7 @@ describe("one phrase and one version spelling on all three surfaces (#1187)", ()
 
   it("says Restart to update in the window, the native sheet and the tray", () => {
     expect(RESTART_TO_UPDATE).toBe("Restart to update");
-    expect(modal).toContain("RESTART_TO_UPDATE");
+    expect(modal).toContain("restartToUpdate()");
     expect(main).toContain('buttons: ["Restart to update", "Later"]');
     expect(trayMenu).toContain("label: `Restart to update to v${u.version}`");
     for (const src of [desktop, modal, clientText()]) {
@@ -184,7 +186,8 @@ describe("one phrase and one version spelling on all three surfaces (#1187)", ()
     expect(trayMenu).toContain("label: `Downloading ccdeck v${u.version}…`");
     expect(trayMenu).toContain("`ccdeck v${appVersion}");
     expect(main).toContain("appVersion: app.getVersion(),");
-    expect(modal).toContain("ccdeck v{updateVersion} is downloaded and verified.");
+    expect(modal).toContain('t("shell.notes.downloaded", { version: updateVersion })');
+    expect(shellEn["shell.notes.downloaded"]).toBe("ccdeck v{version} is downloaded and verified.");
     // No bare version after "ccdeck " or "update to " in the desktop copy.
     expect(desktop).not.toMatch(/(?:ccdeck|update to|deck) \$\{(?:u\.version|version|appVersion|app\.getVersion\(\)|deck\.version)\}/);
   });

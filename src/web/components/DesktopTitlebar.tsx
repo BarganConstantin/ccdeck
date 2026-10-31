@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useT } from "../i18n";
 
 export interface DesktopWindow {
   platform: string;
@@ -10,6 +11,7 @@ declare global {
 }
 
 export default function DesktopTitlebar() {
+  const t = useT();
   const desktop = window.ccdeckWindow;
   useEffect(() => {
     if (!desktop) return;
@@ -30,7 +32,7 @@ export default function DesktopTitlebar() {
   }, [desktop]);
   if (!desktop || desktop.platform === "darwin") return null;
   return (
-    <button type="button" className="desktop-menu btn" aria-label="Application menu" title="Application menu" aria-haspopup="menu"
+    <button type="button" className="desktop-menu btn" aria-label={t("shell.appMenu")} title={t("shell.appMenu")} aria-haspopup="menu"
       onClick={() => { void desktop.menu().catch(() => {}); }}>
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
         <path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />

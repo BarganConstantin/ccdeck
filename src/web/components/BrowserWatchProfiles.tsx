@@ -7,6 +7,7 @@
 import { useState } from "react";
 
 import type { WatchBrowser } from "../browser-watch-model";
+import { useT } from "../i18n";
 
 export default function BrowserWatchProfiles({
   watching,
@@ -17,13 +18,14 @@ export default function BrowserWatchProfiles({
   /** Everything else: not installed, or installed and never opened. */
   rest: WatchBrowser[];
 }) {
+  const t = useT();
   const [showProfKey, setProfKey] = useState(false);
   const [restOpen, setRestOpen] = useState(false);
 
   return (
     <section className="bw-sec">
       <h4 className="bw-sec-head">
-        Watched profiles
+        {t("settings.bw.profiles")}
         {/* The relay note's caveat lives here rather than in a
             `title` on the note itself. A tooltip on a span nothing
             can focus is mouse-only, and this qualification is
@@ -37,16 +39,13 @@ export default function BrowserWatchProfiles({
           className="bw-help"
           onClick={() => setProfKey(k => !k)}
           aria-expanded={showProfKey}
-          aria-label="What running, idle and connected to Anthropic mean"
+          aria-label={t("settings.bw.profiles.help")}
         >?</button>
       </h4>
       {showProfKey && (
         <dl className="bw-key">
-          <dt>Running</dt><dd>the browser has a process on this machine right now</dd>
-          <dt>Connected</dt><dd>
-            an open connection to an address Anthropic&apos;s relay uses — which it shares
-            with claude.ai, so an open tab looks the same as an agent channel
-          </dd>
+          <dt>{t("settings.bw.key.running")}</dt><dd>{t("settings.bw.key.runningText")}</dd>
+          <dt>{t("settings.bw.key.connected")}</dt><dd>{t("settings.bw.key.connectedText")}</dd>
         </dl>
       )}
       <ul className="bw-profiles">
@@ -54,7 +53,7 @@ export default function BrowserWatchProfiles({
           <li key={b.key}>
             <span className={`bw-prof-dot${b.running ? " on" : ""}`} aria-hidden />
             <span className="bw-prof-name">{b.name}</span>
-            <span className="bw-prof-state">{b.running ? "running" : "idle"}</span>
+            <span className="bw-prof-state">{b.running ? t("settings.bw.running") : t("settings.bw.idle")}</span>
             {b.running && b.relay.state === "live" && (
               /* NEUTRAL, NOT AMBER. This was one of the strongest
                  accents on the panel, for a fact the probe cannot
@@ -64,7 +63,7 @@ export default function BrowserWatchProfiles({
                  distinguish must not be the loudest thing on its
                  screen. It states what was seen and keeps the
                  qualification on its title. */
-              <span className="bw-relay">connected to Anthropic</span>
+              <span className="bw-relay">{t("settings.bw.relay")}</span>
             )}
           </li>
         ))}
@@ -73,12 +72,11 @@ export default function BrowserWatchProfiles({
         <>
           <button className="bw-why bw-rest-head" onClick={() => setRestOpen(v => !v)} aria-expanded={restOpen}>
             <span className="bw-chev" aria-hidden>{restOpen ? "▾" : "▸"}</span>{" "}
-            {rest.length} not watched
+            {t("settings.bw.notWatched", { count: rest.length })}
           </button>
           {restOpen && (
             <p className="bw-rest">
-              {rest.map(b => b.name).join(", ")} — not installed, or installed and never
-              opened, so there is no history to read.
+              {t("settings.bw.notWatchedText", { names: rest.map(b => b.name).join(", ") })}
             </p>
           )}
         </>

@@ -28,6 +28,7 @@ import { planSummary, planWindow, planTitle } from "../agent-plan";
 import type { AgentPlan, PlanStatus } from "../types";
 import { promptTime } from "../relative-time";
 import { useNow } from "../use-now";
+import { useT } from "../i18n";
 import { NoteMark } from "./RecapMark";
 
 /** What App hands the node. `parentId` is the session root — the tie's target,
@@ -45,6 +46,7 @@ export interface RecapNoteData {
 }
 
 export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
+  const t = useT();
   // Its own clock, as the card keeps its own: the node's data is not rebuilt
   // for time passing, and the age is a count of minutes.
   const now = useNow(30_000);
@@ -65,12 +67,12 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
   // A note holding the plan alone says so in its mark, with the count, and
   // its list goes without a heading that would say "plan" a second time.
   const count = planSummary(plan);
-  const tag = note ? noteTag(note.kind) : `plan ${count ? `${count.done}/${count.total}` : ""}`.trim();
+  const tag = note ? noteTag(note.kind) : `${t("board.detail.plan").toLowerCase()} ${count ? `${count.done}/${count.total}` : ""}`.trim();
   return (
     <div
       className={cls}
       role="note"
-      aria-label={isRecap ? "Claude Code's recap" : `Session note: ${tag}`}
+      aria-label={isRecap ? t("board.node.recapLabel") : t("board.node.noteLabel", { tag })}
       aria-description={tip}
       style={{ "--session-hue": data.hue } as React.CSSProperties}
     >
@@ -82,8 +84,8 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
         <button
           type="button"
           className="glyph-btn recap-note-close"
-          aria-label={isRecap ? "Hide the recap" : note ? "Hide this note" : "Hide the plan"}
-          title="Hide — the mark on the card brings it back"
+          aria-label={isRecap ? t("board.node.hideRecap") : note ? t("board.node.hideNote") : t("board.node.hidePlan")}
+          title={t("board.note.hideTitle")}
           onClick={e => { e.stopPropagation(); dismissRecap(data.noteKey); }}
         >×</button>
       </div>
@@ -94,7 +96,7 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
       {/* Claude Code's guess at the answer to the question above, shown as a
           guess — muted, quoted — and never typed for anybody. One line, so a
           long one is cut, and carries itself whole on hover. */}
-      {note?.reply && <p className="recap-note-reply" title={`suggested reply “${note.reply}”`}>suggested reply “{note.reply}”</p>}
+      {note?.reply && <p className="recap-note-reply" title={t("board.list.reply", { reply: note.reply })}>{t("board.list.reply", { reply: note.reply })}</p>}
       {plan && <NotePlan plan={plan} head={note != null} />}
       {/* The note at a distance, drawn in screen pixels over its own box the
           way a card's face is (AgentNode's NodeFace): its mark and age, and as
@@ -117,7 +119,7 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
   );
 }
 
-const PLAN_WORD: Record<PlanStatus, string> = { completed: "done", in_progress: "now", pending: "to do" };
+const PLAN_WORD: Record<PlanStatus, string> = { completed: "board.state.done", in_progress: "board.detail.now", pending: "board.detail.todo" };
 
 /**
  * The plan on the note: its count, then the steps, marked done, under way or
@@ -131,6 +133,7 @@ const PLAN_WORD: Record<PlanStatus, string> = { completed: "done", in_progress: 
  * smaller ones.
  */
 function NotePlan({ plan, head, face = false }: { plan: AgentPlan; head: boolean; face?: boolean }) {
+  const t = useT();
   const s = planSummary(plan);
   if (!s) return null;
   const win = planWindow(plan.items);
@@ -138,7 +141,7 @@ function NotePlan({ plan, head, face = false }: { plan: AgentPlan; head: boolean
     <div className={face ? "recap-face-plan" : "recap-note-plan"} title={face ? undefined : planTitle(plan.items)}>
       {head && (
         <div className="recap-note-plan-head">
-          Plan <span className="recap-note-plan-count">{s.done}/{s.total}{s.allDone ? " · done" : ""}</span>
+          {t("board.detail.plan")} <span className="recap-note-plan-count">{s.done}/{s.total}{s.allDone ? ` · ${t("board.state.done")}` : ""}</span>
         </div>
       )}
       {!s.allDone && (
@@ -146,16 +149,16 @@ function NotePlan({ plan, head, face = false }: { plan: AgentPlan; head: boolean
           {win.shown.map((item, k) => (
             <li key={item.id ?? `${k}:${item.text}`} className="plan-item" data-status={item.status}>
               <span className="plan-mark" aria-hidden />
-              {!face && <span className="vis-hidden">{PLAN_WORD[item.status]}: </span>}
+              {!face && <span className="vis-hidden">{t(PLAN_WORD[item.status])}{t("board.detail.colon")}</span>}
               <span className="plan-text">{item.status === "in_progress" && item.active ? item.active : item.text}</span>
-              {item.status === "in_progress" && <span className="plan-now" aria-hidden>now</span>}
+              {item.status === "in_progress" && <span className="plan-now" aria-hidden>{t("board.detail.now")}</span>}
             </li>
           ))}
           {/* One line for what the window leaves out, above and below, so a
               long plan is the same height at every step it is on. */}
           {(win.before > 0 || win.after > 0) && (
             <li className="recap-note-plan-more">
-              {[win.before > 0 ? `${win.before} earlier` : null, win.after > 0 ? `+${win.after} more` : null].filter(Boolean).join(" · ")}
+              {[win.before > 0 ? t("board.note.earlier", { n: win.before }) : null, win.after > 0 ? t("board.note.more", { n: win.after }) : null].filter(Boolean).join(" · ")}
             </li>
           )}
         </ol>

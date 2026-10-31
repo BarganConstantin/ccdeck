@@ -8,16 +8,22 @@
 // written once. The one piece of state it holds is its own: whether that note
 // is open (#856).
 import { useId, useState } from "react";
-import { resetCountdown } from "../relative-time";
+import { useT } from "../i18n";
+import { durationLabel, formatNumber } from "../i18n/format";
 
 // ── Pace helpers ───────────────────────────────────────────────────────────
 
 interface PaceInfo {
+  /** The English words, which tests and non-React callers read; the bar draws
+   *  `kind` and `n` through the language catalog instead. */
   label: string;
+  kind: "usedUp" | "onPace" | "over" | "under";
+  n?: number;
   color: string;
   expectedPct: number;  // where usage "should" be now — the green-line marker position
   isDeficit: boolean;   // true when burning faster than sustainable
-  runsOutIn?: string;   // set when deficit and ETA < window remaining
+  runsOutIn?: string;
+  runsOutSec?: number; // the same, in seconds, for the catalog to word   // set when deficit and ETA < window remaining
 }
 
 export function computePace(pct: number, resetAtSec: number, windowSec: number, nowSec: number, limitReached = false): PaceInfo | null {
@@ -32,11 +38,11 @@ export function computePace(pct: number, resetAtSec: number, windowSec: number, 
   // the note under a full red bar read "runs out in 0m" — or "on pace", near
   // the end of the window. Said before either, in the over-pace colours.
   if (limitReached || pct >= 100) {
-    return { label: "used up", color: "var(--warn)", expectedPct, isDeficit: true };
+    return { label: "used up", kind: "usedUp", color: "var(--warn)", expectedPct, isDeficit: true };
   }
 
   if (Math.abs(delta) < 3) {
-    return { label: "on pace", color: "var(--ok)", expectedPct, isDeficit: false };
+    return { label: "on pace", kind: "onPace", color: "var(--ok)", expectedPct, isDeficit: false };
   }
 
   if (delta > 0) {
@@ -47,18 +53,19 @@ export function computePace(pct: number, resetAtSec: number, windowSec: number, 
     const info: PaceInfo = {
       // "over pace", not "ahead" (#823): ahead reads as winning, and this is
       // the warning — the amber line was taken for good news.
-      label: `${Math.round(delta)}% over pace`, color: "var(--warn)",
+      label: `${Math.round(delta)}% over pace`, kind: "over", n: Math.round(delta), color: "var(--warn)",
       expectedPct, isDeficit: true,
     };
     if (runsOutSec < remainSec && runsOutSec < 86400) {
       const h = Math.floor(runsOutSec / 3600);
       const m = Math.floor((runsOutSec % 3600) / 60);
       info.runsOutIn = h > 0 ? `${h}h ${m}m` : `${m}m`;
+      info.runsOutSec = runsOutSec;
     }
     return info;
   }
   // under-using → reserve (safe, will last until reset)
-  return { label: `${Math.round(-delta)}% under pace`, color: "var(--ok)", expectedPct, isDeficit: false };
+  return { label: `${Math.round(-delta)}% under pace`, kind: "under", n: Math.round(-delta), color: "var(--ok)", expectedPct, isDeficit: false };
 }
 
 /** What a monthly window can spend per day to last until it resets: the
@@ -98,6 +105,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   // countdown is left to print, the absolute time would be one already gone,
   // and a pace measured against a window that has fully elapsed called a full
   // bar "used up" and a 60% one "40% under pace".
+  const t = useT();
   const rolled   = !!resetAt && resetAt <= nowSec;
   // No reading draws no fill, no level colour and no pace: every one of those
   // is a statement about a number, and there is none (#1627).
@@ -110,11 +118,11 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   // "33.33333333333333%" (#1804). Under 1% reads "< 1%" like a zero does:
   // 0.25% of the track is a fill nobody can see.
   const underOne = capped < 1;
-  const pctLabel = rolled ? "reset" : !known ? "no reading" : underOne ? "< 1%" : `${Math.round(capped)}%`;
+  const pctLabel = rolled ? t("usage.quota.rolled") : !known ? t("usage.quota.noReading") : underOne ? "< 1%" : `${Math.round(capped)}%`;
   // minimum 2% visual fill so a bar under 1% is still visible as a thin sliver
   const fillW    = underOne ? 2 : capped;
 
-  const countdown = resetAt && !rolled ? resetCountdown(resetAt, nowSec) : null;
+  const countdown = resetAt && !rolled && resetAt > nowSec ? durationLabel(t, resetAt - nowSec) : null;
   const pace = (known && resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec, limitReached) : null;
   const perDay = (pace && resetAt && windowSec && !limitReached) ? monthlyDailyTarget(capped, resetAt, windowSec, nowSec) : null;
   // The note opens the number it is measured against (#856).
@@ -126,7 +134,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
       <div className="qb-meta">
         <span className="qb-label">
           {label}
-          {limitReached && !rolled && <span className="qb-limit-badge" title="Rate limit reached">⛔</span>}
+          {limitReached && !rolled && <span className="qb-limit-badge" title={t("usage.quota.rateLimitReached")}>⛔</span>}
         </span>
         <span className="qb-pct" style={{ color: known ? color : "var(--muted)" }}>{pctLabel}</span>
       </div>
@@ -144,18 +152,18 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
               aria-hidden
               className="qb-pace-marker"
               style={{ background: pace.isDeficit ? "var(--err)" : "var(--ok)" }}
-              title={`To last until reset, stay near ${Math.round(pace.expectedPct)}% by now`}
+              title={t("usage.quota.pace.target", { pct: Math.round(pace.expectedPct) })}
             />
           </div>
         )}
       </div>
       <div className="qb-reset-row">
         {rolled
-          ? <span className="qb-reset">waiting for a new reading</span>
+          ? <span className="qb-reset">{t("usage.quota.waitingReading")}</span>
           : countdown
-            ? <span className="qb-reset">resets in {countdown}</span>
+            ? <span className="qb-reset">{t("usage.quota.resetsIn", { time: countdown })}</span>
             : reset
-              ? <span className="qb-reset">resets {reset}</span>
+              ? <span className="qb-reset">{t("usage.quota.resetsAt", { when: reset })}</span>
               : null}
         {pace && (
           <button
@@ -170,11 +178,13 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
                 that says the tick on the bar is the pace these words are
                 measured against (#850). */}
             <i className="qb-pace-key" aria-hidden style={{ background: pace.isDeficit ? "var(--err)" : "var(--ok)" }} />
-            {pace.runsOutIn ? `runs out in ${pace.runsOutIn}` : pace.label}
+            {pace.runsOutIn ? t("usage.quota.pace.runsOut", { time: durationLabel(t, pace.runsOutSec ?? 0) }) : t(`usage.quota.pace.${pace.kind}`, { n: pace.n ?? 0 })}
           </button>
         )}
       </div>
-      {why && pace && <div id={whyId} className="qb-why">To last until reset, stay near {Math.round(pace.expectedPct)}% by now.{perDay != null && ` About ${Number(perDay.toFixed(1))}% a day left.`}</div>}
+      {why && pace && <div id={whyId} className="qb-why">{perDay != null
+        ? t("usage.quota.pace.whyPerDay", { pct: Math.round(pace.expectedPct), n: formatNumber(Number(perDay.toFixed(1))) })
+        : t("usage.quota.pace.why", { pct: Math.round(pace.expectedPct) })}</div>}
     </div>
   );
 }
