@@ -9,6 +9,7 @@ import { sameCustomSelection } from "../notification-audio";
 import CustomSoundsSection, { type CustomSoundsProps } from "./CustomSoundsSection";
 import SoundSwitch from "./SoundSwitch";
 import ToneSection, { type SharedToneProps } from "./ToneSection";
+import { useT } from "../i18n";
 
 /** Said at the top of the section on a machine with no Claude Code. True to what the
  *  deck does rather than to what the section's names suggest: a Codex rollout
@@ -31,14 +32,15 @@ export default function SoundsSection({
   customAssets, customSelections, onBuiltInSelected, onCustomSelected, onImportCustom,
   onCreateVoice, onRenameCustom, onPreviewCustom, onDeleteCustom,
 }: SoundsProps) {
+  const t = useT();
   const sharedCustomId = sameCustomSelection(customSelections);
-  const sharedCustomName = customAssets.find(asset => asset.id === sharedCustomId)?.name ?? "the same custom sound";
-  const sharedNote = sharedCustomId ? `Both tones use “${sharedCustomName}”. They may be harder to tell apart.` : "";
+  const sharedCustomName = customAssets.find(asset => asset.id === sharedCustomId)?.name ?? t("settings.sounds.sharedName");
+  const sharedNote = sharedCustomId ? t("settings.sounds.sharedNote", { name: sharedCustomName }) : "";
 
   return (
     <div className="sm-sounds">
       <SoundSwitch soundOn={soundOn} onToggleSound={onToggleSound} />
-      {!claudeHere && <p className="sm-note">{CODEX_ONLY_SOUNDS_NOTE}</p>}
+      {!claudeHere && <p className="sm-note">{t("settings.sounds.codexOnly")}</p>}
 
       {!soundOn && (
         /* One node for both preview buttons, and only while both of them carry
@@ -46,7 +48,7 @@ export default function SoundsSection({
            in the document is a dangling reference, which is the rule #800 put
            on the four topbar toggles. */
         <span id="sm-preview-note" className="vis-hidden">
-          Plays even when sounds are off, so you can set a tone before turning sounds back on.
+          {t("settings.sounds.previewNote")}
         </span>
       )}
 

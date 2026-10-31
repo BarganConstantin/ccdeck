@@ -19,6 +19,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { CLAUDE_SETTINGS_DOCS } from "../../server/claude-settings-catalog.mjs";
 import { isEscapeKey } from "../modal-dismiss";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
+import { t as tNow, useLanguage, useT, type TFunction } from "../i18n";
 
 export interface IndexedKey {
   key: string;
@@ -34,15 +35,16 @@ export interface IndexedKey {
 /** How many rows a filter shows before it asks for more letters. */
 export const INDEX_LIMIT = 40;
 
-const KIND_WORD: Record<IndexedKey["kind"], string> = {
-  boolean: "on or off", choice: "a choice", number: "a number", text: "text", structured: "a list or object",
+const KIND_KEY: Record<IndexedKey["kind"], string> = {
+  boolean: "settings.claudeIndex.kind.boolean", choice: "settings.claudeIndex.kind.choice", number: "settings.claudeIndex.kind.number",
+  text: "settings.claudeIndex.kind.text", structured: "settings.claudeIndex.kind.structured",
 };
 
 /** The line under a key: where it lives, what it takes, since when. */
-export function indexNote(entry: IndexedKey): string {
-  const where = entry.scope === "Global config" ? "kept in ~/.claude.json"
-    : entry.scope === "Managed" ? "managed settings only" : null;
-  return [entry.topic, KIND_WORD[entry.kind], where, entry.since ? `Claude Code ${entry.since}+` : null].filter(Boolean).join(" · ");
+export function indexNote(entry: IndexedKey, t: TFunction = tNow): string {
+  const where = entry.scope === "Global config" ? t("settings.claudeIndex.globalConfig")
+    : entry.scope === "Managed" ? t("settings.claudeIndex.managedOnly") : null;
+  return [entry.topic, t(KIND_KEY[entry.kind]), where, entry.since ? t("settings.claudeIndex.since", { since: entry.since }) : null].filter(Boolean).join(" · ");
 }
 
 /** The keys a filter matches, in the reference's order: by name first, then
@@ -61,6 +63,8 @@ const loadIndex = () => (loaded ??= import("../../server/claude-settings-index.j
 /** `present` is null while the user's settings.json cannot be read, and
  *  `noFile` says it is not there at all. */
 export default function ClaudeSettingsIndex({ present, noFile = false }: { present: Record<string, string> | null; noFile?: boolean }) {
+  const t = useT();
+  const language = useLanguage();
   const [keys, setKeys] = useState<IndexedKey[] | null>(null);
   const [query, setQuery] = useState("");
   const filterId = useId();
@@ -78,9 +82,9 @@ export default function ClaudeSettingsIndex({ present, noFile = false }: { prese
     // document after them: a key Claude Code dropped, or a typo.
     const known = keys.filter(k => Object.hasOwn(present, k.key));
     const unknown = Object.keys(present).filter(name => !keys.some(k => k.key === name)).sort()
-      .map((key): IndexedKey => ({ key, topic: "Not in Claude Code's reference", scope: null, kind: "structured", default: null, since: null, anchor: "" }));
+      .map((key): IndexedKey => ({ key, topic: tNow("settings.claudeIndex.notInRef"), scope: null, kind: "structured", default: null, since: null, anchor: "" }));
     return [...known, ...unknown];
-  }, [keys, present, query]);
+  }, [keys, present, query, language]);
   const shown = rows.slice(0, INDEX_LIMIT);
   const searching = query.trim() !== "";
 
@@ -88,20 +92,20 @@ export default function ClaudeSettingsIndex({ present, noFile = false }: { prese
     <SettingsGroup
       id="claude-group-all"
       settingId="claude-all-settings"
-      title="All Claude Code settings"
+      title={t("settings.claudeIndex.title")}
       note={searching ? undefined : present && !noFile
-        ? "The keys your settings.json sets. Filter to look up any of them, and open the reference for what each does."
-        : "Filter to look up any setting Claude Code documents, and open the reference for what each does."}
+        ? t("settings.claudeIndex.notePresent")
+        : t("settings.claudeIndex.noteAll")}
       aside={keys ? <span className="settings-caption-count">{keys.length}</span> : undefined}
       list={false}
     >
       <div className="settings-filter">
-        <label className="vis-hidden" htmlFor={filterId}>Filter Claude Code settings</label>
+        <label className="vis-hidden" htmlFor={filterId}>{t("settings.claudeIndex.filterLabel")}</label>
         <input
           id={filterId}
           type="search"
           className="settings-filter-field"
-          placeholder={keys ? `Filter ${keys.length} settings` : "Filter settings"}
+          placeholder={keys ? t("settings.claudeIndex.filterCount", { count: keys.length }) : t("settings.claudeIndex.filter")}
           autoComplete="off"
           spellCheck={false}
           value={query}
@@ -120,13 +124,13 @@ export default function ClaudeSettingsIndex({ present, noFile = false }: { prese
                 key={entry.key}
                 as="div"
                 name={<code className="claude-key">{entry.key}</code>}
-                note={indexNote(entry)}
+                note={indexNote(entry, t)}
                 control={
                   <>
-                    {value !== null && <span className="settings-read" title="In your settings.json">{value}</span>}
+                    {value !== null && <span className="settings-read" title={t("settings.claudeIndex.inFile")}>{value}</span>}
                     {entry.anchor && (
                       <a className="settings-link" href={`${CLAUDE_SETTINGS_DOCS}#${entry.anchor}`} target="_blank" rel="noreferrer"
-                        aria-label={`${entry.key} in Claude Code's settings reference`}>Reference</a>
+                        aria-label={t("settings.claudeIndex.referenceAria", { key: entry.key })}>{t("settings.claudeIndex.reference")}</a>
                     )}
                   </>
                 }
@@ -135,9 +139,9 @@ export default function ClaudeSettingsIndex({ present, noFile = false }: { prese
           })}
         </div>
       )}
-      {searching && rows.length === 0 && keys && <p className="settings-empty" role="status">No setting matches “{query.trim()}”.</p>}
-      {rows.length > INDEX_LIMIT && <p className="settings-foot" role="status">{rows.length - INDEX_LIMIT} more. Type more of the name to narrow the list.</p>}
-      {!searching && present && !noFile && keys && rows.length === 0 && <p className="settings-empty">Your settings.json sets nothing yet.</p>}
+      {searching && rows.length === 0 && keys && <p className="settings-empty" role="status">{t("settings.claudeIndex.noMatch", { query: query.trim() })}</p>}
+      {rows.length > INDEX_LIMIT && <p className="settings-foot" role="status">{t("settings.claudeIndex.more", { count: rows.length - INDEX_LIMIT })}</p>}
+      {!searching && present && !noFile && keys && rows.length === 0 && <p className="settings-empty">{t("settings.claudeIndex.empty")}</p>}
     </SettingsGroup>
   );
 }

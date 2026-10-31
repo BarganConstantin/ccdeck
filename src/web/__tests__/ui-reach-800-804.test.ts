@@ -142,7 +142,7 @@ describe("#801 — what the Notifications switch is saying", () => {
     // is the reason this note exists: they fire on the same moments, and the
     // difference is WHEN — sound while a tab is open, this once none is.
     expect(NOTIFY_NOTE).toBe("With no deck tab open, get a notification wherever a sound would have played.");
-    expect(notifications).toContain("{notifyVetoed ? NOTIFY_VETO_NOTE : notifyNote(inApp)}");
+    expect(notifications).toContain('{notifyVetoed ? t("settings.notify.veto") : notifyNote(inApp, t)}');
   });
 
   it("finishes the job on the press, rather than reporting that it did not", () => {
@@ -166,9 +166,9 @@ describe("#801 — what the Notifications switch is saying", () => {
     // heading. The tone groups wear Settings' one group heading
     // (.settings-caption h3: 12px, 600, --muted); the channel is a row, so a
     // capability report never takes the rank of a group the user configures.
-    const closed = notifications.indexOf('name="Notifications while closed"');
-    const chan = notifications.indexOf('name="Browser notifications"');
-    const accounts = notifications.indexOf('title="Accounts"');
+    const closed = notifications.indexOf('name={t("settings.notify.closedName")}');
+    const chan = notifications.indexOf('name={t("settings.notify.browserName")}');
+    const accounts = notifications.indexOf('title={t("settings.notify.accountsGroup")}');
     expect(closed).toBeGreaterThan(-1);
     expect(chan).toBeGreaterThan(closed);
     expect(accounts).toBeGreaterThan(chan);
@@ -199,7 +199,7 @@ describe("#801 — what the Notifications switch is saying", () => {
     // does now, and no word on it is the section's.
     expect(soundSwitch).toContain('name={t("radio.sound.name")}');
     expect(soundSwitch).not.toMatch(/>Sounds?</);
-    expect(read("../components/ToneSection.tsx")).toContain("<label htmlFor={figureId}>Tone</label>");
+    expect(read("../components/ToneSection.tsx")).toContain('<label htmlFor={figureId}>{t("settings.sounds.toneLabel")}</label>');
     expect(soundMenuAll).not.toMatch(/>Sound</);
   });
 
@@ -334,7 +334,7 @@ describe("#803 — a failed write in Browser Watch", () => {
   });
 
   it("says what actually failed, and stands until the user acts", () => {
-    expect(watchModal).toContain('<span className="bw-row-label">Could not save that setting</span>');
+    expect(watchModal).toContain('<span className="bw-row-label">{t("settings.bw.saveFail")}</span>');
     expect(watchModal).toContain("onClick={() => setWriteError(null)}");
     expect(watchModal).toContain('role="alert"');
     for (const cls of ["bw-write-err", "bw-write-err-x"]) {

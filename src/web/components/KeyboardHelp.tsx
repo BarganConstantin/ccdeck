@@ -30,10 +30,12 @@
 // its keys (#852), and Esc is the documented way back.
 import { Fragment } from "react";
 import { kindOffered, useIntegrations } from "../integrations/client";
-import { KEY_HELP_NOTE, KEY_HELP_OFF_TITLE, KEY_HELP_SWITCH_NOTE, keyHelpFor, SINGLE_KEYS_PLACE } from "../key-help";
+import { keyHelpFor } from "../key-help";
 import { isApplePlatform, platformName } from "../platform";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
+import { useT } from "../i18n";
+import { richText } from "./settings-rich";
 
 interface Props {
   onClose: () => void;
@@ -45,6 +47,7 @@ interface Props {
 }
 
 export default function KeyboardHelp({ onClose, onTour, onSettings }: Props) {
+  const t = useT();
   const dialogRef = useModalDismiss(onClose);
   const scrimPress = useScrimDismiss(onClose);
   const apple = isApplePlatform(platformName());
@@ -72,15 +75,15 @@ export default function KeyboardHelp({ onClose, onTour, onSettings }: Props) {
                 here would claim this is one of the deck's persistent regions.
                 The section captions below are h3, which is the level a dialog
                 that names itself with aria-labelledby can start at. */}
-            <span id="key-help-title" className="modal-tool-name">Keyboard shortcuts</span>
+            <span id="key-help-title" className="modal-tool-name">{t("settings.key.title")}</span>
           </div>
           <div className="modal-actions">
             <button
               type="button"
               className="glyph-btn"
               onClick={onClose}
-              aria-label="Close (Esc)"
-              title="Close (Esc)"
+              aria-label={t("settings.key.close")}
+              title={t("settings.key.close")}
             >×</button>
           </div>
         </header>
@@ -98,10 +101,12 @@ export default function KeyboardHelp({ onClose, onTour, onSettings }: Props) {
           {!singleKeys && (
             <div className="kh-off">
               <p className="kh-off-text" id="key-help-off">
-                <strong>{KEY_HELP_OFF_TITLE}</strong> Turn them back on in{" "}
-                <span className="kh-place">{SINGLE_KEYS_PLACE}</span>. Everything below still works.
+                {richText(t("settings.key.offText", { title: "{title}", place: "{place}" }), {
+                  title: <strong>{t("settings.key.offTitle")}</strong>,
+                  place: <span className="kh-place">{t("settings.key.place")}</span>,
+                })}
               </p>
-              {onSettings && <button type="button" className="btn" onClick={onSettings}>Open Settings</button>}
+              {onSettings && <button type="button" className="btn" onClick={onSettings}>{t("settings.key.openSettings")}</button>}
             </div>
           )}
           {/* The tour's permanent door, beside the other kind of help. Above
@@ -109,8 +114,8 @@ export default function KeyboardHelp({ onClose, onTour, onSettings }: Props) {
               after the ×, so the × stays the first stop. */}
           {onTour && (
             <div className="guide-door">
-              <span>Eight pictures of what the deck shows.</span>
-              <button type="button" className="btn" onClick={onTour}>Take the tour</button>
+              <span>{t("settings.key.tourText")}</span>
+              <button type="button" className="btn" onClick={onTour}>{t("settings.key.tour")}</button>
             </div>
           )}
           {/* One grid for the whole sheet rather than one per group, and the
@@ -120,10 +125,10 @@ export default function KeyboardHelp({ onClose, onTour, onSettings }: Props) {
               edges to follow down a list whose whole job is to be scanned. */}
           <div className="shortcuts">
             {groups.map(group => (
-              <Fragment key={group.title}>
+              <Fragment key={group.id}>
                 <h3 className="kh-group">{group.title}</h3>
                 {group.rows.map(row => (
-                  <div className="sc" key={`${group.title}:${row.cap}:${row.action}`}>
+                  <div className="sc" key={`${group.id}:${row.cap}:${row.action}`}>
                     <kbd>{apple && row.macCap ? row.macCap : row.cap}</kbd><span>{row.action}</span>
                   </div>
                 ))}
@@ -136,7 +141,7 @@ export default function KeyboardHelp({ onClose, onTour, onSettings }: Props) {
               because they fire when they should not. Not while they are off,
               when Esc is no answer to a letter doing nothing and the note
               above has said why. */}
-          {singleKeys && <p className="kh-foot">{KEY_HELP_NOTE} {KEY_HELP_SWITCH_NOTE}</p>}
+          {singleKeys && <p className="kh-foot">{t("settings.key.note")} {t("settings.key.switchNote", { place: t("settings.key.place") })}</p>}
         </section>
       </div>
     </div>

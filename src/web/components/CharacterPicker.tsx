@@ -2,10 +2,12 @@ import { useRef, type KeyboardEvent } from "react";
 import { CHARACTERS, type Character } from "../character";
 import { tabStripMove } from "../tablist-keys";
 import CharacterSprite from "./CharacterSprite";
+import { useT } from "../i18n";
 
 export default function CharacterPicker({ character, onCharacter }: {
   character: Character; onCharacter: (character: Character) => void;
 }) {
+  const t = useT();
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   function move(event: KeyboardEvent, index: number) {
     const target = tabStripMove(event, index, CHARACTERS.length, "vertical");
@@ -14,7 +16,7 @@ export default function CharacterPicker({ character, onCharacter }: {
     onCharacter(CHARACTERS[target.index].id);
     buttons.current[target.index]?.focus();
   }
-  return <div className="character-picker" role="radiogroup" aria-label="Choose character" data-setting="character-choice">
+  return <div className="character-picker" role="radiogroup" aria-label={t("settings.character.choose")} data-setting="character-choice">
     {CHARACTERS.map((choice, index) => <button key={choice.id} type="button"
       className="character-choice" role="radio" aria-checked={character === choice.id}
       tabIndex={character === choice.id ? 0 : -1}

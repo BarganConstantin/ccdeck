@@ -19,6 +19,7 @@
 import { useEffect, type KeyboardEvent, type RefObject } from "react";
 import { resultPlace, resultSpoken, resultsLine, searchKeyIntent, type SettingsEntry } from "../settings-search";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
+import { useT } from "../i18n";
 
 export const SEARCH_FIELD_ID = "settings-search-field";
 export const SEARCH_RESULTS_ID = "settings-search-results";
@@ -35,6 +36,7 @@ interface FieldProps {
 }
 
 export function SettingsSearchField({ inputRef, query, onQuery, results, active, onActive, onOpen }: FieldProps) {
+  const t = useT();
   const searching = query.trim() !== "";
   const listed = searching && results.length > 0;
 
@@ -61,7 +63,7 @@ export function SettingsSearchField({ inputRef, query, onQuery, results, active,
       {/* Named by a visually hidden word rather than the placeholder alone,
           like Keyboard's filter: a placeholder is gone once somebody types,
           and is not a name. The glyph is the field's sign, not its name. */}
-      <label className="vis-hidden" htmlFor={SEARCH_FIELD_ID}>Search settings</label>
+      <label className="vis-hidden" htmlFor={SEARCH_FIELD_ID}>{t("settings.search.label")}</label>
       <svg className="settings-search-glyph" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
            strokeWidth="1.4" strokeLinecap="round" aria-hidden focusable="false">
         <circle cx="6" cy="6" r="4.2" />
@@ -72,7 +74,7 @@ export function SettingsSearchField({ inputRef, query, onQuery, results, active,
         id={SEARCH_FIELD_ID}
         type="search"
         className="settings-filter-field settings-search-field"
-        placeholder="Search settings"
+        placeholder={t("settings.search.label")}
         autoComplete="off"
         spellCheck={false}
         role="combobox"
@@ -100,6 +102,7 @@ interface ResultsProps {
  *  section's head has, and the results in one list in the shape every group
  *  has (SettingsParts.tsx), so the page reads as one more page of Settings. */
 export function SettingsSearchResults({ query, results, active, onOpen }: ResultsProps) {
+  const t = useT();
   const line = resultsLine(results.length, query);
   // The highlight kept in view as the arrows walk it, inside the pane's
   // scroll-padding so it never sits under a soft edge.
@@ -110,7 +113,7 @@ export function SettingsSearchResults({ query, results, active, onOpen }: Result
     <div className="settings-pane" role="region" aria-labelledby="settings-search-title">
       <div className="settings-pane-head">
         <div className="settings-pane-heading">
-          <h2 className="settings-pane-title" id="settings-search-title">Search</h2>
+          <h2 className="settings-pane-title" id="settings-search-title">{t("settings.search.title")}</h2>
           {/* Seen here; heard from the region beside the field, which is
               mounted for as long as the dialog is (#1763): a status mounted
               together with its first words is routinely not announced. */}
@@ -119,7 +122,7 @@ export function SettingsSearchResults({ query, results, active, onOpen }: Result
       </div>
       {results.length > 0 && (
         <div className="settings-group">
-          <div className="settings-list" id={SEARCH_RESULTS_ID} role="listbox" aria-label="Matching settings">
+          <div className="settings-list" id={SEARCH_RESULTS_ID} role="listbox" aria-label={t("settings.search.results")}>
             {results.map((entry, index) => (
               <button
                 key={entry.id}

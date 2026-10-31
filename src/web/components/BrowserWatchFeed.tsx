@@ -3,12 +3,14 @@
 //
 // Lifted out of BrowserWatchModal.tsx unchanged.
 import type { WatchSnapshot } from "../browser-watch-model";
+import { useT } from "../i18n";
 
 export default function BrowserWatchFeed({ snap }: { snap: WatchSnapshot }) {
+  const t = useT();
   return (
     <section className="bw-feed">
       <h4 className="bw-sec-head bw-head-row">
-        Live activity
+        {t("settings.bw.feed")}
         {/* `entries` counted log rows and collided with the
             overview's "history entries", which are a different thing
             entirely. These rows are events — a browser adding
@@ -16,7 +18,7 @@ export default function BrowserWatchFeed({ snap }: { snap: WatchSnapshot }) {
             and the successful checks that found nothing are no
             longer among them. */}
         <span className="bw-feed-count">
-          {snap.log.length} {snap.log.length === 1 ? "event" : "events"}
+          {t("settings.bw.feed.count", { count: snap.log.length })}
         </span>
       </h4>
       {/* WHY THESE ROWS HAVE NO ADDRESSES, said once. `+3 entries`
@@ -26,12 +28,11 @@ export default function BrowserWatchFeed({ snap }: { snap: WatchSnapshot }) {
           Only a finding gets its addresses written down; ordinary
           pages are counted to run the rule and never kept. */}
       <p className="bw-since bw-feed-note">
-        Pages you opened yourself — counted to run the rule, never written down.
-        Addresses appear under Findings, and only for pages a program opened.
+        {t("settings.bw.feed.note")}
       </p>
       <div className="bw-log" aria-live="polite" aria-relevant="additions">
         {snap.log.length === 0 ? (
-          <p className="bw-note">The deck writes a line here each time it looks at a profile.</p>
+          <p className="bw-note">{t("settings.bw.feed.empty")}</p>
         ) : snap.log.map(l => (
           /* Keyed on what the line SAYS, not where it sits: the log is
              newest-first, so an index in the key remounts the whole
@@ -54,7 +55,7 @@ export default function BrowserWatchFeed({ snap }: { snap: WatchSnapshot }) {
                 <span className="bw-log-value">
                   {l.parts.value}
                   {l.parts.flagged > 0 && (
-                    <span className="bw-log-flag"> · {l.parts.flagged} flagged</span>
+                    <span className="bw-log-flag">{t("settings.bw.feed.flagged", { count: l.parts.flagged })}</span>
                   )}
                 </span>
               </>

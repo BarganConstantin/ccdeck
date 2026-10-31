@@ -274,7 +274,7 @@ describe("Settings, which the Appearance menu became, has no Help improve ccdeck
     // nothing about reports, and it opens the topbar's dialog through the
     // dialogs hook's one door, closing Settings first.
     const about = read("../components/AboutSection.tsx");
-    expect(about).toContain('name="Send feedback"');
+    expect(about).toContain('name={t("settings.about.feedback")}');
     expect(about).toMatch(/onClick=\{doors\.feedback\}/);
     for (const gone of ["Help improve ccdeck", "Send usage reports", 'role="switch"', "reportsOn"]) {
       expect(about, gone).not.toContain(gone);

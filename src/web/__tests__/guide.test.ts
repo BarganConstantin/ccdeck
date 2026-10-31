@@ -149,8 +149,8 @@ describe("where the guides open from", () => {
     const keys = bare(read("components/KeyboardHelp.tsx"));
     // The `?` sheet's door is a sentence and a button, inside the body, after
     // the header — the × stays the first stop.
-    expect(keys).toMatch(/\{onTour && \(\s*<div className="guide-door">[\s\S]*?<button type="button" className="btn" onClick=\{onTour\}>Take the tour<\/button>/);
-    expect(keys.indexOf("guide-door")).toBeGreaterThan(keys.indexOf('aria-label="Close (Esc)"'));
+    expect(keys).toMatch(/\{onTour && \(\s*<div className="guide-door">[\s\S]*?<button type="button" className="btn" onClick=\{onTour\}>\{t\("settings\.key\.tour"\)\}<\/button>/);
+    expect(keys.indexOf("guide-door")).toBeGreaterThan(keys.indexOf('aria-label={t("settings.key.close")}'));
     // What's new's is a word in its footer, beside Release history (the
     // editorial digest). Held back while the app's update is ready: the chip
     // opens that dialog for the update then, and a second door competes with
