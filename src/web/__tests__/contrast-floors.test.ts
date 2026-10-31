@@ -937,7 +937,7 @@ describe("one reader for every gradient this suite measures against (#664, #665)
    *  ends in `?? []` and answers nothing rather than failing. */
   const PRIVATE_SCRAPE = /\.match\(\s*\/[^\n]*var\\\(--/;
 
-  const GRADIENT_TOKEN = /--(?:node|topbar)-grad/;
+  const GRADIENT_TOKEN = /--node-grad/;
 
   const FILES: Array<[string, string]> = readdirSync(testDir)
     .filter((name: string) => name.endsWith(".test.ts"))
@@ -953,7 +953,7 @@ describe("one reader for every gradient this suite measures against (#664, #665)
       .filter(([, text]) => !/from "\.\/gradient-stops"/.test(text))
       .map(([name]) => name);
     expect(offenders,
-      "a file measuring against --node-grad or --topbar-grad without the shared reader is a file with its own grammar, and so with its own blind spot")
+      "a file measuring against --node-grad without the shared reader is a file with its own grammar, and so with its own blind spot")
       .toEqual([]);
   });
 
@@ -977,10 +977,10 @@ describe("one reader for every gradient this suite measures against (#664, #665)
     // sweep two cases up.
     expect(FILES.length, "there are test files to sweep at all").toBeGreaterThan(200);
     expect(READERS.map(([name]) => name).sort(),
-      "the five files that read a gradient token, which both sweeps above are quantified over")
+      "the four files that read a gradient token (the topbar gradient is gone; toggle-state.test.ts read only that one), which both sweeps above are quantified over")
       .toEqual([
         "contrast-floors.test.ts", "control-edges.test.ts", "quiet-signals.test.ts",
-        "session-hue.test.ts", "toggle-state.test.ts",
+        "session-hue.test.ts",
       ]);
     expect(PRIVATE_SCRAPE.test("const stops = value" + ".match(/var" + "\\(--[\\w-]+\\)|#[0-9a-f]{3,6}/gi) ?? [];")).toBe(true);
     expect(PRIVATE_SCRAPE.test("const stops = gradientStops(token, theme, TOK[theme]);")).toBe(false);

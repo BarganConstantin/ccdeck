@@ -74,7 +74,7 @@ describe("an unread finding moves nothing but its own button's foot", () => {
     // sit on the glyph's corner, absolutely, and grow nothing.
     const stripeBadge = /\n\.rail-badge \{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(stripeBadge).not.toMatch(/position:/);
-    expect(css).toMatch(/\.rail-btn-stripe \{[^}]*width: 36px;[^}]*height: 32px;[^}]*justify-content: center;/);
+    expect(css).toMatch(/\.rail-btn-stripe \{[^}]*width: 28px;[^}]*height: 28px;[^}]*justify-content: center;/);
     expect(css).toMatch(/\.rail-btn-dock \.rail-badge \{[^}]*position: absolute;/);
   });
 });

@@ -1,11 +1,12 @@
 /* The one thing on this bar that says whether the rest of it is true, so its
    weight is 600 rather than the 400 it inherited from the strip. It was the
    lightest text in the row when the row was a row of numbers.
-   24px tall at least, the #509 floor the version chip, the incident chips and
-   the blocked count beside it already hold. 11px type at the strip's leading,
-   its padding and its edge came to 23, a pixel short of its neighbours, which
-   shows once the pill sits beside a bordered chip rather than a run of text:
-   the tops line up and the bottoms step.
+   24px tall, the #509 floor and V4's chip height, which the version chip, the
+   incident chips and the blocked count beside it hold too. It is a declared
+   height now (border-box, no vertical padding), so a font that measures a
+   pixel differently cannot make the tops line up and the bottoms step.
+   V4 draws it as an outline pill: a 1px edge in the state's colour, no fill,
+   the word in --text at 12 on 16 and weight 400, a 6px dot 6px from it.
    The transition is 200ms, which is `.conn-banner`'s duration — the pill and
    that banner report the same event from two places, and a state change that
    arrives at two speeds reads as two events. Bare `ease` because every colour
@@ -22,17 +23,22 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 24px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--bg-soft);
+  box-sizing: border-box;
+  height: 24px;
+  padding-block: 0;
+  padding-inline: 8px;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text);
   border: 1px solid var(--line);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  font-weight: 600;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
   transition: color 200ms ease, background-color 200ms ease, border-color 200ms ease;
+  animation: chip-in var(--dur-base) var(--ease) both;
 }
 .topbar .status .pill::before {
-  transition: background-color 200ms ease, box-shadow 200ms ease;
+  transition: background-color 200ms ease;
 }
 /* One box, every count (#504, relocated).
    The pill leads the readout group after the brand, so its width is upstream
@@ -82,64 +88,36 @@
    it contributes is its width. */
 .topbar .status .pill .pill-widest { visibility: hidden; }
 
-/* Live was the weakest-drawn of the three states, which is backwards for the
-   one that means "everything else on this bar is true": alone among them it
-   carried no fill at all, and its border alpha was 0.25 where the other two are
-   0.35. Both are now what the others already were. Measured in dark, the edge
-   goes from 1.82:1 / 1.90:1 against the two ends of the topbar gradient to
-   2.95:1 / 2.94:1 — which is where `.paused` has always sat (2.90:1 / 2.89:1).
-   The fill costs the word something and it is worth saying so: --ok was 13.45:1
-   on the bare --bg-soft bed and is 11.40:1 / 12.03:1 on the tint, still two and
-   a half times AA, and it buys the state a body instead of an outline.
-   Light is deliberately untouched, and the measurement is the argument rather
-   than a preference: the opaque #e8f2eb at the foot of this file is already as
-   deep as it can go, because --ok on it is 4.73:1, 0.23 over AA. There is no
-   fill available in that theme — the light bar's own gradient spans 1.13:1, so
-   anything quiet enough to sit inside it is invisible and anything loud enough
-   to be seen eats the word. In light, no pill can carry signal in its body;
-   the border and the dot are the whole of what it has. */
-.topbar .status .pill.live {
-  color: var(--ok);
-  border-color: rgba(134,239,172,0.35);
-  background: rgba(134,239,172,0.06);
-}
+/* THE STATE IS THE EDGE AND THE DOT, and the word stays --text. V4 draws the
+   stream chip as an outline in the state's colour with no fill: --ok when
+   live (hidden at rest, so seen only briefly), --warn when paused, --err when
+   lost. The washes the three states used to wear are gone with the fill, and
+   with them the argument about how much tint a theme could carry: the edge
+   is a full token, which clears 3:1 on --panel wherever the token itself does
+   (control-edges.test.ts measures it). The dot is 6px in the same colour, with
+   no halo — the halo was a second mark for the same fact.
+   Live's dot keeps the pulse it had (1.6s, opacity only, which reduced motion
+   leaves alone: a fade is the recommended answer). Paused is connected but
+   the canvas is frozen: a still dot, because the pulse is what "events are
+   landing" means and under a pause none are. */
+.topbar .status .pill.live { border-color: var(--ok); }
 .topbar .status .pill.live::before {
   content: ""; display: inline-block;
-  width: 7px; height: 7px; border-radius: 50%;
+  width: 6px; height: 6px; border-radius: 50%;
   background: var(--ok);
-  box-shadow: 0 0 8px var(--ok);
   animation: pulse 1.6s ease-in-out infinite;
 }
-/* Paused: connected, but the canvas is frozen. Amber and a still dot — the
-   pulse is what "events are landing" means here, and under a pause none are.
-   Matches the Resume button's .btn.warn, which is now at the far end of the bar
-   rather than next to it: the two bracket the row instead of sitting side by
-   side, so the shared hue is doing more work than it used to, not less. */
-.topbar .status .pill.paused {
-  color: var(--warn);
-  border-color: rgba(252,211,77,0.35);
-  background: rgba(252,211,77,0.06);
-}
+.topbar .status .pill.paused { border-color: var(--warn); }
 .topbar .status .pill.paused::before {
   content: ""; display: inline-block;
-  width: 7px; height: 7px; border-radius: 50%;
+  width: 6px; height: 6px; border-radius: 50%;
   background: var(--warn);
-  box-shadow: 0 0 8px var(--warn);
 }
-.topbar .status .pill.dead {
-  color: var(--err);
-  border-color: rgba(252,165,165,0.35);
-  background: rgba(252,165,165,0.06);
-}
-/* 7px and an 8px glow on all three, which is `.conn-banner .conn-dot` exactly.
-   That dot and this one report the same fact — whether the event stream is
-   alive — from the bar and from the banner that replaces the bar's answer, and
-   two marks for one fact should not be two sizes. */
+.topbar .status .pill.dead { border-color: var(--err); }
 .topbar .status .pill.dead::before {
   content: ""; display: inline-block;
-  width: 7px; height: 7px; border-radius: 50%;
+  width: 6px; height: 6px; border-radius: 50%;
   background: var(--err);
-  box-shadow: 0 0 8px var(--err);
 }
 /* How many sessions are blocked on you (#337) — the only number in this bar
    that is a control rather than a readout, so it is shaped like the status pill
@@ -200,29 +178,46 @@
    it is good news, and good news that shouts is noise. */
 .topbar .notify-said-blocked { color: var(--warn); }
 
-/* THE COUNT. The bar's one alarm and the only amber on it: a transparent pill
-   with an 85% --warn edge and --warn words (the 85% is argued on
-   `.brand button.v.stale`). 28px tall since the bar has the room — the height
-   the queue's names stand at beside it — with its number a step up the type
-   ladder, at 14px and 700, so it reads first from across a desk. */
+/* THE COUNT. A transparent pill with a full --warn edge and --warn words,
+   one of the three things on this bar that may be amber (a paused stream and
+   an incident are the others; the version chip is not). V4 draws it 24 tall
+   like every chip on the bar, 6px in on the glyph's side and 8 on the other,
+   4 between the glyph, the number and the word. The number is the one mono
+   figure on the bar — 12 on 16 at 600 — so it reads as a count among words
+   without leaving the chip's type size. The edge is the token itself: V4
+   draws it so, and the 85% the old edge argued for is moot at full strength. */
 .topbar .waiting-stat {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 28px;
-  padding: 0 12px 0 10px;
-  border-radius: 999px;
+  gap: 4px;
+  box-sizing: border-box;
+  height: 24px;
+  padding: 0 8px 0 6px;
+  border-radius: var(--r-pill);
   background: transparent;
-  border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
+  border: 1px solid var(--warn);
   color: var(--warn);
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
   cursor: pointer;
   white-space: nowrap;
   transition: border-color 120ms, background 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  animation: chip-in var(--dur-base) var(--ease) both;
 }
-.topbar .waiting-stat b { font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 700; font-variant-numeric: tabular-nums; }
+.topbar .waiting-stat b {
+  font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* V4 gives the glyph a 14px slot. The pulse dot is 5px, whole pixels in a
+   whole-pixel slot: 4 before it and 5 after (the ring it emits is drawn over
+   the margin, not in it). */
+.topbar .waiting-stat .ap-pulse { margin-inline: 4px 5px; }
 .topbar .waiting-stat:hover {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 12%, transparent);
@@ -230,7 +225,17 @@
 .topbar .waiting-stat:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) {
   .topbar .waiting-stat:active { transform: none; }
+  .topbar .waiting-stat,
+  .topbar .status .pill { animation: none; }
 }
+/* V4's chip entrance (motion.md, "Top bar chip"): opacity and 4px of x, over
+   --dur-base. The same keyframe `wait-in` below draws for a queue name, but
+   that one is 160ms from its own curve and is the queue's alone, so the two
+   share a shape and not a duration. A chip is not on the bar at rest — the
+   stream pill when it is not live, the count, an incident, a newer version —
+   so the arrival is the only time this is seen; the rest of the time it is
+   just there. */
+@keyframes chip-in { from { opacity: 0; transform: translateX(-4px); } }
 /* INSIDE ITS OWN EDGE (#1706). `.readout` clips what overflows it and is
    exactly as tall as this chip, so the global ring, drawn 2px outside, lost
    its top and bottom and showed as two brackets. An inset ring is the one the
@@ -363,36 +368,43 @@
   .topbar .wait-more:hover { transition: none; }
 }
 
-/* A provider's own incident (#1311), while its status page reports one. NOT
-   the waiting chip's colour and NOT its shape: --warn and the pill are the
-   alarm's, and an outage upstream is nothing the user can answer, so this is a
-   neutral control with a --r-tag corner — the resting --ctl-edge, the neutral
-   hover every control in this bar has — and a ↗, because the press leaves the
-   deck for the provider's page. The state is carried by a mark and a word: the
-   dot below, and the state said after the provider's name, both at full
-   contrast, since the state is what the chip is for. An outage, partial or
-   major, earns the --err edge .btn.danger uses; degraded performance and
-   maintenance do not. */
+/* A provider's own incident (#1311), while its status page reports one. A link
+   to the provider's page, with a ↗ because the press leaves the deck. V4 draws
+   it as the stream chip's twin: a pill 24 tall with a 1px edge and no fill,
+   6px in on the dot's side and 8 on the other, 4 between its parts, the words
+   in --text at 12 on 16. The state is carried by a mark and a word: the dot
+   below, and the state said after the provider's name, both at full contrast,
+   since the state is what the chip is for; the EDGE says how loud. A major
+   outage earns the --err edge .btn.danger uses; degraded performance and a
+   partial outage take --warn (V4 draws a partial outage amber); maintenance,
+   which was planned and said so, keeps the quiet --line. An upstream incident
+   is nothing the user can answer, so unlike the count it has no alarm of its
+   own beyond that edge. */
 .topbar .provider-incident {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 24px;
-  padding: 3px 8px;
-  border-radius: var(--r-tag);
-  border: 1px solid var(--ctl-edge);
+  gap: 4px;
+  box-sizing: border-box;
+  height: 24px;
+  padding: 0 8px 0 6px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--warn);
   color: var(--text);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   text-decoration: none;
   white-space: nowrap;
   transition: border-color 120ms, background 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  animation: chip-in var(--dur-base) var(--ease) both;
 }
-.topbar .provider-incident[data-state$="outage"] { border-color: color-mix(in srgb, var(--err) 65%, transparent); }
+.topbar .provider-incident[data-state="major_outage"] { border-color: var(--err); }
+.topbar .provider-incident[data-state="maintenance"] { border-color: var(--line); }
 .topbar .provider-incident:hover { border-color: var(--text); background: var(--ctl-fill); }
 .topbar .provider-incident:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) {
   .topbar .provider-incident:active { transform: none; }
+  .topbar .provider-incident { animation: none; }
 }
 /* Inside its own edge, for the reason the waiting chip's is (#1706). */
 .topbar .provider-incident:focus-visible { outline-offset: -3px; }
@@ -501,9 +513,9 @@ button.btn.primary { background: var(--btn-primary-wash, var(--accent-16)); colo
    has left the bar for the canvas control stack — where the paused state is
    drawn as a fill on `.react-flow__controls-button[aria-pressed="true"]`, not
    as an amber outline on a text button. What the rule was worth is not lost:
-   the 85% it settled on is the number every --warn boundary in this sheet
-   still uses, `.topbar .waiting-stat` and `.topbar .brand button.v.stale`
-   among them, and the reasoning for it is written on the first of those.
+   the 85% it settled on was the number every --warn boundary in this sheet
+   used, until V4 drew the bar's amber edges (the count, a paused stream, an
+   incident) at the full token; its reasoning is in git history.
    Left in place it would have been a selector nothing can match — the exact
    shape dead-css.test.ts exists to catch, in the one direction that file
    admits it cannot see. */

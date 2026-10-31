@@ -8,7 +8,6 @@
   "extends": "light",
   "tokens": {
     "node-grad": "var(--panel)",
-    "topbar-grad": "var(--panel)",
     "bg": "#ffffff",
     "bg-soft": "#f4f4f4",
     "panel": "#ffffff",

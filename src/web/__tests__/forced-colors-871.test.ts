@@ -42,10 +42,10 @@ const RESTING_WORDED = [
   ".ap-dot",
 ];
 const RESTING = [".sl-dot::before", ".bw-dot", ".bw-mode-dot", ".bw-prof-dot"];
-// The ready-update chip's dot recolours itself to the accent in a rule more
-// specific than the version dot's own, so it has to be named here as well or
-// that accent would stand in for Highlight under a Contrast theme.
-const LIVE = [".sl-dot.state-active::before", ".state-pill.state-active::before", ".bw-mode-dot.on", ".topbar .brand button.v .v-dot", ".topbar .brand button.v.ready .v-dot"];
+// The version chip's dot is the accent in every state now (V4's chip), so the
+// one rule names it; the ready chip's own recolouring rule, which had to be
+// named here as well, is gone.
+const LIVE = [".sl-dot.state-active::before", ".state-pill.state-active::before", ".bw-mode-dot.on", ".topbar .brand button.v .v-dot"];
 const METERS = [".sysdetail .sd-fill", ".sysdetail .sd-core-fill", ".ctx-window-fill", ".session-summary .ss-tt-bar-fill"];
 // Account capacity's state marks (#1713) are not here on purpose: they are
 // drawn as borders, which a Contrast theme repaints in CanvasText with no rule

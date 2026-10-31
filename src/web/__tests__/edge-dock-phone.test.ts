@@ -226,11 +226,13 @@ describe("the page around the dock", () => {
     expect(cascade(s => selects(s, root), "--edge-w", 641)).toBe("40px");
   });
 
-  it("marks an open panel with the stripes' line, on the dock's top edge, in the foreground and not the accent", () => {
+  it("marks an open panel with the stripes' fill and line, on the dock's top edge, in the foreground and not the accent", () => {
     // The line sits on the seam the dock shares with the panel above it: its
-    // top is the dock's own top padding and edge, above the button.
+    // top is the dock's own top padding and edge, above the button. The fill
+    // under the button is the stripes' V4 --selected.
     const btn = [el("div", ["edge-dock"]), el("button", ["rail-btn", "rail-btn-dock"])];
     const open = [el("div", ["edge-dock"]), el("button", ["rail-btn", "rail-btn-dock"], { attrs: { "aria-expanded": "true" } })];
+    const own = (chain: typeof btn, prop: string) => cascade(s => selects(s, chain), prop, 390);
     const before = (chain: typeof btn, prop: string) => cascade(s => {
       const m = /::before$/.exec(s);
       return m ? selects(s.slice(0, m.index), chain) : null;
@@ -242,6 +244,9 @@ describe("the page around the dock", () => {
     expect(before(btn, "background")).toBe("var(--text)");
     expect(before(btn, "opacity")).toBe("0");
     expect(before(open, "opacity")).toBe("1");
+    expect(own(btn, "background")).not.toBe("var(--selected)");
+    expect(own(open, "background")).toBe("var(--selected)");
+    expect(own(open, "color")).toBe("var(--text)");
   });
 
   it("says an open panel to assistive tech as the disclosure it is, not a tab", () => {

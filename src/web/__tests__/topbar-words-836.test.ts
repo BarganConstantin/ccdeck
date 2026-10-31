@@ -127,10 +127,10 @@ describe("every control in the chrome says its name (#836)", () => {
     // Accounts and Session list share the left column and open there,
     // Accounts at the top since 2026-10-08 (the owner's order). On the
     // right the two panels that open beside the stripe come first and the two
-    // records that open as dialogs after them, 4px apart inside a group and
-    // 14px and a --line rule between the groups: spacing alone measured 26px
-    // ink to ink against 22 inside one and read as a single run, so a press
-    // on the third dropped a dialog where the stripe had promised a panel.
+    // records that open as dialogs after them, 2px apart everywhere and a
+    // 16px --line-soft rule as the first item of each group after the first
+    // (V4's Panel bar): spacing alone read as a single run, so a press on
+    // the third dropped a dialog where the stripe had promised a panel.
     // History was beside Usage on the bar, by subject; on the right edge it is
     // by what a press does, and it says "Usage history" whole — "History"
     // alone, over Browser watch, read as the browser's.
@@ -141,9 +141,9 @@ describe("every control in the chrome says its name (#836)", () => {
     expect(buttons(right).map(b => b.name)).toEqual(["Usage", "Machine", "Usage history", "Browser watch, not watching"]);
     expect(right.match(/<div class="rail-group"/g)).toHaveLength(3);
     expect(right).toContain('<div class="rail-group" role="group" aria-label="Usage and machine">');
-    expect(body(".edge-rail")).toMatch(/gap: 14px;/);
-    expect(body(".rail-group")).toMatch(/gap: 4px;/);
-    expect(body(".edge-rail .rail-group + .rail-group")).toMatch(/border-top: 1px solid var\(--line\);/);
+    expect(body(".edge-rail")).toMatch(/gap: 2px;/);
+    expect(body(".rail-group")).toMatch(/gap: 2px;/);
+    expect(body(".edge-rail .rail-group + .rail-group::before")).toMatch(/width: 16px;[^}]*height: 1px;[^}]*background: var\(--line-soft\);/);
   });
 });
 
@@ -155,25 +155,31 @@ describe("the chrome is quiet: no edge at rest, a neutral look under the pointer
     expect(rest).toMatch(/color: var\(--muted\);/);
   });
 
-  it("answers the pointer with the control fill and the foreground, never the accent", () => {
-    // Under a pointer that can hover only (hover: hover): a tap on the dock
-    // left a fill behind.
+  it("answers the pointer with a light wash and the foreground, never the accent", () => {
+    // Under a pointer that can hover and point finely ((hover: hover) and
+    // (pointer: fine), V4's real pointers): a tap on the dock left a fill
+    // behind. The wash is the foreground at 5%, not the control fill: V4's
+    // --ctl-fill over the stripe is the very colour of --selected, the open
+    // door's fill, so a hovered door would have read as open
+    // (toggle-state.test.ts ranks the three).
     const hover = body(".rail-btn:hover");
     expect(hover).toMatch(/color: var\(--text\);/);
-    expect(hover).toMatch(/background: var\(--ctl-fill\);/);
-    expect(css).toMatch(/@media \(hover: hover\) \{\s*\.rail-btn:hover \{/);
+    expect(hover).toMatch(/background: color-mix\(in srgb, var\(--text\) 5%, transparent\);/);
+    expect(css).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\.rail-btn:hover \{/);
     expect(css).not.toMatch(/\.rail-btn[^{]*:hover[^{]*\{[^}]*--accent/);
     expect(body("button.btn:hover")).not.toMatch(/--accent/);
   });
 
-  it("draws an open panel in the foreground on a fill a step past hover's, and its line in --text, not the accent", () => {
-    // Open used to be the hover's own --ctl-fill (7%), and a hovered closed
-    // button beside an open one was told apart by the line alone; open is 10%
-    // of the foreground now, and 14% under the pointer.
-    expect(body('.rail-btn[aria-expanded="true"]')).toMatch(/color: var\(--text\);[^}]*background: color-mix\(in srgb, var\(--text\) 10%, transparent\);/);
+  it("draws an open panel in the foreground on the --selected fill, with its line, not the accent", () => {
+    // V4's Panel bar: an open door is --selected under the whole foreground.
+    // Open used to be a 10% wash; the line in --text on the stripe's inner
+    // edge and on the dock's top edge stays, since it carries the 3:1 the
+    // fill cannot (toggle-state.test.ts), and it is shown at once (motion.md:
+    // a selected door goes selected at once).
+    expect(body('.rail-btn[aria-expanded="true"]')).toMatch(/color: var\(--text\);[^}]*background: var\(--selected\);/);
     // The line on the stripe's inner edge, and on the dock's top edge.
     expect(body(".rail-btn-stripe::before")).toMatch(/background: var\(--text\);/);
-    expect(css).toMatch(/\.rail-btn-stripe\[aria-expanded="true"\]::before \{ opacity: 1; transform: none; \}/);
+    expect(css).toMatch(/\.rail-btn-stripe\[aria-expanded="true"\]::before \{ opacity: 1; \}/);
     expect(css).not.toMatch(/\.rail-btn[^{]*\{[^}]*background: var\(--accent\)/);
     // No second look for a popover's opener: the dock's More is one, and it is
     // the same button.
@@ -221,18 +227,21 @@ describe("the bar keeps amber for the alarm", () => {
     expect(body(".selected-ribbon")).toMatch(/max-width: min\(380px, 24vw\);/);
   });
 
-  it("draws the app's ready update in the accent, not the alarm's amber", () => {
+  it("draws a newer version and the app's ready update in the accent wash, and no amber at all", () => {
     // A download the app has verified is good news; amber is this bar's
-    // warning (#1187). Same proportions as the stale chip, other colour, and a
-    // dot that holds still, since nothing here needs you until you choose it.
-    const ready = body(".topbar .brand button.v.ready");
-    expect(ready).toMatch(/color: var\(--accent\);/);
-    expect(ready).toMatch(/border-color: var\(--accent\);/);
-    expect(ready).not.toMatch(/--warn/);
-    expect(body(".topbar .brand button.v.ready:hover")).not.toMatch(/--warn/);
-    const dot = body(".topbar .brand button.v.ready .v-dot");
+    // warning (#1187), and in V4 amber leaves the version chip altogether: the
+    // count, a paused stream and an incident are the bar's only amber. A newer
+    // version, a ready update and the press share the --accent-16 wash with no
+    // edge and --text; the dot is the accent in every state, on the live pulse.
+    const chip = body(".topbar .brand button.v:is(.stale, .ready, .v-update)");
+    expect(chip).toMatch(/background: var\(--accent-16\);/);
+    expect(chip).toMatch(/border-color: transparent;/);
+    expect(chip).toMatch(/color: var\(--text\);/);
+    expect(chip).not.toMatch(/--warn/);
+    expect(body(".topbar .brand button.v:is(.stale, .ready, .v-update):hover")).not.toMatch(/--warn/);
+    const dot = body(".topbar .brand button.v .v-dot");
     expect(dot).toMatch(/background: var\(--accent\);/);
-    expect(dot).toMatch(/animation: none;/);
+    expect(dot).not.toMatch(/--warn/);
     // And the up-to-date chip's quiet look does not reach it.
     expect(css).toContain(".topbar .brand button.v:not(.stale):not(.ready) {");
     expect(css).not.toMatch(/button\.v:not\(\.stale\)(?!:not\(\.ready\))/);

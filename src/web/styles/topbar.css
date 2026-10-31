@@ -6,9 +6,11 @@
      4px   control to control      .utility-run, .wait-list (the controls are
                                    borderless, so their own padding does the
                                    separating)
-     12px  the count to the first  the queue's lead (.wait-list), and
-           name it continues with  .topbar .readout under 641px
-     24px  role to role            .topbar, .topbar .readout
+     12px  one readout to the next .topbar .readout (V4's start group: the
+           and the count to the    brand, the counts, the stream chip and the
+           first name it continues incident chip, 12 apart), and the queue's
+           with                    lead (.wait-list)
+     24px  role to role            .topbar itself: the readouts to the controls
 
    The bar used to run 14px between the last readout and the first button and
    8px between two buttons — a 1.75x step, under 16px, doing the work of a
@@ -16,7 +18,8 @@
    between two readouts. The 24px is what was missing then and what still
    separates watching from acting. The panel toggles that filled the right of
    the bar are on the window's edges now (edge-rails.css), and with them went
-   the 12px between runs.
+   the 12px between runs. V4 draws the readouts 12 apart (its Top bar's start
+   group), so the readout group no longer shares the 24 with the roles.
    `justify-content: space-between` stays: the gaps are the floor between
    neighbours, and the free space still goes to the middle — to the waiting
    queue, which takes all of it, and nothing else. */
@@ -31,12 +34,16 @@
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  /* The pixel on top is the bar's border's twin: 44px less the 1px rule under
-     it leaves 43 for the content, and a 30px control centred in 43 sat on a
-     half pixel, its edges smeared across two rows at 1x. 42 centres every
-     height on the bar — 30, 28, 24, 16 — on whole pixels. */
-  padding: 1px 6px 0 18px;
-  background: var(--topbar-grad);
+  /* The pixel on top is the bar's border's twin: the bar is an even height
+     (--topbar-h: 44, V4's 40 at Compact, 38 in the desktop chrome) and the 1px
+     rule under it leaves an odd one for the content — 39 at 40 — so a 28px
+     control centred in it sat on a half pixel, its edges smeared across two
+     rows at 1x. The pixel on top leaves 38, which centres every height on the
+     bar — 28, 24, 16 — on whole pixels. V4's Top bar pads 12 on the left and 8
+     on the right and fills the bar with --panel, flat: the gradient it
+     replaced is gone with its token. */
+  padding: 1px 8px 0 12px;
+  background: var(--panel);
   border-bottom: 1px solid var(--line);
   user-select: none;
 }
@@ -50,7 +57,7 @@
 .topbar .readout {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 12px;
   /* Able to give (#849). `.actions` below says the readouts give first and the
      controls not at all, but a flex item's default `min-width: auto` never let
      this group shrink below its content — so on a narrow window it held its
@@ -68,17 +75,18 @@
      and this moves nothing. */
   justify-content: flex-end;
 }
-/* The brand kit's pattern for product chrome: the small mark sized by height,
-   the name in the UI font at weight 600 and a font size equal to the mark's
-   height, 0.5 x that height between them, no tracking. */
+/* V4 pairs the 16px mark with the 14/20 Semibold card title: the name in the UI
+   font at weight 600, 6px from the mark, no tracking. The mark keeps its own
+   height (below); it is never redrawn to follow the type. */
 .topbar .brand {
   font-weight: 600;
   letter-spacing: 0;
   color: var(--text);
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: calc(16px + var(--ui-text-increase, 0px));
+  gap: 6px;
+  font-size: calc(14px + var(--ui-text-increase, 0px));
+  line-height: 20px;
   /* The version chip grows when it carries a drift warning; the product name
      must not break onto two lines to make room for it. */
   white-space: nowrap;
@@ -116,32 +124,31 @@
 /* Version drift lives here permanently. The banner can be dismissed; the fact
    that this process is running superseded code cannot, so the chip keeps
    carrying it — and clicking brings the banner back. */
-/* 24px on the short side (#509). It measured 53.55 x 21.94 — the width was never
-   the problem and the height was 11px of type at 1.45 leading plus 2px of
-   padding plus two 1px borders, which lands 2.06px under the floor the rest of
-   this sheet holds itself to.
-   `min-height` rather than more padding, because padding is the wrong lever for
-   2px: a third pixel top and bottom would take the chip to 23.94 and still miss,
-   and a fourth would take it to 25.94 and overshoot by two. The floor is the
-   thing being asked for, so the floor is what the rule says. `align-items:
-   center` was already here, so the label stays optically centred as the box
-   grows around it.
-   The 2px is worth spending and the issue is right about why: this chip is the
-   only permanent surface that tells you the running process is superseded. The
+/* 24px tall (#509, and V4's chip height). It measured 53.55 x 21.94 once — the
+   width was never the problem — and the floor is the thing being asked for, so
+   it is a declared height, not a sum of padding and a line box: V4 draws every
+   chip on this bar 24 tall, type at 12 on 16, 6px either side of the text and 4
+   between the icon and it. The border is 1px and transparent, so the box is the
+   same 24 whether or not a state paints an edge, and `border-box` keeps the
+   border inside it.
+   The 24 is worth keeping for the reason the issue gave: this chip is the only
+   permanent surface that tells you the running process is superseded. The
    drift banner can be dismissed and this cannot, which makes it the last thing
    in the deck that should be hard to hit. */
 .topbar .brand button.v {
   display: inline-flex;
   align-items: center;
   flex: none;
-  gap: 5px;
-  min-height: 24px;
-  padding: 2px 8px;
+  gap: 4px;
+  box-sizing: border-box;
+  height: 24px;
+  padding: 0 6px;
   border: 1px solid transparent;
   border-radius: var(--r-ctl);
   background: none;
   font: inherit;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   font-weight: 500;
   cursor: pointer;
   transition: background 130ms, border-color 130ms, color 130ms,
@@ -173,58 +180,30 @@
   cursor: progress;
   opacity: var(--dim-off);
 }
-/* 85%, not 34%: a third of --warn is 3.05:1 on this canvas and 1.81:1 on white,
-   the amber equivalent of the --line edge above it. #325 found 65% enough for
-   an --err boundary and it is not enough for a --warn one — light --warn is
-   #ad4e08 against an #eef1f6 canvas, which leaves 4.79:1 of headroom to spend
-   where --err has 6.47:1, so 65% of it lands at 2.83:1. Every --warn boundary
-   in the sheet is 85% for that reason, and every --err boundary stays 65%. */
-.topbar .brand button.v.stale {
-  color: var(--warn);
-  border-color: color-mix(in srgb, var(--warn) 85%, transparent);
-  background: color-mix(in srgb, var(--warn) 10%, transparent);
-}
-.topbar .brand button.v.stale:hover {
-  border-color: var(--warn);
-  background: color-mix(in srgb, var(--warn) 18%, transparent);
-}
-/* THE APP'S UPDATE IS READY (#1187), and that is good news, which is why it no
-   longer wears the stale chip's amber. Amber is this bar's warning — the deck
-   running superseded code, a session blocked on you — and a download the app
-   has already verified is the opposite of something being wrong. So it is
-   drawn in the accent, the deck's own colour for "here, this is for you",
-   in the stale chip's proportions so the two read as one family: a full-
-   strength edge (the accent clears 3:1 on both ends of the bar in both themes
-   without being mixed down, where --warn needed 85%), a tenth of it for the
-   bed, and a little more under the pointer. Its dot holds still: a pulse is
-   how this bar says something needs you, and nothing here does until you
-   choose it. */
-.topbar .brand button.v.ready {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-.topbar .brand button.v.ready:hover {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-}
-.topbar .brand button.v.ready .v-dot {
-  background: var(--accent);
-  box-shadow: none;
-  animation: none;
-}
-/* AND THE PRESS ITSELF, beside it, while the update is ready (owner's call,
-   2026-10-18). The chip says what is on offer and opens the notes; this one
-   does it. It wears `.btn.primary`'s fill — the accent's dim bed under --text
-   — so the action reads as the action, and the chip beside it, an outline in
-   the same accent, as what it is about. Only while ready: it is not the pill
-   #712 tried, which stood here permanently for a dialog. */
-.topbar .brand button.v.v-update {
+/* A NEWER VERSION, THE APP'S UPDATE READY (#1187) AND THE PRESS THAT INSTALLS
+   IT are one chip in V4: the --accent-16 wash with no edge, --text on it,
+   weight 400, the control corner. Amber leaves this chip. It is the bar's
+   warning — and the waiting count, a paused stream and an incident are the only
+   amber this bar has now; a version that is newer is an offer, not a fault, and
+   a download the app has already verified is the opposite of something being
+   wrong. The edge stays in the box as a transparent pixel, so the chip is the
+   24 it was with or without one.
+   Under the pointer the wash steps up to 24%: --text on it stays well past AA in
+   every theme, and the step is the pointer's feedback, as on every control
+   here. */
+.topbar .brand button.v:is(.stale, .ready, .v-update) {
   color: var(--text);
-  background: var(--accent-dim);
+  border-color: transparent;
+  background: var(--accent-16);
+  font-weight: 400;
 }
-.topbar .brand button.v.v-update:hover {
-  background: color-mix(in srgb, var(--accent) 34%, var(--accent-dim));
+.topbar .brand button.v:is(.stale, .ready, .v-update):hover {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
 }
+/* The press itself, beside the chip, while the update is ready (owner's call,
+   2026-10-18): the chip says what is on offer and opens the notes; this one
+   does it. Same wash, so the two read as one family. Only while ready: it is
+   not the pill #712 tried, which stood here permanently for a dialog. */
 .topbar .brand button.v.v-update[aria-busy="true"] { cursor: progress; }
 /* #712 put a second pill here — "What's new", the way back into the release
    notes — and #715 took it away again. The chip beside it now opens them, so
@@ -233,12 +212,22 @@
    the chip's own appearance changed with them; this comment is the only trace,
    and it is here so the next person to want a control in this corner knows it
    has been tried. */
+/* The chip's one live dot, in the accent (amber left the chip) and with no glow,
+   on the deck's one live pulse (`--pulse-live`, opacity only). It holds still
+   under reduced motion: nothing on this bar moves for that setting. */
 .topbar .brand button.v .v-dot {
   width: 5px; height: 5px;
   border-radius: 50%;
-  background: var(--warn);
-  box-shadow: 0 0 7px var(--warn);
-  animation: pulse 2.4s infinite;
+  background: var(--accent);
+  animation: pulse var(--pulse-live) infinite;
+}
+/* V4's chip entrance (motion.md, "Top bar chip"): opacity and 4px of x, over
+   --dur-base. A newer version arrives; the chip is not there at rest, so this
+   is the only time it is seen. `chip-in` is topbar-controls.css's. */
+.topbar .brand button.v:is(.stale, .ready) { animation: chip-in var(--dur-base) var(--ease) both; }
+@media (prefers-reduced-motion: reduce) {
+  .topbar .brand button.v:is(.stale, .ready) { animation: none; }
+  .topbar .brand button.v .v-dot { animation: none; }
 }
 /* Settings and Feedback, the two controls the bar still holds.
    `flex: none` is the deliberate half. Every flex item shrinks by default, so
@@ -282,7 +271,7 @@
    Every control is in the dock along the bottom there (edge-rails.css), and
    the bar is the readout alone, on less padding. */
 @media (max-width: 640px) {
-  .topbar { gap: 12px; padding: 1px 10px 0; }
+  .topbar { gap: 12px; padding: 1px 12px 0; }
   /* THE ALARM OUTLASTS THE NAME. `.readout` gives first and clips what it
      loses, and the blocked-session chip is its last child, so at 600px it was
      cut in half and at 400px it was gone while the wordmark still said "ccdec".
