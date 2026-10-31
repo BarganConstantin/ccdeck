@@ -21,6 +21,7 @@ import { isEscapeKey, modalStack } from "../modal-dismiss";
 import { forwardCaughtError, scrubReport } from "../report-errors";
 import { showTabIcon } from "../use-tab-ambient";
 import FeedbackDialog from "./FeedbackDialog";
+import { t } from "../i18n";
 
 /** How much of the component path to seed: enough to place the crash, not a
  *  wall of frames. Sliced before it is scrubbed, both in report-errors' caps. */
@@ -33,7 +34,7 @@ const STACK_LINES = 12;
  * account, no project: the error text and the component names are all it carries.
  */
 export function crashReportBody(message: string, componentStack?: string | null): string {
-  const parts = [scrubReport(message).trim() || "The deck threw an error with no message."];
+  const parts = [scrubReport(message).trim() || t("shell.error.noMessage")];
   const stack = componentStack?.trim();
   if (stack) {
     const trimmed = stack.split("\n").slice(0, STACK_LINES).join("\n");
@@ -103,14 +104,11 @@ export default class ErrorBoundary extends Component<Props, State> {
             it, since everything inside an alert is read out, assertively,
             whenever any of it changes. */}
         <div className="error-fallback-card" role="alert">
-          <p className="error-fallback-title">Something went wrong</p>
-          <p className="error-fallback-note">
-            The deck hit an error it could not draw past. Reloading usually clears it — and if it
-            keeps happening, a report tells the people who make ccdeck what broke.
-          </p>
+          <p className="error-fallback-title">{t("shell.error.title")}</p>
+          <p className="error-fallback-note">{t("shell.error.note")}</p>
           <div className="error-fallback-actions">
             <button type="button" className="btn primary" onClick={() => window.location.reload()}>
-              Reload
+              {t("shell.reload")}
             </button>
             <button
               type="button"
@@ -118,7 +116,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               onClick={() => this.setState({ reportOpen: true })}
               aria-haspopup="dialog"
             >
-              Send report
+              {t("shell.error.report")}
             </button>
           </div>
         </div>

@@ -265,7 +265,7 @@ const catalog: Catalog = {
   // ── desktop app update ──
   "shell.desktop.restartToUpdate": "重新啟動以更新",
   "shell.desktop.menuMac": "選單列中的 ccdeck 選單",
-  "shell.desktop.menuTray": "ccdeck 系統匣選單",
+  "shell.desktop.menuTray": "系統匣中的 ccdeck 選單",
   "shell.desktop.chipLabel": "{text}，更新已下載並驗證完成",
   "shell.desktop.chipTitle": "ccdeck v{to} 已下載並驗證完成 · 點選以開啟「新功能」，「{action}」就在最前面",
   "shell.desktop.restartLabel": "{action}至 v{to}",

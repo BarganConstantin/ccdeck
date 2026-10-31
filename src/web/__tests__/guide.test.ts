@@ -156,8 +156,8 @@ describe("where the guides open from", () => {
     // opens that dialog for the update then, and a second door competes with
     // the one it came for (#1187). Every other time it is there, and after the
     // header too.
-    expect(notes).toMatch(/\{onTour && !updateVersion && <button className="rn-text-button" type="button" onClick=\{onTour\}>Take the tour<\/button>\}/);
-    expect(notes.indexOf("Take the tour")).toBeGreaterThan(notes.indexOf('aria-label="Close (Esc)"'));
+    expect(notes).toMatch(/\{onTour && !updateVersion && <button className="rn-text-button" type="button" onClick=\{onTour\}>\{t\("shell\.notes\.tour"\)\}<\/button>\}/);
+    expect(notes.indexOf('t("shell.notes.tour")')).toBeGreaterThan(notes.indexOf('aria-label={t("shell.closeEsc")}'));
     // The notes close and the tour opens through named operations now. Both
     // doors are in components/DeckDialogs.tsx, which App.tsx hands the welcome
     // hook whole.
