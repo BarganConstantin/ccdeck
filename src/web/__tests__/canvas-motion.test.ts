@@ -350,11 +350,9 @@ const PRESSES: Press[] = [
   // takes the press the way the Projects report's Copy does rather than an edge.
   [".ap-issue-report:active", "0.97", "transform"],
   [".ap-failure-x:active", "0.94", "transform"],
-  // Every switch in the deck — one control since #886, where this list named
-  // four: the accounts panel's, Browser Watch's, the sound menu's and the
-  // version banner's. 0.97 rather than 0.94: the knob travels 12px inside a
-  // 30px track, and six percent of that reads as the knob slipping.
-  [".switch:active:not(:disabled)", "0.97", "transform"],
+  // The switch is not here any more: V4's press is the knob stretching to 18px
+  // (menus.css, motion.md Switch), not the whole track scaling, so there is
+  // no `transform: scale` on `.switch:active` to list.
   [".ap-field select:active:not(:disabled)", "0.97", "transform"],
   // Browser Watch's two range selects, in the same language as the panel's:
   // the popup opens anchored to this box, so 0.97 rather than 0.94.
@@ -517,6 +515,9 @@ const owner = (sel: string) => sel.replace(/:active.*$/, "");
  *  What this control gives back on press instead is the hover brightness it
  *  keeps through the whole gesture, and a fit-view that moves the canvas. */
 const EXEMPT: string[] = [
+  // V4's switch answers a pointer press with its KNOB (it stretches to 18px,
+  // menus.css) and not with a scale of the whole track.
+  ".switch",
   // Native Settings disclosures answer through expanded state, without moving labels.
   ".ig-access summary", ".ig-token-help summary", ".settings-row-details summary",
   // What's new's disclosures are full-width reading rows: they answer through

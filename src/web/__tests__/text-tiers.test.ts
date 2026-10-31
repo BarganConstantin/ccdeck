@@ -272,10 +272,11 @@ describe("what was migrated to the secondary tier", () => {
       ".nm-next",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
-      // The line under every Settings pane's name, saying what the section
-      // holds (#2176) — Text & density's opening sentence was the first of
-      // them. Read once, before anything in the section is.
-      ".settings-pane-note",
+      // V4's Settings nav item and group heading: the section names read in
+      // the nav and over each group, at the secondary tier (the pane's page
+      // head note went to --muted on purpose, V4's Page head).
+      ".settings-tab",
+      ".sm-tone-name",
       // Why a Claude Code setting cannot be changed here, or that a running
       // session wrote it back: one sentence under its row, read and acted on.
       ".settings-row-said-quiet",

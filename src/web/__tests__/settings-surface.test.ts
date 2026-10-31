@@ -203,13 +203,12 @@ describe("each section in the nav carries its glyph", () => {
   const glyphOf = (section: SettingsSection) => renderToStaticMarkup(createElement(SettingsSectionGlyph, { section }));
   const SPEC = '<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
 
-  it("draws one glyph before each name, hidden from assistive technology", () => {
+  it("draws no glyph in the nav: V4's nav item is its name alone (the glyph stays for quick open and the search results)", () => {
     expect(tabs).toHaveLength(SETTINGS_SECTIONS.length);
     tabs.forEach((tab, i) => {
       const { id, label } = SETTINGS_SECTIONS[i];
-      expect(tab.inner.match(/<svg\b/g), id).toHaveLength(1);
-      expect(tab.inner.startsWith(glyphOf(id)), id).toBe(true);
-      expect(tab.inner, id).toBe(`${glyphOf(id)}<span class="settings-tab-label">${label.replace("&", "&amp;")}</span>`);
+      expect(tab.inner.match(/<svg\b/g), id).toBeNull();
+      expect(tab.inner, id).toBe(`<span class="settings-tab-label">${label.replace("&", "&amp;")}</span>`);
     });
   });
 

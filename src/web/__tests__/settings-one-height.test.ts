@@ -116,7 +116,8 @@ describe("Settings keeps one height across sections", () => {
     for (const width of [DESKTOP, PHONE]) {
       expect(onPane("mask-image", width)).toBeNull();
       expect(onPane("-webkit-mask-image", width)).toBeNull();
-      const [top, , bottom] = onPane("padding", width)!.split(" ");
+      // V4's pane pads 16px on all four sides, one value; the phone keeps three.
+      const [top, , bottom = top] = onPane("padding", width)!.split(" ");
       expect(onPane("scroll-padding", width)).toBe(`${top} 0 ${bottom}`);
     }
   });

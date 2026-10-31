@@ -80,7 +80,7 @@ describe("the 24px floor on the panel's smallest controls (#884)", () => {
     expect(bodyIn(top, ".ap-fix")).toMatch(/position:\s*relative/);
     expect(bodyIn(top, ".switch")).toMatch(/position:\s*relative/);
     // And the track itself is the size it was argued at.
-    expect(bodyIn(top, ".switch")).toMatch(/width:\s*30px/);
+    expect(bodyIn(top, ".switch")).toMatch(/width:\s*32px/);
     expect(bodyIn(top, ".switch")).toMatch(/height:\s*18px/);
   });
 });

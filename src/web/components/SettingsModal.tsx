@@ -37,7 +37,6 @@ import BoardSection from "./BoardSection";
 import ElsewhereSection from "./ElsewhereSection";
 import KeyboardSection from "./KeyboardSection";
 import NotificationsSection from "./NotificationsSection";
-import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
 import RadarSettings from "./RadarSettings";
 import ClaudeCodeSettings from "./ClaudeCodeSettings";
@@ -398,7 +397,6 @@ export default function SettingsModal({
                   tabIndex={choice.id === section ? 0 : -1}
                   onClick={() => chooseSection(choice.id)}
                 >
-                  <SettingsSectionGlyph section={choice.id} />
                   <span className="settings-tab-label">{choice.label}</span>
                 </button>
               ))}

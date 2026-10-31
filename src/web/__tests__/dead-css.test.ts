@@ -75,9 +75,10 @@ const readInTsx = new Set([...withoutComments(tsx).matchAll(/var\(\s*(--[\w-]+)/
 const V4_AHEAD_OF_READERS = [
   "--muted-30", "--secondary-30", "--warn-35", "--inflight-30",
   // V4's menu: --selected and --row-table are read by .ap-menu-item now.
-  "--dock", "--sunken", "--your-message",
+  // V4's Settings: --dock (the nav column) and --row-settings (a row's height) are read now.
+  "--sunken", "--your-message",
   "--statusbar-h", "--rail-w", "--inspector-w", "--pane-head-h",
-  "--row-rail", "--row-group", "--row-tool", "--row-option", "--row-settings",
+  "--row-rail", "--row-group", "--row-tool", "--row-option",
   // V4's banner: --ctl-h-lg is read now (the banner strip's min-height).
   // V4's bars: --r-pill is read now (the top bar's chips).
   "--ctl-h-sm",
