@@ -258,3 +258,31 @@ export async function readNativeCodexAccount(home, options = {}) {
   entry.pending = pending; cache.set(key, entry);
   return pending;
 }
+
+/** The deck has just put a new login of this home's own account in place, so the
+ *  file moved and the account did not. A good reading stays good and keeps its
+ *  floor, or the row and the Usage panel would read "changed" for the rest of the
+ *  minute. A failed one says nothing about the new login, so the next read is a
+ *  real one: it may be the very expiry this sign-in cured. */
+export async function settleMovedLogin(home, options = {}) {
+  const path = (options.platform ?? process.platform) === 'win32' ? win32 : posix;
+  const canonical = await canonicalHome(home, options);
+  const version = await authFileVersion(canonical, path, options.stat);
+  for (const [key, entry] of cache) {
+    if (JSON.parse(key)[0] !== canonical || entry.pending) continue;
+    if (entry.quotaValue?.ok) entry.quotaFileVersion = version;
+    else cache.delete(key);
+  }
+}
+
+/** A sign-in just finished in this home, on whichever account it landed on: what
+ *  was read before says nothing about it, floor included. The first read of a new
+ *  login is a real one. Only a person signing in lifts the floor; no poll does. */
+export async function forgetCodexReadings(home, options = {}) {
+  const canonical = await canonicalHome(home, options);
+  for (const [key, entry] of cache) if (JSON.parse(key)[0] === canonical && !entry.pending) cache.delete(key);
+}
+
+async function canonicalHome(home, options) {
+  try { return await (options.realpath ?? realpath)(home); } catch { return home; }
+}

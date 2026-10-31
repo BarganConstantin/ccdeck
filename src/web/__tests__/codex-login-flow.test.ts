@@ -65,7 +65,7 @@ describe('signing a Codex profile in from the deck', () => {
     fake.children[0].stdout.emit('data', Buffer.from(DEVICE));
     expect(codexLoginState(id)).toMatchObject({ state: 'waiting', url: 'https://auth.openai.com/codex/device', code: 'RWV2-ZLB7A' });
     fake.children[0].emit('close', 0);
-    expect(codexLoginState(id).state).toBe('done');
+    await vi.waitFor(() => expect(codexLoginState(id).state).toBe('done'));
   });
 
   it('starts one sign-in per profile: asking again while it waits returns the same one', async () => {

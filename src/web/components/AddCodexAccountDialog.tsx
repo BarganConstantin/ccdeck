@@ -7,10 +7,13 @@
 // until the sign-in lands. The deck never sees the login.
 //
 // OpenAI's page takes whichever account the browser is already signed in to, so
-// the easiest way to fail at adding a second account is to add the first one
-// again. That is checked when the sign-in lands: Claude's dialog replaces the
-// stored login of an account it already holds, and this one drops the repeat, so
-// either way there is one row per account, and it says what happened and why.
+// the easiest way to add a second account is to add the first one again. As in
+// Claude's dialog that is no failure: the sign-in is the account signing in again,
+// so its stored login is replaced with this one, the row keeps its place, its name
+// and its history, and the card says so. Who it landed on is only known once it
+// has, so the sign-in runs in a home of its own and the server moves the login
+// across. When it cannot (a login kept in the OS keyring, another disk) the row
+// keeps the login it had and the dialog says nothing was added.
 //
 // Nothing starts until asked, and closing the dialog cancels a sign-in that is
 // still waiting, so no process is left behind.
@@ -23,9 +26,12 @@
 // the link when the link is known. A blocked tab leaves the button below it.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Confetti from "./Confetti";
 import SuccessMark from "./SuccessMark";
 import { copyText } from "../copy-text";
+import { celebrates, doneTitle } from "../signin-stages";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
+import { prefersReducedMotion } from "../viewport-motion";
 
 type Stage = "ready" | "starting" | "waiting" | "checking" | "done" | "repeat" | "failed";
 
@@ -38,16 +44,25 @@ interface LoginAnswer {
   reason?: string | null;
 }
 
+/** Who a sign-in landed on, read off the roster after it landed. */
+export interface SignedIn {
+  account: string | null;
+  /** The row already holding this account, when there is one. */
+  repeats: { id: string; name: string } | null;
+}
+
 interface Props {
   /** Signing an account that exists in again; absent, a new one is made first. */
-  profile?: { id: string; label: string };
+  profile?: { id: string; label: string; account?: string | null };
   /** Make an account. Resolves its id, or null when it was refused. */
   onCreate: () => Promise<string | null>;
   /** Copy the terminal command for an account, for a machine without Codex here. */
   onCopyCommand: (id: string) => void;
-  /** A sign-in landed: the roster and the numbers are read again. Resolves the
-   *  name of the account this one turned out to repeat, or null. */
-  onSignedIn: (id: string) => Promise<string | null>;
+  /** A sign-in landed: the roster and the numbers are read again. */
+  onSignedIn: (id: string) => Promise<SignedIn>;
+  /** Give a row the login of the account made here, and take that one back.
+   *  False when the login could not move: the row keeps the one it had. */
+  onReplace: (id: string, into: string) => Promise<boolean>;
   /** Take back an account made here that repeats one already listed. */
   onDiscard: (id: string) => Promise<boolean>;
   onClose: () => void;
@@ -62,7 +77,7 @@ function reasonText(reason: string | null | undefined): string {
   return "The sign-in did not finish.";
 }
 
-export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand, onSignedIn, onDiscard, onClose }: Props) {
+export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand, onSignedIn, onReplace, onDiscard, onClose }: Props) {
   const [stage, setStage] = useState<Stage>("ready");
   const [id, setId] = useState<string | null>(profile?.id ?? null);
   const [login, setLogin] = useState<LoginAnswer | null>(null);
@@ -75,8 +90,14 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
   const tabRef = useRef<Window | null>(null);
   /** The sign-in page is open in a tab the dialog opened. */
   const [opened, setOpened] = useState(false);
+  /** Who the sign-in landed on. */
+  const [landed, setLanded] = useState<string | null>(null);
   /** The account the sign-in landed on already had a row: this one's name. */
   const [repeats, setRepeats] = useState<string | null>(null);
+  /** It was an account here signing in again, so its stored login was replaced. */
+  const [refreshed, setRefreshed] = useState(false);
+  const markRef = useRef<SVGSVGElement | null>(null);
+  const reduced = useState(prefersReducedMotion)[0];
   /** The poll can answer "done" again while the roster is being read. */
   const settling = useRef(false);
   const stageRef = useRef(stage);
@@ -110,6 +131,8 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
     const timer = setInterval(() => setClock(Date.now()), 15_000);
     return () => clearInterval(timer);
   }, []);
+  // The step that held focus has gone, so it lands on what ends the dialog.
+  useEffect(() => { if (stage === "done" || stage === "repeat") primaryRef.current?.focus(); }, [stage]);
 
   /** Open the tab inside the press. Returns nothing: a blocked tab is not an error. */
   function openTab() {
@@ -149,14 +172,21 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
     if (settling.current || !target) return;
     settling.current = true;
     setStage("checking");
-    const same = await onSignedIn(target).catch(() => null);
-    setRepeats(same);
-    // A row asked to sign in again stays: it is the person's own row, and the
-    // done step says what it now repeats. One made just now goes.
-    if (same && !profile) {
-      await onDiscard(target).catch(() => false);
+    const signedIn = await onSignedIn(target).catch(() => null);
+    const same = signedIn?.repeats ?? null;
+    setLanded(same?.name ?? signedIn?.account ?? null);
+    setRepeats(same?.name ?? null);
+    if (profile) {
+      // A row asked to sign in again stays: it is the person's own row, and the
+      // done step says what it now repeats, or that it is the same account again.
+      setRefreshed(!same && !!profile.account && signedIn?.account === profile.account);
+      setStage("done");
+    } else if (same) {
+      const moved = await onReplace(target, same.id).catch(() => false);
+      if (!moved) await onDiscard(target).catch(() => false);
       setId(null);
-      setStage("repeat");
+      setRefreshed(moved);
+      setStage(moved ? "done" : "repeat");
     } else setStage("done");
     settling.current = false;
   }
@@ -293,11 +323,19 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
 
           {stage === "done" && (
             <div className="aa-done">
-              <SuccessMark />
-              <h4>Signed in</h4>
-              <p className="aa-note">{repeats
-                ? `This is the same ChatGPT account as ${repeats}, so the two share one quota.`
-                : "The account is ready. New Codex sessions can use it once you make it the default."}</p>
+              <SuccessMark ref={markRef} />
+              {celebrates({ added: !profile && !refreshed, reducedMotion: reduced }) && <Confetti anchor={markRef} />}
+              <h4 role="status">{profile && !refreshed ? "Signed in" : doneTitle({ num: null, added: !refreshed })}</h4>
+              <p className="aa-note">
+                {refreshed ? (
+                  <><strong>{landed}</strong> was already in the rotation, so its stored login was replaced with this one.</>
+                ) : profile ? (repeats
+                  ? `This is the same ChatGPT account as ${repeats}, so the two share one quota.`
+                  : "The account is ready. New Codex sessions can use it once you make it the default.")
+                : (
+                  <><strong>{landed ?? "The account"}</strong> is in the rotation. The account you were using is still active.</>
+                )}
+              </p>
               <div className="aa-actions"><button ref={primaryRef} type="button" className="btn primary" onClick={close}>Done</button></div>
             </div>
           )}
@@ -305,7 +343,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
           {stage === "repeat" && (
             <div className="aa-step">
               <h4 className="aa-repeat-title">Already in your accounts</h4>
-              <p className="aa-note"><strong>{repeats}</strong> is already here, so nothing was added.</p>
+              <p className="aa-note"><strong>{repeats}</strong> is already here, so nothing was added, and it keeps the login it had.</p>
               <p className="aa-note">The sign-in page uses the ChatGPT account your browser is signed in to. To add a different one, sign out of ChatGPT in the browser first, or open the page in a private window.</p>
               <div className="aa-actions">
                 <button ref={primaryRef} type="button" className="btn primary" onClick={() => { setLogin(null); setOpened(false); setStage("ready"); }}>Try another account</button>

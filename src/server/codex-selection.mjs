@@ -1,5 +1,5 @@
 // Machine-local metadata only. This module never opens or copies credentials.
-import { link, lstat, mkdir, open, readFile, realpath, rename, rm, stat, unlink } from 'node:fs/promises';
+import { access, link, lstat, mkdir, open, readFile, realpath, rename, rm, stat, unlink } from 'node:fs/promises';
 import { createHash, randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { createServer } from 'node:net';
@@ -27,7 +27,7 @@ export function codexSelectionError(code) {
 const fail = code => { throw codexSelectionError(code); };
 const idPattern = /^[a-f0-9]{20}$/;
 const operationPattern = /^[A-Za-z0-9_-]{1,128}$/;
-const safeCodes = new Set(['not_removable', 'selection_conflict', 'operation_conflict', 'selection_busy', 'unknown_profile', 'profile_unavailable', 'registry_corrupt', 'registry_write_failed', 'invalid_operation', 'invalid_revision', 'invalid_label']);
+const safeCodes = new Set(['not_removable', 'login_not_movable', 'selection_conflict', 'operation_conflict', 'selection_busy', 'unknown_profile', 'profile_unavailable', 'registry_corrupt', 'registry_write_failed', 'invalid_operation', 'invalid_revision', 'invalid_label']);
 const storeDir = options => resolve(options.store ?? deckDataDir(options.platform, options.env, options.home));
 export const codexSelectionPath = (options = {}) => join(storeDir(options), 'codex-accounts.json');
 
@@ -310,23 +310,59 @@ export async function removeCodexProfile({ id, expectedRevision } = {}, options 
     const profile = state.profiles.find(p => p.id === id);
     if (!profile) fail('unknown_profile');
     if (!profile.managed) fail('not_removable');
-    state.profiles = state.profiles.filter(p => p.id !== id);
-    // What this profile's add and select left behind would name a profile that
-    // is gone, which the registry's own check refuses.
-    state.operations = state.operations.filter(op => op.id !== id);
-    if (state.selectedProfileId === id) {
-      // The default falls back to the home that was the default before any
-      // account was added.
-      state.selectedProfileId = state.profiles.find(p => p.home === state.originalHome).id;
-    }
-    state.revision++;
-    const result = await snapshot(state, options);
-    await persist(state, options);
-    const trash = join(storeDir(options), 'codex-profiles-removed');
+    return { ...await dropProfile(state, profile, options), status: 'removed' };
+  });
+}
+
+/** Take a profile off the registry, and its folder out of the way. */
+async function dropProfile(state, profile, options) {
+  const { id } = profile;
+  state.profiles = state.profiles.filter(p => p.id !== id);
+  // What this profile's add and select left behind would name a profile that
+  // is gone, which the registry's own check refuses.
+  state.operations = state.operations.filter(op => op.id !== id);
+  if (state.selectedProfileId === id) {
+    // The default falls back to the home that was the default before any
+    // account was added.
+    state.selectedProfileId = state.profiles.find(p => p.home === state.originalHome).id;
+  }
+  state.revision++;
+  const result = await snapshot(state, options);
+  await persist(state, options);
+  const trash = join(storeDir(options), 'codex-profiles-removed');
+  try {
+    await mkdir(trash, { recursive: true, mode: 0o700 });
+    await rename(profile.home, join(trash, `${basename(profile.home)}-${Date.now()}`));
+  } catch { /* The folder stays where it was, unlisted: nothing is lost. */ }
+  return result;
+}
+
+/** Give an account the login of a sign-in that landed on it, as Claude's replaces
+ *  a stored login in place: the row keeps its place, its name and its history.
+ *  A sign-in needs a home of its own, because nobody can say who it lands on until
+ *  it has; when that is an account already here, the login crosses over and the
+ *  home made for it goes.
+ *
+ *  The file is renamed, never opened or copied, so no two homes hold one login.
+ *  Another disk, or a login kept in the OS keyring, cannot move that way and is
+ *  refused, leaving the account the login it had. That both rows are one account
+ *  is for the caller to prove: see replaceCodexLogin. */
+export async function moveCodexLogin({ id, into, expectedRevision } = {}, options = {}) {
+  if (typeof id !== 'string' || !idPattern.test(id) || typeof into !== 'string' || !idPattern.test(into) || id === into) fail('unknown_profile');
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) fail('invalid_revision');
+  return locked(options, async () => {
+    const state = await initial(options);
+    if (state.revision !== expectedRevision) fail('selection_conflict');
+    const profile = state.profiles.find(p => p.id === id);
+    const target = state.profiles.find(p => p.id === into);
+    if (!profile || !target) fail('unknown_profile');
+    if (!profile.managed) fail('not_removable');
     try {
-      await mkdir(trash, { recursive: true, mode: 0o700 });
-      await rename(profile.home, join(trash, `${basename(profile.home)}-${Date.now()}`));
-    } catch { /* The folder stays where it was, unlisted: nothing is lost. */ }
-    return { ...result, status: 'removed' };
+      await access(join(target.home, 'auth.json'));
+      await renameWithRetry(join(profile.home, 'auth.json'), join(target.home, 'auth.json'));
+    } catch { fail('login_not_movable'); }
+    const { settleMovedLogin } = await import('./codex-native-account.mjs');
+    await settleMovedLogin(target.home);
+    return { ...await dropProfile(state, profile, options), status: 'replaced' };
   });
 }

@@ -3,7 +3,7 @@
 import { access, realpath, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { readCodexSelection, codexProfileId, codexSelectionError } from './codex-selection.mjs';
+import { readCodexSelection, codexProfileId, codexSelectionError, moveCodexLogin } from './codex-selection.mjs';
 import { usesNativeCodexAccount } from './codex-auth.mjs';
 import { readNativeCodexAccount } from './codex-native-account.mjs';
 export { configuredCodexHomes } from './codex-selection.mjs';
@@ -72,9 +72,21 @@ export async function discoverCodexProfiles(options = {}) {
       ...(native ? { signedIn: native.ok && native.signedIn, authSource: 'native', metadataUnavailable: !native.ok, metadataReason: native.reason ?? null } : {}),
       signedInFilePresent: installed, // file presence is NOT authentication validity
     });
-    logins.set(id, native?.signedIn ? native.identityVersion : identity);
+    // The file's workspace goes in too: one address on one plan can be two
+    // workspaces, and Codex's own answer does not always tell them apart.
+    logins.set(id, native?.signedIn ? `${native.identityVersion}:${identity ?? ''}` : identity);
   }
   return withSameAccount(profiles, logins);
+}
+
+/** Replace the stored login of an account already here with a sign-in that landed
+ *  on it, as Claude's does. Asked of the deck's own reading, never of the browser:
+ *  a login does not move onto a row until both are seen to be one account. */
+export async function replaceCodexLogin({ id, into, expectedRevision } = {}, options = {}) {
+  const selection = await readCodexSelection(options);
+  const roster = await discoverCodexProfiles({ ...options, selection, enableNative: true });
+  if (roster.find(profile => profile.id === id)?.sameAccountAs !== into) throw codexSelectionError('not_same_account');
+  return moveCodexLogin({ id, into, expectedRevision }, options);
 }
 
 /** Two rows signed in to one ChatGPT account share one quota, and the second adds

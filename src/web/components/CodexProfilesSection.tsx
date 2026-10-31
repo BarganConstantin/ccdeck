@@ -79,7 +79,7 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
   const [aliasDraft, setAliasDraft] = useState("");
   const [menuError, setMenuError] = useState<string | null>(null);
   /** The Add / Sign in dialog: a new account, or one signed in again. */
-  const [dialog, setDialog] = useState<null | { id?: string; label?: string }>(null);
+  const [dialog, setDialog] = useState<null | { id?: string; label?: string; account?: string | null }>(null);
   /** The account whose Remove has been pressed once and is waiting for the second. */
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   /** The "Other accounts" row: shut on open, every time, as Claude's is. */
@@ -308,6 +308,17 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
     return out?.ok === true;
   }
 
+  /** A sign-in landed on `into`, already here: its row takes the login, and the
+   *  account made for the sign-in goes. Every row is read again afterwards. */
+  async function replaceLogin(id: string, into: string): Promise<boolean> {
+    const out = await postJson("/api/codex-profile-replace-login", { id, into, expectedRevision: revision.current }).catch(() => null);
+    if (!out?.ok) return false;
+    readFor.current.clear();
+    setQuotas(current => { const { [id]: _gone, ...left } = current; return left; });
+    await refreshProfiles().catch(() => setError(true));
+    return true;
+  }
+
   /** Two presses within four seconds, like Claude's Remove: the first arms it. */
   async function pressRemove(id: string, num: number) {
     if (confirmRemove !== id) { setConfirmRemove(id); return; }
@@ -355,7 +366,7 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
     if (refocus && issueOpen) document.getElementById(issueOpen.anchor)?.focus();
     setIssueOpen(null);
   };
-  const signIn = (profile: CodexProfile) => setDialog({ id: profile.id, label: profile.label });
+  const signIn = (profile: CodexProfile) => setDialog({ id: profile.id, label: profile.label, account: profile.account });
 
   /** One account's row, drawn the same above the fold and behind it. */
   const accountRow = ({ profile, reading, account: a, issue }: Row) => {
@@ -570,16 +581,18 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
       )}
       {dialog && (
         <AddCodexAccountDialog
-          profile={dialog.id && dialog.label ? { id: dialog.id, label: dialog.label } : undefined}
+          profile={dialog.id && dialog.label ? { id: dialog.id, label: dialog.label, account: dialog.account } : undefined}
           onCreate={createProfile}
           onCopyCommand={id => void copyCommand(`/api/codex-profile-login?id=${encodeURIComponent(id)}`, "Command copied. Run it in your terminal.")}
           onSignedIn={async id => {
             readFor.current.clear();
             const roster = await refreshProfiles().catch(() => { setError(true); return undefined; });
-            const repeated = roster?.find(profile => profile.id === id)?.sameAccountAs;
-            const other = roster?.find(profile => profile.id === repeated);
-            return other ? other.account ?? other.label : null;
+            const signedIn = roster?.find(profile => profile.id === id);
+            if (signedIn?.active) codexDefaultMoved();
+            const other = roster?.find(profile => profile.id === signedIn?.sameAccountAs);
+            return { account: signedIn?.account ?? null, repeats: other ? { id: other.id, name: other.account ?? other.label } : null };
           }}
+          onReplace={replaceLogin}
           onDiscard={removeProfile}
           onClose={() => { setDialog(null); void refreshProfiles().catch(() => setError(true)); }}
         />

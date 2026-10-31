@@ -410,6 +410,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/codex-profile-add") return guard(handleCodexProfileMutation(req, res, "add"), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-remove") return guard(handleCodexProfileMutation(req, res, "remove"), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-rename") return guard(handleCodexProfileMutation(req, res, "rename"), res);
+    if (req.method === "POST" && url.pathname === "/api/codex-profile-replace-login") return guard(handleCodexProfileMutation(req, res, "replace"), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-login-start") return guard(handleCodexProfileLoginFlow(req, res, "start"), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-login-cancel") return guard(handleCodexProfileLoginFlow(req, res, "cancel"), res);
     if (req.method === "GET" && url.pathname === "/api/codex-profile-login-state") return guard(handleCodexProfileLoginFlow(req, res, "state"), res);

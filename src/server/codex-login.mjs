@@ -10,6 +10,7 @@
 // that cannot reach the machine is no problem, since the code is typed on the
 // page rather than sent back to a local port.
 import { spawn } from 'node:child_process';
+import { forgetCodexReadings } from './codex-native-account.mjs';
 import { resolveCodexProfile } from './codex-profiles.mjs';
 
 /** Codex says the code lasts 15 minutes; the process is stopped a minute later. */
@@ -82,7 +83,8 @@ export async function startCodexLogin(id, options = {}) {
   child.once('error', error => finish('failed', error?.code === 'ENOENT' ? 'codex_missing' : 'login_failed'));
   child.once('close', code => {
     if (entry.state === 'cancelled') return;
-    if (code === 0) finish('done');
+    // "Done" waits for the old login's readings to go, so nothing reads them first.
+    if (code === 0) void forgetCodexReadings(directory).catch(() => {}).finally(() => finish('done'));
     else finish('failed', entry.state === 'starting' ? 'no_code' : 'login_failed');
   });
   entry.timer = setTimeout(() => {

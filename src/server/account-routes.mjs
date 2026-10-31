@@ -52,9 +52,11 @@ export async function handleCodexProfileMutation(req, res, action) {
   try { body = JSON.parse(raw ?? ''); } catch { return send(res, 400, { ok: false, reason: 'bad_request' }); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return send(res, 400, { ok: false, reason: 'bad_request' });
   const { selectCodexProfile, addCodexProfile, removeCodexProfile, renameCodexProfile } = await import('./codex-selection.mjs');
+  const { replaceCodexLogin } = await import('./codex-profiles.mjs');
   try {
     const result = action === 'select' ? await selectCodexProfile(body)
       : action === 'remove' ? await removeCodexProfile(body)
+      : action === 'replace' ? await replaceCodexLogin(body)
       : action === 'rename' ? await renameCodexProfile(body) : await addCodexProfile(body);
     // Registry paths are local implementation details; only explicit command
     // requests below return a home as part of a copyable terminal command.

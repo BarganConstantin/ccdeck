@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
 let readNativeCodexAccount: typeof import('../../server/codex-native-account.mjs').readNativeCodexAccount;
+let settleMovedLogin: typeof import('../../server/codex-native-account.mjs').settleMovedLogin;
 beforeEach(async () => {
   vi.resetModules();
-  ({ readNativeCodexAccount } = await import('../../server/codex-native-account.mjs'));
+  ({ readNativeCodexAccount, settleMovedLogin } = await import('../../server/codex-native-account.mjs'));
 });
 
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllEnvs(); });
@@ -107,6 +108,69 @@ describe('native Codex account adapter (synthetic children only)', () => {
     signedIn = true; clock += 5000;
     expect(await readNativeCodexAccount(HOME, options)).toMatchObject({ ok: true, signedIn: true, label: 'person@example.com', windows: [{ usedPercent: 130 }, { usedPercent: 22 }] });
     expect(f.messages.filter(m => m.method === 'account/rateLimits/read')).toHaveLength(1);
+  });
+
+  describe('a login the deck itself moved into a home', () => {
+    async function withHome(run: (home: string, swap: () => Promise<void>, stat: typeof import('node:fs/promises').stat) => Promise<void>) {
+      const { mkdtemp, writeFile, rm, stat } = await import('node:fs/promises');
+      const { tmpdir } = await import('node:os');
+      const { join } = await import('node:path');
+      const home = await mkdtemp(join(tmpdir(), 'ccdeck-native-moved-'));
+      try {
+        await writeFile(join(home, 'auth.json'), 'synthetic original');
+        await run(home, () => writeFile(join(home, 'auth.json'), 'synthetic new login of the same account'), stat);
+      } finally { await rm(home, { recursive: true, force: true }); }
+    }
+    const usageReads = (f: ReturnType<typeof fake>) => f.messages.filter(m => m.method === 'account/rateLimits/read').length;
+
+    it('keeps a good reading and its floor, rather than reading "changed" for a minute', () => withHome(async (home, swap, stat) => {
+      const f = fake();
+      const options = { ...f.options, stat, includeQuota: true, force: true };
+      expect(await readNativeCodexAccount(home, options)).toMatchObject({ ok: true });
+      await swap();
+      await settleMovedLogin(home, { stat });
+      expect(await readNativeCodexAccount(home, options)).toMatchObject({ ok: true, stale: true, windows: [{ usedPercent: 130 }, { usedPercent: 22 }] });
+      expect(usageReads(f)).toBe(1);
+    }));
+
+    it('reads for real after a sign-in in the home itself, whichever account it landed on', () => withHome(async (home, swap, stat) => {
+      const { forgetCodexReadings } = await import('../../server/codex-native-account.mjs');
+      let email = 'person@example.com';
+      const f = fake((m, c) => {
+        if (m.id !== undefined) reply(c, m.id, m.method === 'initialize' ? {} : m.method === 'account/read' ? { account: { ...account, email } } : limits);
+      });
+      const options = { ...f.options, stat, includeQuota: true, force: true };
+      expect(await readNativeCodexAccount(home, options)).toMatchObject({ ok: true, label: 'person@example.com' });
+      await swap();
+      email = 'other@example.com';
+      await forgetCodexReadings(home);
+      expect(await readNativeCodexAccount(home, options)).toMatchObject({ ok: true, label: 'other@example.com', windows: [{ usedPercent: 130 }, { usedPercent: 22 }] });
+      expect(usageReads(f)).toBe(2);
+    }));
+
+    it('still refuses a file that changed without the deck saying so', () => withHome(async (home, swap, stat) => {
+      const f = fake();
+      const options = { ...f.options, stat, includeQuota: true, force: true };
+      await readNativeCodexAccount(home, options);
+      await swap();
+      expect(await readNativeCodexAccount(home, options)).toMatchObject({ ok: false, reason: 'profile_changed', windows: [] });
+    }));
+
+    it('drops a failed reading, because it may be the very expiry the sign-in cured', () => withHome(async (home, swap, stat) => {
+      let expired = true;
+      const f = fake((m, c) => {
+        if (m.id === undefined) return;
+        if (m.method === 'account/rateLimits/read' && expired) c.stdout.write(JSON.stringify({ id: m.id, error: { code: -32000 } }) + '\n');
+        else reply(c, m.id, m.method === 'initialize' ? {} : m.method === 'account/read' ? { account } : limits);
+      });
+      const options = { ...f.options, stat, includeQuota: true, force: true };
+      expect(await readNativeCodexAccount(home, options)).toMatchObject({ ok: false });
+      await swap();
+      expired = false;
+      await settleMovedLogin(home, { stat });
+      expect(await readNativeCodexAccount(home, options)).toMatchObject({ ok: true, windows: [{ usedPercent: 130 }, { usedPercent: 22 }] });
+      expect(usageReads(f)).toBe(2);
+    }));
   });
 
   it('limits forced quota bursts to one usage RPC per minute and preserves data age', async () => {

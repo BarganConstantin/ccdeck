@@ -76,6 +76,9 @@ function codexHint(reason?: string): string {
     // section says them: the API did answer, and ↻ is what the wait refuses.
     case "rate_limited":     return "OpenAI asked the deck to wait — it will retry on its own.";
     case "waiting":          return "Waiting for the next allowed read — or click ↻.";
+    // Nothing is down: the login moved while it was being read, and the next
+    // read is of the new one.
+    case "profile_changed":  return "The Codex login just changed — this reads it again within a minute.";
     default:                 return "ChatGPT API unreachable — click ↻ to retry.";
   }
 }
