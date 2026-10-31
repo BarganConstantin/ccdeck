@@ -3,6 +3,7 @@ import world from "../assets/radio-world.json";
 import type { RadioStation } from "../radio-library";
 import { clampMapView, clusterRadioMarkers, mapDimensions, MAX_RADIO_ZOOM, WORLD_VIEW, zoomMapView, type RadioMapView } from "../radio-map-geometry";
 import RadioIcon from "./RadioIcon";
+import { useT } from "../i18n";
 
 const regions = [
   { name: "World", ...WORLD_VIEW }, { name: "Europe", x: 195, y: 40, zoom: 3.5 },
@@ -18,6 +19,7 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
   playing: boolean;
   onPick: (station: RadioStation) => void;
 }) {
+  const t = useT();
   const svg = useRef<SVGSVGElement>(null);
   const [rect, setRect] = useState({ width: 600, height: 430 });
   const size = useMemo(() => mapDimensions(rect.width / rect.height), [rect.width, rect.height]);
@@ -84,16 +86,16 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
     return { x: points.reduce((sum, point) => sum + point.x, 0) / points.length, y: points.reduce((sum, point) => sum + point.y, 0) / points.length, distance: points.length > 1 ? Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y) : 0 };
   };
   const stop = (event: PointerEvent<SVGSVGElement>) => { pointers.current.delete(event.pointerId); gesture.current = pointers.current.size ? { ...metrics(), view: camera.current } : null; setDragging(pointers.current.size > 0); };
-  return <section className="radio-geography" aria-label="Geographic explorer">
+  return <section className="radio-geography" aria-label={t("radio.map.aria")}>
     <div className="radio-map-heading">
-      <h3>Map view · {region || "Custom"}</h3>
-      <div className="radio-regions" role="group" aria-label="Map view, results stay unchanged">
-        {regions.map(place => <button className="radio-region" key={place.name} type="button" aria-pressed={region === place.name} onClick={() => { setRegion(place.name); setCluster(null); moveCamera(place, true); }}>{place.name}</button>)}
+      <h3>{t("radio.map.heading", { region: region ? t(`radio.region.${region.toLowerCase()}`) : t("radio.map.custom") })}</h3>
+      <div className="radio-regions" role="group" aria-label={t("radio.map.regions.aria")}>
+        {regions.map(place => <button className="radio-region" key={place.name} type="button" aria-pressed={region === place.name} onClick={() => { setRegion(place.name); setCluster(null); moveCamera(place, true); }}>{t(`radio.region.${place.name.toLowerCase()}`)}</button>)}
       </div>
-      <span title="Only results with directory coordinates can be plotted. Positions may be approximate. Selected and current stations stay pinned when filters exclude them.">{mapped.length} of {stations.length} have locations{pinnedCount > 0 && <small>+ {pinnedCount} selected/current outside results</small>}</span>
+      <span title={t("radio.map.located.title")}>{t("radio.map.located", { n: mapped.length, total: stations.length })}{pinnedCount > 0 && <small>{t("radio.map.pinned", { n: pinnedCount })}</small>}</span>
     </div>
     <div className="radio-map">
-      <svg ref={svg} className="radio-map-canvas" data-dragging={dragging || undefined} viewBox={`${view.x - size.width / view.zoom / 2} ${view.y - size.height / view.zoom / 2} ${size.width / view.zoom} ${size.height / view.zoom}`} role="group" tabIndex={0} aria-label="Radio map" aria-describedby="radio-map-help"
+      <svg ref={svg} className="radio-map-canvas" data-dragging={dragging || undefined} viewBox={`${view.x - size.width / view.zoom / 2} ${view.y - size.height / view.zoom / 2} ${size.width / view.zoom} ${size.height / view.zoom}`} role="group" tabIndex={0} aria-label={t("radio.map.canvas")} aria-describedby="radio-map-help"
         // Browsers can retain :focus-visible when an already-focused SVG is clicked.
         // Track that pointer arrival without blurring the keyboard navigation target.
         onPointerDownCapture={event => { if (document.activeElement === event.currentTarget) event.currentTarget.dataset.pointerFocus = "true"; }}
@@ -124,7 +126,7 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
           const grouped = marker.stations.length > 1, station = marker.stations[0], active = marker.stations.some(item => selected?.id === item.id), audible = playing && marker.stations.some(item => current?.id === item.id);
           return <g key={marker.id} className={`radio-pin${grouped ? " clustered" : ""}${active ? " selected" : ""}${audible ? " playing" : ""}`} role="button" tabIndex={marker.x >= view.x - size.width / view.zoom / 2 && marker.x <= view.x + size.width / view.zoom / 2 && marker.y >= view.y - size.height / view.zoom / 2 && marker.y <= view.y + size.height / view.zoom / 2 ? 0 : -1}
             onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); event.currentTarget.dispatchEvent(new MouseEvent("click", { bubbles: true })); } }}
-            aria-label={grouped ? `Explore ${marker.stations.length} nearby stations` : `${current?.id === station.id && playing ? "Pause" : "Play"} ${station.name}, ${station.radio.country}`} transform={`translate(${marker.x} ${marker.y})`}
+            aria-label={grouped ? t("radio.map.explore", { n: marker.stations.length }) : t(current?.id === station.id && playing ? "radio.aria.pause" : "radio.aria.play", { name: t("radio.withCountry", { name: station.name, country: station.radio.country }) })} transform={`translate(${marker.x} ${marker.y})`}
             onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()} onClick={() => {
               if (!grouped) { setCluster(null); onPick(station); return; }
               setCluster(marker.stations); setRegion(""); moveCamera({ x: marker.x, y: marker.y, zoom: Math.min(MAX_RADIO_ZOOM, camera.current.zoom * 2) }, true);
@@ -136,10 +138,10 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
           </g>;
         })}</g>
       </svg>
-      <div className="radio-map-tools" role="group" aria-label="Map zoom"><button className="btn radio-map-button" type="button" aria-label="Zoom map in" onClick={() => changeZoom(1.5)} disabled={view.zoom >= MAX_RADIO_ZOOM}>+</button><button className="btn radio-map-button" type="button" aria-label="Zoom map out" onClick={() => changeZoom(1 / 1.5)} disabled={view.zoom <= 1}>−</button></div>
-      {cluster && <div className="radio-cluster-preview"><header><strong>{cluster.length} nearby stations</strong><button type="button" className="icon-btn" aria-label="Close nearby stations" onClick={() => { setCluster(null); svg.current?.focus(); }}><RadioIcon name="close" /></button></header><div>{cluster.map(station => <button className="radio-cluster-station" key={station.id} type="button" onClick={() => { setCluster(null); svg.current?.focus({ preventScroll: true }); onPick(station); }}>{station.name}<span>{station.radio.country}</span></button>)}</div></div>}
+      <div className="radio-map-tools" role="group" aria-label={t("radio.map.zoom")}><button className="btn radio-map-button" type="button" aria-label={t("radio.map.zoomIn")} onClick={() => changeZoom(1.5)} disabled={view.zoom >= MAX_RADIO_ZOOM}>+</button><button className="btn radio-map-button" type="button" aria-label={t("radio.map.zoomOut")} onClick={() => changeZoom(1 / 1.5)} disabled={view.zoom <= 1}>−</button></div>
+      {cluster && <div className="radio-cluster-preview"><header><strong>{t("radio.map.nearby", { n: cluster.length })}</strong><button type="button" className="icon-btn" aria-label={t("radio.map.nearby.close")} onClick={() => { setCluster(null); svg.current?.focus(); }}><RadioIcon name="close" /></button></header><div>{cluster.map(station => <button className="radio-cluster-station" key={station.id} type="button" onClick={() => { setCluster(null); svg.current?.focus({ preventScroll: true }); onPick(station); }}>{station.name}<span>{station.radio.country}</span></button>)}</div></div>}
     </div>
-    <p id="radio-map-help" className="radio-map-help">Map view doesn’t filter stations. Drag or zoom to explore. <span className="vis-hidden">With the map focused, arrow keys pan, plus and minus zoom, and Home resets the view. Use the station list as a keyboard alternative.</span></p>
+    <p id="radio-map-help" className="radio-map-help">{t("radio.map.help")} <span className="vis-hidden">{t("radio.map.helpKeys")}</span></p>
   </section>;
 });
 export default RadioMap;
