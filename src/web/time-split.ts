@@ -1,5 +1,6 @@
 // "Where the time went", read off a report's split: what each lane is called, what
 // its share reads as, and what each lane opens into when it is pressed.
+import { t } from './i18n';
 import { operationDescription, operationName } from './operation-glossary';
 import { percent } from './tool-audit-report';
 import { auditDuration, type TimePart, type TimeSplit } from './tool-audit';
@@ -10,18 +11,14 @@ export interface LaneShare { id: Lane; label: string; ms: number; share: string;
 /** The calls' start-up, as the report names it: no command, so never in the table. */
 export const STARTING = '(starting tools)';
 
-const lanes: Record<Lane, { label: string; hint: string }> = {
-  claude: { label: 'Claude', hint: 'Nothing was running: the model thinking and writing, the network to it, and Claude Code itself.' },
-  machine: { label: 'This machine', hint: 'Tools and commands running here, and the hooks that start them. Calls that ran at the same time count once.' },
-  you: { label: 'You', hint: 'Claude waiting for your approval or your answer.' },
-};
+const lanes = (lane: Lane) => ({ label: t(`insights.split.lane.${lane}`), hint: t(`insights.split.hint.${lane}`) });
 
 /** The lanes that held any time, in the bar's fixed order. "You" is left out when it
  *  is zero rather than drawn as a sliver nobody can press. */
 export function laneShares(split: TimeSplit): LaneShare[] {
   const ms: Record<Lane, number> = { claude: split.claudeMs, machine: split.machineMs, you: split.youMs };
   return (['claude', 'machine', 'you'] as Lane[]).filter(id => ms[id] > 0 || id !== 'you')
-    .map(id => ({ id, ...lanes[id], ms: ms[id], share: split.totalMs ? percent(ms[id], split.totalMs) : '0%' }));
+    .map(id => ({ id, ...lanes(id), ms: ms[id], share: split.totalMs ? percent(ms[id], split.totalMs) : '0%' }));
 }
 
 /** A long time as the ring's centre and the legend say it: whole hours from an hour up. */
@@ -47,14 +44,14 @@ export const donutArcs = (parts: LaneShare[], gap = 0.8) => ringArcs(parts.map(p
 
 /** What a lane mostly was, in the words of one line under it in the legend. */
 export function laneFact(split: TimeSplit, lane: Lane) {
-  if (lane === 'claude') return split.replies.count ? `Usually answers in ${auditDuration(split.replies.medianMs)}` : 'Thinking and writing';
+  if (lane === 'claude') return split.replies.count ? t('insights.split.fact.answers', { time: auditDuration(split.replies.medianMs) }) : t('insights.split.fact.thinking');
   const top = (lane === 'machine' ? split.machine : split.you)[0];
-  if (!top) return lane === 'machine' ? 'Tools and the hooks that start them' : 'Approvals and answers';
+  if (!top) return t(lane === 'machine' ? 'insights.split.fact.tools' : 'insights.split.fact.approvals');
   const { operation } = top;
-  if (operation === STARTING) return 'Mostly starting tools';
-  if (lane === 'you') return operation === 'AskUserQuestion' ? 'Mostly answering questions'
-    : operation === 'ExitPlanMode' ? 'Mostly approving plans' : `Mostly approving ${operationName(operation)}`;
-  return `Mostly ${operationName(operation)}`;
+  if (operation === STARTING) return t('insights.split.fact.starting');
+  if (lane === 'you') return operation === 'AskUserQuestion' ? t('insights.split.fact.questions')
+    : operation === 'ExitPlanMode' ? t('insights.split.fact.plans') : t('insights.split.fact.approving', { name: operationName(operation) });
+  return t('insights.split.fact.mostly', { name: operationName(operation) });
 }
 
 export interface PartRow extends TimePart { label: string; detail: string | null; share: string; inTable: boolean; more?: boolean }
@@ -68,17 +65,17 @@ export function laneParts(split: TimeSplit, lane: 'machine' | 'you', n = 6): Par
   const shown = parts.length > n + 1 ? parts.slice(0, n) : parts;
   const rest = total - shown.reduce((sum, part) => sum + part.ms, 0);
   const rows: PartRow[] = shown.map(part => ({ ...part, share: share(part.ms), ...partName(part.operation, lane) }));
-  if (shown.length < parts.length) rows.push({ operation: '', ms: rest, share: share(rest), label: `${parts.length - shown.length} more`, detail: null, inTable: false, more: true });
+  if (shown.length < parts.length) rows.push({ operation: '', ms: rest, share: share(rest), label: t('insights.split.more', { n: parts.length - shown.length }), detail: null, inTable: false, more: true });
   // Rounding leaves a few milliseconds; a real remainder is at least a second.
-  else if (rest >= 1000) rows.push({ operation: '', ms: rest, share: share(rest), label: 'Everything else', detail: null, inTable: false });
+  else if (rest >= 1000) rows.push({ operation: '', ms: rest, share: share(rest), label: t('insights.split.else'), detail: null, inTable: false });
   return rows;
 }
 
 function partName(operation: string, lane: 'machine' | 'you') {
-  if (operation === STARTING) return { label: 'Starting tools', detail: 'The hooks that run before each call, ccdeck’s among them', inTable: false };
-  if (lane === 'you' && operation === 'AskUserQuestion') return { label: 'Answering Claude’s questions', detail: null, inTable: true };
-  if (lane === 'you' && operation === 'ExitPlanMode') return { label: 'Approving a plan', detail: null, inTable: true };
-  return { label: operationName(operation), detail: lane === 'you' ? 'Waiting for your approval' : operationDescription(operation), inTable: true };
+  if (operation === STARTING) return { label: t('insights.split.part.starting'), detail: t('insights.split.part.startingDetail'), inTable: false };
+  if (lane === 'you' && operation === 'AskUserQuestion') return { label: t('insights.split.part.questions'), detail: null, inTable: true };
+  if (lane === 'you' && operation === 'ExitPlanMode') return { label: t('insights.split.part.plan'), detail: null, inTable: true };
+  return { label: operationName(operation), detail: lane === 'you' ? t('insights.split.part.waiting') : operationDescription(operation), inTable: true };
 }
 
 /** Days Claude answered clearly slower than it usually does in the period: half as
@@ -89,13 +86,12 @@ export function slowDays(split: TimeSplit) {
   return split.replies.days.filter(day => day.count >= 5 && day.medianMs !== null && day.medianMs >= usual * 1.5);
 }
 
-const stopNames: Record<string, string> = {
-  overloaded: 'Claude overloaded', rate_limit: 'usage limit', server_error: 'server error', authentication_failed: 'signed out',
-};
+const stopNames = new Set(['overloaded', 'rate_limit', 'server_error', 'authentication_failed']);
+const stopName = (kind: string) => stopNames.has(kind) ? t(`insights.split.stop.${kind}`) : kind.replace(/_/g, ' ');
 /** "2 turns ended on an error: Claude overloaded 1, server error 1", or null. */
 export function stopsLine(stops: Record<string, number>) {
   const entries = Object.entries(stops).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
   const total = entries.reduce((sum, [, n]) => sum + n, 0);
   if (!total) return null;
-  return `${total.toLocaleString()} ${total === 1 ? 'turn' : 'turns'} ended on an error: ${entries.map(([kind, n]) => `${stopNames[kind] ?? kind.replace(/_/g, ' ')} ${n.toLocaleString()}`).join(', ')}.`;
+  return t('insights.split.stops', { count: total, n: total.toLocaleString(), list: entries.map(([kind, n]) => `${stopName(kind)} ${n.toLocaleString()}`).join(t('insights.split.listSep')) });
 }
