@@ -11,18 +11,36 @@
 import { arrivalCheck, KEYCHAIN } from "./admin-failure";
 import type { LanStranger, Peer } from "./lan-types";
 import { ownRow } from "./own-row";
+import { t } from "./i18n";
 
 /** How long ago, in the panel's own vocabulary. Seconds are not printed: a
  *  beacon lands every thirty of them, so "12s ago" would be a number that
  *  changes while you read it and means nothing different from "now". */
 export function seenLabel(lastSeen: number | undefined, now: number): string {
-  if (lastSeen == null) return "not seen";
+  if (lastSeen == null) return t("lan.seen.never");
   const s = Math.max(0, Math.round((now - lastSeen) / 1000));
-  if (s < 90) return "now";
+  if (s < 90) return t("lan.seen.now");
   const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return t("lan.ago.m", { m });
   const h = Math.round(m / 60);
-  return h < 48 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
+  return h < 48 ? t("lan.ago.h", { h }) : t("lan.ago.d", { d: Math.round(h / 24) });
+}
+
+/** Whether seenLabel said "now" (in whichever language it was said). */
+export function isSeenNow(label: string): boolean {
+  return label === t("lan.seen.now");
+}
+
+/** A round line that ends " · now" reads " · just now" instead. */
+export function justNowTail(text: string): string {
+  const tail = ` · ${t("lan.seen.now")}`;
+  return text.endsWith(tail) ? `${text.slice(0, -tail.length)} · ${t("lan.seen.justNow")}` : text;
+}
+
+/** seenLabel, with "now" read as "just now" where it stands alone. */
+export function seenOrJustNow(lastSeen: number | undefined, now: number): string {
+  const label = seenLabel(lastSeen, now);
+  return isSeenNow(label) ? t("lan.seen.justNow") : label;
 }
 
 /** What the last round with one peer did: the sentence, and which of the three
@@ -46,17 +64,15 @@ const ROUND_WHY: Record<string, { short: string; long: string }> = {
   // From the sending deck, on the wire. Nothing to do here: once that Mac
   // opens its Keychain the next round asks again and brings it.
   keychain_unavailable: {
-    short: "Keychain locked on the other Mac",
-    long: `the other Mac could not export it. On that Mac: ${KEYCHAIN}. The next round brings it.`,
+    short: "lan.round.keychain.short",
+    long: "lan.round.keychain.long",
   },
   // Also from the sending deck (#2192): it is on that login and keeps it, so
   // one login is live in one place. Once it switches away, the next round
   // brings it; signing in here instead gives this machine a login of its own.
   "in use": {
-    short: "in use on the other deck",
-    long: "the other deck is using this login right now and does not send it: two machines on one login race to "
-      + "renew it, and the loser is signed out. It comes on the first round after that deck switches away — or "
-      + "sign in to it here, which gives this machine a login of its own.",
+    short: "lan.round.inUse.short",
+    long: "lan.round.inUse.long",
   },
 };
 
@@ -65,7 +81,8 @@ const ROUND_WHY: Record<string, { short: string; long: string }> = {
  *  see arrivalCheck. */
 export function roundWhy(d: DoneRow): { short: string; long: string } | null {
   if (!d.why) return null;
-  return ownRow(ROUND_WHY, d.why) ?? arrivalCheck(d.why);
+  const mine = ownRow(ROUND_WHY, d.why);
+  return mine ? { short: t(mine.short), long: t(mine.long, { keychain: KEYCHAIN }) } : arrivalCheck(d.why);
 }
 
 /**
@@ -85,12 +102,12 @@ export function roundWhy(d: DoneRow): { short: string; long: string } | null {
  * reached, whatever the answer was — see isOnline.
  */
 export const WIRE_ANSWERS: Record<string, RoundLine> = {
-  "waiting for the other deck to accept this one": { text: "waiting for them to say yes", tone: "idle" },
-  "that deck said no": { text: "it said no", tone: "bad" },
+  "waiting for the other deck to accept this one": { get text() { return t("lan.round.wire.waiting"); }, tone: "idle" },
+  "that deck said no": { get text() { return t("lan.round.wire.no"); }, tone: "bad" },
   // Invite-only, from both ends. Neither is a fault, so neither is red: the
   // other deck chose it, or this one did, and an invite is the way through.
-  "that deck pairs only by invite": { text: "it pairs only by invite", tone: "idle" },
-  "this deck pairs only by invite": { text: "needs an invite · your setting", tone: "idle" },
+  "that deck pairs only by invite": { get text() { return t("lan.round.wire.theirInvite"); }, tone: "idle" },
+  "this deck pairs only by invite": { get text() { return t("lan.round.wire.myInvite"); }, tone: "idle" },
 };
 
 /**
@@ -104,15 +121,15 @@ export const WIRE_ANSWERS: Record<string, RoundLine> = {
  * carries the sentence whole, and the row says what happened.
  */
 const FAULT_CODES: Record<string, string> = {
-  ECONNREFUSED: "not listening",
-  EHOSTUNREACH: "no route to it",
-  ENETUNREACH: "no network here",
-  ETIMEDOUT: "no answer",
-  ECONNRESET: "it hung up",
-  EHOSTDOWN: "it is down",
-  ENOTFOUND: "name not found",
-  EACCES: "blocked here",
-  EPIPE: "it hung up",
+  ECONNREFUSED: "lan.fault.ECONNREFUSED",
+  EHOSTUNREACH: "lan.fault.EHOSTUNREACH",
+  ENETUNREACH: "lan.fault.ENETUNREACH",
+  ETIMEDOUT: "lan.fault.ETIMEDOUT",
+  ECONNRESET: "lan.fault.ECONNRESET",
+  EHOSTDOWN: "lan.fault.EHOSTDOWN",
+  ENOTFOUND: "lan.fault.ENOTFOUND",
+  EACCES: "lan.fault.EACCES",
+  EPIPE: "lan.fault.ECONNRESET",
 };
 
 /** What to draw for one failure: the sentence this file knows, the code Node
@@ -120,9 +137,10 @@ const FAULT_CODES: Record<string, string> = {
  *  A message this file has never seen is more useful than a guess. */
 export function faultText(error: string): string {
   const known = WIRE_FAULTS[error];
-  if (known) return known;
+  if (typeof known === "string") return t(known);
   const code = /\b(E[A-Z]{3,})\b/.exec(error)?.[1];
-  return (code && FAULT_CODES[code]) || error;
+  const coded = code ? FAULT_CODES[code] : undefined;
+  return typeof coded === "string" ? t(coded) : error;
 }
 
 /**
@@ -140,17 +158,17 @@ export function faultText(error: string): string {
  * free to add one without this map lying about it.
  */
 const WIRE_FAULTS: Record<string, string> = {
-  "handshake timed out": "no answer",
-  "peer closed the connection": "it hung up",
-  "peer went quiet": "it stopped mid-sentence",
-  "bad reply": "it answered with nonsense",
-  "no manifest": "it would not say what it has",
-  "bad challenge": "it answered as somebody else",
-  "a different deck is answering at that address": "a different deck is at that address",
-  "that deck could not prove its own key": "it could not prove who it is",
-  "the other deck refused this one's proof": "it would not take this deck's word",
-  "the other deck refused this handshake": "it turned this deck away",
-  "that deck has this one pinned under a different key": "it knows this deck by another key",
+  "handshake timed out": "lan.fault.ETIMEDOUT",
+  "peer closed the connection": "lan.fault.ECONNRESET",
+  "peer went quiet": "lan.fault.quiet",
+  "bad reply": "lan.fault.badReply",
+  "no manifest": "lan.fault.noManifest",
+  "bad challenge": "lan.fault.badChallenge",
+  "a different deck is answering at that address": "lan.fault.otherDeck",
+  "that deck could not prove its own key": "lan.fault.noProof",
+  "the other deck refused this one's proof": "lan.fault.refusedProof",
+  "the other deck refused this handshake": "lan.fault.refusedHandshake",
+  "that deck has this one pinned under a different key": "lan.fault.otherKey",
 };
 
 /**
@@ -176,7 +194,11 @@ export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
   if (last.error && last.done?.length) {
     const finished = roundLabel({ ...last, error: undefined }, now)!;
     const at = ` · ${seenLabel(last.at, now)}`;
-    return { ...finished, text: `${finished.text.slice(0, -at.length)}, then ${faultText(last.error)}${at}`, tone: "bad" };
+    return {
+      ...finished,
+      text: t("lan.round.then", { head: finished.text.slice(0, -at.length), fault: faultText(last.error), when: seenLabel(last.at, now) }),
+      tone: "bad",
+    };
   }
   if (last.error) return WIRE_ANSWERS[last.error] ?? { text: faultText(last.error), tone: "bad" };
   const done = last.done ?? [];
@@ -184,9 +206,8 @@ export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
   // reader cannot tell it from "nothing is shared, so there was nothing to
   // send". Two decks whose logins all work is the steady state of this feature
   // and the sentence says so.
-  if (!done.length) return { text: `all logins fine · ${seenLabel(last.at, now)}`, tone: "idle" };
+  if (!done.length) return { text: t("lan.round.allFine", { when: seenLabel(last.at, now) }), tone: "idle" };
   const ok = done.filter(d => d.ok);
-  const verb = ok.length === 1 ? "login" : "logins";
   // THE COUNT STAYS, AND EVERY PROBLEM IS NAMED AFTER IT. A round with one
   // Keychain failure among three arrivals is still three arrivals, and a second
   // failure on the other machine is a second thing to fix; a line that showed
@@ -195,17 +216,17 @@ export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
   // first " · " — see roundWords in lan-roster.ts.
   const said = done.map(d => ({ d, why: roundWhy(d) })).filter(x => x.why);
   const names = [...new Set(said.map(x => x.why!.short))];
-  const what = names.length ? `, ${names.join(", ")}` : "";
+  const what = names.length ? t("lan.round.whyLead", { list: names.join(t("lan.list.sep")) }) : "";
   const hint = said.length ? said.map(x => `${x.d.email}: ${x.why!.long}`).join(" ") : undefined;
   const at = seenLabel(last.at, now);
   return ok.length === done.length
     // "arrived", because a round only ever pulls: roundWith dials, reads the
     // other deck's manifest and imports. Nothing leaves this deck on a round it
     // started, and "took 2 accounts" left which way it went to the reader.
-    ? { text: `${ok.length} ${verb} arrived${what} · ${at}`, tone: said.length ? "warn" : "ok", ...(hint ? { hint } : {}) }
+    ? { text: t("lan.round.arrived", { count: ok.length, why: what, when: at }), tone: said.length ? "warn" : "ok", ...(hint ? { hint } : {}) }
     // Some moved and some did not, which is neither a clean round nor a failure
     // to reach the deck. It reads as the partial thing it is.
-    : { text: `${ok.length} of ${done.length} logins arrived${what} · ${at}`, tone: "bad", ...(hint ? { hint } : {}) };
+    : { text: t("lan.round.partial", { ok: ok.length, total: done.length, why: what, when: at }), tone: "bad", ...(hint ? { hint } : {}) };
 }
 
 /** How recently a beacon has to have arrived for this panel to speak about that
@@ -263,8 +284,8 @@ export function silenceNote(
   // than the first.
   const ports = [...new Set(same.map(h => h.port as number))];
   if (port != null && !ports.includes(port)) {
-    const list = ports.length === 1 ? `port ${ports[0]}` : `ports ${ports.join(" and ")}`;
-    return `A deck at ${at} is announcing itself on ${list}, not on ${port}. This deck already hears it and dials it there, so this typed row has nothing to reach.`;
+    const list = t("lan.silence.portList", { count: ports.length, list: ports.join(t("lan.list.and")) });
+    return t("lan.silence.otherPort", { at, list, port });
   }
-  return `That machine is running the deck — its beacon arrives here every half minute — and what this deck sends back never gets there. That is a firewall on ${at}, not a network fault. Whoever uses it can allow two ports: UDP ${discoveryPort} and TCP ${port ?? ports[0]}.`;
+  return t("lan.silence.firewall", { at, udp: discoveryPort, tcp: port ?? ports[0] });
 }

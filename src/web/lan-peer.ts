@@ -10,9 +10,10 @@
 // than read. The drawing, the presses and the dialog's own state stay in the
 // dialog. None of it touches React.
 import { exchangeLanes, type Lane, versionOrder } from "./lan-exchange";
-import { roundLabel, seenLabel, silenceNote } from "./lan-round";
+import { roundLabel, seenLabel, seenOrJustNow, silenceNote } from "./lan-round";
 import type { DeckRow, RowSource } from "./lan-roster";
 import type { DeckAbout, LanAccount, LanStatus } from "./lan-types";
+import { currentLanguage, t } from "./i18n";
 
 /** Two stamps this far apart came off the same round.
  *
@@ -25,9 +26,8 @@ export const SAME_ROUND_MS = 1_000;
 
 /** A date somebody reads, and how long ago in the panel's own words. */
 export function sinceLabel(at: number, now: number): string {
-  const day = new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  const ago = seenLabel(at, now);
-  return `${day} · ${ago === "now" ? "just now" : ago}`;
+  const day = new Date(at).toLocaleDateString(currentLanguage(), { month: "short", day: "numeric", year: "numeric" });
+  return `${day} · ${seenOrJustNow(at, now)}`;
 }
 
 /** A deck's card as one line: its version, then the system under it. */
@@ -46,12 +46,16 @@ export const THERE_SAID = {
   works: "works there", broken: "broken there", unavailable: "cannot share there", unknown: "not offered by that deck",
   inUse: "in use there",
 } as const;
+/** HERE_SAID / THERE_SAID in the language on show. */
+export const hereSaid = (k: keyof typeof HERE_SAID): string => t(`lan.here.${k}`);
+export const thereSaid = (k: keyof typeof THERE_SAID): string => t(`lan.there.${k}`);
+
 export function laneSaid(l: Lane): string {
-  const ways = l.in && l.out ? "offered both ways" : l.in ? "offered by that deck" : "offered by this deck";
+  const ways = l.in && l.out ? t("lan.lane.both") : l.in ? t("lan.lane.byThem") : t("lan.lane.byUs");
   // The accent and the ring say this to the eye; these words say it aloud —
   // once, when that end already says it is in use there.
-  const used = l.usedThere && l.there !== "inUse" ? ", in use there" : "";
-  return `${HERE_SAID[l.here]}, ${THERE_SAID[l.there]}, ${ways}${used}.`;
+  const used = l.usedThere && l.there !== "inUse" ? t("lan.lane.usedThere") : "";
+  return t("lan.lane.said", { here: hereSaid(l.here), there: thereSaid(l.there), ways, used });
 }
 
 /**
@@ -86,11 +90,11 @@ export function peerView({ row, source, status, accounts, now }: {
   // between paired decks, so an unpaired one has not said by design; a paired
   // one that answered a round and still sent nothing is running a version from
   // before this; and one that only calls in says it the next time it calls.
-  const unsaid = !paired ? "shown once paired"
+  const unsaid = !paired ? t("lan.peer.unsaid.beforePair")
     : peer?.waiting
-      ? (peer.lastSeen != null ? "not said — it runs an older version" : "not said yet — it says when it next calls")
-      : peer?.offers ? "not said — it runs an older version"
-      : "not reached yet";
+      ? (peer.lastSeen != null ? t("lan.peer.unsaid.older") : t("lan.peer.unsaid.nextCall"))
+      : peer?.offers ? t("lan.peer.unsaid.older")
+      : t("lan.peer.unsaid.notReached");
 
   // WHAT EACH END RUNS, under its name, so the two versions are read side by
   // side — which is why the comparison is one word now. `older than this
@@ -136,10 +140,10 @@ export function peerView({ row, source, status, accounts, now }: {
   // network" about a laptop at home is the one thing the row must not say.
   const overTailnet = (peer?.via ?? row.via) === "tailscale";
   const how = peer
-    ? peer.waiting ? null : peer.manual ? (overTailnet ? "added by its Tailscale address" : "added by address")
-      : overTailnet ? "over Tailscale" : "on this network"
-    : row.kind === "nearby" ? (overTailnet ? "heard over Tailscale" : "heard on this network")
-    : overTailnet ? "asked this deck to pair, over Tailscale" : "asked this deck to pair";
+    ? peer.waiting ? null : peer.manual ? t(overTailnet ? "lan.peer.how.addedTs" : "lan.peer.how.added")
+      : t(overTailnet ? "lan.peer.how.ts" : "lan.peer.how.lan")
+    : row.kind === "nearby" ? t(overTailnet ? "lan.peer.how.heardTs" : "lan.peer.how.heard")
+    : t(overTailnet ? "lan.peer.how.askedTs" : "lan.peer.how.asked");
 
   // THE NETWORK, drawn the way the row's mark is coloured: whole and lit while
   // it answers, broken only when the link itself failed, and a
@@ -178,7 +182,7 @@ export function peerView({ row, source, status, accounts, now }: {
   // false; what stays true is the decks somebody here chose, who are handed
   // all of it. Anywhere else, which is most decks, the key reads as it did.
   const withheld = new Set((status.peers ?? []).filter(p => p.paired).flatMap(p => p.notOffered ?? []));
-  const givenTo = lanes.some(l => l.out != null && withheld.has(l.key)) ? "decks you chose" : "every paired deck";
+  const givenTo = lanes.some(l => l.out != null && withheld.has(l.key)) ? t("lan.peer.givenTo.chosen") : t("lan.peer.givenTo.all");
   // What the last round moved, on the lane it moved along. Anything it moved
   // that is not a lane any more is listed under the network instead.
   const told = new Map(done.map(d => [d.email, d]));
@@ -190,11 +194,11 @@ export function peerView({ row, source, status, accounts, now }: {
       ? (peer?.waiting
         // It says with every call now. One that has called and still said
         // nothing runs a version from before it started saying.
-        ? "What that deck offers is not known yet. A deck that calls in says so each time it calls — one on an older version never does."
+        ? t("lan.peer.unknown.waiting")
         : peer?.last?.error
-          ? "What that deck offers is not known — the last attempt to ask it did not get through."
-          : "Nobody has asked that deck what it offers yet. The next round asks it.")
-      : offers.accounts.length === 0 ? "That deck offers nothing. Nobody there has chosen a login to share."
+          ? t("lan.peer.unknown.failed")
+          : t("lan.peer.unknown.notAsked"))
+      : offers.accounts.length === 0 ? t("lan.peer.unknown.nothing")
       : null;
   // WHEN IT LAST TOLD US, and only when that is not already answered under
   // the network. A round sets `offersBy` and `lastRound` microseconds apart,
