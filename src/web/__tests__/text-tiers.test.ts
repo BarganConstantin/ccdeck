@@ -163,11 +163,8 @@ describe("what was migrated to the secondary tier", () => {
       ".uh-cost-note",
       ".ap-issue-hint",
       ".ap-lan-intro-text",
-      // The shared text field's placeholder, in dark only: an example, not a
-      // sentence, and --text-dim on white. The field's --ctl-fill is mixed from
-      // the foreground, and --muted and --text-dim on it are 4.05:1 in dark
-      // (#1789).
-      ".ap-manage-input::placeholder",
+      // (V4's field: the shared text field's placeholder left this tier for
+      // --muted, which is 4.91:1+ on its --bg-soft fill.)
       // The Projects report's Copy and Show buttons: a control's words, kept
       // here by their bed rather than their role, as the door's line below
       // is. The --sm-fill that raises them takes --muted to 4.25:1 in dark
@@ -234,9 +231,8 @@ describe("what was migrated to the secondary tier", () => {
       // The integrations' shared failure note (#2178, #2179): the sentence
       // under a failed read's heading, what to do about it, and the
       // provider's own words below it, which then step down to --muted. And
-      // the shared search field's placeholder, by its bed: the field's
-      // --ctl-fill takes --muted to 4.05:1 in dark, as the forge field's did.
-      ".ig-failure-body, .ig-failure-said", ".ig-search-input::placeholder",
+      // (V4's field: the shared search field's placeholder left for --muted.)
+      ".ig-failure-body, .ig-failure-said",
       // The Jira panel's sentences: a note over the board (no active sprint,
       // the first 600 shown), a sprint's goal, the empty board's explanation,
       // and a quote inside an issue. Why a read failed is the integrations'

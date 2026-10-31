@@ -1694,7 +1694,10 @@ describe("the placeholder in the deck's shared text field (#1789)", () => {
   const bed = (theme: Theme) => bedOf(FIELD, theme, parseColor(TOK[theme]["--panel"]));
 
   it("reproduces the ratios #1789 measured for the browser's grey on the field", () => {
-    expect(contrastRatio(parseColor(CHROMIUM), bed("dark"))).toBeCloseTo(3.38, 2);
+    // V4's field moved the live fill to --bg-soft, so the dark figure is held
+    // to the field that shipped when #1789 measured: --ctl-fill over --panel.
+    const shippedDarkField = over(resolve("var(--ctl-fill)", "dark"), parseColor(TOK.dark["--panel"]));
+    expect(contrastRatio(parseColor(CHROMIUM), shippedDarkField)).toBeCloseTo(3.38, 2);
     // V4 raised the live light --ctl-fill from 7% to 8% of --text on 2026-10-31,
     // so the light figure is held to the field that shipped when #1789
     // measured: --text at 7% over the white --panel.
