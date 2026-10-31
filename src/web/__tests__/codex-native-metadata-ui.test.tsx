@@ -18,7 +18,9 @@ it('distinguishes unavailable native inspection from signed out and marks limite
   expect(textOf(view.tree)).toContain('Not signed in to Codex');
   expect(textOf(view.tree)).not.toContain('Login file found');
   const row = one(view.tree, el => el.type === 'li' && textOf(el).includes('Work'))!;
-  const button = one(row, el => el.type === 'button' && textOf(el) === 'Check quota')!;
+  // Check quota lives in the row's ⋯ menu.
+  (one(row, el => el.type === 'button' && String(el.props['aria-label']).startsWith('More actions for'))!.props.onClick as () => void)();
+  const button = one(view.tree, el => el.type === 'button' && textOf(el) === 'Check quota')!;
   (button.props.onClick as () => void)(); await flush();
   expect(textOf(view.tree)).toContain('Ordinary Codex limits only');
 });

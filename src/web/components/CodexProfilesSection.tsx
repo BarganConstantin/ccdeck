@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { copyText } from "../copy-text";
+import AnchoredPopover from "./AnchoredPopover";
 
 interface CodexProfile {
   id: string;
@@ -55,6 +56,10 @@ export default function CodexProfilesSection() {
   const [message, setMessage] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [clock, setClock] = useState(Date.now);
+  /** Which ⋯ menu is open: a profile's id, or "section" for the title's own. */
+  const [menu, setMenu] = useState<string | null>(null);
+  /** The label field and Add are not drawn until the + asks for them. */
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setClock(Date.now()), 30_000);
@@ -161,9 +166,35 @@ export default function CodexProfilesSection() {
     return () => { controller.abort(); profileRequest.current++; clearInterval(timer); };
   }, []);
 
+  const status = (profile: CodexProfile) => profile.available === false ? "Profile unavailable"
+    : profile.metadataUnavailable ? `Login inspection unavailable: ${profile.metadataReason?.replaceAll('_', ' ') ?? 'unknown'}`
+    : profile.signedIn ? "Codex login found"
+    : profile.authSource === 'native' ? "Not signed in to Codex"
+    : profile.signedInFilePresent ? "Login file found" : "No login file";
+  const signInWord = (profile: CodexProfile) => profile.metadataUnavailable ? "Open sign-in command"
+    : (profile.authSource === 'native' ? profile.signedIn : profile.signedInFilePresent) ? "Sign in again" : "Sign in";
+  const menuProfile = profiles?.find(profile => profile.id === menu) ?? null;
+  const pick = (run: () => void) => () => { setMenu(null); run(); };
+  const moreGlyph = (
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
+      <circle cx="2.8" cy="7" r="1.15" /><circle cx="7" cy="7" r="1.15" /><circle cx="11.2" cy="7" r="1.15" />
+    </svg>
+  );
+
   return (
     <section className="ap-codex" aria-label="Codex profiles">
-      <div className="ap-codex-title">Codex profiles</div>
+      <div className="ap-codex-head">
+        <div className="ap-codex-title">Codex profiles</div>
+        <button type="button" className="ap-more" aria-label="Add a Codex account" title="Add a Codex account"
+          aria-expanded={adding} onClick={() => setAdding(open => !open)}>
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+            <path d="M7 2.5v9M2.5 7h9" />
+          </svg>
+        </button>
+        <button type="button" id="ap-codex-more-section" className="ap-more" aria-label="More Codex actions" title="More actions"
+          aria-haspopup="menu" aria-expanded={menu === "section"} aria-controls={menu === "section" ? "ap-codex-menu" : undefined}
+          onClick={() => setMenu(open => open === "section" ? null : "section")}>{moreGlyph}</button>
+      </div>
       {error && profiles === null ? <p role="alert" className="ap-codex-hint">Could not load Codex profiles.</p> :
         profiles === null ? <p className="ap-codex-hint">Checking profiles…</p> :
         <>
@@ -171,12 +202,19 @@ export default function CodexProfilesSection() {
           <ul className="ap-codex-list">
             {profiles.map((profile) => (
               <li key={profile.id} className="ap-codex-row">
-                <span>{profile.label}{profile.active ? " · Default for new sessions" : ""}</span>
-                <span className="ap-codex-hint">{profile.available === false ? "Profile unavailable" : profile.metadataUnavailable ? `Login inspection unavailable: ${profile.metadataReason?.replaceAll('_', ' ') ?? 'unknown'}` : profile.signedIn ? "Codex login found" : profile.authSource === 'native' ? "Not signed in to Codex" : profile.signedInFilePresent ? "Login file found" : "No login file"}</span>
-                <button className="ap-codex-check" type="button" aria-pressed={profile.active} aria-busy={action === profile.id} onClick={() => { if (!profile.active) void mutate('select', profile.id); }}>{profile.active ? "Default account" : "Use account"}</button>
-                {profile.available !== false && <button className="ap-codex-check" type="button" onClick={() => void checkQuota(profile.id)} aria-busy={Object.hasOwn(quotas, profile.id) && quotas[profile.id] === null}>Check quota</button>}
-                <button className="ap-codex-check" type="button" onClick={() => void copyLaunch(profile.id)}>Copy launch command</button>
-                <button className="ap-codex-check" type="button" onClick={() => void copyCommand('login', profile.id)}>{profile.metadataUnavailable ? "Open sign-in command" : (profile.authSource === 'native' ? profile.signedIn : profile.signedInFilePresent) ? "Sign in again" : "Sign in"}</button>
+                <div className="ap-codex-line">
+                  <span className="ap-codex-name">{profile.label}</span>
+                  {profile.active
+                    ? <span className="ap-codex-default" title="New sessions start on this account">Default</span>
+                    : <button className="ap-switch" type="button" aria-busy={action === profile.id}
+                        aria-label={`Use ${profile.label} for new sessions`} title="Use for new sessions"
+                        onClick={() => void mutate('select', profile.id)}>Use</button>}
+                  <button type="button" id={`ap-codex-more-${profile.id}`} className="ap-more"
+                    aria-label={`More actions for ${profile.label}`} title="More actions"
+                    aria-haspopup="menu" aria-expanded={menu === profile.id} aria-controls={menu === profile.id ? "ap-codex-menu" : undefined}
+                    onClick={() => setMenu(open => open === profile.id ? null : profile.id)}>{moreGlyph}</button>
+                </div>
+                <span className="ap-codex-hint">{status(profile)}</span>
                 {launch[profile.id] && <span className="ap-codex-hint" role="status">{launch[profile.id]}</span>}
                 {Object.hasOwn(quotas, profile.id) && (quotas[profile.id] === null
                   ? <span className="ap-codex-hint" role="status">Checking quota…</span>
@@ -187,16 +225,42 @@ export default function CodexProfilesSection() {
               </li>
             ))}
           </ul>
-          <form onSubmit={event => { event.preventDefault(); void mutate('add'); }}>
-            <label className="ap-codex-hint">New account label <input required className="ap-codex-label" aria-label="New Codex account label" value={newLabel} maxLength={80} onChange={event => setNewLabel(event.target.value)} /></label>
-            <button className="ap-codex-check" type="submit" aria-busy={action === 'add'}>Add Codex account</button>
-          </form>
+          {adding && (
+            <form className="ap-codex-add" onSubmit={event => { event.preventDefault(); void mutate('add'); }}>
+              <input required autoFocus className="ap-codex-label" aria-label="New Codex account label" placeholder="Account label"
+                value={newLabel} maxLength={80} onChange={event => setNewLabel(event.target.value)} />
+              <button className="ap-switch" type="submit" aria-busy={action === 'add'}>Add</button>
+            </form>
+          )}
           {message && <p className="ap-codex-hint" role="status">{message}</p>}
-          <button className="ap-codex-check" type="button" onClick={() => void copyCommand('terminal')}>Enable terminal selection</button>
-          <button className="ap-codex-check" type="button" onClick={() => void copyCommand('terminal', undefined, true)}>Remove terminal selection</button>
           {launch.terminal && <p className="ap-codex-hint" role="status">{launch.terminal}</p>}
-          <p className="ap-codex-hint">The default applies to new sessions. Existing sessions keep their account until restarted. Terminal selection needs a one-time setup; an explicit CODEX_HOME takes priority. Codex manages sign-in and renewal. A login file does not guarantee an active session.</p>
+          <p className="ap-codex-hint" title="Terminal selection needs a one-time setup; an explicit CODEX_HOME takes priority. Codex manages sign-in and renewal. A login file does not guarantee an active session.">
+            New sessions use the default. Running ones keep their account.
+          </p>
         </>}
+      {menu === "section" && (
+        <AnchoredPopover anchorId="ap-codex-more-section" id="ap-codex-menu" className="ap-pop" role="menu"
+          labelledBy="ap-codex-more-section" onClose={() => setMenu(null)}>
+          <button type="button" role="menuitem" className="ap-menu-item"
+            title="Copies a one-time setup so the plain codex command follows the default"
+            onClick={pick(() => void copyCommand('terminal'))}>Enable terminal selection</button>
+          <button type="button" role="menuitem" className="ap-menu-item"
+            onClick={pick(() => void copyCommand('terminal', undefined, true))}>Remove terminal selection</button>
+        </AnchoredPopover>
+      )}
+      {menuProfile && (
+        <AnchoredPopover anchorId={`ap-codex-more-${menuProfile.id}`} id="ap-codex-menu" className="ap-pop" role="menu"
+          labelledBy={`ap-codex-more-${menuProfile.id}`} onClose={() => setMenu(null)}>
+          {menuProfile.available !== false && (
+            <button type="button" role="menuitem" className="ap-menu-item"
+              onClick={pick(() => void checkQuota(menuProfile.id))}>Check quota</button>
+          )}
+          <button type="button" role="menuitem" className="ap-menu-item"
+            onClick={pick(() => void copyLaunch(menuProfile.id))}>Copy launch command</button>
+          <button type="button" role="menuitem" className="ap-menu-item"
+            onClick={pick(() => void copyCommand('login', menuProfile.id))}>{signInWord(menuProfile)}</button>
+        </AnchoredPopover>
+      )}
     </section>
   );
 }

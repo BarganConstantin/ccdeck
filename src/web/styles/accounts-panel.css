@@ -58,7 +58,14 @@
 }
 .ap-scroll > * { flex: none; }
 .ap-codex { padding: 14px var(--panel-inset); border-top: 1px solid var(--line-soft); }
-.ap-codex-title { font-weight: 600; font-size: 12px; margin-bottom: 9px; }
+.ap-codex-head { display: flex; align-items: center; margin-bottom: 4px; }
+.ap-codex-head .ap-more:first-of-type { margin-left: auto; }
+.ap-codex-title { font-weight: 600; font-size: 12px; }
+.ap-codex-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ap-codex-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-codex-default { flex: none; color: var(--muted); font-size: 11px; }
+.ap-codex-add { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.ap-codex-add .ap-codex-label { margin: 0; flex: 1; }
 .ap-codex-list { margin: 0; padding: 0; list-style: none; }
 .ap-codex-row { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-top: 1px solid var(--line-soft); font-size: 12px; }
 .ap-codex-hint { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 4px 0 0; }

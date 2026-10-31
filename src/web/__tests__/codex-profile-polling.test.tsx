@@ -47,17 +47,17 @@ describe('Codex roster polling', () => {
     const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
     await flush();
     await vi.advanceTimersByTimeAsync(15_000);
-    (one(view.tree, el => el.type === 'button' && textOf(el) === 'Use account')!.props.onClick as () => void)();
+    (one(view.tree, el => el.type === 'button' && textOf(el) === 'Use')!.props.onClick as () => void)();
     await flush();
     expect(reads).toBe(3);
-    expect(textOf(one(view.tree, el => el.type === 'li' && textOf(el).includes('Work')))).toContain('Default account');
+    expect(textOf(one(view.tree, el => el.type === 'li' && textOf(el).includes('Work')))).toContain('Default');
     await vi.advanceTimersByTimeAsync(30_000);
     expect(reads).toBe(3); // the older poll is still pending
     if (outcome === 'success') oldPoll.resolve(roster('a'));
     else oldPoll.reject(new Error('old roster failed'));
     await flush();
     expect(textOf(view.tree)).not.toContain('Could not refresh');
-    expect(textOf(one(view.tree, el => el.type === 'li' && textOf(el).includes('Work')))).toContain('Default account');
+    expect(textOf(one(view.tree, el => el.type === 'li' && textOf(el).includes('Work')))).toContain('Default');
     await vi.advanceTimersByTimeAsync(15_000);
     expect(reads).toBe(4);
   });
@@ -75,7 +75,7 @@ describe('Codex roster polling', () => {
     }));
     const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
     await flush();
-    (one(view.tree, el => el.type === 'button' && textOf(el) === 'Use account')!.props.onClick as () => void)();
+    (one(view.tree, el => el.type === 'button' && textOf(el) === 'Use')!.props.onClick as () => void)();
     await flush();
     expect(reads).toBe(2);
     expect(signal?.aborted).toBe(false);

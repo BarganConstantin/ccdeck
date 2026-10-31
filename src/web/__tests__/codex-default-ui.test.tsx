@@ -6,7 +6,7 @@ let cleanup: (() => void) | undefined;
 afterEach(() => { cleanup?.(); vi.unstubAllGlobals(); });
 
 describe('Codex default selection controls', () => {
-  it('keeps the selected control focusable and guards duplicate activation', async () => {
+  it('guards duplicate activation and marks the selected row Default', async () => {
     let switched = false, writes = 0;
     let answer!: () => void;
     const pending = new Promise<void>(resolve => { answer = resolve; });
@@ -22,15 +22,15 @@ describe('Codex default selection controls', () => {
     }));
     const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
     await flush();
-    const button = one(view.tree, el => el.type === 'button' && textOf(el) === 'Use account')!;
+    const button = one(view.tree, el => el.type === 'button' && textOf(el) === 'Use')!;
     (button.props.onClick as () => void)(); (button.props.onClick as () => void)();
     expect(writes).toBe(1);
     expect(button.props.disabled).not.toBe(true);
     answer(); await flush();
     const selected = one(view.tree, el => el.type === 'li' && textOf(el).includes('Work'))!;
-    const control = one(selected, el => el.type === 'button' && textOf(el) === 'Default account')!;
-    expect(control.props.disabled).not.toBe(true);
-    expect(control.props['aria-pressed']).toBe(true);
+    // The selected row says Default and offers no second Use to press.
+    expect(one(selected, el => el.type === 'span' && textOf(el) === 'Default')).toBeTruthy();
+    expect(one(selected, el => el.type === 'button' && textOf(el) === 'Use')).toBeFalsy();
     expect(textOf(view.tree)).toContain('Default saved');
   });
 });
