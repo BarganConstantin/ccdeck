@@ -43,7 +43,8 @@ describe("the usage-history dialog's shadow (#876)", () => {
     // By composition since #874: the dialog wears the shared shell, and its own
     // rule declares no second shadow.
     expect(history).toMatch(/className="modal uh-modal"/);
-    expect(decl(".modal", "box-shadow")).toMatch(/^var\(--shadow-2\)/);
+    // V4's dialog frame: --shadow-overlay (a token each theme tunes), was --shadow-2.
+    expect(decl(".modal", "box-shadow")).toBe("var(--shadow-overlay)");
     expect(decl(".modal.uh-modal", "box-shadow")).toBeNull();
   });
 });
@@ -92,7 +93,7 @@ describe("no floating surface keeps a black shadow on white", () => {
     // draws the same line, stands in its place since it left (2026-10-07).
     for (const sel of [".anchored-popover", ".modal"]) {
       const base = decl(sel, "box-shadow")!;
-      const themed = /var\(--shadow-\d\)/.test(base) && !BLACK.test(base);
+      const themed = /var\(--shadow-(?:\d|overlay)\)/.test(base) && !BLACK.test(base); // V4's dialog frame: --shadow-overlay is a theme token too
       expect(themed || decl(`${LIGHT}${sel}`, "box-shadow") !== null, `${sel}: ${base}`).toBe(true);
     }
   });

@@ -63,7 +63,7 @@ describe("the modal's exit", () => {
   });
 
   it("keeps the deck's own modal primitives as they were", () => {
-    expect(rule(css, ".modal")).toMatch(/animation:\s*popIn 180ms/);
+    expect(rule(css, ".modal")).toMatch(/animation:\s*popIn var\(--dur-base\)/); // V4's dialog motion: Base (was 180ms)
     expect(host).not.toMatch(/(^|\})\s*\.modal\s*\{/);
     expect(host).not.toMatch(/(^|\})\s*\.modal-backdrop\s*\{/);
   });

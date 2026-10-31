@@ -23,7 +23,7 @@ import { SearchGlyph } from "./rail-glyphs";
 
 /** The exit's length, and the fallback that unmounts the field if no
  *  animationend comes (a browser with animations switched off). */
-const EXIT_MS = 120;
+const EXIT_MS = 150; // = --dur-exit
 /** Rows a Page key moves. */
 const PAGE = 5;
 
@@ -56,12 +56,18 @@ export default function QuickOpen({ items, onClose, onRun }: {
   const closed = useRef(false);
   const pointer = useRef<{ x: number; y: number } | null>(null);
 
-  const leave = useCallback(() => setClosing(true), []);
   const finish = useCallback(() => {
     if (closed.current) return;
     closed.current = true;
     onClose();
   }, [onClose]);
+  // Closed with a key (Esc, the chord) there is no exit animation to wait for:
+  // data-motion="instant" (input-modality.ts) turns it off, so no animationend
+  // would ever come.
+  const leave = useCallback(() => {
+    if (document.documentElement.dataset.motion === "instant") finish();
+    else setClosing(true);
+  }, [finish]);
   const dialogRef = useModalDismiss(leave, { focusRef: inputRef });
   const scrimPress = useScrimDismiss(leave);
 

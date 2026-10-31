@@ -74,15 +74,15 @@ const readInTsx = new Set([...withoutComments(tsx).matchAll(/var\(\s*(--[\w-]+)/
  *  are not here: the curves and the left column read them already. */
 const V4_AHEAD_OF_READERS = [
   "--accent-16", "--err-12", "--muted-30", "--secondary-30", "--warn-35", "--inflight-30",
-  "--dock", "--scrim", "--selected", "--sunken", "--your-message",
+  "--dock", "--selected", "--sunken", "--your-message",
   "--statusbar-h", "--rail-w", "--inspector-w", "--pane-head-h",
   "--row-rail", "--row-group", "--row-tool", "--row-table", "--row-option", "--row-settings",
-  "--ctl-h-lg", "--ctl-h-sm", "--dialog-foot-h", "--r-overlay", "--r-pill",
-  "--fs-hero", "--lh-hero", "--fs-title", "--lh-title", "--fs-card-title", "--lh-card-title",
+  "--ctl-h-lg", "--ctl-h-sm", "--r-pill",
+  "--fs-hero", "--lh-hero", "--fs-title", "--lh-title", "--fs-card-title",
   "--fs-body", "--lh-body", "--fs-small", "--lh-small", "--fs-code", "--lh-code", "--fs-meta", "--lh-meta",
-  "--dur-fast", "--dur-exit", "--dur-base", "--dur-stage-in", "--dur-stage-out", "--dur-slow",
+  "--dur-fast", "--dur-stage-in", "--dur-stage-out", "--dur-slow",
   "--delay-step", "--delay-loader", "--delay-tooltip", "--loop-loader", "--loop-loader-person",
-  "--press", "--press-small", "--enter-scale", "--shadow-overlay",
+  "--press", "--press-small",
 ];
 
 describe("custom properties have both a writer and a reader", () => {

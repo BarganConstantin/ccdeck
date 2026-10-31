@@ -880,7 +880,7 @@ describe("one entrance for one interaction: the modal", () => {
   it("dims behind all three of them the same way", () => {
     for (const [backdrop] of DIALOGS) {
       const rule = all.find(r => !r.reduced && r.selector === backdrop)!;
-      expect(decl(rule.body, "animation"), backdrop).toBe("fadeIn 140ms ease-out");
+      expect(decl(rule.body, "animation"), backdrop).toBe("fadeIn var(--dur-base) var(--ease)"); // V4's dialog motion: Base, the one ease
     }
   });
 
@@ -891,7 +891,7 @@ describe("one entrance for one interaction: the modal", () => {
       const rule = all.find(r => !r.reduced && r.selector === panel)!;
       // On V4's one curve, --ease, which the literal here was within a few
       // hundredths of.
-      expect(decl(rule.body, "animation"), panel).toBe("popIn 180ms var(--ease)");
+      expect(decl(rule.body, "animation"), panel).toBe("popIn var(--dur-base) var(--ease)"); // V4's dialog motion: Base, not 180ms
     }
     expect(/@keyframes popIn\b[^}]*\}/.exec(css)![0]).toMatch(/transform\s*:/);
   });
