@@ -10,6 +10,8 @@
 // nothing has been happening for a while", and it is worth being able to test
 // that rule without a browser.
 
+import { t } from "./i18n";
+
 /** How long everything must stay quiet before a restart is allowed. */
 export const IDLE_BEFORE_RESTART_MS = 30_000;
 
@@ -223,9 +225,9 @@ export function countdownLabel(ms: number): string {
  * and the dot went back to being reinforcement.
  */
 export function autoRestartLabel(enabled: boolean, remainingMs: number | null): string {
-  if (!enabled) return "auto-restart off";
-  if (remainingMs == null) return "auto when idle";
-  return `auto in ${countdownLabel(remainingMs)}`;
+  if (!enabled) return t("shell.banner.autoOff");
+  if (remainingMs == null) return t("shell.banner.autoIdle");
+  return t("shell.banner.autoIn", { time: countdownLabel(remainingMs) });
 }
 
 /** How many agents are running right now. Structural over the agent map's
@@ -254,10 +256,9 @@ export function restartSafety(active: number, paused = false): { label: string; 
   // A paused canvas holds every event for the resume, so its count is the one
   // from the moment of the pause and a turn started since is not in it (#1764).
   // Zero is then not an answer, and the button does not give it as one.
-  if (active <= 0 && paused) return { label: "Restart anyway", clause: "the canvas is paused — running agents cannot be seen" };
-  if (active <= 0) return { label: "Restart now", clause: "nothing is running" };
-  const agents = active === 1 ? "1 agent is running" : `${active} agents are running`;
-  return { label: "Restart anyway", clause: `${agents} — their events during the restart are lost` };
+  if (active <= 0 && paused) return { label: t("shell.banner.restartAnyway"), clause: t("shell.banner.clausePaused") };
+  if (active <= 0) return { label: t("shell.banner.restartNow"), clause: t("shell.banner.clauseIdle") };
+  return { label: t("shell.banner.restartAnyway"), clause: t("shell.banner.clauseAgents", { count: active }) };
 }
 
 /**

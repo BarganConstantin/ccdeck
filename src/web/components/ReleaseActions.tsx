@@ -5,17 +5,20 @@ import { useEffect, useId, useRef, useState } from "react";
 import { desktopAppVersion, trayMenuName } from "../desktop-update";
 import { inDesktopApp } from "../in-app";
 import { selfPressAccepted } from "../panel-press";
-import { CHECK_WHY, runDesktopUpdateCheck, runUpdateCheck, updateCheckState, type UpdateLine, type UpdateLineAction } from "../update-check";
+import { checkWhy as checkWhyText, runDesktopUpdateCheck, runUpdateCheck, updateCheckState, type UpdateLine, type UpdateLineAction } from "../update-check";
 import type { useAutoRestart } from "../use-auto-restart";
 import type { useDeckUpgrade } from "../use-deck-upgrade";
 import type { useDesktopUpdate } from "../use-desktop-update";
 import { useNow } from "../use-now";
 import type { useVersionCheck } from "../use-version-check";
+import { useLanguage, t } from "../i18n";
 import { useHint } from "./use-hint";
 import { UPGRADE_BLOCK_TEXT } from "./VersionBanner";
 
+/** The English line, for About (settings), which reads it as a constant; tourWhy() is the translated one. */
 export const TOUR_WHY = "Eight pictures of what the deck shows.";
-export const RESTART_WHY = "Restart the deck. Sessions, settings and pairings come back as they were.";
+export const tourWhy = (): string => t("shell.notes.tourWhy");
+export const restartWhy = (): string => t("shell.notes.restartWhy");
 
 /** Everything the update check needs from the deck: the chip's check, the
  *  banner's install and copy, the restart npx's update is, and the app's
@@ -35,6 +38,7 @@ export interface UpdateCheckWiring {
 /** The check's state for this dialog, and its two kinds of press. Null where
  *  there is nothing to say: no wiring, or the app's own update is ready. */
 export function useReleaseUpdateCheck(wiring: UpdateCheckWiring | undefined) {
+  useLanguage(); // the update lines are worded by helpers that read the language on show
   const versionChecking = wiring?.versionCheck.versionChecking ?? false;
   const now = useNow(30_000);
   const [pressing, setPressing] = useState(false);
@@ -60,7 +64,7 @@ export function useReleaseUpdateCheck(wiring: UpdateCheckWiring | undefined) {
   if (!state) return null;
 
   const nativeCheck = inDesktopApp() && versionCheck.version?.checkDisabled;
-  const checkWhy = nativeCheck ? "Ask the desktop app whether a newer ccdeck is out." : CHECK_WHY;
+  const checkWhy = nativeCheck ? t("shell.update.checkWhyApp") : checkWhyText();
   const check = async () => {
     // Busy, never disabled (#620): a second press meets this ref, and one
     // made while the chip's check is out joins that check instead.
@@ -95,9 +99,10 @@ export default function ReleaseActions({ update }: {
 }) {
   const hint = useHint("above", "dialog");
   const id = useId();
+  useLanguage();
   return <div className="rn-status-row">
     {update ? <UpdateLineView line={update.state.line} onAct={update.act} bindHint={hint.bind} whyId={`${id}-action`} announce={false} />
-      : <p className="rn-update-line"><span role="status">Update status unavailable.</span></p>}
+      : <p className="rn-update-line"><span role="status">{t("shell.notes.statusUnavailable")}</span></p>}
     {hint.node}
   </div>;
 }

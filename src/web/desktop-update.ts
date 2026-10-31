@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 export type DesktopUpdateState = {
   status: "idle" | "checking" | "current" | "downloading" | "ready" | "error";
   version: string | null;
@@ -37,7 +38,9 @@ export function desktopAppVersion(ua: string = typeof navigator === "undefined" 
  *  place a failed press sends people to did not use the words of the button
  *  that failed. The tray's was kept because it names both halves in the order
  *  they happen, and it is what the updater itself calls the action. */
+/** The English label, for callers outside the shell (About) that have not moved to restartToUpdate() yet. */
 export const RESTART_TO_UPDATE = "Restart to update";
+export const restartToUpdate = (): string => t("shell.desktop.restartToUpdate");
 
 /** How long a press waits for the window to close before it is handed back.
  *  A restart that worked ends this page; one still here after this did not
@@ -47,7 +50,7 @@ export const UPDATE_RESTART_WAIT_MS = 30_000;
 /** Where the app's own menu is, in the words the platform uses for it: the
  *  README says "the menu bar (the tray on Windows and Linux)". */
 export function trayMenuName(ua: string = typeof navigator === "undefined" ? "" : navigator.userAgent): string {
-  return /\bMac OS X\b|\bMacintosh\b/.test(ua) ? "the ccdeck menu in the menu bar" : "the ccdeck tray menu";
+  return /\bMac OS X\b|\bMacintosh\b/.test(ua) ? t("shell.desktop.menuMac") : t("shell.desktop.menuTray");
 }
 
 /** The version chip while the app's update is ready (#1187).
@@ -61,8 +64,8 @@ export function readyChipCopy(from: string, to: string): { text: string; label: 
   const text = `v${from} → v${to}`;
   return {
     text,
-    label: `${text}, update downloaded and verified`,
-    title: `ccdeck v${to} is downloaded and verified · click to open What's new, where ${RESTART_TO_UPDATE} comes first`,
+    label: t("shell.desktop.chipLabel", { text }),
+    title: t("shell.desktop.chipTitle", { to, action: restartToUpdate() }),
   };
 }
 
@@ -76,9 +79,9 @@ export function readyChipCopy(from: string, to: string): { text: string; label: 
  *  it wants to know: the app goes away for a moment, the agents do not. */
 export function readyButtonCopy(to: string, busy = false): { text: string; label: string | undefined; title: string } {
   return {
-    text: busy ? "Restarting…" : RESTART_TO_UPDATE,
-    label: busy ? undefined : `${RESTART_TO_UPDATE} to v${to}`,
-    title: `Install ccdeck v${to} now: ccdeck restarts and is back in a few seconds. Your Claude Code and Codex sessions keep running.`,
+    text: busy ? t("shell.notes.restarting") : restartToUpdate(),
+    label: busy ? undefined : t("shell.desktop.restartLabel", { action: restartToUpdate(), to }),
+    title: t("shell.desktop.restartTitle", { to }),
   };
 }
 
@@ -103,17 +106,18 @@ export function updateRestartFailureText(
   ua: string = typeof navigator === "undefined" ? "" : navigator.userAgent,
 ): string {
   const menu = trayMenuName(ua);
-  const way = `Use ${RESTART_TO_UPDATE} in ${menu}.`;
+  const action = restartToUpdate();
+  const way = t("shell.desktop.way", { action, menu });
   switch (failure) {
     case "app_disconnected":
-      return `Nothing restarted: the app is not connected to this deck, so the request had nowhere to go. ${way}`;
+      return t("shell.desktop.fail.app_disconnected", { way });
     case "update_not_ready":
-      return `Nothing restarted: the app no longer has v${version} ready. When it has one, ${RESTART_TO_UPDATE} is in ${menu}.`;
+      return t("shell.desktop.fail.update_not_ready", { version, action, menu });
     case "timeout":
-      return `ccdeck has not restarted after ${UPDATE_RESTART_WAIT_MS / 1000} seconds. ${way}`;
+      return t("shell.desktop.fail.timeout", { seconds: UPDATE_RESTART_WAIT_MS / 1000, way });
     case "refused":
-      return `Nothing restarted: the deck turned the request down. ${way}`;
+      return t("shell.desktop.fail.refused", { way });
     case "unreachable":
-      return `Nothing restarted: the request did not reach the deck. ${way}`;
+      return t("shell.desktop.fail.unreachable", { way });
   }
 }

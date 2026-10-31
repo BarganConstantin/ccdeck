@@ -20,17 +20,20 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { focusDropped } from "../panel-press";
 import type { RatingPhase } from "../use-rating-ask";
+import { t, useT } from "../i18n";
 
 /** What the thanks says, on the row and in DeckBanner's live region. */
+/** The English line; ratingThanks() is the translated one. */
 export const RATING_THANKS = "Thanks — that helps.";
+export const ratingThanks = (): string => t("shell.rating.thanks");
 
 const SCORES = Array.from({ length: 11 }, (_, i) => i);
 
 /** What a screen reader hears for each number: the scale, and what its two ends mean. */
 function scoreLabel(n: number): string {
-  if (n === 0) return "0 out of 10, not useful";
-  if (n === 10) return "10 out of 10, extremely useful";
-  return `${n} out of 10`;
+  if (n === 0) return t("shell.rating.score0");
+  if (n === 10) return t("shell.rating.score10");
+  return t("shell.rating.score", { n });
 }
 
 /** At or under this, the thanks also offers the feedback dialog. */
@@ -77,6 +80,7 @@ export default function RatingBanner({ phase, score, onAnswer, onLater, onClose,
    *  somebody is in it (use-rating-ask.ts). */
   onHold: (held: boolean) => void;
 }) {
+  useT();
   const rowRef = useRowHeight(phase);
   const offerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -108,26 +112,26 @@ export default function RatingBanner({ phase, score, onAnswer, onLater, onClose,
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onHold(false); }}
       >
         <span className="ver-dot" />
-        <strong>{RATING_THANKS}</strong>
+        <strong>{ratingThanks()}</strong>
         {score !== null && score <= LOW_SCORE ? (
-          <button ref={offerRef} type="button" className="ver-act" onClick={onFeedback}>Tell us what would make it better</button>
+          <button ref={offerRef} type="button" className="ver-act" onClick={onFeedback}>{t("shell.rating.better")}</button>
         ) : null}
-        <button ref={closeRef} type="button" aria-label="Dismiss" className="ver-close" onClick={() => leave(onClose)}>×</button>
+        <button ref={closeRef} type="button" aria-label={t("shell.dismiss")} className="ver-close" onClick={() => leave(onClose)}>×</button>
       </div>
     );
   }
   return (
     <div ref={rowRef} className="ver-banner note rating-banner" role="group" aria-labelledby="rating-question">
       <span className="ver-dot" />
-      <strong id="rating-question">How useful is ccdeck to you?</strong>
+      <strong id="rating-question">{t("shell.rating.question")}</strong>
       <span className="rating-scale">
         {SCORES.map(n => (
           <button key={n} type="button" className="rating-pick" aria-label={scoreLabel(n)}
             onClick={e => { landRef.current = e.detail === 0 || e.currentTarget.matches(":focus-visible"); onAnswer(n); }}>{n}</button>
         ))}
       </span>
-      <span className="ver-sub rating-ends" aria-hidden="true">0 not at all · 10 extremely</span>
-      <button type="button" className="ver-act" onClick={() => leave(onLater)}>Not now</button>
+      <span className="ver-sub rating-ends" aria-hidden="true">{t("shell.rating.ends")}</span>
+      <button type="button" className="ver-act" onClick={() => leave(onLater)}>{t("shell.rating.later")}</button>
     </div>
   );
 }
