@@ -276,7 +276,7 @@
      paints at full height for one frame and then drops, which is the jump this
      replaces, arriving 16ms later. */
   transform-origin: bottom;
-  animation: uh-bar-rise 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: uh-bar-rise 340ms var(--ease) both;
   animation-delay: calc(var(--uh-i, 0) * var(--uh-step, 10ms));
 }
 @keyframes uh-bar-rise {

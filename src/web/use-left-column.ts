@@ -58,7 +58,7 @@ export function leftColumnWidth(panel: LeftPanel | null): number {
 }
 
 /** How long the column takes to open or to change panels; a close takes
- *  --side-exit. The sheet's --column-move, which left-column-motion.test.ts
+ *  --side-exit. The sheet's --dur-move, which left-column-motion.test.ts
  *  holds to this. */
 export const COLUMN_MOVE_MS = 240;
 /** A frame past the move, so the reading taken at the end is the last one. */

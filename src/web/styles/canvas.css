@@ -40,9 +40,9 @@
   box-shadow: var(--shadow-1);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   pointer-events: none;
-  animation: dragTrashIn 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: dragTrashIn 180ms var(--ease) both;
   transition: border-color 140ms ease, background 140ms ease, color 140ms ease,
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms ease;
+    transform 180ms var(--ease), box-shadow 180ms ease;
 }
 .drag-trash-zone.near {
   border-style: solid;
@@ -71,7 +71,7 @@
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
-  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), background 140ms ease;
+  transition: transform 160ms var(--ease), background 140ms ease;
 }
 .drag-trash-zone.over .drag-trash-icon {
   background: color-mix(in srgb, var(--err) 20%, transparent);
@@ -86,7 +86,7 @@
 .drag-trash-zone.over .drag-trash-hint { color: var(--text-secondary); }
 .canvas-wrap.dragging-any .autofit-chip { visibility: hidden; }
 .react-flow__node.dragging .agent-node {
-  transition: border-color 200ms ease, box-shadow 200ms ease, transform 120ms cubic-bezier(0.22, 1, 0.36, 1),
+  transition: border-color 200ms ease, box-shadow 200ms ease, transform 120ms var(--ease),
     opacity 120ms ease;
 }
 .canvas-wrap.trash-hover .react-flow__node.dragging .agent-node {

@@ -33,10 +33,12 @@ describe("the left column moves, and what is in it does not resize (#866)", () =
   });
 
   it("eases only the column's width, and the panels by transform and opacity", () => {
-    expect(body(".left-column")).toMatch(/transition:\s*width var\(--column-move\)/);
+    // V4's --dur-move and --ease-stage, the values --column-move and
+    // --column-ease were.
+    expect(body(".left-column")).toMatch(/transition:\s*width var\(--dur-move\)/);
     const panels = /\.left-column > \.session-list,\s*\.left-column > \.accounts-panel\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(panels).toMatch(/position:\s*absolute/);
-    expect(panels).toMatch(/transition:\s*transform var\(--column-move\) var\(--column-ease\),\s*opacity/);
+    expect(panels).toMatch(/transition:\s*transform var\(--dur-move\) var\(--ease-stage\),\s*opacity/);
   });
 
   it("holds the board's reading of the canvas until the column settles", () => {

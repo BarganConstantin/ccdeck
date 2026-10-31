@@ -709,7 +709,7 @@
 .ap-proj-loading-links { stroke: var(--line); }
 .ap-proj-loading-scan { stroke: var(--accent); animation: ap-project-read 1600ms cubic-bezier(0.4, 0, 0.2, 1) infinite; }
 .ap-proj-loading[data-paused] .ap-proj-loading-scan { animation-play-state: paused; }
-.ap-proj-ready { animation: ap-project-report-in 140ms cubic-bezier(0.16, 1, 0.3, 1); }
+.ap-proj-ready { animation: ap-project-report-in 140ms var(--ease); }
 @keyframes ap-project-read {
   0% { opacity: 0.3; transform: translateY(0); }
   50% { opacity: 1; }
