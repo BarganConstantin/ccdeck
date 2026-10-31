@@ -492,6 +492,15 @@ const catalog: Catalog = {
   "radar.srv.badRequest": "Ungültige Einstellungsanfrage.",
   "radar.srv.eventGone": "Dieses Ereignis wird nicht mehr aufbewahrt.",
   "radar.srv.tooLarge": "Die Anfrage ist zu groß.",
+  "radar.json.lib.item": "{{count}} Eintrag",
+  "radar.json.lib.items": "{{count}} Einträge",
+  "radar.json.lib.filtered": "{{visible}} von {{total}} Einträgen",
+  "radar.json.lib.showLess": "(weniger anzeigen)",
+  "radar.json.lib.showMore": "Mehr anzeigen",
+  "radar.json.lib.empty": "<leerer String>",
+  "radar.json.lib.copy": "In die Zwischenablage kopieren",
+  "radar.json.lib.collapse": "Einklappen",
+  "radar.json.lib.expand": "Ausklappen",
 };
 
 export default catalog;

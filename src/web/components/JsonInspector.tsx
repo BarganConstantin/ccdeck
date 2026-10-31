@@ -147,7 +147,7 @@ export function JsonInspector({ value, initialMode = "tree" }: { value: Json; in
           searchText={search || undefined} searchFilter={search ? "all" : undefined}
           searchDebounceTime={200} customNodeDefinitions={largeCollections}
           minWidth={0} maxWidth="100%" baseFontSize="inherit" indent={2}
-          stringTruncateLength={300} showIconTooltips onCopy={({ success }) => setCopyError(!success)}
+          stringTruncateLength={300} showIconTooltips translations={{ ITEM_SINGLE: t("radar.json.lib.item"), ITEMS_MULTIPLE: t("radar.json.lib.items"), ITEMS_FILTERED: t("radar.json.lib.filtered"), SHOW_LESS: t("radar.json.lib.showLess"), SHOW_MORE: t("radar.json.lib.showMore"), EMPTY_STRING: t("radar.json.lib.empty"), TOOLTIP_COPY: t("radar.json.lib.copy"), TOOLTIP_COLLAPSE: t("radar.json.lib.collapse"), TOOLTIP_EXPAND: t("radar.json.lib.expand") }} onCopy={({ success }) => setCopyError(!success)}
         />}
       </div></CollapseContext.Provider></SearchContext.Provider>
     </>}

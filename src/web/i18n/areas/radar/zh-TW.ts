@@ -492,6 +492,15 @@ const catalog: Catalog = {
   "radar.srv.badRequest": "設定請求無效。",
   "radar.srv.eventGone": "此事件已不再保留。",
   "radar.srv.tooLarge": "請求過大。",
+  "radar.json.lib.item": "{{count}} 項",
+  "radar.json.lib.items": "{{count}} 項",
+  "radar.json.lib.filtered": "{{visible}} / {{total}} 項",
+  "radar.json.lib.showLess": "（顯示較少）",
+  "radar.json.lib.showMore": "顯示更多",
+  "radar.json.lib.empty": "<空字串>",
+  "radar.json.lib.copy": "複製到剪貼簿",
+  "radar.json.lib.collapse": "收合",
+  "radar.json.lib.expand": "展開",
 };
 
 export default catalog;

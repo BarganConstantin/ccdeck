@@ -491,6 +491,15 @@ const catalog: Catalog = {
   "radar.srv.badRequest": "Invalid settings request.",
   "radar.srv.eventGone": "This event is no longer retained.",
   "radar.srv.tooLarge": "Request too large.",
+  "radar.json.lib.item": "{{count}} item",
+  "radar.json.lib.items": "{{count}} items",
+  "radar.json.lib.filtered": "{{visible}} of {{total}} items",
+  "radar.json.lib.showLess": "(Show less)",
+  "radar.json.lib.showMore": "Show more",
+  "radar.json.lib.empty": "<empty string>",
+  "radar.json.lib.copy": "Copy to clipboard",
+  "radar.json.lib.collapse": "Collapse",
+  "radar.json.lib.expand": "Expand",
 };
 
 export default catalog;

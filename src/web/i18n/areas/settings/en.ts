@@ -545,6 +545,23 @@ const catalog: Catalog = {
   "settings.claude.days.other": "{n} days",
   "settings.claude.days.year": "1 year",
   "settings.claude.days.decade": "10 years",
+  "settings.claudeTopic.model-and-responses": "Model and responses",
+  "settings.claudeTopic.permission-settings": "Permission settings",
+  "settings.claudeTopic.sandbox-settings": "Sandbox settings",
+  "settings.claudeTopic.memory-and-context": "Memory and context",
+  "settings.claudeTopic.interface-and-terminal": "Interface and terminal",
+  "settings.claudeTopic.git-and-attribution": "Git and attribution",
+  "settings.claudeTopic.hooks-and-automation": "Hooks and automation",
+  "settings.claudeTopic.plugins-and-skills": "Plugins and skills",
+  "settings.claudeTopic.mcp": "MCP",
+  "settings.claudeTopic.agents-sessions-and-worktrees": "Agents, sessions, and worktrees",
+  "settings.claudeTopic.remote-desktop-and-notifications": "Remote, desktop, and notifications",
+  "settings.claudeTopic.authentication-and-providers": "Authentication and providers",
+  "settings.claudeTopic.updates-and-versioning": "Updates and versioning",
+  "settings.claudeTopic.tools": "Tools",
+  "settings.claudeTopic.privacy-and-telemetry": "Privacy and telemetry",
+  "settings.claudeTopic.enterprise-and-managed-settings": "Enterprise and managed settings",
+  "settings.claudeTopic.global-config-settings": "Global config settings",
 };
 
 export default catalog;

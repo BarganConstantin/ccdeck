@@ -492,6 +492,15 @@ const catalog: Catalog = {
   "radar.srv.badRequest": "設定リクエストが正しくありません。",
   "radar.srv.eventGone": "このイベントはもう保持されていません。",
   "radar.srv.tooLarge": "リクエストが大きすぎます。",
+  "radar.json.lib.item": "{{count}} 件",
+  "radar.json.lib.items": "{{count}} 件",
+  "radar.json.lib.filtered": "{{visible}} / {{total}} 件",
+  "radar.json.lib.showLess": "（表示を減らす）",
+  "radar.json.lib.showMore": "もっと見る",
+  "radar.json.lib.empty": "<空文字列>",
+  "radar.json.lib.copy": "クリップボードにコピー",
+  "radar.json.lib.collapse": "折りたたむ",
+  "radar.json.lib.expand": "展開",
 };
 
 export default catalog;

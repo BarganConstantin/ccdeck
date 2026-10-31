@@ -545,6 +545,23 @@ const catalog: Catalog = {
   "settings.claude.days.other": "{n} 天",
   "settings.claude.days.year": "1 年",
   "settings.claude.days.decade": "10 年",
+  "settings.claudeTopic.model-and-responses": "模型與回應",
+  "settings.claudeTopic.permission-settings": "權限設定",
+  "settings.claudeTopic.sandbox-settings": "沙箱設定",
+  "settings.claudeTopic.memory-and-context": "記憶與上下文",
+  "settings.claudeTopic.interface-and-terminal": "介面與終端機",
+  "settings.claudeTopic.git-and-attribution": "Git 與標註",
+  "settings.claudeTopic.hooks-and-automation": "Hook 與自動化",
+  "settings.claudeTopic.plugins-and-skills": "外掛與技能",
+  "settings.claudeTopic.mcp": "MCP",
+  "settings.claudeTopic.agents-sessions-and-worktrees": "代理、工作階段與 worktree",
+  "settings.claudeTopic.remote-desktop-and-notifications": "遠端、桌面與通知",
+  "settings.claudeTopic.authentication-and-providers": "驗證與提供者",
+  "settings.claudeTopic.updates-and-versioning": "更新與版本",
+  "settings.claudeTopic.tools": "工具",
+  "settings.claudeTopic.privacy-and-telemetry": "隱私與遙測",
+  "settings.claudeTopic.enterprise-and-managed-settings": "企業與受管設定",
+  "settings.claudeTopic.global-config-settings": "全域設定",
 };
 
 export default catalog;

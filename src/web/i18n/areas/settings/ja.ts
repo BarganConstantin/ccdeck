@@ -545,6 +545,23 @@ const catalog: Catalog = {
   "settings.claude.days.other": "{n} 日",
   "settings.claude.days.year": "1 年",
   "settings.claude.days.decade": "10 年",
+  "settings.claudeTopic.model-and-responses": "モデルと応答",
+  "settings.claudeTopic.permission-settings": "権限の設定",
+  "settings.claudeTopic.sandbox-settings": "サンドボックスの設定",
+  "settings.claudeTopic.memory-and-context": "メモリとコンテキスト",
+  "settings.claudeTopic.interface-and-terminal": "インターフェースとターミナル",
+  "settings.claudeTopic.git-and-attribution": "Git とクレジット",
+  "settings.claudeTopic.hooks-and-automation": "フックと自動化",
+  "settings.claudeTopic.plugins-and-skills": "プラグインとスキル",
+  "settings.claudeTopic.mcp": "MCP",
+  "settings.claudeTopic.agents-sessions-and-worktrees": "エージェント、セッション、ワークツリー",
+  "settings.claudeTopic.remote-desktop-and-notifications": "リモート、デスクトップ、通知",
+  "settings.claudeTopic.authentication-and-providers": "認証とプロバイダー",
+  "settings.claudeTopic.updates-and-versioning": "アップデートとバージョン",
+  "settings.claudeTopic.tools": "ツール",
+  "settings.claudeTopic.privacy-and-telemetry": "プライバシーとテレメトリ",
+  "settings.claudeTopic.enterprise-and-managed-settings": "エンタープライズと管理対象の設定",
+  "settings.claudeTopic.global-config-settings": "グローバル設定",
 };
 
 export default catalog;

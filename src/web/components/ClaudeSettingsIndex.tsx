@@ -35,6 +35,12 @@ export interface IndexedKey {
 /** How many rows a filter shows before it asks for more letters. */
 export const INDEX_LIMIT = 40;
 
+const topicText = (topic: string, t: TFunction): string => {
+  const key = `settings.claudeTopic.${topic.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+  const said = t(key);
+  return said === key ? topic : said;
+};
+
 const KIND_KEY: Record<IndexedKey["kind"], string> = {
   boolean: "settings.claudeIndex.kind.boolean", choice: "settings.claudeIndex.kind.choice", number: "settings.claudeIndex.kind.number",
   text: "settings.claudeIndex.kind.text", structured: "settings.claudeIndex.kind.structured",
@@ -44,7 +50,7 @@ const KIND_KEY: Record<IndexedKey["kind"], string> = {
 export function indexNote(entry: IndexedKey, t: TFunction = tNow): string {
   const where = entry.scope === "Global config" ? t("settings.claudeIndex.globalConfig")
     : entry.scope === "Managed" ? t("settings.claudeIndex.managedOnly") : null;
-  return [entry.topic, t(KIND_KEY[entry.kind]), where, entry.since ? t("settings.claudeIndex.since", { since: entry.since }) : null].filter(Boolean).join(" · ");
+  return [entry.topic ? topicText(entry.topic, t) : entry.topic, t(KIND_KEY[entry.kind]), where, entry.since ? t("settings.claudeIndex.since", { since: entry.since }) : null].filter(Boolean).join(" · ");
 }
 
 /** The keys a filter matches, in the reference's order: by name first, then
