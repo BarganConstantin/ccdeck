@@ -63,7 +63,7 @@
   /* Every press in the app lands here, not just this panel's — the scale is one
      convention and it has to switch off in one place, or the next control to
      adopt it quietly reintroduces the motion. */
-  button.btn:active:not(:disabled), .ap-manage-btn:active:not(:disabled), .ap-more:active,
+  button.btn:active:not(:disabled):not(:focus-visible), .ap-manage-btn:active:not(:disabled), .ap-more:active,
   .ap-lan-pick:active, .ap-lan-word:active:not(:disabled), .ap-lan-intro:active:not(:disabled),
   /* One entry where there were five. `.sd-close`, `.detail-close`,
      `.ctx-modal-close`, `.uh-close` and the header closes that used to press as

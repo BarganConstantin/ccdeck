@@ -454,6 +454,10 @@ describe("what was migrated to the secondary tier", () => {
       ".release-notes .rn-note-body",
       ".release-notes .rn-note-notice",
       ".rn-menu-status",
+      // V4's Quiet button: the kit draws a button's words in this tier at
+      // weight 500, a label to press rather than metadata, lifted to --text
+      // under the pointer. Its floors are held in v4-button.test.ts.
+      "button.btn",
     ].sort());
   });
 

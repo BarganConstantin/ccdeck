@@ -309,7 +309,8 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
     // icon twin, `button.btn.icon-btn` at 14px, left the sheet with the
     // topbar's panel buttons (2026-10-08); `button.btn` is the collision that
     // remains, and the one the sweep above has to keep seeing.
-    expect(decl("button.btn", "font-size")).toBe("12px");
+    // V4's button: 13px (was 12px).
+    expect(decl("button.btn", "font-size")).toBe("13px");
     expect(higher(specificity("button.btn"), specificity(".ap-refresh"))).toBe(true);
     // And the class sets really were read out of the components.
     expect(CLASS_SETS.some(s => s.includes("btn"))).toBe(true);
