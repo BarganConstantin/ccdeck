@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { currentLanguage, useT } from "../i18n";
 import { shortModel } from "../model-label";
 import { agentLabel } from "../provider-copy";
 import { fmtCost } from "../pricing";
@@ -10,11 +11,12 @@ import { RefreshGlyph } from "./action-glyphs";
 import SessionUsageLoading from "./SessionUsageLoading";
 
 const count = (n: number) => n.toLocaleString();
-const at = (value: string) => new Date(value).toLocaleString(undefined, {
+const at = (value: string) => new Date(value).toLocaleString(currentLanguage(), {
   month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
 });
 
 export default function SessionUsageModal({ session, onClose }: { session: SessionSelection; onClose: () => void }) {
+  const t = useT();
   const [speed, setSpeed] = useState<SessionSpeed>("auto");
   const [revision, setRevision] = useState(0);
   const [reply, setReply] = useState<SessionReply | null>(null);
@@ -43,10 +45,10 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
 
   const missing = detail?.models.filter(model => model.missingPricing) ?? [];
   const tokens = detail ? [
-    { name: "Input", n: detail.inputTokens, color: "var(--usage-blue)" },
-    { name: "Output", n: detail.outputTokens, color: "var(--usage-purple)" },
-    { name: "Cache read", n: detail.cacheReadTokens, color: "var(--usage-teal)" },
-    { name: "Cache write", n: detail.cacheCreationTokens, color: "var(--usage-orange)" },
+    { id: "input", name: t("insights.cost.inputTitle"), n: detail.inputTokens, color: "var(--usage-blue)" },
+    { id: "output", name: t("insights.cost.outputTitle"), n: detail.outputTokens, color: "var(--usage-purple)" },
+    { id: "cacheRead", name: t("insights.usage.cacheReadTitle"), n: detail.cacheReadTokens, color: "var(--usage-teal)" },
+    { id: "cacheWrite", name: t("insights.usage.cacheWriteTitle"), n: detail.cacheCreationTokens, color: "var(--usage-orange)" },
   ] : [];
   // Composition uses the reported counters, not a guessed split of totalTokens.
   // Reasoning is already in output and must not become a fifth segment.
@@ -56,86 +58,86 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
       <div className="modal su-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="session-usage-title">
         <header className="modal-head">
           <div className="su-title">
-            <h2 id="session-usage-title">Session usage</h2>
+            <h2 id="session-usage-title">{t("insights.session.title")}</h2>
             <span title={session.label}>{session.label}</span>
           </div>
           <div className="modal-actions">
             <button type="button" className="glyph-btn" onClick={() => setRevision(n => n + 1)} disabled={!reply}
-              aria-label="Refresh session usage" title="Refresh session usage"><RefreshGlyph /></button>
-            <button type="button" className="glyph-btn" ref={closeRef} onClick={onClose} aria-label="Close session usage (Esc)" title="Close (Esc)">×</button>
+              aria-label={t("insights.session.refresh")} title={t("insights.session.refresh")}><RefreshGlyph /></button>
+            <button type="button" className="glyph-btn" ref={closeRef} onClick={onClose} aria-label={t("insights.session.closeEsc")} title={t("insights.audit.closeEsc")}>×</button>
           </div>
         </header>
         <div className="modal-body su-body" aria-busy={!reply}>
-          <div className="su-scope"><span>{agentLabel(session.agent)}</span><span>Whole session</span></div>
+          <div className="su-scope"><span>{agentLabel(session.agent)}</span><span>{t("insights.session.whole")}</span></div>
           {session.agent === "codex" && <label className="su-pricing">
-            Estimate using
+            {t("insights.session.estimateUsing")}
             <select value={speed} disabled={!reply} onChange={event => { setReply(null); setSpeed(event.target.value as SessionSpeed); }}>
-              <option value="auto">Session settings / config</option>
-              <option value="standard">Standard scenario</option>
-              <option value="fast">Fast scenario</option>
-              <option value="flex">Flex scenario</option>
+              <option value="auto">{t("insights.session.speed.auto")}</option>
+              <option value="standard">{t("insights.session.speed.standard")}</option>
+              <option value="fast">{t("insights.session.speed.fast")}</option>
+              <option value="flex">{t("insights.session.speed.flex")}</option>
             </select>
           </label>}
           {!reply && <SessionUsageLoading />}
           {reply && !reply.ok && <p className="su-message" role="status" title={reply.error}>
-            {sessionFailure(reply)} Use Refresh to try again.
+            {sessionFailure(reply)} {t("insights.session.useRefresh")}
           </p>}
           {detail && <div className="su-result">
             <dl className="su-totals">
-              <div><dt>{speed === "auto" ? "Estimated cost" : "Scenario estimate"}{missing.length > 0 ? " · partial" : ""}</dt>
+              <div><dt>{speed === "auto" ? t("insights.session.estimated") : t("insights.session.scenario")}{missing.length > 0 ? ` · ${t("insights.session.partial")}` : ""}</dt>
                 <dd>{detail.totalCost > 0 ? fmtCost(detail.totalCost)
-                  : detail.totalTokens > 0 ? "No cost reported" : "$0.00"}{missing.length > 0 && detail.totalCost > 0 ? "+" : ""}</dd></div>
-              <div><dt>Total tokens</dt><dd title={count(detail.totalTokens)}>{fmtTokens(detail.totalTokens)}</dd></div>
+                  : detail.totalTokens > 0 ? t("insights.session.noCost") : "$0.00"}{missing.length > 0 && detail.totalCost > 0 ? "+" : ""}</dd></div>
+              <div><dt>{t("insights.session.totalTokens")}</dt><dd title={count(detail.totalTokens)}>{fmtTokens(detail.totalTokens)}</dd></div>
             </dl>
             <section aria-labelledby="session-tokens-title">
-              <div className="su-section-head"><h3 id="session-tokens-title">Token breakdown</h3></div>
+              <div className="su-section-head"><h3 id="session-tokens-title">{t("insights.session.breakdown")}</h3></div>
               <div className="su-cache-reuse">
-                <span>Cached input reuse</span>
+                <span>{t("insights.session.reuse")}</span>
                 <strong>{detail.cacheReuse?.pct != null
-                  ? `${detail.cacheReuse.pct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%` : "—"}</strong>
+                  ? `${detail.cacheReuse.pct.toLocaleString(currentLanguage(), { maximumFractionDigits: 1 })}%` : "—"}</strong>
                 <span className="su-note">{detail.cacheReuse && detail.cacheReuse.measured > 0
-                  ? `${detail.cacheReuse.measured} of ${detail.cacheReuse.total} ${detail.cacheReuse.unit} measured${detail.cacheReuse.pct == null ? " · no input tokens" : ""}`
-                  : "No cache measurements available"}</span>
+                  ? t("insights.session.measured", { measured: detail.cacheReuse.measured, total: detail.cacheReuse.total, unit: t(detail.cacheReuse.unit === "model groups" ? "insights.session.unit.groups" : "insights.session.unit.records") }) + (detail.cacheReuse.pct == null ? ` · ${t("insights.session.noInput")}` : "")
+                  : t("insights.session.noMeasure")}</span>
               </div>
               {tokenSum > 0 && <div className="su-composition" aria-hidden="true">
-                {tokens.filter(token => token.n > 0).map(token => <span key={token.name}
+                {tokens.filter(token => token.n > 0).map(token => <span key={token.id}
                   style={{ width: `${token.n / tokenSum * 100}%`, background: token.color }} />)}
               </div>}
               <dl className="su-tokens">
-                {tokens.map(({ name, n, color }) => <div key={name}>
+                {tokens.map(({ id, name, n, color }) => <div key={id}>
                   <dt><span className="su-key" style={{ background: color }} aria-hidden="true" />{name}</dt>
-                  <dd title={count(n)}>{fmtTokens(n)}<span className="su-share">{tokenSum > 0 ? `${(n / tokenSum * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%` : "—"}</span></dd>
+                  <dd title={count(n)}>{fmtTokens(n)}<span className="su-share">{tokenSum > 0 ? `${(n / tokenSum * 100).toLocaleString(currentLanguage(), { maximumFractionDigits: 1 })}%` : "—"}</span></dd>
                 </div>)}
               </dl>
-              {detail.reasoningOutputTokens > 0 && <p className="su-note su-reasoning">{fmtTokens(detail.reasoningOutputTokens)} reasoning tokens, included in output.</p>}
+              {detail.reasoningOutputTokens > 0 && <p className="su-note su-reasoning">{t("insights.session.reasoning", { tokens: fmtTokens(detail.reasoningOutputTokens) })}</p>}
             </section>
             <section className="su-models" aria-labelledby="session-models-title">
-              <div className="su-section-head"><h3 id="session-models-title">Models</h3><span>{detail.models.length} used</span></div>
+              <div className="su-section-head"><h3 id="session-models-title">{t("insights.session.models")}</h3><span>{t("insights.session.used", { n: detail.models.length })}</span></div>
               <table>
-                <thead><tr><th scope="col">Model</th><th scope="col">Tokens</th></tr></thead>
+                <thead><tr><th scope="col">{t("insights.usage.model")}</th><th scope="col">{t("insights.usage.tokensCol")}</th></tr></thead>
                 <tbody>{detail.models.map(model => <tr key={model.model}>
-                  <th scope="row" title={model.model}>{shortModel(model.model)}{model.missingPricing && <span className="su-unpriced"> · not priced</span>}</th>
+                  <th scope="row" title={model.model}>{shortModel(model.model)}{model.missingPricing && <span className="su-unpriced"> · {t("insights.cost.notPriced")}</span>}</th>
                   <td title={count(model.totalTokens)}>{fmtTokens(model.totalTokens)}</td>
                 </tr>)}</tbody>
               </table>
-              {detail.models.length === 0 && <p className="su-note">No model breakdown was reported.</p>}
+              {detail.models.length === 0 && <p className="su-note">{t("insights.session.noModels")}</p>}
             </section>
-            {missing.length > 0 && <p className="su-note">Tokens on unpriced models are included; their cost is missing from the estimate.</p>}
+            {missing.length > 0 && <p className="su-note">{t("insights.session.unpriced")}</p>}
             <dl className="su-dates">
-              {detail.firstActivity && <div><dt>First activity</dt><dd><time dateTime={detail.firstActivity} title={new Date(detail.firstActivity).toLocaleString()}>{at(detail.firstActivity)}</time></dd></div>}
-              {detail.lastActivity && <div><dt>Last activity</dt><dd><time dateTime={detail.lastActivity} title={new Date(detail.lastActivity).toLocaleString()}>{at(detail.lastActivity)}</time></dd></div>}
-              {detail.entries != null && <div><dt>Usage records</dt><dd>{count(detail.entries)}</dd></div>}
+              {detail.firstActivity && <div><dt>{t("insights.session.first")}</dt><dd><time dateTime={detail.firstActivity} title={new Date(detail.firstActivity).toLocaleString(currentLanguage())}>{at(detail.firstActivity)}</time></dd></div>}
+              {detail.lastActivity && <div><dt>{t("insights.session.last")}</dt><dd><time dateTime={detail.lastActivity} title={new Date(detail.lastActivity).toLocaleString(currentLanguage())}>{at(detail.lastActivity)}</time></dd></div>}
+              {detail.entries != null && <div><dt>{t("insights.session.records")}</dt><dd>{count(detail.entries)}</dd></div>}
             </dl>
           </div>}
           <footer className="su-footer">
-          <p className="su-note">{speed === "auto" ? "Estimated from local logs, not an invoice." : "Pricing scenario · does not change settings or billing."} Includes the whole session.</p>
-          <details className="su-id su-assumptions"><summary>Estimate details</summary>
+          <p className="su-note">{speed === "auto" ? t("insights.session.note.auto") : t("insights.session.note.scenario")} {t("insights.session.note.whole")}</p>
+          <details className="su-id su-assumptions"><summary>{t("insights.session.details")}</summary>
           <p className="su-note">{session.agent === "codex"
             ? speed === "auto"
-              ? "ccusage estimates from recorded Standard, Fast and Flex settings; unmarked usage can use your current Codex config. Requested modes do not confirm billed rates."
-              : "This scenario applies one mode to the whole session. It does not change Codex or your billing. Models without a published multiplier keep standard pricing."
-            : "Cost is the ccusage estimate from local logs, not an invoice."} The whole session can extend beyond the period selected in Usage.</p></details>
-          <details className="su-id"><summary>Session ID</summary><code>{session.sessionId}</code></details>
+              ? t("insights.session.detail.auto")
+              : t("insights.session.detail.scenario")
+            : t("insights.session.detail.claude")} {t("insights.session.detail.period")}</p></details>
+          <details className="su-id"><summary>{t("insights.session.id")}</summary><code>{session.sessionId}</code></details>
           </footer>
         </div>
       </div>

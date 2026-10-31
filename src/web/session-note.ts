@@ -29,6 +29,7 @@
 // a line from the last turn would describe a session that has moved on. Until
 // the model answers, the note says the prompt itself, as Claude Code's agent
 // view does — see statusNote.
+import { t } from "./i18n";
 import { planSummary } from "./agent-plan";
 import { recapShown } from "./session-recap";
 import { recapKey } from "./recap-note";
@@ -78,13 +79,13 @@ type NoteLine = Pick<SessionNote, "kind" | "text" | "reply" | "at" | "source" | 
  *  is seen. */
 export function noteTag(kind: NoteKind): string {
   switch (kind) {
-    case "recap": return "recap";
-    case "needs": return "needs you";
-    case "done": return "done";
-    case "failed": return "failed";
-    case "stopped": return "stopped";
-    case "last": return "last";
-    default: return "now";
+    case "recap": return t("insights.note.tag.recap");
+    case "needs": return t("insights.note.tag.needs");
+    case "done": return t("insights.note.tag.done");
+    case "failed": return t("insights.note.tag.failed");
+    case "stopped": return t("insights.note.tag.stopped");
+    case "last": return t("insights.note.tag.last");
+    default: return t("insights.note.tag.now");
   }
 }
 
@@ -239,12 +240,10 @@ export function boardNote(a: NoteBearing & Pick<AgentNodeData, "plan">): BoardNo
 /** Who wrote the note, in words, for its tooltip and its peek. */
 export function noteSource(note: SessionNote): string {
   switch (note.source) {
-    case "recap": return "Claude Code's recap";
-    case "job": return "Claude Code's own line for this background session";
+    case "recap": return t("insights.note.src.recap");
+    case "job": return t("insights.note.src.job");
     case "stop": return stopNoteSource(note.stop);
-    case "prompt": return note.codex
-      ? "The prompt this turn began with — the deck takes no line from a Codex reply"
-      : "The prompt this turn began with — the model has not answered yet";
-    default: return note.kind === "last" ? "What the session did last, until Claude Code's recap" : "From the session's newest reply";
+    case "prompt": return note.codex ? t("insights.note.src.promptCodex") : t("insights.note.src.prompt");
+    default: return note.kind === "last" ? t("insights.note.src.last") : t("insights.note.src.reply");
   }
 }
