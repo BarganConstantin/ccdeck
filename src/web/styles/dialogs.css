@@ -888,7 +888,6 @@
 .release-notes .rn-footer a:active, .release-notes .rn-text-button:active { color: var(--text); text-decoration: underline; text-decoration-thickness: 2px; }
 /* Keep native placement above body content and its complete item hit areas. */
 .rn-options-menu { width: 224px; max-width: calc(100vw - 16px); }
-.rn-options-menu .ap-menu-item { gap: 8px; }
 .rn-menu-status { margin: 0; padding: 8px 10px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; overflow-wrap: anywhere; }
 .rn-menu-status span { display: block; color: var(--muted); }
 .rn-menu-separator { margin: 4px; border-top: 1px solid var(--line); }

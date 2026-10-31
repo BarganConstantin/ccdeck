@@ -74,9 +74,10 @@ const readInTsx = new Set([...withoutComments(tsx).matchAll(/var\(\s*(--[\w-]+)/
  *  are not here: the curves and the left column read them already. */
 const V4_AHEAD_OF_READERS = [
   "--muted-30", "--secondary-30", "--warn-35", "--inflight-30",
-  "--dock", "--selected", "--sunken", "--your-message",
+  // V4's menu: --selected and --row-table are read by .ap-menu-item now.
+  "--dock", "--sunken", "--your-message",
   "--statusbar-h", "--rail-w", "--inspector-w", "--pane-head-h",
-  "--row-rail", "--row-group", "--row-tool", "--row-table", "--row-option", "--row-settings",
+  "--row-rail", "--row-group", "--row-tool", "--row-option", "--row-settings",
   "--ctl-h-lg", "--ctl-h-sm", "--r-pill",
   "--fs-hero", "--lh-hero", "--fs-title", "--lh-title", "--fs-card-title",
   "--fs-body", "--fs-small", "--lh-small", "--fs-code", "--lh-code", "--fs-meta", "--lh-meta",
