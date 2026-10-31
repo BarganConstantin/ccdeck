@@ -1377,6 +1377,15 @@ describe("the cursor of a pane nobody has focused yet", () => {
     expect(() => showCursorFromTheStart({})).not.toThrow();
   });
 
+  it("blinks as a native terminal's does, except for a reader who asked the OS for less motion", () => {
+    // mountXterm's options (source-pinned: they need a real xterm).
+    const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../use-terminal-session.ts"), "utf8");
+    const mount = src.slice(src.indexOf("export const mountXterm"), src.indexOf("// The controller."));
+    expect(mount).toMatch(/\n\s*cursorBlink: !prefersReducedMotion\(\),/);
+    expect(mount.match(/\bcursorBlink:/g), "set once, in the one Terminal the stage makes").toHaveLength(1);
+    expect(src).toMatch(/import \{ prefersReducedMotion \} from "\.\/viewport-motion";/);
+  });
+
   it("still finds the flag where the installed xterm keeps it, so an upgrade that moves it fails here and not silently", () => {
     const xterm = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "node_modules", "@xterm", "xterm", "src");
     const pub = readFileSync(resolve(xterm, "browser/public/Terminal.ts"), "utf8");

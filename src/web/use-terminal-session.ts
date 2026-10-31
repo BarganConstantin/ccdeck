@@ -62,6 +62,7 @@ import { openLink } from "./terminal-links";
 import { copyText } from "./copy-text";
 import { leaveRepliesToTmux } from "./terminal-replies";
 import { isApplePlatform, platformName } from "./platform";
+import { prefersReducedMotion } from "./viewport-motion";
 import { showsFrame, type KeysOwner, type StagePhase } from "./components/terminal/stage-model";
 
 /** The stage's font size. 13.3px is where the deck's mono stack advances a
@@ -285,9 +286,10 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     // `unicode` is behind the proposed-API gate in xterm 6.
     allowProposedApi: true,
     customGlyphs: true,
-    // Nothing on the stage blinks: a blinking cursor beside a still header
-    // reads as an alarm, and under reduced motion it would be one anyway.
-    cursorBlink: false,
+    // It blinks, as a native terminal's does, so the eye finds where typing
+    // goes; not for a reader who asked the OS for less motion. Read once, as
+    // the pane opens; xterm blinks only while the pane has the keys.
+    cursorBlink: !prefersReducedMotion(),
     cursorStyle: "block",
     cursorInactiveStyle: "outline",
     minimumContrastRatio: MINIMUM_CONTRAST_RATIO,
