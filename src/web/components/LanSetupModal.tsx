@@ -96,7 +96,7 @@ export function tailscaleDetail(ts: LanTailscale): string {
 
 /** What a paused automatic switch says on hover: why it cannot be pressed, and
  *  where the thing that holds it is. One sentence for all four of them. */
-const PAUSED_KEY = "lan.setup.paused";
+const PAUSED_MSG = "lan.setup.paused";
 
 export default function LanSetupModal({ status, accounts, onClose, onChanged }: {
   status: LanStatus;
@@ -501,7 +501,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                     asks ? "stop asking automatically" : "ask every deck this one finds",
                     "ask",
                   )}
-                  title={inviteOnly ? t(PAUSED_KEY) : asks
+                  title={inviteOnly ? t(PAUSED_MSG) : asks
                     ? t("lan.setup.askOn")
                     : t("lan.setup.askOff")}
                 >
@@ -527,7 +527,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                     says ? "stop accepting automatically" : "accept every deck that asks",
                     "accept",
                   )}
-                  title={inviteOnly ? t(PAUSED_KEY) : says
+                  title={inviteOnly ? t(PAUSED_MSG) : says
                     ? t("lan.setup.acceptOn")
                     : t("lan.setup.acceptOff")}
                 >
@@ -599,7 +599,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                           tsAsks ? "stop asking your devices automatically" : "ask your devices automatically",
                           "tailscale-ask",
                         )}
-                        title={inviteOnly ? t(PAUSED_KEY) : tsAsks
+                        title={inviteOnly ? t(PAUSED_MSG) : tsAsks
                           ? t("lan.setup.askOn")
                           : t("lan.setup.tsAskOff")}
                       >
@@ -622,7 +622,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                           tsSays ? "stop accepting your devices automatically" : "accept your devices automatically",
                           "tailscale-accept",
                         )}
-                        title={inviteOnly ? t(PAUSED_KEY) : tsSays
+                        title={inviteOnly ? t(PAUSED_MSG) : tsSays
                           ? t("lan.setup.tsAcceptOn")
                           : t("lan.setup.tsAcceptOff")}
                       >
