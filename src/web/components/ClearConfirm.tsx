@@ -84,11 +84,12 @@ export default function ClearConfirm({ agentCount, onConfirm, onCancel }: Props)
             <dd>{stays.length > 0 ? stays.map(line => <span key={line}>{line}</span>) : <span>nothing</span>}</dd>
           </dl>
           {final && <p className="cc-final">{final}</p>}
-          <div className="cc-actions">
-            <button type="button" ref={cancelRef} className="btn" onClick={onCancel}>Cancel</button>
-            <button type="button" className="btn danger" onClick={onConfirm}>{confirm}</button>
-          </div>
         </section>
+
+        <footer className="modal-foot">
+          <button type="button" ref={cancelRef} className="btn" onClick={onCancel}>Cancel</button>
+          <button type="button" className="btn danger" onClick={onConfirm}>{confirm}</button>
+        </footer>
       </div>
     </div>
   );

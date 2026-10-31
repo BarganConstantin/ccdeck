@@ -3,18 +3,17 @@
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  /* No backdrop blur (#882): the scrim is already 55% opaque, and the blur sat
+  /* No backdrop blur (#882): the scrim already dims the board, and the blur sat
      over a canvas whose dashes and spinners never stop, re-rasterising under
      every dialog for as long as it was open. */
-  --modal-scrim: rgba(5,6,9,0.55);
+  --modal-scrim: var(--scrim);
   background: var(--modal-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
-  animation: fadeIn 140ms ease-out;
+  animation: fadeIn var(--dur-base) var(--ease);
 }
-:root[data-color-scheme="light"] .modal-backdrop { --modal-scrim: rgba(15,23,42,0.30); }
 
 /* Native caption controls cannot be dimmed by an HTML backdrop. Keep the
    toolbar in its original colour and paint the scrim below it. The backdrop
@@ -36,11 +35,14 @@
   flex-direction: column;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  box-shadow: var(--shadow-2), 0 0 0 1px rgba(125,211,252,0.10);
+  border-radius: var(--r-overlay);
+  box-shadow: var(--shadow-overlay);
   overflow: hidden;
-  animation: popIn 180ms var(--ease);
+  animation: popIn var(--dur-base) var(--ease);
 }
+/* V4 motion: a dialog opened by a key, or closed with Esc, has none
+   (input-modality.ts sets the flag on any key and clears it on any pointer). */
+:root[data-motion="instant"] :is(.modal-backdrop, .modal) { animation: none; }
 
 /* THE ONE DIALOG HEADER (tokens.css, "One dialog frame"). Every dialog's top
    row is this: its title on the left at one size and weight, a muted note
@@ -56,9 +58,8 @@
   min-height: var(--dialog-head-h);
   box-sizing: border-box;
   flex-shrink: 0;
-  padding: 8px 16px 8px 20px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg-soft);
+  padding: 0 8px 0 16px;
+  border-bottom: 1px solid var(--line-soft);
 }
 /* The title, at the deck's one dialog title size (DESIGN.md: 14px/600) and in
    its own face: a dialog's name is a word, not a value. A heading where the
@@ -71,7 +72,7 @@
   font-family: inherit;
   font-size: calc(14px + var(--ui-text-increase, 0px));
   font-weight: 600;
-  line-height: 1.3;
+  line-height: var(--lh-card-title);
   color: var(--text);
 }
 .tool-modal .modal-tool-name { font-family: var(--font-mono); }
@@ -111,6 +112,19 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+/* The shared footer: buttons right-aligned on their own band under a divider,
+   no fill. Adopted so far by the clear prompt. */
+.modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: var(--dialog-foot-h);
+  padding: 0 16px;
+  border-top: 1px solid var(--line-soft);
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 .modal-section h4 {
   margin: 0 0 6px;
@@ -210,14 +224,17 @@
    search that never dims anything. Fading to the cascade's own opacity is what
    every caller wanted anyway. */
 @keyframes fadeIn { from { opacity: 0; } }
-@keyframes popIn  { from { opacity: 0; transform: translateY(4px) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes popIn  { from { opacity: 0; transform: scale(var(--enter-scale)); } to { opacity: 1; transform: none; } }
 
 /* ---------------- clear confirmation ---------------- */
 
 /* One sentence and two buttons, so it wants none of .modal's 820px. */
 .modal.clear-confirm { width: var(--dialog-s); }
-/* Cancel comes first in the DOM, so it is what focus and the first Tab find;
-   the destructive answer is never the default one. */
+/* Cancel comes first in the DOM (in the .modal-foot), so it is what focus and
+   the first Tab find; the destructive answer is never the default one. The
+   older-hosts dialog (terminal/HostsDialog.tsx) still wears this shell with
+   its buttons in the body, so `.cc-actions` stays for it until it adopts
+   .modal-foot too. */
 .clear-confirm .cc-actions { display: flex; justify-content: flex-end; gap: 8px; }
 /* What goes and what stays, as two labelled groups rather than one sentence
    (#843): the facts clearCopy always computed, sorted, one to a line. */

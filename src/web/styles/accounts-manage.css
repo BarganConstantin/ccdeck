@@ -93,7 +93,7 @@
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: var(--r-panel);
+  border-radius: var(--r-overlay);
   box-shadow: var(--shadow-contact), var(--shadow-2);
   animation: pop-from-anchor 120ms cubic-bezier(0.23, 1, 0.32, 1);
   text-align: left;

@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { pruneStaleState } from "./storage";
+import { installInputModality } from "./input-modality";
 import "reactflow/dist/style.css";
 import "./styles.css";
 
@@ -14,4 +15,5 @@ if (window.ccdeckWindow) {
   document.documentElement.dataset.desktopChrome = "true";
   document.documentElement.dataset.desktopPlatform = window.ccdeckWindow.platform;
 }
+installInputModality();
 root.render(<App />);

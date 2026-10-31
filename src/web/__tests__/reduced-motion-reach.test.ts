@@ -239,7 +239,8 @@ describe("reduced motion reaches the whole deck, not only the canvas", () => {
     // the modal joins that convention, matched to its own backdrop.
     const answer = (answers.get(".modal") ?? []).at(-1)!;
     expect(decl(answer.body, "animation")).toMatch(/fadeIn 140ms/);
-    expect(decl(all.find(r => r.selector === ".modal-backdrop")!.body, "animation")).toMatch(/fadeIn 140ms/);
+    // V4's dialog motion: the scrim fades on Base, the token, no longer 140ms.
+    expect(decl(all.find(r => r.selector === ".modal-backdrop")!.body, "animation")).toMatch(/fadeIn var\(--dur-base\)/);
   });
 
   it("stops the four readouts dead rather than easing them more slowly", () => {

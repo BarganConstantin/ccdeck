@@ -25,15 +25,18 @@ const ctx = readFileSync(fileURLToPath(new URL("../components/ContextModal.tsx",
 
 describe("the context-breakdown dialog on the light theme (#875)", () => {
   it("dims the page with the scrim every other dialog uses there", () => {
-    const scrim = decl(`${LIGHT}.modal-backdrop`, "--modal-scrim");
-    expect(scrim).toBe("rgba(15,23,42,0.30)");
+    // V4's dialog frame: the scrim is the theme's own --scrim token, so the
+    // light answer is the light theme's value and there is no light rule here.
+    expect(decl(".modal-backdrop", "--modal-scrim")).toBe("var(--scrim)");
+    expect(decl(`${LIGHT}.modal-backdrop`, "--modal-scrim")).toBeNull();
     expect(ctx).toMatch(/className="modal-backdrop"/);
     // No copy of the scrim left to drift from it.
     expect(decl(`${LIGHT}.ctx-modal-backdrop`, "background")).toBeNull();
   });
 
   it("casts the shadow each theme tunes for its own canvas, as .modal does", () => {
-    expect(decl(".modal", "box-shadow")).toMatch(/^var\(--shadow-2\)/);
+    // V4's dialog frame: --shadow-overlay, a token each theme tunes (was --shadow-2).
+    expect(decl(".modal", "box-shadow")).toBe("var(--shadow-overlay)");
     expect(ctx).toMatch(/className="modal ctx-modal"/);
     expect(decl(".modal.ctx-modal", "box-shadow")).toBeNull();
   });
