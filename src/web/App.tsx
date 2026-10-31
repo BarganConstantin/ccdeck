@@ -64,6 +64,7 @@ import CategoryFilterBar from "./components/CategoryFilterBar";
 import CanvasMain from "./components/CanvasMain";
 import DeckBanner from "./components/DeckBanner";
 import DeckDialogs from "./components/DeckDialogs";
+import StatusBar from "./components/StatusBar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
@@ -102,7 +103,7 @@ import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { useRailPanel, useStage, useStageAsks } from "./use-stage";
-import { targetSession } from "./stage-shell";
+import { stageClaimsKeys, targetSession } from "./stage-shell";
 import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import { createChimePlayer } from "./chime-player";
 import type { AccountSwitch } from "./components/SettingsModal";
@@ -626,7 +627,7 @@ function Inner() {
     // What the keys read.
     pointerFocusRef, nodesRef, stateRef, primarySelectedIdRef, providersRef, soundOnRef,
     keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
-    stageRef: stage.keysRef,
+    stageRef: stage.keysRef, lodRef,
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
     handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
@@ -998,6 +999,11 @@ function Inner() {
       ) : null}
 
       {account.on && <Suspense fallback={null}><AccountBridge appliers={accountAppliers} /></Suspense>}
+
+      {/* The foot of the shell: the grid's fourth row, under the canvas, the
+          columns and the stripes (not drawn on a phone, where the dock is) —
+          components/StatusBar.tsx. */}
+      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} />}
 
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}
       <DeckDialogs

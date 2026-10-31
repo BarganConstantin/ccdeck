@@ -116,8 +116,8 @@ describe("below 640px the two rail panels stack rather than share a rectangle (#
     // different heights and neither can slide under a bar that changes.
     expect(decl(".usage-panel", "top")).toBe("calc(var(--topbar-h) + 8px)");
     expect(decl(".sysdetail", "top")).toBe("calc(var(--topbar-h) + 8px)");
-    expect(decl(".usage-panel", "max-height")).toBe("calc(100vh - var(--topbar-h) - 24px)");
-    expect(decl(".sysdetail", "max-height")).toBe("calc(100vh - var(--topbar-h) - 24px)");
+    expect(decl(".usage-panel", "max-height")).toBe("calc(100vh - var(--topbar-h) - 24px - var(--status-room, 0px))");
+    expect(decl(".sysdetail", "max-height")).toBe("calc(100vh - var(--topbar-h) - 24px - var(--status-room, 0px))");
     expect(decl(".sysdetail", "bottom")).toBeNull();
     expect(decl(".sysdetail.shifted", "right")).toBe("calc(var(--rail-r) + 280px + 20px)");
   });

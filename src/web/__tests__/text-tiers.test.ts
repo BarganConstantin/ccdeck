@@ -312,6 +312,9 @@ describe("what was migrated to the secondary tier", () => {
       ".radio-tuning > span",
       ".radio-tuning-tower",
       ".sa-why",
+      // V4's status bar: who has the keys, in the one weight-500 label of a
+      // bar whose hints are --muted (Figma 27:7169 prints it --text-secondary).
+      ".statusbar-who",
       // Gruvbox's spend figures (#2125 follow-up): a quantity, so neither the
       // success green the other themes give them nor the totals' --text. Read
       // down a column to compare sessions, which --muted is too quiet for.

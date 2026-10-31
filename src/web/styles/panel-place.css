@@ -21,9 +21,9 @@
   --place-top: calc(var(--topbar-h) + 8px + var(--rating-h, 0px));
   --place-side: calc(var(--edge-w) + 8px);
   --place-w: calc(280px + var(--ui-panel-increase, 0px));
-  --place-at: clamp(var(--place-top), var(--place-y), calc(100vh - 120px));
+  --place-at: clamp(var(--place-top), var(--place-y), calc(100vh - 120px - var(--status-room, 0px)));
   top: var(--place-at);
-  max-height: calc(100vh - var(--place-at) - 16px);
+  max-height: calc(100vh - var(--place-at) - 16px - var(--status-room, 0px));
 }
 .app :is(.usage-panel, .sysdetail)[data-place="right"] {
   left: auto;
