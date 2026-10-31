@@ -42,6 +42,9 @@ function fakeTmux(...replies: Reply[]) {
   return { calls, run };
 }
 
+/** The tmux command a call runs: a launch opens with `-f <config>`. */
+const verb = (args: string[]) => args.find(a => a === "new-session" || a === "has-session") ?? args[0];
+
 /** The error a promise rejects with, so its code can be asserted. */
 async function failure(p: Promise<unknown>): Promise<{ code?: string; message: string; detail?: string }> {
   try { await p; } catch (err) { return err as { code?: string; message: string }; }
@@ -328,6 +331,37 @@ describe("launching a session", () => {
     expect(tmux.calls).toHaveLength(2);
     expect(out.pane).toBe("%2");
     expect(tmux.calls[1].args).toContain(out.name);
+  });
+
+  it("asks again when the server it reached was exiting, once nothing of that name is there", async () => {
+    // The last session had just gone: tmux took the call on its way out and
+    // made nothing. The fresh server the next call starts is the one asked.
+    const tmux = fakeTmux(
+      { ok: false, stderr: "server exited unexpectedly\n" },
+      { ok: false, stderr: "no server running on /tmp/tmux-1000/ccdeck\n" },
+      { ok: true, stdout: "%3\n" },
+    );
+    const out = await launchSession({ tmux: "t", run: tmux.run, agent: "claude", cwd: PROJECT, argv: ["cat"] });
+    expect(out.pane).toBe("%3");
+    expect(tmux.calls.map(c => verb(c.args))).toEqual(["new-session", "has-session", "new-session"]);
+    const first = tmux.calls[0].args[tmux.calls[0].args.indexOf("-s") + 1];
+    expect(tmux.calls[1].args).toEqual(["has-session", "-t", `=${first}`]);
+  });
+
+  it("never starts a session twice: one that is there after all is still the failure", async () => {
+    const tmux = fakeTmux({ ok: false, stderr: "server exited unexpectedly\n" }, { ok: true });
+    const err = await failure(launchSession({ tmux: "t", run: tmux.run, agent: "claude", cwd: PROJECT, argv: ["cat"] }));
+    expect(err).toMatchObject({ code: "tmux-failed", detail: "server exited unexpectedly" });
+    expect(tmux.calls.map(c => verb(c.args))).toEqual(["new-session", "has-session"]);
+  });
+
+  it("stops asking an exiting server after three launches", async () => {
+    const exited = { ok: false, stderr: "server exited unexpectedly\n" };
+    const none = { ok: false, stderr: "no server running on /tmp/tmux-1000/ccdeck\n" };
+    const tmux = fakeTmux(exited, none, exited, none, exited);
+    const err = await failure(launchSession({ tmux: "t", run: tmux.run, agent: "claude", cwd: PROJECT, argv: ["cat"] }));
+    expect(err).toMatchObject({ code: "tmux-failed", detail: "server exited unexpectedly" });
+    expect(tmux.calls.map(c => verb(c.args))).toEqual(["new-session", "has-session", "new-session", "has-session", "new-session"]);
   });
 
   it("reports an attach wrapper that already exists instead of starting a second", async () => {
