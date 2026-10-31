@@ -414,9 +414,9 @@ const catalog: Catalog = {
   "shell.announce.blockMore.answer.other": "{label} ほか{count}件のセッションが回答を待っています。",
   "shell.announce.blockMore.you.one": "{label} ほか{count}件のセッションが待っています。",
   "shell.announce.blockMore.you.other": "{label} ほか{count}件のセッションが待っています。",
-  "shell.feedback.problem.count": "画像は最大 {n} 枚までです。",
-  "shell.feedback.problem.size": "{n} 枚目の画像が {mb} MB を超えています。",
-  "shell.feedback.problem.format": "{n} 枚目の画像は PNG でも JPEG でもありません。",
+  "shell.feedback.problem.count": "画像は最大{n}枚までです。",
+  "shell.feedback.problem.size": "{n}枚目の画像が {mb} MB を超えています。",
+  "shell.feedback.problem.format": "{n}枚目の画像は PNG でも JPEG でもありません。",
 };
 
 export default catalog;

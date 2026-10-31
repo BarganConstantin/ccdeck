@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { integrationText } from "../integrations/server-text";
 import { OwnError, ownMessage } from "../own-error";
@@ -50,5 +51,28 @@ describe("an error shown on screen", () => {
     expect(ownMessage(new DOMException("Unable to decode audio data", "EncodingError"), "Fallback")).toBe("Fallback");
     expect(ownMessage(new OwnError(""), "Fallback")).toBe("Fallback");
     expect(ownMessage("text", "Fallback")).toBe("Fallback");
+  });
+});
+
+describe("the table of the deck's sentences", () => {
+  // The match is on exact English, so a sentence reworded on the server would
+  // fall back to English without anything failing. This is what fails instead.
+  it("names only sentences the routes still send", () => {
+    const dir = new URL("../../server/", import.meta.url);
+    const routes = readdirSync(dir, { recursive: true })
+      .map(String)
+      .filter(file => file.endsWith(".mjs"))
+      .map(file => readFileSync(new URL(file, dir), "utf8"))
+      .join("\n")
+      .replace(/\u2019/g, "'")
+      .replace(/\\'/g, "'")
+      .replace(/["'`]\s*\+\s*["'`]/g, "");
+    const source = readFileSync(new URL("../integrations/server-text.ts", import.meta.url), "utf8");
+    const table = source.slice(source.indexOf("const EXACT"), source.indexOf("const PATTERNS"));
+    const sentences = [...table.matchAll(/^  "(.+)": "[\w.]+",$/gm)].map(row => row[1]);
+    expect(sentences.length).toBeGreaterThan(50);
+    // Built on the server from a field's label or a version, so not one literal.
+    const composed = /^Enter your |^Your .+ is not a valid URL\.$|^This server runs Jira of an unknown version/;
+    expect(sentences.filter(sentence => !composed.test(sentence) && !routes.includes(sentence))).toEqual([]);
   });
 });

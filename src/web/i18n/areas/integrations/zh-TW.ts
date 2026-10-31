@@ -418,7 +418,7 @@ const catalog: Catalog = {
   "integrations.srv.noAddress": "ccdeck 找不到 {provider} 的位址。請檢查網址與網路。",
   "integrations.srv.cannotReachCode": "ccdeck 無法連線到 {provider}（{code}）。請檢查網址、網路或 VPN。",
   "integrations.srv.cannotReach": "ccdeck 無法連線到 {provider}。請檢查網址、網路或 VPN。",
-  "integrations.srv.noCredentials": "{provider} 不接受這組認證資訊。",
+  "integrations.srv.noCredentials": "{provider} 不接受這組憑證。",
   "integrations.srv.tokenGone": "{provider} 不再接受已儲存的權杖，它可能已過期或被撤銷，請用新的權杖重新連線。",
   "integrations.srv.notAllowed": "{provider} 拒絕了：此帳號或權杖無權讀取這項內容。",
   "integrations.srv.limiting": "{provider} 正在限制請求。請在 {n} 秒後再試。",

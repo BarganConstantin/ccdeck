@@ -568,7 +568,7 @@ const catalog: Catalog = {
   "settings.claude.reason.notSaved": "无法保存这项更改，您的 settings.json 未被修改。",
   "settings.claude.reason.permissionsShape": "您的 settings.json 中的 permissions 值不是对象，未保存任何更改。",
   "settings.claude.reason.denyShape": "您的 settings.json 中的 permissions.deny 值不是列表，未保存任何更改。",
-  "settings.claude.reason.attribution": "您的 settings.json 中有自定义的署名设置，请直接在该文件中编辑。",
+  "settings.claude.reason.attribution": "您的 settings.json 中有自定义的标注设置，请直接在该文件中编辑。",
 };
 
 export default catalog;

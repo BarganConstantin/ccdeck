@@ -617,7 +617,7 @@ const catalog: Catalog = {
   "accounts.signin.said.failed": "，失敗",
   "accounts.lane.scoped": "{name}（{n} 天）",
   "accounts.fail.login.noLink": "claude CLI 沒有輸出登入連結",
-  "accounts.fail.login.couldNotFinish": "無法完成登入——請查看 ccdeck 的記錄",
+  "accounts.fail.login.couldNotFinish": "無法完成登入——請查看 ccdeck 的記錄檔",
   "accounts.fail.login.windowExpired": "登入時限已過",
   "accounts.fail.login.didNotComplete": "登入未完成——沒有新增已登入的帳號",
   "accounts.fail.login.signedInNobody": "已登入，但 claude CLI 仍顯示沒有人登入",

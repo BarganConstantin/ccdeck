@@ -476,7 +476,7 @@ const catalog: Catalog = {
   "integrations.srv.notOnDeck": "{provider} ist in diesem ccdeck nicht verfügbar.",
   "integrations.srv.moveWhere": "Gib entweder einen issueKey oder 2–50 geordnete issueKeys und ein Sprint- oder Backlog-Ziel an.",
   "integrations.srv.moveKeys": "Gib eindeutige, gültige Vorgangsschlüssel an (2–50 bei einem Stapel).",
-  "integrations.srv.moveTarget": "Kein gültiger Vorgangsschlüssel oder Verschiebe-Ziel.",
+  "integrations.srv.moveTarget": "Kein gültiger Vorgangsschlüssel und kein gültiges Verschiebeziel.",
   "integrations.srv.moveAnchor": "Verwende höchstens einen anderen Vorgang als Rang-Anker.",
   "integrations.srv.moveSameBoard": "Die Vorgänge und der Anker müssen alle zu diesem Board gehören.",
   "integrations.srv.moveTopLevel": "Die Vorgänge und der Rang-Anker müssen Vorgänge der obersten Ebene sein.",
