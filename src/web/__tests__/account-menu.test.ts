@@ -174,7 +174,8 @@ describe("the states, in the deck's neutral rather than its accent", () => {
     expect(decl(".ap-menu-item", "border")).toBe("0");
     expect(decl(".ap-menu-item", "border-radius")).not.toBe("999px");
     for (const sel of [".ap-menu-item:hover:not(:disabled)", ".ap-menu-item:focus-visible"]) {
-      expect(decl(sel, "background"), sel).toBe("var(--ctl-fill)");
+      // V4's menu: the kit's --selected fill, not --ctl-fill.
+      expect(decl(sel, "background"), sel).toBe("var(--selected)");
     }
     const states = RULES.filter(r => r.sels.some(s => /^\.ap-menu-item(?!\.danger)[:[]/.test(s)));
     expect(states.map(r => r.body).join(";")).not.toMatch(/--accent/);

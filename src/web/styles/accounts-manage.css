@@ -123,31 +123,38 @@
 
 /* ROWS, NOT PILLS. The block's verbs were three outlined pills and a fourth
    in red; in a menu the list is the container, so an item draws nothing at
-   rest and answers the pointer and the keyboard with the neutral fill every
-   control here sits in — the way a native menu highlights a row without
-   restyling its word. --ctl-h is the one height a control stands at in this
-   deck, and a menu row is one. */
+   rest and answers the pointer and the keyboard with the --selected fill — the
+   way a native menu highlights a row without restyling its word. V4's menu: a
+   row stands at the kit's table-row height (--row-table: 28 at Compact, 36 at
+   Default and Comfortable), 0 8px of padding and an 8px gap, 13px on the body
+   line at weight 400. */
 .ap-menu-item {
   display: flex;
   align-items: center;
-  min-height: var(--ctl-h);
-  padding: 0 10px;
+  gap: 8px;
+  min-height: var(--row-table);
+  padding: 0 8px;
   border: 0;
-  /* Concentric with the surface: its --r-panel less the 4px it is inset by. */
+  /* V4's menu: the kit's --r-tag, inset 4px inside the overlay's corner. */
   border-radius: var(--r-tag);
   background: none;
   color: var(--text);
   font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: var(--lh-body);
+  font-weight: 400;
   text-align: left;
   cursor: pointer;
 }
 .ap-menu-item:hover:not(:disabled),
-.ap-menu-item:focus-visible { background: var(--ctl-fill); }
+.ap-menu-item:focus-visible { background: var(--selected); }
 /* Inset, because the global ring's 1px offset would draw over the rows on
    either side of this one. */
 .ap-menu-item:focus-visible { outline-offset: -2px; }
 .ap-menu-item:active:not(:disabled) { background: color-mix(in srgb, var(--text) 12%, transparent); }
+/* The kit draws a disabled row's label in --muted-dim, but that tier is under
+   4.5:1 on --panel and the text floor (contrast-floors.test.ts) allows no rule
+   to set it as a colour, so the row keeps the shared --dim-off dimming. */
 .ap-menu-item:disabled { opacity: var(--dim-off); cursor: default; }
 /* The rule is what separates the one act that cannot be undone. It used to be
    distance — `remove` pushed 102px along its own row — and in a list the
