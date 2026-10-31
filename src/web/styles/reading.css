@@ -62,6 +62,29 @@
 :root[data-density="tighter"] { --panel-inset: 10px; --ctl-h: 26px; --ui-space: 0.5; }
 :root[data-density="compact"] { --panel-inset: 12px; --ctl-h: 28px; --ui-space: 0.7; }
 :root[data-density="comfortable"] { --panel-inset: 18px; --ctl-h: 36px; --ui-space: 1.4; }
+/* V4's Compact sizes (its Figma size variables), for Compact, the default
+   since V4, and for the two steps tighter than it: the chrome, the rows and
+   the control heights. Default and Comfortable keep tokens.css's values.
+   --ctl-h is already said per step above, 28px at Compact as V4 draws it. */
+:root[data-density="tightest"],
+:root[data-density="tighter"],
+:root[data-density="compact"] {
+  --topbar-h: 40px;
+  --statusbar-h: 24px;
+  --rail-w: 264px;
+  --inspector-w: 320px;
+  --pane-head-h: 36px;
+  --row-rail: 44px;
+  --row-group: 24px;
+  --row-tool: 24px;
+  --row-table: 28px;
+  --row-option: 44px;
+  --row-settings: 48px;
+  --ctl-h-lg: 32px;
+  --ctl-h-sm: 24px;
+  --dialog-head-h: 44px;
+  --dialog-foot-h: 48px;
+}
 /* Text enlargement also gives controls enough vertical room. Density never
    decreases the text scale or takes interactive rows below the 24px floor. */
 :root[data-text-size="larger"] { --ui-control-floor: 34px; }

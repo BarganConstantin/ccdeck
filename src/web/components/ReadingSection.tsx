@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import {
+  DEFAULT_DENSITY,
   DENSITIES,
   TEXT_SIZES,
   type Density,
@@ -55,9 +56,10 @@ function SelectedMark() {
 /** Reset to defaults, which Settings draws in the pane's head beside the
  *  section's name and the line under it (SettingsModal.tsx, #2176), where it is
  *  in view without scrolling past the preview. It sat beside an intro that
- *  said what the pane's head now says. Disabled when both are at Default. */
+ *  said what the pane's head now says. Disabled when the text size is at
+ *  Default and the density at Compact, the density V4 draws by default. */
 export function ReadingReset({ textSize, density, onTextSize, onDensity }: Props) {
-  const changed = textSize !== "default" || density !== "default";
+  const changed = textSize !== "default" || density !== DEFAULT_DENSITY;
   return (
     <button
       type="button"
@@ -65,7 +67,7 @@ export function ReadingReset({ textSize, density, onTextSize, onDensity }: Props
       disabled={!changed}
       onClick={() => {
         onTextSize("default");
-        onDensity("default");
+        onDensity(DEFAULT_DENSITY);
       }}
     >
       Reset to defaults

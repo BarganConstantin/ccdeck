@@ -72,9 +72,19 @@
         try {
           size = window.localStorage.getItem("agent-dag.text-size");
           density = window.localStorage.getItem("agent-dag.density");
+          // V4 draws at Compact by default. Before it the app stored "default"
+          // on its first start whether or not anyone chose it, so a stored
+          // "default" moves to Compact once; a choice made after that stays.
+          if (window.localStorage.getItem("agent-dag.density-v4") === null) {
+            if (density === "default") {
+              density = "compact";
+              window.localStorage.setItem("agent-dag.density", density);
+            }
+            window.localStorage.setItem("agent-dag.density-v4", "1");
+          }
         } catch (e) {}
         document.documentElement.setAttribute("data-text-size", size === "smallest" || size === "smaller" || size === "larger" || size === "largest" ? size : "default");
-        document.documentElement.setAttribute("data-density", density === "tightest" || density === "tighter" || density === "compact" || density === "comfortable" ? density : "default");
+        document.documentElement.setAttribute("data-density", density === "tightest" || density === "tighter" || density === "default" || density === "comfortable" ? density : "compact");
       })();
     </script>
   </head>

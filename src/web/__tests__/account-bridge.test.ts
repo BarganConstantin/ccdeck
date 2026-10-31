@@ -50,7 +50,8 @@ describe("the first view of a connected account", () => {
     expect(posts).toHaveLength(1);
     expect(posts[0].path).toBe("/api/account/ui");
     expect(posts[0].body.reason).toBe("initial");
-    expect(posts[0].body.values).toMatchObject({ theme: "light", sound: false, textSize: "default", "panels.accounts": true });
+    // Nothing stored for density reads as Compact, the density the page draws.
+    expect(posts[0].body.values).toMatchObject({ theme: "light", sound: false, textSize: "default", density: "compact", "panels.accounts": true });
     expect(Object.keys(posts[0].body.values)).toHaveLength(UI_FIELDS.length);
   });
 
@@ -70,8 +71,10 @@ describe("the first view of a connected account", () => {
 
   it("does not apply a theme this version has no palette for, and still acknowledges the revision", () => {
     const { bridge, posts, applied, store } = tab({ "agent-dag.theme": "dark" });
-    bridge.onView(view({ savedRevision: 3, adopt: { revision: 3, values: { theme: "some-future-theme", density: "compact" } } }));
-    expect(applied).toEqual([["density", "compact"]]);
+    // Comfortable, not Compact: Compact is what a tab with nothing stored
+    // already shows, so applying it changes nothing.
+    bridge.onView(view({ savedRevision: 3, adopt: { revision: 3, values: { theme: "some-future-theme", density: "comfortable" } } }));
+    expect(applied).toEqual([["density", "comfortable"]]);
     expect(store.get("agent-dag.theme")).toBe("dark");
     expect(posts.at(-1)).toEqual({ path: "/api/account/ui/applied", body: { revision: 3, skipped: { theme: "some-future-theme" } } });
   });
@@ -82,12 +85,12 @@ describe("after it", () => {
     const { bridge, posts, write, timers } = tab();
     bridge.onView(view({}));
     posts.length = 0;
-    write("density", "compact");
+    write("density", "comfortable");
     write("textSize", "larger");
     expect(posts, "nothing until the pause").toEqual([]);
     expect(timers.last()).toBe(2_000);
     await timers.fire();
-    expect(posts).toEqual([{ path: "/api/account/ui", body: { values: { density: "compact", textSize: "larger" }, reason: "user" } }]);
+    expect(posts).toEqual([{ path: "/api/account/ui", body: { values: { density: "comfortable", textSize: "larger" }, reason: "user" } }]);
   });
 
   it("ignores the writes its own applying causes", async () => {
