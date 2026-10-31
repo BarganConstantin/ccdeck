@@ -7,6 +7,7 @@
 import type { useDragTrash } from "../use-drag-trash";
 import { withKey } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import { useT } from "../i18n";
 
 type DragTrash = ReturnType<typeof useDragTrash>;
 
@@ -17,6 +18,7 @@ export default function DragTrashZone({ trashZoneRef, trashState, trashPhase, tr
   /** The dragged card's name, said while it is over the zone. */
   trashLabel: DragTrash["trashLabel"];
 }) {
+  const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   return (
     <div
@@ -30,11 +32,11 @@ export default function DragTrashZone({ trashZoneRef, trashState, trashPhase, tr
       <span className="drag-trash-copy">
         <span className="drag-trash-text">
           {trashState === "over"
-            ? <>Release to remove <strong className="drag-trash-name">{trashLabel || "this card"}</strong></>
-            : "Drop here to remove from the board"}
+            ? <>{t("board.trash.release")} <strong className="drag-trash-name">{trashLabel || t("board.trash.thisCard")}</strong></>
+            : t("board.trash.drop")}
         </span>
         <span className="drag-trash-hint">
-          {trashState === "over" ? `${withKey("The session list", "L", singleKeys)} brings it back` : "The session keeps running"}
+          {trashState === "over" ? t("board.trash.bringsBack", { list: withKey(t("board.detail.listUpper"), "L", singleKeys) }) : t("board.trash.keepsRunning")}
         </span>
       </span>
     </div>
