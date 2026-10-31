@@ -386,7 +386,7 @@ describe("agent-node state rings (#268)", () => {
     // 1.4.1: running / done / failed are near-isoluminant under red-green CVD
     // (deuteranope ΔE 4.5 light, 4.5 dark between done and err), so the ring is
     // a reinforcement. The words are the channel that actually carries it.
-    expect(agentCopy).toMatch(/state === "active" \? "live" : state === "done" \? "done" : "err"/);
+    expect(agentCopy).toMatch(/tr\(state === "active" \? "board\.state\.live" : state === "done" \? "board\.state\.done" : "board\.state\.err"\)/);
     // The state the card draws (drawnState): a root whose turn stopped on an
     // error (#2185) spells "err" there, beside the row that says which error.
     expect(agentNode).toMatch(/const shown = drawnState\(data\);/);

@@ -304,8 +304,8 @@ describe("the status pill stopped resizing itself (#504)", () => {
 describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied last)", () => {
   /** The `<ControlButton>` whose aria-label is the pause control's. */
   const CONTROL = (() => {
-    const at = app.indexOf("aria-label={PAUSE_LABEL}");
-    expect(at, "no control carries PAUSE_LABEL").toBeGreaterThan(-1);
+    const at = app.indexOf("aria-label={pauseLabel(t)}");
+    expect(at, "no control carries pauseLabel").toBeGreaterThan(-1);
     const open = app.lastIndexOf("<ControlButton", at);
     return app.slice(open, app.indexOf("</ControlButton>", at));
   })();
@@ -334,9 +334,9 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     expect(app).not.toMatch(/className="action-run/);
     expect(app).toMatch(/<div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>/);
     expect(app).toMatch(/utilities: \[settings, feedback\]/);
-    expect(app).toMatch(/ariaLabel: "Settings"/);
+    expect(app).toMatch(/ariaLabel: t\("board\.rail\.settings"\)/);
     expect(app).toMatch(/<EdgeRail side="right" label="Usage and activity" groups=\{rails\.right\} \/>/);
-    expect(app).toMatch(/ariaLabel: "Usage"/);
+    expect(app).toMatch(/ariaLabel: t\("board\.rail\.usage"\)/);
     expect(app).not.toMatch(/Sound settings/);
     expect(app, "Pause came back as a chrome control").not.toMatch(/id: "pause"|ariaLabel: "Pause/);
   });
@@ -351,7 +351,7 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     expect(CONTROL).toMatch(/fill="none"/);
     // And a name, because a glyph has none. The four around it each gained one
     // for the same reason when they moved.
-    expect(CONTROL).toMatch(/aria-label=\{PAUSE_LABEL\}/);
+    expect(CONTROL).toMatch(/aria-label=\{pauseLabel\(t\)\}/);
     // `dropped` joined `held` in #547: the hold is bounded now, and a tooltip
     // that named the count without saying the queue had overflowed would be
     // describing a backlog that will be applied whole when it will not.
@@ -362,7 +362,7 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // `singleKeys` joined them with Settings › General's switch: Space is named
     // in the tooltip only while Space pauses (WCAG 2.1.4).
     expect(CONTROL).toMatch(
-      /title=\{pauseTitle\(\{ paused, held: pauseGate\.size, dropped: pauseGate\.dropped, singleKeys \}\)\}/,
+      /title=\{pauseTitle\(\{ paused, held: pauseGate\.size, dropped: pauseGate\.dropped, singleKeys \}, t\)\}/,
     );
   });
 

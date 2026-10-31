@@ -69,6 +69,6 @@ describe("the spawn badge says subagent for one (#1776)", () => {
   });
 
   it("is the title the card puts on its badge", () => {
-    expect(sourceOf("components/AgentNode.tsx")).toMatch(/<span className="spawn-badge" title=\{spawnBadgeTitle\(data\.childCount\)\}>/);
+    expect(sourceOf("components/AgentNode.tsx")).toMatch(/<span className="spawn-badge" title=\{spawnBadgeTitle\(data\.childCount, t\)\}>/);
   });
 });

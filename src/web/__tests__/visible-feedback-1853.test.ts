@@ -205,7 +205,7 @@ describe("the topbar's Feedback button", () => {
   })();
 
   it("is a topbar control that opens the dialog through the one door", () => {
-    expect(item).toMatch(/ariaLabel: "Send feedback"/);
+    expect(item).toMatch(/ariaLabel: t\("board\.rail\.feedback\.menu"\)/);
     expect(item).toMatch(/kind: "dialog"/);
     expect(item).toMatch(/onPress: onFeedback/);
     // A modal behind it, so the button says so and holds no state.
@@ -225,7 +225,7 @@ describe("the topbar's Feedback button", () => {
     // held it. The controls are on the edges now, so the bar has the room at
     // every width the bar draws them: the word is the label, always, and no
     // rule in the sheet hides it.
-    expect(item).toMatch(/label: "Feedback"/);
+    expect(item).toMatch(/label: t\("board\.rail\.feedback"\)/);
     expect(rails).toMatch(/aria-label=\{item\.ariaLabel\}/);
     expect(rails).toMatch(/variant !== "stripe" && <span className="rail-word">/);
     expect(edgeSheet).not.toMatch(/rail-btn-bar[^{]*\.rail-word[^{]*\{[^}]*display:\s*none/);
@@ -236,7 +236,7 @@ describe("the topbar's Feedback button", () => {
     // Under 641px the dock stands in for the stripes and the utilities, and
     // the three rare dialogs — History, Browser watch, Feedback — sit behind
     // More, where a row has the room to say "Send feedback" whole.
-    expect(item).toMatch(/menu: "Send feedback"/);
+    expect(item).toMatch(/menu: t\("board\.rail\.feedback\.menu"\)/);
     // A connected tracker's row (#2178) comes before it; Feedback stays last.
     expect(app).toMatch(/more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, rails\.utilities\[1\]\]\}/);
     expect(rails).toMatch(/item\.menu \?\? item\.label/);

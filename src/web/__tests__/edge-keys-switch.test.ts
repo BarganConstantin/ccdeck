@@ -93,8 +93,8 @@ describe("with the switch on", () => {
     // static render cannot; its two halves are read from the source.
     const readouts = sourceOf("components/TopbarReadouts.tsx");
     expect(readouts).toMatch(/className="wait-more"[\s\S]{0,200}?aria-keyshortcuts=\{singleKeys \? "L" : undefined\}/);
-    expect(readouts).toMatch(/label: "Open the session list",\s*keys: singleKeys \? "L" : undefined,/);
-    expect(readouts).toMatch(/label: "Go to the longest wait",\s*keys: singleKeys \? "W" : undefined,/);
+    expect(readouts).toMatch(/label: t\("board\.queue\.openList"\),\s*keys: singleKeys \? "L" : undefined,/);
+    expect(readouts).toMatch(/label: t\("board\.queue\.longest"\),\s*keys: singleKeys \? "W" : undefined,/);
   });
 });
 

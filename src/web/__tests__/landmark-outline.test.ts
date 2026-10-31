@@ -190,7 +190,7 @@ describe("the deck's five regions are five landmarks (#381)", () => {
     const named: Array<[string, string, string]> = [
       ["UsagePanel.tsx", "usage-panel", '\\{t\\("usage\\.title"\\)\\}'],
       ["AccountsPanel.tsx", "accounts-panel", '"Claude accounts"'],
-      ["SessionList.tsx", "session-list", '"Sessions"'],
+      ["SessionList.tsx", "session-list", '\\{t\\("board\\.list\\.title"\\)\\}'],
     ];
     for (const [file, cls, label] of named) {
       // The class may carry a state alongside its name — the accounts panel
@@ -208,7 +208,7 @@ describe("the deck's five regions are five landmarks (#381)", () => {
     // The detail panel was already an <aside> and was the unnamed one. Its
     // frame is components/DetailAside.tsx, which App.tsx mounts.
     expect(code(app)).toMatch(/<DetailAside\b/);
-    expect(code(source("components/DetailAside.tsx"))).toMatch(/<aside className="detail" aria-label="Detail">/);
+    expect(code(source("components/DetailAside.tsx"))).toMatch(/<aside className="detail" aria-label=\{t\("board\.detailPanel\.title"\)\}>/);
   });
 
   it("has no <div> left wearing one of those class names", () => {
@@ -329,7 +329,7 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     // `Claude accounts`, and the same string as the landmark name below: this
     // panel holds Claude logins only, on a deck that also draws Codex.
     expect(code(accountsHeader)).toMatch(/<h2>Claude accounts<\/h2>/);
-    expect(code(sessions)).toMatch(/<h2>Sessions <span className="sl-count">/);
+    expect(code(sessions)).toMatch(/<h2>\{t\("board\.list\.title"\)\} <span className="sl-count">/);
     // The detail panel has one state left. It used to draw a second one — a
     // "Detail" h2 over "Click an agent to see its tools" and a shortcut list —
     // and that whole empty state is gone: the panel is about an agent, and with

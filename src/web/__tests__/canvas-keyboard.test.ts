@@ -338,7 +338,7 @@ describe("the tool bubbles are decoration, and now say so (#367, finding 3)", ()
     // This is what makes decoration the right answer rather than the other one:
     // the tools are already a keyboard-reachable, ordered, announced list.
     expect(app).toMatch(/<button className="tool clickable"/);
-    expect(app).toMatch(/<ToolRow key=\{t\.id\}[^>]*onClick=\{\(\) => onOpenTool\(agent\.id, t\.id\)\}/);
+    expect(app).toMatch(/<ToolRow key=\{call\.id\}[^>]*onClick=\{\(\) => onOpenTool\(agent\.id, call\.id\)\}/);
   });
 });
 

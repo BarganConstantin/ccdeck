@@ -255,14 +255,14 @@ describe("titles drop the letter when the switch is off", () => {
 
   it("builds every other title that names a key through the same rule", () => {
     for (const [rel, call] of [
-      ["components/CanvasControls.tsx", 'withKey("Auto-arrange — clear pins", "R", singleKeys)'],
-      ["components/CanvasControls.tsx", 'singleKeys ? withKey("Keyboard shortcuts", "?", true) : "Keyboard shortcuts — the single-key ones are off"'],
-      ["components/CanvasControls.tsx", "dropped: pauseGate.dropped, singleKeys })"],
-      ["components/SessionList.tsx", 'withKey("Hide sidebar", "L", singleKeys)'],
+      ["components/CanvasControls.tsx", 'withKey(t("board.controls.arrange"), "R", singleKeys)'],
+      ["components/CanvasControls.tsx", 'singleKeys ? withKey(t("board.controls.keys"), "?", true) : t("board.controls.keysOff")'],
+      ["components/CanvasControls.tsx", "dropped: pauseGate.dropped, singleKeys }, t)"],
+      ["components/SessionList.tsx", 'withKey(t("board.list.hideSidebar"), "L", singleKeys)'],
       ["components/UsagePanel.tsx", 'withKey(t("usage.close"), "U", singleKeys)'],
       ["components/AccountsPanel.tsx", 'withKey("Close", "A", singleKeys)'],
       ["components/SelectedRibbon.tsx", '"Z", singleKeys)'],
-      ["components/Detail.tsx", 'withKey("The session list", "L", singleKeys)'],
+      ["components/Detail.tsx", 'withKey(t("board.detail.listUpper"), "L", singleKeys)'],
     ] as const) {
       expect(sourceOf(rel), rel).toContain(call);
     }
@@ -310,7 +310,7 @@ describe("the shortcuts sheet with the switch off", () => {
   });
 
   it("says on the ? button, with the keys off, why ? does nothing", () => {
-    expect(sourceOf("components/CanvasControls.tsx")).toContain('"Keyboard shortcuts — the single-key ones are off"');
+    expect(sourceOf("components/CanvasControls.tsx")).toContain('t("board.controls.keysOff")');
   });
 
   it("is still reachable with the keys off: the canvas stack's button opens it, and its door opens Settings at General", () => {

@@ -300,7 +300,7 @@ describe("#802 — the empty hero and the scope it was started with", () => {
     expect(scoped.kind).toBe("scoped");
     expect(scoped.workspace).toBe("/w/paycore");
     expect(scoped.tail).toContain("--workspace/--scope");
-    expect(hero).toContain("const scope = emptyScope(workspace);");
+    expect(hero).toContain("const scope = emptyScope(workspace, t);");
     expect(hero).toContain('{scope.kind === "scoped" ? (');
   });
 
@@ -309,12 +309,12 @@ describe("#802 — the empty hero and the scope it was started with", () => {
     // must survive.
     expect(emptyScope("").kind).toBe("machine");
     expect(emptyScope(null).kind).toBe("unknown");
-    expect(hero).toContain("Run <code>claude</code> or <code>codex</code> in any folder.");
+    expect(hero).toContain('coded(t("board.hero.run"), ["claude", "codex"])');
   });
 
   it("is handed the workspace at the call site, which is what was missing", () => {
     expect(app).toContain("<EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} reservedRight={railInsetRef.current} />");
-    expect(hero).toContain("function agentNoneCopy(providers: Providers, workspace: string | null) {");
+    expect(hero).toContain("function agentNoneCopy(providers: Providers, workspace: string | null, t: TFunction) {");
   });
 });
 

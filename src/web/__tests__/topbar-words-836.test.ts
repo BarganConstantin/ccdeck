@@ -250,7 +250,7 @@ describe("the bar keeps amber for the alarm", () => {
     // in the dock, the bar has the room for "2 waiting" whole, and nothing
     // hides the word. Its name keeps the whole sentence.
     expect(css).not.toMatch(/ws-word/);
-    expect(readouts).toMatch(/<b>\{count\}<\/b> waiting\s*<\/button>/);
-    expect(readouts).toMatch(/aria-label=\{`\$\{count\} session\$\{count === 1 \? "" : "s"\} waiting for you`\}/);
+    expect(readouts).toMatch(/<b>\{count\}<\/b> \{t\("board\.queue\.waiting"\)\}\s*<\/button>/);
+    expect(readouts).toMatch(/aria-label=\{t\("board\.queue\.waitingForYou", \{ count \}\)\}/);
   });
 });

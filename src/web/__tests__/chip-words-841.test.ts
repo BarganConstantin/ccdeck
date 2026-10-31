@@ -21,7 +21,7 @@ describe("the rail's activity chips say their category (#841)", () => {
 
   it("renders the category word at rest, between the emoji and the count", () => {
     const emoji = chip.indexOf('className="cat-emoji"');
-    const name = chip.indexOf('<span className="cat-name">{DETAIL_CAT_LABEL[c]}</span>');
+    const name = chip.indexOf('<span className="cat-name">{categoryLabel(c, t)}</span>');
     const count = chip.indexOf('className="cat-count"');
     expect(name).toBeGreaterThan(emoji);
     expect(count).toBeGreaterThan(name);
