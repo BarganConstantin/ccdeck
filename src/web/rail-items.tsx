@@ -193,7 +193,7 @@ export function railItems({
   // A chord, not a single key: it stays in the hint and in
   // aria-keyshortcuts whichever way the single-key switch is set.
   const settings: RailItem = {
-    id: "settings", label: t("board.rail.settings"), short: t("board.rail.settings"), key: { cap: settingsCap, aria: "Control+, Meta+,", single: false },
+    id: "settings", label: t("board.rail.settings"), short: t("board.rail.settings.short"), key: { cap: settingsCap, aria: "Control+, Meta+,", single: false },
     ariaLabel: t("board.rail.settings"), glyph: <SettingsGlyph />, kind: "dialog", onPress: () => openSettings(),
   };
   // The field every door is also behind, by name. A chord, like Settings',

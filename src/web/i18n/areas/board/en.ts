@@ -384,6 +384,7 @@ const catalog: Catalog = {
   "board.rail.browserWatch": "Browser watch",
   "board.rail.browserWatch.short": "Watch",
   "board.rail.settings": "Settings",
+  "board.rail.settings.short": "Settings",
   "board.rail.search": "Search",
   "board.rail.search.detail": "Panels, sessions, settings, actions and themes",
   "board.rail.feedback": "Feedback",

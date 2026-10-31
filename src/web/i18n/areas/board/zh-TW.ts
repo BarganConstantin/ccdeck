@@ -384,6 +384,7 @@ const catalog: Catalog = {
   "board.rail.browserWatch": "Browser Watch",
   "board.rail.browserWatch.short": "Watch",
   "board.rail.settings": "設定",
+  "board.rail.settings.short": "設定",
   "board.rail.search": "搜尋",
   "board.rail.search.detail": "面板、工作階段、設定、動作與主題",
   "board.rail.feedback": "意見回饋",
