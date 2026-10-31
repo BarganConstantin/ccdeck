@@ -8,18 +8,20 @@
 //
 // In the shared shape (SettingsParts.tsx, #2176): one untitled group.
 import { SettingRow, SettingsGroup } from "./SettingsParts";
+import { useT } from "../i18n";
 
 export const RADAR_NOTE = "Watches the telemetry Claude Code sends to its collector, always and in the background, even while Radar is closed. What it reads stays on this machine.";
 
 export default function RadarSettings({ onOpen }: { onOpen: () => void }) {
+  const t = useT();
   return (
     <SettingsGroup>
       <SettingRow
         as="div"
         settingId="radar-open"
-        name="Radar"
+        name={t("radar.name")}
         nameId="settings-radar-open-name"
-        note={RADAR_NOTE}
+        note={t("radar.note")}
         control={
           <button
             type="button"
@@ -28,7 +30,7 @@ export default function RadarSettings({ onOpen }: { onOpen: () => void }) {
             aria-labelledby="settings-radar-open settings-radar-open-name"
             aria-haspopup="dialog"
             onClick={onOpen}
-          >Open</button>
+          >{t("radar.open")}</button>
         }
       />
     </SettingsGroup>
