@@ -8,6 +8,13 @@
 //
 // Nothing starts until asked, and closing the dialog cancels a sign-in that is
 // still waiting, so no process is left behind.
+//
+// The sign-in page opens by itself, as Claude's does (there `claude auth login`
+// opens the browser; `codex login --device-auth` does not, and the browser that
+// matters is this one, which may be on another machine). A browser allows a new
+// tab only inside the press that asked for it, and the link arrives after a
+// request, so the press opens an empty tab at once and the dialog sends it to
+// the link when the link is known. A blocked tab leaves the button below it.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import SuccessMark from "./SuccessMark";
@@ -55,6 +62,10 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
   const [copied, setCopied] = useState(false);
   const [clock, setClock] = useState(Date.now);
   const polling = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** The tab opened inside the press, until the sign-in link is known. */
+  const tabRef = useRef<Window | null>(null);
+  /** The sign-in page is open in a tab the dialog opened. */
+  const [opened, setOpened] = useState(false);
   const stageRef = useRef(stage);
   stageRef.current = stage;
   const idRef = useRef(id);
@@ -67,6 +78,8 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
 
   const close = useCallback(() => {
     stopPolling();
+    try { if (tabRef.current && !tabRef.current.closed) tabRef.current.close(); } catch { /* gone */ }
+    tabRef.current = null;
     // A sign-in still waiting is stopped, so closing leaves no process behind.
     if (["starting", "waiting"].includes(stageRef.current) && idRef.current) {
       void fetch("/api/codex-profile-login-cancel", {
@@ -85,8 +98,32 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
     return () => clearInterval(timer);
   }, []);
 
+  /** Open the tab inside the press. Returns nothing: a blocked tab is not an error. */
+  function openTab() {
+    closeTab();
+    try {
+      const tab = window.open("about:blank", "_blank");
+      if (tab) { tab.opener = null; tabRef.current = tab; }
+    } catch { /* blocked: the button still opens the page */ }
+  }
+  /** Drop the empty tab, when the sign-in never got as far as a link. */
+  function closeTab() {
+    try { if (tabRef.current && !tabRef.current.closed) tabRef.current.close(); } catch { /* gone */ }
+    tabRef.current = null;
+  }
+  /** Send the tab to the link. The link is only ever an OpenAI page: the server
+   *  returns nothing else (codex-login.mjs parseDeviceLogin). */
+  function sendTab(url: string | null | undefined) {
+    const tab = tabRef.current;
+    tabRef.current = null;
+    if (!tab || tab.closed || !url) { if (tab && !tab.closed) tab.close(); return; }
+    try { tab.location.href = url; setOpened(true); } catch { /* the button still opens it */ }
+  }
+
   function apply(answer: LoginAnswer) {
     setLogin(answer);
+    if (answer.state === "waiting") sendTab(answer.url);
+    else if (["failed", "expired", "cancelled", "done"].includes(answer.state ?? "")) closeTab();
     if (answer.state === "done") { stopPolling(); setStage("done"); onSignedIn(); }
     else if (["failed", "expired", "cancelled"].includes(answer.state ?? "")) { stopPolling(); setStage("failed"); }
     else if (answer.state === "waiting") setStage("waiting");
@@ -119,6 +156,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
 
   async function submit() {
     if (busy) return;
+    openTab();
     setBusy(true);
     setError(null);
     try {
@@ -174,9 +212,13 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
 
           {stage === "waiting" && login && (
             <div className="aa-step">
-              <p className="aa-note"><strong>1.</strong> Open the sign-in page and sign in to your ChatGPT account.</p>
+              <p className="aa-note">
+                <strong>1.</strong> {opened
+                  ? "The sign-in page opened in a new tab. Sign in to your ChatGPT account there."
+                  : "Open the sign-in page and sign in to your ChatGPT account."}
+              </p>
               <a className="aa-link" href={login.url ?? "#"} target="_blank" rel="noreferrer noopener">
-                <span>Open the sign-in page</span>
+                <span>{opened ? "Open it again" : "Open the sign-in page"}</span>
                 <span className="aa-link-host">
                   auth.openai.com
                   <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor"
@@ -219,7 +261,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
                 <p className="aa-note">Run the sign-in in a terminal instead, with the command below.</p>
               )}
               <div className="aa-actions">
-                {id && <button type="button" className="btn primary" onClick={() => void begin(id)}>Try again</button>}
+                {id && <button type="button" className="btn primary" onClick={() => { openTab(); void begin(id); }}>Try again</button>}
                 {id && <button type="button" className="btn" onClick={() => onCopyCommand(id)}>Copy the terminal command</button>}
               </div>
             </div>
