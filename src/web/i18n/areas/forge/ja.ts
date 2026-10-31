@@ -333,7 +333,7 @@ const catalog: Catalog = {
   "forge.field.token": "個人用アクセストークン",
   "forge.field.tokenPlaceholder": "トークンを貼り付け",
   "forge.field.which": "GitLab の種類",
-  "forge.field.selfManaged": "セルフマネージド",
+  "forge.field.selfManaged": "自己管理",
   "forge.field.url": "GitLab の URL",
   "forge.field.urlHint": "GitLab を開くときのアドレス。パスがある場合は含めます。https のみ。",
   "forge.token.makeOne": "トークンを作成",
