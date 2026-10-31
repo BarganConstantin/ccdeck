@@ -9,6 +9,8 @@ import { en } from "../i18n/en";
 import { detectLanguage, knownLanguage } from "../i18n/detect";
 import { LANGUAGES, PLANNED_LANGUAGES, languageLabel } from "../i18n/registry";
 import { fill, translate } from "../i18n/translate";
+import { durationLabel, formatNumber } from "../i18n/format";
+import { windowLabel } from "../components/QuotaSections";
 
 const placeholders = (text: string): string[] => [...text.matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort();
 const enKeys = Object.keys(en);
@@ -137,5 +139,37 @@ describe("translate", () => {
     expect(translate("en", cat, "k" as never, { count: 3 })).toBe("3 files");
     expect(translate("en", cat, "j" as never, { count: 1 })).toBe("1 items");
     expect(translate("en", { j: "items" }, "j" as never, { count: 2 })).toBe("items");
+  });
+});
+
+describe("numbers, durations and window names in the language on show", () => {
+  const tFor = (code: string) => {
+    const catalog = LANGUAGES.find(l => l.code === code)!.catalog;
+    return (key: never, vars?: Record<string, string | number>) => translate(code, catalog, key, vars);
+  };
+
+  it("writes a decimal with the language's own separator", () => {
+    expect(formatNumber(2.9, 1, "en")).toBe("2.9");
+    expect(formatNumber(2.9, 1, "de")).toBe("2,9");
+    expect(formatNumber(3, 1, "de")).toBe("3");
+  });
+
+  it("words a duration per language from the same two largest units", () => {
+    const sec = (d: number, h: number, m: number) => d * 86400 + h * 3600 + m * 60;
+    expect(durationLabel(tFor("en"), sec(2, 4, 9))).toBe("2d 4h");
+    expect(durationLabel(tFor("en"), sec(0, 1, 5))).toBe("1h 5m");
+    expect(durationLabel(tFor("en"), 30)).toBe("0m");
+    expect(durationLabel(tFor("de"), sec(2, 4, 0))).toBe("2 T 4 Std.");
+    expect(durationLabel(tFor("ja"), sec(0, 1, 5))).toBe("1時間5分");
+    expect(durationLabel(tFor("zh-TW"), sec(0, 0, 12))).toBe("12 分鐘");
+  });
+
+  it("names the server's windows, and passes an unknown label through", () => {
+    const t = tFor("de");
+    expect(windowLabel(t, "5-hour window")).toBe("5-Stunden-Fenster");
+    expect(windowLabel(t, "30-day window")).toBe("30-Tage-Fenster");
+    expect(windowLabel(t, "Rate limit")).toBe("Ratenlimit");
+    expect(windowLabel(t, "Spark · 7-day window")).toBe("Spark · 7-Tage-Fenster");
+    expect(windowLabel(t, "Something new")).toBe("Something new");
   });
 });

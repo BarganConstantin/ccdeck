@@ -72,18 +72,24 @@ export const en = {
   "usage.tokens.cacheRead": "cache r",
   "usage.tokens.cacheCreate": "cache c",
   "usage.bySession": "By session",
-  "usage.noSessionDated": "No session is dated {period} yet — ccusage dates sessions in UTC, and the totals above are your local day.",
+  "usage.noSessionDated": "No session falls in this period yet — ccusage dates sessions in UTC, and the totals above are your local day.",
   "usage.empty.all": "No usage in any transcript on this machine.",
   "usage.empty.period": "No usage {period}.",
   "usage.empty.longer": "Try a longer period.",
   "usage.empty.none": "No usage data yet.",
   "usage.empty.start": "Start a Claude Code or Codex session.",
 
+  // ── Durations: "2d 4h", "1h 5m", "12m" ──────────────────────────────────
+  "time.dh": "{d}d {h}h",
+  "time.hm": "{h}h {m}m",
+  "time.m": "{m}m",
+
   // ── Quota sections and bars ──────────────────────────────────────────────
   "quota.claude.title": "Claude quota",
   "quota.codex.title": "Codex quota",
-  "quota.window.5h": "5-hour window",
-  "quota.window.7d": "7-day window",
+  "quota.window.hours": "{n}-hour window",
+  "quota.window.days": "{n}-day window",
+  "quota.window.rateLimit": "Rate limit",
   "quota.sonnet7d": "Sonnet (7d)",
   "quota.opus7d": "Opus (7d)",
   "quota.extra": "Extra credits (month)",

@@ -24,6 +24,17 @@ import QuotaBar from "./QuotaBar";
  *  Claude is usually read from claude-swap's last collection, which can be half
  *  an hour old. One combined "just now" in the header took the fresher of the
  *  two and stamped it on both. */
+/** A window's name as the server words it ("5-hour window", "30-day window",
+ *  "Rate limit", or "<model family> · 7-day window") in the reader's language.
+ *  A label this does not recognise is shown as the server sent it. */
+export function windowLabel(t: TFunction, label: string): string {
+  if (label === "Rate limit") return t("quota.window.rateLimit");
+  const m = /^(?:(.*) · )?(?:(\d+)-hour|(\d+)-day) window$/.exec(label);
+  if (!m) return label;
+  const name = m[2] ? t("quota.window.hours", { n: m[2] }) : t("quota.window.days", { n: m[3] });
+  return m[1] ? `${m[1]} · ${name}` : name;
+}
+
 function ageLabel(t: TFunction, ms: number | undefined, nowSec: number): string | null {
   if (!ms) return null;
   const s = nowSec - Math.floor(ms / 1000);
@@ -131,7 +142,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
         <div className="up-quota-bars">
           {quota.session5hPct != null && (
             <QuotaBar
-              label={t("quota.window.5h")}
+              label={t("quota.window.hours", { n: 5 })}
               pct={quota.session5hPct}
               reset={quota.session5hReset}
               resetAt={quota.session5hResetAt}
@@ -145,7 +156,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
               used to print, and not a missing row, which is how the CLI's
               reading showed the same gap. */}
           <QuotaBar
-            label={t("quota.window.7d")}
+            label={t("quota.window.days", { n: 7 })}
             pct={quota.week7dPct ?? null}
             reset={quota.week7dReset}
             resetAt={quota.week7dResetAt}
@@ -229,7 +240,7 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
           {codexQuota.windows?.map(w => (
             <QuotaBar
               key={w.id}
-              label={w.label}
+              label={windowLabel(t, w.label)}
               pct={w.pct}
               reset={w.reset ?? undefined}
               resetAt={w.resetAt ?? undefined}
@@ -245,7 +256,7 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
           {codexQuota.extraWindows?.map(w => (
             <QuotaBar
               key={w.id}
-              label={w.label}
+              label={windowLabel(t, w.label)}
               pct={w.pct}
               reset={w.reset ?? undefined}
               resetAt={w.resetAt ?? undefined}

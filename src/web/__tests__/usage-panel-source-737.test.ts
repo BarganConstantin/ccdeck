@@ -352,7 +352,7 @@ describe("the join to the canvas", () => {
     // of Greenwich there is a stretch after midnight where the money is real
     // and the list is empty, and a missing section reads as a bug.
     expect(panel).toContain("{fromRange && rangeSessionRows.length === 0 && rangeSum.tokens > 0 && (");
-    expect(panel).toContain('t("usage.noSessionDated", { period: periodWord })');
+    expect(panel).toContain('t("usage.noSessionDated")');
   });
 
   it("cuts the session list at twelve, after sorting by cost", () => {

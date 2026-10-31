@@ -9,7 +9,7 @@
 // is open (#856).
 import { useId, useState } from "react";
 import { useT } from "../i18n";
-import { resetCountdown } from "../relative-time";
+import { durationLabel, formatNumber } from "../i18n/format";
 
 // ── Pace helpers ───────────────────────────────────────────────────────────
 
@@ -22,7 +22,8 @@ interface PaceInfo {
   color: string;
   expectedPct: number;  // where usage "should" be now — the green-line marker position
   isDeficit: boolean;   // true when burning faster than sustainable
-  runsOutIn?: string;   // set when deficit and ETA < window remaining
+  runsOutIn?: string;
+  runsOutSec?: number; // the same, in seconds, for the catalog to word   // set when deficit and ETA < window remaining
 }
 
 export function computePace(pct: number, resetAtSec: number, windowSec: number, nowSec: number, limitReached = false): PaceInfo | null {
@@ -59,6 +60,7 @@ export function computePace(pct: number, resetAtSec: number, windowSec: number, 
       const h = Math.floor(runsOutSec / 3600);
       const m = Math.floor((runsOutSec % 3600) / 60);
       info.runsOutIn = h > 0 ? `${h}h ${m}m` : `${m}m`;
+      info.runsOutSec = runsOutSec;
     }
     return info;
   }
@@ -120,7 +122,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   // minimum 2% visual fill so a bar under 1% is still visible as a thin sliver
   const fillW    = underOne ? 2 : capped;
 
-  const countdown = resetAt && !rolled ? resetCountdown(resetAt, nowSec) : null;
+  const countdown = resetAt && !rolled && resetAt > nowSec ? durationLabel(t, resetAt - nowSec) : null;
   const pace = (known && resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec, limitReached) : null;
   const perDay = (pace && resetAt && windowSec && !limitReached) ? monthlyDailyTarget(capped, resetAt, windowSec, nowSec) : null;
   // The note opens the number it is measured against (#856).
@@ -176,12 +178,12 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
                 that says the tick on the bar is the pace these words are
                 measured against (#850). */}
             <i className="qb-pace-key" aria-hidden style={{ background: pace.isDeficit ? "var(--err)" : "var(--ok)" }} />
-            {pace.runsOutIn ? t("quota.pace.runsOut", { time: pace.runsOutIn }) : t(`quota.pace.${pace.kind}`, { n: pace.n ?? 0 })}
+            {pace.runsOutIn ? t("quota.pace.runsOut", { time: durationLabel(t, pace.runsOutSec ?? 0) }) : t(`quota.pace.${pace.kind}`, { n: pace.n ?? 0 })}
           </button>
         )}
       </div>
       {why && pace && <div id={whyId} className="qb-why">{perDay != null
-        ? t("quota.pace.whyPerDay", { pct: Math.round(pace.expectedPct), n: Number(perDay.toFixed(1)) })
+        ? t("quota.pace.whyPerDay", { pct: Math.round(pace.expectedPct), n: formatNumber(Number(perDay.toFixed(1))) })
         : t("quota.pace.why", { pct: Math.round(pace.expectedPct) })}</div>}
     </div>
   );

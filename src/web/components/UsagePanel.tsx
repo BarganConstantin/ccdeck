@@ -489,7 +489,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             <section className="up-section">
               <h3 className="up-section-title">{t("usage.bySession")}</h3>
               <div className="up-hint">
-                {t("usage.noSessionDated", { period: periodWord })}
+                {t("usage.noSessionDated")}
               </div>
             </section>
           )}
