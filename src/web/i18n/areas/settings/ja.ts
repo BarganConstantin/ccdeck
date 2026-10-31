@@ -105,7 +105,7 @@ const catalog: Catalog = {
   "settings.bw.feed.count.one": "{count}件",
   "settings.bw.feed.count.other": "{count}件",
   "settings.bw.feed.note": "自分で開いたページは、ルールの判定のために数えるだけで、記録しません。アドレスが表示されるのは「検出結果」だけで、プログラムが開いたページに限られます。",
-  "settings.bw.feed.empty": "deck がプロファイルを確認するたびに、ここに1行追加されます。",
+  "settings.bw.feed.empty": "ccdeck がプロファイルを確認するたびに、ここに1行追加されます。",
   "settings.bw.feed.flagged": "・{count}件にフラグ",
   "settings.bw.findings": "検出結果",
   "settings.bw.findings.count.one": "{count}件",
