@@ -10,32 +10,33 @@
    the header and the nav stay. No floor and no ceiling besides it, so nothing
    a section draws reaches the frame. Centred like every dialog: a height that
    never changes keeps it in one place.
-   The medium dialog, 820px, holds a 184px nav and a section four theme
+   The medium dialog, 820px, holds V4's 200px nav and a section four theme
    previews wide (#2176). */
 .modal.settings-modal {
   width: var(--dialog-m);
   height: min(720px, calc(100dvh - 80px));
   max-height: none;
-  --settings-group-gap: 20px;
+  --settings-group-gap: 0px;
 }
 .settings-body {
   display: grid;
-  grid-template-columns: 184px minmax(0, 1fr);
+  grid-template-columns: 200px minmax(0, 1fr);
   flex: 1;
   min-height: 0;
 }
-/* The nav's column sits a surface down, as the modal's header does, so the
-   section beside it reads as the page and the nav as the thing that turns it.
-   It holds the search field and, under it, the tab strip, which scrolls on
-   its own on a window too short for eight tabs while the field stays. About follows the other sections; small gaps separate behavior,
-   feedback, integrations/data, and application information. */
+/* The nav's column wears the dock's fill (V4), a surface down from the page,
+   so the section beside it reads as the page and the nav as the thing that
+   turns it. It holds the search field and, under it, the tab strip, which
+   scrolls on its own on a window too short for eight tabs while the field
+   stays. The tabs are one even list, 2px apart: V4 draws no gap between
+   groups of them. */
 .settings-side {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
   border-right: 1px solid var(--line);
-  background: var(--bg-soft);
+  background: var(--dock);
 }
 .settings-nav {
   display: flex;
@@ -43,36 +44,36 @@
   flex-direction: column;
   gap: 2px;
   min-height: 0;
-  padding: 8px 8px 12px;
+  padding: 8px;
   overflow-y: auto;
 }
-.settings-tab#settings-tab-notifications, .settings-tab#settings-tab-integrations, .settings-tab#settings-tab-about { margin-top: 8px; }
-/* Selection uses a quiet fill and text weight. Borders belong only to
-   keyboard focus, never to a pointer hover or the selected section. */
+/* V4's nav item: text only, a table row tall (--row-table, 28 Compact and 36
+   Default), 13/20 in the secondary tier. Selection is the --selected fill and
+   600 weight; borders belong only to keyboard focus, never to a pointer hover
+   or the selected section. */
 .settings-tab {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: var(--ctl-h);
-  padding: 0 10px;
+  min-height: var(--row-table);
+  padding: 4px 8px;
   border: 0;
   border-radius: var(--r-ctl);
   background: transparent;
-  color: var(--muted);
+  color: var(--text-secondary);
   font: inherit;
   font-size: calc(13px + var(--ui-text-increase, 0px));
-  font-weight: 500;
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  font-weight: 400;
   text-align: left;
   cursor: pointer;
   transition: background-color 120ms ease-out, color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.settings-tab > svg { display: block; flex: none; }
-/* One line, always: a name that wrapped under its glyph would make one tab
-   taller than its neighbours. The clip is a last resort for enlarged text. */
+/* One line, always: a name that wrapped would make one tab taller than its
+   neighbours. The clip is a last resort for enlarged text. */
 .settings-tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .settings-tab:hover { background: var(--ctl-fill); color: var(--text); }
 .settings-tab[aria-selected="true"] {
-  background: var(--ctl-fill);
+  background: var(--selected);
   color: var(--text);
   font-weight: 600;
 }
@@ -97,76 +98,78 @@
   flex-direction: column;
   gap: var(--settings-group-gap);
   min-height: 0;
-  padding: 20px 24px 24px;
+  padding: 16px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable both-edges;
-  scroll-padding: 20px 0 24px;
+  scroll-padding: 16px 0 16px;
 
 }
-/* THE PANE'S HEAD: the section's name, the one 16px line in the dialog, and
-   under it the line saying what the section holds (#2176), with the
-   section's own action on the right where it has one (Text & density's
-   Reset). The name is a step over the 13px rows, and the head stands a group
-   step off the first group, so it heads the page rather than reading as one
-   more group. 22px of line puts the name's middle level with the first tab's.
-   Scrolls with its section; the tab beside it already says where the reader
-   is. */
+/* THE PANE'S HEAD (V4's Page head): the section's name, 14/20 and 600, and
+   under it, 4px off, the line saying what the section holds (#2176) in 12/16
+   --muted, with the section's own action on the right where it has one (Text &
+   density's Reset). The first group's caption stands 8px under it, so it heads
+   the page rather than reading as one more group. Scrolls with its section;
+   the tab beside it already says where the reader is. */
 .settings-pane-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
 }
-.settings-pane-heading { min-width: 0; }
+.settings-pane-heading { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .settings-pane-title {
   margin: 0;
   color: var(--text);
-  font-size: calc(16px + var(--ui-text-increase, 0px));
+  font-size: calc(14px + var(--ui-text-increase, 0px));
   font-weight: 600;
-  line-height: calc(22px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
 }
 .settings-pane-note {
-  margin: 2px 0 0;
+  margin: 0;
   max-width: 60ch;
-  color: var(--text-secondary);
+  color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: calc(17px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .settings-pane-head > .btn { flex: none; }
 
 .settings-row-with-details > .settings-row { padding-bottom: 0; }
-.settings-row-details { padding: 0 14px calc(8px * var(--ui-space, 1)); color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; min-width: 0; }
+.settings-row-details { padding: 0 0 calc(8px * var(--ui-space, 1)); color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; min-width: 0; }
 .settings-row-details summary { width: fit-content; cursor: pointer; padding-block: 4px; }
 .settings-row-details[open] > div { padding-top: 4px; max-width: 65ch; overflow-wrap: anywhere; }
 
 /* ONE SHAPE FOR EVERY GROUP (SettingsParts.tsx, #2176): a caption, then one
-   bordered list of rows with a hairline between each, the boxed list macOS
-   System Settings, Windows 11 and libadwaita all draw. A group is told from
-   the next by the section's group step; nothing else parts them. The list's
-   ground is the faintest lift off the panel — mixed from the foreground like
-   the control tiers, so it exists in both themes by construction, and 2%,
-   the most it takes before a row's --text-dim note falls under 4.5:1 in dark
-   (contrast-floors.test.ts) — and its edge is --line, the edge every panel in the deck wears. A group whose
-   content draws its own frames (the theme previews, the text-size scale) has
-   no list, so nothing here is a box in a box. */
-.settings-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+   list of rows with a hairline between each. V4 draws the list with no box:
+   no edge, no radius, no ground, the rows sitting on the dialog's own fill, so
+   the row notes are measured on that fill (contrast-floors.test.ts) and not on
+   the 2% bed they used to have. The groups are not parted by a gap: the space
+   between one and the next is the caption's own top padding, 16px, or 8px for
+   the first group under the pane's head. A group whose content draws its own
+   frames (the theme previews, the text-size scale) has no list. A group with
+   no title has no caption to carry that space, so it carries it itself. */
+.settings-group { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.settings-group:not(:has(> .settings-caption)):not(:first-child) { padding-top: 16px; }
+.settings-pane-head + .settings-group:not(:has(> .settings-caption)) { padding-top: 8px; }
 .settings-caption {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 2px;
+  padding: 16px 0 2px;
 }
+.settings-group:first-child > .settings-caption,
+.settings-pane-head + .settings-group > .settings-caption { padding-top: 8px; }
+.sm-tones > .settings-group:first-child > .settings-caption { padding-top: 16px; }
 .settings-caption-text { min-width: 0; }
-/* THE ONE GROUP HEADING, under the caption the panels' sections use: the name
-   in --muted at 12px and 600, sentence case, and the one piece of metadata —
+/* THE ONE GROUP HEADING (V4's Section label), under the caption the panels'
+   sections use: the name in --text-secondary at 12/16 and 600, sentence case, and the one piece of metadata —
    a key, a count, a button that acts on the whole group — on the right. The
    tone groups and Custom sounds wear it too (.sm-tone-name). */
 .settings-caption h3,
 .sm-tone-name {
   margin: 0;
-  color: var(--muted);
+  color: var(--text-secondary);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 600;
   line-height: calc(16px + var(--ui-text-increase, 0px));
@@ -189,40 +192,45 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  background: color-mix(in srgb, var(--text) 2%, transparent);
 }
-.settings-list > :not(:first-child) { border-top: 1px solid var(--line); }
-/* THE ONE ROW: the name and the line under it on the left, the control on the
-   right, centred on the pair. A <label> when it holds one control, so a press
-   on the name reaches it; `cursor: default` and not `pointer`, because the
-   pointer belongs to the control inside it, which is where the press
-   animation is too. Its vertical room is the density setting's to scale
-   (--ui-space), as every list's is; the 30px control holds a floor under it. */
+.settings-list > :not(:first-child) { border-top: 1px solid var(--line-soft); }
+/* THE ONE ROW (V4's Settings / Row): the name and the line under it on the
+   left, the control on the right, level with the name's line and not centred
+   on the pair. A <label> when it holds one control, so a press on the name
+   reaches it; `cursor: default` and not `pointer`, because the pointer belongs
+   to the control inside it, which is where the press animation is too. It is
+   --row-settings tall (48 Compact, 64 Default) and its block padding is what
+   makes name + note exactly that tall (6 + 20 + 16 + 6; 14 + 36 + 14), so the
+   density sets the height and --ui-space no longer scales a row. The pane's
+   16px is the row's inset, so the row has no horizontal padding of its own. A
+   row with only a name is centred in its height, control and name together. */
 .settings-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
+  align-content: center;
   column-gap: 16px;
-  row-gap: 2px;
+  row-gap: 0;
   margin: 0;
-  padding: calc(10px * var(--ui-space, 1)) 14px;
+  min-height: var(--row-settings);
+  padding: calc((var(--row-settings) - 36px) / 2) 0;
   min-width: 0;
 }
+.settings-row:not(:has(> .settings-row-note)) { align-items: center; }
 .settings-row-name {
   grid-column: 1;
   min-width: 0;
   color: var(--text);
   font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 500;
-  line-height: calc(18px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
   overflow-wrap: anywhere;
 }
 .settings-row-note {
   grid-column: 1;
   min-width: 0;
-  color: var(--text-dim);
+  max-width: 400px;
+  color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
@@ -233,16 +241,27 @@
   grid-column: 2;
   grid-row: 1 / span 2;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-end;
   gap: 10px;
   min-width: 0;
   min-height: var(--ctl-h);
 }
-/* A row with no note is one line: the control keeps to the name's line, so
-   the two share a middle. Spanning a second, empty line, the 30px control
-   grew it and centred itself 6px under a name that stayed at the top. */
-.settings-row:not(:has(> .settings-row-note)) > .settings-row-control { grid-row: 1; }
+/* The control starts level with the name's line (V4's row is items-start). An
+   18px switch sits 1px down so its middle meets the middle of the 20px name
+   line; a select starts at the name's top. A row with no note is one line, so
+   the control keeps to it and the two share a middle. */
+.settings-row-control > [role="switch"] { margin-top: 1px; }
+.settings-row:not(:has(> .settings-row-note)) > .settings-row-control { grid-row: 1; align-items: center; }
+.settings-row:not(:has(> .settings-row-note)) > .settings-row-control > [role="switch"] { margin-top: 0; }
+/* A row whose control is off (V4's Disabled state): the name and the note go
+   to --muted and the control to 0.45. A control in a row dims through the same
+   --dim-off every disabled control reads, which the slot re-says as 0.45 for
+   what is inside it, so the dim stays one token and the rest of the deck
+   keeps its 0.6. */
+.settings-row-control { --dim-off: 0.45; }
+.settings-row:has(> .settings-row-control :is(:disabled, [aria-disabled="true"])) :is(.settings-row-name, .settings-row-note) { color: var(--muted); }
+.settings-row-control [aria-disabled="true"] { opacity: var(--dim-off); }
 .settings-row-control > .sm-select { flex: none; min-width: 120px; min-height: var(--ctl-h); }
 /* A row whose content spans it — the character choices, a confirmation. */
 .settings-row-wide { grid-template-columns: minmax(0, 1fr); }
@@ -308,9 +327,9 @@
   white-space: nowrap;
 }
 /* Settings › Keyboard's shortcuts: a row is a sentence and a cap, so a
-   shorter row than a setting's, and the cap in --text where a reader looks
+   shorter row than a setting's (its own padding and no minimum height, only the pane's inset at the sides), and the cap in --text where a reader looks
    for it. */
-.settings-keys .settings-row { padding-block: calc(6px * var(--ui-space, 1)); }
+.settings-keys .settings-row { min-height: 0; padding-block: calc(6px * var(--ui-space, 1)); }
 .settings-keys .settings-key { color: var(--text); }
 /* The field that narrows a list as it is typed into, the width of the pane. */
 .settings-filter { display: flex; }
@@ -457,7 +476,8 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 240px) 40px;
   align-items: center;
   column-gap: 12px;
-  padding: calc(10px * var(--ui-space, 1)) 14px;
+  min-height: var(--row-settings);
+  padding: calc((var(--row-settings) - 36px) / 2) 0;
 }
 .settings-list > .sm-row > label {
   min-width: 0;
@@ -475,7 +495,7 @@
    section under it as tall as it can be. The glyph stays with its name. The
    dialog takes the screen's whole height, 16px off each edge. */
 @media (max-width: 640px) {
-  .modal.settings-modal { height: calc(100dvh - 32px); --settings-group-gap: 20px; }
+  .modal.settings-modal { height: calc(100dvh - 32px); --settings-group-gap: 0px; }
   .settings-body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
@@ -495,14 +515,12 @@
   }
   .settings-nav::-webkit-scrollbar { display: none; }
   .settings-tab { flex: none; }
-  .settings-tab#settings-tab-notifications, .settings-tab#settings-tab-integrations, .settings-tab#settings-tab-about { margin-top: 0; }
   .settings-pane {
     padding: 14px 14px 32px;
     scroll-padding: 14px 0 32px;
 
   }
-  .settings-row { padding-inline: 12px; }
-  .settings-list > .sm-row { grid-template-columns: minmax(64px, auto) minmax(0, 1fr) 40px; padding-inline: 12px; }
+  .settings-list > .sm-row { grid-template-columns: minmax(64px, auto) minmax(0, 1fr) 40px; }
 }
 /* Under 420px a select, or a read-out with something beside it, goes under
    its name rather than squeezing the name to a word a line: the name and the
@@ -613,59 +631,80 @@
 .tp-card { fill: var(--tp-surface); stroke: var(--tp-rule); }
 .tp-tag { fill: var(--tp-surface); stroke: var(--tp-mark); }
 
-/* ONE SWITCH (#886). There were four: `.ap-auto-state` (the accounts panel's
-   and the LAN dialog's five), `.sm-toggle` (the sound menu's two), `.bw-toggle`
-   (Browser Watch) and `.ver-auto` (the version banner's pill with a dot) — 35
-   rules between them, so every fix to a switch, its focus ring or its
-   reduced-motion answer had to land four times, and the geometry had drifted:
-   30x18 with a 12px knob in one, 30x17 with an 11px knob in two, the knob at
-   rest in --muted in two and --text in one.
+/* ONE SWITCH (#886, V4's Forms / Switch). There were four: `.ap-auto-state`
+   (the accounts panel's and the LAN dialog's five), `.sm-toggle` (the sound
+   menu's two), `.bw-toggle` (Browser Watch) and `.ver-auto` (the version
+   banner's pill with a dot) — 35 rules between them, so every fix to a switch,
+   its focus ring or its reduced-motion answer had to land four times.
    One now. The element carrying `role="switch"` is the track and the
    `.switch-knob` span inside it is the knob. The state is `aria-checked`, read
    straight off the attribute, so the sheet and the accessibility tree cannot
-   disagree — the `.live` and `.on` classes that restated it are gone. 30x18
-   with a 12px knob leaves two pixels of air all round it, the proportion every
-   platform's own switch uses, and keeps the LAN dialog's switches 24px apart
-   centre to centre at their 6px gap, which is what SC 2.5.8 asks of a target
-   under 24px. */
+   disagree.
+   V4's geometry: a 32x18 track (border-box, the 1px border kept in both
+   states so the box never changes size) and a 14px knob, 3px from the outer
+   edge at rest and at the far end (30px inside - 2 - 14 - 2 = 12px of travel).
+   Off the track is --bg-soft with the --ctl-edge edge (Figma draws --line,
+   which falls under the 3:1 a switch's edge is held to, control-edges.test.ts)
+   and a --muted knob; on it fills with --accent and the knob goes --panel.
+   The LAN dialog's switches stay 24px apart centre to centre at their 6px gap,
+   which is what SC 2.5.8 asks of a target under 24px. */
 .switch {
   position: relative;
   display: inline-block;
   flex: none;
-  width: 30px;
+  box-sizing: border-box;
+  width: 32px;
   height: 18px;
   padding: 0;
   border: 1px solid var(--ctl-edge);
-  border-radius: 999px;
-  background: var(--ctl-fill);
+  border-radius: var(--r-pill);
+  background: var(--bg-soft);
   font: inherit;
   line-height: 1;
   cursor: pointer;
-  transition: border-color 120ms, background 140ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast), background-color var(--dur-base) var(--ease);
 }
+/* The knob leans the way it is about to go, like a held finger, then the back
+   catches up (motion.md, Switch): a press on the pointer stretches it to 18px
+   in Fast, and the release carries it across in Base while it narrows again.
+   The track itself no longer scales. */
 .switch-knob {
   position: absolute;
   top: 50%;
   left: 2px;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: var(--muted);
   transform: translateY(-50%);
-  transition: transform 160ms var(--ease), background 140ms ease;
+  transition: transform var(--dur-base) var(--ease), width var(--dur-base) var(--ease), background-color var(--dur-base) var(--ease);
 }
 /* On: the track fills, and the knob goes dark on it rather than light — on
    --accent a pale knob is a pale shape on a pale ground, and the one thing a
    switch has to say at a glance is which end its knob is at. */
 .switch[aria-checked="true"] { border-color: var(--accent); background: var(--accent); }
-.switch[aria-checked="true"] .switch-knob { background: var(--bg); transform: translateY(-50%) translateX(12px); }
-.switch:hover:not(:disabled) { border-color: var(--text); }
-.switch:hover:not(:disabled) .switch-knob { background: var(--text); }
-.switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: var(--bg); }
-.switch:active:not(:disabled) { transform: scale(0.97); }
+.switch[aria-checked="true"] .switch-knob { background: var(--panel); transform: translateY(-50%) translateX(12px); }
+@media (hover: hover) and (pointer: fine) {
+  .switch:hover:not(:disabled) { border-color: var(--text); }
+  .switch:hover:not(:disabled) .switch-knob { background: var(--text); }
+  .switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: var(--panel); }
+}
 .switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.switch:focus-visible .switch-knob { transition-duration: var(--dur-fast); }
+/* Chrome sets :active on Space too, so the stretch is the pointer's alone. The
+   on knob grows toward the left (12 - 4 = 8px) so its right edge stays put. */
+.switch:active:not(:disabled):not(:focus-visible) .switch-knob { width: 18px; transition-duration: var(--dur-fast); }
+.switch[aria-checked="true"]:active:not(:disabled):not(:focus-visible) .switch-knob { transform: translateY(-50%) translateX(8px); }
 .switch:disabled { cursor: default; opacity: var(--dim-off); }
-/* The track stays 30x18, the size its proportions and the LAN dialog's spacing
+/* Reduced motion: no stretch and no travel. The answers carry the press rules'
+   own selectors: a plainer `.switch:active .switch-knob` lost to them on
+   specificity and the knob still stretched. */
+@media (prefers-reduced-motion: reduce) {
+  .switch-knob { transition: background-color var(--dur-fast) var(--ease); }
+  .switch:active:not(:disabled):not(:focus-visible) .switch-knob { width: 14px; }
+  .switch[aria-checked="true"]:active:not(:disabled):not(:focus-visible) .switch-knob { transform: translateY(-50%) translateX(12px); }
+}
+/* The track stays 32x18, the size its proportions and the LAN dialog's spacing
    were argued from above; the target around it is 24px tall (#884), drawn the
    way .ap-failure-x draws its own, so no row moves to make room for it. */
 .switch::after {

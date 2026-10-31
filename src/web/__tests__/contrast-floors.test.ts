@@ -1618,9 +1618,9 @@ describe("small secondary text on the beds it is drawn on (#1788)", () => {
     // the quietest readable tier — in Settings, the one place it is drawn.
     ["the key note under the Sounds switch, in Settings", [".sm-key-note", ".sm-note", ".settings-modal"], settings],
     // The custom-sound cards went into Settings' one list (#2176): what each
-    // way of adding takes is a row's note now, on the list's lifted ground.
-    ["a setting row's note, on its list", [".settings-row-note", ".settings-modal"],
-      theme => bedOf(".settings-list", theme, settings(theme))],
+    // way of adding takes is a row's note now. V4's list has no ground of its
+    // own, so the note sits on the dialog's fill, in --muted.
+    ["a setting row's note, on the dialog", [".settings-row-note", ".settings-modal"], settings],
     ["the Projects report's Copy and Show buttons", [".ap-proj-copy"],
       theme => bedOf(".ap-proj-copy", theme, bedOf(".modal", theme, panel(theme)))],
     ["the trash zone's hint", [".drag-trash-hint", ".drag-trash-zone"],

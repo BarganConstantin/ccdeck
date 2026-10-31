@@ -90,18 +90,21 @@ describe("the one switch owns its states (#886)", () => {
     // Hover is the pointer's feedback, drawn in the foreground like every
     // other control's; the accent stays for the on state and the focus ring.
     expect(body(".switch:hover:not(:disabled)")).toMatch(/border-color:\s*var\(--text\)/);
-    expect(body(".switch:active:not(:disabled)")).toMatch(/transform:\s*scale\(0\.97\)/);
+    // V4: the press is the knob stretching to 18px, not the track scaling.
+    expect(body(".switch:active:not(:disabled):not(:focus-visible) .switch-knob")).toMatch(/width:\s*18px/);
+    expect(body(".switch:active:not(:disabled)")).toBe("");
     expect(body(".switch:focus-visible")).toMatch(/outline:\s*2px solid var\(--accent\)/);
     expect(body(".switch:disabled")).toMatch(/opacity:\s*var\(--dim-off\)/);
   });
 
   it("keeps the geometry the LAN dialog's spacing was argued from", () => {
     const track = body(".switch");
-    expect(track).toMatch(/width:\s*30px/);
+    // V4's switch: a 32x18 track and a 14px knob (the target stays 24px).
+    expect(track).toMatch(/width:\s*32px/);
     expect(track).toMatch(/height:\s*18px/);
     const knob = body(".switch-knob");
-    expect(knob).toMatch(/width:\s*12px/);
-    expect(knob).toMatch(/height:\s*12px/);
+    expect(knob).toMatch(/width:\s*14px/);
+    expect(knob).toMatch(/height:\s*14px/);
   });
 
   it("lets the version banner's armed switch keep its warning, and nothing else differ", () => {
