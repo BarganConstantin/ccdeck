@@ -37,7 +37,6 @@
     "shadow-overlay": "0 16px 40px rgba(0,0,0,0.16)",
     "node-grad": "linear-gradient(180deg, #ffffff, #f2f5fa)",
     "topbar-grad": "linear-gradient(to bottom, #ffffff, #eef1f6)",
-    "conn-wash": "linear-gradient(90deg, rgba(185,28,28,0.14), transparent)",
     "burst-live-wash": "linear-gradient(180deg, rgba(126,34,206,0.06), transparent)",
     "hero-core": "radial-gradient(circle at 30% 30%, #a78bfa, #0ea5e9 55%, #1e293b)",
     "live-bloom": "color-mix(in srgb, var(--ok) 12%, transparent)",

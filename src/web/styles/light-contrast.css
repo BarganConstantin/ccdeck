@@ -60,10 +60,6 @@
   border-color: rgba(185,28,28,0.45);
 }
 
-:root[data-color-scheme="light"] .conn-banner {
-  border-bottom-color: rgba(185,28,28,0.45);
-}
-
 
 /* react-flow edge dashflow uses --inflight which is now deep purple → fine */
 :root[data-color-scheme="light"] .react-flow__edge-path { stroke: rgba(3,105,161,0.40); }
