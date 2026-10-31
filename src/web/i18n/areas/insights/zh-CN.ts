@@ -358,7 +358,7 @@ const catalog: Catalog = {
   "insights.skills.insp.subagentTag": "子智能体",
   "insights.skills.insp.failedTag": "失败",
   "insights.skills.insp.showSession": "在画布上显示此会话",
-  "insights.names.and": "{head}和 {last}",
+  "insights.names.and": "{head} 和 {last}",
   "insights.provider.subtitle": "通过 ccusage · 本机 {names} 日志",
   "insights.provider.subtitleNone": "通过 ccusage · 本机智能体日志",
   "insights.provider.hint.claude": "Claude Code 通过 {file} 中的钩子发送事件；若你设置了 {dir}，则通过该处的钩子。deck 会在首次运行时安装。",

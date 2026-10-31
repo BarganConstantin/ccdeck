@@ -358,7 +358,7 @@ const catalog: Catalog = {
   "insights.skills.insp.subagentTag": "子代理",
   "insights.skills.insp.failedTag": "失敗",
   "insights.skills.insp.showSession": "在畫布上顯示此工作階段",
-  "insights.names.and": "{head}與 {last}",
+  "insights.names.and": "{head} 與 {last}",
   "insights.provider.subtitle": "透過 ccusage · 本機 {names} 日誌",
   "insights.provider.subtitleNone": "透過 ccusage · 本機代理日誌",
   "insights.provider.hint.claude": "Claude Code 透過 {file} 中的 hook 傳送事件；若你設定了 {dir}，則透過該處的 hook。deck 會在首次執行時安裝。",

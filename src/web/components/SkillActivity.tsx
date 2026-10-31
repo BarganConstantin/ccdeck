@@ -191,7 +191,7 @@ export default function SkillActivity({ filters, provider, period, setPeriod, re
                 <span className="ta-bar" aria-hidden="true" style={{ "--ta-share": top && sort === 'uses' ? Math.max(0.015, row.uses / top) : 0 } as CSSProperties}>
                   {skillOrigins.filter(id => row[id] > 0).map(id => <i key={id} data-lane={id} style={{ flexGrow: row[id] }} />)}</span></span>
               <span className="ta-cell" data-col="uses">{row.uses.toLocaleString(currentLanguage())}<span className="ta-unit"> {t('insights.skills.unit.uses', { count: row.uses })}</span></span>
-              <span className="ta-cell" data-col="recent"><span className="ta-unit">{t('insights.skills.unit.last')} </span>{callTime(row.lastAt)}</span>
+              <span className="ta-cell" data-col="recent"><span className="ta-unit">{t('insights.skills.unit.last')} </span>{callTime(row.lastAt, Date.now(), true)}</span>
               {failures && <span className="ta-cell" data-col="failed" data-bad={row.failed > 0 || undefined}>{row.failed ? <>{row.failed.toLocaleString(currentLanguage())}<span className="ta-unit"> {t('insights.audit.unit.failed')}</span></> : <span className="ta-zero">0<span className="ta-unit"> {t('insights.audit.unit.failed')}</span></span>}</span>}
             </button></li>;
           })}</ul>
