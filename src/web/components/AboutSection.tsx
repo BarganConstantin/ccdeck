@@ -24,9 +24,9 @@ import type { SettingsDoors } from "../settings";
 import type { VersionInfo, VersionNotice } from "../use-version-check";
 // The tour's line in What's new, where the same door has stood since #712:
 // the same pictures, so the same sentence.
-import { TOUR_WHY } from "./ReleaseActions";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 import TerminalCliNotice from "./TerminalCliNotice";
+import { t as tNow, useT, type TFunction } from "../i18n";
 
 /** The licence the project offers ccdeck under — package.json's `license`,
  *  LICENSING.md's first line. settings-about-2176.test.ts holds the two to
@@ -51,8 +51,8 @@ export const FEEDBACK_NOTE = "Tell the people who make ccdeck what works and wha
  *  one the deck says when a dialog fails to load for the same reason
  *  (LazyDialog.tsx): hedged, because a reload that serves the same bundle (a
  *  checkout whose build is behind its version) does not pick anything up. */
-export function pageBehindNote(bundle: string): string {
-  return `This page is from v${bundle}. The deck has most likely been updated since this tab opened, and a reload picks up the new version.`;
+export function pageBehindNote(bundle: string, t: TFunction = tNow): string {
+  return t("settings.about.pageBehind", { bundle });
 }
 
 /** Whether the page in front of the reader is older than the deck it talks to.
@@ -71,15 +71,15 @@ export type UpdateOffer =
   | { kind: "ready"; to: string; name: string; note: string }
   | { kind: "notice"; name: string; note: string };
 
-export function updateOffer(ready: { version: string } | null, notice: VersionNotice | null): UpdateOffer | null {
+export function updateOffer(ready: { version: string } | null, notice: VersionNotice | null, t: TFunction = tNow): UpdateOffer | null {
   // The ready update's line in What's new (ReleaseNotesModal.tsx), so the two
   // places that offer the press say the same thing about it.
-  if (ready) return { kind: "ready", to: ready.version, name: "Update ready", note: `${PRODUCT} v${ready.version} is downloaded and verified.` };
+  if (ready) return { kind: "ready", to: ready.version, name: t("settings.about.updateReady"), note: t("settings.about.updateReadyNote", { product: PRODUCT, version: ready.version }) };
   if (!notice) return null;
   // The banner's own first sentence for each kind (VersionBanner.tsx).
   return notice.kind === "restart"
-    ? { kind: "notice", name: "Update installed", note: `v${notice.to} is installed — this deck still runs v${notice.from}.` }
-    : { kind: "notice", name: "Update available", note: `${PRODUCT} v${notice.to} is out — you are on v${notice.from}.` };
+    ? { kind: "notice", name: t("settings.about.updateInstalled"), note: t("settings.about.updateInstalledNote", { to: notice.to, from: notice.from }) }
+    : { kind: "notice", name: t("settings.about.updateAvailable"), note: t("settings.about.updateAvailableNote", { product: PRODUCT, to: notice.to, from: notice.from }) };
 }
 
 export interface AboutProps {
@@ -101,19 +101,20 @@ export interface AboutProps {
 export default function AboutSection({
   version, notice, readyAppUpdate, updateRestarting, updateFailure, onUpdateRestart, doors, bundle = __APP_VERSION__,
 }: AboutProps) {
+  const t = useT();
   // The chip's number, defaulted the way the chip defaults it
   // (use-welcome-and-notes.ts, chipVersion): the server's while it has
   // answered, the bundle's until then.
   const running = version?.running ?? bundle;
-  const offer = updateOffer(readyAppUpdate, notice);
+  const offer = updateOffer(readyAppUpdate, notice, t);
   return (
     <>
       <SettingsGroup id="settings-about-caption" title={PRODUCT}>
         <SettingRow
           as="div"
           settingId="version"
-          name="Version"
-          note={pageBehind(bundle, version?.running) ? pageBehindNote(bundle) : undefined}
+          name={t("settings.about.version")}
+          note={pageBehind(bundle, version?.running) ? pageBehindNote(bundle, t) : undefined}
           control={<span className="settings-read">{running}</span>}
         />
         {version?.terminalCli && <TerminalCliNotice cli={version.terminalCli} running={running} />}
@@ -121,15 +122,15 @@ export default function AboutSection({
         <SettingRow
           as="div"
           settingId="whats-new"
-          name="What's new"
-          note={WHATS_NEW_NOTE}
-          control={<button type="button" className="btn" aria-haspopup="dialog" aria-label="Open What's new" onClick={doors.whatsNew}>Open</button>}
+          name={t("settings.about.whatsNew")}
+          note={t("settings.about.whatsNewNote")}
+          control={<button type="button" className="btn" aria-haspopup="dialog" aria-label={t("settings.about.openWhatsNew")} onClick={doors.whatsNew}>{t("settings.about.open")}</button>}
         />
         <SettingRow
           as="div"
           settingId="licence"
-          name="Licence"
-          note={LICENCE_NOTE}
+          name={t("settings.about.licence")}
+          note={t("settings.about.licenceNote")}
           control={
             <>
               <span className="settings-read">{LICENCE}</span>
@@ -138,7 +139,7 @@ export default function AboutSection({
                   the browser (desktop/main.mjs hands it over). noreferrer,
                   so the page is not told which deck sent the reader. */}
               <a className="settings-link" href={SOURCE_URL} target="_blank" rel="noreferrer">
-                Source<span className="vis-hidden">: the source code, opens in your browser</span>
+                {t("settings.about.source")}<span className="vis-hidden">{t("settings.about.sourceHidden")}</span>
               </a>
             </>
           }
@@ -149,29 +150,29 @@ export default function AboutSection({
         <SettingRow
           as="div"
           settingId="sponsor"
-          name="Sponsor ccdeck"
-          note={SPONSOR_NOTE}
+          name={t("settings.about.sponsor")}
+          note={t("settings.about.sponsorNote")}
           control={
             <a className="settings-link" href={SPONSOR_URL} target="_blank" rel="noreferrer">
-              Sponsor<span className="vis-hidden">: GitHub Sponsors, opens in your browser</span>
+              {t("settings.about.sponsorLink")}<span className="vis-hidden">{t("settings.about.sponsorHidden")}</span>
             </a>
           }
         />
       </SettingsGroup>
-      <SettingsGroup id="settings-about-help-caption" title="Tour and feedback">
+      <SettingsGroup id="settings-about-help-caption" title={t("settings.about.helpGroup")}>
         <SettingRow
           as="div"
           settingId="tour"
-          name="Take the tour"
-          note={TOUR_WHY}
-          control={<button type="button" className="btn" aria-haspopup="dialog" aria-label="Start the tour" onClick={doors.tour}>Start</button>}
+          name={t("settings.about.tour")}
+          note={t("settings.key.tourText")}
+          control={<button type="button" className="btn" aria-haspopup="dialog" aria-label={t("settings.about.startTour")} onClick={doors.tour}>{t("settings.about.start")}</button>}
         />
         <SettingRow
           as="div"
           settingId="feedback"
-          name="Send feedback"
-          note={FEEDBACK_NOTE}
-          control={<button type="button" className="btn" aria-haspopup="dialog" aria-label="Open the feedback dialog" onClick={doors.feedback}>Open</button>}
+          name={t("settings.about.feedback")}
+          note={t("settings.about.feedbackNote")}
+          control={<button type="button" className="btn" aria-haspopup="dialog" aria-label={t("settings.about.openFeedback")} onClick={doors.feedback}>{t("settings.about.open")}</button>}
         />
       </SettingsGroup>
     </>
@@ -202,13 +203,14 @@ function UpdateRow({ offer, restarting, failure, onRestart, onUpdate }: {
   onRestart: (version: string) => void;
   onUpdate: () => void;
 }) {
+  const t = useT();
   if (offer.kind === "notice") {
     return (
       <SettingRow
         as="div"
         name={offer.name}
         note={offer.note}
-        control={<button type="button" className="btn" aria-haspopup="dialog" onClick={onUpdate}>Update…</button>}
+        control={<button type="button" className="btn" aria-haspopup="dialog" onClick={onUpdate}>{t("settings.about.updateBtn")}</button>}
       />
     );
   }
