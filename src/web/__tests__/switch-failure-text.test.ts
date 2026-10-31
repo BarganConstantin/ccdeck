@@ -117,10 +117,10 @@ describe("a refusal from the deck's own gate, which is not a command failing", (
 
   it("is read off the response, not guessed from the body", () => {
     // The auto-switch POST moved to the switching hook with the switch.
-    expect(read("../use-account-switching.ts")).toMatch(/explainCommandFailure\(out, "command failed", res\.status\)/);
+    expect(read("../use-account-switching.ts")).toMatch(/explainCommandFailure\(out, tNow\("accounts\.net\.commandFailed"\), res\.status\)/);
     // The admin route's caller moved to the ⋯ menu's hook, whose presses are
     // the only ones that reach it.
-    expect(read("../use-account-menu.ts")).toMatch(/explainFailure\(out, "command failed", res\.status\)/);
+    expect(read("../use-account-menu.ts")).toMatch(/explainFailure\(out, tNow\("accounts\.net\.commandFailed"\), res\.status\)/);
   });
 
   it("is a gate the dev server no longer trips, so writes work while developing", () => {

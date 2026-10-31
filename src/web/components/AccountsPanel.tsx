@@ -42,6 +42,7 @@ import { useThresholdDraft } from "../use-threshold-draft";
 import { useNextDraft } from "../use-next-draft";
 import { homeTitle, isHome } from "../auto-choice";
 import { POLL_MS, useAccountRoster } from "../use-account-roster";
+import { reloadText } from "../accounts-reload";
 import { useT } from "../i18n";
 import { translate } from "../i18n/translate";
 import { tNodes } from "../accounts-rich";
@@ -333,7 +334,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // What the fold's row says about them — how many can be reached, whether
   // the live account is past the threshold, whether anything will switch
   // without a press — is read in account-fold.ts.
-  const peers = peersOf(rest, nowSec, lanFor);
+  const peers = peersOf(rest, nowSec, lanFor, t);
   const strained = pastThreshold(activeAcct, threshold, nowSec);
   const autoArmed = isAutoArmed(auto);
   /** The box a row scrolls inside, which is what a popover hanging off it
@@ -544,7 +545,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
           {data == null ? (
             failure ? (
               <div className="ap-empty" role="alert">
-                <span title={failure.raw || undefined}>{failure.text}</span>
+                <span title={failure.raw || undefined}>{reloadText(failure, t)}</span>
                 <span className="ap-hint">{t("accounts.panel.noRoster", { seconds: POLL_MS / 1000 })}</span>
                 {/* This was `disabled={reloading}`, #518's one pinned exclusion:
                     the only control in this branch, so no busy lock had anything
@@ -667,7 +668,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                   row that was pressed (#827). */}
               {failure && failure.row == null && (
                 <div className="ap-failure" role="alert">
-                  <span className="ap-failure-text" title={failure.raw || undefined}>{failure.text}</span>
+                  <span className="ap-failure-text" title={failure.raw || undefined}>{reloadText(failure, t)}</span>
                   <button type="button" className="ap-failure-x" onClick={() => clearFailure()}
                     aria-label={t("accounts.row.dismissLabel")} title={t("accounts.row.dismiss")}>×</button>
                 </div>

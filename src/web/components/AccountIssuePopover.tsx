@@ -11,7 +11,7 @@
 import { useRef } from "react";
 import AnchoredPopover from "./AnchoredPopover";
 import { type AccountIssue } from "../account-issue";
-import { ago } from "../account-freshness";
+import { agoLabel as ago } from "../accounts-time";
 import { useT } from "../i18n";
 
 /** The panel's one warning mark, drawn at the header icons' spec — a triangle
@@ -80,7 +80,7 @@ export default function AccountIssuePopover({ anchorId, boundaryId, issue, who, 
         <p className="ap-pop-note ap-issue-when">
           <span className="ap-issue-who">{who}</span>
           {" · "}
-          {fetchedAt ? t("accounts.issuePop.lastCollected", { ago: ago(fetchedAt, nowSec) }) : t("accounts.issuePop.neverCollected")}
+          {fetchedAt ? t("accounts.issuePop.lastCollected", { ago: ago(fetchedAt, nowSec, t) }) : t("accounts.issuePop.neverCollected")}
         </p>
         <div className="ap-pop-actions">
           {/* Subordinate to Done and the fix — a quiet word on the left, no box,

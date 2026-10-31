@@ -605,6 +605,16 @@ const catalog: Catalog = {
   "accounts.add.import": "Import",
   "accounts.add.importLive": "claude-swap is adding the accounts in this share. Any already here are left as they are.",
   "accounts.add.pasteNote": "Use <b>share</b> on one account in the other deck, or <b>↗</b> above its list to send several at once. A share carries a live login for every account in it and expires ten minutes after it is made.",
+  "accounts.reload.unreachable": "couldn't reach the deck server",
+  "accounts.reload.slow": "still waiting on the deck server — claude-swap can be slow to answer",
+  "accounts.reload.unreadable": "the deck server returned unreadable account data",
+  "accounts.reload.answered": "the deck server answered {status}",
+  "accounts.net.unreachable": "server unreachable",
+  "accounts.net.commandFailed": "command failed",
+  "accounts.net.switchFailed": "the switch failed",
+  "accounts.signin.said.done": ", done",
+  "accounts.signin.said.active": ", in progress",
+  "accounts.signin.said.failed": ", failed",
 };
 
 export default catalog;

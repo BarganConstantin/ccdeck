@@ -606,6 +606,16 @@ const catalog: Catalog = {
   "accounts.add.import": "导入",
   "accounts.add.importLive": "claude-swap 正在添加此分享中的账号。已在此处的账号会保持原样。",
   "accounts.add.pasteNote": "在另一台 ccdeck 对单个账号使用<b>分享</b>，或用列表上方的 <b>↗</b> 一次发送多个账号。分享内含其中每个账号的有效登录，创建 10 分钟后即失效。",
+  "accounts.reload.unreachable": "无法连接到 ccdeck 服务器",
+  "accounts.reload.slow": "仍在等待 ccdeck 服务器，claude-swap 的响应有时较慢",
+  "accounts.reload.unreadable": "ccdeck 服务器返回了无法读取的账号数据",
+  "accounts.reload.answered": "ccdeck 服务器响应 {status}",
+  "accounts.net.unreachable": "服务器无法连接",
+  "accounts.net.commandFailed": "命令失败",
+  "accounts.net.switchFailed": "切换失败",
+  "accounts.signin.said.done": "，已完成",
+  "accounts.signin.said.active": "，进行中",
+  "accounts.signin.said.failed": "，失败",
 };
 
 export default catalog;

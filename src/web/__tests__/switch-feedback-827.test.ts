@@ -27,8 +27,8 @@ const roster = read("../use-account-roster.ts");
 
 describe("a switch answers on the row it was about (#827)", () => {
   it("tags a refusal with the row that was pressed, both ways it can fail", () => {
-    expect(doSwitch).toMatch(/sayFailure\(\{ text: explainCommandFailure\(body, "the switch failed"\), raw: commandOutput\(body\), row: num \}\)/);
-    expect(doSwitch).toMatch(/sayFailure\(\{ text: "server unreachable", row: num \}\)/);
+    expect(doSwitch).toMatch(/sayFailure\(\{ text: explainCommandFailure\(body, tNow\("accounts\.net\.switchFailed"\)\), raw: commandOutput\(body\), row: num \}\)/);
+    expect(doSwitch).toMatch(/sayFailure\(\{ text: tNow\("accounts\.net\.unreachable"\), row: num \}\)/);
     // Said as it was written, row and all: the line takes a press's refusal
     // whole, and only a reload's verdict goes through nextFailure.
     expect(roster).toMatch(/const sayFailure = useCallback\(\(f: Failure \| null\) => setFailure\(f\), \[\]\);/);

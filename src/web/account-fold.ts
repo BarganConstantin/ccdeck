@@ -11,6 +11,7 @@ import { type Account, type AutoStatus } from "./claude-accounts";
 import { laneKey } from "./lane-open";
 import { headroomAt } from "./lane-view";
 import { type Peer } from "./other-accounts";
+import { t as tNow, type TFunction } from "./i18n";
 
 /** The accounts behind the fold, each as the fold's row counts it. */
 /**
@@ -29,14 +30,15 @@ export function peersOf(
   /** What Local network knows about each account's copies elsewhere, so a
    *  folded row says what its unfolded row does. */
   lanFor?: (a: Account) => { noCopyWorksNearby?: boolean },
+  t: TFunction = tNow,
 ): Peer[] {
   return rest.map(a => {
-    const issue = accountIssue(a, nowSec, lanFor?.(a));
+    const issue = accountIssue(a, nowSec, lanFor?.(a), t);
     return {
       key: laneKey(a),
-      name: a.alias ?? a.email ?? `account ${a.num}`,
+      name: a.alias ?? a.email ?? t("accounts.accountNLower", { n: a.num }),
       ready: reachable(a, nowSec),
-      why: a.disabled ? "held out" : issue?.blocksSwitch ? issue.text : null,
+      why: a.disabled ? t("accounts.heldOut") : issue?.blocksSwitch ? issue.text : null,
       warn: issue?.tone === "warn",
       // Against the windows still running: one that has reset since it was
       // read says nothing about room (lane-view.ts).

@@ -422,7 +422,7 @@ describe("where it opens from", () => {
     const dialog = sourceOf("components/AccountCapacityDialog.tsx");
     expect(dialog).toContain("const { data, failure } = useAccountRoster(ignoreRoster);");
     expect(dialog).toContain("const nowSec = usePanelClock();");
-    expect(dialog).toMatch(/<AccountsUsageReport accounts=\{data\?\.accounts \?\? null\} order=\{order \?\? \[\]\}\s+failed=\{failure\?\.reload \? failure\.text : null\}\s+nowSec=\{nowSec\}/);
+    expect(dialog).toMatch(/<AccountsUsageReport accounts=\{data\?\.accounts \?\? null\} order=\{order \?\? \[\]\}\s+failed=\{failure\?\.reload \? reloadText\(failure, t\) : null\}\s+nowSec=\{nowSec\}/);
     const modal = sourceOf("components/AccountsUsageReport.tsx");
     expect(modal).not.toMatch(/\bfetch\(|setInterval|useAccountRoster|usePanelClock/);
     // The panel's order, until a column is pressed; then that column's, taken

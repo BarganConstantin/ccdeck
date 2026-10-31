@@ -606,6 +606,16 @@ const catalog: Catalog = {
   "accounts.add.import": "インポート",
   "accounts.add.importLive": "claude-swap がこの共有に含まれるアカウントを追加しています。すでにあるアカウントはそのまま残ります。",
   "accounts.add.pasteNote": "もう一方の ccdeck で、1 つのアカウントには<b>共有</b>を、複数をまとめて送るには一覧の上の <b>↗</b> を使います。共有には各アカウントの有効なログインが含まれ、作成から 10 分で期限切れになります。",
+  "accounts.reload.unreachable": "ccdeck サーバーに接続できませんでした",
+  "accounts.reload.slow": "ccdeck サーバーの応答を待っています。claude-swap は応答が遅いことがあります",
+  "accounts.reload.unreadable": "ccdeck サーバーが読み取れないアカウントデータを返しました",
+  "accounts.reload.answered": "ccdeck サーバーの応答: {status}",
+  "accounts.net.unreachable": "サーバーに接続できません",
+  "accounts.net.commandFailed": "コマンドが失敗しました",
+  "accounts.net.switchFailed": "切り替えに失敗しました",
+  "accounts.signin.said.done": "、完了",
+  "accounts.signin.said.active": "、進行中",
+  "accounts.signin.said.failed": "、失敗",
 };
 
 export default catalog;
