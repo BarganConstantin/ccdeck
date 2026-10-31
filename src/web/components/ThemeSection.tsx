@@ -6,8 +6,10 @@
 // Settings and every other dialog too (use-deck-shortcuts.ts answers it) —
 // while the single-key shortcuts are on, which is also when the cap is drawn.
 import { useEffect, useRef, type KeyboardEvent } from "react";
-import { THEME_DEFINITIONS, THEMES, type Theme } from "../theme";
+import { THEMES, type Theme } from "../theme";
 import { SettingsGroup } from "./SettingsParts";
+import { useT } from "../i18n";
+import { themeName } from "../settings-names";
 
 
 /**
@@ -49,6 +51,7 @@ interface Props {
 }
 
 export default function ThemeSection({ theme, onTheme, singleKeys }: Props) {
+  const t = useT();
   const moveTheme = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key))) return;
     event.preventDefault();
@@ -79,7 +82,7 @@ export default function ThemeSection({ theme, onTheme, singleKeys }: Props) {
   return (
     <SettingsGroup
       id="appearance-theme-caption"
-      title="Theme"
+      title={t("settings.theme.title")}
       list={false}
       settingId="theme"
       /* The key App already answers anywhere on the deck. Shown where the
@@ -87,7 +90,7 @@ export default function ThemeSection({ theme, onTheme, singleKeys }: Props) {
          by aria-keyshortcuts on the group rather than by a stray letter. Not
          drawn while the single-key shortcuts are off: a cap for a key that
          does nothing is a promise the deck breaks. */
-      aside={singleKeys && <kbd className="settings-key" aria-hidden title="Press T anywhere to switch themes">T</kbd>}
+      aside={singleKeys && <kbd className="settings-key" aria-hidden title={t("settings.theme.keyTip")}>T</kbd>}
     >
       {/* One tab stop, on the theme that is set — the radio pattern. The
           arrows walk the choices and switch as they go, as a click does. The
@@ -116,7 +119,7 @@ export default function ThemeSection({ theme, onTheme, singleKeys }: Props) {
           >
             <ThemePreview theme={choice} />
             <span className="appearance-theme-name">
-              {THEME_DEFINITIONS[choice].name}
+              {themeName(choice, t)}
               <svg className="appearance-check" viewBox="0 0 12 12" aria-hidden focusable="false">
                 <path d="M2.5 6.4 4.9 8.7 9.5 3.6" />
               </svg>
