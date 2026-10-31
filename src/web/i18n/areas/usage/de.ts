@@ -1,5 +1,4 @@
 // Area "usage" — de. Every key here starts with "usage.".
-// Machine-drafted, awaiting review by a native speaker.
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
@@ -33,7 +32,7 @@ const catalog: Catalog = {
   "usage.noSessionDated": "In diesem Zeitraum liegt noch keine Sitzung – ccusage datiert Sitzungen in UTC, die Summen oben gelten für deinen lokalen Tag.",
   "usage.empty.all": "In keinem Transkript auf diesem Rechner wurde Nutzung gefunden.",
   "usage.empty.period": "Keine Nutzung {period}.",
-  "usage.empty.longer": "Versuch es mit einem längeren Zeitraum.",
+  "usage.empty.longer": "Versuche es mit einem längeren Zeitraum.",
   "usage.empty.none": "Noch keine Nutzungsdaten.",
   "usage.empty.start": "Starte eine Claude-Code- oder Codex-Sitzung.",
   "usage.quota.claude.title": "Claude-Kontingent",
@@ -48,7 +47,7 @@ const catalog: Catalog = {
   "usage.quota.creditsUnlimited": "Guthaben: unbegrenzt",
   "usage.quota.overage": "Limit für Zusatznutzung erreicht",
   "usage.quota.partial": "Unvollständige Daten – OpenAI hat Limits geliefert, die diese Version nicht kennt.",
-  "usage.quota.none": "Kein Kontingent anzuzeigen.",
+  "usage.quota.none": "Kein Kontingent vorhanden.",
   "usage.quota.unavailable": "Kontingent nicht verfügbar.",
   "usage.quota.checking": "Prüfe …",
   "usage.quota.noNewer": "keine neueren Nutzungsdaten",
@@ -67,7 +66,7 @@ const catalog: Catalog = {
   "usage.quota.hint.runUsage": "Führe /usage in einer claude-Sitzung aus und klicke dann auf ↻",
   "usage.quota.hint.codexNoToken": "Führe codex login aus, um dich anzumelden.",
   "usage.quota.hint.codexApiKey": "Anmeldung per API-Schlüssel – das ChatGPT-Kontingent gibt es nur mit codex login.",
-  "usage.quota.hint.codexExpired": "Codex-Sitzung abgelaufen – codex login ausführen.",
+  "usage.quota.hint.codexExpired": "Codex-Sitzung abgelaufen – führe codex login aus.",
   "usage.quota.hint.codexRefreshFailed": "Das Codex-Token konnte nicht erneuert werden – klicke zum Wiederholen auf ↻.",
   "usage.quota.hint.codexUntrusted": "chatgpt_base_url in ~/.codex/config.toml ist kein https-OpenAI-Host, daher wurde das Token nicht gesendet.",
   "usage.quota.hint.rateLimitedOpenai": "OpenAI hat ccdeck gebeten zu warten – es versucht es von selbst erneut.",
@@ -94,7 +93,7 @@ const catalog: Catalog = {
   "usage.credits.limit.other": "{count} Limit-Resets verfügbar{expiry}",
   "usage.credits.rate.one": "{count} Ratenlimit-Reset verfügbar{expiry}",
   "usage.credits.rate.other": "{count} Ratenlimit-Resets verfügbar{expiry}",
-  "usage.credits.expires": " · läuft {at} ab",
+  "usage.credits.expires": " · läuft am {at} ab",
   "usage.credits.claudeTitle": "In Claude als „Reset for free“ gespeichert. Löse einen in Claude im Web oder auf dem Desktop ein – {product} zeigt sie nur an",
   "usage.credits.codexTitle": "In der Codex CLI oder in ChatGPT einlösen – {product} zeigt sie nur an",
   "usage.sessionNote": "Sitzungen mit Aktivität {noun} und das, was ccusage jeder einzelnen zuordnet.",

@@ -1,5 +1,4 @@
 // Area "forge" — ja. Every key here starts with "forge.".
-// Machine-drafted, awaiting review by a native speaker.
 // Terms in katakana as GitHub and GitLab write them in Japanese: ブランチ,
 // コミット, マージリクエスト, プルリクエスト, パイプライン, イシュー, トークン,
 // ジョブ, プロジェクト, リポジトリ, スレッド.
@@ -203,8 +202,7 @@ const catalog: Catalog = {
   "forge.mark.closedLc": "クローズ済み",
   "forge.mark.failure": "エラー",
   "forge.mark.warning": "警告",
-  "forge.mark.notice": "通知",
-
+  "forge.mark.notice": "お知らせ",
   "forge.openIn": "{name} で開く",
   "forge.none": "なし",
   "forge.noDescription": "説明はありません。",
@@ -232,8 +230,8 @@ const catalog: Catalog = {
   "forge.change.about": "この変更について",
   "forge.change.noDiscussions": "ディスカッションはまだありません。",
   "forge.change.noRuns": "この{change}では{runs}が実行されていません。",
-  "forge.change.gh.wants": "{source} を {target} にマージしたい",
-  "forge.change.gh.wantsCommits": "{source} の{commits}を {target} にマージしたい",
+  "forge.change.gh.wants": "{source} から {target} へのマージを希望しています",
+  "forge.change.gh.wantsCommits": "{source} の{commits}を {target} にマージしようとしています",
   "forge.change.gh.merged": "· {source} を {target} にマージ済み",
   "forge.change.gh.mergedCommits": "· {source} の{commits}を {target} にマージ済み",
   "forge.change.gl.requested": "{source} を {target} にマージするよう依頼",
@@ -330,21 +328,21 @@ const catalog: Catalog = {
   "forge.err.unavailable.detail": "ccdeck は現在それを読み取れません。しばらくしてからもう一度お試しください。",
   "forge.permissionBody": "{message}。接続の設定でトークンのスコープを確認してください。",
 
-  "forge.field.token": "個人用アクセストークン",
+  "forge.field.token": "パーソナルアクセストークン",
   "forge.field.tokenPlaceholder": "トークンを貼り付け",
   "forge.field.which": "GitLab の種類",
-  "forge.field.selfManaged": "自己管理",
+  "forge.field.selfManaged": "セルフマネージド",
   "forge.field.url": "GitLab の URL",
   "forge.field.urlHint": "GitLab を開くときのアドレス。パスがある場合は含めます。https のみ。",
   "forge.token.makeOne": "トークンを作成",
   "forge.token.makeOn": "{host} でトークンを作成",
-  "forge.token.gh.intro": "個人用アクセストークン。どちらの種類でも使えます。",
+  "forge.token.gh.intro": "パーソナルアクセストークン。どちらの種類でも使えます。",
   "forge.token.gh.classicName": "クラシック",
   "forge.token.gh.classic": "— {repo} と {org} のスコープ。",
   "forge.token.gh.fineName": "きめ細かい権限",
   "forge.token.gh.fine": "— 表示したいリポジトリを選び、Actions、Checks、Commit statuses、Contents、Issues、Metadata、Pull requests に読み取り専用でアクセスできるようにします。Contents はブランチとコミットに使い、パネルがファイルを開くことはありません。",
   "forge.token.gh.approval": "組織によっては、きめ細かい権限のトークンの承認や、クラシックトークンのシングルサインオン認可が必要で、それが済むまでリポジトリは表示されません。",
-  "forge.token.gl.scope": "{scope} スコープだけを持つ個人用アクセストークン。それ以上は不要です。",
+  "forge.token.gl.scope": "{scope} スコープだけを持つパーソナルアクセストークン。それ以上は不要です。",
   "forge.token.gl.expire": "GitLab のトークンには有効期限があります。切れるとパネルがお知らせし、ここに戻ります。",
 };
 

@@ -1,14 +1,13 @@
 // Area "radio" — zh-CN. Every key here starts with "radio.".
-// Machine-drafted, awaiting review by a native speaker.
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   "radio.volume": "音量",
-  "radio.disabled.connecting": "正在连接 deck…",
-  "radio.disabled.off": "这个 deck 已关闭音乐。",
-  "radio.disabled.unreachable": "无法连接到 deck。重新连接后，请再次打开电台。",
+  "radio.disabled.connecting": "正在连接 ccdeck…",
+  "radio.disabled.off": "这台 ccdeck 已关闭音乐。",
+  "radio.disabled.unreachable": "无法连接到 ccdeck。重新连接后，请再次打开电台。",
   "radio.title": "电台",
-  "radio.title.explorer": "探索",
+  "radio.title.explorer": "浏览",
   "radio.tagline": "为您的工作区配上配乐",
   "radio.close": "关闭电台",
   "radio.close.title": "关闭（Esc）",
@@ -28,7 +27,7 @@ const catalog: Catalog = {
   "radio.unmute": "取消静音",
   "radio.mute.title": "将电台静音",
   "radio.unmute.title": "取消电台静音",
-  "radio.surprise": "随机播放",
+  "radio.surprise": "随机来一个",
   "radio.view.aria": "探索视图",
   "radio.view.map": "地图",
   "radio.view.stations": "电台",
@@ -102,7 +101,7 @@ const catalog: Catalog = {
   "radio.region.oceania": "大洋洲",
   "radio.map.located": "{total} 个中有 {n} 个有位置",
   "radio.map.located.title": "只有目录中带坐标的结果才能标在地图上，位置可能不够精确。筛选条件排除所选和当前电台时，它们仍会固定显示。",
-  "radio.map.pinned": "＋另有 {n} 个所选/当前电台不在结果中",
+  "radio.map.pinned": "+ 另有 {n} 个所选/当前电台不在结果中",
   "radio.map.canvas": "电台地图",
   "radio.map.explore": "探索附近的 {n} 个电台",
   "radio.map.zoom": "地图缩放",
@@ -161,7 +160,7 @@ const catalog: Catalog = {
   "radio.tone.two": "双音",
   "radio.tone.descent": "下行",
   "radio.tone.ascent": "上行",
-  "radio.tone.tap": "双击",
+  "radio.tone.tap": "双拍",
   "radio.tone.chord": "和弦",
   "radio.tone.bell": "铃声",
   "radio.tone.blip": "哔声",

@@ -1,5 +1,4 @@
 // Area "common" — ja. Every key here starts with "common.".
-// Machine-drafted, awaiting review by a native speaker.
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
@@ -10,9 +9,9 @@ const catalog: Catalog = {
   "common.aboutBefore": "（",
   "common.aboutAfter": "）",
   "common.ago.now": "たった今",
-  "common.ago.m": "{n} 分前",
-  "common.ago.h": "{n} 時間前",
-  "common.ago.d": "{n} 日前",
+  "common.ago.m": "{n}分前",
+  "common.ago.h": "{n}時間前",
+  "common.ago.d": "{n}日前",
 };
 
 export default catalog;

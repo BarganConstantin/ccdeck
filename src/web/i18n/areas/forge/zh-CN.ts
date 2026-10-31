@@ -1,5 +1,4 @@
 // Area "forge" — zh-CN. Every key here starts with "forge.".
-// Machine-drafted, awaiting review by a native speaker.
 // Terms: 分支 (branch), 提交 (commit), 合并请求 (merge request), 拉取请求 (pull
 // request), 流水线 (pipeline), 议题 (issue), 令牌 (token), 作业 (job),
 // 项目 (project), 仓库 (repository), 讨论 (thread).
@@ -111,7 +110,7 @@ const catalog: Catalog = {
   "forge.filter.all": "全部",
   "forge.filter.mine": "我的",
   "forge.filter.review": "审查请求",
-  "forge.changes.byState": "{changes}状态",
+  "forge.changes.byState": "按状态筛选{changes}",
   "forge.changes.which": "筛选{changes}",
   "forge.changes.whichNow": "筛选{changes}：{current}",
   "forge.reviews.waiting": "等待我审查",
@@ -166,10 +165,10 @@ const catalog: Catalog = {
   "forge.src.list.policy": "安全策略",
   "forge.src.detail.manual": "手动运行",
   "forge.src.detail.web": "从网页运行",
-  "forge.src.detail.parent": "上游流水线",
+  "forge.src.detail.parent": "父流水线",
   "forge.src.detail.dynamic": "动态",
 
-  "forge.issues.byState": "议题状态",
+  "forge.issues.byState": "按状态筛选议题",
   "forge.issues.assignedToYou": "分配给您",
   "forge.issues.assignedTo": "分配给",
   "forge.issues.childrenDone": "已完成 {done} / {total} 个子项",
@@ -209,8 +208,8 @@ const catalog: Catalog = {
   "forge.none": "无",
   "forge.noDescription": "没有描述。",
   "forge.gone": "此{what}已不存在，或此令牌看不到。",
-  "forge.fact.assignee": "经办人",
-  "forge.fact.assignees": "经办人",
+  "forge.fact.assignee": "指派人",
+  "forge.fact.assignees": "指派人",
   "forge.fact.reviewer": "审查者",
   "forge.fact.reviewers": "审查者",
   "forge.fact.labels": "标签",

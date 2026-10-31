@@ -1,10 +1,9 @@
 // Area "shell" — zh-TW. Every key here starts with "shell.".
-// Machine-drafted, awaiting review by a native speaker.
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   // ── words used across the shell ──
-  "shell.closeEsc": "關閉 (Esc)",
+  "shell.closeEsc": "關閉（Esc）",
   "shell.close": "關閉",
   "shell.cancel": "取消",
   "shell.dismiss": "忽略",
@@ -13,7 +12,7 @@ const catalog: Catalog = {
   "shell.copied": "已複製",
   "shell.done": "完成",
   "shell.back": "返回",
-  "shell.next": "繼續",
+  "shell.next": "下一步",
   "shell.skipToCanvas": "跳到畫布",
   "shell.rail.left": "帳號與工作階段",
   "shell.rail.right": "使用量與活動",
@@ -34,12 +33,11 @@ const catalog: Catalog = {
   "shell.error.title": "發生錯誤",
   "shell.error.note": "ccdeck 遇到了無法繼續顯示的錯誤。重新載入通常就能排除；若一再發生，請傳送報告，讓開發 ccdeck 的團隊知道哪裡出了問題。",
   "shell.error.report": "傳送報告",
-  "shell.error.noMessage": "ccdeck 擲出了一個沒有訊息的錯誤。",
+  "shell.error.noMessage": "ccdeck 發生了錯誤，但沒有提供任何訊息。",
   "shell.lazy.didNotLoad": "{name} 未能載入。這個分頁開啟之後，ccdeck 很可能已經更新，重新載入即可套用新版本。",
   "shell.lazy.usageHistory": "使用量歷史",
   "shell.lazy.browserWatch": "Browser Watch",
-  "shell.lazy.radar": "遙測雷達",
-
+  "shell.lazy.radar": "Telemetry Radar",
   // ── guides ──
   "shell.guide.step": "第 {n} 步，共 {total} 步",
   "shell.guide.welcome.title": "ccdeck 會為您呈現什麼",
@@ -88,7 +86,7 @@ const catalog: Catalog = {
   "shell.art.memoryOf": "18.9 GB／32.0 GB",
   "shell.art.thermalCap": "溫度",
   "shell.art.fullSpeed": "全速運作中",
-  "shell.art.busiestCap": "最忙的處理程序",
+  "shell.art.busiestCap": "最忙的程序",
   "shell.art.orCodex": "或：codex",
   "shell.art.claudeAccounts": "Claude 帳號",
   "shell.art.active": "使用中",
@@ -190,13 +188,13 @@ const catalog: Catalog = {
   "shell.banner.block.opted_out": "已關閉安裝（AGENTS_DECK_NO_INSTALL=1），請執行：",
   "shell.banner.block.retired_name": "這個安裝來自已不再發布的名稱，請執行：",
   "shell.banner.installedStale": "v{to} 已安裝，但這個 ccdeck 仍在執行 v{from}。",
-  "shell.banner.restartTitle": "停止這個處理程序，並在同一個連接埠重新啟動。畫布會從事件記錄重播。\n\nNode 只會在啟動時載入每個模組一次。升級會取代磁碟上的檔案，但不會取代已在記憶體中的程式碼，所以這個處理程序在重新啟動前會一直執行舊版本。",
+  "shell.banner.restartTitle": "停止這個程序，並在同一個連接埠重新啟動。畫布會從事件記錄重播。\n\nNode 只會在啟動時載入每個模組一次。升級會取代磁碟上的檔案，但不會取代已在記憶體中的程式碼，所以這個程序在重新啟動前會一直執行舊版本。",
   "shell.banner.restarting": "重新啟動中…",
   "shell.banner.autoRestart": "閒置時自動重新啟動",
   "shell.banner.autoOnTitle": "自動更新。您在場時，會在 30 秒沒有任何工作後重新啟動；您離開時，也會先安裝新版本。按一下改為手動確認。",
   "shell.banner.autoOffTitle": "只在您按下時才更新。按一下，讓它在閒置或您離開時自動更新。",
   "shell.banner.restartNeeded": "重新啟動即可套用新程式碼。",
-  "shell.banner.restartNeededTitle": "Node 只會在啟動時載入每個模組一次。升級會取代磁碟上的檔案，但不會取代已在記憶體中的程式碼，所以這個處理程序在重新啟動前會一直執行舊版本。",
+  "shell.banner.restartNeededTitle": "Node 只會在啟動時載入每個模組一次。升級會取代磁碟上的檔案，但不會取代已在記憶體中的程式碼，所以這個程序在重新啟動前會一直執行舊版本。",
   "shell.banner.isOut": "{product} v{to} 已發布，您目前使用 v{from}。",
   "shell.banner.installTitle": "在此執行 {command}，並在沒有任何工作執行時重新啟動。",
   "shell.banner.installing": "安裝中…",
@@ -239,7 +237,7 @@ const catalog: Catalog = {
 
   // ── version chip ──
   "shell.chip.notesClick": "點選可查看新功能",
-  "shell.chip.checksOff": "已關閉更新檢查 (AGENTS_DECK_NO_UPDATE_CHECK=1)",
+  "shell.chip.checksOff": "已關閉更新檢查（AGENTS_DECK_NO_UPDATE_CHECK=1）",
   "shell.chip.asking": "正在向 npm 詢問最新版本…",
   "shell.chip.npmHas": "npm 上有 v{latest}",
   "shell.chip.pendingTag": "npm 的 latest 標籤指向 v{pending}，但目前還無法提供下載",
@@ -402,8 +400,8 @@ const catalog: Catalog = {
   "shell.feedback.discardArmed": "再按一次即可清除這份草稿，清除後無法復原。",
 
   // ── announcements ──
-  "shell.announce.watch.other": "Browser Watch 有 {count} 則未讀發現。",
-  "shell.announce.watchNone": "Browser Watch 沒有未讀發現。",
+  "shell.announce.watch.other": "Browser Watch 有 {count} 則未讀的偵測結果。",
+  "shell.announce.watchNone": "Browser Watch 沒有未讀的偵測結果。",
   "shell.announce.allClear": "沒有工作階段在等您處理。",
 
   // ── quota closes ──
@@ -411,7 +409,7 @@ const catalog: Catalog = {
   "shell.closes.min": "{n} 分鐘",
   "shell.closes.hour": "{n} 小時",
   "shell.closes.week": "{date}：已用 {pct}%，於重設前 {before} 讀取",
-  "shell.closes.average": "每次重設前，每週區間最後一次讀數的平均值",
+  "shell.closes.average": "每次重設前，每週額度區間最後一次讀數的平均值",
   "shell.announce.block.permission": "{label} 正在等待您的授權。",
   "shell.announce.block.answer": "{label} 正在等待您的回答。",
   "shell.announce.block.you": "{label} 正在等您處理。",

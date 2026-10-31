@@ -1,12 +1,11 @@
 // Area "radio" — zh-TW. Every key here starts with "radio.".
-// Machine-drafted, awaiting review by a native speaker.
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   "radio.volume": "音量",
-  "radio.disabled.connecting": "正在連線到 deck…",
-  "radio.disabled.off": "這個 deck 已關閉音樂。",
-  "radio.disabled.unreachable": "無法連線到 deck。重新連線後，請再開啟電台。",
+  "radio.disabled.connecting": "正在連線到 ccdeck…",
+  "radio.disabled.off": "這個 ccdeck 已關閉音樂。",
+  "radio.disabled.unreachable": "無法連線到 ccdeck。重新連線後，請再開啟電台。",
   "radio.title": "電台",
   "radio.title.explorer": "探索",
   "radio.tagline": "為您的工作區配上配樂",
@@ -102,7 +101,7 @@ const catalog: Catalog = {
   "radio.region.oceania": "大洋洲",
   "radio.map.located": "{total} 個中有 {n} 個有位置",
   "radio.map.located.title": "只有目錄中有座標的結果才能標示在地圖上，位置可能不太精確。篩選條件排除所選與目前電台時，它們仍會固定顯示。",
-  "radio.map.pinned": "＋另有 {n} 個所選／目前電台不在結果中",
+  "radio.map.pinned": "+ 另有 {n} 個所選／目前電台不在結果中",
   "radio.map.canvas": "電台地圖",
   "radio.map.explore": "探索附近的 {n} 個電台",
   "radio.map.zoom": "地圖縮放",
@@ -156,7 +155,7 @@ const catalog: Catalog = {
   "radio.fm.unavailable.custom": "無法播放這個電台。請檢查連結、改選其他電台，或再次選取以重試。",
   "radio.fm.unavailable.builtin": "這個電台目前沒有直播。請改選其他電台，或稍後再次選取以重試。",
   "radio.sound.name": "播放音效",
-  "radio.sound.note": "回合結束時，以及 Claude 需要您回應時，播放提示音。",
+  "radio.sound.note": "每次回應結束時，以及 Claude 需要您處理時，播放提示音。",
   "radio.sound.keyTitle": "隨時按 M 即可靜音或取消靜音",
   "radio.tone.two": "雙音",
   "radio.tone.descent": "下行",

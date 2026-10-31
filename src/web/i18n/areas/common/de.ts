@@ -1,9 +1,8 @@
 // Area "common" — de. Every key here starts with "common.".
-// Machine-drafted, awaiting review by a native speaker.
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
-  "common.time.dh": "{d} T {h} Std.",
+  "common.time.dh": "{d} Tg. {h} Std.",
   "common.time.hm": "{h} Std. {m} Min.",
   "common.time.m": "{m} Min.",
   "common.details": "Details",
@@ -11,7 +10,7 @@ const catalog: Catalog = {
   "common.ago.now": "gerade eben",
   "common.ago.m": "vor {n} Min.",
   "common.ago.h": "vor {n} Std.",
-  "common.ago.d": "vor {n} T.",
+  "common.ago.d": "vor {n} Tg.",
 };
 
 export default catalog;

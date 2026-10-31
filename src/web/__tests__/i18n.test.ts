@@ -217,7 +217,7 @@ describe("numbers, durations and window names in the language on show", () => {
     expect(durationLabel(tFor("en"), sec(2, 4, 9))).toBe("2d 4h");
     expect(durationLabel(tFor("en"), sec(0, 1, 5))).toBe("1h 5m");
     expect(durationLabel(tFor("en"), 30)).toBe("0m");
-    expect(durationLabel(tFor("de"), sec(2, 4, 0))).toBe("2 T 4 Std.");
+    expect(durationLabel(tFor("de"), sec(2, 4, 0))).toBe("2 Tg. 4 Std.");
     expect(durationLabel(tFor("ja"), sec(0, 1, 5))).toBe("1時間5分");
     expect(durationLabel(tFor("zh-TW"), sec(0, 0, 12))).toBe("12 分鐘");
   });

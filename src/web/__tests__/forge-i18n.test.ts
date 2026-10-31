@@ -47,7 +47,7 @@ describe("forge sentences in another language", () => {
     expect(divergeWords(1, 0, null)).toBe("Gegenüber dem Standard-Branch: 1 Commit zurück, 0 voraus");
     expect(forgeErrorWords("github", { kind: "rate-limit", message: "x", retryAfter: 20 }).detail).toBe("Versuche es in 20 s erneut.");
     setLanguage("zh-TW");
-    expect(emptyChangesWords("gitlab", { state: "merged", filter: "all", acrossRepos: false })).toBe("在此專案中沒有已合併的合併請求。");
+    expect(emptyChangesWords("gitlab", { state: "merged", filter: "all", acrossRepos: false })).toBe("在此專案中，沒有已合併的合併請求。");
     expect(pipelineSourceWords("push")).toBe("推送");
     expect(pipelineSourceWords("some_new_event")).toBe("some new event");
     expect(changeSections("github", { discussions: 1, commits: 2, pipelines: 3, files: 4 } as never).map(s => s.label)).toEqual(["對話", "提交", "檢查", "變更的檔案"]);

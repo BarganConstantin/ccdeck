@@ -1,5 +1,4 @@
 // Area "usage" — zh-TW. Every key here starts with "usage.".
-// Machine-drafted, awaiting review by a native speaker.
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
@@ -61,15 +60,15 @@ const catalog: Catalog = {
   "usage.quota.source.cli": "解析自 `claude /usage`，最多每 5 分鐘一次",
   "usage.quota.source.other": "上次更新",
   "usage.quota.source.codex": "取自 Codex 使用量端點",
-  "usage.quota.hint.noSubscription": "此安裝使用 API 金鑰（或 Bedrock/Vertex）登入，依 token 計費，沒有工作階段區間。",
+  "usage.quota.hint.noSubscription": "此安裝使用 API 金鑰（或 Bedrock/Vertex）登入，依 token 用量計費，沒有工作階段區間。",
   "usage.quota.hint.rateLimitedAnthropic": "Anthropic 要求 ccdeck 稍候，之後會自動重試。",
   "usage.quota.hint.waiting": "等待下一次允許的讀取，或按 ↻。",
   "usage.quota.hint.runUsage": "請在 claude 工作階段中執行 /usage，然後按 ↻",
   "usage.quota.hint.codexNoToken": "請執行 codex login 進行驗證。",
   "usage.quota.hint.codexApiKey": "以 API 金鑰登入——ChatGPT 額度僅適用於 codex login。",
   "usage.quota.hint.codexExpired": "Codex 工作階段已過期，請執行 codex login。",
-  "usage.quota.hint.codexRefreshFailed": "無法更新 Codex token，請按 ↻ 重試。",
-  "usage.quota.hint.codexUntrusted": "~/.codex/config.toml 中的 chatgpt_base_url 不是使用 https 的 OpenAI 主機，因此未傳送 token。",
+  "usage.quota.hint.codexRefreshFailed": "無法更新 Codex 權杖，請按 ↻ 重試。",
+  "usage.quota.hint.codexUntrusted": "~/.codex/config.toml 中的 chatgpt_base_url 不是使用 https 的 OpenAI 主機，因此未傳送權杖。",
   "usage.quota.hint.rateLimitedOpenai": "OpenAI 要求 ccdeck 稍候，之後會自動重試。",
   "usage.quota.hint.codexUnreachable": "無法連線到 ChatGPT API，請按 ↻ 重試。",
   "usage.quota.rateLimitReached": "已達速率限制",

@@ -1,5 +1,4 @@
 // Area "forge" — zh-TW. Every key here starts with "forge.".
-// Machine-drafted, awaiting review by a native speaker.
 // Terms: 分支 (branch), 提交 (commit), 合併請求 (merge request), 提取要求 (pull
 // request, the Taiwan term), 管線 (pipeline), 議題 (issue), 權杖 (token),
 // 工作 (job), 專案 (project), 儲存庫 (repository), 討論串 (thread).
@@ -74,7 +73,7 @@ const catalog: Catalog = {
   "forge.noun.checks": "檢查",
   "forge.noun.branch": "分支",
   "forge.noun.issue": "議題",
-  "forge.where": "在此{repo}中",
+  "forge.where": "在此{repo}中，",
   "forge.empty.branches": "此{repo}沒有分支。",
   "forge.empty.mine.open": "{where}您沒有開啟中的{noun}。",
   "forge.empty.mine.merged": "{where}您沒有已合併的{noun}。",
@@ -259,8 +258,7 @@ const catalog: Catalog = {
   "forge.approvedBy": "{names} 已核准",
   "forge.approvalsLeft.other": "還需要 {n} 項核准",
   "forge.names.sep": "、",
-  "forge.names.and": "{list}和{last}",
-
+  "forge.names.and": "{list} 和 {last}",
   "forge.branch.frame": "分支 {name}",
   "forge.branch.latestCommit": "最新提交",
   "forge.branch.comparedWith": "與 {branch} 比較",
@@ -279,16 +277,15 @@ const catalog: Catalog = {
   "forge.jobs.other": "其他工作",
   "forge.jobs.allowedToFail": "允許失敗",
   "forge.jobs.open": "開啟工作",
-  "forge.log.show": "顯示日誌",
-  "forge.log.full": "完整日誌",
-  "forge.log.title": "日誌",
+  "forge.log.show": "顯示記錄檔",
+  "forge.log.full": "完整記錄檔",
+  "forge.log.title": "記錄檔",
   "forge.log.last.other": "最後 {n} 行",
   "forge.log.all.other": "共 {n} 行",
   "forge.log.more": "顯示更多行",
-  "forge.log.loading": "正在載入日誌",
-  "forge.log.region": "{job} 日誌",
-  "forge.log.empty": "日誌是空的。",
-
+  "forge.log.loading": "正在載入記錄檔",
+  "forge.log.region": "{job} 記錄檔",
+  "forge.log.empty": "記錄檔是空的。",
   "forge.issue.frame": "議題 {ref}",
   "forge.issue.about": "關於此議題",
   "forge.issue.opened": "開啟於",
