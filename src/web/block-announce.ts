@@ -29,6 +29,7 @@
 // write, and block-announce.test.ts calls exactly what ships.
 
 import type { WaitingBlock } from "./types";
+import { t } from "./i18n";
 
 /** Enough of a blocked session to word the sentence. The real input is
  *  `BlockedSession[]` from ambient-counts.ts; only the label and the block's
@@ -72,7 +73,7 @@ const WAITING_FOR: Partial<Record<WaitingBlock["kind"], string>> = {
  * PostToolUse answers a prompt that subagent raised (#361). In both cases the
  * amber chip simply vanishes, which is a retraction only an eye can see.
  */
-export const ALL_CLEAR = "No sessions are waiting for you.";
+export const allClearText = (): string => t("shell.announce.allClear");
 
 /**
  * What the deck should be saying right now, given the sessions blocked on a
@@ -153,7 +154,7 @@ export function blockedAnnouncement(blocked: readonly Blocked[]): string {
  * for this page, and a polite announcement queues behind whatever the screen
  * reader is already saying about the page rather than cutting it off.
  */
-export function nextAnnouncement(said: string, now: string, allClear: string = ALL_CLEAR): string {
+export function nextAnnouncement(said: string, now: string, allClear: string = allClearText()): string {
   if (now !== "") return now;
   return said === "" ? "" : allClear;
 }

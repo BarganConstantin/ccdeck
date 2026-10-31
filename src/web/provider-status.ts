@@ -7,6 +7,7 @@
 // draws nothing, and so does one whose page could not be reached, because an
 // unreachable status page says nothing about the provider.
 import { ownRow } from "./own-row";
+import { currentLanguage, t, type MessageKey } from "./i18n";
 
 export type ProviderState =
   | "operational" | "degraded" | "partial_outage" | "major_outage" | "maintenance" | "unknown";
@@ -38,30 +39,30 @@ export interface ProviderStatusReport {
 }
 
 /** The states that are an incident, in words a chip can hold. */
-const STATE_WORDS: Record<string, string> = {
-  degraded: "degraded performance",
-  partial_outage: "partial outage",
-  major_outage: "major outage",
-  maintenance: "maintenance",
+const STATE_WORDS: Record<string, MessageKey> = {
+  degraded: "shell.incident.words.degraded",
+  partial_outage: "shell.incident.words.partial_outage",
+  major_outage: "shell.incident.words.major_outage",
+  maintenance: "shell.incident.words.maintenance",
 };
 
 /** The same states as the topbar chip says them, where every pixel is spent
  *  twice: "degraded performance" is the one that does not fit. */
-const CHIP_WORDS: Record<string, string> = {
-  degraded: "degraded",
-  partial_outage: "partial outage",
-  major_outage: "major outage",
-  maintenance: "maintenance",
+const CHIP_WORDS: Record<string, MessageKey> = {
+  degraded: "shell.incident.chip.degraded",
+  partial_outage: "shell.incident.chip.partial_outage",
+  major_outage: "shell.incident.chip.major_outage",
+  maintenance: "shell.incident.chip.maintenance",
 };
 
 /** And in one word, for a bar with no room for two: the narrow breakpoint, or
  *  two chips at once. A mark with no word beside it was the alternative, and a
  *  hollow ring beside "Codex" read as Codex being offline. */
-const SHORT_WORDS: Record<string, string> = {
-  degraded: "degraded",
-  partial_outage: "outage",
-  major_outage: "outage",
-  maintenance: "maint.",
+const SHORT_WORDS: Record<string, MessageKey> = {
+  degraded: "shell.incident.short.degraded",
+  partial_outage: "shell.incident.short.partial_outage",
+  major_outage: "shell.incident.short.major_outage",
+  maintenance: "shell.incident.short.maintenance",
 };
 
 const PROVIDER_NAMES: Record<string, string> = { claude: "Claude", codex: "Codex" };
@@ -128,15 +129,15 @@ export function safeStatusPage(url: unknown): URL | null {
 /** "14:05", in the reader's own clock — and a 24-hour one, because "11:47 AM"
  *  is three characters more on a chip that has none to spare. */
 function clock(ms: number): string {
-  return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  return new Date(ms).toLocaleTimeString(currentLanguage(), { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 }
 
 /** "just now", "4 min ago", "2 h ago". */
 function age(ms: number): string {
   const m = Math.floor(ms / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m} min ago`;
-  return `${Math.floor(m / 60)} h ago`;
+  if (m < 1) return t("shell.ago.now");
+  if (m < 60) return t("shell.ago.min", { n: m });
+  return t("shell.ago.hr", { n: Math.floor(m / 60) });
 }
 
 /**
@@ -147,7 +148,8 @@ function age(ms: number): string {
 export function incidentOf(s: ProviderStatus, now: number): Incident | null {
   if (!s || typeof s !== "object") return null;
   // Both asked of the tables' own rows: the words arrive over the wire.
-  const words = ownRow(STATE_WORDS, s.state);
+  const wordsKey = ownRow(STATE_WORDS, s.state);
+  const words = wordsKey && t(wordsKey);
   const name = ownRow(PROVIDER_NAMES, s.provider);
   if (!words || !name) return null;
   if (typeof s.checkedAt !== "number" || now - s.checkedAt > INCIDENT_EXPIRE_MS) return null;
@@ -159,24 +161,26 @@ export function incidentOf(s: ProviderStatus, now: number): Incident | null {
   const stale = s.stale === true || now - s.checkedAt > INCIDENT_STALE_MS;
   const lines = [
     `${name}: ${words}${s.summary ? ` — ${s.summary}` : ""}`,
-    components.length > 0 ? `Affected: ${components.join(", ")}` : null,
-    s.scope === "page" ? `The page's overall status: it names none of ${name}'s components` : null,
+    components.length > 0 ? t("shell.incident.affected", { components: components.join(", ") }) : null,
+    s.scope === "page" ? t("shell.incident.scopePage", { name }) : null,
     // Said in words, because a stale incident is still drawn: it is the last
     // thing the page said, and the reader should know that is all it is.
     stale
-      ? `Last read from ${page.hostname} at ${clock(s.checkedAt)}; this is the last thing it said`
-      : `Reported by ${page.hostname}, checked ${age(now - s.checkedAt)}`,
-    "Opens the status page",
+      ? t("shell.incident.lastRead", { host: page.hostname, time: clock(s.checkedAt) })
+      : t("shell.incident.reported", { host: page.hostname, ago: age(now - s.checkedAt) }),
+    t("shell.incident.opensPage"),
   ];
   const asOf = stale ? clock(s.checkedAt) : null;
+  const chipKey = ownRow(CHIP_WORDS, s.state);
+  const shortKey = ownRow(SHORT_WORDS, s.state);
   return {
     provider: s.provider,
     state: s.state as Incident["state"],
     name,
-    label: `${name} · ${words}${asOf ? ` · as of ${asOf}` : ""}`,
+    label: `${name} · ${words}${asOf ? ` · ${t("shell.incident.asOf", { time: asOf })}` : ""}`,
     words,
-    chipWords: ownRow(CHIP_WORDS, s.state) ?? words,
-    shortWords: ownRow(SHORT_WORDS, s.state) ?? words,
+    chipWords: chipKey ? t(chipKey) : words,
+    shortWords: shortKey ? t(shortKey) : words,
     asOf,
     what: s.summary || (components.length > 0 ? components.join(", ") : null),
     href: page.href,
@@ -201,8 +205,8 @@ export function incidentsOf(report: ProviderStatusReport | null, now: number): I
  */
 export function incidentSentence(incidents: readonly Incident[]): string {
   // "a partial outage", but "degraded performance" and "maintenance".
-  return incidents.map(i => `${i.name}'s status page reports ${i.state.endsWith("outage") ? `a ${i.words}` : i.words}.`).join(" ");
+  return incidents.map(i => t(i.state.endsWith("outage") ? "shell.incident.sentenceA" : "shell.incident.sentence", { name: i.name, words: i.words })).join(" ");
 }
 
 /** The sentence after the last incident clears. */
-export const INCIDENTS_CLEAR = "The providers' status pages report no incident.";
+export const incidentsClear = (): string => t("shell.incident.clear");
