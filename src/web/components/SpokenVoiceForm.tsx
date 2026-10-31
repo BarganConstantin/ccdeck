@@ -6,6 +6,7 @@
 // line, and passes them in under the names the form already used.
 import { useEffect, useState } from "react";
 import type { CustomSoundsProps } from "./CustomSoundsSection";
+import { useT } from "../i18n";
 
 interface SpokenVoiceFormProps {
   /** The library is at its ceiling: the form stays shut and adds nothing. */
@@ -18,8 +19,9 @@ interface SpokenVoiceFormProps {
 }
 
 export default function SpokenVoiceForm({ full, fullProps, runCustom, onCreateVoice }: SpokenVoiceFormProps) {
-  const [voiceName, setVoiceName] = useState("Custom voice");
-  const [voiceText, setVoiceText] = useState("Your turn");
+  const t = useT();
+  const [voiceName, setVoiceName] = useState(() => t("settings.sounds.voice.defaultName"));
+  const [voiceText, setVoiceText] = useState(() => t("settings.sounds.voice.defaultText"));
   const [voiceURI, setVoiceURI] = useState("");
   // Kept as the text in the field, not a number. A controlled number input
   // bound to Number(value) turns a cleared field into 0 on the spot, so the
@@ -56,8 +58,8 @@ export default function SpokenVoiceForm({ full, fullProps, runCustom, onCreateVo
           if (full && details && !details.open) e.preventDefault();
         }}
       >
-        <span className="settings-row-name">Spoken voice</span>
-        <span className="settings-row-note">Create from text</span>
+        <span className="settings-row-name">{t("settings.sounds.voice.title")}</span>
+        <span className="settings-row-note">{t("settings.sounds.voice.note")}</span>
         {/* Turns a quarter as the form opens. Drawn, not a typed "›": the
             deck has no icons made of characters (#837). */}
         <span className="settings-row-control">
@@ -70,23 +72,23 @@ export default function SpokenVoiceForm({ full, fullProps, runCustom, onCreateVo
         {/* The deck's text field, as the appearance menu's station fields
             are: `.sm-select` is a select's class, and these are not. */}
         <label>
-          <span>Name</span>
+          <span>{t("settings.sounds.voice.name")}</span>
           <input className="ap-manage-input" value={voiceName} maxLength={80} onChange={e => setVoiceName(e.target.value)} />
         </label>
         <label>
-          <span>Text</span>
+          <span>{t("settings.sounds.voice.text")}</span>
           <input className="ap-manage-input" value={voiceText} maxLength={180} onChange={e => setVoiceText(e.target.value)} />
         </label>
         <label>
-          <span>Voice</span>
+          <span>{t("settings.sounds.voice.voice")}</span>
           <select className="sm-select" value={voiceURI} onChange={e => setVoiceURI(e.target.value)}>
-            <option value="">System default</option>
+            <option value="">{t("settings.sounds.voice.default")}</option>
             {voices.map(voice => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name}</option>)}
           </select>
         </label>
         <div className="sm-voice-pair">
-          <label><span>Rate</span><input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voiceRate} onChange={e => setVoiceRate(e.target.value)} /></label>
-          <label><span>Pitch</span><input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voicePitch} onChange={e => setVoicePitch(e.target.value)} /></label>
+          <label><span>{t("settings.sounds.voice.rate")}</span><input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voiceRate} onChange={e => setVoiceRate(e.target.value)} /></label>
+          <label><span>{t("settings.sounds.voice.pitch")}</span><input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voicePitch} onChange={e => setVoicePitch(e.target.value)} /></label>
         </div>
         <button
           type="button"
@@ -98,11 +100,11 @@ export default function SpokenVoiceForm({ full, fullProps, runCustom, onCreateVo
               // parseFloat, so an empty field is NaN and createCustomVoice's
               // default rather than Number("")'s 0.
               await onCreateVoice({ name: voiceName, text: voiceText, voiceURI, rate: parseFloat(voiceRate), pitch: parseFloat(voicePitch) });
-              setVoiceText("Your turn");
+              setVoiceText(t("settings.sounds.voice.defaultText"));
             });
           }}
         >
-          Add spoken voice
+          {t("settings.sounds.voice.add")}
         </button>
       </div>
     </details>
