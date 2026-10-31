@@ -92,7 +92,11 @@ export function worthACell(s: Series): boolean {
 export function cellLabel(s: Series): string {
   if (s.unit === "C") return translate("insights.strip.temp", { label: s.label });
   if (s.key === "mem:physical") return translate("insights.strip.ram");
-  if (s.key === "mem:swap") return translate("insights.strip.swap", { label: s.label });
+  if (s.key === "mem:swap") return translate(s.label === "Commit" ? "insights.strip.commitMem" : "insights.strip.swapMem");
+  if (s.key === "cpu:all") return translate("insights.strip.cpuAll");
+  if (s.key === "cpu:busiest") return translate("insights.strip.cpuBusiest");
+  if (s.key === "load:1m") return translate("insights.strip.queued");
+  if (s.label === "Throttling") return translate("insights.machine.throttling");
   return s.label;
 }
 

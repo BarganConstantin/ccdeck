@@ -218,6 +218,11 @@
   box-shadow: inset 0 -1px 0 var(--line);
 }
 .pl-body .pl-table thead th { padding-bottom: 6px; }
+/* A column head and a figure stay on one line: a language written without spaces
+   (Chinese, Japanese) would otherwise break a three-character head one character
+   to a line and shrink the column to nothing. */
+.pl-body .pl-table thead th,
+.pl-body .pl-table td.sd-num { white-space: nowrap; }
 /* No `padding-right` here. It carried `8px !important` — one of only three
    !important declarations in this sheet, and the one that could never apply:
    pid is the sixth column, so `.pl-body .pl-table th:nth-child(6)` below sets
