@@ -28,6 +28,7 @@
 //   screens change at once, with a fade at most.
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { autoDetailCss, autoDetail, DETAIL_SHARE, clampDetail, DETAIL_WIDTH, DRILL_IN_QUERY, readDetailWidth, writeDetailWidth } from "../integrations/layout";
+import { useT } from "../i18n";
 import { modalStack } from "../modal-dismiss";
 import { useMediaQuery } from "../use-media-query";
 import { prefersReducedMotion } from "../viewport-motion";
@@ -35,6 +36,7 @@ import { prefersReducedMotion } from "../viewport-motion";
 function Splitter({ width, workspace, controls, onCommit, automaticDetailShare }: {
   width: number | null; workspace: RefObject<HTMLDivElement>; controls: string; onCommit: (width: number | null) => void; automaticDetailShare: number;
 }) {
+  const t = useT();
   const self = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; width: number; room: number; last: number } | null>(null);
   const room = () => workspace.current?.clientWidth ?? window.innerWidth;
@@ -81,9 +83,9 @@ function Splitter({ width, workspace, controls, onCommit, automaticDetailShare }
     event.preventDefault();
     commit(clampDetail(next, room()));
   };
-  return <div ref={self} className="ig-splitter" role="separator" aria-orientation="vertical" aria-label="Detail width"
+  return <div ref={self} className="ig-splitter" role="separator" aria-orientation="vertical" aria-label={t("integrations.split.width")}
     aria-controls={controls} aria-valuemin={DETAIL_WIDTH.min} aria-valuemax={clampDetail(DETAIL_WIDTH.max, room())} aria-valuenow={shown}
-    tabIndex={0} title="Drag to resize · double-click for the automatic width"
+    tabIndex={0} title={t("integrations.split.resize")}
     onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}
     onDoubleClick={() => commit(null)} onKeyDown={key} />;
 }
@@ -112,6 +114,7 @@ export function useDrillIn(): boolean {
 }
 
 export default function IntegrationSplit({ list, detail, onBack, backLabel, storageKey, detailKey, automaticDetailShare = DETAIL_SHARE }: IntegrationSplitProps) {
+  const t = useT();
   const drillIn = useDrillIn();
   const detailId = `${useId()}-detail`;
   const workspace = useRef<HTMLDivElement>(null);
@@ -193,7 +196,7 @@ export default function IntegrationSplit({ list, detail, onBack, backLabel, stor
       <div ref={listRef} className="ig-list" hidden={(drillIn && open) || undefined}>{list}</div>
       {open && !drillIn && <Splitter width={width} workspace={workspace} controls={detailId} onCommit={commit} automaticDetailShare={automaticDetailShare} />}
       {shown != null && (
-        <section ref={detailRef} className="ig-detail" id={detailId} aria-label="Details" data-leaving={isLeaving || undefined}
+        <section ref={detailRef} className="ig-detail" id={detailId} aria-label={t("integrations.split.details")} data-leaving={isLeaving || undefined}
           onAnimationEnd={event => { if (isLeaving && event.target === event.currentTarget) setLeaving(null); }}>
           {drillIn && (
             <button ref={backRef} type="button" className="ig-back" data-ig-back onClick={onBack}>

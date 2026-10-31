@@ -19,7 +19,7 @@
 import { useEffect, useRef, useState } from "react";
 import { RefreshGlyph } from "./action-glyphs";
 import { WarnMark } from "./integration-glyphs";
-import { shortAgo } from "../relative-time";
+import { currentLanguage, t as translateNow, useT, type TFunction } from "../i18n";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 
 export interface FreshnessState {
@@ -34,7 +34,7 @@ export interface FreshnessState {
 export type FreshnessTone = "none" | "reading" | "updating" | "updated" | "stale";
 
 /** What the line says, as words and a tone; the age is filled in by the caller's clock. */
-export function freshnessWords({ loadedAt, loading, stale }: FreshnessState, now = Date.now()): {
+export function freshnessWords({ loadedAt, loading, stale }: FreshnessState, now = Date.now(), t: TFunction = translateNow): {
   tone: FreshnessTone;
   /** The state's word: "Updated", "Not updated", "Updating…". */
   word: string;
@@ -45,20 +45,29 @@ export function freshnessWords({ loadedAt, loading, stale }: FreshnessState, now
   /** The sentence whole, for a title and for tests. */
   text: string;
 } {
-  const ago = loadedAt != null ? shortAgo(now - loadedAt) : null;
+  const ago = loadedAt != null ? agoText(now - loadedAt, t) : null;
   const make = (tone: FreshnessTone, word: string, join = "", age: string | null = null) =>
     ({ tone, word, join, ago: age, text: `${word}${join}${age ?? ""}` });
-  if (loading) return loadedAt != null ? make("updating", "Updating…") : make("reading", "Reading…");
+  if (loading) return loadedAt != null ? make("updating", t("integrations.fresh.updating")) : make("reading", t("integrations.fresh.reading"));
   if (loadedAt == null) return make("none", "");
-  if (stale) return make("stale", "Not updated", " · last answer ", ago);
-  return make("updated", "Updated", " ", ago);
+  if (stale) return make("stale", t("integrations.fresh.notUpdated"), t("integrations.fresh.joinStale"), ago);
+  return make("updated", t("integrations.fresh.updated"), " ", ago);
+}
+
+/** "just now", "5m ago", "3h ago", "2d ago" from an age in milliseconds. */
+function agoText(ms: number, t: TFunction): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  if (s < 60) return t("integrations.fresh.now");
+  if (s < 3600) return t("integrations.fresh.m", { n: Math.floor(s / 60) });
+  if (s < 86400) return t("integrations.fresh.h", { n: Math.floor(s / 3600) });
+  return t("integrations.fresh.d", { n: Math.floor(s / 86400) });
 }
 
 /** The word a screen reader hears when the state turns, never on a tick. */
-function announcement(tone: FreshnessTone, seenRead: boolean): string {
-  if (tone === "reading" || tone === "updating") return "Updating…";
+function announcement(tone: FreshnessTone, seenRead: boolean, t: TFunction): string {
+  if (tone === "reading" || tone === "updating") return t("integrations.fresh.updating");
   if (!seenRead) return "";
-  return tone === "stale" ? "Not updated" : tone === "updated" ? "Updated" : "";
+  return tone === "stale" ? t("integrations.fresh.notUpdated") : tone === "updated" ? t("integrations.fresh.updated") : "";
 }
 
 export default function IntegrationFreshness({ loadedAt, loading, stale = false, onRefresh, label, disabled = false, now }: FreshnessState & {
@@ -69,6 +78,7 @@ export default function IntegrationFreshness({ loadedAt, loading, stale = false,
   /** The clock, for tests; the line keeps its own time otherwise. */
   now?: number;
 }) {
+  const t = useT();
   const [, tick] = useState(0);
   // The press handler reads the latest busy flag, not the one its render closed over.
   const loadingRef = useRef(loading);
@@ -81,7 +91,7 @@ export default function IntegrationFreshness({ loadedAt, loading, stale = false,
   }, [loadedAt]);
   useEffect(() => { if (loading) setSeenRead(true); }, [loading]);
 
-  const words = freshnessWords({ loadedAt, loading, stale }, now ?? Date.now());
+  const words = freshnessWords({ loadedAt, loading, stale }, now ?? Date.now(), t);
   const at = loadedAt != null ? new Date(loadedAt) : null;
   return (
     <div className="ig-freshness" data-tone={words.tone}>
@@ -90,11 +100,11 @@ export default function IntegrationFreshness({ loadedAt, loading, stale = false,
           {words.tone === "stale" && <WarnMark />}
           <span className="ig-fresh-word">{words.word}</span>
           {words.join}
-          {at && words.ago && <time dateTime={at.toISOString()} title={at.toLocaleString()}>{words.ago}</time>}
+          {at && words.ago && <time dateTime={at.toISOString()} title={at.toLocaleString(currentLanguage())}>{words.ago}</time>}
         </span>
       )}
-      <span className="vis-hidden" role="status">{announcement(words.tone, seenRead)}</span>
-      <button type="button" className="glyph-btn ig-refresh" aria-label={label} title="Refresh"
+      <span className="vis-hidden" role="status">{announcement(words.tone, seenRead, t)}</span>
+      <button type="button" className="glyph-btn ig-refresh" aria-label={label} title={t("integrations.fresh.refresh")}
         {...selfPressProps(loading, disabled)} data-loading={loading || undefined}
         onClick={() => { if (!selfPressAccepted(loadingRef.current)) return; onRefresh(); }}>
         <RefreshGlyph />
