@@ -197,7 +197,7 @@ describe("#801 — what the Notifications switch is saying", () => {
     // picker is the thing it picks. The switch was "Sounds" next, until
     // Settings headed its section "Sounds" right above it; it says what it
     // does now, and no word on it is the section's.
-    expect(soundSwitch).toContain('name="Play sounds"');
+    expect(soundSwitch).toContain('name={t("radio.sound.name")}');
     expect(soundSwitch).not.toMatch(/>Sounds?</);
     expect(read("../components/ToneSection.tsx")).toContain("<label htmlFor={figureId}>Tone</label>");
     expect(soundMenuAll).not.toMatch(/>Sound</);
