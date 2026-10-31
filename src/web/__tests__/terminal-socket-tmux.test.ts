@@ -32,8 +32,11 @@ import { rmTempDir } from "./rm-temp-dir";
 import { json, openWs, OPS, type Frame } from "./ws-test-client";
 
 // Short, because the tmux socket path lives under it and a Unix socket path
-// has about a hundred bytes to fit in.
-const DIR = mkdtempSync(join(tmpdir(), "cct-ts-"));
+// has about a hundred bytes to fit in. And not tmpdir() outside Windows:
+// macOS's is /var/folders/…/T, which tmux resolves to /private/var/folders/…,
+// and under that this run's folders and socket name come to more than the 104
+// bytes macOS gives a socket path, so tmux could not start the session at all.
+const DIR = mkdtempSync(join(process.platform === "win32" ? tmpdir() : "/tmp", "cct-ts-"));
 process.env.HOME = DIR;
 process.env.USERPROFILE = DIR;
 process.env.CLAUDE_CONFIG_DIR = join(DIR, "claude");

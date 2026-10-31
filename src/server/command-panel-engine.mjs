@@ -46,7 +46,7 @@
 // for its process to exit before the next is started (EXIT_WAIT_MS at most,
 // and `restarting` after that), so two never run at once.
 import { promises as fsp } from "node:fs";
-import { join } from "node:path";
+import { posix as posixPath, win32 as winPath } from "node:path";
 import { deckDataDir } from "./deck-home.mjs";
 import { createProEngineClient } from "./pro-engine-client.mjs";
 import { engineRefusal, engineTerminals } from "./pro-engine-terminal.mjs";
@@ -77,8 +77,11 @@ export function commandPanelSupported(platform = process.platform) {
   return platform === "linux" || platform === "darwin";
 }
 
-/** The one folder the Command Panel's engine is installed in. */
+/** The one folder the Command Panel's engine is installed in. Joined with
+ *  `platform`'s separator, not the host's, as deckDataDir is: a bare `join`
+ *  answers `\x\deck\engine` on a Windows runner for a question about Linux. */
 export function engineInstallDir(platform = process.platform, env = process.env) {
+  const { join } = platform === "win32" ? winPath : posixPath;
   return join(deckDataDir(platform, env), "engine");
 }
 

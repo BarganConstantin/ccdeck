@@ -352,7 +352,9 @@ describe("the preview's verifier, with the platform injected", () => {
     const other = pem(generateKeyPairSync("ed25519").publicKey);
     for (const publicKey of [install.publicKey, [install.publicKey], [other, install.publicKey]]) {
       const got = await preview.verifyWindowsPreviewInstallation({ directory: install.directory, publicKey }, WIN_X64);
-      expect(got).toEqual({ executable: join(realpathSync(install.directory), "ccdeck-pro-engine-0.1.0.exe"), digest: install.entry.sha256, target: "x86_64-pc-windows-msvc", version: "0.1.0" });
+      // .native, the call the verifier makes (fs.promises.realpath): the JS
+      // realpathSync leaves a Windows runner's 8.3 temp folder (RUNNER~1) short.
+      expect(got).toEqual({ executable: join(realpathSync.native(install.directory), "ccdeck-pro-engine-0.1.0.exe"), digest: install.entry.sha256, target: "x86_64-pc-windows-msvc", version: "0.1.0" });
       expect(Object.isFrozen(got)).toBe(true);
     }
     const arm = windowsInstall({ engineName: "ccdeck-pro-engine.exe", entry: { target: "aarch64-pc-windows-msvc", version: "1.2.3-rc.1" } });
