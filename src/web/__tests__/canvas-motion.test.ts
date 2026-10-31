@@ -324,7 +324,8 @@ const PRESSES: Press[] = [
   // The chrome's eight panel and dialog controls, wherever they stand: the
   // edge stripes, the phone's dock, the topbar's corner (EdgeRails.tsx). One
   // rule for all three placements, because they are one control; 0.97 because
-  // each carries its word.
+  // the dock's and the corner's carry their word. A stripe's door is a glyph
+  // alone, V4's Icon button, and presses at 0.94 (v4-bars.test.ts pins it).
   [".rail-btn:active", "0.97", "transform"],
   // The permission ask beside it, at the same scale for the same reason: it is
   // a labelled control, and 0.94 of a two-word pill reads as a jump.

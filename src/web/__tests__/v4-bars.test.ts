@@ -292,6 +292,12 @@ describe("V4's Panel bar (the stripes)", () => {
     expect(decl(`${open}:hover`, "background", "(hover: hover) and (pointer: fine)"))
       .toBe("color-mix(in srgb, var(--text) 6%, var(--selected))");
   });
+  it("presses a door as V4's Icon button, 0.94, where the labelled controls keep 0.97; none under reduced motion", () => {
+    expect(decl(".rail-btn-stripe:active", "transform")).toBe("scale(0.94)");
+    expect(decl(".rail-btn:active", "transform")).toBe("scale(0.97)");
+    expect(decl(".rail-btn-stripe:active", "transform", REDUCED)).toBe("none");
+    expect(decl(".rail-btn:active", "transform", REDUCED)).toBe("none");
+  });
   it("sits the dot on the glyph's corner and the badge a little past it", () => {
     expect(decl(".rail-btn-stripe .rail-dot", "top")).toBe("4px");
     expect(decl(".rail-btn-stripe .rail-dot", "right")).toBe("4px");

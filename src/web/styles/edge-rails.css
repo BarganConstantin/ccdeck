@@ -92,6 +92,10 @@
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .rail-btn:active { transform: scale(0.97); }
+/* A stripe's door is V4's Icon button, a glyph with no word beside it, so it
+   presses at 0.94, the tier a control with no label wears. The dock's doors
+   and the bar's controls carry their word and keep 0.97. */
+.rail-btn-stripe:active { transform: scale(0.94); }
 .rail-btn .glyph { flex: none; display: block; }
 /* The dollar sign is the one glyph in the set whose ink is far narrower than
    its box — 4.8 of 14 units where the rest run 8.6 to 12.2 — so its box gives
@@ -305,7 +309,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .rail-btn { transition: none; }
-  .rail-btn:active { transform: none; }
+  .rail-btn:active,
+  .rail-btn-stripe:active { transform: none; }
 }
 @media (prefers-reduced-motion: reduce) and (hover: hover) and (pointer: fine) {
   .rail-btn:hover { transition: none; }
