@@ -13,7 +13,7 @@ const catalog: Catalog = {
   "radio.close": "ラジオを閉じる",
   "radio.close.title": "閉じる（Esc）",
   "radio.now.aria": "現在の放送局",
-  "radio.now.idle": "ccdeck で聴く音楽",
+  "radio.now.idle": "ccdeck の音楽",
   "radio.status.unavailableShort": "再生不可",
   "radio.transport.aria": "放送局の再生",
   "radio.prev": "前の放送局",
