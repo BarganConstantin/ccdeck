@@ -284,7 +284,9 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
           )}
           {codexQuota.partial && (
             <div className="up-quota-sub up-quota-hint">
-              Partial data — OpenAI returned limits this build doesn't recognise.
+              {codexQuota.coverage === 'standard_limits'
+                ? 'Standard Codex limits only; additional limits and credits are not included.'
+                : "Partial data — OpenAI returned limits this build doesn't recognise."}
             </div>
           )}
         </div>

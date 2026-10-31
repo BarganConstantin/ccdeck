@@ -26,7 +26,7 @@ import UpdatesSection, {
   APP_UPDATES_NOTE, AUTO_UPDATE_CHECKS_OFF_NOTE, AUTO_UPDATE_LABEL, AUTO_UPDATE_NO_RESTART_NOTE, AUTO_UPDATE_NOTE, updatesShape,
 } from "../components/UpdatesSection";
 import ElsewhereSection, {
-  ACCOUNTS_ROW, ACCOUNTS_ROW_NOTE, LAN_ROW, LAN_ROW_NOTE, WATCH_ROW, WATCH_ROW_NOTE,
+  ACCOUNTS_ROW, ACCOUNTS_ROW_NOTE, CODEX_ACCOUNTS_ROW, LAN_ROW, LAN_ROW_NOTE, WATCH_ROW, WATCH_ROW_NOTE,
 } from "../components/ElsewhereSection";
 import { TOUR_WHY } from "../components/ReleaseActions";
 import { doorOut, SETTINGS_SECTIONS, type SettingsDoors, type SettingsSection } from "../settings";
@@ -366,24 +366,27 @@ describe("Settings › General › Updates is the update banner's switch", () =>
 // ── General › Elsewhere on the deck ──────────────────────────────────────────
 
 describe("Settings › General › Elsewhere on the deck", () => {
-  const draw = (claudeHere: boolean, singleKeys: boolean) =>
-    renderToStaticMarkup(createElement(ElsewhereSection, { claudeHere, singleKeys, doors: doors() }));
+  const draw = (claudeHere: boolean, singleKeys: boolean, codexHere = false) =>
+    renderToStaticMarkup(createElement(ElsewhereSection, { claudeHere, codexHere, singleKeys, doors: doors() }));
 
   it("lists the accounts panel and Local network only where Claude Code is, as the stripe does", () => {
     const here = draw(true, true);
     for (const said of [ACCOUNTS_ROW, ACCOUNTS_ROW_NOTE, LAN_ROW, LAN_ROW_NOTE, WATCH_ROW, WATCH_ROW_NOTE]) {
       expect(here, said).toContain(said);
     }
-    const codexOnly = draw(false, true);
+    const codexOnly = draw(false, true, true);
+    // Codex alone keeps an accounts door worded for it (its profiles live there), not Local network.
+    expect(codexOnly).toContain(CODEX_ACCOUNTS_ROW);
     expect(codexOnly).not.toContain(ACCOUNTS_ROW);
     expect(codexOnly).not.toContain(LAN_ROW);
+    expect(draw(false, true)).not.toContain(CODEX_ACCOUNTS_ROW);
     expect(codexOnly).toContain(WATCH_ROW);
     // The stripe's condition, and A's.
-    expect(read("../rail-items.tsx")).toContain("left: providers.claude ? [accounts, sessionList] : [sessionList],");
-    expect(read("../use-deck-shortcuts.ts")).toContain('if (e.key === "a" || e.key === "A") { if (providersRef.current.claude) toggleAccountsPanel(); }');
+    expect(read("../rail-items.tsx")).toContain("left: (providers.claude || providers.codex) ? [accounts, sessionList] : [sessionList],");
+    expect(read("../use-deck-shortcuts.ts")).toContain('if (e.key === "a" || e.key === "A") { if (providersRef.current.claude || providersRef.current.codex) toggleAccountsPanel(); }');
     // And Settings hands it the deck's providers.
-    expect(read("../components/SettingsModal.tsx")).toContain("<ElsewhereSection claudeHere={providers.claude} singleKeys={singleKeys} doors={doors} />");
-    expect(drawSettings({ section: "general", providers: { kind: "reported", claude: false, codex: true } })).not.toContain(ACCOUNTS_ROW);
+    expect(read("../components/SettingsModal.tsx")).toContain("<ElsewhereSection claudeHere={providers.claude} codexHere={providers.codex} singleKeys={singleKeys} doors={doors} />");
+    expect(drawSettings({ section: "general", providers: { kind: "reported", claude: false, codex: true } })).toContain(CODEX_ACCOUNTS_ROW);
   });
 
   it("is a row with a door on the right, never a switch, and each opens its own panel", () => {

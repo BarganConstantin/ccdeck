@@ -459,18 +459,20 @@ describe("which panels the UI draws for each machine", () => {
     // thing on screen, and every route out of it ends at the claude CLI.
     // The gate is one name since 2026-10-08, `accountsDrawn`, because the
     // left column mounts on it too; Claude Code is in its definition.
-    expect(leadUpTo(appSrc, "<AccountsPanel leaving=")).toContain("{accountsDrawn && (");
-    expect(appSrc).toMatch(/const accountsDrawn = isDrawn\(accountsPanelOpen, accountsPhase\) && providers\.claude;/);
+    expect(leadUpTo(appSrc, "<AccountsPanel claudeEnabled=")).toContain("{accountsDrawn && (");
+    expect(appSrc).toMatch(/const accountsDrawn = isDrawn\(accountsPanelOpen, accountsPhase\) && \(providers\.claude \|\| providers\.codex\);/);
   });
 
   it("hides the accounts button too, rather than opening onto nothing", () => {
     // The left stripe — and the phone's dock, which draws the same list — holds
-    // Accounts only where Claude Code is; without it, Session list alone.
-    expect(appSrc).toMatch(/left: providers\.claude \? \[accounts, sessionList\] : \[sessionList\]/);
+    // Accounts where Claude Code or Codex is; with neither, Session list alone.
+    expect(appSrc).toMatch(/left: \(providers\.claude \|\| providers\.codex\) \? \[accounts, sessionList\] : \[sessionList\]/);
     expect(appSrc).toMatch(/<EdgeDock items=\{\[\.\.\.rails\.left, /);
     // Account capacity and Reset calendar open the accounts' report, so they
     // follow the accounts button off a Codex-only stripe and out of More.
-    expect(appSrc).toMatch(/leftStripe: providers\.claude \? \[named\("Claude accounts", \[accounts, \.\.\.capacity\]\), \[sessionList\]\] : \[\[sessionList\]\]/);
+    // A Codex-only machine keeps Accounts (its Codex profiles live there) but
+    // not the Claude-only capacity and calendar entries.
+    expect(appSrc).toMatch(/leftStripe: providers\.claude \? \[named\("Claude accounts", \[accounts, \.\.\.capacity\]\), \[sessionList\]\]\s*: providers\.codex \? \[named\("Codex accounts", \[accounts\]\), \[sessionList\]\] : \[\[sessionList\]\]/);
     expect(appSrc).toMatch(/capacity: providers\.claude \? capacity : \[\]/);
     // The connected trackers (#2178) are a group of their own after it, so
     // they cannot stand in for the accounts button either.
@@ -481,7 +483,7 @@ describe("which panels the UI draws for each machine", () => {
   });
 
   it("does not let the A shortcut toggle a panel that is not there", () => {
-    expect(appSrc).toMatch(/providersRef\.current\.claude\) toggleAccountsPanel/);
+    expect(appSrc).toMatch(/providersRef\.current\.claude \|\| providersRef\.current\.codex\) toggleAccountsPanel/);
   });
 
   it("renders each quota section only for the CLI it is about", () => {

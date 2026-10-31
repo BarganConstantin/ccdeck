@@ -49,9 +49,9 @@ describe("the left stripe's two doors into Account capacity", () => {
     expect(groups[1][0].group).toBeUndefined();
   });
 
-  it("go with the accounts button on a machine without Claude Code", () => {
+  it("leave a machine without Claude Code the accounts button and not the Claude-only doors", () => {
     const r = rails({ claude: false });
-    expect(r.leftStripe.map(ids)).toEqual([["session-list"]]);
+    expect(r.leftStripe.map(ids)).toEqual([["accounts"], ["session-list"]]);
     expect(r.capacity).toEqual([]);
   });
 

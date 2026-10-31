@@ -142,11 +142,10 @@ export function railItems({
     ariaLabel: "Session list", glyph: <SessionListGlyph />, kind: "panel",
     open: sessionListOpen, controls: "session-list", onPress: toggleSessionList, buttonRef: toggles.sessionList,
   };
-  // Gone without Claude Code rather than present and inert: every account in
-  // the panel is a Claude account, and a Codex-only machine has none to show.
+  // Accounts is available whenever either provider has profiles to inspect.
   const accounts: RailItem = {
     id: "accounts", label: "Accounts", short: "Accounts", key: { cap: "A", aria: "A", single: true },
-    ariaLabel: "Accounts", hint: "Claude accounts", glyph: <AccountsGlyph />, kind: "panel",
+    ariaLabel: "Accounts", hint: "Agent accounts", glyph: <AccountsGlyph />, kind: "panel",
     open: accountsPanelOpen, controls: "accounts-panel", onPress: toggleAccountsPanel, buttonRef: toggles.accounts,
   };
   // ACCOUNT CAPACITY AND RESET CALENDAR, ON THE STRIPE. Both lived behind the
@@ -238,11 +237,12 @@ export function railItems({
     // Accounts first, at the top of the stripe and the start of the dock: the
     // owner's call (2026-10-08), the panel a first run opens and the one read
     // before choosing where to start a session.
-    left: providers.claude ? [accounts, sessionList] : [sessionList],
+    left: (providers.claude || providers.codex) ? [accounts, sessionList] : [sessionList],
     // The owner's order (2026-10-22): Claude accounts, Account capacity,
     // Reset calendar, Session list — the first three one group, since all
     // three are about the accounts.
-    leftStripe: providers.claude ? [named("Claude accounts", [accounts, ...capacity]), [sessionList]] : [[sessionList]],
+    leftStripe: providers.claude ? [named("Claude accounts", [accounts, ...capacity]), [sessionList]]
+      : providers.codex ? [named("Codex accounts", [accounts]), [sessionList]] : [[sessionList]],
     capacity: providers.claude ? capacity : [],
     right: [
       named("Usage and machine", [usage, machine]),

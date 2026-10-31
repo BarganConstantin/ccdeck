@@ -77,7 +77,7 @@ describe("both stripes follow one rule", () => {
     expect(button).not.toContain("aria-expanded");
   });
 
-  it("leaves a stripe without the Claude accounts' run where Claude Code is missing", () => {
+  it("gives a Codex-only stripe its own accounts run, without the Claude capacity doors", () => {
     const codexOnly = railItems({
       providers: { kind: "reported", claude: false, codex: true },
       sessionListOpen: false, toggleSessionList: noop, accountsPanelOpen: false, toggleAccountsPanel: noop,
@@ -86,6 +86,6 @@ describe("both stripes follow one rule", () => {
       openCapacity: noop, openSettings: noop, onFeedback: noop,
       toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
     });
-    expect(codexOnly.leftStripe.map(ids)).toEqual([["session-list"]]);
+    expect(codexOnly.leftStripe.map(ids)).toEqual([["accounts"], ["session-list"]]);
   });
 });

@@ -26,6 +26,8 @@ import type { SettingsDoors } from "../settings";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 
 export const ACCOUNTS_ROW = "Accounts and auto-switch";
+export const CODEX_ACCOUNTS_ROW = "Codex accounts";
+export const CODEX_ACCOUNTS_ROW_NOTE = "Your Codex profiles and what each has left, and which one new sessions use.";
 export const ACCOUNTS_ROW_NOTE = "Your Claude accounts, and Auto-switch, which moves Claude Code to another one before the account in use runs out.";
 export const LAN_ROW = "Local network";
 export const LAN_ROW_NOTE = "Pairing with the decks on your other machines, so a login that expires on one is repaired from another.";
@@ -36,16 +38,21 @@ interface Props {
   /** Whether Claude Code is on this machine — the condition the accounts
    *  panel's own stripe button is drawn under. */
   claudeHere: boolean;
+  /** Whether Codex is on this machine: the accounts panel lists its profiles,
+   *  so its door is drawn for either provider. Local network repairs Claude
+   *  logins and stays behind `claudeHere`. */
+  codexHere?: boolean;
   /** Whether single keys answer, so whether a cap is drawn. */
   singleKeys: boolean;
   doors: Pick<SettingsDoors, "accounts" | "localNetwork" | "browserWatch">;
 }
 
-export default function ElsewhereSection({ claudeHere, singleKeys, doors }: Props) {
+export default function ElsewhereSection({ claudeHere, codexHere = false, singleKeys, doors }: Props) {
   return (
     <SettingsGroup id="settings-elsewhere-caption" title="Elsewhere on the deck">
-      {claudeHere && (
-        <DoorRow settingId="accounts" name={ACCOUNTS_ROW} note={ACCOUNTS_ROW_NOTE} onOpen={doors.accounts}
+      {(claudeHere || codexHere) && (
+        <DoorRow settingId="accounts" name={claudeHere ? ACCOUNTS_ROW : CODEX_ACCOUNTS_ROW}
+          note={claudeHere ? ACCOUNTS_ROW_NOTE : CODEX_ACCOUNTS_ROW_NOTE} onOpen={doors.accounts}
           cap={singleKeys ? { key: "A", title: "Press A anywhere to show or hide the accounts panel" } : null} />
       )}
       {claudeHere && (

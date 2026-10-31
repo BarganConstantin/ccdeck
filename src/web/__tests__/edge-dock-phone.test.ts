@@ -37,9 +37,9 @@ const toggles = { sessionList: ref(), usage: ref(), accounts: ref(), machine: re
 
 /** The eight controls as App.tsx defines them, for a machine with or without
  *  Claude Code, a panel open or not, Browser watch's unread count. */
-function rails({ claude = true, usageOpen = false, unread = 0, onHistory = noop } = {}) {
+function rails({ claude = true, codex = true, usageOpen = false, unread = 0, onHistory = noop } = {}) {
   return railItems({
-    providers: { kind: "reported", claude, codex: true },
+    providers: { kind: "reported", claude, codex },
     sessionListOpen: false, toggleSessionList: noop, accountsPanelOpen: false, toggleAccountsPanel: noop,
     usagePanelOpen: usageOpen, setUsagePanelOpen: noop, machinePanelOpen: false, setMachinePanelOpen: noop,
     setUsageHistoryOpen: onHistory, watchOn: false, watchUnseen: unread, setBrowserWatchOpen: noop,
@@ -90,7 +90,7 @@ describe("the dock holds the four panels and Settings, then More", () => {
   it("drops Accounts on a machine without Claude Code, and keeps the rest in place", () => {
     // Every account the panel lists is a Claude account; a Codex-only machine
     // gets no control for a panel with nothing in it.
-    const view = dockFor(rails({ claude: false }));
+    const view = dockFor(rails({ claude: false, codex: false }));
     expect(buttons(view.tree).map(b => (b.props.item as { id: string }).id))
       .toEqual(["session-list", "usage", "machine", "settings"]);
   });

@@ -443,6 +443,13 @@ export const GUARDED_READS = new Set([
   // standing question's own words, which is the ring's secret in fewer bytes.
   "/api/sessions",
   "/api/claude-accounts",
+  // Reveals the local machine's Codex profile roster, even though paths and
+  // credentials are deliberately omitted from the response.
+  "/api/codex-profiles",
+  "/api/codex-profile-quota",
+  "/api/codex-profile-launch",
+  "/api/codex-profile-login",
+  "/api/codex-terminal-command",
   "/api/claude-accounts/login",
   "/api/browser-watch",
   "/api/lan",
