@@ -45,7 +45,7 @@ import { usePairRequestDialog } from "./LanPairRequestModal";
 import { AccountAttention } from "./AccountAttentionModal";
 import ReleaseNotesModal from "./ReleaseNotesModal";
 import SessionSummary from "./SessionSummary";
-import SettingsModal from "./SettingsModal";
+import SettingsModal, { type AccountSwitch } from "./SettingsModal";
 import type { TerminalSwitch } from "./TerminalSection";
 import ToolModal from "./ToolModal";
 // Loaded when they open (#883). Both are opened rarely and each is a large
@@ -60,7 +60,7 @@ const TrafficRadar = lazyDialog(() => import("./TrafficRadar"), "Telemetry Radar
 
 export default function DeckDialogs({
   dialogs, welcome, desktopUpdate, versionCheck, restart, upgrade, lanPairs, attention, clearFlow, watchBadge, announcements,
-  appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify, panelDoors, terminal,
+  appearance, providers, stateRef, agentCount, menus, sound, tones, customTones, notify, panelDoors, terminal, account,
 }: {
   dialogs: ReturnType<typeof useDialogs>;
   welcome: ReturnType<typeof useWelcomeAndNotes>;
@@ -91,6 +91,8 @@ export default function DeckDialogs({
   panelDoors: { accounts: () => void; localNetwork: () => void };
   /** The Command Panel's switch, which Settings › Experimental draws. */
   terminal?: TerminalSwitch;
+  /** Whether Settings draws its hidden Account section (/api/prefs). */
+  account?: AccountSwitch;
 }) {
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
@@ -149,6 +151,7 @@ export default function DeckDialogs({
         <FeedbackDialog
           initialKind={feedbackPrefill?.initialKind}
           initialBody={feedbackPrefill?.initialBody}
+          initialTab={feedbackPrefill?.initialTab}
           onClose={() => { setFeedbackOpen(false); setFeedbackPrefill(null); }}
         />
       )}
@@ -181,6 +184,7 @@ export default function DeckDialogs({
           versionCheck={versionCheck}
           desktopUpdate={desktopUpdate}
           restart={restart}
+          account={account}
           /* Every door out closes Settings first (doorOut), the way the
              shortcuts sheet hands over to it below, and each opens through
              the deck's own way in: the version chip's (What's new, and for a

@@ -1,0 +1,8 @@
+{
+  "deviceCode": "ccdc_Q2lZ3m0b0R1oW8iJdY4xK3n8sV6cP1tA9eF2hL7uB5g",
+  "userCode": "WDJB-MJHT",
+  "verificationUri": "https://app.ccdeck.dev/connect",
+  "verificationUriComplete": "https://app.ccdeck.dev/connect?code=WDJB-MJHT",
+  "expiresIn": 600,
+  "interval": 5
+}

@@ -9,9 +9,14 @@
 // reads — `visibility: hidden`, which also takes it out of the accessibility
 // tree. The disclosure is a button with aria-expanded naming the region it
 // controls (the WAI-ARIA disclosure pattern).
+//
+// SENT AS THE ACCOUNT (`account`), there is no contact to ask for: the account
+// is the way back, and replies come in the dialog, on app.ccdeck.dev and, while
+// the API mails them (`mail`), by email. The section then says only where it
+// goes, in whereItGoesAccount's words.
 import { useId } from "react";
 import {
-  ADD_DETAILS, CONTACT_HINT, CONTACT_LABEL, CONTACT_MAX, CONTACT_PLACEHOLDER, WHERE_IT_GOES, isPlainEnter,
+  ADD_DETAILS, CONTACT_HINT, CONTACT_LABEL, CONTACT_MAX, CONTACT_PLACEHOLDER, WHERE_IT_GOES, isPlainEnter, whereItGoesAccount,
 } from "../feedback";
 
 export const DETAILS_ID = "fb-details";
@@ -33,15 +38,19 @@ interface Props {
   open: boolean;
   contact: string;
   onContact: (contact: string) => void;
+  /** Sent as the ccdeck account: no contact field, and the account's words. */
+  account?: boolean;
+  /** The account's replies are also mailed (the API's `mail`). */
+  mail?: boolean;
 }
 
-export default function FeedbackDetails({ open, contact, onContact }: Props) {
+export default function FeedbackDetails({ open, contact, onContact, account = false, mail = true }: Props) {
   const hintId = useId();
   return (
     <div id={DETAILS_ID} className="fb-details" data-open={open || undefined}>
       <div className="fb-details-clip">
         <div className="fb-details-body">
-          <div className="fb-field">
+          {!account && <div className="fb-field">
             <label className="fb-field-label" htmlFor="fb-contact">
               {CONTACT_LABEL}
               <span className="fb-optional">optional</span>
@@ -59,10 +68,14 @@ export default function FeedbackDetails({ open, contact, onContact }: Props) {
               onKeyDown={e => { if (isPlainEnter(e.nativeEvent)) e.preventDefault(); }}
             />
             <p id={hintId} className="fb-hint">{CONTACT_HINT}</p>
-          </div>
-          <div className="fb-where">
-            {WHERE_IT_GOES.map(line => <p key={line}>{line}</p>)}
-          </div>
+          </div>}
+          {account ? (
+            <div className="fb-where">{whereItGoesAccount(mail).map(line => <p key={line}>{line}</p>)}</div>
+          ) : (
+            <div className="fb-where">
+              {WHERE_IT_GOES.map(line => <p key={line}>{line}</p>)}
+            </div>
+          )}
         </div>
       </div>
     </div>

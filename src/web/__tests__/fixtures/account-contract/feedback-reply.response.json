@@ -1,0 +1,18 @@
+{
+  "item": { "seq": 4, "at": "2026-10-28T09:30:00Z", "type": "message", "side": "user", "text": "Still happens on 3.48.1, see the second screenshot.", "via": "deck" },
+  "thread": {
+    "id": "0199f3b1-2c4d-7e5f-8a6b-1c2d3e4f5a6b",
+    "kind": "bug",
+    "title": "Usage panel shows 0 after the laptop sleeps",
+    "status": { "code": "planned", "label": "Planned", "fixedIn": null, "reason": null, "released": false },
+    "createdAt": "2026-10-28T08:01:00Z",
+    "lastActivityAt": "2026-10-28T09:30:00Z",
+    "lastSeq": 4,
+    "readSeq": 3,
+    "hasUnread": false,
+    "preview": { "side": "user", "text": "Still happens on 3.48.1, see the second screenshot." },
+    "trackedIssue": null,
+    "images": 1,
+    "webUrl": "https://app.ccdeck.dev/conversations/0199f3b1-2c4d-7e5f-8a6b-1c2d3e4f5a6b"
+  }
+}

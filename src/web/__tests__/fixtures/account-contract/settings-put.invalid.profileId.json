@@ -1,0 +1,2 @@
+{ "baseRevision": 14, "schema": 1,
+  "values": { "theme": "paper", "density": "compact", "panels.detail": true } }

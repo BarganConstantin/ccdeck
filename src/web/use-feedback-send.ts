@@ -19,24 +19,36 @@
 // says anything to a dialog that is gone. Without that the report, images and
 // all, could start uploading after the dialog had closed, and a failure of it
 // was told to nobody.
+//
+// AS THE ACCOUNT OR AS BEFORE. With a ccdeck account connected and Send
+// without my account not ticked, the same request — JSON, or the same form
+// with its images — goes to the deck's account route instead, without the
+// contact, and starts a conversation; its refusals read as accountFailure
+// words them. Otherwise it is /api/feedback, exactly as it always was.
 import { useEffect, useRef, useState } from "react";
 import { selfPressAccepted } from "./panel-press";
 import { REFUSED_WHILE_SENDING, feedbackRequest } from "./feedback-images";
 import {
-  SENT_EXIT_MS, SENT_HOLD_MS, feedbackFailure, fieldsToSend, type FeedbackDraft, type Outcome,
+  SENT_EXIT_MS, SENT_HOLD_MS, accountFailure, feedbackFailure, fieldsToSend, type FeedbackDraft, type Outcome,
 } from "./feedback";
+
+/** Where a conversation as the account is started (ccdeck-account-routes.mjs). */
+export const ACCOUNT_THREADS_ROUTE = "/api/account/feedback/threads";
 import type { FeedbackImages } from "./use-feedback-images";
 
 export interface FeedbackSend {
   outcome: Outcome;
   sending: boolean;
+  /** Whether what was sent went as the account, for the thanks. */
+  sentAsAccount: boolean;
   send(draft: FeedbackDraft): Promise<void>;
   /** Takes a failure's words down, once what they were about has been discarded. */
   clearFailure(): void;
 }
 
-export function useFeedbackSend(images: FeedbackImages): FeedbackSend {
+export function useFeedbackSend(images: FeedbackImages, { asAccount = false }: { asAccount?: boolean } = {}): FeedbackSend {
   const [outcome, setOutcome] = useState<Outcome>({ state: "idle" });
+  const [sentAsAccount, setSentAsAccount] = useState(false);
   const sendingRef = useRef(false);
   const inflight = useRef<AbortController | null>(null);
   useEffect(() => () => inflight.current?.abort(), []);
@@ -45,6 +57,9 @@ export function useFeedbackSend(images: FeedbackImages): FeedbackSend {
     if (!selfPressAccepted(sendingRef.current)) return;
     sendingRef.current = true;
     const { signal } = (inflight.current = new AbortController());
+    // Decided at the press: a tick made while it is out changes nothing.
+    const account = asAccount;
+    setSentAsAccount(account);
     setOutcome({ state: "sending" });
     try {
       const attached = await images.ready();
@@ -55,13 +70,20 @@ export function useFeedbackSend(images: FeedbackImages): FeedbackSend {
         setOutcome({ state: "failed", message: REFUSED_WHILE_SENDING });
         return;
       }
-      const response = await fetch("/api/feedback", { ...feedbackRequest(fieldsToSend(draft), attached), signal });
+      // As the account, no contact goes at all: the account is the way back.
+      const request = account
+        ? feedbackRequest(fieldsToSend({ ...draft, contact: "" }), attached)
+        : feedbackRequest(fieldsToSend(draft), attached);
+      const response = await fetch(account ? ACCOUNT_THREADS_ROUTE : "/api/feedback", { ...request, signal });
       const d = await response.json().catch(() => null);
-      setOutcome(response.ok && d?.ok
+      // The account's route answers the new conversation itself; the
+      // anonymous one, a plain ok.
+      const arrived = response.ok && (account ? d?.thread != null : d?.ok);
+      setOutcome(arrived
         ? { state: "sent" }
-        : { state: "failed", message: feedbackFailure(response.status, d?.reason, d?.errors) });
+        : { state: "failed", message: account ? accountFailure(response.status, d) : feedbackFailure(response.status, d?.reason, d?.errors) });
     } catch {
-      if (!signal.aborted) setOutcome({ state: "failed", message: feedbackFailure(0, null) });
+      if (!signal.aborted) setOutcome({ state: "failed", message: account ? accountFailure(0, null) : feedbackFailure(0, null) });
     } finally {
       sendingRef.current = false;
     }
@@ -69,7 +91,7 @@ export function useFeedbackSend(images: FeedbackImages): FeedbackSend {
 
   const clearFailure = () => setOutcome(now => (now.state === "failed" ? { state: "idle" } : now));
 
-  return { outcome, sending: outcome.state === "sending", send, clearFailure };
+  return { outcome, sending: outcome.state === "sending", sentAsAccount, send, clearFailure };
 }
 
 /** Once `sent`, true after the hold — the cue for the fade out — and then

@@ -86,6 +86,25 @@ export const react = {
   useLayoutEffect(run: () => void | (() => void), deps?: readonly unknown[]) { effect(true, run, deps); },
   useCallback<F>(fn: F, deps: readonly unknown[]) { return memo(() => fn, deps); },
   useMemo<T>(make: () => T, deps: readonly unknown[]) { return memo(make, deps); },
+  /** A store outside React (feedback-unread.ts): read on every render, and a
+   *  change it announces renders again. */
+  useSyncExternalStore<T>(subscribe: (onChange: () => void) => () => void, getSnapshot: () => T) {
+    const inst = current;
+    if (!inst) throw new Error("a hook was called outside a render");
+    effect(false, () => subscribe(() => { inst.dirty = true; inst.update(); }), [subscribe]);
+    return getSnapshot();
+  },
+  // What a module the dialogs import declares with React at load time — a
+  // lazy chunk, an error boundary, a Suspense round it — none of which this
+  // React draws, since it renders no child component.
+  lazy(_load: () => Promise<unknown>) { return function Lazy() { return null; }; },
+  Component: class Component<P = unknown, S = unknown> {
+    props: P;
+    state = {} as S;
+    constructor(props: P) { this.props = props; }
+    setState(_next: Partial<S>) {}
+  },
+  Suspense({ children }: { children?: unknown }) { return children ?? null; },
 };
 
 /** One element the component drew. */

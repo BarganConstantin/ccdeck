@@ -444,6 +444,11 @@ const PRESSES: Press[] = [
   // The feedback dialog's three kinds (#1853): a word in a segmented track,
   // a <label> round its radio — a labelled control, so 0.97.
   [".fb-kind:active", "0.97", "transform"],
+  // With a ccdeck account: the dialog's two tabs, Send without my account,
+  // and a row of Your conversations, which opens its thread.
+  [".fc-tab:active", "0.97", "transform"],
+  [".fc-anon:active", "0.97", "transform"],
+  [".fc-row:active", "0.97", "transform"],
   // And the two quiet buttons under its message, Add screenshot and Add
   // details: a glyph or a chevron and their words, labelled controls, so 0.97.
   [".fb-tool:active", "0.97", "transform"],

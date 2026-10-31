@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import {
   KINDS, kindCopy, hasMessage, titleFromBody, feedbackTitle, fieldsToSend, parseFacts, systemLabel, factsLabel,
   isSendShortcut, isPlainEnter, sendShortcutCaps, isSymbolCap, outcomeAnnouncement, feedbackFailure,
-  TITLE_MIN, TITLE_MAX, CONTACT_MAX, MESSAGE_MISSING, SENT_LINE, SENT_HOLD_MS, SENT_EXIT_MS, FACTS_SUFFIX,
+  TITLE_MIN, TITLE_MAX, CONTACT_MAX, MESSAGE_MISSING, SENT_LINE, sentLine, SENT_HOLD_MS, SENT_EXIT_MS, FACTS_SUFFIX,
   FACTS_UNKNOWN, ADD_DETAILS, CONTACT_LABEL, CONTACT_PLACEHOLDER, CONTACT_HINT, WHERE_IT_GOES, type EnterKey,
 } from "../feedback";
 import { openTags, withoutComments } from "./tsx-scan";
@@ -372,7 +372,8 @@ describe("Add details", () => {
 
   it("keeps what was typed across folding and unfolding: always drawn, its value held by the dialog", () => {
     expect(dialog).toMatch(/const \[contact, setContact\] = useState\(kept\?\.contact \?\? ""\);/);
-    expect(flatDialog).toMatch(/<FeedbackDetails open=\{detailsOpen\} contact=\{contact\} onContact=\{setContact\} \/>/);
+    // `account` is a ccdeck account's send, which has no contact to ask for.
+    expect(flatDialog).toMatch(/<FeedbackDetails open=\{detailsOpen\} contact=\{contact\} onContact=\{setContact\} account=\{asAccount\} mail=\{mail\} \/>/);
     // Never mounted on a condition, which would throw the field away.
     expect(flatDialog).not.toMatch(/detailsOpen &&/);
     expect(flatDetails).toMatch(/value=\{contact\}/);
@@ -459,14 +460,20 @@ describe("once it is sent", () => {
     expect(outcomeAnnouncement("sent")).toBe(SENT_LINE);
     // The same region says what an armed Discard will do while it is armed
     // (feedback-draft-kept.test.ts), and the outcome otherwise.
-    const region = dialog.indexOf('<p className="vis-hidden" role="status">{discard.armed ? DISCARD_ARMED_TITLE : outcomeAnnouncement(outcome.state)}</p>');
+    // With a ccdeck account connected, the same region also says what Your
+    // conversations has to say while that tab is shown, and the thanks for a
+    // conversation started (feedback-dialog-account.test.ts); without one, it
+    // says exactly what it always did.
+    const region = dialog.indexOf('<p className="vis-hidden" role="status">{discard.armed ? DISCARD_ARMED_TITLE : conversationsShown ? said : outcomeAnnouncement(outcome.state, sentAsAccount, mail)}</p>');
     expect(region, "no persistent live region").toBeGreaterThan(-1);
     expect(region).toBeLessThan(dialog.indexOf("{sent && ("));
   });
 
   it("thanks, briefly, over the form at the form's own size", () => {
     expect(SENT_LINE).toBe("Thanks — feedback sent.");
-    expect(flatDialog).toMatch(/\{sent && \( <div className="fb-done"> <SuccessMark \/> <p className="fb-done-line">\{SENT_LINE\}<\/p> <\/div> \)\}/);
+    // The line for how it went: SENT_LINE, unless it went as the account.
+    expect(sentLine(false)).toBe(SENT_LINE);
+    expect(flatDialog).toMatch(/\{sent && \( <div className="fb-done"> <SuccessMark \/> <p className="fb-done-line">\{sentLine\(sentAsAccount, mail\)\}<\/p> <\/div> \)\}/);
     expect(value(".fb-done", "position")).toBe("absolute");
     expect(value(".fb-done", "inset")).toBe("0");
     expect(value(".fb-stage", "position")).toBe("relative");

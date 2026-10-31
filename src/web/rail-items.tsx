@@ -85,6 +85,21 @@ export function browserWatchDetail(watchOn: boolean | null, unread: number): str
   return unread > 0 ? `${state}\n${unread} unread` : state;
 }
 
+/** What Feedback says while a ccdeck account's conversations hold replies
+ *  nobody has read: a dot on the glyph, the count in its name and its hint —
+ *  and a press that opens the dialog on Your conversations, where they are.
+ *  Nothing at all while there are none, so Feedback is the door it always
+ *  was. The dot is the accent, never the waiting count's amber. */
+export function feedbackUnreadDoor(unread: number, openConversations?: () => void): Partial<RailItem> {
+  if (!(unread > 0)) return {};
+  return {
+    ariaLabel: `Feedback, ${unread} unread ${unread === 1 ? "conversation" : "conversations"}`,
+    detail: `${unread} unread`,
+    dot: true,
+    ...(openConversations ? { onPress: openConversations } : {}),
+  };
+}
+
 /** A run of doors on a stripe that answer one question, named for the group a
  *  screen reader announces (EdgeRails.tsx). A door alone in its run needs no
  *  name beyond its own. */
@@ -96,7 +111,7 @@ export function railItems({
   providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
-  openCapacity, integrations = [], openExploreIntegrations, openQuickOpen,
+  openCapacity, integrations = [], openExploreIntegrations, openQuickOpen, feedbackUnread = 0, openFeedbackConversations,
 }: {
   providers: Providers;
   sessionListOpen: boolean;
@@ -129,6 +144,12 @@ export function railItems({
   openExploreIntegrations?: () => void;
   /** Quick open, the field ⌘K opens (components/QuickOpen.tsx). */
   openQuickOpen: () => void;
+  /** A ccdeck account's conversations with an unread reply (feedback-unread.ts);
+   *  absent, none. */
+  feedbackUnread?: number;
+  /** Open the feedback dialog on Your conversations: Feedback's press while it
+   *  shows the dot. */
+  openFeedbackConversations?: () => void;
 }): RailItems {
   const settingsCap = settingsChordLabel(platformName());
   const apple = isApplePlatform(platformName());
@@ -207,6 +228,7 @@ export function railItems({
   const feedback: RailItem = {
     id: "feedback", label: "Feedback", short: "Feedback", menu: "Send feedback",
     ariaLabel: "Send feedback", glyph: <FeedbackGlyph />, kind: "dialog", onPress: onFeedback,
+    ...feedbackUnreadDoor(feedbackUnread, openFeedbackConversations),
   };
   // TOOLS AND SKILLS, ONE DOOR EACH. Skills were a tab inside Tool activity,
   // and users said they could not find them. Each door opens its own view,

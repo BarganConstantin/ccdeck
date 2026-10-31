@@ -1,0 +1,2 @@
+{ "type": "https://api.ccdeck.dev/problems/profile-not-bound", "title": "This deck's settings mode changed elsewhere", "status": 409,
+  "error": "profile_not_bound", "binding": { "mode": "independent", "profileId": "0199f0a2-7000-7bb2-8d4f-2c3e4f5a6b7c", "revision": 4 } }

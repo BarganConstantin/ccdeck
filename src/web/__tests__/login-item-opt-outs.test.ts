@@ -92,6 +92,16 @@ describe("the login item a deck installs", () => {
     const rows = table.slice(0, table.indexOf("\n\n", table.indexOf("|---|")));
     const documented = [...rows.matchAll(/^\| `([A-Z_]+)(?:=1)?` \|/gm)].map(m => m[1]);
     expect(documented.length).toBeGreaterThan(10);
-    expect([...SCOPE_VARS, ...SETTING_VARS].sort()).toEqual([...documented].sort());
+    // ONE EXCEPTION, BY NAME: the ccdeck account's veto. Carried, because a
+    // veto is always safe to pass on; undocumented while the account it vetoes
+    // is hidden (account-flag.mjs), because a row for it would announce the
+    // feature. Documenting the account is a decision, and so is this line.
+    const UNDOCUMENTED_WHILE_HIDDEN = ["AGENTS_DECK_NO_ACCOUNT"];
+    for (const name of UNDOCUMENTED_WHILE_HIDDEN) expect(README, name).not.toContain(name);
+    expect([...SCOPE_VARS, ...SETTING_VARS].filter(v => !UNDOCUMENTED_WHILE_HIDDEN.includes(v)).sort()).toEqual([...documented].sort());
+    expect(SETTING_VARS).toEqual(expect.arrayContaining(UNDOCUMENTED_WHILE_HIDDEN));
+    // And the switch that turns the account on is not carried at all.
+    expect([...SCOPE_VARS, ...SETTING_VARS]).not.toContain("CCDECK_ACCOUNT");
+    expect([...SCOPE_VARS, ...SETTING_VARS]).not.toContain("CCDECK_ACCOUNT_API");
   });
 });

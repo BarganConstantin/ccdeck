@@ -498,6 +498,12 @@ export const GUARDED_READS = new Set([
   // The trackers this deck is connected to (#2178): the list of connections
   // with their accounts, and below it every read a provider adds.
   "/api/integrations",
+  // The ccdeck account (account-flag.mjs): which account this deck is
+  // connected to, its email, the device and the settings it syncs, and the
+  // join preview's values. The user's own, and read by the deck's own page
+  // alone. Guarded whether the account is on or off, as every path here is.
+  "/api/account",
+  "/api/account/sync/preview",
 ]);
 
 /** Whole namespaces of guarded reads, for routes whose path carries an id —
@@ -506,8 +512,10 @@ export const GUARDED_READS = new Set([
  *  work, read with the user's own token; every one of them is fetched by the
  *  deck's own page and nothing else. A prefix rather than a list because a
  *  provider adds its routes without touching this file, and a read it adds
- *  must be covered from the moment it exists. */
-export const GUARDED_READ_PREFIXES = Object.freeze(["/api/integrations/"]);
+ *  must be covered from the moment it exists. The account's feedback
+ *  conversations are the same kind of read: what the person wrote to the
+ *  people who make ccdeck, and their replies, a thread id in the path. */
+export const GUARDED_READ_PREFIXES = Object.freeze(["/api/integrations/", "/api/account/feedback/"]);
 
 /** Whether a GET to `pathname` must come from the deck's page or carry the
  *  token: listed in GUARDED_READS, or under one of GUARDED_READ_PREFIXES. */

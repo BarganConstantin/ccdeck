@@ -1,0 +1,2 @@
+{ "type": "https://api.ccdeck.dev/problems/device-unauthorized", "title": "The account this machine was connected to is gone", "status": 401,
+  "error": "account_gone" }

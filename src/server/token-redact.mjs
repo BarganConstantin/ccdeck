@@ -13,6 +13,45 @@ import { HOOK_TOKEN } from "./request-gates.mjs";
 // response and get debugged as one.
 const TOKEN_REDACTED = "[redacted: ccdeck token]";
 
+/** What the account's device token is replaced with — the same visible marker,
+ *  naming which secret it was. */
+const DEVICE_TOKEN_REDACTED = "[redacted: ccdeck device token]";
+
+/**
+ * The account's device token, while this deck holds one (account-service.mjs
+ * sets it on connect, on every rotation and on restart, and clears it on
+ * disconnect). It is a bearer credential to the user's account, and an agent
+ * that `cat`s account.json on a machine without a keychain puts it into the
+ * ring exactly the way the discovery file's token gets there — so it is taken
+ * out at the same door.
+ *
+ * Empty unless the account is on and connected: a deck with the account off
+ * never sets it, and the walk below then costs what it always did.
+ */
+let deviceTokens = [];
+
+/** The device tokens to redact from now on — the live one, and the one a
+ *  rotation is handing over to while both are valid. Anything that is not a
+ *  long enough string is ignored, so a mistake cannot make every event match. */
+export function setDeviceTokens(tokens) {
+  deviceTokens = (Array.isArray(tokens) ? tokens : []).filter(t => typeof t === "string" && t.length >= 20);
+}
+
+/** One string with every secret this deck holds taken out. */
+function scrubString(v, token) {
+  let out = v.includes(token) ? v.replaceAll(token, TOKEN_REDACTED) : v;
+  for (const t of deviceTokens) if (out.includes(t)) out = out.replaceAll(t, DEVICE_TOKEN_REDACTED);
+  return out;
+}
+
+/** Whether a string holds any of them — the walk's cheap test, which allocates
+ *  nothing. */
+function holdsSecret(v, token) {
+  if (v.includes(token)) return true;
+  for (const t of deviceTokens) if (v.includes(t)) return true;
+  return false;
+}
+
 /**
  * Take the deck's own token back out of an event, before anything stores it.
  *
@@ -84,7 +123,7 @@ function redactDeckToken(raw) {
   // HOOK_TOKEN is request-gates.mjs's, and an import is bound before this
   // module's body runs, so it is set long before the first event arrives.
   const token = HOOK_TOKEN;
-  if (typeof raw === "string") return raw.includes(token) ? raw.replaceAll(token, TOKEN_REDACTED) : raw;
+  if (typeof raw === "string") return holdsSecret(raw, token) ? scrubString(raw, token) : raw;
   if (raw === null || typeof raw !== "object") return raw;
 
   const stack = [raw];
@@ -97,7 +136,7 @@ function redactDeckToken(raw) {
       for (let i = 0; i < node.length; i++) {
         const v = node[i];
         if (typeof v === "string") {
-          if (v.includes(token)) node[i] = v.replaceAll(token, TOKEN_REDACTED);
+          if (holdsSecret(v, token)) node[i] = scrubString(v, token);
         } else if (v !== null && typeof v === "object") stack.push(v);
       }
     } else {
@@ -110,7 +149,7 @@ function redactDeckToken(raw) {
       for (const k in node) {
         const v = node[k];
         if (typeof v === "string") {
-          if (v.includes(token)) node[k] = v.replaceAll(token, TOKEN_REDACTED);
+          if (holdsSecret(v, token)) node[k] = scrubString(v, token);
         } else if (v !== null && typeof v === "object") stack.push(v);
       }
     }

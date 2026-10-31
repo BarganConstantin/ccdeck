@@ -62,7 +62,7 @@ export function isSectionEntry(entry: SettingsEntry): boolean {
  *  word that names one setting in it is that setting's keyword and not the
  *  section's: an equal match lists the section first, and "font" is asking
  *  for Text size, not for the page it is on. */
-const SECTION_KEYWORDS: Record<SettingsSection, readonly string[]> = {
+const SECTION_KEYWORDS: Record<Exclude<SettingsSection, "account">, readonly string[]> = {
   general: ["behaviour", "behavior", "preferences"],
   appearance: ["look", "style"],
   reading: ["readability", "legibility"],
@@ -97,7 +97,8 @@ const sectionLabel = (section: SettingsSection) => SETTINGS_SECTIONS.find(s => s
 
 function sectionEntry(section: SettingsSection): SettingsEntry {
   return {
-    id: `${SECTION_PREFIX}${section}`, section, label: sectionLabel(section), keywords: SECTION_KEYWORDS[section],
+    id: `${SECTION_PREFIX}${section}`, section, label: sectionLabel(section),
+    keywords: SECTION_KEYWORDS[section as Exclude<SettingsSection, "account">] ?? [],
     // Drawn only where Claude Code is (sectionsDrawn, settings.ts).
     ...(section === "claude" ? { claudeOnly: true as const } : {}),
   };
@@ -105,7 +106,9 @@ function sectionEntry(section: SettingsSection): SettingsEntry {
 
 /** Every entry, in nav order, each section's own entry first in its block. */
 function buildIndex(): SettingsEntry[] {
-  const rows: Record<SettingsSection, SettingsEntry[]> = {
+  // Account is a hidden section (settings.ts ACCOUNT_SECTION) and is never in
+  // the index: the walk below is over the released SETTINGS_SECTIONS.
+  const rows: Record<Exclude<SettingsSection, "account">, SettingsEntry[]> = {
     general: [
       { id: "claude-session-recovery", claudeOnly: true, section: "general", group: "Claude sessions", label: "Restore unfinished sessions", keywords: ["claude", "recover", "restore", "startup", "restart", "busy"] },
       { id: "claude-continue-stopped", claudeOnly: true, section: "general", group: "Claude sessions", label: "Continue stopped background sessions", keywords: ["claude", "continue", "background", "stopped", "login", "usage limit", "automatically"] },
@@ -213,7 +216,7 @@ function buildIndex(): SettingsEntry[] {
         keywords: ["feedback", "bug", "report", "contact", "suggestion", "idea"] },
     ],
   };
-  return SETTINGS_SECTIONS.flatMap(({ id }) => [sectionEntry(id), ...rows[id]]);
+  return SETTINGS_SECTIONS.flatMap(({ id }) => [sectionEntry(id), ...rows[id as Exclude<SettingsSection, "account">]]);
 }
 
 export const SETTINGS_INDEX: readonly SettingsEntry[] = buildIndex();

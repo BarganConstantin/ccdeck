@@ -18,9 +18,9 @@
 // only the frame, the nav and the search above it (SettingsSearch.tsx).
 import { useMediaQuery } from "../use-media-query";
 import SessionRecoverySettings from "./SessionRecoverySettings";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
-import { focusedTabToFollow, isFindChord, sectionsDrawn, type SettingsDoors, type SettingsSection } from "../settings";
+import { focusedTabToFollow, isFindChord, sectionIndex, sectionsDrawn, settingsSections, type SettingsDoors, type SettingsSection } from "../settings";
 import { indexFor, isSectionEntry, searchSettings, type SettingsEntry } from "../settings-search";
 import { tabStripMove } from "../tablist-keys";
 import type { useAppearance } from "../use-appearance";
@@ -54,6 +54,18 @@ import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SettingsSearchField, SettingsSearchResults, SettingsSearchStatus } from "./SettingsSearch";
 import { useSettingsJump } from "./use-settings-jump";
 
+// Settings › Account, hidden: its own chunk, fetched only when the section is
+// drawn, which is only on a deck with the ccdeck account on (or vetoed at
+// launch after being asked for).
+const AccountSection = lazy(() => import("./AccountSection"));
+
+/** Whether this deck draws Settings › Account, and why — /api/prefs's
+ *  `accountOn` and `accountVetoed`. */
+export interface AccountSwitch {
+  on: boolean;
+  vetoed: boolean;
+}
+
 export interface SettingsModalProps {
   /** The section on show; the nav and the door that opened this both set it. */
   section: SettingsSection;
@@ -80,12 +92,16 @@ export interface SettingsModalProps {
   doors: SettingsDoors;
   /** The Command Panel's switch (use-stage.ts); Experimental draws it when given. */
   terminal?: TerminalSwitch;
+  /** The ccdeck account's section, drawn only when this says so. */
+  account?: AccountSwitch;
 }
 
 export default function SettingsModal({
   section, landOn, onSection, onClose, providers, sound, tones, customTones, notify, appearance,
-  versionCheck, desktopUpdate, restart, doors, terminal,
+  versionCheck, desktopUpdate, restart, doors, terminal, account,
 }: SettingsModalProps) {
+  // Account is drawn while the ccdeck account is on, or was asked for and vetoed.
+  const accountShown = account?.on === true || account?.vetoed === true;
   // Focus starts on the section's own tab, not on the ×: the nav is what this
   // dialog is walked by, and a door that opened it at Sounds lands the reader
   // on "Sounds", which says where they are.
@@ -105,12 +121,14 @@ export default function SettingsModal({
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // THE SECTIONS THIS DECK DRAWS (sectionsDrawn, settings.ts): every one, but
   // Integrations only where the deck offers a kind or still holds a stranded
-  // connection, or while it is the section on show. The nav, its arrows and
-  // the pane's head all walk this list, so here it takes the table's name.
+  // connection, or while it is the section on show; and Account, before About,
+  // only while the ccdeck account is on (settingsSections). The nav, its arrows
+  // and the pane's head all walk this list.
   const integrations = useIntegrations();
   const integrationsReachHere = integrationsReach(integrations);
   const SETTINGS_SECTIONS = sectionsDrawn(integrationsReachHere, section, providers.claude);
-  const at = Math.max(0, SETTINGS_SECTIONS.findIndex(s => s.id === section));
+  const sections = settingsSections({ account: accountShown, drawn: SETTINGS_SECTIONS });
+  const at = sectionIndex(section, sections);
 
   // THE SEARCH. While the field holds a query the pane shows what matches it
   // in place of the section; the section stays mounted under it, hidden, so a
@@ -180,12 +198,12 @@ export default function SettingsModal({
   const singleKeys = useSingleKeyShortcuts();
 
   const moveSection = (event: KeyboardEvent<HTMLDivElement>) => {
-    const move = tabStripMove(event, at, SETTINGS_SECTIONS.length, "vertical");
+    const move = tabStripMove(event, at, sections.length, "vertical");
     if (move.kind === "pass") return;
     event.preventDefault();
     // An arrow that chooses a section ends the search, as a press does.
     requestLeave(() => {
-      changeQuery(""); onSection(SETTINGS_SECTIONS[move.index].id);
+      changeQuery(""); onSection(sections[move.index].id);
       tabRefs.current[move.index]?.focus();
     });
   };
@@ -209,8 +227,11 @@ export default function SettingsModal({
   const { notifyPermission, notifyOn, notifyVetoed, toggleNotify, notifySupported, askForNotifications,
           accountNotify, toggleAccountNotify } = notify;
 
+  // A section this deck does not draw — Account, on a deck without the
+  // account — is General, as the nav's index already says.
+  const paneSection = sections[at].id;
   const pane = (() => {
-    switch (section) {
+    switch (paneSection) {
       case "radar":
         return <RadarSettings onOpen={doors.radar} />;
       case "claude":
@@ -270,6 +291,8 @@ export default function SettingsModal({
         return <IntegrationsSection onBeforeLeaveChange={registerLeaveGuard} />;
       case "data":
         return <ToolAuditSettings />;
+      case "account":
+        return <Suspense fallback={null}><AccountSection vetoed={account?.on !== true} /></Suspense>;
       case "about":
         return (
           <AboutSection
@@ -359,7 +382,7 @@ export default function SettingsModal({
               aria-orientation={narrowNav ? "horizontal" : "vertical"}
               onKeyDown={moveSection}
             >
-              {SETTINGS_SECTIONS.map((choice, index) => (
+              {sections.map((choice, index) => (
                 <button
                   key={choice.id}
                   ref={el => {
@@ -403,8 +426,8 @@ export default function SettingsModal({
                 page and a Raycast preference pane open on. */}
             <div className="settings-pane-head">
               <div className="settings-pane-heading">
-                <h2 className="settings-pane-title">{SETTINGS_SECTIONS[at].label}</h2>
-                <p className="settings-pane-note">{SETTINGS_SECTIONS[at].note}</p>
+                <h2 className="settings-pane-title">{sections[at].label}</h2>
+                <p className="settings-pane-note">{sections[at].note}</p>
               </div>
               {paneAction}
             </div>

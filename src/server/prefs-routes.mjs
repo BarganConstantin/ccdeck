@@ -17,6 +17,7 @@ import { noteContinueSwitchedOn } from "./stop-continue.mjs";
 import { closeOpenTerminals } from "./terminal-socket.mjs";
 import { commandPanel, commandPanelSupported } from "./command-panel-engine.mjs";
 import { panelInSessionHost } from "./command-panel-platform.mjs";
+import { accountOn, accountRequested, accountVetoed } from "./account-flag.mjs";
 
 /**
  * GET the deck's settings, and what the machine is allowing.
@@ -60,6 +61,15 @@ function prefsPayload(panel) {
     // tmux — only ever in the test-only Windows preview — so the page's words
     // name the place they keep running in.
     terminalWindows: panelInSessionHost(panel),
+    // The ccdeck account, on the read every page already makes at boot: the
+    // page draws Settings › Account, and fetches its code, only when this says
+    // so. A route of its own would have to exist with the flag off, which is
+    // the state it reports. `accountVetoed` only for a deck somebody asked to
+    // have one — the switch or the variable — so a machine launched with
+    // AGENTS_DECK_NO_INSTALL and no account in mind is not shown a section
+    // about a feature that is hidden.
+    accountOn: accountOn(prefs),
+    accountVetoed: accountRequested(prefs) && accountVetoed(),
   };
 }
 

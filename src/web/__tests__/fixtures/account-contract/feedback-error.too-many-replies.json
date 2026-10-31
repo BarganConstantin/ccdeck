@@ -1,0 +1,2 @@
+{ "type": "https://api.ccdeck.dev/problems/feedback-limit", "title": "Too many replies today", "status": 429,
+  "error": "too_many_replies", "limit": 50, "retryAfterSec": 600 }

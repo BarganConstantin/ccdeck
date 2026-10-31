@@ -279,7 +279,10 @@ describe("Settings draws Integrations only where it holds something", () => {
     expect(html).not.toContain('id="settings-tab-integrations"');
     const modal = sourceOf("components/SettingsModal.tsx");
     expect(modal).toContain("const SETTINGS_SECTIONS = sectionsDrawn(integrationsReachHere, section, providers.claude);");
-    expect(modal).toContain("const at = Math.max(0, SETTINGS_SECTIONS.findIndex(s => s.id === section));");
+    // What the nav, its arrows and the pane's head walk: those, plus Account
+    // before About while the ccdeck account is on (settingsSections).
+    expect(modal).toContain("const sections = settingsSections({ account: accountShown, drawn: SETTINGS_SECTIONS });");
+    expect(modal).toContain("const at = sectionIndex(section, sections);");
   });
 
   it("keeps the tab while a stranded connection waits to be disconnected, and where a kind is offered", async () => {

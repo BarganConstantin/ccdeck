@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
@@ -47,6 +47,7 @@ import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { railItems } from "./rail-items";
+import { unreadOf, useFeedbackAccount } from "./feedback-unread";
 // The modal and its panels load on demand; this is the light wrapper that
 // fetches them (IntegrationModalOnDemand.tsx).
 import IntegrationModal, { preloadIntegrationModal } from "./components/IntegrationModalOnDemand";
@@ -104,6 +105,16 @@ import { useRailPanel, useStage, useStageAsks } from "./use-stage";
 import { targetSession } from "./stage-shell";
 import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import { createChimePlayer } from "./chime-player";
+import type { AccountSwitch } from "./components/SettingsModal";
+import type { Appliers } from "./account-bridge";
+import { setSingleKeyShortcuts } from "./single-key-shortcuts";
+import { setHideFinishedAfter } from "./hide-finished";
+import type { Density, TextSize } from "./reading-preferences";
+import type { Theme } from "./theme";
+
+// The ccdeck account's settings sync in this tab — hidden, and its own chunk:
+// mounted, and so fetched, only while /api/prefs says the account is on.
+const AccountBridge = lazy(() => import("./components/AccountBridge"));
 
 export default function App() {
   return (
@@ -667,10 +678,32 @@ function Inner() {
   const asks = useStageAsks(stage, waitingSessions, canvasRef);
   // One read of the deck's server-side prefs, each hook handed its half —
   // use-prefs-read.ts.
+  // Whether this deck has the hidden ccdeck account (account-flag.mjs), on the
+  // same read: off until the deck says otherwise, and with it off nothing of
+  // the account is drawn, fetched or run.
+  const [account, setAccount] = useState<AccountSwitch>({ on: false, vetoed: false });
   usePrefsRead({
     loadAutoRestartPrefs, loadNotifyPrefs, loadReportsPrefs: reports.loadReportsPrefs,
     loadTerminalPrefs: stage.loadTerminalPrefs,
+    loadAccountPrefs: d => setAccount({ on: d.accountOn === true, vetoed: d.accountVetoed === true }),
   });
+  // The setter behind each setting the account can carry, by its schema key
+  // (account-ui-fields.ts): applying the account's value is the same act as
+  // the reader changing it here.
+  const accountAppliers: Appliers = {
+    theme: v => setTheme(v as Theme),
+    textSize: v => appearance.setTextSize(v as TextSize),
+    density: v => appearance.setDensity(v as Density),
+    "panels.sessionList": v => { if (v) { if (!sessionListOpen) toggleSessionList(); } else closeSessionList(); },
+    "panels.accounts": v => { if (v) openAccountsPanel(); else closeAccountsPanel(); },
+    "panels.detail": v => setDetailOpen(v === true),
+    "panels.usage": v => setUsagePanelOpen(v === true),
+    "panels.machine": v => setMachinePanelOpen(v === true),
+    singleKeyShortcuts: v => setSingleKeyShortcuts(v === true),
+    hideFinishedAfter: v => setHideFinishedAfter(Number(v)),
+    character: v => appearance.setCharacterEnabled(v === true),
+    sound: v => sound.setSound(v === true),
+  };
 
   // The controls of the chrome, each defined once, and the edge and group each
   // lives in — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
@@ -691,6 +724,10 @@ function Inner() {
   // components/AccountCapacityDialog.tsx.
   const [capacityView, setCapacityView] = useState<CapacityView | null>(null);
   const closeCapacity = useCallback(() => setCapacityView(null), []);
+  // A ccdeck account's unread conversations, for Feedback's dot: none, and
+  // nothing drawn, unless the account's own chunk has published an account.
+  const feedbackUnread = unreadOf(useFeedbackAccount());
+  const openFeedbackConversations = useCallback(() => dialogs.openFeedback({ initialTab: "conversations" }), [dialogs.openFeedback]);
   const rails = railItems({
     providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
     usagePanelOpen: usageRail.shown, setUsagePanelOpen: usageRail.set,
@@ -703,6 +740,7 @@ function Inner() {
     integrations: connectedKinds.map(provider => ({ provider, onPress: () => setIntegrationOpen(provider.kind) })),
     openExploreIntegrations: () => setExploreIntegrationsOpen(true),
     openQuickOpen,
+    feedbackUnread, openFeedbackConversations,
   });
   // How many of the waiting sessions the topbar names, for the count's hint,
   // which lists the rest.
@@ -959,6 +997,8 @@ function Inner() {
         />
       ) : null}
 
+      {account.on && <Suspense fallback={null}><AccountBridge appliers={accountAppliers} /></Suspense>}
+
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}
       <DeckDialogs
         dialogs={dialogs} welcome={welcome} desktopUpdate={desktopUpdate} versionCheck={versionCheck} restart={restart}
@@ -967,6 +1007,7 @@ function Inner() {
         menus={menus} sound={sound} tones={tones} customTones={customTones} notify={notify}
         terminal={{ on: stage.enabled, supported: stage.supported, windows: stage.windows, toggle: stage.toggleTerminal }}
         panelDoors={{ accounts: openAccountsPanel, localNetwork: openLocalNetwork }}
+        account={account}
       />
     </div>
   );

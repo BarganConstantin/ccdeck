@@ -45,6 +45,7 @@
 @import "./styles/session-list.css";             /* the session list */
 @import "./styles/detail-sections.css";          /* the detail panel's hero and sections, prompt history, tool rows */
 @import "./styles/dialogs.css";                  /* the tool, clear, shortcuts, what's-new and session-end dialogs */
+@import "./styles/feedback-conversations.css";   /* the feedback dialog's account tabs and its conversations */
 @import "./styles/quick-open.css";               /* ⌘K: the field that reaches every panel, session, setting and action */
 @import "./styles/explore-integrations.css";     /* the native integration discovery catalog */
 @import "./styles/empty-state.css";              /* the empty-state hero */
