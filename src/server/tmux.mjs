@@ -136,8 +136,9 @@ export function tmuxEnv(env = process.env) {
  * `tmux -V` read as [major, minor], or null when it does not say.
  *
  * "tmux 3.6a" and "tmux 3.2a" carry a letter for patch releases; "tmux
- * next-3.6" is a build from the development branch, which is newer than the
- * number it names. "tmux openbsd-7.4" is OpenBSD's base-system tmux, which
+ * next-3.6" is a build from the development branch on its way to the number
+ * it names: newer than every release before it, and read as that number.
+ * "tmux openbsd-7.4" is OpenBSD's base-system tmux, which
  * follows upstream closely but numbers itself after the OS — reading 7.4 out of
  * it as a tmux version would be a guess that happens to pass, so it reads as
  * unknown instead and findTmux lets it through with a warning.

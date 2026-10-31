@@ -85,7 +85,7 @@ export const STREAM_QUIET_MS = 1200;
 export const ECHO_WINDOW_MS = 250;
 /** How often the panel tells the deck how much its terminal has parsed, in
  *  bytes: an eighth of the deck's window (ACK_WINDOW_BYTES in
- *  terminal-socket.mjs), so the window never empties for want of an ack. */
+ *  terminal-bridge.mjs), so the window never empties for want of an ack. */
 export const ACK_EVERY_BYTES = 64 * 1024;
 /** The waits between attempts to reach a restarting deck. */
 export const RECONNECT_DELAYS_MS = [400, 800, 1600, 3200, 5000] as const;

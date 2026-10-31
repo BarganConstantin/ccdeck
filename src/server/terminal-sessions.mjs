@@ -23,6 +23,7 @@ import { stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, posix as posixPath } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { pathLookup } from "./exec-spec.mjs";
 // The one answer to "which claude" — AGENTS_DECK_CLAUDE first, then PATH, then
 // the places its installers put it (#553, #570). Not decided again here.
@@ -382,6 +383,15 @@ export function paneTerm({ env = process.env, home = homedir(), exists = existsS
  *  started, so tmux never ran and the plain call is safe to make instead. */
 const SYSTEMD_REFUSED = /^Failed to (?:connect|start|create|allocate|set up|find)\b/m;
 
+/** What a tmux client says when the server it reached exited before
+ *  answering: a server whose last session had just gone (exit-empty) still
+ *  takes a connection on its way out. */
+const SERVER_EXITED = /server exited unexpectedly/i;
+/** How long a launch that met an exiting server waits before it asks again,
+ *  times the attempt: long enough for that server to be gone, so the next
+ *  call starts a fresh one. */
+export const RELAUNCH_WAIT_MS = 50;
+
 async function requireTmux(env) {
   const found = await findTmux({ env });
   if (!found.ok) throw new TerminalSessionError("tmux-unavailable", "tmux is not available on this machine.");
@@ -402,8 +412,10 @@ async function requireTmux(env) {
  *
  * Throws TerminalSessionError. A random name that collides is retried; an
  * attach wrapper's name colliding means one already exists ("exists"), and
- * reusing it is the caller's call. A session created but not fully labelled is
- * killed before the error is thrown: unlabelled, nothing would ever find it.
+ * reusing it is the caller's call. A launch that reached a server on its way
+ * out (its last session had just gone) is retried once nothing of its name is
+ * there. A session created but not fully labelled is killed before the error
+ * is thrown: unlabelled, nothing would ever find it.
  *
  * new-session is the one call that can start the deck's tmux server, so it is
  * the one run through `scope` (tmux.mjs's serverScope): under the login item's
@@ -470,6 +482,17 @@ export async function launchSession({
     if (/duplicate session/i.test(r.stderr)) {
       if (kind === "attach") throw new TerminalSessionError("exists", "The deck is already attached to that session.", r.stderr.trim());
       if (attempt < 2) continue;
+    }
+    // A launch right after the last session ended reached a server that was
+    // exiting: it made nothing. Asked by name first, so that a session that
+    // somehow was made is never started twice; then asked again, of the
+    // fresh server that call starts.
+    if (SERVER_EXITED.test(r.stderr) && attempt < 2) {
+      const there = await run(bin, socket, ["has-session", "-t", `=${name}`], { env });
+      if (!there.ok) {
+        await delay(RELAUNCH_WAIT_MS * (attempt + 1));
+        continue;
+      }
     }
     throw new TerminalSessionError("tmux-failed", "tmux could not start the session.", r.stderr.trim());
   }
