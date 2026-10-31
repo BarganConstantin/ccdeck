@@ -172,8 +172,8 @@ describe("the fields the server computed and the client dropped (#1046)", () => 
     // percentage is true in any unit; a "$3.40" off an unverified scale is the
     // confidently wrong money figure this panel is careful not to produce.
     expect(quotaSections).toMatch(/quota\.extraUsedCredits \/ quota\.extraMonthlyLimit/);
-    expect(quotaSections).toMatch(/Extra credits \(month/);
+    expect(quotaSections).toMatch(/quota\.extra(?:Currency)?"/);
     // And no bar at all when there is no denominator to measure against.
-    expect(quotaSections).toMatch(/extra usage credits: on/);
+    expect(quotaSections).toMatch(/quota\.extraOn/);
   });
 });

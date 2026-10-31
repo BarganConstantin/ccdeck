@@ -352,7 +352,7 @@ describe("the join to the canvas", () => {
     // of Greenwich there is a stretch after midnight where the money is real
     // and the list is empty, and a missing section reads as a bug.
     expect(panel).toContain("{fromRange && rangeSessionRows.length === 0 && rangeSum.tokens > 0 && (");
-    expect(panel).toContain("No session is dated {periodNoun} yet");
+    expect(panel).toContain('t("usage.noSessionDated", { period: periodWord })');
   });
 
   it("cuts the session list at twelve, after sorting by cost", () => {
@@ -432,7 +432,7 @@ describe("markup, read as source", () => {
     // The tooltip is now a pair — what the span covers at rest, and what is
     // being read while it reads — so the assertion is that `p.hint` is still
     // the resting half rather than that it is the only half.
-    expect(strip).toMatch(/title=\{period === p\.key && rangePending \? `Reading \$\{p\.noun\}[^`]*` : p\.hint\}/);
+    expect(strip).toMatch(/title=\{period === p\.key && rangePending \? t\("usage\.period\.reading", \{ period: t\(`usage\.period\.\$\{p\.key\}\.noun`\) \}\) : t\(`usage\.period\.\$\{p\.key\}\.hint`\)\}/);
     expect(surface).not.toMatch(/title="[^"]*month/i);
   });
 
@@ -452,7 +452,7 @@ describe("markup, read as source", () => {
     expect(panel.indexOf("<UsagePeriodStrip")).toBeGreaterThan(-1);
     expect(panel.indexOf("<UsagePeriodStrip")).toBeLessThan(panel.indexOf("{totalTokenSum > 0 ? ("));
     // Every period but `all`, which has no longer one to offer (#1806).
-    expect(panel).toContain(": <>No usage {periodNoun}.<br />Try a longer period.</>");
+    expect(panel).toContain(`: <>{t("usage.empty.period", { period: periodWord })}<br />{t("usage.empty.longer")}</>`);
   });
 
   it("reuses the history modal's chips rather than growing a second set", () => {
@@ -511,7 +511,7 @@ describe("markup, read as source", () => {
     expect(sessions).toContain('<section className="up-section">');
     // The words that carry it: the noun of the period SHOWN, not the one pressed.
     expect(panel).toContain("const periodNoun = nounFor(shownPeriod, period);");
-    expect(panel).toContain('<span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>');
+    expect(panel).toContain('<span className="up-total-label">{fromRange ? periodWord : BOARD_SPEND_LABEL}</span>');
   });
 
   it("reads the seam through the functions rather than re-deciding it here", () => {
@@ -736,7 +736,7 @@ describe("the period strip's keyboard and memory", () => {
     // before it could say the wait was over. App.tsx's blocked-session region
     // is the precedent and carries the whole argument.
     expect(strip).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">/);
-    expect(strip).toContain('{rangePending ? `Reading ${nounFor(period, period)}…` : ""}');
+    expect(strip).toContain('{rangePending ? t("usage.period.readingShort", { period: t(`usage.period.${period}.noun`) }) : ""}');
     // Polite, not assertive: a figure two seconds late costs nothing and
     // talking over the reader costs a sentence.
     const at = strip.indexOf('<div className="vis-hidden" role="status"');

@@ -440,8 +440,8 @@ describe("how long ago something happened", () => {
     // SECONDS — "40s ago" — where these count minutes. Two thresholds and a
     // whole tier apart, so it is a third rule rather than a third copy, and
     // folding it in would have changed what the panel says.
-    expect(code(quotaSections)).toMatch(/if \(s < 10\)\s+return "just now";/);
-    expect(code(quotaSections)).toMatch(/if \(s < 60\)\s+return `\$\{s\}s ago`;/);
+    expect(code(quotaSections)).toMatch(/if \(s < 10\)\s+return t\("quota\.age\.now"\);/);
+    expect(code(quotaSections)).toMatch(/if \(s < 60\)\s+return t\("quota\.age\.seconds", \{ n: s \}\);/);
   });
 });
 

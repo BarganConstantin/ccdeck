@@ -9,6 +9,7 @@
 // drawn at all is still the panel's call, from which CLIs the deck watches
 // (#402).
 import { PRODUCT } from "../brand";
+import { useT, type TFunction } from "../i18n";
 import { resetCreditsLine } from "../reset-credits";
 import type { Incident } from "../provider-status";
 import type { CodexQuotaData, QuotaData } from "../use-quota";
@@ -23,21 +24,21 @@ import QuotaBar from "./QuotaBar";
  *  Claude is usually read from claude-swap's last collection, which can be half
  *  an hour old. One combined "just now" in the header took the fresher of the
  *  two and stamped it on both. */
-function ageLabel(ms: number | undefined, nowSec: number): string | null {
+function ageLabel(t: TFunction, ms: number | undefined, nowSec: number): string | null {
   if (!ms) return null;
   const s = nowSec - Math.floor(ms / 1000);
-  if (s < 10)   return "just now";
-  if (s < 60)   return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  return `${Math.floor(s / 3600)}h ago`;
+  if (s < 10)   return t("quota.age.now");
+  if (s < 60)   return t("quota.age.seconds", { n: s });
+  if (s < 3600) return t("quota.age.minutes", { n: Math.floor(s / 60) });
+  return t("quota.age.hours", { n: Math.floor(s / 3600) });
 }
 
 /** Which of the three sources answered, in words. */
-function quotaSourceHint(source?: string): string {
-  if (source === "claude-swap") return "Read from claude-swap's last collection — costs no request against your usage-endpoint budget. Saved limit resets, which it does not collect, are read separately: every 30 minutes, or 5 on refresh";
-  if (source === "api")         return "Fetched from Anthropic's usage endpoint, at most once every 5 minutes";
-  if (source === "cli")         return "Parsed from `claude /usage`, at most once every 5 minutes";
-  return "Last update";
+function quotaSourceHint(t: TFunction, source?: string): string {
+  if (source === "claude-swap") return t("quota.source.swap");
+  if (source === "api")         return t("quota.source.api");
+  if (source === "cli")         return t("quota.source.cli");
+  return t("quota.source.other");
 }
 
 /**
@@ -52,31 +53,31 @@ function quotaSourceHint(source?: string): string {
  *
  * Same shape as codexHint below, which has answered this properly all along.
  */
-function claudeQuotaHint(reason?: string): string {
+function claudeQuotaHint(t: TFunction, reason?: string): string {
   switch (reason) {
     case "no_subscription":
-      return "This install signs in with an API key (or Bedrock/Vertex), which is billed per token and has no session window.";
-    case "rate_limited":  return "Anthropic asked the deck to wait — it will retry on its own.";
-    case "waiting":       return "Waiting for the next allowed read — or click ↻.";
-    default:              return "Run /usage in a claude session, then click ↻";
+      return t("quota.hint.noSubscription");
+    case "rate_limited":  return t("quota.hint.rateLimitedAnthropic");
+    case "waiting":       return t("quota.hint.waiting");
+    default:              return t("quota.hint.runUsage");
   }
 }
 
 /** Why the Codex section is empty, in words that say what to do about it. */
-function codexHint(reason?: string): string {
+function codexHint(t: TFunction, reason?: string): string {
   switch (reason) {
-    case "no_token":         return "Run codex login to authenticate.";
-    case "api_key_mode":     return "API-key login — ChatGPT quota is only available for codex login.";
-    case "refresh_rejected": return "Codex session expired — run codex login.";
-    case "refresh_failed":   return "Couldn't refresh the Codex token — click ↻ to retry.";
+    case "no_token":         return t("quota.hint.codexNoToken");
+    case "api_key_mode":     return t("quota.hint.codexApiKey");
+    case "refresh_rejected": return t("quota.hint.codexExpired");
+    case "refresh_failed":   return t("quota.hint.codexRefreshFailed");
     // The deck will not put a live ChatGPT token on the wire to somewhere it
     // read out of a config file it does not own, so it says which file.
-    case "untrusted_base_url": return "chatgpt_base_url in ~/.codex/config.toml is not an https OpenAI host, so the token was not sent.";
+    case "untrusted_base_url": return t("quota.hint.codexUntrusted");
     // The two states a refused read is answered with, said as the Claude
     // section says them: the API did answer, and ↻ is what the wait refuses.
-    case "rate_limited":     return "OpenAI asked the deck to wait — it will retry on its own.";
-    case "waiting":          return "Waiting for the next allowed read — or click ↻.";
-    default:                 return "ChatGPT API unreachable — click ↻ to retry.";
+    case "rate_limited":     return t("quota.hint.rateLimitedOpenai");
+    case "waiting":          return t("quota.hint.waiting");
+    default:                 return t("quota.hint.codexUnreachable");
   }
 }
 
@@ -99,11 +100,12 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
   /** Anthropic's status page reports an incident (#1311). */
   incident?: Incident;
 }) {
-  const claudeAge = ageLabel(quota?.fetchedAt, nowSec);
+  const t = useT();
+  const claudeAge = ageLabel(t, quota?.fetchedAt, nowSec);
   return (
     <section className="up-section up-quota-section">
       <h3 className="up-section-title">
-        Claude quota
+        {t("quota.claude.title")}
         {quota?.ok && quota.planLabel && (
           <span className="up-plan-badge">{quota.planLabel}</span>
         )}
@@ -113,11 +115,11 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
             deck reads its store instead of spending a second call — which is
             why this age is minutes rather than seconds. */}
         {claudeAge && !quotaLoading && (
-          <span className="up-section-age" title={quotaSourceHint(quota?.source)}>
+          <span className="up-section-age" title={quotaSourceHint(t, quota?.source)}>
             {/* Said when the server is holding the last reading it has rather
                 than a new one, as a bar says its window has reset: the age
                 alone reads as the last poll's. */}
-            {claudeAge}{quota?.stale && " · no newer reading"}
+            {claudeAge}{quota?.stale && ` · ${t("quota.noNewer")}`}
           </span>
         )}
       </h3>
@@ -129,7 +131,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
         <div className="up-quota-bars">
           {quota.session5hPct != null && (
             <QuotaBar
-              label="5-hour window"
+              label={t("quota.window.5h")}
               pct={quota.session5hPct}
               reset={quota.session5hReset}
               resetAt={quota.session5hResetAt}
@@ -143,7 +145,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
               used to print, and not a missing row, which is how the CLI's
               reading showed the same gap. */}
           <QuotaBar
-            label="7-day window"
+            label={t("quota.window.7d")}
             pct={quota.week7dPct ?? null}
             reset={quota.week7dReset}
             resetAt={quota.week7dResetAt}
@@ -152,10 +154,10 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
           />
           <WeekEnds weeks={weekEnds} />
           {quota.weekSonnetPct != null && (
-            <QuotaBar label="Sonnet (7d)" pct={quota.weekSonnetPct} nowSec={nowSec} />
+            <QuotaBar label={t("quota.sonnet7d")} pct={quota.weekSonnetPct} nowSec={nowSec} />
           )}
           {quota.weekOpusPct != null && (
-            <QuotaBar label="Opus (7d)" pct={quota.weekOpusPct} nowSec={nowSec} />
+            <QuotaBar label={t("quota.opus7d")} pct={quota.weekOpusPct} nowSec={nowSec} />
           )}
           {/* The top-up, when there is one. A bar because it is the same kind
               of fact as the two above — a fraction of an allowance with a
@@ -164,7 +166,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
           {quota.extraEnabled && quota.extraUsedCredits != null && quota.extraMonthlyLimit
             ? (
               <QuotaBar
-                label={`Extra credits (month${quota.extraCurrency ? `, ${quota.extraCurrency}` : ""})`}
+                label={quota.extraCurrency ? t("quota.extraCurrency", { currency: quota.extraCurrency }) : t("quota.extra")}
                 pct={Math.min(100, Math.round((quota.extraUsedCredits / quota.extraMonthlyLimit) * 100))}
                 nowSec={nowSec}
               />
@@ -172,7 +174,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
             : quota.extraEnabled && (
               /* Enabled with no ceiling to measure against: say that it is on
                  rather than draw a bar with no denominator. */
-              <div className="up-quota-sub up-credits">extra usage credits: on</div>
+              <div className="up-quota-sub up-credits">{t("quota.extraOn")}</div>
             )}
           {/* Saved limit resets (#1308). Not the windows' own reset times
               above — those say when a window rolls over by itself; these are
@@ -186,11 +188,11 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
         </div>
       ) : quota?.ok === false ? (
         <div className="up-quota-na">
-          <span>{quota.reason === "no_subscription" ? "No quota to show." : "Quota unavailable."}</span>
-          <span className="up-quota-hint">{claudeQuotaHint(quota.reason)}</span>
+          <span>{quota.reason === "no_subscription" ? t("quota.none") : t("quota.unavailable")}</span>
+          <span className="up-quota-hint">{claudeQuotaHint(t, quota.reason)}</span>
         </div>
       ) : (
-        <div className="up-quota-na up-quota-loading">Checking…</div>
+        <div className="up-quota-na up-quota-loading">{t("quota.checking")}</div>
       )}
     </section>
   );
@@ -208,16 +210,17 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
   /** OpenAI's status page reports an incident on a Codex component (#1311). */
   incident?: Incident;
 }) {
-  const codexAge  = ageLabel(codexQuota?.fetchedAt, nowSec);
+  const t = useT();
+  const codexAge  = ageLabel(t, codexQuota?.fetchedAt, nowSec);
   return (
     <section className="up-section up-quota-section">
       <h3 className="up-section-title">
-        Codex quota
+        {t("quota.codex.title")}
         {codexQuota?.ok && codexQuota.planLabel && (
           <span className="up-plan-badge">{codexQuota.planLabel}</span>
         )}
         {codexAge && !codexLoading && (
-          <span className="up-section-age" title="Fetched from the Codex usage endpoint">{codexAge}</span>
+          <span className="up-section-age" title={t("quota.source.codex")}>{codexAge}</span>
         )}
       </h3>
       <QuotaIncident incident={incident} />
@@ -256,7 +259,7 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
               pretending to be a rate-limit lane. */}
           {codexQuota.creditLimit && (
             <QuotaBar
-              label={`spend cap · $${Math.round(codexQuota.creditLimit.used)} of $${Math.round(codexQuota.creditLimit.limit)}`}
+              label={t("quota.spendCap", { used: `$${Math.round(codexQuota.creditLimit.used)}`, limit: `$${Math.round(codexQuota.creditLimit.limit)}` })}
               pct={codexQuota.creditLimit.usedPct}
               reset={codexQuota.creditLimit.reset ?? undefined}
               resetAt={codexQuota.creditLimit.resetAt ?? undefined}
@@ -267,12 +270,12 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
 
           {codexQuota.creditsBalance && !codexQuota.creditsUnlimited && (
             <div className="up-quota-sub up-credits">
-              credits: ${codexQuota.creditsBalance}
-              {codexQuota.overageReached && " · overage limit reached"}
+              {t("quota.creditsBalance", { amount: `$${codexQuota.creditsBalance}` })}
+              {codexQuota.overageReached && ` · ${t("quota.overage")}`}
             </div>
           )}
           {codexQuota.creditsUnlimited && (
-            <div className="up-quota-sub up-credits">credits: unlimited</div>
+            <div className="up-quota-sub up-credits">{t("quota.creditsUnlimited")}</div>
           )}
           {codexQuota.resetCredits && codexQuota.resetCredits.availableCount > 0 && (
             <div className="up-quota-sub up-reset-credits" title={`Redeem in the Codex CLI or ChatGPT — ${PRODUCT} only reports them`}>
@@ -284,17 +287,17 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
           )}
           {codexQuota.partial && (
             <div className="up-quota-sub up-quota-hint">
-              Partial data — OpenAI returned limits this build doesn't recognise.
+              {t("quota.partial")}
             </div>
           )}
         </div>
       ) : codexQuota?.ok === false ? (
         <div className="up-quota-na">
-          <span>Quota unavailable.</span>
-          <span className="up-quota-hint">{codexHint(codexQuota.reason)}</span>
+          <span>{t("quota.unavailable")}</span>
+          <span className="up-quota-hint">{codexHint(t, codexQuota.reason)}</span>
         </div>
       ) : (
-        <div className="up-quota-na up-quota-loading">Checking…</div>
+        <div className="up-quota-na up-quota-loading">{t("quota.checking")}</div>
       )}
 
     </section>

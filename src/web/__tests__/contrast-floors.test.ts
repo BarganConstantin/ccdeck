@@ -1281,7 +1281,7 @@ describe("an opacity over text is a contrast ratio too (#1289)", () => {
     expect(declFor(".uh-sub", "color")).toBe("var(--text-dim)");
     // The usage panel: the headline names the period its figures are from.
     expect(src("components/UsagePanel.tsx"))
-      .toContain('<span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>');
+      .toContain('<span className="up-total-label">{fromRange ? periodWord : BOARD_SPEND_LABEL}</span>');
     // The share dialog's heading, and the popover's countdown.
     expect(src("components/ShareAccountsDialog.tsx")).toContain('"This share has expired"');
     expect(src("components/AccountMenuPopover.tsx")).toContain("<span className={`ap-share-expiry ${exp.tone}`}>{exp.text}</span>");
