@@ -881,7 +881,9 @@
 .release-notes .rn-footer a { text-decoration-line: underline; }
 .release-notes .rn-footer a:hover, .release-notes .rn-text-button:hover,
 .release-notes .rn-footer a:focus-visible, .release-notes .rn-text-button:focus-visible { color: var(--text); text-decoration-color: currentColor; }
-.release-notes .rn-footer > .primary { min-width: 70px; margin-left: auto; height: auto; padding: 6px 18px; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 1.4; }
+/* Done is V4's Primary at its own size: the footer in the kit's What's new draws
+   the button, not a taller one. */
+.release-notes .rn-footer > .primary { min-width: 70px; margin-left: auto; }
 .release-notes .rn-text-button:hover, .release-notes .rn-text-button:focus-visible { text-decoration: underline; }
 .release-notes .rn-footer a:active, .release-notes .rn-text-button:active { color: var(--text); text-decoration: underline; text-decoration-thickness: 2px; }
 /* Keep native placement above body content and its complete item hit areas. */

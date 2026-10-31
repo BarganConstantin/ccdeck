@@ -446,8 +446,9 @@ describe("the open state, as the sheet draws it now", () => {
   });
 
   it("left .primary alone — it means 'the action to take', not 'this is on'", () => {
-    expect(decl("button.btn.primary", "background")).toBe("var(--accent-dim)");
-    expect(decl("button.btn.primary", "color")).toBe("var(--text)");
+    // V4's button: Primary's label is --accent; three themes take a lighter wash.
+    expect(decl("button.btn.primary", "background")).toBe("var(--btn-primary-wash, var(--accent-16))");
+    expect(decl("button.btn.primary", "color")).toBe("var(--accent)");
   });
 });
 

@@ -73,16 +73,16 @@ const readInTsx = new Set([...withoutComments(tsx).matchAll(/var\(\s*(--[\w-]+)/
  *  nothing once every one has its reader. --ease, --ease-stage and --dur-move
  *  are not here: the curves and the left column read them already. */
 const V4_AHEAD_OF_READERS = [
-  "--accent-16", "--err-12", "--muted-30", "--secondary-30", "--warn-35", "--inflight-30",
+  "--muted-30", "--secondary-30", "--warn-35", "--inflight-30",
   "--dock", "--selected", "--sunken", "--your-message",
   "--statusbar-h", "--rail-w", "--inspector-w", "--pane-head-h",
   "--row-rail", "--row-group", "--row-tool", "--row-table", "--row-option", "--row-settings",
   "--ctl-h-lg", "--ctl-h-sm", "--r-pill",
   "--fs-hero", "--lh-hero", "--fs-title", "--lh-title", "--fs-card-title",
-  "--fs-body", "--lh-body", "--fs-small", "--lh-small", "--fs-code", "--lh-code", "--fs-meta", "--lh-meta",
-  "--dur-fast", "--dur-stage-in", "--dur-stage-out", "--dur-slow",
+  "--fs-body", "--fs-small", "--lh-small", "--fs-code", "--lh-code", "--fs-meta", "--lh-meta",
+  "--dur-stage-in", "--dur-stage-out", "--dur-slow",
   "--delay-step", "--delay-loader", "--delay-tooltip", "--loop-loader", "--loop-loader-person",
-  "--press", "--press-small",
+  "--press-small",
 ];
 
 describe("custom properties have both a writer and a reader", () => {
