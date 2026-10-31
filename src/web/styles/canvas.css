@@ -195,16 +195,19 @@
   animation: rearrangeUndoIn 200ms cubic-bezier(0.23, 1, 0.32, 1) both;
   transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-/* One measured floor obstacle, with both notices on the same baseline. */
+/* One measured floor obstacle, with both notices on the same baseline.
+   Bottom left, in the control bar's row (react-flow.css) and on its edge,
+   where the old control stack stood: centred, they ran under the bar on any
+   board narrower than about 850px. They stop short of the bar's widest. */
 .canvas-notices {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 14px;
+  left: var(--board-controls-edge);
+  right: auto;
+  bottom: var(--board-controls-edge);
   z-index: 6;
   width: max-content;
-  max-width: calc(100% - 28px);
-  margin: 0 auto;
+  max-width: calc(100% - 2 * var(--board-controls-edge) - var(--board-controls-reserve) - var(--board-controls-gap));
+  margin: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -224,6 +227,15 @@
 .canvas-notices .rearrange-undo { min-width: 0; }
 .canvas-notices .rearrange-undo-act { flex-shrink: 0; }
 .canvas-notices .rearrange-undo-state { overflow: hidden; text-overflow: ellipsis; }
+/* A phone's board is too narrow for both on one row: the notices stand a row
+   up, on the bar's top like the minimap, and stop short of the minimap's
+   142px box (MINIMAP_SIZE in BoardFlow.tsx, with its edge). */
+@media (max-width: 640px) {
+  .canvas-notices {
+    bottom: var(--board-controls-room);
+    max-width: calc(100% - 2 * var(--board-controls-edge) - 142px - var(--board-controls-gap));
+  }
+}
 @media (max-width: 480px) {
   .canvas-notices { gap: 6px; }
   .canvas-notices .rearrange-undo-key { display: none; }
