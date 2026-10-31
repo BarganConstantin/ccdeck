@@ -56,11 +56,11 @@ const rails = railItems({
   setUsageHistoryOpen: noop, watchOn: false, watchUnseen: 0, setBrowserWatchOpen: noop,
   openSettings: noop, onFeedback: noop, toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
 });
-const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Left column", groups: [rails.left] }));
+const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Left column", groups: rails.leftStripe }));
 const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Right panels", groups: rails.right }));
 const corner = renderToStaticMarkup(createElement(UtilityRun, { items: rails.utilities }));
 const dock = renderToStaticMarkup(createElement(EdgeDock, {
-  items: [...rails.left, ...rails.right[0], rails.utilities[0]], more: [...rails.right.slice(1).flat(), rails.utilities[1]],
+  items: [...rails.left, ...rails.right[0], rails.utilities[0]], more: [...rails.codexMore, ...rails.right.slice(1).flat(), rails.utilities[1]],
 }));
 
 /** Each drawn button's accessible name and the word it shows, in order. */
@@ -74,7 +74,8 @@ function buttons(html: string): Array<{ name: string; word: string }> {
 // Each word, and the accessible name it has to be found in (2.5.3).
 const WORDS: Array<[word: string, name: string]> = [
   // Accounts first on the left stripe since 2026-10-08, the owner's order.
-  ["Accounts", "Accounts"],
+  ["Claude accounts", "Claude accounts"],
+  ["Codex accounts", "Codex accounts"],
   ["Session list", "Session list"],
   ["Usage", "Usage"],
   ["Machine", "Machine"],
@@ -115,8 +116,9 @@ describe("every control in the chrome says its name (#836)", () => {
 
   it("says a short word under each glyph in the phone's dock, and the rest by name behind More", () => {
     const words = buttons(dock).map(b => b.word);
-    expect(words).toEqual(["Accounts", "Sessions", "Usage", "Machine", "Settings", "More"]);
-    expect(dock).toMatch(/aria-label="More: Usage history, Browser watch, not watching, Send feedback"/);
+    // The dock keeps its five slots: Codex's own button waits in More.
+    expect(words).toEqual(["Claude", "Sessions", "Usage", "Machine", "Settings", "More"]);
+    expect(dock).toMatch(/aria-label="More: Codex accounts, Usage history, Browser watch, not watching, Send feedback"/);
   });
 
   it("ends no word in an ellipsis", () => {
@@ -137,7 +139,7 @@ describe("every control in the chrome says its name (#836)", () => {
     // Since 2026-10-23 both stripes follow one rule: runs of doors that answer
     // one question (rail-items.tsx), so the records and the watchers are two
     // runs, and a run of two or more is a group named for a screen reader.
-    expect(buttons(left).map(b => b.name)).toEqual(["Accounts", "Session list"]);
+    expect(buttons(left).map(b => b.name)).toEqual(["Claude accounts", "Codex accounts", "Session list"]);
     expect(buttons(right).map(b => b.name)).toEqual(["Usage", "Machine", "Usage history", "Browser watch, not watching"]);
     expect(right.match(/<div class="rail-group"/g)).toHaveLength(3);
     expect(right).toContain('<div class="rail-group" role="group" aria-label="Usage and machine">');

@@ -1,19 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import AccountsPanel from "../components/AccountsPanel";
+import CodexAccountsPanel from "../components/CodexAccountsPanel";
 import { items } from "./edge-keys-rails";
 
-describe("Codex-only accounts", () => {
+const ids = (list: { id: string }[]) => list.map(item => item.id);
+
+describe("Codex accounts, in their own column", () => {
   it("shows Codex profiles and close without Claude account actions", () => {
-    const html = renderToStaticMarkup(createElement(AccountsPanel, { claudeEnabled: false, codexEnabled: true, onClose() {} }));
+    const html = renderToStaticMarkup(createElement(CodexAccountsPanel, { onClose() {} }));
     expect(html).toContain('aria-label="Codex profiles"');
-    expect(html).toContain('aria-label="Close accounts"');
+    expect(html).toContain('aria-label="Close Codex accounts"');
     expect(html).not.toContain('Add an account');
     expect(html).not.toContain('Claude accounts');
+    expect(html).toContain('id="codex-accounts-panel"');
   });
-  it("exposes Accounts in the rail on a Codex-only machine", () => {
-    expect(items({ claude: false, codex: true }).left.map(item => item.id)).toEqual(["accounts", "session-list"]);
-    expect(items({ claude: false, codex: false }).left.map(item => item.id)).toEqual(["session-list"]);
+
+  it("gives a Codex-only machine Codex's own button where Claude's would be", () => {
+    expect(ids(items({ claude: false, codex: true }).left)).toEqual(["codex-accounts", "session-list"]);
+    expect(ids(items({ claude: false, codex: false }).left)).toEqual(["session-list"]);
+  });
+
+  it("keeps the two providers' panels separate on a machine with both CLIs", () => {
+    // The dock keeps its five slots: Claude's button leads it and Codex's waits in More.
+    const both = items({ claude: true, codex: true });
+    expect(ids(both.left)).toEqual(["accounts", "session-list"]);
+    expect(ids(both.codexMore)).toEqual(["codex-accounts"]);
+    expect(ids(both.leftStripe.flat())).toEqual(["accounts", "codex-accounts", "session-list"]);
+    expect(ids(items({ claude: true, codex: false }).left)).toEqual(["accounts", "session-list"]);
   });
 });

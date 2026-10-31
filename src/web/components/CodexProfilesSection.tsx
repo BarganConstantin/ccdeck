@@ -41,7 +41,7 @@ function quotaStatus(quota: ProfileQuota, now: number): string {
     : error;
 }
 
-export default function CodexProfilesSection() {
+export default function CodexProfilesSection({ standalone = false }: { standalone?: boolean } = {}) {
   const [profiles, setProfiles] = useState<CodexProfile[] | null>(null);
   const profileRequest = useRef(0);
   const profileRefreshes = useRef(0);
@@ -184,7 +184,7 @@ export default function CodexProfilesSection() {
   return (
     <section className="ap-codex" aria-label="Codex profiles">
       <div className="ap-codex-head">
-        <div className="ap-codex-title">Codex profiles</div>
+        <div className="ap-codex-title">{standalone ? "" : "Codex profiles"}</div>
         <button type="button" className="ap-more" aria-label="Add a Codex account" title="Add a Codex account"
           aria-expanded={adding} onClick={() => setAdding(open => !open)}>
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>

@@ -34,7 +34,7 @@ import type { RailItem } from "./components/EdgeRails";
 import type { IntegrationWebDef } from "./integrations/types";
 import type { CapacityView } from "./components/AccountsUsageReport";
 import {
-  AccountsGlyph, BrowserWatchGlyph, CapacityGlyph, FeedbackGlyph, HistoryGlyph, IntegrationsGlyph, MachineGlyph, ResetCalendarGlyph,
+  AccountsGlyph, CodexAccountsGlyph, BrowserWatchGlyph, CapacityGlyph, FeedbackGlyph, HistoryGlyph, IntegrationsGlyph, MachineGlyph, ResetCalendarGlyph,
   SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph, SkillActivityGlyph, SearchGlyph,
 } from "./components/rail-glyphs";
 import type { ToolActivityView } from "./components/ToolAuditModal";
@@ -48,6 +48,9 @@ export interface RailItems {
   /** The left stripe's groups, top to bottom: Accounts with the two doors into
    *  its Account capacity report, then Session list. */
   leftStripe: RailItem[][];
+  /** Codex's own button where Claude's holds the dock's slot: on the phone it
+   *  goes in More, so the dock keeps its five. Empty when it is in `left`. */
+  codexMore: RailItem[];
   /** Account capacity and Reset calendar, each one press from the stripe and
    *  their only door. On a phone they are rows under More, so the dock keeps
    *  its five slots. Empty without Claude Code. */
@@ -93,7 +96,7 @@ function named(group: string, items: RailItem[]): RailItem[] {
 }
 
 export function railItems({
-  providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
+  providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel, codexPanelOpen = false, toggleCodexPanel = () => {},
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
   openCapacity, integrations = [], openExploreIntegrations, openQuickOpen,
@@ -103,6 +106,8 @@ export function railItems({
   toggleSessionList: () => void;
   accountsPanelOpen: boolean;
   toggleAccountsPanel: () => void;
+  codexPanelOpen?: boolean;
+  toggleCodexPanel?: () => void;
   usagePanelOpen: boolean;
   setUsagePanelOpen: Toggle;
   machinePanelOpen: boolean;
@@ -144,8 +149,8 @@ export function railItems({
   };
   // Accounts is available whenever either provider has profiles to inspect.
   const accounts: RailItem = {
-    id: "accounts", label: "Accounts", short: "Accounts", key: { cap: "A", aria: "A", single: true },
-    ariaLabel: "Accounts", hint: "Agent accounts", glyph: <AccountsGlyph />, kind: "panel",
+    id: "accounts", label: providers.codex ? "Claude accounts" : "Accounts", short: providers.codex ? "Claude" : "Accounts", key: { cap: "A", aria: "A", single: true },
+    ariaLabel: providers.codex ? "Claude accounts" : "Accounts", hint: providers.codex ? "Claude accounts" : "Agent accounts", glyph: <AccountsGlyph />, kind: "panel",
     open: accountsPanelOpen, controls: "accounts-panel", onPress: toggleAccountsPanel, buttonRef: toggles.accounts,
   };
   // ACCOUNT CAPACITY AND RESET CALENDAR, ON THE STRIPE. Both lived behind the
@@ -162,6 +167,11 @@ export function railItems({
     detail: "When each account's 5h and 7d windows come back",
     glyph: <ResetCalendarGlyph />, kind: "dialog", onPress: () => openCapacity("calendar"),
   }] : [];
+  const codex: RailItem = {
+    id: "codex-accounts", label: "Codex accounts", short: "Codex",
+    ariaLabel: "Codex accounts", glyph: <CodexAccountsGlyph />, kind: "panel",
+    open: codexPanelOpen, controls: "codex-accounts-panel", onPress: toggleCodexPanel, buttonRef: toggles.codex,
+  };
   const usage: RailItem = {
     id: "usage", label: "Usage", short: "Usage", key: { cap: "U", aria: "U", single: true },
     ariaLabel: "Usage", glyph: <UsageGlyph />, kind: "panel",
@@ -237,12 +247,16 @@ export function railItems({
     // Accounts first, at the top of the stripe and the start of the dock: the
     // owner's call (2026-10-08), the panel a first run opens and the one read
     // before choosing where to start a session.
-    left: (providers.claude || providers.codex) ? [accounts, sessionList] : [sessionList],
+    left: providers.claude ? [accounts, sessionList] : providers.codex ? [codex, sessionList] : [sessionList],
+    codexMore: providers.claude && providers.codex ? [codex] : [],
     // The owner's order (2026-10-22): Claude accounts, Account capacity,
     // Reset calendar, Session list — the first three one group, since all
     // three are about the accounts.
-    leftStripe: providers.claude ? [named("Claude accounts", [accounts, ...capacity]), [sessionList]]
-      : providers.codex ? [named("Codex accounts", [accounts]), [sessionList]] : [[sessionList]],
+    leftStripe: [
+      ...(providers.claude ? [named("Claude accounts", [accounts, ...capacity])] : []),
+      ...(providers.codex ? [[codex]] : []),
+      [sessionList],
+    ],
     capacity: providers.claude ? capacity : [],
     right: [
       named("Usage and machine", [usage, machine]),

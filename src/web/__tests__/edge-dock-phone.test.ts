@@ -37,9 +37,9 @@ const toggles = { sessionList: ref(), usage: ref(), accounts: ref(), machine: re
 
 /** The eight controls as App.tsx defines them, for a machine with or without
  *  Claude Code, a panel open or not, Browser watch's unread count. */
-function rails({ claude = true, codex = true, usageOpen = false, unread = 0, onHistory = noop } = {}) {
+function rails({ claude = true, usageOpen = false, unread = 0, onHistory = noop } = {}) {
   return railItems({
-    providers: { kind: "reported", claude, codex },
+    providers: { kind: "reported", claude, codex: true },
     sessionListOpen: false, toggleSessionList: noop, accountsPanelOpen: false, toggleAccountsPanel: noop,
     usagePanelOpen: usageOpen, setUsagePanelOpen: noop, machinePanelOpen: false, setMachinePanelOpen: noop,
     setUsageHistoryOpen: onHistory, watchOn: false, watchUnseen: unread, setBrowserWatchOpen: noop,
@@ -87,12 +87,12 @@ describe("the dock holds the four panels and Settings, then More", () => {
       .toEqual(["history", "browser-watch", "feedback"]);
   });
 
-  it("drops Accounts on a machine without Claude Code, and keeps the rest in place", () => {
-    // Every account the panel lists is a Claude account; a Codex-only machine
-    // gets no control for a panel with nothing in it.
-    const view = dockFor(rails({ claude: false, codex: false }));
+  it("puts Codex's own button where Claude's was on a machine without Claude Code", () => {
+    // Claude's accounts panel is Claude's alone; a Codex-only machine gets
+    // Codex's own button in its place, and the dock keeps its five slots.
+    const view = dockFor(rails({ claude: false }));
     expect(buttons(view.tree).map(b => (b.props.item as { id: string }).id))
-      .toEqual(["session-list", "usage", "machine", "settings"]);
+      .toEqual(["codex-accounts", "session-list", "usage", "machine", "settings"]);
   });
 
   it("is what App.tsx draws at a phone's width, in place of both stripes and the topbar's utilities", () => {
@@ -101,7 +101,7 @@ describe("the dock holds the four panels and Settings, then More", () => {
     // A connected tracker (#2178) is a left-stripe control on a desktop and a
     // More row on a phone, before Feedback: the dock keeps its five slots. So
     // are Account capacity and Reset calendar, the first two rows of More.
-    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\], rails\.utilities\[0\]\]\} more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, rails\.utilities\[1\]\]\} \/>\s*:\s*<EdgeRail side="left"/);
+    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\], rails\.utilities\[0\]\]\} more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.codexMore, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, rails\.utilities\[1\]\]\} \/>\s*:\s*<EdgeRail side="left"/);
     expect(app).toMatch(/\{!phone && <EdgeRail side="right"/);
     expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>\}/);
   });
@@ -136,7 +136,7 @@ describe("the dock is one toolbar", () => {
     const view = dockFor(rails());
     expect(buttons(view.tree).map(b => b.props.variant)).toEqual(["dock", "dock", "dock", "dock", "dock"]);
     expect(buttons(view.tree).map(b => (b.props.item as { short: string }).short))
-      .toEqual(["Accounts", "Sessions", "Usage", "Machine", "Settings"]);
+      .toEqual(["Claude", "Sessions", "Usage", "Machine", "Settings"]);
   });
 
   it("gives every control a thumb's target on the narrowest phone", () => {

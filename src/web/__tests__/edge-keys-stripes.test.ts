@@ -154,6 +154,9 @@ describe("Accounts, and the left column it shares", () => {
   it("is gone without Claude Code — from the stripe and from the dock — rather than present and inert", () => {
     expect(ids(left({ claude: false, codex: false }))).toEqual(["session-list"]);
     expect(ids(dock({ claude: false, codex: false }))).not.toContain("accounts");
+    // Codex alone is not Claude's panel: it draws its own button, never "accounts".
+    expect(ids(left({ claude: false }))).toEqual(["codex-accounts", "session-list"]);
+    expect(ids(dock({ claude: false }))).not.toContain("accounts");
     expect(ids(dock({ claude: true }))).toContain("accounts");
   });
 
@@ -161,7 +164,11 @@ describe("Accounts, and the left column it shares", () => {
     // The eviction itself is use-left-column.ts's and left-column-824.test.ts
     // runs it; what this pins is that the stripe reaches the panels through
     // those toggles and nothing else, so it cannot draw both into one slot.
-    expect(sourceOf("App.tsx")).toMatch(/railItems\(\{\s*providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,/);
+    // Claude's and Codex's buttons each open their own panel through the one
+    // accounts toggle (toggleProviderAccounts), never a second way in.
+    const app = sourceOf("App.tsx");
+    expect(app).toMatch(/railItems\(\{\s*providers, sessionListOpen, toggleSessionList,\s*accountsPanelOpen: accountsPanelOpen && shownAccountProvider === "claude",\s*toggleAccountsPanel: \(\) => toggleProviderAccounts\("claude"\),\s*codexPanelOpen: accountsPanelOpen && shownAccountProvider === "codex",\s*toggleCodexPanel: \(\) => toggleProviderAccounts\("codex"\),/);
+    expect(app).toContain("if (!accountsPanelOpen || shownAccountProvider === provider) toggleAccountsPanel();");
     const column = sourceOf("use-left-column.ts");
     expect(column).toMatch(/const toggleSessionList = useCallback\(\(\) => \{\s*setSessionListOpen\(open => \{[\s\S]*?if \(!open\) setAccountsPanelOpen\(/);
     expect(column).toMatch(/const toggleAccountsPanel = useCallback\(\(\) => \{[\s\S]*?if \(!open\) setSessionListOpen\(false\);/);

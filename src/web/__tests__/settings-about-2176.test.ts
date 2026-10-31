@@ -283,7 +283,7 @@ describe("a door out of Settings closes it before it opens what it names", () =>
     // The shortcuts sheet's hand-over to Settings is the same shape the other way.
     expect(deckDialogs).toContain('onSettings={() => { setKeyHelpOpen(false); openSettings("keyboard"); }}');
     const app = flat(read("../App.tsx"));
-    expect(app).toContain("panelDoors={{ accounts: openAccountsPanel, localNetwork: openLocalNetwork }}");
+    expect(app).toContain('panelDoors={{ accounts: openAccounts, localNetwork: openLocalNetwork }}');
   });
 });
 
@@ -382,7 +382,7 @@ describe("Settings › General › Elsewhere on the deck", () => {
     expect(draw(false, true)).not.toContain(CODEX_ACCOUNTS_ROW);
     expect(codexOnly).toContain(WATCH_ROW);
     // The stripe's condition, and A's.
-    expect(read("../rail-items.tsx")).toContain("left: (providers.claude || providers.codex) ? [accounts, sessionList] : [sessionList],");
+    expect(read("../rail-items.tsx")).toContain("left: providers.claude ? [accounts, sessionList] : providers.codex ? [codex, sessionList] : [sessionList],");
     expect(read("../use-deck-shortcuts.ts")).toContain('if (e.key === "a" || e.key === "A") { if (providersRef.current.claude || providersRef.current.codex) toggleAccountsPanel(); }');
     // And Settings hands it the deck's providers.
     expect(read("../components/SettingsModal.tsx")).toContain("<ElsewhereSection claudeHere={providers.claude} codexHere={providers.codex} singleKeys={singleKeys} doors={doors} />");
@@ -421,7 +421,7 @@ describe("Settings › General › Elsewhere on the deck", () => {
     const column = flat(read("../use-left-column.ts"));
     expect(column).toContain("const openAccountsPanel = useCallback(() => { accountsEvictedRef.current = false; setAccountsPanelOpen(open => { if (!open) setSessionListOpen(false); return true; }); }, []);");
     const app = flat(read("../App.tsx"));
-    expect(app).toContain("const openLocalNetwork = useCallback(() => { openAccountsPanel(); setLanWanted(true); }, [openAccountsPanel]);");
+    expect(app).toContain('const openLocalNetwork = useCallback(() => { setAccountProvider("claude"); openAccountsPanel(); setLanWanted(true); }, [openAccountsPanel]);');
     expect(app).toContain("useEffect(() => { if (!accountsPanelOpen) setLanWanted(false); }, [accountsPanelOpen]);");
     expect(app).toContain("lanWanted={lanWanted} onLanShown={lanShown}");
     const panel = flat(read("../components/AccountsPanel.tsx"));

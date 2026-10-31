@@ -804,3 +804,7 @@
 
 
 .ap-report-upd-h { text-align: left; }
+/* Codex has its own account column beside Claude's; its rows are the compact
+   ones, so the column only drops the inline section's top rule. */
+.codex-accounts-panel .ap-codex { border-top: 0; padding-top: 6px; }
+.codex-accounts-panel .ap-codex-title { flex: 1; }

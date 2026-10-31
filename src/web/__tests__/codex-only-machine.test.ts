@@ -459,20 +459,20 @@ describe("which panels the UI draws for each machine", () => {
     // thing on screen, and every route out of it ends at the claude CLI.
     // The gate is one name since 2026-10-08, `accountsDrawn`, because the
     // left column mounts on it too; Claude Code is in its definition.
-    expect(leadUpTo(appSrc, "<AccountsPanel claudeEnabled=")).toContain("{accountsDrawn && (");
+    expect(leadUpTo(appSrc, "<AccountsPanel leaving=")).toContain('{accountsDrawn && shownAccountProvider === "claude" && (');
     expect(appSrc).toMatch(/const accountsDrawn = isDrawn\(accountsPanelOpen, accountsPhase\) && \(providers\.claude \|\| providers\.codex\);/);
   });
 
   it("hides the accounts button too, rather than opening onto nothing", () => {
     // The left stripe — and the phone's dock, which draws the same list — holds
-    // Accounts where Claude Code or Codex is; with neither, Session list alone.
-    expect(appSrc).toMatch(/left: \(providers\.claude \|\| providers\.codex\) \? \[accounts, sessionList\] : \[sessionList\]/);
+    // Claude's accounts button where Claude Code is and Codex's where only Codex is.
+    expect(appSrc).toContain("left: providers.claude ? [accounts, sessionList] : providers.codex ? [codex, sessionList] : [sessionList]");
     expect(appSrc).toMatch(/<EdgeDock items=\{\[\.\.\.rails\.left, /);
-    // Account capacity and Reset calendar open the accounts' report, so they
-    // follow the accounts button off a Codex-only stripe and out of More.
-    // A Codex-only machine keeps Accounts (its Codex profiles live there) but
-    // not the Claude-only capacity and calendar entries.
-    expect(appSrc).toMatch(/leftStripe: providers\.claude \? \[named\("Claude accounts", \[accounts, \.\.\.capacity\]\), \[sessionList\]\]\s*: providers\.codex \? \[named\("Codex accounts", \[accounts\]\), \[sessionList\]\] : \[\[sessionList\]\]/);
+    // With both, the stripe draws both buttons and the phone's More holds Codex's.
+    expect(appSrc).toContain("codexMore: providers.claude && providers.codex ? [codex] : []");
+    // Account capacity and Reset calendar open Claude's accounts report, so they
+    // are Claude's alone and follow its button off a Codex-only stripe.
+    expect(appSrc).toMatch(/leftStripe: \[\s*\.\.\.\(providers\.claude \? \[named\("Claude accounts", \[accounts, \.\.\.capacity\]\)\] : \[\]\),\s*\.\.\.\(providers\.codex \? \[\[codex\]\] : \[\]\),\s*\[sessionList\],\s*\]/);
     expect(appSrc).toMatch(/capacity: providers\.claude \? capacity : \[\]/);
     // The connected trackers (#2178) are a group of their own after it, so
     // they cannot stand in for the accounts button either.

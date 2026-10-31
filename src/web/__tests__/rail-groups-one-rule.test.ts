@@ -35,6 +35,7 @@ describe("both stripes follow one rule", () => {
   it("keeps every door, in runs that answer one question each", () => {
     expect(leftGroups.map(ids)).toEqual([
       ["accounts", "account-capacity", "reset-calendar"],
+      ["codex-accounts"],
       ["session-list"],
       ["explore-integrations"],
     ]);
@@ -77,7 +78,7 @@ describe("both stripes follow one rule", () => {
     expect(button).not.toContain("aria-expanded");
   });
 
-  it("gives a Codex-only stripe its own accounts run, without the Claude capacity doors", () => {
+  it("gives a Codex-only stripe its own button, without the Claude capacity doors", () => {
     const codexOnly = railItems({
       providers: { kind: "reported", claude: false, codex: true },
       sessionListOpen: false, toggleSessionList: noop, accountsPanelOpen: false, toggleAccountsPanel: noop,
@@ -86,6 +87,6 @@ describe("both stripes follow one rule", () => {
       openCapacity: noop, openSettings: noop, onFeedback: noop,
       toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
     });
-    expect(codexOnly.leftStripe.map(ids)).toEqual([["accounts"], ["session-list"]]);
+    expect(codexOnly.leftStripe.map(ids)).toEqual([["codex-accounts"], ["session-list"]]);
   });
 });
