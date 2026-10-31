@@ -246,14 +246,17 @@
   padding: 0 8px 0 24px;
   border: 1px solid var(--ctl-edge);
   border-radius: var(--r-ctl);
-  background: var(--ctl-fill);
+  background: var(--bg-soft);
   color: var(--text);
   caret-color: var(--accent);
   font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  line-height: var(--lh-body);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .ig-search[data-filled] .ig-search-input { padding-right: 32px; }
-.ig-search-input::placeholder { color: var(--text-secondary); opacity: 1; }
+.ig-search-input::placeholder { color: var(--muted); opacity: 1; } /* V4's field: --muted is 4.91:1+ on --bg-soft */
 .ig-search-input:hover { border-color: var(--text); }
 .ig-search-input::-webkit-search-cancel-button { appearance: none; display: none; }
 .ig-search-clear { position: absolute; right: 3px; margin: 0; }

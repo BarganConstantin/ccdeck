@@ -312,7 +312,16 @@ describe("every control in the manage block has a perceivable boundary (1.4.11)"
     // --bg-soft is 1.04:1 against --panel in dark and the SAME BYTES in light,
     // so a fill borrowed from it is not a fill. Mixed from --text it exists in
     // both themes by construction, which is the whole point of the change.
-    for (const c of CONTROLS) expect(c.fill, c.name).not.toMatch(/var\(--bg-soft\)\s*$/);
+    // V4's field is the one exception, on purpose: the text field takes the
+    // kit's --bg-soft, and its boundary is carried by --ctl-edge, which the
+    // sweep above holds at 3:1 on every bed. The buttons and pills still
+    // borrow from neither surface.
+    for (const c of CONTROLS) {
+      if (c.name === ".ap-manage-input") {
+        expect(c.fill, c.name).toBe("var(--bg-soft)");
+        expect(c.edge, c.name).toBe("var(--ctl-edge)");
+      } else expect(c.fill, c.name).not.toMatch(/var\(--bg-soft\)\s*$/);
+    }
     for (const theme of themes) {
       expect(TOK[theme]["--ctl-fill"], theme).toMatch(/var\(--text\)/);
       expect(TOK[theme]["--ctl-edge"], theme).toMatch(/var\(--text\)/);
@@ -538,7 +547,8 @@ describe("no row grid, and one form at a time", () => {
 
 describe("the input behaves like its four siblings (#325's ninth finding)", () => {
   it("transitions its border, which every other control in the block already did", () => {
-    expect(decl(".ap-manage-input", "transition")).toMatch(/border-color 120ms/);
+    // V4's field: the 120ms literal became --dur-fast on --ease.
+    expect(decl(".ap-manage-input", "transition")).toMatch(/border-color var\(--dur-fast\) var\(--ease\)/);
     expect(decl(".ap-manage-input:hover", "border-color")).toBeTruthy();
   });
 
