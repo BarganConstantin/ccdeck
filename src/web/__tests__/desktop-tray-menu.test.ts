@@ -76,6 +76,11 @@ describe("the tooltip", () => {
     expect(t({})).toBe("ccdeck — Idle");
     expect(t({ snapshot: { ...quiet, running: 1 } })).toBe("ccdeck — 1 session running");
   });
+
+  it("says why the app's own deck did not start, until a deck answers", () => {
+    expect(t({ deck: null, startFailed: "exited" })).toBe("ccdeck — The deck could not start");
+    expect(t({ deck: null })).toBe("ccdeck — No deck running");
+  });
 });
 
 describe("how long a session has been waiting", () => {
