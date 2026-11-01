@@ -876,6 +876,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // retain opaque semantic beds, measured in jira-contrast.test.ts.
       ".ig-row[data-selected] .ig-avatar-none",
       ".ig-row[data-selected] .ig-chip",
+      // The Inspector's tree: the keyboard's stop is an invisible button, so
+      // the agent card beside it draws the ring, as the feedback kinds' cards do.
+      ".insp-card:has(.insp-pick:focus-visible) .agent-node",
       // The navigable button now puts its focus ring on the whole issue row.
       ".jr-row:has(> .jr-row-main:focus-visible)",
       // Quick open's field: the input in it is borderless, so the row it

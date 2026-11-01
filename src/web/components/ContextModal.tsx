@@ -110,7 +110,28 @@ export default function ContextModal({ agent, onClose }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
   const scrimPress = useScrimDismiss(onClose);
+  const copy = contextCopy(agent.provider);
 
+  return (
+    <div className="modal-backdrop" {...scrimPress} role="presentation">
+      <div ref={dialogRef} className="modal ctx-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Context breakdown">
+        <header className="modal-head ctx-modal-head">
+          <div>
+            <div className="modal-tool-name">Context · {agent.label}</div>
+            <div className="ctx-modal-sub">{copy.subtitle}</div>
+          </div>
+          <button type="button" ref={closeRef} className="glyph-btn ctx-modal-close" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+        </header>
+        <ContextView agent={agent} />
+      </div>
+    </div>
+  );
+}
+
+/** What the context breakdown says, without the dialog around it: the modal
+ *  wraps it in a header and a close, and the Inspector's Context tab sets it
+ *  under its own head. One body, so the two cannot drift apart. */
+export function ContextView({ agent }: { agent: AgentNodeData }) {
   const ctx = agent.context;
   const usage = agent.usage;
   const current = ctx?.currentContextTokens ?? 0;
@@ -152,16 +173,7 @@ export default function ContextModal({ agent, onClose }: Props) {
   const copy = contextCopy(agent.provider);
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal ctx-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Context breakdown">
-        <header className="modal-head ctx-modal-head">
-          <div>
-            <div className="modal-tool-name">Context · {agent.label}</div>
-            <div className="ctx-modal-sub">{copy.subtitle}</div>
-          </div>
-          <button type="button" ref={closeRef} className="glyph-btn ctx-modal-close" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
-        </header>
-
+    <>
         <section className="ctx-window-row">
           {/* A progressbar needs a name of its own (4.1.2): the percentage
               beside it is a sibling, not a label, so without one a reader
@@ -227,8 +239,7 @@ export default function ContextModal({ agent, onClose }: Props) {
             ))}
           </ul>
         )}
-      </div>
-    </div>
+    </>
   );
 }
 

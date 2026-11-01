@@ -1014,6 +1014,7 @@ function Inner() {
         <DetailAside
           selected={selected} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
           stateRef={stateRef} removeSelectedNode={removeSelectedNode}
+          onSelectAgent={id => selectAgent(id, false, false)}
           onClose={() => { panelReturn.detail(); setDetailOpen(false); }}
         />
       ) : null}

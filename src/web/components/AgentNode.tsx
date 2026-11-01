@@ -60,7 +60,18 @@ import { CardContinue, ContinuedRow } from "./StopContinue";
  *  draws cards to markup and a layout effect only warns (as use-count-up.ts). */
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary }>) {
+type CardData = AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary };
+
+/** The board's node: the card, with the connection handles React Flow needs. */
+function AgentNode({ data }: NodeProps<CardData>) {
+  return <AgentCard data={data} handles />;
+}
+
+/** The agent card itself, so the Inspector's tree draws the very card the board
+ *  does (V4: the Inspector's cards are the Agent / Card). `handles` is the one
+ *  difference: React Flow's handles only exist inside a flow, and the tree is
+ *  not one. */
+export function AgentCard({ data, handles = false }: { data: CardData; handles?: boolean }) {
   // No `selected` here. React Flow's prop is never true on this canvas, so the
   // class it set matched nothing; the frame marks a selected card's wrapper
   // with `rf-selected` instead (canvas-flow.ts) and the ring is drawn from that.
@@ -249,7 +260,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
     // and .tokens-meta / .spawn-badge are text.
     <div className={cls} style={{ "--session-hue": hue } as React.CSSProperties}>
       <span className="accent-stripe" />
-      <Handle type="target" position={Position.Left} style={{ background: "transparent", border: "none" }} />
+      {handles && <Handle type="target" position={Position.Left} style={{ background: "transparent", border: "none" }} />}
 
       <div className="head">
         <div className="title">
@@ -441,7 +452,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
 
       <NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} />
 
-      <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />
+      {handles && <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />}
     </div>
   );
 }
