@@ -85,8 +85,10 @@ describe("every key the deck binds is written down where a user can find it", ()
       // since Remove from board left the topbar for the detail panel. The
       // comma since Settings: Cmd+, or Ctrl+, opens it, the one chord the deck
       // claims. I since #2178: Jira, once a connection exists (J and K were
-      // already the canvas's next and previous agent).
-      .toEqual([" ", ",", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "i", "j", "k", "l", "m", "r", "s", "t", "u", "v", "w", "z"]);
+      // already the canvas's next and previous agent). N and P since 4.0's
+      // status bar: the next/previous waiting session (one queue with W) and
+      // the card's peek.
+      .toEqual([" ", ",", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "i", "j", "k", "l", "m", "n", "p", "r", "s", "t", "u", "v", "w", "z"]);
   });
 
   it("binds each of them exactly once, which is what makes M and ? free", () => {

@@ -82,7 +82,9 @@ describe("every surface that draws a chip stamps the family on it", () => {
   const surfaces: Array<[string, string]> = [
     ["AgentNode", "../components/AgentNode.tsx"],
     ["Detail hero", "../components/Detail.tsx"],
-    ["SessionList", "../components/SessionList.tsx"],
+    // (The session list left this table with V4's Attention rail: a rail row
+    // names its model as a plain mono tag in --muted, Figma's Rail / Row, so it
+    // draws no chip and carries no family tint.)
     ["SessionSummary", "../components/SessionSummary.tsx"],
   ];
   for (const [name, rel] of surfaces) {
