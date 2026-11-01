@@ -77,10 +77,29 @@ describe("what the restyle does not touch", () => {
     expect(decl(".agent-node .accent-stripe", "opacity")).toBe("0.7");
     expect(node).toContain('<span className="accent-stripe" />');
   });
-  it("keeps the state borders exactly", () => {
-    expect(decl(".agent-node.state-active", "border-color")).toBe("var(--inflight)");
-    expect(decl(".agent-node.state-done", "border-color")).toBe("rgba(134,239,172,0.5)");
-    expect(decl(".agent-node.state-err", "border-color")).toBe("rgba(252,165,165,0.6)");
+  // CHANGED ON PURPOSE: each state's edge reads --card-alarm first, so a card
+  // blocked on you is edged in --warn (V4 decision 22); the state values
+  // behind it are the same three.
+  it("keeps the state borders exactly, behind the alarm's", () => {
+    expect(decl(".agent-node.state-active", "border-color")).toBe("var(--card-alarm, var(--inflight))");
+    expect(decl(".agent-node.state-done", "border-color")).toBe("var(--card-alarm, rgba(134,239,172,0.5))");
+    expect(decl(".agent-node.state-err", "border-color")).toBe("var(--card-alarm, rgba(252,165,165,0.6))");
+  });
+  it("edges a card blocked on you in --warn, in every theme", () => {
+    // Figma's Agent / Card in State Waiting has a --warn edge, the colour of
+    // its word and its ask line. Every theme's twin of a state edge reads the
+    // variable first, so none outranks it on specificity.
+    expect(decl(".agent-node[data-alarm]", "--card-alarm")).toBe("var(--warn)");
+    // Any rule whose selector names a card's state edge, whatever else the
+    // selector says (a :where(), a list, a theme prefix), and sets border-color.
+    const edges = [...sheet.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+      .filter(m => /\.agent-node\.state-(?:active|done|err)\b/.test(m[1]))
+      .map(m => [m[1].trim(), /border-color:\s*([^;]+);?/.exec(m[2])?.[1]] as const)
+      .filter(([, e]) => e !== undefined);
+    expect(edges.length).toBeGreaterThanOrEqual(11);
+    for (const [sel, e] of edges) expect(e, sel).toMatch(/^var\(--card-alarm, /);
+    expect(html({ state: "active", waiting: { kind: "permission", since: 1 } as never })).toMatch(/class="agent-node state-active" data-alarm=""/);
+    expect(html({ state: "done", waiting: { kind: "idle", since: 1 } as never })).not.toMatch(/agent-node[^>]*data-alarm/);
   });
 });
 
@@ -296,9 +315,10 @@ describe("browser round 2", () => {
     expect(decl(row, "font-weight")).toBe("400");
     expect(decl(row, "white-space")).toBe("nowrap");
     expect(body(row)).not.toMatch(/border|background|padding|radius/);
-    expect(decl(".agent-node .waiting-row.permission", "color")).toBe("var(--warn)");
-    expect(body(".agent-node .waiting-row.permission")).not.toMatch(/border/);
-    expect(body(".agent-node .waiting-row.idle")).not.toMatch(/border/);
+    // One Waiting colour (V4 decision 22): the row itself is --warn, so a
+    // permission ask and an idle prompt read alike, and no kind recolours it.
+    expect(decl(row, "color")).toBe("var(--warn)");
+    expect(sheet).not.toMatch(/\.waiting-row\.(permission|idle)\b/);
     expect(decl(".agent-node .waiting-said", "text-overflow")).toBe("ellipsis");
     expect(decl(".agent-node .waiting-row b", "font-weight")).toBe("400");
   });
