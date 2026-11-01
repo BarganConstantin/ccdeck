@@ -21,5 +21,16 @@ export const FOLD_ROW = "#ap-rest-entry";
  * belongs to no row and is always on screen.
  */
 export function refocusSelectors(id: string): string[] {
-  return [`#${id}`, FOLD_ROW, ...rescueSelectors(null)];
+  return [`#${cssId(id)}`, FOLD_ROW, ...rescueSelectors(null)];
+}
+
+/** An id as a selector can say it. React's useId() makes ids like `:r1:`, which
+ *  the panel's own fields carry (Auto-switch's threshold and order), and
+ *  `#:r1:` is not a selector: querySelector throws a SyntaxError, in a layout
+ *  effect, while a roster is being drawn. Ids made of letters, digits, `-` and
+ *  `_` come out unchanged. */
+function cssId(id: string): string {
+  return typeof CSS !== "undefined" && typeof CSS.escape === "function"
+    ? CSS.escape(id)
+    : id.replace(/[^\w-]/g, ch => `\\${ch}`);
 }
