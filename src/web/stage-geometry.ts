@@ -70,13 +70,19 @@ export const NAV_ROOM = 400;
 /** Below this window width the navigator is a rail whatever the stage. */
 export const NARROW_BELOW = 1100;
 
-/** The pane header before the stage has said how tall it drew it: the roomier
- *  densities' `--pane-head-h`, the larger of V4's two (Compact draws 36 and
- *  says so). One row at every width, so there is no narrow variant. */
+/** The pane header when nothing has said how tall it is: neither the stage,
+ *  which measures it, nor the density's `--pane-head-h`, which use-stage.ts
+ *  reads first. The roomier densities' 44, the larger of V4's two, so a guess
+ *  never fits a row under it. One row at every width: no narrow variant. */
 export const HEAD_H = 44;
-/** The keys bar under the terminal: V4's 32. A fingertip's 36 or the first-run
- *  line wrapping makes it taller, and the measured height then wins. */
+/** Compact's pane header, the smallest V4 draws. A reading under it is a
+ *  header not laid out yet, and the rows are never fitted to it. */
+export const HEAD_H_MIN = 36;
+/** The keys bar under the terminal: V4's 32. The first-run line wrapping
+ *  makes it taller, and the measured height then wins. */
 export const BAR_H = 32;
+/** The keys bar under a fingertip (touch-and-forced-colours.css). */
+export const BAR_H_TOUCH = 36;
 /** Vertical slack kept around the grid so its first and last rows never
  *  touch the header's rule or the bar's. */
 const ROW_SLACK = 12;
@@ -114,8 +120,9 @@ export interface StageGeometryInput {
    *  than BAR_H while the first-run line wraps to a third line. Never taken
    *  as less than BAR_H. */
   barH?: number;
-  /** The pane header's height as the stage drew it, once it has said; HEAD_H
-   *  until then. Taken as drawn, so Compact's 36 gives the terminal its rows. */
+  /** The pane header's height as the stage drew it, or the density's token
+   *  until it has said; HEAD_H without either. Taken as drawn, so Compact's
+   *  36 gives the terminal its rows, but never as less than HEAD_H_MIN. */
   headH?: number;
 }
 
@@ -234,7 +241,7 @@ export function stageGeometry(input: StageGeometryInput): StageGeometry {
   const cellW = finite(input.cellW, ASSUMED_CELL.w);
   const cellH = finite(input.cellH, ASSUMED_CELL.h);
   const appW = Math.max(0, input.appW);
-  const headH = finite(input.headH ?? HEAD_H, HEAD_H);
+  const headH = Math.max(HEAD_H_MIN, finite(input.headH ?? HEAD_H, HEAD_H));
   const railWanted = input.narrow || input.expanded;
   const navMin = railWanted ? NAV_MIN_RAIL : NAV_MIN;
 

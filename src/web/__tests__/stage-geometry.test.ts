@@ -13,6 +13,7 @@ import {
   DETENTS,
   DETENT_PULL,
   HEAD_H,
+  HEAD_H_MIN,
   INSET_X,
   MIN_COLS,
   NAV_MIN,
@@ -195,6 +196,15 @@ describe("the rows fit below the header as it is drawn", () => {
   it("falls back to HEAD_H for a header height that is not a size, and never goes below 0", () => {
     for (const bad of [0, -4, NaN, Infinity]) {
       expect(stageGeometry({ ...body, headH: bad }), String(bad)).toEqual(stageGeometry(body));
+    }
+  });
+
+  it("never fits the rows to a header smaller than Compact's, a header not laid out yet", () => {
+    expect(HEAD_H_MIN).toBe(36);
+    for (const tiny of [1, 12, 35]) {
+      const g = stageGeometry({ ...body, headH: tiny });
+      expect(g.headH, String(tiny)).toBe(HEAD_H_MIN);
+      expect(g, String(tiny)).toEqual(stageGeometry({ ...body, headH: HEAD_H_MIN }));
     }
   });
 });

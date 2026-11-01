@@ -35,9 +35,8 @@
 /* ── the header: one row, the session's state and name (V4) ──────────────── */
 
 /* --pane-head-h is V4's pane header: 36 at Compact, 44 at the two roomier
-   densities (tokens.css, reading.css). --ts-head-h is the height the geometry
-   fitted the rows for: the header as the stage measured it (onHeadH), or 44
-   until it has said. The header itself is drawn at --pane-head-h. */
+   densities (tokens.css, reading.css). The stage measures the header as drawn
+   (onHeadH) and the geometry fits the rows below it (stage-geometry.ts). */
 .ts-head {
   position: relative;
   flex: none;
@@ -103,22 +102,6 @@
 .ts-meta-rest { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 
 .ts-ctl { flex: none; display: flex; align-items: center; gap: 4px; }
-/* How full the agent's context is: "61.4k / 200k" over a 4px bar. */
-.ts-ctxchip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 24px;
-  box-sizing: border-box;
-  padding: 0 6px;
-  border-radius: var(--r-ctl);
-  font: 500 11px/14px var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.ts-ctxchip-bar { flex: none; position: relative; width: 32px; height: 4px; border-radius: var(--r-pill); overflow: hidden; background: var(--line); }
-.ts-ctxchip-bar i { display: block; height: 100%; border-radius: inherit; background: var(--text-secondary); }
 /* The controls are the deck's header glyphs (.glyph-btn), as 24px squares at
    the control radius; ⌨ pressed — the keys in the pane — wears the accent. */
 .ts-tools { display: flex; align-items: center; gap: 2px; }
@@ -233,7 +216,10 @@
 .ts-stage[data-pane-size] .ts-body { overflow-x: auto; overflow-y: hidden; }
 
 /* Every card is a column in the middle of the pane (V4), centred both ways:
-   10px between its lines, and a line of about 60 characters at most. */
+   10px between its lines, and a line of about 60 characters at most. Taller
+   than a short pane (a phone on its side, the install card), it starts at the
+   top and scrolls, so its title and its buttons stay reachable: `safe` keeps
+   the centring from pushing either end out of reach. */
 .ts-card {
   position: absolute;
   inset: 0;
@@ -241,9 +227,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: safe center;
   gap: 10px;
-  padding: 0 24px;
+  padding: 12px 24px;
+  overflow-y: auto;
   text-align: center;
 }
 .ts-ctx {

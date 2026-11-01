@@ -18,10 +18,9 @@
 // THE MODEL CHIP IS GONE from this header: the rail's row and the agent card
 // carry the model, and Figma's Term header draws none. What its accessible name
 // said is not lost — the provider is still named, in words, after the session's
-// name, for a screen reader. In its place, at the row's end, a CONTEXT CHIP:
-// how full the agent's context window is, "61.4k / 200k" over a 4px bar. It is
-// drawn only when the stage is handed the figure (`context`); the numbers are
-// the context modal's (fmtTokens, effectiveContextWindow), not new data.
+// name, for a screen reader. Figma puts a context chip at the row's end
+// ("61.4k / 200k" over a 4px bar); the stage is not handed that figure yet,
+// so it is not drawn rather than drawn empty.
 //
 // THREE CONTROLS AND NO MORE: ⌨ (only while there is a pane to type into),
 // ⤢ and ✕ — each the deck's own header glyph (.glyph-btn, panel-glyph.css),
@@ -33,8 +32,6 @@
 // drawn in the takeover too, where there is no width to give but that. There
 // is no Chat/Term toggle and no Split: Chat is a later phase behind a flag
 // that is off, and a control for either would be a dead one.
-import { effectiveContextWindow } from "../../context-window";
-import { fmtTokens } from "../../token-format";
 import type { TerminalProvider } from "../../terminal-api";
 import { agentName, type KeysOwner, type StageStatus } from "./stage-model";
 import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, StageGlyph, glyphForState } from "./stage-icons";
@@ -46,12 +43,6 @@ export const CLOSE_EMPTY_LABEL = "Close the Command Panel";
 export const BACK_EMPTY_LABEL = "Back to the board";
 export const BACK_LABEL = "Back to the board — the session keeps running";
 
-/** How much of its context window an agent has used. */
-export interface ContextFigure {
-  used: number;
-  limit: number;
-}
-
 export interface StageHeaderProps {
   /** Changes with the session on stage, so its identity arrives afresh —
    *  from the left, out of the board — on every switch. */
@@ -59,14 +50,6 @@ export interface StageHeaderProps {
   /** The session's name, or the empty stage's title. */
   name: string;
   provider?: TerminalProvider | null;
-  /** The model id and effort the stage is still handed. V4's header draws no
-   *  model chip (the rail's row and the agent card carry it), so neither is
-   *  read here; they stay on the props only so the stage's wiring is untouched. */
-  model?: string | null;
-  effort?: string | null;
-  /** How full the agent's context is, when the stage knows: the chip is drawn
-   *  only then (contextFigure builds it from what the context modal reads). */
-  context?: ContextFigure | null;
   status: StageStatus;
   keysOwner: KeysOwner;
   /** The release chord as the reader's keyboard labels it (terminal-keys.ts). */
@@ -86,26 +69,6 @@ export interface StageHeaderProps {
   onKeys(): void;
   onExpand(): void;
   onClose(): void;
-}
-
-/** The context figure for a session, from what the context modal reads: the
- *  tokens in the window now, the window the CLI reported (if it did) and the
- *  model, which names the window when the CLI has not. Null while the session
- *  has not said how much it holds. */
-export function contextFigure(used: number | null | undefined, window: number | undefined, model: string | null | undefined): ContextFigure | null {
-  if (typeof used !== "number" || !Number.isFinite(used) || used < 0) return null;
-  return { used, limit: effectiveContextWindow(window, model ?? undefined) };
-}
-
-/** What the chip prints and fills: "61.4k / 200k", and the share of the window
- *  as a whole percent between 0 and 100. Null for a figure that is not one. */
-export function contextChipView(figure: ContextFigure | null | undefined): { text: string; pct: number; label: string } | null {
-  if (!figure || !(figure.limit > 0) || !Number.isFinite(figure.used) || figure.used < 0) return null;
-  const pct = Math.min(100, Math.round((figure.used / figure.limit) * 100));
-  // fmtTokens keeps a decimal on a round figure ("200.0k"); Figma's chip does not.
-  const short = (n: number) => fmtTokens(n).replace(/\.0+(?=[kMB])/, "");
-  const text = `${short(figure.used)} / ${short(figure.limit)}`;
-  return { text, pct, label: `Context: ${text} tokens, ${pct}% full` };
 }
 
 /** The part of the sentence after the state: the tool, its argument and how
@@ -130,7 +93,6 @@ export default function StageHeader(p: StageHeaderProps) {
   const { status } = p;
   const glyph = glyphForState(status.state);
   const rest = metaRest(status);
-  const chip = contextChipView(p.context);
   const pane = p.keysOwner === "pane";
   // One name with aria-pressed saying which way it is, rather than a name
   // that flips: a screen reader then hears "Type into the session, pressed".
@@ -163,12 +125,6 @@ export default function StageHeader(p: StageHeaderProps) {
         )}
       </div>
       <div className="ts-ctl">
-        {chip && (
-          <span className="ts-ctxchip" role="img" aria-label={chip.label} title={chip.label}>
-            <span className="ts-ctxchip-text">{chip.text}</span>
-            <span className="ts-ctxchip-bar" aria-hidden="true"><i style={{ width: `${chip.pct}%` }} /></span>
-          </span>
-        )}
         <div className="ts-tools">
           {p.canType && (
             <button

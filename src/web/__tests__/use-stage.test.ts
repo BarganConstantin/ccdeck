@@ -823,6 +823,32 @@ describe("the room the stage is given", () => {
     expect(now().stage.geometry).toEqual(plain);
   });
 
+  it("fits the first rows to the density's header and the pointer's bar, before the stage has measured either", () => {
+    // Compact, V4's default, draws a 36px header (--pane-head-h) and a
+    // fingertip a 36px bar: the first attach is fitted to those, not to a
+    // guess the stage's own measure corrects a frame later with a resize.
+    const g = globalThis as Record<string, unknown>;
+    (g.document as Record<string, unknown>).documentElement = { tagName: "HTML" };
+    g.getComputedStyle = () => ({ getPropertyValue: (name: string) => (name === "--pane-head-h" ? " 36px" : "") });
+    g.matchMedia = (q: string) => ({ matches: q === "(pointer: coarse)" });
+    try {
+      const { now, turnOn } = setup();
+      turnOn();
+      now().stage.switchTo("s1", { focusPane: false });
+      const first = now().stage.geometry!;
+      expect(first.headH).toBe(36);
+      expect(first.rows).toBe(Math.floor((848 - 36 - 36 - 12) / 18));
+      expect(first.termTop + first.rows * 18, "above a fingertip's 36px bar").toBeLessThanOrEqual(848 - 36 - 36);
+      // The stage then measures what was assumed, and nothing moves.
+      now().stage.onHeadH(36);
+      now().stage.onBarH(36);
+      expect(now().stage.geometry).toEqual(first);
+    } finally {
+      delete g.getComputedStyle;
+      delete g.matchMedia;
+    }
+  });
+
   it("stops watching once the stage has gone", () => {
     const { now, turnOn } = setup();
     turnOn();

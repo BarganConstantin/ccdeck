@@ -49,7 +49,7 @@ const working: StageStatus = { state: "working", phrase: "working", tool: "Task"
 
 function headerProps(over: Partial<StageHeaderProps> = {}): StageHeaderProps {
   return {
-    identity: "session:a", name: "paycore", provider: "claude", model: "claude-sonnet-5", status: working,
+    identity: "session:a", name: "paycore", provider: "claude", status: working,
     keysOwner: "board", chordLabel: "Ctrl+Shift+X", canType: true, expanded: false, takeover: false,
     onKeys: vi.fn(), onExpand: vi.fn(), onClose: vi.fn(), ...over,
   };
@@ -102,7 +102,7 @@ describe("the header", () => {
   it("names the provider in words for a screen reader, where the model chip used to say it", () => {
     // V4's Term header has no model chip (the rail's row and the agent card
     // carry the model); the provider is still said, hidden from the eye.
-    const out = html(createElement(StageHeader, headerProps({ model: "claude-opus-5-5" })));
+    const out = html(createElement(StageHeader, headerProps()));
     expect(out).toContain('<span class="vis-hidden">Claude Code</span>');
     expect(html(createElement(StageHeader, headerProps({ provider: "codex" })))).toContain('<span class="vis-hidden">Codex</span>');
     expect(out).not.toContain("model-chip");
@@ -558,7 +558,7 @@ describe("the stage as a whole", () => {
     expect(out).toMatch(/^<section class="ts-stage" role="region" aria-label="Command Panel — paycore" data-kind="empty"/);
     expect(out).toContain("--session-hue:270");
     expect(out).toContain("--ts-term-top:8px");
-    expect(out).toContain("--ts-head-h:44px");
+    expect(out, "the header is drawn at its token, so the stage hands it no height").not.toContain("--ts-head-h");
     expect(out, "the divider is a separator with a value").toMatch(/role="separator" aria-orientation="vertical" aria-label="Command Panel width" aria-valuemin="80" aria-valuemax="134" aria-valuenow="120" aria-valuetext="120 columns"/);
   });
 

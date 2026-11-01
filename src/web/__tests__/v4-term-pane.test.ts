@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 
 import { all, one, textOf } from "./fake-react";
 import { withoutComments } from "./tsx-scan";
-import StageHeader, { CLOSE_LABEL, contextChipView, contextFigure, metaRest, type StageHeaderProps } from "../components/terminal/StageHeader";
+import StageHeader, { CLOSE_LABEL, metaRest, type StageHeaderProps } from "../components/terminal/StageHeader";
 import StageBody, { StateCard, type StageBodyProps } from "../components/terminal/StageBody";
 import KeysBar, { type KeysBarProps } from "../components/terminal/KeysBar";
 import { glyphForState } from "../components/terminal/stage-icons";
@@ -142,7 +142,7 @@ describe("the Term header: one row", () => {
   });
 
   it("has no hue spine, no light travelling down one, and no model chip", () => {
-    const out = html(createElement(StageHeader, headerProps({ model: "claude-opus-5-5", effort: "max" })));
+    const out = html(createElement(StageHeader, headerProps()));
     expect(out).not.toMatch(/ts-spine|model-chip|ts-chip\b/);
     expect(out).not.toMatch(/Opus/);
     expect(stage).not.toMatch(/ts-spine|data-live/);
@@ -180,50 +180,14 @@ describe("the Term header: one row", () => {
 });
 
 describe("the context chip", () => {
-  it("is drawn only when the stage knows how full the context is, and reads \"61.4k / 200k\" over a bar at the percent", () => {
-    const view = contextChipView({ used: 61_400, limit: 200_000 });
-    expect(view).toMatchObject({ text: "61.4k / 200k", pct: 31 });
-    const out = html(createElement(StageHeader, headerProps({ context: { used: 61_400, limit: 200_000 } })));
-    expect(out).toContain('<span class="ts-ctxchip-text">61.4k / 200k</span>');
-    expect(out).toContain('<i style="width:31%"></i>');
-    expect(out).toContain('aria-label="Context: 61.4k / 200k tokens, 31% full"');
-    // Without a figure there is no chip, not an empty one.
-    for (const none of [undefined, null]) {
-      expect(html(createElement(StageHeader, headerProps({ context: none })))).not.toContain("ts-ctxchip");
-    }
-    expect(contextChipView({ used: 10, limit: 0 })).toBeNull();
-    expect(contextChipView({ used: -1, limit: 200_000 })).toBeNull();
-    expect(contextChipView({ used: 250_000, limit: 200_000 })?.pct, "never past full").toBe(100);
-  });
-
-  it("takes its figures from the deck's own: the CLI's window when it said one, else the model's", () => {
-    expect(contextFigure(61_400, 200_000, "claude-opus-5-5")).toEqual({ used: 61_400, limit: 200_000 });
-    expect(contextFigure(61_400, undefined, "claude-sonnet-5")).toMatchObject({ used: 61_400 });
-    expect(contextFigure(undefined, 200_000, "x"), "no figure yet").toBeNull();
-    expect(contextFigure(Number.NaN, 200_000, "x")).toBeNull();
-  });
-
-  it("is 24 tall, mono 11/14 Medium in --muted, with a 4px bar: --line track, --text-secondary fill", () => {
-    const chip = rule(stage, ".ts-ctxchip");
-    expect(decl(chip, "height")).toBe("24px");
-    expect(decl(chip, "padding")).toBe("0 6px");
-    expect(decl(chip, "gap")).toBe("6px");
-    expect(decl(chip, "border-radius")).toBe("var(--r-ctl)");
-    expect(decl(chip, "font")).toBe("500 11px/14px var(--font-mono)");
-    expect(decl(chip, "color")).toBe("var(--muted)");
-    const bar = rule(stage, ".ts-ctxchip-bar");
-    expect(decl(bar, "height")).toBe("4px");
-    expect(decl(bar, "background")).toBe("var(--line)");
-    expect(decl(bar, "border-radius")).toBe("var(--r-pill)");
-    expect(decl(rule(stage, ".ts-ctxchip-bar i"), "background")).toBe("var(--text-secondary)");
-  });
-
-  it("is not wired by the stage yet: the figure is not on what the stage is handed", () => {
+  it("is not drawn: the stage is not handed a context figure yet, and a chip with nothing in it would say nothing", () => {
     // StageSessionInfo (TerminalStage.tsx, lifecycle-bound) carries no context
-    // figure, so the chip waits for one to be passed through.
+    // figure, so the header has no chip and no prop for one until it does.
     const header = /<StageHeader[\s\S]*?\/>/.exec(withoutComments(read("components/terminal/TerminalStage.tsx")))?.[0] ?? "";
     expect(header).toContain("identity={key}");
-    expect(header).not.toContain("context=");
+    expect(header).not.toMatch(/context=|model=|effort=/);
+    expect(html(createElement(StageHeader, headerProps()))).not.toMatch(/ctxchip|role="img"/);
+    expect(stage).not.toContain("ts-ctxchip");
   });
 });
 
@@ -235,9 +199,12 @@ describe("the state cards: centred in the pane", () => {
     expect(decl(card, "display")).toBe("flex");
     expect(decl(card, "flex-direction")).toBe("column");
     expect(decl(card, "align-items")).toBe("center");
-    expect(decl(card, "justify-content")).toBe("center");
+    expect(decl(card, "justify-content")).toBe("safe center");
     expect(decl(card, "gap")).toBe("10px");
     expect(decl(card, "text-align")).toBe("center");
+    // Taller than a short pane, it scrolls from its top rather than spilling
+    // past both edges with its title and its buttons out of reach.
+    expect(decl(card, "overflow-y")).toBe("auto");
     // Not top-left 24px in, as v3's card was.
     expect(card).not.toMatch(/top:\s*var\(--ts-term-top/);
     expect(decl(rule(stage, ".ts-text"), "max-width")).toBe("60ch");
@@ -453,7 +420,10 @@ describe("the morph's motion", () => {
   it("flies the rider at the header's name size, 13px", () => {
     expect(decl(rule(shell, ".stage-rider"), "font-size")).toBe("13px");
     expect(decl(rule(stage, ".ts-name"), "font-size")).toBe("13px");
-    expect(shell).toMatch(/\.stage-dock\[data-rider\] \.ts-ctxchip \{ opacity: var\(--stage-chip, 1\); \}/);
+    // Only the header's glyph waits for the rider: the keys bar's and the
+    // cards' sit beside text that is already there.
+    expect(shell).toMatch(/\.stage-dock\[data-rider\] \.ts-head \.ts-glyph,/);
+    expect(shell).not.toMatch(/\.stage-dock\[data-rider\] \.ts-glyph/);
   });
 });
 
@@ -462,16 +432,17 @@ describe("the geometry follows the header as it is drawn", () => {
   const shellSrc = withoutComments(read("components/terminal/StageShell.tsx"));
   const useStage = withoutComments(read("use-stage.ts"));
 
-  it("TerminalStage measures .ts-head and reports it through onHeadH, rounded like the bar", () => {
+  it("TerminalStage measures .ts-head and reports it through onHeadH, with the bar's one measure", () => {
+    // keys-bar-rows.test.ts runs that measure (rounding, a part not laid out).
     expect(ts).toContain("onHeadH?(height: number): void;");
-    expect(ts).toContain('querySelector<HTMLElement>(".ts-head")');
-    expect(ts).toContain("onHeadH.current?.(Math.ceil(Math.round(head.getBoundingClientRect().height * 100) / 100))");
-    expect(ts).toMatch(/watch\.observe\(head\);\s*return \(\) => watch\.disconnect\(\);/);
+    expect(ts).toContain('useDrawnHeight(rootRef, ".ts-bar", p.onBarH);');
+    expect(ts).toContain('useDrawnHeight(rootRef, ".ts-head", p.onHeadH);');
   });
 
-  it("StageShell passes it on, and use-stage fits the geometry to it", () => {
+  it("StageShell passes it on, and use-stage fits the geometry to it, from the density's token until it has said", () => {
     expect(shellSrc).toContain("onHeadH={stage.onHeadH}");
-    expect(useStage).toContain("const [headH, setHeadH] = useState(HEAD_H);");
+    expect(useStage).toContain("const [headH, setHeadH] = useState(paneHeadH);");
+    expect(useStage).toContain('getPropertyValue("--pane-head-h")');
     expect(useStage).toContain("barH, headH })");
     expect(useStage).toMatch(/onCell, onBarH, onHeadH,/);
   });

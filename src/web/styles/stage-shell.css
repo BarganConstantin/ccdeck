@@ -116,12 +116,13 @@
    V4, 16px in v3): it flies at that size and is scaled to the card's. */
 .stage-dock[data-rider] .ts-name { opacity: 0; }
 /* What sits beside the rider's landing arrives after it, and leaves before it
-   flies home (stage-morph.ts `late` and `chip`): the state glyph and the
-   sentence, the controls, and last of all the context chip. */
-.stage-dock[data-rider] .ts-glyph,
+   flies home (stage-morph.ts `late`): the header's state glyph and sentence,
+   and its controls. Only the header's: the keys bar and the cards wear the
+   same glyph beside text that is already there. stage-morph.ts's `chip` ramp
+   has nothing to fade while V4's header draws no chip. */
+.stage-dock[data-rider] .ts-head .ts-glyph,
 .stage-dock[data-rider] .ts-meta,
 .stage-dock[data-rider] .ts-ctl { opacity: var(--stage-late, 1); }
-.stage-dock[data-rider] .ts-ctxchip { opacity: var(--stage-chip, 1); }
 
 /* The board's compact form, in the canvas's place. */
 .stage-nav {

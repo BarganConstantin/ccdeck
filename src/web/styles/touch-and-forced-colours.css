@@ -55,8 +55,9 @@
   /* And every control the Command Panel draws takes the floor: the keys bar's
      buttons (Got it, type here, Reopen here, Attach again, Next ask, Answer),
      32px, and the bar with them: 36px here, 32px beside a mouse, so the
-     bar keeps the one height its buttons fit in (stage-geometry.ts holds the
-     terminal's rows above 36px either way); the cards' (New
+     bar keeps the one height its buttons fit in, the first-run and older
+     hosts lines included (the stage measures the bar and stage-geometry.ts
+     fits the rows above it); the cards' (New
      session, Reopen here, Check again, Try again, Not now); New session's
      strips, projects, field and buttons; and the navigator's New session. */
   .ts-keys .btn,
@@ -68,6 +69,8 @@
   .ns-pop .ns-acts .btn,
   .board-nav button.btn.nav-new { min-height: 32px; }
   .ts-bar { height: 36px; }
+  .ts-bar:has(.ts-first),
+  .ts-bar:has(.ts-hosts) { min-height: 36px; }
   .board-nav[data-density="rail"] button.btn.nav-new { width: 32px; }
   /* The header's glyphs (✕, ⤢, ⌨, ‹, and the install line's copy) are 32px
      squares: their reach above and below stays, the 2px aside goes, so two

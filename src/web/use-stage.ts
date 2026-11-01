@@ -50,7 +50,7 @@ import { DOUBLE_CLICK_MS } from "./focus-hold";
 import { notePanelLaunch } from "./panel-launch";
 import type { GraphState } from "./reducer";
 import {
-  ASSUMED_CELL, BAR_H, HEAD_H, NARROW_BELOW, STAGE_COLS_KEY, loadStageCols, saveStageCols, stageGeometry,
+  ASSUMED_CELL, BAR_H, BAR_H_TOUCH, HEAD_H, NARROW_BELOW, STAGE_COLS_KEY, loadStageCols, saveStageCols, stageGeometry,
   type Cell, type StageGeometry,
 } from "./stage-geometry";
 import {
@@ -93,6 +93,19 @@ function nameElement(card: Element): Element | null {
   const face = card.querySelector(".lod-name");
   if (face && face.getBoundingClientRect().width > 0) return face;
   return card.querySelector(".title .label");
+}
+
+/** The pane header's height at the density in force, from --pane-head-h on
+ *  the root; HEAD_H where there is no sheet to ask (a suite). */
+function paneHeadH(): number {
+  if (typeof document === "undefined" || typeof getComputedStyle !== "function") return HEAD_H;
+  const read = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--pane-head-h"));
+  return Number.isFinite(read) && read > 0 ? read : HEAD_H;
+}
+
+/** A fingertip, as the sheet's own `(pointer: coarse)` block asks. */
+function coarsePointer(): boolean {
+  return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
 }
 
 export interface StageDeps {
@@ -151,10 +164,13 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   const [expanded, setExpanded] = useState(false);
   const [box, setBox] = useState<{ w: number; h: number; narrow: boolean } | null>(null);
   // The keys bar as the stage last drew it (onBarH): the rows are fitted
-  // above it, and a first-run line on three lines makes it taller.
-  const [barH, setBarH] = useState(BAR_H);
-  // The pane header likewise (onHeadH): 36 at Compact, 44 above.
-  const [headH, setHeadH] = useState(HEAD_H);
+  // above it, and a first-run line on three lines makes it taller. Until it
+  // has said, the height it will be drawn at: a fingertip's 36, else 32.
+  const [barH, setBarH] = useState(() => (coarsePointer() ? BAR_H_TOUCH : BAR_H));
+  // The pane header likewise (onHeadH). Until it has said, the density's own
+  // `--pane-head-h` (36 at Compact, the default; 44 above), so the first
+  // attach is fitted to the header it is drawn under and not resized after.
+  const [headH, setHeadH] = useState(paneHeadH);
   const measure = useCallback(() => {
     const el = canvasRef.current;
     if (!el) return;
