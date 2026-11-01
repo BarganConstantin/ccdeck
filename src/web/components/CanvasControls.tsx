@@ -176,13 +176,14 @@ export default function CanvasControls({
           line with fringe on the end and reads as almost anything; the
           can is the one glyph nobody has to be taught. The word "Clear"
           is not lost — it is the dialog's own heading, one click away,
-          which is where the user reads it when it matters. (V4's file
-          calls it "Clear the deck"; the name the code carries stays.) */}
+          which is where the user reads it when it matters. The name is
+          the dialog's too, "Clear the deck": "canvas" read like something
+          a refresh would undo (V4 decision 24). */}
       <ControlButton
         data-danger=""
         onClick={() => requestClear("button")}
-        title={withKey("Clear the canvas and the server's event log — asks first", "C", singleKeys)}
-        aria-label="Clear the canvas"
+        title={withKey("Clear the deck and the server's event log — asks first", "C", singleKeys)}
+        aria-label="Clear the deck"
       >
         {/* trash can — lid, handle, tapered body, two inner strokes */}
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>

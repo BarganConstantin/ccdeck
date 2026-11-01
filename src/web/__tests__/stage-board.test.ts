@@ -154,13 +154,13 @@ describe("the asks run, in the keys bar's terms", () => {
     expect(barAsks(noRun, waiting, NOW)).toBeNull();
   });
 
-  it("counts from zero where the run counts from one, and marks the segment that just joined", () => {
+  it("counts from zero where the run counts from one", () => {
     const view: AsksView = {
       track: [{ id: "a", state: "done", fresh: false }, { id: "b", state: "now", fresh: false }, { id: "c", state: "todo", fresh: true }],
       position: { index: 2, total: 3 }, resumed: null, next: null, clear: false, arrival: null,
     };
     expect(barAsks(view, waiting, NOW)).toEqual({
-      segments: ["done", "now", "todo"], freshIndex: 2, position: { index: 1, total: 3 }, resumed: null, next: null, clear: false,
+      position: { index: 1, total: 3 }, resumed: null, next: null, clear: false,
     });
   });
 
@@ -170,7 +170,7 @@ describe("the asks run, in the keys bar's terms", () => {
       position: null, resumed: { id: "s-paycore", label: "paycore" }, next: { id: "s-travel", label: "travel" }, clear: false, arrival: null,
     };
     expect(barAsks(view, waiting, NOW)).toMatchObject({
-      resumed: "paycore", freshIndex: null, next: { name: "travel", waited: "2m", tool: "Bash" },
+      resumed: "paycore", next: { name: "travel", waited: "2m", tool: "Bash" },
     });
   });
 

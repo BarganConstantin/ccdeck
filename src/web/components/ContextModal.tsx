@@ -16,6 +16,7 @@ import type { AgentNodeData, Provider } from "../types";
 import { fmtBytes } from "../byte-format";
 import { fmtCost } from "../pricing";
 import { effectiveContextWindow } from "../context-window";
+import { contextFill } from "../context-figure";
 import { agentCost } from "../usage-models";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
@@ -128,15 +129,9 @@ export default function ContextModal({ agent, onClose }: Props) {
   );
 }
 
-/** How full the agent's context window is: tokens used, the window's size and
- *  the percent (unrounded, capped at 100). One function for the modal's meta
- *  line and the Inspector's head, so the bar and the figure above it cannot
- *  print two numbers for one fact; each rounds it as it prints it. */
-export function contextFill(agent: AgentNodeData): { used: number; limit: number; pct: number } {
-  const used = agent.context?.currentContextTokens ?? 0;
-  const limit = effectiveContextWindow(agent.contextWindow, agent.model);
-  return { used, limit, pct: Math.min(100, (used / limit) * 100) };
-}
+// contextFill lives in context-figure.ts (no component behind it), and stays
+// importable from here for the callers that read it with the modal.
+export { contextFill };
 
 /** What the context breakdown says, without the dialog around it: the modal
  *  wraps it in a header and a close, and the Inspector's Context tab sets it

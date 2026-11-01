@@ -212,14 +212,15 @@
    the chip's own appearance changed with them; this comment is the only trace,
    and it is here so the next person to want a control in this corner knows it
    has been tried. */
-/* The chip's one live dot, in the accent (amber left the chip) and with no glow,
-   on the deck's one live pulse (`--pulse-live`, opacity only). It holds still
-   under reduced motion: nothing on this bar moves for that setting. */
+/* The chip's one dot, in the accent (amber left the chip) and with no glow. It
+   holds still (V4 decision 19: Paused, Lost and Version hold a still dot): a
+   newer version waiting is a fact at rest, and a pulse on this bar would be
+   the only thing moving while nothing happens. `--pulse-live` stays for the
+   Working glyph and the loader. */
 .topbar .brand button.v .v-dot {
   width: 5px; height: 5px;
   border-radius: 50%;
   background: var(--accent);
-  animation: pulse var(--pulse-live) infinite;
 }
 /* V4's chip entrance (motion.md, "Top bar chip"): opacity and 4px of x, over
    --dur-base. A newer version arrives; the chip is not there at rest, so this
@@ -227,7 +228,6 @@
 .topbar .brand button.v:is(.stale, .ready) { animation: chip-in var(--dur-base) var(--ease) both; }
 @media (prefers-reduced-motion: reduce) {
   .topbar .brand button.v:is(.stale, .ready) { animation: none; }
-  .topbar .brand button.v .v-dot { animation: none; }
 }
 /* Settings and Feedback, the two controls the bar still holds.
    `flex: none` is the deliberate half. Every flex item shrinks by default, so

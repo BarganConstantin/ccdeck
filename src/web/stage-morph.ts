@@ -111,6 +111,29 @@ export interface MorphFrame {
   rider: { transform: string; opacity: number } | null;
 }
 
+/**
+ * The morph under reduced motion: a crossfade, no travel (Figma "Stage motion",
+ * motion.md rule 10: travel goes, fades stay). The stage stays in its column,
+ * cut to the column's box from the first frame, with no rider and no edge
+ * drawn, and only its opacity moves — up on an open, down on a close — while
+ * the board under it fades the other way. Everything the header holds back
+ * for the rider (`late`, `chip`) is simply there, because there is no rider.
+ */
+export function crossfadeFrame(plan: MorphPlan, e: number): MorphFrame {
+  const open = plan.direction === "open";
+  const column = open ? plan.to : plan.from;
+  return {
+    clip: clipInset(column, plan.w, plan.h, 0),
+    edge: { rect: column, radius: 0, opacity: 0 },
+    content: 1,
+    late: 1,
+    chip: 1,
+    stage: open ? e : 1 - e,
+    board: open ? 1 - e : e,
+    rider: null,
+  };
+}
+
 /** One frame of `plan` at eased progress `e` (0 → 1 along its direction). */
 export function morphFrame(plan: MorphPlan, e: number): MorphFrame {
   const open = plan.direction === "open";

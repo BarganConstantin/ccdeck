@@ -16,6 +16,7 @@ import { isAlarming, type BlockedSession } from "../../ambient-counts";
 import { SEP } from "../../cluster-header";
 import { distinctIdTail } from "../../session-id-tail";
 import { FACE_WORDS } from "../../board-navigator";
+import { contextFill } from "../../context-figure";
 import { faceSignal } from "../../node-face";
 import { shortAgo } from "../../relative-time";
 import { sessionHue } from "../../session-hue";
@@ -86,6 +87,13 @@ export function boardFactsFor(root: AgentNodeData, subagents: readonly AgentNode
   };
 }
 
+/** How full the session's context window is: what the Inspector's Context tab
+ *  prints, from the same function, so the chip and the tab cannot disagree. */
+export function contextUseOf(root: AgentNodeData): { used: number; window: number } {
+  const { used, limit } = contextFill(root);
+  return { used, window: limit };
+}
+
 /** A session's name on the board, before any telling apart. */
 const boardName = (a: AgentNodeData) => a.label || a.cwdBasename || a.sessionId.slice(0, 8);
 
@@ -150,6 +158,8 @@ export function stageShowFor(
       model: root.model ?? null,
       effort: root.effort ?? null,
       status: stageStatusFrom(facts, now),
+      // The Inspector's Context tab reads the same two numbers (contextFill).
+      contextUse: contextUseOf(root),
       // While the pane attaches: what the face says the session is doing, or
       // failing that, what it was last asked.
       ghostLine: signal?.long ?? promptLine(lastPrompt),
@@ -164,13 +174,12 @@ export function stageShowFor(
 }
 
 /**
- * The keys bar's half of an asks run (use-asks.ts's view): segment states, the
+ * The keys bar's half of an asks run (use-asks.ts's view): the
  * "1 of 2" (the bar counts from zero), the answered session's name, and the
  * next ask with how long it has waited — or null when there is no run.
  */
 export function barAsks(view: RunView, waiting: readonly BlockedSession[], now: number): BarAsks | null {
   if (view.track.length === 0) return null;
-  const fresh = view.track.findIndex(s => s.fresh);
   let next: BarAsks["next"] = null;
   if (view.next) {
     const w = waiting.find(s => s.id === view.next!.id);
@@ -181,8 +190,6 @@ export function barAsks(view: RunView, waiting: readonly BlockedSession[], now: 
     };
   }
   return {
-    segments: view.track.map(s => s.state),
-    freshIndex: fresh >= 0 ? fresh : null,
     position: view.position ? { index: view.position.index - 1, total: view.position.total } : null,
     resumed: view.resumed?.label ?? null,
     next,

@@ -120,6 +120,9 @@ export interface StageSessionInfo {
   effort?: string | null;
   /** The face's sentence — stageStatusFrom(board facts, now). */
   status: StageStatus;
+  /** How full the session's context window is, the Inspector's two numbers
+   *  (contextFill), for the header's chip. */
+  contextUse?: { used: number; window: number } | null;
   /** The last line the board knew, shown while the pane attaches. */
   ghostLine?: string | null;
   /** Where the session runs, for the card shown when it cannot be attached. */
@@ -235,13 +238,13 @@ export function endView(
   if (phase.kind === "ended") {
     if (show.kind === "launch" && act.launchAgain) {
       const name = agentName(show.agent);
-      return { sentence: `${name} exited — this is its last frame.`, action: `Start ${name} again`, onAction: act.launchAgain };
+      return { sentence: `${name} exited. This is its last frame.`, action: `Start ${name} again`, onAction: act.launchAgain };
     }
     const ago = show.kind === "session" ? show.session.endedAgo : null;
-    return { sentence: `The session ended${ago ? ` ${ago}` : ""} — this is its last frame.`, action: "Reopen here", onAction: act.reopen };
+    return { sentence: `The session ended${ago ? ` ${ago}` : ""}. This is its last frame.`, action: "Reopen here", onAction: act.reopen };
   }
   if (phase.kind === "detached") {
-    return { sentence: "Another view took this pane over — the session keeps running.", action: "Attach again", onAction: act.attachAgain };
+    return { sentence: "Another view took this pane over. The session keeps running.", action: "Attach again", onAction: act.attachAgain };
   }
   return null;
 }
@@ -455,6 +458,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         canFull={fullStage.can}
         full={fullStage.full}
         takeover={p.geometry.takeover}
+        context={p.show.kind === "session" ? p.show.session.contextUse : null}
         nothingRunning={p.show.kind === "empty" || phase.kind === "ended"
           || (subject.kind === "launch" && (phase.kind === "error" || phase.kind === "tmux-missing" || phase.kind === "tmux-installing"))}
         onKeys={() => {

@@ -82,7 +82,6 @@ export const PlusGlyph = () => <Glyph><path d="M8 3v10M3 8h10" /></Glyph>;
 export const CopyGlyph = () => (
   <Glyph><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" /><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" /></Glyph>
 );
-export const ChevronGlyph = () => <Glyph size={12} box={12}><path d="M4.5 2.5 8 6l-3.5 3.5" /></Glyph>;
 export const TerminalGlyph = () => (
   <Glyph size={28} box={28}><rect x="2.5" y="5" width="23" height="18" rx="3" /><path d="M8 11l3.5 3L8 17M14 17.5h6" /></Glyph>
 );

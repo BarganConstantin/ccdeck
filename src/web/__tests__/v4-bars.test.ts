@@ -133,7 +133,9 @@ describe("V4's chips: 24 tall, 12 on 16", () => {
     expect(decl(pill, "font-size")).toBe(INC(12));
     expect(decl(pill, "line-height")).toBe("16px");
     expect(decl(pill, "font-weight")).toBe("400");
-    for (const [state, token] of [["live", "--ok"], ["paused", "--warn"], ["dead", "--err"]] as const) {
+    // Live has no chip (V4 decision 19): only the two states the bar draws.
+    expect(decl(`${pill}.live`, "border-color"), "no rule dresses a live chip").toBeUndefined();
+    for (const [state, token] of [["paused", "--warn"], ["dead", "--err"]] as const) {
       expect(decl(`${pill}.${state}`, "border-color"), state).toBe(`var(${token})`);
       expect(decl(`${pill}.${state}`, "background"), state).toBeUndefined();
       expect(decl(`${pill}.${state}::before`, "width"), state).toBe("6px");
@@ -146,8 +148,8 @@ describe("V4's chips: 24 tall, 12 on 16", () => {
     expect(decl(`${pill} .pill-box`, "display")).toBe("inline-grid");
     expect(decl(`${pill} .pill-widest`, "visibility")).toBe("hidden");
   });
-  it("the live dot keeps the pulse it had (opacity only), and the paused and lost dots stand still", () => {
-    expect(decl(`${pill}.live::before`, "animation")).toBe("pulse 1.6s ease-in-out infinite");
+  it("has no live dot to pulse, and the paused and lost dots stand still (V4 decision 19)", () => {
+    expect(decl(`${pill}.live::before`, "animation")).toBeUndefined();
     expect(decl(`${pill}.paused::before`, "animation")).toBeUndefined();
     expect(decl(`${pill}.dead::before`, "animation")).toBeUndefined();
   });
@@ -195,8 +197,10 @@ describe("V4's chips: 24 tall, 12 on 16", () => {
     for (const r of own) expect(JSON.stringify(r.decls), r.selectors.join(", ")).not.toContain("--warn");
     expect(decl(`${ver} .v-dot`, "background")).toBe("var(--accent)");
     expect(decl(`${ver} .v-dot`, "box-shadow")).toBeUndefined();
-    expect(decl(`${ver} .v-dot`, "animation")).toBe("pulse var(--pulse-live) infinite");
-    expect(decl(`${ver} .v-dot`, "animation", REDUCED)).toBe("none");
+    // A still dot (V4 decision 19): nothing on the top bar pulses at rest, so
+    // there is no animation for reduced motion to take away either.
+    expect(decl(`${ver} .v-dot`, "animation")).toBeUndefined();
+    expect(decl(`${ver} .v-dot`, "animation", REDUCED)).toBeUndefined();
   });
   it("the current version stays visible and quiet", () => {
     expect(decl(`${ver}:not(.stale):not(.ready)`, "color")).toBe("var(--muted)");
