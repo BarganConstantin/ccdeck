@@ -78,7 +78,8 @@ const V4_AHEAD_OF_READERS = [
   // V4's Settings: --dock (the nav column) and --row-settings (a row's height) are read now.
   "--sunken", "--your-message",
   // V4's rail: --rail-w, --pane-head-h, --row-rail and --row-group are read now.
-  "--inspector-w", "--row-tool", "--row-option",
+  // V4's Inspector: --inspector-w is the detail column's width now.
+  "--row-tool", "--row-option",
   // V4's banner: --ctl-h-lg is read now (the banner strip's min-height).
   // V4's bars: --r-pill is read now (the top bar's chips).
   "--ctl-h-sm",

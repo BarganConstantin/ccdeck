@@ -228,6 +228,10 @@ const EXEMPT = new Map<string, string>([
   // stretched over the row, whose name, commit and stats are what is drawn.
   // forge/BranchesTab.tsx.
   ["fgl-hit", "a hit area stretched over a branch row, which is what is drawn"],
+  // The keyboard's stop for a card in the Inspector's tree: an invisible button
+  // over the card, named for the agent, whose ring and mark are drawn on the
+  // agent card beside it. components/Inspector.tsx.
+  ["insp-pick", "an invisible stop over an agent card, which is what is drawn"],
 ]);
 
 const exemption = (classes: readonly string[]) => classes.find(c => EXEMPT.has(c));

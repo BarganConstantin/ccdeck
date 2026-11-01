@@ -29,7 +29,9 @@ const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), 
   + "\n" + readFileSync(fileURLToPath(new URL("../use-agent-focus.ts", import.meta.url)), "utf8")
   + "\n" + readFileSync(fileURLToPath(new URL("../use-canvas-clicks.ts", import.meta.url)), "utf8")
   + "\n" + readFileSync(fileURLToPath(new URL("../components/BoardFlow.tsx", import.meta.url)), "utf8")
-  + "\n" + readFileSync(fileURLToPath(new URL("../components/DetailAside.tsx", import.meta.url)), "utf8");
+  + "\n" + readFileSync(fileURLToPath(new URL("../components/DetailAside.tsx", import.meta.url)), "utf8")
+  // The close is the Inspector's Fold now, in the header it draws.
+  + "\n" + readFileSync(fileURLToPath(new URL("../components/Inspector.tsx", import.meta.url)), "utf8");
 const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");

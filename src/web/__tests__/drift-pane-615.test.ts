@@ -170,10 +170,18 @@ function sessionListWidth(): number {
   return Number(m![1]);
 }
 
+/** The detail column's width, the Default density's: the grid track reads
+ *  --inspector-w since V4's Inspector, as the rail reads --rail-w. */
+function inspectorWidth(): number {
+  const m = /--inspector-w:\s*(\d+)px/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""));
+  expect(m, "--inspector-w declares the Default width").toBeTruthy();
+  return Number(m![1]);
+}
+
 /** The panel pixels each layout a template stands for gives away. */
 function panelPixels(columns: string): number[] {
   const fixed = columns.split(/\s+/)
-    .map(t => /^(\d+(?:\.\d+)?)px$/.exec(t))
+    .map(t => t === "var(--inspector-w)" ? [t, String(inspectorWidth())] : /^(\d+(?:\.\d+)?)px$/.exec(t))
     .reduce((sum, px) => sum + (px ? Number(px[1]) : 0), 0);
   // An `auto` first track is the left column, as wide as whichever panel is
   // in it — one rule for two layouts since 2026-10-08. Counting zero for it

@@ -174,17 +174,20 @@ describe("a selected session on a narrow window (#1790)", () => {
   });
 
   it("keeps the wide layout exactly as it was: a 360px column beside the canvas", () => {
+    // The track reads --inspector-w since V4's Inspector, and the Default
+    // density's value of it is the 360px this test is named for.
+    expect(token("--inspector-w", 1280)).toBe("360px");
     for (const width of [648, 900, 1280]) {
-      expect(layout("none", width)).toMatchObject({ template: "1fr 360px", overlay: false });
+      expect(layout("none", width)).toMatchObject({ template: "1fr var(--inspector-w)", overlay: false });
       // `auto` since 2026-10-08: the track is the left column's, which is the
       // session list's 288px while the list is in it (styles/left-column.css).
-      expect(layout("sessions", width)).toMatchObject({ template: "auto 1fr 360px", overlay: false });
+      expect(layout("sessions", width)).toMatchObject({ template: "auto 1fr var(--inspector-w)", overlay: false });
     }
     // With Accounts open the panel and the column are 648px between them, so
     // from 641 to 647px the column gives up what the window lacks (#1840) —
     // still a column, never the sheet.
     for (const width of [648, 900, 1280]) {
-      expect(layout("accounts", width)).toMatchObject({ template: "auto 1fr 360px", overlay: false });
+      expect(layout("accounts", width)).toMatchObject({ template: "auto 1fr var(--inspector-w)", overlay: false });
     }
     expect(resolve("detail", "position", "accounts", 641) ?? "static").toBe("relative");
   });
