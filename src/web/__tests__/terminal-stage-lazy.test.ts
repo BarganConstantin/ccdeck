@@ -93,6 +93,12 @@ describe("what a visit loads with the terminal flag off", () => {
       /^use-terminal-session\.ts$/,
       /^terminal-protocol\.ts$/,
       /^xterm-sheet\.ts$/,
+      // Chat and the Decision card: their flags, their one door and the screens.
+      /^components\/chat\//,
+      /^components\/decision\//,
+      /^components\/screens\.ts$/,
+      /^use-screens\.ts$/,
+      /^use-screen-flags\.ts$/,
     ];
     expect(reached.filter(p => lazyOnly.some(re => re.test(p)))).toEqual([]);
   });

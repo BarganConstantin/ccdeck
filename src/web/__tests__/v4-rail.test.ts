@@ -219,8 +219,8 @@ describe("Rail / Row (22:804…22:754)", () => {
     expect(parts).not.toMatch(/sl-cost|sl-plan|sl-recap|sl-status|sl-elapsed|model-chip/);
   });
 
-  it("keeps a phone row at 44 or more", () => {
-    expect(decl(".session-list .sl-row", "min-height", "(max-width: 640px)")).toBe("max(var(--row-rail), 44px)");
+  it("keeps a phone row at 44 or more: the phone frame's 62", () => {
+    expect(decl(".session-list .sl-row", "min-height", "(max-width: 640px)")).toBe("62px");
   });
 
   // control-edges.test.ts used to list this rule as an exemption from its edge

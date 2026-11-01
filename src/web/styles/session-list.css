@@ -393,9 +393,10 @@
 }
 .session-list .sl-nobody .sl-glyph { height: 14px; padding-top: 0; }
 
-/* The phone keeps the drawer, and a touch target of 44 (Phase 4 redoes it). */
+/* The phone keeps the drawer, full width (left-column.css), and its rows are
+   the 62 high the phone frame draws, a touch target well over 44. */
 @media (max-width: 640px) {
-  .session-list .sl-row { min-height: max(var(--row-rail), 44px); }
+  .session-list .sl-row { min-height: 62px; }
   .session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }
   .session-list .sl-close { min-width: 44px; min-height: 44px; }
 }

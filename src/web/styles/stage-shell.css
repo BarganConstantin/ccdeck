@@ -56,6 +56,12 @@
 @media (max-width: 640px) {
   .app:has(.session-list) .stage-dock,
   .app:has(.accounts-panel) .stage-dock { grid-column: 1; }
+  /* The Term takeover as the phone frame draws it: a header 56 high with a back
+     button a thumb can hit (32 wide, 44 high), and a note under the terminal
+     52 high with room to read. The stage measures both as drawn. */
+  .ts-stage[data-takeover] .ts-head { height: 56px; }
+  .ts-stage[data-takeover] .ts-head > .glyph-btn { width: 32px; height: 44px; }
+  .ts-stage[data-takeover] .ts-bar { height: auto; min-height: 52px; padding-inline: 16px; }
 }
 
 /* While it grows out of a card or back into one, the stage covers the whole

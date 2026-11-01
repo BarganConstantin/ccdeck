@@ -123,4 +123,8 @@
     max-width: 100vw;
     box-shadow: var(--shadow-2);
   }
+  /* Rail first: the drawer is the whole width of the screen, and the panel in it. */
+  .left-column { width: 100vw; }
+  .left-column > .session-list,
+  .left-column > .accounts-panel { width: 100%; }
 }
