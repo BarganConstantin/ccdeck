@@ -164,6 +164,10 @@ function Inner() {
 
   const { selectedIds, primarySelectedId, selectAgent, clearSelection, pruneSelectionToBoard } =
     useSelection(stateRef, setDetailOpen);
+  /** A card in the Inspector's tree was pressed. One function for the life of
+   *  the selection hook's callback, so the tree's memoised rows see no new prop
+   *  on every render. */
+  const selectInspected = useCallback((id: string) => selectAgent(id, false, false), [selectAgent]);
   /** Both panels outlive their own `false` by the length of their exit: a
    *  close slides the panel out with the column's edge, and a switch fades the
    *  one leaving under the one arriving. Must match `--side-exit` in the sheet. */
@@ -1032,7 +1036,7 @@ function Inner() {
         <DetailAside
           selected={selected} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
           stateRef={stateRef} removeSelectedNode={removeSelectedNode}
-          onSelectAgent={id => selectAgent(id, false, false)}
+          onSelectAgent={selectInspected}
           onClose={() => { panelReturn.detail(); setDetailOpen(false); }}
         />
       ) : null}

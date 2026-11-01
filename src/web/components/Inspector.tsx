@@ -13,10 +13,9 @@
 // only measured split is /api/tool-audit's, which has no per-session filter; a
 // panel built on guesses would print numbers the deck does not have. See
 // inspector-tab.ts.
-import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { memo, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { agentAriaLabel } from "../agent-copy";
-import { effectiveContextWindow } from "../context-window";
 import { agentTree, sessionCostLabel, subagentCount, type TreeRow } from "../inspector-tree";
 import {
   INSPECTOR_TAB_LABEL, INSPECTOR_TABS, loadInspectorTab, saveInspectorTab, type InspectorTab,
@@ -26,7 +25,7 @@ import { tabStripMove } from "../tablist-keys";
 import { fmtTokens } from "../token-format";
 import type { AgentNodeData } from "../types";
 import { AgentCard } from "./AgentNode";
-import { ContextView, contextCopy } from "./ContextModal";
+import { ContextView, contextCopy, contextFill } from "./ContextModal";
 import { CapacityGlyph, SessionListGlyph } from "./rail-glyphs";
 
 const TAB_GLYPH: Record<InspectorTab, () => ReactNode> = {
@@ -34,11 +33,15 @@ const TAB_GLYPH: Record<InspectorTab, () => ReactNode> = {
   context: CapacityGlyph,
 };
 
-export default function Inspector({ selected, agents, onSelectAgent, onClose, detail }: {
+export default function Inspector({ selected, agents, revision = 0, onSelectAgent, onClose, detail }: {
   /** The primary selection, which is what the panel is about. */
   selected: AgentNodeData;
   /** Every agent on the board, from which the session's tree is read. */
   agents: ReadonlyMap<string, AgentNodeData>;
+  /** The graph's `revision` (graph-state.ts). The reducer mutates agents in
+   *  place and keeps their identity, so the revision is what says the tree's
+   *  rows, and the cards in them, may have changed. */
+  revision?: number;
   /** A card in the tree was pressed: select that agent, as pressing it on the board does. */
   onSelectAgent: (id: string) => void;
   /** Fold: what the panel's close has always done. */
@@ -59,7 +62,6 @@ export default function Inspector({ selected, agents, onSelectAgent, onClose, de
     choose(next);
     tabRefs.current[next]?.focus();
   };
-  const root = agents.get(selected.sessionId) ?? selected;
 
   return (
     <>
@@ -103,8 +105,8 @@ export default function Inspector({ selected, agents, onSelectAgent, onClose, de
           className="insp-b"
           hidden={tab !== t}
         >
-          {tab === t && t === "agents" && <AgentsTab selected={selected} agents={agents} onSelectAgent={onSelectAgent} detail={detail} />}
-          {tab === t && t === "context" && <ContextTab agent={root} />}
+          {tab === t && t === "agents" && <AgentsTab selected={selected} agents={agents} revision={revision} onSelectAgent={onSelectAgent} detail={detail} />}
+          {tab === t && t === "context" && <ContextTab agent={selected} />}
         </div>
       ))}
     </>
@@ -124,13 +126,18 @@ function InspectorHead({ title, qualifier, figure }: { title: string; qualifier?
   );
 }
 
-function AgentsTab({ selected, agents, onSelectAgent, detail }: {
+function AgentsTab({ selected, agents, revision, onSelectAgent, detail }: {
   selected: AgentNodeData;
   agents: ReadonlyMap<string, AgentNodeData>;
+  revision: number;
   onSelectAgent: (id: string) => void;
   detail: ReactNode;
 }) {
-  const rows = agentTree(agents, selected.sessionId);
+  // `agents` is the graph's own Map, mutated in place, so its identity never
+  // moves; the revision is what does (the board's nodeDataFor memo keys on it
+  // the same way).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const rows = useMemo(() => agentTree(agents, selected.sessionId), [agents, selected.sessionId, revision]);
   return (
     <>
       <InspectorHead
@@ -139,7 +146,7 @@ function AgentsTab({ selected, agents, onSelectAgent, detail }: {
         figure={rows.length > 0 ? sessionCostLabel(rows[0].agent) : null}
       />
       <ul className="insp-tree">
-        {rows.map(row => <TreeItem key={row.agent.id} row={row} current={row.agent.id === selected.id} onSelectAgent={onSelectAgent} />)}
+        {rows.map(row => <TreeItem key={row.agent.id} row={row} revision={revision} current={row.agent.id === selected.id} onSelectAgent={onSelectAgent} />)}
       </ul>
       <p className="insp-note">Who started whom, read from the transcript. Each card shows its own model, cost and time.</p>
       <div className="insp-detail">{detail}</div>
@@ -149,7 +156,7 @@ function AgentsTab({ selected, agents, onSelectAgent, detail }: {
 
 /** One agent of the tree: its gutter of tree lines, then its card. The card is
  *  read-only here, so the cell around it takes the press and the keys. */
-function TreeItem({ row, current, onSelectAgent }: { row: TreeRow; current: boolean; onSelectAgent: (id: string) => void }) {
+const TreeItem = memo(function TreeItem({ row, current, onSelectAgent }: { row: TreeRow; revision: number; current: boolean; onSelectAgent: (id: string) => void }) {
   const id = row.agent.id;
   return (
     <li className="insp-row" data-depth={row.depth}>
@@ -177,18 +184,22 @@ function TreeItem({ row, current, onSelectAgent }: { row: TreeRow; current: bool
       </div>
     </li>
   );
-}
+}, (a, b) =>
+  // The agent object keeps its identity while its fields change, so the
+  // revision stands in for "unchanged": a tick that moved nothing skips every
+  // card, an event re-draws them.
+  a.row.agent === b.row.agent && a.revision === b.revision && a.row.depth === b.row.depth
+  && a.row.more.length === b.row.more.length && a.row.more.every((m, i) => m === b.row.more[i])
+  && a.current === b.current && a.onSelectAgent === b.onSelectAgent);
 
 function ContextTab({ agent }: { agent: AgentNodeData }) {
-  const used = agent.context?.currentContextTokens ?? 0;
-  const limit = effectiveContextWindow(agent.contextWindow, agent.model);
-  const pct = Math.min(100, Math.round((used / limit) * 100));
+  const { used, limit, pct } = contextFill(agent);
   return (
     <>
       <InspectorHead
         title="Context window"
         qualifier={agent.model ? modelChipText(agent.model) : null}
-        figure={`${fmtTokens(used)} / ${fmtTokens(limit)} · ${pct}%`}
+        figure={`${fmtTokens(used)} / ${fmtTokens(limit)} · ${pct.toFixed(1)}%`}
       />
       <ContextView agent={agent} />
       {/* Figma's treemap and its legend need a token count per category (tool

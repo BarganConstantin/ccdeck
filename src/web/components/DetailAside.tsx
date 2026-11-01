@@ -66,6 +66,7 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
       <Inspector
         selected={selected}
         agents={stateRef.current.agents}
+        revision={stateRef.current.revision}
         onSelectAgent={onSelectAgent}
         onClose={onClose}
         detail={
