@@ -29,9 +29,11 @@ export function StateMark({ kind, size = 10 }: { kind: StateMarkKind; size?: num
 
 /**
  * The session is stopped until a human answers — the one state a face at a
- * distance must not lose. A warning triangle rather than a fourth disc: it
- * stands beside the state mark instead of replacing it, because a permission
- * prompt lands on a session that is still live and the reader needs both.
+ * distance must not lose. A warning triangle rather than a fourth disc. On the
+ * zoomed-out face, which has no word, it stands BESIDE the state mark, because
+ * a permission prompt lands on a session that is still live and the reader
+ * needs both. On the detail card the word "Waiting" names the state, so the
+ * triangle REPLACES the mark there (cardState, node-face.ts).
  */
 export function AlertMark({ size = 12 }: { size?: number }) {
   return (

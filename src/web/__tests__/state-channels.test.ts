@@ -495,7 +495,12 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // with two names. StatePill and both lists go through the same function.
     expect(agentCopy).toMatch(/export function stateLabel\(state: AgentNodeData\["state"\]\): string/);
     expect(agentCopy).toMatch(/state === "active" \? "live" : state === "done" \? "done" : "err"/);
-    expect(agentNode).toMatch(/<span className=\{`state-pill state-\$\{state\}`\}>\{stateLabel\(state\)\}<\/span>/);
+    // V4's card is the one surface that says it in sentence case ("Working",
+    // "Done", "Failed", "Waiting"), through cardState (node-face.ts) in the
+    // state's own token; the lists and the card's accessible name keep the
+    // stateLabel words below.
+    expect(agentNode).toMatch(/<span className="state-word">\{state\.word\}<\/span>/);
+    expect(agentNode).not.toMatch(/state-pill/);
     for (const [name, src] of [["RailParts", railParts], ["UsageSessionBreakdown", sessionBreakdown]] as const) {
       expect(src, name).toMatch(/import \{[^}]*\bstateLabel\b[^}]*\} from "\.\.\/agent-copy"/);
       expect(src, `${name} re-states the vocabulary`).not.toMatch(/\? "live"/);

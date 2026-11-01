@@ -80,7 +80,8 @@ describe("the sheet", () => {
 
 describe("every surface that draws a chip stamps the family on it", () => {
   const surfaces: Array<[string, string]> = [
-    ["AgentNode", "../components/AgentNode.tsx"],
+    // AgentNode is not here any more: V4's card draws the model as plain mono
+    // text (.model-text), no chip and no tint — v4-agent-card.test.ts holds it.
     ["Detail hero", "../components/Detail.tsx"],
     // (The session list left this table with V4's Attention rail: a rail row
     // names its model as a plain mono tag in --muted, Figma's Rail / Row, so it
