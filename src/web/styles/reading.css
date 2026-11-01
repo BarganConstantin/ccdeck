@@ -29,8 +29,8 @@
 /* The account rows' key, percentage and reset columns are fixed widths sized
    for 11px words; they take their share of the wider panel so "Fable" and
    "1d 23h" are not cut. */
-:root[data-text-size="larger"] .ap-lane { grid-template-columns: 40px minmax(0, 1fr) 36px 52px; }
-:root[data-text-size="largest"] .ap-lane { grid-template-columns: 46px minmax(0, 1fr) 40px 60px; }
+:root[data-text-size="larger"] .ap-lane { grid-template-columns: 40px minmax(0, 1fr) 36px minmax(52px, max-content); }
+:root[data-text-size="largest"] .ap-lane { grid-template-columns: 46px minmax(0, 1fr) 40px minmax(60px, max-content); }
 /* Cards and their notes on the canvas widen and narrow with their text, the
    15px per pixel of text that keeps a title as long as it was: the canvas
    measures every card, so the layout follows. */

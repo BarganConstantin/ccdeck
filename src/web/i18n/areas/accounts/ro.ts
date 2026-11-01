@@ -645,6 +645,9 @@ const catalog: Catalog = {
   "accounts.fail.login.claudeMissing": "CLI-ul claude nu a putut fi rulat: nu este în PATH. Setează AGENTS_DECK_CLAUDE la calea lui completă.",
   "accounts.fail.login.cswapMissing": "cswap nu a putut fi rulat: nu este în PATH și nici în locurile unde instalează uv și pipx. Setează AGENTS_DECK_CSWAP la calea lui completă.",
   "accounts.fail.login.tookLong": "{what} a durat prea mult și a fost oprit",
+  "accounts.switch.label": "Arată conturile pentru",
+  "accounts.switch.attention": "{name}, necesită atenție",
+  "accounts.switch.attentionTip": "Contul {name} curent necesită atenție",
 };
 
 export default catalog;
