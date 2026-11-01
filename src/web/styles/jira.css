@@ -191,7 +191,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-item { min-width: 0; }
 .jr-item + .jr-item { border-top: 1px solid var(--line-soft); }
 .jr-subrows { border-top: 1px solid var(--line-soft); background: color-mix(in srgb, var(--bg) 35%, transparent); }
-.jr-row { display: flex; align-items: stretch; min-width: 0; min-height: 34px; }
+.jr-row { display: flex; align-items: stretch; min-width: 0; min-height: 34px; border-radius: var(--r-tag); }
 .jr-subrow { padding-left: 20px; }
 .jr-toggle, .jr-toggle-space { flex: none; width: 28px; }
 .jr-toggle {
@@ -234,13 +234,13 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-row-preview dd { margin: 0; min-width: 0; color: var(--text-secondary); white-space: normal; overflow-wrap: anywhere; }
 /* Selection and keyboard focus share the whole row boundary. The disclosure
    and Move controls retain their own focused hitbox. */
-.jr-row:has(> .jr-row-main:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--r-tag); }
+.jr-row:has(> .jr-row-main:focus-visible) { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 .jr-row-main:focus-visible { outline: none; }
 .jr-row[draggable="true"] { cursor: grab; }
 .jr-row[data-dragging] { background: var(--ig-sel-fill, var(--accent-dim)); }
 .jr-row[data-drop="before"] { box-shadow: inset 0 2px var(--accent); }
 .jr-row[data-drop="after"] { box-shadow: inset 0 -2px var(--accent); }
-.jr-group[data-drop-group] > .jr-group-head { outline: 2px solid var(--accent); outline-offset: -2px; }
+.jr-group[data-drop-group] > .jr-group-head { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 .jr-move-button {
   flex: none;
   align-self: center;
@@ -514,7 +514,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   transition: background-color 120ms;
 }
 .jr-detail-subtasks .jr-detail-sub:active { background: color-mix(in srgb, var(--text) 10%, transparent); }
-.jr-detail-sub:focus-visible { outline-offset: -2px; }
 .jr-files { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .jr-files li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; min-width: 0; }
 .jr-more-link { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); }

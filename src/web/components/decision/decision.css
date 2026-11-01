@@ -260,14 +260,14 @@
    drawn. */
 @media (forced-colors: active) {
   .dc-opt:focus-visible,
-  .dc-opt[data-focus] { outline: 2px solid Highlight; outline-offset: 2px; }
+  .dc-opt[data-focus] { outline: var(--focus-w) solid Highlight; outline-offset: calc(-1 * var(--focus-w)); }
   .dc-opt[data-checked],
   .dc-opt[role="checkbox"][data-checked] { border-color: Highlight; border-width: 2px; }
   .dc-box[data-on] { background: Highlight; border-color: Highlight; forced-color-adjust: none; }
   .dc-box[data-on]::after { border-color: HighlightText; }
   .dc-opt[data-locked] { border-style: dashed; border-color: GrayText; color: GrayText; }
   .dc-opt[data-locked] .dc-opt-label { color: GrayText; }
-  .dc-input:focus-visible { outline: 2px solid Highlight; }
+  .dc-input:focus-visible { outline: var(--focus-w) solid Highlight; outline-offset: calc(-1 * var(--focus-w)); }
 }
 
 /* Alone in the pane (a question under the terminal), the dock sits on its foot. */

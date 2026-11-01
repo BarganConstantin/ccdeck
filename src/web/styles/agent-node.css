@@ -106,8 +106,8 @@
    selection's, because the card is the box with the radius and the session's
    own --accent. Focus without selection still reads apart: no lift. */
 .react-flow__node:focus-visible .agent-node {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--focus-w) solid var(--accent);
+  outline-offset: calc(-1 * var(--focus-w));
 }
 
 /* React Flow still renders its stock keyboard instructions into the page
@@ -230,8 +230,8 @@
   outline-offset: 2px;
 }
 .react-flow__node:focus-visible .lod-face {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--focus-w) solid var(--accent);
+  outline-offset: calc(-1 * var(--focus-w));
 }
 
 /* The lines. The name leads at the card's own 12px weight; the title and the
@@ -406,8 +406,4 @@
    scale the pointer sees. 26px of donut, so 0.94 like the other icon targets —
    0.97 of 26px is under a pixel. */
 .ctx-donut:active { transform: scale(0.94); }
-.ctx-donut:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
 

@@ -89,7 +89,6 @@
 /* The shared ring sits 2px out, which is right for a rectangle it has to clear
    the corners of. A circle has no corners to clear and 2px leaves a visible gap,
    so this one hugs. */
-.glyph-btn:focus-visible { outline-offset: 1px; }
 @media (hover: hover) and (pointer: fine) {
 .glyph-btn:hover { color: var(--text); }
 }

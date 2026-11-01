@@ -59,8 +59,8 @@
   border-radius: 10px;
 }
 .qo-field:has(.qo-input:focus-visible) {
-  outline: 2px solid var(--accent);
-  outline-offset: -6px;
+  outline: var(--focus-w) solid var(--accent);
+  outline-offset: calc(-1 * var(--focus-w));
 }
 .qo-field > .glyph {
   width: 16px;

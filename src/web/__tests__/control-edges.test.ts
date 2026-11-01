@@ -142,6 +142,8 @@ const decl = (selector: string, prop: string) => declIn(bodyOf(selector), prop);
  *  counted rather than matched lazily: `color-mix(in srgb, var(--x) 6%, …)`
  *  nests, and a `[^)]*` stops inside it. */
 function colourIn(value: string): string {
+  // V4's Figma: the focus width is a token, not a colour (--focus-w).
+  value = value.replace(/var\(--focus-w\)/g, "1.5px");
   const head = /(color-mix|var|rgba?)\(/i.exec(value);
   if (head) {
     const open = head.index + head[0].length - 1;
@@ -536,7 +538,7 @@ const CONTROLS: Control[] = [
   { at: '.radio-controls .radio-mute[aria-pressed="true"]', beds: ["--bg-soft"] },
   { at: ".radio-search", states: [".radio-search:hover:not(:focus-within)"], beds: ["--panel", "--bg-soft"] },
   { at: ".radio-filter-search input", states: [".radio-filter-search input:focus-visible"], beds: ["--panel"] },
-  { at: ".radio-filter-trigger", states: ['.radio-filter-trigger[data-filtered="true"]', ".radio-filter-trigger:focus-visible", ".radio-filter-trigger:hover"], beds: ["--panel", "--bg-soft"] },
+  { at: ".radio-filter-trigger", states: ['.radio-filter-trigger[data-filtered="true"]', ".radio-filter-trigger:hover"], beds: ["--panel", "--bg-soft"] },
   { at: ".radio-map-tools .radio-map-button", beds: ["--bg"] },
   { at: ".radio-play", states: [".radio-play:not(:disabled):hover"], beds: ["--bg-soft"] },
   { at: '.character-choice', beds: ["--panel"] },
@@ -886,19 +888,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // (#869) makes eleven: React Flow strips the global ring from the node
     // wrapper, so the card draws its own and the ring is its keyboard boundary.
     expect(RING_RULES.flatMap(r => selectors(r.selector)).sort()).toEqual([
-      ".aa-field input:focus-visible",
-      ".ap-field select:focus-visible",
-      ".ap-lan-word:focus-visible",
-      ".ap-manage-input:focus-visible",
-      ".ap-proj-copy:focus-visible",
       // The Projects report's day column: its selection ring and its keyboard
       // focus ring are the whole of its boundary — the bar itself has no box.
       ".ap-proj-day.selected .ap-proj-col",
-      ".ap-proj-day:focus-visible",
-      ".appearance-theme:focus-visible",
-      ".cat-filter:focus-visible",
-      ".character-choice:focus-visible",
-      ".ctx-donut:focus-visible",
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
       ".fb-kind:has(input:focus-visible)",
@@ -915,29 +907,14 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // Quick open's field: the input in it is borderless, so the row it
       // sits in draws the ring, as the feedback kinds' cards do.
       ".qo-field:has(.qo-input:focus-visible)",
-      ".radio-collection:focus-visible",
-      ".radio-filter-back:focus-visible",
-      ".radio-filter-chip:focus-visible",
-      ".radio-filter-field:focus-visible",
-      ".radio-filter-search input:focus-visible",
-      ".radio-filter-toggle:focus-visible",
-      ".radio-filter-trigger:focus-visible",
-      ".radio-list:focus-visible",
-      ".radio-loading > .icon-btn:focus-visible",
-      ".radio-map-canvas:focus-visible",
-      ".radio-reset:focus-visible",
-      ".radio-workspace-toggle:focus-visible",
       ".react-flow__node:focus-visible .agent-node",
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.
       ".react-flow__node:focus-visible .lod-face",
       ".reading-choice:has(input:focus-visible)",
-      ".selected-ribbon:focus-visible",
       // Settings' search results: the highlight the arrows move while focus
       // stays in the field — VIRTUAL_FOCUS again (SettingsSearch.tsx).
       '.settings-result[data-highlighted="true"]',
-      ".switch:focus-visible",
-      '.tr-body :is(button, input, select, summary):focus-visible',
       ".uh-bar-col.sel .uh-bar",
       ":focus-visible",
     ]);
@@ -1298,6 +1275,16 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       ".cluster-label[data-alarm]",
       // A labelled region button: its rim conveys selection, not identity.
       '.radio-regions .radio-region[aria-pressed="true"]',
+      // The text-field family's focus state (V4's Figma: no ring, the 1px border
+      // turns --accent, --err when invalid). A state recolour of an edge the
+      // sweep above measures at rest; its colours are held to 3:1 on every bed
+      // by "the text-field focus border" test below.
+      ".settings-filter-field:focus-visible", ".sm-select:focus-visible", ".ap-manage-input:focus-visible",
+      ".aa-field input:focus-visible", ".tr-input:focus-visible", ".tr-select:focus-visible",
+      ".qh-window select:focus-visible", ".jr-move-pop select:focus-visible", ".jr-transition select:focus-visible",
+      ".jr-comment-compose textarea:focus-visible", ".su-pricing select:focus-visible",
+      ".ap-field select:focus-visible", ".ap-pop .ap-field select:focus-visible", ".bw-settings select:focus-visible",
+      'input[aria-invalid="true"]:focus-visible', 'textarea[aria-invalid="true"]:focus-visible', 'select[aria-invalid="true"]:focus-visible',
     ]);
     const swept = new Set<string>();
     for (const c of CONTROLS) {
@@ -1382,6 +1369,21 @@ describe("the rings, which a border sweep cannot see (1.4.11, 2.4.11)", () => {
       // A state, never a resting appearance: `:hover`, `.dragging`, `.on`.
       expect(excused, `${excused} is a resting rule and may not be excused`)
         .toMatch(/:hover|\.dragging|:active/);
+    }
+  });
+});
+
+describe("the text-field focus border (V4's Figma: no ring, the border turns --accent)", () => {
+  it("the text-field focus border's colours clear 3:1 on every bed, both themes", () => {
+    for (const theme of themes) {
+      const beds = surfaces(theme);
+      bedFloor(beds, theme);
+      for (const token of ["var(--accent)", "var(--err)"]) {
+        const edge = resolve(token, theme);
+        for (const [bedName, bed] of Object.entries(beds)) {
+          expect(contrastRatio(over(edge, bed), bed), `${theme} ${token} on ${bedName}`).toBeGreaterThanOrEqual(NON_TEXT);
+        }
+      }
     }
   });
 });

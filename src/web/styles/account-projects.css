@@ -104,7 +104,6 @@
 @media (hover: hover) and (pointer: fine) {
 .ap-proj-copy:hover { color: var(--text); }
 }
-.ap-proj-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ap-proj-copy:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) {
   .ap-proj-copy:active { transform: none; }
@@ -172,7 +171,7 @@
 .ap-proj-day {
   flex: 1 1 0; min-width: 3px; max-width: 26px; height: 100%;
   display: flex; align-items: flex-end;
-  background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
+  background: none; border: none; padding: 0; border-radius: 3px; font: inherit; color: inherit; cursor: pointer;
 }
 .ap-proj-col { width: 100%; min-height: 1px; display: flex; flex-direction: column; border-radius: 2px; overflow: hidden; }
 .ap-proj-colseg { width: 100%; display: block; }
@@ -185,7 +184,6 @@
 .ap-proj-day:hover .ap-proj-col { filter: brightness(1.12); }
 }
 .ap-proj-day.selected .ap-proj-col { box-shadow: 0 0 0 2px var(--accent); }
-.ap-proj-day:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 .ap-proj-day-detail {
   margin-top: 10px;
   padding: 10px;
@@ -272,7 +270,6 @@
 .ap-reset-day-button[aria-pressed="true"] { background: var(--reset-selection); border-bottom-color: var(--accent); color: var(--text); }
 .ap-reset-day-button:active { background: var(--reset-selection); }
 .ap-reset-day-button[data-active][aria-pressed="true"] .ap-reset-date { color: var(--accent); }
-.ap-reset-day-button:focus-visible { outline-offset: 2px; }
 .ap-reset-week time { display: flex; flex-direction: column; gap: 3px; }
 .ap-reset-weekday { font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .ap-reset-week li[data-today] .ap-reset-weekday { text-decoration: underline; text-underline-offset: 3px; color: var(--text); }
@@ -284,7 +281,6 @@
 .ap-reset-day-button[data-active] .ap-reset-count b::before { content: ""; display: inline-block; width: 4px; height: 4px; margin: 0 4px 2px 0; border-radius: 50%; background: currentColor; }
 .ap-reset-count > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .ap-reset-results { scrollbar-gutter: stable; min-height: 0; flex: 1; overflow-y: auto; padding: 16px 24px; }
-.ap-reset-results:focus-visible { outline-offset: -2px; }
 .ap-reset-time { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
 .ap-reset-hint { margin: 0 0 12px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-reset-explain,
@@ -387,11 +383,9 @@
 }
 /* The stuck names' own 8px above them is part of the gap in flow. */
 .ap-report-table-scroll { margin-top: -8px; overflow-x: auto; flex-shrink: 0; }
-.ap-report-table-scroll:focus-visible { outline-offset: -2px; }
 /* The body scrolls with enough accounts, and a scroller is a Tab stop in the
    browsers that make it one: the ring goes inside, where the dialog's own
    clipping cannot cut it off. */
-.ap-report-body:focus-visible { outline-offset: -2px; }
 .ap-report-held { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text-secondary); }
 
 /* The answer, and the one large number in the dialog: how many accounts can

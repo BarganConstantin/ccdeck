@@ -385,7 +385,6 @@
 .nm-node[data-shown] { background: color-mix(in srgb, var(--text) 10%, var(--panel)); }
 .nm-node[data-shown] .nm-name { font-weight: 600; }
 .nm-node:active { transform: scale(0.97); }
-.nm-node:focus-visible { outline-offset: 3px; border-radius: 50%; }
 
 /* CONNECTED, ON THE DECK ITSELF: a green edge laid over the disc's own, a
    faint ring outside it and a soft light, so a connected deck reads as lit

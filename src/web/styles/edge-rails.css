@@ -132,9 +132,6 @@
 }
 .rail-btn-stripe .glyph { width: 14px; height: 14px; }
 .rail-btn-stripe .glyph-narrow { margin-inline: 0; }
-/* The ring inside the stripe: drawn 1px out, as buttons draw it elsewhere, it
-   ran off the window on the left edge. */
-.rail-btn-stripe:focus-visible { outline-offset: 0; }
 
 /* OPEN IS A FILL AND A LINE ON THE STRIPE'S INNER EDGE, facing the panel,
    drawn over the stripe's own border: the panel and the button that opened it

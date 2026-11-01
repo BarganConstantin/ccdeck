@@ -161,7 +161,6 @@
 }
 /* Inset, because the global ring's 1px offset would draw over the rows on
    either side of this one. */
-.ap-menu-item:focus-visible { outline-offset: -2px; }
 .ap-menu-item:active:not(:disabled) { background: color-mix(in srgb, var(--text) 12%, transparent); }
 /* The kit draws a disabled row's label in --muted-dim, but that tier is under
    4.5:1 on --panel and the text floor (contrast-floors.test.ts) allows no rule
@@ -330,7 +329,6 @@
 @media (hover: hover) and (pointer: fine) {
 .ap-manage-input:hover { border-color: var(--text); }
 }
-.ap-manage-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* V4's field: the six placeholders these fields carry take --muted in both
    schemes. On --bg-soft it is at least 4.91:1 in every theme (it was 4.05:1 on
    the old fill mixed from the foreground, which is why dark used the tier

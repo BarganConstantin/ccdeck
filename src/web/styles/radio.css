@@ -8,7 +8,6 @@
 .radio-panel { width: min(var(--dialog-l), 100%); height: var(--dialog-l-h); display: flex; flex-direction: column; overflow: hidden; font-size: calc(12px + var(--ui-text-increase, 0px)); animation: radioOpen 180ms cubic-bezier(.22, 1, .36, 1); }
 .radio-loading { position: relative; width: min(400px, 100%); padding: 24px; }
 .radio-loading > .icon-btn { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-ctl); color: var(--text-secondary); background: none; cursor: pointer; }
-.radio-loading > .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* The header is the one dialog header (dialogs.css): the name, its note beside
    it, the ×. */
 .radio-heading { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
@@ -89,7 +88,6 @@
 .radio-collections .radio-collection[aria-selected="true"] { background: var(--ctl-fill); color: var(--text); }
 .radio-search { display: flex; align-items: center; gap: 8px; padding: 6px 10px; min-height: 32px; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); color: var(--text-secondary); flex: none; margin-bottom: 6px; background: var(--bg-soft); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .radio-search:focus-within { border-color: var(--accent); outline: none; }
-.radio-panel[data-keyboard-interaction] .radio-search:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .radio-search input { flex: 1; min-width: 0; color: var(--text); border: 0; background: none; font: inherit; min-height: 24px; }
 .radio-search input:focus { outline: none; }
 @media (hover: hover) and (pointer: fine) {
@@ -106,7 +104,6 @@
 @media (hover: hover) and (pointer: fine) {
 .radio-filter-trigger:hover { color: var(--text); border-color: var(--text-secondary); }
 }
-.radio-filter-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* This shared popover opens inside Radio's modal layer (100). */
 .radio-filter-popup { z-index: 101; width: min(280px, calc(100vw - 24px)); padding: 6px; display: flex; flex-direction: column; }
 .radio-filter-popup > .radio-filter-heading, .radio-filter-popup > .radio-filter-footer, .radio-filter-popup > .radio-filter-back, .radio-filter-popup > .radio-filter-search { flex: none; }
@@ -115,7 +112,6 @@
 .radio-filter-search svg { width: 14px; height: 14px; flex: none; }
 .radio-filter-search input { min-width: 0; width: 100%; min-height: 30px; background: var(--bg-soft); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 4px 6px; color: var(--text); font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .radio-filter-search input::placeholder { color: var(--text-secondary); opacity: 1; }
-.radio-filter-search input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .radio-filter-options { min-height: 0; max-height: min(240px, 40dvh); overflow-y: auto; overscroll-behavior: contain; margin-top: 4px; scrollbar-width: thin;  }
 .radio-filter-option { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; width: 100%; border: 0; border-radius: var(--r-ctl); background: none; color: var(--text); padding: 6px 8px; text-align: left; font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); cursor: pointer; }
 .radio-filter-option[data-active="true"] { background: var(--ctl-fill); }
@@ -180,12 +176,10 @@
 .radio-own-icon svg { width: 20px; height: 20px; }
 .radio-own-station[aria-current="true"] .radio-own-icon { color: var(--accent); }
 .radio-mobile-view { display: none; }
-.radio-map-canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .radio-panel .radio-search input:focus-visible { outline: none; }
 /* Focusable SVGs also get a browser :focus outline during pointer interaction.
    Suppress only the map's pointer ring; keep an inset keyboard ring, including
    when keyboard interaction resumes after panning a focused map. */
-.radio-panel svg.radio-map-canvas:focus-visible { outline-offset: -2px; }
 .radio-panel .radio-map-canvas:focus:not(:focus-visible),
 .radio-panel .radio-map-canvas[data-pointer-focus]:focus { outline: none; }
 .radio-panel :is(input, select) { accent-color: var(--accent); caret-color: var(--accent); }
@@ -362,7 +356,6 @@
 .radio-workspace-toggle > svg:last-child { margin-left: auto; transform: rotate(-90deg); }
 .radio-workspace-toggle[aria-expanded="true"] > svg:last-child { transform: rotate(90deg); }
 .radio-workspace-toggle .radio-row-state { color: var(--accent); font-size: calc(11px + var(--ui-text-increase, 0px)); }
-.radio-filter-toggle:focus-visible, .radio-filter-chip:focus-visible, .radio-reset:focus-visible, .radio-collection:focus-visible, .radio-list:focus-visible, .radio-filter-field:focus-visible, .radio-filter-back:focus-visible, .radio-workspace-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .radio-discovery .radio-station-pick { min-height: 48px; padding-block: 6px; }
 @media (max-width: 840px), (pointer: coarse) {
   .radio-collections .radio-collection, .radio-filter-toggle, .radio-filter-option, .radio-filter-back, .radio-filter-chip, .radio-reset, .radio-filter-footer .btn { min-height: 44px; }

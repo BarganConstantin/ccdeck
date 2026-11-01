@@ -280,11 +280,6 @@
 @media (hover: hover) and (pointer: fine) {
 .rearrange-undo-act:hover .rearrange-undo-key { color: var(--text); }
 }
-/* Both words sit flush in a strip whose edge is 2px away: the ring goes
-   inside the word's own box, as it does for the other controls set flush in
-   a container, instead of landing on the strip's edge as a second box. */
-.rearrange-undo-act:focus-visible,
-.autofit-resume:focus-visible { outline-offset: -2px; }
 @keyframes rearrangeUndoIn {
   from { opacity: 0; translate: 0 6px; }
   to { opacity: 1; translate: 0 0; }
@@ -382,10 +377,6 @@
 .cat-filter:hover { background: var(--ctl-fill); color: var(--text); }
 }
 .cat-filter:active { transform: scale(0.97); }
-.cat-filter:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
 /* "Off" is carried by the colour tier and the greyed emoji, never by opacity.
    `opacity: 0.38` faded the whole chip, its label included, to 1.72:1 in dark
    and 1.87:1 on white, and the hover that lifted it to 0.8 still only reached

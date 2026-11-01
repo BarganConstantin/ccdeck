@@ -260,7 +260,6 @@
    -1px puts the whole 2px band between 1px and 3px inside the column, which is
    the gutter `.uh-bar`'s 78% leaves free, and it is the offset that changes —
    the ring is still the deck's one ring, drawn by the global rule. */
-.uh-bar-col:focus-visible { outline-offset: -1px; }
 @media (hover: hover) and (pointer: fine) {
 .uh-bar-col:hover .uh-bar { filter: brightness(1.15); }
 }

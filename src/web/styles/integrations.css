@@ -120,7 +120,6 @@
 @media (hover: hover) and (pointer: fine) {
 .ig-splitter:hover::before { left: 2px; width: 3px; background: var(--accent); }
 }
-.ig-splitter:focus-visible { outline-offset: -2px; }
 .ig-back {
   align-self: flex-start;
   display: inline-flex;

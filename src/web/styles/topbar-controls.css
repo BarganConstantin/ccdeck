@@ -234,7 +234,6 @@
    exactly as tall as this chip, so the global ring, drawn 2px outside, lost
    its top and bottom and showed as two brackets. An inset ring is the one the
    focus rule allows a component to move. */
-.topbar .waiting-stat:focus-visible { outline-offset: -3px; }
 
 /* THE QUEUE: who is waiting, by name (WaitingNames in TopbarReadouts.tsx).
    The box takes every pixel the bar has left and nothing it does not — a basis
@@ -336,9 +335,6 @@
 }
 .topbar .wait-entry:active,
 .topbar .wait-more:active { transform: scale(0.97); }
-/* Inside the edge, for the reason the count's ring is: the box clips. */
-.topbar .wait-entry:focus-visible,
-.topbar .wait-more:focus-visible { outline-offset: -2px; }
 /* Every name at the width it would draw, where nothing sees it or reaches it:
    the queue measures this to know what fits before it draws a name it would
    have to cut. */
@@ -403,7 +399,6 @@
   .topbar .provider-incident { animation: none; }
 }
 /* Inside its own edge, for the reason the waiting chip's is (#1706). */
-.topbar .provider-incident:focus-visible { outline-offset: -3px; }
 .topbar .provider-incident .pi-name { font-weight: 600; }
 .topbar .provider-incident .pi-go { display: inline-flex; color: var(--text-dim); }
 /* One word, for a bar with no room for the state in full — see topbar.css,
@@ -477,7 +472,6 @@ button.btn {
 }
 /* V4 focus: the global 2px accent ring, 2px outside the button (the global
    button rule pulls it to 1px). */
-button.btn:focus-visible { outline-offset: 2px; }
 /* Neutral, not the accent. Hover is the pointer's feedback, not a state, and
    painting it in the colour the sheet keeps for data, live state and focus
    made every button the pointer crossed look selected. The edge goes to the

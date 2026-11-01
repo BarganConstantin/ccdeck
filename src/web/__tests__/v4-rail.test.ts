@@ -228,9 +228,13 @@ describe("Rail / Row", () => {
   // :focus-visible outline, pulled inside the row so the next row cannot
   // cover it, and rounded with the row's fill.
   it("draws the deck's focus ring inside the row", () => {
-    expect(decl(".session-list .sl-row:focus-visible", "outline-offset")).toBe("-2px");
-    expect(decl(".session-list .sl-row:focus-visible", "border-radius")).toBe("var(--r-panel)");
+    // V4's Figma: the global ring is already inside every box and never sets a
+    // radius, so the row restates neither its offset nor its radius on focus;
+    // the ring follows the row's own --r-panel.
+    expect(decl(".session-list .sl-row:focus-visible", "outline-offset")).toBeUndefined();
+    expect(decl(".session-list .sl-row:focus-visible", "border-radius")).toBeUndefined();
     expect(decl(".session-list .sl-row:focus-visible", "outline")).toBeUndefined();
+    expect(decl(".session-list .sl-row", "border-radius")).toBe("var(--r-panel)");
   });
 });
 

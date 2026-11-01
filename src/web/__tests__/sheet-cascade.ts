@@ -111,7 +111,16 @@ export function cascade(specificity: (selector: string) => number | null, prop: 
       if (!best || spec > best.spec || (spec === best.spec && r.order > best.order)) best = { spec, order: r.order, value };
     }
   }
-  return best?.value ?? null;
+  return best ? focusWidth(best.value) : null;
+}
+
+/** The one focus width, read from the sheet (V4's Figma: --focus-w), so a ring
+ *  written as var(--focus-w) / calc(-1 * var(--focus-w)) resolves to the px a
+ *  test measures. */
+function focusWidth(value: string): string {
+  const w = /--focus-w:\s*([\d.]+)px/.exec(sheetText())?.[1];
+  if (!w) return value;
+  return value.replace(/calc\(-1\s*\*\s*var\(--focus-w\)\)/g, `-${w}px`).replace(/var\(--focus-w\)/g, `${w}px`);
 }
 
 /** One element, as a selector can ask about it: its tag, classes, attributes

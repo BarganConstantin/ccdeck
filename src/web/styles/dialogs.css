@@ -334,9 +334,9 @@
   background: var(--panel);
   color: var(--text);
 }
+.fb-kind:has(input:focus-visible) { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 /* focus-visible rather than focus-within, as on the import card: a click on
    a segment focuses its radio too, and that must not draw a keyboard ring. */
-.fb-kind:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
 .fb-kind input[type="radio"] {
   position: absolute;
   inline-size: 1px;
@@ -825,7 +825,6 @@
 .release-notes > .modal-body { min-height: 0; padding: 20px 24px; gap: 18px; scroll-padding-block: 16px; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; }
 /* Keep scroll affordances visible even before pointer hover. */
 .release-notes > .modal-body::-webkit-scrollbar-thumb { background-color: var(--ctl-edge); }
-.release-notes > .modal-body:focus-visible { outline-offset: -2px; }
 .release-notes .rn-status-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
 .release-notes .rn-update-line { margin: 0; min-height: 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--muted); flex: 1 1 240px; }
 .release-notes .rn-update-what { color: var(--text); }
@@ -878,7 +877,6 @@
 .release-notes .rn-more > summary:is(:hover, :focus-visible) :is(.rn-chevron, .rn-more-hint),
 .release-notes .rn-history > summary:is(:hover, :focus-visible) { color: var(--text); }
 }
-.release-notes .rn-more > summary:focus-visible, .release-notes .rn-history > summary:focus-visible { outline-offset: -2px; }
 .release-notes .rn-more > summary:active .rn-more-label { text-decoration-color: currentColor; text-decoration-thickness: 2px; }
 .release-notes .rn-history > summary { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; color: var(--muted); }
 .release-notes .rn-more > div > .rn-notes > .rn-note:first-child { border-top: 0; padding-top: 0; }

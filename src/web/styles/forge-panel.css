@@ -75,7 +75,6 @@
    tone a step and nothing moves, so the words stay under the pointer while
    the item opens. (Inside a list, so it outranks the shared row's hover.) */
 .fg-rows .fg-row:active { background: color-mix(in srgb, var(--text) 10%, transparent); }
-.fg-row:focus-visible { outline-offset: -2px; }
 .fg-row-title { min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
 .fg-row[data-selected] .fg-row-title { font-weight: 600; }
 .fg-meta { min-width: 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
