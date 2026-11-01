@@ -175,6 +175,27 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
   },
 ];
 
+/** Ctrl + backtick, Board or Workspace. Kept out of KEY_HELP itself: it is on the sheet
+ *  only where the Command Panel is on (keyHelpFor's `workspace`), and with it
+ *  off the sheet is the table above, unchanged. A chord, so it stays with the
+ *  single keys off; Control on a Mac too (Cmd + backtick is the OS's window switch). */
+export const WORKSPACE_KEY_ROW: KeyHelpRow = {
+  cap: "Ctrl + `",
+  action: "switch between the Board and the Workspace — also with the keys in the terminal",
+  binds: ["`"],
+  chord: true,
+};
+
+/** The table with Ctrl + backtick after Quick open's row. */
+function withWorkspaceRow(groups: readonly KeyHelpGroup[]): readonly KeyHelpGroup[] {
+  return groups.map(group => {
+    if (group.title !== "Panels and dialogs") return group;
+    const rows = [...group.rows];
+    rows.splice(1, 0, WORKSPACE_KEY_ROW);
+    return { ...group, rows };
+  });
+}
+
 /** An action naming another row's letter in passing — Delete's "the session
  *  list (L)" — which would point at a dead key with the shortcuts off. */
 const SINGLE_KEY_ASIDE = / \([A-Z?]\)/g;
@@ -185,10 +206,15 @@ const SINGLE_KEY_ASIDE = / \([A-Z?]\)/g;
  *  rather than drawn as an empty heading. With them on, the whole table.
  *  Either way less an integration's row where the deck does not offer its
  *  kind (`offered`; every kind when it is not said). */
-export function keyHelpFor(singleKeys: boolean, offered: (kind: IntegrationKind) => boolean = () => true): readonly KeyHelpGroup[] {
+export function keyHelpFor(
+  singleKeys: boolean,
+  offered: (kind: IntegrationKind) => boolean = () => true,
+  /** The Command Panel is on, so Ctrl + backtick is the deck's and the sheet says so. */
+  workspace = false,
+): readonly KeyHelpGroup[] {
   const drawn = (row: KeyHelpRow) => row.integration === undefined || offered(row.integration);
-  if (singleKeys && KEY_HELP.every(group => group.rows.every(drawn))) return KEY_HELP;
-  return KEY_HELP
+  if (singleKeys && !workspace && KEY_HELP.every(group => group.rows.every(drawn))) return KEY_HELP;
+  return (workspace ? withWorkspaceRow(KEY_HELP) : KEY_HELP)
     .map(group => ({
       ...group,
       rows: group.rows
@@ -219,5 +245,7 @@ export function documentedKeys(): Set<string> {
       for (const key of row.binds) out.add(key.toLowerCase());
     }
   }
+  // Ctrl + backtick, which the sheet adds where the Command Panel is on.
+  for (const key of WORKSPACE_KEY_ROW.binds) out.add(key);
   return out;
 }

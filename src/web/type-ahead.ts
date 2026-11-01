@@ -28,7 +28,7 @@
 // In the first-load chunk, so plain functions and nothing heavy;
 // terminal-keys.ts is already there for the deck's shortcuts.
 import { isApplePlatform, platformName } from "./platform";
-import { isReleaseChord, terminalKeyInput, terminalKeyOutcome } from "./terminal-keys";
+import { isReleaseChord, isViewChord, terminalKeyInput, terminalKeyOutcome } from "./terminal-keys";
 
 /** How long a hold waits for the pane before it lets keys through again. */
 export const TYPE_AHEAD_MS = 10_000;
@@ -104,6 +104,9 @@ export function holdKey(ahead: TypeAhead, e: HeldKeyEvent, apple = isApplePlatfo
     repeat: e.repeat, isComposing: e.isComposing, keyCode: e.keyCode, getModifierState: e.getModifierState?.bind(e),
   };
   if (isReleaseChord(chord)) return "end";
+  // Ctrl + backtick is the deck's (Board or Workspace): not the session's, so not typed
+  // ahead, and not a key that spoils what is held.
+  if (isViewChord(chord)) return null;
   if (e.isComposing || e.keyCode === 229) return { ahead: { ...ahead, spoiled: true }, swallow: false };
   if (chord.repeat && chord.key === "Enter") return { ahead, swallow: true };
   const add = sent({ ...chord, type: "keydown" }, apple);

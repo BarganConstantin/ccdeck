@@ -113,6 +113,37 @@ export default function Inspector({ selected, agents, revision = 0, onSelectAgen
   );
 }
 
+/** WORKSPACE, the pane empty: the Inspector's column with no session in focus
+ *  (Figma, "Empty workspace"). The same header and tabs, none of them
+ *  pressable, over two lines saying so. No Fold: the Inspector is a column
+ *  here (workspace.css), not a panel to close. */
+export const EMPTY_INSPECTOR_TITLE = "No session in focus";
+export const EMPTY_INSPECTOR_LINE = "Open one from the list.";
+
+export function EmptyInspector() {
+  return (
+    <aside className="detail" aria-label="Detail" data-empty="">
+      <header className="insp-h">
+        {/* The tabs' look, with nothing to switch between: not a tablist. */}
+        <div className="insp-tabs" aria-hidden="true">
+          {INSPECTOR_TABS.map(t => {
+            const Glyph = TAB_GLYPH[t];
+            return (
+              <span key={t} className="insp-tab" aria-current={t === INSPECTOR_TABS[0] ? "true" : undefined}>
+                <Glyph /><span>{INSPECTOR_TAB_LABEL[t]}</span>
+              </span>
+            );
+          })}
+        </div>
+      </header>
+      <div className="insp-b insp-none">
+        <p className="insp-none-title">{EMPTY_INSPECTOR_TITLE}</p>
+        <p className="insp-note">{EMPTY_INSPECTOR_LINE}</p>
+      </div>
+    </aside>
+  );
+}
+
 /** The head row every tab starts with: a title, what it is about, and a figure
  *  at the far end. */
 function InspectorHead({ title, qualifier, figure }: { title: string; qualifier?: string | null; figure?: string | null }) {

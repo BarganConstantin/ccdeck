@@ -49,6 +49,12 @@ export const CLOSE_LABEL = "Close — the session keeps running";
 export const CLOSE_EMPTY_LABEL = "Close the Command Panel";
 export const BACK_EMPTY_LABEL = "Back to the board";
 export const BACK_LABEL = "Back to the board — the session keeps running";
+/** WORKSPACE: ⤢ is Zoom. Off, it folds the list and the Inspector; on, it
+ *  brings them back. Where ⤢ goes full screen it still does (FULL_LABEL). */
+export const ZOOM_LABEL = "Zoom — fold the list and the Inspector";
+export const ZOOM_OFF_LABEL = "Bring the list and the Inspector back";
+/** WORKSPACE: ✕ on a pane whose session is not running, or never started. */
+export const PANE_CLOSE_LABEL = "Close the pane";
 
 export interface StageHeaderProps {
   /** Changes with the session on stage, so its identity arrives afresh —
@@ -75,6 +81,10 @@ export interface StageHeaderProps {
   /** No session behind the stage — the empty stage, a launch that never
    *  started — so ✕ and ‹ promise nothing about one. */
   nothingRunning?: boolean;
+  /** WORKSPACE: the pane fills its cell. `empty` is the pane with nothing in
+   *  it, whose one control is ✕, back to the board; `pane` has ⤢ as Zoom
+   *  (`expanded` is zoomed) and ✕ emptying the pane. Left out on the Board. */
+  workspace?: "pane" | "empty";
   /** Ask the session for keys, or give them back. */
   onKeys(): void;
   onExpand(): void;
@@ -92,6 +102,12 @@ export function metaRest(status: StageStatus): string | null {
 export function expandLabelFor(expanded: boolean, canFull: boolean, full: boolean): string {
   if (expanded) return full ? FULL_LEAVE_LABEL : "Give the board its room back";
   return canFull ? FULL_LABEL : "Give the Command Panel the width";
+}
+
+/** WORKSPACE ⤢'s name: Zoom, or full screen where that is what it does. */
+export function zoomLabelFor(zoomed: boolean, canFull: boolean, full: boolean): string {
+  if (zoomed) return full ? FULL_LEAVE_LABEL : ZOOM_OFF_LABEL;
+  return canFull ? FULL_LABEL : ZOOM_LABEL;
 }
 
 export const FULL_LABEL = "Full screen — Ctrl+W, Ctrl+T and Ctrl+N go to the session";
@@ -117,8 +133,11 @@ export default function StageHeader(p: StageHeaderProps) {
   // The tooltip, for the pointer, says what a press will do.
   const keysLabel = "Type into the session";
   const keysTip = pane ? `Give the keys back to the board (${p.chordLabel})` : `${keysLabel} (↵)`;
-  const expandLabel = expandLabelFor(p.expanded, p.canFull === true, p.full === true);
-  const closeLabel = p.nothingRunning ? CLOSE_EMPTY_LABEL : CLOSE_LABEL;
+  const zoom = p.workspace === "pane";
+  const expandLabel = zoom ? zoomLabelFor(p.expanded, p.canFull === true, p.full === true) : expandLabelFor(p.expanded, p.canFull === true, p.full === true);
+  const closeLabel = p.workspace === "empty" ? BACK_EMPTY_LABEL
+    : p.workspace === "pane" ? (p.nothingRunning ? PANE_CLOSE_LABEL : CLOSE_LABEL)
+      : p.nothingRunning ? CLOSE_EMPTY_LABEL : CLOSE_LABEL;
   const backLabel = p.nothingRunning ? BACK_EMPTY_LABEL : BACK_LABEL;
   return (
     <header className="ts-head">
@@ -169,17 +188,21 @@ export default function StageHeader(p: StageHeaderProps) {
           )}
           {/* No width to give in the takeover — but full screen still gives
               the browser's shortcuts, and a bigger window. */}
-          {(!p.takeover || p.canFull) && (
+          {(!p.takeover || p.canFull) && p.workspace !== "empty" && (
             <button
               type="button"
               className="glyph-btn"
               aria-label={expandLabel}
               title={expandLabel}
+              // Zoom is a state, so it reports one; the glyph stays ⤢ and the
+              // button is filled while it is on (terminal-stage.css).
+              aria-pressed={zoom ? p.expanded : undefined}
+              data-zoom={zoom || undefined}
               // Typing carries on across it: the pane keeps the keys it had.
               onMouseDown={e => e.preventDefault()}
               onClick={p.onExpand}
             >
-              {p.expanded ? <CollapseGlyph /> : <ExpandGlyph />}
+              {p.expanded && !zoom ? <CollapseGlyph /> : <ExpandGlyph />}
             </button>
           )}
           <button type="button" className="glyph-btn" data-stage-close aria-label={closeLabel} title={closeLabel} onClick={p.onClose}>

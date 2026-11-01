@@ -64,12 +64,17 @@ import { heldKeys, heldText, holdKey, isPaneInput, startTypeAhead, typesItself, 
 import { useAsks, type Asks } from "./use-asks";
 import type { StageShortcuts } from "./use-deck-shortcuts";
 import { useMirroredRef } from "./use-mirrored-ref";
+import { workspaceOffered, type View } from "./use-view";
 
 /** The lazy chunk's one door: the navigator, the stage and everything they
  *  pull in, xterm's own further import included, are reached only through
  *  this. Fetched when the flag turns out to be on, so the first click does not
  *  wait for it; never fetched when the flag is off. */
 export const loadStageShell = () => import("./components/terminal/StageShell");
+
+/** How long a Workspace tab holds its layout while the deck has not said
+ *  whether the Command Panel is on. */
+export const PREFS_WAIT_MS = 3000;
 
 /** What is said when the lazy chunk will not load — a tab left open across an
  *  upgrade asks for a file the new build no longer has. */
@@ -118,9 +123,44 @@ export interface StageDeps {
   /** use-selection.ts's: the stage moving to a session selects it, without
    *  inspecting it — see `follow` below. */
   selectAgent: (id: string, additive: boolean, inspect?: boolean) => void;
+  /** WORKSPACE (use-view.ts): the view the reader chose. Whether it is the one
+   *  the layout follows depends on the gate, which is this hook's (below): the
+   *  Command Panel on, and not a phone. Then the stage is the whole of the
+   *  canvas's cell, one pane. */
+  view?: View;
+  /** A phone is the Board alone, whatever view is stored. */
+  phone?: boolean;
+  /** Takes the selection away, when the pane empties: no session is in focus. */
+  clearSelection?: () => void;
 }
 
-export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent }: StageDeps) {
+/** The session list's rows, in the order they are drawn, for j and k in
+ *  Workspace. Only rows on screen: a folded group's, and the whole rail
+ *  folded away by Zoom, are not walkable. */
+export function railOrder(root: ParentNode | null | undefined): string[] {
+  if (!root) return [];
+  return [...root.querySelectorAll<HTMLElement>(".session-list .sl-row[data-session]")]
+    .filter(el => el.getClientRects().length > 0 && !el.closest("[inert]"))
+    .map(el => el.getAttribute("data-session") ?? "")
+    .filter(Boolean);
+}
+
+/** The session whose row holds `target`, if any. */
+export function railSessionAt(target: EventTarget | null | undefined): string | null {
+  const el = target as { closest?: (s: string) => Element | null } | null | undefined;
+  return el?.closest?.(".session-list [data-session]")?.getAttribute("data-session") ?? null;
+}
+
+/** A session's row in the rail, by id. */
+function railRow(id: string): HTMLElement | null {
+  try {
+    return document.querySelector<HTMLElement>(`.session-list .sl-row[data-session="${CSS.escape(id)}"]`);
+  } catch {
+    return null;
+  }
+}
+
+export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent, view = "board", phone = false, clearSelection }: StageDeps) {
   // The switch, from the one read of the deck's prefs (use-prefs-read.ts),
   // and whether the deck's platform has the panel at all, which the switch in
   // Settings says — null until the deck has answered. `windows`: its sessions
@@ -129,11 +169,26 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   const [supported, setSupported] = useState<boolean | null>(null);
   const [windows, setWindows] = useState(false);
   const enabledRef = useMirroredRef(enabled);
+  // And whether the deck has answered at all: until it has, a Workspace tab
+  // holds the layout it was left in rather than flash the Board for the moment
+  // the prefs take (use-view.ts). Given up after PREFS_WAIT_MS, so a deck that
+  // never answers is not a Workspace with no way back.
+  const [prefsKnown, setPrefsKnown] = useState(false);
   const loadTerminalPrefs = useCallback((d: TerminalPrefsAnswer) => {
     setEnabled(d.terminalOn === true);
     setSupported(typeof d.terminalSupported === "boolean" ? d.terminalSupported : null);
     setWindows(d.terminalWindows === true);
+    setPrefsKnown(true);
   }, []);
+  useEffect(() => {
+    if (prefsKnown || view !== "workspace") return;
+    const t = window.setTimeout(() => setPrefsKnown(true), PREFS_WAIT_MS);
+    return () => window.clearTimeout(t);
+  }, [prefsKnown, view]);
+  /** Workspace is on offer here: the Command Panel is on, off a phone. */
+  const offered = workspaceOffered({ enabled, supported }, phone);
+  /** What the layout follows. */
+  const workspace = view === "workspace" && !phone && (offered || !prefsKnown);
 
   // A reducer held in a state rather than useReducer, for the same answer
   // with one hook fewer for the suite's stand-in React to know.
@@ -141,6 +196,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   const dispatch = useCallback((action: ShellAction) => setShell(s => shellReducer(s, action)), []);
   const shellRef = useMirroredRef(shell);
   const detailOpenRef = useMirroredRef(detailOpen);
+  const workspaceRef = useMirroredRef(workspace);
   const open = shell.phase !== "closed";
 
   // ── how wide ───────────────────────────────────────────────────────────────
@@ -189,7 +245,8 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
   }, [open, measure, canvasRef]);
   const geometry: StageGeometry | null = box && open
-    ? stageGeometry({ appW: box.w, bodyH: box.h, cellW: cell.w, cellH: cell.h, expanded, narrow: box.narrow, storedCols: cols, barH, headH })
+    // `fill`: Workspace's pane is the whole cell, and the Board's stored width is not read.
+    ? stageGeometry({ appW: box.w, bodyH: box.h, cellW: cell.w, cellH: cell.h, expanded, narrow: box.narrow, storedCols: cols, fill: workspace, barH, headH })
     : null;
   const geometryRef = useMirroredRef(geometry);
 
@@ -241,7 +298,9 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     const name = origin && from?.classList.contains("react-flow__node") ? nameElement(from) : null;
     measure();
     hidePeek();
-    if (detailOpenRef.current) setDetailOpen(false);
+    // The detail panel and the stage evict each other on the Board; in
+    // Workspace the Inspector is a column beside the pane and stays.
+    if (detailOpenRef.current && !workspaceRef.current) setDetailOpen(false);
     dispatch({
       type: "open",
       target,
@@ -294,6 +353,31 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     openOn({ kind: "session", id: sessionId }, { focusPane: opts.focusPane });
     follow(sessionId);
   }, [enabledRef, openOn, follow]);
+
+  /** WORKSPACE: a session list row put on the pane. A click leaves the keys on
+   *  the list (j and k go on walking it); Enter takes them into the pane
+   *  (`focusPane`, held type-ahead and all, as a click on a card does). The pane
+   *  is the session in focus, so the selection follows it. */
+  const openInPane = useCallback((sessionId: string, opts: { focusPane?: boolean } = {}) => {
+    if (!enabledRef.current) return;
+    openOn({ kind: "session", id: sessionId }, { focusPane: opts.focusPane === true });
+    follow(sessionId);
+  }, [enabledRef, openOn, follow]);
+
+  /** WORKSPACE: ✕ on a pane. It empties; the session it showed runs on
+   *  (closing never stopped anything), and with no session in the pane none is
+   *  in focus. The focus goes to the empty pane's own action. */
+  const clearRef = useMirroredRef(clearSelection);
+  const emptyPane = useCallback(() => {
+    if (!enabledRef.current) return;
+    openOn({ kind: "empty" });
+    clearRef.current?.();
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body && !active.closest?.(".stage-dock")) return;
+      document.querySelector<HTMLElement>(".stage-dock [data-stage-land]")?.focus();
+    });
+  }, [enabledRef, openOn, clearRef]);
 
   /** The canvas's Terminal button: the selected session, else the last one,
    *  else the empty stage. */
@@ -404,6 +488,15 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     const id = targetSession(shellRef.current.target);
     const g = geometryRef.current;
     const canvas = canvasRef.current;
+    // Workspace has no navigator: the keys go back to the session's row in the
+    // list, when the list is on screen, else to the pane's own ⌨ or ✕ below.
+    if (workspaceRef.current) {
+      const row = id ? railRow(id) : null;
+      if (row && row.getClientRects().length > 0) {
+        row.focus();
+        return;
+      }
+    }
     let tile: Element | null = null;
     try {
       tile = id && canvas ? canvas.querySelector(`.board-nav [data-nav-session="${CSS.escape(id)}"]`) : null;
@@ -413,10 +506,13 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       return;
     }
     const head = document.querySelector<HTMLElement>(".stage-dock .ts-head");
-    const landing = head?.querySelector<HTMLElement>("button[aria-pressed]") ?? head?.querySelector<HTMLElement>("button[data-stage-close]");
+    // ⌨ is the header's pressed button; Workspace's Zoom reports its state the
+    // same way and is not where the keys land.
+    const pressed = head?.querySelector<HTMLElement>("button[aria-pressed]");
+    const landing = (pressed && pressed.dataset?.zoom === undefined ? pressed : null) ?? head?.querySelector<HTMLElement>("button[data-stage-close]");
     if (landing) landing.focus();
     else (document.activeElement as HTMLElement | null)?.blur?.();
-  }, [shellRef, geometryRef, canvasRef]);
+  }, [shellRef, geometryRef, canvasRef, workspaceRef]);
 
   // ── closing ────────────────────────────────────────────────────────────────
   const close = useCallback(() => dispatch({ type: "close" }), []);
@@ -448,6 +544,14 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     if (document.activeElement?.closest?.(".stage-dock, .stage-nav")) returnFocusRef.current = { card: targetSession(s.target) };
     dispatch({ type: "close", instant: true });
   }, [shellRef]);
+
+  /** WORKSPACE → BOARD, in the update that changes the view: the stage goes
+   *  at once with no morph, Zoom is given back, and the focus the pane held
+   *  goes onto the session's card on the board it comes back to. */
+  const leaveWorkspace = useCallback(() => {
+    setExpanded(false);
+    giveRightBack();
+  }, [giveRightBack]);
 
   /** The lazy chunk would not load: nothing to show, so nothing stays. */
   const failed = useCallback(() => {
@@ -504,7 +608,11 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   useEffect(() => {
     const pending = restoreRef.current;
     if (!enabled || !pending || pending === "done") return;
-    if (shellRef.current.phase !== "closed" || Date.now() > pending.until) { restoreRef.current = "done"; return; }
+    // In Workspace the pane has been opened already (empty, unless the reader
+    // had a session in focus): a restore is still due while it shows nothing.
+    const s = shellRef.current;
+    const emptyPane = workspaceRef.current && s.phase !== "closed" && s.target?.kind === "empty";
+    if ((s.phase !== "closed" && !emptyPane) || Date.now() > pending.until) { restoreRef.current = "done"; return; }
     // The board has to know the session first: the page's state arrives a
     // beat after the prefs that turned the flag on.
     if (!stateRef.current.agents.has(pending.id)) return;
@@ -531,10 +639,40 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     return () => window.clearTimeout(t);
   }, [shell.grace]);
 
-  // The detail panel appearing takes the right of the deck back.
+  // The detail panel appearing takes the right of the deck back. Not in
+  // Workspace, where the Inspector is a column beside the pane.
   useEffect(() => {
-    if (detailShown) giveRightBack();
-  }, [detailShown, giveRightBack]);
+    if (detailShown && !workspaceRef.current) giveRightBack();
+  }, [detailShown, giveRightBack, workspaceRef]);
+
+  // ── Workspace ──────────────────────────────────────────────────────────────
+  // Entering opens the one pane at once, without the Board's morph, on the
+  // session in focus: the primary selection, else the one the stage showed
+  // last, else nothing (the empty pane). Once per entry, so a pane the reader
+  // emptied, or a stage that failed to load, is not reopened under them.
+  // Leaving takes the stage down at once (the view switch calls
+  // `leaveWorkspace` in the same update; this is for a Workspace that ends
+  // some other way, a phone-sized window or the gate going off) and gives
+  // Zoom back: it is not stored.
+  const enteredRef = useRef(false);
+  useEffect(() => {
+    if (!workspace) {
+      if (!enteredRef.current) return;
+      enteredRef.current = false;
+      setExpanded(false);
+      if (shellRef.current.phase !== "closed") giveRightBack();
+      return;
+    }
+    if (enteredRef.current || !enabled) return;
+    enteredRef.current = true;
+    if (shellRef.current.phase !== "closed") return;
+    const selected = primarySelectedIdRef.current;
+    const selectedSession = selected ? stateRef.current.agents.get(selected)?.sessionId ?? null : null;
+    const target = terminalButtonTarget(selectedSession, shellRef.current.last,
+      id => stateRef.current.agents.has(id) || launchedIdsRef.current.has(id));
+    openOn(target);
+    if (target.kind === "session") follow(target.id);
+  }, [workspace, enabled, shellRef, primarySelectedIdRef, stateRef, openOn, follow, giveRightBack]);
 
   // React Flow under the stage: inert while the stage covers it, so neither a
   // Tab nor a screen reader's cursor walks a board nobody can see. Set on the
@@ -724,6 +862,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
 
   return {
     enabled, supported, windows, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
+    workspace, workspaceOffered: offered, openInPane, emptyPane, leaveWorkspace,
     onNodeClick, followSession, switchTo, openFromButton, openTile, launch, onLaunched,
     focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
     openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, firstRunDone, onCell, onBarH, onHeadH,
@@ -770,11 +909,14 @@ export interface RailPanel {
  * listener once and keeps the setters it was first given.
  */
 export function useRailPanel(
-  stage: Pick<Stage, "enabled" | "shell" | "giveRightBack">,
+  stage: Pick<Stage, "enabled" | "shell" | "giveRightBack"> & { workspace?: boolean },
   open: boolean,
   setOpen: Dispatch<SetStateAction<boolean>>,
 ): RailPanel {
-  const up = stage.enabled && stage.shell.phase !== "closed";
+  // In Workspace the panels float over the Inspector, never over the pane, so
+  // the stage is not "up" in the sense that matters here: it neither hides
+  // them nor goes when one is asked for.
+  const up = stage.enabled && stage.shell.phase !== "closed" && stage.workspace !== true;
   const shown = open && !(up && stageSeen(stage.shell.phase));
   const upRef = useMirroredRef(up);
   const shownRef = useMirroredRef(shown);
@@ -841,7 +983,7 @@ const NO_WAITING: readonly BlockedSession[] = [];
  * few lines later in the same render, is in time.
  */
 export function useStageAsks(stage: Stage, waitingSessions: readonly BlockedSession[], canvasRef: MutableRefObject<HTMLElement | null>): Asks {
-  const { enabled, shell, switchTo, navRef, focusPane, release, keysRef } = stage;
+  const { enabled, shell, switchTo, navRef, focusPane, release, keysRef, workspace, expanded } = stage;
   // With the flag off the run is given nothing to watch, so it never renders
   // the deck again for a list it has no use for.
   const asks = useAsks({
@@ -854,9 +996,12 @@ export function useStageAsks(stage: Stage, waitingSessions: readonly BlockedSess
     ? {
       open: stageClaimsKeys(shell.phase),
       current: targetSession(shell.target),
-      get order() { return navigatorOrder(canvasRef.current); },
-      sessionAt: navigatorSessionAt,
-      focusTile: id => navRef.current?.focusTile(id),
+      // Workspace: the list's rows are what j and k walk, and none while the
+      // list is folded away by Zoom. The Board walks the navigator's tiles.
+      get order() { return workspace ? (expanded ? [] : railOrder(document)) : navigatorOrder(canvasRef.current); },
+      sessionAt: workspace ? railSessionAt : navigatorSessionAt,
+      focusTile: id => { if (workspace) railRow(id)?.focus(); else navRef.current?.focusTile(id); },
+      ...(workspace ? { mode: "rail" as const } : {}),
       switchTo,
       focusPane,
       nextAsk: asks.nextAsk,

@@ -71,9 +71,13 @@ export interface RailRowProps {
   /** Set, for one render, on the row the last jump landed on: the highlight's turn. */
   landNonce: number | null;
   onSelect: (sessionId: string) => void;
+  /** WORKSPACE: Enter on the row opens the session with the keys in its pane,
+   *  where a click leaves them on the list. Absent on the Board, where Enter
+   *  is the button's own click. */
+  onOpenKeys?: (sessionId: string) => void;
 }
 
-export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect }: RailRowProps) {
+export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys }: RailRowProps) {
   const line = railLine(r, group);
   const time = railTime(r, group, now);
   // The highlight is the row's own once it has been handed over, so it plays
@@ -88,7 +92,14 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
           type="button"
           className={`sl-row${selected ? " selected" : ""}${removed ? " removed" : ""}`}
           aria-current={selected ? "true" : undefined}
+          data-session={r.sessionId}
           onClick={() => onSelect(r.sessionId)}
+          onKeyDown={onOpenKeys ? e => {
+            if (e.key !== "Enter" || e.repeat || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+            // Not the button's click: Enter here also takes the keys along.
+            e.preventDefault();
+            onOpenKeys(r.sessionId);
+          } : undefined}
           title={rowTooltip(r, removed)}
         >
           {/* Once, on the row a jump arrived at; a new nonce is a new element,

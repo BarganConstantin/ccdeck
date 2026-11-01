@@ -133,6 +133,10 @@ export interface StageGeometryInput {
    *  until it has said; HEAD_H without either. Taken as drawn, so Compact's
    *  36 gives the terminal its rows, but never as less than HEAD_H_MIN. */
   headH?: number;
+  /** WORKSPACE: the pane is the whole of the cell (no navigator, no divider),
+   *  so its columns are whatever fit, and the reader's stored width is neither
+   *  read nor written (the Board keeps it). */
+  fill?: boolean;
 }
 
 /** The columns a divider may land on in this window. */
@@ -156,6 +160,8 @@ export interface StageGeometry {
    *  the height they leave — also where every state card starts. */
   termTop: number;
   range: ColsRange;
+  /** Present (true) only in Workspace: the pane fills its cell. */
+  fill?: true;
 }
 
 const finite = (n: number, fallback: number) => (Number.isFinite(n) && n > 0 ? n : fallback);
@@ -242,6 +248,26 @@ function rememberedCols(stored: number, range: ColsRange): number {
 }
 
 /**
+ * WORKSPACE'S PANE: the whole cell, as many columns as fit (the insets
+ * included), rows between the header and the keys bar as the Board's stage
+ * fits them. One column count and no range: there is no divider to move, the
+ * remembered width is the Board's and is left alone, and the cell's width is
+ * what decides (Workspace keeps the Inspector a column only while the pane
+ * stays wide enough: detail-panel.css / workspace.css).
+ */
+function fillGeometry(input: StageGeometryInput, appW: number, cellW: number, cellH: number, headH: number): StageGeometry {
+  const cols = Math.max(MIN_TAKEOVER_COLS, Math.floor((appW - INSET_X) / cellW));
+  const barH = Math.max(BAR_H, finite(input.barH ?? BAR_H, BAR_H));
+  const avail = Math.max(0, input.bodyH - headH - barH);
+  const rows = Math.max(MIN_ROWS, Math.floor((avail - ROW_SLACK) / cellH));
+  const termTop = Math.max(6, Math.floor((avail - rows * cellH) / 2));
+  return {
+    cols, rows, stageW: appW, navW: 0, density: "rail", takeover: false, headH, termTop,
+    range: { min: cols, max: cols, detents: [] }, fill: true,
+  };
+}
+
+/**
  * The stage's geometry for one window: columns and rows, pixel widths, the
  * navigator's density, and where the grid sits. Pure; the stage and the
  * layout both call it with what they measured, and get the same answer.
@@ -251,6 +277,7 @@ export function stageGeometry(input: StageGeometryInput): StageGeometry {
   const cellH = finite(input.cellH, ASSUMED_CELL.h);
   const appW = Math.max(0, input.appW);
   const headH = Math.max(HEAD_H_MIN, finite(input.headH ?? HEAD_H, HEAD_H));
+  if (input.fill) return fillGeometry(input, appW, cellW, cellH, headH);
   const railWanted = input.narrow || input.expanded;
   const navMin = railWanted ? NAV_MIN_RAIL : NAV_MIN;
 

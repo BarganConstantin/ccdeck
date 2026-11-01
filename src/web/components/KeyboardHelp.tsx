@@ -42,15 +42,17 @@ interface Props {
   onTour?: () => void;
   /** Close this and open Settings at Keyboard, where the single-key switch is. */
   onSettings?: () => void;
+  /** The Command Panel is on, so Ctrl + backtick has a row (key-help.ts). */
+  workspace?: boolean;
 }
 
-export default function KeyboardHelp({ onClose, onTour, onSettings }: Props) {
+export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = false }: Props) {
   const dialogRef = useModalDismiss(onClose);
   const scrimPress = useScrimDismiss(onClose);
   const apple = isApplePlatform(platformName());
   const singleKeys = useSingleKeyShortcuts();
   const integrations = useIntegrations();
-  const groups = keyHelpFor(singleKeys, kind => kindOffered(integrations, kind));
+  const groups = keyHelpFor(singleKeys, kind => kindOffered(integrations, kind), workspace);
 
   return (
     <div className="modal-backdrop" {...scrimPress} role="presentation">

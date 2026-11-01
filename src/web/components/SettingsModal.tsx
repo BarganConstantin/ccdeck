@@ -52,6 +52,7 @@ import TerminalSection, { type TerminalSwitch } from "./TerminalSection";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SettingsSearchField, SettingsSearchResults, SettingsSearchStatus } from "./SettingsSearch";
 import { useSettingsJump } from "./use-settings-jump";
+import { workspaceOffered } from "../use-view";
 
 // Settings › Account, hidden: its own chunk, fetched only when the section is
 // drawn, which is only on a deck with the ccdeck account on (or vetoed at
@@ -252,7 +253,8 @@ export default function SettingsModal({
       case "reading":
         return <ReadingSection textSize={appearance.textSize} density={appearance.density} onTextSize={appearance.setTextSize} onDensity={appearance.setDensity} />;
       case "keyboard":
-        return <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)} />;
+        return <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)}
+          workspace={terminal != null && workspaceOffered({ enabled: terminal.on, supported: terminal.supported }, false)} />;
       case "notifications":
         return (
           <NotificationsSection

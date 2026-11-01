@@ -33,6 +33,9 @@ import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
 import { LAUNCHED_UNREACHABLE, PROVENANCE_UNKNOWN, agentName, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase } from "./stage-model";
 import { CopyGlyph, PlusGlyph, StageGlyph, TerminalGlyph } from "./stage-icons";
+import type { WaitingCard } from "./stage-board";
+import { Kbd } from "../Kbd";
+import { useSingleKeyShortcuts } from "../../use-single-key-shortcuts";
 
 /** The id the empty card's New session button carries, so the popover can
  *  hang off it. */
@@ -67,7 +70,20 @@ export interface StageBodyProps {
   onNotNow(): void;
   onRetry(): void;
   onNewSession(anchorId: string): void;
+  /** WORKSPACE: this is the pane with nothing in it, and says so (Figma,
+   *  "Empty workspace"), instead of the Board stage's "click a session on the
+   *  board". */
+  workspace?: boolean;
+  /** WORKSPACE, someone waits: the oldest waiting session, named in the empty
+   *  pane. Null: nothing is waiting. */
+  waiting?: WaitingCard | null;
+  /** Open the waiting session, with the keys in its pane: N's answer. */
+  onOpenWaiting?(): void;
 }
+
+/** The empty Workspace pane's words, word for word from the frame. */
+export const WS_EMPTY_TITLE = "Nothing is waiting";
+export const WS_EMPTY_LINE = "Open a session from the list, or start a new one.";
 
 /** The first line of the tmux card: what is wrong with tmux, as a fact. */
 export function tmuxFact(reason: string): string {
@@ -122,6 +138,48 @@ function InstallPlate({ line }: { line: string }) {
   );
 }
 
+/** The Workspace pane with nothing in it. Nobody waiting: a title, a line and
+ *  New session. Someone waiting: who, for how long, what they ask, and one
+ *  button that opens them (no New session there: the list's + is the way). */
+export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
+  waiting: WaitingCard | null | undefined;
+  onOpen?(): void;
+  onNewSession(anchorId: string): void;
+}) {
+  // The `n` on the button is N, a single key: not named with those turned off.
+  const singleKeys = useSingleKeyShortcuts();
+  if (waiting) {
+    return (
+      <div className="ts-card ts-ws-empty" data-waiting="">
+        <StageGlyph kind="waiting" />
+        <div className="ts-ws-head">
+          <span className="ts-ws-title">{waiting.name} is waiting on you</span>
+          <span className="ts-ws-wait">{waiting.waited}</span>
+        </div>
+        <p className="ts-ws-ask">
+          {waiting.ask}
+          {waiting.command && <> <code>{waiting.command}</code></>}
+        </p>
+        <button type="button" className="btn ts-ws-open" data-stage-land onClick={onOpen}>
+          {singleKeys && <Kbd>n</Kbd>}
+          <span>Open {waiting.name}</span>
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="ts-card ts-ws-empty">
+      <p className="ts-ws-title">{WS_EMPTY_TITLE}</p>
+      <p className="ts-text">{WS_EMPTY_LINE}</p>
+      <div className="ts-acts">
+        <button type="button" id={EMPTY_NEW_SESSION_ID} className="btn primary" aria-haspopup="dialog" data-stage-land onClick={() => onNewSession(EMPTY_NEW_SESSION_ID)}>
+          New session
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** The card for a phase with no pane to show, or null when the frame is
  *  what the body shows. `held`: a switch is holding the last frame up.
  *  Exported so the suite can draw each one. */
@@ -129,6 +187,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
   const { phase } = p;
   switch (phase.kind) {
     case "empty":
+      if (p.workspace) return <WorkspaceEmpty waiting={p.waiting} onOpen={p.onOpenWaiting} onNewSession={p.onNewSession} />;
       return (
         <div className="ts-card">
           <span className="ts-empty-glyph"><TerminalGlyph /></span>
