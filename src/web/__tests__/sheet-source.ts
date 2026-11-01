@@ -31,6 +31,16 @@ export function sheetText(): string {
   return joined;
 }
 
+/** The sheets of the screens that are loaded on demand (Chat and the Decision
+ *  card): not parts of styles.css, imported by their own components so that the
+ *  first-load sheet carries none of them. A sweep that asks "does every class the
+ *  markup hard-codes have a rule" or "does every control have a look" asks of
+ *  the sheet AND of these. */
+export function lazySheetText(): string {
+  return ["components/chat/chat.css", "components/decision/decision.css"]
+    .map(path => readFileSync(`${WEB_DIR}${path}`, "utf8")).join("");
+}
+
 /** Legacy geometry/type checks inspect the Default reading profile, not a
  * browser's computed style. Resolve only our explicitly neutral defaults —
  * the text, panel and card increments (0px), the floored small sizes' `max(-1px, …)`

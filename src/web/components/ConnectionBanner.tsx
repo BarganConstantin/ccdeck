@@ -6,21 +6,43 @@
 // version notice, then the old-name notice); this file is only what this one
 // says.
 import { PRODUCT } from "../brand";
+import { UnreachableGlyph } from "./action-glyphs";
 import { outageSentence } from "../status-pill";
 import type { useAutoRestart } from "../use-auto-restart";
 import { useT } from "../i18n";
 
 type Restart = ReturnType<typeof useAutoRestart>;
 
-export default function ConnectionBanner({ restarting, restartMode, live, paused }: {
+/** The phone's words for a dropped connection (Figma, "Can't reach your computer"):
+ *  honest that the link dropped, not that the agents stopped. The apostrophe is
+ *  the curly one the frame draws. There is no "last news" time in it: the deck
+ *  keeps no newest-event time to say. */
+export const UNREACHABLE_TITLE = "Can\u2019t reach your computer";
+export const UNREACHABLE_SUB = "Agents may still be running, so what you see may be old.";
+
+export default function ConnectionBanner({ restarting, restartMode, live, paused, phone = false }: {
   restarting: Restart["restarting"];
   restartMode: Restart["restartMode"];
   /** Whether the event stream is connected right now. */
   live: boolean;
   /** Whether the canvas is paused, which the outage sentence pairs with the drop. */
   paused: boolean;
+  /** 640px and under: the lost connection reads as the phone frame does. A
+   *  restart the deck asked for keeps its own sentence at every width. */
+  phone?: boolean;
 }) {
   const t = useT();
+  if (phone && !restarting) {
+    return (
+      <div className="conn-banner conn-banner-phone" role="alert">
+        <span className="conn-unreachable"><UnreachableGlyph /></span>
+        <span className="conn-phone-text">
+          <span className="conn-phone-title">{UNREACHABLE_TITLE}</span>
+          <span className="conn-phone-sub">{UNREACHABLE_SUB}</span>
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="conn-banner" role="alert">
       <span className="conn-dot" />

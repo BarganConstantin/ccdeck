@@ -10,6 +10,7 @@ import { modelChipText, modelChipTitle } from "../model-label";
 import { RAIL_GROUP_LABELS, type RailGroup } from "../rail-model";
 import { railGlyph, railLine, railTime, rowSpoken, rowTooltip, type RailGlyphKind } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";
+import type { UsageMeter } from "../rail-usage";
 
 /** The 14px status glyph. Working breathes on --pulse-live and nothing else
  *  moves on its own; Waiting is the alert triangle and holds still, because
@@ -145,6 +146,34 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
         </button>
       </div>
     </li>
+  );
+}
+
+/** Rail / Usage (Figma 22:831): the 5-hour window at the rail's foot, one
+ *  button that opens the Usage panel (or closes it, as its stripe door does).
+ *  Nothing at all without a reading (rail-usage.ts), not an empty box. */
+export function RailUsage({ meter, onPress }: { meter: UsageMeter | null; onPress: () => void }) {
+  if (!meter) return null;
+  // A stale reading leads with its age and drops the 7-day figure from the line
+  // (the one line has room for two things; the spoken name still has it).
+  const second = meter.stale ? [meter.readAgo, meter.reset] : [meter.reset, meter.week];
+  const line2 = second.flatMap((part, i) => (part ? [i > 0 && second[0] ? "·" : null, part] : [])).filter(Boolean);
+  return (
+    <div className="sl-usage">
+      <button type="button" className="sl-usage-btn" onClick={onPress} data-stale={meter.stale || undefined} aria-label={meter.spoken}>
+        <span className="sl-usage-line1" aria-hidden>
+          {meter.name && <span className="sl-usage-name" title={meter.name}>{meter.name}</span>}
+          <span className="sl-usage-what">5-hour limit</span>
+          <span className="sl-usage-pct">{meter.pctText}</span>
+        </span>
+        <span className="sl-usage-bar" aria-hidden><span className="sl-usage-fill" style={{ width: `${meter.fill}%`, background: meter.color }} /></span>
+        {line2.length > 0 && (
+          <span className="sl-usage-line2" aria-hidden>
+            {line2.map((part, i) => <span key={i}>{part}</span>)}
+          </span>
+        )}
+      </button>
+    </div>
   );
 }
 

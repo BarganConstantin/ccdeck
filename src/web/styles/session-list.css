@@ -393,9 +393,76 @@
 }
 .session-list .sl-nobody .sl-glyph { height: 14px; padding-top: 0; }
 
-/* The phone keeps the drawer, and a touch target of 44 (Phase 4 redoes it). */
+/* Rail / Usage (22:831): the foot of the rail, below the list that scrolls and
+   the removed cards' line. Padding 4 round the box, like the list's. The box is
+   one button: a column of the account and the 5-hour limit, the bar, and the
+   reset, padding 8 12. Figma's radius is 9, which the kit has no step for; it
+   takes the rows' own --r-panel. No fill or border at rest; hover is the rows'
+   wash, the press their scale, and the ring the deck's, drawn inside. */
+.session-list .sl-usage { flex: none; padding: 4px; }
+.session-list .sl-usage-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--r-panel);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast), transform 140ms var(--ease);
+}
+.session-list .sl-usage-btn:hover { background: var(--ctl-fill); }
+.session-list .sl-usage-btn:focus-visible { outline-offset: -2px; border-radius: var(--r-panel); }
+.session-list .sl-usage-btn:active { transform: scale(0.97); }
+.session-list .sl-usage-line1,
+.session-list .sl-usage-line2 {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+}
+.session-list .sl-usage-line1 { gap: 6px; }
+.session-list .sl-usage-line2 { gap: 4px; color: var(--muted); white-space: nowrap; }
+.session-list .sl-usage-name { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-list .sl-usage-what { flex: none; color: var(--text-secondary); white-space: nowrap; }
+.session-list .sl-usage-pct {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The track is --line and the bar is one fill. Figma cuts it into five coloured
+   segments, which have no data behind them (the deck has no per-segment share
+   of a quota window), so it is a single fill in the colour the Usage panel's
+   5-hour bar wears for the same reading (--accent, --warn from 70, --err from
+   90: quotaLevelColor), set inline by the meter. */
+.session-list .sl-usage-bar {
+  display: block;
+  width: 100%;
+  height: 4px;
+  border-radius: var(--r-tag);
+  overflow: hidden;
+  background: var(--line);
+}
+.session-list .sl-usage-fill { display: block; height: 100%; }
+/* A reading the deck has not taken lately (rail-usage.ts says when): its fill
+   goes --muted (inline, from the meter) and so does the percent, and its second
+   line says how long ago it was read. */
+.session-list .sl-usage-btn[data-stale] .sl-usage-pct { color: var(--muted); }
+
+/* The phone keeps the drawer, full width (left-column.css), and its rows are
+   the 62 high the phone frame draws, a touch target well over 44. */
 @media (max-width: 640px) {
-  .session-list .sl-row { min-height: max(var(--row-rail), 44px); }
+  .session-list .sl-usage-btn { min-height: 44px; }
+  .session-list .sl-row { min-height: 62px; }
   .session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }
   .session-list .sl-close { min-width: 44px; min-height: 44px; }
 }
@@ -407,6 +474,7 @@
    stays: it is opacity, and it is the state itself. */
 @media (prefers-reduced-motion: reduce) {
   .session-list .sl-row,
+  .session-list .sl-usage-btn,
   .session-list .sl-chev { transition: none; }
 }
 

@@ -30,7 +30,7 @@
 // its keys (#852), and Esc is the documented way back.
 import { Fragment } from "react";
 import { kindOffered, useIntegrations } from "../integrations/client";
-import { keyHelpFor } from "../key-help";
+import { KEY_HELP_NOTE, KEY_HELP_OFF_TITLE, KEY_HELP_SWITCH_NOTE, keyHelpFor, SINGLE_KEYS_PLACE, type KeyHelpGroup } from "../key-help";
 import { isApplePlatform, platformName } from "../platform";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
@@ -46,16 +46,21 @@ interface Props {
   onSettings?: () => void;
   /** The Command Panel is on, so Ctrl + backtick has a row (key-help.ts). */
   workspace?: boolean;
+  /** Groups a screen adds while it is on (the Decision card's keys). Passed by
+   *  the caller, never named here, so with no screen the sheet is key-help.ts's
+   *  table and nothing else. */
+  extraGroups?: readonly KeyHelpGroup[];
 }
 
-export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = false }: Props) {
+export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = false, extraGroups }: Props) {
   const t = useT();
   const dialogRef = useModalDismiss(onClose);
   const scrimPress = useScrimDismiss(onClose);
   const apple = isApplePlatform(platformName());
   const singleKeys = useSingleKeyShortcuts();
   const integrations = useIntegrations();
-  const groups = keyHelpFor(singleKeys, kind => kindOffered(integrations, kind), workspace);
+  const base = keyHelpFor(singleKeys, kind => kindOffered(integrations, kind), workspace);
+  const groups = extraGroups?.length ? [...base, ...extraGroups] : base;
 
   return (
     <div className="modal-backdrop" {...scrimPress} role="presentation">

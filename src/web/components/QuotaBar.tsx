@@ -84,6 +84,21 @@ export function monthlyDailyTarget(pct: number, resetAtSec: number, windowSec: n
   return days > 0 ? (100 - pct) / days : null;
 }
 
+/** How a known, already-capped reading is printed: a whole percentage, the way
+ *  Claude's readings arrive (clampPct), and "< 1%" under one, because 0.25% of
+ *  the track is a fill nobody can see (#1804). The bar and the rail's usage
+ *  meter (RailParts.tsx) print it from here, so the two cannot disagree. */
+export function quotaPctText(capped: number): string {
+  return capped < 1 ? "< 1%" : `${Math.round(capped)}%`;
+}
+
+/** The colour a window's fill wears at a known, already-capped reading: --err
+ *  at 90 and over (or at a reached limit), --warn from 70, else --accent. The
+ *  bar and the rail's usage meter take it from here, so they cannot disagree. */
+export function quotaLevelColor(capped: number, isErr = capped >= 90): string {
+  return isErr || capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
+}
+
 // ── Quota bar ──────────────────────────────────────────────────────────────
 interface QuotaBarProps {
   /** How full the window is, or null when the source sent no reading for it.
@@ -112,13 +127,13 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   const known    = pct != null && !rolled;
   const capped   = known ? Math.min(100, Math.max(0, pct)) : 0;
   const isErr    = limitReached || capped >= 90;
-  const color    = isErr ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
+  const color    = quotaLevelColor(capped, isErr);
   // A whole percentage, the way Claude's readings already arrive (clampPct).
   // A Codex spend cap is `used / limit * 100` and printed $10 of $30 as
   // "33.33333333333333%" (#1804). Under 1% reads "< 1%" like a zero does:
   // 0.25% of the track is a fill nobody can see.
   const underOne = capped < 1;
-  const pctLabel = rolled ? t("usage.quota.rolled") : !known ? t("usage.quota.noReading") : underOne ? "< 1%" : `${Math.round(capped)}%`;
+  const pctLabel = rolled ? t("usage.quota.rolled") : !known ? t("usage.quota.noReading") : quotaPctText(capped);
   // minimum 2% visual fill so a bar under 1% is still visible as a thin sliver
   const fillW    = underOne ? 2 : capped;
 

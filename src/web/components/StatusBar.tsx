@@ -12,7 +12,7 @@
 import { memo, useEffect, useState } from "react";
 import { isCanvasNodeElement } from "../canvas-node-element";
 import { platformName } from "../platform";
-import { statusViewFor } from "../status-hints";
+import { statusViewFor, type StatusHint } from "../status-hints";
 import { PANE_NAME_ATTR, paneNameOf, TERMINAL_PANEL_SELECTOR } from "../terminal-keys";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { Kbd } from "./Kbd";
@@ -64,15 +64,20 @@ function useFocusPlace(stageOpen: boolean): FocusPlace {
 
 /** Memoised: App re-renders on its clock several times a second, and the bar's
  *  only inputs are its two props, focus and the single-key switch. */
-export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null }: {
+export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null, extra }: {
   stageOpen: boolean;
   zoomedOut: boolean;
+  /** A layer the caller names while a screen has the keys (the Decision card's,
+   *  handed over by prop so this first-load file names no such key). Left out,
+   *  the bar is what it always was. A pane with the keys outranks it. */
+  extra?: { layer: string; label: string; hints: readonly StatusHint[] };
   /** Where Ctrl + backtick goes, when the deck claims it (status-hints.ts). */
   viewChord?: "workspace" | "board" | null;
 }) {
   const singleKeys = useSingleKeyShortcuts();
   const { pane, onCard } = useFocusPlace(stageOpen);
-  const view = statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform: platformName(), viewChord });
+  const standard = statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform: platformName(), viewChord });
+  const view = extra && pane == null ? extra : standard;
   return (
     <footer className="statusbar" aria-label="Keys" data-layer={view.layer}>
       <span className="statusbar-who"><span className="statusbar-dot" aria-hidden />{view.label}</span>

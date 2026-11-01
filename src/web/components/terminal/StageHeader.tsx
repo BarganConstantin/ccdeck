@@ -36,8 +36,10 @@
 // "‹" leads with the same promise, back to the board. ⤢ is full screen where
 // full screen hands the session the browser's shortcuts (tab-keys.ts), and is
 // drawn in the takeover too, where there is no width to give but that. There
-// is no Chat/Term toggle and no Split: Chat is a later phase behind a flag
-// that is off, and a control for either would be a dead one.
+// is no Split. The Chat | Term switch is drawn only when the caller hands in
+// `view`, which it does only with a transcript to show (use-screens.ts); the
+// deck has none, so the deck's header is the one it always was, and a control
+// that would have nothing behind it is not drawn.
 import { contextFigure, contextFigureParts, contextPercent } from "../../context-figure";
 import type { TerminalProvider } from "../../terminal-api";
 import { agentName, type KeysOwner, type StageStatus } from "./stage-model";
@@ -85,6 +87,10 @@ export interface StageHeaderProps {
    *  it, whose one control is ✕, back to the board; `pane` has ⤢ as Zoom
    *  (`expanded` is zoomed) and ✕ emptying the pane. Left out on the Board. */
   workspace?: "pane" | "empty";
+  /** Chat | Term: which one the pane shows. Left out, no switch is drawn. It is
+   *  the deck's own View switch (workspace.css) in the header, so it costs no
+   *  stylesheet of Chat's. */
+  view?: { current: "chat" | "term"; onChange(next: "chat" | "term"): void };
   /** Ask the session for keys, or give them back. */
   onKeys(): void;
   onExpand(): void;
@@ -166,6 +172,15 @@ export default function StageHeader(p: StageHeaderProps) {
           {parts.pct == null ? parts.lead : <><span className="ts-ctxlead">{parts.lead}</span>{parts.pct}</>}
           <span className="ts-ctxbar" aria-hidden="true"><i style={{ width: `${contextPercent(used.used, used.window)}%` }} /></span>
         </span>
+      )}
+      {p.view && (
+        <div className="view-switch" role="group" aria-label="View">
+          {(["chat", "term"] as const).map(v => (
+            <button key={v} type="button" className="view-opt" aria-pressed={p.view!.current === v} onClick={() => p.view!.onChange(v)}>
+              {v === "chat" ? "Chat" : "Term"}
+            </button>
+          ))}
+        </div>
       )}
       <div className="ts-ctl">
         <div className="ts-tools">

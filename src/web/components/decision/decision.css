@@ -1,0 +1,278 @@
+/* ---------------- The Decision card ----------------
+   The question docked under the chat (components/decision/). IN A LAZY CHUNK:
+   DecisionCard.tsx imports this sheet, so with the flag off the deck's first
+   stylesheet carries none of it (v4-screens-bundle.test.ts reads dist/web).
+   Tokens only: no colour is written here, no shadow either (the card wears
+   --shadow-overlay). The dock is --dock with a hairline over it; the card is
+   --panel and waits in --warn; the options are the Option rows (--row-option,
+   --r-panel). No filled button anywhere: what answers is a row, what navigates
+   is a text link. */
+
+.dc-dock {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* 12/16 with the top border counted in: one decision is 192 high. */
+  padding: 11px 16px 12px;
+  background: var(--dock);
+  border-top: 1px solid var(--line-soft);
+  color: var(--text);
+  animation: dc-arrive var(--dur-base) var(--ease);
+}
+/* Arrives: opacity, and up from 8px. */
+@keyframes dc-arrive { from { opacity: 0; transform: translateY(8px); } }
+@keyframes dc-swap { from { opacity: 0; } }
+
+/* The card, the tree and the options on one row; the outcome under the options,
+   at the options' own gap of 4 (257 with an outcome). */
+.dc-decision {
+  display: grid;
+  grid-template-columns: 300px 24px minmax(0, 460px);
+  align-items: stretch;
+  column-gap: 0;
+  row-gap: 4px;
+}
+.dc-dq {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  /* 12 with the border counted in: the command box is 276 wide in a 300 card. */
+  padding: 11px;
+  background: var(--panel);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-node);
+  box-shadow: var(--shadow-overlay);
+}
+/* Once the question is over, or answered, the card is neutral and still readable. */
+.dc-dq[data-outcome="sent"],
+.dc-dq[data-outcome="ended"],
+.dc-dq[data-outcome="elsewhere"] { border-color: var(--line); }
+.dc-title { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); line-height: 20px; font-weight: 600; color: var(--text); }
+.dc-cmd {
+  display: block;
+  box-sizing: border-box;
+  /* 4/8 with the border counted in: 28 high. */
+  padding: 3px 7px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-ctl);
+  font: 400 13px/20px var(--font-mono);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dc-plan { margin: 0; padding: 0; list-style: none; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--text); }
+.dc-plan-n { display: inline-block; min-width: 16px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dc-caption { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); }
+.dc-mono { font: 400 12px/16px var(--font-mono); color: inherit; }
+
+/* The tree: a stub from the card, a spine, one tick to each option. */
+.dc-tree {
+  grid-column: 2;
+  grid-row: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--line);
+}
+.dc-stub { position: absolute; left: 0; top: 50%; width: 8px; height: 1px; background: currentColor; }
+.dc-spine { position: absolute; left: 8px; top: calc(var(--row-option) / 2); bottom: calc(var(--row-option) / 2); width: 1px; background: currentColor; }
+.dc-tick { position: relative; display: block; height: var(--row-option); }
+.dc-tick::after { content: ""; position: absolute; left: 8px; right: 0; top: 50%; height: 1px; background: currentColor; }
+
+.dc-opts { grid-column: 3; grid-row: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dc-row { display: flex; flex-direction: column; gap: 8px; min-width: 0; border-radius: var(--r-panel); }
+.dc-opt {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--row-option);
+  /* The 1px border is part of the 4/12/4/8: the row is exactly --row-option high. */
+  padding: 3px 11px 3px 7px;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-panel);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.dc-opt:focus { outline: none; }
+/* The ring: 1.5px of --accent, where the keys are. */
+.dc-opt[data-focus] { border-color: var(--accent); box-shadow: 0 0 0 0.5px var(--accent); }
+.dc-opt:hover:not([data-focus]):not([aria-disabled="true"]) { border-color: var(--line); }
+.dc-chip {
+  flex: none;
+  box-sizing: border-box;
+  padding: 1px 6px;
+  background: var(--ctl-fill);
+  border-radius: var(--r-ctl);
+  font: 400 11px/14px var(--font-mono);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.dc-opt-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.dc-opt-label { font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-opt-sub { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-lock { display: inline-flex; align-items: center; gap: 4px; }
+/* A locked row changes the session's rules: dashed, unfilled, read and never answered. */
+.dc-opt[data-locked] { background: none; border-style: dashed; cursor: default; }
+.dc-opt[data-locked] .dc-opt-label { font-weight: 500; color: var(--text-secondary); }
+.dc-pick { flex: none; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; color: var(--accent); }
+/* Several answers: a box on the right. */
+.dc-box {
+  flex: none;
+  position: relative;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--muted);
+  border-radius: var(--r-tag);
+}
+.dc-box[data-on] { background: var(--accent); border-color: var(--accent); }
+.dc-box[data-on]::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--bg);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+.dc-opt[role="checkbox"][data-checked] { border-color: var(--accent); }
+
+/* Tell Claude what to do: the row opens in place and holds a field. */
+/* The 1.5 ring is an inset shadow, so it adds nothing to the row: its head stays
+   --row-option high and the tree's tick stays level with it. 44 + 12 + 34 + 14 = 104. */
+.dc-row[data-typing] { gap: 12px; padding: 0 0 14px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.dc-row[data-typing] .dc-opt { border-color: transparent; box-shadow: none; }
+/* The input is 409 of the row's 460; the send word sits in the gutter on its right. */
+.dc-field { position: relative; display: flex; align-items: center; padding: 0 43px 0 8px; }
+.dc-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  font: inherit;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  color: var(--text);
+  caret-color: var(--accent);
+}
+.dc-send { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); pointer-events: none; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 500; color: var(--accent); }
+
+/* Picked: the chosen row stays, the others dim and lock, at Fast. */
+.dc-dock[data-outcome="checking"] .dc-opt[aria-checked="false"],
+.dc-dock[data-outcome="sent"] .dc-opt[aria-checked="false"] { pointer-events: none; }
+.dc-dock[data-outcome="checking"] .dc-opt[aria-checked="false"] .dc-opt-label,
+.dc-dock[data-outcome="sent"] .dc-opt[aria-checked="false"] .dc-opt-label { color: var(--muted); }
+.dc-dock[data-mode="readOnly"] .dc-opt { cursor: default; }
+
+/* What happened after a pick: a panel under the options, a live region. */
+/* The live region is in the page before it speaks, but takes no row: out of flow,
+   so the empty card has no gap of 8 under its options. */
+.dc-out-empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.dc-out {
+  grid-column: 3;
+  grid-row: 2;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* 61 high as drawn: 36 of text, 2 of border, 11.5 above and below. The frame's
+     corner is 9; no token is 9, so --r-panel (8) stays. */
+  padding: 11.5px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-contact);
+  animation: dc-swap var(--dur-fast) var(--ease);
+}
+/* Checking is drawn only if the re-read takes longer than the loader delay. */
+.dc-out[data-kind="checking"] { animation-delay: var(--delay-loader); animation-fill-mode: backwards; }
+.dc-out-glyph { flex: none; display: inline-flex; color: var(--muted); }
+.dc-err { display: inline-flex; color: var(--err); }
+.dc-out-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.dc-out-title { font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; font-weight: 600; color: var(--text); }
+.dc-out-title[data-tone="ok"] { color: var(--ok); }
+.dc-out-sub { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); }
+
+/* The foot: the pick keys, the promise, the way to the terminal. */
+.dc-foot { display: flex; align-items: center; gap: 12px; min-height: 20px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); }
+.dc-foot-pick { flex: none; display: inline-flex; align-items: center; gap: 4px; }
+.dc-foot-note { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+}
+.dc-link:hover { text-decoration: underline; }
+
+/* The phone frame: the card on a line of its own, the answers stacked below. */
+.dc-dock[data-size="phone"] .dc-decision { display: flex; flex-direction: column; gap: 8px; }
+.dc-dock[data-size="phone"] .dc-tree { display: none; }
+.dc-dock[data-size="phone"] .dc-opt { min-height: 62px; }
+.dc-dock[data-size="phone"] .dc-chip { padding: 1px 6px; }
+.dc-dock[data-size="phone"] .dc-foot { flex-wrap: wrap; }
+.dc-dock[data-size="phone"] .dc-dq { align-self: stretch; max-width: 100%; }
+
+/* 640 and under, with the card in a phone dock or not: the card is as wide as
+   the dock and no wider (a long command ends in an ellipsis), the dock takes at
+   most 60% of the pane and scrolls inside, and the links and the field are 44
+   targets. */
+@media (max-width: 640px) {
+  .dc-dock { max-height: 60%; overflow-y: auto; overscroll-behavior: contain; }
+  .dc-decision { max-width: 100%; }
+  .dc-dq { align-self: stretch; max-width: 100%; }
+  .dc-link { min-height: 44px; }
+  .dc-input { height: 44px; }
+}
+
+/* FORCED COLOURS: the ring, the check and the lock are drawn with system
+   colours, because border and shadow colours are replaced and a shadow is not
+   drawn. */
+@media (forced-colors: active) {
+  .dc-opt:focus-visible,
+  .dc-opt[data-focus] { outline: 2px solid Highlight; outline-offset: 2px; }
+  .dc-opt[data-checked],
+  .dc-opt[role="checkbox"][data-checked] { border-color: Highlight; border-width: 2px; }
+  .dc-box[data-on] { background: Highlight; border-color: Highlight; forced-color-adjust: none; }
+  .dc-box[data-on]::after { border-color: HighlightText; }
+  .dc-opt[data-locked] { border-style: dashed; border-color: GrayText; color: GrayText; }
+  .dc-opt[data-locked] .dc-opt-label { color: GrayText; }
+  .dc-input:focus-visible { outline: 2px solid Highlight; }
+}
+
+/* Alone in the pane (a question under the terminal), the dock sits on its foot. */
+.ts-body > .dc-dock { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; }
+
+/* REDUCED MOTION: fades only. The card does not travel up, and an outcome or
+   the record swaps at once. */
+@media (prefers-reduced-motion: reduce) {
+  .dc-dock { animation-name: dc-swap; animation-duration: var(--dur-fast); }
+  .dc-opt { transition: none; }
+  .dc-out { animation: none; }
+}

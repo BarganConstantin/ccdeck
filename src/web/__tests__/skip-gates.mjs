@@ -305,6 +305,10 @@ export const GATES = [
   // and the traversal spellings, asked of serveStatic through the socket. What
   // it serves is the build, so without one there is nothing to ask it about.
   { file: "guarded-reads.test.ts", gate: "describe.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 6 },
+  // V4's Chat and Decision card: what index.html loads on every visit holds none
+  // of them (entry script, preloads, stylesheet), and the screens are chunks and
+  // async stylesheets of their own. An artifact question, so the same gate.
+  { file: "v4-screens-bundle.test.ts", gate: "describe.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 3 },
 ];
 
 /**
