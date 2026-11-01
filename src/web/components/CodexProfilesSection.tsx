@@ -16,10 +16,11 @@ import { isAutoArmed, pastThreshold } from "../account-fold";
 import { ALIAS_MAX_LENGTH } from "../alias-save";
 import { type AutoStatus } from "../claude-accounts";
 import {
-  CODEX_VOICE, codexAccount, codexIssue, codexPeers, DEFAULT_READ_MS, nextReading, OTHER_READ_MS, readingFor, shownReading, signedOut,
+  codexVoice, codexAccount, codexIssue, codexPeers, DEFAULT_READ_MS, nextReading, OTHER_READ_MS, readingFor, shownReading, signedOut,
   type CodexProfile, type ProfileQuota,
 } from "../codex-accounts";
 import { copyText } from "../copy-text";
+import { useT } from "../i18n";
 import { codexDefaultMoved } from "../use-quota";
 import { type Failure } from "../accounts-reload";
 import { focusDropped } from "../panel-press";
@@ -57,6 +58,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   /** Whether the default account needs attention, for the switch's dot. */
   onNotice?: (needs: boolean) => void;
 } = {}) {
+  const t = useT();
   const { busy, claim, release, pressProps } = useRequestSlot();
   const nowSec = usePanelClock();
   const [profiles, setProfiles] = useState<CodexProfile[] | null>(null);
@@ -128,13 +130,13 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
       });
       const out = await response.json().catch(() => null) as (AutoStatus & { reason?: string }) | null;
       if (out?.ok) setAuto(out);
-      else setFailure({ text: "That setting was not saved. Try again." });
+      else setFailure({ text: t("codex.panel.settingNotSaved") });
       return out;
     } catch {
-      setFailure({ text: "server unreachable" });
+      setFailure({ text: t("codex.panel.unreachable") });
       return null;
     } finally { release(); }
-  }, [claim, release]);
+  }, [claim, release, t]);
 
   const {
     threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdRef, thresholdSaveRef,
@@ -246,8 +248,8 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
     const reading = readingFor(profile, quotas[profile.id]);
     return {
       profile, reading,
-      account: codexAccount(profile, index + 1, reading, { nowMs: nowSec * 1000, heldOut: auto?.heldOut }),
-      issue: codexIssue(profile, reading, profiles ?? []),
+      account: codexAccount(profile, index + 1, reading, { nowMs: nowSec * 1000, heldOut: auto?.heldOut }, t),
+      issue: codexIssue(profile, reading, profiles ?? [], t),
     };
   });
   type Row = (typeof rows)[number];
@@ -257,7 +259,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   useEffect(() => { if (rosterRead) onNotice?.(needsAttention); }, [onNotice, needsAttention, rosterRead]);
   const others = rows.filter(row => row !== head);
   const otherAccounts = others.map(row => row.account);
-  const choices = orderChoices(otherAccounts).map(choice => choice.id === SLOT_ORDER ? { ...choice, label: "Order added" } : choice);
+  const choices = orderChoices(otherAccounts).map(choice => choice.id === SLOT_ORDER ? { ...choice, label: t("codex.order.added") } : choice);
   const shownOrder = validOrder(order, otherAccounts);
   const rest = sortAccounts(otherAccounts, shownOrder,
     a => { const row = others.find(r => r.account === a); return !a.disabled && !row?.issue?.blocksSwitch; }, nowSec)
@@ -287,11 +289,11 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
       if (out.ok) setSwitched({ id: profile.id, name });
       else {
         const conflict = ["selection_conflict", "operation_conflict", "selection_busy"].includes(out.reason ?? "");
-        setFailure({ text: conflict ? "Another change moved the default just then. Try again." : "The switch did not go through. Reload and try again.", row: num });
+        setFailure({ text: conflict ? t("codex.panel.switchConflict") : t("codex.panel.switchFailed"), row: num });
       }
       await refreshProfiles().catch(() => setError(true));
     } catch {
-      setFailure({ text: "server unreachable", row: num });
+      setFailure({ text: t("codex.panel.unreachable"), row: num });
     } finally {
       release();
       rescueFocus(num);
@@ -337,9 +339,9 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
     try {
       if (await removeProfile(id)) {
         setMenu(null);
-        setMessage("Account removed. Its sign-in and history are kept aside in the deck's data folder, not deleted.");
+        setMessage(t("codex.panel.removed"));
         rescueFocus(null);
-      } else setMenuError("Could not remove the account. Reload and try again.");
+      } else setMenuError(t("codex.panel.removeFailed"));
     } finally { release(); }
   }
 
@@ -351,7 +353,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
     try {
       const out = await postJson("/api/codex-profile-rename", { id: profile.id, label: name, expectedRevision: revision.current }).catch(() => null);
       if (out?.ok) { await refreshProfiles().catch(() => setError(true)); setMenu(null); rescueFocus(num); }
-      else setMenuError(out?.reason === "invalid_label" ? "A name cannot hold a slash." : "Could not rename the account. Try again.");
+      else setMenuError(out?.reason === "invalid_label" ? t("codex.panel.badName") : t("codex.panel.renameFailed"));
     } finally { release(); }
   }
 
@@ -361,7 +363,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
       if (!response.ok) throw new Error("Unavailable");
       const result = await response.json() as { command: string };
       setMessage(await copyText(result.command) ? done : result.command);
-    } catch { setMessage("Could not prepare the command."); }
+    } catch { setMessage(t("codex.panel.commandFailed")); }
   }
 
   const openMenu = (id: string, start: "first" | "last" = "first") => {
@@ -379,15 +381,16 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   const signIn = (profile: CodexProfile) => setDialog({ id: profile.id, label: profile.label, account: profile.account });
 
   /** One account's row, drawn the same above the fold and behind it. */
+  const voice = codexVoice(t);
   const accountRow = ({ profile, reading, account: a, issue }: Row) => {
     const plan = shownReading(reading)?.plan;
     const reads = quotas[profile.id] === null || reading?.reason === "profile_changed";
     return (
       <AccountRow key={profile.id} a={a} nowSec={nowSec} issueOverride={issue}
         voice={{
-          ...CODEX_VOICE,
-          readPlan: plan ? `${sentence(plan)} plan. ${CODEX_VOICE.readPlan}` : CODEX_VOICE.readPlan,
-          waiting: reads ? "Reading usage…" : undefined,
+          ...voice,
+          readPlan: plan ? t("codex.row.readPlanNamed", { plan: sentence(plan), rest: voice.readPlan ?? "" }) : voice.readPlan,
+          waiting: reads ? t("codex.row.reading") : undefined,
         }}
         opened={isOpen(openness, a)} onToggleLanes={() => setOpenness(o => toggleOne(o, a))}
         busy={busy} pressProps={pressProps} onSwitch={doSwitch}
@@ -417,16 +420,16 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   return (
     <>
       <div className="ap-header">
-        <h2 className={switcher ? "vis-hidden" : undefined}>Codex accounts</h2>
+        <h2 className={switcher ? "vis-hidden" : undefined}>{t("codex.panel.title")}</h2>
         {switcher}
         <div className="ap-header-right">
-          <button type="button" className="glyph-btn ap-add" aria-label="Add a Codex account" title="Sign in to another Codex account"
+          <button type="button" className="glyph-btn ap-add" aria-label={t("codex.panel.add")} title={t("codex.panel.addTitle")}
             aria-haspopup="dialog" onClick={() => setDialog({})}>
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden>
               <path d="M7 2.2v9.6M2.2 7h9.6" />
             </svg>
           </button>
-          <button type="button" className="glyph-btn ap-refresh" aria-label="Reload Codex accounts" title="Read the accounts and their numbers again"
+          <button type="button" className="glyph-btn ap-refresh" aria-label={t("codex.panel.reload")} title={t("codex.panel.reloadTitle")}
             {...pressProps("reload", reloading)} onClick={() => void reload()}>
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M11.6 6.2A4.8 4.8 0 1 0 11 9.6" />
@@ -434,7 +437,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
             </svg>
           </button>
           {onClose && (
-            <button type="button" className="glyph-btn" aria-label="Close Codex accounts" onClick={onClose}>
+            <button type="button" className="glyph-btn" aria-label={t("codex.panel.close")} onClick={onClose}>
               <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden>
                 <path d="M3.4 3.4l7.2 7.2M10.6 3.4l-7.2 7.2" />
               </svg>
@@ -443,19 +446,19 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
         </div>
       </div>
       <div className="ap-scroll" id="ap-codex-scroll">
-        <section className="ap-codex" aria-label="Codex profiles">
+        <section className="ap-codex" aria-label={t("codex.panel.profiles")}>
           {profiles === null ? (
             error ? (
               <div className="ap-empty" role="alert">
-                <span>Could not load the Codex accounts.</span>
-                <span className="ap-hint">The panel keeps trying every 15 seconds.</span>
+                <span>{t("codex.panel.loadFailed")}</span>
+                <span className="ap-hint">{t("codex.panel.keepsTrying")}</span>
                 <button type="button" className="ap-fix" {...pressProps("reload", reloading)}
-                  onClick={() => void reload().then(() => rescueFocus(null))}>{reloading ? "trying…" : "try again"}</button>
+                  onClick={() => void reload().then(() => rescueFocus(null))}>{reloading ? t("codex.panel.trying") : t("codex.panel.tryAgain")}</button>
               </div>
-            ) : <div className="ap-empty">Checking…</div>
+            ) : <div className="ap-empty">{t("codex.panel.checking")}</div>
           ) : (
             <>
-              {error && <p role="alert" className="ap-codex-hint">Could not refresh the accounts. Showing the last list.</p>}
+              {error && <p role="alert" className="ap-codex-hint">{t("codex.panel.refreshFailed")}</p>}
               {/* The default account's trouble, once, above the list: every new
                   session starts on it, so it is the column's news. */}
               {head?.issue?.tone === "warn" && (
@@ -465,12 +468,12 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
                     aria-controls={issueOpen?.anchor === "ap-codex-notice" ? "ap-issue-pop" : undefined}
                     onClick={() => openIssue(head.profile.id, "ap-codex-notice")}>
                     <WarnGlyph />
-                    <span className="ap-issue-text">Current account needs attention</span>
+                    <span className="ap-issue-text">{t("codex.panel.needsAttention")}</span>
                   </button>
                   {head.issue.fix && (
                     <button type="button" className="ap-notice-fix" onClick={() => signIn(head.profile)}
-                      title="Open the sign-in dialog. Signing in replaces this account's login in place.">
-                      Sign in
+                      title={t("codex.panel.signInTitle")}>
+                      {t("codex.panel.signIn")}
                     </button>
                   )}
                 </div>
@@ -478,7 +481,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
               <ul className="ap-list">{head && accountRow(head)}</ul>
               {rest.length > 0 && (
                 <OtherAccounts idPrefix="codex-"
-                  peers={codexPeers(rest, nowSec)}
+                  peers={codexPeers(rest, nowSec, t)}
                   strained={head ? pastThreshold(head.account, threshold, nowSec) : false}
                   armed={isAutoArmed(auto)}
                   threshold={auto?.ok ? threshold : null}
@@ -501,7 +504,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
                 <div className="ap-failure" role="alert">
                   <span className="ap-failure-text">{failure.text}</span>
                   <button type="button" className="ap-failure-x" onClick={() => setFailure(null)}
-                    aria-label="Dismiss this message" title="Dismiss">×</button>
+                    aria-label={t("codex.panel.dismiss")} title={t("codex.panel.dismissTitle")}>×</button>
                 </div>
               )}
               {message && <p className="ap-codex-hint" role="status">{message}</p>}
@@ -510,7 +513,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
         </section>
       </div>
       <div className="vis-hidden" role="status" aria-atomic="true">
-        {switched ? `Now active: ${switched.name}` : ""}
+        {switched ? t("codex.panel.nowActive", { name: switched.name }) : ""}
       </div>
       {menu && menuRow && (() => {
         const { profile, account: a } = menuRow;
@@ -524,27 +527,27 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
             {menu.view === "menu" && (
               <>
                 <button type="button" role="menuitem" className="ap-menu-item"
-                  onClick={() => { setAliasDraft(profile.managedLabel ?? ""); setMenuError(null); setMenu({ ...menu, view: "rename" }); }}>Rename</button>
+                  onClick={() => { setAliasDraft(profile.managedLabel ?? ""); setMenuError(null); setMenu({ ...menu, view: "rename" }); }}>{t("codex.menu.rename")}</button>
                 <button type="button" role="menuitem" className="ap-menu-item"
-                  title={signedOut(profile) ? "Sign in to this account" : "Replace this account's login"}
-                  onClick={choose(() => signIn(profile))}>{signedOut(profile) || profile.metadataUnavailable ? "Sign in" : "Sign in again"}</button>
+                  title={signedOut(profile) ? t("codex.menu.signInTitle") : t("codex.menu.replaceTitle")}
+                  onClick={choose(() => signIn(profile))}>{signedOut(profile) || profile.metadataUnavailable ? t("codex.menu.signIn") : t("codex.menu.signInAgain")}</button>
                 <button type="button" role="menuitem" className="ap-menu-item"
-                  title="Copies a command that starts Codex on this account"
-                  onClick={choose(() => void copyCommand(`/api/codex-profile-launch?id=${encodeURIComponent(profile.id)}`, "Launch command copied."))}>Copy launch command</button>
+                  title={t("codex.menu.copyLaunchTitle")}
+                  onClick={choose(() => void copyCommand(`/api/codex-profile-launch?id=${encodeURIComponent(profile.id)}`, t("codex.panel.launchCopied")))}>{t("codex.menu.copyLaunch")}</button>
                 {(!a.active || a.disabled) && (
                   <button type="button" role="menuitem" className="ap-menu-item"
                     {...pressProps(`rot-${a.num}`)}
-                    title={a.disabled ? "Return this account to auto-rotation" : "Hold this account out of auto-rotation"}
+                    title={a.disabled ? t("codex.menu.putBackTitle") : t("codex.menu.holdOutTitle")}
                     onClick={() => void post({ action: "account", id: profile.id, enabled: a.disabled }, `rot-${a.num}`).then(out => { if (out?.ok) setMenu(null); })}
-                  >{a.disabled ? "Put back in rotation" : "Hold out of rotation"}</button>
+                  >{a.disabled ? t("codex.menu.putBack") : t("codex.menu.holdOut")}</button>
                 )}
                 {a.active && (
                   <>
                     <button type="button" role="menuitem" className="ap-menu-item"
-                      title="Copies a one-time setup so the plain codex command follows the default"
-                      onClick={choose(() => void copyCommand("/api/codex-terminal-command?action=install", "Command copied. Run it in your terminal."))}>Enable terminal selection</button>
+                      title={t("codex.menu.enableTerminalTitle")}
+                      onClick={choose(() => void copyCommand("/api/codex-terminal-command?action=install", t("codex.panel.commandCopied")))}>{t("codex.menu.enableTerminal")}</button>
                     <button type="button" role="menuitem" className="ap-menu-item"
-                      onClick={choose(() => void copyCommand("/api/codex-terminal-command?action=uninstall", "Command copied. Run it in your terminal."))}>Remove terminal selection</button>
+                      onClick={choose(() => void copyCommand("/api/codex-terminal-command?action=uninstall", t("codex.panel.commandCopied")))}>{t("codex.menu.removeTerminal")}</button>
                   </>
                 )}
                 {profile.managed && (
@@ -553,12 +556,12 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
                     <button type="button" role="menuitem"
                       className={`ap-menu-item danger${confirmRemove === profile.id ? " armed" : ""}`}
                       {...pressProps(`rm-${a.num}`)}
-                      aria-label={confirmRemove === profile.id ? "Confirm remove" : undefined}
+                      aria-label={confirmRemove === profile.id ? t("codex.menu.confirmRemove") : undefined}
                       title={confirmRemove === profile.id
-                        ? "Press again within four seconds to remove it"
-                        : "Take this account out of the deck. Its sign-in and history are kept aside, not deleted."}
+                        ? t("codex.menu.removeArmedTitle")
+                        : t("codex.menu.removeTitle")}
                       onClick={() => void pressRemove(profile.id, a.num)}
-                    >{busy === `rm-${a.num}` ? "Removing…" : confirmRemove === profile.id ? "Confirm" : "Remove"}</button>
+                    >{busy === `rm-${a.num}` ? t("codex.menu.removing") : confirmRemove === profile.id ? t("codex.menu.confirm") : t("codex.menu.remove")}</button>
                   </>
                 )}
                 {refusal}
@@ -566,16 +569,16 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
             )}
             {menu.view === "rename" && (
               <form className="ap-pop-form" onSubmit={event => { event.preventDefault(); void saveAlias(profile, a.num); }}>
-                <label className="ap-pop-title" id={titleId} htmlFor={`ap-codex-alias-${a.num}`}>Rename account</label>
+                <label className="ap-pop-title" id={titleId} htmlFor={`ap-codex-alias-${a.num}`}>{t("codex.menu.renameTitle")}</label>
                 <input id={`ap-codex-alias-${a.num}`} className="ap-manage-input" type="text" value={aliasDraft}
                   onChange={event => setAliasDraft(event.target.value)} maxLength={ALIAS_MAX_LENGTH}
-                  placeholder="e.g. work" spellCheck={false} autoComplete="off" autoFocus
+                  placeholder={t("codex.menu.renamePlaceholder")} spellCheck={false} autoComplete="off" autoFocus
                   onFocus={event => event.currentTarget.select()} />
                 {refusal}
                 <div className="ap-pop-actions">
-                  <button type="button" className="btn" onClick={() => setMenu(null)}>Cancel</button>
+                  <button type="button" className="btn" onClick={() => setMenu(null)}>{t("codex.menu.cancel")}</button>
                   <button type="submit" className="btn primary" {...pressProps(`alias-${a.num}`)}
-                    title="A short name to show instead of the email">{busy === `alias-${a.num}` ? "…" : "Save"}</button>
+                    title={t("codex.menu.saveTitle")}>{busy === `alias-${a.num}` ? "…" : t("codex.menu.save")}</button>
                 </div>
               </form>
             )}
@@ -586,7 +589,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
         <AccountIssuePopover anchorId={issueOpen.anchor}
           boundaryId={issueOpen.anchor === "ap-codex-notice" ? "ap-codex-scroll" : rowBoundary(issueRow.profile.id)}
           issue={issueRow.issue}
-          who={issueRow.account.alias ?? issueRow.account.email ?? `account ${issueRow.account.num}`}
+          who={issueRow.account.alias ?? issueRow.account.email ?? t("codex.peer.account", { n: issueRow.account.num })}
           fetchedAt={issueRow.account.fetchedAt} nowSec={nowSec}
           onClose={closeIssue} onSignIn={() => signIn(issueRow.profile)} />
       )}
@@ -594,7 +597,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
         <AddCodexAccountDialog
           profile={dialog.id && dialog.label ? { id: dialog.id, label: dialog.label, account: dialog.account } : undefined}
           onCreate={createProfile}
-          onCopyCommand={id => void copyCommand(`/api/codex-profile-login?id=${encodeURIComponent(id)}`, "Command copied. Run it in your terminal.")}
+          onCopyCommand={id => void copyCommand(`/api/codex-profile-login?id=${encodeURIComponent(id)}`, t("codex.panel.commandCopied"))}
           onSignedIn={async id => {
             readFor.current.clear();
             const roster = await refreshProfiles().catch(() => { setError(true); return undefined; });

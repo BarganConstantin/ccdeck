@@ -98,6 +98,8 @@ const catalog: Catalog = {
   "usage.credits.codexTitle": "Canjéalo en la CLI de Codex o en ChatGPT: {product} solo los muestra",
   "usage.sessionNote": "Sesiones con actividad {noun}, y lo que ccusage asigna a cada una.",
   "usage.sessionNote.over": "Suman {sum}, más que los {total} de arriba: lo que cuesta una sesión y lo que cuesta un día son dos mediciones distintas y no tienen por qué coincidir.",
+  "usage.quota.standardLimits": "Solo los límites estándar de Codex; no se incluyen límites adicionales ni créditos.",
+  "usage.quota.hint.codexProfileChanged": "El inicio de sesión de Codex acaba de cambiar: se vuelve a leer en menos de un minuto.",
 };
 
 export default catalog;

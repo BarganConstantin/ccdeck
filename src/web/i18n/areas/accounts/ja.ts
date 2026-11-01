@@ -624,6 +624,9 @@ const catalog: Catalog = {
   "accounts.fail.login.claudeMissing": "claude CLI を実行できません：PATH にありません。AGENTS_DECK_CLAUDE にフルパスを設定してください。",
   "accounts.fail.login.cswapMissing": "cswap を実行できません：PATH にも、uv や pipx のインストール先にもありません。AGENTS_DECK_CSWAP にフルパスを設定してください。",
   "accounts.fail.login.tookLong": "{what} に時間がかかりすぎたため停止しました",
+  "accounts.switch.label": "表示するアカウント",
+  "accounts.switch.attention": "{name}、確認が必要です",
+  "accounts.switch.attentionTip": "現在の {name} アカウントの確認が必要です",
 };
 
 export default catalog;

@@ -399,7 +399,9 @@
 }
 .ap-lane {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 32px 44px;
+  /* The reset keeps 44px, which holds English's "2h 59m", and grows with a longer
+     language's "2 Std. 59 Min." or "2 小时 59 分钟" instead of being cut. */
+  grid-template-columns: 34px minmax(0, 1fr) 32px minmax(44px, max-content);
   grid-template-areas: "label track pct reset";
   align-items: center;
   column-gap: 6px;
