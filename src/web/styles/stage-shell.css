@@ -118,11 +118,12 @@
 /* What sits beside the rider's landing arrives after it, and leaves before it
    flies home (stage-morph.ts `late`): the header's state glyph and sentence,
    and its controls. Only the header's: the keys bar and the cards wear the
-   same glyph beside text that is already there. stage-morph.ts's `chip` ramp
-   has nothing to fade while V4's header draws no chip. */
+   same glyph beside text that is already there. The context chip is last of
+   all, on stage-morph.ts's `chip` ramp. */
 .stage-dock[data-rider] .ts-head .ts-glyph,
 .stage-dock[data-rider] .ts-meta,
 .stage-dock[data-rider] .ts-ctl { opacity: var(--stage-late, 1); }
+.stage-dock[data-rider] .ts-ctxchip { opacity: var(--stage-chip, 1); }
 
 /* The board's compact form, in the canvas's place. */
 .stage-nav {

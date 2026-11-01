@@ -225,13 +225,16 @@ interface Props {
   /** What the usage meter does: the Usage stripe door's own toggle. Without it
    *  the meter is not drawn. */
   onOpenUsage?: () => void;
+  /** WORKSPACE: Enter on a row opens the session in the pane with the keys in
+   *  it (a click leaves them here). Absent on the Board. */
+  onOpenKeys?: (sessionId: string) => void;
 }
 
 /** A row that has left the list, kept drawn until its fade and its closing space are done. */
 interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
-export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, quota, activeAlias = null, onOpenUsage }: Props) {
+export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, quota, activeAlias = null, onOpenUsage, onOpenKeys }: Props) {
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
   // the reducer mutates it in place, so identity never moves and the rest of the
@@ -383,7 +386,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
   const renderRow = (e: Entry): ReactNode => (
     <RailRow key={e.id} row={e.row} group={rank(e.row)} now={now} leaving={e.ghost}
       selected={selectedIds.has(e.id)} removed={removedIds?.has(e.id) ?? false}
-      landNonce={landing?.id === e.id ? landing.nonce : null} onSelect={press} />
+      landNonce={landing?.id === e.id ? landing.nonce : null} onSelect={press} onOpenKeys={e.ghost ? undefined : onOpenKeys} />
   );
 
   const nodes: ReactNode[] = [];

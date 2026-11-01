@@ -31,7 +31,8 @@ import { FLIP_CLOSE_MS, FLIP_OPEN_MS, readBoardClusterRects, runTween, type Runn
 import { paletteReader, type Palette } from "../../palette";
 import type { GraphState } from "../../reducer";
 import { targetSession, type StageTarget } from "../../stage-shell";
-import { columnSeed, localRect, morphFrame, type MorphFrame, type MorphPlan, type MorphRect } from "../../stage-morph";
+import { tokenMs } from "../../rail-motion";
+import { columnSeed, crossfadeFrame, localRect, morphFrame, type MorphFrame, type MorphPlan, type MorphRect } from "../../stage-morph";
 import type { Asks } from "../../use-asks";
 import { useMirroredRef } from "../../use-mirrored-ref";
 import type { Stage } from "../../use-stage";
@@ -39,7 +40,7 @@ import { prefersReducedMotion } from "../../viewport-motion";
 import BoardNavigator from "../BoardNavigator";
 import NewSessionPopover from "./NewSessionPopover";
 import { useCodexLaunch } from "./codex-launch";
-import { barArrival, barAsks, boardProjects, stageShowFor } from "./stage-board";
+import { barArrival, barAsks, boardProjects, stageShowFor, waitingCardFor } from "./stage-board";
 import { closedAnnouncement, type StagePhaseKind } from "./stage-model";
 import TerminalStage, { stageName } from "./TerminalStage";
 
@@ -111,6 +112,8 @@ export interface StageDockProps {
   palette: Palette;
   asks: Asks;
   waitingSessions: readonly BlockedSession[];
+  /** WORKSPACE: ✕ on the empty pane leaves for the Board. */
+  onBoard?(): void;
 }
 
 /** React Flow's own element, the one a fold fades and the stage makes inert. */
@@ -153,7 +156,8 @@ export function StageDock(p: StageDockProps) {
   const agents = stateRef.current.agents;
   const show = stageShowFor(shell.target, agents, p.now);
   useCodexLaunch(shell.target, agents, (sessionId, key) => stage.onLaunched({ sessionId, key }));
-  const name = stageName(show);
+  const fill = g?.fill === true;
+  const name = stageName(show, fill);
   // The empty stage's name is a description, not a session: closing it keeps
   // nothing running, so the sentence says only that the stage closed.
   const nameRef = useMirroredRef(show.kind === "empty" ? null : name);
@@ -227,6 +231,10 @@ export function StageDock(p: StageDockProps) {
     const geo = geometryRef.current;
     const done = () => (dir === "open" ? stage.revealed() : stage.closed(closedAnnouncement(nameRef.current)));
     if (!dock || !geo) { done(); return; }
+    // WORKSPACE: the pane is the cell, not a window growing out of a card. No
+    // morph and no fold (there is no navigator): it is there, and the view
+    // switch's own fade is the only motion (workspace.css).
+    if (geo.fill) { settle(); done(); return; }
 
     const box = dock.getBoundingClientRect();
     const origin = { x: box.left, y: box.top };
@@ -244,12 +252,15 @@ export function StageDock(p: StageDockProps) {
     }
     const seed = card ?? columnSeed(column);
     const header = dock.querySelector(".ts-name")?.getBoundingClientRect();
+    // Under reduced motion the stage crossfades in its column: nothing flies,
+    // so there is no rider to hold the header's name back for.
+    const reduced = prefersReducedMotion();
     const plan: MorphPlan = {
       direction: dir,
       w, h,
       from: dir === "open" ? seed : column,
       to: dir === "open" ? column : seed,
-      rider: card && cardName && header && header.height > 0 ? { card: cardName, header: localRect(asRect(header), origin) } : null,
+      rider: !reduced && card && cardName && header && header.height > 0 ? { card: cardName, header: localRect(asRect(header), origin) } : null,
     };
     dock.toggleAttribute("data-rider", plan.rider != null);
     if (edgeRef.current) {
@@ -259,7 +270,6 @@ export function StageDock(p: StageDockProps) {
     // The fold, in the same beat: the navigator's tiles fly from the board's
     // clusters (or back to them) and the fold draws the board's fade. With no
     // navigator — the takeover — the morph draws the fade itself.
-    const reduced = prefersReducedMotion();
     const flow = flowOf(canvasRef.current);
     const nav = stage.navRef.current;
     let folding = false;
@@ -268,8 +278,8 @@ export function StageDock(p: StageDockProps) {
       folding = true;
       void nav.fold(dir, board, { reduced, onFrame: f => { flow.style.opacity = String(f.board); } });
     }
-    const run = runTween(reduced ? 0 : dir === "open" ? FLIP_OPEN_MS : FLIP_CLOSE_MS, (_raw, eased) => {
-      paint(morphFrame(plan, eased), folding ? null : flow);
+    const run = runTween(reduced ? tokenMs("--dur-fast") : dir === "open" ? FLIP_OPEN_MS : FLIP_CLOSE_MS, (_raw, eased) => {
+      paint((reduced ? crossfadeFrame : morphFrame)(plan, eased), folding ? null : flow);
     });
     motion.current = run;
     void run.finished.then(ran => {
@@ -277,7 +287,7 @@ export function StageDock(p: StageDockProps) {
       motion.current = null;
       done();
     });
-  }, [stage, nameRef, waitingRef, shellRef, geometryRef, canvasRef, store, rf, paint]);
+  }, [stage, nameRef, waitingRef, shellRef, geometryRef, canvasRef, store, rf, paint, settle]);
 
   // Keyed on the phase alone: `start` closes over this render's stage, which
   // the deck's 250ms tick rebuilds, and a motion restarted on every tick
@@ -318,6 +328,7 @@ export function StageDock(p: StageDockProps) {
       data-morph={morphing || undefined}
       data-grace={shell.grace || undefined}
       data-takeover={g.takeover || undefined}
+      data-fill={fill || undefined}
       style={{ "--stage-w": `${g.stageW}px` } as CSSProperties}
     >
       <div className="stage-ground" aria-hidden="true" />
@@ -339,8 +350,12 @@ export function StageDock(p: StageDockProps) {
           holdsTypeAhead={stage.holdsTypeAhead}
           onWantKeys={stage.focusPane}
           onNextAsk={p.asks.nextAsk}
+          onOpenWaiting={id => stage.switchTo(id, { focusPane: true })}
           onAnswerArrival={p.asks.nextAsk}
-          onClose={stage.close}
+          // Workspace: ✕ empties the pane, and on the empty pane leaves for the
+          // Board. The Board's ✕ closes the stage, as it did.
+          onClose={fill ? (show.kind === "empty" ? p.onBoard ?? stage.close : stage.emptyPane) : stage.close}
+          waiting={fill && show.kind === "empty" ? waitingCardFor(p.waitingSessions, p.now) : null}
           onToggleExpand={stage.toggleExpand}
           onFirstRunDone={stage.firstRunDone}
           onNewSession={stage.openPopover}

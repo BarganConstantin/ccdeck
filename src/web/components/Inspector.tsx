@@ -6,13 +6,9 @@
 // detail panel has always shown about the selected agent, in its order. The
 // Context tab is the context breakdown the modal shows, set in the panel.
 //
-// THERE IS NO TIME TAB. Figma draws one ("where the time went, this turn"), but
-// it needs the turn's waiting time and the thinking between tool calls, and the
-// deck holds neither for a past turn: a tool call has its two timestamps and the
-// reducer keeps only the block a session is in right now (`waiting.since`). The
-// only measured split is /api/tool-audit's, which has no per-session filter; a
-// panel built on guesses would print numbers the deck does not have. See
-// inspector-tab.ts.
+// The Time tab is "where the time went" for the session's current turn, or its
+// last: the three lanes come from /api/tool-audit?session=, the spans from the
+// calls the session holds (InspectorTime.tsx).
 import { memo, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { agentAriaLabel } from "../agent-copy";
@@ -22,14 +18,16 @@ import {
 } from "../inspector-tab";
 import { modelChipText } from "../model-label";
 import { tabStripMove } from "../tablist-keys";
-import { fmtTokens } from "../token-format";
+import { contextFigure, contextFill } from "../context-figure";
 import type { AgentNodeData } from "../types";
 import { AgentCard } from "./AgentNode";
-import { ContextView, contextCopy, contextFill } from "./ContextModal";
-import { CapacityGlyph, SessionListGlyph } from "./rail-glyphs";
+import { ContextView } from "./ContextModal";
+import InspectorTime from "./InspectorTime";
+import { CapacityGlyph, ClockGlyph, SessionListGlyph } from "./rail-glyphs";
 
 const TAB_GLYPH: Record<InspectorTab, () => ReactNode> = {
   agents: SessionListGlyph,
+  time: ClockGlyph,
   context: CapacityGlyph,
 };
 
@@ -106,10 +104,42 @@ export default function Inspector({ selected, agents, revision = 0, onSelectAgen
           hidden={tab !== t}
         >
           {tab === t && t === "agents" && <AgentsTab selected={selected} agents={agents} revision={revision} onSelectAgent={onSelectAgent} detail={detail} />}
+          {tab === t && t === "time" && <InspectorTime selected={selected} agents={agents} revision={revision} />}
           {tab === t && t === "context" && <ContextTab agent={selected} />}
         </div>
       ))}
     </>
+  );
+}
+
+/** WORKSPACE, the pane empty: the Inspector's column with no session in focus
+ *  (Figma, "Empty workspace"). The same header and tabs, none of them
+ *  pressable, over two lines saying so. No Fold: the Inspector is a column
+ *  here (workspace.css), not a panel to close. */
+export const EMPTY_INSPECTOR_TITLE = "No session in focus";
+export const EMPTY_INSPECTOR_LINE = "Open one from the list.";
+
+export function EmptyInspector() {
+  return (
+    <aside className="detail" aria-label="Detail" data-empty="">
+      <header className="insp-h">
+        {/* The tabs' look, with nothing to switch between: not a tablist. */}
+        <div className="insp-tabs" aria-hidden="true">
+          {INSPECTOR_TABS.map(t => {
+            const Glyph = TAB_GLYPH[t];
+            return (
+              <span key={t} className="insp-tab" aria-current={t === INSPECTOR_TABS[0] ? "true" : undefined}>
+                <Glyph /><span>{INSPECTOR_TAB_LABEL[t]}</span>
+              </span>
+            );
+          })}
+        </div>
+      </header>
+      <div className="insp-b insp-none">
+        <p className="insp-none-title">{EMPTY_INSPECTOR_TITLE}</p>
+        <p className="insp-note">{EMPTY_INSPECTOR_LINE}</p>
+      </div>
+    </aside>
   );
 }
 
@@ -193,21 +223,21 @@ const TreeItem = memo(function TreeItem({ row, current, onSelectAgent }: { row: 
   && a.current === b.current && a.onSelectAgent === b.onSelectAgent);
 
 function ContextTab({ agent }: { agent: AgentNodeData }) {
-  const { used, limit, pct } = contextFill(agent);
+  // Whole k and a whole percent (owner answer 17), the Term header chip's figure.
+  const { used, limit } = contextFill(agent);
   return (
     <>
       <InspectorHead
         title="Context window"
         qualifier={agent.model ? modelChipText(agent.model) : null}
-        figure={`${fmtTokens(used)} / ${fmtTokens(limit)} · ${pct.toFixed(1)}%`}
+        figure={contextFigure(used, limit)}
       />
-      <ContextView agent={agent} />
       {/* Figma's treemap and its legend need a token count per category (tool
           results, files read, system prompt…), which the deck does not have: it
           counts messages and tool calls, not the tokens in them. Neither is
           drawn, and neither of Figma's two notes is true of what is shown, so
-          the one note here is the one the modal prints. */}
-      <p className="insp-note">{contextCopy(agent.provider).subtitle}</p>
+          the one note is the modal's, under the meter. */}
+      <ContextView agent={agent} />
     </>
   );
 }

@@ -411,7 +411,8 @@ describe("the height of a button", () => {
    *  that did not apply to it. */
   // The terminal stage's keys bar is a one-line strip under the pane, like
   // Radar's body: its few verbs sit at the strip's 26px, not a panel's 30.
-  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open", ".desktop-menu.btn", ".tr-body .btn", ".ts-keys .btn"]);
+  // The hosts line (Review) is the same strip's verb, at the same height.
+  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open", ".desktop-menu.btn", ".tr-body .btn", ".ts-keys .btn", ".ts-hosts .btn"]);
 
   it("cannot be overridden into a second height by a rule further down", () => {
     // The height has to be unreachable, not merely stated. Any rule that sizes

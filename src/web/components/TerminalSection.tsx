@@ -19,6 +19,7 @@
 // (`terminalSupported` in /api/prefs), not the browser, since the panel runs
 // where the deck does; until it has said, the switch is offered as usual.
 
+import { workspaceOffered } from "../use-view";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 
 export interface TerminalSwitch {
@@ -29,7 +30,18 @@ export interface TerminalSwitch {
   /** Its sessions run in the Windows session host (`terminalWindows` in
    *  /api/prefs), so the note names that as where they keep running. */
   windows?: boolean;
+  /** The window is a phone's, which is the Board alone: no Workspace, so no
+   *  chord to name (App's PHONE_QUERY). */
+  phone?: boolean;
+  /** The stage's chunk would not load, so Workspace is not on offer. */
+  failed?: boolean;
   toggle: () => void;
+}
+
+/** Whether the key sheet and Settings name Workspace's chord: where Workspace
+ *  is on offer at all, so never on a phone. */
+export function offersWorkspace(terminal: TerminalSwitch | undefined): boolean {
+  return terminal != null && workspaceOffered({ enabled: terminal.on, supported: terminal.supported }, terminal.phone === true) && terminal.failed !== true;
 }
 
 export const TERMINAL_LABEL = "Command Panel";

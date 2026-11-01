@@ -1,7 +1,7 @@
 // Append-only, local metadata. Never stores raw command arguments or tool outputs.
 import { createHash, randomUUID } from 'node:crypto';
 import { appendFile, mkdir, readFile, readdir, stat, unlink } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { deckDataDir } from './deck-home.mjs';
 import { writeFileAtomic } from './atomic-write.mjs';
@@ -28,12 +28,21 @@ const runMs = ms => typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 && 
 
 export function createToolAudit({ dir, now = Date.now, runReport = workerReport } = {}) {
   let meta, readyPromise, serial = Promise.resolve(), pending = [], timer, storageOk = true, dropped = 0, reportFlight = null, prunedDay = null;
+  // A session's turn question has a flight of its own, one per session: it must never
+  // make the range report (Tool activity) answer busy, nor wait for it.
+  const turnFlights = new Map();
   // The last arguments each session typed a command with, as a digest held in memory:
   // the same command again with the same arguments is a repeat, such as a /loop tick.
   const lastArgs = new Map();
   // Each session's calls still running, and whether a permission prompt came up while
   // they did: that is what tells a wait for approval from hooks starting the tool.
   const running = new Map();
+  // The prompt each session began last, in memory only: the journal files a turn under a
+  // digest of device, epoch, session and prompt together, so a session's turn can be
+  // found only by hashing the key the same way. Never written, never answered.
+  // `floor` is the earliest time a journal file can hold the turn's rows, so the worker
+  // reads those files and no others (null: unknown, read them all).
+  const latestTurn = new Map();
   const enqueue = fn => { const task = serial.then(fn); serial = task.catch(() => {}); return task; };
   const ready = () => readyPromise ??= (async () => {
     await mkdir(dir, { recursive: true });
@@ -100,8 +109,13 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
     const key = promptKey(raw);
     if (!key) return;
     const t = now(), at = opts.receivedAt ?? t, start = raw.hook_event_name === 'UserPromptSubmit';
+    if (start) noteLatest(raw.session_id, key, t);
     queue({ id: key, provider: 'claude', kind: start ? 'turn' : 'turn-end', t, at: measured(at, t), clock: 'hook',
       ...(start ? {} : { stop: raw.hook_event_name === 'Stop' ? 'done' : stopError(raw) }) });
+  };
+  const noteLatest = (session, key, floor) => {
+    latestTurn.delete(session); latestTurn.set(session, { key, floor: Number.isFinite(floor) ? floor : null });
+    if (latestTurn.size > 500) latestTurn.delete(latestTurn.keys().next().value);
   };
   const calls = session => {
     let held = running.get(session);
@@ -111,6 +125,13 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
   return {
     async start() { await ready(); },
     observe(raw, source, opts = {}) {
+      // The boot replay writes nothing, but it tells a restarted deck which prompt each
+      // session began last, so the Time tab can find that turn again (memory only).
+      if (opts.replay && source === 'hook' && raw?.hook_event_name === 'UserPromptSubmit' && raw.provider !== 'codex' && typeof raw.session_id === 'string' && raw.session_id.length <= 256) {
+        const key = promptKey(raw);
+        if (key) noteLatest(raw.session_id, key, Number.isFinite(opts.receivedAt) ? opts.receivedAt - 3600000 : null);
+        return;
+      }
       if (opts.replay || !['hook', 'codex'].includes(source)) return;
       if (raw?.hook_event_name === 'UserPromptExpansion' && source === 'hook') return typed(raw, opts);
       const claudeHook = source === 'hook' && raw?.provider !== 'codex' && typeof raw?.session_id === 'string' && raw.session_id.length <= 256;
@@ -133,7 +154,7 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
         if (name) Object.assign(row, skillUse(name, 'agent', raw.session_id, raw.cwd, typeof raw.agent_id === 'string' && raw.agent_id));
         if (claudeHook) {
           const key = promptKey(raw);
-          if (key) row.turn = key;
+          if (key) { row.turn = key; if (!latestTurn.has(raw.session_id)) noteLatest(raw.session_id, key, t - DAY); }
           const held = calls(raw.session_id);
           held.set(raw.tool_use_id, false);
           if (held.size > 200) held.delete(held.keys().next().value);
@@ -167,18 +188,31 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
     async clear() { return enqueue(async () => {
       await flush();
       for (const name of await files()) await unlink(join(dir, name));
-      meta = { ...meta, epoch: randomUUID(), startedAt: now(), skillsSince: now(), turnsSince: now() }; await saveMeta(); dropped = 0; storageOk = true; lastArgs.clear(); running.clear();
+      meta = { ...meta, epoch: randomUUID(), startedAt: now(), skillsSince: now(), turnsSince: now() }; await saveMeta(); dropped = 0; storageOk = true; lastArgs.clear(); running.clear(); latestTurn.clear();
       return { ok: true };
     }); },
     async report(query, signal) {
-      if (reportFlight) return { ok: false, reason: 'busy' };
-      reportFlight = (async () => {
+      const asking = query.session;
+      if (asking === undefined ? reportFlight : turnFlights.has(asking)) return { ok: false, reason: 'busy' };
+      const flight = (async () => {
+        // `session` is the one query that names a session. It leaves here as the digest
+        // of that session's latest turn, so the worker never sees the id.
+        const latest = asking === undefined ? undefined : latestTurn.get(asking);
+        if (asking !== undefined && !latest) return { ok: true, turn: null };
         const snapshot = await enqueue(async () => { await flush(); const inv = await inventory(); return { ...inv, meta: { ...meta }, storageOk, dropped }; });
-        const result = await runReport({ files: snapshot.journal, query, now: now(), meta: snapshot.meta }, signal);
+        const { session, ...rest } = query;
+        let asked = query, files = snapshot.journal;
+        if (latest) {
+          asked = { ...rest, turnId: digest(`${snapshot.meta.deviceId}|${snapshot.meta.epoch}|${latest.key}`) };
+          // The turn's rows sit in the file of the day it began or a later one.
+          if (latest.floor !== null) { const from = `${date(latest.floor)}.jsonl`; files = files.filter(file => basename(file.path) >= from); }
+        }
+        const result = await runReport({ files, query: asked, now: now(), meta: snapshot.meta }, signal);
         if (meta.epoch !== snapshot.meta.epoch) return { ok: false, reason: 'history_cleared' };
         return { ...result, bytes: snapshot.bytes, storageOk: snapshot.storageOk, dropped: snapshot.dropped, deviceId: snapshot.meta.deviceId, startedAt: snapshot.meta.startedAt, skillsSince: snapshot.meta.skillsSince, turnsSince: snapshot.meta.turnsSince, retentionDays: snapshot.meta.retentionDays };
       })();
-      try { return await reportFlight; } finally { reportFlight = null; }
+      if (asking === undefined) reportFlight = flight; else turnFlights.set(asking, flight);
+      try { return await flight; } finally { if (asking === undefined) reportFlight = null; else turnFlights.delete(asking); }
     },
     async close() { await enqueue(flush); },
   };

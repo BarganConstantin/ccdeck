@@ -55,13 +55,14 @@
   /* And every control the Command Panel draws takes the floor: the keys bar's
      buttons (Got it, type here, Reopen here, Attach again, Next ask, Answer),
      32px, and the bar with them: 36px here, 32px beside a mouse, so the
-     bar keeps the one height its buttons fit in, the first-run and older
-     hosts lines included (the stage measures the bar and stage-geometry.ts
+     bar keeps the one height its buttons fit in, the first-run line
+     included (the stage measures the bar and stage-geometry.ts
      fits the rows above it); the cards' (New
      session, Reopen here, Check again, Try again, Not now); New session's
      strips, projects, field and buttons; and the navigator's New session. */
   .ts-keys .btn,
   .ts-asks .ts-next,
+  .ts-hosts .btn,
   .ts-acts .btn,
   .ns-pop .uh-range-btn,
   .ns-pop .ns-option,
@@ -70,7 +71,11 @@
   .board-nav button.btn.nav-new { min-height: 32px; }
   .ts-bar { height: 36px; }
   .ts-bar:has(.ts-first),
-  .ts-bar:has(.ts-hosts) { min-height: 36px; }
+  .ts-bar:has(.ts-asks) { min-height: 36px; }
+  .ts-bar:has(.ts-hosts) { height: auto; padding-block: 1px; flex-wrap: wrap; row-gap: 0; }
+  /* The hosts line, said whole: a fingertip has no hover to read the rest of a
+     line the bar cut, so it wraps and the bar grows with it. */
+  .ts-asks > .ts-hosts-said { overflow: visible; text-overflow: clip; white-space: normal; line-height: 15px; }
   .board-nav[data-density="rail"] button.btn.nav-new { width: 32px; }
   /* The header's glyphs (✕, ⤢, ⌨, ‹, and the install line's copy) are 32px
      squares: their reach above and below stays, the 2px aside goes, so two
@@ -136,7 +141,6 @@
   .plan-mark { forced-color-adjust: none; border-color: CanvasText; }
   .plan-item[data-status="in_progress"] .plan-mark { background: Highlight; border-color: Highlight; }
   .plan-item[data-status="completed"] .plan-mark::after { forced-color-adjust: none; border-color: CanvasText; }
-  .topbar .status .pill.live::before,
   .topbar .status .pill.paused::before,
   .topbar .status .pill.dead::before,
   .conn-banner .conn-dot,
@@ -268,6 +272,13 @@
   .sysdetail .sd-core-fill,
   .ctx-window-fill,
   .session-summary .ss-tt-bar-fill { forced-color-adjust: none; background: Highlight; }
+  /* The Inspector's Time tab: its bars are fills, so they keep a colour of their own. */
+  .insp-time-bar i[data-lane="you"],
+  .insp-time-span[data-group] { forced-color-adjust: none; background: Highlight; }
+  .insp-time-bar i[data-lane="claude"],
+  .insp-time-bar i[data-lane="machine"],
+  .insp-time-span { forced-color-adjust: none; background: CanvasText; }
+  .insp-time-bar { outline: 1px solid CanvasText; }
   .qb-fill,
   .ap-lane-fill,
   .ap-report-meter i,
@@ -360,21 +371,19 @@
      glyphs (StateMark, AlertMark), drawn in currentColor, so they take the
      text colour on their own and keep their shapes — filled for working,
      hollow for idle, a tick for ended, the triangle for waiting — which is
-     what tells them apart here. The ended bar's square and the card's fact
-     mark are the text colour, hollow ones kept hollow; the asks track keeps
-     its segments, the one on stage and the answered ones filled. The
+     what tells them apart here. The card's fact mark is the text colour, a
+     hollow one kept hollow; the header's context bar keeps its track and its
+     fill, the fill in the text colour. The
      divider's line is drawn in the text colour, and the terminal itself is
      drawn by xterm's DOM renderer here, whose glyphs the theme recolours
      like any text (use-terminal-session.ts). */
-  .ts-end-mark,
   .ts-fact-mark,
-  .ts-track i { forced-color-adjust: none; }
-  .ts-end-mark,
+  .ts-ctxbar,
+  .ts-ctxbar i { forced-color-adjust: none; }
   .ts-fact-mark { background: CanvasText; }
   .ts-fact-mark[data-kind="gone"] { background: Canvas; border-color: CanvasText; }
-  .ts-track i { background: Canvas; border-color: CanvasText; }
-  .ts-track i[data-s="now"],
-  .ts-track i[data-s="done"] { background: Highlight; border-color: Highlight; }
+  .ts-ctxbar { background: Canvas; outline: 1px solid CanvasText; }
+  .ts-ctxbar i { background: CanvasText; }
   .ts-divider::before { background: CanvasText; }
 
   /* The canvas strips' words — Resume, and Re-arrange's Undo — are set apart

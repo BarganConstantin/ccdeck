@@ -111,6 +111,25 @@ export interface ChordKey {
   metaKey: boolean;
 }
 
+/** The view chord, spelled out once: Control and the backtick, Board or
+ *  Workspace (V4 Workspace). Never Cmd on a Mac: Cmd and the backtick is the
+ *  OS's own window switch. */
+export const VIEW_CHORD = Object.freeze({ key: "`", code: "Backquote", ctrlKey: true, shiftKey: false, altKey: false, metaKey: false });
+
+/** Is this keystroke the view chord? Any event type, like the release chord:
+ *  its keyup and keypress must stay out of xterm too. Matched by the character
+ *  and by the key's position, because under some layouts the backtick is a dead
+ *  key (`key` reads "Dead") or types something else. Shift and Alt must be up
+ *  (AltGr is Ctrl+Alt on Windows). */
+export function isViewChord(e: ChordKey): boolean {
+  if (e.ctrlKey !== VIEW_CHORD.ctrlKey || e.shiftKey !== VIEW_CHORD.shiftKey) return false;
+  if (e.altKey !== VIEW_CHORD.altKey || e.metaKey !== VIEW_CHORD.metaKey) return false;
+  return String(e.key ?? "") === VIEW_CHORD.key || e.code === VIEW_CHORD.code;
+}
+
+/** The view chord as the keyboard labels it. Control on a Mac too. */
+export const VIEW_CHORD_LABEL = "Ctrl+`";
+
 /** The release chord, spelled out once. Everything below reads it from here,
  *  so a change of chord is a change to this object and its label. */
 export const RELEASE_CHORD = Object.freeze({ key: "x", code: "KeyX", ctrlKey: true, shiftKey: true, altKey: false, metaKey: false });
@@ -181,7 +200,7 @@ export interface TerminalKey extends ChordKey {
 /** What becomes of a keystroke inside xterm: `release`, `newline`, `copy`,
  *  `meta` and `send` are kept from xterm (`newline`, `meta` and `send` send
  *  something of their own), everything else — Escape always — goes to it. */
-export type TerminalKeyOutcome = "release" | "newline" | "copy" | "meta" | "send" | "pass";
+export type TerminalKeyOutcome = "release" | "view" | "newline" | "copy" | "meta" | "send" | "pass";
 
 /**
  * CONTROL WITH A SYMBOL, as xterm, GNOME Terminal and Ghostty send it. xterm.js
@@ -282,6 +301,10 @@ export function terminalKeyOutcome(e: TerminalKey, apple = isApplePlatform(platf
   // pane that kept it would leave a running agent with no brake.
   if (e.key === "Escape") return "pass";
   if (isReleaseChord(e)) return "release";
+  // Ctrl + backtick is the deck's, Board or Workspace, also with the keys in the pane:
+  // kept from the session, and acted on by the window listener
+  // (use-deck-shortcuts.ts), the way the release chord is.
+  if (isViewChord(e)) return "view";
   // An input method composing CJK text owns Enter: it commits the
   // composition. keyCode 229 is what a browser reports while one is active,
   // including on the keydown that ends it, where isComposing can already read

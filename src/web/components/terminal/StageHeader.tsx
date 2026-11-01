@@ -18,9 +18,15 @@
 // THE MODEL CHIP IS GONE from this header: the rail's row and the agent card
 // carry the model, and Figma's Term header draws none. What its accessible name
 // said is not lost — the provider is still named, in words, after the session's
-// name, for a screen reader. Figma puts a context chip at the row's end
-// ("61.4k / 200k" over a 4px bar); the stage is not handed that figure yet,
-// so it is not drawn rather than drawn empty.
+// name, for a screen reader.
+//
+// THE CONTEXT CHIP is at the row's end, before the controls: how full the
+// session's window is, "129k / 200k · 65%" (context-figure.ts, the Inspector's
+// words) with a 4px bar of the same percent. The stage is handed the two
+// numbers by stage-board.ts, from the same place the Inspector's Context tab
+// reads them; with no figure, or nothing used yet, no chip is drawn rather than
+// an empty one. It is a sibling of the controls, not inside them, so it fades in
+// on the morph's own `chip` ramp (stage-morph.ts) and not with the controls.
 //
 // THREE CONTROLS AND NO MORE: ⌨ (only while there is a pane to type into),
 // ⤢ and ✕ — each the deck's own header glyph (.glyph-btn, panel-glyph.css),
@@ -32,6 +38,7 @@
 // drawn in the takeover too, where there is no width to give but that. There
 // is no Chat/Term toggle and no Split: Chat is a later phase behind a flag
 // that is off, and a control for either would be a dead one.
+import { contextFigure, contextFigureParts, contextPercent } from "../../context-figure";
 import type { TerminalProvider } from "../../terminal-api";
 import { agentName, type KeysOwner, type StageStatus } from "./stage-model";
 import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, StageGlyph, glyphForState } from "./stage-icons";
@@ -42,6 +49,12 @@ export const CLOSE_LABEL = "Close — the session keeps running";
 export const CLOSE_EMPTY_LABEL = "Close the Command Panel";
 export const BACK_EMPTY_LABEL = "Back to the board";
 export const BACK_LABEL = "Back to the board — the session keeps running";
+/** WORKSPACE: ⤢ is Zoom. Off, it folds the list and the Inspector; on, it
+ *  brings them back. Where ⤢ goes full screen it still does (FULL_LABEL). */
+export const ZOOM_LABEL = "Zoom — fold the list and the Inspector";
+export const ZOOM_OFF_LABEL = "Bring the list and the Inspector back";
+/** WORKSPACE: ✕ on a pane whose session is not running, or never started. */
+export const PANE_CLOSE_LABEL = "Close the pane";
 
 export interface StageHeaderProps {
   /** Changes with the session on stage, so its identity arrives afresh —
@@ -62,9 +75,16 @@ export interface StageHeaderProps {
   /** The deck is in the full screen ⤢ asked for. */
   full?: boolean;
   takeover: boolean;
+  /** How much of the session's context window is used, for the chip at the
+   *  row's end; none (or nothing used) draws no chip. */
+  context?: { used: number; window: number } | null;
   /** No session behind the stage — the empty stage, a launch that never
    *  started — so ✕ and ‹ promise nothing about one. */
   nothingRunning?: boolean;
+  /** WORKSPACE: the pane fills its cell. `empty` is the pane with nothing in
+   *  it, whose one control is ✕, back to the board; `pane` has ⤢ as Zoom
+   *  (`expanded` is zoomed) and ✕ emptying the pane. Left out on the Board. */
+  workspace?: "pane" | "empty";
   /** Ask the session for keys, or give them back. */
   onKeys(): void;
   onExpand(): void;
@@ -84,13 +104,27 @@ export function expandLabelFor(expanded: boolean, canFull: boolean, full: boolea
   return canFull ? FULL_LABEL : "Give the Command Panel the width";
 }
 
+/** WORKSPACE ⤢'s name: Zoom, or full screen where that is what it does. */
+export function zoomLabelFor(zoomed: boolean, canFull: boolean, full: boolean): string {
+  if (zoomed) return full ? FULL_LEAVE_LABEL : ZOOM_OFF_LABEL;
+  return canFull ? FULL_LABEL : ZOOM_LABEL;
+}
+
 export const FULL_LABEL = "Full screen — Ctrl+W, Ctrl+T and Ctrl+N go to the session";
 /** No Esc in it: held where the keyboard lock took, pressed where it did
  *  not, and the browser's own bubble says which. */
 export const FULL_LEAVE_LABEL = "Leave full screen";
 
+/** The chip's figure, or null when there is none to say. */
+export function contextChipText(context: StageHeaderProps["context"]): string | null {
+  return context && context.used > 0 ? contextFigure(context.used, context.window) : null;
+}
+
 export default function StageHeader(p: StageHeaderProps) {
   const { status } = p;
+  // One reading for the chip: its figure and its bar are the same percent.
+  const used = p.context && p.context.used > 0 ? p.context : null;
+  const parts = used ? contextFigureParts(used.used, used.window) : null;
   const glyph = glyphForState(status.state);
   const rest = metaRest(status);
   const pane = p.keysOwner === "pane";
@@ -99,8 +133,11 @@ export default function StageHeader(p: StageHeaderProps) {
   // The tooltip, for the pointer, says what a press will do.
   const keysLabel = "Type into the session";
   const keysTip = pane ? `Give the keys back to the board (${p.chordLabel})` : `${keysLabel} (↵)`;
-  const expandLabel = expandLabelFor(p.expanded, p.canFull === true, p.full === true);
-  const closeLabel = p.nothingRunning ? CLOSE_EMPTY_LABEL : CLOSE_LABEL;
+  const zoom = p.workspace === "pane";
+  const expandLabel = zoom ? zoomLabelFor(p.expanded, p.canFull === true, p.full === true) : expandLabelFor(p.expanded, p.canFull === true, p.full === true);
+  const closeLabel = p.workspace === "empty" ? BACK_EMPTY_LABEL
+    : p.workspace === "pane" ? (p.nothingRunning ? PANE_CLOSE_LABEL : CLOSE_LABEL)
+      : p.nothingRunning ? CLOSE_EMPTY_LABEL : CLOSE_LABEL;
   const backLabel = p.nothingRunning ? BACK_EMPTY_LABEL : BACK_LABEL;
   return (
     <header className="ts-head">
@@ -117,13 +154,19 @@ export default function StageHeader(p: StageHeaderProps) {
         {status.state !== "none" && (
           <div className="ts-meta" data-state={status.state}>
             <span className="ts-meta-state">
-              {status.phrase}
-              {status.emphasis && <> <b>{status.emphasis}</b></>}
+              {status.emphasis ? `${status.phrase} ${status.emphasis}` : status.phrase}
             </span>
             {rest && <span className="ts-meta-rest">· {rest}</span>}
           </div>
         )}
       </div>
+      {parts && used && (
+        <span className="ts-ctxchip" title="Context window">
+          <span className="vis-hidden">Context </span>
+          {parts.pct == null ? parts.lead : <><span className="ts-ctxlead">{parts.lead}</span>{parts.pct}</>}
+          <span className="ts-ctxbar" aria-hidden="true"><i style={{ width: `${contextPercent(used.used, used.window)}%` }} /></span>
+        </span>
+      )}
       <div className="ts-ctl">
         <div className="ts-tools">
           {p.canType && (
@@ -145,17 +188,21 @@ export default function StageHeader(p: StageHeaderProps) {
           )}
           {/* No width to give in the takeover — but full screen still gives
               the browser's shortcuts, and a bigger window. */}
-          {(!p.takeover || p.canFull) && (
+          {(!p.takeover || p.canFull) && p.workspace !== "empty" && (
             <button
               type="button"
               className="glyph-btn"
               aria-label={expandLabel}
               title={expandLabel}
+              // Zoom is a state, so it reports one; the glyph stays ⤢ and the
+              // button is filled while it is on (terminal-stage.css).
+              aria-pressed={zoom ? p.expanded : undefined}
+              data-zoom={zoom || undefined}
               // Typing carries on across it: the pane keeps the keys it had.
               onMouseDown={e => e.preventDefault()}
               onClick={p.onExpand}
             >
-              {p.expanded ? <CollapseGlyph /> : <ExpandGlyph />}
+              {p.expanded && !zoom ? <CollapseGlyph /> : <ExpandGlyph />}
             </button>
           )}
           <button type="button" className="glyph-btn" data-stage-close aria-label={closeLabel} title={closeLabel} onClick={p.onClose}>

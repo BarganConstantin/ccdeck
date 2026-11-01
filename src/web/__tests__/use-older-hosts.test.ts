@@ -47,7 +47,10 @@ describe("the older hosts on the stage", () => {
     const props = { windows: true, subject: "session:a", api, announce: vi.fn() };
     const s = run(props);
     await flush();
-    expect([s.h.line, s.h.canReview]).toEqual(["1 session still runs on an older session host.", true]);
+    // CHANGED ON PURPOSE (here and twice below): the line is Figma V4's "{n}
+    // sessions on an older host" (Keys bar 91:617), not "still runs on an older
+    // session host."
+    expect([s.h.line, s.h.canReview]).toEqual(["1 session on an older host", true]);
     s.m.rerender({ ...props, subject: "launch:k-1" });
     await flush();
     expect([s.h.line, s.h.canReview, calls]).toEqual([null, false, ["read", "read"]]);
@@ -63,7 +66,7 @@ describe("the older hosts on the stage", () => {
     s.h.review();
     expect(s.h.open).toBe(true);
     s.h.cancel();
-    expect([s.h.open, s.h.line]).toEqual([false, "1 session still runs on an older session host."]);
+    expect([s.h.open, s.h.line]).toEqual([false, "1 session on an older host"]);
     s.h.review();
     s.h.keep();
     expect([s.h.open, s.h.line]).toEqual([false, "Kept running: the Command Panel cannot open that session here."]);
@@ -72,7 +75,7 @@ describe("the older hosts on the stage", () => {
     expect(s.h.line, "the same list: still kept").toBe("Kept running: the Command Panel cannot open that session here.");
     s.m.rerender({ ...props, subject: "session:c" });
     await flush();
-    expect(s.h.line, "another list: asked again").toBe("2 sessions still run on an older session host.");
+    expect(s.h.line, "another list: asked again").toBe("2 sessions on an older host");
     expect(calls).toEqual(["read", "read", "read"]);
   });
 

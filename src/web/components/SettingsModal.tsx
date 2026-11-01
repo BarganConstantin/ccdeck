@@ -48,7 +48,7 @@ import ReadingSection, { ReadingReset } from "./ReadingSection";
 import AboutSection from "./AboutSection";
 import UpdatesSection from "./UpdatesSection";
 import CharacterSection from "./CharacterSection";
-import TerminalSection, { type TerminalSwitch } from "./TerminalSection";
+import TerminalSection, { offersWorkspace, type TerminalSwitch } from "./TerminalSection";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SettingsSearchField, SettingsSearchResults, SettingsSearchStatus } from "./SettingsSearch";
 import { useSettingsJump } from "./use-settings-jump";
@@ -252,7 +252,8 @@ export default function SettingsModal({
       case "reading":
         return <ReadingSection textSize={appearance.textSize} density={appearance.density} onTextSize={appearance.setTextSize} onDensity={appearance.setDensity} />;
       case "keyboard":
-        return <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)} />;
+        return <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)}
+          workspace={offersWorkspace(terminal)} />;
       case "notifications":
         return (
           <NotificationsSection

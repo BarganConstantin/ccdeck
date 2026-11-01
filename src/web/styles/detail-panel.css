@@ -111,6 +111,139 @@
   line-height: 16px;
   color: var(--muted);
 }
+/* THE TIME TAB (Figma 22:15467): the head row, four figures two by two, one bar
+   split by lane, the calls of the turn on a span axis, and a note. The lane
+   colours are the ring's in Tool activity (tool-audit.css: Claude, this machine,
+   you), and nothing here moves: the bars are drawn where the data puts them. */
+.insp-time-load { display: flex; align-items: center; gap: 8px; }
+.insp-time-stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px 12px;
+}
+.insp-time-stat { min-width: 0; }
+.insp-time-stat dt {
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.insp-time-stat dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: calc(14px + var(--ui-text-increase, 0px));
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.insp-time-stat[data-tone="warn"] dd { color: var(--warn); }
+.insp-time-split { display: flex; flex-direction: column; gap: 4px; }
+.insp-time-share {
+  margin: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.insp-time-share b {
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--warn);
+}
+.insp-time-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--ctl-fill);
+}
+.insp-time-bar i { flex: 1 1 0; min-width: 0; }
+.insp-time-bar i[data-lane="you"] { background: var(--usage-cyan); }
+.insp-time-bar i[data-lane="claude"] { background: var(--usage-purple); }
+.insp-time-bar i[data-lane="machine"] { background: var(--usage-lime); }
+.insp-time-table { display: flex; flex-direction: column; }
+.insp-time-axis,
+.insp-time-row {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr);
+  align-items: center;
+}
+.insp-time-axis {
+  height: 20px;
+  border-bottom: 1px solid var(--line-soft);
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  color: var(--muted);
+}
+.insp-time-ticks { display: flex; justify-content: space-between; }
+/* Figma draws the row radius 5, which has no fill to show it and no step on the
+   radius ladder (spacing-ladder-887), so it is left out. */
+.insp-time-row { height: 24px; }
+.insp-time-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding-left: calc(var(--depth, 0) * 14px);
+}
+.insp-time-op {
+  flex: none;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--text);
+}
+.insp-time-arg,
+.insp-time-took {
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  color: var(--muted);
+}
+.insp-time-arg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.insp-time-took { flex: none; }
+.insp-time-fold {
+  flex: none;
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  margin-left: -2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.insp-time-fold[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.insp-time-lane { position: relative; align-self: stretch; overflow: hidden; }
+.insp-time-span {
+  position: absolute;
+  top: 7px;
+  height: 10px;
+  min-width: 2px;
+  border-radius: 3px;
+  background: var(--text);
+}
+.insp-time-span[data-group] { background: var(--accent); }
+.insp-time-wait {
+  position: absolute;
+  top: 5px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--panel);
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  color: var(--warn);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* What the detail panel has always shown, under the tree, with the gap between
    its sections it had before the body took the panel's padding. */
 .insp-detail {

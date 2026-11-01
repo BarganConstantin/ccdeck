@@ -46,7 +46,7 @@ import { AccountAttention } from "./AccountAttentionModal";
 import ReleaseNotesModal from "./ReleaseNotesModal";
 import SessionSummary from "./SessionSummary";
 import SettingsModal, { type AccountSwitch } from "./SettingsModal";
-import type { TerminalSwitch } from "./TerminalSection";
+import { offersWorkspace, type TerminalSwitch } from "./TerminalSection";
 import ToolModal from "./ToolModal";
 // Loaded when they open (#883). Both are opened rarely and each is a large
 // file; imported here, they were in the one bundle every reload and every deck
@@ -264,6 +264,7 @@ export default function DeckDialogs({
           onClose={() => setKeyHelpOpen(false)}
           onTour={() => { setKeyHelpOpen(false); openTour(); }}
           onSettings={() => { setKeyHelpOpen(false); openSettings("keyboard"); }}
+          workspace={offersWorkspace(terminal)}
         />
       )}
       {tourOpen && (

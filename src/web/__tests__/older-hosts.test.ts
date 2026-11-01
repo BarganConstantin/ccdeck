@@ -58,9 +58,17 @@ const answer = (hosts: OlderHost[], launchesRefused: string | null = null): Host
 
 describe("the keys bar's line", () => {
   it("counts the sessions a host the engine moved on from still runs", () => {
-    expect(hostsLine(view([host(1, "stranded", session(1))]), false)).toBe("1 session still runs on an older session host.");
+    // CHANGED ON PURPOSE: Figma V4 (Keys bar 91:617) says "{n} sessions on an
+    // older host", one line, no full stop; the longer "still run on … session
+    // host." wording and its plural-host variant are gone.
+    expect(hostsLine(view([host(1, "stranded", session(1))]), false)).toBe("1 session on an older host");
+    expect(hostsLine(view([host(1, "stranded", session(1), session(2), session(3))]), false))
+      .toBe("3 sessions on an older host");
+    // Sessions on more than one host: the plural host (the host count, not the session count, picks it).
     expect(hostsLine(view([host(1, "stranded", session(1), session(2)), host(2, "stranded", session(3))]), false))
-      .toBe("3 sessions still run on older session hosts.");
+      .toBe("3 sessions on older hosts");
+    expect(hostsLine(view([host(1, "stranded", session(1)), host(2, "stranded", session(3))]), false))
+      .toBe("2 sessions on older hosts");
   });
 
   it("names a security update waiting on them as one", () => {
@@ -70,7 +78,9 @@ describe("the keys bar's line", () => {
 
   it("adds that new sessions are refused, and says the engine's own sentence when that is all there is", () => {
     expect(hostsLine(view([host(1, "stranded", session(1))], REFUSED), false))
-      .toBe(`1 session still runs on an older session host. ${REFUSED_UNTIL_THEY_END}`);
+      // CHANGED ON PURPOSE: the count has no full stop of its own now (Figma
+      // 91:617); the refusal is appended as its own sentence, so one is added.
+      .toBe(`1 session on an older host. ${REFUSED_UNTIL_THEY_END}`);
     expect(REFUSED_UNTIL_THEY_END).toBe("New sessions are refused until they end.");
     expect(hostsLine(view([], REFUSED), false)).toBe(REFUSED);
   });

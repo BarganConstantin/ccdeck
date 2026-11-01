@@ -33,7 +33,7 @@ import type { LodMode } from "./semantic-zoom";
 import { isSettingsChord, type SettingsSection } from "./settings";
 import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
 import { CAUGHT_KEYS_ATTR, canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, keepsThemeKey, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
-import { inTerminalPanel, isReleaseChord, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, type StageKeyIntent } from "./terminal-keys";
+import { inTerminalPanel, isReleaseChord, isViewChord, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, type StageKeyIntent } from "./terminal-keys";
 import { nextTheme, type Theme } from "./theme";
 
 type Read<T> = { readonly current: T };
@@ -65,6 +65,18 @@ export interface StageShortcuts {
   nextAsk: () => void;
   /** Give the keys back to the board: the release chord's answer. */
   release: () => void;
+  /** WORKSPACE: "rail" when `order` is the session list's rows and the
+   *  stage's session is the pane's. j and k then only walk the list: nothing
+   *  opens until a row is pressed (the 160ms flip is the Board's). "board", or
+   *  left out, is the navigator and its flip. */
+  mode?: "board" | "rail";
+}
+
+/** Board or Workspace, as the chord that switches them reaches it. Null, or
+ *  not `available`, and the chord is not the deck's at all. */
+export interface ViewShortcut {
+  available: boolean;
+  toggle: () => void;
 }
 
 export interface DeckShortcuts {
@@ -118,6 +130,9 @@ export interface DeckShortcuts {
   /** The terminal stage, where the terminal flag put one. Left out, or not
    *  open, and the keys are the deck's as they always were. */
   stageRef?: Read<StageShortcuts | null>;
+  /** Ctrl + backtick, Board or Workspace (V4 Workspace). Left out, or not available
+   *  (the Command Panel is off), and the chord is left to the page. */
+  viewRef?: Read<ViewShortcut | null>;
   /** The board's zoom tier (use-zoom-lod.ts). P's peek keeps the hover's rule:
    *  never at the detail distance, where the card already says it all. */
   lodRef?: Read<LodMode | null>;
@@ -129,7 +144,7 @@ export function useDeckShortcuts({
   clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
   handleRelayout, undoRearrange, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
   setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
-  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen, stageRef, lodRef,
+  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen, stageRef, viewRef, lodRef,
 }: DeckShortcuts): void {
   // keyboard shortcuts
   useEffect(() => {
@@ -146,6 +161,13 @@ export function useDeckShortcuts({
     };
     const stageKey = (intent: StageKeyIntent, stage: StageShortcuts, at: EventTarget | null) => {
       if (intent.kind === "step") {
+        if (stage.mode === "rail") {
+          // Workspace: along the list, and nothing opens. The row is the
+          // reader's to press; the pane stays on what it shows.
+          const to = stepSession(stage.order, stage.sessionAt?.(at) ?? stage.current, intent.direction);
+          if (to != null) stage.focusTile(to);
+          return;
+        }
         const from = flip ? flip.from : stage.current;
         // On from wherever the board's focus is: the tile the arrows walked
         // to, else the one the flip reached, else the session on the stage.
@@ -223,6 +245,22 @@ export function useDeckShortcuts({
       // would take the keys away at the moment the agent most needs a brake.
       // The one key that is not the session's is the release chord, whose
       // keydown xterm lets through to here untouched (terminal-keys.ts).
+      // Ctrl + backtick is asked first of all, ahead of the pane's own early return: it
+      // is Board or Workspace from anywhere, the keys in the terminal included,
+      // and it never reaches the session (terminalKeyOutcome keeps it from
+      // xterm). A chord, so it answers with the single keys off; held to the
+      // dialog gate and to one press per key. Not claimed at all where the
+      // Command Panel is off: then it is the page's, as it always was.
+      if (isViewChord(e)) {
+        const view = viewRef?.current;
+        if (view?.available) {
+          if (!canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) {
+            e.preventDefault();
+            if (!e.repeat) view.toggle();
+          }
+          return;
+        }
+      }
       if (inTerminalPanel(el)) {
         if (isReleaseChord(e)) {
           e.preventDefault();

@@ -72,9 +72,30 @@ export interface RailRowProps {
   /** Set, for one render, on the row the last jump landed on: the highlight's turn. */
   landNonce: number | null;
   onSelect: (sessionId: string) => void;
+  /** WORKSPACE: Enter on the row opens the session with the keys in its pane,
+   *  where a click leaves them on the list. Absent on the Board, where Enter
+   *  is the button's own click. */
+  onOpenKeys?: (sessionId: string) => void;
 }
 
-export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect }: RailRowProps) {
+/** WORKSPACE: a row's keydown. A bare Enter opens the session and takes the
+ *  keys into its pane — not the button's click, which leaves them on the list —
+ *  and any other key, or a modified or held Enter, is the row's own. Nothing
+ *  where the view gives the row no handler: the Board's Enter is the click. */
+export function openKeysOnEnter(
+  sessionId: string,
+  onOpenKeys: ((sessionId: string) => void) | undefined,
+): ((e: { key: string; repeat: boolean; shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean; preventDefault(): void }) => void) | undefined {
+  if (!onOpenKeys) return undefined;
+  return e => {
+    if (e.key !== "Enter" || e.repeat || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+    // Not the button's click: Enter here also takes the keys along.
+    e.preventDefault();
+    onOpenKeys(sessionId);
+  };
+}
+
+export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys }: RailRowProps) {
   const line = railLine(r, group);
   const time = railTime(r, group, now);
   // The highlight is the row's own once it has been handed over, so it plays
@@ -89,7 +110,9 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
           type="button"
           className={`sl-row${selected ? " selected" : ""}${removed ? " removed" : ""}`}
           aria-current={selected ? "true" : undefined}
+          data-session={r.sessionId}
           onClick={() => onSelect(r.sessionId)}
+          onKeyDown={openKeysOnEnter(r.sessionId, onOpenKeys)}
           title={rowTooltip(r, removed)}
         >
           {/* Once, on the row a jump arrived at; a new nonce is a new element,

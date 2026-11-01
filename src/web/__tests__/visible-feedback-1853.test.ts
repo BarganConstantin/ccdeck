@@ -226,7 +226,9 @@ describe("the topbar's Feedback button", () => {
     // every width the bar draws them: the word is the label, always, and no
     // rule in the sheet hides it.
     expect(item).toMatch(/label: "Feedback"/);
-    expect(rails).toMatch(/aria-label=\{item\.ariaLabel\}/);
+    // Search alone is named by the sentence its field shows (fieldText); every
+    // other door, Feedback with it, keeps its own aria-label.
+    expect(rails).toMatch(/aria-label=\{(?:fieldText \?\? )?item\.ariaLabel\}/);
     expect(rails).toMatch(/variant !== "stripe" && <span className="rail-word">/);
     expect(edgeSheet).not.toMatch(/rail-btn-bar[^{]*\.rail-word[^{]*\{[^}]*display:\s*none/);
     expect(edgeSheet).not.toMatch(/\.utility-run[^{]*\{[^}]*display:\s*none/);

@@ -213,6 +213,10 @@ describe("what was migrated to the secondary tier", () => {
       // under the foreground so the canvas stays the loudest thing, and the
       // pointer lifts a chip to --text. Its floors are held in quiet-signals.
       ".cat-filter",
+      // CHANGED ON PURPOSE (V4 Inspector, Figma 22:15126): the Context body's section
+      // captions, "Cumulative usage · whole session" and the two after it: titles a
+      // reader reads to know which numbers follow, no longer 11px uppercase --muted.
+      ".ctx-section-title",
       ".detail-recap",
       // The trash zone's hint while a card is over it, "The session list (L)
       // brings it back": the one sentence that says the removal can be
@@ -244,6 +248,10 @@ describe("what was migrated to the secondary tier", () => {
       // provider's own words below it, which then step down to --muted. And
       // (V4's field: the shared search field's placeholder left for --muted.)
       ".ig-failure-body, .ig-failure-said",
+      // CHANGED ON PURPOSE (V4 Inspector, Figma 22:15126 and 22:15467): the Time tab's
+      // line over the turn's bar, "93% of this turn was waiting on you": the one sentence
+      // that says what the bar is, read to understand it.
+      ".insp-time-share",
       // The Jira panel's sentences: a note over the board (no active sprint,
       // the first 600 shown), a sprint's goal, the empty board's explanation,
       // and a quote inside an issue. Why a read failed is the integrations'
@@ -455,18 +463,25 @@ describe("what was migrated to the secondary tier", () => {
       ".settings-row-details",
       // The terminal stage. Its keys bar says in a sentence who has the
       // keyboard — "Keys on the board", "Typing into paycore", the first-run
-      // line, "The session ended 14m ago — this is its last frame" — in
-      // V4's --muted on the bar's --bg-soft, as the kit draws it (the bar
-      // itself left this list for that); the one thing set apart is the
-      // session's name in it (.ts-who). The header's sentence takes the
+      // line, "The session ended 14m ago. This is its last frame" — in
+      // V4's --muted on the bar's --panel, as the kit draws it (the bar
+      // itself left this list for that). CHANGED ON PURPOSE: Figma V4's
+      // Keys bar sets apart the board's label (.ts-label), the asks run's
+      // count, the answered session ("web-api resumed") and the ask note
+      // ("docs-site asks · Bash") in this tier, where the session's name in
+      // a sentence (.ts-who) used to be the one thing set apart; that span
+      // is gone. The header's sentence takes the
       // tier for its state part ("working", "waiting 6m"), the tool and its
       // argument after it staying --muted.
-      ".ts-who",
+      ".ts-arrival",
+      ".ts-count",
+      ".ts-label",
       ".ts-meta-state",
       // And its state cards: the one sentence that says why there is no pane
       // (the deck's describeTarget, tmux missing, an error), and the note that
       // answers a refused Reopen here in place. Prose read once and acted on.
       ".ts-note",
+      ".ts-resumed",
       ".ts-text",
       // What's new: the sentence under each change, the always-visible notice
       // beside it, the one line that says which releases are shown (or that

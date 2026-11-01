@@ -216,7 +216,8 @@ describe("the three layers, word for word", () => {
     expect(near.hints.map(h => h.word)).toEqual(["cards", "select", "next waiting"]);
     expect(BOARD_HINTS.filter(h => h.zoomedOut).map(h => h.word)).toEqual(["peek"]);
     // The bar reads the same tier P reads (use-zoom-lod.ts), as a prop.
-    expect(read("App.tsx")).toMatch(/<StatusBar stageOpen=\{[^}]+\} zoomedOut=\{zoom\.lod !== "detail"\} \/>/);
+    // (Workspace adds a third prop, viewChord, after the zoom tier.)
+    expect(read("App.tsx")).toMatch(/<StatusBar stageOpen=\{[^}]+\} zoomedOut=\{zoom\.lod !== "detail"\}( viewChord=\{[^\n]+\})? \/>/);
   });
 
   it("the bar learns 'on a card' from focus, as the handler does (isCanvasNodeElement)", () => {

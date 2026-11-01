@@ -89,24 +89,16 @@
 .topbar .status .pill .pill-widest { visibility: hidden; }
 
 /* THE STATE IS THE EDGE AND THE DOT, and the word stays --text. V4 draws the
-   stream chip as an outline in the state's colour with no fill: --ok when
-   live (hidden at rest, so seen only briefly), --warn when paused, --err when
-   lost. The washes the three states used to wear are gone with the fill, and
-   with them the argument about how much tint a theme could carry: the edge
-   is a full token, which clears 3:1 on --panel wherever the token itself does
-   (control-edges.test.ts measures it). The dot is 6px in the same colour, with
-   no halo — the halo was a second mark for the same fact.
-   Live's dot keeps the pulse it had (1.6s, opacity only, which reduced motion
-   leaves alone: a fade is the recommended answer). Paused is connected but
-   the canvas is frozen: a still dot, because the pulse is what "events are
-   landing" means and under a pause none are. */
-.topbar .status .pill.live { border-color: var(--ok); }
-.topbar .status .pill.live::before {
-  content: ""; display: inline-block;
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--ok);
-  animation: pulse 1.6s ease-in-out infinite;
-}
+   stream chip as an outline in the state's colour with no fill: --warn when
+   paused, --err when lost. The washes the states used to wear are gone with
+   the fill, and with them the argument about how much tint a theme could
+   carry: the edge is a full token, which clears 3:1 on --panel wherever the
+   token itself does (control-edges.test.ts measures it). The dot is 6px in
+   the same colour, with no halo — the halo was a second mark for the same
+   fact — and it holds still: nothing on this bar pulses at rest.
+   Live has no chip at all (V4 decision 19): nothing to act on, so nothing
+   drawn. statusPill() still names the state, `resting`, for anything that
+   wants the words, but no rule here dresses it, because it never renders. */
 .topbar .status .pill.paused { border-color: var(--warn); }
 .topbar .status .pill.paused::before {
   content: ""; display: inline-block;
@@ -214,10 +206,10 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-/* V4 gives the glyph a 14px slot. The pulse dot is 5px, whole pixels in a
-   whole-pixel slot: 4 before it and 5 after (the ring it emits is drawn over
-   the margin, not in it). */
-.topbar .waiting-stat .ap-pulse { margin-inline: 4px 5px; }
+/* V4's Waiting glyph (Figma 22:952): the deck's alert triangle at 14px, in
+   --warn, standing still. Its global rule pushes it to a row's end; here it
+   leads the chip. */
+.topbar .waiting-stat .alert-mark { margin-left: 0; }
 .topbar .waiting-stat:hover {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 12%, transparent);

@@ -145,7 +145,9 @@ describe("a tile says what the board's card says", () => {
   it("leads a blocked session's line with 'waiting' and how long, then the face's sentence", () => {
     const board = textOf(card("pay"), "lod-long")!;
     const line = textOf(tile(html, "pay"), "nav-signal")!;
-    const waited = textOf(card("pay"), "waiting-row permission")?.match(/(\d+(?:ms|s|m \d\ds|h \d+m))$/)?.[1];
+    // CHANGED ON PURPOSE: the ask line lost its kind class with its kind
+    // colour (V4 decision 22), so it is found by its own class.
+    const waited = textOf(card("pay"), "waiting-row")?.match(/(\d+(?:ms|s|m \d\ds|h \d+m))$/)?.[1];
     expect(line).toBe(`waiting ${waited} · ${board}`);
     // And the triangle in the clock's place, as the face draws it.
     expect(tile(html, "pay")).toContain('class="alert-mark"');

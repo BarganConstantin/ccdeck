@@ -16,7 +16,7 @@ import type { SetStateAction } from "react";
 import { initialState } from "../reducer";
 import { setSingleKeyShortcuts } from "../single-key-shortcuts";
 import type { Theme } from "../theme";
-import { useDeckShortcuts, type DeckShortcuts, type StageShortcuts } from "../use-deck-shortcuts";
+import { useDeckShortcuts, type DeckShortcuts, type StageShortcuts, type ViewShortcut } from "../use-deck-shortcuts";
 
 /** A flag the handler flips through a React setter, with its value kept. */
 export interface Flag<T> {
@@ -57,6 +57,9 @@ export interface DeckKeysOptions {
   /** The terminal stage the deck is handed, if any — see `stageKeys`. Left
    *  out, the deck is mounted exactly as it was before the stage existed. */
   stage?: StageShortcuts | null;
+  /** Ctrl + backtick, Board or Workspace (V4 Workspace): what the deck is
+   *  handed, if anything. Left out, the chord is left to the page. */
+  view?: ViewShortcut | null;
   /** Settings › General's single-key switch; on, as a deck starts, unless a
    *  test says not. Set on every mount, so no test inherits another's. */
   singleKeys?: boolean;
@@ -81,7 +84,7 @@ export function stageKeys(over: Partial<StageShortcuts> = {}): StageShortcuts {
   };
 }
 
-export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange = () => false, stage }: DeckKeysOptions = {}) {
+export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange = () => false, stage, view }: DeckKeysOptions = {}) {
   let onKey: ((e: KeyboardEvent) => void) | null = null;
   vi.stubGlobal("window", {
     addEventListener: (type: string, fn: (e: KeyboardEvent) => void) => { if (type === "keydown") onKey = fn; },
@@ -132,6 +135,7 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
     // Only when a test hands one over, so every other test mounts the deck
     // with the very props it always had.
     ...(stage !== undefined ? { stageRef: { current: stage } } : {}),
+    ...(view !== undefined ? { viewRef: { current: view } } : {}),
   };
   useDeckShortcuts(props);
   if (!onKey) throw new Error("useDeckShortcuts put no keydown listener on window");

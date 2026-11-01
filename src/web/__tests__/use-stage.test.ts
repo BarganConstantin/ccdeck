@@ -14,7 +14,7 @@ import { DOUBLE_CLICK_MS } from "../focus-hold";
 import type { GraphState } from "../reducer";
 import type { AgentNodeData } from "../types";
 import {
-  useRailPanel, useStage, useStageAsks, RESTORE_FRESH_MS, RESTORE_WAIT_MS, SHELL_UNAVAILABLE, STAGE_RESTORE_KEY, TERMINAL_SWITCHED_KEY as STAGE_SWITCHED,
+  useRailPanel, useStage, useStageAsks, PREFS_WAIT_MS, RESTORE_FRESH_MS, RESTORE_WAIT_MS, SHELL_UNAVAILABLE, STAGE_RESTORE_KEY, TERMINAL_SWITCHED_KEY as STAGE_SWITCHED,
   type StageDeps,
 } from "../use-stage";
 import { TYPE_AHEAD_MS } from "../type-ahead";
@@ -135,11 +135,12 @@ function Harness({ deps, waiting }: Props) {
   return { stage, asks };
 }
 
-function setup(opts: { detailOpen?: boolean; selected?: string | null; agents?: AgentNodeData[] } = {}) {
+function setup(opts: { detailOpen?: boolean; selected?: string | null; agents?: AgentNodeData[]; view?: "board" | "workspace"; phone?: boolean } = {}) {
   const agents = new Map((opts.agents ?? [root("s1"), root("s2"), { ...root("s1::a"), sessionId: "s1", kind: "subagent" } as AgentNodeData])
     .map(a => [a.id, a]));
   const setDetailOpen = vi.fn();
   const selectAgent = vi.fn();
+  const clearSelection = vi.fn();
   const deps: StageDeps = {
     stateRef: { current: { agents, panelLaunches: new Map(), revision: 0 } as unknown as GraphState },
     canvasRef: { current: page.canvas as unknown as HTMLElement },
@@ -148,12 +149,15 @@ function setup(opts: { detailOpen?: boolean; selected?: string | null; agents?: 
     setDetailOpen,
     primarySelectedIdRef: { current: opts.selected ?? null },
     selectAgent,
+    ...(opts.view ? { view: opts.view } : {}),
+    ...(opts.phone ? { phone: true } : {}),
+    clearSelection,
   };
   const props: Props = { deps, waiting: [] };
   const view = mount(Harness, props);
   const now = () => view.tree as { stage: ReturnType<typeof useStage>; asks: ReturnType<typeof useStageAsks> };
   const turnOn = () => now().stage.loadTerminalPrefs({ terminalOn: true });
-  return { view, now, deps, props, setDetailOpen, selectAgent, turnOn };
+  return { view, now, deps, props, setDetailOpen, selectAgent, clearSelection, turnOn, agents };
 }
 
 describe("with the terminal flag off", () => {
@@ -1193,5 +1197,286 @@ describe("keys typed before the pane can take them", () => {
     expect(held(press("j"))).toBe(false);
     now().stage.launch("claude", "/work");
     expect(held(press("h")), "a launch asks for the pane, but its welcome screen is seconds away").toBe(false);
+  });
+});
+
+// ── WORKSPACE: what the V4 PR5 review found ─────────────────────────────────
+// (use-view.ts, workspace.css). The view is the hook's `view` dependency; the
+// browser's memory of it is the key below.
+const VIEW = "agent-dag.view";
+
+describe("Workspace: a reload puts back the session it named (review 1)", () => {
+  for (const later of [false, true]) {
+    it(`ends with one session on the pane, the restored one, selected too, with the prefs ${later ? "later than" : "sooner than"} PREFS_WAIT_MS`, () => {
+      session.set(STAGE_RESTORE_KEY, JSON.stringify({ id: "s2", at: Date.now() }));
+      const { now, selectAgent, turnOn } = setup({ view: "workspace", selected: null });
+      // The board has heard of both sessions already; the prefs have not come.
+      if (later) vi.advanceTimersByTime(PREFS_WAIT_MS + 1);
+      turnOn();
+      const { shell } = now().stage;
+      expect(shell.phase).not.toBe("closed");
+      expect(shell.target, "the entry rule's empty pane did not replace the restore").toEqual({ kind: "session", id: "s2" });
+      expect(selectAgent.mock.calls.length).toBeGreaterThan(0);
+      for (const call of selectAgent.mock.calls) expect(call[0], "the Inspector and the rail agree with the pane").toBe("s2");
+    });
+  }
+});
+
+describe("Workspace: entering while a Board stage is closing (review 3b)", () => {
+  it("waits for the close, then does the entry rule: the selected session, else the last one", () => {
+    const { view, now, props, deps, turnOn } = setup({ selected: "s2" });
+    turnOn();
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    now().stage.reveal();
+    now().stage.revealed();
+    now().stage.close();
+    expect(now().stage.shell.phase).toBe("closing");
+    view.rerender({ ...props, deps: { ...deps, view: "workspace" } });
+    expect(now().stage.workspace).toBe(true);
+    expect(now().stage.shell.phase, "nothing is opened under a close that is still running").toBe("closing");
+    now().stage.closed("");
+    const { shell } = now().stage;
+    expect(shell.phase, "the pane is opened once the stage is closed").not.toBe("closed");
+    expect(shell.target).toEqual({ kind: "session", id: "s2" });
+  });
+
+  it("opens the empty pane when there is nothing to put on it", () => {
+    const { view, now, props, deps, turnOn } = setup();
+    turnOn();
+    now().stage.close();
+    now().stage.closed("");
+    view.rerender({ ...props, deps: { ...deps, view: "workspace" } });
+    expect(now().stage.shell.target).toEqual({ kind: "empty" });
+  });
+});
+
+describe("Workspace: the stage's chunk would not load (review 3c)", () => {
+  it("is not on offer: the Board is drawn, the switch and the chord go, the stored view stays", () => {
+    local.set(VIEW, "workspace");
+    const { now, turnOn } = setup({ view: "workspace" });
+    turnOn();
+    expect(now().stage.workspace).toBe(true);
+    expect(now().stage.workspaceOffered).toBe(true);
+    now().stage.failed();
+    expect(now().stage.workspace).toBe(false);
+    expect(now().stage.workspaceOffered).toBe(false);
+    expect(now().stage.chunkFailed).toBe(true);
+    expect(now().stage.shell.phase).toBe("closed");
+    expect(local.get(VIEW), "the choice is the reader's, kept for the next load").toBe("workspace");
+  });
+});
+
+describe("Workspace: ⤢ and Zoom are not carried across a change of view (review 4)", () => {
+  it("resets expanded on the way in", () => {
+    const { view, now, props, deps, turnOn } = setup();
+    turnOn();
+    now().stage.toggleExpand();
+    expect(now().stage.expanded).toBe(true);
+    view.rerender({ ...props, deps: { ...deps, view: "workspace" } });
+    expect(now().stage.workspace).toBe(true);
+    expect(now().stage.expanded, "the Board's wide stage is not Zoom").toBe(false);
+  });
+
+  it("and on the way out", () => {
+    const { view, now, props, deps, turnOn } = setup({ view: "workspace" });
+    turnOn();
+    now().stage.toggleExpand();
+    expect(now().stage.expanded).toBe(true);
+    view.rerender({ ...props, deps: { ...deps, view: "board" } });
+    expect(now().stage.workspace).toBe(false);
+    expect(now().stage.expanded).toBe(false);
+  });
+});
+
+describe("Workspace: a gate the deck knows is off is forgotten by the browser (review 5)", () => {
+  it("rewrites the stored view to the Board once the prefs say the Command Panel is off", () => {
+    local.set(VIEW, "workspace");
+    const { now } = setup({ view: "workspace" });
+    expect(local.get(VIEW), "held until the deck has answered").toBe("workspace");
+    now().stage.loadTerminalPrefs({ terminalOn: false });
+    expect(local.get(VIEW)).toBe("board");
+  });
+
+  it("and when the platform has no panel at all", () => {
+    local.set(VIEW, "workspace");
+    const { now } = setup({ view: "workspace" });
+    now().stage.loadTerminalPrefs({ terminalOn: true, terminalSupported: false });
+    expect(local.get(VIEW)).toBe("board");
+  });
+
+  it("not while the gate is on", () => {
+    local.set(VIEW, "workspace");
+    const { now } = setup({ view: "workspace" });
+    now().stage.loadTerminalPrefs({ terminalOn: true, terminalSupported: true });
+    expect(local.get(VIEW)).toBe("workspace");
+  });
+
+  it("not on a phone, which says nothing about the gate", () => {
+    local.set(VIEW, "workspace");
+    const { now } = setup({ view: "workspace", phone: true });
+    now().stage.loadTerminalPrefs({ terminalOn: false });
+    expect(local.get(VIEW)).toBe("workspace");
+  });
+
+  it("not when the prefs were never read: the wait runs out and the key is left alone", () => {
+    local.set(VIEW, "workspace");
+    const { now } = setup({ view: "workspace" });
+    vi.advanceTimersByTime(PREFS_WAIT_MS + 1);
+    expect(now().stage.workspace, "the hold is given up").toBe(false);
+    expect(local.get(VIEW)).toBe("workspace");
+  });
+});
+
+describe("Workspace: a session the board has not heard of leaves the Inspector empty (review 7)", () => {
+  it("clears the selection for an unknown session on the pane, and selects it once the board hears of it", () => {
+    const { view, now, selectAgent, clearSelection, agents, turnOn } = setup({ view: "workspace" });
+    turnOn();
+    selectAgent.mockClear();
+    clearSelection.mockClear();
+    now().stage.openInPane("fresh");
+    expect(clearSelection).toHaveBeenCalledTimes(1);
+    expect(selectAgent).not.toHaveBeenCalled();
+    agents.set("fresh", root("fresh"));
+    view.rerender();
+    expect(selectAgent).toHaveBeenCalledWith("fresh", false, false);
+  });
+
+  it("does not select it if the pane has moved on before the board heard", () => {
+    const { view, now, selectAgent, agents, turnOn } = setup({ view: "workspace" });
+    turnOn();
+    now().stage.openInPane("fresh");
+    now().stage.openInPane("s2");
+    selectAgent.mockClear();
+    agents.set("fresh", root("fresh"));
+    view.rerender();
+    expect(selectAgent).not.toHaveBeenCalledWith("fresh", false, false);
+  });
+
+  it("does the same for a new launch: nothing in focus, then the session the launch became", () => {
+    const { view, now, selectAgent, clearSelection, agents, turnOn } = setup({ view: "workspace" });
+    turnOn();
+    clearSelection.mockClear();
+    selectAgent.mockClear();
+    now().stage.launch("claude", "/work");
+    expect(clearSelection).toHaveBeenCalledTimes(1);
+    const target = now().stage.shell.target as { kind: "launch"; key: string };
+    now().stage.onLaunched({ sessionId: "new1", key: target.key });
+    agents.set("new1", root("new1"));
+    view.rerender();
+    expect(now().stage.shell.target).toMatchObject({ kind: "session", id: "new1" });
+    expect(selectAgent).toHaveBeenCalledWith("new1", false, false);
+  });
+
+  it("leaves the Board as it was: the selection is untouched by an unknown session or a launch", () => {
+    const { now, clearSelection, selectAgent, turnOn } = setup();
+    turnOn();
+    now().stage.switchTo("fresh", { focusPane: true });
+    now().stage.launch("claude", "/work");
+    expect(clearSelection).not.toHaveBeenCalled();
+    expect(selectAgent).not.toHaveBeenCalled();
+  });
+});
+
+describe("Workspace: ✕ on a pane asks for the keys of the pane it leaves (review 10)", () => {
+  it("empties the pane through the stage's own request, so the focus lands on the empty pane's action", () => {
+    const { now, clearSelection, turnOn } = setup({ view: "workspace" });
+    turnOn();
+    now().stage.openInPane("s1");
+    const before = now().stage.shell.focusRequest;
+    now().stage.emptyPane();
+    expect(now().stage.shell.target).toEqual({ kind: "empty" });
+    expect(now().stage.shell.focusRequest, "landFocus answers it on the empty pane's action").not.toBe(before);
+    expect(now().stage.shell.focusRequest).not.toBeNull();
+    expect(clearSelection).toHaveBeenCalled();
+  });
+});
+
+describe("Workspace: Enter on a row asks for the keys (review 9)", () => {
+  it("opens the session with a focus request, the way a card click does", () => {
+    const { now, turnOn } = setup({ view: "workspace" });
+    turnOn();
+    now().stage.openInPane("s2", { focusPane: true });
+    expect(now().stage.shell.target).toEqual({ kind: "session", id: "s2" });
+    expect(now().stage.shell.focusRequest).not.toBeNull();
+  });
+});
+
+describe("Workspace: a row opens its session whatever the pane is doing (review 3a)", () => {
+  it("opens the pane on it when the stage is closed, as the plan's first row says", () => {
+    const { now, turnOn } = setup({ view: "workspace" });
+    turnOn();
+    now().stage.close();
+    now().stage.closed("");
+    expect(now().stage.shell.phase).toBe("closed");
+    now().stage.openInPane("s2");
+    expect(now().stage.shell.phase).not.toBe("closed");
+    expect(now().stage.shell.target).toEqual({ kind: "session", id: "s2" });
+  });
+});
+
+describe("the gate, the hook and j and k, run (beside the source pins of v4-workspace-*.test.ts)", () => {
+  it("with the Command Panel off Workspace is not on offer and the layout is the Board's, once the deck has said so", () => {
+    const { now } = setup({ view: "workspace" });
+    expect(now().stage.workspace, "held for the first paint, until the deck answers").toBe(true);
+    expect(now().stage.workspaceOffered).toBe(false);
+    now().stage.loadTerminalPrefs({ terminalOn: false });
+    expect(now().stage.workspace).toBe(false);
+    expect(now().stage.workspaceOffered).toBe(false);
+    expect(now().stage.shell.phase).toBe("closed");
+    expect(now().stage.keysRef.current, "claims no key").toBeNull();
+  });
+
+  it("never offers it on a phone, whatever is stored", () => {
+    const { now, turnOn } = setup({ view: "workspace", phone: true });
+    turnOn();
+    expect(now().stage.workspaceOffered).toBe(false);
+    expect(now().stage.workspace).toBe(false);
+  });
+
+  it("does not close the Inspector for the pane, or the pane for the Inspector, in Workspace", () => {
+    const { now, setDetailOpen, turnOn } = setup({ view: "workspace", detailOpen: true });
+    turnOn();
+    expect(now().stage.shell.phase).not.toBe("closed");
+    expect(setDetailOpen).not.toHaveBeenCalled();
+    now().stage.openInPane("s2");
+    expect(setDetailOpen).not.toHaveBeenCalled();
+    expect(now().stage.shell.phase).not.toBe("closed");
+  });
+
+  it("evicts them each other on the Board, as it always did", () => {
+    const { now, setDetailOpen, turnOn } = setup({ detailOpen: true });
+    turnOn();
+    now().stage.onNodeClick("s1", page.card as unknown as Element);
+    expect(setDetailOpen).toHaveBeenCalledWith(false);
+  });
+
+  it("leaves the Board in the same update that changes the view: the stage goes at once, Zoom given back", () => {
+    const { now, turnOn } = setup({ view: "workspace" });
+    turnOn();
+    now().stage.toggleExpand();
+    expect(now().stage.expanded).toBe(true);
+    now().stage.leaveWorkspace();
+    expect(now().stage.expanded).toBe(false);
+    expect(now().stage.shell.phase).toBe("closed");
+  });
+
+  it("walks the list's rows with j and k in Workspace and the navigator's tiles on the Board", () => {
+    const rows = ["s2", "s1"].map(id => ({
+      getClientRects: () => [{}],
+      closest: () => null,
+      getAttribute: (name: string) => (name === "data-session" ? id : null),
+    }));
+    const g = globalThis as unknown as { document: Record<string, unknown> };
+    g.document.querySelectorAll = (sel: string) => (sel.includes(".session-list .sl-row[data-session]") ? rows : []);
+    const ws = setup({ view: "workspace" });
+    ws.turnOn();
+    const keys = ws.now().stage.keysRef.current!;
+    expect(keys.mode).toBe("rail");
+    expect(keys.order).toEqual(["s2", "s1"]);
+    ws.now().stage.toggleExpand();
+    expect(ws.now().stage.keysRef.current!.order, "Zoom folds the list away: no rows to walk").toEqual([]);
+    const board = setup();
+    board.turnOn();
+    expect(board.now().stage.keysRef.current!.mode).toBeUndefined();
   });
 });

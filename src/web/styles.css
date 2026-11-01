@@ -87,4 +87,5 @@
 @import "./styles/gruvbox.css";                  /* Gruvbox's quiet session hues and reading hierarchy */
 @import "./styles/theme-transition.css";         /* deliberate palette changes, including the canvas */
 @import "./styles/reading.css";
+@import "./styles/workspace.css";                /* Workspace: the Board's second view; after every sheet whose ties it wins on order */
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */
