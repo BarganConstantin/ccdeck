@@ -78,6 +78,15 @@ export const HEAD_H = 44;
 /** Compact's pane header, the smallest V4 draws. A reading under it is a
  *  header not laid out yet, and the rows are never fitted to it. */
 export const HEAD_H_MIN = 36;
+/** The densities that draw the pane header at HEAD_H_MIN (reading.css's
+ *  `--pane-head-h: 36px` block); the roomier ones draw HEAD_H. */
+const COMPACT_HEAD = new Set(["compact", "tighter", "tightest"]);
+
+/** The pane header's height at a density, as `data-density` names it on the
+ *  root: what the stage will draw, known before it has drawn it. */
+export function headHFor(density: string | undefined): number {
+  return density && COMPACT_HEAD.has(density) ? HEAD_H_MIN : HEAD_H;
+}
 /** The keys bar under the terminal: V4's 32. The first-run line wrapping
  *  makes it taller, and the measured height then wins. */
 export const BAR_H = 32;

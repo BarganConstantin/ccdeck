@@ -824,12 +824,11 @@ describe("the room the stage is given", () => {
   });
 
   it("fits the first rows to the density's header and the pointer's bar, before the stage has measured either", () => {
-    // Compact, V4's default, draws a 36px header (--pane-head-h) and a
-    // fingertip a 36px bar: the first attach is fitted to those, not to a
-    // guess the stage's own measure corrects a frame later with a resize.
+    // Compact, V4's default, draws a 36px header and a fingertip a 36px bar:
+    // the first attach is fitted to those, not to a guess the stage's own
+    // measure corrects a frame later with a resize.
     const g = globalThis as Record<string, unknown>;
-    (g.document as Record<string, unknown>).documentElement = { tagName: "HTML" };
-    g.getComputedStyle = () => ({ getPropertyValue: (name: string) => (name === "--pane-head-h" ? " 36px" : "") });
+    (g.document as Record<string, unknown>).documentElement = { tagName: "HTML", dataset: { density: "compact" } };
     g.matchMedia = (q: string) => ({ matches: q === "(pointer: coarse)" });
     try {
       const { now, turnOn } = setup();
@@ -844,7 +843,6 @@ describe("the room the stage is given", () => {
       now().stage.onBarH(36);
       expect(now().stage.geometry).toEqual(first);
     } finally {
-      delete g.getComputedStyle;
       delete g.matchMedia;
     }
   });

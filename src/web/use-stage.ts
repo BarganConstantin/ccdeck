@@ -50,7 +50,7 @@ import { DOUBLE_CLICK_MS } from "./focus-hold";
 import { notePanelLaunch } from "./panel-launch";
 import type { GraphState } from "./reducer";
 import {
-  ASSUMED_CELL, BAR_H, BAR_H_TOUCH, HEAD_H, NARROW_BELOW, STAGE_COLS_KEY, loadStageCols, saveStageCols, stageGeometry,
+  ASSUMED_CELL, BAR_H, BAR_H_TOUCH, NARROW_BELOW, STAGE_COLS_KEY, headHFor, loadStageCols, saveStageCols, stageGeometry,
   type Cell, type StageGeometry,
 } from "./stage-geometry";
 import {
@@ -95,12 +95,11 @@ function nameElement(card: Element): Element | null {
   return card.querySelector(".title .label");
 }
 
-/** The pane header's height at the density in force, from --pane-head-h on
- *  the root; HEAD_H where there is no sheet to ask (a suite). */
+/** The pane header's height at the density in force, from the root's
+ *  `data-density` rather than from the token: the stage's hook runs in App's
+ *  render, and nothing there computes a style (render-path-cost-612-613). */
 function paneHeadH(): number {
-  if (typeof document === "undefined" || typeof getComputedStyle !== "function") return HEAD_H;
-  const read = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--pane-head-h"));
-  return Number.isFinite(read) && read > 0 ? read : HEAD_H;
+  return headHFor(typeof document === "undefined" ? undefined : document.documentElement?.dataset?.density);
 }
 
 /** A fingertip, as the sheet's own `(pointer: coarse)` block asks. */
@@ -167,8 +166,8 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   // above it, and a first-run line on three lines makes it taller. Until it
   // has said, the height it will be drawn at: a fingertip's 36, else 32.
   const [barH, setBarH] = useState(() => (coarsePointer() ? BAR_H_TOUCH : BAR_H));
-  // The pane header likewise (onHeadH). Until it has said, the density's own
-  // `--pane-head-h` (36 at Compact, the default; 44 above), so the first
+  // The pane header likewise (onHeadH). Until it has said, the height the
+  // density draws it at (36 at Compact, the default; 44 above), so the first
   // attach is fitted to the header it is drawn under and not resized after.
   const [headH, setHeadH] = useState(paneHeadH);
   const measure = useCallback(() => {

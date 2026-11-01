@@ -7,6 +7,8 @@
 // header). Soft detents are the product's change from v3's hard ones, so the
 // magnetism gets its own sweep.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   ASSUMED_CELL,
   BAR_H,
@@ -21,6 +23,7 @@ import {
   STAGE_COLS_KEY,
   colsAtX,
   colsRange,
+  headHFor,
   loadStageCols,
   saveStageCols,
   snapCols,
@@ -197,6 +200,22 @@ describe("the rows fit below the header as it is drawn", () => {
     for (const bad of [0, -4, NaN, Infinity]) {
       expect(stageGeometry({ ...body, headH: bad }), String(bad)).toEqual(stageGeometry(body));
     }
+  });
+
+  it("knows the header's height at each density as the sheets draw it", () => {
+    // headHFor answers before the header is drawn, from data-density; the
+    // sheets are what draws it, so the two are held together here.
+    const read = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");
+    const reading = read("styles/reading.css");
+    const tokens = read("styles/tokens.css");
+    const block = /((?::root\[data-density="[a-z]+"\],?\s*)+)\{[^}]*--pane-head-h:\s*(\d+)px/.exec(reading);
+    expect(block, "reading.css restates --pane-head-h for the compact steps").not.toBeNull();
+    const compact = [...block![1].matchAll(/data-density="([a-z]+)"/g)].map(m => m[1]).sort();
+    expect(Number(block![2])).toBe(HEAD_H_MIN);
+    expect(compact).toEqual(["compact", "tighter", "tightest"]);
+    for (const d of compact) expect(headHFor(d), d).toBe(HEAD_H_MIN);
+    expect(tokens).toMatch(new RegExp(`--pane-head-h:\\s*${HEAD_H}px`));
+    for (const d of [undefined, "", "comfortable", "default", "anything"]) expect(headHFor(d), String(d)).toBe(HEAD_H);
   });
 
   it("never fits the rows to a header smaller than Compact's, a header not laid out yet", () => {

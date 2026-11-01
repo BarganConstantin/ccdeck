@@ -439,10 +439,10 @@ describe("the geometry follows the header as it is drawn", () => {
     expect(ts).toContain('useDrawnHeight(rootRef, ".ts-head", p.onHeadH);');
   });
 
-  it("StageShell passes it on, and use-stage fits the geometry to it, from the density's token until it has said", () => {
+  it("StageShell passes it on, and use-stage fits the geometry to it, from the density until it has said", () => {
     expect(shellSrc).toContain("onHeadH={stage.onHeadH}");
     expect(useStage).toContain("const [headH, setHeadH] = useState(paneHeadH);");
-    expect(useStage).toContain('getPropertyValue("--pane-head-h")');
+    expect(useStage).toContain("headHFor(typeof document === \"undefined\" ? undefined : document.documentElement?.dataset?.density)");
     expect(useStage).toContain("barH, headH })");
     expect(useStage).toMatch(/onCell, onBarH, onHeadH,/);
   });
