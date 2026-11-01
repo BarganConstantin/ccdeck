@@ -667,6 +667,13 @@ describe("the Time tab", () => {
       const t = spanTable({ agents: mapOf(lone, explore), sessionId: "s", start: 0, end: 5000, now: 5000 });
       expect(t.rows.map(r => [r.name, r.group, r.depth])).toEqual([["Explore", true, 0], ["Glob", false, 1], ["Grep", false, 1]]);
     });
+    it("names what a call ran on as the board does: the command, not its JSON", () => {
+      const bash = { ...call("a", "Bash", 10), input: { command: "npm test -- rate-limit" }, inputPreview: '{"command":"npm test -- rate-limit"}' };
+      const t = spanTable({ agents: mapOf(A("s", { prompts: [{ at: 0, text: "" }] as never, tools: [bash] })), sessionId: "s", start: 0, end: 100, now: 100 });
+      expect(t.rows[0].arg).toBe("npm test -- rate-limit");
+      // A call the skins do not know keeps its preview.
+      expect(spanTable({ agents: mapOf(A("s", { prompts: [{ at: 0, text: "" }] as never, tools: [call("b", "Mystery", 10)] })), sessionId: "s", start: 0, end: 100, now: 100 }).rows[0].arg).toBe("Mystery arg");
+    });
     it("puts the wait pill on the newest call still going that the prompt names, and on no other", () => {
       expect(table.rows.map(r => r.waitingSince)).toEqual([null, null, null, null, null, 23000]);
       const asked = spanTable({ agents: mapOf(A("s", { prompts: [{ at: 0, text: "" }] as never, tools: [call("a", "Bash", 10), call("b", "Read", 20)], waiting: { kind: "permission", message: "", since: 40 } })), sessionId: "s", start: 0, end: 100, now: 100 });

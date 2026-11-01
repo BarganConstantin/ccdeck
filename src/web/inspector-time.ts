@@ -9,9 +9,14 @@
 // two timestamps, and a turn starts at the last prompt the session was given.
 import { elapsed } from "./duration";
 import { sessionRoot } from "./inspector-tree";
+import { skinFor } from "./tool-skin";
 import type { AgentNodeData, ToolCall, WaitingBlock } from "./types";
 
 export interface SessionTurn { open: boolean; totalMs: number; claudeMs: number; machineMs: number; youMs: number }
+
+/** What a call ran on, as the board's sub-bubble says it (the command, the file),
+ *  else the raw input preview: a Bash row reads "npm test", not its JSON. */
+const callArg = (call: ToolCall): string => skinFor(call.name, call.input)?.detail ?? call.inputPreview ?? "";
 
 const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n >= 0;
 
@@ -142,13 +147,13 @@ export function spanTable(opts: {
       if (kid) {
         const key = `g:${kid.id}`;
         rows.push({
-          key, name: kid.label || call?.name || "Agent", arg: call?.inputPreview ?? "", depth, group: true, under,
+          key, name: kid.label || call?.name || "Agent", arg: call ? callArg(call) : "", depth, group: true, under,
           from: at, to: call ? call.endedAt ?? null : kid.endedAt ?? null, waitingSince: null,
         });
         add(kid, depth + 1, [...under, key]);
       } else if (call) {
         rows.push({
-          key: `c:${agent.id}:${call.id}`, name: call.name, arg: call.inputPreview, depth, group: false, under,
+          key: `c:${agent.id}:${call.id}`, name: call.name, arg: callArg(call), depth, group: false, under,
           from: at, to: call.endedAt ?? null, waitingSince: null,
         });
       }
