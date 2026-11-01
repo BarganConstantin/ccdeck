@@ -159,6 +159,17 @@ describe("what was migrated to the secondary tier", () => {
       // and the heading carry the failure; the reason is prose, so it reads and does not
       // shout.
       ".aa-reason",
+      // V4's Agent / Card sets its task line (the session's name or title, or a
+      // subagent's kind and folder) in this tier, and its foot — cost · time …
+      // and the sub-agent count — in the same ink as mono figures. The foot is
+      // metadata, so it joins the list against this test's own rule that the
+      // tier is prose; ON PURPOSE, because the kit draws the figures at
+      // --text-secondary and the dot between them at --muted, and the tier
+      // clears 4.5:1 on every node bed (above).
+      ".agent-node .foot",
+      ".agent-node .foot .spawn-badge",
+      ".agent-node .task-line",
+      ".agent-node .time",
       // Explains missing prices and recorded cost provenance.
       ".uh-cost-note",
       ".ap-issue-hint",

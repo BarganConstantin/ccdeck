@@ -767,6 +767,8 @@ const otherPulses = pulsing.filter(r => !live.includes(r));
  *  on screen at once, which is why they share a beat. */
 const LIVE_PULSE = [
   ".state-pill.state-active::before",
+  // V4's card: the Working glyph breathes where the pill's dot did.
+  '.agent-node .state-line[data-tone="active"] .state-mark',
   ".sl-dot.state-active::before",
   ".tool-burst .tb-spin",
   ".detail .tool .name .status-dot.inflight::before",
@@ -794,7 +796,7 @@ const OTHER_PULSES: [selector: string, meaning: string][] = [
  *  canvas block like everything else there. The other three are single dots in
  *  panels and keep pulsing — see the note at the foot of the sheet, and
  *  state-channels.test.ts, which forbids a state mark from depending on it. */
-const LIVE_ON_CANVAS = [".state-pill.state-active::before", ".tool-burst .tb-spin"];
+const LIVE_ON_CANVAS = [".state-pill.state-active::before", '.agent-node .state-line[data-tone="active"] .state-mark', ".tool-burst .tb-spin"];
 
 describe("one tempo for one meaning: the live pulse", () => {
   it("sweeps the pulses the sheet actually has, so a pass means something", () => {

@@ -26,8 +26,8 @@ const card = (over: Partial<AgentNodeData> = {}): AgentNodeData => ({
 
 describe("a card's spoken name (#853)", () => {
   it("says name, kind and state first, separated so they can be heard apart", () => {
-    expect(agentAriaLabel(card())).toBe("agents-deck, session, live, 0 tools");
-    expect(agentAriaLabel(card({ kind: "subagent", state: "done" }))).toBe("agents-deck, subagent, done, 0 tools");
+    expect(agentAriaLabel(card())).toBe("agents-deck, session, Working, 0 tools");
+    expect(agentAriaLabel(card({ kind: "subagent", state: "done" }))).toBe("agents-deck, subagent, Done, 0 tools");
   });
 
   it("carries the waiting sentence when the session is blocked on the reader", () => {
@@ -39,12 +39,12 @@ describe("a card's spoken name (#853)", () => {
     // The failures as the reducer counts them, over the agent's whole life
     // (#1809) — the count the card's "err" prints too.
     const tools = [{ ok: true }, { ok: false }, { ok: false }] as AgentNodeData["tools"];
-    expect(agentAriaLabel(card({ tools, toolCount: 3, toolErrorCount: 2 }))).toBe("agents-deck, session, live, 3 tools, 2 failed");
+    expect(agentAriaLabel(card({ tools, toolCount: 3, toolErrorCount: 2 }))).toBe("agents-deck, session, Working, 3 tools, 2 failed");
     expect(agentAriaLabel(card({ toolCount: 1 }))).toContain("1 tool");
   });
 
   it("announces selection in the focused card's existing name", () => {
-    expect(agentAriaLabel(card(), 0, true)).toBe("agents-deck, session, live, 0 tools, selected");
+    expect(agentAriaLabel(card(), 0, true)).toBe("agents-deck, session, Working, 0 tools, selected");
     expect(agentAriaLabel(card(), 0, false)).not.toContain("selected");
   });
 

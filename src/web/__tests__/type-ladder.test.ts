@@ -199,8 +199,11 @@ describe("the type ladder is a closed set (#379 §3)", () => {
     // node's body-to-secondary hierarchy is exactly this pair of sizes, and a
     // 9% step is above the floor asserted above.
     expect(decl(".agent-node", "font-size")).toBe("12px");
-    expect(decl(".agent-node .meta", "font-size")).toBe("11px");
-    expect(decl(".agent-node .sub", "font-size")).toBe("11px");
+    // CHANGED ON PURPOSE (V4's Agent / Card): the card's two lower rows are the
+    // foot (the meta row, still 11px) and the task line (12px body, the sub
+    // row's 11px mono row is gone). The 12 / 11 pair is the same pair.
+    expect(decl(".agent-node .foot", "font-size")).toBe("11px");
+    expect(decl(".agent-node .task-line", "font-size")).toBe("12px");
     expect(11 / 10).toBeGreaterThan(RESOLVABLE);
     expect(12 / 11).toBeGreaterThan(RESOLVABLE);
     // And the three big money numbers stay three sizes apart, on three surfaces
