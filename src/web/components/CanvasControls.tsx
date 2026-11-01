@@ -1,5 +1,6 @@
-// The canvas's command stack, bottom left: zoom in and out, recenter, pause,
-// re-arrange, clear, and the keyboard reference.
+// The canvas's command bar, bottom right (V4's Board / Controls): zoom out, the
+// zoom level, zoom in | recenter, re-arrange, pause, clear | the keyboard
+// reference and the Command Panel.
 //
 // Moved out of App.tsx's markup unchanged. It renders inside <ReactFlow>, which
 // is what gives it the viewport and the store; App.tsx keeps the commands
@@ -12,11 +13,16 @@ import { withKey } from "../single-key-shortcuts";
 import { PAUSE_LABEL, pauseTitle } from "../status-pill";
 import type { PauseControls } from "../use-pause-gate";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import { zoomPercent } from "../zoom-percent";
+import SettingsSectionGlyph from "./SettingsSectionGlyph";
 
 /** The zoom range's two ends, as React Flow's own zoom buttons read them.
  *  Module-level so `useStore` gets the same selector every render. */
 const zoomAtMax = (s: ReactFlowState) => s.transform[2] >= s.maxZoom;
 const zoomAtMin = (s: ReactFlowState) => s.transform[2] <= s.minZoom;
+/** The level, as the string the bar prints: a new value only when the whole
+ *  percent changes, so a pinch does not re-render the bar every frame. */
+const zoomLevel = (s: ReactFlowState) => zoomPercent(s.transform[2]);
 
 export default function CanvasControls({
   autoFitDisabled, enableAutoFitAndRefit, paused, pauseGate, togglePause,
@@ -43,26 +49,16 @@ export default function CanvasControls({
   const zoomMinned = useStore(zoomAtMin);
   const singleKeys = useSingleKeyShortcuts();
   return (
-    <Controls showInteractive={false} showFitView={false} showZoom={false}>
-      {/* Zoom in and out, drawn here rather than left to React Flow, so
-          the pair wears the same 14px stroke glyphs as the five below
-          them (React Flow's are filled shapes a weight heavier and 2px
+    <Controls position="bottom-right" showInteractive={false} showFitView={false} showZoom={false}>
+      {/* Zoom out, the level, zoom in, drawn here rather than left to React
+          Flow, so the pair wears the same 14px stroke glyphs as the buttons
+          after them (React Flow's are filled shapes a weight heavier and 2px
           smaller) and names itself in words. The same calls React Flow's
           own buttons make, with the same limits: each refuses at its end
           of the zoom range. It refuses with aria-disabled rather than
           `disabled`, because a press from the keyboard is what reaches the
           limit, and a button disabled under focus drops that focus to the
           page (#1768, the rule #518/#620 set in panel-press.ts). */}
-      <ControlButton
-        onClick={() => { if (!zoomMaxed) rf.zoomIn(); }}
-        title="Zoom in"
-        aria-label="Zoom in"
-        aria-disabled={zoomMaxed || undefined}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
-          <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-        </svg>
-      </ControlButton>
       <ControlButton
         onClick={() => { if (!zoomMinned) rf.zoomOut(); }}
         title="Zoom out"
@@ -73,6 +69,23 @@ export default function CanvasControls({
           <path d="M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
         </svg>
       </ControlButton>
+      <ZoomLevel />
+      <ControlButton
+        onClick={() => { if (!zoomMaxed) rf.zoomIn(); }}
+        title="Zoom in"
+        aria-label="Zoom in"
+        aria-disabled={zoomMaxed || undefined}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
+          <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+        </svg>
+      </ControlButton>
+      {/* The groups, by what each control acts on: the view (zoom), the
+          canvas (recenter, re-arrange, pause, clear), and what opens
+          something else (the keyboard reference, the Command Panel). A
+          1×16 rule between two of them: decoration, so hidden from the
+          accessibility tree and not a tab stop. */}
+      <span className="react-flow__controls-divider" aria-hidden />
       {/* data-nudge while auto-fit is off: the glyph steps up to the
           foreground, because pressing it now would do something. It was
           the accent; the canvas's Auto-fit chip is what says why. */}
@@ -90,12 +103,33 @@ export default function CanvasControls({
           <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
         </svg>
       </ControlButton>
+      {/* Both of these are canvas verbs — they rearrange or empty the thing
+          this bar is attached to — and the crosshair beside them was already
+          the proof that a command belongs here and not only a zoom control.
+          `F` fits the view and has never had a topbar button either; `R` and
+          `C` are the same shape of shortcut and now have the same kind of
+          home. The titles are the strings the two buttons carried in the
+          topbar, unchanged, so the shortcut letters and the sentence a user
+          already knows survive the move. What they gain is aria-label:
+          up there each was its own name, printed on it; here the glyph
+          is the whole button, and a glyph has no accessible name. */}
+      <ControlButton
+        onClick={handleRelayout}
+        title={withKey("Auto-arrange — clear pins", "R", singleKeys)}
+        aria-label="Re-arrange the canvas"
+      >
+        {/* three-node hierarchy — one parent over two children */}
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
+          <rect x="8.5" y="2" width="7" height="5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="2" />
+          <rect x="1.5" y="17" width="7" height="5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="2" />
+          <rect x="15.5" y="17" width="7" height="5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="2" />
+          <path d="M12 7v6.5M5 17v-3.5h14V17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </svg>
+      </ControlButton>
       {/* The last control out of the topbar, and the only toggle in this
-          stack. Second rather than first: Recenter above it belongs beside
-          the zoom buttons, the view's other commands, and these two are
-          the reversible, often-pressed pair — putting Pause here keeps the
-          one control that destroys something at the far end of the column
-          from the one a hand comes back to.
+          bar. It sits between re-arrange and clear, V4's order, which puts
+          it next to the one control that destroys something; a slip onto
+          Clear opens its confirmation and empties nothing by itself.
           It reports its state, which none of its neighbours has to.
           They are one-shot commands and a glyph is a complete account of
           what a command does; this one is a setting that stays on, so
@@ -121,45 +155,16 @@ export default function CanvasControls({
           canvas is drawn in everywhere else on this deck — the pill at the
           other end of the bar and the dot inside it — and the pill and
           this control were a matched pair before it moved. */}
-      {/* data-group-start: the first of a group, which the stack marks
-          with a gap and a hairline. The groups are the view (zoom,
-          recenter), the canvas's state (pause, re-arrange), the one
-          that empties it (clear), and help. */}
       <ControlButton
-        data-group-start=""
         onClick={togglePause}
         title={pauseTitle({ paused, held: pauseGate.size, dropped: pauseGate.dropped, singleKeys })}
         aria-label={PAUSE_LABEL}
         aria-pressed={paused}
       >
         {/* two upright bars — the pause mark, drawn as strokes so it sits
-            at the weight of the four glyphs around it */}
+            at the weight of the glyphs around it */}
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
           <path d="M9 5.5v13M15 5.5v13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-        </svg>
-      </ControlButton>
-      {/* Down from the topbar. Both of these are canvas verbs —
-          they rearrange or empty the thing this stack is attached to —
-          and the crosshair above was already the proof that a command
-          belongs here and not only a zoom control. `F` fits the view and
-          has never had a topbar button either; `R` and `C` are the same
-          shape of shortcut and now have the same kind of home.
-          The titles are the strings the two buttons carried in the bar,
-          unchanged, so the shortcut letters and the sentence a user
-          already knows survive the move. What they gain is aria-label:
-          up there each was its own name, printed on it; here the glyph
-          is the whole button, and a glyph has no accessible name. */}
-      <ControlButton
-        onClick={handleRelayout}
-        title={withKey("Auto-arrange — clear pins", "R", singleKeys)}
-        aria-label="Re-arrange the canvas"
-      >
-        {/* three-node hierarchy — one parent over two children */}
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
-          <rect x="8.5" y="2" width="7" height="5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="2" />
-          <rect x="1.5" y="17" width="7" height="5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="2" />
-          <rect x="15.5" y="17" width="7" height="5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="2" />
-          <path d="M12 7v6.5M5 17v-3.5h14V17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
         </svg>
       </ControlButton>
       {/* No danger colour at rest, and no word either. `button.btn.danger`
@@ -171,9 +176,9 @@ export default function CanvasControls({
           line with fringe on the end and reads as almost anything; the
           can is the one glyph nobody has to be taught. The word "Clear"
           is not lost — it is the dialog's own heading, one click away,
-          which is where the user reads it when it matters. */}
+          which is where the user reads it when it matters. (V4's file
+          calls it "Clear the deck"; the name the code carries stays.) */}
       <ControlButton
-        data-group-start=""
         data-danger=""
         onClick={() => requestClear("button")}
         title={withKey("Clear the canvas and the server's event log — asks first", "C", singleKeys)}
@@ -187,16 +192,37 @@ export default function CanvasControls({
           <path d="M10.3 10.6v6.8M13.7 10.6v6.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
         </svg>
       </ControlButton>
+      <span className="react-flow__controls-divider" aria-hidden />
+      {/* The one thing on screen that says the keyboard exists.
+          It is here and not in the topbar, deliberately. The bar was cut
+          back to identity, status and settings this week and the canvas
+          verbs moved down into this bar; a control that opens a
+          reference about the canvas is the same kind of thing. What it
+          buys over the list in the detail rail is that it is always
+          there: the rail draws its shortcuts only while nothing is
+          selected, and it can be closed outright, so on the deck a user
+          actually works in there is no other affordance at all.
+          A glyph rather than a word, like the others, and the key is in
+          the tooltip the way every other control on this deck names its
+          own. The glyph is the keyboard Settings › Keyboard wears, so the
+          deck has one drawing of it. */}
+      <ControlButton
+        onClick={() => setKeyHelpOpen(o => !o)}
+        title={singleKeys ? withKey("Keyboard shortcuts", "?", true) : "Keyboard shortcuts — the single-key ones are off"}
+        aria-label="Open the keyboard shortcuts"
+        aria-haspopup="dialog"
+      >
+        <SettingsSectionGlyph section="keyboard" />
+      </ControlButton>
       {/* The terminal, behind its hidden flag: the selected session on the
           stage, else the one the stage showed last, else the empty stage,
-          whose one action is New session. A group of its own — it does not
-          act on the canvas like the verbs above it, it opens a session —
-          and only there at all when the flag is on. The stage grows out of
-          the session's card when it is on screen, else out of this button,
-          which is why the press hands the button over. */}
+          whose one action is New session. It does not act on the canvas
+          like the verbs before it, it opens a session — and is only there
+          at all when the flag is on. The stage grows out of the session's
+          card when it is on screen, else out of this button, which is why
+          the press hands the button over. */}
       {onTerminal && (
         <ControlButton
-          data-group-start=""
           onClick={e => onTerminal(e.currentTarget)}
           title="Open the Command Panel — the selected session, or the last one"
           aria-label="Open the Command Panel"
@@ -208,33 +234,27 @@ export default function CanvasControls({
           </svg>
         </ControlButton>
       )}
-      {/* The one thing on screen that says the keyboard exists.
-          It is here and not in the topbar, deliberately. The bar was cut
-          back to identity, status and settings this week and the canvas
-          verbs moved down into this stack; a control that opens a
-          reference about the canvas is the same kind of thing. What it
-          buys over the list in the detail rail is that it is always
-          there: the rail draws its shortcuts only while nothing is
-          selected, and it can be closed outright, so on the deck a user
-          actually works in there is no other affordance at all.
-          A glyph rather than a word, like the four above it, and the key
-          is in the tooltip the way every other control on this deck
-          names its own. */}
-      <ControlButton
-        data-group-start=""
-        onClick={() => setKeyHelpOpen(o => !o)}
-        title={singleKeys ? withKey("Keyboard shortcuts", "?", true) : "Keyboard shortcuts — the single-key ones are off"}
-        aria-label="Open the keyboard shortcuts"
-        aria-haspopup="dialog"
-      >
-        {/* A question mark drawn rather than typed: the stack's other
-            four are strokes at 14px and a glyph from the body face would
-            sit a weight and a baseline away from them. */}
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
-          <path d="M8.6 8.4a3.5 3.5 0 1 1 4.6 3.35c-.85.3-1.2 1-1.2 1.85v1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-          <path d="M12 18.4v.2" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" />
-        </svg>
-      </ControlButton>
     </Controls>
+  );
+}
+
+/** The level, on its own: a zoom gesture re-renders this one button rather
+ *  than the bar, and the store hands it a new string only when the whole
+ *  percent changes. It is also the way back to 100%: zoomTo scales about the
+ *  centre of the viewport and, like the two buttons beside it, takes no
+ *  duration. Named for both halves, because a reader who hears only "100%"
+ *  does not learn that it can be pressed. */
+function ZoomLevel() {
+  const rf = useReactFlow();
+  const level = useStore(zoomLevel);
+  return (
+    <ControlButton
+      data-zoom-level=""
+      onClick={() => { rf.zoomTo(1); }}
+      title="Reset the zoom to 100%"
+      aria-label={`Zoom ${level}, reset to 100%`}
+    >
+      {level}
+    </ControlButton>
   );
 }

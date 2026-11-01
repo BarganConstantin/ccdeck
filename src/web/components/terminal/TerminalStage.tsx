@@ -451,6 +451,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       />
       <StageBody
         hostRef={session.hostRef}
+        paneName={name}
         phase={phase}
         ghostLine={p.show.kind === "session" ? p.show.session.ghostLine : null}
         context={p.show.kind === "session" ? p.show.session.context : null}

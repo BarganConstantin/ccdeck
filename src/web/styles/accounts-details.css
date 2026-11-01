@@ -78,7 +78,7 @@
   .ver-banner .ver-act:active:not(:disabled),
   .rating-banner .rating-pick:active,
   .ctx-donut:active,
-  .session-list .sl-row:active, button.tool.clickable:active,
+  .session-list .sl-row:active, .session-list .sl-close:active, button.tool.clickable:active,
   .uh-bar-col:active, .ap-failure-x:active,
   .ap-field select:active:not(:disabled),
   .ap-sign-in:active:not(:disabled), .ap-switch:active:not(:disabled), .ap-issue:active, .ap-notice-fix:active,

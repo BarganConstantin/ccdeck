@@ -1,13 +1,18 @@
-// The session list's header said "1 waiting" over two rows reading "waiting …".
+// The session list's "waiting" word and the number beside it are one set.
 //
-// The header counts the sessions blocked on a decision — a permission prompt or
-// a question, the set isAlarming names, which is also what the topbar pill and
-// the tab title count. A row printed "waiting 50m" for any waiting block, the
-// idle one included: a turn that simply ended, which the same session's card
-// and peek call "Your turn". So the word and the number beside it disagreed.
+// The list once counted the sessions blocked on a decision in its header — a
+// permission prompt or a question, the set isAlarming names, which is also what
+// the topbar pill and the tab title count — and a row printed "waiting 50m" for
+// any waiting block, the idle one included: a turn that simply ended, which the
+// same session's card and peek call "Your turn". So the word and the number
+// disagreed.
 //
-// Rendered, not read: the sessions are built by the reducer and the list is
-// drawn by react-dom/server.
+// V4's Attention rail says it with groups instead: Needs you holds exactly the
+// alarming blocks and its header counts them; a row there is read as "waiting"
+// and its clock is the wait. A turn that ended is a row of Done · unseen or
+// Idle, read as "your turn, ended" with the time it ended. Rendered, not read:
+// the sessions are built by the reducer and the list is drawn by
+// react-dom/server.
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -33,13 +38,14 @@ function board(): GraphState {
   return s;
 }
 
-/** Each row's readout in the elapsed slot, by the session's label. */
-function readouts(html: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const row of html.split('<li class="sl-row-item">').slice(1)) {
+/** Each row's clock by the session's label: the word a screen reader hears
+ *  first, and the figure. */
+function clocks(html: string): Record<string, { spoken: string; text: string }> {
+  const out: Record<string, { spoken: string; text: string }> = {};
+  for (const row of html.split('<li class="sl-row-item"').slice(1)) {
     const label = /class="sl-label">([^<]*)</.exec(row)?.[1] ?? "?";
-    const slot = /<span class="sl-(?:waiting|your-turn|elapsed)"[^>]*>(.*?)<\/span>(?:<\/div>)/.exec(row)?.[1] ?? "";
-    out[label] = slot.replace(/<[^>]+>/g, "");
+    const m = /<span class="sl-time (?:warn|quiet)"><span class="vis-hidden">([^<]*)<\/span>([^<]*)<\/span>/.exec(row);
+    if (m) out[label] = { spoken: m[1], text: m[2] };
   }
   return out;
 }
@@ -51,15 +57,21 @@ describe("the session list's waiting word", () => {
     state: s, now, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
   }));
 
-  it("means the set the header counts", () => {
-    expect(html).toContain('<span class="sl-waiting-count">1 waiting</span>');
-    const rows = readouts(html);
-    expect(rows.blocked).toMatch(/^waiting \d+m · Bash$/);
-    expect(rows.ended).not.toMatch(/waiting/);
-    expect(Object.values(rows).filter(r => r.startsWith("waiting")).length).toBe(1);
+  it("means the set the Needs you group counts", () => {
+    expect(html).toMatch(/<span class="sl-group-label">Needs you<\/span><span class="sl-group-count">1<\/span>/);
+    const rows = clocks(html);
+    expect(rows.blocked.spoken).toBe("waiting ");
+    expect(rows.blocked.text).toMatch(/^\d+m$/);
+    expect(Object.values(rows).filter(r => r.spoken.startsWith("waiting")).length).toBe(1);
+    // The old readout ended "· Bash": the tool still shows, on the row's
+    // second line now, with what it was asked to run.
+    const blocked = html.split('<li class="sl-row-item"').find(r => r.includes('class="sl-label">blocked<'))!;
+    expect(blocked).toMatch(/<span class="sl-line2 mono"><b class="sl-tool">Bash<\/b> · rm -rf build<\/span>/);
   });
 
   it("calls an ended turn what the card calls it", () => {
-    expect(readouts(html).ended).toMatch(/^your turn \d+m$/);
+    const ended = clocks(html).ended;
+    expect(ended.spoken).toBe("your turn, ended ");
+    expect(ended.text).toMatch(/^\d+m ago$/);
   });
 });

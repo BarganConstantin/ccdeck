@@ -32,7 +32,7 @@ export function usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef }: 
   }, []);
   const peekBounds = useCallback(() => {
     // The canvas's own box, not the window's: the peek belongs over the canvas,
-    // and the canvas already runs to the foot of the page.
+    // and the canvas ends where the status bar begins.
     const box = canvasRef.current?.getBoundingClientRect();
     const doc = document.documentElement;
     return box

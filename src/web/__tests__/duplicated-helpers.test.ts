@@ -291,7 +291,8 @@ describe("the elapsed clock", () => {
     // SessionSummary's has the hour tier without the sub-second one because it
     // recaps a finished session. Folding either in would print "75m 12s" where
     // "1h 15m" is today, which is a change and not a merge.
-    expect(code(src("../components/SessionList.tsx"))).toMatch(/function elapsedShort\(/);
+    // The rail's clock moved to its own module; SessionList re-exports it.
+    expect(code(src("../elapsed-short.ts"))).toMatch(/function elapsedShort\(/);
     expect(code(sessionSummary)).toMatch(/\$\{Math\.floor\(sec \/ 3600\)\}h \$\{Math\.floor\(\(sec % 3600\) \/ 60\)\}m/);
   });
 });

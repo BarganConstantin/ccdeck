@@ -3,6 +3,11 @@
 // The row printed its count before a fixed plural, and the row is a button
 // whose accessible name is its content, so a screen reader said it too. The
 // peek card and the card's own label already say "1 tool".
+//
+// V4's Attention rail moved the count off the row and into its tooltip, where
+// the same rule still has to hold (rail-row-copy.ts rowTooltip): the row draws
+// the name, the model, a clock and one line, and the figures it used to print
+// are the title's.
 import { describe, it, expect } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -24,19 +29,23 @@ function session(calls: number): GraphState {
   return state;
 }
 
-const row = (state: GraphState) => renderToStaticMarkup(createElement(SessionList, {
-  state, now: T0 + 10_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
-}));
+/** The row's tooltip: the first `title` on the list's one row. */
+const tooltip = (state: GraphState) => {
+  const html = renderToStaticMarkup(createElement(SessionList, {
+    state, now: T0 + 10_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
+  }));
+  return /<button[^>]*class="sl-row[^"]*"[^>]*title="([^"]*)"/.exec(html)?.[1] ?? "";
+};
 
 describe("the session row's tool count (#1810)", () => {
   it("says one tool, not one tools", () => {
-    const html = row(session(1));
-    expect(html).toContain("<b>1</b> tool<");
-    expect(html).not.toContain("<b>1</b> tools");
+    const title = tooltip(session(1));
+    expect(title).toMatch(/\n1 tool(?: ·[^\n]*)?(?:\n|$)/);
+    expect(title).not.toContain("1 tools");
   });
 
   it("still says tools for more than one, and for none", () => {
-    expect(row(session(2))).toContain("<b>2</b> tools<");
-    expect(row(session(0))).toContain("<b>0</b> tools<");
+    expect(tooltip(session(2))).toMatch(/\n2 tools(?: ·[^\n]*)?(?:\n|$)/);
+    expect(tooltip(session(0))).toMatch(/\n0 tools(?: ·[^\n]*)?(?:\n|$)/);
   });
 });

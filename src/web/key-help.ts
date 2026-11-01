@@ -88,6 +88,13 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       { cap: "J", action: "next agent", binds: ["j", "J"] },
       { cap: "K", action: "previous agent", binds: ["k", "K"] },
       { cap: "W", action: "the session waiting on you — oldest first, again for the next", binds: ["w", "W"] },
+      // New in 4.0. N walks the same queue as W (one cursor), and Shift+N goes
+      // the other way, so the row binds the letter and the sheet says Shift
+      // the way it does for Shift + Enter. With the Command Panel open both
+      // are its "next ask" (terminal-keys.ts), as n was before 4.0.
+      { cap: "N", action: "the next one waiting on you — W does the same", binds: ["n", "N"] },
+      { cap: "Shift + N", action: "the previous one waiting, on the board", binds: ["N"] },
+      { cap: "P", action: "peek at the selected card without opening it", binds: ["p", "P"] },
       { cap: "F", action: "fit every agent on screen", binds: ["f", "F"] },
       { cap: "Z", action: "zoom to the selected agent and its session", binds: ["z", "Z"] },
       { cap: "Delete", action: "take the selected card off the board — the session list (L) brings it back", binds: ["Delete"] },

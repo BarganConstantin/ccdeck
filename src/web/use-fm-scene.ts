@@ -209,7 +209,9 @@ export function useFmScene(probe: Probe | null, dead: boolean, playing: boolean)
      * independently, and a walk must adapt when either notice disappears.
      *
      * Converted into the character's own coordinates, which count leftward
-     * from the scene's right edge.
+     * from the scene's right edge. Its height is its top's height over the
+     * scene's floor, not its own: on a phone the row stands above the control
+     * bar, clear of the floor, and the character climbs to where its top is.
      */
     const obstacle = (): Obstacle | null => {
       const el = scene.current;
@@ -218,10 +220,12 @@ export function useFmScene(probe: Probe | null, dead: boolean, playing: boolean)
       const box = el.getBoundingClientRect();
       const bar = chip.getBoundingClientRect();
       if (bar.width <= 0 || bar.height <= 0) return null;
+      const height = box.bottom - bar.top;
+      if (!(height > 0)) return null;
       return {
         left: bar.left - box.right,
         right: bar.right - box.right,
-        height: bar.height,
+        height,
       };
     };
 

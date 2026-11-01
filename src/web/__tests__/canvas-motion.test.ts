@@ -386,6 +386,8 @@ const PRESSES: Press[] = [
   [".uh-range-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],
+  // The rail's close button, a 24px icon: the icon tier.
+  [".session-list .sl-close:active", "0.94", "transform"],
   // Quick open's esc chip, a 22px key: the icon tier.
   [".qo-esc:active", "0.94", "transform"],
   // Browser Watch's episode disclosure. Same tier and same number as the row
@@ -660,6 +662,13 @@ const EXEMPT: string[] = [
   // release, so it answers as the deck's other list rows do: its fill
   // deepens a step and nothing moves.
   ".qo-row",
+  // The rail's group headers that fold and its "N more" line (V4's Attention
+  // rail): rows of a list that open the rest of it, answered as the deck's
+  // other list rows are, by the fill under the pointer and the chevron turning.
+  // A header that scaled would slide its label and count out from under the
+  // pointer in the instant the group opens beneath it.
+  ".session-list .sl-fold-btn",
+  ".session-list .sl-more",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {
@@ -764,10 +773,13 @@ const otherPulses = pulsing.filter(r => !live.includes(r));
  *  `.sl-dot` are the same `agent.state` rendered on the node and in the sidebar;
  *  the other three are the same tool `inflight` rendered on the bubble, in the
  *  detail panel and in the modal title. For one active session most of them are
- *  on screen at once, which is why they share a beat. */
+ *  on screen at once, which is why they share a beat. The rail's Working glyph
+ *  (V4's Attention rail) is the sixth: the same `agent.state`, breathing on the
+ *  same --pulse-live, drawn in the mark's own --inflight. */
 const LIVE_PULSE = [
   ".state-pill.state-active::before",
   ".sl-dot.state-active::before",
+  `.session-list .sl-glyph[data-glyph="working"] .state-mark`,
   ".tool-burst .tb-spin",
   ".detail .tool .name .status-dot.inflight::before",
   ".modal-title .status-dot.inflight",

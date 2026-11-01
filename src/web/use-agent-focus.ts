@@ -26,7 +26,7 @@ const FOCUS_MS = 450;
 
 export function useAgentFocus({
   canvasRef, stateRef, measuredRef, nodesRef, railInsetRef, moveCamera, disableAutoFit,
-  lastFocusRef, focusAgentRef, selectAgent, primarySelectedIdRef,
+  lastFocusRef, focusAgentRef, selectAgent, primarySelectedIdRef, onLand,
 }: {
   canvasRef: MutableRefObject<HTMLElement | null>;
   stateRef: MutableRefObject<GraphState>;
@@ -41,6 +41,8 @@ export function useAgentFocus({
   focusAgentRef: MutableRefObject<(id: string) => void>;
   selectAgent: ReturnType<typeof useSelection>["selectAgent"];
   primarySelectedIdRef: MutableRefObject<string | null>;
+  /** A jump to a session has begun: the rail's row for it says "here" once. */
+  onLand?: (sessionId: string) => void;
 }) {
   /** BRING ONE CARD, AND THE SESSION IT BELONGS TO, INTO A READABLE VIEW.
    *
@@ -84,9 +86,11 @@ export function useAgentFocus({
     const rect = boardRect(pane);
     const want = focusViewport({
       pane: { width: rect.width, height: rect.height },
-      // Left: the control stack. Top: the tool filter bar. Right: whatever of
-      // the rail of floating panels is open, as the rail effect measured it.
-      insets: { top: 56, left: 72, bottom: 32, right: railInsetRef.current + 32 },
+      // Top: the tool filter bar. Bottom: the row the control bar and the
+      // notices stand in (12px in, one button and its 6px of padding and
+      // edge, then air). Right: whatever of the rail of floating panels is
+      // open, as the rail effect measured it.
+      insets: { top: 56, left: 32, bottom: 56, right: railInsetRef.current + 32 },
       context: unionBox(members) ?? anchor,
       anchor,
     });
@@ -139,10 +143,13 @@ export function useAgentFocus({
    *  out before focusAgent has a box to frame. */
   const focusSession = useCallback((sessionId: string) => {
     selectAgent(sessionId, false);
+    // N, W, a notification, ⌘K and a cluster's name all arrive here: the one
+    // place the rail is told where you landed.
+    onLand?.(sessionId);
     window.setTimeout(() => {
       try { focusAgent(sessionId); } catch {}
     }, 60);
-  }, [selectAgent, focusAgent]);
+  }, [selectAgent, focusAgent, onLand]);
 
   return { focusAgent, stepAgent, focusSession };
 }
