@@ -74,7 +74,7 @@ describe("every rule this phase added sits inside the phone query", () => {
     const want: Record<string, string> = {
       "styles/search-and-banners.css": "ca499ed72de2128f",
       "styles/left-column.css": "ffe6dee10043a1ca",
-      "styles/session-list.css": "a1b873826e032242",
+      "styles/session-list.css": "e569476eacf366b9",
       "styles/stage-shell.css": "91fdb28fec280fe0",
     };
     // Comments are not the desktop's: they are cut first.

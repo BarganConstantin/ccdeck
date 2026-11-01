@@ -254,7 +254,7 @@ describe("1. the tool-category chip you switched off (#368.1)", () => {
 describe("2. the quota pace marker (#368.2)", () => {
   // The fill and the marker are coloured in the component, not the sheet, so
   // the token sets come from there — a new state added to either is caught.
-  const FILLS = [...(/const\s+color\s*=\s*([^;]+);/.exec(quotaBar)![1])
+  const FILLS = [...(/export function quotaLevelColor[^{]*\{\s*return\s+([^;]+);/.exec(quotaBar)![1])
     .matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
   const MARKERS = [...(/className="qb-pace-marker"[\s\S]*?\/>/.exec(quotaBar)![0])
     .matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
