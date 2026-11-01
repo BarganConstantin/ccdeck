@@ -58,12 +58,14 @@ import { QUIET_RESCAN_MS, quietPage } from "../../quiet-page";
 import { guardLeaving } from "../../leave-guard";
 import { isKeptKeysNotice, keptKeysNotice } from "../../tab-keys";
 import { useFullStage } from "./use-full-stage";
+import { WORKSPACE_PANE_ID } from "../../workspace-pane";
 import { usePaneRoom } from "./use-pane-room";
 import KeysBar, { type ArrivalView, type AsksView, type EndView } from "./KeysBar";
 import Divider from "./Divider";
 import HostsDialog from "./HostsDialog";
 import type { HostsApi } from "./older-hosts";
 import { useOlderHosts } from "./use-older-hosts";
+import type { WaitingCard } from "./stage-board";
 
 /** How long the keys bar holds a refusal before its hints come back. */
 const NOTICE_MS = 6000;
@@ -97,17 +99,40 @@ export function landFocus(root: HTMLElement | null, held: HeldKeys | null = null
   if (!root) return false;
   const active = document.activeElement;
   const typing = held === "typed";
-  if (active && active !== document.body && (root.contains(active) || !active.closest?.(".react-flow"))) {
+  // WORKSPACE: a press on a session's row in the list opened the pane, as a
+  // press on a card does on the Board; the row is where the press left the
+  // focus, not somewhere the reader has since taken it.
+  const fromRow = root.dataset?.fill !== undefined && !!active?.closest?.(".session-list");
+  // WORKSPACE, the pane just emptied by its ✕: the header's button is still
+  // under the focus, and the empty pane's action is where the keys belong.
+  const action = root.dataset?.fill !== undefined && root.dataset?.empty !== undefined
+    ? root.querySelector<HTMLElement>("[data-stage-land]") : null;
+  if (action && active && active !== action && root.contains(active) && (active as HTMLElement).closest?.("[data-stage-close]")) {
+    if (held) catchKeys(action, { typing });
+    else action.focus();
+    return true;
+  }
+  if (active && active !== document.body && !fromRow && (root.contains(active) || !active.closest?.(".react-flow"))) {
     if (held && root.contains(active) && (active as HTMLElement).tagName === "BUTTON") catchKeys(active as HTMLElement, { typing });
     return true;
   }
+  // The header's ⌨ is the one pressed button there is, but for Workspace's Zoom,
+  // which reports its state the same way and is not where the keys go.
+  const keys = root.querySelector<HTMLElement>(".ts-head button[aria-pressed]");
   const target = root.querySelector<HTMLElement>("[data-stage-land]")
-    ?? root.querySelector<HTMLElement>(".ts-head button[aria-pressed]")
+    ?? (keys && keys.dataset?.zoom === undefined ? keys : null)
     ?? root.querySelector<HTMLElement>(".ts-head button[data-stage-close]");
   if (!target) return false;
   if (held) catchKeys(target, { typing });
   else target.focus();
   return true;
+}
+
+/** The empty pane's "Open <name>": opens exactly the session the card names
+ *  (the oldest waiting), with the keys in its pane as N gives them. */
+export function openWaiting(waiting: WaitingCard | null | undefined, open: ((sessionId: string) => void) | undefined): (() => void) | undefined {
+  if (!waiting || !open) return undefined;
+  return () => open(waiting.id);
 }
 
 /** A session from the board, as the stage draws it. */
@@ -168,6 +193,10 @@ export interface TerminalStageProps {
    *  is back. A card that answers instead puts them on its own action. */
   onWantKeys?(): void;
   onNextAsk?(): void;
+  /** WORKSPACE, the empty pane's "Open <name>": that session, named. Not the
+   *  next ask: "Next ask" goes to the arrival the bar names first, which may
+   *  be another session than the one this button says. */
+  onOpenWaiting?(sessionId: string): void;
   onAnswerArrival?(): void;
   onClose(): void;
   onToggleExpand(): void;
@@ -200,6 +229,10 @@ export interface TerminalStageProps {
   /** The deck runs on Windows: sessions live in the session host, not in a
    *  tmux, and older session hosts are worth a line in the keys bar. */
   windows?: boolean;
+  /** WORKSPACE, the empty pane when someone waits: the oldest waiting session,
+   *  named in the pane with a button to open it. Null, or left out, is the
+   *  "nothing is waiting" card. Read only where the geometry fills the cell. */
+  waiting?: WaitingCard | null;
   /** The suite's seam into the session. The integrator passes nothing. */
   sessionDeps?: Partial<SessionDeps>;
   /** The suite's seam into the older hosts' routes. */
@@ -216,9 +249,12 @@ export function subjectOf(show: StageShow): StageSubject {
 }
 
 /** The stage's name for itself: the session's, or the empty stage's title. */
-export function stageName(show: StageShow): string {
-  return show.kind === "session" ? show.session.name : show.kind === "launch" ? show.name : "No session open";
+export function stageName(show: StageShow, workspace = false): string {
+  return show.kind === "session" ? show.session.name : show.kind === "launch" ? show.name : workspace ? EMPTY_PANE_NAME : "No session open";
 }
+
+/** The Workspace pane's title when it shows nothing (Figma, "Empty pane"). */
+export const EMPTY_PANE_NAME = "Empty pane";
 
 /**
  * The keys bar's sentence and action for a pane that takes no more keys, or
@@ -279,7 +315,8 @@ export default function TerminalStage(p: TerminalStageProps) {
   const [notice, setNotice] = useState<string | null>(null);
   const subject = subjectOf(p.show);
   const key = subjectKey(subject);
-  const name = stageName(p.show);
+  const workspace = p.geometry.fill === true;
+  const name = stageName(p.show, workspace);
   const theme = useMemo(() => terminalTheme(p.readToken), [p.readToken]);
   const fontFamily = useMemo(() => p.readToken(TERMINAL_FONT_TOKEN).trim() || "monospace", [p.readToken]);
   const chordLabel = useMemo(() => releaseChordLabel(platformName()), []);
@@ -427,13 +464,16 @@ export default function TerminalStage(p: TerminalStageProps) {
       data-empty={p.show.kind === "empty" || undefined}
       data-live={live || undefined}
       data-takeover={p.geometry.takeover || undefined}
+      id={workspace ? WORKSPACE_PANE_ID : undefined}
+      tabIndex={workspace ? -1 : undefined}
+      data-fill={workspace || undefined}
       data-held={held || undefined}
       data-pane-size={(phase.kind === "live" && phase.sizeOwner === "pane") || undefined}
       style={style}
     >
       {/* Expanded, the stage is as wide as it goes and the divider would
           move nothing: ⤢ is the way back. */}
-      {!p.geometry.takeover && !p.expanded && (
+      {!p.geometry.takeover && !p.expanded && !workspace && (
         <Divider
           cols={p.geometry.cols}
           rows={p.geometry.rows}
@@ -458,6 +498,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         canFull={fullStage.can}
         full={fullStage.full}
         takeover={p.geometry.takeover}
+        workspace={workspace ? (p.show.kind === "empty" ? "empty" : "pane") : undefined}
         context={p.show.kind === "session" ? p.show.session.contextUse : null}
         nothingRunning={p.show.kind === "empty" || phase.kind === "ended"
           || (subject.kind === "launch" && (phase.kind === "error" || phase.kind === "tmux-missing" || phase.kind === "tmux-installing"))}
@@ -480,6 +521,9 @@ export default function TerminalStage(p: TerminalStageProps) {
         onNotNow={p.onClose}
         onRetry={retry}
         onNewSession={p.onNewSession}
+        workspace={workspace && p.show.kind === "empty"}
+        waiting={workspace ? p.waiting ?? null : null}
+        onOpenWaiting={openWaiting(p.waiting, p.onOpenWaiting)}
       />
       <KeysBar
         owner={session.keysOwner}

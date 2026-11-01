@@ -64,10 +64,15 @@ function useFocusPlace(stageOpen: boolean): FocusPlace {
 
 /** Memoised: App re-renders on its clock several times a second, and the bar's
  *  only inputs are its two props, focus and the single-key switch. */
-export default memo(function StatusBar({ stageOpen, zoomedOut }: { stageOpen: boolean; zoomedOut: boolean }) {
+export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null }: {
+  stageOpen: boolean;
+  zoomedOut: boolean;
+  /** Where Ctrl + backtick goes, when the deck claims it (status-hints.ts). */
+  viewChord?: "workspace" | "board" | null;
+}) {
   const singleKeys = useSingleKeyShortcuts();
   const { pane, onCard } = useFocusPlace(stageOpen);
-  const view = statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform: platformName() });
+  const view = statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform: platformName(), viewChord });
   return (
     <footer className="statusbar" aria-label="Keys" data-layer={view.layer}>
       <span className="statusbar-who"><span className="statusbar-dot" aria-hidden />{view.label}</span>

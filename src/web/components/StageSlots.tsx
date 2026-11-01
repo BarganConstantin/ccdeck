@@ -38,7 +38,8 @@ const LazyDock = lazy(() => loadStageShell().then(
 
 /** The navigator, in the canvas: nothing unless the stage is open. */
 export function StageNavigatorSlot(p: StageNavigatorProps) {
-  if (!p.stage.enabled || p.stage.shell.phase === "closed") return null;
+  // Workspace has no navigator: the session list is the way along the sessions.
+  if (!p.stage.enabled || p.stage.workspace || p.stage.shell.phase === "closed") return null;
   return (
     <Suspense fallback={null}>
       <LazyNavigator {...p} />

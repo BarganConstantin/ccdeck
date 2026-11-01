@@ -495,6 +495,15 @@ describe("the route past a hundred and sixty-six tab stops (#381)", () => {
     const topbar = bare.indexOf('<header className="topbar">', start);
     expect(link).toBeGreaterThan(start);
     expect(link).toBeLessThan(topbar);
+    // Workspace (V4): the canvas is mounted but out of sight there, so the link
+    // reads "Skip to the pane" and moves the focus to the pane (workspace-pane.ts).
+    // The Board's link above is the link it was, verbatim; this is the other form,
+    // also ahead of the topbar and chosen only by the view.
+    const pane = bare.indexOf('<a className="skip-link" href={`#${WORKSPACE_PANE_ID}`}', start);
+    expect(pane).toBeGreaterThan(start);
+    expect(pane).toBeLessThan(topbar);
+    expect(bare.slice(pane, topbar)).toContain('>{SKIP_TO_PANE}</a>');
+    expect(bare.slice(Math.max(0, pane - 40), pane)).toMatch(/\{inWorkspace\s*\?/);
     // The href and the id are the same word, and the element that carries the
     // id is the element the link means to reach: CanvasMain's <main>, which
     // App.tsx mounts after the topbar.

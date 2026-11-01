@@ -197,6 +197,52 @@ export function barAsks(view: RunView, waiting: readonly BlockedSession[], now: 
   };
 }
 
+/** The wait as the empty Workspace pane prints it, "6m 42s": the minute and the
+ *  second, where the header's `waitedFor` rounds to the minute. */
+export function waitedExact(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  return m < 60 ? `${m}m ${s % 60}s` : `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+/** The session the empty Workspace pane names when someone is waiting, with
+ *  what it asks and how long it has waited (Figma, "Empty workspace, someone
+ *  waits"): the oldest waiting, as W and N take it. */
+export interface WaitingCard {
+  id: string;
+  name: string;
+  /** "6m 42s". */
+  waited: string;
+  /** What it asks, in a sentence: "Allow this command?". */
+  ask: string;
+  /** The call it is about, in mono: "npm test -- rate-limit". Null when the
+   *  block names none. */
+  command: string | null;
+}
+
+/** The sentence a block asks. The Bash tool is "this command"; another tool is
+ *  named; a question or an idle prompt is said as what it is. */
+export function askSentence(w: BlockedSession["waiting"]): string {
+  if (w.kind === "asked") return "Asked you a question.";
+  if (w.kind === "idle") return "Waiting for your next instruction.";
+  if (!w.tool) return "Needs your permission.";
+  return w.tool.name === "Bash" ? "Allow this command?" : `Allow ${w.tool.name}?`;
+}
+
+/** The waiting card for the oldest blocked session, or null when none waits. */
+export function waitingCardFor(waiting: readonly BlockedSession[], now: number): WaitingCard | null {
+  const first = waiting[0];
+  if (!first) return null;
+  return {
+    id: first.id,
+    name: first.label,
+    waited: waitedExact(now - first.waiting.since),
+    ask: askSentence(first.waiting),
+    command: first.waiting.tool?.preview || null,
+  };
+}
+
 /** The one-line note for an ask that arrived with no run going. */
 export function barArrival(view: RunView, waiting: readonly BlockedSession[]): ArrivalView | null {
   const a = view.arrival;

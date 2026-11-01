@@ -15,7 +15,10 @@
 // Pure, and first-load: no stage code is imported, only the helpers of
 // terminal-keys.ts that the shortcuts handler already carries.
 import { isCharacterKey } from "./single-key-shortcuts";
-import { releaseChordLabel, RELEASE_CHORD_SPOKEN } from "./terminal-keys";
+import { releaseChordLabel, RELEASE_CHORD_SPOKEN, VIEW_CHORD_LABEL } from "./terminal-keys";
+
+/** The view chord in words, for a screen reader: a backtick is read as nothing. */
+const VIEW_CHORD_SPOKEN = "Control backtick";
 
 /** One key cap: what is printed, and what a screen reader says for it when
  *  the print is a symbol or a chord. */
@@ -45,8 +48,9 @@ export type StatusLayer = "board" | "deck" | "terminal";
 const cap = (text: string, spoken?: string): StatusCap => ({ text, spoken });
 const ENTER = cap("↵", "Enter");
 
-/** The board's layer. Figma's last item here, Ctrl+` → workspace, is not drawn:
- *  Ctrl+` only works in Phase 3, and the bar names only keys that work. */
+/** The board's layer. Figma's last item here, Ctrl + backtick → workspace, is added
+ *  by statusViewFor only where the chord works (the Command Panel is on): the
+ *  bar names only keys that work. */
 export const BOARD_HINTS: readonly StatusHint[] = [
   { caps: [cap("j"), cap("k")], word: "cards", binds: ["j", "k"] },
   { caps: [ENTER], word: "select", binds: ["Enter"], onCard: true },
@@ -56,8 +60,9 @@ export const BOARD_HINTS: readonly StatusHint[] = [
 
 /** The deck's layer (the stage open, the board around it with the keys). No
  *  `p → peek`: the stage hides the canvas the peek would hang off (see P in
- *  use-deck-shortcuts.ts). Figma's ` → chat / term and Ctrl+` → board are
- *  Phase 3. */
+ *  use-deck-shortcuts.ts). Figma's chat / term key is not built (Chat is a
+ *  later phase); its Ctrl + backtick → board is added by statusViewFor, where
+ *  the chord works. */
 export const DECK_HINTS: readonly StatusHint[] = [
   { caps: [cap("j"), cap("k")], word: "sessions", binds: ["j", "k"] },
   { caps: [ENTER], word: "open and type", binds: ["Enter"] },
@@ -88,13 +93,17 @@ export interface StatusInput {
   /** Settings › Keyboard's switch. */
   singleKeys: boolean;
   platform: string;
+  /** Where Ctrl + backtick goes from here, when it is the deck's at all: "workspace"
+   *  from the Board, "board" from Workspace. Null or left out where the
+   *  Command Panel is off (or on a phone), and the bar names no such key. */
+  viewChord?: "workspace" | "board" | null;
 }
 
 /** The layer, its label and the hints that work with focus and the switch as
  *  they stand. Focus in a pane is the terminal's layer whatever the stage's
  *  phase: the handler gives a pane every key while it holds focus, closing
  *  included (use-deck-shortcuts.ts, inTerminalPanel). */
-export function statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform }: StatusInput): StatusView {
+export function statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform, viewChord = null }: StatusInput): StatusView {
   if (pane != null) {
     return {
       layer: "terminal",
@@ -105,9 +114,14 @@ export function statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, 
   }
   const deck = stageOpen;
   const table = deck ? DECK_HINTS : BOARD_HINTS;
+  // Ctrl + backtick, last, a chord: it stays with the single keys off.
+  const view: readonly StatusHint[] = viewChord ? [{ caps: [cap(VIEW_CHORD_LABEL, VIEW_CHORD_SPOKEN)], word: viewChord, binds: [] }] : [];
   return {
     layer: deck ? "deck" : "board",
     label: deck ? DECK_LABEL : BOARD_LABEL,
-    hints: table.filter(h => (singleKeys || !h.binds.some(isCharacterKey)) && (onCard || !h.onCard) && (zoomedOut || !h.zoomedOut)),
+    hints: [
+      ...table.filter(h => (singleKeys || !h.binds.some(isCharacterKey)) && (onCard || !h.onCard) && (zoomedOut || !h.zoomedOut)),
+      ...view,
+    ],
   };
 }

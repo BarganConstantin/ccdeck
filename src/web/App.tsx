@@ -80,7 +80,7 @@ import { useDesktopUpdate } from "./use-desktop-update";
 import { useAutoRestart } from "./use-auto-restart";
 import { useLanPairRequests } from "./use-lan-pair-requests";
 import { useAccountAttention } from "./use-account-attention";
-import { leftColumnWidth, useColumnSettle, useLeftColumn, useRailWidth } from "./use-left-column";
+import { leftColumnWidth, useColumnSettle, useLeftColumn, useRailWidth, useWorkspaceColumn } from "./use-left-column";
 import { sessionsOf, useMarkSeen } from "./use-mark-seen";
 import { useRightPanels } from "./use-right-panels";
 import { useLiveAnnouncements } from "./use-live-announcements";
@@ -107,6 +107,10 @@ import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { useRailPanel, useStage, useStageAsks } from "./use-stage";
 import { stageClaimsKeys, targetSession } from "./stage-shell";
 import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
+import ViewSwitch from "./components/ViewSwitch";
+import { EmptyInspector } from "./components/Inspector";
+import { useView, type View } from "./use-view";
+import { SKIP_TO_PANE, WORKSPACE_PANE_ID, skipToPane } from "./workspace-pane";
 import { createChimePlayer } from "./chime-player";
 import type { AccountSwitch } from "./components/SettingsModal";
 import type { Appliers } from "./account-bridge";
@@ -114,6 +118,14 @@ import { setSingleKeyShortcuts } from "./single-key-shortcuts";
 import { setHideFinishedAfter } from "./hide-finished";
 import type { Density, TextSize } from "./reading-preferences";
 import type { Theme } from "./theme";
+
+/** Under this width the Inspector is the detail sheet, not a Workspace column
+ *  (workspace.css, "Narrower windows"). */
+const INSPECTOR_SHEET_QUERY = "(max-width: 1319px)";
+/** Under this width the Sessions list is a sheet in Workspace (workspace.css). */
+const WORKSPACE_LIST_SHEET_QUERY = "(max-width: 1099px)";
+/** How long the switch's crossfade holds its attribute: --dur-base and a beat. */
+const VIEW_FADE_MS = 260;
 
 // The ccdeck account's settings sync in this tab — hidden, and its own chunk:
 // mounted, and so fetched, only while /api/prefs says the account is on.
@@ -151,8 +163,9 @@ function Inner() {
   // and opening one evicts the other (#824). Both panels' state, persistence and
   // the eviction live in use-left-column.ts; only its toggles can open either.
   // Restored first, because the right-hand panels' room depends on its width.
+  const leftColumn = useLeftColumn();
   const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
-          openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel } = useLeftColumn();
+          openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel } = leftColumn;
   // The rail's width at the density in force (--rail-w), which the column and
   // the right-hand panels' room both follow.
   const railWidth = useRailWidth();
@@ -576,7 +589,46 @@ function Inner() {
   // the right of the canvas, the board gathered into a navigator on its left,
   // and every way in and out of it — use-stage.ts. With the flag off it is
   // inert: every entry point below answers "not mine".
-  const stage = useStage({ stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent });
+  // A phone is the Board alone (and the dock instead of the stripes): asked
+  // here because Workspace, which the stage hook decides, is never on one.
+  const phone = useMediaQuery(PHONE_QUERY);
+  // Board or Workspace, as the browser remembered it (use-view.ts). Whether the
+  // layout follows it is the stage hook's: it holds the gate (use-stage.ts).
+  const viewState = useView();
+  const stage = useStage({
+    stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent,
+    view: viewState.stored, phone, clearSelection,
+  });
+  const inWorkspace = stage.workspace;
+  // Workspace puts the Sessions list in the left column when it is entered at
+  // 1100px and wider, and gives the column back on leaving (use-left-column.ts).
+  const wideWindow = !useMediaQuery(WORKSPACE_LIST_SHEET_QUERY);
+  useWorkspaceColumn({ active: inWorkspace && stage.enabled, wide: wideWindow, column: leftColumn });
+  // The Inspector is a column in Workspace down to 1320px, and the detail sheet
+  // (D, the ribbon) under it: workspace.css says why.
+  const inspectorColumn = !useMediaQuery(INSPECTOR_SHEET_QUERY);
+  // A click on the switch crossfades the middle of the deck; a key does not.
+  const [viewFade, setViewFade] = useState(false);
+  useEffect(() => {
+    if (!viewFade) return;
+    const t = window.setTimeout(() => setViewFade(false), VIEW_FADE_MS);
+    return () => window.clearTimeout(t);
+  }, [viewFade]);
+  const { leaveWorkspace } = stage;
+  const switchView = useCallback((next: View, how: "pointer" | "key") => {
+    // Leaving takes the stage down in this same update, with no morph.
+    if (next === "board") leaveWorkspace();
+    viewState.set(next);
+    setViewFade(how === "pointer");
+  }, [leaveWorkspace, viewState.set]);
+  const switchViewRef = useMirroredRef(switchView);
+  const workspaceRef = useMirroredRef(inWorkspace);
+  // Ctrl + backtick: read through a ref by the one key listener (use-deck-shortcuts.ts).
+  const toggleView = useCallback(
+    () => switchViewRef.current(workspaceRef.current ? "board" : "workspace", "key"),
+    [switchViewRef, workspaceRef],
+  );
+  const viewShortcutRef = useMirroredRef({ available: stage.workspaceOffered, toggle: toggleView });
   // What you have open is what you have seen: the rail's Done · unseen group
   // keeps only turns that ended while nobody was looking (session-seen.ts).
   useMarkSeen(stateRef, [...selectedIds, stage.enabled && stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null], stateRef.current.revision);
@@ -619,8 +671,25 @@ function Inner() {
   // With the terminal stage up, a row moves the stage to that session the way
   // picking a conversation does in the Claude app, rather than opening the
   // detail panel that would evict it.
-  const { followSession } = stage;
+  const { followSession, openInPane } = stage;
+  // Every jump to a session — the list, ⌘K, a notification, the waiting names,
+  // N and W — in Workspace puts it on the pane; the board's camera is behind it
+  // and has nothing to move. Everywhere else it is the camera's, as it was.
+  const focusSessionOnView = useCallback((sessionId: string) => {
+    if (workspaceRef.current && stage.enabled) { openInPane(sessionId); markLanded(sessionId); return; }
+    focusSession(sessionId);
+  }, [workspaceRef, stage.enabled, openInPane, markLanded, focusSession]);
   const openSession = useCallback((sessionId: string) => {
+    // In Workspace a row opens that session in the pane, whatever the stage is
+    // doing: a pane still on its way, or the empty one. followSession answers
+    // only a stage that is up (the Board's rule), which left a click on a row
+    // doing nothing in a Workspace whose pane had not opened yet.
+    if (workspaceRef.current && stage.enabled) {
+      if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
+      openInPane(sessionId);
+      markLanded(sessionId);
+      return;
+    }
     if (followSession(sessionId)) {
       markLanded(sessionId);
       if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
@@ -628,7 +697,12 @@ function Inner() {
     }
     if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
     focusSession(sessionId);
-  }, [removedAgentIds, bringBack, focusSession, followSession, markLanded]);
+  }, [removedAgentIds, bringBack, focusSession, followSession, markLanded, workspaceRef, stage.enabled, openInPane]);
+  // Enter on a row, in Workspace: the session in the pane, the keys in it.
+  const openSessionWithKeys = useCallback((sessionId: string) => {
+    if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
+    openInPane(sessionId, { focusPane: true });
+  }, [removedAgentIds, bringBack, openInPane]);
 
   // Which element a POINTER put focus on, so a button the mouse pressed stops
   // swallowing the single-key shortcuts (#851): see use-pointer-focus.ts.
@@ -650,9 +724,10 @@ function Inner() {
     // What the keys read.
     pointerFocusRef, nodesRef, stateRef, primarySelectedIdRef, providersRef, soundOnRef,
     keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
+    viewRef: viewShortcutRef,
     stageRef: stage.keysRef, lodRef,
     // What the keys do.
-    clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
+    clearSelection, selectAgent, focusAgent, stepAgent, focusSession: focusSessionOnView, requestClear,
     handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen: usageRail.set, setMachinePanelOpen: machineRail.set,
     setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen,
@@ -695,7 +770,7 @@ function Inner() {
   // OS notifications for a session that is waiting on you: the permission, the
   // switch, asking for it, and what has already been raised — in
   // use-os-notifications.ts. It is fed the same waiting set the sidebar draws.
-  const notify = useOsNotifications({ waitingSessions, liveSince, focusSession });
+  const notify = useOsNotifications({ waitingSessions, liveSince, focusSession: focusSessionOnView });
   const { loadNotifyPrefs } = notify;
   // The terminal's run through the waiting sessions, and the stage's half of
   // the keys, which need the waiting list built just above — use-stage.ts.
@@ -731,8 +806,8 @@ function Inner() {
 
   // The controls of the chrome, each defined once, and the edge and group each
   // lives in — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
-  // the two stripes and the utilities are one dock along the bottom.
-  const phone = useMediaQuery(PHONE_QUERY);
+  // the two stripes and the utilities are one dock along the bottom. (`phone`
+  // is asked above, ahead of the stage.)
   // The strip across the top of the board, as the plain figures it draws —
   // board-header.ts. Worked out here on the clock App already has, and handed
   // down as numbers and strings so the memoised strip re-renders only when one
@@ -800,7 +875,11 @@ function Inner() {
   }, [sessionListOpen, toggleSessionList]);
 
   return (
-    <div className="app">
+    // data-view exists only in Workspace, so with the Command Panel off the
+    // root is the root it was; data-zoom folds the list and the Inspector,
+    // data-fade is a click on the switch crossfading the middle (workspace.css).
+    <div className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={inWorkspace && stage.expanded ? "" : undefined}
+      data-fade={viewFade ? "" : undefined}>
       {/* The deck's regions, and why each one is the element it is (#381).
           Before this the whole page was <div>s apart from the topbar, so a
           screen reader's landmark rotor listed one entry — Banner — for an
@@ -837,14 +916,16 @@ function Inner() {
           first card: cards come and go with the sessions, main is always
           there, and landing on it puts the deck's own single-key shortcuts
           back in play (ownsKeystroke() leaves a <main> alone). */}
-      <a className="skip-link" href="#canvas">Skip to the canvas</a>
+      {inWorkspace
+        ? <a className="skip-link" href={`#${WORKSPACE_PANE_ID}`} onClick={e => { if (skipToPane()) e.preventDefault(); }}>{SKIP_TO_PANE}</a>
+        : <a className="skip-link" href="#canvas">Skip to the canvas</a>}
       <header className="topbar">
         <DesktopTitlebar />
         {/* The observation group, and the notes on each readout in it — components/TopbarReadouts.tsx. */}
         <ReadoutGroup
           versionCheck={versionCheck} welcome={welcome} desktopUpdate={desktopUpdate} pause={pause}
           announcements={announcements} notify={notify} waitingSessions={waitingSessions}
-          waitingCursorRef={waitingCursorRef} focusSession={focusSession} live={live} now={now}
+          waitingCursorRef={waitingCursorRef} focusSession={focusSessionOnView} live={live} now={now}
           incidents={incidents} queueNamed={phone ? 0 : queueNamed}
           startAsks={stage.enabled ? asks.startAsks : undefined} asksSaid={stage.enabled ? asks.said : undefined}
         />
@@ -854,13 +935,17 @@ function Inner() {
             whether or not somebody is waiting. */}
         {!phone && (
           <WaitingNames waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef}
-            focusSession={focusSession} now={now} onFit={setQueueNamed} onMore={showWaitingList} />
+            focusSession={focusSessionOnView} now={now} onFit={setQueueNamed} onMore={showWaitingList} />
         )}
         {selected && (
           <SelectedRibbon selected={selected} now={now} selectedIds={selectedIds} focusAgent={focusAgent} clearSelection={clearSelection} />
         )}
         {/* Search, Settings and Feedback, in the corner every product keeps
             them in. The panel toggles are on the edges their panels open from. */}
+        {/* Board | Workspace, in the right-hand group, left of the search field:
+            only where the Command Panel is on (use-view.ts), and never on a
+            phone, where the Board is the whole of the deck. */}
+        {!phone && stage.workspaceOffered && <ViewSwitch view={inWorkspace ? "workspace" : "board"} onChange={switchView} />}
         {!phone && <div className="actions"><UtilityRun items={[rails.search, ...rails.utilities]} /></div>}
       </header>
 
@@ -917,6 +1002,7 @@ function Inner() {
               onBringBackAll={bringBackAll}
               landed={landed}
               watching={watchingSessions}
+              onOpenKeys={inWorkspace ? openSessionWithKeys : undefined}
             />
           )}
         </LeftColumn>
@@ -971,6 +1057,7 @@ function Inner() {
       <StageDockSlot
         stage={stage} stateRef={stateRef} canvasRef={canvasRef} now={now} palette={palette}
         asks={asks} waitingSessions={waitingSessions}
+        onBoard={() => switchView("board", "key")}
       />
 
       {/* The right stripe, ahead of the two panels it opens so Tab reaches the
@@ -1032,6 +1119,19 @@ function Inner() {
           about, and the canvas gets the width back.
           `:not(:has(.detail))` in the sheet already drops the column, so this
           needed no layout change of its own. */}
+      {/* WORKSPACE draws the Inspector as a column whether or not a session is in
+          focus (an empty pane means none, and the column says so), down to 1320px;
+          under that it is the detail sheet, opened as on the Board. */}
+      {inWorkspace && inspectorColumn && !(detailOpen && selected) ? (
+        selected ? (
+          <DetailAside
+            selected={selected} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
+            stateRef={stateRef} removeSelectedNode={removeSelectedNode}
+            onSelectAgent={selectInspected}
+            onClose={() => { panelReturn.detail(); setDetailOpen(false); }}
+          />
+        ) : <EmptyInspector />
+      ) : null}
       {detailOpen && selected ? (
         <DetailAside
           selected={selected} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
@@ -1046,7 +1146,7 @@ function Inner() {
       {/* The foot of the shell: the grid's fourth row, under the canvas, the
           columns and the stripes (not drawn on a phone, where the dock is) —
           components/StatusBar.tsx. */}
-      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} />}
+      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} viewChord={stage.workspaceOffered ? (inWorkspace ? "board" : "workspace") : null} />}
 
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}
       <DeckDialogs
@@ -1054,7 +1154,7 @@ function Inner() {
         upgrade={upgrade} lanPairs={lanPairs} attention={attention} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
         menus={menus} sound={sound} tones={tones} customTones={customTones} notify={notify}
-        terminal={{ on: stage.enabled, supported: stage.supported, windows: stage.windows, toggle: stage.toggleTerminal }}
+        terminal={{ on: stage.enabled, supported: stage.supported, windows: stage.windows, phone, failed: stage.chunkFailed, toggle: stage.toggleTerminal }}
         panelDoors={{ accounts: openAccountsPanel, localNetwork: openLocalNetwork }}
         account={account}
       />

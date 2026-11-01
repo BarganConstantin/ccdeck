@@ -22,6 +22,8 @@ import { SettingRow, SettingsGroup } from "./SettingsParts";
 interface Props {
   singleKeys: boolean;
   onToggleSingleKeys: () => void;
+  /** The Command Panel is on, so Ctrl + backtick has a row (key-help.ts). */
+  workspace?: boolean;
 }
 
 export const SINGLE_KEYS_LABEL = "Single-key shortcuts";
@@ -43,12 +45,12 @@ export function shortcutMatches(row: KeyHelpRow, query: string): boolean {
   return [row.action, row.cap, row.macCap ?? ""].some(text => text.toLowerCase().includes(q));
 }
 
-export default function KeyboardSection({ singleKeys, onToggleSingleKeys }: Props) {
+export default function KeyboardSection({ singleKeys, onToggleSingleKeys, workspace = false }: Props) {
   const apple = isApplePlatform(platformName());
   const [query, setQuery] = useState("");
   const filterId = useId();
   const integrations = useIntegrations();
-  const groups = keyHelpFor(singleKeys, kind => kindOffered(integrations, kind))
+  const groups = keyHelpFor(singleKeys, kind => kindOffered(integrations, kind), workspace)
     .map(group => ({ ...group, rows: group.rows.filter(row => shortcutMatches(row, query)) }))
     .filter(group => group.rows.length > 0);
 
