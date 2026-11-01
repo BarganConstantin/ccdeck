@@ -452,7 +452,8 @@ describe("the Context tab", () => {
     const out = withContext({ context: { msgsUser: 1, msgsAssistant: 1, toolUses: 0, toolResults: 0, systemReminders: 0, currentContextTokens: 50_000, memoryFiles: [] }, contextWindow: 200_000 });
     expect(out).toContain('<span class="insp-title">Context window</span>');
     expect(out).toMatch(/<span class="insp-qual">[^<]*opus[^<]*<\/span>/i);
-    expect(out).toContain('<span class="insp-fig">50.0k / 200.0k · 25.0%</span>');
+    // CHANGED ON PURPOSE: owner answer 17, whole k and a whole percent, as the Term header's chip says it.
+    expect(out).toContain('<span class="insp-fig">50k / 200k · 25%</span>');
   });
   it("shows the context modal's body", () => {
     const out = withContext({});
@@ -470,19 +471,23 @@ describe("the Context tab", () => {
     const child = A("c1", { parentId: "s", model: "claude-haiku-4-5", contextWindow: 100_000, context: ctx(10_000) });
     const out = html(child, mapOf(root, child));
     expect(out).toMatch(/<span class="insp-qual">[^<]*haiku[^<]*<\/span>/i);
-    expect(out).toContain('<span class="insp-fig">10.0k / 100.0k · 10.0%</span>');
+    // CHANGED ON PURPOSE: owner answer 17's form (was "10.0k / 100.0k · 10.0%").
+    expect(out).toContain('<span class="insp-fig">10k / 100k · 10%</span>');
     expect(out).not.toMatch(/opus/i);
   });
   // CHANGED ON PURPOSE: the panel's meter has no percent line any more (Figma 22:15126); the
-  // head's figure is the one place it is printed there. The modal keeps its line, with the same percent.
-  it("prints the head's percent once, at 99.6%, and the modal's meta line prints the same one", () => {
+  // head's figure is the one place it is printed there. The modal keeps its line, from the same fill.
+  // CHANGED ON PURPOSE: owner answer 17 gives the Inspector's head a whole percent (the Term chip's
+  // figure), so the head says that fill rounded, 100%, where the modal's line keeps its 99.6%.
+  it("prints the head's percent once, the fill rounded, and the modal's meta line prints the same fill", () => {
     stubStore({ [INSPECTOR_TAB_KEY]: "context" });
     const a = A("s", { model: "claude-opus-4-5", contextWindow: 200_000, context: { msgsUser: 1, msgsAssistant: 1, toolUses: 0, toolResults: 0, systemReminders: 0, currentContextTokens: 199_200, memoryFiles: [] } });
     expect(contextFill(a).pct).toBeCloseTo(99.6, 5);
     const out = html(a, mapOf(a));
     expect(out).not.toContain("ctx-window-pct");
     expect(out).not.toContain("ctx-window-meta");
-    expect(out).toMatch(/<span class="insp-fig">[^<]*· 99\.6%<\/span>/);
+    expect(out).toContain('<span class="insp-fig">199k / 200k · 100%</span>');
+    expect(out.match(/· 100%/g)).toHaveLength(1);
     const modal = renderToStaticMarkup(createElement(ContextView, { agent: a, meta: true }));
     expect(modal).toContain('<span class="ctx-window-pct">99.6%</span>');
   });

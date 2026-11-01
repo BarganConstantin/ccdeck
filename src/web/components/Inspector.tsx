@@ -18,10 +18,10 @@ import {
 } from "../inspector-tab";
 import { modelChipText } from "../model-label";
 import { tabStripMove } from "../tablist-keys";
-import { fmtTokens } from "../token-format";
+import { contextFigure, contextFill } from "../context-figure";
 import type { AgentNodeData } from "../types";
 import { AgentCard } from "./AgentNode";
-import { ContextView, contextFill } from "./ContextModal";
+import { ContextView } from "./ContextModal";
 import InspectorTime from "./InspectorTime";
 import { CapacityGlyph, ClockGlyph, SessionListGlyph } from "./rail-glyphs";
 
@@ -192,13 +192,14 @@ const TreeItem = memo(function TreeItem({ row, current, onSelectAgent }: { row: 
   && a.current === b.current && a.onSelectAgent === b.onSelectAgent);
 
 function ContextTab({ agent }: { agent: AgentNodeData }) {
-  const { used, limit, pct } = contextFill(agent);
+  // Whole k and a whole percent (owner answer 17), the Term header chip's figure.
+  const { used, limit } = contextFill(agent);
   return (
     <>
       <InspectorHead
         title="Context window"
         qualifier={agent.model ? modelChipText(agent.model) : null}
-        figure={`${fmtTokens(used)} / ${fmtTokens(limit)} · ${pct.toFixed(1)}%`}
+        figure={contextFigure(used, limit)}
       />
       {/* Figma's treemap and its legend need a token count per category (tool
           results, files read, system prompt…), which the deck does not have: it
