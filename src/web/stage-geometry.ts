@@ -27,11 +27,16 @@
 // (use-terminal-session.ts) and this module is handed it, so the quantising
 // above is to the real grid, not to a number that was right on one machine.
 //
-// THE ROWS FIT ABOVE THE KEYS BAR AS IT IS DRAWN. The bar is 36px, but the
-// first-run line it carries wraps to a third line on the narrowest screens and
-// grows it until Got it is pressed; rows fitted to 36px left the last one
-// under it. The stage says how tall it drew its bar (TerminalStage), and the
-// rows are fitted to what that leaves; at 36px nothing changes.
+// THE ROWS FIT BETWEEN THE HEADER AND THE KEYS BAR AS THEY ARE DRAWN. V4's
+// header is one row at every width (44px at the roomier densities, 36 at
+// Compact: `--pane-head-h`) and its keys bar is 32px (36 under a fingertip).
+// v3 fitted the rows for a 64px header (52 narrow) and a 36px bar, so the
+// terminal got a row or two fewer than fit and a blank strip sat above the
+// bar (Figma V4). The first-run line the bar carries still wraps to a third
+// line on the narrowest screens and grows it until Got it is pressed; rows
+// fitted to the nominal height left the last one under it. The stage says how
+// tall it drew its header and its bar (TerminalStage), and the rows are fitted
+// to what that leaves; until it has said, the nominal heights stand.
 //
 // THE WIDTH IS REMEMBERED AS COLUMNS. A fraction of the window would be a
 // different column count on every window, and the column count is the thing
@@ -65,10 +70,13 @@ export const NAV_ROOM = 400;
 /** Below this window width the navigator is a rail whatever the stage. */
 export const NARROW_BELOW = 1100;
 
-export const HEAD_H = 64;
-export const HEAD_H_NARROW = 52;
-/** The keys bar under the terminal. */
-export const BAR_H = 36;
+/** The pane header before the stage has said how tall it drew it: the roomier
+ *  densities' `--pane-head-h`, the larger of V4's two (Compact draws 36 and
+ *  says so). One row at every width, so there is no narrow variant. */
+export const HEAD_H = 44;
+/** The keys bar under the terminal: V4's 32. A fingertip's 36 or the first-run
+ *  line wrapping makes it taller, and the measured height then wins. */
+export const BAR_H = 32;
 /** Vertical slack kept around the grid so its first and last rows never
  *  touch the header's rule or the bar's. */
 const ROW_SLACK = 12;
@@ -106,6 +114,9 @@ export interface StageGeometryInput {
    *  than BAR_H while the first-run line wraps to a third line. Never taken
    *  as less than BAR_H. */
   barH?: number;
+  /** The pane header's height as the stage drew it, once it has said; HEAD_H
+   *  until then. Taken as drawn, so Compact's 36 gives the terminal its rows. */
+  headH?: number;
 }
 
 /** The columns a divider may land on in this window. */
@@ -223,7 +234,7 @@ export function stageGeometry(input: StageGeometryInput): StageGeometry {
   const cellW = finite(input.cellW, ASSUMED_CELL.w);
   const cellH = finite(input.cellH, ASSUMED_CELL.h);
   const appW = Math.max(0, input.appW);
-  const headH = input.narrow ? HEAD_H_NARROW : HEAD_H;
+  const headH = finite(input.headH ?? HEAD_H, HEAD_H);
   const railWanted = input.narrow || input.expanded;
   const navMin = railWanted ? NAV_MIN_RAIL : NAV_MIN;
 

@@ -1,6 +1,7 @@
 /* THE TERMINAL STAGE (components/terminal/): the session on the right while
    the board is the navigator on the left — v3 of the terminal panel design,
-   built behind the hidden terminal flag.
+   drawn in V4's Term pane (Figma: Pane header · Term, Term pane · stage
+   states, Keys bar, Divider), built behind the hidden terminal flag.
 
    The stage fills the box the layout gives it (its width is whole cells,
    stage-geometry.ts); everything here draws inside that box. The grid column
@@ -8,12 +9,13 @@
    layout's. Nothing here is drawn while the flag is off: no element carries a
    .ts-* or .ns-* class until the stage's lazy chunk has rendered one.
 
-   Every colour is a token. The spine and the popover's project dots are the
-   session hue at the deck's --session-accent-l, the same lightness the board's
-   faces use for their accents, so a stage and its tile match in both themes.
-   Forced colours for the stage's marks are in touch-and-forced-colours.css,
-   with the rest of the deck's, because the deck answers a Contrast theme in
-   one block (#871). */
+   Every colour is a token. The session's hue is gone from the stage's chrome
+   in V4 (the header's spine left with it): the stage says which session it
+   is by its name and its state glyph, and the popover's project dots keep the
+   hue, at the deck's --session-accent-l, the lightness the board's faces use
+   for their accents. Forced colours for the stage's marks are in
+   touch-and-forced-colours.css, with the rest of the deck's, because the deck
+   answers a Contrast theme in one block (#871). */
 
 .ts-stage {
   position: relative;
@@ -30,122 +32,105 @@
 /* Taking the whole body, there is no board to draw an edge against. */
 .ts-stage[data-takeover] { border-left: 0; }
 
-/* ── the header: the node's face, at the size of a stage ─────────────────── */
+/* ── the header: one row, the session's state and name (V4) ──────────────── */
 
+/* --pane-head-h is V4's pane header: 36 at Compact, 44 at the two roomier
+   densities (tokens.css, reading.css). --ts-head-h is the height the geometry
+   fitted the rows for: the header as the stage measured it (onHeadH), or 44
+   until it has said. The header itself is drawn at --pane-head-h. */
 .ts-head {
   position: relative;
   flex: none;
-  height: var(--ts-head-h, 64px);
+  height: var(--pane-head-h);
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 10px 0 24px;
-  border-bottom: 1px solid var(--line);
+  gap: 8px;
+  padding: 0 6px 0 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line-soft);
 }
-.ts-spine {
-  --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
-  position: absolute;
-  left: 11px;
-  top: 50%;
-  translate: 0 -50%;
-  width: 3px;
-  height: 32px;
-  border-radius: 2px;
-  overflow: hidden;
-  background: var(--accent);
-  transition: background-color 160ms;
-}
-.ts-stage[data-empty] .ts-spine { background: var(--line); }
-/* While the agent streams output the spine carries the board's in-flight
-   grammar: a light travelling down it toward the terminal, the way a live
-   edge's dots travel toward the node they feed. Still when it waits on you. */
-/* It travels by transform, which the compositor runs on its own: an
-   animation of `top` needs the page's main thread every frame, and a page
-   producing frames makes Chrome hold each WebSocket message — every echo of a
-   key — until after the next one (measured: 26 ms a key against 2.5). */
-.ts-stage[data-live] .ts-spine::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 14px;
-  border-radius: 2px;
-  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent) 30%, var(--glint)), transparent);
-  transform: translateY(-14px);
-  animation: ts-spine-flow 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-}
-@keyframes ts-spine-flow { to { transform: translateY(32px); } }
-
-.ts-stage[data-takeover] .ts-head { padding-left: 8px; }
-.ts-stage[data-takeover] .ts-spine { left: 44px; }
-.ts-stage[data-takeover] .ts-id { padding-left: 10px; }
+.ts-stage[data-takeover] .ts-head { padding-left: 6px; }
 
 /* The identity arrives from the left — out of the board — on every switch:
-   the header remounts it per session. */
+   the header remounts it per session. It is the glyph, the name and the
+   sentence on one row; the row's end group sits against the right edge. */
 .ts-id {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   animation: ts-id-in 180ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 @keyframes ts-id-in { from { opacity: 0; transform: translateX(-8px); } }
-.ts-l1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+/* The rail's state glyph, 14px (stage-icons.tsx StageGlyph; the colours are
+   StateMark's and AlertMark's own, agent-node.css). It holds still: the rail's
+   Working glyph breathes on --pulse-live, but the stage's header sits beside
+   a terminal that is already showing the session at work, and nothing moves
+   here on its own. */
+.ts-glyph { flex: none; display: inline-flex; }
+
 .ts-name {
-  margin: 0;
+  flex: 0 1 auto;
   min-width: 0;
+  margin: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 20px;
+  color: var(--text);
 }
-.ts-chip { margin-left: 0; gap: 4px; flex: none; }
-.ts-l2 {
+/* The face's sentence in mono: the state in its colour (waiting is --warn, as
+   the rail's timer is), then the tool and what it works on in --muted, one
+   line, cut with an ellipsis from the end. */
+.ts-meta {
+  flex: 0 1 auto;
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
-  margin-top: 3px;
-  font-size: 12px;
-  line-height: 16px;
+  font: 400 12px/16px var(--font-mono);
   color: var(--muted);
   white-space: nowrap;
 }
-.ts-mark { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--inflight); }
-.ts-l2[data-state="waiting"] { color: var(--warn); }
-.ts-l2[data-state="idle"] .ts-mark,
-.ts-l2[data-state="ready"] .ts-mark,
-.ts-l2[data-state="elsewhere"] .ts-mark {
-  width: 7px;
-  height: 7px;
-  box-sizing: border-box;
-  background: none;
-  border: 1.5px solid var(--muted);
-}
-.ts-l2[data-state="elsewhere"] .ts-mark { border-color: var(--inflight); }
-.ts-l2[data-state="ended"] .ts-mark { border-radius: 2px; background: var(--muted); }
-.ts-l2[data-state="attaching"] .ts-mark,
-.ts-l2[data-state="starting"] .ts-mark { background: var(--accent); }
-.ts-l2[data-state="detached"] .ts-mark { display: none; }
-.ts-phrase b { font-weight: 700; font-variant-numeric: tabular-nums; }
-.ts-dot { color: var(--muted); }
-.ts-tool { font-weight: 600; color: var(--text); }
-.ts-l2[data-state="waiting"] .ts-tool { color: var(--warn); }
-.ts-arg {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font: 400 11px/16px var(--font-mono);
-  color: var(--muted);
-}
-.ts-sec { flex: none; font: 400 11px/16px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ts-meta-state { flex: none; color: var(--text-secondary); }
+.ts-meta[data-state="waiting"] .ts-meta-state { color: var(--warn); }
+.ts-meta-state b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.ts-meta-rest { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 
-.ts-ctl { flex: none; display: flex; align-items: center; gap: 2px; }
-.ts-ctl-sep { width: 1px; height: 16px; margin: 0 4px; background: var(--line); }
-/* The controls are the deck's header glyphs (.glyph-btn); ⌨ pressed — the
-   keys in the pane — wears the accent, the colour of the lamp below. */
-.ts-ctl .glyph-btn[aria-pressed="true"] { color: var(--accent); }
+.ts-ctl { flex: none; display: flex; align-items: center; gap: 4px; }
+/* How full the agent's context is: "61.4k / 200k" over a 4px bar. */
+.ts-ctxchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border-radius: var(--r-ctl);
+  font: 500 11px/14px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ts-ctxchip-bar { flex: none; position: relative; width: 32px; height: 4px; border-radius: var(--r-pill); overflow: hidden; background: var(--line); }
+.ts-ctxchip-bar i { display: block; height: 100%; border-radius: inherit; background: var(--text-secondary); }
+/* The controls are the deck's header glyphs (.glyph-btn), as 24px squares at
+   the control radius; ⌨ pressed — the keys in the pane — wears the accent. */
+.ts-tools { display: flex; align-items: center; gap: 2px; }
+.ts-head .glyph-btn {
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin: 0;
+  border-radius: var(--r-ctl);
+}
+.ts-tools .glyph-btn[aria-pressed="true"] { color: var(--accent); }
 .ts-icon {
   flex: none;
   fill: none;
@@ -247,23 +232,35 @@
    where the window has no room left to make for it (TerminalStage). */
 .ts-stage[data-pane-size] .ts-body { overflow-x: auto; overflow-y: hidden; }
 
-/* Every card starts where the terminal's first line would. */
-.ts-card { position: absolute; left: 24px; right: 24px; top: var(--ts-term-top, 14px); max-width: 640px; }
+/* Every card is a column in the middle of the pane (V4), centred both ways:
+   10px between its lines, and a line of about 60 characters at most. */
+.ts-card {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 24px;
+  text-align: center;
+}
 .ts-ctx {
+  max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font: 400 12px/18px var(--font-mono);
+  font: 400 12px/16px var(--font-mono);
   color: var(--muted);
 }
 .ts-prompt { color: var(--muted); }
-.ts-fact { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.ts-fact { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted); }
 /* Its own box, because a flex row's text is an anonymous item the row's
    text-overflow never reaches: a long folder was cut mid-word with no
    ellipsis. The whole line is the row's title. */
 .ts-fact-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ts-fact-mark { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--inflight); }
-.ts-fact-mark[data-kind="tmux"],
 .ts-fact-mark[data-kind="gone"] {
   width: 7px;
   height: 7px;
@@ -271,16 +268,21 @@
   background: none;
   border: 1.5px solid var(--muted);
 }
-.ts-text { margin: 18px 0 0; max-width: 60ch; font-size: 13px; line-height: 1.55; color: var(--text-secondary); }
-/* The deck's own tmux on its way: a bar that fills with the download and
-   holds full while the build is checked. Before it can say how far (no bytes
-   yet, or no size given) a segment travels it, as the header's scan does. */
-.ts-setup { display: flex; align-items: center; gap: 12px; max-width: 60ch; margin-top: 18px; }
+/* A card's title, where it has one ("tmux · setting up"). */
+.ts-title { margin: 0; font-size: 13px; font-weight: 600; line-height: 20px; color: var(--text); }
+.ts-text { margin: 0; max-width: 60ch; font-size: 13px; line-height: 20px; color: var(--text-secondary); }
+/* Attaching and starting: the working glyph and the word, in one row. */
+.ts-wait { display: flex; align-items: center; justify-content: center; gap: 6px; }
+/* The deck's own tmux on its way: a 2px bar that fills with the download and
+   holds full while the build is checked, its figure under it. Before it can
+   say how far (no bytes yet, or no size given) a segment travels it, as the
+   header's scan does. */
+.ts-setup { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 320px; max-width: 100%; }
 .ts-setup-bar {
   position: relative;
-  flex: 1 1 auto;
-  height: 4px;
-  border-radius: 999px;
+  align-self: stretch;
+  height: 2px;
+  border-radius: var(--r-pill);
   background: var(--line);
   overflow: hidden;
 }
@@ -298,116 +300,81 @@
   transform: translateX(-100%);
   animation: ts-scan 1.1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
-/* As wide as its longest line ("Starting the download…"), so the bar keeps one length while the words change. */
-.ts-setup-line { flex: none; width: 22ch; font: 400 12px/18px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
-.ts-text-first { margin-top: 0; }
-.ts-acts { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+.ts-setup-line { font: 400 12px/16px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+/* The actions: the kit's Primary and Quiet buttons (topbar-controls.css) in a
+   centred row; the cards set no size of their own for them. */
+.ts-acts { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .ts-acts .btn { display: inline-flex; align-items: center; gap: 6px; }
-.ts-note {
-  max-width: 60ch;
-  margin: 14px 0 0;
-  padding-left: 10px;
-  border-left: 2px solid var(--ctl-edge);
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
+.ts-note { max-width: 60ch; margin: 0; font-size: 12px; line-height: 16px; color: var(--text-secondary); }
+/* The install line, 360 by 32, with its Copy at the end. */
 .ts-cmd {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  height: 34px;
-  margin-top: 14px;
-  padding: 0 2px 0 12px;
+  box-sizing: border-box;
+  width: 360px;
+  max-width: 100%;
+  height: 32px;
+  padding: 0 4px 0 12px;
   border: 1px solid var(--line);
   border-radius: var(--r-ctl);
   background: var(--bg-soft);
-  font: 400 12px/1 var(--font-mono);
+  font: 400 12px/16px var(--font-mono);
   color: var(--text);
 }
-.ts-cmd code { font: inherit; }
-.ts-empty-glyph { display: block; width: 28px; height: 28px; margin-bottom: 14px; color: var(--muted); }
-/* The last line the board knew, in the terminal's own type, while attaching. */
-.ts-ghost {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font: 400 13.3px/18px var(--font-mono);
-  color: var(--muted);
-}
+.ts-cmd code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; }
+.ts-cmd .glyph-btn { flex: none; margin: 0; }
+.ts-empty-glyph { display: block; width: 28px; height: 28px; color: var(--muted); }
 
 /* ── the keys bar: who has the keyboard, and the asks ────────────────────── */
 
 .ts-bar {
   flex: none;
-  height: 36px;
+  height: 32px;
   min-width: 0;
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 0 10px 0 24px;
-  border-top: 1px solid var(--line);
-  background: var(--chrome-bg);
+  gap: 6px;
+  padding: 0 12px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-soft);
   font-size: 12px;
-  color: var(--text-secondary);
+  line-height: 16px;
+  color: var(--muted);
   white-space: nowrap;
 }
-.ts-keys { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
-.ts-lamp {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  box-sizing: border-box;
-  border-radius: 50%;
-  border: 1.5px solid var(--muted);
-  transition: background-color 160ms, border-color 160ms, box-shadow 160ms;
-}
-.ts-keys[data-owner="pane"] .ts-lamp {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
-}
-.ts-who { font-weight: 600; color: var(--text); }
-.ts-hint { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
-.ts-hint + .ts-hint::before { content: "·"; margin-right: 4px; color: var(--muted); }
-.ts-kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 18px;
-  box-sizing: border-box;
-  padding: 0 4px;
-  border: 1px solid var(--line);
-  border-bottom-width: 2px;
-  border-radius: var(--r-tag);
-  background: var(--panel);
-  font: 600 10px/1 var(--font-mono);
-  color: var(--muted);
-}
-/* The bar's buttons are the deck's .btn at the bar's height. "type here" is
-   the one in the accent, and edgeless at rest — a word in the hint line, not a
-   box in it; .btn's own hover draws its edge and fill when the pointer finds
-   it. A fingertip gets them at 32px, still inside the bar
+.ts-keys { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
+/* The session's name in the sentence is the one thing set apart. */
+.ts-who { color: var(--text-secondary); }
+.ts-hint { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.ts-hint + .ts-hint::before { content: "·"; color: var(--muted); }
+/* The kit's Kbd (status-bar.css) is 18 tall; the keys bar draws it at 16:
+   the same 14px line, without the 1px of padding above and below. */
+.ts-bar .kbd { padding: 0 4px; }
+/* The bar's buttons are the kit's Quiet (topbar-controls.css) at 28. "type
+   here" is the one in the accent, and edgeless at rest — a word in the hint
+   line, not a box in it; .btn's own hover draws its edge and fill when the
+   pointer finds it. A fingertip gets them at 32px, and the bar with them
    (touch-and-forced-colours.css). */
-.ts-keys .btn { min-height: 26px; padding: 0 10px; }
+.ts-keys .btn { min-height: 28px; padding: 0 10px; }
 .ts-keys .ts-type { padding: 0 6px; border-color: transparent; font-weight: 600; color: var(--accent); }
 /* The first-run line is said whole wherever it shows: on a stage too narrow
    for it on one line (the takeover: a phone, a narrow window) it wraps in the
    bar rather than pushing Got it off the end. There, two lines of 15px fit
-   the bar's own 36px; only a third, on the narrowest screens, grows the bar,
+   the bar's own 32px; only a third, on the narrowest screens, grows the bar,
    for as long as the line is said, and the terminal's rows are fitted above
    the grown bar (stage-geometry.ts). A stage beside the board keeps its one
    line exactly as it was. */
 .ts-first { min-width: 0; white-space: normal; }
 .ts-stage[data-takeover] .ts-first { line-height: 15px; }
-.ts-bar:has(.ts-first) { height: auto; min-height: 36px; padding-block: 1px; }
-.ts-end { display: flex; align-items: center; gap: 10px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ts-bar:has(.ts-first) { height: auto; min-height: 32px; padding-block: 1px; }
+.ts-end { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ts-end-mark { flex: none; width: 7px; height: 7px; border-radius: 2px; background: var(--muted); }
 
-.ts-asks { display: flex; align-items: center; gap: 10px; flex: none; margin-left: auto; }
-.ts-asks-label { font: 600 9px/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.ts-asks { display: flex; align-items: center; gap: 6px; flex: none; margin-left: auto; }
+.ts-asks-label { color: var(--muted); }
 .ts-track { display: inline-flex; gap: 3px; }
 .ts-track i {
   width: 16px;
@@ -423,19 +390,17 @@
 @keyframes ts-seg-in { from { width: 0; opacity: 0; } }
 .ts-count { font-variant-numeric: tabular-nums; color: var(--muted); }
 .ts-resumed { display: inline-flex; align-items: center; gap: 6px; color: var(--ok); }
-/* Next ask and Answer: the deck's .btn as a pill, its words in --warn —
-   the waiting colour, the same word the topbar chip says it in. */
+/* Next ask and Answer: the kit's Quiet at 28, its name in --text and the wait
+   in bold. (v3 drew them as a pill with the words in --warn; the waiting
+   colour stays on the arrival note beside them.) */
 .ts-asks .ts-next {
-  gap: 8px;
-  min-height: 26px;
+  gap: 6px;
+  min-height: 28px;
   padding: 0 6px 0 10px;
-  border-radius: 999px;
-  color: var(--warn);
 }
 .ts-next b { font-weight: 700; font-variant-numeric: tabular-nums; }
-.ts-next .ts-kbd { background: none; color: var(--warn); }
 .ts-next-name { max-width: 150px; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
-.ts-arrival { display: inline-flex; align-items: center; gap: 8px; color: var(--warn); animation: ts-arrive 260ms cubic-bezier(0.23, 1, 0.32, 1); }
+.ts-arrival { display: inline-flex; align-items: center; gap: 6px; color: var(--warn); animation: ts-arrive 260ms cubic-bezier(0.23, 1, 0.32, 1); }
 .ts-arrival b { max-width: 170px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: var(--text); }
 @keyframes ts-arrive { from { opacity: 0; transform: translateY(6px); } }
 /* Sessions on an older session host (Windows, older-hosts.ts): a sentence
@@ -444,7 +409,7 @@
    rows above the grown bar. */
 .ts-asks.ts-hosts { flex: 0 1 auto; min-width: 0; }
 .ts-hosts-said { min-width: 0; white-space: normal; line-height: 15px; color: var(--warn); }
-.ts-bar:has(.ts-hosts) { height: auto; min-height: 36px; padding-block: 1px; }
+.ts-bar:has(.ts-hosts) { height: auto; min-height: 32px; padding-block: 1px; }
 
 /* Review: one host's sessions per block, its End under them. */
 .modal.older-hosts .modal-title .status-dot { background: var(--warn); }
@@ -467,6 +432,8 @@
   cursor: col-resize;
   touch-action: none;
 }
+/* At rest the edge is a 1px --line (an 8px-or-wider hit area stands over it);
+   hovered, focused or held it is the accent, 2px wide (V4, Divider). */
 .ts-divider::before {
   content: "";
   position: absolute;
@@ -474,7 +441,7 @@
   bottom: 0;
   left: 5px;
   width: 1px;
-  background: transparent;
+  background: var(--line);
   transition: background-color 120ms 80ms;
 }
 .ts-grip {
@@ -491,14 +458,14 @@
   opacity: 0;
   transition: opacity 120ms 80ms;
 }
-.ts-divider:hover::before { background: var(--ctl-edge); }
+.ts-divider:hover::before { width: 2px; background: var(--accent); }
 .ts-divider:hover .ts-grip { opacity: 1; }
 .ts-divider[data-held]::before,
 .ts-divider:focus-visible::before { width: 2px; background: var(--accent); transition: none; }
 .ts-divider[data-held] .ts-grip,
 .ts-divider:focus-visible .ts-grip { opacity: 1; background: var(--accent); }
 /* While the edge is held the header recedes, so the plates read first. */
-.ts-stage[data-held] .ts-head > :not(.ts-spine) { opacity: 0.2; transition: opacity 120ms; }
+.ts-stage[data-held] .ts-head > :not(.ts-scan) { opacity: 0.2; transition: opacity 120ms; }
 .ts-detents { position: absolute; top: 0; bottom: 0; left: 0; z-index: 6; pointer-events: none; }
 .ts-detent {
   position: absolute;
@@ -531,7 +498,7 @@
   border-radius: var(--r-ctl);
   background: var(--panel);
   box-shadow: var(--shadow-contact), var(--shadow-2);
-  font: 600 11px/1 var(--font-mono);
+  font: 400 13px/20px var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--text);
   white-space: nowrap;
@@ -599,10 +566,10 @@
 
 /* ── less motion ─────────────────────────────────────────────────────────── */
 
-/* Every end state is the same; only the travel goes. The spine keeps its hue
-   and loses its light, the hairline stands still, nothing slides in. */
+/* Every end state is the same; only the travel goes. The hairline stands
+   still, nothing slides in. (The header's old travelling light is gone with
+   its spine, so there is no light to take away.) */
 @media (prefers-reduced-motion: reduce) {
-  .ts-stage[data-live] .ts-spine::after { display: none; }
   .ts-scan::after { width: 100%; opacity: 0.5; transform: none; }
   .ts-setup-bar[data-unknown] .ts-setup-fill { width: 100%; opacity: 0.5; transform: none; animation: none; }
   .ts-setup-fill { transition: none; }

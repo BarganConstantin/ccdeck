@@ -104,7 +104,7 @@
   z-index: 3;
   transform-origin: 0 0;
   white-space: nowrap;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 20px;
   color: var(--text);
@@ -112,13 +112,16 @@
 }
 .stage-dock[data-rider] .stage-rider { display: block; }
 /* The header's own name waits for the rider, so the two never print over
-   each other. */
+   each other. The rider is the header's name at the header's size (13px in
+   V4, 16px in v3): it flies at that size and is scaled to the card's. */
 .stage-dock[data-rider] .ts-name { opacity: 0; }
-/* What sits under and beside the rider's landing arrives after it, and leaves
-   before it flies home (stage-morph.ts `late` and `chip`). */
-.stage-dock[data-rider] .ts-l2,
+/* What sits beside the rider's landing arrives after it, and leaves before it
+   flies home (stage-morph.ts `late` and `chip`): the state glyph and the
+   sentence, the controls, and last of all the context chip. */
+.stage-dock[data-rider] .ts-glyph,
+.stage-dock[data-rider] .ts-meta,
 .stage-dock[data-rider] .ts-ctl { opacity: var(--stage-late, 1); }
-.stage-dock[data-rider] .ts-chip { opacity: var(--stage-chip, 1); }
+.stage-dock[data-rider] .ts-ctxchip { opacity: var(--stage-chip, 1); }
 
 /* The board's compact form, in the canvas's place. */
 .stage-nav {

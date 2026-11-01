@@ -182,6 +182,9 @@ export interface TerminalStageProps {
   /** The keys bar's height as drawn, in whole pixels rounded up, once and on
    *  every change: the geometry fits the rows above it (stage-geometry.ts). */
   onBarH?(height: number): void;
+  /** The pane header's height as drawn, said the same way: V4's header is
+   *  `--pane-head-h` (36 at Compact, 44 above), and the rows are fitted below it. */
+  onHeadH?(height: number): void;
   onLaunched?(launched: LaunchedSession): void;
   /** Start the launch on the stage again, in the same folder with the same
    *  options: its agent exited before the board had its session (endView). */
@@ -351,6 +354,20 @@ export default function TerminalStage(p: TerminalStageProps) {
     say();
     const watch = new ResizeObserver(say);
     watch.observe(bar);
+    return () => watch.disconnect();
+  }, []);
+  // The header's height goes up the same way: V4's header is one row at
+  // `--pane-head-h`, which the density changes, so the rows are fitted to the
+  // height it was drawn at and not to a number that was right for v3's two lines.
+  const onHeadH = useRef(p.onHeadH);
+  onHeadH.current = p.onHeadH;
+  useEffect(() => {
+    const head = rootRef.current?.querySelector<HTMLElement>(".ts-head");
+    if (!head || typeof ResizeObserver === "undefined") return;
+    const say = () => onHeadH.current?.(Math.ceil(Math.round(head.getBoundingClientRect().height * 100) / 100));
+    say();
+    const watch = new ResizeObserver(say);
+    watch.observe(head);
     return () => watch.disconnect();
   }, []);
   // The session hook's snapshot is the shown subject's only once it has said
