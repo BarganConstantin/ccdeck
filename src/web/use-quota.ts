@@ -139,55 +139,64 @@ export function useQuota(enabled: boolean) {
   return { quota, loading, refresh };
 }
 
-/** What /api/quota?cached=1 answers with: the reading the deck already holds,
- *  when it was collected (epoch ms), and whether a window of it has reset since. */
-export interface CachedQuota {
+/** What the rail's usage meter holds: the last 5-hour reading the server
+ *  answered with, when it was collected (epoch ms), and whether the latest
+ *  attempt to read failed (the reading is then the one before it). */
+export interface MeterQuota {
   reading: QuotaData | null;
   readAt: number;
-  lapsed: boolean;
+  failed: boolean;
 }
 
-const NO_CACHED_QUOTA: CachedQuota = { reading: null, readAt: 0, lapsed: false };
+const NO_METER_QUOTA: MeterQuota = { reading: null, readAt: 0, failed: false };
 
 /**
- * The rail's usage meter's view of Claude's quota: what the server read last,
- * and never a read of its own. The URL always carries `cached=1`, which the
- * route answers from memory alone, so this can run on every open page without
- * spending an OAuth request or a `claude --print /usage` run. Reads happen
- * because the Usage panel is open (useQuota) or a quota notification's watcher
- * took one; this only looks.
+ * The rail's usage meter's view of Claude's quota: the usual `/api/quota` read,
+ * once a minute while the page is open and visible, never forced. The owner
+ * allowed exactly that (2026-11-01): the server answers from its own cache and
+ * reaches the provider at most as often as it does for the Usage panel. There is
+ * no `refresh` path in this hook on purpose: a forced read is the panel's ↻.
+ *
+ * A hidden tab stops asking and a tab that comes back asks at once. A read that
+ * fails, or answers without numbers, keeps the reading already held and marks
+ * it `failed`, so the meter draws it quiet with its age instead of vanishing.
+ *
+ * The Usage panel keeps its own useQuota (it forces a read when it opens, which
+ * the meter must never do), so with the panel open two requests a minute reach
+ * the same server cache; the provider is not asked twice for it.
  *
  * @param enabled whether this deck watches Claude Code, as for useQuota.
  */
-export function useCachedQuota(enabled: boolean): CachedQuota {
-  const [cached, setCached] = useState<CachedQuota>(NO_CACHED_QUOTA);
+export function useMeterQuota(enabled: boolean): MeterQuota {
+  const [held, setHeld] = useState<MeterQuota>(NO_METER_QUOTA);
 
   useEffect(() => {
-    if (!enabled) { setCached(NO_CACHED_QUOTA); return; }
+    if (!enabled) { setHeld(NO_METER_QUOTA); return; }
     let alive = true;
     let timer: number | null = null;
     const load = async () => {
       try {
-        const res = await fetch("/api/quota?cached=1", { signal: AbortSignal.timeout(QUOTA_REQUEST_MS) });
-        if (!res.ok || !alive) return;
-        const body: QuotaData & { readAt?: number; lapsed?: boolean } = await res.json();
+        const res = await fetch("/api/quota", { signal: AbortSignal.timeout(QUOTA_REQUEST_MS) });
         if (!alive) return;
-        setCached(body.ok && typeof body.readAt === "number"
-          ? { reading: body, readAt: body.readAt, lapsed: body.lapsed === true }
-          : NO_CACHED_QUOTA);
-      } catch { /* server unreachable: keep what is drawn */ }
+        const body: QuotaData | null = res.ok ? await res.json() : null;
+        if (!alive) return;
+        if (body?.ok && typeof body.session5hPct === "number") {
+          setHeld({ reading: body, readAt: Number.isFinite(body.fetchedAt) ? body.fetchedAt! : Date.now(), failed: false });
+        } else {
+          setHeld(prev => (prev.failed ? prev : { ...prev, failed: true }));
+        }
+      } catch {
+        if (alive) setHeld(prev => (prev.failed ? prev : { ...prev, failed: true }));
+      }
     };
     const start = () => { if (timer == null) timer = window.setInterval(load, QUOTA_POLL_MS); };
     const stop = () => { if (timer != null) { window.clearInterval(timer); timer = null; } };
-    // A tab that comes back looks now rather than on the next tick; hidden, it
-    // stops asking at all.
     const onVis = () => {
       if (document.visibilityState === "hidden") { stop(); return; }
       start();
       load();
     };
-    load();
-    start();
+    if (document.visibilityState !== "hidden") { load(); start(); }
     document.addEventListener("visibilitychange", onVis);
     return () => {
       alive = false;
@@ -196,7 +205,7 @@ export function useCachedQuota(enabled: boolean): CachedQuota {
     };
   }, [enabled]);
 
-  return enabled ? cached : NO_CACHED_QUOTA;
+  return enabled ? held : NO_METER_QUOTA;
 }
 
 // ── Codex quota types + hook ───────────────────────────────────────────────

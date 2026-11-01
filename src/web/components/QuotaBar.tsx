@@ -85,6 +85,13 @@ export function quotaPctText(capped: number): string {
   return capped < 1 ? "< 1%" : `${Math.round(capped)}%`;
 }
 
+/** The colour a window's fill wears at a known, already-capped reading: --err
+ *  at 90 and over (or at a reached limit), --warn from 70, else --accent. The
+ *  bar and the rail's usage meter take it from here, so they cannot disagree. */
+export function quotaLevelColor(capped: number, isErr = capped >= 90): string {
+  return isErr || capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
+}
+
 // ── Quota bar ──────────────────────────────────────────────────────────────
 interface QuotaBarProps {
   /** How full the window is, or null when the source sent no reading for it.
@@ -112,7 +119,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   const known    = pct != null && !rolled;
   const capped   = known ? Math.min(100, Math.max(0, pct)) : 0;
   const isErr    = limitReached || capped >= 90;
-  const color    = isErr ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
+  const color    = quotaLevelColor(capped, isErr);
   // A whole percentage, the way Claude's readings already arrive (clampPct).
   // A Codex spend cap is `used / limit * 100` and printed $10 of $30 as
   // "33.33333333333333%" (#1804). Under 1% reads "< 1%" like a zero does:

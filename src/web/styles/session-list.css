@@ -438,12 +438,12 @@
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+
 /* The track is --line and the bar is one fill. Figma cuts it into five coloured
    segments, which have no data behind them (the deck has no per-segment share
-   of a quota window), so it is a single --accent, the colour the Usage panel's
-   5-hour bar wears at a normal reading. It never follows QuotaBar to --warn or
-   --err at a high one: Figma's rule is that usage meters are never amber, and
-   the panel one press away is where a window running out is said. */
+   of a quota window), so it is a single fill in the colour the Usage panel's
+   5-hour bar wears for the same reading (--accent, --warn from 70, --err from
+   90: quotaLevelColor), set inline by the meter. */
 .session-list .sl-usage-bar {
   display: block;
   width: 100%;
@@ -452,11 +452,10 @@
   overflow: hidden;
   background: var(--line);
 }
-.session-list .sl-usage-fill { display: block; height: 100%; background: var(--accent); }
-/* A reading the deck has not taken lately (rail-usage.ts says when): the accent
-   is for numbers that are true now, so an old one goes quiet, fill and percent
-   both, and its second line says how long ago it was read. */
-.session-list .sl-usage-btn[data-stale] .sl-usage-fill { background: var(--muted); }
+.session-list .sl-usage-fill { display: block; height: 100%; }
+/* A reading the deck has not taken lately (rail-usage.ts says when): its fill
+   goes --muted (inline, from the meter) and so does the percent, and its second
+   line says how long ago it was read. */
 .session-list .sl-usage-btn[data-stale] .sl-usage-pct { color: var(--muted); }
 
 /* The phone keeps the drawer, and a touch target of 44 (Phase 4 redoes it). */

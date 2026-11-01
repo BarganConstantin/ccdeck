@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { RailUsage } from "../components/RailParts";
 import { usageMeter } from "../rail-usage";
 import { resetCountdown } from "../relative-time";
-import type { CachedQuota, QuotaData } from "../use-quota";
+import type { MeterQuota, QuotaData } from "../use-quota";
 import { sheetRules } from "./sheet-cascade";
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
@@ -43,11 +43,11 @@ const reading = (over: Partial<QuotaData> = {}): QuotaData => ({
 // What the server's memory hands the rail: the reading, when it was taken (ms)
 // and whether a window has reset since. By default read this very second, so
 // the cases that are not about age see a fresh meter.
-const cachedOf = (q: QuotaData | null | undefined, nowSec: number, over: Partial<CachedQuota> = {}): CachedQuota =>
-  ({ reading: q ?? null, readAt: nowSec * 1000, lapsed: false, ...over });
-const meter = (q: QuotaData | null | undefined, nowSec = NOW, over: Partial<CachedQuota> = {}) =>
-  usageMeter(cachedOf(q, nowSec, over), nowSec * 1000);
-const draw = (q: QuotaData | null, nowSec = NOW, over: Partial<CachedQuota> = {}) =>
+const heldOf = (q: QuotaData | null | undefined, nowSec: number, over: Partial<MeterQuota> = {}): MeterQuota =>
+  ({ reading: q ?? null, readAt: nowSec * 1000, failed: false, ...over });
+const meter = (q: QuotaData | null | undefined, nowSec = NOW, over: Partial<MeterQuota> = {}) =>
+  usageMeter(heldOf(q, nowSec, over), nowSec * 1000);
+const draw = (q: QuotaData | null, nowSec = NOW, over: Partial<MeterQuota> = {}) =>
   renderToStaticMarkup(createElement(RailUsage, { meter: meter(q, nowSec, over), onPress: () => {} }));
 
 describe("Rail / Usage box (22:831)", () => {
@@ -114,33 +114,34 @@ describe("Rail / Usage box (22:831)", () => {
   });
 });
 
-describe("one fill, never amber", () => {
-  it("draws ONE fill whose width is the percent, in the colour the panel's bar wears at a normal reading", () => {
+describe("one fill, in the Usage panel bar's data colours", () => {
+  it("draws ONE fill whose width is the percent, in --accent at a normal reading", () => {
     const html = draw(reading({ session5hPct: 62 }));
     expect(html.match(/sl-usage-fill/g)).toHaveLength(1);
-    expect(html).toContain('style="width:62%"');
-    expect(decl(".session-list .sl-usage-fill", "background")).toBe("var(--accent)");
-    // QuotaBar's own normal colour (below its 70% and 90% steps) is --accent.
-    expect(code("../components/QuotaBar.tsx")).toMatch(/capped >= 70 \? "var\(--warn\)" : "var\(--accent\)"/);
+    expect(html).toContain('style="width:62%;background:var(--accent)"');
     // None of the five Figma segment colours: they have no data behind them.
     expect(rail).not.toMatch(/--usage-(?:cyan|indigo|lime|pink|orange)/);
   });
 
-  it("keeps the normal fill at 95% and at 100%, where QuotaBar turns it warn and err", () => {
-    for (const pct of [70, 90, 95, 100]) {
-      const html = draw(reading({ session5hPct: pct }));
-      expect(html).toContain(`style="width:${pct}%"`);
-      expect(html).not.toMatch(/warn|err|danger|amber/);
-    }
+  it("wears the colour QuotaBar's own bar wears for the same reading: --accent, --warn from 70, --err from 90", () => {
+    const colour = (pct: number) => draw(reading({ session5hPct: pct })).match(/background:(var\(--[a-z]+\))/)?.[1];
+    expect(colour(69)).toBe("var(--accent)");
+    expect(colour(70)).toBe("var(--warn)");
+    expect(colour(89)).toBe("var(--warn)");
+    expect(colour(90)).toBe("var(--err)");
+    expect(colour(100)).toBe("var(--err)");
+    // One source for both: the bar calls the same function, no colour of its own here.
+    expect(code("../components/QuotaBar.tsx")).toContain("quotaLevelColor(capped, isErr)");
+    expect(code("../components/QuotaBar.tsx")).toMatch(/capped >= 70 \? "var\(--warn\)" : "var\(--accent\)"/);
+    expect(code("../rail-usage.ts")).toContain("quotaLevelColor(capped)");
+    // No hex, no new token in the rule the meter adds.
     const css = rail.slice(rail.indexOf(".session-list .sl-usage {"), rail.indexOf("The phone keeps the drawer"));
-    expect(css.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/--warn|--err|amber|#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
-    const model = code("../rail-usage.ts") + code("../components/RailParts.tsx");
-    expect(model).not.toMatch(/limitReached|var\(--warn\)|var\(--err\)/);
+    expect(css.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/--warn|--err|--accent|#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
   });
 
   it("caps the width at 0 to 100", () => {
-    expect(draw(reading({ session5hPct: 140 }))).toContain('style="width:100%"');
-    expect(draw(reading({ session5hPct: -5 }))).toContain('style="width:0%"');
+    expect(draw(reading({ session5hPct: 140 }))).toContain("width:100%");
+    expect(draw(reading({ session5hPct: -5 }))).toContain("width:0%");
     expect(meter(reading({ session5hPct: 140 }))?.pctText).toBe("100%");
   });
 
@@ -211,27 +212,54 @@ describe("what it says, and when it says nothing", () => {
     expect(draw(reading({ planLabel: undefined }))).not.toContain("sl-usage-name");
   });
 
+  it("labels the meter with the active account's alias, else with its plan", () => {
+    expect(usageMeter(heldOf(reading(), NOW), NOW * 1000, "Home")?.name).toBe("Home");
+    expect(usageMeter(heldOf(reading(), NOW), NOW * 1000, "Home")?.spoken).toBe("Usage: Home, 5-hour limit 62%, resets in 2h 9m, 7-day 31%");
+    for (const none of [null, "", "   "]) expect(usageMeter(heldOf(reading(), NOW), NOW * 1000, none)?.name, JSON.stringify(none)).toBe("Max 20x");
+    expect(usageMeter(heldOf(reading(), NOW), NOW * 1000)?.name).toBe("Max 20x");
+    expect(usageMeter(heldOf(reading({ planLabel: null }), NOW), NOW * 1000, "Home")?.name).toBe("Home");
+    expect(usageMeter(heldOf(reading({ planLabel: null }), NOW), NOW * 1000, null)?.name).toBeNull();
+    const html = renderToStaticMarkup(createElement(RailUsage, { meter: usageMeter(heldOf(reading(), NOW), NOW * 1000, "Home"), onPress: () => {} }));
+    expect(html).toContain('<span class="sl-usage-name" title="Home">Home</span>');
+  });
+
+  it("ends a long alias in an ellipsis and carries the whole name in a title", () => {
+    const long = "A very long account alias that cannot fit the rail";
+    const html = renderToStaticMarkup(createElement(RailUsage, { meter: usageMeter(heldOf(reading(), NOW), NOW * 1000, long), onPress: () => {} }));
+    expect(html).toContain(`title="${long}"`);
+    expect(decl(".session-list .sl-usage-name", "overflow")).toBe("hidden");
+    expect(decl(".session-list .sl-usage-name", "text-overflow")).toBe("ellipsis");
+    expect(decl(".session-list .sl-usage-name", "white-space")).toBe("nowrap");
+  });
+
+  it("takes the alias from the roster the page already holds: no request of its own", () => {
+    const app = code("../App.tsx");
+    expect(app).toContain("activeAlias={attention.accounts?.find(a => a.active)?.alias ?? null}");
+    expect(code("../use-account-attention.ts")).toMatch(/return \{\s*rows,\s*accounts,/);
+    expect(code("../rail-usage.ts")).not.toMatch(/fetch\(/);
+  });
+
   it("does not print a week whose reset has passed", () => {
     expect(meter(reading({ week7dResetAt: NOW - 5 }))?.week).toBeNull();
   });
 });
 
 describe("where the reading comes from, and what the button does", () => {
-  it("causes no quota read of its own: App.tsx only looks (useCachedQuota), the Usage panel keeps its own useQuota, the rail never fetches", () => {
+  it("reads through useMeterQuota only (the plain poll, held once in App.tsx); the Usage panel keeps its own useQuota; the rail never fetches", () => {
     const app = code("../App.tsx");
     expect(app).not.toMatch(/\buseQuota\(/);
     expect(app).not.toMatch(/import \{[^}]*\buseQuota\b/);
-    expect(app.match(/useCachedQuota\(/g)).toHaveLength(1);
-    expect(app).toContain("useCachedQuota(providers.claude)");
-    expect(app).toMatch(/quota=\{cachedQuota\}/);
+    expect(app.match(/useMeterQuota\(/g)).toHaveLength(1);
+    expect(app).toContain("useMeterQuota(providers.claude)");
+    expect(app).toMatch(/quota=\{meterQuota\}/);
     expect(app).not.toMatch(/claudeQuota/);
-    // The poll is the panel's again, where it only runs while the panel is open.
+    // The panel polls (and forces a read on open) for itself, as before.
     expect(code("../components/UsagePanel.tsx")).toContain("useQuota(providers.claude)");
     expect(code("../components/UsagePanel.tsx")).not.toMatch(/claudeQuota/);
     for (const f of ["../components/SessionList.tsx", "../components/RailParts.tsx", "../rail-usage.ts"]) {
-      expect(code(f), f).not.toMatch(/\bfetch\(|setInterval|useQuota\(|useCachedQuota\(|import \{[^}]*useQuota/);
+      expect(code(f), f).not.toMatch(/\bfetch\(|setInterval|useQuota\(|useMeterQuota\(|import \{[^}]*useQuota/);
     }
-    expect(code("../rail-usage.ts")).toContain('import type { CachedQuota } from "./use-quota"');
+    expect(code("../rail-usage.ts")).toContain('import type { MeterQuota } from "./use-quota"');
   });
 
   it("presses the Usage stripe door's own toggle, so an open panel closes", () => {
@@ -275,9 +303,9 @@ describe("a reading the deck has not taken lately is drawn quiet and says so", (
     expect(meter(reading(), NOW, { readAt: readAgo(12) })?.stale).toBe(true);
   });
 
-  it("is stale when a window has reset since the reading, however recent", () => {
-    expect(meter(reading(), NOW, { readAt: readAgo(1), lapsed: true })?.stale).toBe(true);
-    expect(meter(reading(), NOW, { readAt: readAgo(1), lapsed: false })?.stale).toBe(false);
+  it("is stale when the latest read failed, however recent the reading", () => {
+    expect(meter(reading(), NOW, { readAt: readAgo(1), failed: true })?.stale).toBe(true);
+    expect(meter(reading(), NOW, { readAt: readAgo(1), failed: false })?.stale).toBe(false);
   });
 
   it("draws the fill and the percent in the accent when fresh, in --muted when stale, on the same markup otherwise", () => {
@@ -285,12 +313,15 @@ describe("a reading the deck has not taken lately is drawn quiet and says so", (
     const stale = draw(reading(), NOW, { readAt: readAgo(12) });
     expect(fresh).not.toContain("data-stale");
     expect(stale).toContain('data-stale="true"');
-    expect(decl(".session-list .sl-usage-fill", "background")).toBe("var(--accent)");
-    expect(decl(".session-list .sl-usage-btn[data-stale] .sl-usage-fill", "background")).toBe("var(--muted)");
+    expect(fresh).toContain("width:62%;background:var(--accent)");
+    expect(stale).toContain("width:62%;background:var(--muted)");
+    // A stale reading goes quiet even where it would be --warn or --err when fresh.
+    expect(draw(reading({ session5hPct: 95 }), NOW, { readAt: readAgo(12) })).toContain("background:var(--muted)");
+    expect(draw(reading({ session5hPct: 95 }), NOW, { failed: true })).toContain("background:var(--muted)");
     expect(decl(".session-list .sl-usage-btn[data-stale] .sl-usage-pct", "color")).toBe("var(--muted)");
     // The same one fill, the same width: only its colour changes.
     expect(stale.match(/sl-usage-fill/g)).toHaveLength(1);
-    expect(stale).toContain('style="width:62%"');
+    expect(stale).toContain("width:62%");
   });
 
   it("says when it was read on line 2, with the deck's short clock, and in the spoken name", () => {
@@ -303,9 +334,9 @@ describe("a reading the deck has not taken lately is drawn quiet and says so", (
     expect(meter(reading(), NOW, { readAt: readAgo(75) })?.readAgo).toBe("read 1h 15m ago");
   });
 
-  it("names a lapsed but recent reading in whole minutes too", () => {
-    expect(meter(reading({ week7dResetAt: NOW - 5 }), NOW, { readAt: readAgo(0), lapsed: true })?.spoken).toMatch(/last read less than a minute ago$/);
-    expect(meter(reading(), NOW, { readAt: readAgo(1), lapsed: true })?.spoken).toMatch(/last read 1 minute ago$/);
+  it("names a failed-read but recent reading in whole minutes too", () => {
+    expect(meter(reading({ week7dResetAt: NOW - 5 }), NOW, { readAt: readAgo(0), failed: true })?.spoken).toMatch(/last read less than a minute ago$/);
+    expect(meter(reading(), NOW, { readAt: readAgo(1), failed: true })?.spoken).toMatch(/last read 1 minute ago$/);
   });
 
   it("says nothing of age on a fresh meter", () => {
@@ -317,9 +348,9 @@ describe("a reading the deck has not taken lately is drawn quiet and says so", (
 
   it("still draws nothing without a reading or on a failed one, however it is aged", () => {
     expect(draw(null, NOW, { readAt: readAgo(30) })).toBe("");
-    expect(draw(reading({ ok: false }), NOW, { readAt: readAgo(30), lapsed: true })).toBe("");
+    expect(draw(reading({ ok: false }), NOW, { readAt: readAgo(30), failed: true })).toBe("");
     expect(usageMeter(null, NOW * 1000)).toBeNull();
-    expect(usageMeter({ reading: null, readAt: 0, lapsed: false }, NOW * 1000)).toBeNull();
+    expect(usageMeter({ reading: null, readAt: 0, failed: false }, NOW * 1000)).toBeNull();
   });
 
   it("uses tokens only for the quiet colours", () => {

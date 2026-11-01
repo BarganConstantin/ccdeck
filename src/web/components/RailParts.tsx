@@ -139,11 +139,11 @@ export function RailUsage({ meter, onPress }: { meter: UsageMeter | null; onPres
     <div className="sl-usage">
       <button type="button" className="sl-usage-btn" onClick={onPress} data-stale={meter.stale || undefined} aria-label={meter.spoken}>
         <span className="sl-usage-line1" aria-hidden>
-          {meter.name && <span className="sl-usage-name">{meter.name}</span>}
+          {meter.name && <span className="sl-usage-name" title={meter.name}>{meter.name}</span>}
           <span className="sl-usage-what">5-hour limit</span>
           <span className="sl-usage-pct">{meter.pctText}</span>
         </span>
-        <span className="sl-usage-bar" aria-hidden><span className="sl-usage-fill" style={{ width: `${meter.fill}%` }} /></span>
+        <span className="sl-usage-bar" aria-hidden><span className="sl-usage-fill" style={{ width: `${meter.fill}%`, background: meter.color }} /></span>
         {line2.length > 0 && (
           <span className="sl-usage-line2" aria-hidden>
             {line2.map((part, i) => <span key={i}>{part}</span>)}

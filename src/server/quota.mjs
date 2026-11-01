@@ -83,7 +83,6 @@ let _cacheAt  = 0;
 let _inflight = null;   // deduplicates concurrent CLI probes
 let _lastGood = null;   // last result that had real quota percentages
 let _lastGoodFor = null; // whose it is — see readFor()
-let _lastGoodAt = 0;     // when it was published, for peekClaudeQuota
 let _lastSelfPollAt = 0;
 // Which account the readings below are about — as a counter, because the
 // account's identity is not something this module holds. invalidateQuotaCache
@@ -259,7 +258,7 @@ function publish(gen, result, at, { good = false, who = null } = {}) {
   _cacheAt = at;
   if (good) {
     noteQuotaHistory("claude", who?.account, result);
-    _lastGood = result; _lastGoodFor = who; _lastGoodAt = at;
+    _lastGood = result; _lastGoodFor = who;
   }
   return result;
 }
@@ -458,7 +457,7 @@ async function _doFetch(now, force = false, gen = _generation) {
   // the question is new, and it can be asked at most once per reading held.
   const who = await readFor(store);
   const switched = _lastGood != null && switchedSince(_lastGoodFor, who);
-  if (switched) { _lastGood = null; _lastGoodFor = null; _lastGoodAt = 0; forgetQuotaHistoryAccount("claude"); }
+  if (switched) { _lastGood = null; _lastGoodFor = null; forgetQuotaHistoryAccount("claude"); }
 
   if (store && now - store.fetchedAt <= STORE_TRUSTED_MS) {
     // Keep the store moving even when the accounts panel is closed. Without
@@ -561,36 +560,6 @@ async function _doFetch(now, force = false, gen = _generation) {
 }
 
 /**
- * What this module already holds, and nothing it would have to go and get.
- *
- * The rail's usage meter is drawn while the Usage panel is shut, and a poll that
- * ran for its sake would be a read nobody asked for: an OAuth usage request or a
- * `claude --print /usage` run against the budget claude-swap shares. So it
- * asks here instead. Nothing below touches a source, `_inflight`, the self-poll
- * floor or any of the caches — not even to expire the minute `_cache` is good
- * for: an old reading is handed back WITH its age and the meter says so,
- * rather than being hidden or re-taken.
- *
- * The result cache first, then the last good reading, because the cache is
- * overwritten by the "waiting" and failure answers (shortLived) that have no
- * numbers to draw. `at` is when the numbers were collected — the reading's own
- * fetchedAt, which a claude-swap row keeps from before the deck published it —
- * and falls back to when this module stored it.
- *
- * Whose reading it is is not checked here: that needs credentialFingerprint(),
- * an await on a credentials read, and this has to stay synchronous and free.
- * invalidateQuotaCache() empties both halves on every switch the deck makes, so
- * that is covered; a switch made in a terminal is caught by the next real read.
- */
-export function peekClaudeQuota(now = Date.now()) {
-  const numbers = (r) => r?.ok === true && typeof r.session5hPct === "number";
-  const [reading, held] = numbers(_cache) ? [_cache, _cacheAt] : numbers(_lastGood) ? [_lastGood, _lastGoodAt] : [null, 0];
-  if (!reading) return { reading: null, at: 0, lapsed: false };
-  const at = Number.isFinite(reading.fetchedAt) ? reading.fetchedAt : held;
-  return { reading, at, lapsed: readingLapsed(reading, now) };
-}
-
-/**
  * Forget every reading held for the account that was active when it was taken.
  *
  * `?refresh=1` is the browser asking for a fresher read; this is the server
@@ -637,7 +606,6 @@ export function invalidateQuotaCache() {
   _cacheAt = 0;
   _lastGood = null;
   _lastGoodFor = null;
-  _lastGoodAt = 0;
   _generation++;
   _inflight = null;
   // Forgotten with the rest, because it is about the account the deck just

@@ -30,7 +30,7 @@ import { runningTool } from "../rail-row-copy";
 import { PauseGlyph } from "./rail-glyphs";
 import { CloseGlyph, FoldBody, GroupHead, MoreLine, RailGlyph, RailRow, RailUsage, type FoldMode } from "./RailParts";
 import { usageMeter } from "../rail-usage";
-import type { CachedQuota } from "../use-quota";
+import type { MeterQuota } from "../use-quota";
 
 export interface Row {
   sessionId: string;
@@ -216,9 +216,12 @@ interface Props {
   /** The sessions you are looking at: selected, or open on the stage. Their
    *  finished turns count as seen in the rows themselves. */
   watching?: ReadonlySet<string>;
-  /** What the server last read of Claude's quota (useCachedQuota, held in
-   *  App.tsx), with when. The rail never fetches it and never asks for a read. */
-  quota?: CachedQuota;
+  /** Claude's 5-hour reading with when it was read (useMeterQuota, held in
+   *  App.tsx). The rail itself never fetches. */
+  quota?: MeterQuota;
+  /** The active Claude account's alias from the roster the page already holds,
+   *  or null: the meter's label, else the plan's. */
+  activeAlias?: string | null;
   /** What the usage meter does: the Usage stripe door's own toggle. Without it
    *  the meter is not drawn. */
   onOpenUsage?: () => void;
@@ -228,7 +231,7 @@ interface Props {
 interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
-export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, quota, onOpenUsage }: Props) {
+export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, quota, activeAlias = null, onOpenUsage }: Props) {
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
   // the reducer mutates it in place, so identity never moves and the rest of the
@@ -477,9 +480,9 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
         );
       })()}
       {/* The foot of the rail, below the list that scrolls: the Usage panel's
-          5-hour reading as the server last read it, aged against the board's
+          5-hour reading as the page last read it, aged against the board's
           clock. No reading, nothing drawn. */}
-      {onOpenUsage && <RailUsage meter={usageMeter(quota, now)} onPress={onOpenUsage} />}
+      {onOpenUsage && <RailUsage meter={usageMeter(quota, now, activeAlias)} onPress={onOpenUsage} />}
     </aside>
   );
 }
