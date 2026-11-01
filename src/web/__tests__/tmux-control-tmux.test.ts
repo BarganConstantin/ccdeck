@@ -357,6 +357,20 @@ describe("against a real tmux", () => {
     m.touch();
     await c.input("q");
     await waitFor(() => !onAlt("alt"), "the program to leave");
+    // alternate_on drops at the program's ?1049l, before it has exited and sh
+    // has drawn its prompt; a quiet settle started there can end before the
+    // prompt is written, and the comparison then races it. Wait for tmux to
+    // show the new prompt on the cursor's row, then settle as before. The row
+    // is blank until the shell writes there (?1049l put the cursor back on the
+    // empty line below the command), so anything on it is the prompt — whatever
+    // the platform's sh draws for one: macOS's never matched a literal "$".
+    let seen = "";
+    await waitFor(() => {
+      const cy = Number(tm("display-message", "-p", "-t", "alt", "#{cursor_y}").trim());
+      const row = tm("capture-pane", "-p", "-t", "alt").split("\n")[cy]?.trimEnd() ?? "";
+      seen = `row ${cy} ${JSON.stringify(row)}`;
+      return row !== "";
+    }, "the shell's prompt").catch((e: Error) => { throw new Error(`${e.message}; tmux's cursor: ${seen}`); });
     await m.settle();
     expect(await differences(m.term, "alt"), "back on the shell, prompt where tmux puts it").toEqual([]);
     expect(m.term.modes.mouseTrackingMode, "and the program's own exit turned the mouse off again").toBe("none");
