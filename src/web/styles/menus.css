@@ -665,7 +665,7 @@
   transition: border-color var(--dur-fast), background-color var(--dur-base) var(--ease);
 }
 /* The knob leans the way it is about to go, like a held finger, then the back
-   catches up (motion.md, Switch): a press on the pointer stretches it to 18px
+   catches up (V4's motion rules, Switch): a press on the pointer stretches it to 18px
    in Fast, and the release carries it across in Base while it narrows again.
    The track itself no longer scales. */
 .switch-knob {

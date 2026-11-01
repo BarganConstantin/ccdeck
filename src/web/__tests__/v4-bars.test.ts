@@ -1,4 +1,4 @@
-// V4's top bar and Panel bar (its Figma Shell: Top bar 22:983, Panel bar 22:881,
+// V4's top bar and Panel bar (its Figma Shell: Top bar, Panel bar,
 // and the chips on them). Phase 1 moves nothing: every control stays on the bar
 // or stripe it is on, so this file pins only how they LOOK: the fills, the
 // boxes, the type, the borders by state, the rule between two groups, an open

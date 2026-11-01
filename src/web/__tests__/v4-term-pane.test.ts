@@ -138,7 +138,7 @@ describe("the Term header: one row", () => {
     expect(decl(rule(stage, ".ts-meta-rest"), "overflow")).toBe("hidden");
     // The words are the face's: the state part, then "· Bash · npm test …".
     const out = html(createElement(StageHeader, headerProps()));
-    // CHANGED ON PURPOSE: Figma V4 (22:13272) draws "waiting 6m" in one regular
+    // CHANGED ON PURPOSE: V4's Figma draws "waiting 6m" in one regular
     // weight, so the minutes are no longer in a <b>.
     expect(out).toContain('<span class="ts-meta-state">waiting 6m</span>');
     expect(out).not.toContain("<b>");
@@ -188,8 +188,8 @@ describe("the Term header: one row", () => {
 });
 
 describe("the context chip", () => {
-  // CHANGED ON PURPOSE (the whole block): the chip is drawn now (owner answer
-  // 17, Figma 22:13272). It used to be pinned as not drawn, because nothing
+  // CHANGED ON PURPOSE (the whole block): the chip is drawn now (V4's
+  // Figma). It used to be pinned as not drawn, because nothing
   // handed the stage a figure; the tests below prove one is handed, from the
   // same place the Inspector's Context tab reads it.
   it("says the figure at the row's end, before the controls, with a 4px bar of the same percent", () => {
@@ -263,7 +263,7 @@ describe("the reconnect sentence", () => {
     expect(status).toMatchObject({ phrase: "reconnecting…", arg: "Nothing typed now is sent." });
     expect(metaRest(status)).toBe("Nothing typed now is sent.");
     expect(html(createElement(StageHeader, headerProps({ status })))).toContain('<span class="ts-meta-rest">· Nothing typed now is sent.</span>');
-    // Figma's card (91:459) is noted, not built: the last frame stays.
+    // V4's Figma card is noted, not built: the last frame stays.
     expect(html(createElement(StateCard, bodyProps({ kind: "attaching", reconnect: true })))).toBe("");
     expect(headerStatus(null, { kind: "attaching", reconnect: false })).toEqual({ state: "attaching", phrase: "attaching…" });
   });
@@ -347,7 +347,7 @@ describe("the state cards: centred in the pane", () => {
     expect(out).not.toMatch(/spin|loader/i);
     // A reconnect keeps the frozen frame; the keys bar says nothing typed is sent.
     expect(html(createElement(StateCard, bodyProps({ kind: "attaching", reconnect: true })))).toBe("");
-    // CHANGED ON PURPOSE: the sentence is Figma V4's (91:554, owner answer 18).
+    // CHANGED ON PURPOSE: the sentence is V4's Figma.
     expect(html(createElement(KeysBar, barProps({ owner: "pane", reconnecting: true })))).toContain("Nothing typed now is sent.");
   });
 
@@ -394,7 +394,7 @@ describe("the keys bar", () => {
     expect(decl(bar, "font-size")).toBe("12px");
     expect(decl(bar, "line-height")).toBe("16px");
     expect(decl(bar, "color")).toBe("var(--muted)");
-    // CHANGED ON PURPOSE: the name is no longer set apart (Figma 91:545 draws
+    // CHANGED ON PURPOSE: the name is no longer set apart (V4's Figma draws
     // "Typing into web-api" whole in --text); the label's colour says who has the keys.
     expect(stage).not.toContain(".ts-who");
     expect(decl(rule(stage, ".ts-label"), "color")).toBe("var(--text-secondary)");
@@ -410,7 +410,7 @@ describe("the keys bar", () => {
 
   it("holds its keys in the kit's Kbd as it is, and the chord by its label", () => {
     const board = html(createElement(KeysBar, barProps()));
-    // CHANGED ON PURPOSE: one key cap "j k" (Figma 91:536), not two.
+    // CHANGED ON PURPOSE: one key cap "j k" (V4's Figma), not two.
     expect(board).toContain('<kbd class="kbd">j k</kbd> sessions');
     expect(board).toContain('<kbd class="kbd" aria-hidden="true">↵</kbd><span class="kbd-spoken">Enter</span>');
     expect(board).toContain('<kbd class="kbd">n</kbd> next ask');
@@ -427,7 +427,7 @@ describe("the keys bar", () => {
   });
 
   it("leads no bar with a glyph: the label says who has the keys", () => {
-    // CHANGED ON PURPOSE: Figma V4 (91:536, 91:545) draws no leading glyph; the
+    // CHANGED ON PURPOSE: V4's Figma draws no leading glyph; the
     // pane's label is --text and the board's --text-secondary instead.
     const pane = html(createElement(KeysBar, barProps({ owner: "pane" })));
     expect(pane).toMatch(/data-owner="pane"><span class="ts-label" data-strong="true">Typing into web-api<\/span>/);
@@ -471,7 +471,7 @@ describe("the keys bar", () => {
 
   it("runs the asks in the same type, behaviour as it was", () => {
     const out = html(createElement(KeysBar, barProps({ asks: { position: { index: 1, total: 3 } } })));
-    // CHANGED ON PURPOSE (this block, Figma Keys bar 91:590, 91:600, 91:609):
+    // CHANGED ON PURPOSE (this block, V4's Figma keys bar):
     // "Asks" --muted then "2 of 3" --text-secondary with no segment track;
     // the Done glyph and --text-secondary text instead of "✓" in --ok; and
     // Next ask as plain --muted text, with no bold wait and no chevron.
@@ -501,7 +501,7 @@ describe("the keys bar", () => {
   });
 
   it("ends the end and notice bars without a square mark, in one forced-colours block", () => {
-    // CHANGED ON PURPOSE: Figma V4 draws the sentence alone (91:559, 91:564, 91:569).
+    // CHANGED ON PURPOSE: Figma V4 draws the sentence alone.
     expect(stage).not.toContain("ts-end-mark");
     expect(touch).not.toContain("ts-end-mark");
     expect(html(createElement(KeysBar, barProps({ notice: "That paste is over 1 MB." })))).toContain('<span class="ts-end">That paste is over 1 MB.</span>');
@@ -616,8 +616,8 @@ describe("the morph's motion", () => {
   });
 
   it("crossfades under reduced motion over the house Fast duration, with no travel", () => {
-    // CHANGED ON PURPOSE: this pinned duration 0 (an instant cut). Figma 91:675
-    // and owner answer 19 say "Crossfade, no travel", and motion.md rule 10
+    // CHANGED ON PURPOSE: this pinned duration 0 (an instant cut). V4's Figma
+    // and V4's motion rules say "Crossfade, no travel", and
     // "Travel goes, fades stay", over --dur-fast.
     const src = withoutComments(read("components/terminal/StageShell.tsx"));
     expect(src).toContain('reduced ? tokenMs("--dur-fast") : dir === "open" ? FLIP_OPEN_MS : FLIP_CLOSE_MS');

@@ -225,7 +225,7 @@ const TreeItem = memo(function TreeItem({ row, current, onSelectAgent }: { row: 
   && a.current === b.current && a.onSelectAgent === b.onSelectAgent);
 
 function ContextTab({ agent }: { agent: AgentNodeData }) {
-  // Whole k and a whole percent (owner answer 17), the Term header chip's figure.
+  // Whole k and a whole percent (V4's Figma), the Term header chip's figure.
   const { used, limit } = contextFill(agent);
   return (
     <>

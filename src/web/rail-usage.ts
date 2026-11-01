@@ -1,4 +1,4 @@
-// What the rail's usage meter (Figma Rail / Usage, 22:831) says, from the Claude
+// What the rail's usage meter (V4's Figma Rail / Usage) says, from the Claude
 // quota reading the page holds. Pure: RailParts.tsx lays it out and the rules
 // for when there is nothing to say are here.
 //

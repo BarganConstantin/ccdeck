@@ -102,7 +102,7 @@
    the air back on both sides at once and it sits as close to its word as the
    others do. */
 .rail-btn .glyph-narrow { margin-inline: -2px; }
-/* Open is V4's --selected fill, at once (docs/design-v4/motion.md: "A selected
+/* Open is V4's --selected fill, at once (V4's motion rules: "A selected
    Panel bar door goes selected at once"), and a step past hover, not the same
    fill. V4's hover wash, --ctl-fill, is the foreground at 8%, and --selected
    is the foreground at 8% over --panel, the stripe's own colour: over the
@@ -231,7 +231,7 @@
    puts the 6px dot on its top right corner. */
 .rail-btn-stripe .rail-dot { top: 4px; right: 4px; }
 
-/* V4's top bar, right group (Figma 22:966): Search is a 264x28 field (--bg-soft
+/* V4's top bar, right group (V4's Figma): Search is a 264x28 field (--bg-soft
    fill, --line-soft edge, --r-panel corner, 8 in, 4 at the Kbd's end, 8
    between) holding a 14px glyph, the sentence in --muted at 12/16 and the
    chord's Kbd. Same button as before. Feedback keeps its word (#1853). */

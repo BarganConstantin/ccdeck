@@ -1,4 +1,4 @@
-// V4 Phase 2, PR 1: the status bar (its Figma Shell / Status bar 27:7169) and
+// V4 Phase 2, PR 1: the status bar (its Figma Shell / Status bar) and
 // the keys that arrived with it, N, Shift+N and P.
 //
 // The acceptance in one sentence: the status bar names only keys that work.

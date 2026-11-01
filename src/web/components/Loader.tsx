@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 
-/* V4's Work / Loader (kit 143:1174): a grid of pixels that breathes in a
+/* V4's Work / Loader (V4's Figma kit): a grid of pixels that breathes in a
    diagonal wave. Use it where the app is waiting on data and has only words to
    say so, beside those words (they carry the role="status"). Never use it for
    an agent working: that is the Working ring, and the two are not swapped. */

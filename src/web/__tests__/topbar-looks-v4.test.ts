@@ -1,4 +1,4 @@
-// V4's top bar, three looks (Figma 22:952, 84:678, 22:966): the waiting chip
+// V4's top bar, three looks (V4's Figma): the waiting chip
 // draws the rail's Waiting glyph and no pulsing dot; the newer-version chip
 // reads "{to} is ready"; the right group is a search field with its sentence
 // and chord. Feedback keeps its word (#1853), though Figma draws a bare icon.

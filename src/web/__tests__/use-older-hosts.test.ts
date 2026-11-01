@@ -48,7 +48,7 @@ describe("the older hosts on the stage", () => {
     const s = run(props);
     await flush();
     // CHANGED ON PURPOSE (here and twice below): the line is Figma V4's "{n}
-    // sessions on an older host" (Keys bar 91:617), not "still runs on an older
+    // sessions on an older host" (V4's Figma), not "still runs on an older
     // session host."
     expect([s.h.line, s.h.canReview]).toEqual(["1 session on an older host", true]);
     s.m.rerender({ ...props, subject: "launch:k-1" });

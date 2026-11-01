@@ -1,4 +1,4 @@
-// V4's board header (its Figma Board › bhead 22:14910): the strip across the top
+// V4's board header (its Figma Board › bhead): the strip across the top
 // of the canvas cell with five figures. The CSS is read the way v4-bars.test.ts
 // reads it; the figures are driven through the pure module with made-up agents,
 // so no DOM is needed. Tokens only: no hex or rgba in the new sheet.

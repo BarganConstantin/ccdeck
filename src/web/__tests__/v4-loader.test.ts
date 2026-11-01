@@ -1,4 +1,4 @@
-// V4's Loader (its Figma kit, Work / Loader 143:1174): nine pixels and a soft
+// V4's Loader (its Figma kit, Work / Loader): nine pixels and a soft
 // wave, corner to corner, for the app waiting on data. S is 3 x 3 in a 14px
 // slot, M is 5 x 5 in 24; a 3px pixel, radius 1, gap 2. One pass is 1200ms (2400
 // when it waits on a person), each diagonal starts an eighth of a pass later

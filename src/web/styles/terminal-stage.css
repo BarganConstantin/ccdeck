@@ -387,7 +387,7 @@
 .ts-label { color: var(--text-secondary); }
 .ts-label[data-strong] { color: var(--text); }
 /* A pane that cannot take keys until it is back: the whole sentence is the
-   warning's colour (Figma 91:554). */
+   warning's colour (V4's Figma). */
 .ts-reconnecting { color: var(--warn); }
 /* A key and its word, 4px apart; no mark between one hint and the next. */
 .ts-hint { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }

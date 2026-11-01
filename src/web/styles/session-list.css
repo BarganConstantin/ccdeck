@@ -1,6 +1,6 @@
 /* ---------------- the attention rail ---------------- */
 
-/* V4's Board window rail (Figma Sessions, 22:14927): the left column's session
+/* V4's Board window rail (V4's Figma, Sessions): the left column's session
    list, grouped by what each session wants of you. Its width is --rail-w at the
    density in force, 264 at Compact and below and 288 at Default and
    Comfortable; use-left-column.ts reads the same token for the column.
@@ -24,7 +24,7 @@
   font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 600;
 }
-/* Rail / Header (22:735): 36 tall at Compact, the count beside the title on a
+/* Rail / Header: 36 tall at Compact, the count beside the title on a
    shared baseline, the close button at the end. No fill. */
 .session-list .sl-header {
   flex: none;
@@ -257,7 +257,7 @@
 .session-list .sl-tool { font-weight: 500; color: var(--text-secondary); }
 
 /* ── groups ───────────────────────────────────────────────────────────────── */
-/* Rail / Group header (22:725): --row-group tall, label and count at the two
+/* Rail / Group header: --row-group tall, label and count at the two
    ends, 8px of space between one group and the one before. */
 .session-list .sl-group-head {
   display: flex;
@@ -393,7 +393,7 @@
 }
 .session-list .sl-nobody .sl-glyph { height: 14px; padding-top: 0; }
 
-/* Rail / Usage (22:831): the foot of the rail, below the list that scrolls and
+/* Rail / Usage: the foot of the rail, below the list that scrolls and
    the removed cards' line. Padding 4 round the box, like the list's. The box is
    one button: a column of the account and the 5-hour limit, the bar, and the
    reset, padding 8 12. Figma's radius is 9, which the kit has no step for; it

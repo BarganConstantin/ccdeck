@@ -33,7 +33,7 @@ export function tokenMs(name: string): number {
 }
 
 /** The delay a leaving row waits before its space closes, with the fade it
- *  waits for: 100ms of card 124:670. */
+ *  waits for: 100ms (V4's motion rules). */
 export const LEAVE_SPACE_DELAY_MS = 100;
 
 /** How long a row that has left stays drawn, inert, before it goes: the fade,
@@ -173,7 +173,7 @@ export function useRailFlip(listRef: RefObject<HTMLElement | null>, signature: s
 }
 
 /** A row that is really new opens its space and fades in; one that is really
- *  gone fades, then its space closes after 100ms (card 124:670). Driven from
+ *  gone fades, then its space closes after 100ms. Driven from
  *  here, by id, and not by the sheet's @starting-style: moving an element in
  *  the DOM (into a fold, out of a ghost) drops its style and would play the
  *  arrival again on top of the FLIP. `ids` are the rows the model holds now,

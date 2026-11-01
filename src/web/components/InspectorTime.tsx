@@ -1,4 +1,4 @@
-// The Inspector's Time tab (Figma 22:15467): where the session's turn went, in
+// The Inspector's Time tab (V4's Figma): where the session's turn went, in
 // the three lanes Tool activity shows, and the calls the turn was made of.
 //
 // The lanes come from the server (inspector-time.ts), the spans from the calls

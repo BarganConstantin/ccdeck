@@ -1,4 +1,4 @@
-// V4's agent card (its Figma kit, Agent / Card 58:918), the detail face only:
+// V4's agent card (its Figma kit, Agent / Card), the detail face only:
 // 256 wide on --panel; a head of who (the name, then the model as plain mono
 // text) and the state (the face's mark and a sentence-case word); one task
 // line; a mono foot of cost · time … and the sub-agent count. Everything else

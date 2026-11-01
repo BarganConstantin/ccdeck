@@ -41,8 +41,8 @@ import {
 import type { ToolActivityView } from "./components/ToolAuditModal";
 import { t, type TFunction } from "./i18n";
 
-/** What the top bar's search field says before anything is typed (Figma
- *  22:979), and so its name: the words on screen are the name (WCAG 2.5.3). */
+/** What the top bar's search field says before anything is typed (V4's Figma), and so its
+ *  name: the words on screen are the name (WCAG 2.5.3). */
 export const QUICK_OPEN_PLACEHOLDER = "Open a session or run a command";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
@@ -236,7 +236,7 @@ export function railItems({
   };
   // The field every door is also behind, by name. A chord, like Settings',
   // so it answers with the single-key shortcuts off. The top bar draws it as
-  // V4's search field (Figma 22:966).
+  // V4's search field.
   const search: RailItem = {
     id: "quick-open", label: t("board.rail.search"), short: t("board.rail.search"),
     key: { cap: quickOpenChordLabel(apple), aria: apple ? "Meta+K" : "Control+K", single: false },
