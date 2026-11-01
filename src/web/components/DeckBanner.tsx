@@ -17,7 +17,7 @@ import RatingBanner, { RATING_THANKS } from "./RatingBanner";
 import VersionBanner from "./VersionBanner";
 
 export default function DeckBanner({
-  restart, versionCheck, upgrade, oldNameNotice, rating, onFeedback, everConnected, live, paused,
+  restart, versionCheck, upgrade, oldNameNotice, rating, onFeedback, everConnected, live, paused, phone = false,
 }: {
   restart: ReturnType<typeof useAutoRestart>;
   versionCheck: ReturnType<typeof useVersionCheck>;
@@ -30,6 +30,8 @@ export default function DeckBanner({
   everConnected: boolean;
   live: boolean;
   paused: boolean;
+  /** 640px and under: the dropped connection says it in the phone's words. */
+  phone?: boolean;
 }) {
   const { autoRestart, toggleAutoRestart, restarting, restartMode, restartedTo, askRestart,
           restartCopy, restartFuseMs } = restart;
@@ -47,7 +49,7 @@ export default function DeckBanner({
         <span className="ver-sub">The canvas replayed from the event log.</span>
       </div>
     ) : everConnected && !live ? (
-      <ConnectionBanner restarting={restarting} restartMode={restartMode} live={live} paused={paused} />
+      <ConnectionBanner restarting={restarting} restartMode={restartMode} live={live} paused={paused} phone={phone} />
     ) : noticeOpen && notice ? (
       <VersionBanner
         notice={notice} version={version} dismissNotice={dismissNotice}

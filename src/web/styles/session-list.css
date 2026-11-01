@@ -458,10 +458,11 @@
    line says how long ago it was read. */
 .session-list .sl-usage-btn[data-stale] .sl-usage-pct { color: var(--muted); }
 
-/* The phone keeps the drawer, and a touch target of 44 (Phase 4 redoes it). */
+/* The phone keeps the drawer, full width (left-column.css), and its rows are
+   the 62 high the phone frame draws, a touch target well over 44. */
 @media (max-width: 640px) {
   .session-list .sl-usage-btn { min-height: 44px; }
-  .session-list .sl-row { min-height: max(var(--row-rail), 44px); }
+  .session-list .sl-row { min-height: 62px; }
   .session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }
   .session-list .sl-close { min-width: 44px; min-height: 44px; }
 }

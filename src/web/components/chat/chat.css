@@ -1,0 +1,87 @@
+/* ---------------- Chat ----------------
+   The conversation of one session (components/chat/), in the Workspace pane.
+   IN A LAZY CHUNK: ChatView.tsx imports this sheet, so with the flag off the
+   deck's first stylesheet carries none of it (v4-screens-bundle.test.ts reads
+   dist/web). Tokens only, and no motion: a new line appears where it belongs. */
+
+.chat {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+.chat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 12px 20px;
+}
+/* The text column stops at 760 and centres in a wider pane (1920 and up). */
+.chat-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 760px;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+/* Since you looked: a line, the counts, a line. */
+.chat-since { display: flex; align-items: center; gap: 12px; min-height: 16px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); }
+.chat-since-line { flex: 1 1 0; height: 1px; background: var(--line-soft); }
+.chat-since-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Your message: right-aligned on its own surface, the bottom-right corner tight. */
+.chat-you { display: flex; justify-content: flex-end; }
+.chat-you-text {
+  margin: 0;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 8px 12px;
+  background: var(--your-message);
+  border-radius: var(--r-overlay) var(--r-overlay) var(--r-tag) var(--r-overlay);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 20px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+/* The assistant: text, no bubble, and a line that stops at 640. */
+.chat-said { margin: 0; max-width: 640px; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; color: var(--text); overflow-wrap: anywhere; }
+
+/* A tool call: one row, --row-tool high. */
+.chat-tool {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--row-tool);
+  padding: 0 8px;
+  border-radius: var(--r-ctl);
+  min-width: 0;
+  font: 400 12px/16px var(--font-mono);
+  color: var(--muted);
+}
+.chat-tool-chev,
+.chat-tool-mark { flex: none; display: inline-flex; color: var(--muted); }
+.chat-tool-name { flex: none; font-weight: 500; color: var(--text-secondary); }
+.chat-tool-arg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-tool-note { flex: none; margin-left: auto; padding-left: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chat-tool[data-running] .chat-tool-note { color: var(--inflight); }
+
+/* What you answered and how long it took: the spaces in it are the host's. */
+.chat-record { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); white-space: pre-wrap; }
+
+.chat-error { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--bg-soft); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--text); }
+.chat-retry { margin: 0 0 0 auto; padding: 0; background: none; border: 0; font: inherit; font-weight: 500; color: var(--accent); cursor: pointer; }
+.chat-retry:hover { text-decoration: underline; }
+
+/* With a question docked, the chat gives the dock its height. */
+.chat[data-docked] .chat-body { flex: 1 1 0; }
+
+/* In the pane: Chat fills the body and the terminal's host stays mounted, hidden
+   (the one terminal lives for the stage's whole life; terminal-stage.css). */
+.ts-body > .chat { position: absolute; inset: 0; }
+.ts-body[data-view="chat"] .ts-host { visibility: hidden; opacity: 0; animation: none; transition: none; }

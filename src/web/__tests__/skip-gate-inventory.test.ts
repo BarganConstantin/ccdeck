@@ -218,7 +218,9 @@ describe("the register of conditionally-skipped cases", () => {
     // Eight since #1168 added a fourth — guarded-reads.test.ts's static-serving
     // block, which asks serveStatic for the built files through the socket.
     const always = gates().filter((g) => PLATFORMS.every((p) => !skipsOn(g, p)));
-    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(8);
+    // Nine since V4's Chat and Decision card: v4-screens-bundle.test.ts reads
+    // the built entry chunk and stylesheets for any trace of them.
+    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(9);
     for (const g of always) for (const platform of PLATFORMS) expect(skipsOn(g, platform)).toBe(false);
 
     // The remaining probe sites are the read-only-directory ones, the only probe

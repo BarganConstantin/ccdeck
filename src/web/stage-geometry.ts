@@ -92,6 +92,11 @@ export function headHFor(density: string | undefined): number {
 export const BAR_H = 32;
 /** The keys bar under a fingertip (touch-and-forced-colours.css). */
 export const BAR_H_TOUCH = 36;
+/** The Term takeover on a phone (640 and under) draws a 56 header and a bar of
+ *  at least 52 (stage-shell.css), the sizes the stage guesses before it has
+ *  measured them. */
+export const PHONE_HEAD_H = 56;
+export const PHONE_BAR_H = 52;
 /** Vertical slack kept around the grid so its first and last rows never
  *  touch the header's rule or the bar's. */
 const ROW_SLACK = 12;

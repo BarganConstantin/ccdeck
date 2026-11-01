@@ -976,7 +976,7 @@ function Inner() {
       <DeckBanner
         restart={restart} versionCheck={versionCheck} upgrade={upgrade} oldNameNotice={oldNameNotice}
         rating={rating} onFeedback={dialogs.openFeedback}
-        everConnected={everConnected} live={live} paused={paused}
+        everConnected={everConnected} live={live} paused={paused} phone={phone}
       />
 
       {/* The left column, one element both panels are drawn in: its width is

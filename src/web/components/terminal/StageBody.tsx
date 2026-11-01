@@ -36,6 +36,7 @@ import { CopyGlyph, PlusGlyph, StageGlyph, TerminalGlyph } from "./stage-icons";
 import type { WaitingCard } from "./stage-board";
 import { Kbd } from "../Kbd";
 import { useSingleKeyShortcuts } from "../../use-single-key-shortcuts";
+import { chatShown, ScreensSlot, useScreenFlags, type ScreensProps } from "../../use-screens";
 
 /** The id the empty card's New session button carries, so the popover can
  *  hang off it. */
@@ -79,6 +80,9 @@ export interface StageBodyProps {
   waiting?: WaitingCard | null;
   /** Open the waiting session, with the keys in its pane: N's answer. */
   onOpenWaiting?(): void;
+  /** CHAT AND DECISION: what the pane is handed to draw, behind two flags that
+   *  are off (use-screens.ts). The deck hands none: it has no transcript. */
+  screens?: ScreensProps;
 }
 
 /** The empty Workspace pane's words, word for word from the frame. */
@@ -380,7 +384,9 @@ export default function StageBody(p: StageBodyProps) {
   const run = frameRun(last.current, p.phase);
   const { state, afterHold } = run;
   useEffect(() => { last.current = run; });
-  const { hostRef, paneName: _paneName, ...card } = p;
+  const { hostRef, paneName: _paneName, screens, ...card } = p;
+  const flags = useScreenFlags(p.workspace === true);
+  const inChat = chatShown(flags, screens);
   // Out of the accessibility tree whenever a card speaks or a held frame is
   // only the last session's — but never over a focused textarea: Chrome
   // refuses aria-hidden on an element whose descendant keeps focus, and says
@@ -416,7 +422,7 @@ export default function StageBody(p: StageBodyProps) {
     if (retry) catchKeys(retry);
   }, [kind, hostRef]);
   return (
-    <div className="ts-body">
+    <div className="ts-body" data-view={inChat ? "chat" : undefined}>
       {/* The pane: every key pressed in here is the session's, Escape
           included (terminal-keys.ts reads this attribute). */}
       <div
@@ -428,7 +434,8 @@ export default function StageBody(p: StageBodyProps) {
         data-held={state === "held" || undefined}
         data-after-hold={afterHold || undefined}
       />
-      <StateCard {...card} held={state === "held"} />
+      {inChat ? null : <StateCard {...card} held={state === "held"} />}
+      <ScreensSlot screens={screens} flags={flags} />
     </div>
   );
 }

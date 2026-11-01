@@ -60,6 +60,29 @@
   font-weight: 400;
 }
 
+/* THE PHONE'S WORDS FOR IT (ConnectionBanner, 640 and under): a card, not a
+   strip. It says the deck cannot reach the computer, not that the agents have
+   stopped; the title is the frame's SemiBold line, the sentence under it quiet. */
+@media (max-width: 640px) {
+  .conn-banner-phone {
+    align-items: flex-start;
+    gap: 10px;
+    margin: 8px;
+    padding: 12px;
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-panel);
+  }
+  .conn-banner-phone .conn-unreachable { flex: none; display: inline-flex; padding-top: 2px; color: var(--muted); }
+  .conn-banner-phone .conn-phone-text { display: flex; flex-direction: column; min-width: 0; }
+  .conn-banner-phone .conn-phone-title { font-weight: 600; color: var(--text); }
+  .conn-banner-phone .conn-phone-sub {
+    font-size: calc(12px + var(--ui-text-increase, 0px));
+    line-height: 16px;
+    color: var(--muted);
+  }
+}
+
 /* ---------------- version-drift banner ---------------- */
 /* Same slot and shape as .conn-banner, one step calmer: this is important but
    it is not an outage, so it takes --warn and a slower pulse. */
