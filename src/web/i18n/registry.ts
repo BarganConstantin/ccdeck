@@ -32,11 +32,11 @@ export const LANGUAGES: readonly Language[] = [
   { code: "zh-CN", name: "简体中文", dir: "ltr", catalog: catalogFor("zh-CN") },
   { code: "de", name: "Deutsch", dir: "ltr", catalog: catalogFor("de") },
   { code: "ja", name: "日本語", dir: "ltr", catalog: catalogFor("ja") },
-  { code: "ko", name: "한국어", dir: "ltr", beta: true, catalog: catalogFor("ko") },
-  { code: "fr", name: "Français", dir: "ltr", beta: true, catalog: catalogFor("fr") },
-  { code: "es", name: "Español", dir: "ltr", beta: true, catalog: catalogFor("es") },
-  { code: "pt-BR", name: "Português (Brasil)", dir: "ltr", beta: true, catalog: catalogFor("pt-BR") },
-  { code: "ro", name: "Română", dir: "ltr", beta: true, catalog: catalogFor("ro") },
+  { code: "ko", name: "한국어", dir: "ltr", catalog: catalogFor("ko") },
+  { code: "fr", name: "Français", dir: "ltr", catalog: catalogFor("fr") },
+  { code: "es", name: "Español", dir: "ltr", catalog: catalogFor("es") },
+  { code: "pt-BR", name: "Português (Brasil)", dir: "ltr", catalog: catalogFor("pt-BR") },
+  { code: "ro", name: "Română", dir: "ltr", catalog: catalogFor("ro") },
 ];
 
 export const DEFAULT_LANGUAGE = "en";
