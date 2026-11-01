@@ -17,13 +17,13 @@ import {
 } from "../inspector-tab";
 import { TimeBody } from "../components/InspectorTime";
 import {
-  TURN_POLL_MS, axisTicks, barBox, parseSessionTurn, readSessionTurn, spanTable, turnPieces, turnSpan, turnStartOf, waitingShare,
+  TURN_POLL_MS, TURN_RETRY_MS, axisTicks, barBox, parseSessionTurn, readSessionTurn, spanTable, turnPieces, turnSpan, turnStartOf, waitingShare, withPromptWait,
   type SessionTurn,
 } from "../inspector-time";
 import { tabStripMove } from "../tablist-keys";
 import { costChip } from "../card-cost";
 import { fmtCost } from "../pricing";
-import type { AgentNodeData, ToolCall } from "../types";
+import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
 import { sheetParts, sheetText } from "./sheet-source";
 import { WEB_DIR } from "./client-source";
 import { withoutComments } from "./tsx-scan";
@@ -567,8 +567,43 @@ describe("the Time tab", () => {
   it("asks every 5 s while the turn is open, and not again once it is closed", () => {
     expect(TURN_POLL_MS).toBe(5000);
     const source = readFileSync(join(WEB_DIR, "components/InspectorTime.tsx"), "utf8");
-    expect(source).toMatch(/if \(next\?\.open\) timer = setTimeout\(ask, TURN_POLL_MS\)/);
-    expect(source).toMatch(/return \(\) => \{ control\.abort\(\); clearTimeout\(timer\); \}/);
+    // CHANGED ON PURPOSE: the poll is now `if (next?.open && working) later(TURN_POLL_MS)`: it also rests when the session is not working.
+    expect(source).toMatch(/if \(next\?\.open && working\) later\(TURN_POLL_MS\)/);
+    expect(source).toMatch(/return \(\) => \{ control\.abort\(\); clearTimeout\(timer\);/);
+  });
+  it("keeps asking after an answer that was not one, slower, and rests while the page is hidden", () => {
+    expect(TURN_RETRY_MS).toBe(15000);
+    const source = readFileSync(join(WEB_DIR, "components/InspectorTime.tsx"), "utf8");
+    // A busy 409, an odd body and a failed fetch all schedule the slower retry and keep the last reading.
+    expect(source.match(/later\(TURN_RETRY_MS\)/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(source).toMatch(/failedFor: session/);
+    expect(source).toMatch(/document\.visibilityState === "hidden"/);
+    expect(source).toMatch(/addEventListener\("visibilitychange"/);
+    expect(source).toMatch(/removeEventListener\("visibilitychange"/);
+    // No "Reading this turn" for ever: a plain sentence when there never was a reading.
+    expect(source).toContain("This turn could not be read. Trying again.");
+  });
+  it("shows no other session's reading, and no table rebuilt by the clock", () => {
+    const source = readFileSync(join(WEB_DIR, "components/InspectorTime.tsx"), "utf8");
+    expect(source).toMatch(/state\.reading\?\.session === session/);
+    expect(source).toMatch(/\[turn, agents, root\.sessionId, revision, readAt\]/);
+    expect(source).not.toMatch(/turn\?\.open \? now : 0/);
+  });
+  it("treats a session that is not working as having no turn running", () => {
+    const source = readFileSync(join(WEB_DIR, "components/InspectorTime.tsx"), "utf8");
+    expect(source).toMatch(/root\.state === "active"/);
+    expect(source).toMatch(/open: false/);
+  });
+  it("moves a permission prompt's wait from the machine to you, only while it is waiting", () => {
+    const open: SessionTurn = { open: true, totalMs: 60_000, claudeMs: 10_000, machineMs: 50_000, youMs: 0 };
+    const block = (kind: "permission" | "asked" | "idle", since: number) => ({ kind, since, message: "" }) as WaitingBlock;
+    expect(withPromptWait(open, block("permission", 30_000), 60_000)).toEqual({ ...open, machineMs: 20_000, youMs: 30_000 });
+    // Never more than the machine had, and nothing for another kind, a closed turn or no prompt.
+    expect(withPromptWait(open, block("permission", 0), 90_000)).toEqual({ ...open, machineMs: 0, youMs: 50_000 });
+    expect(withPromptWait(open, block("asked", 30_000), 60_000)).toBe(open);
+    expect(withPromptWait(open, block("idle", 30_000), 60_000)).toBe(open);
+    expect(withPromptWait(open, null, 60_000)).toBe(open);
+    expect(withPromptWait({ ...open, open: false }, block("permission", 30_000), 60_000)).toEqual({ ...open, open: false });
   });
   it("reads the route with the session id encoded, and keeps its last answer for a busy or odd one", async () => {
     const seen: string[] = [];

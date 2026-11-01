@@ -35,6 +35,19 @@ export async function readSessionTurn(session: string, signal: AbortSignal): Pro
 
 /** How often an open turn is asked for again while the tab is shown. */
 export const TURN_POLL_MS = 5000;
+/** How soon the tab asks again after an answer that was not one (the deck busy,
+ *  away or the session unknown): slower, so a struggling deck is not pressed. */
+export const TURN_RETRY_MS = 15000;
+
+/** A permission prompt still waiting is yours, not the machine's. The journal holds
+ *  no event for a prompt being answered, so the server counts a call it has not
+ *  seen end as running; the session's own state says when it began waiting, and
+ *  that much of the machine's time (up to when the answer was read) moves to you. */
+export function withPromptWait(turn: SessionTurn, waiting: WaitingBlock | null | undefined, readAt: number): SessionTurn {
+  if (!turn.open || waiting?.kind !== "permission" || !finite(waiting.since)) return turn;
+  const ms = Math.min(turn.machineMs, Math.max(0, readAt - waiting.since));
+  return ms > 0 ? { ...turn, machineMs: turn.machineMs - ms, youMs: turn.youMs + ms } : turn;
+}
 
 /** A span of time as the Time tab prints it: "0.3s" and "8.8s" below ten
  *  seconds, then the card's own clock, "18s" and "7m 14s". */

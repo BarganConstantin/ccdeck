@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 import {
-  TURN_POLL_MS, axisTicks, barBox, readSessionTurn, spanTable, turnPieces, turnSpan, turnStartOf, waitingShare,
+  TURN_POLL_MS, TURN_RETRY_MS, axisTicks, barBox, readSessionTurn, spanTable, turnPieces, turnSpan, turnStartOf, waitingShare, withPromptWait,
   type SessionTurn, type SpanRow, type SpanTable,
 } from "../inspector-time";
 import { sessionRoot } from "../inspector-tree";
@@ -15,26 +15,47 @@ import type { AgentNodeData } from "../types";
 import { useNow } from "../use-now";
 import Loader from "./Loader";
 
-/** `undefined` until the first answer, then the session's turn or `null`. */
-function useSessionTurn(session: string, stamp: string): SessionTurn | null | undefined {
-  const [turn, setTurn] = useState<SessionTurn | null | undefined>(undefined);
+interface Reading { session: string; turn: SessionTurn | null; readAt: number }
+
+/** The session's turn as last read, with when it was read. `undefined` until the
+ *  first answer (`failed` says that answer did not come), then the turn or `null`.
+ *  While the tab is shown it asks again every 5 s for an open turn of a working
+ *  session, and after an answer that was not one at 15 s; it rests while the page
+ *  is hidden or the session is not working, and keeps the last good reading. */
+function useSessionTurn(session: string, stamp: string, working: boolean): { reading: Reading | undefined; failed: boolean } {
+  const [state, setState] = useState<{ reading?: Reading; failedFor?: string }>({});
   useEffect(() => {
     const control = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const ask = async () => {
+    const hidden = () => typeof document !== "undefined" && document.visibilityState === "hidden";
+    const later = (ms: number) => { clearTimeout(timer); if (!hidden()) timer = setTimeout(ask, ms); };
+    async function ask() {
+      clearTimeout(timer);
       try {
         const next = await readSessionTurn(session, control.signal);
         if (control.signal.aborted) return;
-        if (next !== undefined) setTurn(next);
-        // An open turn is asked for again while the tab is shown; a closed one
-        // is asked for again when the session's own prompt or end moves (`stamp`).
-        if (next?.open) timer = setTimeout(ask, TURN_POLL_MS);
-      } catch { /* aborted, or the deck is away: the last answer stands */ }
-    };
+        if (next === undefined) {
+          // A busy deck, a 409 or an odd body: the last reading stands, and we ask again, slower.
+          setState(current => ({ ...current, failedFor: session }));
+          later(TURN_RETRY_MS);
+          return;
+        }
+        setState({ reading: { session, turn: next, readAt: Date.now() } });
+        // An open turn of a working session is asked for again; a closed one when the
+        // session's own prompt or end moves (`stamp`). No turn yet is looked for slowly.
+        if (next?.open && working) later(TURN_POLL_MS);
+        else if (next === null && working) later(TURN_RETRY_MS);
+      } catch {
+        if (!control.signal.aborted) { setState(current => ({ ...current, failedFor: session })); later(TURN_RETRY_MS); }
+      }
+    }
+    const visible = () => { if (!hidden()) void ask(); else clearTimeout(timer); };
+    document.addEventListener("visibilitychange", visible);
     void ask();
-    return () => { control.abort(); clearTimeout(timer); };
-  }, [session, stamp]);
-  return turn;
+    return () => { control.abort(); clearTimeout(timer); document.removeEventListener("visibilitychange", visible); };
+  }, [session, stamp, working]);
+  // Another session's reading is never shown for this one.
+  return { reading: state.reading?.session === session ? state.reading : undefined, failed: state.failedFor === session };
 }
 
 export default function InspectorTime({ selected, agents, revision }: {
@@ -50,19 +71,29 @@ export default function InspectorTime({ selected, agents, revision }: {
 }
 
 function TimeTab({ root, agents, revision }: { root: AgentNodeData; agents: ReadonlyMap<string, AgentNodeData>; revision: number }) {
+  const working = root.state === "active";
   const stamp = `${root.prompts.length}:${root.endedAt ?? ""}`;
-  const turn = useSessionTurn(root.sessionId, stamp);
+  const { reading, failed } = useSessionTurn(root.sessionId, stamp, working);
+  // A session that is not working has no turn still running, whatever the last read said.
+  const turn = useMemo(() => {
+    if (!reading?.turn) return reading?.turn;
+    const read = working ? reading.turn : { ...reading.turn, open: false };
+    return withPromptWait(read, root.waiting, reading.readAt);
+  }, [reading, working, root.waiting]);
   const now = useNow(turn?.open ? 1000 : 30000);
+  const readAt = reading?.readAt ?? 0;
+  // Built from what the reading and the calls say, not from the clock: an open call's bar
+  // is drawn to `now` by barBox, and the axis moves when the next answer comes.
   const table = useMemo(() => {
     if (!turn) return null;
-    const start = turnStartOf(root) ?? now - turn.totalMs;
-    const end = Math.max(start + 1, turn.open ? now : start + turn.totalMs);
-    return spanTable({ agents, sessionId: root.sessionId, start, end, now });
-    // `now` moves the end of an open turn and the revision says the calls
-    // changed: the agents are mutated in place and keep their identity.
+    const start = turnStartOf(root) ?? readAt - turn.totalMs;
+    const end = Math.max(start + 1, turn.open ? readAt : start + turn.totalMs);
+    return spanTable({ agents, sessionId: root.sessionId, start, end, now: readAt });
+    // The agents are mutated in place and keep their identity: the revision says the calls changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turn, agents, root.sessionId, revision, turn?.open ? now : 0]);
+  }, [turn, agents, root.sessionId, revision, readAt]);
   if (turn === undefined) {
+    if (failed) return <p className="insp-note" role="status">This turn could not be read. Trying again.</p>;
     return <p className="insp-note insp-time-load" role="status"><Loader size="s" /><span>Reading this turn…</span></p>;
   }
   if (turn === null || !table) return <p className="insp-note">No turn recorded yet.</p>;
