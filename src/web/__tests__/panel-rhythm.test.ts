@@ -108,10 +108,10 @@ const decl = (selector: string, prop: string) => declIn(bodyOf(selector), prop);
 // ── lengths, through the tokens ─────────────────────────────────────────────
 
 /** Every custom property a rule in this file's scope can see. The geometry
- *  block is a bare `:root`, and the session list's two local numbers are
- *  declared on `.sl-rows` and inherited by the row inside it. */
+ *  block is a bare `:root`. (The session list's two local numbers, the card
+ *  gutter and edge, left with the rail's rows: V4's row has no border.) */
 const TOKENS: Record<string, string> = {};
-for (const source of [":root", ".session-list .sl-rows"]) {
+for (const source of [":root"]) {
   for (const [, name, value] of bodyOf(source).matchAll(/(--[\w-]+)\s*:\s*([^;]+)/g)) {
     TOKENS[name] = value.trim();
   }
@@ -203,7 +203,9 @@ describe("the distance a panel prints its content at", () => {
     [".ap-foot", "padding"],
     [".ap-lan", "padding"],
     [".ap-failure", "margin"],
-    [".session-list .sl-header", "padding"],
+    // The session list's header left this list with V4's rail: its header is
+    // Figma's Rail / Header (12 left, 6 right), held to the rows below it by
+    // the session list's own case in section 2, not to the panel inset.
     [".up-header", "padding"],
     // The period strip prints its edge as a margin rather than a padding, and
     // nothing held it to the token until the strip went full width — up to
@@ -271,72 +273,40 @@ describe("a panel header against the rows it heads", () => {
     expect(horizontal(".ap-header", "padding")).toEqual(horizontal(".ap-foot", "padding"));
   });
 
-  it("starts and ends where they do, in the session list", () => {
-    // The row reaches its inset through three boxes, so the comparison has to
-    // add them up the way the browser does.
-    const gutter = px(TOKENS["--sl-card-gutter"]);
-    const edge = px(TOKENS["--sl-card-edge"]);
-    const [padLeft, padRight] = horizontal(".session-list .sl-row", "padding");
-    expect(gutter + edge + padLeft).toEqual(horizontal(".session-list .sl-header", "padding")[0]);
-    expect(gutter + edge + padRight).toEqual(horizontal(".session-list .sl-header", "padding")[1]);
+  it("starts where they do, in the session list", () => {
+    // V4's rail: the header's title starts on the column the rows' glyphs start
+    // on. The row reaches it through two boxes, the list's padding and its own,
+    // so the comparison adds them the way the browser does. The right side is
+    // not held: the header ends in a button, 6px from the edge (Rail / Header).
+    const [listLeft] = horizontal(".session-list .sl-rows", "padding");
+    const [padLeft] = horizontal(".session-list .sl-row", "padding");
+    expect(listLeft + padLeft).toEqual(horizontal(".session-list .sl-header", "padding")[0]);
   });
 
-  it("measures the row's border, because the row's border is inside its box", () => {
-    // `box-sizing: border-box` is what makes the sum above the whole story, and
-    // it is declared once for the sheet. Without it the row's padding box would
-    // start a further 1px in and every number here would be off by one.
+  it("draws the row without a border, so its padding is the whole of its inset", () => {
+    // The old row had a transparent 1px edge that was a term in its padding.
+    // V4's has none: the selection is a fill, and the padding is Figma's 4 and 8.
+    expect(decl(".session-list .sl-row", "border")).toBe("0");
+    expect(decl(".session-list .sl-row", "padding")).toBe("4px 8px");
     expect(bodyOf("*")).toMatch(/box-sizing\s*:\s*border-box/);
-    expect(decl(".session-list .sl-row", "border-width")).toBe("var(--sl-card-edge)");
-    // And it is still a border rather than an outline, which would sit outside
-    // the box and drop out of the sum entirely.
-    expect(decl(".session-list .sl-row", "border-style")).toBe("solid");
-  });
-
-  it("leaves the last term of the row's inset to be worked out, not chosen", () => {
-    // The point of the calc: the gutter is a design number, the border is the
-    // row's own, and the padding is whatever lands the label on the panel's
-    // inset. Written as a third literal it went to 10px and nothing said so.
-    const padding = splitTop(decl(".session-list .sl-row", "padding")!);
-    expect(padding).toHaveLength(2);
-    expect(padding[1]).toMatch(/^calc\(/);
-    for (const token of ["--panel-inset", "--sl-card-gutter", "--sl-card-edge"]) {
-      expect(padding[1], token).toContain(`var(${token})`);
-    }
-  });
-
-  it("puts the card round the text rather than the text inside the card", () => {
-    // The gutter has to be smaller than the inset — that is what "the card
-    // outdents past the column its text sits on" means — and larger than zero,
-    // or the selected row's accent border would sit on the panel's own edge.
-    const gutter = px(TOKENS["--sl-card-gutter"]);
-    expect(gutter).toBeGreaterThan(0);
-    expect(gutter).toBeLessThan(px(TOKENS["--panel-inset"]));
   });
 });
 
 // ── 3. the scroll container, which is where a scrollbar takes its room ──────
 
 describe("the session list on a platform that draws a real scrollbar", () => {
-  it("scrolls as a whole, so its header and its rows share one content box", () => {
-    // A classic scrollbar takes its width out of the content box of whichever
-    // element scrolls. With the header outside the scroller and the rows inside
-    // it, Windows and Linux would have put every row's right inset ~10px deeper
-    // than the header's — the sheet asks for `scrollbar-width: thin` — the
-    // moment the list overflowed. macOS overlays, so the defect is invisible
-    // here and this assertion is the only place it can be caught.
-    expect(decl(".session-list", "overflow-y")).toBe("auto");
-    expect(decl(".session-list", "overflow")).toBeNull();
-    expect(declIn(bodyOf(".session-list .sl-rows"), "overflow-y")).toBeNull();
-    expect(declIn(bodyOf(".session-list .sl-rows"), "overflow")).toBeNull();
-  });
-
-  it("keeps the header on screen the way the usage panel does", () => {
-    // The header holds the counts and the only way to close the sidebar, and
-    // the panel scrolling as a whole would otherwise take it away at row two
-    // hundred. Its own opaque background is what stops rows showing through.
-    expect(decl(".session-list .sl-header", "position")).toBe("sticky");
-    expect(decl(".session-list .sl-header", "top")).toBe("0");
-    expect(decl(".session-list .sl-header", "background")).toBe("var(--panel)");
+  it("scrolls in its list, with the header and the foot fixed around it", () => {
+    // V4's rail is a flex column of a header, the list and the removed cards'
+    // line (Figma Sessions, 22:14927), and the LIST is what scrolls. The panel
+    // clips instead of scrolling, so the header can never be taken off screen
+    // and needs no sticky positioning; a classic scrollbar takes its width
+    // from the list alone, which the header's right padding does not share
+    // (it ends in a button, not in text that lines up with the rows).
+    expect(decl(".session-list", "overflow")).toBe("hidden");
+    expect(decl(".session-list", "overflow-y")).toBeNull();
+    expect(declIn(bodyOf(".session-list .sl-rows"), "overflow-y")).toBe("auto");
+    expect(decl(".session-list .sl-header", "flex")).toBe("none");
+    expect(decl(".session-list .sl-header", "position")).toBeNull();
     expect(decl(".up-header", "position")).toBe("sticky");
   });
 
@@ -345,7 +315,7 @@ describe("the session list on a platform that draws a real scrollbar", () => {
     // as a scrollbar, which is the #369 defect. Measured flat at a
     // 2000-character session label, and these four rules are why.
     expect(decl(".session-list .sl-row", "min-width")).toBe("0");
-    expect(decl(".session-list .sl-row-body", "min-width")).toBe("0");
+    expect(decl(".session-list .sl-text", "min-width")).toBe("0");
     expect(decl(".session-list .sl-label", "overflow")).toBe("hidden");
     expect(decl(".session-list .sl-label", "text-overflow")).toBe("ellipsis");
   });

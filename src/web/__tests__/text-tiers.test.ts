@@ -319,24 +319,25 @@ describe("what was migrated to the secondary tier", () => {
       // success green the other themes give them nor the totals' --text. Read
       // down a column to compare sessions, which --muted is too quiet for.
       ":root[data-theme^=\"gruvbox-\"] .uh-detail-cost",
-      // Material's waiting tool, by bed: --warn mixed toward its panel falls
-      // under AA there, and the name is what decides whether to get up.
-      ":root[data-theme=\"gruvbox-material\"] .session-list .sl-waiting-tool",
       // The machine panel's process door: the one line that says what the door
       // opens, "every process, with its command line". --muted on the door's
       // plate measured 4.34:1 in dark (#859).
       ".sd-door-sub",
-      // And three lines of it in the session list.
-      ".session-list .sl-recap",
-      // And the status line in the same slot — what the session is doing,
-      // asking or got done — which is the same kind of sentence.
-      ".session-list .sl-status",
+      // V4's attention rail (Figma Rail / Group header and Row): a group's label,
+      // the clock at a row's right edge and the tool a row names, all the one
+      // secondary tier the Figma file prints them in. The rail's old recap,
+      // status and plan lines left with the row; their full text is its tooltip.
+      ".session-list .sl-group-label",
+      // The last line of the rule that lifts the muted words a tier on a hovered
+      // or chosen row, where --muted is 4.05:1 in dark (#1789).
+      ".session-list .sl-row.selected .sl-model",
+      ".session-list .sl-time.quiet",
+      ".session-list .sl-tool",
       // The agent's plan (#2157): its steps are sentences the agent wrote and a
-      // reader reads to know where the work stands — on the card's row, in the
-      // session list's line and in the detail panel's checklist. The counts
-      // beside them stay --muted, which is what they are.
+      // reader reads to know where the work stands — on the card's row and in
+      // the detail panel's checklist. The counts beside them stay --muted,
+      // which is what they are.
       ".agent-node .plan-row",
-      ".session-list .sl-plan",
       ".plan-item",
       // The Radar redesign adds explanatory text and neutral utility labels.
       ".empty-hero .film-action",

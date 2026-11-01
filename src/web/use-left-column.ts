@@ -27,7 +27,32 @@ import { loadsOnPhone } from "./phone-load";
  *  The sheet draws each panel at its own (session-list.css, accounts-panel.css)
  *  and left-column-motion.test.ts holds the two to these. */
 export const ACCOUNTS_PANEL_WIDTH = 288;
+/** The rail's width at Default and Comfortable. Compact and below draw it 24px
+ *  narrower (--rail-w, V4's Figma size variable): useRailWidth reads the token
+ *  at the density in force, and this is what it falls back to. */
 export const SESSION_LIST_WIDTH = ACCOUNTS_PANEL_WIDTH;
+
+/** The rail's width now, from --rail-w on the root. */
+function railWidthPx(): number {
+  const read = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--rail-w"));
+  return Number.isFinite(read) && read > 0 ? read : SESSION_LIST_WIDTH;
+}
+
+/** The session list's width at the density in force, for leftColumnWidth. The
+ *  accounts panel keeps its 288; the column eases between the two as it
+ *  always has. Re-read when the density changes, on the attribute that
+ *  switches the tokens. */
+export function useRailWidth(): number {
+  const [width, setWidth] = useState(SESSION_LIST_WIDTH);
+  useLayoutEffect(() => {
+    const read = () => setWidth(railWidthPx());
+    read();
+    const observer = new MutationObserver(read);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-density"] });
+    return () => observer.disconnect();
+  }, []);
+  return width;
+}
 
 /** Which of the two the column is for. */
 export type LeftPanel = "session-list" | "accounts";
@@ -51,8 +76,8 @@ export function leftColumnPanel(sessionListOpen: boolean, accountsOpen: boolean,
  *  until the leaving panel unmounted 200ms later and it snapped to 240. The
  *  column is one element now, this is its width, and the sheet eases it from
  *  the last one: every frame of a switch is between the two panels' widths. */
-export function leftColumnWidth(panel: LeftPanel | null): number {
-  if (panel === "session-list") return SESSION_LIST_WIDTH;
+export function leftColumnWidth(panel: LeftPanel | null, railWidth: number = SESSION_LIST_WIDTH): number {
+  if (panel === "session-list") return railWidth;
   if (panel === "accounts") return ACCOUNTS_PANEL_WIDTH;
   return 0;
 }
