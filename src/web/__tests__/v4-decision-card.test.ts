@@ -154,7 +154,7 @@ describe("the sheet", () => {
     const opt = rule(".dc-opt");
     expect(opt).toContain("min-height: var(--row-option);");
     expect(opt).toContain("border-radius: var(--r-panel);");
-    expect(opt).toContain("padding: 4px 12px 4px 8px;");
+    expect(opt).toContain("padding: 3px 11px 3px 7px;");
   });
 
   it("arrives on opacity and 8px at Base; the loader waits --delay-loader; reduced motion fades only", () => {

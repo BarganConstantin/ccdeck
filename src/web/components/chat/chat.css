@@ -17,7 +17,7 @@
   min-height: 0;
   overflow-y: auto;
   box-sizing: border-box;
-  padding: 20px 12px;
+  padding: 12px 20px;
 }
 /* The text column stops at 760 and centres in a wider pane (1920 and up). */
 .chat-col {
@@ -30,7 +30,7 @@
 }
 
 /* Since you looked: a line, the counts, a line. */
-.chat-since { display: flex; align-items: center; gap: 8px; min-height: 16px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); }
+.chat-since { display: flex; align-items: center; gap: 12px; min-height: 16px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); }
 .chat-since-line { flex: 1 1 0; height: 1px; background: var(--line-soft); }
 .chat-since-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

@@ -40,7 +40,8 @@
   flex-direction: column;
   gap: 6px;
   min-width: 0;
-  padding: 12px;
+  /* 12 with the border counted in: the command box is 276 wide in a 300 card. */
+  padding: 11px;
   background: var(--panel);
   border: 1px solid var(--warn);
   border-radius: var(--r-node);
@@ -54,7 +55,8 @@
 .dc-cmd {
   display: block;
   box-sizing: border-box;
-  padding: 4px 8px;
+  /* 4/8 with the border counted in: 28 high. */
+  padding: 3px 7px;
   background: var(--sunken);
   border: 1px solid var(--line-soft);
   border-radius: var(--r-ctl);
@@ -92,7 +94,8 @@
   align-items: center;
   gap: 8px;
   min-height: var(--row-option);
-  padding: 4px 12px 4px 8px;
+  /* The 1px border is part of the 4/12/4/8: the row is exactly --row-option high. */
+  padding: 3px 11px 3px 7px;
   background: var(--panel);
   border: 1px solid var(--line-soft);
   border-radius: var(--r-panel);
@@ -146,9 +149,12 @@
 .dc-opt[role="checkbox"][data-checked] { border-color: var(--accent); }
 
 /* Tell Claude what to do: the row opens in place and holds a field. */
-.dc-row[data-typing] { padding: 0 0 8px; border: 1.5px solid var(--accent); background: var(--panel); }
+/* The 1.5 ring is an inset shadow, so it adds nothing to the row: its head stays
+   --row-option high and the tree's tick stays level with it. 44 + 12 + 34 + 14 = 104. */
+.dc-row[data-typing] { gap: 12px; padding: 0 0 14px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--accent); }
 .dc-row[data-typing] .dc-opt { border-color: transparent; box-shadow: none; }
-.dc-field { display: flex; align-items: center; gap: 8px; padding: 0 12px 0 8px; }
+/* The input is 409 of the row's 460; the send word sits in the gutter on its right. */
+.dc-field { position: relative; display: flex; align-items: center; padding: 0 43px 0 8px; }
 .dc-input {
   flex: 1 1 auto;
   min-width: 0;
@@ -163,7 +169,7 @@
   color: var(--text);
   caret-color: var(--accent);
 }
-.dc-send { flex: none; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 500; color: var(--accent); }
+.dc-send { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); pointer-events: none; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 500; color: var(--accent); }
 
 /* Picked: the chosen row stays, the others dim and lock, at Fast. */
 .dc-dock[data-outcome="checking"] .dc-opt[aria-checked="false"],
@@ -173,7 +179,9 @@
 .dc-dock[data-mode="readOnly"] .dc-opt { cursor: default; }
 
 /* What happened after a pick: a panel under the options, a live region. */
-.dc-out-empty { grid-column: 3; grid-row: 2; }
+/* The live region is in the page before it speaks, but takes no row: out of flow,
+   so the empty card has no gap of 8 under its options. */
+.dc-out-empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .dc-out {
   grid-column: 3;
   grid-row: 2;
@@ -181,7 +189,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  /* 61 high as drawn: 36 of text, 2 of border, 11.5 above and below. The frame's
+     corner is 9; no token is 9, so --r-panel (8) stays. */
+  padding: 11.5px 12px;
   background: var(--panel);
   border: 1px solid var(--line-soft);
   border-radius: var(--r-panel);
@@ -225,10 +235,16 @@
 .dc-dock[data-size="phone"] .dc-opt { min-height: 62px; }
 .dc-dock[data-size="phone"] .dc-chip { padding: 1px 6px; }
 .dc-dock[data-size="phone"] .dc-foot { flex-wrap: wrap; }
+.dc-dock[data-size="phone"] .dc-dq { align-self: stretch; max-width: 100%; }
 
-/* 640 and under, with the card in a phone dock or not: the links and the field
-   are 44 targets. */
+/* 640 and under, with the card in a phone dock or not: the card is as wide as
+   the dock and no wider (a long command ends in an ellipsis), the dock takes at
+   most 60% of the pane and scrolls inside, and the links and the field are 44
+   targets. */
 @media (max-width: 640px) {
+  .dc-dock { max-height: 60%; overflow-y: auto; overscroll-behavior: contain; }
+  .dc-decision { max-width: 100%; }
+  .dc-dq { align-self: stretch; max-width: 100%; }
   .dc-link { min-height: 44px; }
   .dc-input { height: 44px; }
 }
@@ -254,7 +270,7 @@
 /* REDUCED MOTION: fades only. The card does not travel up, and an outcome or
    the record swaps at once. */
 @media (prefers-reduced-motion: reduce) {
-  .dc-dock { animation-name: dc-swap; }
+  .dc-dock { animation-name: dc-swap; animation-duration: var(--dur-fast); }
   .dc-opt { transition: none; }
   .dc-out { animation: none; }
 }

@@ -330,3 +330,101 @@ describe("13d the flags file says where it is read", () => {
     expect(text).toContain("lazy StageShell chunk");
   });
 });
+
+// ---- Layout against the design (the harness check's findings) ----
+describe("layout: sizes the border is part of", () => {
+  const css = bare("components/decision/decision.css");
+  const rule = (sel: string) => {
+    const at = css.indexOf(`\n${sel} {`);
+    expect(at, `${sel} has a rule`).toBeGreaterThan(-1);
+    return css.slice(at, css.indexOf("}", at));
+  };
+  const px = (decl: string, text: string) => Number(new RegExp(`${decl}:[^;]*?(\\d+(?:\\.\\d+)?)px`).exec(text)?.[1]);
+
+  it("an option row is 44 at Compact: 36 of text, 2 of border, 3 + 3 of padding", () => {
+    const opt = rule(".dc-opt");
+    expect(opt).toContain("padding: 3px 11px 3px 7px;");
+    expect(opt).toContain("border: 1px solid var(--line-soft);");
+    expect(opt).toContain("min-height: var(--row-option);");
+    expect(36 + 2 + 6).toBe(44);
+  });
+
+  it("the command box is 28 high and 276 wide in a 300 card: the borders are part of 4/8 and 12", () => {
+    expect(rule(".dc-cmd")).toContain("padding: 3px 7px;");
+    expect(rule(".dc-dq")).toContain("padding: 11px;");
+    expect(300 - 2 * (1 + 11)).toBe(276);
+    expect(20 + 2 + 6).toBe(28);
+  });
+
+  it("the ticks are one row-option high, 4 apart, so they sit at the rows' heads", () => {
+    expect(rule(".dc-tick")).toContain("height: var(--row-option);");
+    expect(rule(".dc-tree")).toContain("gap: 4px;");
+    expect(rule(".dc-opts")).toContain("gap: 4px;");
+  });
+
+  it("the free row keeps its head at --row-option (the ring is an inset shadow) and is 104 in all", () => {
+    const row = rule(".dc-row[data-typing]");
+    expect(row).not.toMatch(/\bborder:/);
+    expect(row).toContain("box-shadow: inset 0 0 0 1.5px var(--accent);");
+    expect(44 + px("gap", row) + 34 + px("padding", row.replace("padding: 0 0 ", "padding: "))).toBe(104);
+  });
+
+  it("the free input is 409 of the row's 460: the send word sits in the gutter beside it", () => {
+    expect(rule(".dc-field")).toContain("padding: 0 43px 0 8px;");
+    expect(460 - 8 - 43).toBe(409);
+    expect(rule(".dc-send")).toContain("position: absolute;");
+  });
+});
+
+describe("layout: the empty outcome takes no row", () => {
+  it("the live region is out of flow, so the card is 140 and the dock 192", () => {
+    const css = bare("components/decision/decision.css");
+    const at = css.indexOf(".dc-out-empty {");
+    const rule = css.slice(at, css.indexOf("}", at));
+    expect(rule).toContain("position: absolute;");
+    expect(rule).not.toContain("grid-row");
+    const markup = renderToStaticMarkup(createElement(DecisionCard, { model: PERMISSION }));
+    expect(markup).toContain('class="dc-out-empty" role="status"');
+  });
+
+  it("the outcome panel is 61 high (36 + 2 + 11.5 + 11.5) and keeps --r-panel, the frame's 9 being no token", () => {
+    const css = bare("components/decision/decision.css");
+    const at = css.indexOf("\n.dc-out {");
+    const rule = css.slice(at, css.indexOf("}", at));
+    expect(rule).toContain("padding: 11.5px 12px;");
+    expect(rule).toContain("border-radius: var(--r-panel);");
+    expect(36 + 2 + 11.5 * 2).toBe(61);
+  });
+});
+
+describe("layout: Chat's paddings", () => {
+  const css = bare("components/chat/chat.css");
+  it("the body is 12 above and below, 20 at the sides; the divider's gap is 12; the chevron is 14", () => {
+    const at = css.indexOf(".chat-body {");
+    expect(css.slice(at, css.indexOf("}", at))).toContain("padding: 12px 20px;");
+    expect(css).toMatch(/\.chat-since \{[^}]*gap: 12px;/);
+    expect(bare("components/chat/chat-icons.tsx")).toContain("ChevronRightGlyph = () => <Svg size={14}>");
+  });
+});
+
+describe("layout: the phone dock", () => {
+  const css = bare("components/decision/decision.css");
+  const phone = css.slice(css.indexOf("@media (max-width: 640px)"), css.indexOf("@media (forced-colors"));
+  it("the card stretches to the dock and the command ends in an ellipsis", () => {
+    expect(phone).toMatch(/\.dc-dq \{ align-self: stretch; max-width: 100%; \}/);
+    expect(css).toMatch(/\.dc-dock\[data-size="phone"\] \.dc-dq \{ align-self: stretch; max-width: 100%; \}/);
+    const at = css.indexOf("\n.dc-cmd {");
+    const cmd = css.slice(at, css.indexOf("}", at));
+    expect(cmd).toContain("text-overflow: ellipsis;");
+    expect(cmd).toContain("overflow: hidden;");
+  });
+
+  it("the dock takes at most 60% of the pane and scrolls inside", () => {
+    expect(phone).toMatch(/\.dc-dock \{ max-height: 60%; overflow-y: auto;/);
+  });
+
+  it("reduced motion keeps a fade at --dur-fast", () => {
+    const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+    expect(reduced).toContain("animation-name: dc-swap; animation-duration: var(--dur-fast);");
+  });
+});

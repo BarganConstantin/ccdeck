@@ -24,7 +24,7 @@ export const ChangedGlyph = ({ size = 14 }: { size?: number }) => (
   <Svg size={size}><path d="M2.5 5h8.5M8.75 2.75 11 5 8.75 7.25M11.5 9H3M5.25 6.75 3 9l2.25 2.25" /></Svg>
 );
 
-export const ChevronRightGlyph = () => <Svg size={12}><path d="M5 3l4 4-4 4" /></Svg>;
+export const ChevronRightGlyph = () => <Svg size={14}><path d="M5 3l4 4-4 4" /></Svg>;
 export const FileGlyph = () => <Svg><path d="M3.75 1.75h4.5l2.5 2.5v7a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-8.5a1 1 0 0 1 1-1z" /><path d="M8 1.75v2.5h2.75" /></Svg>;
 export const SearchGlyph = () => <Svg><circle cx="6" cy="6" r="3.75" /><path d="M9 9l3 3" /></Svg>;
 export const ToolTerminalGlyph = () => <Svg><rect x="1.75" y="2.75" width="10.5" height="8.5" rx="1.5" /><path d="M4 5.5l2 1.5-2 1.5M7.5 8.75h2.25" /></Svg>;

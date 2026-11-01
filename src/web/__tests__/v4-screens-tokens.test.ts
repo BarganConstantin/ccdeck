@@ -45,7 +45,7 @@ describe("the screens' sheets", () => {
     for (const path of SCREEN_SHEETS) {
       const shadows = [...read(path).matchAll(/box-shadow:\s*([^;]+);/g)].map(m => m[1].trim());
       // The ring (a hairline of --accent), the contact shadow of a panel, the card's overlay: nothing blurred and literal.
-      for (const s of shadows) expect(s, `${path}: ${s}`).toMatch(/^(?:var\(--shadow-(?:overlay|contact)\)|none|0 0 0 0\.5px var\(--accent\))$/);
+      for (const s of shadows) expect(s, `${path}: ${s}`).toMatch(/^(?:var\(--shadow-(?:overlay|contact)\)|none|0 0 0 0\.5px var\(--accent\)|inset 0 0 0 1\.5px var\(--accent\))$/);
     }
   });
 
