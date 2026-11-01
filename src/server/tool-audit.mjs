@@ -34,6 +34,10 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
   // Each session's calls still running, and whether a permission prompt came up while
   // they did: that is what tells a wait for approval from hooks starting the tool.
   const running = new Map();
+  // The prompt each session began last, in memory only: the journal files a turn under a
+  // digest of device, epoch, session and prompt together, so a session's turn can be
+  // found only by hashing the key the same way. Never written, never answered.
+  const latestTurn = new Map();
   const enqueue = fn => { const task = serial.then(fn); serial = task.catch(() => {}); return task; };
   const ready = () => readyPromise ??= (async () => {
     await mkdir(dir, { recursive: true });
@@ -100,8 +104,13 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
     const key = promptKey(raw);
     if (!key) return;
     const t = now(), at = opts.receivedAt ?? t, start = raw.hook_event_name === 'UserPromptSubmit';
+    if (start) noteLatest(raw.session_id, key);
     queue({ id: key, provider: 'claude', kind: start ? 'turn' : 'turn-end', t, at: measured(at, t), clock: 'hook',
       ...(start ? {} : { stop: raw.hook_event_name === 'Stop' ? 'done' : stopError(raw) }) });
+  };
+  const noteLatest = (session, key) => {
+    latestTurn.delete(session); latestTurn.set(session, key);
+    if (latestTurn.size > 500) latestTurn.delete(latestTurn.keys().next().value);
   };
   const calls = session => {
     let held = running.get(session);
@@ -133,7 +142,7 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
         if (name) Object.assign(row, skillUse(name, 'agent', raw.session_id, raw.cwd, typeof raw.agent_id === 'string' && raw.agent_id));
         if (claudeHook) {
           const key = promptKey(raw);
-          if (key) row.turn = key;
+          if (key) { row.turn = key; if (!latestTurn.has(raw.session_id)) noteLatest(raw.session_id, key); }
           const held = calls(raw.session_id);
           held.set(raw.tool_use_id, false);
           if (held.size > 200) held.delete(held.keys().next().value);
@@ -167,14 +176,20 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
     async clear() { return enqueue(async () => {
       await flush();
       for (const name of await files()) await unlink(join(dir, name));
-      meta = { ...meta, epoch: randomUUID(), startedAt: now(), skillsSince: now(), turnsSince: now() }; await saveMeta(); dropped = 0; storageOk = true; lastArgs.clear(); running.clear();
+      meta = { ...meta, epoch: randomUUID(), startedAt: now(), skillsSince: now(), turnsSince: now() }; await saveMeta(); dropped = 0; storageOk = true; lastArgs.clear(); running.clear(); latestTurn.clear();
       return { ok: true };
     }); },
     async report(query, signal) {
       if (reportFlight) return { ok: false, reason: 'busy' };
       reportFlight = (async () => {
+        // `session` is the one query that names a session. It leaves here as the digest
+        // of that session's latest turn, so the worker never sees the id.
+        const key = query.session === undefined ? undefined : latestTurn.get(query.session);
+        if (query.session !== undefined && !key) return { ok: true, turn: null };
         const snapshot = await enqueue(async () => { await flush(); const inv = await inventory(); return { ...inv, meta: { ...meta }, storageOk, dropped }; });
-        const result = await runReport({ files: snapshot.journal, query, now: now(), meta: snapshot.meta }, signal);
+        const { session, ...rest } = query;
+        const asked = key ? { ...rest, turnId: digest(`${snapshot.meta.deviceId}|${snapshot.meta.epoch}|${key}`) } : query;
+        const result = await runReport({ files: snapshot.journal, query: asked, now: now(), meta: snapshot.meta }, signal);
         if (meta.epoch !== snapshot.meta.epoch) return { ok: false, reason: 'history_cleared' };
         return { ...result, bytes: snapshot.bytes, storageOk: snapshot.storageOk, dropped: snapshot.dropped, deviceId: snapshot.meta.deviceId, startedAt: snapshot.meta.startedAt, skillsSince: snapshot.meta.skillsSince, turnsSince: snapshot.meta.turnsSince, retentionDays: snapshot.meta.retentionDays };
       })();

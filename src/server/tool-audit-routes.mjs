@@ -19,12 +19,21 @@ export function auditQuery(params) {
   if (since && (!calendarDate(since) || !calendarDate(until) || since > until || Date.parse(until) - Date.parse(since) >= 90 * 86400000)) return null;
   return { provider, days, timeZone, ...(view === 'skills' ? { view, skill } : { operation }), ...(history ? { history: true } : {}), ...(since ? { since: Date.parse(since), until: Date.parse(until) + 86400000 - 1 } : {}) };
 }
+// `?session=<id>` asks for one session's current turn, or its last, and nothing else: a
+// turn is one answer, not a window of turns, so a range beside it has nothing to narrow.
+export function sessionQuery(params) {
+  const session = params.get('session');
+  if ([...params.keys()].some(key => key !== 'session') || params.getAll('session').length !== 1 || !/^[\w.:-]{1,256}$/.test(session ?? '')) return null;
+  return { provider: 'claude', days: 7, timeZone: 'UTC', session };
+}
 export async function handleToolAudit(req, res) {
   const audit = toolAudit();
   if (!audit) return send(res, 503, { ok: false, reason: 'unavailable' });
   if (req.method === 'GET') {
     if (new URL(req.url, 'http://localhost').pathname.endsWith('/storage')) return send(res, 200, await audit.status());
-    const query = auditQuery(new URL(req.url, 'http://localhost').searchParams);
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const bySession = params.has('session');
+    const query = bySession ? sessionQuery(params) : auditQuery(params);
     if (!query) return send(res, 400, { ok: false, reason: 'bad_range' });
     const controller = new AbortController();
     const cancel = () => { if (!res.writableEnded) controller.abort(); };
@@ -33,6 +42,8 @@ export async function handleToolAudit(req, res) {
     try { report = await audit.report(query, controller.signal); }
     catch (e) { if (controller.signal.aborted) return; throw e; }
     finally { res.off('close', cancel); }
+    // The session's turn alone: no journal totals, no device id, nothing but the lanes.
+    if (bySession) return send(res, report.ok ? 200 : 409, report.ok ? report.turn : report);
     // The Skills tab says when the commands a person types cannot be counted.
     if (report.ok && query.view === 'skills' && deckProviders().claude) report.typedCommands = await skillHookState();
     return send(res, report.ok ? 200 : 409, report);

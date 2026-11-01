@@ -115,13 +115,23 @@ const percentile = (sorted, p) => sorted.length ? sorted[Math.max(0, Math.ceil(s
     }
     const sum = { turns: 0, open: 0, totalMs: 0, claudeMs: 0, machineMs: 0, youMs: 0 }, machine = new Map(), you = new Map(), replies = [], stops = {};
     const add = (map, operation, ms) => map.set(operation, (map.get(operation) ?? 0) + ms);
+    // A session's own turn (`turnId`) is cut by the same rules, alone and whatever its date.
+    const wanted = query.turnId; let wantedOpen = false;
     for (const [id, call] of calls) {
       const begin = call.turn, end = call['turn-end'];
-      if (!begin || begin.t < since || begin.t > until) continue;
-      if (!end || !finite(begin.at) || !finite(end.at) || end.at <= begin.at || end.at - begin.at > DAY) { sum.open++; continue; }
-      const a = begin.at, b = end.at, spans = [];
-      sum.turns++; sum.totalMs += b - a;
-      if (end.stop !== 'done') stops[end.stop] = (stops[end.stop] ?? 0) + 1;
+      if (!begin || (wanted ? id !== wanted : begin.t < since || begin.t > until)) continue;
+      const ended = end && finite(begin.at) && finite(end.at) && end.at > begin.at && end.at - begin.at <= DAY;
+      // That turn, while it is open, runs to now.
+      const inFlight = !!wanted && !ended && finite(begin.at) && now > begin.at && now - begin.at <= DAY;
+      if (!ended && !inFlight) { sum.open++; wantedOpen = true; continue; }
+      const a = begin.at, b = ended ? end.at : now, spans = [];
+      sum.turns++; sum.totalMs += b - a; wantedOpen = !ended;
+      if (ended && end.stop !== 'done') stops[end.stop] = (stops[end.stop] ?? 0) + 1;
+      // A question still waiting for its answer has no end yet, and it is your time.
+      if (inFlight) for (const open of calls.values()) {
+        const s = open.start;
+        if (s?.turn === id && !open.end && questions.has(s.tool) && finite(s.at)) spans.push([s.at, b, you, s.lead ?? s.operations]);
+      }
       for (const { start: s, end: e } of byTurn.get(id) ?? []) {
         // A command's time is its lead's: npm test's, not the tail reading its output.
         const own = s.lead ?? s.operations;
@@ -148,6 +158,10 @@ const percentile = (sorted, p) => sorted.length ? sorted[Math.max(0, Math.ceil(s
       for (const [t, step, span] of edges) { spend(t); if (step > 0) live.add(span); else live.delete(span); }
       spend(b);
       if (reply) replies.push([replyFrom, reply]);
+    }
+    if (wanted) {
+      const found = sum.turns > 0 || wantedOpen;
+      return { ok: true, turn: found ? { open: wantedOpen, totalMs: sum.totalMs, claudeMs: sum.claudeMs, machineMs: sum.machineMs, youMs: sum.youMs } : null };
     }
     // Claude's replies by the reader's calendar day, so a slow afternoon shows as one.
     const dayOf = new Intl.DateTimeFormat('en-CA', { timeZone: query.timeZone ?? 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' });

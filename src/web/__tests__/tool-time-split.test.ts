@@ -12,7 +12,7 @@ import { rmTempDir } from './rm-temp-dir';
 // @ts-expect-error server module
 import { createToolAudit } from '../../server/tool-audit.mjs';
 // @ts-expect-error server module
-import { auditQuery } from '../../server/tool-audit-routes.mjs';
+import { auditQuery, sessionQuery } from '../../server/tool-audit-routes.mjs';
 import { donutArcs, glanceTime, laneFact, laneParts, laneShares, slowDays, stopsLine, STARTING } from '../time-split';
 import { auditDuration, type TimeSplit } from '../tool-audit';
 
@@ -198,6 +198,75 @@ describe('the report\'s query', () => {
   it('carries the reader\'s time zone, so the days are theirs', () => {
     expect(auditQuery(new URLSearchParams('days=7&timeZone=Europe/Chisinau'))).toMatchObject({ days: 7, timeZone: 'Europe/Chisinau' });
     expect(auditQuery(new URLSearchParams('days=7'))).toMatchObject({ timeZone: 'UTC' });
+  });
+});
+
+describe('one session\'s turn', () => {
+  const ask = (audit: any, session = 'session-secret') => audit.report({ provider: 'claude', days: 7, timeZone: 'UTC', session });
+
+  it('answers a closed turn with the lanes the split gives it', async () => {
+    const { audit } = await setup();
+    playTurn(audit);
+    const { turn } = await ask(audit);
+    expect(turn).toEqual({ open: false, totalMs: 100 * SEC, claudeMs: 35 * SEC, machineMs: 35 * SEC, youMs: 30 * SEC });
+    // The same numbers Tool activity reads for the same turn.
+    const { split } = await audit.report(query);
+    expect(turn).toMatchObject({ totalMs: split.totalMs, claudeMs: split.claudeMs, machineMs: split.machineMs, youMs: split.youMs });
+  });
+
+  it('answers the turn that is open, timed to now, and counts a question still waiting as yours', async () => {
+    const { audit } = await setup();
+    at(audit, 0, 'UserPromptSubmit');
+    at(audit, 10, 'PreToolUse', tool('g', 'Bash', { command: 'git status' }));
+    at(audit, 12, 'PostToolUse', { ...tool('g', 'Bash'), duration_ms: 2 * SEC });
+    at(audit, 20, 'PreToolUse', tool('q', 'AskUserQuestion'));
+    clock = T0 + 50 * SEC;
+    const { turn } = await ask(audit);
+    expect(turn).toEqual({ open: true, totalMs: 50 * SEC, claudeMs: 18 * SEC, machineMs: 2 * SEC, youMs: 30 * SEC });
+  });
+
+  it('answers the last turn when a new prompt has not come, and the new one once it has', async () => {
+    const { audit } = await setup();
+    playTurn(audit);
+    expect((await ask(audit)).turn).toMatchObject({ open: false, totalMs: 100 * SEC });
+    at(audit, 200, 'UserPromptSubmit', { prompt_id: 'second' });
+    clock = T0 + 230 * SEC;
+    expect((await ask(audit)).turn).toEqual({ open: true, totalMs: 30 * SEC, claudeMs: 30 * SEC, machineMs: 0, youMs: 0 });
+  });
+
+  it('answers null for a session that has no turn, and ignores the others', async () => {
+    const { audit } = await setup();
+    playTurn(audit);
+    expect((await ask(audit, 'nobody')).turn).toBeNull();
+    at(audit, 300, 'UserPromptSubmit', { session_id: 'other', prompt_id: 'o1' });
+    at(audit, 310, 'Stop', { session_id: 'other', prompt_id: 'o1' });
+    expect((await ask(audit)).turn).toMatchObject({ totalMs: 100 * SEC });
+    expect((await ask(audit, 'other')).turn).toEqual({ open: false, totalMs: 10 * SEC, claudeMs: 10 * SEC, machineMs: 0, youMs: 0 });
+  });
+
+  it('finds the turn whatever the day, and never carries the id into the answer', async () => {
+    const { audit } = await setup();
+    playTurn(audit);
+    clock = T0 + 30 * 86400000;
+    const result = await ask(audit);
+    expect(result.turn).toMatchObject({ open: false, totalMs: 100 * SEC });
+    expect(JSON.stringify(result.turn)).not.toContain('session-secret');
+  });
+
+  it('leaves the unfiltered report exactly as it was', async () => {
+    const { audit } = await setup();
+    playTurn(audit);
+    const before = JSON.stringify(await audit.report(query));
+    await ask(audit);
+    const after = JSON.stringify(await audit.report(query));
+    expect(after).toBe(before);
+    expect(JSON.parse(after)).not.toHaveProperty('turn');
+  });
+
+  it('takes only a session, shaped like one', () => {
+    expect(sessionQuery(new URLSearchParams('session=5b1c1c0e-71d9-4c7e-9a62-0f6ac3c2d111'))).toMatchObject({ provider: 'claude', session: '5b1c1c0e-71d9-4c7e-9a62-0f6ac3c2d111' });
+    for (const bad of ['session=', 'session=a%20b', 'session=a<b', `session=${'a'.repeat(257)}`, 'session=a&session=b', 'session=a&days=7', 'session=a&provider=claude'])
+      expect(sessionQuery(new URLSearchParams(bad))).toBeNull();
   });
 });
 

@@ -122,7 +122,7 @@ export default function ContextModal({ agent, onClose }: Props) {
           </div>
           <button type="button" ref={closeRef} className="glyph-btn ctx-modal-close" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
         </header>
-        <ContextView agent={agent} />
+        <ContextView agent={agent} meta />
       </div>
     </div>
   );
@@ -141,7 +141,13 @@ export function contextFill(agent: AgentNodeData): { used: number; limit: number
 /** What the context breakdown says, without the dialog around it: the modal
  *  wraps it in a header and a close, and the Inspector's Context tab sets it
  *  under its own head. One body, so the two cannot drift apart. */
-export function ContextView({ agent }: { agent: AgentNodeData }) {
+export function ContextView({ agent, meta = false }: {
+  agent: AgentNodeData;
+  /** The modal's line under the meter: the percent and the token count. The
+   *  panel leaves it out, its head prints the figure, and says the kind of
+   *  number there instead. */
+  meta?: boolean;
+}) {
   const ctx = agent.context;
   const usage = agent.usage;
   const { used: current, limit: window, pct } = contextFill(agent);
@@ -181,7 +187,7 @@ export function ContextView({ agent }: { agent: AgentNodeData }) {
   const copy = contextCopy(agent.provider);
 
   return (
-    <>
+    <div className="ctx-view">
         <section className="ctx-window-row">
           {/* A progressbar needs a name of its own (4.1.2): the percentage
               beside it is a sibling, not a label, so without one a reader
@@ -189,22 +195,32 @@ export function ContextView({ agent }: { agent: AgentNodeData }) {
           <div className="ctx-window-bar" role="progressbar" aria-label="Context window used" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>
             <div className="ctx-window-fill" style={{ transform: `scaleX(${Math.min(100, Math.max(0, pct)) / 100})` }} />
           </div>
-          <div className="ctx-window-meta">
-            <span className="ctx-window-pct">{pct.toFixed(1)}%</span>
-            <span>{fmtN(current)} / {fmtN(window)} tok ({copy.windowScope})</span>
-          </div>
+          {/* The panel's head already prints the figure, so under the meter it
+              says only what kind of number it is. The modal has the note in its
+              header and keeps the percent and the count here. */}
+          {meta ? (
+            <div className="ctx-window-meta">
+              <span className="ctx-window-pct">{pct.toFixed(1)}%</span>
+              <span>{fmtN(current)} / {fmtN(window)} tok ({copy.windowScope})</span>
+            </div>
+          ) : (
+            <p className="ctx-window-note">{copy.subtitle}</p>
+          )}
         </section>
 
+        <section>
         <h3 className="ctx-section-title">Cumulative usage · whole session</h3>
         <div className="ctx-grid">
-          <Row label="input tokens"        val={fmtN(usage.inputTokens)} />
-          <Row label="output tokens"       val={fmtN(usage.outputTokens)} />
-          <Row label="cache reads"         val={fmtN(usage.cacheReadTokens)} />
-          <Row label="cache writes"        val={fmtN(usage.cacheCreateTokens)} />
-          <Row label="cumulative total"    val={fmtN(cumulative)} />
-          <Row label="estimated cost"      val={fmtCost(cost.total)} accent />
+          <Row label="Input tokens"        val={fmtN(usage.inputTokens)} />
+          <Row label="Output tokens"       val={fmtN(usage.outputTokens)} />
+          <Row label="Cache reads"         val={fmtN(usage.cacheReadTokens)} />
+          <Row label="Cache writes"        val={fmtN(usage.cacheCreateTokens)} />
+          <Row label="Cumulative total"    val={fmtN(cumulative)} />
+          <Row label="Estimated cost"      val={fmtCost(cost.total)} />
         </div>
+        </section>
 
+        <section>
         <h3 className="ctx-section-title">Transcript composition</h3>
         {/* Five counts, or the reason there are none. On Claude they come from a
             regex scan of a transcript the server has read from byte zero. Codex
@@ -224,16 +240,18 @@ export function ContextView({ agent }: { agent: AgentNodeData }) {
             occupied. */}
         {copy.compositionCounted ? (
           <div className="ctx-grid">
-            <Row label="user messages"       val={fmtN(ctx?.msgsUser ?? 0)} />
-            <Row label="assistant messages"  val={fmtN(ctx?.msgsAssistant ?? 0)} />
-            <Row label="tool uses"           val={fmtN(ctx?.toolUses ?? 0)} />
-            <Row label="tool results"        val={fmtN(ctx?.toolResults ?? 0)} />
-            <Row label="system-reminders"    val={fmtN(ctx?.systemReminders ?? 0)} />
+            <Row label="User messages"       val={fmtN(ctx?.msgsUser ?? 0)} />
+            <Row label="Assistant messages"  val={fmtN(ctx?.msgsAssistant ?? 0)} />
+            <Row label="Tool uses"           val={fmtN(ctx?.toolUses ?? 0)} />
+            <Row label="Tool results"        val={fmtN(ctx?.toolResults ?? 0)} />
+            <Row label="System-reminders"    val={fmtN(ctx?.systemReminders ?? 0)} />
           </div>
         ) : (
           <div className="ctx-empty">{copy.compositionUncounted}</div>
         )}
+        </section>
 
+        <section>
         <h3 className="ctx-section-title">{copy.memoryHeading}</h3>
         {(ctx?.memoryFiles?.length ?? 0) === 0 ? (
           <div className="ctx-empty">{copy.memoryEmpty}</div>
@@ -247,13 +265,14 @@ export function ContextView({ agent }: { agent: AgentNodeData }) {
             ))}
           </ul>
         )}
-    </>
+        </section>
+    </div>
   );
 }
 
-function Row({ label, val, accent }: { label: string; val: string; accent?: boolean }) {
+function Row({ label, val }: { label: string; val: string }) {
   return (
-    <div className={`ctx-row${accent ? " accent" : ""}`}>
+    <div className="ctx-row">
       <span className="ctx-row-label">{label}</span>
       <span className="ctx-row-val">{val}</span>
     </div>

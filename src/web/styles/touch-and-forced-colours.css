@@ -268,6 +268,13 @@
   .sysdetail .sd-core-fill,
   .ctx-window-fill,
   .session-summary .ss-tt-bar-fill { forced-color-adjust: none; background: Highlight; }
+  /* The Inspector's Time tab: its bars are fills, so they keep a colour of their own. */
+  .insp-time-bar i[data-lane="you"],
+  .insp-time-span[data-group] { forced-color-adjust: none; background: Highlight; }
+  .insp-time-bar i[data-lane="claude"],
+  .insp-time-bar i[data-lane="machine"],
+  .insp-time-span { forced-color-adjust: none; background: CanvasText; }
+  .insp-time-bar { outline: 1px solid CanvasText; }
   .qb-fill,
   .ap-lane-fill,
   .ap-report-meter i,
