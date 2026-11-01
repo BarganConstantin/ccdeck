@@ -128,7 +128,8 @@ export interface StageStatus {
   state: StageState;
   /** The words: "working", "waiting", "ended 14m ago". */
   phrase: string;
-  /** Drawn bold after the phrase: the "6m" of "waiting 6m". */
+  /** Said right after the phrase, in the same weight: the "6m" of "waiting 6m"
+   *  (to the minute; the header does not re-render every second). */
   emphasis?: string;
   /** The tool, at 600 in --text: "Bash". */
   tool?: string;
@@ -219,6 +220,10 @@ export function stageStatusFrom(facts: BoardFacts, now: number): StageStatus {
   return { state: "idle", phrase: "idle" };
 }
 
+/** What a reconnecting pane adds to the header's "reconnecting…", and the
+ *  keys bar's second half (Figma V4, owner answer 18). */
+export const RECONNECT_NOTE = "Nothing typed now is sent.";
+
 /**
  * What the header says once the stage's own phase is taken into account. The
  * board's sentence stands whenever the pane is up or the stage has nothing
@@ -229,7 +234,10 @@ export function headerStatus(board: StageStatus | null, phase: StagePhase): Stag
     case "empty":
       return { state: "none", phrase: "" };
     case "attaching":
-      return { state: "attaching", phrase: phase.reconnect ? "reconnecting…" : "attaching…" };
+      // A reconnect says what the frozen frame cannot: keys typed now go nowhere.
+      return phase.reconnect
+        ? { state: "attaching", phrase: "reconnecting…", arg: RECONNECT_NOTE }
+        : { state: "attaching", phrase: "attaching…" };
     case "starting":
       return { state: "starting", phrase: "starting…", arg: phase.cwd };
     case "tmux-installing":
