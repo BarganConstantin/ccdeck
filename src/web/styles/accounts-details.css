@@ -65,7 +65,7 @@
      adopt it quietly reintroduces the motion. */
   button.btn:active:not(:disabled):not(:focus-visible), .ap-manage-btn:active:not(:disabled), .ap-more:active,
   .ap-lan-pick:active, .ap-lan-word:active:not(:disabled), .ap-lan-intro:active:not(:disabled),
-  /* One entry where there were five. `.sd-close`, `.detail-close`,
+  /* One entry where there were five. `.sd-close`, `.insp-fold` (the detail panel's close),
      `.ctx-modal-close`, `.uh-close` and the header closes that used to press as
      `button.btn` are all `.glyph-btn` now, and the press they share switches off
      with them. */

@@ -33,8 +33,8 @@
   animation: rail-in 160ms var(--ease) both;
 }
 /* Where the right rail actually starts, which is NOT a constant: it clears the
-   detail panel at 368px and drops to 8px when that panel is closed.
-   Pinning 368 in the machine panel is what made it sit 360px away from usage
+   detail panel (its column, --inspector-w, plus the 8px gap) and drops to 8px when that panel is closed.
+   Pinning a literal in the machine panel is what made it sit 360px away from usage
    whenever the detail panel was shut — the rail had moved and only one of the
    two panels knew. A variable so the pair cannot drift apart again.
 
@@ -43,10 +43,13 @@
    sheet, so the promise on this line held for the machine panel alone and the
    pair could still drift — by 40px, in the direction the very next edit to the
    detail panel's width would take it. The two rules that said the number twice
-   are gone; this is the only place it is written.
+   are gone; this is the only place it is written, and it now reads the column's
+   own token instead of a number: the column is 320px at Compact and 360px at
+   Default (reading.css, tokens.css), and the 368 this line wrote was the
+   Default one, 40px too far at the density the app starts in.
    Both offsets are measured from the window's edge, so both carry the right
    stripe's width (edge-rails.css): the rail starts inside it. */
-.app { --rail-r: calc(368px + var(--edge-w)); }
+.app { --rail-r: calc(var(--inspector-w) + 8px + var(--edge-w)); }
 .app:not(:has(.detail)) { --rail-r: calc(8px + var(--edge-w)); }
 
 /* One panel further left: the rail's own offset, plus usage's width, plus the

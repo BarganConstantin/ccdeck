@@ -25,12 +25,12 @@ function agent(calls: number): AgentNodeData {
   return state.agents.get("s1")!;
 }
 
-/** The card's meta row, rendered as the canvas renders the card. */
+/** The card's foot (the meta row, which V4's card renamed), rendered as the canvas renders the card. */
 function meta(data: AgentNodeData): string {
   const html = renderToStaticMarkup(createElement(ReactFlowProvider, null,
     // NodeProps carries more than the card reads; only data and selected matter here.
     createElement(AgentNode as any, { id: data.id, data, selected: false })));
-  const m = html.match(/<div class="meta">(.*?)<\/div>/);
+  const m = html.match(/<div class="foot">(.*?)<\/div>/);
   expect(m).not.toBeNull();
   return m![1];
 }

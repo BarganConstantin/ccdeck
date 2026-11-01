@@ -1,17 +1,26 @@
-// The stage's header: the node's face, at the size of a stage (v3).
+// The stage's header: the session's name and what it is doing, on one row (V4).
 //
-// THE SPINE IS THE SESSION'S HUE, the same one its tile on the board wears, so
-// which session is on stage is a colour match before it is a word. While the
-// agent streams output, a light travels down it toward the terminal — the
-// board's in-flight edge grammar — and it is still while the session waits on
-// you, because a waiting session is not doing anything. Reduced motion takes
-// the light away and leaves the hue.
+// ONE ROW, ONE STATE GLYPH (Figma V4, "Pane header · Term"). The v3 header was
+// two lines tall and wore the session's hue as a spine down its left edge,
+// with a light travelling down it while output streamed. V4 takes the spine
+// away with the light — the handoff's "the hue spine leaves Workspace
+// chrome" — and the session's identity is its name and its state: the same
+// 14px glyph its row on the rail wears (stage-icons.tsx, glyphForState), then
+// the name, then the face's own sentence in mono, "waiting 6m · Bash · git
+// push …", from stage-model.ts, which is where the vocabulary is held to one
+// word per state. The state part takes the state's colour (waiting is --warn,
+// as the rail's timer is); the tool and its argument are --muted and give way
+// first, with an ellipsis, when the row is short. Nothing here moves with the
+// stream any more, so there is no travelling light to take away under reduced
+// motion; the working glyph holds still where the rail's breathes, because the
+// terminal beside it already shows the session at work.
 //
-// LINE ONE is the name and the deck's model chip with the provider's glyph in
-// it; the chip's accessible name says the provider in words. LINE TWO is the
-// face's own sentence ("working · Task 3 subagents running 7m 38s",
-// "waiting 6m · Bash git push …") from stage-model.ts, which is where the
-// vocabulary is held to one word per state.
+// THE MODEL CHIP IS GONE from this header: the rail's row and the agent card
+// carry the model, and Figma's Term header draws none. What its accessible name
+// said is not lost — the provider is still named, in words, after the session's
+// name, for a screen reader. Figma puts a context chip at the row's end
+// ("61.4k / 200k" over a 4px bar); the stage is not handed that figure yet,
+// so it is not drawn rather than drawn empty.
 //
 // THREE CONTROLS AND NO MORE: ⌨ (only while there is a pane to type into),
 // ⤢ and ✕ — each the deck's own header glyph (.glyph-btn, panel-glyph.css),
@@ -20,11 +29,12 @@
 // nothing. In the takeover layout (a window too narrow for any navigator) a
 // "‹" leads with the same promise, back to the board. ⤢ is full screen where
 // full screen hands the session the browser's shortcuts (tab-keys.ts), and is
-// drawn in the takeover too, where there is no width to give but that.
-import { modelChipText, modelFamily } from "../../model-label";
+// drawn in the takeover too, where there is no width to give but that. There
+// is no Chat/Term toggle and no Split: Chat is a later phase behind a flag
+// that is off, and a control for either would be a dead one.
 import type { TerminalProvider } from "../../terminal-api";
-import type { KeysOwner, StageStatus } from "./stage-model";
-import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, ProviderGlyph } from "./stage-icons";
+import { agentName, type KeysOwner, type StageStatus } from "./stage-model";
+import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, StageGlyph, glyphForState } from "./stage-icons";
 
 /** ✕'s name and tooltip, word for word (DESIGN.md: never "stop"/"end"/"quit"). */
 export const CLOSE_LABEL = "Close — the session keeps running";
@@ -40,10 +50,6 @@ export interface StageHeaderProps {
   /** The session's name, or the empty stage's title. */
   name: string;
   provider?: TerminalProvider | null;
-  /** The model id, for the chip; absent before the session has reported one. */
-  model?: string | null;
-  /** The reasoning effort, after the model as the card has it: "Opus 5 · max". */
-  effort?: string | null;
   status: StageStatus;
   keysOwner: KeysOwner;
   /** The release chord as the reader's keyboard labels it (terminal-keys.ts). */
@@ -65,19 +71,11 @@ export interface StageHeaderProps {
   onClose(): void;
 }
 
-/** The chip's words: the model's short name and its effort, as the card's
- *  chip says them, or the provider's name when the session has not said which
- *  model yet. */
-export function chipText(provider: TerminalProvider | null | undefined, model: string | null | undefined, effort?: string | null): string | null {
-  if (model) return modelChipText(model, effort ?? undefined);
-  if (provider === "codex") return "Codex";
-  return null;
-}
-
-/** What the chip is called aloud: "Claude Code · Opus 5.5". */
-export function chipLabel(provider: TerminalProvider | null | undefined, text: string): string {
-  const who = provider === "codex" ? "Codex" : "Claude Code";
-  return text === who ? who : `${who} · ${text}`;
+/** The part of the sentence after the state: the tool, its argument and how
+ *  long it has run, "Bash · git push -u origin …", or null when there is none. */
+export function metaRest(status: StageStatus): string | null {
+  const parts = [status.tool, status.arg, status.seconds].filter((s): s is string => !!s);
+  return parts.length ? parts.join(" · ") : null;
 }
 
 /** ⤢'s name: what a press will do. Full screen is named for what it is for. */
@@ -92,9 +90,9 @@ export const FULL_LABEL = "Full screen — Ctrl+W, Ctrl+T and Ctrl+N go to the s
 export const FULL_LEAVE_LABEL = "Leave full screen";
 
 export default function StageHeader(p: StageHeaderProps) {
-  const chip = chipText(p.provider, p.model, p.effort);
   const { status } = p;
-  const detail = !!(status.tool || status.arg || status.seconds);
+  const glyph = glyphForState(status.state);
+  const rest = metaRest(status);
   const pane = p.keysOwner === "pane";
   // One name with aria-pressed saying which way it is, rather than a name
   // that flips: a screen reader then hears "Type into the session, pressed".
@@ -111,44 +109,24 @@ export default function StageHeader(p: StageHeaderProps) {
           <BackGlyph />
         </button>
       )}
-      <span className="ts-spine" aria-hidden="true" />
       <div className="ts-id" key={p.identity}>
-        <div className="ts-l1">
-          <h2 className="ts-name">{p.name}</h2>
-          {chip && (
-            <span
-              className="model-chip ts-chip"
-              data-family={p.model ? modelFamily(p.model) : ""}
-              role="img"
-              aria-label={chipLabel(p.provider, chip)}
-              title={p.provider === "codex" ? "Codex" : "Claude Code"}
-            >
-              <ProviderGlyph provider={p.provider ?? "claude"} />
-              {chip}
-            </span>
-          )}
-        </div>
+        {glyph && <StageGlyph kind={glyph} />}
+        <h2 className="ts-name">{p.name}</h2>
+        {/* The provider, in words, where the model chip used to say it. */}
+        {p.provider && <span className="vis-hidden">{agentName(p.provider)}</span>}
         {status.state !== "none" && (
-          <div className="ts-l2" data-state={status.state}>
-            {/* Waiting borrows the deck's own "still asking" emitter, so the
-                header pings the way the topbar chip and the card do. */}
-            {status.state === "waiting"
-              ? <span className="ap-pulse" aria-hidden="true" />
-              : <i className="ts-mark" aria-hidden="true" />}
-            <span className="ts-phrase">
+          <div className="ts-meta" data-state={status.state}>
+            <span className="ts-meta-state">
               {status.phrase}
               {status.emphasis && <> <b>{status.emphasis}</b></>}
             </span>
-            {detail && <span className="ts-dot" aria-hidden="true">·</span>}
-            {status.tool && <span className="ts-tool">{status.tool}</span>}
-            {status.arg && <span className="ts-arg">{status.arg}</span>}
-            {status.seconds && <span className="ts-sec">{status.seconds}</span>}
+            {rest && <span className="ts-meta-rest">· {rest}</span>}
           </div>
         )}
       </div>
       <div className="ts-ctl">
-        {p.canType && (
-          <>
+        <div className="ts-tools">
+          {p.canType && (
             <button
               type="button"
               className="glyph-btn"
@@ -164,27 +142,26 @@ export default function StageHeader(p: StageHeaderProps) {
             >
               <KeyboardGlyph />
             </button>
-            <span className="ts-ctl-sep" aria-hidden="true" />
-          </>
-        )}
-        {/* No width to give in the takeover — but full screen still gives
-            the browser's shortcuts, and a bigger window. */}
-        {(!p.takeover || p.canFull) && (
-          <button
-            type="button"
-            className="glyph-btn"
-            aria-label={expandLabel}
-            title={expandLabel}
-            // Typing carries on across it: the pane keeps the keys it had.
-            onMouseDown={e => e.preventDefault()}
-            onClick={p.onExpand}
-          >
-            {p.expanded ? <CollapseGlyph /> : <ExpandGlyph />}
+          )}
+          {/* No width to give in the takeover — but full screen still gives
+              the browser's shortcuts, and a bigger window. */}
+          {(!p.takeover || p.canFull) && (
+            <button
+              type="button"
+              className="glyph-btn"
+              aria-label={expandLabel}
+              title={expandLabel}
+              // Typing carries on across it: the pane keeps the keys it had.
+              onMouseDown={e => e.preventDefault()}
+              onClick={p.onExpand}
+            >
+              {p.expanded ? <CollapseGlyph /> : <ExpandGlyph />}
+            </button>
+          )}
+          <button type="button" className="glyph-btn" data-stage-close aria-label={closeLabel} title={closeLabel} onClick={p.onClose}>
+            <CloseGlyph />
           </button>
-        )}
-        <button type="button" className="glyph-btn" data-stage-close aria-label={closeLabel} title={closeLabel} onClick={p.onClose}>
-          <CloseGlyph />
-        </button>
+        </div>
       </div>
       <div className="ts-scan" aria-hidden="true" />
     </header>

@@ -79,7 +79,7 @@ describe("the slot it is worth (#719)", () => {
   it("does not draw itself while everything is fine", () => {
     // The pill led the readout run and held 49.89px plus a 14px gap for the
     // whole of every session, to report that nothing was wrong. `ambient.ts`
-    // refuses to write `(0) ccdeck` for the same reason: a badge that reports
+    // refuses to write `(0) waiting · ccdeck` for the same reason: a badge that reports
     // nothing is wrong is a badge that gets ignored, and a badge that gets
     // ignored is ignored when it finally has something to say.
     expect(statusPill({ connected: true, paused: false, held: 0 }).resting).toBe(true);

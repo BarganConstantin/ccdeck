@@ -86,7 +86,8 @@ describe("the pace note opens the number it is measured against (#856)", () => {
 
 describe("what stays a title, because it decides nothing (#856)", () => {
   it("keeps the card's cost breakdown a title", () => {
-    expect(node).toMatch(/<span className="cost-meta" title=\{cost\.tt\}>/);
+    // The foot's list keys the span itself now (V4's card dropped the wrapper).
+    expect(node).toMatch(/<span (?:key="cost" )?className="cost-meta" title=\{cost\.tt\}>/);
   });
 
   it("keeps where a quota reading came from a title", () => {

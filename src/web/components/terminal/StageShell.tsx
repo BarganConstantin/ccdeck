@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties, type MutableRefObject } from "react";
 import { useReactFlow, useStoreApi } from "reactflow";
 import type { BlockedSession } from "../../ambient-counts";
+import { boardRect } from "../../board-rect";
 import { clusterBounds } from "../../cluster-bounds";
 import { FLIP_CLOSE_MS, FLIP_OPEN_MS, readBoardClusterRects, runTween, type Running } from "../../navigator-flip";
 import { paletteReader, type Palette } from "../../palette";
@@ -124,7 +125,7 @@ function cardRects(canvas: HTMLElement | null, id: string | null): { card: DOMRe
   let el: Element | null = null;
   try { el = canvas.querySelector(`.react-flow__node[data-id="${CSS.escape(id)}"]`); } catch {}
   if (!el) return { card: null, name: null };
-  const pane = canvas.getBoundingClientRect();
+  const pane = boardRect(canvas);
   const card = el.getBoundingClientRect();
   const shows = card.width > 0 && card.right > pane.left && card.left < pane.right && card.bottom > pane.top && card.top < pane.bottom;
   if (!shows) return { card: null, name: null };
@@ -348,6 +349,7 @@ export function StageDock(p: StageDockProps) {
           onRelease={stage.release}
           onCell={stage.onCell}
           onBarH={stage.onBarH}
+          onHeadH={stage.onHeadH}
           onLaunched={stage.onLaunched}
           onLaunchAgain={show.kind === "launch" ? () => stage.launch(show.agent, show.cwd, show.options) : undefined}
           onAnnounce={stage.announce}

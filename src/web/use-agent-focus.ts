@@ -9,6 +9,7 @@
 // reframe effect reads them too.
 import { useCallback, type MutableRefObject } from "react";
 import type { Node } from "reactflow";
+import { boardRect } from "./board-rect";
 import { sessionOfNode } from "./layout-geometry";
 import { laneMap, type FlowNodeData } from "./canvas-flow";
 import { stepTarget } from "./canvas-keys";
@@ -82,7 +83,7 @@ export function useAgentFocus({
       const b = boxOf(n, n.type === "agent");
       if (b) members.push(b);
     }
-    const rect = pane.getBoundingClientRect();
+    const rect = boardRect(pane);
     const want = focusViewport({
       pane: { width: rect.width, height: rect.height },
       // Top: the tool filter bar. Bottom: the row the control bar and the

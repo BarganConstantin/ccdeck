@@ -142,7 +142,8 @@
   .tool-burst .tb-spin,
   .tool-burst .tb-mark,
   .tool-burst.status-inflight .tb-emoji,
-  .state-pill.state-active::before { animation: none; }
+  .state-pill.state-active::before,
+  .agent-node .state-line[data-tone="active"] .state-mark { animation: none; }
   .tool-burst.clickable { transition: box-shadow 120ms ease, opacity 180ms ease, filter 180ms ease; }
   .tool-burst.clickable:hover { translate: none; }
 

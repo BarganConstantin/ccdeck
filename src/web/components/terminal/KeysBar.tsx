@@ -1,13 +1,20 @@
-// The keys bar: 36px under the terminal that always says who has the keyboard,
-// and runs the asks (v3).
+// The keys bar: 32px under the terminal that always says who has the keyboard,
+// and runs the asks (V4; 36px in v3).
 //
 // ONE OWNER, ALWAYS VISIBLE. A pane that takes every key — Escape included —
 // is a keyboard trap unless the way out is on screen, so the bar's left side
-// is never empty: a hollow lamp and "Keys on the board" with the board's own
-// keys, or a lit lamp and "Typing into paycore" with the release chord. The
-// lamp is the state; the sentence is what a screen reader hears, once, when it
+// is never empty: the idle glyph and "Keys on the board" with the board's own
+// keys, or the working glyph and "Typing into paycore" with the release chord.
+// The glyph is the state; the sentence is what a screen reader hears, once, when it
 // lands on the bar (it is not a live region — the owner changes on every
 // click into the pane, and #372 is what announcing that would be).
+//
+// THE LAMP IS THE RAIL'S GLYPH NOW (Figma V4, "Keys bar"). v3 drew the owner as a
+// 7px lamp, hollow for the board and lit, with a glow, for the pane. V4 says
+// it with the 14px state glyph the rail, the header and the cards wear: the
+// hollow idle mark for the board, the working mark for the pane — what the
+// lit lamp stood for. The keys are the kit's Kbd (components/Kbd.tsx), 16
+// tall in this bar, and its buttons the kit's Quiet at 28.
 //
 // THE ASKS LIVE WHERE THE EYES ALREADY ARE. Answering a permission prompt
 // means looking at the last rows of the terminal; the next ask is offered
@@ -21,7 +28,8 @@
 // else took away gets the same bar with "Attach again".
 import { RELEASE_CHORD_SPOKEN } from "../../terminal-keys";
 import type { KeysOwner } from "./stage-model";
-import { ChevronGlyph } from "./stage-icons";
+import { Kbd } from "../Kbd";
+import { ChevronGlyph, StageGlyph } from "./stage-icons";
 
 /** One run through the waiting sessions, as the integrator's use-asks has it. */
 export interface AsksView {
@@ -91,10 +99,9 @@ export interface KeysBarProps {
   hosts?: HostsLineView | null;
 }
 
-/** `control`: the chip names one of the stage's own controls (✕), not a key,
- *  so a fingertip has it too (touch-and-forced-colours.css). */
-const Kbd = ({ children, label, control }: { children: string; label?: string; control?: boolean }) =>
-  <kbd className="ts-kbd" aria-label={label} data-control={control || undefined}>{children}</kbd>;
+/** The chip that names one of the stage's own controls (✕), not a key, so a
+ *  fingertip has it too (touch-and-forced-colours.css): the kit's cap, marked. */
+const ControlKey = ({ children }: { children: string }) => <kbd className="kbd" data-control>{children}</kbd>;
 
 /** The track: hollow for an ask still to come, filled for the one on stage,
  *  green for one answered. Drawn, so hidden from the reader; the count and
@@ -186,8 +193,8 @@ export default function KeysBar(p: KeysBarProps) {
     // header's control, stays.
     left = (
       <div className="ts-keys" data-owner={p.owner}>
-        <i className="ts-lamp" aria-hidden="true" />
-        <span className="ts-first">Typing goes to the session<span className="ts-first-keys"> — <Kbd>Esc</Kbd> included</span>. <Kbd control>✕</Kbd> closes the Command Panel; the session keeps running.</span>
+        <StageGlyph kind={p.owner === "pane" ? "working" : "idle"} />
+        <span className="ts-first">Typing goes to the session<span className="ts-first-keys"> — <Kbd>Esc</Kbd> included</span>. <ControlKey>✕</ControlKey> closes the Command Panel; the session keeps running.</span>
         <button type="button" className="btn" onClick={p.onFirstRunDone}>Got it</button>
       </div>
     );
@@ -197,14 +204,14 @@ export default function KeysBar(p: KeysBarProps) {
     // stage cannot keep.
     left = (
       <div className="ts-keys" data-owner="none">
-        <i className="ts-lamp" aria-hidden="true" />
+        <StageGlyph kind="idle" />
         <span>Reconnecting to <span className="ts-who">{p.name}</span> — nothing typed now is sent</span>
       </div>
     );
   } else if (p.owner === "pane") {
     left = (
       <div className="ts-keys" data-owner="pane">
-        <i className="ts-lamp" aria-hidden="true" />
+        <StageGlyph kind="working" />
         <span>Typing into <span className="ts-who">{p.name}</span></span>
         <span className="ts-hint"><Kbd>Esc</Kbd> goes to the session</span>
         <span className="ts-hint"><Kbd label={RELEASE_CHORD_SPOKEN}>{p.chordLabel}</Kbd> back to the board</span>
@@ -213,7 +220,7 @@ export default function KeysBar(p: KeysBarProps) {
   } else {
     left = (
       <div className="ts-keys" data-owner="board">
-        <i className="ts-lamp" aria-hidden="true" />
+        <StageGlyph kind="idle" />
         <span>Keys on the board</span>
         {!p.takeover && <span className="ts-hint"><Kbd>j</Kbd><Kbd>k</Kbd> sessions</span>}
         {p.canType && (

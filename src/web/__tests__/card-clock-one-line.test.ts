@@ -57,24 +57,26 @@ describe("the elapsed clock past a hundred minutes", () => {
 });
 
 describe("the card's clock box", () => {
-  /** The card's header, down to the clock, on the full card. */
+  /** The card's foot, down to the clock, on the full card (V4 moved the clock
+   *  from the header's sub row to the foot, after the cost). */
   const TIME = [
     el("html", [], { states: ["root"] }), el("body"), el("div", ["app"]),
     el("main", ["canvas-wrap"], { attrs: { "data-lod": "detail" } }), el("div", ["react-flow"]),
     el("div", ["react-flow__node", "react-flow__node-agent"]), el("div", ["agent-node", "state-active"]),
-    el("div", ["head"]), el("div", ["head-right"]), el("div", ["time"]),
+    el("div", ["foot"]), el("span", ["time"]),
   ];
   const got = (prop: string, width: number) => cascade(s => selects(s, TIME), prop, width);
 
   for (const width of [1440, 390]) {
-    it(`never wraps, never shrinks, and keeps seven digits' width at ${width}px`, () => {
+    it(`never wraps, never shrinks, and has no minimum width at ${width}px`, () => {
       expect(got("white-space", width)).toBe("nowrap");
       expect(got("flex", width)).toBe("none");
-      // Seven characters of a monospaced face with tabular figures: every
-      // reading below a hundred hours fits it, so the label beside it keeps
-      // one width while the clock counts.
-      expect(got("min-width", width)).toBe("7ch");
-      expect(got("text-align", width)).toBe("right");
+      // CHANGED ON PURPOSE: this pinned `min-width: 7ch`, which left a gap
+      // mid-row between the clock and the next foot item. The box is only as
+      // wide as its text now; tabular figures (below) keep the digits one width.
+      expect(got("min-width", width)).toBeNull();
+      // Left now: the clock follows the cost in the foot instead of closing a row.
+      expect(got("text-align", width)).toBe("left");
       expect(got("font-variant-numeric", width)).toBe("tabular-nums");
       expect(got("font-family", width)).toBe("var(--font-mono)");
     });

@@ -1,0 +1,79 @@
+/* ---------------- the board header (V4, Figma Board › bhead 22:14910) ----------------
+   A strip across the top of the canvas cell: five figures, a number over its
+   label (components/BoardHeader.tsx, board-header.ts). Drawn only with
+   sessions on the board and off a phone; main carries `data-board-head` then,
+   and that one attribute is everything below that moves. */
+
+/* The cell becomes a column while the strip is in it: the strip keeps its
+   height and the board (React Flow's wrapper, which sets its own 100% inline)
+   takes the rest. Everything else in the cell is absolutely placed, so none of
+   it joins the column; what sits at the top edge reads --board-head-top. */
+.canvas-wrap[data-board-head] {
+  display: flex;
+  flex-direction: column;
+  --board-head-top: var(--board-head-h);
+}
+.canvas-wrap[data-board-head] > .react-flow {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.board-head {
+  flex: none;
+  box-sizing: border-box;
+  height: var(--board-head-h);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 24px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  /* Never wraps, never scrolls. The container is the strip itself, which is as
+     wide as the cell, and the thresholds below hide the right-hand stats
+     before anything can clip. */
+  overflow: hidden;
+  white-space: nowrap;
+  container-type: inline-size;
+  container-name: board-head;
+}
+.bh-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+.bh-num {
+  font-family: var(--font-mono);
+  font-size: calc(18px + var(--ui-text-increase, 0px));
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--text);
+}
+.bh-num[data-tone="warn"] { color: var(--warn); }
+.bh-num[data-tone="none"] { color: var(--muted); }
+.bh-label {
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* Narrow boards drop the right-hand stats, last first. The container is the
+   strip's content box, so the right panels' inset (the inline padding) counts
+   as taken. Measured in Chromium at Compact and Default alike: the first five,
+   four, three and two stats need 492, 364, 272 and 147px, and 636, 472, 356
+   and 195px with every label and number 30% longer (a translation, a larger
+   reading size). Each threshold below sits above the longer need, so the next
+   stat goes before anything clips. The first stat always stays. */
+@container board-head (max-width: 640px) {
+  .bh-stat:nth-child(5) { display: none; }
+}
+@container board-head (max-width: 500px) {
+  .bh-stat:nth-child(4) { display: none; }
+}
+@container board-head (max-width: 400px) {
+  .bh-stat:nth-child(3) { display: none; }
+}
+@container board-head (max-width: 200px) {
+  .bh-stat:nth-child(2) { display: none; }
+}

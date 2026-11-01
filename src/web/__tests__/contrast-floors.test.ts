@@ -390,7 +390,14 @@ describe("agent-node state rings (#268)", () => {
     // The state the card draws (drawnState): a root whose turn stopped on an
     // error (#2185) spells "err" there, beside the row that says which error.
     expect(agentNode).toMatch(/const shown = drawnState\(data\);/);
-    expect(agentNode).toMatch(/<StatePill state=\{shown\} \/>/);
+    // V4's card says it as a mark and a sentence-case word (StateLine), from the
+    // same cardState the faces at a distance take their mark from.
+    expect(agentNode).toMatch(/<StateLine state=\{state\} \/>/);
+    // And that state is drawnState's: the word cannot drift from the stopped-on-
+    // an-error state the old pill was handed directly.
+    expect(agentNode).toMatch(/const state = cardState\(data\);/);
+    expect(readFileSync(fileURLToPath(new URL("../node-face.ts", import.meta.url)), "utf8"))
+      .toMatch(/export function cardState\([^)]*\): CardState \{[\s\S]*?const shown = drawnState\(data\);/);
   });
 
   it("keeps the three state hues from collapsing into each other", () => {

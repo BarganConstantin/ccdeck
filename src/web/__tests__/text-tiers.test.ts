@@ -159,6 +159,17 @@ describe("what was migrated to the secondary tier", () => {
       // and the heading carry the failure; the reason is prose, so it reads and does not
       // shout.
       ".aa-reason",
+      // V4's Agent / Card sets its task line (the session's name or title, or a
+      // subagent's kind and folder) in this tier, and its foot — cost · time …
+      // and the sub-agent count — in the same ink as mono figures. The foot is
+      // metadata, so it joins the list against this test's own rule that the
+      // tier is prose; ON PURPOSE, because the kit draws the figures at
+      // --text-secondary and the dot between them at --muted, and the tier
+      // clears 4.5:1 on every node bed (above).
+      ".agent-node .foot",
+      ".agent-node .foot .spawn-badge",
+      ".agent-node .task-line",
+      ".agent-node .time",
       // Explains missing prices and recorded cost provenance.
       ".uh-cost-note",
       ".ap-issue-hint",
@@ -441,9 +452,14 @@ describe("what was migrated to the secondary tier", () => {
       ".settings-row-details",
       // The terminal stage. Its keys bar says in a sentence who has the
       // keyboard — "Keys on the board", "Typing into paycore", the first-run
-      // line, "The session ended 14m ago — this is its last frame" — on the
-      // bar's --chrome-bg; the keys and hints beside it stay on --muted.
-      ".ts-bar",
+      // line, "The session ended 14m ago — this is its last frame" — in
+      // V4's --muted on the bar's --bg-soft, as the kit draws it (the bar
+      // itself left this list for that); the one thing set apart is the
+      // session's name in it (.ts-who). The header's sentence takes the
+      // tier for its state part ("working", "waiting 6m"), the tool and its
+      // argument after it staying --muted.
+      ".ts-who",
+      ".ts-meta-state",
       // And its state cards: the one sentence that says why there is no pane
       // (the deck's describeTarget, tmux missing, an error), and the note that
       // answers a refused Reopen here in place. Prose read once and acted on.
