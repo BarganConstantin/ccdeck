@@ -597,16 +597,17 @@ function StopRow({ data, stop }: { data: AgentNodeData; stop: StopFacts }) {
 function WaitingRow({ waiting }: { waiting: WaitingBlock }) {
   // Its own beat (#873): "blocked for 3m" counts up while the card sits still.
   const now = useNow(1000);
-  // The pulse and the amber belong to a session that is STOPPED until a human
-  // answers, which is both `permission` and `asked` — the same set `isAlarming`
-  // names, and it has to stay the same set or the card would contradict the
-  // topbar chip beside it. Idle keeps the quiet dot: a finished turn is not an
+  // The amber is every waiting card's (V4 decision 22, one Waiting colour).
+  // The pulse belongs to a session that is STOPPED until a human answers,
+  // which is both `permission` and `asked` — the same set `isAlarming` names,
+  // and it has to stay the same set or the card would contradict the topbar
+  // chip beside it. Idle keeps the quiet dot: a finished turn is not an
   // interruption.
   const alarming = isAlarming(waiting);
   const said = waitingSentence(waiting);
   return (
     <div
-      className={alarming ? "waiting-row permission" : "waiting-row idle"}
+      className="waiting-row"
       title={`${said}\nBlocked for ${elapsed(waiting.since, undefined, now)} — the answer goes in the terminal, not here.`}
     >
       {alarming
