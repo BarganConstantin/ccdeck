@@ -42,7 +42,7 @@
 }
 
 .agent-node.state-active {
-  border-color: var(--inflight);
+  border-color: var(--card-alarm, var(--inflight));
   /* THE BORDER ALREADY SAYS IT. This carried a 1px ring and a 22px coloured
      glow on top of a full hue inversion of the card's outline — three of the
      twelve channels that were all saying the one word `running`, and the two
@@ -63,8 +63,15 @@
      are most likely to point at — did not. The base supplies --shadow-1 and
      the hover supplies --shadow-2; this rule needs to say neither. */
 }
-.agent-node.state-done { border-color: rgba(134,239,172,0.5); }
-.agent-node.state-err { border-color: rgba(252,165,165,0.6); }
+.agent-node.state-done { border-color: var(--card-alarm, rgba(134,239,172,0.5)); }
+.agent-node.state-err { border-color: var(--card-alarm, rgba(252,165,165,0.6)); }
+/* Blocked on a human, the one state that must win: the edge says Waiting in
+   the --warn its word and its ask line are in (Figma's Agent / Card, State
+   Waiting; V4 decision 22, one Waiting colour), where it used to say Working.
+   On a variable that every state's edge reads first, in every theme, as the
+   faces at a distance do with --lod-alarm, so no theme's twin of a state rule
+   outranks it on specificity. */
+.agent-node[data-alarm] { --card-alarm: var(--warn); }
 
 
 /* SELECTION HAS TO OUTRANK THE STATE, and it used to sit ABOVE these three

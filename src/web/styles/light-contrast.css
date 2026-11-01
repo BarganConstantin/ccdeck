@@ -8,7 +8,7 @@
    the state is the edge and the dot (topbar-controls.css); the tints went with
    the fill they coloured. */
 :root[data-color-scheme="light"] .agent-node.state-active {
-  border-color: rgba(126,34,206,0.65);
+  border-color: var(--card-alarm, rgba(126,34,206,0.65));
   /* The dark rule's reasoning, in the other theme — including its silence
      about box-shadow. This twin is (0,4,0), so it outranked the hover whatever
      the order, and light was broken the same way: hovered, the running card
@@ -19,8 +19,8 @@
    dark rules, where 0.5 over #14161b still reads; over a white node they landed
    at 2.26:1 and 3.12:1 against the node interior — under the 3:1 that 1.4.11
    asks of a boundary. The tokens themselves are 5.02:1 and 6.47:1. */
-:root[data-color-scheme="light"] .agent-node.state-done { border-color: var(--ok); }
-:root[data-color-scheme="light"] .agent-node.state-err  { border-color: var(--err); }
+:root[data-color-scheme="light"] .agent-node.state-done { border-color: var(--card-alarm, var(--ok)); }
+:root[data-color-scheme="light"] .agent-node.state-err  { border-color: var(--card-alarm, var(--err)); }
 
 :root[data-color-scheme="light"] .state-pill.state-active {
   border-color: rgba(126,34,206,0.45);

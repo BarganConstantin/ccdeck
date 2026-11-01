@@ -317,10 +317,20 @@ describe("--text-dim, the token the annotation rules now read from (#262)", () =
 });
 
 describe("agent-node state rings (#268)", () => {
+  // CHANGED ON PURPOSE: each state's edge reads --card-alarm first, so a card
+  // blocked on you is edged in --warn (V4 decision 22). Unset, the ring is the
+  // fallback, so that is what each state is measured by, and "alarm" measures
+  // the --warn edge itself on the same beds.
+  const unalarmed = (v: string) => {
+    const m = /^var\(--card-alarm,\s*([\s\S]+)\)$/.exec(v.trim());
+    if (!m) throw new Error(`a state edge that does not read --card-alarm first: ${v}`);
+    return m[1];
+  };
   const ringOf = (state: string, theme: Theme) => {
-    const base = decl(rule(`.agent-node.state-${state}`), "border-color")!;
+    if (state === "alarm") return resolve(decl(rule(".agent-node[data-alarm]"), "--card-alarm")!, theme);
+    const base = unalarmed(decl(rule(`.agent-node.state-${state}`), "border-color")!);
     const light = decl(rule(`:root[data-color-scheme="light"] .agent-node.state-${state}`), "border-color");
-    return resolve(theme === "light" && light ? light : base, theme);
+    return resolve(theme === "light" && light ? unalarmed(light) : base, theme);
   };
 
   it("draws every state's ring at 3:1 or better against the node it outlines", () => {
@@ -335,7 +345,7 @@ describe("agent-node state rings (#268)", () => {
       // differ and a ring is drawn across the whole of it.
       expect(node.map(([n]) => n), `${theme}: no node beds — every ring below would be measured against nothing`)
         .toEqual([`${NODE_BED} 0`, `${NODE_BED} 1`]);
-      for (const state of ["active", "done", "err"]) {
+      for (const state of ["active", "done", "err", "alarm"]) {
         const ring = ringOf(state, theme);
         for (const [name, bg] of node) {
           expect(contrastRatio(over(ring, bg), bg), `${theme} ${state} ring on ${name}`)
@@ -348,7 +358,7 @@ describe("agent-node state rings (#268)", () => {
   it("holds that 3:1 against the canvas too, since the ring is the node's edge", () => {
     for (const theme of themes) {
       const canvas = parseColor(TOK[theme]["--bg"]);
-      for (const state of ["active", "done", "err"]) {
+      for (const state of ["active", "done", "err", "alarm"]) {
         expect(contrastRatio(over(ringOf(state, theme), canvas), canvas), `${theme} ${state} ring on --bg`)
           .toBeGreaterThanOrEqual(NON_TEXT);
       }

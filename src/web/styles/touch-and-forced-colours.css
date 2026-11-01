@@ -141,7 +141,6 @@
   .plan-mark { forced-color-adjust: none; border-color: CanvasText; }
   .plan-item[data-status="in_progress"] .plan-mark { background: Highlight; border-color: Highlight; }
   .plan-item[data-status="completed"] .plan-mark::after { forced-color-adjust: none; border-color: CanvasText; }
-  .topbar .status .pill.live::before,
   .topbar .status .pill.paused::before,
   .topbar .status .pill.dead::before,
   .conn-banner .conn-dot,

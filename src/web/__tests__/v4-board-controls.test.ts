@@ -37,7 +37,7 @@ describe("the bar's items, left to right", () => {
     'aria-label="Recenter view"',
     'aria-label="Re-arrange the canvas"',
     "aria-label={PAUSE_LABEL}",
-    'aria-label="Clear the canvas"',
+    'aria-label="Clear the deck"',
     "react-flow__controls-divider",
     'aria-label="Open the keyboard shortcuts"',
     'aria-label="Open the Command Panel"',
@@ -99,14 +99,15 @@ describe("the bar's box", () => {
     expect(decls(".react-flow")["--board-controls-edge"]).toBe("12px");
     expect(decls(".react-flow__panel.react-flow__controls")["margin"]).toBe("var(--board-controls-edge)");
   });
-  it("has buttons 24 square at Compact (--ctl-h less 4) at --r-ctl, and a divider 1 by 16 in --line-soft", () => {
+  it("has buttons 24 square at Compact (--ctl-h less 4) at --r-tag, and a divider 1 by 16 in --line-soft", () => {
     // Never under the deck's 24px target floor, which the two tightest
     // densities (--ctl-h 24 and 26) would otherwise take it below.
     expect(decls(".react-flow")["--board-controls-btn"]).toBe("max(24px, calc(var(--ctl-h) - 4px))");
     const b = decls(".react-flow__controls-button");
     expect(b["width"]).toBe("var(--board-controls-btn)");
     expect(b["height"]).toBe("var(--board-controls-btn)");
-    expect(b["border-radius"]).toBe("var(--r-ctl)");
+    // The bar's radius less its inset, 6 less 2 (V4 decision 21).
+    expect(b["border-radius"]).toBe("var(--r-tag)");
     const d = decls(".react-flow__controls-divider");
     expect(d["width"]).toBe("1px");
     expect(d["height"]).toBe("16px");
