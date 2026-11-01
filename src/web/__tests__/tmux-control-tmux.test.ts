@@ -357,6 +357,15 @@ describe("against a real tmux", () => {
     m.touch();
     await c.input("q");
     await waitFor(() => !onAlt("alt"), "the program to leave");
+    // alternate_on drops at the program's ?1049l, before it has exited and sh
+    // has drawn its prompt; a quiet settle started there can end before the
+    // prompt is written, and the comparison then races it. Wait for tmux to
+    // show the new prompt on the cursor's row (the row above holds the command
+    // that started the program), then settle as before.
+    await waitFor(() => {
+      const cy = Number(tm("display-message", "-p", "-t", "alt", "#{cursor_y}").trim());
+      return tm("capture-pane", "-p", "-t", "alt").split("\n")[cy]?.trimEnd() === "$";
+    }, "the shell's prompt");
     await m.settle();
     expect(await differences(m.term, "alt"), "back on the shell, prompt where tmux puts it").toEqual([]);
     expect(m.term.modes.mouseTrackingMode, "and the program's own exit turned the mouse off again").toBe("none");
