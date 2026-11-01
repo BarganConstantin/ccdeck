@@ -206,10 +206,12 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-/* V4 gives the glyph a 14px slot. The pulse dot is 5px, whole pixels in a
-   whole-pixel slot: 4 before it and 5 after (the ring it emits is drawn over
-   the margin, not in it). */
-.topbar .waiting-stat .ap-pulse { margin-inline: 4px 5px; }
+/* V4's Waiting glyph (RailGlyph, the rail's own alert triangle), in a 14px
+   slot, standing still and in the chip's --warn: the glyph takes the colour
+   from the chip. The rail's rules for it are scoped to the session list. */
+.topbar .waiting-stat .sl-glyph { display: inline-flex; align-items: center; flex: none; width: 14px; height: 14px; }
+.topbar .waiting-stat .sl-glyph-mark { display: inline-flex; }
+.topbar .waiting-stat .alert-mark { margin-left: 0; }
 .topbar .waiting-stat:hover {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 12%, transparent);

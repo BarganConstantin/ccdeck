@@ -107,7 +107,7 @@ export default function VersionChip({
             ? `Running v${notice.from}; v${notice.to} is installed on disk. Restart to pick it up · click for what's new`
             : `Running v${notice.from}; v${notice.to} is on npm · click for what's new`}
         >
-          v{notice.from}
+          {`${notice.to} is ready`}
           <span className="v-dot" aria-hidden />
         </button>
       ) : (

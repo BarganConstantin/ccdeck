@@ -90,7 +90,9 @@ describe("every control in the chrome says its name (#836)", () => {
   it("names every control and keeps visible words on the topbar", () => {
     expect(drawn.map(b => b.name)).toEqual(WORDS.map(([, name]) => name));
     expect([...buttons(left), ...buttons(right)].every(b => b.word === "")).toBe(true);
-    expect(buttons(corner).map(b => b.word)).toEqual(["Settings", "Feedback"]);
+    // Feedback is V4's icon-only 28x28 button (Figma 22:966): no visible word, so
+    // nothing for the name to carry; it is named by its aria-label alone.
+    expect(buttons(corner).map(b => b.word)).toEqual(["Settings", ""]);
     for (const { word, name } of drawn) {
       // The word is part of the name, so voice control can say what the eye reads.
       expect(name.toLowerCase(), word).toContain(word.toLowerCase());

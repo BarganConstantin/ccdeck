@@ -22,6 +22,7 @@ import type { Incident } from "../provider-status";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { namesThatFit, queueEntryDetail, queueEntryName, queueName, waitWhat } from "../waiting-queue";
 import { IncidentChips } from "./ProviderIncidents";
+import { RailGlyph } from "./RailParts";
 import { elapsedShort } from "./SessionList";
 import { useHint } from "./use-hint";
 import VersionChip from "./VersionChip";
@@ -165,7 +166,7 @@ export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, n
           detail: unnamed.length > 0 ? queueLines(unnamed, now) : undefined,
         })}
       >
-        <span className="ap-pulse" aria-hidden />
+        <RailGlyph kind="waiting" />
         <b>{count}</b> waiting
       </button>
       {hint.node}

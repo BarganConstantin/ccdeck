@@ -36,6 +36,7 @@ import {
   type KeyboardEvent, type ReactNode, type RefObject,
 } from "react";
 import AnchoredPopover from "./AnchoredPopover";
+import { Kbd } from "./Kbd";
 import { useHint, type HintSide, type HintSpec } from "./use-hint";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 
@@ -96,6 +97,10 @@ export function railHint(item: RailItem, singleKeys: boolean, wordShown: boolean
   const addsSomething = keys != null || item.detail != null || label !== item.label || !wordShown;
   return addsSomething ? { label, keys, detail: item.detail } : null;
 }
+
+/** What the top bar's search field says before anything is typed (Figma 22:979),
+ *  and so its name too: a name that holds the words on screen (WCAG 2.5.3). */
+export const QUICK_OPEN_PLACEHOLDER = "Open a session or run a command";
 
 /** Each placement's classes, written out whole so every class the markup can
  *  carry is a literal the sheet sweeps can hold to a rule. */
@@ -165,14 +170,20 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
   const singleKeys = useSingleKeyShortcuts();
   const hintHandlers = hint.bind(railHint(item, singleKeys, variant !== "stripe"));
   const disclosure = item.kind === "panel";
+  // V4's top bar draws Search as a field with its sentence and its chord, and
+  // Feedback as a bare icon: looks only, on the same buttons, with the same
+  // handlers. Feedback keeps its name in aria-label and the hint; the field is
+  // named by the sentence it shows, so the words on screen are the name.
+  const field = variant === "bar" && item.id === "quick-open";
+  const iconOnly = variant === "bar" && item.id === "feedback";
   return (
     <button
       ref={item.buttonRef}
       type="button"
       data-rail-item={item.id}
-      className={BUTTON_CLASS[variant]}
+      className={field ? `${BUTTON_CLASS[variant]} rail-btn-field` : iconOnly ? `${BUTTON_CLASS[variant]} rail-btn-icon` : BUTTON_CLASS[variant]}
       tabIndex={variant === "bar" ? undefined : tabbable ? 0 : -1}
-      aria-label={item.ariaLabel}
+      aria-label={field ? QUICK_OPEN_PLACEHOLDER : item.ariaLabel}
       aria-keyshortcuts={liveKey(item.key, singleKeys)?.aria}
       aria-expanded={disclosure ? item.open === true : undefined}
       aria-controls={disclosure && item.open ? item.controls : undefined}
@@ -182,7 +193,11 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
       onClick={() => item.onPress()}
     >
       {item.glyph}
-      {variant !== "stripe" && <span className="rail-word">{variant === "dock" ? item.short : item.label}</span>}
+      {field ? <>
+        <span className="rail-field-text">{QUICK_OPEN_PLACEHOLDER}</span>
+        {item.key && <Kbd>{item.key.cap}</Kbd>}
+      </> : iconOnly ? null
+        : variant !== "stripe" && <span className="rail-word">{variant === "dock" ? item.short : item.label}</span>}
       {item.badge != null && item.badge > 0 && <span className="rail-badge" aria-hidden>{item.badge}</span>}
       {item.dot && !(item.badge != null && item.badge > 0) && <span className="rail-dot" aria-hidden />}
     </button>

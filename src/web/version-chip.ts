@@ -152,7 +152,8 @@ export function versionNoticeLabel(n: VersionNoticeCopy): string {
   // is promised only while it is not already there, because promising to show
   // something the reader can see is how a name stops being trusted.
   const does = n.open ? "show what's new" : "show what's new and the notice";
-  return `Version v${n.from}, ${what} — ${does}`;
+  // Starts with the visible words, "{to} is ready" (WCAG 2.5.3, label in name).
+  return `${n.to} is ready. Version v${n.from}, ${what} — ${does}`;
 }
 
 // ── which update a dismissal was about (#1175) ──────────────────────────────
