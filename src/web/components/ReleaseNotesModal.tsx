@@ -3,8 +3,9 @@ import { useEffect, useId, useRef, useState } from "react";
 import { groupReleaseNotes, presentReleaseNotes, splitNoteTitle, versionRangeLabel, isVersion, type ReleaseNote, type VersionNotes } from "../release-notes";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { parseInline, type Inline } from "../inline-markdown";
-import { RESTART_TO_UPDATE } from "../desktop-update";
-import ReleaseActions, { useReleaseUpdateCheck, type UpdateCheckWiring, RESTART_WHY } from "./ReleaseActions";
+import { restartToUpdate } from "../desktop-update";
+import { useT } from "../i18n";
+import ReleaseActions, { useReleaseUpdateCheck, type UpdateCheckWiring, restartWhy } from "./ReleaseActions";
 import { ownRow } from "../own-row";
 import AnchoredPopover from "./AnchoredPopover";
 import { ExternalLinkGlyph } from "./action-glyphs";
@@ -26,6 +27,8 @@ interface Props {
 }
 
 export default function ReleaseNotesModal({ entries, since, running, firstRun, onClose, onTour, updateVersion, updateBusy, onUpdateRestart, updateFailure, onRestart, updateCheck }: Props) {
+  const t = useT();
+  const RESTART_WHY = restartWhy();
   const dialogRef = useModalDismiss(onClose);
   const closeRef = useRef<HTMLButtonElement>(null);
   const scrimPress = useScrimDismiss(onClose);
@@ -46,8 +49,8 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
     }
   }, [hasMenu, menu]);
   const range = isVersion(running) ? `v${running}` : versionRangeLabel(entries.slice(0, 1));
-  const context = firstRun && running ? `New in v${running}.`
-    : since ? `Changes since v${since}.` : null;
+  const context = firstRun && running ? t("shell.notes.contextFirst", { version: running })
+    : since ? t("shell.notes.contextSince", { since }) : null;
   const hasLegacyUpgrade = visiblePrevious.some(entry => entry.notes.some(note => !note.priority && !note.notice));
 
   return <div className="modal-backdrop" {...scrimPress} role="presentation">
@@ -55,47 +58,47 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
       role="dialog" aria-modal="true" aria-labelledby="release-notes-title">
       <header className="modal-head">
         <div className="modal-title">
-          <span id="release-notes-title" className="modal-tool-name">What&apos;s new</span>
+          <span id="release-notes-title" className="modal-tool-name">{t("shell.notes.title")}</span>
           {range && <span className="modal-tool-id">{range}</span>}
         </div>
         <div className="modal-actions">
-          {hasMenu && <button id={`${id}-options`} type="button" className="glyph-btn" aria-label="More options"
+          {hasMenu && <button id={`${id}-options`} type="button" className="glyph-btn" aria-label={t("shell.notes.moreOptions")}
             aria-haspopup="menu" aria-expanded={menu !== null} aria-controls={menu ? `${id}-menu` : undefined}
             onClick={() => setMenu(menu ? null : "first")}
             onKeyDown={e => { if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); setMenu(e.key === "ArrowUp" ? "last" : "first"); } }}>
             <svg className="glyph" viewBox="0 0 14 14" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="3" cy="7" r="1"/><circle cx="7" cy="7" r="1"/><circle cx="11" cy="7" r="1"/></svg>
           </button>}
-          <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+          <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose} aria-label={t("shell.closeEsc")} title={t("shell.closeEsc")}>×</button>
         </div>
       </header>
-      <span className="rn-live-status" role="status">{updateVersion ? `ccdeck v${updateVersion} is downloaded and verified.` : update?.state.line.said}</span>
-      <section className="modal-body" role="region" aria-label="Release notes" tabIndex={0}>
+      <span className="rn-live-status" role="status">{updateVersion ? t("shell.notes.downloaded", { version: updateVersion }) : update?.state.line.said}</span>
+      <section className="modal-body" role="region" aria-label={t("shell.notes.region")} tabIndex={0}>
         {updateVersion ? <div className="rn-ready">
-          <p>ccdeck v{updateVersion} is downloaded and verified.</p>
+          <p>{t("shell.notes.downloaded", { version: updateVersion })}</p>
           <p className="rn-update-said" role="status">{updateFailure}</p>
         </div> : <>{update?.needsAttention && <ReleaseActions update={update} />}
           <p className="rn-update-said" role="status">{updateFailure}</p></>}
         {context && <p className="rn-context">{context}</p>}
-        {!latest?.notes.length && !visiblePrevious.length && <p className="rn-empty">No release notes for this build.</p>}
+        {!latest?.notes.length && !visiblePrevious.length && <p className="rn-empty">{t("shell.notes.empty")}</p>}
         {latest && <ReleaseSection key={latest.version} entry={latest} showVersion={since !== null && entries.length > 1} />}
-        {visiblePrevious.length > 0 && <section className="rn-upgrade-history" aria-label="Earlier changes in this upgrade">
-          <h2 className="rn-group-title">Earlier in this upgrade</h2>
-          {hasLegacyUpgrade && <p className="rn-context">Older notes are shown in full so setup and other important changes stay visible.</p>}
+        {visiblePrevious.length > 0 && <section className="rn-upgrade-history" aria-label={t("shell.notes.earlierLabel")}>
+          <h2 className="rn-group-title">{t("shell.notes.earlierTitle")}</h2>
+          {hasLegacyUpgrade && <p className="rn-context">{t("shell.notes.legacy")}</p>}
           {visiblePrevious.map(entry => <ReleaseSection key={entry.version} entry={entry} showVersion />)}
         </section>}
         {history.length > 0 && <details className="rn-history">
-          <summary aria-controls={historyId}>Other changes since v{since}</summary>
+          <summary aria-controls={historyId}>{t("shell.notes.otherSince", { since: since ?? "" })}</summary>
           <div id={historyId}>{history.map(entry => <ReleaseSection key={entry.version} entry={entry} showVersion />)}</div>
         </details>}
       </section>
       <footer className="rn-footer">
         <div className="rn-footer-links">
-          <a href="https://ccdeck.dev/changelog/" target="_blank" rel="noopener noreferrer" aria-label="Release history (opens in a new tab)">Release history <ExternalLinkGlyph /></a>
-          {onTour && !updateVersion && <button className="rn-text-button" type="button" onClick={onTour}>Take the tour</button>}
+          <a href="https://ccdeck.dev/changelog/" target="_blank" rel="noopener noreferrer" aria-label={t("shell.notes.historyLabel")}>{t("shell.notes.history")} <ExternalLinkGlyph /></a>
+          {onTour && !updateVersion && <button className="rn-text-button" type="button" onClick={onTour}>{t("shell.notes.tour")}</button>}
         </div>
         {updateVersion && onUpdateRestart ? <button className="btn primary" type="button" onClick={onUpdateRestart} aria-busy={updateBusy || undefined}>
-          {updateBusy ? "Restarting…" : RESTART_TO_UPDATE}
-        </button> : <button className="btn primary" type="button" onClick={onClose}>Done</button>}
+          {updateBusy ? t("shell.notes.restarting") : restartToUpdate()}
+        </button> : <button className="btn primary" type="button" onClick={onClose}>{t("shell.done")}</button>}
       </footer>
       {menu && hasMenu && <AnchoredPopover anchorId={`${id}-options`} portalRootId={`${id}-dialog`} id={`${id}-menu`}
         role="menu" labelledBy={`${id}-options`} start={menu} className="ap-pop rn-options-menu" onClose={() => setMenu(null)}>
@@ -104,10 +107,10 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
         </p>}
         {update?.state.canCheck && <button type="button" className="ap-menu-item rn-act" role="menuitem"
           title={update.checkWhy} aria-describedby={`${id}-check-status`} aria-busy={update.state.checking || undefined}
-          onClick={() => void update.check()}><UpdateCheckGlyph />Check for updates</button>}
+          onClick={() => void update.check()}><UpdateCheckGlyph />{t("shell.notes.check")}</button>}
         {update?.state.canCheck && canRestart && <div className="rn-menu-separator" role="separator" />}
         {canRestart && <button type="button" className="ap-menu-item" role="menuitem" title={RESTART_WHY} aria-describedby={`${id}-restart-why`}
-          onClick={() => { setMenu(null); onRestart?.(); }}><RestartGlyph />Restart ccdeck</button>}
+          onClick={() => { setMenu(null); onRestart?.(); }}><RestartGlyph />{t("shell.notes.restart")}</button>}
         <span hidden id={`${id}-restart-why`}>{RESTART_WHY}</span>
       </AnchoredPopover>}
     </div>
@@ -115,6 +118,7 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
 }
 
 function ReleaseSection({ entry, showVersion }: { entry: VersionNotes; showVersion: boolean }) {
+  const t = useT();
   const { highlights, visible, more } = groupReleaseNotes(entry.notes);
   const extraHighlights = highlights.filter(note => note.details);
   const moreId = useId();
@@ -128,14 +132,14 @@ function ReleaseSection({ entry, showVersion }: { entry: VersionNotes; showVersi
     {(more.length > 0 || extraHighlights.length > 0) && <details className="rn-more">
       <summary aria-controls={moreId}>
         <span className="rn-more-start"><span className="rn-chevron" aria-hidden="true">›</span>
-          <span className="rn-more-label">{more.length ? `${more.length} more ${more.length === 1 ? "improvement" : "improvements"}` : "More details"}</span>
+          <span className="rn-more-label">{more.length ? t("shell.notes.more", { count: more.length }) : t("shell.notes.moreDetails")}</span>
         </span>
-        <span className="rn-more-hint"><span className="rn-show-details">Show details</span><span className="rn-hide-details">Hide details</span></span>
+        <span className="rn-more-hint"><span className="rn-show-details">{t("shell.notes.show")}</span><span className="rn-hide-details">{t("shell.notes.hide")}</span></span>
       </summary>
       <div id={moreId}>
         <ul className="rn-notes">{more.map((note, i) => <Note key={i} note={note} />)}</ul>
         {extraHighlights.length > 0 && <div className="rn-highlight-details" role="group" aria-labelledby={`${moreId}-highlights`}>
-          <h3 id={`${moreId}-highlights`} className="rn-details-title">More about the highlights</h3>
+          <h3 id={`${moreId}-highlights`} className="rn-details-title">{t("shell.notes.aboutHighlights")}</h3>
           {extraHighlights.map((note, i) => <p key={i} className="rn-note-body"><strong className="rn-strong">{splitNoteTitle(note.title).rest.trimStart()}: </strong>{renderInline(parseInline(note.details!))}</p>)}
         </div>}
       </div>
@@ -146,6 +150,7 @@ function ReleaseSection({ entry, showVersion }: { entry: VersionNotes; showVersi
 const NOTE_ICONS = { plans: SessionListGlyph, accounts: AccountsGlyph, skills: SkillActivityGlyph };
 
 function Note({ note, highlight }: { note: ReleaseNote; highlight?: boolean }) {
+  const t = useT();
   // The title's own emoji leads it, as it did before the digest (owner,
   // 2026-10-27), in a box of its own for the side bearing a colour glyph lacks
   // (.rn-note-icon). The semantic glyph stands in only for a title without one,
@@ -157,7 +162,7 @@ function Note({ note, highlight }: { note: ReleaseNote; highlight?: boolean }) {
     <div><h3 className="rn-note-title">{emoji && <span className="rn-note-icon">{emoji}</span>}{emoji ? rest : rest.trimStart()}</h3>
       <p className="rn-note-body">{renderInline(parseInline(note.body))}</p>
       {!highlight && note.details && <p className="rn-note-body rn-extra-detail">{renderInline(parseInline(note.details))}</p>}
-      {note.notice && <p className="rn-note-notice"><strong>{note.noticeLabel ?? "Important"}: </strong>{renderInline(parseInline(note.notice))}</p>}
+      {note.notice && <p className="rn-note-notice"><strong>{note.noticeLabel ?? t("shell.notes.important")}: </strong>{renderInline(parseInline(note.notice))}</p>}
     </div>
   </li>;
 }

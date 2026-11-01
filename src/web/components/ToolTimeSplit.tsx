@@ -1,9 +1,10 @@
 import { useState, type CSSProperties, type MouseEvent } from 'react';
+import { currentLanguage, useT } from '../i18n';
 import { auditDuration, type TimeSplit } from '../tool-audit';
-import { auditDay, count } from '../tool-audit-report';
+import { auditDay, countOf } from '../tool-audit-report';
 import { donutArcs, glanceTime, laneFact, laneParts, laneShares, slowDays, stopsLine, type Lane } from '../time-split';
 
-const dateLabel = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString(undefined, { timeZone: 'UTC', month: 'short', day: 'numeric' });
+const dateLabel = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString(currentLanguage(), { timeZone: 'UTC', month: 'short', day: 'numeric' });
 const Caret = () => <svg className="tt-caret" width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"
   strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 5 4 4 4-4" /></svg>;
 
@@ -17,6 +18,7 @@ export default function ToolTimeSplit({ split, since, turnsSince, selected, onPi
   split: TimeSplit; since: number; turnsSince?: number; selected: string | null;
   onPick: (operation: string, event: MouseEvent<HTMLButtonElement>) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState<Lane | null>(null);
   // What the level shows, kept through its close so it folds away instead of vanishing.
   const [shown, setShown] = useState<Lane | null>(null);
@@ -26,11 +28,11 @@ export default function ToolTimeSplit({ split, since, turnsSince, selected, onPi
   const lane = parts.find(part => part.id === shown) ?? null;
   const focus = parts.find(part => part.id === (hot ?? open)) ?? null;
   const partial = turnsSince !== undefined && turnsSince > since;
-  const scope = `${count(split.turns, 'Claude Code turn')}${partial ? ` since ${auditDay(turnsSince!)}` : ''}`;
-  const head = <div className="tt-head"><h3 id="tt-title">Where the time went</h3>{split.turns > 0 && <span className="tt-scope">{scope}</span>}</div>;
+  const scope = partial ? t('insights.split.scopeSince', { turns: countOf(split.turns, 'turn'), date: auditDay(turnsSince!) }) : countOf(split.turns, 'turn');
+  const head = <div className="tt-head"><h3 id="tt-title">{t('insights.split.title')}</h3>{split.turns > 0 && <span className="tt-scope">{scope}</span>}</div>;
 
   if (!split.turns) return <section className="tt" aria-labelledby="tt-title">{head}
-    <div className="tt-card"><p className="ta-note tt-empty">Shows how long Claude, this machine and you each took, once a Claude Code turn ends{partial ? ` — measured from ${auditDay(turnsSince!)}` : ''}.</p></div>
+    <div className="tt-card"><p className="ta-note tt-empty">{partial ? t('insights.split.emptySince', { date: auditDay(turnsSince!) }) : t('insights.split.empty')}</p></div>
   </section>;
 
   return <>
@@ -43,13 +45,13 @@ export default function ToolTimeSplit({ split, since, turnsSince, selected, onPi
               style={{ strokeDasharray: `${arc.length} ${100 - arc.length}`, strokeDashoffset: -arc.from }} onPointerEnter={() => setHot(arc.id)} onClick={() => toggle(arc.id)} />)}
           </svg>
           <div className="tt-center" aria-hidden="true">
-            {focus ? <><strong>{focus.share}</strong><span>{focus.label}</span></> : <><strong>{glanceTime(split.totalMs)}</strong><span>in total</span></>}
+            {focus ? <><strong>{focus.share}</strong><span>{focus.label}</span></> : <><strong>{glanceTime(split.totalMs)}</strong><span>{t('insights.split.total')}</span></>}
           </div>
         </div>
         <ul className="tt-lanes">
           {parts.map(part => <li key={part.id}>
             <button type="button" className="tt-lane" data-lane={part.id} aria-expanded={open === part.id} aria-controls="tt-level"
-              aria-label={`${part.label}: ${part.share}, ${auditDuration(part.ms)}. ${laneFact(split, part.id)}.`}
+              aria-label={t('insights.split.laneAria', { label: part.label, share: part.share, time: auditDuration(part.ms), fact: laneFact(split, part.id) })}
               onClick={() => toggle(part.id)} onPointerEnter={() => setHot(part.id)} onFocus={() => setHot(part.id)} onBlur={() => setHot(null)}>
               <i aria-hidden="true" /><span className="tt-lane-name">{part.label}</span><strong>{part.share}</strong>
               <span className="tt-lane-time">{glanceTime(part.ms)}</span><Caret />
@@ -61,9 +63,9 @@ export default function ToolTimeSplit({ split, since, turnsSince, selected, onPi
     </section>
     <div className="tt-fold" data-open={open ? '' : undefined}>
       {/* Folded, the level is still there to fold away, and out of reach: React 18 has no `inert` prop. */}
-      <div className="tt-level" id="tt-level" ref={element => { if (element) element.inert = !open; }} aria-label={lane ? `${lane.label}, in detail` : undefined} role="region">
+      <div className="tt-level" id="tt-level" ref={element => { if (element) element.inert = !open; }} aria-label={lane ? t('insights.split.inDetail', { label: lane.label }) : undefined} role="region">
         {lane && <div key={lane.id} className="tt-level-body" data-lane={lane.id}>
-          <div className="tt-level-head"><i aria-hidden="true" /><strong>{lane.label}</strong><span>{auditDuration(lane.ms)} · {lane.share} of the time</span></div>
+          <div className="tt-level-head"><i aria-hidden="true" /><strong>{lane.label}</strong><span>{t('insights.split.levelHead', { time: auditDuration(lane.ms), share: lane.share })}</span></div>
           <p className="ta-note tt-hint">{lane.hint}</p>
           {lane.id === 'claude' ? <ClaudeLevel split={split} /> : <PartsLevel split={split} lane={lane.id} selected={selected} onPick={onPick} />}
         </div>}
@@ -76,6 +78,7 @@ function PartsLevel({ split, lane, selected, onPick }: {
   split: TimeSplit; lane: 'machine' | 'you'; selected: string | null;
   onPick: (operation: string, event: MouseEvent<HTMLButtonElement>) => void;
 }) {
+  const t = useT();
   const [all, setAll] = useState(false);
   const rows = laneParts(split, lane, all ? Infinity : 6);
   const most = Math.max(1, ...rows.map(row => row.ms));
@@ -90,18 +93,19 @@ function PartsLevel({ split, lane, selected, onPick }: {
         </>;
         return <li key={row.operation || row.label}>
           {row.inTable ? <button type="button" className="tt-part" data-selected={selected === row.operation || undefined} aria-expanded={selected === row.operation}
-            aria-label={`${row.label}: ${auditDuration(row.ms)}, ${row.share} of ${lane === 'machine' ? 'this machine’s' : 'your'} time`} onClick={event => onPick(row.operation, event)}>{body}</button>
-            : row.more ? <button type="button" className="tt-part" data-rest aria-expanded={false} aria-label={`Show ${row.label}: ${auditDuration(row.ms)}, ${row.share}`}
+            aria-label={t(lane === 'machine' ? 'insights.split.partAria.machine' : 'insights.split.partAria.you', { label: row.label, time: auditDuration(row.ms), share: row.share })} onClick={event => onPick(row.operation, event)}>{body}</button>
+            : row.more ? <button type="button" className="tt-part" data-rest aria-expanded={false} aria-label={t('insights.split.showMore', { label: row.label, time: auditDuration(row.ms), share: row.share })}
               onClick={event => { const list = event.currentTarget.closest('ul'); setAll(true); requestAnimationFrame(() => list?.querySelectorAll<HTMLElement>('.tt-part')[rows.length - 1]?.focus()); }}>{body}</button>
             : <div className="tt-part" data-static>{body}</div>}
         </li>;
       })}
     </ul>
-    {asks && <p className="ta-note tt-tip">Allow a command you trust with /permissions in Claude Code, and Claude stops asking for it.</p>}
+    {asks && <p className="ta-note tt-tip">{t('insights.split.tip')}</p>}
   </>;
 }
 
 function ClaudeLevel({ split }: { split: TimeSplit }) {
+  const t = useT();
   const { replies } = split;
   const slow = slowDays(split);
   const stops = stopsLine(split.stops);
@@ -112,22 +116,22 @@ function ClaudeLevel({ split }: { split: TimeSplit }) {
   const slowSet = new Set(slow.map(item => item.date));
   return <>
     <dl className="ta-facts tt-facts">
-      <div><dt>Usually answers in</dt><dd>{auditDuration(replies.medianMs)}</dd></div>
-      <div><dt>Slowest 1 in 10</dt><dd>{replies.p90Ms === null ? '—' : `over ${auditDuration(replies.p90Ms)}`}</dd></div>
-      <div><dt>Longest</dt><dd>{auditDuration(replies.maxMs)}</dd></div>
-      <div><dt>Replies</dt><dd>{replies.count.toLocaleString()}</dd></div>
+      <div><dt>{t('insights.split.f.answers')}</dt><dd>{auditDuration(replies.medianMs)}</dd></div>
+      <div><dt>{t('insights.split.f.slowest')}</dt><dd>{replies.p90Ms === null ? '—' : t('insights.split.f.over', { time: auditDuration(replies.p90Ms) })}</dd></div>
+      <div><dt>{t('insights.split.f.longest')}</dt><dd>{auditDuration(replies.maxMs)}</dd></div>
+      <div><dt>{t('insights.split.f.replies')}</dt><dd>{replies.count.toLocaleString(currentLanguage())}</dd></div>
     </dl>
     {days.length >= 2 && <div className="tt-days">
       <div className="tt-days-bars" role="img" style={{ "--ta-days": days.length, "--tt-usual": (replies.medianMs ?? 0) / most } as CSSProperties} onPointerLeave={() => setShown(null)}
-        aria-label={`Claude's usual reply per day, from ${dateLabel(days[0].date)} to ${dateLabel(days.at(-1)!.date)}. ${slow.length ? `Slower than usual on ${slow.map(item => dateLabel(item.date)).join(', ')}.` : 'No day was clearly slower than usual.'}`}>
+        aria-label={t('insights.split.daysAria', { from: dateLabel(days[0].date), to: dateLabel(days.at(-1)!.date), note: slow.length ? t('insights.split.slowOn', { days: slow.map(item => dateLabel(item.date)).join(t('insights.split.listSep')) }) : t('insights.split.noSlow') })}>
         {days.map(item => <span key={item.date} data-slow={slowSet.has(item.date) || undefined} data-shown={item.date === shown || undefined} onPointerEnter={() => setShown(item.date)}>
           <i style={{ "--ta-height": (item.medianMs ?? 0) / most } as CSSProperties} /></span>)}
         <b className="tt-usual" aria-hidden="true" />
       </div>
       <div className="ta-history-axis" aria-hidden="true"><span>{dateLabel(days[0].date)}</span><span>{dateLabel(days.at(-1)!.date)}</span></div>
-      <p className="ta-note tt-days-note" aria-live="polite">{day ? `${dateLabel(day.date)} · ${day.count ? `${count(day.count, 'reply')} · usually ${auditDuration(day.medianMs)}` : 'no replies'}`
-        : slow.length ? `Slower than usual on ${slow.map(item => `${dateLabel(item.date)} (${auditDuration(item.medianMs)})`).join(', ')} — the line is your usual ${auditDuration(replies.medianMs)}.`
-        : `No day was clearly slower than your usual ${auditDuration(replies.medianMs)}.`}</p>
+      <p className="ta-note tt-days-note" aria-live="polite">{day ? `${dateLabel(day.date)} · ${day.count ? `${countOf(day.count, 'reply')} · ${t('insights.audit.hist.usually', { time: auditDuration(day.medianMs) })}` : t('insights.split.noReplies')}`
+        : slow.length ? t('insights.split.slowDays', { days: slow.map(item => `${dateLabel(item.date)} (${auditDuration(item.medianMs)})`).join(t('insights.split.listSep')), usual: auditDuration(replies.medianMs) })
+        : t('insights.split.noSlowUsual', { usual: auditDuration(replies.medianMs) })}</p>
     </div>}
     {stops && <p className="ta-note tt-stops">{stops}</p>}
   </>;

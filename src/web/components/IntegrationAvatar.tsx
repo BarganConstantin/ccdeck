@@ -23,6 +23,7 @@
 // Faces are hidden from a screen reader: the name beside them, or the stack's
 // label, says who.
 import { useEffect, useState, type CSSProperties } from "react";
+import { currentLanguage } from "../i18n";
 import { initials } from "../integrations/client";
 
 // Addresses that did not load, through the deck or at the tracker: a
@@ -95,8 +96,12 @@ export interface StackPerson {
 }
 
 /** "Ana, Ben and 2 others": who a stack holds, in words. */
-export function stackLabel(names: string[]): string {
+export function stackLabel(names: string[], lang = currentLanguage()): string {
   if (names.length <= 1) return names[0] ?? "";
+  // Other languages join a list their own way ("A、B和C", "A, B und C").
+  if (!lang.startsWith("en")) {
+    try { return new Intl.ListFormat(lang, { style: "long", type: "conjunction" }).format(names); } catch { /* fall through to English */ }
+  }
   if (names.length === 2) return `${names[0]} and ${names[1]}`;
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }

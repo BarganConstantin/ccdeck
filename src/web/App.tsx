@@ -101,6 +101,7 @@ import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { createChimePlayer } from "./chime-player";
+import { useT } from "./i18n";
 
 export default function App() {
   return (
@@ -118,6 +119,7 @@ export default function App() {
 }
 
 function Inner() {
+  const t = useT();
   const rf = useReactFlow();
   // The graph itself, held in a ref because `applyEvent` mutates it and hands
   // the SAME object back — `revision` is what moves so a `useMemo` has anything
@@ -725,7 +727,7 @@ function Inner() {
           first card: cards come and go with the sessions, main is always
           there, and landing on it puts the deck's own single-key shortcuts
           back in play (ownsKeystroke() leaves a <main> alone). */}
-      <a className="skip-link" href="#canvas">Skip to the canvas</a>
+      <a className="skip-link" href="#canvas">{t("shell.skipToCanvas")}</a>
       <header className="topbar">
         <DesktopTitlebar />
         {/* The observation group, and the notes on each readout in it — components/TopbarReadouts.tsx. */}
@@ -756,13 +758,13 @@ function Inner() {
           that stands in for both stripes and the utilities. */}
       {phone
         ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, rails.utilities[1]]} />
-        : <EdgeRail side="left" label="Accounts and sessions" groups={[...rails.leftStripe, rails.integrations, rails.explore]} />}
+        : <EdgeRail side="left" label={t("shell.rail.left")} groups={[...rails.leftStripe, rails.integrations, rails.explore]} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
           are the ones screen readers drop. */}
       <div className="vis-hidden" role="status" aria-atomic="true">
-        {removalNotice ? `${removalNotice.label} removed from the board.` : ""}
+        {removalNotice ? t("shell.board.removed", { label: removalNotice.label }) : ""}
       </div>
       {/* At most one banner under the topbar, and which — components/DeckBanner.tsx. */}
       <DeckBanner
@@ -839,7 +841,7 @@ function Inner() {
 
       {/* The right stripe, ahead of the two panels it opens so Tab reaches the
           control before the region it discloses. */}
-      {!phone && <EdgeRail side="right" label="Usage and activity" groups={rails.right} />}
+      {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.right} />}
 
       {toolAuditView && <ToolAuditModal view={toolAuditView} onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}
       {capacityView && <AccountCapacityDialog view={capacityView} onClose={closeCapacity} />}

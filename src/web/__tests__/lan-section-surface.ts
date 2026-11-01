@@ -21,6 +21,7 @@
 import { readFileSync } from "node:fs";
 
 import { WEB_DIR } from "./client-source";
+import { english } from "./lan-english-source";
 
 /** The section and what was lifted out of it, relative to `src/web`. A file
  *  extracted from LanSyncSection.tsx that draws or drives it is added here in
@@ -42,6 +43,6 @@ let joined: string | null = null;
 
 /** Every file in LAN_SECTION_FILES, raw, joined by a newline. */
 export function lanSectionSurface(): string {
-  joined ??= LAN_SECTION_FILES.map(rel => readFileSync(`${WEB_DIR}${rel}`, "utf8")).join("\n");
+  joined ??= LAN_SECTION_FILES.map(rel => english(readFileSync(`${WEB_DIR}${rel}`, "utf8"))).join("\n");
   return joined;
 }

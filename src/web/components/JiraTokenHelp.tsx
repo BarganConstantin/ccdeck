@@ -2,6 +2,8 @@
 // fields: Atlassian's token page and, for a token made with scopes, the read
 // scopes the deck needs on Cloud; the personal access token page on the
 // server itself for Server and Data Center.
+import { useT } from "../i18n";
+import { rich } from "../integrations/rich";
 import { useIntegrationForm } from "./IntegrationConnectionForm";
 
 const CLOUD_TOKENS = "https://id.atlassian.com/manage-profile/security/api-tokens";
@@ -10,15 +12,15 @@ const SERVER_DOCS = "https://confluence.atlassian.com/enterprise/using-personal-
 
 /** The read scopes a Cloud token made "with scopes" needs, as Atlassian's
  *  token page lists them. */
-export const JIRA_CLOUD_SCOPES: readonly { scope: string; why: string }[] = [
-  { scope: "read:jira-work", why: "issues, comments, search" },
-  { scope: "read:jira-user", why: "your account and avatars" },
-  { scope: "read:board-scope:jira-software", why: "boards and backlogs" },
-  { scope: "read:board-scope.admin:jira-software", why: "a board's estimation and quick filters" },
-  { scope: "read:sprint:jira-software", why: "sprints" },
-  { scope: "read:epic:jira-software", why: "epic names and colours" },
-  { scope: "read:issue-details:jira", why: "issue lists" },
-  { scope: "read:jql:jira", why: "filtered lists" },
+export const JIRA_CLOUD_SCOPES: readonly { scope: string; why: string; whyKey: string }[] = [
+  { scope: "read:jira-work", why: "issues, comments, search", whyKey: "integrations.token.why.work" },
+  { scope: "read:jira-user", why: "your account and avatars", whyKey: "integrations.token.why.user" },
+  { scope: "read:board-scope:jira-software", why: "boards and backlogs", whyKey: "integrations.token.why.board" },
+  { scope: "read:board-scope.admin:jira-software", why: "a board's estimation and quick filters", whyKey: "integrations.token.why.boardAdmin" },
+  { scope: "read:sprint:jira-software", why: "sprints", whyKey: "integrations.token.why.sprint" },
+  { scope: "read:epic:jira-software", why: "epic names and colours", whyKey: "integrations.token.why.epic" },
+  { scope: "read:issue-details:jira", why: "issue lists", whyKey: "integrations.token.why.issueDetails" },
+  { scope: "read:jql:jira", why: "filtered lists", whyKey: "integrations.token.why.jql" },
 ];
 
 /** A Server's own token page, when the address typed so far is one. */
@@ -35,6 +37,7 @@ export function serverTokenPage(baseUrl: string): string | null {
 }
 
 export default function JiraTokenHelp() {
+  const t = useT();
   const { values } = useIntegrationForm();
   const cloud = values.deployment === "cloud";
   const page = cloud ? null : serverTokenPage(values.baseUrl ?? "");
@@ -45,27 +48,37 @@ export default function JiraTokenHelp() {
       {cloud ? (
         <>
           <p>
-            Make one at <a href={CLOUD_TOKENS} target="_blank" rel="noreferrer noopener">id.atlassian.com → Security → API tokens</a>.
-            A classic token reads Jira as you. A token <em>with scopes</em> works too: the deck finds your site&rsquo;s
-            api.atlassian.com address itself, and needs these read scopes:
+            {rich(t("integrations.token.cloud.intro"), {
+              link: <a href={CLOUD_TOKENS} target="_blank" rel="noreferrer noopener">id.atlassian.com → Security → API tokens</a>,
+              scoped: <em>{t("integrations.token.cloud.scoped")}</em>,
+            })}
           </p>
           <ul className="ig-scopes">
-            {JIRA_CLOUD_SCOPES.map(s => <li key={s.scope}><code>{s.scope}</code> <span>{s.why}</span></li>)}
+            {JIRA_CLOUD_SCOPES.map(s => <li key={s.scope}><code>{s.scope}</code> <span>{t(s.whyKey)}</span></li>)}
           </ul>
-          <p><a href={CLOUD_DOCS} target="_blank" rel="noreferrer noopener">How Atlassian API tokens work</a></p>
+          <p><a href={CLOUD_DOCS} target="_blank" rel="noreferrer noopener">{t("integrations.token.cloud.docs")}</a></p>
         </>
       ) : (
         <>
           <p>
-            In Jira, open your avatar → <strong>Profile</strong> → <strong>Personal Access Tokens</strong> → <strong>Create token</strong>
-            {page && <> (<a href={page} target="_blank" rel="noreferrer noopener">open it on {host}</a>)</>}.
-            The token reads what your account can read. Give it an expiry you are comfortable with. Needs Jira 8.14 or newer.
+            {rich(t("integrations.token.server.intro"), {
+              profile: <strong>Profile</strong>,
+              pats: <strong>Personal Access Tokens</strong>,
+              create: <strong>Create token</strong>,
+              page: page ? rich(t("integrations.token.server.page"), {
+                link: <a href={page} target="_blank" rel="noreferrer noopener">{t("integrations.token.server.openOn", { host })}</a>,
+              }) : "",
+            })}
           </p>
-          <p><a href={SERVER_DOCS} target="_blank" rel="noreferrer noopener">How personal access tokens work</a></p>
+          <p><a href={SERVER_DOCS} target="_blank" rel="noreferrer noopener">{t("integrations.token.server.docs")}</a></p>
         </>
       )}
-      <p className="ig-dim">Browsing only reads Jira. Dragging an issue or confirming Move saves its sprint and rank in Jira, using your account’s permissions. The token stays on this machine and is never shown again.</p>
-      {cloud && <p className="ig-dim">For moving with a scoped Cloud token, also allow <code>write:issue:jira-software</code> (rank), <code>write:sprint:jira-software</code> (sprint) and <code>write:board-scope:jira-software</code> (backlog). Read-only tokens can still browse.</p>}
+      <p className="ig-dim">{t("integrations.token.reads")}</p>
+      {cloud && <p className="ig-dim">{rich(t("integrations.token.scopedWrite"), {
+        rank: <code>write:issue:jira-software</code>,
+        sprint: <code>write:sprint:jira-software</code>,
+        backlog: <code>write:board-scope:jira-software</code>,
+      })}</p>}
     </>
   );
 }

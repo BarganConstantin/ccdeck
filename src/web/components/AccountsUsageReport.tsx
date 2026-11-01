@@ -33,6 +33,8 @@ import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SortHead } from "./SortHead";
 import { useCountUp } from "../use-count-up";
 import AccountResetCalendar, { type ResetScope } from "./AccountResetCalendar";
+import { currentLanguage, useT, type TFunction } from "../i18n";
+import { Rich, tNodes } from "../accounts-rich";
 
 /** How full a reading is, in the inks the panel's rows use: the warning past
  *  70% used and the error past 90%. A warning, never a state — see statusOf. */
@@ -40,13 +42,13 @@ function level(pct: number): "mid" | "hi" | undefined {
   return pct >= 90 ? "hi" : pct >= 70 ? "mid" : undefined;
 }
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
 /** Whose reset the card's countdown is, and what else comes back with it —
  *  on hover, since the card says only when (#1713). */
-function soonest(next: NonNullable<WindowTotal["nextReset"]>): string {
-  const more = next.more > 0 ? `, and ${plural(next.more, "more account", "more accounts")} in the same minute` : "";
-  return `First: ${next.name} (${shownUsed(next.pct)}% used)${more}`;
+function soonest(next: NonNullable<WindowTotal["nextReset"]>, t: TFunction): string {
+  const pct = shownUsed(next.pct);
+  return next.more > 0
+    ? t("accounts.rep.firstMore", { name: next.name, pct, count: next.more })
+    : t("accounts.rep.first", { name: next.name, pct });
 }
 
 /**
@@ -58,20 +60,22 @@ function soonest(next: NonNullable<WindowTotal["nextReset"]>): string {
  * which is why it sits under the count of accounts ready rather than above it.
  */
 function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
+  const t = useT();
+  const win = t(`accounts.win.${w.id}`);
   const id = `ap-report-${w.id}`;
   // Only the one exclusion there is: an account never read, which has no
   // number to count. A stale one counts at its last reading and its row says
   // so, so the card does not say it again.
   const never = w.total - w.included;
-  const basis = never > 0 && <p className="ap-report-basis">{never} never read</p>;
+  const basis = never > 0 && <p className="ap-report-basis">{t("accounts.rep.neverReadN", { n: never })}</p>;
   const { used, available } = usedAndAvailable(w.used ?? 0);
   // Counted in on opening, and on from where it is when a poll moves it.
   const shownLeft = Math.round(useCountUp(available, { countIn: true }));
   if (w.used == null) {
     return (
       <section className="ap-report-sum" aria-labelledby={id}>
-        <h3 className="ap-report-win" id={id}>{w.long} window</h3>
-        <p className="ap-report-none">No account has a {w.long} reading yet.</p>
+        <h3 className="ap-report-win" id={id}>{t("accounts.rep.winTitle", { win })}</h3>
+        <p className="ap-report-none">{t("accounts.rep.noWinReading", { win })}</p>
         {basis}
       </section>
     );
@@ -79,8 +83,8 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
   const reset = w.nextReset ? resetCountdown(w.nextReset.at, nowSec) : null;
   return (
     <section className="ap-report-sum" aria-labelledby={id}>
-      <h3 className="ap-report-win" id={id}>{w.long} window</h3>
-      <p className="ap-report-left"><b>{shownLeft}%</b> average remaining</p>
+      <h3 className="ap-report-win" id={id}>{t("accounts.rep.winTitle", { win })}</h3>
+      <p className="ap-report-left"><Rich text={t("accounts.rep.avgLeft", { left: shownLeft })} bold="b" /></p>
       {/* A transform, not a width, as the Usage panel's quota bars are: a new
           reading moves it on the compositor, and it grows in from the left
           when the dialog opens (see the sheet). */}
@@ -95,13 +99,13 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
         // clock, so this is one account's reset, not the window's: "Resets in
         // 25m" under 88% read as all of it coming back then. The name is the
         // one part that may be cut; the rest stays whole.
-        <p className="ap-report-reset" title={soonest(w.nextReset)}>
-          <span>Next reported reset in <span className="ap-report-num">{reset}</span></span>
+        <p className="ap-report-reset" title={soonest(w.nextReset, t)}>
+          <span>{tNodes(t, "accounts.rep.nextReset", { time: <span className="ap-report-num">{reset}</span> })}</span>
           <span aria-hidden>·</span>
           <span className="ap-report-who">{w.nextReset.name}</span>
           {w.nextReset.more > 0 && <span className="ap-report-more">+{w.nextReset.more}</span>}
           {/* The rest of it, for the reader a hover never reaches. */}
-          <span className="vis-hidden">. {soonest(w.nextReset)}</span>
+          <span className="vis-hidden">. {soonest(w.nextReset, t)}</span>
         </p>
       )}
       {basis}
@@ -114,24 +118,25 @@ function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
  *  and what the totals above do with it. Why it is not current is the row's
  *  state to say, once. */
 function UsedCell({ cell, label }: { cell: Cell; label: string }) {
+  const t = useT();
   if (!cell.counted) {
     // WHAT THE TOTAL DOES WITH IT, said. Since #1713 a window's total takes
     // every number there is — an old reading, and one behind a login no
     // switch gets past, at its last value — and leaves out only a window never
     // read. Every one of these cells used to end ", not counted", which told a
     // screen reader the card's average left out a number it had added in.
-    const said = cell.estimate == null ? ", not counted" : ", last reading, counted as is";
+    const said = cell.estimate == null ? t("accounts.rep.notCounted") : t("accounts.rep.lastCounted");
     return (
-      <td className="ap-report-cell" data-uncounted="" title={cell.reset ?? undefined}><span className="ap-report-mobile-label" aria-hidden="true">{label} used</span>
+      <td className="ap-report-cell" data-uncounted="" title={cell.reset ?? undefined}><span className="ap-report-mobile-label" aria-hidden="true">{t("accounts.rep.colUsed", { label })}</span>
         <span className="ap-report-pct">
-          {cell.last == null ? <><span aria-hidden>—</span><span className="vis-hidden">no reading</span></> : `${shownUsed(cell.last)}%`}
+          {cell.last == null ? <><span aria-hidden>—</span><span className="vis-hidden">{t("accounts.rep.noReadingSr")}</span></> : `${shownUsed(cell.last)}%`}
         </span>
-        <span className="vis-hidden">{cell.reset ? `. ${cell.reset}. Awaiting a fresh reading${said}.` : said}</span>
+        <span className="vis-hidden">{cell.reset ? t("accounts.rep.awaiting", { reset: cell.reset, said }) : said}</span>
       </td>
     );
   }
   return (
-    <td className="ap-report-cell"><span className="ap-report-mobile-label" aria-hidden="true">{label} used</span>
+    <td className="ap-report-cell"><span className="ap-report-mobile-label" aria-hidden="true">{t("accounts.rep.colUsed", { label })}</span>
       <span className="ap-report-pct" data-level={level(cell.pct)}>{shownUsed(cell.pct)}%</span>
     </td>
   );
@@ -141,37 +146,34 @@ function UsedCell({ cell, label }: { cell: Cell; label: string }) {
  *  the login has expired. The exact time remains available alongside its
  *  countdown; a passed reset never looks like a future one. */
 function ResetCell({ at, nowSec, label }: { at: number | null; nowSec: number; label: string }) {
-  if (at == null) return <td className="ap-report-reset-cell"><span className="ap-report-mobile-label" aria-hidden="true">{label} reset</span><span aria-hidden>—</span><span className="vis-hidden">No reset time</span></td>;
+  const t = useT();
+  if (at == null) return <td className="ap-report-reset-cell"><span className="ap-report-mobile-label" aria-hidden="true">{t("accounts.rep.colReset", { label })}</span><span aria-hidden>—</span><span className="vis-hidden">{t("accounts.rep.noResetSr")}</span></td>;
   const when = new Date(at * 1000);
   const countdown = resetCountdown(at, nowSec);
-  return <td className="ap-report-reset-cell" title={`Recorded reset: ${when.toLocaleString()}`}><span className="ap-report-mobile-label" aria-hidden="true">{label} reset</span>
-    <time dateTime={when.toISOString()}><span className="vis-hidden">{countdown ? "reported reset in " : "reported reset "}</span>{countdown ?? "due"}</time>
-    {!countdown && <span className="ap-report-state-note">Awaiting read</span>}
-    <span className="vis-hidden"> · Recorded reset: {when.toLocaleString()}</span>
+  const whenText = when.toLocaleString(currentLanguage());
+  return <td className="ap-report-reset-cell" title={t("accounts.rep.recorded", { when: whenText })}><span className="ap-report-mobile-label" aria-hidden="true">{t("accounts.rep.colReset", { label })}</span>
+    <time dateTime={when.toISOString()}><span className="vis-hidden">{countdown ? t("accounts.rep.resetInSr") : t("accounts.rep.resetSr")}</span>{countdown ?? t("accounts.rep.due")}</time>
+    {!countdown && <span className="ap-report-state-note">{t("accounts.rep.awaitingRead")}</span>}
+    <span className="vis-hidden">{t("accounts.rep.recordedSr", { when: whenText })}</span>
   </td>;
 }
 
-const STATE_WORD: Record<Status, string> = {
-  ready: "Ready",
-  limited: "Limited",
-  exhausted: "Exhausted",
-  stale: "Stale",
-};
-
 /** What the row can do now, as a mark and a word, on one line. */
 function StateCell({ row }: { row: ReportRow }) {
+  const t = useT();
   return (
-    <td className="ap-report-state" data-status={row.status}><span className="ap-report-mobile-label" aria-hidden="true">Status</span>
-      <span className="ap-report-state-word"><i aria-hidden />{STATE_WORD[row.status]}</span>
-      {Object.values(row.cells).some(cell => !cell.counted && cell.reset) && <span className="ap-report-state-note">Awaiting read</span>}
+    <td className="ap-report-state" data-status={row.status}><span className="ap-report-mobile-label" aria-hidden="true">{t("accounts.rep.colStatus")}</span>
+      <span className="ap-report-state-word"><i aria-hidden />{t(`accounts.rep.state.${row.status}`)}</span>
+      {Object.values(row.cells).some(cell => !cell.counted && cell.reset) && <span className="ap-report-state-note">{t("accounts.rep.awaitingRead")}</span>}
     </td>
   );
 }
 
 /** How current the row's numbers are: "now", an age, or why there are none. */
 function UpdatedCell({ row, nowSec }: { row: ReportRow; nowSec: number }) {
-  const f = freshness(row, nowSec);
-  return <td className="ap-report-upd" data-old={f.old ? "" : undefined}><span className="ap-report-mobile-label" aria-hidden="true">Updated</span>{f.text}</td>;
+  const t = useT();
+  const f = freshness(row, nowSec, t);
+  return <td className="ap-report-upd" data-old={f.old ? "" : undefined}><span className="ap-report-mobile-label" aria-hidden="true">{t("accounts.rep.colUpdated")}</span>{f.text}</td>;
 }
 
 /** The disclosure's mark: drawn, in the stroke the deck's other glyphs use. */
@@ -199,7 +201,8 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
   sort?: ReportSort | null;
   onSort?: (next: ReportSort) => void;
 }) {
-  const report = usageReport(accounts, nowSec);
+  const t = useT();
+  const report = usageReport(accounts, nowSec, t);
   const total = report.rows.length;
   const shownReady = Math.round(useCountUp(report.roomInBoth, { countIn: true }));
   return (
@@ -207,21 +210,21 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
     // twenty-five anywhere, it scrolls, and the browsers that make a scroller a
     // Tab stop of their own read out whatever it is called. No tabIndex of the
     // deck's own — it invents no tab stops (canvas-keyboard.test.ts).
-    <div className="ap-proj-body ap-report-body" role="region" aria-label="Report">
+    <div className="ap-proj-body ap-report-body" role="region" aria-label={t("accounts.rep.regionLabel")}>
       {held && <p className="ap-report-held">{held}</p>}
       {/* The question a reader brings, answered first and loudest: how many
           accounts can be worked on now. The same count as the rows that say
           Ready, by construction. */}
       <div className="ap-report-overview"><p className="ap-report-lead">
-        <b>{shownReady}</b> of {plural(total, "Claude account", "Claude accounts")} ready
-      </p><p className="ap-report-confidence">Based on last readings{report.rows.some(row => Object.values(row.cells).some(cell => !cell.counted && cell.reset)) && " · elapsed reset times need fresh readings"}{report.rows.some(row => row.heldOut) && ` · ${report.rows.filter(row => row.heldOut).length} held out of rotation`}</p></div>
+        <Rich text={t("accounts.rep.lead", { ready: shownReady, count: total })} bold="b" />
+      </p><p className="ap-report-confidence">{t("accounts.rep.basedOn")}{report.rows.some(row => Object.values(row.cells).some(cell => !cell.counted && cell.reset)) && t("accounts.rep.elapsedNeedFresh")}{report.rows.some(row => row.heldOut) && t("accounts.rep.heldN", { n: report.rows.filter(row => row.heldOut).length })}</p></div>
       <div className="ap-report-sums">
         {report.windows.map(w => <WindowSum key={w.id} w={w} nowSec={nowSec} />)}
       </div>
 
-      <div className="ap-report-table-scroll" role="region" aria-label="Account capacity table">
+      <div className="ap-report-table-scroll" role="region" aria-label={t("accounts.rep.tableLabel")}>
       <table className="ap-report-table">
-        <caption className="vis-hidden">Each account's use and reset of each window, and what it can do now</caption>
+        <caption className="vis-hidden">{t("accounts.rep.caption")}</caption>
         <colgroup>
           <col />
           {REPORT_WINDOWS.map(w => <Fragment key={w.id}><col className="ap-report-col-win" /><col className="ap-report-col-reset" /></Fragment>)}
@@ -230,13 +233,13 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
         </colgroup>
         <thead>
           <tr>
-            <SortHead col="account" label="Account" sort={sort} next={nextReportSort} onSort={onSort} />
+            <SortHead col="account" label={t("accounts.rep.colAccount")} sort={sort} next={nextReportSort} onSort={onSort} />
             {REPORT_WINDOWS.map(w => <Fragment key={w.id}>
-              <SortHead col={w.id} label={`${w.label} used`} sort={sort} next={nextReportSort} onSort={onSort} />
-              <SortHead col={`${w.id}_reset`} label={`${w.label} reset`} sort={sort} next={nextReportSort} onSort={onSort} />
+              <SortHead col={w.id} label={t("accounts.rep.colUsed", { label: w.label })} sort={sort} next={nextReportSort} onSort={onSort} />
+              <SortHead col={`${w.id}_reset`} label={t("accounts.rep.colReset", { label: w.label })} sort={sort} next={nextReportSort} onSort={onSort} />
             </Fragment>)}
-            <SortHead col="status" label="Status" sort={sort} next={nextReportSort} onSort={onSort} />
-            <SortHead col="updated" label="Updated" className="ap-report-upd-h" sort={sort} next={nextReportSort} onSort={onSort} />
+            <SortHead col="status" label={t("accounts.rep.colStatus")} sort={sort} next={nextReportSort} onSort={onSort} />
+            <SortHead col="updated" label={t("accounts.rep.colUpdated")} className="ap-report-upd-h" sort={sort} next={nextReportSort} onSort={onSort} />
           </tr>
         </thead>
         <tbody>
@@ -246,8 +249,8 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
               <th scope="row" className="ap-report-acct">
                 <span className="ap-report-acct-in">
                   <span className="ap-report-name" title={r.name}>{r.name}</span>
-                  {r.active && <span className="ap-report-current">Current</span>}
-                  {r.heldOut && <span className="ap-report-tag">held out</span>}
+                  {r.active && <span className="ap-report-current">{t("accounts.current")}</span>}
+                  {r.heldOut && <span className="ap-report-tag">{t("accounts.heldOut")}</span>}
                 </span>
               </th>
               {REPORT_WINDOWS.map(w => <Fragment key={w.id}>
@@ -263,16 +266,10 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
       </div>
 
       <details className="ap-report-how">
-        <summary><InfoMark />How usage is calculated</summary>
+        <summary><InfoMark />{t("accounts.rep.how")}</summary>
         <div className="ap-report-how-body">
-          <p>
-            Every account here, at its last reading: <b>used</b> is their average, and <b>remaining</b> is
-            the rest, not pooled quota. A passed reported reset time does not confirm renewed capacity. Its last usage reading remains until refreshed.
-          </p>
-          <p>
-            <b>Ready</b> has room in both windows. <b>Limited</b> is at the limit of one, and <b>Exhausted</b> of
-            both. <b>Stale</b> was never read, or is signed out. Ready may be based on an older reading whose reset time has passed; held-out accounts remain included, but are excluded from automatic rotation.
-          </p>
+          <p><Rich text={t("accounts.rep.howOne")} bold="b" /></p>
+          <p><Rich text={t("accounts.rep.howTwo")} bold="b" /></p>
         </div>
       </details>
     </div>
@@ -282,9 +279,9 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
 /** The dialog's two views: the accounts' rows, or when their windows reset. */
 export type CapacityView = "accounts" | "calendar";
 
-/** Each view's title. One view per opening, from its own door on the stripe:
- *  no tabs between them. */
-const VIEW_TITLE: Record<CapacityView, string> = { accounts: "Account capacity", calendar: "Reset calendar" };
+/** Each view's title (accounts.rep.viewAccounts / viewCalendar). One view per
+ *  opening, from its own door on the stripe: no tabs between them. */
+const VIEW_TITLE_KEY: Record<CapacityView, string> = { accounts: "accounts.rep.viewAccounts", calendar: "accounts.rep.viewCalendar" };
 
 export default function AccountsUsageReport({ accounts, order, failed, nowSec, onClose, view }: {
   /** The panel's roster, or null while a poll could not read it. */
@@ -299,6 +296,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
   /** Which of the left stripe's two doors opened it. */
   view: CapacityView;
 }) {
+  const t = useT();
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
   const scrimPress = useScrimDismiss(onClose);
@@ -308,7 +306,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
   // roster the panel holds, which changes once a poll and not once a render.
   const [shown, setShown] = useState<readonly Account[]>(accounts ?? []);
   useEffect(() => { if (accounts != null) setShown(accounts); }, [accounts]);
-  const held = heldNote(failed, accounts == null, shown.length > 0);
+  const held = heldNote(failed, accounts == null, shown.length > 0, t);
   // A pressed column's order, taken when it was pressed and held like the
   // panel's: the rows do not move under the reader between presses. Worked out
   // from the panel's order each time, so ties land the same way whichever
@@ -316,7 +314,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
   const [sorted, setSorted] = useState<{ sort: ReportSort; order: string[] } | null>(null);
   const rows = holdOrder(shown, sorted?.order ?? order);
   const sortBy = (next: ReportSort) => {
-    const byPanel = usageReport(holdOrder(shown, order), nowSec).rows;
+    const byPanel = usageReport(holdOrder(shown, order), nowSec, t).rows;
     setSorted({ sort: next, order: sortReportRows(byPanel, next).map(r => r.key) });
   };
 
@@ -329,9 +327,9 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
           {/* No subtitle: the count it carried is the lead's, one line down, and
               "Claude" moved into the lead with it (#1713). */}
           <div className="ap-proj-titlewrap">
-            <h2 id="ap-report-title">{VIEW_TITLE[view]}</h2>
+            <h2 id="ap-report-title">{t(VIEW_TITLE_KEY[view])}</h2>
           </div>
-          <button ref={closeRef} type="button" className="glyph-btn ap-proj-close" onClick={onClose} aria-label="Close">×</button>
+          <button ref={closeRef} type="button" className="glyph-btn ap-proj-close" onClick={onClose} aria-label={t("accounts.rep.close")}>×</button>
         </header>
         {/* Mounted with the dialog and only its words changing, so a reading
             held back is announced: a live region that arrives with its text is

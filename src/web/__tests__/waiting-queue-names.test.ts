@@ -171,8 +171,8 @@ describe("what each name says", () => {
     // The session list row's order, "waiting 6m · Bash": name, wait, what on.
     expect(html).toMatch(/<span class="wait-ruler" aria-hidden="true"><span class="wait-entry"><span class="we-name">web-api<\/span><span class="we-wait">6m<\/span><span class="we-what">· Bash<\/span><\/span><span class="wait-more">\+1 more<\/span><\/span>/);
     const src = sourceOf("components/TopbarReadouts.tsx");
-    expect(src).toContain("aria-label={queueEntryName(w.label, w.waiting, now - w.waiting.since)}");
-    expect(src).toMatch(/aria-label=\{`\$\{rest\.length\} more waiting; open the session list`\}/);
+    expect(src).toContain("aria-label={queueEntryName(w.label, w.waiting, now - w.waiting.since, t)}");
+    expect(src).toMatch(/aria-label=\{t\("board\.queue\.moreLabel", \{ n: rest\.length \}\)\}/);
   });
 });
 

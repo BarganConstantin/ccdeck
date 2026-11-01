@@ -10,6 +10,8 @@
 // files importing a component of nearly two thousand lines to reach four pure
 // functions.
 
+import { t as tNow, type TFunction } from "./i18n";
+
 /** A verb from picker-commit.ts as a button in the popover says it. Those words
  *  are lowercase because the row's pills are; the popover's buttons are in
  *  sentence case, like every dialog button in the deck.
@@ -42,20 +44,19 @@ export interface IssueSource {
  * so it says only what is true without promising anything. Exported for its
  * test.
  */
-export function staleCopyText(repair: Repair | null, nowSec: number): { text: string; hint: string } {
-  const why = "The deck can still see this account — its live usage is being read — but claude-swap's "
-    + "own stored copy of the login was rejected, so these numbers stopped updating.";
+export function staleCopyText(repair: Repair | null, nowSec: number, t: TFunction = tNow): { text: string; hint: string } {
+  const why = t("accounts.issue.stale.why");
   if (repair?.state === "running") {
-    return { text: "resuming…", hint: `${why} The deck is re-capturing it from the login you already have. No sign-in, no switch.` };
+    return { text: t("accounts.issue.stale.running"), hint: t("accounts.issue.stale.runningHint", { why }) };
   }
   if (repair?.state === "failed") {
     const mins = Math.max(1, Math.ceil((repair.retryAt / 1000 - nowSec) / 60));
     const what = repair.reason
-      ? `Re-capturing it from the login you already have did not work (${repair.reason}).`
-      : "The deck re-captured it from the login you already have, and claude-swap still cannot read it.";
-    return { text: "numbers paused", hint: `${why} ${what} It tries again in ${mins}m. No sign-in, no switch.` };
+      ? t("accounts.issue.stale.failedReason", { reason: repair.reason })
+      : t("accounts.issue.stale.failed");
+    return { text: t("accounts.issue.stale.paused"), hint: t("accounts.issue.stale.failedHint", { why, what, mins }) };
   }
-  return { text: "numbers paused", hint: why };
+  return { text: t("accounts.issue.stale.paused"), hint: why };
 }
 
 /**
@@ -68,30 +69,29 @@ export function staleCopyText(repair: Repair | null, nowSec: number): { text: st
  * poll will keep failing until someone signs in again. Those get `fixable`, and
  * the row grows a button.
  */
-export function errorText(code: string): { text: string; hint: string; fixable: boolean } {
+export function errorText(code: string, t: TFunction = tNow): { text: string; hint: string; fixable: boolean } {
   switch (code) {
     case "invalid_grant":
     case "no_refresh_token":
       return {
-        text: "login expired",
-        hint: "claude-swap's stored login for this account was rejected and cannot be refreshed. "
-            + "Signing in again replaces it — the account keeps its slot, its alias and its history.",
+        text: t("accounts.issue.err.expired"),
+        hint: t("accounts.issue.err.expiredHint"),
         fixable: true,
       };
     case "http-401":
-      return { text: "re-login needed", hint: "Anthropic refused this account's token.", fixable: true };
+      return { text: t("accounts.issue.err.relogin"), hint: t("accounts.issue.err.reloginHint"), fixable: true };
     case "http-429":
-      return { text: "rate limited", hint: "Anthropic is throttling requests for this account. It clears on its own.", fixable: false };
+      return { text: t("accounts.issue.err.rate"), hint: t("accounts.issue.err.rateHint"), fixable: false };
     case "transient":
-      return { text: "temporary error", hint: "A network or server hiccup while reading usage. The next collection retries.", fixable: false };
+      return { text: t("accounts.issue.err.transient"), hint: t("accounts.issue.err.transientHint"), fixable: false };
     case "timeout":
-      return { text: "timed out", hint: "Reading this account's usage took too long. The next collection retries.", fixable: false };
+      return { text: t("accounts.issue.err.timeout"), hint: t("accounts.issue.err.timeoutHint"), fixable: false };
     case "network":
-      return { text: "unreachable", hint: "Could not reach Anthropic to read this account's usage.", fixable: false };
+      return { text: t("accounts.issue.err.network"), hint: t("accounts.issue.err.networkHint"), fixable: false };
     default:
       // Still shown, because a code we have not met is better than silence —
       // but labelled as one, so it does not read as a sentence.
-      return { text: code, hint: `claude-swap reported "${code}" for this account.`, fixable: false };
+      return { text: code, hint: t("accounts.issue.reported", { code }), fixable: false };
   }
 }
 
@@ -116,45 +116,40 @@ export function errorText(code: string): { text: string; hint: string; fixable: 
  * difference between a person re-adding an account they already have and a
  * person starting the deck differently.
  */
-export function collectorText(code: string | null): { text: string; hint: string; fix?: string } | null {
+export function collectorText(code: string | null, t: TFunction = tNow): { text: string; hint: string; fix?: string } | null {
   switch (code) {
     case "no_credentials":
       return {
-        text: "no stored login",
-        hint: "claude-swap holds no credentials for this account, so there is nothing to read its usage with "
-            + "and nothing to switch to. A paired deck that has them sends them on its own; signing in as "
-            + "this account puts them there by hand.",
+        text: t("accounts.issue.col.none"),
+        hint: t("accounts.issue.col.noneHint"),
         // NOT "again". There is nothing there to replace — this is the first
         // login claude-swap will hold for this slot.
-        fix: "sign in",
+        fix: t("accounts.issue.col.noneFix"),
       };
     case "relogin_required":
       return {
-        text: "login expired",
-        hint: "claude-swap's stored login for this account was rejected and cannot be refreshed. "
-            + "Signing in again replaces it — the account keeps its slot, its alias and its history.",
-        fix: "sign in again",
+        text: t("accounts.issue.err.expired"),
+        hint: t("accounts.issue.err.expiredHint"),
+        fix: t("accounts.issue.col.againFix"),
       };
     case "keychain_unavailable":
       return {
-        text: "keychain unreadable",
-        hint: "This is about the deck, not the account: claude-swap could not open your keychain, so it cannot "
-            + "read any account's stored login. A deck started from a background session cannot reach the "
-            + "keychain at all — start it from a terminal, or let it start at login, and this clears.",
+        text: t("accounts.issue.col.keychain"),
+        hint: t("accounts.issue.col.keychainHint"),
         // NO `fix`, and this is the case that makes the field worth having
         // rather than always offering a button: nothing is wrong with the
         // account, and a sign-in here would have somebody replace a working
         // login to repair a deck that was started in the wrong place.
       };
     case "token_expired":
-      return { text: "token expired", hint: "The access token ran out and the refresh was deferred. The next collection retries." };
+      return { text: t("accounts.issue.col.tokenExpired"), hint: t("accounts.issue.col.tokenExpiredHint") };
     case "foreign_credential":
-      return { text: "wrong credential", hint: "The live credential belongs to a different account. Switching to this one repairs it." };
+      return { text: t("accounts.issue.col.foreign"), hint: t("accounts.issue.col.foreignHint") };
     case null:
     case undefined:
       return null;
     default:
-      return { text: code, hint: `claude-swap reported "${code}" for this account.` };
+      return { text: code, hint: t("accounts.issue.reported", { code }) };
   }
 }
 
@@ -182,30 +177,21 @@ export interface AccountIssue {
   blocksSwitch: boolean;
 }
 
-/** What a dead login's row says when no paired deck can repair it — see
+/** accounts.issue.everywhere / everywhereHint: what a dead login's row says when no paired deck can repair it — see
  *  noCopyWorksNearby. The visible line names the one fact that changes what
  *  to do; the hint says why it happens and what a single sign-in repairs —
  *  on a machine that shares the login, since one that does not hands it to
  *  nobody, and the row can be a login that is not ticked here. */
-const EXPIRED_EVERYWHERE = {
-  // "Online", not "every": a deck that is off, or one not paired, may hold a
-  // working copy this deck cannot see — see noCopyWorksNearby.
-  text: "Login expired on all online decks",
-  hint: "Every paired deck online right now that shares this account holds a copy that has expired too, so "
-      + "none of them can repair this one. Claude retires a login's other copies each time one machine "
-      + "refreshes it, which is how shared copies expire together. Sign in again on any one machine that "
-      + "shares it; the others repair from it on their next round.",
-};
-
 export function accountIssue(
   a: IssueSource,
   nowSec: number,
   /** Whether any paired online deck has a working copy for recovery. */
   lan?: { noCopyWorksNearby?: boolean },
+  t: TFunction = tNow,
 ): AccountIssue | null {
-  const issue = ownIssue(a, nowSec);
+  const issue = ownIssue(a, nowSec, t);
   if (!issue || !lan?.noCopyWorksNearby || !deadLogin(a)) return issue;
-  return { ...issue, text: EXPIRED_EVERYWHERE.text, hint: EXPIRED_EVERYWHERE.hint };
+  return { ...issue, text: t("accounts.issue.everywhere"), hint: t("accounts.issue.everywhereHint") };
 }
 
 /** A stored login that only a sign-in can bring back, as the row's own issue
@@ -229,21 +215,20 @@ export function deadLogin(a: IssueSource): boolean {
 function ownIssue(
   a: IssueSource,
   nowSec: number,
+  t: TFunction,
 ): AccountIssue | null {
   if (a.staleCopy) {
     // Signed in, and the deck is re-capturing the copy by itself (#721): news,
     // not a task.
-    const s = staleCopyText(a.repair ?? null, nowSec);
+    const s = staleCopyText(a.repair ?? null, nowSec, t);
     return { text: sentence(s.text), hint: s.hint, fix: null, tone: "quiet", blocksSwitch: false };
   }
   if (a.stopped) {
-    const v = collectorText(a.collector ?? null);
+    const v = collectorText(a.collector ?? null, t);
     if (!v) {
       return {
-        text: "Not collecting",
-        hint: "claude-swap has collected nothing for this account in over half a day and has not said why. "
-            + "A paired deck holding a working copy of this account will replace it on its own. "
-            + "To do it by hand, sign in as this account from + Add.",
+        text: t("accounts.issue.notCollecting"),
+        hint: t("accounts.issue.notCollectingHint"),
         fix: null,
         tone: "quiet",
         blocksSwitch: false,
@@ -262,8 +247,8 @@ function ownIssue(
     };
   }
   if (a.error) {
-    const e = errorText(a.error);
-    return { text: sentence(e.text), hint: e.hint, fix: e.fixable ? "Sign in again" : null, tone: e.fixable ? "warn" : "quiet", blocksSwitch: e.fixable };
+    const e = errorText(a.error, t);
+    return { text: sentence(e.text), hint: e.hint, fix: e.fixable ? t("accounts.issue.signInAgain") : null, tone: e.fixable ? "warn" : "quiet", blocksSwitch: e.fixable };
   }
   return null;
 }

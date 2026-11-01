@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { shortPreview } from "../tool-calls";
 
+// The bundle pulls in the i18n catalogs, which vite finds by import.meta.glob;
+// esbuild alone has no glob, and the memory check needs no text.
+const noGlob = { "import.meta.glob": "__noGlob" };
+const NO_GLOB = "globalThis.__noGlob = () => ({});\n";
+
 describe("tool preview retention", () => {
   it("keeps the same visible preview for strings, structured results and Unicode", () => {
     for (const value of ["hello", "x".repeat(100), { output: "x".repeat(100) }, "🙂".repeat(100)]) {
@@ -12,8 +17,8 @@ describe("tool preview retention", () => {
     }
   });
   it("releases trimmed inputs while keeping every tool and recent full input", () => {
-    const bundle = buildSync({ entryPoints: [fileURLToPath(new URL("../reducer.ts", import.meta.url))], bundle: true, platform: "node", format: "esm", write: false }).outputFiles[0].text;
-    const script = bundle + `
+    const bundle = buildSync({ entryPoints: [fileURLToPath(new URL("../reducer.ts", import.meta.url))], bundle: true, platform: "node", format: "esm", write: false, define: noGlob }).outputFiles[0].text;
+    const script = NO_GLOB + bundle + `
       let state=initialState(),seq=0;
       function event(payload){state=applyEvent(state,{seq:++seq,epoch:"memory",receivedAt:Date.now(),source:"hook",payload:{session_id:"synthetic",...payload}})}
       global.gc();const before=process.memoryUsage().heapUsed;
@@ -34,8 +39,8 @@ describe("tool preview retention", () => {
   });
 
   it("does not retain large result strings through tiny previews", () => {
-    const bundle = buildSync({ entryPoints: [fileURLToPath(new URL("../tool-calls.ts", import.meta.url))], bundle: true, platform: "node", format: "esm", write: false }).outputFiles[0].text;
-    const script = bundle + `
+    const bundle = buildSync({ entryPoints: [fileURLToPath(new URL("../tool-calls.ts", import.meta.url))], bundle: true, platform: "node", format: "esm", write: false, define: noGlob }).outputFiles[0].text;
+    const script = NO_GLOB + bundle + `
       global.gc(); const before=process.memoryUsage().heapUsed;
       const previews=[];
       for(let i=0;i<60;i++) previews.push(shortPreview({output: String(i)+"x".repeat(1048576)}));

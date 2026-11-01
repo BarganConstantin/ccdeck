@@ -1,5 +1,6 @@
 import { CUSTOM_TARGET_PEAK } from "./notification-audio";
 import { ownRow } from "./own-row";
+import { t } from "./i18n";
 
 // The two moments worth hearing, played by the deck itself.
 //
@@ -124,10 +125,10 @@ export interface Figure {
 const DONE_FIGURES: readonly Figure[] = [
   // COUNT, and the baseline. #704's own figure, byte for byte: no type, no
   // trim, so a tab that never opens the menu is untouched by all of this.
-  { id: "two", label: "Two notes",
+  { id: "two", get label() { return t("radio.tone.two"); },
     notes: [{ at: 0, hz: 740, ms: 90 }, { at: 0.085, hz: 440, ms: 150 }] },
   // COUNT and melody: three notes walking down a triad rather than one step.
-  { id: "arc", label: "Descent",
+  { id: "arc", get label() { return t("radio.tone.descent"); },
     notes: [{ at: 0, hz: 988, ms: 80 }, { at: 0.07, hz: 659, ms: 80 }, { at: 0.14, hz: 440, ms: 160 }] },
   // RHYTHM: three notes again, but the first is repeated instead of moving,
   // and — the part that took a measurement to get right — the gaps are UNEVEN.
@@ -137,7 +138,7 @@ const DONE_FIGURES: readonly Figure[] = [
   // the pair differing by one note's pitch and nothing a bad speaker preserves.
   // Two quick taps and then a landing — 55ms apart, then 110 — is a 1:2 gap
   // against `arc`'s 1:1, and needs no pitch resolution at all to hear.
-  { id: "tap", label: "Double tap",
+  { id: "tap", get label() { return t("radio.tone.tap"); },
     notes: [{ at: 0, hz: 740, ms: 55 }, { at: 0.055, hz: 740, ms: 55 }, { at: 0.165, hz: 440, ms: 150 }] },
   // TEXTURE: the only figure here that sounds two notes at once. A dyad opens
   // it and a single note resolves underneath — the same falling shape as the
@@ -145,20 +146,20 @@ const DONE_FIGURES: readonly Figure[] = [
   // because the two notes overlap instead of queueing. Trimmed to 0.7 for the
   // two voices, which is the 1/√2 that keeps its energy level with the
   // single-note figures; untrimmed it measured a true peak of 0.447.
-  { id: "chord", label: "Chord", trim: 0.7,
+  { id: "chord", get label() { return t("radio.tone.chord"); }, trim: 0.7,
     notes: [{ at: 0, hz: 988, ms: 110 }, { at: 0, hz: 740, ms: 110 }, { at: 0.1, hz: 440, ms: 170 }] },
   // TIMBRE and articulation: a triangle, left ringing. Two notes like `two`,
   // so the timbre is what a listener is comparing — and 370ms against `two`'s
   // 235ms, so it is not ONLY the timbre. Rendered and measured, the two sit an
   // octave apart in spectral centroid (646Hz against 1296Hz), which is the
   // objective form of "a different instrument playing the same figure".
-  { id: "bell", label: "Bell", type: "triangle",
+  { id: "bell", get label() { return t("radio.tone.bell"); }, type: "triangle",
     notes: [{ at: 0, hz: 740, ms: 120 }, { at: 0.11, hz: 440, ms: 260 }] },
   // TIMBRE and articulation, the other way: a square, clipped short. 150ms end
   // to end, the shortest thing in either catalogue, and unmistakably digital
   // rather than musical. Trimmed to 0.7 because a square's RMS is a full 1.0
   // of its peak against a sine's 0.707.
-  { id: "blip", label: "Blip", type: "square", trim: 0.7,
+  { id: "blip", get label() { return t("radio.tone.blip"); }, type: "square", trim: 0.7,
     notes: [{ at: 0, hz: 740, ms: 55 }, { at: 0.06, hz: 440, ms: 90 }] },
 ];
 
@@ -166,19 +167,19 @@ const DONE_FIGURES: readonly Figure[] = [
  *  highest note it contains, which is what "unresolved" is. Same six
  *  characters, same axes, read the other way up. */
 const ASKING_FIGURES: readonly Figure[] = [
-  { id: "two", label: "Two notes",
+  { id: "two", get label() { return t("radio.tone.two"); },
     notes: [{ at: 0, hz: 440, ms: 90 }, { at: 0.085, hz: 740, ms: 150 }] },
-  { id: "arc", label: "Ascent",
+  { id: "arc", get label() { return t("radio.tone.ascent"); },
     notes: [{ at: 0, hz: 440, ms: 80 }, { at: 0.07, hz: 659, ms: 80 }, { at: 0.14, hz: 988, ms: 160 }] },
-  { id: "tap", label: "Double tap",
+  { id: "tap", get label() { return t("radio.tone.tap"); },
     notes: [{ at: 0, hz: 440, ms: 55 }, { at: 0.055, hz: 440, ms: 55 }, { at: 0.165, hz: 740, ms: 150 }] },
   // The dyad LANDS here rather than opening, which is what keeps the question
   // mark: the figure ends on an unresolved pair instead of settling under it.
-  { id: "chord", label: "Chord", trim: 0.7,
+  { id: "chord", get label() { return t("radio.tone.chord"); }, trim: 0.7,
     notes: [{ at: 0, hz: 440, ms: 110 }, { at: 0.1, hz: 740, ms: 170 }, { at: 0.1, hz: 988, ms: 170 }] },
-  { id: "bell", label: "Bell", type: "triangle",
+  { id: "bell", get label() { return t("radio.tone.bell"); }, type: "triangle",
     notes: [{ at: 0, hz: 440, ms: 120 }, { at: 0.11, hz: 740, ms: 260 }] },
-  { id: "blip", label: "Blip", type: "square", trim: 0.7,
+  { id: "blip", get label() { return t("radio.tone.blip"); }, type: "square", trim: 0.7,
     notes: [{ at: 0, hz: 440, ms: 55 }, { at: 0.06, hz: 740, ms: 90 }] },
 ];
 

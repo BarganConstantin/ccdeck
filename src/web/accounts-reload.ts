@@ -18,6 +18,7 @@
 // cannot be rendered in it, so the rules live where they can be called
 // directly — the same reason admin-failure.ts and login-flow.ts do.
 import { type CommandFailure, commandOutput, explainCommandFailure } from "./admin-failure";
+import { t as tNow, type TFunction } from "./i18n";
 
 /**
  * What went wrong, and the words the tool used.
@@ -91,6 +92,15 @@ export const RELOAD_SLOW: Failure = Object.freeze({
  * A 200 here carries the panel's data, which the caller has already taken, and
  * a body can only be read once.
  */
+/** A reload failure's line in the language on show. The two constants above are
+ *  English sentences held by identity, so they are told apart by their text;
+ *  any other failure was worded when it was made. */
+export function reloadText(f: { text: string }, t: TFunction = tNow): string {
+  if (f.text === RELOAD_UNREACHABLE.text) return t("accounts.reload.unreachable");
+  if (f.text === RELOAD_SLOW.text) return t("accounts.reload.slow");
+  return f.text;
+}
+
 export async function answered(res: Answerable): Promise<ReloadAnswer> {
   if (res.ok) return { ok: true, status: res.status, body: null };
   return {
@@ -118,7 +128,7 @@ export function explainReload(answers: ReloadAnswer[]): Failure | null {
   // added to a second map that has to be kept in step with COMMAND_REASONS.
   const raw = commandOutput(bad.body);
   return {
-    text: explainCommandFailure(bad.body, `the deck server answered ${bad.status}`),
+    text: explainCommandFailure(bad.body, tNow("accounts.reload.answered", { status: bad.status })),
     ...(raw ? { raw } : {}),
     reload: true,
   };

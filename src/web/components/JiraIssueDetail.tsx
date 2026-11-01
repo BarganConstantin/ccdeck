@@ -4,6 +4,8 @@
 // here, with the way back in the breadcrumb — its attachments, which open in
 // Jira, and the last ten comments.
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useT } from "../i18n";
+import { formatNumber } from "../i18n/format";
 import type { IntegrationConnection as Connection } from "../integrations/types";
 import { jiraImage, type JiraApi, type JiraIssue, type TimeTracking } from "../jira-api";
 import { detailNameTakesFocus, fileSize, jiraDate, shownResolution, timeLine } from "../jira-board";
@@ -53,12 +55,13 @@ function Person({ person, fallback, you = false }: { person: { name: string; ava
 }
 
 function SubtaskList({ issues, onOpen }: { issues: JiraIssue[]; onOpen: (key: string) => void }) {
+  const t = useT();
   return (
     <ul className="jr-detail-subtasks">
       {issues.map(sub => (
         <li key={sub.key}>
           <button type="button" className="jr-detail-sub" data-mine={sub.mine || undefined} data-done={sub.status.category === "done" || undefined}
-            onClick={() => onOpen(sub.key)} aria-label={`${sub.key}: ${sub.summary}. ${sub.status.name}${sub.assignee ? `, ${sub.assignee.name}${sub.mine ? ", assigned to you" : ""}` : ", unassigned"}`}>
+            onClick={() => onOpen(sub.key)} aria-label={t("integrations.detail.rowSub", { key: sub.key, summary: sub.summary, status: sub.status.name, who: sub.assignee ? (sub.mine ? t("integrations.who.you", { name: sub.assignee.name }) : sub.assignee.name) : t("integrations.who.unassigned") })}>
             <TypeIcon type={sub.type} />
             <span className="jr-key">{sub.key}</span>
             <span className="jr-summary">{sub.summary}</span>
@@ -72,6 +75,7 @@ function SubtaskList({ issues, onOpen }: { issues: JiraIssue[]; onOpen: (key: st
 }
 
 export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation, time, onOpen, onTrail, onReconnect, narrow, auto = false, onClose, onStatusChanged }: JiraIssueDetailProps) {
+  const t = useT();
   const key = trail[trail.length - 1] ?? null;
   const { data, loading, error, reload } = useJiraIssue(api, conn.id, key);
   const ctx = useMemo<HtmlContext>(() => ({ baseUrl: conn.baseUrl, image: abs => jiraImage(conn, assetUrl, abs) }), [conn, assetUrl]);
@@ -107,13 +111,13 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
   if (parentKey && !trail.slice(0, -1).includes(parentKey)) {
     crumbs.push({ label: parentKey, title: issue!.parent!.summary, go: () => openHere(() => onOpen(parentKey, "replace")) });
   }
-  trail.slice(0, -1).forEach((k, i) => crumbs.push({ label: k, title: `Back to ${k}`, go: () => openHere(() => onTrail(i)) }));
+  trail.slice(0, -1).forEach((k, i) => crumbs.push({ label: k, title: t("integrations.detail.backTo", { key: k }), go: () => openHere(() => onTrail(i)) }));
 
   if (!key) return null;
   return (
     <article className="jr-detail" aria-busy={loading || undefined} aria-labelledby="jira-detail-title">
       <IntegrationDetailBar reference={key} context={issue?.project.name} copyLabel="key" href={issue?.url ?? null} openLabel="Open in Jira" narrow={narrow} onClose={onClose} />
-      {crumbs.length > 0 && <ol className="jr-crumbs" role="list" aria-label="Related issues">
+      {crumbs.length > 0 && <ol className="jr-crumbs" role="list" aria-label={t("integrations.detail.related")}>
         {crumbs.map((c, i) => (
           <li key={`${c.label}-${i}`}>
             {c.go ? <button type="button" className="jr-crumb" title={c.title} onClick={c.go}>{c.label}</button> : <span className="jr-crumb-text" title={c.title}>{c.label}</span>}
@@ -124,7 +128,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
       {error && <IntegrationFailureNote error={error} provider="Jira" host={connectionHost(conn)} stale={Boolean(issue)} onRetry={reload} onReconnect={onReconnect} />}
 
       {!issue && loading && (
-        <IntegrationSkeleton label={`Reading ${key}`} rows={4} variant="lines" />
+        <IntegrationSkeleton label={t("integrations.detail.reading", { key })} rows={4} variant="lines" />
       )}
 
       {issue && (
@@ -140,46 +144,46 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
               {onStatusChanged && <JiraTransition key={issue.key} api={api} connectionId={conn.id} issueKey={issue.key} onChanged={onStatusChanged} />}
               {resolution && <span className="jr-dim">{resolution}</span>}
               {issue.priority && <span className="jr-with-icon"><PriorityIcon priority={issue.priority} />{issue.priority.name}</span>}
-              {issue.flagged && <span className="jr-flagged"><FlagGlyph /> Flagged</span>}
+              {issue.flagged && <span className="jr-flagged"><FlagGlyph /> {t("integrations.flagged")}</span>}
             </p>
           </header>
 
           <dl className="jr-fields">
-            <Field label="Assignee"><Person person={issue.assignee} fallback="Unassigned" you={issue.mine} /></Field>
-            <Field label="Reporter">{issue.reporter ? <Person person={issue.reporter} fallback="" /> : null}</Field>
-            <Field label="Sprint">{issue.sprint ? <>{issue.sprint.name}{issue.sprint.state ? <span className="jr-dim"> · {issue.sprint.state}</span> : null}</> : null}</Field>
-            <Field label="Epic">{issue.epic ? <EpicChip epic={issue.epic} /> : null}</Field>
-            <Field label="Fix versions">{issue.fixVersions.length ? <span className="jr-chips">{issue.fixVersions.map(v => <span key={v} className="jr-version">{v}</span>)}</span> : null}</Field>
-            <Field label="Labels">{issue.labels.length ? <span className="jr-chips">{issue.labels.map(l => <span key={l} className="jr-label">{l}</span>)}</span> : null}</Field>
-            <Field label="Components">{issue.components.join(", ")}</Field>
-            <Field label="Due">{jiraDate(issue.dueDate)}</Field>
-            {estimation === "points" && <Field label="Estimate">{issue.points != null ? `${issue.points} ${issue.points === 1 ? "point" : "points"}` : null}</Field>}
-            <Field label="Time">{timeLine(issue, time)}</Field>
+            <Field label={t("integrations.field.assignee")}><Person person={issue.assignee} fallback={t("integrations.unassigned")} you={issue.mine} /></Field>
+            <Field label={t("integrations.field.reporter")}>{issue.reporter ? <Person person={issue.reporter} fallback="" /> : null}</Field>
+            <Field label={t("integrations.field.sprint")}>{issue.sprint ? <>{issue.sprint.name}{issue.sprint.state ? <span className="jr-dim"> · {issue.sprint.state}</span> : null}</> : null}</Field>
+            <Field label={t("integrations.field.epic")}>{issue.epic ? <EpicChip epic={issue.epic} /> : null}</Field>
+            <Field label={t("integrations.field.fixVersions")}>{issue.fixVersions.length ? <span className="jr-chips">{issue.fixVersions.map(v => <span key={v} className="jr-version">{v}</span>)}</span> : null}</Field>
+            <Field label={t("integrations.field.labels")}>{issue.labels.length ? <span className="jr-chips">{issue.labels.map(l => <span key={l} className="jr-label">{l}</span>)}</span> : null}</Field>
+            <Field label={t("integrations.field.components")}>{issue.components.join(", ")}</Field>
+            <Field label={t("integrations.field.due")}>{jiraDate(issue.dueDate)}</Field>
+            {estimation === "points" && <Field label={t("integrations.field.estimate")}>{issue.points != null ? t("integrations.detail.points", { count: issue.points, n: formatNumber(issue.points, 1) }) : null}</Field>}
+            <Field label={t("integrations.field.time")}>{timeLine(issue, time, t)}</Field>
           </dl>
           <p className="jr-detail-dates">
-            {[issue.created && `Created ${jiraDate(issue.created, true)}`, issue.updated && `Updated ${jiraDate(issue.updated, true)}`].filter(Boolean).join(" · ")}
+            {[issue.created && t("integrations.detail.created", { when: jiraDate(issue.created, true) }), issue.updated && t("integrations.detail.updated", { when: jiraDate(issue.updated, true) })].filter(Boolean).join(" · ")}
           </p>
 
           <section className="jr-detail-section" aria-labelledby="jira-detail-desc">
-            <h3 id="jira-detail-desc">Description</h3>
-            <JiraHtml html={issue.descriptionHtml} ctx={ctx} empty={<p className="jr-dim">No description.</p>} />
+            <h3 id="jira-detail-desc">{t("integrations.detail.description")}</h3>
+            <JiraHtml html={issue.descriptionHtml} ctx={ctx} empty={<p className="jr-dim">{t("integrations.detail.noDescription")}</p>} />
           </section>
 
           {data!.subtasks.length > 0 && (
             <section className="jr-detail-section" aria-labelledby="jira-detail-subs">
-              <h3 id="jira-detail-subs">Sub-tasks <span className="jr-count">{data!.subtasks.length}</span></h3>
+              <h3 id="jira-detail-subs">{t("integrations.detail.subtasks")} <span className="jr-count">{data!.subtasks.length}</span></h3>
               <SubtaskList issues={data!.subtasks} onOpen={k => openHere(() => onOpen(k, "push"))} />
             </section>
           )}
 
           {data!.attachments.length > 0 && (
             <section className="jr-detail-section" aria-labelledby="jira-detail-files">
-              <h3 id="jira-detail-files">Attachments <span className="jr-count">{data!.attachments.length}</span></h3>
+              <h3 id="jira-detail-files">{t("integrations.detail.attachments")} <span className="jr-count">{data!.attachments.length}</span></h3>
               <ul className="jr-files">
                 {data!.attachments.map(a => (
                   <li key={a.id}>
                     {a.url
-                      ? <a href={a.url} target="_blank" rel="noreferrer noopener" title="Opens in Jira">{a.filename}<ExternalLinkGlyph /></a>
+                      ? <a href={a.url} target="_blank" rel="noreferrer noopener" title={t("integrations.detail.opensInJira")}>{a.filename}<ExternalLinkGlyph /></a>
                       : <span>{a.filename}</span>}
                     <span className="jr-dim">{[fileSize(a.size), jiraDate(a.created)].filter(Boolean).join(" · ")}</span>
                   </li>
@@ -190,24 +194,24 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
 
           <section className="jr-detail-section" aria-labelledby="jira-detail-comments">
             <h3 id="jira-detail-comments">
-              Comments <span className="jr-count">{data!.comments.total > data!.comments.items.length ? `${data!.comments.items.length} of ${data!.comments.total}` : data!.comments.total}</span>
+              {t("integrations.detail.comments")} <span className="jr-count">{data!.comments.total > data!.comments.items.length ? t("integrations.detail.commentsOf", { shown: data!.comments.items.length, total: data!.comments.total }) : data!.comments.total}</span>
             </h3>
-            {data!.comments.items.length === 0 && <p className="jr-dim">No comments.</p>}
+            {data!.comments.items.length === 0 && <p className="jr-dim">{t("integrations.detail.noComments")}</p>}
             <ol className="jr-comments">
               {data!.comments.items.map(c => (
                 <li key={c.id} className="jr-comment">
                   <div className="jr-comment-head">
-                    <Person person={c.author} fallback="Someone" />
+                    <Person person={c.author} fallback={t("integrations.detail.someone")} />
                     <time className="jr-dim" dateTime={c.created}>{jiraDate(c.created, true)}</time>
-                    {c.updated && c.updated !== c.created && <span className="jr-dim">edited</span>}
+                    {c.updated && c.updated !== c.created && <span className="jr-dim">{t("integrations.detail.edited")}</span>}
                   </div>
-                  <JiraHtml html={c.html} ctx={ctx} empty={<p className="jr-dim">(empty)</p>} />
+                  <JiraHtml html={c.html} ctx={ctx} empty={<p className="jr-dim">{t("integrations.detail.empty")}</p>} />
                 </li>
               ))}
             </ol>
             {onStatusChanged && <JiraCommentForm key={issue.key} api={api} connectionId={conn.id} issueKey={issue.key} onChanged={onStatusChanged} />}
             {data!.comments.total > data!.comments.items.length && (
-              <p className="jr-dim"><a className="jr-more-link" href={issue.url} target="_blank" rel="noreferrer noopener">The older comments are in Jira <ExternalLinkGlyph /></a></p>
+              <p className="jr-dim"><a className="jr-more-link" href={issue.url} target="_blank" rel="noreferrer noopener">{t("integrations.detail.older")} <ExternalLinkGlyph /></a></p>
             )}
           </section>
         </>

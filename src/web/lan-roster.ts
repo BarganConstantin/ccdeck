@@ -7,7 +7,8 @@
 // under the switch, the way-in row at the foot of the accounts, and the peek
 // beside it. The dialogs find the machine behind a row with rowSource, from the
 // same status the row came from. None of it touches React.
-import { type RoundLine, roundLabel, seenLabel, WIRE_ANSWERS } from "./lan-round";
+import { isSeenNow, type RoundLine, roundLabel, seenLabel, WIRE_ANSWERS } from "./lan-round";
+import { t } from "./i18n";
 import type { LanRoute, LanStatus, LanStranger, Peer } from "./lan-types";
 
 /**
@@ -75,7 +76,7 @@ export function sectionState(
   // NOT "off". Nothing has been asked yet, and a line that says the feature is
   // switched off before the first answer arrives is a wrong answer given
   // confidently — the switch beside it is drawn from the same missing data.
-  if (!s) return { text: "checking…", tone: "idle" };
+  if (!s) return { text: t("lan.checking"), tone: "idle" };
   // NOTHING, WHILE IT IS OFF. The switch beside it already says so, in the one
   // place a person looks to change it, and the subtitle under the heading says
   // what the feature is for. A sentence that only restates a control the eye has
@@ -86,14 +87,14 @@ export function sectionState(
   // lived when the bind failed — a second deck on one machine takes the first
   // one's port — and a state that cannot resolve and will not say why leaves
   // the reader waiting for the one thing that never comes.
-  if (s.stalled) return { text: `could not start — ${s.stalled}`, tone: "bad" };
-  if (!s.running) return { text: "starting…", tone: "wait" };
+  if (s.stalled) return { text: t("lan.sec.couldNotStart", { why: s.stalled }), tone: "bad" };
+  if (!s.running) return { text: t("lan.starting"), tone: "wait" };
   const asking = (s.pending ?? []).length;
   if (asking) {
     // Somebody is waiting on a person at this keyboard, and that outranks every
     // other state this line can report.
     return {
-      text: asking === 1 ? "1 deck is waiting for your answer" : `${asking} decks are waiting for your answer`,
+      text: t("lan.sec.waitingAnswer", { count: asking }),
       tone: "wait",
     };
   }
@@ -110,7 +111,7 @@ export function sectionState(
   // the warning ink over a pairing that was working perfectly — the far deck
   // dials in, and its own row said `reaches us` two lines below.
   const peers = (s.peers ?? []).filter(p => p.paired !== false || p.met);
-  if (!peers.length) return { text: "no deck paired yet", tone: "idle" };
+  if (!peers.length) return { text: t("lan.sec.none"), tone: "idle" };
   // A DECK THAT CALLS IN IS PRESENT ONLY IF IT HAS CALLED. Being paired is a
   // thing that happened once; a machine that has been switched off for an hour
   // is still paired, and counting it as ready was this line's second lie about
@@ -140,9 +141,7 @@ export function sectionState(
   }
   if (here && unanswered === here) {
     return {
-      text: here === 1
-        ? "1 deck found · waiting for them to accept"
-        : `${here} decks found · waiting for them to accept`,
+      text: t("lan.sec.foundWaiting", { count: here }),
       tone: "wait",
     };
   }
@@ -150,14 +149,12 @@ export function sectionState(
     // Named and directional. "Not reachable" says nothing about which side
     // cannot do what, and a reader who does not know the answer cannot act.
     return {
-      text: offline === 1
-        ? "this deck cannot reach the one it is paired with"
-        : `this deck cannot reach any of its ${offline} decks`,
+      text: t("lan.sec.cannotReach", { count: offline }),
       tone: "bad",
     };
   }
-  const ready = here === 1 ? "1 deck ready" : `${here} decks ready`;
-  return { text: offline ? `${ready} · ${offline} away` : ready, tone: "ok" };
+  const ready = t("lan.sec.ready", { count: here });
+  return { text: offline ? t("lan.sec.readyAway", { ready, n: offline }) : ready, tone: "ok" };
 }
 
 /**
@@ -170,10 +167,10 @@ export function sectionState(
  * already a sentence.
  */
 export function checkedLabel(at: number | null | undefined, now: number, busy: boolean): string {
-  if (busy) return "checking…";
-  if (at == null) return "not checked yet";
+  if (busy) return t("lan.checking");
+  if (at == null) return t("lan.checked.never");
   const when = seenLabel(at, now);
-  return when === "now" ? "checked just now" : `checked ${when}`;
+  return isSeenNow(when) ? t("lan.checked.justNow") : t("lan.checked.when", { when });
 }
 
 /** How long a request has been waiting. Coarser than the peer clock on purpose:
@@ -181,9 +178,9 @@ export function checkedLabel(at: number | null | undefined, now: number, busy: b
  *  it. */
 export function askedLabel(at: number, now: number): string {
   const s = Math.max(0, Math.round((now - at) / 1000));
-  if (s < 90) return "just now";
+  if (s < 90) return t("lan.seen.justNow");
   const m = Math.round(s / 60);
-  return m < 60 ? `${m}m ago` : `${Math.round(m / 60)}h ago`;
+  return m < 60 ? t("lan.ago.m", { m }) : t("lan.ago.h", { h: Math.round(m / 60) });
 }
 
 /** One line in the panel's list of machines. */
@@ -200,6 +197,12 @@ export interface DeckRow {
   kind: DeckKind;
   /** What this deck is doing, in the words a person would use. */
   state: string;
+  /** A deck that only calls in and has no address here (the state says so in
+   *  words, which change with the language; this is what code reads). */
+  oneWay?: boolean;
+  /** How long ago a paired deck that is not on last was, said in the language
+   *  on show. */
+  since?: string | null;
   tone: RoundLine["tone"] | "wait";
   /** Drawn as live: the emitter rather than the still dot. */
   here: boolean;
@@ -252,10 +255,10 @@ function calledLately(lastSeen: number | undefined, now: number): boolean {
  *  authenticated frame now, so the row can say the one thing that matters about
  *  a machine nothing here can reach: whether it has been in touch. */
 function callsIn(lastSeen: number | undefined, now: number): { text: string; here: boolean } {
-  if (lastSeen == null) return { text: "one-way · has not called yet", here: false };
+  if (lastSeen == null) return { text: t("lan.oneWay.never"), here: false };
   const fresh = calledLately(lastSeen, now);
   return {
-    text: fresh ? "online · one-way, it calls in" : `one-way · last online ${seenLabel(lastSeen, now)}`,
+    text: fresh ? t("lan.oneWay.online") : t("lan.oneWay.last", { when: seenLabel(lastSeen, now) }),
     here: fresh,
   };
 }
@@ -273,12 +276,12 @@ function callsIn(lastSeen: number | undefined, now: number): { text: string; her
  * thing somebody wants when the machine they need is switched off.
  */
 function presenceLabel(p: Peer, here: boolean, now: number): string {
-  if (here) return "online";
-  if (p.lastSeen != null) return `last online ${seenLabel(p.lastSeen, now)}`;
+  if (here) return t("lan.online");
+  if (p.lastSeen != null) return t("lan.lastOnline", { when: seenLabel(p.lastSeen, now) });
   // Never once. Two different nevers, and the difference is whose move it is:
   // an address this deck dials has never answered, and a deck that calls in has
   // never called.
-  return p.waiting ? "has not called yet" : "never reached";
+  return p.waiting ? t("lan.notCalledYet") : t("lan.neverReached");
 }
 
 /**
@@ -384,8 +387,8 @@ function askingRow(p: LanStranger, aliases: Record<string, string>, now: number)
   const n = named(aliases, p.fp, p.name || p.fp);
   return {
     fp: p.fp, ...n, addr: p.addr ?? "",
-    kind: "asks", state: `wants to pair · ${askedLabel(p.at, now)}`, tone: "wait", here: true,
-    hint: `${n.name} at ${p.addr}${p.via === "tailscale" ? ", over Tailscale," : ""} is waiting for an answer.`,
+    kind: "asks", state: `${t("lan.wantsPair")} · ${askedLabel(p.at, now)}`, tone: "wait", here: true,
+    hint: t(p.via === "tailscale" ? "lan.hint.asksTs" : "lan.hint.asks", { name: n.name, addr: p.addr ?? "" }),
     ...tailnet(p.via),
   };
 }
@@ -399,12 +402,12 @@ function diallingRow(p: Peer, fp: string, now: number): DeckRow {
     kind: "dialling",
     // No presence clause: the row IS "an address nothing has answered at",
     // so saying it twice is the panel repeating itself.
-    state: line ? roundWords(line) : "trying…",
+    state: line ? roundWords(line) : t("lan.trying"),
     tone: line ? line.tone : "idle",
     here: false,
     hint: p.last?.error
-      ? `Nothing has answered at ${where} yet — ${p.last.error}.`
-      : `Dialling ${where} until something answers.`,
+      ? t("lan.hint.noAnswer", { where, error: p.last.error })
+      : t("lan.hint.dialling", { where }),
     ...tailnet(p.via),
   };
 }
@@ -425,7 +428,7 @@ function pairedRow(p: Peer, fp: string, aliases: Record<string, string>, now: nu
   // own clock is dropped when the row is online, because `online` already
   // dates it and two timestamps in 190px is one too many.
   const said = !called && line
-    ? (present ? `online · ${roundWords(line)}` : `${roundWords(line)} · ${presenceLabel(p, present, now)}`)
+    ? (present ? `${t("lan.online")} · ${roundWords(line)}` : `${roundWords(line)} · ${presenceLabel(p, present, now)}`)
     : called ? called.text
     : presenceLabel(p, present, now);
   // A deck that has been reached and is waiting on a PERSON is neither fine
@@ -457,14 +460,17 @@ function pairedRow(p: Peer, fp: string, aliases: Record<string, string>, now: nu
     // it live on that evidence is the panel inventing a fact.
     here: called ? called.here : here,
     ...tailnet(p.via),
+    ...(called ? { oneWay: true } : {}),
+    ...(!present && p.lastSeen != null ? { since: seenLabel(p.lastSeen, now) } : {}),
     hint: called
-      ? `${n.name} calls this deck, and this deck has no address to call back on — so it can repair its logins from here, and this deck cannot repair from it. ${
-          p.lastSeen == null ? "It has not called since this deck started." : `It last called ${seenLabel(p.lastSeen, now)}.`
-        } Add its address through Add a deck, the link at the top of this view, to reach it either way.`
+      ? t("lan.hint.callsIn", {
+          name: n.name,
+          last: p.lastSeen == null ? t("lan.hint.neverCalled") : t("lan.hint.lastCalled", { when: seenLabel(p.lastSeen, now) }),
+        })
       // The whole sentence, verbatim, including the address and the code the
       // row is too narrow to carry. This is where somebody looks when the
       // short form is not enough.
-      : `${n.name}${where ? ` at ${where}` : ""}${p.last?.error ? ` — ${p.last.error}` : ""}${line?.hint ? ` — ${line.hint}` : ""}`,
+      : `${where ? t("lan.hint.at", { name: n.name, where }) : n.name}${p.last?.error ? ` — ${p.last.error}` : ""}${line?.hint ? ` — ${line.hint}` : ""}`,
   };
 }
 
@@ -488,10 +494,8 @@ function nearbyRow(p: LanStranger, aliases: Record<string, string>, pairingMode:
     fp: p.fp, ...n, addr: p.addr ?? "",
     // Under invite-only the row says what it takes, since "not paired yet"
     // over a row with no ask on it reads as a machine that cannot be paired.
-    kind: "nearby", state: pairingMode === "invite" ? "needs an invite" : "not paired yet", tone: "idle", here: true,
-    hint: p.via === "tailscale"
-      ? `${n.name} at ${p.addr} is on your tailnet and nothing is shared with it.`
-      : `${n.name} at ${p.addr} is on this network and nothing is shared with it.`,
+    kind: "nearby", state: pairingMode === "invite" ? t("lan.state.needsInvite") : t("lan.state.notPaired"), tone: "idle", here: true,
+    hint: t(p.via === "tailscale" ? "lan.hint.nearbyTs" : "lan.hint.nearby", { name: n.name, addr: p.addr ?? "" }),
     ...tailnet(p.via),
   };
 }
@@ -501,8 +505,8 @@ function declinedRow(p: LanStranger, aliases: Record<string, string>): DeckRow {
   const n = named(aliases, p.fp, p.name || p.fp);
   return {
     fp: p.fp, ...n, addr: p.addr ?? "",
-    kind: "declined", state: "you said no", tone: "idle", here: false,
-    hint: `${n.name} asked and was turned away. It is not asking any more.`,
+    kind: "declined", state: t("lan.state.declined"), tone: "idle", here: false,
+    hint: t("lan.hint.declined", { name: n.name }),
   };
 }
 
@@ -652,12 +656,12 @@ export function entryLine(
   s: { enabled?: boolean; running?: boolean; stalled?: string | null; reach?: { blocked?: boolean } | null } | null,
   rows: DeckRow[],
 ): { text: string; tone: "bad" | "idle" | "ok" | "wait"; live: boolean } {
-  if (!s) return { text: "checking…", tone: "idle", live: false };
-  if (!s.enabled) return { text: "Off", tone: "idle", live: false };
-  if (s.stalled) return { text: "could not start", tone: "bad", live: false };
-  if (!s.running) return { text: "starting…", tone: "wait", live: false };
+  if (!s) return { text: t("lan.checking"), tone: "idle", live: false };
+  if (!s.enabled) return { text: t("lan.entry.off"), tone: "idle", live: false };
+  if (s.stalled) return { text: t("lan.entry.noStart"), tone: "bad", live: false };
+  if (!s.running) return { text: t("lan.starting"), tone: "wait", live: false };
   const asks = rows.filter(r => r.kind === "asks").length;
-  if (asks) return { text: asks === 1 ? "1 deck wants to pair" : `${asks} decks want to pair`, tone: "wait", live: false };
+  if (asks) return { text: t("lan.entry.wantsPair", { count: asks }), tone: "wait", live: false };
   // NOTHING CAN GET IN, AND THE COUNT IS WHAT HID IT. A blocked deck still
   // HEARS every beacon on the network, so all of its paired decks are present
   // and this row would read `8 online` — the most reassuring sentence it can
@@ -673,16 +677,16 @@ export function entryLine(
   // After `asks` deliberately. A request already waiting came in over an
   // inbound connection, so it is both a press away and evidence that whatever
   // is in the way now was not always there.
-  if (s.reach?.blocked) return { text: "nothing can get in", tone: "bad", live: false };
+  if (s.reach?.blocked) return { text: t("lan.entry.blocked"), tone: "bad", live: false };
   const paired = rows.filter(r => r.kind === "paired");
-  if (!paired.length) return { text: "On · none paired yet", tone: "idle", live: false };
+  if (!paired.length) return { text: t("lan.entry.onNone"), tone: "idle", live: false };
   // `here` is the row's own presence — the dot the list draws — so the two
   // places cannot disagree about who is on.
   const online = paired.filter(r => r.here).length;
-  if (!online) return { text: `none of ${paired.length} online`, tone: "idle", live: false };
+  if (!online) return { text: t("lan.entry.noneOnline", { n: paired.length }), tone: "idle", live: false };
   // A fleet that is all there does not need the arithmetic said out loud.
-  if (online === paired.length) return { text: `${online} online`, tone: "ok", live: true };
-  return { text: `${online} of ${paired.length} online`, tone: "ok", live: true };
+  if (online === paired.length) return { text: t("lan.entry.online", { n: online }), tone: "ok", live: true };
+  return { text: t("lan.entry.someOnline", { online, n: paired.length }), tone: "ok", live: true };
 }
 
 /**

@@ -7,6 +7,7 @@
 // will not load, fall back to the link it stood for.
 import { useState } from "react";
 import type { ForgeNode } from "../forge-html";
+import { t as tNow, useT } from "../i18n";
 
 /** React's spelling of the few attributes the tree keeps. */
 function props(attrs: Record<string, string>): Record<string, unknown> {
@@ -24,7 +25,8 @@ function props(attrs: Record<string, string>): Record<string, unknown> {
 
 function ForgeImage({ node }: { node: Extract<ForgeNode, { t: "img" }> }) {
   const [failed, setFailed] = useState(false);
-  const label = node.alt.trim() || "image";
+  const t = useT();
+  const label = node.alt.trim() || t("forge.html.image");
   if (!node.src || failed) {
     return (
       <a className="fh-image-link" href={node.href} target="_blank" rel="noreferrer noopener">
@@ -66,7 +68,7 @@ export function renderForgeNodes(nodes: ForgeNode[]): React.ReactNode[] {
         // A task's box, drawn: the panel cannot tick it, so it is a mark
         // with its state in words, not a disabled control with no name.
         return (
-          <span key={i} className="fh-check" role="img" aria-label={n.checked ? "done" : "to do"} data-checked={n.checked || undefined}>
+          <span key={i} className="fh-check" role="img" aria-label={tNow(n.checked ? "forge.html.done" : "forge.html.todo")} data-checked={n.checked || undefined}>
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect x="1.6" y="1.6" width="10.8" height="10.8" rx="2.4" />
               {n.checked && <path d="m4.3 7.2 1.9 1.9 3.6-4" />}

@@ -82,10 +82,10 @@ describe("the dialog keeps the two journeys apart", () => {
 
   it("prints the paste's error under the paste field and the sign-in's on the Sign in tab", () => {
     expect(src).toMatch(/\{pasteError && <p className="aa-err">\{pasteError\}<\/p>\}/);
-    expect(src).toMatch(/\{\(loginError \|\| login\.error\) && <p className="aa-err">\{loginError \?\? login\.error\}<\/p>\}/);
-    expect(src).toMatch(/localError: loginError \}\)/);
+    expect(src).toMatch(/\{\(loginError \|\| login\.error\) && <p className="aa-err">\{loginError \?\? loginErrorText\(login\.error, t\)\}<\/p>\}/);
+    expect(src).toMatch(/localError: loginError \}, t\)/);
     // And the Import button's label says only an import is out.
-    expect(src).toMatch(/\{pasteBusy \? "importing…" : "Import"\}/);
+    expect(src).toMatch(/\{pasteBusy \? t\("accounts\.add\.importing2"\) : t\("accounts\.add\.import"\)\}/);
   });
 
   it("chooses the Sign in tab's branch through loginTabView, off the sign-in's own state", () => {

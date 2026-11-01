@@ -22,6 +22,7 @@
 // What is remembered between reloads — the order and the open rows — is
 // accounts-prefs.ts's.
 import type { Account, Lane } from "./claude-accounts";
+import { t as tNow, type TFunction } from "./i18n";
 import { laneKey, toggleLane, type LaneOwner } from "./lane-open";
 import { headroomAt, lapsed } from "./lane-view";
 
@@ -70,17 +71,17 @@ export function orderKey(order: string): string | null {
  * The model entries come from the accounts in the list, so a store with no
  * Opus lane is not offered an Opus order that would sort nothing.
  */
-export function orderChoices(accounts: readonly Account[]): OrderChoice[] {
+export function orderChoices(accounts: readonly Account[], t: TFunction = tNow): OrderChoice[] {
   const models = [...new Set(accounts.flatMap(a => (a.lanes ?? []).filter(isModelLane).map(l => l.label)))]
     .sort((x, y) => x.localeCompare(y));
   const windows = [...WINDOWS.map(w => w.name), ...models];
   return [
-    { id: SLOT_ORDER, label: "Slot" },
+    { id: SLOT_ORDER, label: t("accounts.order.slot") },
     ...windows.flatMap(w => [
-      { id: `${w}:full`, label: `${w} · fullest` },
-      { id: `${w}:empty`, label: `${w} · emptiest` },
+      { id: `${w}:full`, label: t("accounts.order.full", { window: w }) },
+      { id: `${w}:empty`, label: t("accounts.order.empty", { window: w }) },
     ]),
-    { id: "room", label: "Most room" },
+    { id: "room", label: t("accounts.order.room") },
   ];
 }
 

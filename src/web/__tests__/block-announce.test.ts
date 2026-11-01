@@ -43,7 +43,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { ALL_CLEAR, blockedAnnouncement, nextAnnouncement } from "../block-announce";
+import { allClearText, blockedAnnouncement, nextAnnouncement } from "../block-announce";
+
+const ALL_CLEAR = allClearText();
 import { blockedSessions } from "../ambient-counts";
 import {
   applyEvent,

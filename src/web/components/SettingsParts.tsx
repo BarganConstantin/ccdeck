@@ -17,6 +17,7 @@
 // out a value, or holds two buttons, is a <div>: a label wrapped round two
 // controls would hand every press on its name to the first of them.
 import type { ReactNode } from "react";
+import { useT } from "../i18n";
 
 interface GroupProps {
   /** The caption's id, which names the group to assistive technology. A group
@@ -81,6 +82,7 @@ interface RowProps {
 }
 
 export function SettingRow({ name, nameId, note, noteId, control, as = "label", settingId, className, details, children }: RowProps) {
+  const t = useT();
   const Tag = as;
   const row = (
     <Tag className={className ? `settings-row ${className}` : "settings-row"} data-setting={settingId}>
@@ -95,6 +97,6 @@ export function SettingRow({ name, nameId, note, noteId, control, as = "label", 
   // activates its control and the pair remains one row in the shared list.
   return <div className="settings-row-with-details">
     {row}
-    <details className="settings-row-details"><summary>Details<span className="vis-hidden"> about {name}</span></summary><div>{details}</div></details>
+    <details className="settings-row-details"><summary>{t("common.details")}<span className="vis-hidden">{t("common.aboutBefore")}{name}{t("common.aboutAfter")}</span></summary><div>{details}</div></details>
   </div>;
 }

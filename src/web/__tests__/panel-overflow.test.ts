@@ -234,7 +234,7 @@ describe("the cost bar inside the usage panel", () => {
     // drawn under the panel's root, and the component for the class that rule
     // matches on.
     expect(usage).toMatch(/<CostBar cost=\{totalCost\} \/>/);
-    expect(costBar).toMatch(/className=\{large \? "cost-bar cost-bar-lg" : "cost-bar"\} role="img" aria-label="Cost breakdown">/);
+    expect(costBar).toMatch(/className=\{large \? "cost-bar cost-bar-lg" : "cost-bar"\} role="img" aria-label=\{t\("insights\.cost\.breakdown"\)\}>/);
     // The last segment is the one an overhanging bar clips, and it is the
     // priciest token class in the panel.
     const segments = [...costBar.matchAll(/"cb-(input|output|cache-r|cache-w)"/g)].map(m => m[1]);

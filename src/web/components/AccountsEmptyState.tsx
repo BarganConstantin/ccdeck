@@ -7,8 +7,11 @@
 // from the reader, so each gets its own sentence. It was a forty-line branch of the panel's render that read nothing
 // but the answer's reason and hint, and that is all it is handed.
 import { type AccountsData } from "../claude-accounts";
+import { useT } from "../i18n";
+import { Rich } from "../accounts-rich";
 
 export default function AccountsEmptyState({ data }: { data: Pick<AccountsData, "reason" | "hint" | "version" | "want"> }) {
+  const t = useT();
   return (
     <div className="ap-empty">
       {/* The deck's own install, still running. Said as a wait rather
@@ -18,23 +21,15 @@ export default function AccountsEmptyState({ data }: { data: Pick<AccountsData, 
           one already running. */}
       {data.reason === "cswap_installing" ? (
         <>
-          <span>Installing claude-swap…</span>
-          <span className="ap-hint">
-            The deck is setting it up in the background, so there is nothing to do here.
-            On a new machine this can take a few minutes; the panel fills in by itself
-            when it is done.
-          </span>
+          <span>{t("accounts.empty.installing")}</span>
+          <span className="ap-hint">{t("accounts.empty.installingHint")}</span>
         </>
       ) : data.reason === "no_cswap" ? (
         <>
-          <span>claude-swap isn't installed.</span>
-          <span className="ap-hint">
-            This panel reads the account store claude-swap keeps — without it there is
-            nothing to show. It is a separate tool, published on PyPI, so it does not
-            come with this package.
-          </span>
+          <span>{t("accounts.empty.noCswap")}</span>
+          <span className="ap-hint">{t("accounts.empty.noCswapHint")}</span>
           {data.hint && <code className="ap-cmd">{data.hint}</code>}
-          <span className="ap-hint">Then add an account with the <strong>+</strong> button above.</span>
+          <span className="ap-hint"><Rich text={t("accounts.empty.thenAdd")} /></span>
         </>
       ) : data.reason === "cswap_refused" ? (
         <>
@@ -42,28 +37,24 @@ export default function AccountsEmptyState({ data }: { data: Pick<AccountsData, 
               answered. Said as the deck's decision, with the two ways out of
               it, rather than as "not installed" — it is installed, and the
               boot row names it. */}
-          <span>claude-swap was installed, but not the version the deck asked for.</span>
+          <span>{t("accounts.empty.refused")}</span>
           <span className="ap-hint">
-            {data.version ? `v${data.version} answered` : "A different version answered"}
-            {data.want ? ` where ${data.want} was asked for` : ""}, so the deck is not
-            driving it. Install the version it asked for, or set AGENTS_DECK_CSWAP to a
-            claude-swap you trust.
+            {t("accounts.empty.refusedHint", {
+              answered: data.version ? t("accounts.empty.answeredVersion", { version: data.version }) : t("accounts.empty.answeredOther"),
+              wanted: data.want ? t("accounts.empty.wanted", { want: data.want }) : "",
+            })}
           </span>
         </>
       ) : data.reason === "no_accounts" ? (
         <>
-          <span>No accounts added yet.</span>
-          <span className="ap-hint">
-            claude-swap is installed but has nothing in its store. Use the <strong>+</strong> above
-            to sign one in, or to paste one shared from another deck.
-          </span>
+          <span>{t("accounts.empty.none")}</span>
+          <span className="ap-hint"><Rich text={t("accounts.empty.noneHint")} /></span>
         </>
       ) : (
         <>
-          <span>Couldn't read the account store.</span>
+          <span>{t("accounts.empty.unreadable")}</span>
           <span className="ap-hint">
-            claude-swap is installed, but its store could not be read
-            {data.reason ? ` (${data.reason})` : ""}.
+            {t("accounts.empty.unreadableHint", { reason: data.reason ? t("accounts.empty.reason", { reason: data.reason }) : "" })}
           </span>
         </>
       )}

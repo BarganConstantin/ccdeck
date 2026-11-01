@@ -286,7 +286,7 @@ describe("what the panel is allowed to offer", () => {
     // answer there is. The server starts it now, and the row says how it went.
     expect(accountsSurface()).not.toMatch(/action: "recapture"/);
     expect(accountsSurface()).not.toMatch(/pressProps\("recapture"\)/);
-    expect(clientText()).toMatch(/const s = staleCopyText\(a\.repair \?\? null, nowSec\);/);
+    expect(clientText()).toMatch(/const s = staleCopyText\(a\.repair \?\? null, nowSec, t\);/);
   });
 
   it("says the quieter true thing instead", () => {

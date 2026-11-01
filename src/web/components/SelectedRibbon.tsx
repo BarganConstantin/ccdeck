@@ -13,6 +13,8 @@ import type { AgentNodeData } from "../types";
 import { agentCost } from "../usage-models";
 import { withKey } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import { stateLabel } from "../agent-copy";
+import { useT } from "../i18n";
 
 export default function SelectedRibbon({ selected, now, selectedIds, focusAgent, clearSelection }: {
   /** The primary selection, which is the one the ribbon names. */
@@ -23,6 +25,7 @@ export default function SelectedRibbon({ selected, now, selectedIds, focusAgent,
   focusAgent: (id: string) => void;
   clearSelection: () => void;
 }) {
+  const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   const c = agentCost(selected);
   const elapsedSec = Math.max(0, ((selected.endedAt ?? now) - selected.startedAt) / 1000);
@@ -39,12 +42,12 @@ export default function SelectedRibbon({ selected, now, selectedIds, focusAgent,
       /* The cost rides in the title as well as in the chip, because the
          chip drops it where the bar is short (see WHERE THE MONTH GIVES
          WAY in styles.css) and a hover should still find it there. */
-      title={`${withKey(`Zoom to ${selected.label} and its session`, "Z", singleKeys)}${
-        c.total > 0 ? `\n${fmtCost(c.total)} spent${rate ? ` · ${rate}` : ""}` : ""}`}
+      title={`${withKey(t("board.ribbon.zoom", { label: selected.label }), "Z", singleKeys)}${
+        c.total > 0 ? `\n${t("board.ribbon.spent", { cost: fmtCost(c.total) })}${rate ? ` · ${rate}` : ""}` : ""}`}
       onClick={() => { try { focusAgent(selected.id); } catch {} }}
     >
       <span className={`state-pill state-${selected.state}`}>
-        {selected.state === "active" ? "live" : selected.state}
+        {stateLabel(selected.state, t)}
       </span>
       <span className="selected-label">{selected.label}</span>
       {c.total > 0 && <span className="selected-cost">{fmtCost(c.total)}{rate ? <span className="selected-rate"> · {rate}</span> : null}</span>}

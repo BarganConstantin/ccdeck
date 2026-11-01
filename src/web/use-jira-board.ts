@@ -18,7 +18,9 @@
 // the refresh outright, since every further read would fail the same way.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { t } from "./i18n";
 import { IntegrationFailure } from "./integrations/client";
+import { ownMessage } from "./own-error";
 import {
   readBoard, readClosedSprints, readIssues, readSubtasks, readIssue,
   type IssueQuery, type JiraApi, type JiraBoardOverview, type JiraIssue, type JiraIssueDetail, type JiraSprint,
@@ -123,7 +125,7 @@ function recoverInterrupted(snap: BoardSnapshot): BoardSnapshot {
 
 export function failureOf(err: unknown): IntegrationFailure {
   if (err instanceof IntegrationFailure) return err;
-  return new IntegrationFailure("upstream", err instanceof Error && err.message ? err.message : "Jira could not be read.");
+  return new IntegrationFailure("upstream", ownMessage(err, t("integrations.error.jiraRead")));
 }
 
 const isAbort = (err: unknown) => err instanceof DOMException && err.name === "AbortError";

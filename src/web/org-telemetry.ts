@@ -13,19 +13,26 @@
 // how old the reading is, because settings change.
 import { ago } from "./account-freshness";
 import { type OrgTelemetry } from "./claude-accounts";
+import { t as translateNow, type TFunction } from "./i18n";
 
 /** The content flags by the words a person would use for them. */
 const CONTENT_WORDS: Record<string, string> = {
-  OTEL_LOG_USER_PROMPTS: "prompts",
-  OTEL_LOG_ASSISTANT_RESPONSES: "responses",
-  OTEL_LOG_TOOL_DETAILS: "tool details",
-  OTEL_LOG_TOOL_CONTENT: "tool output",
-  OTEL_LOG_RAW_API_BODIES: "full API bodies",
+  OTEL_LOG_USER_PROMPTS: "radar.org.word.prompts",
+  OTEL_LOG_ASSISTANT_RESPONSES: "radar.org.word.responses",
+  OTEL_LOG_TOOL_DETAILS: "radar.org.word.toolDetails",
+  OTEL_LOG_TOOL_CONTENT: "radar.org.word.toolContent",
+  OTEL_LOG_RAW_API_BODIES: "radar.org.word.apiBodies",
 };
 
-/** "a, b and c". */
-function listed(words: string[]): string {
-  return words.length <= 1 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+/** The words for a content flag; a flag with no word of its own reads as its name. */
+function wordFor(key: string, tr: TFunction): string {
+  const id = CONTENT_WORDS[key];
+  return id ? tr(id) : key;
+}
+
+/** "a, b and c" in the language on show. */
+function listed(words: string[], tr: TFunction): string {
+  return words.length <= 1 ? words.join("") : tr("radar.org.and", { list: words.slice(0, -1).join(tr("radar.org.sep")), last: words[words.length - 1] });
 }
 
 export interface TelemetryLine {
@@ -40,22 +47,20 @@ export interface TelemetryLine {
 /**
  * `holdOut`: the row offers "Hold out of rotation" in its ⋯ menu (an inactive
  * account, while something rotates), so the sentence says where Auto-switch can
- * be kept off it.
+ * be kept off it. `tr` is the caller's t(); without it the language on show is read.
  */
-export function telemetryLine(t: OrgTelemetry | null | undefined, nowSec: number, { holdOut = false } = {}): TelemetryLine | null {
+export function telemetryLine(t: OrgTelemetry | null | undefined, nowSec: number, { holdOut = false, tr = translateNow }: { holdOut?: boolean; tr?: TFunction } = {}): TelemetryLine | null {
   if (!t || (t.level !== "metrics" && t.level !== "content")) return null;
   const words = t.level === "content"
-    ? t.content.map(k => CONTENT_WORDS[k] ?? k)
+    ? t.content.map(k => wordFor(k, tr))
     : [];
-  const who = t.orgName ? t.orgName : "This account's organization";
-  const what = words.length ? `usage data, and your ${listed(words)}` : "usage data";
-  const where = t.destinations.length ? listed(t.destinations) : "its collector";
+  const who = t.orgName ? t.orgName : tr("radar.org.who");
+  const what = words.length ? tr("radar.org.whatContent", { words: listed(words, tr) }) : tr("radar.org.usageData");
+  const where = t.destinations.length ? listed(t.destinations, tr) : tr("radar.org.collector");
   return {
-    text: `Telemetry · ${words.length ? words.join(", ") : "usage data"}`,
+    text: tr("radar.org.line", { words: words.length ? words.join(tr("radar.org.sep")) : tr("radar.org.usageData") }),
     tone: words.length ? "warn" : "quiet",
-    detail: `${who} turns on Claude Code telemetry for new sessions: ${what}, sent to ${where}. `
-      + `Seen ${ago(t.seenAt, nowSec)}, while this account was active.`
-      + (holdOut ? " To keep Auto-switch off it, choose Hold out of rotation in its ⋯ menu." : ""),
+    detail: tr("radar.org.detail", { who, what, where, ago: ago(t.seenAt, nowSec) }) + (holdOut ? tr("radar.org.holdOut") : ""),
   };
 }
 
@@ -64,11 +69,11 @@ export function telemetryLine(t: OrgTelemetry | null | undefined, nowSec: number
  * pressed: what the account just made active turns on for the sessions that
  * start from now. Null when nothing is known to be on.
  */
-export function switchedTelemetry(t: OrgTelemetry | null | undefined): string | null {
+export function switchedTelemetry(t: OrgTelemetry | null | undefined, tr: TFunction = translateNow): string | null {
   if (!t || (t.level !== "metrics" && t.level !== "content")) return null;
-  const words = t.level === "content" ? t.content.map(k => CONTENT_WORDS[k] ?? k) : [];
-  const what = words.length ? `your ${listed(words)}` : "usage data";
-  const who = t.orgName ? `${t.orgName}'s telemetry` : "Its organization's telemetry";
-  const where = t.destinations.length ? ` to ${listed(t.destinations)}` : "";
-  return `${who} is on for them: it sends ${what}${where}.`;
+  const words = t.level === "content" ? t.content.map(k => wordFor(k, tr)) : [];
+  const what = words.length ? tr("radar.org.switchedWhat", { words: listed(words, tr) }) : tr("radar.org.usageData");
+  const who = t.orgName ? tr("radar.org.named", { org: t.orgName }) : tr("radar.org.whoPossessive");
+  const where = t.destinations.length ? tr("radar.org.switchedTo", { list: listed(t.destinations, tr) }) : "";
+  return tr("radar.org.switched", { who, what, where });
 }

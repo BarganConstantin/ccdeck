@@ -75,6 +75,7 @@ import { SettingsFailureLine } from "./SettingsFailureLine";
 import { copyText } from "../copy-text";
 import type { LanAccount, LanStatus, LanTailscale } from "../lan-types";
 import { useFeatureUse } from "../feature-use";
+import { t as tNow, useT } from "../i18n";
 
 /**
  * The line under "Look for my devices": whose devices those are, and how many
@@ -83,19 +84,19 @@ import { useFeatureUse } from "../feature-use";
  */
 export function tailscaleDetail(ts: LanTailscale): string {
   if (!ts.running) {
-    const why = ts.state === "Stopped" ? "turned off"
-      : ts.state === "NeedsLogin" || ts.state === "NeedsMachineAuth" ? "signed out"
-      : ts.state === "Starting" ? "still starting"
-      : "not answering";
-    return `Tailscale is ${why} on this machine`;
+    const why = ts.state === "Stopped" ? tNow("lan.setup.tsWhy.off")
+      : ts.state === "NeedsLogin" || ts.state === "NeedsMachineAuth" ? tNow("lan.setup.tsWhy.out")
+      : ts.state === "Starting" ? tNow("lan.setup.tsWhy.starting")
+      : tNow("lan.setup.tsWhy.silent");
+    return tNow("lan.setup.tsState", { why });
   }
-  const whose = ts.login ?? "your Tailscale account";
-  return ts.on ? `${ts.devices} online · ${whose}` : whose;
+  const whose = ts.login ?? tNow("lan.setup.tsAccount");
+  return ts.on ? tNow("lan.setup.tsOnline", { n: ts.devices, whose }) : whose;
 }
 
 /** What a paused automatic switch says on hover: why it cannot be pressed, and
  *  where the thing that holds it is. One sentence for all four of them. */
-const PAUSED_TITLE = "Paused while this deck pairs only by invite. Turn that off above to use it.";
+const PAUSED_MSG = "lan.setup.paused";
 
 export default function LanSetupModal({ status, accounts, onClose, onChanged }: {
   status: LanStatus;
@@ -110,6 +111,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
 }) {
   // Opened: one of the features the usage reports name (feature-use.ts).
   useFeatureUse("lan-setup");
+  const t = useT();
   const dialogRef = useModalDismiss(onClose);
   const scrimPress = useScrimDismiss(onClose);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
@@ -210,7 +212,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
     if (!status.fp) return;
     const ok = await copyText(status.fp);
     if (!alive.current) return;
-    if (!ok) { setFailure(refusalLine("Could not copy it — select the fingerprint and copy it by hand.")); return; }
+    if (!ok) { setFailure(refusalLine(t("lan.fail.copyFp"))); return; }
     setCopied(true);
     window.setTimeout(() => { if (alive.current) setCopied(false); }, 1_600);
   };
@@ -249,10 +251,10 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
         role="dialog" aria-modal="true" aria-labelledby="lan-modal-title">
         <header className="modal-head">
           <div className="modal-title">
-            <span id="lan-modal-title" className="modal-tool-name">This deck on the network</span>
+            <span id="lan-modal-title" className="modal-tool-name">{t("lan.setup.title")}</span>
           </div>
           <div className="modal-actions">
-            <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+            <button className="glyph-btn" onClick={onClose} aria-label={t("lan.closeEsc")} title={t("lan.closeEsc")}>×</button>
           </div>
         </header>
 
@@ -263,15 +265,15 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
             onAnswer={next => { setFailure(next); if (next.done) onChanged(); }} />
 
           <div className="modal-section">
-            <h3 className="lan-h">Name</h3>
+            <h3 className="lan-h">{t("lan.setup.name")}</h3>
             <div className="ap-lan-row">
-              <span className="ap-lan-label">appear as</span>
+              <span className="ap-lan-label">{t("lan.setup.appearAs")}</span>
               <input
                 ref={nameRef}
                 className="ap-manage-input ap-lan-input"
-                aria-label="This deck's name on the network"
+                aria-label={t("lan.setup.nameAria")}
                 value={nameDraft ?? status.name ?? ""}
-                placeholder="this machine"
+                placeholder={t("lan.setup.namePlaceholder")}
                 onChange={e => setNameDraft(e.target.value)}
                 onKeyDown={e => {
                   if (e.key !== "Enter" || nameDraft == null) return;
@@ -281,40 +283,40 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
               {nameDirty && (
                 <button type="button" className="ap-manage-btn" {...pressProps("name")}
                   onClick={() => { rescueSave(); void saveName(nameDraft); }}
-                  title="Save it. This is the name other decks show for this one.">save</button>
+                  title={t("lan.setup.saveTitle")}>{t("lan.save")}</button>
               )}
             </div>
             <div className="ap-lan-row">
-              <span className="ap-lan-label">fingerprint</span>
+              <span className="ap-lan-label">{t("lan.fingerprint")}</span>
               {status.fp ? (
                 <span className="lan-fp">
                   <code className="ap-lan-code">{status.fp}</code>
                   <button type="button" className="ap-lan-word lan-copy" onClick={() => void copyFingerprint()}
-                    aria-label={copied ? "Fingerprint copied" : "Copy this deck's fingerprint"}>
-                    {copied ? "copied" : "copy"}
+                    aria-label={copied ? t("lan.fpCopied") : t("lan.setup.fpCopyThis")}>
+                    {copied ? t("lan.copied") : t("lan.copy")}
                   </button>
                 </span>
               ) : (
-                <span className="ap-lan-label">not known yet</span>
+                <span className="ap-lan-label">{t("lan.setup.fpUnknown")}</span>
               )}
             </div>
           </div>
 
           <div className="modal-section">
-            <h3 className="lan-h">Share these accounts</h3>
+            <h3 className="lan-h">{t("lan.setup.shareH")}</h3>
             <div className="ap-lan-picks">
               {accounts.length === 0 && (
                 <span className="ap-lan-empty">
-                  No Claude accounts on this deck yet — add one with + at the top of this panel.
+                  {t("lan.setup.shareNone")}
                 </span>
               )}
               {accounts.map(a => (
                 <label key={a.key} className="ap-lan-pick" title={!a.alive
-                  ? "This deck cannot use this login, so it has nothing to offer — a deck that can will heal it"
+                  ? t("lan.setup.shareDead")
                   // The one this deck is on heals nobody while it is (#2192).
                   : a.inUse
-                    ? "Offer this account to the decks you have paired with. While this deck is on it, it stays here, and it goes out like the others once this deck switches away. Unticking stops it being offered from now on; it does not take back a copy somebody already has."
-                    : "Offer this account to the decks you have paired with, so one whose copy has died can heal from yours. Unticking stops it being offered from now on; it does not take back a copy somebody already has."}>
+                    ? t("lan.setup.shareInUse")
+                    : t("lan.setup.shareOffer")}>
                   <input
                     type="checkbox"
                     checked={shared.has(a.key)}
@@ -335,12 +337,12 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   {/* Not "dead": a reader who has not read the docs cannot tell whether
                       that is about the account or about this machine. It is about this
                       machine's copy, and that is what makes it the one a peer heals. */}
-                  {!a.alive && <span className="ap-lan-dead">not working here</span>}
+                  {!a.alive && <span className="ap-lan-dead">{t("lan.setup.notWorking")}</span>}
                   {/* THE ONE THIS DECK IS ON, ticked, stays here while it is
                       (#2192) — said beside it, in the same quiet words, so a
                       tick that seems to do nothing says why. Unticked, nothing
                       is sent either way, and the row says nothing, as before. */}
-                  {a.alive && a.inUse && shared.has(a.key) && <span className="ap-lan-dead">in use here · not sent</span>}
+                  {a.alive && a.inUse && shared.has(a.key) && <span className="ap-lan-dead">{t("lan.setup.inUseNotSent")}</span>}
                 </label>
               ))}
             </div>
@@ -351,13 +353,13 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
             {accounts.length > 0 && (
               <div className="lan-switches">
                 <div className="lan-switch">
-                  <span className="lan-switch-what">Show paired decks which of these this deck is using</span>
+                  <span className="lan-switch-what">{t("lan.setup.tell")}</span>
                   <button
                     type="button"
                     className="switch ap-auto-state"
                     role="switch"
                     aria-checked={tells}
-                    aria-label="Show paired decks which of these this deck is using"
+                    aria-label={t("lan.setup.tell")}
                     {...pressProps("current")}
                     onClick={() => void write(
                       { shareActive: !tells },
@@ -365,8 +367,8 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                       "current",
                     )}
                     title={tells
-                      ? "Stop telling paired decks which account this one is on. They read “current account hidden” instead."
-                      : "Tell paired decks which of the ticked accounts this one is on. An unticked account is never named."}
+                      ? t("lan.setup.tellOn")
+                      : t("lan.setup.tellOff")}
                   >
                     <span className="switch-knob" />
                   </button>
@@ -385,10 +387,10 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                     something away. */}
                 <div className="lan-switch">
                   <span className="lan-switch-what">
-                    Send the login this deck is using too
+                    {t("lan.setup.send")}
                     {sends && (
                       <span id="lan-send-in-use-detail" className="lan-switch-detail">
-                        The other machine renews its copy even when idle, and whichever renews it second is signed out.
+                        {t("lan.setup.sendDetail")}
                       </span>
                     )}
                   </span>
@@ -397,7 +399,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                     className="switch ap-auto-state"
                     role="switch"
                     aria-checked={sends}
-                    aria-label="Send the login this deck is using too"
+                    aria-label={t("lan.setup.send")}
                     aria-describedby={sends ? "lan-send-in-use-detail" : undefined}
                     data-tone="warn"
                     {...pressProps("send-in-use")}
@@ -408,8 +410,8 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                       "send-in-use",
                     )}
                     title={sends
-                      ? "Keep the account this deck is signed in to here while it is. It goes out like the others once this deck switches away."
-                      : "Also hand out the account this deck is signed in to right now. Two machines on one login race to renew it, and the one that renews it second is signed out (“Login expired · Please run /login”)."}
+                      ? t("lan.setup.sendOn")
+                      : t("lan.setup.sendOff")}
                   >
                     <span className="switch-knob" />
                   </button>
@@ -419,7 +421,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
           </div>
 
           <div className="modal-section">
-            <h3 className="lan-h" id="lan-pairing-h">Pairing</h3>
+            <h3 className="lan-h" id="lan-pairing-h">{t("lan.setup.pairing")}</h3>
             {/* INVITE-ONLY IS A SWITCH, and it sits above the two it overrides.
                 It was two native radios — "Automatic pairing (current
                 behavior)" / "by invite code only" — in the one dialog whose
@@ -435,10 +437,10 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
             <div className="lan-switches lan-switches-lead" role="group" aria-labelledby="lan-pairing-h">
               <div className="lan-switch">
                 <span className="lan-switch-what">
-                  Pair new decks only by invite
+                  {t("lan.setup.inviteOnly")}
                   {inviteOnly && (
                     <span id="lan-invite-only-detail" className="lan-switch-detail">
-                      A new deck needs an invite from Add a deck, the link at the top of Local network. Paired decks stay paired.
+                      {t("lan.setup.inviteOnlyDetail")}
                     </span>
                   )}
                 </span>
@@ -447,7 +449,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   className="switch ap-auto-state"
                   role="switch"
                   aria-checked={inviteOnly}
-                  aria-label="Pair new decks only by invite"
+                  aria-label={t("lan.setup.inviteOnly")}
                   aria-describedby={inviteOnly ? "lan-invite-only-detail" : undefined}
                   {...pressProps("mode")}
                   // A held key is one decision: switching it on turns away the
@@ -459,8 +461,8 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                     "mode",
                   )}
                   title={inviteOnly
-                    ? "Let decks on this network pair as the two switches below say again."
-                    : "Only a deck you send an invite to can pair with this one. Nearby decks can't ask, and requests waiting now are turned away."}
+                    ? t("lan.setup.inviteOnlyOn")
+                    : t("lan.setup.inviteOnlyOff")}
                 >
                   <span className="switch-knob" />
                 </button>
@@ -481,39 +483,39 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 it says what the group is, not what the reader should do. */}
             <div className="lan-auto" role="group" aria-labelledby="lan-auto-h">
             <p className="lan-sub" id="lan-auto-h">
-              Automatic pairing
-              {inviteOnly && <span className="lan-sub-state"> · paused while pairing is invite-only</span>}
+              {t("lan.setup.autoH")}
+              {inviteOnly && <span className="lan-sub-state"> · {t("lan.setup.autoPaused")}</span>}
             </p>
             <div className="lan-switches" data-paused={inviteOnly || undefined}>
               <div className="lan-switch">
-                <span className="lan-switch-what">Ask every deck this one finds</span>
+                <span className="lan-switch-what">{t("lan.setup.ask")}</span>
                 <button
                   type="button"
                   className="switch ap-auto-state"
                   role="switch"
                   aria-checked={asks}
-                  aria-label="Ask every deck this one finds"
+                  aria-label={t("lan.setup.ask")}
                   {...autoProps("ask")}
                   onClick={() => void write(
                     { autoAsk: !asks },
                     asks ? "stop asking automatically" : "ask every deck this one finds",
                     "ask",
                   )}
-                  title={inviteOnly ? PAUSED_TITLE : asks
-                    ? "Stop sending requests on their own. You press ask on the row instead."
-                    : "Send a pairing request to every deck heard on this network. Somebody over there still has to say yes."}
+                  title={inviteOnly ? t(PAUSED_MSG) : asks
+                    ? t("lan.setup.askOn")
+                    : t("lan.setup.askOff")}
                 >
                   <span className="switch-knob" />
                 </button>
               </div>
               <div className="lan-switch">
-                <span className="lan-switch-what">Say yes to every deck that asks</span>
+                <span className="lan-switch-what">{t("lan.setup.accept")}</span>
                 <button
                   type="button"
                   className="switch ap-auto-state"
                   role="switch"
                   aria-checked={says}
-                  aria-label="Say yes to every deck that asks"
+                  aria-label={t("lan.setup.accept")}
                   // The one switch here whose on gives something away: it fills
                   // with --warn, on either press, from the first one.
                   data-tone="warn"
@@ -525,9 +527,9 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                     says ? "stop accepting automatically" : "accept every deck that asks",
                     "accept",
                   )}
-                  title={inviteOnly ? PAUSED_TITLE : says
-                    ? "Stop saying yes for you. A deck that asks waits in the panel again, and adds no login here until somebody here accepts it."
-                    : "Say yes for you. Every deck on this network that asks is paired without anybody being asked here. Each can then add the logins ticked on it to this deck."}
+                  title={inviteOnly ? t(PAUSED_MSG) : says
+                    ? t("lan.setup.acceptOn")
+                    : t("lan.setup.acceptOff")}
                 >
                   <span className="switch-knob" />
                 </button>
@@ -549,11 +551,11 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
 
           {ts?.found && (
             <div className="modal-section">
-              <h3 className="lan-h">Tailscale</h3>
+              <h3 className="lan-h">{t("lan.setup.ts")}</h3>
               <div className="lan-switches">
                 <div className="lan-switch">
                   <span className="lan-switch-what">
-                    Look for my devices
+                    {t("lan.setup.tsLook")}
                     <span id="lan-ts-detail" className="lan-switch-detail">{tailscaleDetail(ts)}</span>
                   </span>
                   <button
@@ -561,7 +563,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                     className="switch ap-auto-state"
                     role="switch"
                     aria-checked={tsOn}
-                    aria-label="Look for my devices over Tailscale"
+                    aria-label={t("lan.setup.tsLookAria")}
                     aria-describedby="lan-ts-detail"
                     {...pressProps("tailscale")}
                     onClick={() => void write(
@@ -570,8 +572,8 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                       "tailscale",
                     )}
                     title={tsOn
-                      ? "Stop. Nothing is looked for or answered over the tailnet; decks already paired stay paired."
-                      : "Find the decks on your other machines on Tailscale, wherever they are. Only machines signed in to your Tailscale account are asked."}
+                      ? t("lan.setup.tsOn")
+                      : t("lan.setup.tsOff")}
                   >
                     <span className="switch-knob" />
                   </button>
@@ -579,39 +581,39 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 {tsOn && (
                   <div className="lan-auto" role="group" aria-labelledby="lan-ts-auto-h">
                     <p className="lan-sub" id="lan-ts-auto-h">
-                      Automatic pairing with my devices
-                      {inviteOnly && <span className="lan-sub-state"> · paused while pairing is invite-only</span>}
+                      {t("lan.setup.tsAutoH")}
+                      {inviteOnly && <span className="lan-sub-state"> · {t("lan.setup.autoPaused")}</span>}
                     </p>
                     <div className="lan-switches">
                     <div className="lan-switch" data-paused={inviteOnly || undefined}>
-                      <span className="lan-switch-what">Ask each device it finds</span>
+                      <span className="lan-switch-what">{t("lan.setup.tsAsk")}</span>
                       <button
                         type="button"
                         className="switch ap-auto-state"
                         role="switch"
                         aria-checked={tsAsks}
-                        aria-label="Ask each of my devices it finds over Tailscale"
+                        aria-label={t("lan.setup.tsAskAria")}
                         {...autoProps("tailscale-ask")}
                         onClick={() => void write(
                           { tailscaleAsk: !tsAsks },
                           tsAsks ? "stop asking your devices automatically" : "ask your devices automatically",
                           "tailscale-ask",
                         )}
-                        title={inviteOnly ? PAUSED_TITLE : tsAsks
-                          ? "Stop sending requests on their own. You press ask on the row instead."
-                          : "Send a pairing request to every deck found on your devices over Tailscale."}
+                        title={inviteOnly ? t(PAUSED_MSG) : tsAsks
+                          ? t("lan.setup.askOn")
+                          : t("lan.setup.tsAskOff")}
                       >
                         <span className="switch-knob" />
                       </button>
                     </div>
                     <div className="lan-switch" data-paused={inviteOnly || undefined}>
-                      <span className="lan-switch-what">Say yes to each device that asks</span>
+                      <span className="lan-switch-what">{t("lan.setup.tsAccept")}</span>
                       <button
                         type="button"
                         className="switch ap-auto-state"
                         role="switch"
                         aria-checked={tsSays}
-                        aria-label="Say yes to my devices when they ask over Tailscale"
+                        aria-label={t("lan.setup.tsAcceptAria")}
                         data-tone="warn"
                         {...autoProps("tailscale-accept")}
                         onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
@@ -620,9 +622,9 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                           tsSays ? "stop accepting your devices automatically" : "accept your devices automatically",
                           "tailscale-accept",
                         )}
-                        title={inviteOnly ? PAUSED_TITLE : tsSays
-                          ? "Stop saying yes for you. A device that asks waits in the panel again."
-                          : "Say yes for you when a deck on one of your own devices asks. Anybody else on the tailnet still waits for a press."}
+                        title={inviteOnly ? t(PAUSED_MSG) : tsSays
+                          ? t("lan.setup.tsAcceptOn")
+                          : t("lan.setup.tsAcceptOff")}
                       >
                         <span className="switch-knob" />
                       </button>
@@ -642,9 +644,9 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
             is saved the moment it changes, which the note says, and Done saves
             the one field that is not. */}
         <footer className="lan-setup-foot">
-          <span className="lan-foot-note">Changes are saved as you make them.</span>
+          <span className="lan-foot-note">{t("lan.setup.foot")}</span>
           <button type="button" className="btn primary" {...pressProps("name")} onClick={() => void done()}>
-            Done
+            {t("lan.setup.done")}
           </button>
         </footer>
       </div>

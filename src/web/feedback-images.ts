@@ -19,6 +19,7 @@
 // Each image's budget is 5 MB or what the others leave of the request's 12,
 // less room for the text, so three large screenshots still go together.
 import type { FeedbackFields } from "./feedback";
+import { t } from "./i18n";
 
 export const MAX_IMAGES = 3;
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -244,30 +245,30 @@ export function feedbackRequest(fields: FeedbackFields, images: readonly Blob[])
   return { method: "POST", body: form };
 }
 
-export const ADD_LABEL = "Add screenshot";
-export const ADD_HINT = "PNG or JPEG, up to three. You can also paste one, or drop it on this dialog.";
-export const SHOTS_NOTE = "A screenshot can show emails, costs and paths. Crop out what should not be seen.";
-export const FULL_MESSAGE = "Three images at most. Remove one to add another.";
+export const addLabel = (): string => t("shell.feedback.addShot");
+export const addHint = (): string => t("shell.feedback.addHint");
+export const shotsNote = (): string => t("shell.feedback.shotsNote");
+export const fullMessage = (): string => t("shell.feedback.full");
 /** Why a send stopped: an image was refused while it waited for the fits. */
-export const REFUSED_WHILE_SENDING = "An image could not be attached, so nothing was sent. Check the images and send again; your text is still here.";
+export const refusedWhileSending = (): string => t("shell.feedback.refusedWhileSending");
 
 /** What a thumbnail says it does, and which image it is: pressed, it opens the
  *  picker and the file chosen takes this image's place. A redrawn image says
  *  so here, since a person should know it did not go as it was. */
 export function replaceLabel(index: number, name: string, resized: Size | null): string {
-  const fit = resized ? `, resized to ${resized.width} × ${resized.height} to fit` : "";
-  return `Replace image ${index + 1}: ${name}${fit}`;
+  const fit = resized ? t("shell.feedback.resized", { width: resized.width, height: resized.height }) : "";
+  return t("shell.feedback.replaceLabel", { n: index + 1, name, fit });
 }
 
 /** "2 of 3", and how many of them were drawn again to fit, since a person
  *  should know their image did not go as it was. */
 export function shotsSummary(count: number, resized: number): string {
-  const of = `${count} of ${MAX_IMAGES}`;
-  return resized > 0 ? `${of} · ${resized} resized to fit` : of;
+  const of = t("shell.feedback.shotsCount", { count, max: MAX_IMAGES });
+  return resized > 0 ? t("shell.feedback.shotsResized", { of, resized }) : of;
 }
 
 export function leftOutMessage(count: number): string {
-  return `Three images at most, so ${count === 1 ? "one was" : `${count} were`} left out.`;
+  return t("shell.feedback.leftOut", { count });
 }
 
 /** A file name as a message quotes it: whole, unless it would take the line. */
@@ -279,8 +280,8 @@ function quoted(name: string): string {
 
 export function problemMessage(problem: Problem, name: string): string {
   const file = quoted(name);
-  if (problem === "type") return `${file} is not a PNG or a JPEG, so it was not added. GIF, WebP and HEIC are not converted; save it as a PNG or a JPEG first.`;
-  if (problem === "no_room") return `There is no room left for ${file}: images go at up to 12 MB in all. Remove one to add it.`;
-  if (problem === "unreadable") return `${file} could not be read as an image.`;
-  return `${file} could not be made small enough to send: images go at up to 5 MB each.`;
+  if (problem === "type") return t("shell.feedback.problem.type", { file });
+  if (problem === "no_room") return t("shell.feedback.problem.noRoom", { file });
+  if (problem === "unreadable") return t("shell.feedback.problem.unreadable", { file });
+  return t("shell.feedback.problem.tooLarge", { file });
 }

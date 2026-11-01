@@ -11,7 +11,9 @@
 import type {
   ChangeDetail, ChangedFile, CiState, ForgeComment, ForgeJob, ForgeKind, ForgeUser, JobAnnotation, ReviewThread,
 } from "./forge-types";
-import { forgeWords } from "./forge-types";
+import { forgeNouns, forgeWords } from "./forge-types";
+import { t as tGlobal, type TFunction } from "./i18n";
+import { formatNumber } from "./i18n/format";
 import { changeBadge, ciMark, type Mark } from "./forge-panel";
 import type { ForgeNode } from "./forge-html";
 
@@ -62,26 +64,26 @@ export const CHANGE_SECTIONS: readonly ChangeSection[] = ["overview", "commits",
 
 /** The merge request page's tabs in the forge's own words, each with the
  *  count the forge gives for it. */
-export function changeSections(kind: ForgeKind, counts: ChangeDetail["counts"]): { id: ChangeSection; label: string; count: number }[] {
+export function changeSections(kind: ForgeKind, counts: ChangeDetail["counts"], t: TFunction = tGlobal): { id: ChangeSection; label: string; count: number }[] {
   const github = kind === "github";
   return [
-    { id: "overview", label: github ? "Conversation" : "Overview", count: counts.discussions },
-    { id: "commits", label: "Commits", count: counts.commits },
-    { id: "pipelines", label: changeRunsWord(kind), count: counts.pipelines },
-    { id: "changes", label: github ? "Files changed" : "Changes", count: counts.files },
+    { id: "overview", label: t(github ? "forge.section.conversation" : "forge.section.overview"), count: counts.discussions },
+    { id: "commits", label: t("forge.section.commits"), count: counts.commits },
+    { id: "pipelines", label: changeRunsWord(kind, t), count: counts.pipelines },
+    { id: "changes", label: t(github ? "forge.section.files" : "forge.section.changes"), count: counts.files },
   ];
 }
 
 /** What a change's runs are called on its own page: GitHub's pull request
  *  page calls its workflow runs Checks; GitLab's merge request says Pipelines. */
-export function changeRunsWord(kind: ForgeKind): string {
-  return kind === "github" ? "Checks" : forgeWords[kind].pipelines;
+export function changeRunsWord(kind: ForgeKind, t: TFunction = tGlobal): string {
+  return kind === "github" ? t("forge.section.checks") : forgeNouns(kind, t).pipelines;
 }
 
 /** "1 commit", "7 commits"; null for none, which a byline leaves out. */
-export function commitsWords(n: number | null | undefined): string | null {
+export function commitsWords(n: number | null | undefined, t: TFunction = tGlobal): string | null {
   if (n == null || !Number.isFinite(n) || n <= 0) return null;
-  return `${n.toLocaleString("en-US")} ${n === 1 ? "commit" : "commits"}`;
+  return t("forge.commits", { count: n, n: formatNumber(n, 0) });
 }
 
 /** The state badge beside the byline: Open, Draft, Merged or Closed. Approval
@@ -160,30 +162,30 @@ export function personName(u: ForgeUser): string {
 }
 
 /** "Alice", "Alice and Bob", "Alice, Bob and Carol". */
-export function namesWords(names: string[]): string {
+export function namesWords(names: string[], t: TFunction = tGlobal): string {
   if (names.length <= 1) return names[0] ?? "";
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return t("forge.names.and", { list: names.slice(0, -1).join(t("forge.names.sep")), last: names[names.length - 1] });
 }
 
 /** The approvals line under a change's title: who approved it, or how many
  *  approvals it still needs; null when the forge says neither. */
-export function approvalWords(c: Pick<ChangeDetail, "approvedBy" | "approvalsLeft">): { mark: Mark; text: string } | null {
-  if (c.approvedBy.length) return { mark: { mark: "approved", word: "approved", tone: "ok" }, text: `Approved by ${namesWords(c.approvedBy.map(personName))}` };
+export function approvalWords(c: Pick<ChangeDetail, "approvedBy" | "approvalsLeft">, t: TFunction = tGlobal): { mark: Mark; text: string } | null {
+  if (c.approvedBy.length) return { mark: { mark: "approved", word: "approved", tone: "ok" }, text: t("forge.approvedBy", { names: namesWords(c.approvedBy.map(personName), t) }) };
   if (c.approvalsLeft != null && c.approvalsLeft > 0) {
     return {
       mark: { mark: "pending", word: "approval required", tone: "idle" },
-      text: `Requires ${c.approvalsLeft} more approval${c.approvalsLeft === 1 ? "" : "s"}`,
+      text: t("forge.approvalsLeft", { count: c.approvalsLeft, n: formatNumber(c.approvalsLeft, 0) }),
     };
   }
   return null;
 }
 
 /** A changed file's word beside its path; a plain modification has none. */
-export function fileStatusWord(status: ChangedFile["status"]): string | null {
+export function fileStatusWord(status: ChangedFile["status"], t: TFunction = tGlobal): string | null {
   switch (status) {
-    case "added": return "new";
-    case "deleted": return "deleted";
-    case "renamed": return "renamed";
+    case "added": return t("forge.file.new");
+    case "deleted": return t("forge.file.deleted");
+    case "renamed": return t("forge.file.renamed");
     default: return null;
   }
 }
@@ -208,23 +210,24 @@ export function issueMark(state: "open" | "closed", reason?: string | null): Mar
 }
 
 /** What started a pipeline, in words. */
-export function sourceWords(source: string | null | undefined): string | null {
+export function sourceWords(source: string | null | undefined, t: TFunction = tGlobal): string | null {
   if (!source) return null;
   const known: Record<string, string> = {
-    push: "push",
-    merge_request_event: "merge request",
-    pull_request: "pull request",
-    pull_request_target: "pull request",
-    schedule: "schedule",
-    workflow_dispatch: "manual run",
-    web: "run from the web",
-    api: "API",
-    trigger: "trigger",
-    pipeline: "parent pipeline",
-    parent_pipeline: "parent pipeline",
-    dynamic: "dynamic",
+    push: "forge.src.push",
+    merge_request_event: "forge.src.mr",
+    pull_request: "forge.src.pr",
+    pull_request_target: "forge.src.pr",
+    schedule: "forge.src.schedule",
+    workflow_dispatch: "forge.src.detail.manual",
+    web: "forge.src.detail.web",
+    api: "forge.src.api",
+    trigger: "forge.src.trigger",
+    pipeline: "forge.src.detail.parent",
+    parent_pipeline: "forge.src.detail.parent",
+    dynamic: "forge.src.detail.dynamic",
   };
-  return known[source] ?? source.replace(/_/g, " ");
+  const key = known[source];
+  return key ? t(key) : source.replace(/_/g, " ");
 }
 
 // ── jobs ─────────────────────────────────────────────────────────────────

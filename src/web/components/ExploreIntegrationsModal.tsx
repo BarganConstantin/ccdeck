@@ -1,6 +1,7 @@
 // Native discovery catalog. Connection state belongs to the shared client;
 // authentication and provider content stay in their existing surfaces.
 import { createPortal } from "react-dom";
+import { useT } from "../i18n";
 import { connectionsOf, kindOffered, kindOpenable, type IntegrationsState } from "../integrations/client";
 import { integrationDefs } from "../integrations/registry";
 import type { IntegrationKind } from "../integrations/types";
@@ -16,16 +17,16 @@ export interface ExploreIntegrationsProps {
 }
 
 const capabilities: Record<IntegrationKind, string> = {
-  jira: "Boards, sprints, backlog and issues",
-  github: "Repositories, pull requests and Actions",
-  gitlab: "Projects, merge requests and pipelines",
+  jira: "integrations.explore.cap.jira",
+  github: "integrations.explore.cap.github",
+  gitlab: "integrations.explore.cap.gitlab",
 };
 // What each provider does with your token: Jira also moves issues, by drag or Move
 // (since 3.48.0); GitHub and GitLab only read.
 const access: Record<IntegrationKind, string> = {
-  jira: "Can move issues",
-  github: "Read only",
-  gitlab: "Read only",
+  jira: "integrations.explore.access.jira",
+  github: "integrations.explore.access.read",
+  gitlab: "integrations.explore.access.read",
 };
 
 function exploreLauncher(): HTMLElement | null {
@@ -34,6 +35,7 @@ function exploreLauncher(): HTMLElement | null {
 }
 
 export default function ExploreIntegrationsModal({ integrations, onClose, onOpen, onConnect, onManage }: ExploreIntegrationsProps) {
+  const t = useT();
   const dialogRef = useModalDismiss(onClose, { restoreFocusFallback: exploreLauncher });
   const scrimPress = useScrimDismiss(onClose);
   // A backend may offer only some registered UI providers. Stranded saved
@@ -48,18 +50,18 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
       <div ref={dialogRef} className="modal explore-integrations" role="dialog" aria-modal="true"
         aria-labelledby="explore-integrations-title" aria-describedby="explore-integrations-description">
         <div className="modal-head explore-head">
-          <h2 id="explore-integrations-title">Explore integrations</h2>
-          <button type="button" className="glyph-btn" aria-label="Close Explore integrations" title="Close (Esc)" onClick={onClose}>×</button>
+          <h2 id="explore-integrations-title">{t("integrations.explore.title")}</h2>
+          <button type="button" className="glyph-btn" aria-label={t("integrations.explore.closeAria")} title={t("integrations.closeEsc")} onClick={onClose}>×</button>
         </div>
         <div className="explore-body">
-          <p id="explore-integrations-description" className="explore-intro">Connect your project tools and keep the work behind each agent close by.</p>
-          {integrations.error && <p className="explore-status" role="alert">{integrations.error} Connection status may be out of date. Manage connections in Settings.</p>}
+          <p id="explore-integrations-description" className="explore-intro">{t("integrations.explore.intro")}</p>
+          {integrations.error && <p className="explore-status" role="alert">{integrations.error} {t("integrations.explore.stale")}</p>}
           {integrations.connections === null ? (
-            <p className="explore-status" role="status">{integrations.error ? "Connection status is unavailable." : "Reading integrations…"}</p>
+            <p className="explore-status" role="status">{integrations.error ? t("integrations.explore.statusUnavailable") : t("integrations.explore.reading")}</p>
           ) : providers.length === 0 ? (
-            <p className="explore-status" role="status">No integrations are available on this deck.</p>
+            <p className="explore-status" role="status">{t("integrations.explore.none")}</p>
           ) : <>
-            <div className="explore-caption"><span>Available integrations</span><span>{connected} connected</span></div>
+            <div className="explore-caption"><span>{t("integrations.explore.available")}</span><span>{t("integrations.explore.connectedCount", { n: connected })}</span></div>
             <ul className="explore-providers">
               {providers.map(def => {
                 const offered = kindOffered(integrations, def.kind);
@@ -70,20 +72,20 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
                     <span className="explore-glyph" aria-hidden><def.Glyph /></span>
                     <div className="explore-info">
                       <h3>{def.label}</h3>
-                      <p>{capabilities[def.kind]}</p>
+                      <p>{t(capabilities[def.kind])}</p>
                       <span className="explore-connection" data-connected={openable || undefined}>
-                        {offered ? openable ? "Connected" : "Not connected" : "Unavailable on this deck"} · {access[def.kind]}
+                        {offered ? openable ? t("integrations.explore.connected") : t("integrations.explore.notConnected") : t("integrations.explore.unavailableOnDeck")} · {t(access[def.kind])}
                       </span>
                     </div>
                     <div className="explore-actions">
                       {openable ? <>
-                        <button type="button" className="btn" aria-label={`Open ${def.label}`} onClick={() => go(() => onOpen(def.kind))}>Open <ExternalLinkGlyph /></button>
-                        <button type="button" className="btn explore-text-action" aria-label={`Manage ${def.label}`} onClick={() => go(() => onManage(first?.id))}>Manage</button>
+                        <button type="button" className="btn" aria-label={t("integrations.explore.openAria", { label: def.label })} onClick={() => go(() => onOpen(def.kind))}>{t("integrations.explore.open")} <ExternalLinkGlyph /></button>
+                        <button type="button" className="btn explore-text-action" aria-label={t("integrations.manageProvider", { label: def.label })} onClick={() => go(() => onManage(first?.id))}>{t("integrations.manage")}</button>
                       </> : offered ? (
-                        <button type="button" className="btn primary" aria-label={`Connect ${def.label}`} onClick={() => go(() => onConnect(def.kind))}>Connect</button>
+                        <button type="button" className="btn primary" aria-label={t("integrations.form.connect", { provider: def.label })} onClick={() => go(() => onConnect(def.kind))}>{t("integrations.form.connectBtn")}</button>
                       ) : first ? (
-                        <button type="button" className="btn explore-text-action" aria-label={`Manage ${def.label}`} onClick={() => go(() => onManage(first.id))}>Manage</button>
-                      ) : <span className="explore-unavailable">Not available</span>}
+                        <button type="button" className="btn explore-text-action" aria-label={t("integrations.manageProvider", { label: def.label })} onClick={() => go(() => onManage(first.id))}>{t("integrations.manage")}</button>
+                      ) : <span className="explore-unavailable">{t("integrations.explore.notAvailable")}</span>}
                     </div>
                   </li>
                 );
@@ -92,8 +94,8 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
           </>}
         </div>
         <div className="explore-footer">
-          <span>Browsing only reads · Tokens stay on this machine</span>
-          <button type="button" className="btn explore-text-action" onClick={() => go(() => onManage())}>Manage in Settings <ExternalLinkGlyph /></button>
+          <span>{t("integrations.explore.footer")}</span>
+          <button type="button" className="btn explore-text-action" onClick={() => go(() => onManage())}>{t("integrations.explore.manageInSettings")} <ExternalLinkGlyph /></button>
         </div>
       </div>
     </div>, document.body,

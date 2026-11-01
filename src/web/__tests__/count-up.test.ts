@@ -216,6 +216,6 @@ describe("what the panel counts, and what it leaves alone", () => {
     // A strip that appeared and vanished as a count crossed zero would flicker,
     // so the gate reads the live figure (reading + delta) while the text reads
     // the counted one.
-    expect(panel).toContain('{figures.cacheReadTokens > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(shownCacheR)}</span>}');
+    expect(panel).toContain('{figures.cacheReadTokens > 0 && <span className="up-tok"><span className="up-k">{t("usage.tokens.cacheRead")}</span>{fmtTokens(shownCacheR)}</span>}');
   });
 });

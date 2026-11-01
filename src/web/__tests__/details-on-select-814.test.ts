@@ -79,7 +79,7 @@ describe("selecting an agent opens its details (#814)", () => {
     // The × is DetailAside's onClose, which also arms the keyboard's hand-off
     // to the card (panel-close-focus.test.ts).
     expect(appCode).toMatch(/onClose=\{\(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\}/);
-    expect(appCode).toMatch(/aria-label="Close detail panel"\s+onClick=\{onClose\}/);
+    expect(appCode).toMatch(/aria-label=\{t\("board\.detailPanel\.closeLabel"\)\}\s+onClick=\{onClose\}/);
     // D toggles whenever something is selected; with nothing selected it now
     // selects first (#845, d-without-selection-845.test.ts).
     expect(appCode).toMatch(/if \(e\.key === "d" \|\| e\.key === "D"\) \{\s*if \(primarySelectedIdRef\.current\) setDetailOpen\(o => !o\);/);

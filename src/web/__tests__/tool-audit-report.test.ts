@@ -54,9 +54,9 @@ describe('worth a look', () => {
 describe('plain numbers', () => {
   it('writes the summary for the chosen agents and period', () => {
     expect(summaryParts({ total: 1508, totalMs: 4140000, failed: 49, completed: 1506 }, 'all', '7')).toEqual({
-      lead: 'In the last 7 days, your agents made', calls: '1,508 tool calls', time: '1 h 9 min', failed: 49, failedShare: '3%',
+      period: '7 days', who: 'your agents', calls: '1,508 tool calls', time: '1 h 9 min', failed: 49, failedShare: '3%',
     });
-    expect(summaryParts({ total: 1, totalMs: null, failed: 0, completed: 0 }, 'codex', '1')).toMatchObject({ lead: 'In the last 24 hours, Codex made', calls: '1 tool call', time: null, failedShare: null });
+    expect(summaryParts({ total: 1, totalMs: null, failed: 0, completed: 0 }, 'codex', '1')).toMatchObject({ period: '24 hours', who: 'Codex', calls: '1 tool call', time: null, failedShare: null });
   });
   it('shows a failure share only for calls that finished, and never rounds a failure to 0%', () => {
     expect(failureShare({ failed: 0, completed: 10 })).toBeNull();

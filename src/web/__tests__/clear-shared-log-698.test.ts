@@ -434,7 +434,7 @@ describe("The sentence when the server has not answered yet", () => {
     // exactly one server in a product that runs several over one file.
     const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "components", "ClearConfirm.tsx"), "utf8");
     expect(src).toMatch(/from "\.\.\/clear-confirm"/);
-    expect(src).toMatch(/clearCopy\(agentCount, plan\)/);
+    expect(src).toMatch(/clearCopy\(agentCount, plan, t\)/);
     expect(src).toMatch(/fetch\("\/api\/clear"\)/);
     expect(src).toMatch(/readClearPlan\(/);
     expect(src, "the copy is clearCopy's to write, not the component's").not.toContain("the server's event log");

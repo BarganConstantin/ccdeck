@@ -51,6 +51,7 @@ import { useFmPlayer, type FmPlayer } from "../use-fm-player";
 import { useFmScene } from "../use-fm-scene";
 import CharacterSprite from "./CharacterSprite";
 import type { Character } from "../character";
+import { t as translateNow, useT, type TFunction } from "../i18n";
 
 const SOURCE_LABEL: Record<FmSource, string> = {
   "claude-fm": "Claude FM",
@@ -64,9 +65,9 @@ const SOURCE_LABEL: Record<FmSource, string> = {
   "cafe-music-bgm": "Cafe Music BGM Live",
 };
 
-export function sourceLabel(source: FmSelection, customStation?: CustomFmStation): string {
+export function sourceLabel(source: FmSelection, customStation?: CustomFmStation, t: TFunction = translateNow): string {
   if (customStation && customFmSelection(customStation.id) === source) return customStation.name;
-  if (customFmId(source)) return "Custom FM";
+  if (customFmId(source)) return t("radio.fm.custom");
   return SOURCE_LABEL[source as FmSource];
 }
 
@@ -93,8 +94,8 @@ const PROP_PIXELS = {
 
 /** A direct stream's host, which is what the play control names as the place
  *  the sound comes from — the way it names YouTube for everything else. */
-function streamHost(url: string): string {
-  try { return new URL(url).host; } catch { return "the station's server"; }
+function streamHost(url: string, t: TFunction = translateNow): string {
+  try { return new URL(url).host; } catch { return t("radio.fm.server"); }
 }
 
 export const ClaudeFmCharacter = memo(function ClaudeFmCharacter({ player, source, customStation, character = "deck" }: {
@@ -103,6 +104,7 @@ export const ClaudeFmCharacter = memo(function ClaudeFmCharacter({ player, sourc
   source: FmSelection;
   customStation?: CustomFmStation;
 }) {
+    const t = useT();
     const { probe, dead, playing, press } = player;
 
     const { scene, suspended, x, walkMs, act, prop, ballFlight, place, facing, riser, dance, beatMs } =
@@ -110,8 +112,8 @@ export const ClaudeFmCharacter = memo(function ClaudeFmCharacter({ player, sourc
 
     if (!probe || dead) return null;
 
-    const label = sourceLabel(source, customStation);
-    const from = probe.audio ? streamHost(probe.audio) : "YouTube";
+    const label = sourceLabel(source, customStation, t);
+    const from = probe.audio ? streamHost(probe.audio, t) : "YouTube";
 
     return (
       <div
@@ -215,8 +217,8 @@ export const ClaudeFmCharacter = memo(function ClaudeFmCharacter({ player, sourc
              say which "pressed" meant. The verb flips with `playing`, the way
              the title does, and is the whole of what a reader needs. */
           onClick={press}
-          title={playing ? `Stop ${label}` : `Play ${label} — streams from ${from}`}
-          aria-label={playing ? `Stop ${label}` : `Play ${label}`}
+          title={playing ? t("radio.fm.stop", { label }) : t("radio.fm.playTitle", { label, from })}
+          aria-label={playing ? t("radio.fm.stop", { label }) : t("radio.fm.play", { label })}
         >
           <CharacterSprite character={character} act={act} facing={facing} />
         </button>
@@ -255,6 +257,7 @@ export function FmPlaybackFrame({ player, label }: { player: FmPlayer; label: st
 
 export default function ClaudeFm(options: Parameters<typeof useFmPlayer>[0] & { character?: Character }) {
   const player = useFmPlayer(options);
+  const t = useT();
   return <><ClaudeFmCharacter character={options.character} player={player} source={options.source} customStation={options.customStation} />
-    <FmPlaybackFrame player={player} label={sourceLabel(options.source, options.customStation)} /></>;
+    <FmPlaybackFrame player={player} label={sourceLabel(options.source, options.customStation, t)} /></>;
 }

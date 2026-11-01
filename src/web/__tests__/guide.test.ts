@@ -138,7 +138,7 @@ describe("where the guides open from", () => {
     // `Turn it on` goes through `toggle`, so the setup dialog still opens on
     // the press that puts this deck on the network — the guide is a longer
     // road to the same switch, not a way round what the switch does.
-    expect(lan).toMatch(/finish=\{on \? undefined : \{ label: "Turn it on", act: \(\) => \{ setGuideOpen\(false\); void toggle\(\); \} \}\}/);
+    expect(lan).toMatch(/finish=\{on \? undefined : \{ label: t\("lan\.sync\.turnOn"\), act: \(\) => \{ setGuideOpen\(false\); void toggle\(\); \} \}\}/);
   });
 
   it("keeps two doors to the tour that are there whatever is on the canvas", () => {
@@ -149,15 +149,15 @@ describe("where the guides open from", () => {
     const keys = bare(read("components/KeyboardHelp.tsx"));
     // The `?` sheet's door is a sentence and a button, inside the body, after
     // the header — the × stays the first stop.
-    expect(keys).toMatch(/\{onTour && \(\s*<div className="guide-door">[\s\S]*?<button type="button" className="btn" onClick=\{onTour\}>Take the tour<\/button>/);
-    expect(keys.indexOf("guide-door")).toBeGreaterThan(keys.indexOf('aria-label="Close (Esc)"'));
+    expect(keys).toMatch(/\{onTour && \(\s*<div className="guide-door">[\s\S]*?<button type="button" className="btn" onClick=\{onTour\}>\{t\("settings\.key\.tour"\)\}<\/button>/);
+    expect(keys.indexOf("guide-door")).toBeGreaterThan(keys.indexOf('aria-label={t("settings.key.close")}'));
     // What's new's is a word in its footer, beside Release history (the
     // editorial digest). Held back while the app's update is ready: the chip
     // opens that dialog for the update then, and a second door competes with
     // the one it came for (#1187). Every other time it is there, and after the
     // header too.
-    expect(notes).toMatch(/\{onTour && !updateVersion && <button className="rn-text-button" type="button" onClick=\{onTour\}>Take the tour<\/button>\}/);
-    expect(notes.indexOf("Take the tour")).toBeGreaterThan(notes.indexOf('aria-label="Close (Esc)"'));
+    expect(notes).toMatch(/\{onTour && !updateVersion && <button className="rn-text-button" type="button" onClick=\{onTour\}>\{t\("shell\.notes\.tour"\)\}<\/button>\}/);
+    expect(notes.indexOf('t("shell.notes.tour")')).toBeGreaterThan(notes.indexOf('aria-label={t("shell.closeEsc")}'));
     // The notes close and the tour opens through named operations now. Both
     // doors are in components/DeckDialogs.tsx, which App.tsx hands the welcome
     // hook whole.
@@ -167,7 +167,7 @@ describe("where the guides open from", () => {
   });
 
   it("gives the empty canvas its way back, and only while the server is there", () => {
-    expect(app).toMatch(/\{!offline && \(\s*<div className="empty-actions"[^>]*>\s*<button type="button" className="btn empty-tour" onClick=\{onTour\}>Take the tour<\/button>/);
+    expect(app).toMatch(/\{!offline && \(\s*<div className="empty-actions"[^>]*>\s*<button type="button" className="btn empty-tour" onClick=\{onTour\}>\{t\("board\.hero\.tour"\)\}<\/button>/);
     // The hero is pointer-transparent so a drag starting on it pans; the one
     // control on it has to be given its pointer back or it is a drawing of a
     // button.

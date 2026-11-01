@@ -7,6 +7,8 @@
 // keeps its own one-second beat (#873) and draws the bars; the counting and
 // the scale they are drawn to are here, where they can be run.
 import type { ToolCall } from "./types";
+import type { TFunction } from "./i18n";
+import { formatNumber } from "./i18n/format";
 
 /** A minute, in 24 buckets of 2.5s, drawn into a 132 × 14 box. */
 export const WINDOW_MS = 60_000;
@@ -28,7 +30,27 @@ export const SPARK_H = 14;
  *  It counts both now. A tool call is one mark and a completed block of the
  *  model's own output is another, so the line moves whenever the session does
  *  and is flat only when the session genuinely is. */
-export function sparkWindow(tools: ToolCall[], outputs: number[] | undefined, now: number): { counts: number[]; title: string } {
+function englishTitle(toolMarks: number, blockMarks: number, total: number, peakRate: number): string {
+  const parts = [
+    toolMarks > 0 ? `${toolMarks} tool ${toolMarks === 1 ? "call" : "calls"}` : "",
+    blockMarks > 0 ? `${blockMarks} ${blockMarks === 1 ? "block" : "blocks"} of thinking and writing` : "",
+  ].filter(Boolean);
+  return total === 0
+    ? "nothing in the last 60s"
+    : `${parts.join(" · ")} in last 60s · peak ${peakRate.toFixed(1)}/s`;
+}
+
+/** The same title in the language on show. */
+function translatedTitle(t: TFunction, toolMarks: number, blockMarks: number, total: number, peakRate: number): string {
+  if (total === 0) return t("board.spark.none");
+  const parts = [
+    toolMarks > 0 ? t("board.spark.tools", { count: toolMarks }) : "",
+    blockMarks > 0 ? t("board.spark.blocks", { count: blockMarks }) : "",
+  ].filter(Boolean);
+  return t("board.spark.title", { parts: parts.join(" · "), peak: formatNumber(peakRate, 1) });
+}
+
+export function sparkWindow(tools: ToolCall[], outputs: number[] | undefined, now: number, t?: TFunction): { counts: number[]; title: string } {
   const counts: number[] = new Array(BUCKETS).fill(0);
   let total = 0;
   const mark = (at: number) => {
@@ -48,13 +70,7 @@ export function sparkWindow(tools: ToolCall[], outputs: number[] | undefined, no
   // on a card with no tool call in a minute is otherwise a reader's puzzle.
   const toolMarks = tools.filter(t => now - t.startedAt >= 0 && now - t.startedAt < WINDOW_MS).length;
   const blockMarks = total - toolMarks;
-  const parts = [
-    toolMarks > 0 ? `${toolMarks} tool ${toolMarks === 1 ? "call" : "calls"}` : "",
-    blockMarks > 0 ? `${blockMarks} ${blockMarks === 1 ? "block" : "blocks"} of thinking and writing` : "",
-  ].filter(Boolean);
-  const title = total === 0
-    ? "nothing in the last 60s"
-    : `${parts.join(" · ")} in last 60s · peak ${peakRate.toFixed(1)}/s`;
+  const title = t ? translatedTitle(t, toolMarks, blockMarks, total, peakRate) : englishTitle(toolMarks, blockMarks, total, peakRate);
   return { counts, title };
 }
 

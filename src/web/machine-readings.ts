@@ -6,6 +6,7 @@
 // each can be asked what it says rather than read. Bytes were written here
 // too, in a format of the panel's own, until #1128 gave the deck one:
 // byte-format.ts.
+import { currentLanguage, t } from "./i18n";
 import { heldShare } from "./machine-live";
 import type { NetRoute, Snapshot, Throttle } from "./machine-snapshot";
 
@@ -16,7 +17,7 @@ export type Tone = "calm" | "warn" | "hot";
 /** Explain load above logical-core capacity without treating it as an alarm. */
 export function loadQueueNote(load: number | null | undefined, cores: number): string | null {
   if (load == null || !Number.isFinite(load) || !Number.isFinite(cores) || cores <= 0 || load <= cores) return null;
-  return `${(load / cores).toFixed(1)}× more work queued than cores to run it`;
+  return t("insights.machine.queued", { n: (load / cores).toLocaleString(currentLanguage(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) });
 }
 
 /**
@@ -83,13 +84,13 @@ export function throttleRow(
     // wrapped and orphaned their last word.
     note: held > 0
       ? byTime
-        ? `CPU throttled ${held}% of the time to cool down`
-        : `CPU held to ${100 - held}% of full speed to cool down`
+        ? t("insights.machine.throttledTime", { pct: held })
+        : t("insights.machine.heldTo", { pct: 100 - held })
       : past
         ? byTime
-          ? `at full speed · ${past.peak}% throttled ${sinceLabel(past.lastMs, now)}`
-          : `at full speed · held to ${100 - past.peak}% ${sinceLabel(past.lastMs, now)}`
-        : "running at full speed, and never held back",
+          ? t("insights.machine.pastTime", { pct: past.peak, since: sinceLabel(past.lastMs, now) })
+          : t("insights.machine.pastHeld", { pct: 100 - past.peak, since: sinceLabel(past.lastMs, now) })
+        : t("insights.machine.fullSpeed"),
   };
 }
 
@@ -102,10 +103,10 @@ export function throttleRow(
  */
 function sinceLabel(atMs: number, now = Date.now()): string {
   const mins = Math.max(0, Math.floor((now - atMs) / 60_000));
-  if (mins < 2) return "just now";
-  if (mins < 60) return `${mins} minutes ago`;
+  if (mins < 2) return t("insights.quota.justNow");
+  if (mins < 60) return t("insights.machine.minutesAgo", { n: mins });
   const h = Math.floor(mins / 60);
-  return h === 1 ? "an hour ago" : `${h} hours ago`;
+  return t("insights.machine.hoursAgo", { count: h, n: h });
 }
 
 export function uptime(sec: number): string {
@@ -138,16 +139,16 @@ export function attentionFlag(sys: Pick<Snapshot, "thermal" | "memory" | "networ
   const throttle = sys.thermal?.throttle;
   const held = throttle ? heldShare(throttle) : 0;
   if (throttle && held > 0) {
-    return "timeHeld" in throttle ? `throttled ${held}% of the time` : `throttled to ${100 - held}% of full speed`;
+    return "timeHeld" in throttle ? t("insights.machine.flagTime", { pct: held }) : t("insights.machine.flagHeld", { pct: 100 - held });
   }
-  if (sys.memory && sys.memory.usedPct >= 90) return `physical memory ${Math.round(sys.memory.usedPct)}% full`;
-  if (sys.network?.api && sys.network.api.ms == null) return "the Claude API is not answering";
+  if (sys.memory && sys.memory.usedPct >= 90) return t("insights.machine.flagMemory", { pct: Math.round(sys.memory.usedPct) });
+  if (sys.network?.api && sys.network.api.ms == null) return t("insights.machine.flagApi");
   return null;
 }
 
 /** The path, in the words the server's own route label uses. */
 export function pathText(route: NetRoute): string {
-  if (route.kind === "tailscale-exit") return route.node ? `Tailscale exit node ${route.node}` : "a Tailscale exit node";
+  if (route.kind === "tailscale-exit") return route.node ? t("insights.machine.exitNode", { node: route.node }) : t("insights.machine.anExitNode");
   if (route.kind === "tailscale") return "Tailscale";
   return `${route.name ? `${route.name} ` : ""}VPN${route.iface ? ` (${route.iface})` : ""}`;
 }

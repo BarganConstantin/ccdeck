@@ -5,6 +5,8 @@
 // Lifted out of components/UsagePanel.tsx, where each was an expression in the
 // render and the row rule was written out twice, once per board table. The
 // notes that say why each is decided the way it is came with them.
+import { en } from "./i18n/en";
+import type { TFunction } from "./i18n";
 import type { BoardModelRow, BoardSessionRow } from "./board-usage";
 import type { Providers } from "./providers";
 import type { ModelRow } from "./usage-from-ccusage";
@@ -60,9 +62,9 @@ export function anyUnpriced(
  * button at all when neither CLI is watched, so the last answer is only ever
  * read on a Claude-only deck.
  */
-export function quotaRefreshLabel(providers: Providers): string {
+export function quotaRefreshLabel(providers: Providers, t: TFunction = (key) => en[key]): string {
   return providers.claude && providers.codex
-    ? "Refresh Claude + Codex quota"
-    : providers.codex ? "Refresh Codex quota"
-      : "Refresh Claude quota";
+    ? t("usage.refresh.both")
+    : providers.codex ? t("usage.refresh.codex")
+      : t("usage.refresh.claude");
 }

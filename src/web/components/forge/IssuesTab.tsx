@@ -9,22 +9,25 @@
 import { useMemo } from "react";
 import type { ForgeIssue } from "../../forge-types";
 import { matchesQuery } from "../../forge-panel";
+import { useT } from "../../i18n";
+import { formatNumber } from "../../i18n/format";
 import {
   emptyIssuesWords, issueClosedMark, itemLabel, listPhase, moreLabel, noMatchWords, useReportFreshness,
 } from "../../forge-lists";
 import { useForgePages } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
 import { sameSelection, useForge, useReportRows } from "./ForgeContext";
-import { Ago, Badge, ListEnd, LoadingRows, ReadFailure } from "./ForgeParts";
+import { AgoIn, Badge, ListEnd, LoadingRows, ReadFailure } from "./ForgeParts";
 import { CommentCount, Labels, People } from "./ChangesTab";
 
 const STATES = [
-  { state: "open", label: "Open" },
-  { state: "closed", label: "Closed" },
+  { state: "open", label: "forge.state.open" },
+  { state: "closed", label: "forge.state.closed" },
 ] as const;
 
 export default function IssuesTab({ view, setView, query }: ForgeTabProps) {
   const { kind, api, scope, refresh, reportFreshness, connection } = useForge();
+  const t = useT();
   const acrossRepos = view.repo == null;
   const read = useForgePages<ForgeIssue>(api, scope, "issues", { repo: view.repo ?? undefined, state: view.issueState }, refresh);
   useReportFreshness(reportFreshness, read);
@@ -40,21 +43,21 @@ export default function IssuesTab({ view, setView, query }: ForgeTabProps) {
   return (
     <div className="fgl">
       <div className="fgl-controls">
-        <div className="uh-range fgl-seg" role="group" aria-label="Issues by state">
+        <div className="uh-range fgl-seg" role="group" aria-label={t("forge.issues.byState")}>
           {STATES.map(({ state, label }) => (
             <button key={state} type="button" className="uh-range-btn" aria-pressed={view.issueState === state} onClick={() => setView({ issueState: state })}>
-              {label}
+              {t(label)}
             </button>
           ))}
         </div>
-        {kind === "gitlab" && <span className="fgl-controls-note">Assigned to you</span>}
+        {kind === "gitlab" && <span className="fgl-controls-note">{t("forge.issues.assignedToYou")}</span>}
       </div>
 
       {read.error && read.data && <ReadFailure error={read.error} onRetry={read.reload} compact />}
-      {phase === "loading" && <LoadingRows label="Loading issues" />}
+      {phase === "loading" && <LoadingRows label={t("forge.loadingNoun", { noun: t("forge.noun.issues") })} />}
       {phase === "failed" && read.error && <ReadFailure error={read.error} onRetry={read.reload} />}
-      {phase === "empty" && <p className="fg-empty">{emptyIssuesWords(kind, view.issueState, acrossRepos)}</p>}
-      {phase === "no-match" && <p className="fg-empty">{noMatchWords("issues", query)}</p>}
+      {phase === "empty" && <p className="fg-empty">{emptyIssuesWords(kind, view.issueState, acrossRepos, t)}</p>}
+      {phase === "no-match" && <p className="fg-empty">{noMatchWords(t("forge.noun.issues"), query, t)}</p>}
       {phase === "rows" && (
         <div className="fgl-flat">
           <ul className="fg-rows">
@@ -63,7 +66,7 @@ export default function IssuesTab({ view, setView, query }: ForgeTabProps) {
         </div>
       )}
       {read.data && (
-        <ListEnd pages={read} label={moreLabel(items.length, read.data.total)} />
+        <ListEnd pages={read} label={moreLabel(items.length, read.data.total, t)} />
       )}
     </div>
   );
@@ -71,6 +74,7 @@ export default function IssuesTab({ view, setView, query }: ForgeTabProps) {
 
 function IssueRow({ issue: i, acrossRepos, me }: { issue: ForgeIssue; acrossRepos: boolean; me: string | null }) {
   const { selected, select } = useForge();
+  const t = useT();
   const target = { type: "issue" as const, repo: i.repo, number: i.number };
   const isSelected = sameSelection(selected, target);
   const author = i.author ? i.author.name || i.author.login : null;
@@ -94,25 +98,26 @@ function IssueRow({ issue: i, acrossRepos, me }: { issue: ForgeIssue; acrossRepo
         </span>
         <span className="fgl-side">
           {i.children && i.children.total > 0 && (
-            <span className="fgl-children" title={`${i.children.completed} of ${i.children.total} child items done`}>
+            <span className="fgl-children" title={t("forge.issues.childrenDone", { done: formatNumber(i.children.completed, 0), total: formatNumber(i.children.total, 0) })}>
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
                 <path d="M5.5 8.2l1.8 1.8 3.4-4" />
               </svg>
               {i.children.completed}/{i.children.total}
-              <span className="fg-sr"> child items done</span>
+              <span className="fg-sr"> {t("forge.issues.childItemsDone")}</span>
             </span>
           )}
-          <People users={assignees} label="Assigned to" />
+          <People users={assignees} label={t("forge.issues.assignedTo")} />
           <CommentCount count={i.comments} />
         </span>
         <span className="fg-meta fgl-meta">
           <code>{itemLabel("#", i, acrossRepos)}</code>
-          {i.createdAt != null && <> · opened <Ago at={i.createdAt} /></>}
-          {author && <> by {author}</>}
+          {i.createdAt != null
+            ? <> · <AgoIn at={i.createdAt} text={t(author ? "forge.meta.openedBy" : "forge.meta.opened", { author: author ?? "" })} /></>
+            : author && <> {t("forge.meta.by", { author })}</>}
           {i.milestone && <> · {i.milestone.title}</>}
         </span>
-        <span className="fgl-when">{at != null && <><span className="fgl-when-verb">{i.state === "closed" && i.closedAt != null ? "closed" : "updated"} </span><Ago at={at} /></>}</span>
+        <span className="fgl-when">{at != null && <AgoIn at={at} text={t(i.state === "closed" && i.closedAt != null ? "forge.when.closed" : "forge.when.updated")} verb="fgl-when-verb" />}</span>
       </button>
     </li>
   );

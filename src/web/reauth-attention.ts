@@ -13,6 +13,7 @@
 import { lanRepairExpected } from "./account-lan";
 import { type Account } from "./claude-accounts";
 import type { LanStatus } from "./lan-types";
+import { t as tNow, type TFunction } from "./i18n";
 
 /** One account the prompt names. */
 export interface AttentionRow {
@@ -64,7 +65,7 @@ export function attentionRows(
     const email = a.email ?? "";
     rows.push({
       id, key: r.key, since: r.since, num: a.num, email,
-      name: email || a.alias || `Account ${a.num}`,
+      name: email || a.alias || tNow("accounts.accountN", { n: a.num }),
       alias: email && a.alias ? a.alias : null,
     });
   }
@@ -107,15 +108,14 @@ export function promptShows({ rows, ours, dialogs }: { rows: number; ours: boole
 }
 
 /** The dialog's title: one account, or more than one. */
-export function attentionTitle(count: number): string {
-  return count === 1 ? "Account needs your attention" : "Accounts need your attention";
+export function attentionTitle(count: number, t: TFunction = tNow): string {
+  return t("accounts.reauth.title", { count });
 }
 
 /** The sentence under the title when there are several. One account is named
  *  in a sentence of its own, by the component, so it can be bold. */
-export function attentionLead(count: number): string {
-  const n = count === 1 ? "One Claude account needs" : `${count} Claude accounts need`;
-  return `${n} you to sign in again.`;
+export function attentionLead(count: number, t: TFunction = tNow): string {
+  return t("accounts.reauth.lead", { count });
 }
 
 /** What one account's row says about it. Calm and factual: the login has
@@ -127,6 +127,11 @@ export const LOGIN_EXPIRED = "Login expired";
 export const SINGLE_NOTE =
   "Until then the deck cannot read its usage or switch to it. Signing in again brings it back — "
   + "it keeps its slot, its alias and its history.";
+
+/** The three fixed sentences above, in the language on show. */
+export const loginExpiredText = (t: TFunction = tNow): string => t("accounts.reauth.expired");
+export const singleNoteText = (t: TFunction = tNow): string => t("accounts.reauth.singleNote");
+export const laterExplainedText = (t: TFunction = tNow): string => t("accounts.reauth.laterTip");
 
 /** What "Not now" promises, said on the button's title. */
 export const LATER_EXPLAINED =

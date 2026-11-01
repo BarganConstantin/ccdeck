@@ -6,6 +6,7 @@ import {
   type TextSize,
 } from "../reading-preferences";
 import { SettingsGroup } from "./SettingsParts";
+import { useT } from "../i18n";
 
 interface Props {
   textSize: TextSize;
@@ -16,19 +17,19 @@ interface Props {
 
 /** Each choice with the body size it gives, so the scale reads as sizes. */
 const SIZE_CHOICES = [
-  ["smallest", "Smallest", "11 px"],
-  ["smaller", "Smaller", "12 px"],
-  ["default", "Default", "13 px"],
-  ["larger", "Larger", "15 px"],
-  ["largest", "Largest", "17 px"],
+  ["smallest", "settings.reading.size.smallest", "11 px"],
+  ["smaller", "settings.reading.size.smaller", "12 px"],
+  ["default", "settings.reading.size.default", "13 px"],
+  ["larger", "settings.reading.size.larger", "15 px"],
+  ["largest", "settings.reading.size.largest", "17 px"],
 ] as const;
 /** Each choice with the share of the designed spacing it keeps. */
 const DENSITY_CHOICES = [
-  ["tightest", "Tightest", "30%"],
-  ["tighter", "Tighter", "50%"],
-  ["compact", "Compact", "70%"],
-  ["default", "Default", "100%"],
-  ["comfortable", "Comfortable", "140%"],
+  ["tightest", "settings.reading.density.tightest", "30%"],
+  ["tighter", "settings.reading.density.tighter", "50%"],
+  ["compact", "settings.reading.density.compact", "70%"],
+  ["default", "settings.reading.density.default", "100%"],
+  ["comfortable", "settings.reading.density.comfortable", "140%"],
 ] as const;
 
 function SelectedMark() {
@@ -57,6 +58,7 @@ function SelectedMark() {
  *  in view without scrolling past the preview. It sat beside an intro that
  *  said what the pane's head now says. Disabled when both are at Default. */
 export function ReadingReset({ textSize, density, onTextSize, onDensity }: Props) {
+  const t = useT();
   const changed = textSize !== "default" || density !== "default";
   return (
     <button
@@ -68,7 +70,7 @@ export function ReadingReset({ textSize, density, onTextSize, onDensity }: Props
         onDensity("default");
       }}
     >
-      Reset to defaults
+      {t("settings.reading.reset")}
     </button>
   );
 }
@@ -79,12 +81,13 @@ export default function ReadingSection({
   onTextSize,
   onDensity,
 }: Props) {
+  const t = useT();
   return (
     <>
       <fieldset className="reading-group">
-        <legend>Text size</legend>
+        <legend>{t("settings.reading.sizeTitle")}</legend>
         <p id="reading-size-help">
-          Adjust interface text without changing your browser zoom.
+          {t("settings.reading.sizeHelp")}
         </p>
         <div
           className="reading-options reading-segmented"
@@ -97,7 +100,9 @@ export default function ReadingSection({
             } as CSSProperties
           }
         >
-          {SIZE_CHOICES.map(([value, label, note]) => (
+          {SIZE_CHOICES.map(([value, labelKey, note]) => {
+            const label = t(labelKey);
+            return (
             <label key={value} className="reading-choice" data-size={value}>
               <input
                 type="radio"
@@ -116,14 +121,14 @@ export default function ReadingSection({
               </span>
               <SelectedMark />
             </label>
-          ))}
+            );
+          })}
         </div>
       </fieldset>
       <fieldset className="reading-group">
-        <legend>Density</legend>
+        <legend>{t("settings.reading.densityTitle")}</legend>
         <p id="reading-density-help">
-          Choose the spacing in lists, panels and controls. Text size stays the
-          same.
+          {t("settings.reading.densityHelp")}
         </p>
         <div
           className="reading-options reading-segmented"
@@ -136,12 +141,14 @@ export default function ReadingSection({
             } as CSSProperties
           }
         >
-          {DENSITY_CHOICES.map(([value, label, note]) => (
+          {DENSITY_CHOICES.map(([value, labelKey, note]) => {
+            const label = t(labelKey);
+            return (
             <label key={value} className="reading-choice">
               <input
                 type="radio"
                 name="density"
-                aria-label={`${label} ${note} spacing`}
+                aria-label={t("settings.reading.spacing", { label, note })}
                 value={value}
                 checked={density === value}
                 onChange={() => onDensity(value)}
@@ -161,28 +168,28 @@ export default function ReadingSection({
               </span>
               <SelectedMark />
             </label>
-          ))}
+            );
+          })}
         </div>
       </fieldset>
-      <SettingsGroup id="reading-preview-title" title="Preview">
+      <SettingsGroup id="reading-preview-title" title={t("settings.reading.preview")}>
         <div className="reading-preview-row">
           <div>
-            <strong>Frontend session</strong>
-            <span>Waiting for your review</span>
+            <strong>{t("settings.reading.sample1")}</strong>
+            <span>{t("settings.reading.sample1State")}</span>
           </div>
           <span className="reading-preview-time">4m</span>
         </div>
         <div className="reading-preview-row">
           <div>
-            <strong>API integration</strong>
-            <span>Working · 3 tool calls</span>
+            <strong>{t("settings.reading.sample2")}</strong>
+            <span>{t("settings.reading.sample2State")}</span>
           </div>
           <span className="reading-preview-time">12m</span>
         </div>
       </SettingsGroup>
       <p className="settings-foot">
-        Preferences stay in this browser when storage is available. Default
-        restores the existing ccdeck appearance.
+        {t("settings.reading.foot")}
       </p>
     </>
   );

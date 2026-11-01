@@ -6,8 +6,9 @@
 // Inspired by the task-board project's ccusage modal, reimplemented in
 // agent-dag's idiom (plain CSS, no Tailwind/framer-motion).
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useT } from "../i18n";
 import { fmtCost } from "../pricing";
-import { reportedCost, storedCostNote, MISSING_PRICE_NOTE } from "../reported-cost";
+import { reportedCost, storedCostNote, missingPriceNote } from "../reported-cost";
 import { commandOutput, explainCcusageFailure } from "../admin-failure";
 import { usageView } from "../usage-view";
 import { fmtTokens } from "../token-format";
@@ -36,6 +37,7 @@ interface Props {
 }
 
 export default function UsageHistoryModal({ onClose, providers }: Props) {
+  const t = useT();
   const [rangeDays, setRangeDays] = useState(30);
   const [selected, setSelected] = useState<string | null>(null);
   const { landed, loading, reload } = useCcusage(rangeDays);
@@ -105,10 +107,10 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
 
   return (
     <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal uh-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Usage history">
+      <div ref={dialogRef} className="modal uh-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("insights.usage.title")}>
         <header className="modal-head uh-head">
           <div className="uh-titlewrap">
-            <div className="modal-tool-name">Usage history</div>
+            <div className="modal-tool-name">{t("insights.usage.title")}</div>
             {/* This line used to be the constant "via ccusage · local Claude /
                 Codex logs", which is the sentence #431 opens with: it named two
                 CLIs and the chart below then added them together. It is derived
@@ -123,7 +125,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                 one that already says where the figures come from. The same
                 words the busy branch prints, so a reader meets one phrase for
                 one wait. */}
-            <div className="uh-sub">{view.stale ? "running ccusage…" : usageSubtitle(providers, agents.map(a => a.id))}</div>
+            <div className="uh-sub">{view.stale ? t("insights.usage.running") : usageSubtitle(providers, agents.map(a => a.id))}</div>
           </div>
           {/* Not a tablist (#381). role="tab" is a promise about keyboard
               behaviour — one tab stop for the whole strip, arrow keys between
@@ -138,7 +140,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
               the canvas category chips already use, for the reason spelled out
               at that bar in App.tsx — it names the set, states each member, and
               promises no keyboard model that is not here. */}
-          <div className="uh-range" role="group" aria-label="Range">
+          <div className="uh-range" role="group" aria-label={t("insights.usage.range")}>
             {PRESETS.map(p => (
               <button
                 key={p}
@@ -150,7 +152,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                 aria-pressed={rangeDays === p}
                 className="uh-range-btn"
                 onClick={() => { setRangeDays(p); setSelected(null); }}
-              >{p}d</button>
+              >{t("insights.usage.days", { n: p })}</button>
             ))}
           </div>
           <button
@@ -163,16 +165,16 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                where the reader was. Busy, enabled, and `load` refuses the
                second run. */
             {...selfPressProps(loading)}
-            title="Re-run ccusage"
-            aria-label="Reload"
+            title={t("insights.usage.rerun")}
+            aria-label={t("insights.usage.reload")}
           >{loading ? "…" : <RefreshGlyph />}</button>
-          <button ref={closeRef} className="glyph-btn uh-close" onClick={onClose} aria-label="Close">×</button>
+          <button ref={closeRef} className="glyph-btn uh-close" onClick={onClose} aria-label={t("insights.usage.close")}>×</button>
         </header>
 
         {view.phase === "busy" ? (
           /* A decorative local-files-to-report illustration, not sample data or
              measured progress. Reserve the chart's room while ccusage runs. */
-          <div className="uh-status uh-status-wait" role="status" aria-label="Reading usage history" aria-busy="true" data-paused={pageHidden || undefined}>
+          <div className="uh-status uh-status-wait" role="status" aria-label={t("insights.usage.reading")} aria-busy="true" data-paused={pageHidden || undefined}>
             <span className="uh-wait-word">
               <svg className="uh-reading-art" viewBox="0 0 240 96" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M25 24v-7a4 4 0 0 1 4-4h28a4 4 0 0 1 4 4v43" /><rect x="17" y="24" width="36" height="51" rx="4" /><path d="M25 36h19M25 44h19M25 52h13M25 64h7" />
@@ -180,9 +182,9 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                 <g className="uh-reading-packets"><rect x="76" y="46" width="6" height="6" rx="1.5" /><rect x="76" y="46" width="6" height="6" rx="1.5" /><rect x="76" y="46" width="6" height="6" rx="1.5" /></g>
                 <rect x="145" y="18" width="76" height="57" rx="5" /><path d="M154 28h21M154 64h57M154 38v26M163 39h47M163 49h47" /><circle cx="209" cy="28" r="2" />
               </svg>
-              <strong className="uh-reading-title">Reading usage history</strong>
-              <span className="uh-reading-note">Gathering costs and tokens from local logs…</span>
-              {!landed && <span className="uh-reading-hint">The first run may download ccusage.</span>}
+              <strong className="uh-reading-title">{t("insights.usage.reading")}</strong>
+              <span className="uh-reading-note">{t("insights.usage.gathering")}</span>
+              {!landed && <span className="uh-reading-hint">{t("insights.usage.firstRun")}</span>}
             </span>
             <span className="uh-wait-axis" aria-hidden />
           </div>
@@ -190,20 +192,20 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
           // The reason map says what happened; ccusage's own line is evidence,
           // one hover away, because it is what the user pastes into an issue.
           <div className="uh-status uh-err" title={commandOutput(landed!.resp) || undefined}>
-            {explainCcusageFailure(landed!.resp, "ccusage did not report usage")}
+            {explainCcusageFailure(landed!.resp, t("insights.usage.noReport"))}
             <div>
               {/* #620, and this one is the whole of the error branch: a
                   failed run leaves `phase: "error"` with `stale: loading`, so
                   the button stays mounted and simply went disabled under its
                   own press. The word already says it is trying. */}
               <button className="btn uh-retry" onClick={() => { rescueRetry(); reload(); }} {...selfPressProps(loading)}>
-                {loading ? "trying…" : "Try again"}
+                {loading ? t("insights.usage.trying") : t("insights.audit.tryAgain")}
               </button>
             </div>
           </div>
         ) : view.phase === "empty" ? (
           <div className={`uh-status${view.stale ? " uh-stale" : ""}`} aria-busy={view.stale || undefined}>
-            no usage in this range
+            {t("insights.usage.empty")}
           </div>
         ) : (
           // One wrapper so the whole chart dims together while a newer run for
@@ -213,13 +215,13 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
           // subtitle above says what is running.
           <div className={view.stale ? "uh-stale" : undefined} aria-busy={view.stale || undefined}>
             <div className="uh-totals">
-              <Stat label="total cost"   val={reportedCost(totalCost, missingModels.size > 0)} accent />
-              <Stat label="tokens"       val={fmtTokens(totalTok)} />
-              <Stat label="input+output" val={fmtTokens(inOut)} />
-              <Stat label="cache reads"  val={fmtTokens(cacheRead)} />
+              <Stat label={t("insights.usage.totalCost")}   val={reportedCost(totalCost, missingModels.size > 0)} accent />
+              <Stat label={t("insights.usage.tokens")}       val={fmtTokens(totalTok)} />
+              <Stat label={t("insights.usage.inOut")} val={fmtTokens(inOut)} />
+              <Stat label={t("insights.usage.cacheReads")}  val={fmtTokens(cacheRead)} />
             </div>
 
-            {missingModels.size > 0 && <p className="uh-cost-note">{MISSING_PRICE_NOTE}</p>}
+            {missingModels.size > 0 && <p className="uh-cost-note">{missingPriceNote()}</p>}
             {storedCostNote(storedCost, totalCost) && <p className="uh-cost-note">{storedCostNote(storedCost, totalCost)}</p>}
 
             {/* The split, and the reason this issue exists (#431). It sits
@@ -258,7 +260,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
               // Not role="img" for it, which is what CostBar uses for a bar
               // that IS the only statement of its figures; the difference is
               // whether anything else on screen says the same thing.
-              <div className="uh-agents" role="group" aria-label="Cost by CLI">
+              <div className="uh-agents" role="group" aria-label={t("insights.usage.byCli")}>
                 <div className="uh-agent-bar" aria-hidden="true">
                   {agents.map(a => (
                     <span
@@ -274,7 +276,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                     // legend below carries the raw model id: the printed name
                     // is this deck's word for the CLI and the id is what the
                     // reader would type at `ccusage <agent> daily` to check it.
-                    <span key={a.id} className="uh-agent-key" title={`${a.id} · ${fmtTokens(a.tokens)} tokens`}>
+                    <span key={a.id} className="uh-agent-key" title={t("insights.usage.agentTokens", { id: a.id, tokens: fmtTokens(a.tokens) })}>
                       <span className="uh-legend-dot" style={{ background: agentColor(a.id) }} />
                       {agentLabel(a.id)}
                       <span className="uh-agent-cost">{fmtCost(a.cost)}</span>
@@ -303,7 +305,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                 group keeps the only thing the role was really being used for —
                 the bars are named as one set rather than as loose controls —
                 and leaves each day to speak for itself below. */}
-            <div ref={chartRef} className="uh-chart" role="group" aria-label="Daily cost by model">
+            <div ref={chartRef} className="uh-chart" role="group" aria-label={t("insights.usage.daily")}>
               {days.map((d, i) => {
                 const h = percentOf(d.totalCost, maxCost);
                 const isSel = d.period === selected;

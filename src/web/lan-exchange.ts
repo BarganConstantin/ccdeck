@@ -7,6 +7,7 @@
 // exchangeLanes lays every login the two decks offer out as one lane with a
 // state at each end, which is what the dialog draws. None of it touches React.
 import type { LanAccount, OfferedAccount } from "./lan-types";
+import { t } from "./i18n";
 
 /** Two versions against each other: negative when `a` is older, positive when
  *  newer, 0 when they match — and null when either is not a version this can
@@ -57,9 +58,9 @@ export function offerLine(
   theirs: OfferedAccount,
   mine: LanAccount | null,
 ): { there: string; here: string; note: string | null; tone: "ok" | "wait" | "bad" | "idle" } {
-  const here = !mine ? "not on this deck" : mine.alive
-    ? mine.shareable === false ? mine.inUse ? "in use here" : "cannot share here" : "works here"
-    : "expired here";
+  const here = !mine ? t("lan.here.missing") : mine.alive
+    ? mine.shareable === false ? mine.inUse ? t("lan.here.inUse") : t("lan.here.unavailable") : t("lan.here.works")
+    : t("lan.here.expired");
   // A valid copy behind an unavailable Keychain is not broken and cannot be
   // pulled. Say exactly that, without promising a transfer or telling the user
   // to sign in again. The same for the login that deck is on and keeps there
@@ -67,7 +68,7 @@ export function offerLine(
   // is nothing to look at: both ends work, as they did before it was kept.
   if (theirs.alive && theirs.shareable === false) {
     return {
-      there: theirs.inUse ? "in use there" : "cannot share there", here, note: null,
+      there: theirs.inUse ? t("lan.there.inUse") : t("lan.there.unavailable"), here, note: null,
       tone: theirs.inUse && mine?.alive ? "ok" : "idle",
     };
   }
@@ -76,17 +77,17 @@ export function offerLine(
     // to wear the same warning ink as the state that is fixed with one tick.
     // Warn ink says act; this one says the act is not here, so it names the
     // only thing that does work — the words the accounts panel already uses.
-    const note = mine && !mine.alive ? "neither copy works — sign in again here" : null;
-    return { there: "broken there", here, note, tone: note ? "bad" : "idle" };
+    const note = mine && !mine.alive ? t("lan.offer.neither") : null;
+    return { there: t("lan.there.broken"), here, note, tone: note ? "bad" : "idle" };
   }
   // `here` stays what IS, and the note says what WILL BE. The old string put
   // `arrives here next round` in the state slot, which left a reader unable to
   // tell the present from the promise.
-  if (!mine) return { there: "works there", here, note: "arrives next round", tone: "wait" };
+  if (!mine) return { there: t("lan.there.works"), here, note: t("lan.offer.arrives"), tone: "wait" };
   // The login this deck is on works here and is kept here (#2192): fine, not a
   // copy this deck cannot share.
-  if (mine.alive) return { there: "works there", here, note: null, tone: mine.shareable === false && !mine.inUse ? "idle" : "ok" };
-  return { there: "works there", here, note: "repairs next round", tone: "wait" };
+  if (mine.alive) return { there: t("lan.there.works"), here, note: null, tone: mine.shareable === false && !mine.inUse ? "idle" : "ok" };
+  return { there: t("lan.there.works"), here, note: t("lan.offer.repairs"), tone: "wait" };
 }
 
 /** Which way one login can move between this deck and a paired one. `live`
@@ -188,8 +189,8 @@ export function exchangeLanes(
       there: "unknown",
       in: null,
       out: mine.alive && mine.shareable !== false ? "live" : "cut",
-      caption: !mine.alive ? "expired here"
-        : mine.shareable === false ? mine.inUse ? "in use here" : "cannot share here" : null,
+      caption: !mine.alive ? t("lan.here.expired")
+        : mine.shareable === false ? mine.inUse ? t("lan.here.inUse") : t("lan.here.unavailable") : null,
       tone: mine.alive ? mine.shareable === false && !mine.inUse ? "idle" : "ok" : "bad",
       // That deck does not offer it, so it is never named as the one it is on.
       usedThere: false,

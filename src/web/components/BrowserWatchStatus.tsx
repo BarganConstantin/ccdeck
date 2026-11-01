@@ -7,6 +7,7 @@
 import type { Dispatch, SetStateAction } from "react";
 
 import type { WatchSettings, WatchSnapshot } from "../browser-watch-model";
+import { useT, type TFunction } from "../i18n";
 
 /**
  * What the bar says about the watch, and which of three things it is saying: a
@@ -19,16 +20,17 @@ import type { WatchSettings, WatchSnapshot } from "../browser-watch-model";
 function modeState(
   snap: { settings: { enabled: boolean } },
   saving: boolean,
+  t: TFunction,
 ): { kind: "saving" | "off" | "on"; word: string } {
-  if (saving) return { kind: "saving", word: "Saving" };
+  if (saving) return { kind: "saving", word: t("settings.bw.mode.saving") };
   // ONE QUESTION, ONE ANSWER. This carried an episode count as well — "Watching
   // · nothing captured yet" — and the two ideas fought: a reader with visible
   // browser activity in the feed below was being told nothing had been
   // captured, which is true of episodes and reads as false of the panel.
   // Persistence belongs to the count beside it, which says it in the same noun
   // the Findings section uses. The word says whether the watch is running.
-  if (!snap.settings.enabled) return { kind: "off", word: "Paused" };
-  return { kind: "on", word: "Watching" };
+  if (!snap.settings.enabled) return { kind: "off", word: t("settings.bw.mode.paused") };
+  return { kind: "on", word: t("settings.bw.mode.watching") };
 }
 
 export default function BrowserWatchStatus({
@@ -46,6 +48,8 @@ export default function BrowserWatchStatus({
   why: boolean;
   setWhy: Dispatch<SetStateAction<boolean>>;
 }) {
+  const t = useT();
+  const mode = modeState(snap, saving, t);
   return (
     <footer className="bw-status">
       {/* THE STATE SITS BESIDE THE CONTROL THAT CHANGES IT. It had a
@@ -55,15 +59,15 @@ export default function BrowserWatchStatus({
           bottom. Together they are one sentence: what the watch is
           doing, and the control for it. */}
       <span className={`bw-mode-dot${snap.settings.enabled ? " on" : ""}`} aria-hidden />
-      <span className="bw-mode-word" key={modeState(snap, saving).kind}>
-        {modeState(snap, saving).word}
+      <span className="bw-mode-word" key={mode.kind}>
+        {mode.word}
       </span>
       {/* THE ONE PLACE PERSISTENCE IS SAID, in the noun the Findings
           section uses. One concept, one noun, one place. */}
       <span className="bw-status-text">
         {snap.coverage.archived === 0
-          ? (snap.settings.enabled ? "No episodes recorded yet" : "No episodes on disk")
-          : `${snap.coverage.archived} ${snap.coverage.archived === 1 ? "episode" : "episodes"} on disk`}
+          ? (snap.settings.enabled ? t("settings.bw.disk.none") : t("settings.bw.disk.noneOff"))
+          : t("settings.bw.disk.some", { count: snap.coverage.archived })}
       </span>
       {/* `htmlFor` forwards the CLICK to a button, which is why the
           whole label operates the switch — but it does not NAME one:
@@ -82,8 +86,8 @@ export default function BrowserWatchStatus({
         className={`glyph-btn bw-gear${why ? " on" : ""}`}
         onClick={() => setWhy(w => !w)}
         aria-expanded={why}
-        aria-label="Settings"
-        title="Settings"
+        aria-label={t("settings.bw.settings")}
+        title={t("settings.bw.settings")}
       >
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden>
           <circle cx="7" cy="7" r="2.1" />
@@ -91,7 +95,7 @@ export default function BrowserWatchStatus({
         </svg>
       </button>
       <label className="bw-switch" htmlFor="bw-enabled">
-        <span className="bw-switch-label" id="bw-enabled-label">Watch browser activity</span>
+        <span className="bw-switch-label" id="bw-enabled-label">{t("settings.bw.switch")}</span>
         <button
           id="bw-enabled"
           type="button"
@@ -101,8 +105,8 @@ export default function BrowserWatchStatus({
           className="switch"
           onClick={() => void save({ enabled: !snap.settings.enabled })}
           title={snap.settings.enabled
-            ? "On — every episode it finds is written down, so the list outlives the browsing history being cleared"
-            : "Off — showing only what this deck has seen since it started. Anything an earlier run archived is hidden until you switch back on, and nothing new is kept"}
+            ? t("settings.bw.switch.on")
+            : t("settings.bw.switch.off")}
         >
           <span className="switch-knob" />
         </button>

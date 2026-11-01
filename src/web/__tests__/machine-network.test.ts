@@ -227,13 +227,13 @@ describe("the panel gives it a section of its own", () => {
   // one visual sentence. Network stands alone now and Load average sits inside
   // the CPU block, so neither is read as a half of the other.
   it("stands on its own, with no half-width column left behind", () => {
-    expect(panel).toContain('<div className="sd-section" role="group" aria-label="Network">');
+    expect(panel).toContain('<div className="sd-section" role="group" aria-label={t("insights.machine.network")}>');
     expect(machinePanelSurface()).not.toContain("sd-pair");
     expect(css).not.toContain(".sd-pair");
   });
 
   it("opens its own history, named like every other section", () => {
-    expect(panel).toContain('<OpensHistory group="network" title="Network history" action="Show network history" label="Network">');
+    expect(panel).toContain('<OpensHistory group="network" title={t("insights.machine.networkHistory")} action={t("insights.machine.showNetwork")} label={t("insights.machine.network")}>');
   });
 
   // THREE FIGURES, THREE MEASUREMENTS: down and up are this machine's own
@@ -242,9 +242,9 @@ describe("the panel gives it a section of its own", () => {
   // than captioned "KB/s down", which put the unit where the name belongs and
   // left three readings looking like one connection measured three ways.
   it("names each column for what it measures", () => {
-    expect(panel).toContain('<Fig key={name} value={f.value} unit={f.unit} cap={name} />');
-    expect(panel).toContain('<Fig value={latency.value} unit={latency.unit} cap="Claude API" />');
-    expect(panel).toContain('[["Download", down!], ["Upload", up!]]');
+    expect(panel).toContain('<Fig key={name} value={f.value} unit={f.unit} cap={t(name === "download" ? "insights.machine.download" : "insights.machine.upload")} />');
+    expect(panel).toContain('<Fig value={latency.value} unit={latency.unit} cap={t("insights.machine.claudeApi")} />');
+    expect(panel).toContain('[["download", down!], ["upload", up!]]');
     // The unit belongs to the figure, a tier down from it, and never to the
     // label above.
     expect(css).toMatch(/\.sd-fig-unit \{ color: var\(--muted\); font-size: 10px; \}/);
@@ -259,13 +259,13 @@ describe("the panel gives it a section of its own", () => {
     expect(panel).toContain('className="sd-detail"');
     expect(panel).toContain('anchorId="sd-conn"');
     expect(panel).toContain('boundaryId="system-panel"');
-    expect(panel).toContain('<span className="sd-route-relay"> · relayed</span>');
+    expect(panel).toContain('<span className="sd-route-relay"> · {t("insights.machine.relayed")}</span>');
     expect(css).toMatch(/\.sd-route-relay \{ color: var\(--warn\); \}/);
   });
 
   // A connection that cannot be asked is the one network state that is a fault
   // rather than a figure, so it never moves inside the disclosure.
   it("says an unreachable API in the panel itself", () => {
-    expect(panel).toContain('<div className="sd-note sd-note-warn">Can’t reach Claude</div>');
+    expect(panel).toContain('<div className="sd-note sd-note-warn">{t("insights.machine.cantReach")}</div>');
   });
 });

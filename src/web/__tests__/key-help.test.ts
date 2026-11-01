@@ -188,8 +188,8 @@ describe("the way in", () => {
     // The tooltip names `?` while `?` opens the sheet; with Settings › General's
     // single-key switch off it is the button alone that does, and it says why
     // `?` is quiet (WCAG 2.1.4).
-    expect(app).toContain('title={singleKeys ? withKey("Keyboard shortcuts", "?", true) : "Keyboard shortcuts — the single-key ones are off"}');
-    expect(app).toMatch(/aria-label="Open the keyboard shortcuts"/);
+    expect(app).toContain('title={singleKeys ? withKey(t("board.controls.keys"), "?", true) : t("board.controls.keysOff")}');
+    expect(app).toMatch(/aria-label=\{t\("board\.controls\.keysLabel"\)\}/);
     expect(app).not.toMatch(/className="btn icon-btn"[\s\S]{0,200}Keyboard shortcuts/);
   });
 
@@ -211,7 +211,7 @@ describe("the way in", () => {
     // do and moved it under the reference the reader opened the sheet for.
     expect(KEY_HELP_NOTE).toMatch(/Esc/);
     expect(KEY_HELP_NOTE.split(/\s+/).length).toBeLessThanOrEqual(10);
-    expect(sheet.indexOf("{KEY_HELP_NOTE}")).toBeGreaterThan(sheet.indexOf('className="shortcuts"'));
+    expect(sheet.indexOf('t("settings.key.note")')).toBeGreaterThan(sheet.indexOf('className="shortcuts"'));
   });
 });
 

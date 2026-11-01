@@ -9,7 +9,8 @@ import type { Dispatch, SetStateAction } from "react";
 import { Controls, ControlButton, useReactFlow, useStore, type ReactFlowState } from "reactflow";
 import type { ClearSource } from "../clear-confirm";
 import { withKey } from "../single-key-shortcuts";
-import { PAUSE_LABEL, pauseTitle } from "../status-pill";
+import { pauseLabel, pauseTitle } from "../status-pill";
+import { useT } from "../i18n";
 import type { PauseControls } from "../use-pause-gate";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 
@@ -31,6 +32,7 @@ export default function CanvasControls({
   requestClear: (source: ClearSource) => void;
   setKeyHelpOpen: Dispatch<SetStateAction<boolean>>;
 }) {
+  const t = useT();
   const rf = useReactFlow();
   // Whether the canvas's own zoom buttons can go any further, which is the
   // one fact they need from the store. Booleans, so this re-renders when a
@@ -51,8 +53,8 @@ export default function CanvasControls({
           page (#1768, the rule #518/#620 set in panel-press.ts). */}
       <ControlButton
         onClick={() => { if (!zoomMaxed) rf.zoomIn(); }}
-        title="Zoom in"
-        aria-label="Zoom in"
+        title={t("board.controls.zoomIn")}
+        aria-label={t("board.controls.zoomIn")}
         aria-disabled={zoomMaxed || undefined}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
@@ -61,8 +63,8 @@ export default function CanvasControls({
       </ControlButton>
       <ControlButton
         onClick={() => { if (!zoomMinned) rf.zoomOut(); }}
-        title="Zoom out"
-        aria-label="Zoom out"
+        title={t("board.controls.zoomOut")}
+        aria-label={t("board.controls.zoomOut")}
         aria-disabled={zoomMinned || undefined}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
@@ -75,9 +77,9 @@ export default function CanvasControls({
       <ControlButton
         onClick={enableAutoFitAndRefit}
         title={autoFitDisabled
-          ? "Recenter view + re-enable autofit"
-          : "Recenter view (autofit already on)"}
-        aria-label="Recenter view"
+          ? t("board.controls.recenterOn")
+          : t("board.controls.recenterAuto")}
+        aria-label={t("board.controls.recenter")}
         data-nudge={autoFitDisabled ? "" : undefined}
       >
         {/* crosshair / target — recenter affordance */}
@@ -124,8 +126,8 @@ export default function CanvasControls({
       <ControlButton
         data-group-start=""
         onClick={togglePause}
-        title={pauseTitle({ paused, held: pauseGate.size, dropped: pauseGate.dropped, singleKeys })}
-        aria-label={PAUSE_LABEL}
+        title={pauseTitle({ paused, held: pauseGate.size, dropped: pauseGate.dropped, singleKeys }, t)}
+        aria-label={pauseLabel(t)}
         aria-pressed={paused}
       >
         {/* two upright bars — the pause mark, drawn as strokes so it sits
@@ -147,8 +149,8 @@ export default function CanvasControls({
           is the whole button, and a glyph has no accessible name. */}
       <ControlButton
         onClick={handleRelayout}
-        title={withKey("Auto-arrange — clear pins", "R", singleKeys)}
-        aria-label="Re-arrange the canvas"
+        title={withKey(t("board.controls.arrange"), "R", singleKeys)}
+        aria-label={t("board.controls.arrangeLabel")}
       >
         {/* three-node hierarchy — one parent over two children */}
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
@@ -172,8 +174,8 @@ export default function CanvasControls({
         data-group-start=""
         data-danger=""
         onClick={() => requestClear("button")}
-        title={withKey("Clear the canvas and the server's event log — asks first", "C", singleKeys)}
-        aria-label="Clear the canvas"
+        title={withKey(t("board.controls.clear"), "C", singleKeys)}
+        aria-label={t("board.controls.clearLabel")}
       >
         {/* trash can — lid, handle, tapered body, two inner strokes */}
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
@@ -198,8 +200,8 @@ export default function CanvasControls({
       <ControlButton
         data-group-start=""
         onClick={() => setKeyHelpOpen(o => !o)}
-        title={singleKeys ? withKey("Keyboard shortcuts", "?", true) : "Keyboard shortcuts — the single-key ones are off"}
-        aria-label="Open the keyboard shortcuts"
+        title={singleKeys ? withKey(t("board.controls.keys"), "?", true) : t("board.controls.keysOff")}
+        aria-label={t("board.controls.keysLabel")}
         aria-haspopup="dialog"
       >
         {/* A question mark drawn rather than typed: the stack's other

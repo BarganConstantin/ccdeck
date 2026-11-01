@@ -8,6 +8,9 @@
 // tracker goes through the deck (/api/integrations/<kind>/<id>/…), which signs.
 
 import { useEffect, useState } from "react";
+import { t } from "../i18n";
+import { OwnError, ownMessage } from "../own-error";
+import { integrationText } from "./server-text";
 import type { IntegrationConnection, IntegrationErrorKind, IntegrationKind } from "./types";
 
 type Connection = IntegrationConnection;
@@ -33,7 +36,7 @@ export function jiraGuardOperation(value: unknown): JiraGuardOperation | undefin
   if (o.kind === "move" ? !Array.isArray(o.issueKeys) || !o.issueKeys.every(k => typeof k === "string") : typeof o.issueKey !== "string") return;
   return o;
 }
-export class IntegrationFailure extends Error {
+export class IntegrationFailure extends OwnError {
   kind: IntegrationErrorKind;
   operation?: JiraGuardOperation;
   /** The tracker's own HTTP status, when it answered one. */
@@ -59,7 +62,7 @@ export async function failureOf(res: Response): Promise<IntegrationFailure> {
     const body = await res.json();
     const e = body?.error;
     const operation = jiraGuardOperation(body?.operation);
-    if (body?.code === "jira_write_guard_conflict") return new IntegrationFailure("upstream", "A Jira write is already awaiting verification.", { status: res.status, operation });
+    if (body?.code === "jira_write_guard_conflict") return new IntegrationFailure("upstream", t("integrations.error.writeAwaiting"), { status: res.status, operation });
     if (e && typeof e.kind === "string" && typeof e.message === "string") {
       const outcomes: JiraMoveOutcome[] = Array.isArray(body.outcomes) ? body.outcomes.slice(0, 50).filter((o: unknown): o is JiraMoveOutcome => {
         if (!o || typeof o !== "object") return false;
@@ -70,10 +73,10 @@ export async function failureOf(res: Response): Promise<IntegrationFailure> {
       }).map((o: JiraMoveOutcome) => ({ issueKey: o.issueKey, membership: o.membership, rank: o.rank })) : [];
       const o = body.outcome;
       const moveOutcome: JiraMoveSummary | undefined = o && ["moved", "unchanged", "unknown"].includes(o.membership) && ["ranked", "unchanged", "failed", "unknown"].includes(o.rank) ? { membership: o.membership, rank: o.rank } : undefined;
-      return new IntegrationFailure(e.kind, e.message, { status: e.status, retryAfter: e.retryAfter, field: e.field, detail: e.detail, ...(body.refresh === true ? { refreshRequired: true } : {}), ...(outcomes.length ? { outcomes } : {}), ...(moveOutcome ? { moveOutcome } : {}), ...(operation ? { operation } : {}) });
+      return new IntegrationFailure(e.kind, integrationText(e.message), { status: e.status, retryAfter: e.retryAfter, field: e.field, detail: e.detail, ...(body.refresh === true ? { refreshRequired: true } : {}), ...(outcomes.length ? { outcomes } : {}), ...(moveOutcome ? { moveOutcome } : {}), ...(operation ? { operation } : {}) });
     }
   } catch { /* not JSON */ }
-  return new IntegrationFailure(res.status === 401 ? "auth" : "upstream", `The deck answered ${res.status}.`);
+  return new IntegrationFailure(res.status === 401 ? "auth" : "upstream", t("integrations.error.deckAnswered", { status: res.status }));
 }
 
 /** One call to the deck's integration routes, as JSON. */
@@ -88,7 +91,7 @@ export async function integrationCall<T>(path: string, init: RequestInit & { tim
       });
     } catch (err) {
       if (signal.aborted) throw err;
-      throw new IntegrationFailure("network", "The deck could not be reached.");
+      throw new IntegrationFailure("network", t("integrations.error.unreachable"));
     }
     if (!res.ok) throw await failureOf(res);
     return res.json() as Promise<T>;
@@ -108,7 +111,7 @@ async function withReadDeadline<T>(outer: AbortSignal | null | undefined, timeou
     return await read(controller.signal);
   } catch (err) {
     if (outer?.aborted) throw outer.reason ?? err;
-    if (controller.signal.aborted) throw new IntegrationFailure("network", "The deck took too long to answer.");
+    if (controller.signal.aborted) throw new IntegrationFailure("network", t("integrations.error.timeout"));
     throw err;
   } finally {
     window.clearTimeout(timer);
@@ -167,13 +170,13 @@ export async function readThrough<T>(api: (path: string, init?: RequestInit) => 
     try { res = await api(path, { signal: inner, headers: { Accept: "application/json" } }); }
     catch (err) {
       if (inner.aborted) throw err;
-      throw new IntegrationFailure("network", "The deck could not be reached.");
+      throw new IntegrationFailure("network", t("integrations.error.unreachable"));
     }
     if (!res.ok) throw await failureOf(res);
     try { return await res.json() as T; }
     catch (err) {
       if (inner.aborted) throw err;
-      throw new IntegrationFailure("upstream", "The deck answered with something that is not JSON.");
+      throw new IntegrationFailure("upstream", t("integrations.error.notJson"));
     }
   });
 }
@@ -213,11 +216,11 @@ export function refreshIntegrations(): Promise<void> {
       // An answer that is not the list, a field of it missing or not a list,
       // says nothing of what the deck offers: a failed read, like a 500.
       if (!Array.isArray(connections) || !Array.isArray(providers)) {
-        throw new IntegrationFailure("upstream", "The deck answered with something that is not the list of connections.");
+        throw new IntegrationFailure("upstream", t("integrations.error.notList"));
       }
       publish({ connections: connections as Connection[], providers: providers as ProviderInfo[], error: "" });
     } catch (err) {
-      publish({ error: err instanceof Error ? err.message : "Could not read the connections." });
+      publish({ error: ownMessage(err, t("integrations.error.readConnections")) });
       // A first read that failed (the deck restarting, say) is tried again
       // after 5, 10 and 20 s, before the minute's read takes over.
       if (snapshot.connections === null && listeners.size > 0 && retry === null && retries < RETRIES) {

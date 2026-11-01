@@ -76,6 +76,10 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
     name: "how long a finished session stays on the board",
     chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["appearance-controls"]), el("label", ["appearance-row"]), el("select", ["sm-select"])],
   }],
+  "components/LanguageSection.tsx": [{
+    name: "the interface language",
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["settings-list"]), el("label", ["settings-row"]), el("span", ["settings-row-control"]), el("select", ["sm-select"])],
+  }],
   "components/BrowserWatchSettings.tsx": [
     { name: "Browser Watch's quiet time", chain: [el("body"), el("div", ["bw-settings"]), el("label"), el("select")] },
     { name: "Browser Watch's reaction", chain: [el("body"), el("div", ["bw-settings"]), el("label"), el("select")] },

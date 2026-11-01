@@ -12,6 +12,7 @@
 // because a list that has moved under the reader is not continued from an old
 // cursor.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { t as tGlobal } from "./i18n";
 import type { ForgeErrorInfo, Page } from "./forge-types";
 import {
   fetchForge, forgeReadPath, ForgeReadError, isStale, keepRead, keptRead, readDue, type ForgeApi, type Kept,
@@ -30,7 +31,7 @@ export interface ForgeReadState<T> {
 type Params = Record<string, string | number | null | undefined>;
 
 function errorInfo(err: unknown): ForgeErrorInfo {
-  return err instanceof ForgeReadError ? err.info : { kind: "upstream", message: "the read failed" };
+  return err instanceof ForgeReadError ? err.info : { kind: "upstream", message: tGlobal("forge.err.readFailed") };
 }
 
 /**

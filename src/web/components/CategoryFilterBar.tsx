@@ -5,7 +5,9 @@
 // use-category-filter-bar's; App.tsx decides when the bar shows (#783) and this
 // file is only the chips.
 import type { MutableRefObject } from "react";
-import { CatGlyph, DETAIL_CAT_LABEL, type DetailCategory } from "../detail-category";
+import { CatGlyph, type DetailCategory } from "../detail-category";
+import { categoryLabel } from "../agent-copy";
+import { useT } from "../i18n";
 
 export default function CategoryFilterBar({ catBarRef, catBarOccluded, presentCats, hiddenCats, toggleCat }: {
   catBarRef: MutableRefObject<HTMLDivElement | null>;
@@ -16,6 +18,7 @@ export default function CategoryFilterBar({ catBarRef, catBarOccluded, presentCa
   hiddenCats: ReadonlySet<DetailCategory>;
   toggleCat: (c: DetailCategory) => void;
 }) {
+  const t = useT();
   return (
     /* role="group", not role="toolbar". A toolbar is a promise about
        keyboard behaviour — one tab stop for the whole set, arrow keys
@@ -30,7 +33,7 @@ export default function CategoryFilterBar({ catBarRef, catBarOccluded, presentCa
       ref={catBarRef}
       className={`cat-filter-bar${catBarOccluded ? " occluded" : ""}`}
       role="group"
-      aria-label="Filter tools by category"
+      aria-label={t("board.cat.filter")}
     >
       {presentCats.map(c => {
         const off = hiddenCats.has(c);
@@ -46,10 +49,10 @@ export default function CategoryFilterBar({ catBarRef, catBarOccluded, presentCa
             className={`cat-filter${off ? " off" : ""}`}
             onClick={() => toggleCat(c)}
             aria-pressed={!off}
-            title={`${off ? "Show" : "Hide"} ${DETAIL_CAT_LABEL[c]} tools`}
+            title={t(off ? "board.cat.show" : "board.cat.hide", { cat: categoryLabel(c, t) })}
           >
             <CatGlyph cat={c} />
-            <span className="cat-name">{DETAIL_CAT_LABEL[c]}</span>
+            <span className="cat-name">{categoryLabel(c, t)}</span>
           </button>
         );
       })}

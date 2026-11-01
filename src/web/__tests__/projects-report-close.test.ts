@@ -70,8 +70,8 @@ describe("the Projects report through a poll that could not read the store (#141
   it("stays drawn with no roster, under the name it was opened with", () => {
     expect(site).toMatch(/if \(data\?\.accounts && !a\) return null;/);
     expect(site).toMatch(/num=\{projectsFor\.num\}/);
-    expect(site).toMatch(/name=\{a \? \(a\.alias \?\? a\.email \?\? `account \$\{a\.num\}`\) : projectsFor\.name\}/);
+    expect(site).toMatch(/name=\{a \? \(a\.alias \?\? a\.email \?\? t\("accounts\.accountNLower", \{ n: a\.num \}\)\) : projectsFor\.name\}/);
     // Which is why the opener hands the name in with the slot.
-    expect(panel).toMatch(/setProjectsFor\(\{ num: a\.num, name: a\.alias \?\? a\.email \?\? `account \$\{a\.num\}` \}\)/);
+    expect(panel).toMatch(/setProjectsFor\(\{ num: a\.num, name: a\.alias \?\? a\.email \?\? t\("accounts\.accountNLower", \{ n: a\.num \}\) \}\)/);
   });
 });

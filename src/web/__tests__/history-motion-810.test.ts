@@ -172,6 +172,6 @@ describe("reduced motion keeps the meaning and drops the movement", () => {
     // dialog, and the words still say a subprocess is running.
     const rm = reducedMotion();
     expect(rm).not.toMatch(/\.uh-status-wait/);
-    expect(modal).toMatch(/running ccusage…/);
+    expect(modal).toMatch(/t\("insights\.usage\.running"\)/);
   });
 });

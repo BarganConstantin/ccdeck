@@ -27,7 +27,7 @@ import { withoutComments } from "./tsx-scan";
 
 const panel = withoutComments(readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8"));
 /** The retry's opening tag, from its class to the end of its handler. */
-const retry = /<button type="button" className="ap-fix"[\s\S]*?>\s*\{reloading \? "trying…" : "try again"\}/.exec(panel)?.[0] ?? "";
+const retry = /<button type="button" className="ap-fix"[\s\S]*?>\s*\{reloading \? t\("accounts\.panel\.trying"\) : t\("accounts\.panel\.tryAgain"\)\}/.exec(panel)?.[0] ?? "";
 
 describe("the empty state's retry keeps the keyboard in the panel (#1411)", () => {
   it("is found, so the cases below are about it", () => {
