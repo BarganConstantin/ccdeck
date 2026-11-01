@@ -258,7 +258,7 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
     // --accent itself is built in styles.css from this hue: the token that
     // reads well on a #14161b node is not the one that reads on a white one,
     // and .tokens-meta / .spawn-badge are text.
-    <div className={cls} style={{ "--session-hue": hue } as React.CSSProperties}>
+    <div className={cls} data-alarm={state.tone === "waiting" ? "" : undefined} style={{ "--session-hue": hue } as React.CSSProperties}>
       <span className="accent-stripe" />
       {handles && <Handle type="target" position={Position.Left} style={{ background: "transparent", border: "none" }} />}
 

@@ -149,7 +149,7 @@ export function quickOpenItems(src: QuickOpenSources): QuickItem[] {
       tag: "Action", verb: "Start", glyph: <TourGlyph />, run: src.tour },
   );
   if (src.clear) {
-    items.push({ id: "action:clear", section: "actions", title: "Clear the canvas…", subtitle: "Asks first",
+    items.push({ id: "action:clear", section: "actions", title: "Clear the deck…", subtitle: "Asks first",
       keywords: ["clear", "reset", "empty", "delete"], tag: "Action", verb: "Ask first", keyCap: key("C"), glyph: <ClearGlyph />, run: src.clear });
   }
 
