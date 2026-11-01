@@ -624,6 +624,9 @@ const catalog: Catalog = {
   "accounts.fail.login.claudeMissing": "無法執行 claude CLI：不在 PATH 中。請將 AGENTS_DECK_CLAUDE 設為其完整路徑。",
   "accounts.fail.login.cswapMissing": "無法執行 cswap：不在 PATH 中，也不在 uv 與 pipx 的安裝位置。請將 AGENTS_DECK_CSWAP 設為其完整路徑。",
   "accounts.fail.login.tookLong": "{what} 耗時過長，已被停止",
+  "accounts.switch.label": "顯示帳號：",
+  "accounts.switch.attention": "{name}，需要處理",
+  "accounts.switch.attentionTip": "目前的 {name} 帳號需要處理",
 };
 
 export default catalog;
