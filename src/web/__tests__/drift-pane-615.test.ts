@@ -161,15 +161,27 @@ function accountsPanelWidth(): number {
 /** The session list's width, declared on the list since 2026-10-08, when its
  *  track went `auto` with Accounts' (styles/left-column.css). */
 function sessionListWidth(): number {
-  const m = /\.session-list\s*\{[^}]*?\bwidth:\s*(\d+)px/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""));
-  expect(m, ".session-list declares its own width").toBeTruthy();
+  // V4's rail draws at the density's --rail-w; this suite's layouts are the
+  // Default density's, where the token is the 288 tokens.css declares first.
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  expect(/\.session-list\s*\{[^}]*?\bwidth:\s*calc\(var\(--rail-w\)/.test(text), ".session-list declares its own width").toBe(true);
+  const m = /--rail-w:\s*(\d+)px/.exec(text);
+  expect(m, "--rail-w declares the Default width").toBeTruthy();
+  return Number(m![1]);
+}
+
+/** The detail column's width, the Default density's: the grid track reads
+ *  --inspector-w since V4's Inspector, as the rail reads --rail-w. */
+function inspectorWidth(): number {
+  const m = /--inspector-w:\s*(\d+)px/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""));
+  expect(m, "--inspector-w declares the Default width").toBeTruthy();
   return Number(m![1]);
 }
 
 /** The panel pixels each layout a template stands for gives away. */
 function panelPixels(columns: string): number[] {
   const fixed = columns.split(/\s+/)
-    .map(t => /^(\d+(?:\.\d+)?)px$/.exec(t))
+    .map(t => t === "var(--inspector-w)" ? [t, String(inspectorWidth())] : /^(\d+(?:\.\d+)?)px$/.exec(t))
     .reduce((sum, px) => sum + (px ? Number(px[1]) : 0), 0);
   // An `auto` first track is the left column, as wide as whichever panel is
   // in it — one rule for two layouts since 2026-10-08. Counting zero for it
@@ -279,7 +291,7 @@ describe("the six layouts are still the six the stylesheet declares", () => {
       .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
     expect(rightCode).toMatch(/function loadDetailOpen\(\): boolean \{\s*return readStored\(DETAIL_OPEN_KEY\) === "1";\s*\}/);
     expect(rightCode).toMatch(/useState<boolean>\(loadDetailOpen\)/);
-    expect(appCode).toMatch(/\bdetailOpen\b[^}]*\}\s*= useRightPanels\(leftColumnWidth\(leftPanel\)\);/);
+    expect(appCode).toMatch(/\bdetailOpen\b[^}]*\}\s*= useRightPanels\(leftColumnWidth\(leftPanel, railWidth\)\);/);
   });
 });
 

@@ -124,7 +124,7 @@ describe("the boundary the rename must not cross", () => {
       "agent-dag.schema", "agent-dag.layout", "agent-dag.viewport",
       "agent-dag.theme", "agent-dag.autoRestart", "agent-dag.autoFitDisabled",
       "agent-dag.detailOpen", "agent-dag.sessionListOpen", "agent-dag.usagePanelOpen",
-      "agent-dag.accountsPanelOpen",
+      "agent-dag.accountsPanelOpen", "agent-dag.sessionsSeen",
       "agent-dag.versionNoticeDismissed", "agent-dag.bundleReloadedFor",
       "agent-dag.restartPending",
     ]) expect([...storageKeys]).toContain(key);

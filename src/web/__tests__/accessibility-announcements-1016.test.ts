@@ -10,11 +10,14 @@ const strip = (src: string) => src
 
 describe("the deck announces state that is already visible (#1016)", () => {
   it("makes the session roster a list and exposes the current session", () => {
+    // The roster is still a <ul> of <li>s with the current one aria-current;
+    // the rows themselves moved to RailParts.tsx with V4's Attention rail.
     const list = strip(read("../components/SessionList.tsx"));
-    expect(list).toContain('<ul className="sl-rows">');
-    expect(list).toContain('<li key={r.sessionId} className="sl-row-item">');
-    expect(list).toContain('aria-current={isSelected ? "true" : undefined}');
-    expect(list).toContain('</li>');
+    const row = strip(read("../components/RailParts.tsx"));
+    expect(list).toContain('<ul className="sl-rows"');
+    expect(row).toContain('<li className={`sl-row-item${leaving ? " leaving" : ""}`}');
+    expect(row).toContain('aria-current={selected ? "true" : undefined}');
+    expect(row).toContain('</li>');
   });
 
   it("announces Browser Watch findings from an always-mounted polite region", () => {
@@ -63,6 +66,6 @@ describe("the deck announces state that is already visible (#1016)", () => {
   it("resets native list chrome without changing row width", () => {
     const css = strip(sheetText());
     expect(css).toMatch(/\.session-list \.sl-rows\s*\{[\s\S]*?margin:\s*0;[\s\S]*?list-style:\s*none;/);
-    expect(css).toMatch(/\.session-list \.sl-row-item > \.sl-row\s*\{[\s\S]*?width:\s*100%;/);
+    expect(css).toMatch(/\.session-list \.sl-row\s*\{[\s\S]*?width:\s*100%;/);
   });
 });

@@ -9,11 +9,20 @@
 .agent-node {
   --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   position: relative;
-  width: calc(260px + var(--ui-card-increase, 0px));
+  /* V4's Agent / Card: 256 wide, a column with a 2px gap, 8px above and below
+     at Compact (--ui-space 0.7, Figma's frame), growing with the density:
+     8 + (space - 0.7) * 20/3 gives 5.33 Tightest, 6.67 Tighter, 8 Compact,
+     10 Default (what the card has always had), 12.67 Comfortable. 10px at the
+     sides, the left one 4px wider for the session stripe. Solid --panel:
+     the gradient fill is gone from the detail face (the LOD faces keep it). */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: calc(256px + var(--ui-card-increase, 0px));
   min-width: calc(220px + var(--ui-card-increase, 0px));
-  max-width: calc(260px + var(--ui-card-increase, 0px));
-  padding: calc(10px * var(--ui-space, 1)) 12px calc(10px * var(--ui-space, 1)) 16px;
-  background: var(--node-grad);
+  max-width: calc(256px + var(--ui-card-increase, 0px));
+  padding: calc(8px + (var(--ui-space, 1) - 0.7) * 20px / 3) 10px calc(8px + (var(--ui-space, 1) - 0.7) * 20px / 3) 14px;
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-node);
   color: var(--text);
@@ -23,6 +32,14 @@
   overflow: hidden;
 }
 .agent-node:hover { box-shadow: var(--shadow-2); }
+
+/* The rows Figma does not draw (waiting, stop, continued, approval, plan, spark)
+   share ONE top spacing, on top of the column's 2px gap, so the card's rhythm is
+   even: 4px, scaled by the density like the vertical padding. The rows carry no
+   margin of their own. */
+.agent-node :is(.waiting-row, .stop-row, .continued-row, .approval-blind-row, .plan-row, .tool-spark-row) {
+  margin-top: calc(4px * var(--ui-space, 1));
+}
 
 .agent-node.state-active {
   border-color: var(--inflight);
@@ -240,6 +257,9 @@
 .lod-face [data-tone="err"] { color: var(--err); }
 .lod-face [data-tone="idle"] { color: var(--accent); }
 .state-mark { flex: none; }
+/* The recap's ※ and the dot that stands in for it keep their size in a flex row. */
+.recap-glyph { flex: none; }
+.state-mark[data-kind="idle"] { color: var(--muted); }
 .state-mark[data-kind="live"] { color: var(--inflight); }
 .state-mark[data-kind="done"] { color: var(--ok); }
 .state-mark[data-kind="err"] { color: var(--err); }
@@ -317,17 +337,46 @@
   background: var(--accent);
   opacity: 0.7;
 }
+/* THE HEAD (V4): who on the left — the name, then the model as plain mono text
+   — and the state on the right, with the context donut after it on a root. */
 .agent-node .head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
 .agent-node .head-right {
   flex: none;
   display: flex;
   align-items: center;
   gap: 6px;
+}
+/* The state: the face's mark at 14px, then the word, both in the state's own
+   token. The mark takes the colour from its data-kind (the faces' rule) and the
+   alert triangle from its own; the word is set here so a state has one place
+   that names its token. A session blocked on you is --warn: alarming. */
+.agent-node .state-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  white-space: nowrap;
+}
+.agent-node .state-line .state-mark,
+.agent-node .state-line .alert-mark { width: 14px; height: 14px; margin-left: 0; }
+.agent-node .state-line[data-tone="active"] .state-word { color: var(--inflight); }
+.agent-node .state-line[data-tone="done"] .state-word { color: var(--ok); }
+.agent-node .state-line[data-tone="err"] .state-word { color: var(--err); }
+.agent-node .state-line[data-tone="waiting"] .state-word { color: var(--warn); }
+/* Working breathes on the deck's one live tempo; Waiting does not pulse — its
+   row below carries the ping. The mark is a shape as well as a colour, so the
+   state never depends on this motion (state-channels). */
+.agent-node .state-line[data-tone="active"] .state-mark {
+  color: var(--inflight);
+  animation: pulse var(--pulse-live) infinite;
 }
 .ctx-donut {
   background: transparent;

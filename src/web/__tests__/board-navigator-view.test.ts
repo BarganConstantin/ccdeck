@@ -196,7 +196,7 @@ describe("a tile says what the board's card says", () => {
   it("names the workspace on the face and the task on the rim, as the board's pill does", () => {
     expect(clusters.filter(c => c.name).map(c => c.sessionId), "the fixture has a named session").toEqual(["boom"]);
     // Cut where the board's pill cuts it, which is never past the card's row.
-    expect(textOf(card("boom"), "session-name")).toBe("Migrate billing to per-model pricing");
+    expect(textOf(card("boom"), "task-line")).toBe("Migrate billing to per-model pricing");
     expect(textOf(tile(html, "boom"), "nav-pill")).toBe("Migrate billing to per-model pr…");
     for (const c of clusters) {
       const t = tile(html, c.sessionId);
@@ -207,7 +207,7 @@ describe("a tile says what the board's card says", () => {
   });
 
   it("is named for a screen reader by the card's own accessible name", () => {
-    expect(tile(html, "read")).toMatch(/aria-label="vcrm-core, session, live/);
+    expect(tile(html, "read")).toMatch(/aria-label="vcrm-core, session, Working/);
   });
 });
 

@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useReactFlow, useStoreApi, type ReactFlowState } from "reactflow";
 
+import { boardRect } from "./board-rect";
 import { cardBodyPx, fitZoomForDrawnLanes } from "./semantic-zoom";
 import { TEXT_SIZE_INCREASE, currentTextSize } from "./reading-preferences";
 import { FIT_FILL, FIT_MARGIN, railCover } from "./use-layout-frame";
@@ -183,7 +184,7 @@ export function useCamera() {
         .filter(el => (el as HTMLElement).offsetWidth > 0);
       if (!pane || drawn.length === 0) return;
 
-      const paneRect = pane.getBoundingClientRect();
+      const paneRect = boardRect(pane);
       const vp = rf.getViewport();
       if (!Number.isFinite(vp.zoom) || vp.zoom <= 0) return;
 

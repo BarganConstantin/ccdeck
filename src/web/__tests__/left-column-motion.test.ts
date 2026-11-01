@@ -124,7 +124,12 @@ describe("no panel can size the column by its content (2026-10-08)", () => {
 
   it("draws each panel at its own width, out of the column's flow", () => {
     const own = (sel: string) => decl(rules.find(r => r.selector === sel)?.body ?? "", "width");
-    expect(own(".session-list")).toBe(`${column.SESSION_LIST_WIDTH}px`);
+    // The rail draws at V4's --rail-w, the density's token (Default and
+    // Comfortable 288, Compact and below 264 — use-left-column.ts's
+    // useRailWidth reads the same one for the column); SESSION_LIST_WIDTH is
+    // the Default value the token falls back to.
+    expect(own(".session-list")).toBe("calc(var(--rail-w))");
+    expect(css).toMatch(new RegExp(`:root\\s*\\{[^}]*--rail-w:\\s*${column.SESSION_LIST_WIDTH}px;`));
     expect(own(".accounts-panel")).toBe(`${column.ACCOUNTS_PANEL_WIDTH}px`);
     const inside = rules.find(r => selectorsOf(r.selector).includes(".left-column > .session-list")
       && selectorsOf(r.selector).includes(".left-column > .accounts-panel"));

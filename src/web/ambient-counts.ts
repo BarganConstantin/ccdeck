@@ -96,6 +96,20 @@ export function nextWaiting(waiting: BlockedSession[], lastId: string | null): B
 }
 
 /**
+ * The blocked session Shift+N goes to: `nextWaiting` the other way round.
+ *
+ * The one before `lastId`, wrapping, so N and Shift+N walk one queue and meet
+ * where they left off. With nothing visited yet (or the one visited last no
+ * longer blocked) it is the LAST in the order, the newest block: stepping back
+ * from the start wraps to the end, as it does everywhere else on the board.
+ */
+export function prevWaiting(waiting: BlockedSession[], lastId: string | null): BlockedSession | null {
+  if (waiting.length === 0) return null;
+  const at = waiting.findIndex(s => s.id === lastId);
+  return waiting[at < 0 ? waiting.length - 1 : (at - 1 + waiting.length) % waiting.length];
+}
+
+/**
  * Sessions with an agent still working — the other half of what the tab strip
  * reports, and the answer to the lesser question the favicon falls back to.
  *

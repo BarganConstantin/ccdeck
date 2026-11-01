@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
@@ -64,6 +64,7 @@ import CategoryFilterBar from "./components/CategoryFilterBar";
 import CanvasMain from "./components/CanvasMain";
 import DeckBanner from "./components/DeckBanner";
 import DeckDialogs from "./components/DeckDialogs";
+import StatusBar from "./components/StatusBar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { usePauseGate } from "./use-pause-gate";
 import { useDeckScope } from "./use-deck-scope";
@@ -79,7 +80,8 @@ import { useDesktopUpdate } from "./use-desktop-update";
 import { useAutoRestart } from "./use-auto-restart";
 import { useLanPairRequests } from "./use-lan-pair-requests";
 import { useAccountAttention } from "./use-account-attention";
-import { leftColumnWidth, useColumnSettle, useLeftColumn } from "./use-left-column";
+import { leftColumnWidth, useColumnSettle, useLeftColumn, useRailWidth } from "./use-left-column";
+import { sessionsOf, useMarkSeen } from "./use-mark-seen";
 import { useRightPanels } from "./use-right-panels";
 import { useLiveAnnouncements } from "./use-live-announcements";
 import { useOsNotifications } from "./use-os-notifications";
@@ -97,12 +99,13 @@ import { useVersionCheck } from "./use-version-check";
 import { useWelcomeAndNotes } from "./use-welcome-and-notes";
 import { useReports } from "./use-reports";
 import { blockedSessions } from "./ambient-counts";
+import { boardHeadBase, boardHeadLongest, boardHeadShown } from "./board-header";
 import { initialState } from "./reducer";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { useRailPanel, useStage, useStageAsks } from "./use-stage";
-import { targetSession } from "./stage-shell";
+import { stageClaimsKeys, targetSession } from "./stage-shell";
 import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import { createChimePlayer } from "./chime-player";
 import type { AccountSwitch } from "./components/SettingsModal";
@@ -150,11 +153,14 @@ function Inner() {
   // Restored first, because the right-hand panels' room depends on its width.
   const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
           openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel } = useLeftColumn();
+  // The rail's width at the density in force (--rail-w), which the column and
+  // the right-hand panels' room both follow.
+  const railWidth = useRailWidth();
   // The detail, Usage and Machine panels' open flags, each kept in the browser
   // across a refresh — use-right-panels.ts. Called ahead of the selection
   // below, because a plain selection opens the detail panel (#814).
   const { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen }
-    = useRightPanels(leftColumnWidth(leftPanel));
+    = useRightPanels(leftColumnWidth(leftPanel, railWidth));
 
   const { selectedIds, primarySelectedId, selectAgent, clearSelection, pruneSelectionToBoard } =
     useSelection(stateRef, setDetailOpen);
@@ -254,7 +260,7 @@ function Inner() {
   /** How wide the left column is drawn: the open panel's own width, or 0 —
    *  never anything the two panels make between them (LeftColumn.tsx). The
    *  accounts panel is Claude's alone, so without Claude Code it is no width. */
-  const leftColumnTarget = leftColumnWidth(leftPanel === "accounts" && !providers.claude ? null : leftPanel);
+  const leftColumnTarget = leftColumnWidth(leftPanel === "accounts" && !providers.claude ? null : leftPanel, railWidth);
   const columnSettleRef = useColumnSettle(leftColumnTarget);
   const accountsDrawn = isDrawn(accountsPanelOpen, accountsPhase) && providers.claude;
   // Settings › General's door to Local network (#2176), which is the accounts
@@ -420,7 +426,7 @@ function Inner() {
   // quantised for the layout, whole for the drift watchdog below. See
   // use-canvas-size.ts.
   // Held while the left column moves, so the board is re-packed once, after.
-  const { canvasRef, canvasSize, paneSizeRef } = useCanvasSize(columnSettleRef);
+  const { canvasRef, canvasSize, paneSizeRef, remeasureCanvas } = useCanvasSize(columnSettleRef);
   const autoFit = useAutoFitSwitch(fitLeft);
   const { autoFitDisabledRef, disableAutoFit } = autoFit;
 
@@ -550,9 +556,16 @@ function Inner() {
 
   // Bringing a card and its session into view, and stepping between cards —
   // use-agent-focus.ts.
+  // Where the last jump to a session landed, for the rail: its row scrolls into
+  // view and says "here" once. Every jump — N, W, a notification, ⌘K, a
+  // cluster's name — comes through focusSession (use-agent-focus.ts) or, once
+  // the stage follows the session instead, through openSession below. The
+  // nonce makes the same session twice two jumps.
+  const [landed, setLanded] = useState<{ id: string; nonce: number } | null>(null);
+  const markLanded = useCallback((sessionId: string) => setLanded(prev => ({ id: sessionId, nonce: (prev?.nonce ?? 0) + 1 })), []);
   const { focusAgent, stepAgent, focusSession } = useAgentFocus({
     canvasRef, stateRef, measuredRef, nodesRef, railInsetRef, moveCamera, disableAutoFit,
-    lastFocusRef, focusAgentRef, selectAgent, primarySelectedIdRef,
+    lastFocusRef, focusAgentRef, selectAgent, primarySelectedIdRef, onLand: markLanded,
   });
 
   // The terminal stage, behind its switch in Settings: a session's live terminal on
@@ -560,6 +573,12 @@ function Inner() {
   // and every way in and out of it — use-stage.ts. With the flag off it is
   // inert: every entry point below answers "not mine".
   const stage = useStage({ stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent });
+  // What you have open is what you have seen: the rail's Done · unseen group
+  // keeps only turns that ended while nobody was looking (session-seen.ts).
+  useMarkSeen(stateRef, [...selectedIds, stage.enabled && stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null], stateRef.current.revision);
+  // The same sessions, for the rail's row model: they are seen the moment a turn
+  // ends under them, not on the effect after, so they never pass through Done · unseen.
+  const watchingSessions = sessionsOf(stateRef.current, [...selectedIds, stage.enabled && stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null]);
   // Finished sessions taking themselves off the board after the delay picked
   // in Settings › General — use-hide-finished.ts. After the stage, whose
   // session is kept as the selected card's is.
@@ -599,12 +618,13 @@ function Inner() {
   const { followSession } = stage;
   const openSession = useCallback((sessionId: string) => {
     if (followSession(sessionId)) {
+      markLanded(sessionId);
       if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
       return;
     }
     if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
     focusSession(sessionId);
-  }, [removedAgentIds, bringBack, focusSession, followSession]);
+  }, [removedAgentIds, bringBack, focusSession, followSession, markLanded]);
 
   // Which element a POINTER put focus on, so a button the mouse pressed stops
   // swallowing the single-key shortcuts (#851): see use-pointer-focus.ts.
@@ -626,7 +646,7 @@ function Inner() {
     // What the keys read.
     pointerFocusRef, nodesRef, stateRef, primarySelectedIdRef, providersRef, soundOnRef,
     keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
-    stageRef: stage.keysRef,
+    stageRef: stage.keysRef, lodRef,
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
     handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
@@ -709,6 +729,22 @@ function Inner() {
   // lives in — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
   // the two stripes and the utilities are one dock along the bottom.
   const phone = useMediaQuery(PHONE_QUERY);
+  // The strip across the top of the board, as the plain figures it draws —
+  // board-header.ts. Worked out here on the clock App already has, and handed
+  // down as numbers and strings so the memoised strip re-renders only when one
+  // changes. Where it is not drawn the canvas-size reading has nothing to take off.
+  // Everything but the longest wait holds still between two changes of the map,
+  // so it is kept on the revision `waitingSessions` is; only the wait reads the
+  // clock. The sessions waiting are handed in, not counted again.
+  const boardHeadOn = boardHeadShown(agentCount, phone);
+  const boardHeadStill = useMemo(
+    () => boardHeadOn ? boardHeadBase(stateRef.current.agents.values(), Date.now(), singleKeys, waitingSessions) : null,
+    [boardHeadOn, singleKeys, waitingSessions, stateRef.current, stateRef.current.revision],
+  );
+  const boardHead = boardHeadStill && { ...boardHeadStill, longestWait: boardHeadLongest(waitingSessions, now) };
+  // Before paint, so the commit that mounts or removes the strip is packed once,
+  // for the board's height and not the cell's.
+  useLayoutEffect(() => { remeasureCanvas(); }, [boardHeadOn, remeasureCanvas]);
   const [radioOpen, setRadioOpen] = useState(false);
   // Tool activity, on the view its door names: tools or skills.
   const [toolAuditView, setToolAuditView] = useState<ToolActivityView | null>(null);
@@ -875,6 +911,8 @@ function Inner() {
               onClose={() => { panelReturn.sessionList(); closeSessionList(); }}
               removedIds={removedAgentIds}
               onBringBackAll={bringBackAll}
+              landed={landed}
+              watching={watchingSessions}
             />
           )}
         </LeftColumn>
@@ -886,6 +924,7 @@ function Inner() {
         canvasRef={canvasRef} bubbling={bubbling} dragging={dragging} trash={trash} zoom={zoom}
         viewport={viewport} stateRef={stateRef} peek={peek}
         stagePhase={stage.enabled && stage.shell.phase !== "closed" ? stage.shell.phase : undefined}
+        head={boardHead} headInset={railInsetRef.current}
       >
         {agentCount === 0 && (!live && tabCapped
           ? <TabCapHero reservedRight={railInsetRef.current} />
@@ -993,11 +1032,17 @@ function Inner() {
         <DetailAside
           selected={selected} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
           stateRef={stateRef} removeSelectedNode={removeSelectedNode}
+          onSelectAgent={id => selectAgent(id, false, false)}
           onClose={() => { panelReturn.detail(); setDetailOpen(false); }}
         />
       ) : null}
 
       {account.on && <Suspense fallback={null}><AccountBridge appliers={accountAppliers} /></Suspense>}
+
+      {/* The foot of the shell: the grid's fourth row, under the canvas, the
+          columns and the stripes (not drawn on a phone, where the dock is) —
+          components/StatusBar.tsx. */}
+      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} />}
 
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}
       <DeckDialogs

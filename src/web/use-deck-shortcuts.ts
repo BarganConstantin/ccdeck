@@ -19,8 +19,9 @@
 // did before; stage-board-keys.test.ts holds the two decks side by side.
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 
-import { blockedSessions, nextWaiting } from "./ambient-counts";
-import { isCanvasNodeElement } from "./canvas-node-element";
+import { blockedSessions, nextWaiting, prevWaiting } from "./ambient-counts";
+import { cardElement, cardOnScreen, isCanvasNodeElement } from "./canvas-node-element";
+import { hidePeek, peekedId, showPeek } from "./components/SessionPeek";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape } from "./canvas-keys";
 import type { ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
@@ -28,6 +29,7 @@ import { isUndoChord } from "./rearrange-undo";
 import { isApplePlatform, platformName } from "./platform";
 import { isQuickOpenChord } from "./quick-open";
 import type { GraphState } from "./reducer";
+import type { LodMode } from "./semantic-zoom";
 import { isSettingsChord, type SettingsSection } from "./settings";
 import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
 import { CAUGHT_KEYS_ATTR, canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, keepsThemeKey, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
@@ -116,6 +118,9 @@ export interface DeckShortcuts {
   /** The terminal stage, where the terminal flag put one. Left out, or not
    *  open, and the keys are the deck's as they always were. */
   stageRef?: Read<StageShortcuts | null>;
+  /** The board's zoom tier (use-zoom-lod.ts). P's peek keeps the hover's rule:
+   *  never at the detail distance, where the card already says it all. */
+  lodRef?: Read<LodMode | null>;
 }
 
 export function useDeckShortcuts({
@@ -124,7 +129,7 @@ export function useDeckShortcuts({
   clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
   handleRelayout, undoRearrange, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
   setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
-  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen, stageRef,
+  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen, stageRef, lodRef,
 }: DeckShortcuts): void {
   // keyboard shortcuts
   useEffect(() => {
@@ -176,6 +181,23 @@ export function useDeckShortcuts({
       }
       dropFlip();
       stage.nextAsk();
+    };
+    // P: the peek on the selected card, else on the session that has waited
+    // longest (D's pick), else nothing. Opened "by focus" so it shows at once
+    // and stays until P or Escape closes it. The card's element is looked up
+    // here rather than passed in: React Flow owns the node wrappers. A card
+    // that is not on screen cannot carry a peek, so the next candidate gets
+    // it; at the detail distance none does, as on hover (use-canvas-clicks.ts).
+    const peekSelected = () => {
+      if (peekedId() != null) { hidePeek(); return; }
+      if (lodRef && (lodRef.current == null || lodRef.current === "detail")) return;
+      const state = stateRef.current;
+      const selected = primarySelectedIdRef.current;
+      const candidates = [selected && state.agents.has(selected) ? selected : null, blockedSessions(state.agents.values())[0]?.id ?? null];
+      for (const id of candidates) {
+        const card = id ? cardElement(id) : null;
+        if (id && card && cardOnScreen(card)) { showPeek(id, card, "focus"); return; }
+      }
     };
     const onKey = (e: KeyboardEvent) => {
       // The listener is on window in the bubble phase, so it sees every
@@ -230,6 +252,8 @@ export function useDeckShortcuts({
           // mouse's Escape changes.
           if (shouldReleaseFocusOnEscape(target)) el?.blur();
           clearSelection();
+          // A peek P opened has no focus to lose, so Escape closes it here.
+          hidePeek();
         }
         return;
       }
@@ -469,6 +493,28 @@ export function useDeckShortcuts({
           waitingCursorRef.current = next.id;
           focusSession(next.id);
         }
+      }
+      // N, new in 4.0, walks the same queue as W through the same cursor, so
+      // the two never disagree about which was visited last; Shift+N walks it
+      // back. Shift is read off the event, not off the letter's case: a
+      // Caps-locked keyboard sends "N" for a plain press, and that is still
+      // "next". With the stage open stageKeyIntent has already answered n and
+      // Shift+N as "next ask" above and returned, so none of this runs there.
+      if (e.key === "n" || e.key === "N") {
+        const queue = blockedSessions(stateRef.current.agents.values());
+        const to = e.shiftKey ? prevWaiting(queue, waitingCursorRef.current) : nextWaiting(queue, waitingCursorRef.current);
+        if (to) {
+          waitingCursorRef.current = to.id;
+          focusSession(to.id);
+        }
+      }
+      // P, new in 4.0: the card's peek (SessionPeek) on a key, without opening
+      // anything. P again closes it, and so does Escape (above).
+      if (e.key === "p" || e.key === "P") {
+        // The stage hides the canvas it would anchor on (opacity 0, inert), so
+        // a peek would hang off a card nobody can see: the status bar does
+        // not name P in its deck layer either.
+        if (!stageRef?.current?.open) peekSelected();
       }
       // The last topbar control to get a key, and the only one that reads
       // Shift. Every other letter here treats "C" and "c" alike — a Caps-locked

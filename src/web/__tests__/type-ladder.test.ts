@@ -186,7 +186,7 @@ describe("the type ladder is a closed set (#379 §3)", () => {
     // The four rules the report singled out, at the values they landed on.
     expect(decl(".ap-email", "font-size")).toBe("12px");            // was 10.5, #857's floor, then the row's name
     expect(decl(".detail .row .v", "font-size")).toBe("11px");      // was 11.5
-    expect(decl(".session-list .sl-label", "font-size")).toBe("12px"); // was 12.5
+    expect(decl(".session-list .sl-label", "font-size")).toBe("13px"); // was 12.5, then 12; V4's rail row names at 13/20
     expect(decl(".uh-stat-label", "font-size")).toBe("9px");        // was 9.5
     expect(decl(".uh-bar-label", "font-size")).toBe("9px");         // was 8
     expect(decl(".modal-tool-name", "font-size")).toBe("14px");     // the context title's was 15; every dialog title's since 2026-10-23
@@ -199,8 +199,11 @@ describe("the type ladder is a closed set (#379 §3)", () => {
     // node's body-to-secondary hierarchy is exactly this pair of sizes, and a
     // 9% step is above the floor asserted above.
     expect(decl(".agent-node", "font-size")).toBe("12px");
-    expect(decl(".agent-node .meta", "font-size")).toBe("11px");
-    expect(decl(".agent-node .sub", "font-size")).toBe("11px");
+    // CHANGED ON PURPOSE (V4's Agent / Card): the card's two lower rows are the
+    // foot (the meta row, still 11px) and the task line (12px body, the sub
+    // row's 11px mono row is gone). The 12 / 11 pair is the same pair.
+    expect(decl(".agent-node .foot", "font-size")).toBe("11px");
+    expect(decl(".agent-node .task-line", "font-size")).toBe("12px");
     expect(11 / 10).toBeGreaterThan(RESOLVABLE);
     expect(12 / 11).toBeGreaterThan(RESOLVABLE);
     // And the three big money numbers stay three sizes apart, on three surfaces
@@ -353,7 +356,7 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
     expect(decl(".up-close", "font-size")).toBeNull();
     expect(decl(".up-close", "color")).toBe("var(--muted)");
     expect(decl(".session-list .sl-close", "font-size")).toBeNull();
-    expect(decl(".session-list .sl-close", "width")).toBe("26px");
+    expect(decl(".session-list .sl-close", "width")).toBe("24px"); // was 26; V4's rail header button is 24x24
     expect(decl(".uh-reload", "font-size")).toBeNull();
     expect(decl(".uh-reload", "padding")).toBe("0");
     expect(decl(".up-refresh-btn", "font-size")).toBeNull();

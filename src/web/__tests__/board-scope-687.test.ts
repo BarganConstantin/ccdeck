@@ -455,7 +455,9 @@ describe("every surface that prints one of these figures prints the shared label
   });
 
   it("labels the sidebar row and the end-of-session recap", () => {
-    expect(sessionList).toContain(`title={SESSION_SPEND_LABEL}`);
+    // The rail's row folded its cost into the row's tooltip (rail-row-copy.ts),
+    // where it still wears the label.
+    expect(code(read("rail-row-copy.ts"))).toContain("fmtCost(r.cost)} ${SESSION_SPEND_LABEL}");
     expect(sessionSummary).toContain(`<div className="ss-cost-label">{SESSION_SPEND_LABEL}</div>`);
   });
 });

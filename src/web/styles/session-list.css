@@ -1,242 +1,423 @@
-/* ---------------- session list sidebar ---------------- */
+/* ---------------- the attention rail ---------------- */
 
-/* The panel is the scroller, and `.sl-rows` inside it is not — which is what
-   makes the inset below hold on a platform this repo cannot render. A classic
-   scrollbar takes its width out of the CONTENT BOX of whichever element
-   scrolls, and Windows and Linux draw one where macOS overlays (the sheet asks
-   for `scrollbar-width: thin`, which is ~10px of real layout there and nothing
-   here). With the header outside the scroller and the rows inside it, that
-   width came off the rows alone: every row's right inset would have been
-   10px deeper than the header's the moment a fourth session arrived, on the
-   two platforms this deck cannot be measured on. One scroll container means
-   the header and the rows narrow together and the alignment is the same fact
-   on every OS.
-   `overflow-y` rather than the `overflow: hidden` this was: hidden clipped a
-   horizontal overflow silently instead of preventing one, and the row's own
-   containment (`min-width: 0` and an ellipsis on `.sl-label`, a wrapping
-   `.sl-row-meta`) is what actually holds the width — measured flat at a
-   2000-character session label, the same check #369 put on the two panels
-   beside this one. This is the shape `.accounts-panel` and `.usage-panel`
-   already had; the session list was the one panel with a nested scroller.
-   ITS OWN WIDTH, which it never had: the grid's track gave it 240px, so in a
-   switch, with Accounts' `auto` template in force, it was as wide as its
-   longest row. It is drawn inside the left column now, out of flow, at this
-   width from its first frame to its last (styles/left-column.css). */
+/* V4's Board window rail (Figma Sessions, 22:14927): the left column's session
+   list, grouped by what each session wants of you. Its width is --rail-w at the
+   density in force, 264 at Compact and below and 288 at Default and
+   Comfortable; use-left-column.ts reads the same token for the column.
+   A flex column of a header, the list, which is what scrolls, and the removed
+   cards' line at the foot. */
 .session-list {
-  /* Same width as Accounts, so switching panels keeps the canvas in place. */
-  width: calc(288px + var(--ui-panel-increase, 0px));
+  width: calc(var(--rail-w) + var(--ui-panel-increase, 0px));
   background: var(--panel);
   border-right: 1px solid var(--line);
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
 }
-/* Sticky for the reason `.up-header` is: the panel scrolls as a whole now, and
-   the counts and the close button have to stay reachable at row two hundred.
-   Its own --panel background is what keeps rows from showing through it. */
-.session-list .sl-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: calc(12px * var(--ui-space, 1)) var(--panel-inset) calc(10px * var(--ui-space, 1));
-  border-bottom: 1px solid var(--line);
-  position: sticky;
-  top: 0;
-  background: var(--panel);
-  z-index: 1;
-}
-/* The reconciliation #381 left to #380. This caption was the only one of the
-   three with no size of its own, so it took the UA sheet's h3 — which #381
-   wrote down as 1.17em rather than normalising it — and rendered at 15.21px
-   and weight 700 beside a 13px/600 usage caption and a 12px/600 accounts one.
-   Three panels doing one job in three sizes and two weights, and the largest
-   of them was the one nobody had chosen. They are one caption now, declared
-   once. 13px is the middle value and the one the usage panel already used;
-   only this caption and the accounts caption move, by 2.21px and 1px.
-   This is a panel-header reconciliation, not a pass over the sheet's font
-   scale — #379 owns that, and none of the sheet's other sizes is touched. */
+/* The reconciliation #381 left to #380: three panels, one caption. This rule
+   keeps the usage and accounts headers on it; the rail's own is below. */
 .up-header h2,
 .ap-header h2,
 .session-list .sl-header h2 {
   font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 600;
 }
+/* Rail / Header (22:735): 36 tall at Compact, the count beside the title on a
+   shared baseline, the close button at the end. No fill. */
+.session-list .sl-header {
+  flex: none;
+  box-sizing: border-box;
+  height: var(--pane-head-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
 .session-list .sl-header h2 {
   margin: 0;
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 20px;
+  color: var(--text);
 }
 .session-list .sl-count {
+  font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  line-height: 16px;
+  color: var(--muted);
+}
+/* One quiet 24x24 icon button, radius 6: the rail's only control. */
+.session-list .sl-close {
   display: inline-flex;
   align-items: center;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  color: var(--text);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-weight: 600;
-  text-transform: none;
-  letter-spacing: 0;
-  font-family: var(--font-mono);
-}
-.session-list .sl-live-count {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--inflight);
-  font-weight: 600;
-}
-/* Beside the live count and ahead of it, since the two answer different
-   questions and only one of them is asking you for something. */
-.session-list .sl-waiting-count {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--warn);
-  font-weight: 600;
-}
-/* #380 deleted a 15px font-size here that had never rendered: the button was
-   `class="btn icon-btn sl-close"` and `button.btn.icon-btn` (0,2,1) beat this
-   rule's (0,2,0), so the shared 14px always won. It noted that the width and
-   height beside it were dead by the same arithmetic and left them for later.
-   Later is now — the button is `class="glyph-btn sl-close"`, nothing declares a
-   competing size any more, and these two render for the first time. Kept rather
-   than deleted, and kept at 26 rather than folded into `.glyph-btn`'s 24: this
-   is the one header close with no neighbour, so it can afford the two extra
-   pixels, and 26 clears the 24px floor the same way. What the reader sees change
-   is the 30px bordered square becoming a 26px square with no box drawn round it;
-   the ‹ itself goes 14px → 16px, the size every bare glyph on the deck is set
-   in. */
-.session-list .sl-close { width: 26px; height: 26px; }
-
-/* The two numbers the row's inset is made of, declared where they are about
-   and inherited by the row below — the panel-wide inset stays at :root, and
-   these two say how it is spent here. The gutter is how far the card sits off
-   the panel's edge; the edge is the row's own transparent border, which is
-   load-bearing for hover and selection (see `.sl-row` below) and therefore has
-   to be counted. */
-.session-list .sl-rows {
-  --sl-card-gutter: 4px;
-  --sl-card-edge: 1px;
-  flex: 1;
-  margin: 0;
-  padding: calc(6px * var(--ui-space, 1)) var(--sl-card-gutter);
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: calc(4px * var(--ui-space, 1));
-}
-.session-list .sl-row-item {
-  display: flex;
-  min-width: 0;
-}
-.session-list .sl-row-item > .sl-row {
-  flex: 1;
-  width: 100%;
-}
-/* A session "Remove from board" took off the canvas. Still listed, because the
-   row is the way back; muted, because what it points at is not on the board. */
-.session-list .sl-row.removed .sl-label { color: var(--muted); }
-.session-list .sl-removed {
-  flex: none;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: var(--muted);
-  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast), transform 140ms var(--ease);
 }
-/* Pinned under the rows by the list's own flex: 1, so it stays at the panel's
-   foot however few sessions there are. */
-.session-list .sl-foot {
-  padding: 8px var(--panel-inset) 12px;
-  border-top: 1px solid var(--line);
+.session-list .sl-close:hover { background: var(--ctl-fill); color: var(--text); }
+.session-list .sl-close:focus-visible { border-radius: 6px; }
+
+/* The list: padding 4, and the panel's scroller. The groups are headers and
+   rows in one flat list, so a row that changes group is the same element. */
+.session-list .sl-rows {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  overflow-y: auto;
 }
-.session-list .sl-bring-back { width: 100%; }
 .session-list .sl-empty {
   padding: 16px 12px;
   color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   font-style: italic;
 }
+.session-list .sl-foot {
+  flex: none;
+  padding: 8px var(--panel-inset) 12px;
+  border-top: 1px solid var(--line);
+}
+.session-list .sl-bring-back { width: 100%; }
 
-/* The horizontal padding is derived, not chosen. What has to be true is that
-   the row's CONTENT starts on the panel's inset — the same line the header's
-   title starts on — and the row reaches that line through three boxes rather
-   than one: the list's gutter, then this card's border, then this padding. It
-   used to be 6 + 1 + 10 = 17px against a header at 14px, and the 3px step was
-   invisible in any one of the three rules. Writing the last term as what is
-   left over says the constraint out loud and makes the other two safe to
-   retune: move the gutter and the text does not move.
-   The card outdenting past the text it holds is the point, not a compromise.
-   A list where the selection pill is inset a few pixels and the label still
-   lands on the section title's column is what every sidebar of this shape
-   does; aligning the CARD to 14px instead would push the labels to 24px and
-   narrow every row by 20px to no purpose. */
+/* ── a row ────────────────────────────────────────────────────────────────── */
+/* The row sits in a one-row grid so its space can open and close
+   (0fr to 1fr) without anything being measured. */
+.session-list .sl-row-item {
+  display: grid;
+  grid-template-rows: 1fr;
+  min-width: 0;
+}
+.session-list .sl-row-in {
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--r-panel);
+}
+/* A ROW JOINS (its space opens and it fades in, --dur-base on --ease) and A ROW
+   LEAVES (it fades over --dur-exit, then its space closes over --dur-base after
+   100ms) are played by rail-motion.ts, by id, for rows that are really new or
+   really gone. Not @starting-style: moving an element in the DOM drops its
+   style, and a row that only changed group would play its arrival again on top
+   of the list's FLIP. The sheet holds the end state of a leaving row, which is
+   drawn, and inert (RailRow), until its animations are done. */
+.session-list .sl-rows > .sl-row-item.leaving {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Rail / Row: --row-rail tall at least, padding 4 8, radius --r-panel, no fill
+   at rest. Hover is the kit's row wash and selected is --selected. The focus
+   ring is the deck's, drawn inside because the grid above clips what is
+   outside it. */
 .session-list .sl-row {
+  position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: calc(10px * var(--ui-space, 1)) calc(var(--panel-inset) - var(--sl-card-gutter) - var(--sl-card-edge));
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--row-rail);
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--r-panel);
   background: transparent;
-  /* Longhands rather than the `1px solid transparent` shorthand this was,
-     because the width is now a term in the padding above and has to be the
-     same fact in both places. Splitting it also keeps control-edges.test.ts
-     able to read the colour: its parser takes the first var() in a border
-     shorthand to BE the colour, and a var() width would have made a
-     transparent edge look like an unswept boundary. */
-  border-width: var(--sl-card-edge);
-  border-style: solid;
-  border-color: transparent;
-  border-radius: 8px;
   cursor: pointer;
   text-align: left;
   color: var(--text);
   font: inherit;
-  transition: background 120ms, border-color 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background var(--dur-fast), transform 140ms var(--ease);
+}
+.session-list .sl-row:hover { background: var(--ctl-fill); }
+.session-list .sl-row.selected { background: var(--selected); }
+/* The muted words step up a tier on the fill: --muted on it is 4.05:1 in dark
+   (#1789), the reason the Tool activity rows do the same. */
+.session-list .sl-row:hover .sl-line2,
+.session-list .sl-row:hover .sl-model,
+.session-list .sl-row.selected .sl-line2,
+.session-list .sl-row.selected .sl-model { color: var(--text-secondary); }
+.session-list .sl-row:focus-visible { outline-offset: -2px; border-radius: var(--r-panel); }
+/* The most-clicked control in the app answers a press. Nothing interactive
+   nests inside the row, so the scale is the row's alone. */
+.session-list .sl-row:active { transform: scale(0.97); }
+.session-list .sl-close:active { transform: scale(0.94); }
+/* A session "Remove from board" took off the canvas. Still listed, because the
+   row is the way back; muted, because what it points at is not on the board. */
+.session-list .sl-row.removed .sl-label { color: var(--muted); }
+
+/* LAND: the row a jump arrived at says "here" once, --accent-16 fading to
+   nothing over --dur-base. Opacity only, so reduced motion keeps it. */
+.session-list .sl-land {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--accent-16);
+  pointer-events: none;
+  animation: sl-land var(--dur-base) var(--ease) both;
+}
+@keyframes sl-land { from { opacity: 1; } to { opacity: 0; } }
+
+/* The status glyph: 14x14 with 3 above it, to sit on the name's first line.
+   Working breathes on --pulse-live, the one thing here that moves on its own;
+   Waiting holds still. A new state is a new mark, and RailGlyph fades it in
+   over --dur-fast, only when that row's own kind changes. */
+.session-list .sl-glyph {
+  flex: none;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: 17px;
+  padding-top: 3px;
+  color: var(--muted);
+}
+.session-list .sl-glyph-mark { display: inline-flex; }
+.session-list .sl-glyph[data-glyph="waiting"] { color: var(--warn); }
+.session-list .sl-glyph[data-glyph="working"] .state-mark { color: var(--inflight); animation: pulse var(--pulse-live) infinite; }
+.session-list .sl-glyph .alert-mark { margin-left: 0; }
+
+.session-list .sl-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.session-list .sl-line1 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
   min-width: 0;
 }
-/* Both states were carried by a --bg-soft wash, which on white was --panel — so
-   hovering a session row and selecting one looked exactly like doing neither.
-   The fill cannot become --ctl-fill here: the row's meta line is --muted, and a
-   fill mixed from the foreground would take it to 4.05:1 in dark. So the wash
-   stays what it is and the boundary does the work, which is the right channel
-   for a state anyway — the row already declares a transparent border for
-   exactly this. Selection takes the accent outright; --accent-dim, which it
-   had, measured 1.39:1 on white. */
-.session-list .sl-row:hover { background: var(--bg-soft); border-color: var(--ctl-edge); }
-/* The most-clicked control in the app, and the one that answered a press with
-   nothing. Nothing interactive nests inside the row, so the scale is the row's
-   alone — the state dot, the label and the meta line are all spans. */
-.session-list .sl-row:active { transform: scale(0.97); }
-.session-list .sl-row.selected {
-  background: var(--bg-soft);
-  border-color: var(--accent);
+.session-list .sl-name {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
 }
-.session-list .sl-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.session-list .sl-label {
+  min-width: 0;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The model, and the words for a session off the board: the same mono tag. */
+.session-list .sl-model {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* The clock: the wait in the warn tone on Needs you, everything else quiet. */
+.session-list .sl-time {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.session-list .sl-time.warn { color: var(--warn); }
+.session-list .sl-time.quiet { color: var(--text-secondary); }
+/* One line under the name, cut with an ellipsis; the tooltip has the rest. */
+.session-list .sl-line2 {
+  width: 100%;
+  min-width: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+.session-list .sl-line2.mono { font-family: var(--font-mono); }
+.session-list .sl-tool { font-weight: 500; color: var(--text-secondary); }
 
-/* The session's state, in the same two channels the tool list uses above and
-   for the same reason (#373): the hue clears 1.4.11 against the panel — 12.89:1
-   done, 9.54:1 err, 10.29:1 active in dark and 5.42 / 6.47 / 6.98:1 in light —
-   and separates the three states from each other by 1.08:1 to 1.35:1, which is
-   nothing at all. ✓ and × are the canvas's marks for the same two outcomes, so
-   a session reads the same whichever surface you meet it on, and the running
-   dot stays a dot.
-   The `.session-list` scope is deliberately gone, and that was a second defect
-   underneath the first. UsagePanel renders this exact class in its `By session`
-   list, and the usage panel is a sibling of the sidebar rather than a child of
-   it — so every dot in that list matched no rule at all and was drawn as a
-   zero-sized empty span. It was not hue-only there; it was nothing, on a row
-   whose state is otherwise unstated. unstyled-class.test.ts could not see it:
-   `.sl-dot` IS styled in the sheet, just not anywhere the usage panel can reach.
-   The name stays what the markup already calls it.
-   The base colour is --muted rather than --muted-dim. Nothing renders it —
-   AgentState is a closed union of the three below — but a state dot is meaning
-   and #262 is explicit that --muted-dim is a decorative tint (2.35:1 in dark),
-   so the fallback is written at a value a fourth state could actually be read
-   at rather than one the sweep in state-channels.test.ts would have to exempt. */
+/* ── groups ───────────────────────────────────────────────────────────────── */
+/* Rail / Group header (22:725): --row-group tall, label and count at the two
+   ends, 8px of space between one group and the one before. */
+.session-list .sl-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  height: var(--row-group);
+  padding: 0 8px;
+}
+.session-list .sl-group-head.spaced { margin-top: 8px; }
+.session-list .sl-group-label {
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+.session-list .sl-group-count {
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  color: var(--muted);
+}
+/* A group that folds: the header is the button, the chevron first (the folded
+   group row, 28 tall), and it turns a quarter when the group is open. */
+.session-list .sl-group-head:has(> .sl-fold-btn) { height: 28px; padding: 0; }
+.session-list .sl-fold-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0 8px 0 6px;
+  border: 0;
+  border-radius: var(--r-panel);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  text-align: left;
+}
+.session-list .sl-fold-btn:hover { background: var(--ctl-fill); }
+.session-list .sl-fold-btn:focus-visible,
+.session-list .sl-more:focus-visible { outline-offset: -2px; border-radius: var(--r-panel); }
+.session-list .sl-fold-btn .sl-group-count { margin-left: auto; }
+.session-list .sl-chev { flex: none; transition: transform var(--dur-exit) var(--ease); }
+.session-list [aria-expanded="true"] > .sl-chev { transform: rotate(90deg); transition-duration: var(--dur-base); }
+.session-list .sl-fold-btn[data-motion="instant"] > .sl-chev { transition: none; }
+/* "N more": the rest of a group, under what is drawn of it, the chevron after
+   the words. */
+.session-list .sl-more-item { min-width: 0; }
+.session-list .sl-more {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 26px;
+  box-sizing: border-box;
+  padding: 0 8px 0 32px;
+  border: 0;
+  border-radius: var(--r-panel);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+.session-list .sl-more:hover { background: var(--ctl-fill); }
+/* THE FOLD OPENS as its content fades in and its chevron turns: grid rows 0fr
+   to 1fr, --dur-base on --ease, a little quicker (--dur-exit) to fold. By key
+   it is at once (data-motion="instant"); over twenty rows inside, or under
+   reduced motion, the space is at once and the content fades over --dur-fast
+   ("fade"). */
+.session-list .sl-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows var(--dur-exit) var(--ease), opacity var(--dur-exit) var(--ease);
+}
+.session-list .sl-fold[data-open] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition-duration: var(--dur-base);
+}
+@starting-style {
+  .session-list .sl-fold[data-open] { grid-template-rows: 0fr; opacity: 0; }
+}
+.session-list .sl-fold[data-motion="fade"] {
+  grid-template-rows: 1fr;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+@starting-style {
+  .session-list .sl-fold[data-open][data-motion="fade"] { grid-template-rows: 1fr; }
+}
+.session-list .sl-fold[data-motion="instant"] { grid-template-rows: 1fr; opacity: 1; transition: none; }
+.session-list .sl-fold-in { min-height: 0; overflow: hidden; }
+.session-list .sl-fold-list { margin: 0; padding: 0; list-style: none; }
+
+/* Order held: why the list is standing still under the pointer, and how much
+   is waiting. A note, not a live region. An overlay on the header's own box
+   (the aside is its containing block), so it takes no space in the list and
+   never moves a row it is protecting. */
+.session-list .sl-held {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  height: var(--pane-head-h);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+}
+/* Rail / Nobody waiting: the quiet line where Needs you would be. */
+.session-list .sl-nobody {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  white-space: nowrap;
+}
+.session-list .sl-nobody .sl-glyph { height: 14px; padding-top: 0; }
+
+/* The phone keeps the drawer, and a touch target of 44 (Phase 4 redoes it). */
+@media (max-width: 640px) {
+  .session-list .sl-row { min-height: max(var(--row-rail), 44px); }
+  .session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }
+  .session-list .sl-close { min-width: 44px; min-height: 44px; }
+}
+
+/* REDUCED MOTION: a joining row's space opens at once and only its opacity
+   moves, a leaving row fades and then its space closes at once, and the list's
+   FLIP fades the rows that moved instead of travelling them: all of it
+   rail-motion.ts's, which asks joinMotion and releaseMotion. The glyph's pulse
+   stays: it is opacity, and it is the state itself. */
+@media (prefers-reduced-motion: reduce) {
+  .session-list .sl-row,
+  .session-list .sl-chev { transition: none; }
+}
+
+/* ── the state dot ────────────────────────────────────────────────────────── */
+/* No longer the rail's: its rows wear the status glyph. UsagePanel's "By
+   session" list renders this exact class, and that panel is a sibling of the
+   sidebar rather than a child of it, so the rule is not scoped to
+   `.session-list` (it was not, once, and every dot there drew as nothing).
+   The state is in two channels, hue and shape (#373): the hue clears 1.4.11
+   against the panel, and the shapes are the canvas's marks, ✓ and ×. The base
+   colour is --muted, not --muted-dim, which #262 keeps for decoration. */
 .sl-dot {
   display: inline-flex;
   align-items: center;
@@ -256,8 +437,7 @@
   background: currentColor;
 }
 /* The usage panel's rows are centred and one line tall, so the 5px that drops
-   the sidebar's dot onto the first line of a two-line row is 5px of
-   misalignment there. */
+   the dot onto the first line of a two-line row is 5px of misalignment there. */
 .up-session-row .sl-dot { margin-top: 0; }
 .sl-dot.state-active { color: var(--inflight); }
 .sl-dot.state-active::before {
@@ -268,172 +448,3 @@
 .sl-dot.state-done::before { content: "✓"; width: auto; height: auto; background: none; }
 .sl-dot.state-err { color: var(--err); }
 .sl-dot.state-err::before { content: "×"; width: auto; height: auto; background: none; }
-
-.session-list .sl-row-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: calc(4px * var(--ui-space, 1));
-}
-.session-list .sl-row-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-.session-list .sl-label {
-  font-weight: 600;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-  flex: 1;
-}
-.session-list .sl-row-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  color: var(--muted);
-  font-family: var(--font-mono);
-}
-.session-list .sl-row-meta b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
-.session-list .sl-cost b { color: var(--ok); }
-.session-list .sl-elapsed { margin-left: auto; }
-/* The alternative to .sl-elapsed, never a second chip beside it: on a blocked
-   row the session's own age decides nothing and "waiting 6m" decides whether
-   you get up, so it takes the slot and the same right edge. */
-.session-list .sl-waiting {
-  margin-left: auto;
-  color: var(--warn);
-  font-weight: 600;
-}
-/* The guessed tool name, riding the warn-coloured readout it qualifies. Lighter
-   than the duration on purpose: the duration is measured and this is inferred
-   (see BlockedTool in types.ts), so it must not read with the same confidence
-   as the number beside it. Weight and a fade of the same hue rather than a
-   second colour — a third hue in a row that already carries a state dot, a
-   model chip and a cost is how a sidebar stops being scannable.
-   The fade is a mix toward the panel, not an opacity, so that a theme can
-   decline it (#1787). In dark it is the 0.75 it always was, 7.46:1. The light
-   --warn is 5.43:1 on white and the same fade left it at 3.41:1; nothing short
-   of a 90% mix clears 4.5, which is no step at all, so on white the weight
-   carries it alone. */
-.session-list .sl-waiting-tool {
-  font-weight: 500;
-  color: color-mix(in srgb, var(--warn) 75%, var(--panel));
-}
-:root[data-color-scheme="light"] .session-list .sl-waiting-tool { color: var(--warn); }
-
-/* The session's plan as one line (#2157): the count in monospace with tabular
-   figures, which never ellipsises, and the step in the row's secondary prose
-   tier, which does. A finished list steps back to --muted, like the card's. */
-.session-list .sl-plan {
-  display: flex;
-  gap: 6px;
-  min-width: 0;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 1.4;
-  text-align: left;
-  color: var(--text-secondary);
-}
-.session-list .sl-plan-count {
-  flex: none;
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-.session-list .sl-plan-step {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.session-list .sl-plan-done .sl-plan-step { color: var(--muted); }
-
-/* The recap as the row's last line. Three lines where the card has two: this is
-   the column a person reads down to choose which session to go back to, and it
-   is wider than a card. Secondary tier, like the card's. */
-.session-list .sl-recap {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 1.4;
-  text-align: left;
-  color: var(--text-secondary);
-}
-/* The same drawn ※ that leads the card's balloon, so the two read as one
-   thing. Muted: a list row carries no session colour to borrow. */
-.session-list .sl-recap .recap-glyph {
-  margin-right: 5px;
-  vertical-align: -1px;
-  color: var(--muted);
-}
-
-/* What the session is doing, asking or got done. The recap's slot and its
-   tier: a row never carries both (SessionList.tsx, buildRows), and the two are
-   the same kind of sentence. The tag in front is the only colour, and only on
-   the states that already own one — a question wears --warn as the waiting
-   badge does, a failure --err, a finished job --ok. "now" stays muted: a
-   running turn is not an alarm, and --inflight belongs to the tool call, not to
-   the session.
-   Two lines for every kind of note, where the recap has three. While a turn
-   runs this text is rewritten every few seconds, and the line held both of its
-   lines then (below), so at three every working session's row would be 111px
-   tall at 1440×900 and seven of them filled the list with the detail rail open;
-   at two a row is 95px and eight fit, which is DESIGN.md's density target. The
-   whole line is the row's tooltip. */
-.session-list .sl-status {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 1.4;
-  text-align: left;
-  color: var(--text-secondary);
-}
-/* Both lines held while the turn runs, as the canvas note holds its three: a
-   line as tall as each new sentence moved every row under it, 15px or 31px at
-   a time. A note that is not being rewritten keeps the height its text needs,
-   and a row with no note keeps none. */
-.session-list .sl-status.status-now { min-height: calc(2 * 1.4em); }
-.session-list .sl-status-tag {
-  /* With the space the markup puts after it, the gap is the recap glyph's. */
-  margin-right: 2px;
-  font-weight: 600;
-  color: var(--muted);
-}
-/* Toned toward the panel in dark, like .sl-waiting-tool above: the pure hues
-   are lit for a badge, and a tag in running text beside them shouts. */
-.session-list .sl-status.status-needs .sl-status-tag { color: color-mix(in srgb, var(--warn) 75%, var(--panel)); }
-.session-list .sl-status.status-failed .sl-status-tag,
-.session-list .sl-status.status-stopped .sl-status-tag { color: color-mix(in srgb, var(--err) 75%, var(--panel)); }
-.session-list .sl-status.status-done .sl-status-tag { color: color-mix(in srgb, var(--ok) 75%, var(--panel)); }
-:root[data-color-scheme="light"] .session-list .sl-status.status-needs .sl-status-tag { color: var(--warn); }
-:root[data-color-scheme="light"] .session-list .sl-status.status-failed .sl-status-tag,
-:root[data-color-scheme="light"] .session-list .sl-status.status-stopped .sl-status-tag { color: var(--err); }
-:root[data-color-scheme="light"] .session-list .sl-status.status-done .sl-status-tag { color: var(--ok); }
-/* Claude Code's guess at the answer, shown as a guess: metadata tier, one line
-   under the question it answers. */
-.session-list .sl-status-reply {
-  display: block;
-  margin-top: 2px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 1.4;
-  text-align: left;
-  color: var(--muted);
-}
-

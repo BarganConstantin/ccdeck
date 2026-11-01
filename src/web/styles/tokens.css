@@ -115,6 +115,11 @@
    named now so the whole ladder is one decision, not five. */
 :root {
   --statusbar-h: 28px;
+  /* The board header's height (styles/board-header.css). The same at every
+     density: Figma draws its Board only at Compact, so there is no smaller or
+     larger step to restate. Whatever sits at the canvas cell's top edge reads
+     it through --board-head-top, so the number is written once. */
+  --board-head-h: 56px;
   --rail-w: 288px;
   --inspector-w: 360px;
   --pane-head-h: 44px;
@@ -485,7 +490,7 @@ button:focus-visible { outline-offset: 1px; }
 
 .app {
   display: grid;
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: 1fr var(--inspector-w);
   grid-template-rows: var(--topbar-h) auto 1fr;
   height: 100vh;
 }
@@ -504,7 +509,7 @@ button:focus-visible { outline-offset: 1px; }
    track went `auto` around a session list with no width of its own, and it
    opened to the list's longest row before snapping to 240px. */
 .app:has(.left-column) {
-  grid-template-columns: auto 1fr 360px;
+  grid-template-columns: auto 1fr var(--inspector-w);
 }
 .app:has(.session-list) .canvas-wrap,
 .app:has(.accounts-panel) .canvas-wrap { grid-column: 2; }

@@ -57,41 +57,109 @@
 }
 @keyframes dashflow { to { stroke-dashoffset: -10; } }
 .react-flow__attribution { display: none; }
-/* ---------------- canvas chrome: the control stack and the minimap ---------
-   Two instruments that sit ON the canvas and have to stay under it, because
-   the sessions are what the eye is for. They share one surface and one edge
-   (--chrome-bg and --chrome-edge, most of the way back toward the canvas
-   where a floating panel stands on --panel and --line), one radius (--r-ctl,
-   a step under the panels' --r-panel) and no elevation. Quiet, not hidden:
-   the edge still says where each one stops. */
+/* ---------------- canvas chrome: the control bar and the minimap ----------
+   Two instruments that sit ON the canvas, bottom right, and have to stay
+   under it, because the sessions are what the eye is for. The minimap keeps
+   the quiet surface (--chrome-bg and --chrome-edge, most of the way back
+   toward the canvas). The bar is V4's Board / Controls: one row on --panel,
+   a --line edge, --r-ctl and the overlay shadow, the way every floating
+   thing in V4 stands.
+
+   THE BAR'S ROOM. The minimap, and the Claude FM character on its edge, sit
+   above the bar, not beside it: the bar is one button tall plus its 2px
+   padding and 1px edge each side, stands 12px off the board's right and
+   bottom edges, and the minimap's bottom is 8px over its top. One property
+   says that sum, set on the canvas so the minimap and the character's ledge
+   (claude-fm.css) read the same number and it follows --ctl-h with the
+   density.
+
+   THE BUTTON. V4 draws the bar's buttons 24 at Compact, a step under the
+   deck's --ctl-h (28 there): the bar floats over the sessions and stays small.
+   Derived from --ctl-h rather than fixed, so the density still moves it, and
+   never under the deck's 24px target floor, which the two tightest densities
+   (--ctl-h 24 and 26) would otherwise take it below.
+
+   THE BAR'S WIDTH. What the notices on the same row (canvas.css) leave for it:
+   eight square buttons at the most (the Command Panel's included), the level
+   at its four-figure width, two rules, the gaps, padding and edge. An upper
+   bound, so the notices stop short of it rather than under it. */
+.react-flow {
+  --board-controls-btn: max(24px, calc(var(--ctl-h) - 4px));
+  --board-controls-edge: 12px;
+  --board-controls-gap: 8px;
+  --board-controls-room: calc(var(--board-controls-edge) + var(--board-controls-btn) + 6px + var(--board-controls-gap));
+  --board-controls-reserve: calc(8 * var(--board-controls-btn) + 64px);
+}
+/* A fingertip keeps at least the 28px these buttons stood at before the bar
+   (they were --ctl-h, 28 at Compact), which still fits the bar across a 320px
+   phone. */
+@media (pointer: coarse) {
+  .react-flow { --board-controls-btn: max(28px, calc(var(--ctl-h) - 4px)); }
+}
+/* Two classes: React Flow's own `.react-flow__panel` margin (15px) is one,
+   and this panel alone stands 12px in. Over the Claude FM character, which
+   lands on the canvas floor behind it when it jumps off the minimap's edge:
+   the bar's buttons stay visible and keep the pointer. */
+.react-flow__panel.react-flow__controls {
+  margin: var(--board-controls-edge);
+  z-index: 6;
+}
 .react-flow__controls {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: 2px;
   padding: 2px;
-  background: var(--chrome-bg);
-  border: 1px solid var(--chrome-edge);
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: var(--r-ctl);
-  box-shadow: none;
+  box-shadow: var(--shadow-overlay);
 }
-/* No box per button. Each one is a --ctl-h target around a 14px glyph in
+/* The rule between two groups: 1×16, the softest line the theme has. */
+.react-flow__controls-divider {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  background: var(--line-soft);
+}
+/* No box per button. Each one is a square target around a 14px glyph in
    --muted, named by the glyph, which is what 1.4.11 asks for when a boundary
    is absent, so the 1px rules that used to fence every glyph are gone. Hover
    brings up the control fill and the foreground, the toolbar's own answer.
    React Flow's stylesheet sizes these at 16px plus 5px of padding with a 12px
    cap on the icon; both are overridden here, not added to. */
 .react-flow__controls-button {
-  width: var(--ctl-h);
-  height: var(--ctl-h);
+  width: var(--board-controls-btn);
+  height: var(--board-controls-btn);
   padding: 0;
   box-sizing: border-box;
   border: none;
-  border-radius: var(--r-tag);
+  border-radius: var(--r-ctl);
   background: transparent;
   color: var(--muted);
   transition: background 120ms, color 120ms;
 }
+/* The zoom level is a button that prints a figure, in the mono 11 on 14 the
+   V4 bar sets numbers in. Never narrower than four figures ("100%"): the bar
+   is anchored on the right, so a label that narrowed from 100% to 99% would
+   slide zoom out from under a pointer pressing it again. */
+.react-flow__controls-button[data-zoom-level] {
+  width: auto;
+  min-width: calc(4ch + 8px);
+  padding: 0 4px;
+  font: 400 11px/14px var(--font-mono);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
 .react-flow__controls-button svg { max-width: 14px; max-height: 14px; }
+/* The keyboard glyph is Settings › Keyboard's own, drawn on the topbar's spec
+   (13px on a 14 viewBox, a 1.4 stroke). In the bar it takes the bar's: 14px,
+   and the line a 2-unit stroke on 24 units comes to at that size. */
+.react-flow__controls-button[aria-label="Open the keyboard shortcuts"] svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.17px;
+}
 .react-flow__controls-button:hover { background: var(--ctl-fill); color: var(--text); }
 .react-flow__controls-button:disabled { opacity: var(--dim-off); }
 /* Zoom in and out at their limits refuse with aria-disabled and keep their
@@ -100,23 +168,6 @@
    nothing. */
 .react-flow__controls-button[aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
 .react-flow__controls-button[aria-disabled="true"]:hover { background: transparent; color: var(--muted); }
-/* The groups, by what each control acts on: the view (zoom in, zoom out,
-   recenter), the canvas's own state (pause, re-arrange), the one that empties
-   it (clear), and help. A group starts 6px further down, on a short hairline
-   centred in that gap: a rhythm and a mark, not a box per group. */
-.react-flow__controls-button[data-group-start] {
-  position: relative;
-  margin-top: 6px;
-}
-.react-flow__controls-button[data-group-start]::before {
-  content: "";
-  position: absolute;
-  top: -4px;
-  left: 6px;
-  right: 6px;
-  height: 1px;
-  background: var(--line);
-}
 /* Recenter while auto-fit is off: the press would do something, so the glyph
    steps up to the foreground, and the canvas's own "Auto-fit off · Resume"
    chip says why. Not the accent: this is a hint, not data or focus. */
@@ -160,4 +211,11 @@
   transition: border-color 120ms;
 }
 .react-flow__minimap:hover { border-color: var(--line); }
+/* Over the control bar, not beside it (see its room at the top of this block),
+   and right edge on right edge with it. Two classes, like the bar's own
+   margin, to outrank the panel's 15px. */
+.react-flow__panel.react-flow__minimap {
+  margin-right: var(--board-controls-edge);
+  margin-bottom: var(--board-controls-room);
+}
 

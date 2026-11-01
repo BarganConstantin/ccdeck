@@ -1,0 +1,101 @@
+/* ---------------- status bar ----------------
+   V4's Shell / Status bar (Figma 27:7169): the last row of the shell, across
+   the whole window under the canvas, the columns and the stripes. components/
+   StatusBar.tsx says what it holds. Its height is --statusbar-h (24 Compact, 28
+   Default; reading.css switches it with the density), taken from the main area
+   by the grid's fourth row (below) and by --status-room for everything fixed
+   to the window, so nothing sits under it. No motion anywhere in this
+   file: a layer change swaps at once, under every setting. */
+
+/* The room the bar takes, as the things fixed to the window need it. Its own
+   name rather than --statusbar-h so the phone can give it back with one line. */
+.app {
+  --status-room: var(--statusbar-h);
+  /* The foot is the grid's fourth row. The template (tokens.css) names three,
+     so `-1` in the panels' `grid-row: 2 / -1` still ends above it, and the
+     bar's own row is the one implicit row, sized here. Every other child is
+     placed, so nothing else lands in it. */
+  grid-auto-rows: var(--status-room);
+}
+
+.statusbar {
+  grid-row: 4;
+  grid-column: 1 / -1;
+  /* Out across the stripes' padding, as the topbar is: full width. */
+  margin-inline: calc(-1 * var(--edge-w));
+  box-sizing: border-box;
+  height: var(--statusbar-h);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0 8px 0 12px;
+  overflow: hidden;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  /* Items clip at the right edge, never wrap and never push a scrollbar. */
+  white-space: nowrap;
+}
+/* Who has the keys. */
+.statusbar-who {
+  flex: none;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.statusbar-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.statusbar[data-layer="terminal"] .statusbar-dot { background: var(--accent); }
+/* One hint: its caps, then the word. */
+.statusbar-hint {
+  flex: none;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.statusbar-caps {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+/* V4's Kbd: 18 tall, the deck's mono at 11 on 14. */
+.kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* What a symbol cap says out loud ("Enter" for ↵): read, never seen. */
+.kbd-spoken { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* A phone has no keyboard to name, and the dock sits at the bottom
+   (edge-rails.css): the row and the room are given back. */
+@media (max-width: 640px) {
+  .app { --status-room: 0px; }
+  .statusbar { display: none; }
+}

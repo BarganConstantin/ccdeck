@@ -128,31 +128,61 @@
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
+/* WHO (V4): the name 13/20 at 600 in --text, then the model as plain mono 11/14
+   in --muted — no pill, no border, no fill, no family tint, the word already
+   names the family — and the other markers in the same plain voice. Baseline
+   aligned, so the 11px words sit on the 13px name's line. */
 .agent-node .title {
   flex: 1;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: baseline;
+  gap: 6px;
   min-width: 0;
 }
 .agent-node .title .label {
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
   font-weight: 600;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1;
-  min-width: 0;
+  /* THE NAME WINS THE HEAD: it keeps a floor of about 8 characters, and the
+     model text gives way first (below), so a tight head never shrinks the
+     name to a bare ellipsis. */
+  flex: 0 1 auto;
+  min-width: min(8ch, 100%);
 }
-/* The clock shares the metadata row, leaving the header for the session name.
-   Its stable width keeps the card from resizing as elapsed time changes. */
+.agent-node .title .model-text,
+.agent-node .title .synth-tag {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* The model text is what gives way first: a much larger shrink factor than the
+   name's and its own ellipsis, but a visible floor of 6ch so "Opus…" stays
+   readable on a long name (at 0 the box collapsed and no ellipsis showed). Past
+   that floor the name ellipsizes, down to its own 8ch. The restored and ? tags
+   stay whole (flex: none above). */
+.agent-node .title .model-text {
+  flex: 0 100 auto;
+  min-width: min(6ch, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The clock is the foot's second item. Tabular figures keep the digits one
+   width while they tick; no minimum width, which left a gap mid-row between
+   the clock and the next item. */
 .agent-node .time {
   flex: none;
-  min-width: 7ch;
-  text-align: right;
+  text-align: left;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  color: var(--muted);
+  color: var(--text-secondary);
   font-family: var(--font-mono);
 }
 
@@ -192,11 +222,11 @@
   background: rgba(252,165,165,0.08);
 }
 
-/* Blocked on a human (#337). A row of its own, under the identity line and
-   above the numbers: the header is 232px of content and already spends it on
-   the state pill, the workspace name and the elapsed clock, so a fourth chip
-   there truncated the label and still overflowed the card.
-   It does not replace the state pill above it and must not read as if it did —
+/* Blocked on a human (#337). A row of its own, under the task line and
+   above the numbers: the head already spends the card on the name, the model
+   and the state word, so a fourth chip there truncated the name and still
+   overflowed the card.
+   It does not replace the state word above it and must not read as if it did —
    a permission prompt lands on a session that is still live, an idle prompt on
    one that has finished, and both facts stay on the card.
    The SENTENCE is what separates the two chores, and it is CC's own; the hue
@@ -210,22 +240,20 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 7px;
-  padding: 3px 8px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-weight: 600;
+  /* THE ASK LINE (V4): plain text, not a pill — mono 12/16 regular, no border,
+     no fill, one line cut with an ellipsis (the sentence yields, below). */
+  font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
   min-width: 0;
 }
-.agent-node .waiting-row.permission {
-  color: var(--warn);
-  border-color: color-mix(in srgb, var(--warn) 85%, transparent);
-}
-.agent-node .waiting-row.idle {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 85%, transparent);
-}
+.agent-node .waiting-row.permission { color: var(--warn); }
+/* An idle prompt keeps the accent, as before: a finished turn is information,
+   not the alarm Figma's --warn ask line is. */
+.agent-node .waiting-row.idle { color: var(--accent); }
 /* The sentence yields first — the duration beside it is the number that decides
    whether the user gets up, and the whole sentence is on the tooltip anyway. */
 .agent-node .waiting-said {
@@ -236,7 +264,7 @@
   white-space: nowrap;
 }
 .agent-node .waiting-row b {
-  font-weight: 700;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 /* The still twin of .ap-pulse's emitter — same 5px dot, no ping. A session
@@ -571,7 +599,6 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 7px;
   padding: 3px 8px;
   font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
@@ -606,7 +633,6 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 7px;
   padding: 3px 8px;
   border: 1px solid color-mix(in srgb, var(--err) 85%, transparent);
   border-radius: 6px;
@@ -652,7 +678,6 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 7px;
   padding: 3px 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -673,65 +698,16 @@
   white-space: nowrap;
 }
 
-.agent-node .sub {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  margin-top: 3px;
-  font-family: var(--font-mono);
-}
-/* The pieces of the row keep their width, except a subagent's folder, which
-   is the one cut short (#2169): as one run of text the row ellipsised at its
-   end, and a long folder took the model chip with it. What gives way before
-   the folder is cut — the kind word, then the effort — AgentNode measures. */
-.agent-node .sub-details {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
-  overflow: hidden;
-}
-.agent-node .sub-details > * { flex-shrink: 0; }
-.agent-node .sub-details > .sub-folder {
-  flex-shrink: 1;
-  min-width: 0;
-  margin-left: 1ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* Whatever leads the row starts at its edge: with the kind word gone, the
-   badge's, the folder's or the chip's gap would be an indent. After the
-   folder's rule, which weighs the same. */
-.agent-node .sub-details > :first-child { margin-left: 0; }
-
-/* What Claude Code calls the session, under the meta row — its agent-name when
-   it has one and its ai-title when it does not, which on the transcripts here is
-   the title 96% of the time.
-
-   11px monospace is .sub's own type, not a new step — the type ladder holds at
-   eleven sizes and a name does not earn a twelfth. Hierarchy comes from colour
-   instead: --text where .sub takes --muted, because this row is content the user
-   reads to tell two sessions apart, where the row above it is chrome. That is
-   also why it sits below .sub rather than inside it — sharing that row would
-   have put a 29-character slug in front of the model chip, and .sub ellipsises
-   at the container, so the chip would have been the part that vanished.
-
-   Monospace, and it stays monospace now the row usually holds a sentence rather
-   than a kebab slug. #520 justified the face by the slug it drew, which was
-   already only half true — five of the ten distinct agent-names on this machine
-   are sentences too. The reason that survives is the column: NAME_COLUMNS in
-   cluster-header.ts is 32 because 210px of text at this size is 31.7 monospace
-   columns, and that is what lets the cluster header promise never to show more
-   of the field than this row does. A proportional face makes that promise
-   unmeasurable, for a legibility gain a 240px card at 11px will not show. */
-.agent-node .session-name {
-  margin-top: 4px;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  font-family: var(--font-mono);
-  color: var(--text);
+/* THE TASK LINE (V4): one line, 12/16 regular in --text-secondary, cut with an
+   ellipsis at the card's width. It is body text now, not the 11px mono the
+   session-name row used: cluster-header.ts promised never to show more of the
+   field than the card does, in monospace COLUMNS (NAME_COLUMNS 32 = 210px at
+   11px); at 12px proportional the card shows about that many characters on
+   average, and the header's cap stays the safe side of it. */
+.agent-node .task-line {
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -749,7 +725,6 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 6px;
   min-width: 0;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--text-secondary);
@@ -793,7 +768,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 6px;
   height: 14px;
 }
 .tool-spark {
@@ -860,35 +834,35 @@
   filter: drop-shadow(0 0 3px rgba(126, 34, 206, 0.45));
 }
 
-/* IT WRAPS BEFORE IT OVERLAPS. A flex item shrinks below its content by
+/* IT DROPS BEFORE IT OVERLAPS. A flex item shrinks below its content by
    default, so at the top of the ranges this row carries — four figures and a
    cost on one 232px line — every span was squeezed to about two thirds of its
    own text and the five of them printed over one another, inside a card that
-   clips. Unreadable, and silently: the row kept its height while its contents
-   collided. Wrapping costs a second line on a card that has genuinely run out
-   of room and nothing at all on every other card, which is the right way round
-   for a failure this rare. */
-.agent-node .meta {
-  color: var(--muted);
+   clips. Wrapping cured that at the price of a second line on every root card;
+   Figma's foot is one line, so the row stays one line and the card measures it
+   and drops meta items instead (tokens, then in-flight, then the tool count;
+   see card-row-squeeze.ts).
+
+   THE FOOT (V4) is that row in the card's mono 11/14: --text-secondary figures
+   with a --muted dot between them, plain weight (the bold figure against a
+   muted word is gone with the colours). The dot's gap is 6px each side. */
+.agent-node .foot {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  margin-top: 8px;
+  line-height: calc(14px + var(--ui-text-increase, 0px));
   display: flex;
-  flex-wrap: wrap;
-  /* 9px rather than 12. A busy card carries five items — tools, errors,
-     in-flight, tokens, cost — and at 12 that measured 248px against 230 of
-     box, so the commonest interesting card in the deck wrapped. Ten was not
-     quite enough either: a session past a million tokens measured 231 against
-     the same 230 and wrapped for ONE pixel, which reads as a defect rather
-     than as the graceful degradation it is. Nine clears it with room, and the
-     wrap still waits for the genuine extremes it was added for. The row reads
-     as five groups either way, because each is a bold figure against a muted
-     word — a stronger boundary than the three pixels given up. */
-  gap: 2px 10px;
+  /* ONE LINE, as Figma draws it: the squeeze (card-row-squeeze.ts) drops meta
+     items while the row overflows, so it never wraps. */
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 0 6px;
 }
-.agent-node .meta > * { flex: 0 0 auto; }
-.agent-node .meta b { color: var(--text); font-weight: 600; }
-.agent-node .meta .inflight-meta { color: var(--inflight); }
-.agent-node .meta .inflight-meta b { color: var(--inflight); }
+.agent-node .foot > :not(.time) { flex: 0 0 auto; }
+.agent-node .foot .tokens-meta { font-variant-numeric: tabular-nums; }
+.agent-node .foot b { font-weight: 400; color: inherit; }
+.agent-node .foot .foot-sep { color: var(--muted); }
+.agent-node .foot .inflight-meta { color: var(--inflight); }
 /* TWO COLOURS IN THIS ROW, NOT FOUR — and the two that went were the two that
    meant nothing.
 
@@ -911,17 +885,15 @@
    What keeps a colour: the in-flight count, because --inflight means `running`
    in ten other places here and that count is literally about running, and it
    is silent when it is zero. */
-.agent-node .meta .tokens-meta { margin-left: auto; }
-.agent-node .meta .cost-meta { display: inline-flex; align-items: baseline; gap: 4px; }
+.agent-node .foot .cost-meta { display: inline-flex; align-items: baseline; gap: 4px; }
 /* The one thing in this row somebody has to act on, in the one semantic colour
    it has never been allowed to use. Silent at zero. */
-.agent-node .meta .failed-meta { color: var(--err); }
-.agent-node .meta .failed-meta b { color: var(--err); }
+.agent-node .foot .failed-meta { color: var(--err); }
 /* The card's version of the same marker: there is no figure to print, said in
    the annotation tier because that is what it is. (It used to explain that it
    avoided .cost-meta so as not to be painted green; .cost-meta no longer
    paints anything green.) */
-.agent-node .meta .cost-unpriced {
+.agent-node .foot .cost-unpriced {
   color: var(--muted);
   font-style: italic;
 }
@@ -956,31 +928,16 @@
 .agent-node.synthetic {
   border-style: dashed;
 }
-.agent-node .synth-tag {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px; height: 14px;
-  border-radius: 50%;
-  border: 1px solid var(--muted);
-  color: var(--muted);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-weight: 700;
-  margin-left: 4px;
-}
+/* The "?" and "restored" markers are plain mono words after the model now (the
+   type is the .title rule's); the ink is the muted tier the 4.5:1 floor above
+   measures. */
+.agent-node .synth-tag { color: var(--muted); }
 
-.spawn-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 6px;
-  margin-left: 6px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  color: var(--accent);
-  background: var(--bg-soft);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-family: var(--font-mono);
-  font-weight: 600;
+/* The sub-agent count closes the foot (V4): plain mono text in the figures'
+   ink after a spacer, no pill. The deck has no agents glyph, so "→ N" stays. */
+.agent-node .foot .spawn-badge {
+  margin-left: auto;
+  color: var(--text-secondary);
 }
 
 /* Model chip — tiny pill next to "session"/"subagent" with a family tint,

@@ -15,6 +15,8 @@ import { guessLine } from "./notify";
 import { isAlarming } from "./ambient-counts";
 import { planSpoken, planSummary } from "./agent-plan";
 import { stopSpoken } from "./stop-failure-copy";
+// The card names its state with the word it shows (cardState).
+import { cardState } from "./node-face";
 
 /** A Codex child remains its own session, wherever its kind is displayed. */
 export function agentKindLabel(a: Pick<AgentNodeData, "provider" | "parentId" | "kind">): string {
@@ -99,10 +101,13 @@ export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), se
   return [
     data.label,
     agentKindLabel(data),
-    // A turn that stopped on an error is said as that, with what to type, in
-    // place of "done": the card's pill draws it as a failure and its row says
-    // which one.
-    data.kind === "root" && data.stopFailure ? stopSpoken(data.stopFailure, data.job != null) : stateLabel(data.state),
+    // The word the card SHOWS (Working / Done / Failed / Waiting, from
+    // cardState), so the visible label is in the accessible name (WCAG 2.5.3).
+    // The session list and the peek keep stateLabel's words.
+    cardState(data).word,
+    // A turn that stopped on an error also says which one and what to type: the
+    // card draws it as "Failed" and its row says the rest.
+    data.kind === "root" && data.stopFailure ? stopSpoken(data.stopFailure, data.job != null) : null,
     isAlarming(data.waiting) ? waitingSentence(data.waiting!) : null,
     data.model ? shortModel(data.model) : null,
     // The card's plan row, where a screen reader hears it (#2157): this name,
