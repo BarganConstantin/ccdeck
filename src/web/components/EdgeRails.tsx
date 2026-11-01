@@ -82,9 +82,10 @@ export interface RailItem {
    *  the way into it (rail-items.tsx). */
   group?: string;
   /** How the top bar draws this door where it is not a word button: a field
-   *  holding `fieldText` and the chord (Search), or a bare icon (Feedback).
-   *  Looks only, on the same button; the stripes and the dock ignore it. */
-  barLook?: "field" | "icon";
+   *  holding `fieldText` and the chord (Search). Looks only, on the same
+   *  button; the stripes and the dock ignore it. Feedback keeps its word
+   *  (#1853), though Figma draws it as a bare icon. */
+  barLook?: "field";
   /** The sentence a field shows, and so its name (WCAG 2.5.3, label in name)
    *  and its hint's. */
   fieldText?: string;
@@ -108,7 +109,7 @@ export function railHint(item: RailItem, singleKeys: boolean, wordShown: boolean
 /** Each placement's classes, written out whole so every class the markup can
  *  carry is a literal the sheet sweeps can hold to a rule. */
 const BUTTON_CLASS = { stripe: "rail-btn rail-btn-stripe", dock: "rail-btn rail-btn-dock", bar: "rail-btn rail-btn-bar" } as const;
-const BAR_LOOK_CLASS = { field: "rail-btn rail-btn-bar rail-btn-field", icon: "rail-btn rail-btn-bar rail-btn-icon" } as const;
+const BAR_LOOK_CLASS = { field: "rail-btn rail-btn-bar rail-btn-field" } as const;
 const RAIL_CLASS = { left: "edge-rail edge-rail-left", right: "edge-rail edge-rail-right" } as const;
 
 const NEXT_KEYS = { vertical: "ArrowDown", horizontal: "ArrowRight" } as const;
@@ -172,14 +173,13 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
   variant: "stripe" | "dock" | "bar";
 }) {
   const singleKeys = useSingleKeyShortcuts();
-  // V4's top bar draws some doors as a field (its sentence and its chord) or as
-  // a bare icon: looks only, on the same button with the same handler. A field
-  // is named by the sentence it shows, and its hint says the same words; an
-  // icon shows no word, so its hint always names it.
+  // V4's top bar draws Search as a field (its sentence and its chord): looks
+  // only, on the same button with the same handler. A field is named by the
+  // sentence it shows, and its hint says the same words.
   const look = variant === "bar" ? item.barLook : undefined;
   const fieldText = look === "field" ? item.fieldText ?? item.label : null;
   const hinted = fieldText != null ? { ...item, label: fieldText, hint: undefined } : item;
-  const hintHandlers = hint.bind(railHint(hinted, singleKeys, variant !== "stripe" && look !== "icon"));
+  const hintHandlers = hint.bind(railHint(hinted, singleKeys, variant !== "stripe"));
   const disclosure = item.kind === "panel";
   return (
     <button
@@ -201,8 +201,7 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
       {fieldText != null ? <>
         <span className="rail-field-text">{fieldText}</span>
         {item.key && <Kbd>{item.key.cap}</Kbd>}
-      </> : look === "icon" ? null
-        : variant !== "stripe" && <span className="rail-word">{variant === "dock" ? item.short : item.label}</span>}
+      </> : variant !== "stripe" && <span className="rail-word">{variant === "dock" ? item.short : item.label}</span>}
       {item.badge != null && item.badge > 0 && <span className="rail-badge" aria-hidden>{item.badge}</span>}
       {item.dot && !(item.badge != null && item.badge > 0) && <span className="rail-dot" aria-hidden />}
     </button>

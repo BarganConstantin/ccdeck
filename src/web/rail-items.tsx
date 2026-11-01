@@ -223,7 +223,7 @@ export function railItems({
   };
   // The field every door is also behind, by name. A chord, like Settings',
   // so it answers with the single-key shortcuts off. The top bar draws it as
-  // V4's search field (Figma 22:966); Feedback beside it as a bare icon.
+  // V4's search field (Figma 22:966).
   const search: RailItem = {
     id: "quick-open", label: "Search", short: "Search",
     key: { cap: quickOpenChordLabel(apple), aria: apple ? "Meta+K" : "Control+K", single: false },
@@ -233,7 +233,7 @@ export function railItems({
   };
   const feedback: RailItem = {
     id: "feedback", label: "Feedback", short: "Feedback", menu: "Send feedback",
-    ariaLabel: "Send feedback", glyph: <FeedbackGlyph />, kind: "dialog", onPress: onFeedback, barLook: "icon",
+    ariaLabel: "Send feedback", glyph: <FeedbackGlyph />, kind: "dialog", onPress: onFeedback,
     ...feedbackUnreadDoor(feedbackUnread, openFeedbackConversations),
   };
   // TOOLS AND SKILLS, ONE DOOR EACH. Skills were a tab inside Tool activity,

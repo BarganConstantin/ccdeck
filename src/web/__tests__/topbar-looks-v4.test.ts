@@ -1,8 +1,8 @@
 // V4's top bar, three looks (Figma 22:952, 84:678, 22:966): the waiting chip
 // draws the rail's Waiting glyph and no pulsing dot; the newer-version chip
 // reads "{to} is ready"; the right group is a search field with its sentence
-// and chord, and Feedback is an icon with no word. Every handler, name and
-// key stays as it was.
+// and chord. Feedback keeps its word (#1853), though Figma draws a bare icon.
+// Every handler, name and key stays as it was.
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -92,35 +92,31 @@ describe("the right group", () => {
     expect(search).toContain('aria-haspopup="dialog"');
   });
 
-  it("draws Feedback as an icon with no word, named by aria-label", () => {
+  it("keeps Feedback's word beside its glyph (#1853), not Figma's bare icon", () => {
     const feedback = buttonOf(group, "feedback");
-    expect(feedback).toContain("rail-btn-icon");
-    expect(feedback).not.toContain("rail-word");
-    expect(feedback).not.toContain(">Feedback<");
+    expect(feedback).toContain('<span class="rail-word">Feedback</span>');
+    expect(feedback).not.toContain("rail-btn-field");
     expect(feedback).toMatch(/aria-label="Send feedback"/);
-    expect(feedback).toContain("<svg");
+    expect(rails.utilities[1].barLook).toBeUndefined();
   });
 
-  it("gives the bare icon a hint that names it, and the field a hint in its own words", () => {
-    // The button asks for a hint as if no word were shown when it draws an icon,
-    // and hands the field's sentence over as the hint's name.
+  it("gives the field a hint in its own words, and names it by them", () => {
+    // The button hands the field's sentence over as the hint's name.
     const src = read("../components/EdgeRails.tsx");
-    expect(src).toMatch(/railHint\(hinted, singleKeys, variant !== "stripe" && look !== "icon"\)/);
+    expect(src).toMatch(/railHint\(hinted, singleKeys, variant !== "stripe"\)/);
     expect(src).toMatch(/aria-label=\{fieldText \?\? item\.ariaLabel\}/);
-    expect(railHint(rails.utilities[1], false, false)?.label).toBe("Feedback");
     const field = railHint({ ...rails.search, label: QUICK_OPEN_PLACEHOLDER, hint: undefined }, false, true);
     expect(field?.label).toBe(QUICK_OPEN_PLACEHOLDER);
     expect(field?.keys).toBe(rails.search.key!.cap);
     expect(rails.search.barLook).toBe("field");
     expect(rails.search.fieldText).toBe(QUICK_OPEN_PLACEHOLDER);
-    expect(rails.utilities[1].barLook).toBe("icon");
   });
 
   it("leaves Settings as it was, with its word", () => {
     expect(buttonOf(group, "settings")).toContain('<span class="rail-word">Settings</span>');
   });
 
-  it("sizes the field and the icon from Figma, in tokens, and gives the room back when narrow", () => {
+  it("sizes the field from Figma, in tokens, and gives the room back when narrow", () => {
     const css = strip(read("../styles/edge-rails.css"));
     const field = css.match(/\.rail-btn-bar\.rail-btn-field \{([^}]*)\}/)![1];
     expect(field).toMatch(/width: 264px/);
@@ -129,7 +125,7 @@ describe("the right group", () => {
     expect(field).toMatch(/var\(--line-soft\)/);
     expect(field).toMatch(/var\(--r-panel\)/);
     expect(field).not.toMatch(/#[0-9a-f]{3,8}\b/i);
-    expect(css).toMatch(/\.rail-btn-bar\.rail-btn-icon \{[^}]*width: 28px;[^}]*height: 28px/);
+    expect(css).not.toContain("rail-btn-icon");
     expect(css).toMatch(/@media \(max-width: 1279px\) \{\s*\.rail-btn-bar\.rail-btn-field \{ width: 200px/);
     expect(css).toMatch(/@media \(max-width: 899px\)/);
   });

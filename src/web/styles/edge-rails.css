@@ -234,7 +234,7 @@
 /* V4's top bar, right group (Figma 22:966): Search is a 264x28 field (--bg-soft
    fill, --line-soft edge, --r-panel corner, 8 in, 4 at the Kbd's end, 8
    between) holding a 14px glyph, the sentence in --muted at 12/16 and the
-   chord's Kbd; Feedback is a 28x28 icon with no word. Same buttons as before. */
+   chord's Kbd. Same button as before. Feedback keeps its word (#1853). */
 .rail-btn-bar.rail-btn-field {
   box-sizing: border-box;
   width: 264px;
@@ -270,14 +270,6 @@
   .rail-btn-bar.rail-btn-field { width: auto; }
   .rail-btn-field .rail-field-text { display: none; }
 }
-.rail-btn-bar.rail-btn-icon {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  justify-content: center;
-}
-.rail-btn-icon .rail-badge { position: absolute; top: -3px; right: -3px; pointer-events: none; }
-.rail-btn-bar.rail-btn-icon .rail-dot { top: 4px; left: auto; right: 4px; }
 
 /* ── the phone: one dock along the bottom ────────────────────────────────── */
 /* Under 641px the stripes would take 80px of a 390px screen, so the four
