@@ -310,6 +310,9 @@ describe("what was migrated to the secondary tier", () => {
       ".radio-station-code",
       ".radio-station-pick > span > span",
       ".radio-tuning > span",
+      // The board control bar's zoom level (V4 Board / Controls): a figure on
+      // a button, kept on this tier by the bar's bed (--panel), as V4 draws it.
+      ".react-flow__controls-button[data-zoom-level]",
       ".radio-tuning-tower",
       ".sa-why",
       // V4's status bar: who has the keys, in the one weight-500 label of a

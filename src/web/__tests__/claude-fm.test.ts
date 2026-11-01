@@ -523,8 +523,12 @@ describe("the character", () => {
     // at all, so the character could not leave it. Nothing moved on screen for
     // the change: --fm-y defaults to exactly the ledge's height above the floor.
     expect(decl(".fm", "bottom")).toBe("var(--flow-gutter)");
-    expect(decl(".fm", "--fm-y")).toBe("calc(-1 * var(--minimap-h))");
-    expect(decl(".fm", "right")).toBe("var(--flow-gutter)");
+    // V4 stands the minimap over the control bar, so the ledge is that much
+    // higher above the same floor (v4-board-controls.test.ts).
+    expect(decl(".fm", "--fm-y")).toBe("calc(-1 * (var(--minimap-h) + var(--board-controls-room) - var(--flow-gutter)))");
+    // Its right edge is the minimap's, which V4 lines up with the control bar
+    // under it, 12px in (v4-board-controls.test.ts).
+    expect(decl(".fm", "right")).toBe("var(--board-controls-edge)");
     expect(decl(".fm", "--flow-gutter")).toBe("15px");
     // 54px is 18 columns at exactly 3px. A width that does not divide by the
     // grid puts every cell boundary on a fraction of a pixel, and a pixel

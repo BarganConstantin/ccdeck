@@ -85,9 +85,11 @@ export function useAgentFocus({
     const rect = pane.getBoundingClientRect();
     const want = focusViewport({
       pane: { width: rect.width, height: rect.height },
-      // Left: the control stack. Top: the tool filter bar. Right: whatever of
-      // the rail of floating panels is open, as the rail effect measured it.
-      insets: { top: 56, left: 72, bottom: 32, right: railInsetRef.current + 32 },
+      // Top: the tool filter bar. Bottom: the row the control bar and the
+      // notices stand in (12px in, one button and its 6px of padding and
+      // edge, then air). Right: whatever of the rail of floating panels is
+      // open, as the rail effect measured it.
+      insets: { top: 56, left: 32, bottom: 56, right: railInsetRef.current + 32 },
       context: unionBox(members) ?? anchor,
       anchor,
     });
