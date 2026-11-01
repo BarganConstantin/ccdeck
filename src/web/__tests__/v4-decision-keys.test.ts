@@ -104,10 +104,12 @@ describe("the card does not take focus", () => {
   it("never focuses an element on its own: focus() is called only after a key or a field opening", () => {
     const card = read("components/decision/DecisionCard.tsx").replace(/\/\/.*$/gm, "");
     const calls = [...card.matchAll(/\.focus\(\)/g)].length;
-    expect(calls).toBe(2);
-    // The row's focus follows the ring only once a key moved it (ring.current), and the field's only in free mode.
+    expect(calls).toBe(3);
+    // The row's focus follows the ring only once a key moved it (ring.current), and the field's only when the
+    // reader moves INTO free mode; the third call gives the row focus back after Esc in the field.
     expect(card).toMatch(/if \(state\.focus != null && ring\.current\) rows\.current\[state\.focus\]\?\.focus\(\);/);
-    expect(card).toMatch(/if \(state\.mode === "free"\) input\.current\?\.focus\(\);/);
+    expect(card).toMatch(/if \(state\.mode === "free" && was !== "free"\) input\.current\?\.focus\(\);/);
+    expect(card).toMatch(/was === "free" && state\.mode !== "free" && backToRow\.current/);
     expect(card).not.toMatch(/autoFocus/);
   });
 

@@ -18,7 +18,7 @@ import {
   initialState, LOCKED_ANNOUNCE, step,
   type DecisionContext, type DecisionEffect, type DecisionEvent, type DecisionState,
 } from "./decision-machine";
-import { decisionEventFor } from "./decision-keys";
+import { cardKeyEvent, keyTargetOf } from "./decision-keys";
 import type { DecisionHooks, DecisionModel, DecisionOutcomeInput } from "./decision-model";
 import DecisionFooter from "./DecisionFooter";
 import DecisionOption from "./DecisionOption";
@@ -77,10 +77,12 @@ export default function DecisionCard(p: DecisionCardProps) {
     switch (effect.type) {
       case "recheck":
         // A check that fails to answer sends nothing and lets the card go back.
-        h.recheck?.(effect.answer).then(
-          result => { if (alive.current) dispatch({ type: "result", result }); },
-          () => { if (alive.current) dispatch({ type: "dismissOutcome" }); },
-        );
+        // The answer carries its pick's token: one that is no longer the current pick is ignored.
+        { const token = stateRef.current.token;
+          h.recheck?.(effect.answer).then(
+            result => { if (alive.current) dispatch({ type: "result", result, token }); },
+            () => { if (alive.current) dispatch({ type: "checkFailed", token }); },
+          ); }
         break;
       case "send": h.onAnswer?.(effect.answer); break;
       case "record": h.onRecord?.(effect.answer); break;
@@ -98,21 +100,40 @@ export default function DecisionCard(p: DecisionCardProps) {
     if (p.outcome) dispatch({ type: "outcome", input: p.outcome });
   }, [p.outcome, dispatch]);
 
+  // A different question starts the card over (a keyed card is new anyway).
+  const seenId = useRef(model.id);
+  useEffect(() => {
+    if (seenId.current === model.id) return;
+    seenId.current = model.id;
+    setSaid("");
+    dispatch({ type: "reset" });
+    if (hooks.current.outcome) dispatch({ type: "outcome", input: hooks.current.outcome });
+  }, [model.id, dispatch]);
+
   // The ring moves the browser's focus with it, but only once the card has it.
   useEffect(() => {
     if (state.focus != null && ring.current) rows.current[state.focus]?.focus();
   }, [state.focus]);
+  // Focus goes into the field only when the reader moves into free mode, never
+  // on arrival; and Esc in the field gives it back to the free row.
+  const prevMode = useRef(state.mode);
+  const backToRow = useRef(false);
   useEffect(() => {
-    if (state.mode === "free") input.current?.focus();
-  }, [state.mode]);
+    const was = prevMode.current;
+    prevMode.current = state.mode;
+    if (state.mode === "free" && was !== "free") input.current?.focus();
+    else if (was === "free" && state.mode !== "free" && backToRow.current) {
+      backToRow.current = false;
+      if (state.focus != null) rows.current[state.focus]?.focus();
+    }
+  }, [state.mode, state.focus]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const s = stateRef.current;
     if (s.mode === "readOnly") return;
-    // The free field is a text field: its keys are its own, but Enter sends and Esc backs out.
-    const inField = e.target instanceof HTMLInputElement;
-    if (inField && e.key !== "Enter" && e.key !== "Escape") return;
-    const event = decisionEventFor(e, singleKeys, model.options.length);
+    // Only a row and the free field are the card's: a link or button keeps its own Enter and Tab.
+    const target = keyTargetOf(e.target as Element | null);
+    const event = cardKeyEvent(e, target, singleKeys, model.options.length, { multi: s.mode === "multi", focus: s.focus });
     if (!event) return;
     if (event.type === "move" && (e.key === "Tab")) {
       // Tab leaves the card from the first or last row instead of trapping it.
@@ -182,6 +203,7 @@ export default function DecisionCard(p: DecisionCardProps) {
               typing={state.mode === "free" && state.focus === i}
               text={state.text}
               readOnly={state.mode === "readOnly"}
+              singleKeys={singleKeys}
               tabStop={tabStop === i}
               rowRef={el => { rows.current[i] = el; }}
               inputRef={input}
@@ -190,7 +212,7 @@ export default function DecisionCard(p: DecisionCardProps) {
               onText={text => dispatch({ type: "typeFree", text })}
               onFieldKey={e => {
                 if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); dispatch({ type: "submit" }); }
-                else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); dispatch({ type: "escape" }); }
+                else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); backToRow.current = true; dispatch({ type: "escape" }); }
               }}
             />
           ))}
@@ -208,6 +230,7 @@ export default function DecisionCard(p: DecisionCardProps) {
         focused={state.focus != null}
         checked={state.checked.length}
         rows={model.options.length}
+        singleKeys={singleKeys}
         onShowTerm={() => dispatch({ type: "showTerm" })}
       />
       <div className="vis-hidden" role="status" aria-atomic="true">{said}</div>

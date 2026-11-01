@@ -14,6 +14,7 @@ import { sheetText } from "./sheet-source";
 import { NO_SCREENS, readScreenFlags, screensEffective } from "../use-screen-flags";
 import { chatShown, ScreensSlot, type ScreensProps } from "../use-screens";
 import StageBody, { type StageBodyProps } from "../components/terminal/StageBody";
+import StageHeader, { type StageHeaderProps } from "../components/terminal/StageHeader";
 import { PERMISSION, TRANSCRIPT } from "./screens-fixtures";
 
 const rel = (p: string) => relative(WEB_DIR, p).replaceAll("\\", "/");
@@ -193,6 +194,15 @@ describe("with a flag set by hand", () => {
       onAdopt: vi.fn(), onNotNow: vi.fn(), onRetry: vi.fn(), onNewSession: vi.fn(),
     } as StageBodyProps));
     expect(markup).not.toMatch(/data-view|chat|dc-/);
+    // The header is the deck's own: it is drawn (the session's name is in it), and it
+    // carries no switch and none of Chat's words, because the deck hands it no `view`.
+    const header = renderToStaticMarkup(createElement(StageHeader, {
+      identity: "session:a", name: "web-api", provider: "claude", status: { state: "waiting", phrase: "waiting" },
+      keysOwner: "board", chordLabel: "Ctrl+]", canType: true, expanded: false, takeover: false,
+      onKeys: vi.fn(), onExpand: vi.fn(), onClose: vi.fn(),
+    } as StageHeaderProps));
+    expect(header).toContain("web-api");
+    expect(header).not.toMatch(/view-switch|view-opt|Chat|dc-/);
   });
 });
 

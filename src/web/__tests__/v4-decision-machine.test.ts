@@ -137,7 +137,8 @@ describe("Esc", () => {
   });
 
   it("never answers even while the prompt is being checked", () => {
-    const out = play(fresh(), [{ type: "pick", index: 0 }, { type: "escape" }], ctx());
+    // The late "ok" is part of the promise: it arrives after Esc and sends nothing.
+    const out = play(fresh(), [{ type: "pick", index: 0 }, { type: "escape" }, { type: "result", result: "ok" }], ctx());
     expect(types(out.effects)).toEqual(["recheck", "close"]);
   });
 

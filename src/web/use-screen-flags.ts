@@ -6,9 +6,11 @@
 // the view. There is no Settings row: a flag nobody can see is the point while
 // the data the screens draw does not exist yet.
 //
-// IN THE FIRST-LOAD CHUNK, SO NO SCREEN CODE. This file imports storage.ts and
-// nothing of components/chat/ or components/decision/ (v4-screens-gate.test.ts
-// walks the import graph). The screens are use-screens.ts's one dynamic import.
+// NO SCREEN CODE HERE. This file imports storage.ts and nothing of
+// components/chat/ or components/decision/ (v4-screens-gate.test.ts walks the
+// import graph). It is read by the lazy StageShell chunk (StageBody and
+// StageHeader), not by the first load; the screens themselves are
+// use-screens.ts's one dynamic import, made only with a flag on.
 //
 // A FLAG IS NOT ENOUGH. A screen is reached only where the Command Panel is
 // (the gate Workspace uses) and only in the Workspace view, which a phone never

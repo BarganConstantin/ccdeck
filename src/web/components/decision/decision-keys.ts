@@ -26,8 +26,7 @@ export const DECISION_KEY_GROUP: KeyHelpGroup = {
   rows: [
     { cap: "1 – 3", action: "Pick an answer and send it, after the prompt is read again", binds: ["1", "2", "3"] },
     { cap: "↑ ↓ Tab", action: "Move the ring along the answers", binds: ["ArrowUp", "ArrowDown", "Tab"] },
-    { cap: "↵", action: "Send the answer the ring is on", binds: ["Enter"] },
-    { cap: "Esc", action: "Close the question. It never answers", binds: ["Escape"] },
+    { cap: "↵", action: "Send the answer the ring is on", binds: ["Enter"] },    { cap: "Esc", action: "Close the question. It never answers", binds: ["Escape"] },
   ],
 };
 
@@ -57,6 +56,31 @@ export function decisionKeyGroup(singleKeys: boolean): KeyHelpGroup {
   };
 }
 
+/** Where a key was pressed inside the card: on an answer row, in the free
+ *  field, or on anything else (a link or button of the outcome panel). */
+export type KeyTarget = "row" | "field" | "other";
+
+export function keyTargetOf(el: { closest?(selector: string): unknown } | null | undefined): KeyTarget {
+  if (!el || typeof el.closest !== "function") return "other";
+  if (el.closest(".dc-input")) return "field";
+  if (el.closest(".dc-opt")) return "row";
+  return "other";
+}
+
+/** The card's keys are for its rows and its field. A link or a button keeps its
+ *  own Enter and Tab; the field keeps all but Enter and Esc. */
+export function cardKeyEvent(
+  e: KeyLike,
+  target: KeyTarget,
+  singleKeys: boolean,
+  rows: number,
+  box?: { multi: boolean; focus: number | null },
+): DecisionEvent | null {
+  if (target === "other") return null;
+  if (target === "field" && e.key !== "Enter" && e.key !== "Escape") return null;
+  return decisionEventFor(e, singleKeys, rows, box);
+}
+
 export interface KeyLike {
   key: string;
   shiftKey?: boolean;
@@ -68,9 +92,17 @@ export interface KeyLike {
 /** The event a key means for the card, or null when it is not the card's. A
  *  chord is never the card's (Ctrl+1 is the browser's). Esc is read here too;
  *  the machine decides whether it closes the field or the card. */
-export function decisionEventFor(e: KeyLike, singleKeys: boolean, rows: number): DecisionEvent | null {
+export function decisionEventFor(
+  e: KeyLike,
+  singleKeys: boolean,
+  rows: number,
+  /** The several-answers card and the row the ring is on: Space checks it. */
+  box?: { multi: boolean; focus: number | null },
+): DecisionEvent | null {
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
   switch (e.key) {
+    // A checkbox is checked by Space, whatever the single-key switch says.
+    case " ": return box?.multi && box.focus != null && box.focus < rows ? { type: "toggle", index: box.focus } : null;
     case "ArrowDown": return { type: "move", by: 1 };
     case "ArrowUp": return { type: "move", by: -1 };
     case "Tab": return { type: "move", by: e.shiftKey ? -1 : 1 };

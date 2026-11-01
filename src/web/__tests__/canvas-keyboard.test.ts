@@ -404,6 +404,7 @@ describe("nothing else in the deck invents a focus stop", () => {
       "components/RadioPanel.tsx", "components/ReleaseNotesModal.tsx", "components/ToolAuditSplitter.tsx",
       "components/chat/ChatView.tsx", "components/forge/DetailJobs.tsx", "jira-html.tsx",
     ]);
+    expect(code(readFileSync(`${web}components/chat/ChatView.tsx`, "utf8"))).toMatch(/className="chat-body"\s+role="region"\s+aria-label="Conversation"\s+tabIndex=\{0\}/);
     expect(code(readFileSync(`${web}components/ReleaseNotesModal.tsx`, "utf8"))).toMatch(/<section className="modal-body" role="region" aria-label="Release notes" tabIndex=\{0\}>/);
     expect(code(readFileSync(`${web}jira-html.tsx`, "utf8"))).toMatch(/tabIndex=\{0\} role="region" aria-label="Table"/);
     expect(code(readFileSync(`${web}components/forge/DetailJobs.tsx`, "utf8"))).toMatch(/<pre[^>]*className="fd-log" tabIndex=\{0\} role="region" aria-label=/);

@@ -24,7 +24,8 @@ export function noteMany(count: number): string {
 export function footNote(mode: DecisionMode, focused: boolean, checked: number): { text: string; lock: boolean } {
   if (mode === "readOnly") return { text: NOTE_OUTSIDE, lock: false };
   if (mode === "free") return { text: NOTE_FREE, lock: false };
-  if (mode === "multi") return { text: noteMany(checked), lock: false };
+  // With nothing checked there is nothing to send, so the card does not say "Send 0 answers".
+  if (mode === "multi") return { text: checked > 0 ? noteMany(checked) : "", lock: false };
   return focused ? { text: NOTE_FOCUS, lock: false } : { text: NOTE_DEFAULT, lock: true };
 }
 
@@ -33,13 +34,15 @@ export default function DecisionFooter(p: {
   focused: boolean;
   checked: number;
   rows: number;
+  /** The digits are character keys: with Settings › Keyboard's switch off, "Pick 1 – 3" is not said. */
+  singleKeys?: boolean;
   onShowTerm?(): void;
 }) {
   const note = footNote(p.mode, p.focused, p.checked);
   const readOnly = p.mode === "readOnly";
   return (
     <div className="dc-foot">
-      {!readOnly && p.mode !== "multi" && (
+      {!readOnly && p.mode !== "multi" && p.singleKeys !== false && (
         <span className="dc-foot-pick">
           Pick <Kbd>1</Kbd>{p.rows > 1 && <> {"–"} <Kbd>{String(p.rows)}</Kbd></>}
         </span>

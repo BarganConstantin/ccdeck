@@ -64,7 +64,7 @@ describe("every rule this phase added sits inside the phone query", () => {
   it("the drawer's full width is in left-column.css's phone block", () => {
     const css = read("styles/left-column.css").replace(/\/\*[\s\S]*?\*\//g, "");
     const block = css.slice(...blocksOf(css, PHONE)[0]);
-    expect(block).toContain(".left-column { width: 100vw; }");
+    expect(block).toContain(".left-column:not(.closing) { width: 100vw; }");
     expect(block).toMatch(/\.left-column > \.session-list,\s*\.left-column > \.accounts-panel \{ width: 100%; \}/);
   });
 

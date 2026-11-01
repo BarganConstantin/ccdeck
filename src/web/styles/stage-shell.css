@@ -61,6 +61,8 @@
      52 high with room to read. The stage measures both as drawn. */
   .ts-stage[data-takeover] .ts-head { height: 56px; }
   .ts-stage[data-takeover] .ts-head > .glyph-btn { width: 32px; height: 44px; }
+  /* Drawn at 32, hit at 44 by 44: the invisible target reaches 6px out each side. */
+  .ts-stage[data-takeover] .ts-head > .glyph-btn::after { inset: 0 -6px; }
   .ts-stage[data-takeover] .ts-bar { height: auto; min-height: 52px; padding-inline: 16px; }
 }
 

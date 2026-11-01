@@ -71,7 +71,7 @@ export default function ChatView({ source, decision }: ChatViewProps) {
           )}
         </div>
       </div>
-      {decision && <DecisionCard {...decision} />}
+      {decision && <DecisionCard key={decision.model.id} {...decision} />}
     </div>
   );
 }

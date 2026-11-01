@@ -50,7 +50,7 @@ import { DOUBLE_CLICK_MS } from "./focus-hold";
 import { notePanelLaunch } from "./panel-launch";
 import type { GraphState } from "./reducer";
 import {
-  ASSUMED_CELL, BAR_H, BAR_H_TOUCH, NARROW_BELOW, STAGE_COLS_KEY, headHFor, loadStageCols, saveStageCols, stageGeometry,
+  ASSUMED_CELL, BAR_H, BAR_H_TOUCH, NARROW_BELOW, PHONE_BAR_H, PHONE_HEAD_H, STAGE_COLS_KEY, headHFor, loadStageCols, saveStageCols, stageGeometry,
   type Cell, type StageGeometry,
 } from "./stage-geometry";
 import {
@@ -104,7 +104,13 @@ function nameElement(card: Element): Element | null {
  *  `data-density` rather than from the token: the stage's hook runs in App's
  *  render, and nothing there computes a style (render-path-cost-612-613). */
 function paneHeadH(): number {
+  if (phoneWidth()) return PHONE_HEAD_H;
   return headHFor(typeof document === "undefined" ? undefined : document.documentElement?.dataset?.density);
+}
+
+/** The phone's width, as stage-shell.css's own 640 query asks. */
+function phoneWidth(): boolean {
+  return typeof matchMedia === "function" && matchMedia("(max-width: 640px)").matches;
 }
 
 /** A fingertip, as the sheet's own `(pointer: coarse)` block asks. */
@@ -221,7 +227,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   // The keys bar as the stage last drew it (onBarH): the rows are fitted
   // above it, and a first-run line on three lines makes it taller. Until it
   // has said, the height it will be drawn at: a fingertip's 36, else 32.
-  const [barH, setBarH] = useState(() => (coarsePointer() ? BAR_H_TOUCH : BAR_H));
+  const [barH, setBarH] = useState(() => (phoneWidth() ? PHONE_BAR_H : coarsePointer() ? BAR_H_TOUCH : BAR_H));
   // The pane header likewise (onHeadH). Until it has said, the height the
   // density draws it at (36 at Compact, the default; 44 above), so the first
   // attach is fitted to the header it is drawn under and not resized after.

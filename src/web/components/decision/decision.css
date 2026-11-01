@@ -226,6 +226,28 @@
 .dc-dock[data-size="phone"] .dc-chip { padding: 1px 6px; }
 .dc-dock[data-size="phone"] .dc-foot { flex-wrap: wrap; }
 
+/* 640 and under, with the card in a phone dock or not: the links and the field
+   are 44 targets. */
+@media (max-width: 640px) {
+  .dc-link { min-height: 44px; }
+  .dc-input { height: 44px; }
+}
+
+/* FORCED COLOURS: the ring, the check and the lock are drawn with system
+   colours, because border and shadow colours are replaced and a shadow is not
+   drawn. */
+@media (forced-colors: active) {
+  .dc-opt:focus-visible,
+  .dc-opt[data-focus] { outline: 2px solid Highlight; outline-offset: 2px; }
+  .dc-opt[data-checked],
+  .dc-opt[role="checkbox"][data-checked] { border-color: Highlight; border-width: 2px; }
+  .dc-box[data-on] { background: Highlight; border-color: Highlight; forced-color-adjust: none; }
+  .dc-box[data-on]::after { border-color: HighlightText; }
+  .dc-opt[data-locked] { border-style: dashed; border-color: GrayText; color: GrayText; }
+  .dc-opt[data-locked] .dc-opt-label { color: GrayText; }
+  .dc-input:focus-visible { outline: 2px solid Highlight; }
+}
+
 /* Alone in the pane (a question under the terminal), the dock sits on its foot. */
 .ts-body > .dc-dock { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; }
 

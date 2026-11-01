@@ -124,7 +124,9 @@
     box-shadow: var(--shadow-2);
   }
   /* Rail first: the drawer is the whole width of the screen, and the panel in it. */
-  .left-column { width: 100vw; }
+  .left-column:not(.closing) { width: 100vw; }
+  /* Closing falls back to the animated --left-col-w (0px), so the drawer narrows
+     from the full width instead of vanishing in one frame. */
   .left-column > .session-list,
   .left-column > .accounts-panel { width: 100%; }
 }

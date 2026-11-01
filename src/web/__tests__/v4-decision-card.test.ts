@@ -86,9 +86,9 @@ describe("the structure", () => {
   });
 
   it("marks the locked row aria-disabled, described by its lock note, and dashed in the sheet", () => {
-    const locked = /<div[^>]*aria-disabled="true"[^>]*aria-describedby="(dc-lock-1)"[^>]*>/.exec(markup);
+    const locked = /<div[^>]*aria-disabled="true"[^>]*aria-describedby="([^"]*-lock-1)"[^>]*>/.exec(markup);
     expect(locked).not.toBeNull();
-    expect(markup).toContain('id="dc-lock-1"');
+    expect(markup).toContain(`id="${locked![1]}"`);
     expect(css).toMatch(/\.dc-opt\[data-locked\]\s*\{[^}]*border-style:\s*dashed;/);
   });
 

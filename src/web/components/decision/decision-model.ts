@@ -20,6 +20,8 @@ export interface DecisionOptionModel {
 }
 
 export interface DecisionModel {
+  /** Which question this is. A card keyed by it starts over on a new one. */
+  id?: string;
   kind: DecisionKind;
   title: string;
   /** What would run, one line in mono. */

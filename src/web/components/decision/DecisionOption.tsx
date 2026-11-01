@@ -6,7 +6,7 @@
 // Interactive: the row. No filled button anywhere on the card. The key chip on
 // the left is the digit that picks it. A locked row is reachable so it can be
 // read, and says "aria-disabled" with its lock note as the description.
-import type { KeyboardEvent, Ref } from "react";
+import { useId, type KeyboardEvent, type Ref } from "react";
 import { LockGlyph } from "../chat/chat-icons";
 import type { DecisionOptionModel } from "./decision-model";
 
@@ -25,6 +25,8 @@ export interface DecisionOptionProps {
   text: string;
   /** The card cannot be answered from here at all. */
   readOnly: boolean;
+  /** The digit keys are on (Settings › Keyboard): the row names its digit. */
+  singleKeys?: boolean;
   /** The row's tab stop: one row is reachable by Tab, the ring moves from it. */
   tabStop: boolean;
   rowRef?: Ref<HTMLDivElement>;
@@ -37,7 +39,9 @@ export interface DecisionOptionProps {
 
 export default function DecisionOption(p: DecisionOptionProps) {
   const { option: o } = p;
-  const noteId = o.locked ? `dc-lock-${p.index}` : undefined;
+  // Unique per card: two cards on a page do not share a description.
+  const uid = useId();
+  const noteId = o.locked ? `${uid}-lock-${p.index}` : undefined;
   return (
     <div className="dc-row" data-typing={p.typing || undefined}>
       <div
@@ -47,7 +51,7 @@ export default function DecisionOption(p: DecisionOptionProps) {
         aria-checked={p.checked}
         aria-disabled={o.locked || p.readOnly || undefined}
         aria-describedby={noteId}
-        aria-keyshortcuts={p.readOnly ? undefined : String(p.index + 1)}
+        aria-keyshortcuts={p.readOnly || p.singleKeys === false ? undefined : String(p.index + 1)}
         tabIndex={p.readOnly ? undefined : p.tabStop ? 0 : -1}
         data-focus={p.focused || undefined}
         data-locked={o.locked || undefined}

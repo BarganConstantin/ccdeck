@@ -32,7 +32,7 @@
 /* Since you looked: a line, the counts, a line. */
 .chat-since { display: flex; align-items: center; gap: 8px; min-height: 16px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); }
 .chat-since-line { flex: 1 1 0; height: 1px; background: var(--line-soft); }
-.chat-since-text { flex: none; white-space: nowrap; }
+.chat-since-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Your message: right-aligned on its own surface, the bottom-right corner tight. */
 .chat-you { display: flex; justify-content: flex-end; }
@@ -42,7 +42,7 @@
   max-width: 100%;
   padding: 8px 12px;
   background: var(--your-message);
-  border-radius: 12px 12px 4px 12px;
+  border-radius: var(--r-overlay) var(--r-overlay) var(--r-tag) var(--r-overlay);
   font-size: calc(13px + var(--ui-text-increase, 0px));
   line-height: 20px;
   color: var(--text);

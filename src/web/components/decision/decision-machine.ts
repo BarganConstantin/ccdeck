@@ -39,6 +39,9 @@ export interface DecisionState {
   text: string;
   /** Esc, or a dismissed outcome, closed the card. */
   closed: boolean;
+  /** Which pick the re-read in flight belongs to: a counter, bumped by every
+   *  pick, cancel and reset. An answer that carries another number is stale. */
+  token: number;
 }
 
 export type DecisionEvent =
@@ -50,7 +53,12 @@ export type DecisionEvent =
   | { type: "openFree" }
   | { type: "typeFree"; text: string }
   | { type: "escape" }
-  | { type: "result"; result: RecheckResult }
+  /** `token` is the pick's (state.token when the re-read was asked). */
+  | { type: "result"; result: RecheckResult; token?: number }
+  /** The re-read itself failed: it leaves THAT pick's checking and nothing else. */
+  | { type: "checkFailed"; token?: number }
+  /** A different question arrived: start over on the model in the context. */
+  | { type: "reset" }
   | { type: "elsewhere"; at: string }
   | { type: "outcome"; input: DecisionOutcomeInput }
   | { type: "dismissOutcome" }
@@ -79,6 +87,8 @@ export interface Step {
 
 /** Said (in the live region) on a locked row. */
 export const LOCKED_ANNOUNCE = "Only in the terminal";
+/** Said when the re-read could not be done: nothing was sent, the choices are back. */
+export const CHECK_FAILED_ANNOUNCE = "Could not read the prompt again, so nothing was sent";
 
 export function initialState(model: DecisionModel): DecisionState {
   return {
@@ -88,6 +98,7 @@ export function initialState(model: DecisionModel): DecisionState {
     checked: [],
     text: "",
     closed: false,
+    token: 0,
   };
 }
 
@@ -104,10 +115,28 @@ function open(state: DecisionState): boolean {
   return state.outcome.kind === "none" || state.outcome.kind === "held";
 }
 
+/** THE ONE RULE EVERY SEND PATH ANSWERS TO, when the answer is asked for and
+ *  again when the re-read says ok: no target row is locked, a typed answer
+ *  targets the free row, and a many-answer has rows. */
+function sendable(answer: DecisionAnswer, ctx: DecisionContext): boolean {
+  const rows = ctx.model.options;
+  const usable = (i: number) => Number.isInteger(i) && !!rows[i] && !rows[i].locked;
+  switch (answer.kind) {
+    case "option": return usable(answer.index);
+    case "text": return usable(answer.index) && !!rows[answer.index].free && answer.text.trim() !== "";
+    case "many": return answer.indexes.length > 0 && answer.indexes.every(usable);
+  }
+}
+
 function check(state: DecisionState, answer: DecisionAnswer, ctx: DecisionContext): Step {
-  // Nothing to check with: nothing is sent, nothing changes.
-  if (!ctx.canRecheck) return stay(state);
-  return stay({ ...state, outcome: { kind: "checking", answer } }, [{ type: "recheck", answer }]);
+  // Nothing to check with, or an answer that may not go out: nothing is sent, nothing changes.
+  if (!ctx.canRecheck || !sendable(answer, ctx)) return stay(state);
+  return stay({ ...state, token: state.token + 1, outcome: { kind: "checking", answer } }, [{ type: "recheck", answer }]);
+}
+
+/** Cancel the pick in flight, if any: a late answer to it finds another token. */
+function cancelled(state: DecisionState): DecisionState {
+  return state.outcome.kind === "checking" ? { ...state, token: state.token + 1, outcome: { kind: "none" } } : state;
 }
 
 /** Pick row `index` as an answer: a locked row is announced, a free row opens,
@@ -127,6 +156,8 @@ export function step(state: DecisionState, event: DecisionEvent, ctx: DecisionCo
     case "focus":
       if (event.index == null) return stay({ ...state, focus: null });
       if (state.mode === "readOnly" || event.index < 0 || event.index >= n) return stay(state);
+      // Another row than the free one takes the ring out of the field; the text waits.
+      if (state.mode === "free" && !ctx.model.options[event.index]?.free) return stay({ ...state, mode: "choose", focus: event.index });
       return stay({ ...state, focus: event.index });
     case "move": {
       if (state.mode === "readOnly" || state.mode === "free" || n === 0) return stay(state);
@@ -139,6 +170,7 @@ export function step(state: DecisionState, event: DecisionEvent, ctx: DecisionCo
       return pickRow(state, event.index, ctx);
     case "toggle": {
       if (state.mode !== "multi" || !open(state) || event.index < 0 || event.index >= n) return stay(state);
+      if (ctx.model.options[event.index].locked) return stay({ ...state, focus: event.index }, [{ type: "announce", text: LOCKED_ANNOUNCE }]);
       const has = state.checked.includes(event.index);
       const checked = has ? state.checked.filter(i => i !== event.index) : [...state.checked, event.index].sort((a, b) => a - b);
       return stay({ ...state, focus: event.index, checked });
@@ -148,7 +180,8 @@ export function step(state: DecisionState, event: DecisionEvent, ctx: DecisionCo
       if (state.mode === "choose") return state.focus == null ? stay(state) : pickRow(state, state.focus, ctx);
       if (state.mode === "free") {
         const text = state.text.trim();
-        if (!text || state.focus == null) return stay(state);
+        const target = state.focus == null ? undefined : ctx.model.options[state.focus];
+        if (!text || state.focus == null || !target?.free || target.locked) return stay(state);
         return check(state, { kind: "text", index: state.focus, text }, ctx);
       }
       if (state.mode === "multi") {
@@ -166,15 +199,26 @@ export function step(state: DecisionState, event: DecisionEvent, ctx: DecisionCo
       return state.mode === "free" ? stay({ ...state, text: event.text }) : stay(state);
     case "escape":
       // The field first: back to the choices, the text kept. Then the card.
-      if (state.mode === "free") return stay({ ...state, mode: "choose" });
-      return stay({ ...state, closed: true }, [{ type: "close" }]);
+      // A pick being checked is cancelled by either: its late answer sends nothing.
+      if (state.mode === "free") return stay({ ...cancelled(state), mode: "choose" });
+      return stay({ ...cancelled(state), closed: true }, [{ type: "close" }]);
     case "result": {
-      if (state.outcome.kind !== "checking") return stay(state);
+      if (state.closed || state.outcome.kind !== "checking") return stay(state);
+      if (event.token !== undefined && event.token !== state.token) return stay(state);
       const { answer } = state.outcome;
       const r = event.result;
+      if (r === "ok" && !sendable(answer, ctx)) return stay({ ...state, outcome: { kind: "none" } });
       if (r === "ok") return stay({ ...state, outcome: { kind: "sent", answer } }, [{ type: "send", answer }, { type: "record", answer }]);
       return stay({ ...state, outcome: outcomeOf(r) });
     }
+    case "checkFailed": {
+      // Only the pick that asked: any other outcome on screen stays until dismissed.
+      if (state.closed || state.outcome.kind !== "checking") return stay(state);
+      if (event.token !== undefined && event.token !== state.token) return stay(state);
+      return stay({ ...state, outcome: { kind: "none" } }, [{ type: "announce", text: CHECK_FAILED_ANNOUNCE }]);
+    }
+    case "reset":
+      return stay({ ...initialState(ctx.model), token: state.token + 1 });
     case "elsewhere":
       // The terminal answered first: nothing to send from here.
       return stay({ ...state, outcome: { kind: "elsewhere", at: event.at } });

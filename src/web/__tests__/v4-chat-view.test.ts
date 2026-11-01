@@ -70,7 +70,7 @@ describe("the conversation", () => {
 describe("the sheet", () => {
   it("rounds your message 12 12 4 12 on --your-message, 8 and 12 in", () => {
     const you = rule(".chat-you-text");
-    expect(you).toContain("border-radius: 12px 12px 4px 12px;");
+    expect(you).toContain("border-radius: var(--r-overlay) var(--r-overlay) var(--r-tag) var(--r-overlay);");
     expect(you).toContain("background: var(--your-message);");
     expect(you).toContain("padding: 8px 12px;");
   });
