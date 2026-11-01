@@ -10,6 +10,7 @@
 // whether a description rides along.
 import { type CSSProperties } from "react";
 import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
+import { useT } from "../i18n";
 
 interface Props {
   /** The range's id, which the label points at. */
@@ -27,10 +28,11 @@ interface Props {
   "aria-describedby"?: string;
 }
 
-export default function VolumeRow({ id, label = "Volume", value, step = LEVEL_STEP, onLevel, "aria-describedby": describedBy }: Props) {
+export default function VolumeRow({ id, label, value, step = LEVEL_STEP, onLevel, "aria-describedby": describedBy }: Props) {
+  const t = useT();
   return (
     <div className="sm-row">
-      <label htmlFor={id}>{label}</label>
+      <label htmlFor={id}>{label ?? t("radio.volume")}</label>
       {/* Native, and left native on purpose. A custom track and thumb
           would have to re-earn the arrow keys, Home and End, the drag,
           the announced percentage and the focus ring — all of which the

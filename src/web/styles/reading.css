@@ -165,3 +165,7 @@
   .reading-choice:has(input:checked) .reading-selected-mark { transform: none; }
   .reading-segmented .reading-choice { transition: none; }
 }
+
+/* Korean is written with spaces between words, but a browser may break a line
+   after any syllable. Keep a word whole, and let only one too long for its box break. */
+html:lang(ko) { word-break: keep-all; overflow-wrap: break-word; }

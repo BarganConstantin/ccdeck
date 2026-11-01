@@ -18,7 +18,8 @@
 // chosen from, so a future way to capture one — an area of the screen — joins
 // the row as one more button calling `images.add`, and nothing else moves.
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { ADD_HINT, ADD_LABEL, MAX_IMAGES, SHOTS_NOTE, focusAfterRemove, replaceLabel, shotsSummary } from "../feedback-images";
+import { addHint, addLabel, MAX_IMAGES, shotsNote, focusAfterRemove, replaceLabel, shotsSummary } from "../feedback-images";
+import { useT } from "../i18n";
 import type { FeedbackImages } from "../use-feedback-images";
 
 const ACCEPT = "image/png,image/jpeg";
@@ -45,6 +46,7 @@ interface AddProps {
  *  already there it says so, rather than opening a picker whose choice would
  *  be refused. */
 export function AddScreenshot({ images, buttonRef }: AddProps) {
+  useT();
   const pickRef = useRef<HTMLInputElement>(null);
   const full = images.shots.length >= MAX_IMAGES;
   return (
@@ -53,17 +55,17 @@ export function AddScreenshot({ images, buttonRef }: AddProps) {
         ref={buttonRef}
         type="button"
         className="fb-tool"
-        title={ADD_HINT}
+        title={addHint()}
         aria-describedby="fb-attach-hint"
         onClick={() => (full ? images.sayFull() : pickRef.current?.click())}
       >
         <ImageGlyph />
-        {ADD_LABEL}
+        {addLabel()}
       </button>
       {/* Hidden, and still the button's description: a description is read
           from a hidden element, and this way it is not read a second time as
           text after the button. */}
-      <span id="fb-attach-hint" hidden>{ADD_HINT}</span>
+      <span id="fb-attach-hint" hidden>{addHint()}</span>
       <input ref={pickRef} type="file" accept={ACCEPT} multiple hidden
         onChange={e => {
           images.add(Array.from(e.target.files ?? []));
@@ -80,6 +82,7 @@ interface StripProps {
 }
 
 export default function FeedbackShots({ images, addRef }: StripProps) {
+  const t = useT();
   const removeRefs = useRef(new Map<number, HTMLButtonElement>());
   const problemRef = useRef<HTMLParagraphElement>(null);
   const replacePickRef = useRef<HTMLInputElement>(null);
@@ -136,8 +139,8 @@ export default function FeedbackShots({ images, addRef }: StripProps) {
                   >
                     <img className="fb-shot-img" src={shot.url} alt="" />
                     {shot.blob
-                      ? <span className="fb-shot-cue" aria-hidden="true">Replace</span>
-                      : <span className="fb-shot-busy" aria-hidden="true">Resizing…</span>}
+                      ? <span className="fb-shot-cue" aria-hidden="true">{t("shell.feedback.replace")}</span>
+                      : <span className="fb-shot-busy" aria-hidden="true">{t("shell.feedback.resizing")}</span>}
                   </button>
                   <button
                     ref={button => {
@@ -146,8 +149,8 @@ export default function FeedbackShots({ images, addRef }: StripProps) {
                     }}
                     type="button"
                     className="glyph-btn fb-shot-remove"
-                    aria-label={`Remove image ${index + 1}`}
-                    title={`Remove image ${index + 1}`}
+                    aria-label={t("shell.feedback.removeImage", { n: index + 1 })}
+                    title={t("shell.feedback.removeImage", { n: index + 1 })}
                     onClick={() => removeShot(shot.id)}
                   >
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4"
@@ -160,7 +163,7 @@ export default function FeedbackShots({ images, addRef }: StripProps) {
             </ul>
             <span className="fb-shots-count">{summary}</span>
           </div>
-          <p className="fb-hint">{SHOTS_NOTE}</p>
+          <p className="fb-hint">{shotsNote()}</p>
         </div>
       )}
       {/* Keyed on the refusal, so each one is a new alert and read out, even

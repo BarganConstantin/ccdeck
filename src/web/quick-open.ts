@@ -12,6 +12,7 @@
 // drawn by components/QuickOpen.tsx.
 import type { ReactNode } from "react";
 import { readStored, writeStored } from "./storage";
+import { t, type TFunction } from "./i18n";
 
 /** The sections, in the order an empty field lists them. */
 export type QuickSection = "recent" | "sessions" | "open" | "settings" | "actions" | "themes";
@@ -24,6 +25,9 @@ export const SECTION_TITLES: Record<QuickSection, string> = {
   actions: "Actions",
   themes: "Themes",
 };
+
+/** The section titles in the language on show; SECTION_TITLES stays the English. */
+export const sectionTitle = (key: QuickSection, tr: TFunction = t): string => tr(`board.quick.section.${key}`);
 
 const SECTION_ORDER: readonly QuickSection[] = ["recent", "sessions", "open", "settings", "actions", "themes"];
 
@@ -200,7 +204,7 @@ export function rankQuick(items: readonly QuickItem[], query: string, recent: re
 }
 
 function section(key: QuickSection, items: RankedItem[]): RankedSection {
-  return { section: key, title: SECTION_TITLES[key], items };
+  return { section: key, title: sectionTitle(key), items };
 }
 
 /** The rows in the order the arrows walk them. */

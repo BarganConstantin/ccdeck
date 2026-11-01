@@ -79,6 +79,6 @@ describe("one clock, everywhere in the panel", () => {
   it("leaves the DATE in the reader's locale, which is a different question", () => {
     // A day heading is read, not scanned into a column, and "Wed, Sep 2" versus
     // "mié, 2 sept" costs nothing and gains the reader their own month names.
-    expect(source).toMatch(/toLocaleDateString\(undefined,/);
+    expect(source).toMatch(/toLocaleDateString\(currentLanguage\(\),/);
   });
 });

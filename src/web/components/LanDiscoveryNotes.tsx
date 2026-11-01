@@ -6,6 +6,7 @@
 // tunnel. Each line is drawn only while the section is on; what each says,
 // and why it is said here rather than anywhere else, is beside it.
 import type { LanStatus, LanTailscale } from "../lan-types";
+import { t } from "../i18n";
 import LanReachNote from "./LanReachNote";
 
 /**
@@ -15,9 +16,9 @@ import LanReachNote from "./LanReachNote";
  */
 export function tunnelNote(s: { tailscale?: LanTailscale | null }): string {
   if (s.tailscale?.exitNode) {
-    return "Tailscale sends this machine's local network through an exit node, so decks on this network cannot find this one. Turn on Allow local network access in Tailscale's exit node menu to bring them back.";
+    return t("lan.dn.tunnelTs");
   }
-  return "This machine sends its local network through a VPN, so decks on this network cannot find this one. Allowing local network access in the VPN brings them back.";
+  return t("lan.dn.tunnelVpn");
 }
 
 export default function LanDiscoveryNotes({ on, status }: {

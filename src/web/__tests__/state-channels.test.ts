@@ -433,17 +433,17 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
   });
 
   it("puts the word where the dot is, so it is heard in the order it is seen", () => {
-    expect(sessionList).toMatch(/<span className=\{`sl-dot state-\$\{r\.state\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{stateLabel\(r\.state\)\}<\/span>/);
+    expect(sessionList).toMatch(/<span className=\{`sl-dot state-\$\{r\.state\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{stateLabel\(r\.state, t\)\}<\/span>/);
     expect(sessionBreakdown).toMatch(/<span className=\{`sl-dot state-\$\{s\.state\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{stateLabel\(s\.state\)\}<\/span>/);
-    expect(app).toMatch(/<span className=\{`status-dot \$\{status\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{TOOL_STATUS_LABEL\[status\]\}<\/span>/);
+    expect(app).toMatch(/<span className=\{`status-dot \$\{status\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{t\(TOOL_STATUS_LABEL\[status\]\)\}<\/span>/);
   });
 
   it("says it in one vocabulary, shared with the word already on the card", () => {
     // A card that reads `live` beside a row that reads `running` is one state
     // with two names. StatePill and both lists go through the same function.
-    expect(agentCopy).toMatch(/export function stateLabel\(state: AgentNodeData\["state"\]\): string/);
-    expect(agentCopy).toMatch(/state === "active" \? "live" : state === "done" \? "done" : "err"/);
-    expect(agentNode).toMatch(/<span className=\{`state-pill state-\$\{state\}`\}>\{stateLabel\(state\)\}<\/span>/);
+    expect(agentCopy).toMatch(/export function stateLabel\(state: AgentNodeData\["state"\], tr: TFunction = t\): string/);
+    expect(agentCopy).toMatch(/tr\(state === "active" \? "board\.state\.live" : state === "done" \? "board\.state\.done" : "board\.state\.err"\)/);
+    expect(agentNode).toMatch(/<span className=\{`state-pill state-\$\{state\}`\}>\{stateLabel\(state, t\)\}<\/span>/);
     for (const [name, src] of [["SessionList", sessionList], ["UsageSessionBreakdown", sessionBreakdown]] as const) {
       expect(src, name).toMatch(/import \{[^}]*\bstateLabel\b[^}]*\} from "\.\.\/agent-copy"/);
       expect(src, `${name} re-states the vocabulary`).not.toMatch(/\? "live"/);
@@ -455,7 +455,7 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // Not stateLabel's: a tool call is not a session. `in-flight` is what the
     // modal writes where the duration goes and `error` is what it tags the
     // response with, and both predate this change.
-    expect(app).toMatch(/const TOOL_STATUS_LABEL = \{ inflight: "in-flight", done: "done", err: "error" \} as const;/);
+    expect(app).toMatch(/const TOOL_STATUS_LABEL = \{ inflight: "board\.toolStatus\.inflight", done: "board\.toolStatus\.done", err: "board\.toolStatus\.err" \} as const;/);
     // The modal used to `return "in-flight…"` from its own duration formatter.
     // #374 merged that formatter with the row's, which rounded the same
     // milliseconds one decimal coarser, and the sentinel is the one genuine
@@ -463,8 +463,8 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // than a literal in a function body. What this test is about did not
     // change: the word the modal prints where the duration goes is still
     // `in-flight…`, and it is still written in this file.
-    expect(toolModal).toMatch(/toolDuration\(tool, "in-flight…"\)/);
-    expect(toolModal).toMatch(/<span className="err-tag">error<\/span>/);
+    expect(toolModal).toMatch(/toolDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
+    expect(toolModal).toMatch(/<span className="err-tag">\{t\("insights\.tool\.error"\)\}<\/span>/);
   });
 
   it("left the row's name to its contents — no aria-label, and no reliance on title", () => {
@@ -480,7 +480,7 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     expect(row).not.toMatch(/aria-label/);
     // Pointed at what the press does, which for a row "Remove from board"
     // took off the canvas is bringing it back rather than focusing it.
-    expect(row).toMatch(/title=\{removed \? `Bring \$\{r\.label\} back to the board` : `Focus \$\{r\.label\}`\}/);
+    expect(row).toMatch(/title=\{removed \? t\("board\.list\.bring", \{ label: r\.label \}\) : t\("board\.list\.focus", \{ label: r\.label \}\)\}/);
     const toolRow = /<button className="tool clickable"[^>]*>/.exec(app)![0];
     expect(toolRow).not.toMatch(/aria-label/);
   });

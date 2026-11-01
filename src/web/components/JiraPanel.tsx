@@ -15,6 +15,7 @@
 // WHEN IT READS: when it opens on a board read more than five minutes ago, and
 // when Refresh is pressed. Never on a timer (use-jira-board.ts).
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useT } from "../i18n";
 import { connectionHost, IntegrationFailure } from "../integrations/client";
 import type { IntegrationPanelProps } from "../integrations/types";
 import { moveJiraIssue, readBoards, type JiraBoardSummary } from "../jira-api";
@@ -57,6 +58,7 @@ function BoardPicker({ api, current, layerId, onPick, onClose }: {
   onPick: (board: JiraBoardSummary) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState<BoardPage>({ boards: [], isLast: false, total: null, loading: true, error: null });
   const searchRef = useRef<HTMLInputElement>(null);
@@ -79,8 +81,8 @@ function BoardPicker({ api, current, layerId, onPick, onClose }: {
 
   // Searching is Jira's: by board name, a quarter of a second after typing stops.
   useEffect(() => {
-    const t = window.setTimeout(() => load(query.trim(), 0), query ? 250 : 0);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => load(query.trim(), 0), query ? 250 : 0);
+    return () => window.clearTimeout(timer);
   }, [query, load]);
 
   const items = () => Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>("button[data-board]") ?? []);
@@ -98,9 +100,9 @@ function BoardPicker({ api, current, layerId, onPick, onClose }: {
     <AnchoredPopover anchorId={layerId} align="start" portalRootId={layerId} id="jira-board-picker" className="jr-board-pop" role="dialog"
       labelledBy="jira-board-picker-title" focusRef={searchRef} onClose={onClose}>
       <div className="jr-board-pop-inner" onKeyDown={onKeyDown}>
-        <p className="jr-board-pop-title" id="jira-board-picker-title">Boards</p>
-        <IntegrationSearch value={query} onChange={setQuery} label="Find a board by name" placeholder="Find a board by name" inputRef={searchRef} />
-        <ul className="jr-board-list" role="list" ref={listRef} aria-label="Boards" aria-busy={page.loading || undefined}>
+        <p className="jr-board-pop-title" id="jira-board-picker-title">{t("integrations.panel.boards")}</p>
+        <IntegrationSearch value={query} onChange={setQuery} label={t("integrations.panel.findBoard")} placeholder={t("integrations.panel.findBoard")} inputRef={searchRef} />
+        <ul className="jr-board-list" role="list" ref={listRef} aria-label={t("integrations.panel.boards")} aria-busy={page.loading || undefined}>
           {page.boards.map(b => (
             <li key={b.id}>
               <button type="button" data-board={b.id} className="jr-board-item" aria-current={String(b.id) === current || undefined}
@@ -111,12 +113,12 @@ function BoardPicker({ api, current, layerId, onPick, onClose }: {
             </li>
           ))}
         </ul>
-        {page.loading && <p className="jr-board-pop-note" role="status">Reading boards…</p>}
+        {page.loading && <p className="jr-board-pop-note" role="status">{t("integrations.panel.readingBoards")}</p>}
         {!page.loading && page.error && <p className="jr-board-pop-note" role="alert">{page.error.message}</p>}
-        {!page.loading && !page.error && page.boards.length === 0 && <p className="jr-board-pop-note">{query ? "No board by that name." : "No boards this account can see."}</p>}
+        {!page.loading && !page.error && page.boards.length === 0 && <p className="jr-board-pop-note">{query ? t("integrations.panel.noBoardNamed") : t("integrations.panel.noBoardsSeen")}</p>}
         {!page.loading && !page.isLast && page.boards.length > 0 && (
           <button type="button" className="btn jr-board-more" onClick={() => load(query.trim(), page.boards.length)}>
-            Show more boards{page.total != null ? ` (${page.boards.length} of ${page.total})` : ""}
+            {page.total != null ? t("integrations.panel.showMoreBoardsCount", { n: page.boards.length, total: page.total }) : t("integrations.panel.showMoreBoards")}
           </button>
         )}
       </div>
@@ -131,6 +133,7 @@ function BoardPicker({ api, current, layerId, onPick, onClose }: {
 const sameIssue = (a: string[], b: string[]) => a[a.length - 1] === b[b.length - 1];
 
 export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narrow, onReconnect }: IntegrationPanelProps) {
+  const t = useT();
   const scrollerId = useId();
   const scope = `jira:${conn.id}`;
   const [board, setBoardState] = useState<string | null>(() => prefs.read("board", isString) ?? null);
@@ -182,8 +185,8 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   const moving = moveWrite.state.busy;
   const readingGroups = Object.values(snap.groups).some(g => g.more || g.status === "loading");
   const moveIssue = async (move: JiraMove) => {
-    const context = `${moveKeys(move).join(", ")} · ${boardName || `Board ${board}`}`;
-    if (!board || loading || readingGroups || !moveWrite.begin(context)) throw new Error("Wait for the board to finish updating.");
+    const context = `${moveKeys(move).join(", ")} · ${boardName || t("integrations.board.numbered", { id: board ?? "" })}`;
+    if (!board || loading || readingGroups || !moveWrite.begin(context)) throw new Error(t("integrations.panel.waitUpdate"));
     let unconfirmed = false;
     let outcomeText = "";
     let operationId: string | undefined;
@@ -196,8 +199,8 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
     catch (err) {
       unconfirmed = !definiteJiraWriteFailure(err) || err.refreshRequired === true;
       if (err instanceof IntegrationFailure && err.operation) moveWrite.update({ operation: err.operation });
-      if (err instanceof IntegrationFailure && err.outcomes?.length) outcomeText = err.outcomes.map(o => `${o.issueKey}: membership ${o.membership}, rank ${o.rank}`).join("; ");
-      else if (err instanceof IntegrationFailure && err.moveOutcome) outcomeText = `${moveKeys(move)[0]}: membership ${err.moveOutcome.membership}, rank ${err.moveOutcome.rank}`;
+      if (err instanceof IntegrationFailure && err.outcomes?.length) outcomeText = err.outcomes.map(o => t("integrations.panel.outcome", { key: o.issueKey, membership: t(`integrations.panel.outcome.${o.membership}`), rank: t(`integrations.panel.outcome.${o.rank}`) })).join("; ");
+      else if (err instanceof IntegrationFailure && err.moveOutcome) outcomeText = t("integrations.panel.outcome", { key: moveKeys(move)[0], membership: t(`integrations.panel.outcome.${err.moveOutcome.membership}`), rank: t(`integrations.panel.outcome.${err.moveOutcome.rank}`) });
       throw err;
     }
     finally {
@@ -290,15 +293,16 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
   }, [trail, choose]);
 
   const host = connectionHost(conn);
+  const boardLabel = overview?.board.name || boardName || (board ? t("integrations.board.numbered", { id: board }) : t("integrations.panel.chooseBoard"));
   const blocking = !overview ? (error ?? boardsError) : null;
 
   const list = (() => {
     if (noBoards) {
       return (
         <div className="jr-state">
-          <h3>No boards here</h3>
-          <p>This account cannot see any board on {host}. A board appears here once you are given access to one in Jira.</p>
-          <p><a className="ig-open" href={`${conn.baseUrl}/secure/ManageRapidViews.jspa`} target="_blank" rel="noreferrer noopener">Open boards in Jira<ExternalLinkGlyph /></a></p>
+          <h3>{t("integrations.panel.noBoardsTitle")}</h3>
+          <p>{t("integrations.panel.noBoardsBody", { host })}</p>
+          <p><a className="ig-open" href={`${conn.baseUrl}/secure/ManageRapidViews.jspa`} target="_blank" rel="noreferrer noopener">{t("integrations.panel.openBoards")}<ExternalLinkGlyph /></a></p>
         </div>
       );
     }
@@ -307,21 +311,21 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
         <div className="jr-state">
           <IntegrationFailureNote error={blocking} provider="Jira" host={host} onRetry={board ? jira.refresh : firstBoard} onReconnect={onReconnect} />
           {blocking.kind === "not-found" && board && (
-            <p><button type="button" className="btn" onClick={() => setPicker(true)}>Choose another board</button></p>
+            <p><button type="button" className="btn" onClick={() => setPicker(true)}>{t("integrations.panel.chooseAnother")}</button></p>
           )}
         </div>
       );
     }
     if (!overview) {
-      return <IntegrationSkeleton label="Reading the board" rows={6} />;
+      return <IntegrationSkeleton label={t("integrations.panel.readingBoard")} rows={6} />;
     }
     return (
       <>
         {error && <IntegrationFailureNote error={error} provider="Jira" host={host} stale onRetry={jira.refresh} onReconnect={onReconnect} />}
         {moveWrite.state.uncertain && <div className="jr-board-note" role="alert">
-          {moveWrite.state.draft && <>The move of {moveWrite.state.draft} needs verification. Check these issues in Jira before trying again. {" "}</>}
+          {moveWrite.state.draft && <>{t("integrations.panel.needsVerification", { draft: moveWrite.state.draft })} {" "}</>}
           {moveWrite.state.error && <span>{moveWrite.state.error} {" "}</span>}
-          <button type="button" className="btn" aria-disabled={moveWrite.state.operation?.state === "pending" || undefined} onClick={event => { if (document.activeElement === event.currentTarget) rootRef.current?.querySelector<HTMLElement>(".jr-row-main, .jr-group-toggle")?.focus(); void moveWrite.acknowledge(); }}>I checked the issues</button>
+          <button type="button" className="btn" aria-disabled={moveWrite.state.operation?.state === "pending" || undefined} onClick={event => { if (document.activeElement === event.currentTarget) rootRef.current?.querySelector<HTMLElement>(".jr-row-main, .jr-group-toggle")?.focus(); void moveWrite.acknowledge(); }}>{t("integrations.panel.checkedIssues")}</button>
         </div>}
         <JiraBacklog
           key={board}
@@ -381,24 +385,24 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       <div className="jr-toolbar" hidden={narrow && open}>
         {/* Keep the picker inside the dialog's accessibility boundary. */}
         <span id="jira-board-layer" className="jr-board-layer">
-          <button type="button" id="jira-board-button" className="btn jr-board-btn" aria-label={`Board: ${overview?.board.name || boardName || (board ? `Board ${board}` : "Choose a board")}`} title={[...new Set([overview?.board.name || boardName, overview?.board.projectName].filter(Boolean))].join(" · ")} aria-haspopup="dialog" aria-expanded={picker}
+          <button type="button" id="jira-board-button" className="btn jr-board-btn" aria-label={t("integrations.panel.boardAria", { name: boardLabel })} title={[...new Set([overview?.board.name || boardName, overview?.board.projectName].filter(Boolean))].join(" · ")} aria-haspopup="dialog" aria-expanded={picker}
             aria-controls={picker ? "jira-board-picker" : undefined} onClick={() => setPicker(p => !p)}>
-            <span className="jr-board-btn-label">Board</span>
-            <span className="jr-board-btn-name">{overview?.board.name || boardName || (board ? `Board ${board}` : "Choose a board")}</span>
+            <span className="jr-board-btn-label">{t("integrations.panel.board")}</span>
+            <span className="jr-board-btn-name">{boardLabel}</span>
             <Chevron open={picker} />
           </button>
         </span>
-        <div className="jr-filters" role="group" aria-label="Filters">
+        <div className="jr-filters" role="group" aria-label={t("integrations.panel.filters")}>
           {/* Escape empties it first (the shared field's own entry on the
               dismiss stack), then leaves the issue, then closes the panel. */}
-          <IntegrationSearch inputRef={searchRef} value={search} onChange={setSearch} label="Search issues by key or summary" placeholder="Search key or summary" />
+          <IntegrationSearch inputRef={searchRef} value={search} onChange={setSearch} label={t("integrations.panel.searchLabel")} placeholder={t("integrations.panel.searchPlaceholder")} />
           {/* One row that scrolls sideways on a phone, rather than three rows
               of chips over the board. */}
           <div className="jr-filter-chips">
-            <button type="button" className="btn jr-chip" aria-pressed={mine} onClick={() => setMine(m => !m)}>Only my issues</button>
-            <button type="button" className="btn jr-chip" aria-pressed={hideDone} onClick={() => setHideDone(h => !h)}>Hide done</button>
-            <button type="button" className="btn jr-chip" aria-pressed={attention} title="Flagged, or Highest, Blocker or Critical priority, and not done"
-              onClick={() => setAttention(a => !a)}>Needs attention</button>
+            <button type="button" className="btn jr-chip" aria-pressed={mine} onClick={() => setMine(m => !m)}>{t("integrations.panel.onlyMine")}</button>
+            <button type="button" className="btn jr-chip" aria-pressed={hideDone} onClick={() => setHideDone(h => !h)}>{t("integrations.panel.hideDone")}</button>
+            <button type="button" className="btn jr-chip" aria-pressed={attention} title={t("integrations.panel.attentionTip")}
+              onClick={() => setAttention(a => !a)}>{t("integrations.panel.attention")}</button>
             {quickFilters.map(q => (
               <button key={q.id} type="button" className="btn jr-chip" aria-pressed={quick.includes(q.id)} title={q.description || undefined}
                 onClick={() => setQuick(list => (list.includes(q.id) ? list.filter(x => x !== q.id) : [...list, q.id]))}>
@@ -406,12 +410,12 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
               </button>
             ))}
           </div>
-          {filtered && <button type="button" className="jr-link-btn jr-clear" onClick={clearFilters}>Clear filters</button>}
+          {filtered && <button type="button" className="jr-link-btn jr-clear" onClick={clearFilters}>{t("integrations.panel.clearFilters")}</button>}
         </div>
         {/* After a refresh that failed the rows on screen are the last
             answer, and the line says "Not updated", never "Updated". */}
         <IntegrationFreshness loadedAt={snap.loadedAt || null} loading={loading} stale={Boolean(error)}
-          onRefresh={() => { if (board) jira.refresh(); else firstBoard(); }} label="Refresh the board" disabled={!board} />
+          onRefresh={() => { if (board) jira.refresh(); else firstBoard(); }} label={t("integrations.panel.refresh")} disabled={!board} />
       </div>
 
       <IntegrationSplit
@@ -420,7 +424,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
         list={<div className="jr-list-scroll" id={scrollerId}>{list}</div>}
         detail={detail}
         onBack={back}
-        backLabel="Back to the board"
+        backLabel={t("integrations.panel.backToBoard")}
         detailKey={trail[trail.length - 1]}
       />
 

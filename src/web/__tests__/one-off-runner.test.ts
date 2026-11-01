@@ -91,6 +91,6 @@ describe("a deck started by a one-off runner", () => {
     expect(LOGIN_ITEM).toContain("npx: isOneOffRun(PKG_ROOT),");
     expect(LOGIN_ITEM).toContain("if (isOneOffRun(PKG_ROOT)) {");
     expect(LOGIN_ITEM).not.toContain("npx: isNpxInstall(PKG_ROOT)");
-    expect(BANNER).toMatch(/^\s+one_off: "/m);
+    expect(BANNER).toMatch(/^\s+get one_off\(\) \{ return t\("shell\.banner\.block\.one_off"\); \},$/m);
   });
 });

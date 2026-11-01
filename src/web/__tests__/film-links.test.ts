@@ -106,6 +106,6 @@ describe("each place draws its film", () => {
 
   it("Local network while it is on with no other deck, beside `How it works`", () => {
     expect(read("../components/LanSyncSection.tsx"))
-      .toMatch(/className="ap-lan-word ap-lan-how"[^\n]*\n\s*How it works\s*<\/button>\s*<FilmLink film="localNetwork" \/>/);
+      .toMatch(/className="ap-lan-word ap-lan-how"[^\n]*\n\s*\{t\("lan\.sync\.how"\)\}\s*<\/button>\s*<FilmLink film="localNetwork" \/>/);
   });
 });

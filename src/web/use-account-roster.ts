@@ -25,6 +25,7 @@ import {
 } from "./accounts-reload";
 import { type AccountsData, type AutoStatus } from "./claude-accounts";
 import { isAccountsData } from "./accounts-contract";
+import { t as tNow } from "./i18n";
 
 export const POLL_MS = 15_000;
 // Past this, a reload is called dead rather than slow. Both routes can spawn
@@ -78,7 +79,7 @@ export function useAccountRoster(onRoster: (fresh: AccountsData) => void) {
       const verdict = explainReload([await answered(accts), await answered(autoRes)]);
       if (!activeRef.current || version !== versionRef.current) return;
       if (fresh && !isAccountsData(fresh)) {
-        setFailure(prev => nextFailure(prev, { text: "the deck server returned unreadable account data", reload: true }));
+        setFailure(prev => nextFailure(prev, { text: tNow("accounts.reload.unreadable"), reload: true }));
         return;
       }
       if (fresh) { setData(fresh); onRoster(fresh); }

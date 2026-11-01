@@ -12,6 +12,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { WatchEpisode, WatchSettings, WatchSnapshot } from "./browser-watch-model";
 import { selfPressAccepted } from "./panel-press";
+import { t } from "./i18n";
+import { OwnError, ownMessage } from "./own-error";
 
 export interface BrowserWatch {
   /** The last snapshot that answered, or null until the first one does. */
@@ -87,7 +89,7 @@ export function useBrowserWatch(onWatching: (on: boolean) => void): BrowserWatch
          the time the next poll goes out; there was never anything for the
          override to add. */
       const r = await fetch(`/api/browser-watch${refresh ? "?refresh=1" : ""}`);
-      if (!r.ok) throw new Error(`the deck answered ${r.status}`);
+      if (!r.ok) throw new OwnError(t("settings.bw.deckAnswered", { status: r.status }));
       const next = await r.json();
       setSnap(next);
       // Follow the store, except while a save is in flight — the optimistic
@@ -105,7 +107,7 @@ export function useBrowserWatch(onWatching: (on: boolean) => void): BrowserWatch
       onWatching(next?.settings?.enabled === true);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(ownMessage(e, t("settings.bw.noAnswer")));
     } finally {
       if (refresh) {
         busyRef.current = false;
@@ -162,11 +164,11 @@ export function useBrowserWatch(onWatching: (on: boolean) => void): BrowserWatch
         headers: { "content-type": "application/json" },
         body: JSON.stringify(patch),
       });
-      if (!r.ok) throw new Error(`the deck answered ${r.status}`);
+      if (!r.ok) throw new OwnError(t("settings.bw.deckAnswered", { status: r.status }));
       await load(false);
       setWriteError(null);
     } catch (e) {
-      setWriteError(e instanceof Error ? e.message : String(e));
+      setWriteError(ownMessage(e, t("settings.bw.noAnswer")));
     } finally {
       savingRef.current = false;
       setSaving(false);

@@ -54,7 +54,7 @@ describe("the room the other accounts have", () => {
     // The peek is portalled and opens on a pointer, which a static render
     // cannot reach; what it prints for a ready account is read from its source.
     const fold = sourceOf("components/OtherAccounts.tsx");
-    expect(fold).toContain("`${Math.round(p.headroom)}% free`");
-    expect(fold).not.toContain("`${p.headroom}% free`");
+    expect(fold).toContain('t("accounts.other.free", { pct: Math.round(p.headroom) })');
+    expect(fold).not.toContain('{ pct: p.headroom }');
   });
 });

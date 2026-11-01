@@ -12,6 +12,7 @@ import { SETTINGS_SECTIONS, type SettingsSection } from "./settings";
 import { isSectionEntry, resultPlace, type SettingsEntry } from "./settings-search";
 import { THEME_DEFINITIONS, THEMES, type Theme } from "./theme";
 import type { QuickItem } from "./quick-open";
+import { t } from "./i18n";
 import SettingsSectionGlyph from "./components/SettingsSectionGlyph";
 import { ArrangeGlyph, ClearGlyph, FitGlyph, PauseGlyph, TourGlyph } from "./components/rail-glyphs";
 
@@ -45,14 +46,14 @@ function settingItem(entry: SettingsEntry, openSettings: QuickOpenSources["openS
     return {
       id: `settings:${entry.id}`, section: "settings", title: entry.label,
       subtitle: SETTINGS_SECTIONS.find(s => s.id === entry.section)?.note,
-      keywords: ["settings", ...entry.keywords], tag: "Settings", verb: "Open in Settings", glyph,
+      keywords: ["settings", ...entry.keywords], tag: t("board.quick.tag.settings"), verb: t("board.quick.verb.openInSettings"), glyph,
       run: () => openSettings(entry.section),
     };
   }
   const place = resultPlace(entry);
   return {
     id: `settings:${entry.id}`, section: "settings", title: entry.label, subtitle: place,
-    keywords: [...entry.keywords, ...place.split(" › ")], tag: "Setting", verb: "Go to setting", glyph,
+    keywords: [...entry.keywords, ...place.split(" › ")], tag: t("board.quick.tag.setting"), verb: t("board.quick.verb.goSetting"), glyph,
     queryOnly: true,
     run: () => openSettings(entry.section, entry.id),
   };
@@ -66,8 +67,8 @@ function doorItem(door: RailItem, singleKeys: boolean): QuickItem {
     title: door.hint ?? door.menu ?? door.label,
     subtitle: door.detail?.split("\n")[0],
     keywords: [door.label, door.short, ...(DOOR_WORDS[door.id] ?? []), ...(door.detail ? [door.detail] : [])],
-    tag: panel ? (door.open ? "Shown" : "Panel") : "Dialog",
-    verb: panel ? (door.open ? "Hide panel" : "Show panel") : "Open",
+    tag: panel ? (door.open ? t("board.quick.tag.shown") : t("board.quick.tag.panel")) : t("board.quick.tag.dialog"),
+    verb: panel ? (door.open ? t("board.quick.verb.hidePanel") : t("board.quick.verb.showPanel")) : t("board.quick.verb.open"),
     keyCap: liveKey(door.key, singleKeys)?.cap,
     glyph: door.glyph,
     run: door.onPress,
@@ -77,10 +78,10 @@ function doorItem(door: RailItem, singleKeys: boolean): QuickItem {
 /** A session's state in the words its row and card use. */
 export function sessionLine(row: Pick<Row, "state" | "waiting" | "label" | "cwdBasename">, now: number): { line: string; tone: QuickItem["tone"] } {
   const where = row.cwdBasename && row.cwdBasename !== row.label ? ` · ${row.cwdBasename}` : "";
-  if (row.waiting && isAlarming(row.waiting)) return { line: `Needs you · ${elapsedShort(row.waiting.since, undefined, now)}${where}`, tone: "waiting" };
-  if (row.state === "active") return { line: `Working${where}`, tone: "active" };
-  if (row.state === "err") return { line: `Failed${where}`, tone: "err" };
-  return { line: `Done${where}`, tone: "done" };
+  if (row.waiting && isAlarming(row.waiting)) return { line: `${t("board.quick.needsYou")} · ${elapsedShort(row.waiting.since, undefined, now)}${where}`, tone: "waiting" };
+  if (row.state === "active") return { line: `${t("board.quick.working")}${where}`, tone: "active" };
+  if (row.state === "err") return { line: `${t("board.quick.failed")}${where}`, tone: "err" };
+  return { line: `${t("board.quick.done")}${where}`, tone: "done" };
 }
 
 export interface QuickOpenSources {
@@ -122,8 +123,8 @@ export function quickOpenItems(src: QuickOpenSources): QuickItem[] {
       title: row.label,
       subtitle: line,
       keywords: [row.cwdBasename ?? "", row.modelId ?? ""].filter(Boolean),
-      tag: "Session",
-      verb: "Go to session",
+      tag: t("board.quick.tag.session"),
+      verb: t("board.quick.verb.goSession"),
       tone,
       run: () => src.openSession(row.sessionId),
     });
@@ -137,20 +138,20 @@ export function quickOpenItems(src: QuickOpenSources): QuickItem[] {
   }
 
   items.push(
-    { id: "action:fit", section: "actions", title: "Fit every agent on screen", keywords: ["zoom", "view", "recenter"],
-      tag: "Action", verb: "Run", keyCap: key("F"), glyph: <FitGlyph />, run: src.fit },
-    { id: "action:rearrange", section: "actions", title: "Re-arrange the canvas", keywords: ["layout", "tidy", "pins"],
-      tag: "Action", verb: "Run", keyCap: key("R"), glyph: <ArrangeGlyph />, run: src.rearrange },
-    { id: "action:pause", section: "actions", title: src.paused ? "Resume the stream" : "Pause the stream", keywords: ["pause", "resume", "freeze", "live"],
-      tag: "Action", verb: "Run", keyCap: key("Space"), glyph: <PauseGlyph />, run: src.togglePause },
-    { id: "action:keys", section: "actions", title: "Keyboard shortcuts", keywords: ["keys", "help", "?"],
-      tag: "Action", verb: "Open", keyCap: key("?"), glyph: <SettingsSectionGlyph section="keyboard" />, run: src.keyHelp },
-    { id: "action:tour", section: "actions", title: "Take the tour", keywords: ["help", "guide", "intro", "start"],
-      tag: "Action", verb: "Start", glyph: <TourGlyph />, run: src.tour },
+    { id: "action:fit", section: "actions", title: t("board.quick.action.fit"), keywords: ["zoom", "view", "recenter"],
+      tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("F"), glyph: <FitGlyph />, run: src.fit },
+    { id: "action:rearrange", section: "actions", title: t("board.controls.arrangeLabel"), keywords: ["layout", "tidy", "pins"],
+      tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("R"), glyph: <ArrangeGlyph />, run: src.rearrange },
+    { id: "action:pause", section: "actions", title: src.paused ? t("board.quick.action.resume") : t("board.quick.action.pause"), keywords: ["pause", "resume", "freeze", "live"],
+      tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("Space"), glyph: <PauseGlyph />, run: src.togglePause },
+    { id: "action:keys", section: "actions", title: t("board.controls.keys"), keywords: ["keys", "help", "?"],
+      tag: t("board.quick.tag.action"), verb: t("board.quick.verb.open"), keyCap: key("?"), glyph: <SettingsSectionGlyph section="keyboard" />, run: src.keyHelp },
+    { id: "action:tour", section: "actions", title: t("board.hero.tour"), keywords: ["help", "guide", "intro", "start"],
+      tag: t("board.quick.tag.action"), verb: t("board.quick.verb.start"), glyph: <TourGlyph />, run: src.tour },
   );
   if (src.clear) {
-    items.push({ id: "action:clear", section: "actions", title: "Clear the canvas…", subtitle: "Asks first",
-      keywords: ["clear", "reset", "empty", "delete"], tag: "Action", verb: "Ask first", keyCap: key("C"), glyph: <ClearGlyph />, run: src.clear });
+    items.push({ id: "action:clear", section: "actions", title: t("board.quick.action.clear"), subtitle: t("board.quick.asksFirst"),
+      keywords: ["clear", "reset", "empty", "delete"], tag: t("board.quick.tag.action"), verb: t("board.quick.verb.askFirst"), keyCap: key("C"), glyph: <ClearGlyph />, run: src.clear });
   }
 
   for (const theme of THEMES) {
@@ -160,8 +161,8 @@ export function quickOpenItems(src: QuickOpenSources): QuickItem[] {
       section: "themes",
       title: def.name,
       keywords: ["theme", def.colorScheme],
-      tag: theme === src.theme ? "Current" : "Theme",
-      verb: "Use theme",
+      tag: theme === src.theme ? t("board.quick.tag.current") : t("board.quick.tag.theme"),
+      verb: t("board.quick.verb.useTheme"),
       queryOnly: true,
       glyph: <span className="appearance-preview qo-swatch" data-swatch={theme} />,
       run: () => src.setTheme(theme),

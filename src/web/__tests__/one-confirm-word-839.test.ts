@@ -7,9 +7,10 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { accountsSurface } from "./accounts-surface";
+import { english } from "./lan-english-source";
 
 const components = fileURLToPath(new URL("../components", import.meta.url));
-const read = (name: string) => readFileSync(join(components, name), "utf8");
+const read = (name: string) => english(readFileSync(join(components, name), "utf8"));
 /** The ⋯ menu, which is where Remove is drawn. */
 const accounts = read("AccountMenuPopover.tsx");
 const lan = read("LanSyncSection.tsx");
@@ -20,7 +21,7 @@ describe("one arm-then-confirm word for the in-panel destructive acts (#839)", (
   it("arms removing an account to confirm", () => {
     // Capitalised since the verb moved from a pill on the row into the ⋯
     // menu, whose items are sentence case like every menu. Same word.
-    expect(accounts).toMatch(/confirmRemove === a\.num \? "Confirm" : "Remove"/);
+    expect(accounts).toMatch(/confirmRemove === a\.num \? t\("accounts\.confirm"\) : t\("accounts\.menu\.remove"\)/);
   });
 
   it("arms unpairing a deck to the same word", () => {

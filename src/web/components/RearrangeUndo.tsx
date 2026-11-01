@@ -12,12 +12,14 @@ import { useEffect, useRef } from "react";
 import { modalStack } from "../modal-dismiss";
 import { isMounted, usePanelPresence } from "../panel-exit";
 import { platformName } from "../platform";
-import { REARRANGE_UNDO_EXIT_MS, REARRANGE_UNDO_TEXT, undoChordLabel } from "../rearrange-undo";
+import { REARRANGE_UNDO_EXIT_MS, rearrangeUndoText, undoChordLabel } from "../rearrange-undo";
+import { useT } from "../i18n";
 import type { useBoardLayout } from "../use-board-layout";
 
 type RearrangeUndoState = ReturnType<typeof useBoardLayout>["rearrangeUndo"];
 
 export default function RearrangeUndo({ undo }: { undo: RearrangeUndoState }) {
+  const t = useT();
   const { open, said, undo: undoRearrange, dismiss, hold, release } = undo;
   const phase = usePanelPresence(open, REARRANGE_UNDO_EXIT_MS);
   const stripRef = useRef<HTMLDivElement>(null);
@@ -51,7 +53,7 @@ export default function RearrangeUndo({ undo }: { undo: RearrangeUndoState }) {
           onFocus={() => hold("focus")}
           onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) release("focus"); }}
         >
-          <span id="rearrange-undo-state" className="rearrange-undo-state">{REARRANGE_UNDO_TEXT}</span>
+          <span id="rearrange-undo-state" className="rearrange-undo-state">{rearrangeUndoText(t)}</span>
           {/* Described by the status, so a reader who Tabs onto it hears what
               it would undo and not the word alone. One canvas, one strip, so
               the id is the page's only one. */}
@@ -62,7 +64,7 @@ export default function RearrangeUndo({ undo }: { undo: RearrangeUndoState }) {
             aria-describedby="rearrange-undo-state"
             aria-keyshortcuts="Meta+Z Control+Z"
           >
-            Undo
+            {t("board.rearrange.undo")}
             <span className="rearrange-undo-key" aria-hidden="true">{undoChordLabel(platformName())}</span>
           </button>
         </div>

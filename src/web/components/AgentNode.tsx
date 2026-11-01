@@ -2,7 +2,7 @@ import React, { memo, useEffect, useLayoutEffect, useRef, useState } from "react
 import { flushSync } from "react-dom";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { sessionHue } from "../reducer";
-import { fmtCost, UNPRICED_LABEL } from "../pricing";
+import { fmtCost } from "../pricing";
 import { otherModelIds } from "../usage-models";
 // What the cost chip holds, and its tooltip with the multiplication written
 // out. See card-cost.ts.
@@ -32,6 +32,7 @@ import { sessionDisplay } from "../session-display";
 import { ContextDonut } from "./ContextModal";
 import type { AgentNodeData, PlanItem, ToolCall, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
+import { useLanguage, useT } from "../i18n";
 import { boardNote, noteTag } from "../session-note";
 import { toggleRecapDismissed, useRecapDismissed } from "../recap-note";
 import { drawnState, faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
@@ -59,6 +60,8 @@ import { CardContinue, ContinuedRow } from "./StopContinue";
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary }>) {
+  const t = useT();
+  const language = useLanguage();
   // No `selected` here. React Flow's prop is never true on this canvas, so the
   // class it set matched nothing; the frame marks a selected card's wrapper
   // with `rf-selected` instead (canvas-flow.ts) and the ring is drawn from that.
@@ -71,7 +74,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
     data.synthetic ? "synthetic" : "",
   ].filter(Boolean).join(" ");
 
-  const inflight = data.tools.filter(t => !t.endedAt).length;
+  const inflight = data.tools.filter(call => !call.endedAt).length;
   // WHAT WENT WRONG, KEPT. The only place a failed tool call was ever drawn is
   // the burst bubble, and that layer holds four per agent and then drops the
   // oldest — so a failure was visible for four more calls and then existed
@@ -147,7 +150,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   }, []);
   const row = rowAt(squeeze);
   const modelChipTitle = data.model && (otherModels.length > 0
-    ? `${chipTitle(data.model, data.effort)}\nspend on this card also covers:\n${otherModels.join("\n")}`
+    ? `${chipTitle(data.model, data.effort)}\n${t("board.node.modelCovers")}\n${otherModels.join("\n")}`
     : chipTitle(data.model, data.effort));
   // Two strings for the name row, chosen once. `face` is the name when the
   // session has one and the sentence when it does not, which is the common
@@ -184,8 +187,8 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         <div className="title">
           <StatePill state={shown} />
           <span className="label" title={cardTooltip}>{data.label}</span>
-          {data.restoredFromLog && <span className="synth-tag" title={data.provider === "claude" ? "Restored from Claude’s busy-session registry after verifying the process identity. Earlier tool history is partial." : "Restored from a log with no recorded ending. Process status is not confirmed."}>restored</span>}
-          {data.synthetic && <span className="synth-tag" title="No SessionStart captured — synthesised">?</span>}
+          {data.restoredFromLog && <span className="synth-tag" title={data.provider === "claude" ? t("board.node.restoredRegistry") : t("board.node.restoredLog")}>{t("board.node.restored")}</span>}
+          {data.synthetic && <span className="synth-tag" title={t("board.node.synthesised")}>?</span>}
           {/* Claude Code's ※, in the session's colour, beside the name: the
               card's own mark that a recap is there, and the switch for its
               note. The note opens by itself, so this is how it is put away
@@ -195,13 +198,13 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
             <button
               type="button"
               className="glyph-btn recap-pin"
-              aria-label={isRecap ? "Claude Code's recap" : note ? `Session note: ${noteTag(note.kind)}` : "Session note: plan"}
+              aria-label={isRecap ? t("board.node.recapLabel") : note ? t("board.node.noteLabel", { tag: noteTag(note.kind) }) : t("board.node.notePlan")}
               aria-expanded={noteOpen}
               title={isRecap
-                ? (noteOpen ? "Hide the recap" : "Show Claude Code's recap")
+                ? (noteOpen ? t("board.node.hideRecap") : t("board.node.showRecap"))
                 : note
-                  ? (noteOpen ? "Hide this note" : "Show what this session is doing")
-                  : (noteOpen ? "Hide the plan" : "Show the plan")}
+                  ? (noteOpen ? t("board.node.hideNote") : t("board.node.showNote"))
+                  : (noteOpen ? t("board.node.hidePlan") : t("board.node.showPlan"))}
               onClick={e => { e.stopPropagation(); toggleRecapDismissed(noteKey); }}
             ><NoteMark recap={isRecap} /></button>
           )}
@@ -222,11 +225,11 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
           is cut short rather than the model chip; its tooltip says the row
           whole. The badge and the chip keep their own, which the browser
           prefers over this one under the pointer. */}
-      <div className="sub" title={subRowTitle(data)}>
+      <div className="sub" title={subRowTitle(data, t)}>
         <span className="sub-details" ref={detailsRef}>
-          {row.kind && <span>{agentKindLabel(data)}</span>}
+          {row.kind && <span>{agentKindLabel(data, t)}</span>}
           {data.childCount > 0 && (
-            <span className="spawn-badge" title={spawnBadgeTitle(data.childCount)}>→ {data.childCount}</span>
+            <span className="spawn-badge" title={spawnBadgeTitle(data.childCount, t)}>→ {data.childCount}</span>
           )}
           {data.cwdBasename && data.kind === "subagent" && (
             <span className="sub-folder" ref={folderRef}>{row.kind ? "· " : ""}{data.cwdBasename}</span>
@@ -256,7 +259,7 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
                 {modelChipText(data.model, row.effort ? data.effort : undefined)}{otherModels.length > 0 ? ` +${otherModels.length}` : ""}
               </span>
             : data.provider === "codex"
-              ? <span className="model-chip" title="OpenAI Codex — no model reported yet">Codex</span>
+              ? <span className="model-chip" title={t("board.node.codexNoModel")}>Codex</span>
               : null}
         </span>
         {/* A floor, and marked as one, when the deck did not see this session
@@ -266,8 +269,8 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
             beside another's 12m for the same session. `synthetic` is how the
             reducer already knows; it is the "?" beside the name. */}
         <span className="time" title={data.synthetic
-          ? `The deck joined this session after it began, so it has run at least this long — first seen ${new Date(data.startedAt).toLocaleTimeString()}`
-          : `Started ${new Date(data.startedAt).toLocaleTimeString()}`}>
+          ? t("board.node.joinedLate", { time: new Date(data.startedAt).toLocaleTimeString(language) })
+          : t("board.node.started", { time: new Date(data.startedAt).toLocaleTimeString(language) })}>
           {data.synthetic ? "≥ " : ""}<Elapsed start={data.startedAt} end={data.endedAt} />
         </span>
       </div>
@@ -364,21 +367,21 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
       <div className="meta">
         {/* One tool, as the session list and the card's own label say it
             (#1842). */}
-        <span><b>{data.toolCount}</b> {data.toolCount === 1 ? "tool" : "tools"}</span>
+        <span><b>{data.toolCount}</b> {t("board.meta.tools", { count: data.toolCount })}</span>
         {failed > 0 && (
-          <span className="failed-meta" title={`${failed} tool ${failed === 1 ? "call" : "calls"} returned an error`}>
-            <b>{failed}</b> err
+          <span className="failed-meta" title={t("board.meta.errTitle", { count: failed })}>
+            <b>{failed}</b> {t("board.meta.err")}
           </span>
         )}
-        {inflight > 0 && <span className="inflight-meta"><b>{inflight}</b> in-flight</span>}
+        {inflight > 0 && <span className="inflight-meta"><b>{inflight}</b> {t("board.meta.inflight")}</span>}
         {(data.usage.inputTokens + data.usage.outputTokens) > 0 && (
-          <span className="tokens-meta" title={`in:${data.usage.inputTokens}  out:${data.usage.outputTokens}  cache-r:${data.usage.cacheReadTokens}  cache-c:${data.usage.cacheCreateTokens}${(data.usage.reasoningOutputTokens ?? 0) > 0 ? `  reasoning:${data.usage.reasoningOutputTokens}` : ""}`}>
-            <b>{fmtTokens(data.usage.inputTokens + data.usage.outputTokens)}</b> tok
+          <span className="tokens-meta" title={`${t("board.meta.tokensTitle", { input: data.usage.inputTokens, output: data.usage.outputTokens, cacheR: data.usage.cacheReadTokens, cacheC: data.usage.cacheCreateTokens })}${(data.usage.reasoningOutputTokens ?? 0) > 0 ? `  ${t("board.meta.reasoning", { n: data.usage.reasoningOutputTokens ?? 0 })}` : ""}`}>
+            <b>{fmtTokens(data.usage.inputTokens + data.usage.outputTokens)}</b> {t("board.meta.tok")}
           </span>
         )}
         {cost?.kind === "unpriced" && (
           <span className="cost-unpriced" title={cost.tt}>
-            {UNPRICED_LABEL}
+            {t("insights.cost.notPriced")}
           </span>
         )}
         {cost?.kind === "spent" && (
@@ -408,14 +411,15 @@ export default memo(AgentNode);
  * which hears the count in the card's name (agentAriaLabel).
  */
 function PlanRow({ plan, items }: { plan: PlanSummary; items: readonly PlanItem[] }) {
+  const t = useT();
   return (
     <div className={plan.allDone ? "plan-row plan-done" : "plan-row"} title={planTitle(items)}>
       <span className="plan-meter" aria-hidden style={{ "--plan-done": plan.done / plan.total } as React.CSSProperties} />
       <span className="plan-count">{plan.done}/{plan.total}</span>
       <span className="plan-step">
         {plan.allDone || !plan.current
-          ? "done"
-          : <>{plan.next && <span className="plan-next">next: </span>}{plan.current}</>}
+          ? t("board.state.done")
+          : <>{plan.next && <span className="plan-next">{t("board.plan.next")}</span>}{plan.current}</>}
       </span>
     </div>
   );
@@ -442,11 +446,12 @@ function PlanRow({ plan, items }: { plan: PlanSummary; items: readonly PlanItem[
  * this at every zoom.
  */
 function NodeFace({ data, title }: { data: AgentNodeData & { branch?: BranchSummary }; title?: string }) {
+  const tr = useT();
   const alarm = data.kind === "root" && isAlarming(data.waiting);
   const signal = faceSignal(data, data.branch, {
-    sayWaiting: waitingLabel,
-    describeCall: t => ({ name: primaryDisplayFor(t.name).label, subject: toolSubject(t.name, t.input) }),
-  });
+    sayWaiting: w => waitingLabel(w, tr),
+    describeCall: call => ({ name: primaryDisplayFor(call.name).label, subject: toolSubject(call.name, call.input) }),
+  }, tr);
   return (
     <div
       className="lod-face"
@@ -480,7 +485,8 @@ function Elapsed({ start, end }: { start: number; end?: number }) {
 }
 
 function StatePill({ state }: { state: AgentNodeData["state"] }) {
-  return <span className={`state-pill state-${state}`}>{stateLabel(state)}</span>;
+  const t = useT();
+  return <span className={`state-pill state-${state}`}>{stateLabel(state, t)}</span>;
 }
 
 /** The turn stopped on an error: which one, in the row's words, with what
@@ -491,10 +497,11 @@ function StatePill({ state }: { state: AgentNodeData["state"] }) {
  *  Continue button at the end (#2193); an interactive one's says to type
  *  "continue" in its terminal. */
 function StopRow({ data, stop }: { data: AgentNodeData; stop: StopFacts }) {
+  const t = useT();
   return (
-    <div className="stop-row" title={stopTooltip(stop, data.job != null)} data-kind={stop.kind}>
+    <div className="stop-row" title={stopTooltip(stop, data.job != null, t)} data-kind={stop.kind}>
       <span className="waiting-dot" aria-hidden />
-      <span className="stop-said">{stopRowLabel(stop)}</span>
+      <span className="stop-said">{stopRowLabel(stop, t)}</span>
       <CardContinue data={data} />
     </div>
   );
@@ -511,6 +518,7 @@ function StopRow({ data, stop }: { data: AgentNodeData; stop: StopFacts }) {
  *  already uses, so the app keeps one idiom for "still asking" and one
  *  reduced-motion answer for it. */
 function WaitingRow({ waiting }: { waiting: WaitingBlock }) {
+  const t = useT();
   // Its own beat (#873): "blocked for 3m" counts up while the card sits still.
   const now = useNow(1000);
   // The pulse and the amber belong to a session that is STOPPED until a human
@@ -519,16 +527,16 @@ function WaitingRow({ waiting }: { waiting: WaitingBlock }) {
   // topbar chip beside it. Idle keeps the quiet dot: a finished turn is not an
   // interruption.
   const alarming = isAlarming(waiting);
-  const said = waitingSentence(waiting);
+  const said = waitingSentence(waiting, t);
   return (
     <div
       className={alarming ? "waiting-row permission" : "waiting-row idle"}
-      title={`${said}\nBlocked for ${elapsed(waiting.since, undefined, now)} — the answer goes in the terminal, not here.`}
+      title={`${said}\n${t("board.node.blockedFor", { time: elapsed(waiting.since, undefined, now) })}`}
     >
       {alarming
         ? <span className="ap-pulse" aria-hidden />
         : <span className="waiting-dot" aria-hidden />}
-      <span className="waiting-said">{waitingLabel(waiting)}</span>
+      <span className="waiting-said">{waitingLabel(waiting, t)}</span>
       <b>{elapsed(waiting.since, undefined, now)}</b>
     </div>
   );
@@ -538,8 +546,9 @@ function WaitingRow({ waiting }: { waiting: WaitingBlock }) {
  *  bucket lives on the right and is highlighted while it's the active one. */
 function ToolRateSpark({ tools, outputs }: { tools: ToolCall[]; outputs?: number[] }) {
   // Its own beat (#873): the window slides under a card that has not changed.
+  const t = useT();
   const now = useNow(1000);
-  const { counts, title } = sparkWindow(tools, outputs, now);
+  const { counts, title } = sparkWindow(tools, outputs, now, t);
   const barW = SPARK_W / BUCKETS;
   return (
     <div className="tool-spark-row" title={title}>

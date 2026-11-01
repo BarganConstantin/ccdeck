@@ -4,11 +4,12 @@
 // with the row it draws for each tool call. App.tsx mounts it beside the canvas
 // while an agent is selected and the panel is open.
 import React from "react";
-import { agentKindLabel } from "../agent-copy";
+import { agentKindLabel, categoryLabel, stateLabel } from "../agent-copy";
+import { useLanguage, useT } from "../i18n";
 
 import CostBar from "./CostBar";
 import { mcpChipIdentity } from "../tool-skin";
-import { DETAIL_CAT_EMOJI, DETAIL_CAT_LABEL, detailCategoryFor, type DetailCategory } from "../detail-category";
+import { DETAIL_CAT_EMOJI, detailCategoryFor, type DetailCategory } from "../detail-category";
 // The detail panel used to spell both of these out inline — an elapsed clock a
 // tier shorter than the agent card's, and a tool duration a decimal place
 // coarser than the dialog the same row opens (#374). See duration.ts.
@@ -47,6 +48,8 @@ export default function Detail({
    *  this component calls none, and is rendered by calling it. */
   singleKeys?: boolean;
 }) {
+  const t = useT();
+  const language = useLanguage();
   // The panel and the card it was opened from are on screen together, so this
   // is the card's clock rather than a second one written out here (#374). The
   // only value that moves is a span under a second, which used to read "0s"
@@ -67,7 +70,7 @@ export default function Detail({
     catCounts.set(c, (catCounts.get(c) ?? 0) + n);
   }
   const errCount = agent.toolErrorCount ?? 0;
-  const inflight = agent.tools.filter(t => !t.endedAt).length;
+  const inflight = agent.tools.filter(call => !call.endedAt).length;
   const catEntries = Array.from(catCounts.entries())
     .sort((a, b) => b[1] - a[1]);
   // The one server this agent's MCP chip is counting, when there is one (#489)
@@ -83,16 +86,16 @@ export default function Detail({
       <header className="detail-hero">
         <div className="hero-line">
           <span className={`state-pill state-${agent.state}`}>
-            {agent.state === "active" ? "live" : agent.state}
+            {stateLabel(agent.state, t)}
           </span>
           <h2 className="hero-title" title={agent.cwd ?? agent.label}>{agent.label}</h2>
         </div>
         <div className="hero-meta">
           {/* The card's word for it, not the reducer's (#833): "root" is
               internal vocabulary, and one thing had two names. */}
-          <span className="hero-meta-item">{agentKindLabel(agent)}</span>
+          <span className="hero-meta-item">{agentKindLabel(agent, t)}</span>
           <span className="hero-sep">·</span>
-          <span className="hero-meta-item" title={`started ${new Date(agent.startedAt).toLocaleString()}`}>
+          <span className="hero-meta-item" title={t("board.detail.started", { time: new Date(agent.startedAt).toLocaleString(language) })}>
             {elapsedLabel}
           </span>
           {agent.model && (() => {
@@ -112,7 +115,7 @@ export default function Detail({
                   // the sheet matched it by substring.
                   data-family={modelFamily(agent.model)}
                   title={others.length > 0
-                    ? `${modelChipTitle(agent.model, agent.effort)}\nspend on this panel also covers:\n${others.join("\n")}`
+                    ? `${modelChipTitle(agent.model, agent.effort)}\n${t("board.detail.modelCovers")}\n${others.join("\n")}`
                     : modelChipTitle(agent.model, agent.effort)}
                 >{modelChipText(agent.model, agent.effort)}{others.length > 0 ? ` +${others.length}` : ""}</span>
               </>
@@ -123,7 +126,7 @@ export default function Detail({
           <div className="hero-cost">
             <div className="hero-cost-headline">
               <span className="hero-cost-value">{fmtCost(cost.total)}</span>
-              <span className="hero-cost-label">spend</span>
+              <span className="hero-cost-label">{t("board.detail.spend")}</span>
             </div>
             <CostBar cost={cost} />
           </div>
@@ -134,16 +137,16 @@ export default function Detail({
               type="button"
               className="btn hero-action-btn"
               onClick={() => onShowSummary(agent.sessionId)}
-              title="Reopen the end-of-session recap modal"
-            >Show recap</button>
+              title={t("board.detail.recapTitle")}
+            >{t("board.detail.recap")}</button>
           )}
           {onExportSession && (
             <button
               type="button"
               className="btn hero-action-btn"
               onClick={() => onExportSession(agent.sessionId)}
-              title="Download this session as JSON"
-            >Export JSON</button>
+              title={t("board.detail.exportTitle")}
+            >{t("board.detail.export")}</button>
           )}
           {/* Here and not in the topbar, where it was (#1210): beside "zoom to
               agent" it was one stray click from taking a session off the board,
@@ -156,9 +159,9 @@ export default function Detail({
               className="btn hero-action-btn"
               onClick={onRemove}
               title={agent.kind === "root"
-                ? `Take this session's cards off the board (Delete). The session carries on; ${withKey("the session list", "L", singleKeys)} brings it back`
-                : `Take this card and the ones under it off the board (Delete). ${withKey("The session list", "L", singleKeys)} brings it back`}
-            >Remove from board</button>
+                ? t("board.detail.removeRoot", { list: withKey(t("board.detail.listLower"), "L", singleKeys) })
+                : t("board.detail.removeSub", { list: withKey(t("board.detail.listUpper"), "L", singleKeys) })}
+            >{t("board.detail.remove")}</button>
           )}
         </div>
       </header>
@@ -178,12 +181,12 @@ export default function Detail({
         const note = sessionNoteShown(agent);
         if (!note) return null;
         const written = promptTime(note.at, now);
-        const heading = note.kind === "recap" ? "Recap" : noteTag(note.kind).replace(/^./, c => c.toUpperCase());
+        const heading = note.kind === "recap" ? t("board.detail.recapHeading") : noteTag(note.kind).replace(/^./, c => c.toUpperCase());
         return (
           <section className="detail-section">
             <h3>{heading} <span className="section-count" title={written.title}>{written.label}</span></h3>
             <p className="detail-recap" title={noteSource(note)}>{note.text}</p>
-            {note.reply && <p className="detail-recap detail-note-reply">Suggested reply: “{note.reply}”</p>}
+            {note.reply && <p className="detail-recap detail-note-reply">{t("board.detail.suggestedReply", { reply: note.reply })}</p>}
           </section>
         );
       })()}
@@ -200,18 +203,18 @@ export default function Detail({
         return (
           <section className="detail-section">
             <h3>
-              Plan{" "}
+              {t("board.detail.plan")}{" "}
               <span className="section-count" aria-hidden>{plan.done}/{plan.total}</span>
-              <span className="vis-hidden">{plan.done} of {plan.total} done</span>
+              <span className="vis-hidden">{t("board.detail.planDone", { done: plan.done, total: plan.total })}</span>
             </h3>
             {agent.plan.note && <p className="detail-plan-note">{agent.plan.note}</p>}
             <ol className="plan-list">
               {agent.plan.items.map((item, k) => (
                 <li key={item.id ?? `${k}:${item.text}`} className="plan-item" data-status={item.status}>
                   <span className="plan-mark" aria-hidden />
-                  <span className="vis-hidden">{PLAN_WORD[item.status]}: </span>
+                  <span className="vis-hidden">{t(PLAN_WORD[item.status])}{t("board.detail.colon")}</span>
                   <span className="plan-text">{item.status === "in_progress" && item.active ? item.active : item.text}</span>
-                  {item.status === "in_progress" && <span className="plan-now" aria-hidden>now</span>}
+                  {item.status === "in_progress" && <span className="plan-now" aria-hidden>{t("board.detail.now")}</span>}
                 </li>
               ))}
             </ol>
@@ -221,12 +224,12 @@ export default function Detail({
 
       {agent.tools.length > 0 && (
         <section className="detail-section">
-          <h3>Activity</h3>
+          <h3>{t("board.detail.activity")}</h3>
           <div className="activity-row">
             <div className="activity-counters">
-              <span className="ac-item"><b>{agent.toolCount}</b> calls</span>
-              {inflight > 0 && <span className="ac-item ac-live"><b>{inflight}</b> live</span>}
-              {errCount > 0 && <span className="ac-item ac-err"><b>{errCount}</b> err</span>}
+              <span className="ac-item"><b>{agent.toolCount}</b> {t("board.detail.calls")}</span>
+              {inflight > 0 && <span className="ac-item ac-live"><b>{inflight}</b> {t("board.state.live")}</span>}
+              {errCount > 0 && <span className="ac-item ac-err"><b>{errCount}</b> {t("board.meta.err")}</span>}
             </div>
             <div className="cat-strip">
               {catEntries.map(([c, n]) => {
@@ -236,20 +239,20 @@ export default function Detail({
                 // lightness belongs to the theme, not to JS (#330).
                 const one = c === "mcp" ? mcpChip : null;
                 const hue = one?.hue;
-                const calls = `${n} ${DETAIL_CAT_LABEL[c]} call${n === 1 ? "" : "s"}`;
+                const calls = t("board.detail.catCalls", { count: n, cat: categoryLabel(c, t) });
                 return (
                   <span
                     className={`cat-chip cat-${c}${hue != null ? " mcp-hue" : ""}`}
                     key={c}
                     style={hue != null ? { "--mcp-hue": hue } as React.CSSProperties : undefined}
-                    title={one ? `${calls}, all to ${one.label}` : calls}
+                    title={one ? t("board.detail.catAllTo", { calls, server: one.label }) : calls}
                   >
                     {/* The category as a word at rest (#841): an emoji and a
                         count said nothing without a hover, and a title never
                         reaches a keyboard or touch reader. The word is the
                         key, the count its value; the emoji is decoration now. */}
                     <span className="cat-emoji" aria-hidden>{DETAIL_CAT_EMOJI[c]}</span>
-                    <span className="cat-name">{DETAIL_CAT_LABEL[c]}</span>
+                    <span className="cat-name">{categoryLabel(c, t)}</span>
                     <span className="cat-count">{n}</span>
                     {/* The words the tint cannot be trusted to carry alone. */}
                     {one && <span className="cat-server">{one.label}</span>}
@@ -263,25 +266,25 @@ export default function Detail({
 
       {totalTokens > 0 && (
         <section className="detail-section">
-          <h3>Tokens</h3>
+          <h3>{t("board.detail.tokens")}</h3>
           <div className="tokens-grid">
             {/* The usage panel's format, not a grouped integer (#835): side by
                 side, 111,053,708 and 177.08M read as two kinds of measure. The
                 exact count stays one hover away. */}
-            <div><span className="k">in</span><b title={agent.usage.inputTokens.toLocaleString()}>{fmtTokens(agent.usage.inputTokens)}</b></div>
-            <div><span className="k">out</span><b title={agent.usage.outputTokens.toLocaleString()}>{fmtTokens(agent.usage.outputTokens)}</b></div>
-            <div><span className="k">cache r</span><b title={agent.usage.cacheReadTokens.toLocaleString()}>{fmtTokens(agent.usage.cacheReadTokens)}</b></div>
-            <div><span className="k">cache c</span><b title={agent.usage.cacheCreateTokens.toLocaleString()}>{fmtTokens(agent.usage.cacheCreateTokens)}</b></div>
+            <div><span className="k">{t("board.tokens.in")}</span><b title={agent.usage.inputTokens.toLocaleString()}>{fmtTokens(agent.usage.inputTokens)}</b></div>
+            <div><span className="k">{t("board.tokens.out")}</span><b title={agent.usage.outputTokens.toLocaleString()}>{fmtTokens(agent.usage.outputTokens)}</b></div>
+            <div><span className="k">{t("board.tokens.cacheR")}</span><b title={agent.usage.cacheReadTokens.toLocaleString()}>{fmtTokens(agent.usage.cacheReadTokens)}</b></div>
+            <div><span className="k">{t("board.tokens.cacheC")}</span><b title={agent.usage.cacheCreateTokens.toLocaleString()}>{fmtTokens(agent.usage.cacheCreateTokens)}</b></div>
           </div>
         </section>
       )}
 
       <section className="detail-section">
-        <h3>Identity</h3>
+        <h3>{t("board.detail.identity")}</h3>
         <div>
           {agent.cwd && <div className="row"><span className="k">cwd</span><span className="v" title={agent.cwd}>{agent.cwd}</span></div>}
-          <div className="row"><span className="k">session</span><span className="v">{agent.sessionId.slice(0, 12)}…</span></div>
-          {agent.parentId && <div className="row"><span className="k">parent</span><span className="v">{agent.parentId.slice(0, 12)}…</span></div>}
+          <div className="row"><span className="k">{t("board.kind.session")}</span><span className="v">{agent.sessionId.slice(0, 12)}…</span></div>
+          {agent.parentId && <div className="row"><span className="k">{t("board.detail.parent")}</span><span className="v">{agent.parentId.slice(0, 12)}…</span></div>}
         </div>
       </section>
 
@@ -289,16 +292,16 @@ export default function Detail({
         <section className="detail-section">
           {/* The count is what was typed (#834). A background task's notice
               is listed as the event it is, collapsed, in its place in time. */}
-          <h3>Prompts <span className="section-count">{typedPrompts(agent.prompts).length}</span></h3>
+          <h3>{t("board.detail.prompts")} <span className="section-count">{typedPrompts(agent.prompts).length}</span></h3>
           <div className="prompts">
             {promptKeys(agent.prompts).reverse().map(({ pr, key }) => {
-              const t = promptTime(pr.at, now);
+              const when = promptTime(pr.at, now);
               const injected = injectedPrompt(pr.text);
               if (injected) {
                 return (
                   <details className="prompt-entry prompt-injected" key={key}>
                     <summary>
-                      <span className="prompt-time" title={t.title}>{t.label}</span>
+                      <span className="prompt-time" title={when.title}>{when.label}</span>
                       <span className="prompt-injected-label">{injected.label}</span>
                     </summary>
                     {injected.detail && <div className="prompt-injected-detail">{injected.detail}</div>}
@@ -307,7 +310,7 @@ export default function Detail({
               }
               return (
                 <div className="prompt-entry" key={key}>
-                  <div className="prompt-time" title={t.title}>{t.label}</div>
+                  <div className="prompt-time" title={when.title}>{when.label}</div>
                   <div className="prompt-text">{pr.text}</div>
                 </div>
               );
@@ -317,11 +320,11 @@ export default function Detail({
       )}
 
       <section className="detail-section">
-        <h3>Tool calls <span className="section-count">{agent.tools.length}</span></h3>
-        {agent.tools.length === 0 && <div className="empty">No tool calls yet.</div>}
+        <h3>{t("board.detail.toolCalls")} <span className="section-count">{agent.tools.length}</span></h3>
+        {agent.tools.length === 0 && <div className="empty">{t("board.detail.noTools")}</div>}
         <div>
-          {agent.tools.slice().reverse().map(t => (
-            <ToolRow key={t.id} t={t} onClick={() => onOpenTool(agent.id, t.id)} />
+          {agent.tools.slice().reverse().map(call => (
+            <ToolRow key={call.id} call={call} onClick={() => onOpenTool(agent.id, call.id)} />
           ))}
         </div>
       </section>
@@ -354,21 +357,22 @@ function promptKeys(prompts: readonly PromptEntry[]): { pr: PromptEntry; key: st
  *  not a session, so this is deliberately not stateLabel's vocabulary — `err`
  *  is the word on a session card and `error` is the word on a tool, and those
  *  two surfaces already said it that way before #373 touched either. */
-const TOOL_STATUS_LABEL = { inflight: "in-flight", done: "done", err: "error" } as const;
+const TOOL_STATUS_LABEL = { inflight: "board.toolStatus.inflight", done: "board.toolStatus.done", err: "board.toolStatus.err" } as const;
 
 // No `now` prop any more. It only ever fed the duration, and the duration only
 // ever used it on the branch it then threw away — an open call prints a
 // sentinel, and a finished one carries both of its own timestamps. The row is
 // not memoised, so the tick that re-renders the panel still re-renders it.
-function ToolRow({ t, onClick }: { t: ToolCall; onClick: () => void }) {
-  const status = t.endedAt == null ? "inflight" : t.ok === false ? "err" : "done";
+function ToolRow({ call, onClick }: { call: ToolCall; onClick: () => void }) {
+  const t = useT();
+  const status = call.endedAt == null ? "inflight" : call.ok === false ? "err" : "done";
   // This row is the button that opens ToolModal for this exact call, and the
   // two used to round the same milliseconds differently — "1.2s" here and
   // "1.24s" one click later (#374). The sentinel is the only thing that still
   // differs, because a list cell has no room for the word the dialog writes.
-  const durLabel = toolDuration(t, "…");
+  const durLabel = toolDuration(call, "…");
   return (
-    <button className="tool clickable" title={t.inputPreview || t.name} onClick={onClick}>
+    <button className="tool clickable" title={call.inputPreview || call.name} onClick={onClick}>
       <span className="name">
         {/* The dot said nothing here — an empty <span> that was not even marked
             decorative — so a failed call and a finished one both announced
@@ -381,8 +385,8 @@ function ToolRow({ t, onClick }: { t: ToolCall; onClick: () => void }) {
             gives — the accessible name is the contents in DOM order, so
             "error Bash 1.24s" is read in the order it is seen. */}
         <span className={`status-dot ${status}`} aria-hidden />
-        <span className="vis-hidden">{TOOL_STATUS_LABEL[status]}</span>
-        {t.name}
+        <span className="vis-hidden">{t(TOOL_STATUS_LABEL[status])}</span>
+        {call.name}
       </span>
       <span style={{ color: "var(--muted)" }}>{durLabel}</span>
     </button>
@@ -390,4 +394,4 @@ function ToolRow({ t, onClick }: { t: ToolCall; onClick: () => void }) {
 }
 
 /** What each step's mark says, for a screen reader. */
-const PLAN_WORD: Record<PlanStatus, string> = { completed: "done", in_progress: "now", pending: "to do" };
+const PLAN_WORD: Record<PlanStatus, "board.state.done" | "board.detail.now" | "board.detail.todo"> = { completed: "board.state.done", in_progress: "board.detail.now", pending: "board.detail.todo" };

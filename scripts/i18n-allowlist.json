@@ -1,0 +1,4 @@
+{
+  "_": "Words that are never translated: product names, tools, protocols, formats. Matched case-insensitively against every word of a string; a string made only of these is skipped.",
+  "words": ["ccdeck", "claude", "code", "codex", "anthropic", "openai", "chatgpt", "sonnet", "opus", "haiku", "gpt", "ccusage", "claude-swap", "github", "gitlab", "jira", "npm", "npx", "node", "json", "jsonl", "url", "api", "http", "https", "ssh", "lan", "udp", "tcp", "dns", "mcp", "oauth", "token", "tokens", "usd", "ok", "id", "cli", "macos", "windows", "linux", "bedrock", "vertex", "settings.json", "penpot", "x", "ms", "kb", "mb", "gb"]
+}

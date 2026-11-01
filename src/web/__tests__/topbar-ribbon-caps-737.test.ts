@@ -96,7 +96,7 @@ describe("the ribbon's caps, as #737 cut them and the bar's redesign recut them"
     expect(css).not.toMatch(/\(min-width: 1440px\) and \(max-width: \d+px\) \{\s*\.selected-ribbon \.selected-cost/);
     // The ribbon is components/SelectedRibbon.tsx's. Z through withKey, named
     // while Settings › General's single-key switch is on.
-    expect(readFileSync(join(web, "components/SelectedRibbon.tsx"), "utf8")).toMatch(/className="selected-ribbon"[\s\S]{0,400}?title=\{`\$\{withKey\(`Zoom to \$\{selected\.label\} and its session`, "Z", singleKeys\)\}\$\{\s*c\.total > 0 \? `\\n\$\{fmtCost\(c\.total\)\} spent/);
+    expect(readFileSync(join(web, "components/SelectedRibbon.tsx"), "utf8")).toMatch(/className="selected-ribbon"[\s\S]{0,400}?title=\{`\$\{withKey\(t\("board\.ribbon\.zoom", \{ label: selected\.label \}\), "Z", singleKeys\)\}\$\{\s*c\.total > 0 \? `\\n\$\{t\("board\.ribbon\.spent"/);
   });
 
   it("never lets a selection decide what the readout holds", () => {

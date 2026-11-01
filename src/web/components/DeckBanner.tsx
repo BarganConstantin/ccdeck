@@ -13,7 +13,8 @@ import type { useRatingAsk } from "../use-rating-ask";
 import type { useVersionCheck } from "../use-version-check";
 import ConnectionBanner from "./ConnectionBanner";
 import OldNameBanner from "./OldNameBanner";
-import RatingBanner, { RATING_THANKS } from "./RatingBanner";
+import RatingBanner, { ratingThanks } from "./RatingBanner";
+import { useT } from "../i18n";
 import VersionBanner from "./VersionBanner";
 
 export default function DeckBanner({
@@ -31,6 +32,7 @@ export default function DeckBanner({
   live: boolean;
   paused: boolean;
 }) {
+  const t = useT();
   const { autoRestart, toggleAutoRestart, restarting, restartMode, restartedTo, askRestart,
           restartCopy, restartFuseMs } = restart;
   const { version, notice, noticeOpen, dismissNotice } = versionCheck;
@@ -43,8 +45,8 @@ export default function DeckBanner({
       // the question the other two just raised.
       <div className="ver-banner done" role="status">
         <span className="ver-dot" />
-        <strong>Restarted — now running v{restartedTo}.</strong>
-        <span className="ver-sub">The canvas replayed from the event log.</span>
+        <strong>{t("shell.banner.restartedTo", { version: restartedTo })}</strong>
+        <span className="ver-sub">{t("shell.banner.replayed")}</span>
       </div>
     ) : everConnected && !live ? (
       <ConnectionBanner restarting={restarting} restartMode={restartMode} live={live} paused={paused} />
@@ -78,7 +80,7 @@ export default function DeckBanner({
           used to be the question's own row turned into a live region in the
           same render as its words. */}
       <div className="vis-hidden" role="status" aria-atomic="true">
-        {ratingPhase === "thanks" ? RATING_THANKS : ""}
+        {ratingPhase === "thanks" ? ratingThanks() : ""}
       </div>
     </>
   );

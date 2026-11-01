@@ -258,7 +258,7 @@ describe("the card draws it", () => {
   });
 
   it("renders the ? chip with the sentence that explains it", () => {
-    expect(node).toContain("No SessionStart captured");
+    expect(node).toContain("board.node.synthesised");
     expect(node).toMatch(/data\.synthetic &&/);
     expect(node).toContain('className="synth-tag"');
   });

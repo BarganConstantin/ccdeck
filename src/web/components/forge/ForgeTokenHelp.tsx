@@ -5,7 +5,9 @@
 // and says what each permission is for: a token that hides something can then
 // be fixed rather than guessed at. The links open the forge's own token page,
 // filled in where the forge allows it.
+import type { ReactNode } from "react";
 import type { ForgeKind } from "../../forge-types";
+import { useT } from "../../i18n";
 import { ExternalLinkGlyph } from "../action-glyphs";
 import { useIntegrationForm } from "../IntegrationConnectionForm";
 
@@ -30,6 +32,15 @@ export function forgeTokenUrl(kind: ForgeKind, baseUrl?: string | null, style: "
   return `${base.origin}${base.pathname.replace(/\/+$/, "")}/-/user_settings/personal_access_tokens?name=ccdeck&scopes=read_api`;
 }
 
+/** A sentence with named holes ({repo}, {scope}) filled by elements, so a
+ *  language can put the code names wherever its grammar wants them. */
+function withParts(text: string, parts: Record<string, ReactNode>): ReactNode[] {
+  return text.split(/(\{\w+\})/).map((piece, i) => {
+    const name = /^\{(\w+)\}$/.exec(piece)?.[1];
+    return name && name in parts ? <span key={i}>{parts[name]}</span> : piece;
+  });
+}
+
 function Make({ href, children }: { href: string | null; children: string }) {
   if (!href) return null;
   return (
@@ -43,23 +54,22 @@ function Make({ href, children }: { href: string | null; children: string }) {
  *  so far (or `baseUrl`, outside a form). */
 export default function ForgeTokenHelp({ kind, baseUrl }: { kind: ForgeKind; baseUrl?: string | null }) {
   const { values } = useIntegrationForm();
+  const t = useT();
   if (kind === "github") {
     return (
       <div className="fg-token-help">
-        <p>A personal access token. Either kind works:</p>
+        <p>{t("forge.token.gh.intro")}</p>
         <ul>
           <li>
-            <strong>Classic</strong> — the <code>repo</code> and <code>read:org</code> scopes.{" "}
-            <Make href={forgeTokenUrl("github")}>Make one</Make>
+            <strong>{t("forge.token.gh.classicName")}</strong> {withParts(t("forge.token.gh.classic"), { repo: <code>repo</code>, org: <code>read:org</code> })}{" "}
+            <Make href={forgeTokenUrl("github")}>{t("forge.token.makeOne")}</Make>
           </li>
           <li>
-            <strong>Fine-grained</strong> — the repositories you want to see, with read-only access to Actions, Checks,
-            Commit statuses, Contents, Issues, Metadata and Pull requests. Contents is for branches and commits; the
-            panel never opens your files.{" "}
-            <Make href={forgeTokenUrl("github", null, "fine-grained")}>Make one</Make>
+            <strong>{t("forge.token.gh.fineName")}</strong> {t("forge.token.gh.fine")}{" "}
+            <Make href={forgeTokenUrl("github", null, "fine-grained")}>{t("forge.token.makeOne")}</Make>
           </li>
         </ul>
-        <p>An organization may have to approve a fine-grained token, or a classic one be authorized for its single sign-on, before its repositories show.</p>
+        <p>{t("forge.token.gh.approval")}</p>
       </div>
     );
   }
@@ -67,10 +77,10 @@ export default function ForgeTokenHelp({ kind, baseUrl }: { kind: ForgeKind; bas
   return (
     <div className="fg-token-help">
       <p>
-        A personal access token with the <code>read_api</code> scope, and nothing more.{" "}
-        <Make href={href}>{`Make one on ${href ? new URL(href).host : "GitLab"}`}</Make>
+        {withParts(t("forge.token.gl.scope"), { scope: <code>read_api</code> })}{" "}
+        <Make href={href}>{t("forge.token.makeOn", { host: href ? new URL(href).host : "GitLab" })}</Make>
       </p>
-      <p>GitLab tokens expire. When this one does, the panel says so and brings you back here.</p>
+      <p>{t("forge.token.gl.expire")}</p>
     </div>
   );
 }

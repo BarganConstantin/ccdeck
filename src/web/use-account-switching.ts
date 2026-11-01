@@ -21,6 +21,7 @@ import { commandOutput, explainCommandFailure } from "./admin-failure";
 import { expiredSwitch } from "./expired-switch";
 import { type Failure } from "./accounts-reload";
 import { type AccountsData } from "./claude-accounts";
+import { t as tNow } from "./i18n";
 
 export interface AccountSwitchingDeps {
   /** The roster as last read — see use-account-roster.ts. */
@@ -67,10 +68,10 @@ export function useAccountSwitching({
       // The status matters, not only the body: the deck's own gate refuses a
       // mutation before any command runs, and says so with no `reason` for the
       // map to find. See GATE_REASONS.
-      if (!out?.ok) say({ text: explainCommandFailure(out, "command failed", res.status), raw: commandOutput(out) });
+      if (!out?.ok) say({ text: explainCommandFailure(out, tNow("accounts.net.commandFailed"), res.status), raw: commandOutput(out) });
       return out;
     } catch {
-      say({ text: "server unreachable" });
+      say({ text: tNow("accounts.net.unreachable") });
       return null;
     } finally {
       release();
@@ -104,11 +105,11 @@ export function useAccountSwitching({
       // sign-in that fixes it — claude-swap was never asked, and nothing moved.
       const expired = expiredSwitch(body, name, num);
       if (expired) sayFailure(expired);
-      else if (!body?.ok) sayFailure({ text: explainCommandFailure(body, "the switch failed"), raw: commandOutput(body), row: num });
+      else if (!body?.ok) sayFailure({ text: explainCommandFailure(body, tNow("accounts.net.switchFailed")), raw: commandOutput(body), row: num });
       else setSwitched({ num, name });
       await load(true);
     } catch {
-      sayFailure({ text: "server unreachable", row: num });
+      sayFailure({ text: tNow("accounts.net.unreachable"), row: num });
     } finally {
       release();
       // A switch that landed replaces this button with the `active` marker,

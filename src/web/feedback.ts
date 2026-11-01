@@ -12,6 +12,7 @@
 // Nothing else is sent, and nothing here adds a field.
 
 import { isApplePlatform } from "./platform";
+import { t } from "./i18n";
 
 export type Kind = "bug" | "idea" | "other";
 
@@ -34,10 +35,11 @@ export interface KindCopy {
   placeholder: string;
 }
 
+/** Getters, so each read is worded in the language on show. */
 export const KINDS: readonly KindCopy[] = [
-  { value: "bug", label: "Bug", question: "What happened?", placeholder: "I was trying to…\nWhat did you expect to happen?" },
-  { value: "idea", label: "Idea", question: "What would make ccdeck better?", placeholder: "It would be useful if…" },
-  { value: "other", label: "Other", question: "What would you like to tell us?", placeholder: "Write anything…" },
+  { value: "bug", get label() { return t("shell.feedback.kind.bug"); }, get question() { return t("shell.feedback.q.bug"); }, get placeholder() { return t("shell.feedback.ph.bug"); } },
+  { value: "idea", get label() { return t("shell.feedback.kind.idea"); }, get question() { return t("shell.feedback.q.idea"); }, get placeholder() { return t("shell.feedback.ph.idea"); } },
+  { value: "other", get label() { return t("shell.feedback.kind.other"); }, get question() { return t("shell.feedback.q.other"); }, get placeholder() { return t("shell.feedback.ph.other"); } },
 ];
 
 /** The copy for one kind. Total: every Kind has a row above. */
@@ -52,7 +54,7 @@ export const BODY_MAX = 10_000;
 export const CONTACT_MAX = 200;
 
 /** What an empty message is told when Send is pressed. */
-export const MESSAGE_MISSING = "Write something first.";
+export const messageMissing = (): string => t("shell.feedback.missing");
 
 /** Whether there is anything to send. The one thing Send needs. */
 export function hasMessage(body: string): boolean {
@@ -78,7 +80,7 @@ export function titleFromBody(body: string): string {
  *  the API's three characters, the kind's word goes in front of it. */
 export function feedbackTitle(kind: Kind, body: string): string {
   const own = titleFromBody(body);
-  return own.length >= TITLE_MIN ? own : `${kindCopy(kind).label}: ${own}`;
+  return own.length >= TITLE_MIN ? own : t("shell.feedback.titleKind", { kind: kindCopy(kind).label, text: own });
 }
 
 function oneLine(text: string): string {
@@ -146,24 +148,21 @@ export function factsLabel(facts: FeedbackFacts | null): string | null {
 }
 
 /** Said after the facts, so the line reads as what rides with the message. */
-export const FACTS_SUFFIX = "sent with it";
+export const factsWith = (): string => t("shell.feedback.factsWith");
 /** Said instead, until the server has answered or when it cannot. */
-export const FACTS_UNKNOWN = "Your ccdeck version and system are sent with it.";
+export const factsUnknown = (): string => t("shell.feedback.factsUnknown");
 
 // ── the secondary section ────────────────────────────────────────────────────
 
-export const ADD_DETAILS = "Add details";
-export const CONTACT_LABEL = "How to reach you";
-export const CONTACT_PLACEHOLDER = "Email or GitHub @name";
-export const CONTACT_HINT = "Only if you would like an answer.";
+export const addDetails = (): string => t("shell.feedback.addDetails");
+export const contactLabel = (): string => t("shell.feedback.contact");
+export const contactPlaceholder = (): string => t("shell.feedback.contactPh");
+export const contactHint = (): string => t("shell.feedback.contactHint");
 /** Where it goes and what may become of it, said once, in the section that
  *  holds the contact. True today: a report is only stored; the people who
  *  make ccdeck read it and may open a public issue from it, choosing what that
  *  issue says, and never with the contact or the images. */
-export const WHERE_IT_GOES = [
-  "It all goes to the people who make ccdeck, with the version and system below.",
-  "Nothing becomes public by being sent. They may open a public GitHub issue from it, choosing its title and text; your contact and screenshots are never put on one.",
-] as const;
+export const whereItGoes = (): readonly string[] => [t("shell.feedback.where1"), t("shell.feedback.where2")];
 
 // ── the keyboard ─────────────────────────────────────────────────────────────
 
@@ -214,30 +213,44 @@ export type Outcome =
   | { state: "failed"; message: string };
 
 /** What the dialog shows, and says, once a report has arrived. */
-export const SENT_LINE = "Thanks — feedback sent.";
+export const sentLine = (): string => t("shell.feedback.sent");
+
+/** The deck's own sentence about an image it refused, in the language on show;
+ *  anything else (the API's own words) as it came. The two sentences about a
+ *  form built by hand ("Send each image as a file part.") are not here: the
+ *  dialog cannot send that shape. */
+export function imageProblem(text: string): string {
+  const count = /^At most (\d+) images\.$/.exec(text);
+  if (count) return t("shell.feedback.problem.count", { n: count[1] });
+  const size = /^Image (\d+) is over (\d+) MB\.$/.exec(text);
+  if (size) return t("shell.feedback.problem.size", { n: size[1], mb: size[2] });
+  const format = /^Image (\d+) is not a PNG or a JPEG\.$/.exec(text);
+  if (format) return t("shell.feedback.problem.format", { n: format[1] });
+  return text;
+}
 
 /** What the server's answer means for the person who pressed Send. `errors` is
  *  a 400's, keyed by field; an image's is quoted, since it names which one. */
 export function feedbackFailure(status: number, reason: unknown, errors?: unknown): string {
-  if (reason === "vetoed") return "This deck was started with AGENTS_DECK_NO_INSTALL=1, which keeps it off the network, so nothing was sent.";
-  if (status === 429 || reason === "too_many") return "Too much feedback from this network in the last hour. Try again later; your text is still here.";
-  if (status === 413 || reason === "too_large") return "The images are too large to send together. Remove one and send again; your text is still here.";
+  if (reason === "vetoed") return t("shell.feedback.fail.vetoed");
+  if (status === 429 || reason === "too_many") return t("shell.feedback.fail.tooMany");
+  if (status === 413 || reason === "too_large") return t("shell.feedback.fail.tooLarge");
   const imageError = (errors as { images?: unknown } | null | undefined)?.images;
   if (status === 400 && Array.isArray(imageError) && typeof imageError[0] === "string") {
-    return `The server did not accept an image. ${imageError[0]} Remove it and send again; your text is still here.`;
+    return t("shell.feedback.fail.image", { reason: imageProblem(imageError[0]) });
   }
-  if (status === 400) return "The server did not accept the message. It is still here; check it and send again.";
+  if (status === 400) return t("shell.feedback.fail.rejected");
   // One line at the dialog's width, so the failure that invites pressing Send
   // again grows the dialog by one line and Send stays under the pointer that
   // just pressed it. Send, still there and still named Send, is the retry.
-  return "ccdeck's server could not be reached. Nothing was sent; your text is still here.";
+  return t("shell.feedback.fail.unreachable");
 }
 
 /** What the dialog's live region says for each outcome. The region is drawn from
  *  the first render, so the change is what a screen reader hears. */
 export function outcomeAnnouncement(outcome: Outcome["state"]): string {
-  if (outcome === "sending") return "Sending…";
-  if (outcome === "sent") return SENT_LINE;
+  if (outcome === "sending") return t("shell.feedback.sending");
+  if (outcome === "sent") return sentLine();
   return "";
 }
 

@@ -1,3 +1,5 @@
+import { currentLanguage, t } from './i18n';
+import { OwnError } from './own-error';
 export type AuditProvider = 'all' | 'claude' | 'codex';
 export interface AuditRow {
   operation: string; calls: number; completed: number; failed: number; errorRate: number | null;
@@ -63,16 +65,16 @@ export interface SkillReport {
 export const auditDuration = (ms: number | null) => {
   if (ms === null) return '—';
   if (ms < 1000) return `${Math.round(ms)} ms`;
-  if (ms < 60000) return `${(ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} s`;
-  if (ms < 3600000) return `${(ms / 60000).toLocaleString(undefined, { maximumFractionDigits: 1 })} min`;
+  if (ms < 60000) return `${(ms / 1000).toLocaleString(currentLanguage(), { maximumFractionDigits: 1 })} s`;
+  if (ms < 3600000) return `${(ms / 60000).toLocaleString(currentLanguage(), { maximumFractionDigits: 1 })} min`;
   const minutes = Math.round(ms / 60000);
   const hours = Math.floor(minutes / 60), remainder = minutes % 60;
-  return `${hours.toLocaleString()} h${remainder ? ` ${remainder} min` : ''}`;
+  return `${hours.toLocaleString(currentLanguage())} h${remainder ? ` ${remainder} min` : ''}`;
 };
 export const auditBytes = (bytes: number) => bytes < 1024 ? `${bytes} B` : bytes < 1048576
-  ? `${(bytes / 1024).toLocaleString(undefined, { maximumFractionDigits: 1 })} KB`
-  : `${(bytes / 1048576).toLocaleString(undefined, { maximumFractionDigits: 1 })} MB`;
-export const auditDate = (ms: number) => new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  ? `${(bytes / 1024).toLocaleString(currentLanguage(), { maximumFractionDigits: 1 })} KB`
+  : `${(bytes / 1048576).toLocaleString(currentLanguage(), { maximumFractionDigits: 1 })} MB`;
+export const auditDate = (ms: number) => new Date(ms).toLocaleString(currentLanguage(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 /** Busy responses do no disk work. Retry briefly while a cancelled worker exits. */
 export async function readAuditReport<Report = AuditReport>(query: string, signal: AbortSignal): Promise<Report> {
@@ -88,8 +90,8 @@ export async function readAuditReport<Report = AuditReport>(query: string, signa
       });
       continue;
     }
-    if (!res.ok || !reply.ok || !Array.isArray(reply.rows)) throw new Error('Could not build the report. Try Refresh or reduce history retention in Settings.');
+    if (!res.ok || !reply.ok || !Array.isArray(reply.rows)) throw new OwnError(t('insights.audit.err.build'));
     return reply as Report;
   }
-  throw new Error('A tool report is already running. Try Refresh in a moment.');
+  throw new OwnError(t('insights.audit.err.busy'));
 }

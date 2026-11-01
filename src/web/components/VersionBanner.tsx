@@ -14,22 +14,26 @@ import type { useAutoRestart } from "../use-auto-restart";
 import type { useDeckUpgrade } from "../use-deck-upgrade";
 import type { VersionInfo, VersionNotice } from "../use-version-check";
 import { ownRow } from "../own-row";
+import { t, useT } from "../i18n";
 
 // Said in the UI's voice, not npm's. Each of these is a decision we made on
 // purpose, so each gets a reason rather than a disabled button.
+//
+// Getters, so each read is worded in the language on show and the table keeps
+// its shape: own properties an ownRow() lookup can ask for by name (#474).
 export const UPGRADE_BLOCK_TEXT: Record<string, string> = {
-  git_checkout: "this deck runs from a git checkout — pull instead:",
-  npx: "npx runs from a cache that cannot be upgraded in place — run:",
+  get git_checkout() { return t("shell.banner.block.git_checkout"); },
+  get npx() { return t("shell.banner.block.npx"); },
   // pnpm dlx, bunx and yarn dlx: the same cache problem without npx's record
   // of what to re-run, so the command is the global install.
-  one_off: "this deck runs from a one-off pnpm dlx, bunx or yarn dlx copy that cannot be upgraded in place — to keep one, run:",
-  not_writable: "the install directory is not writable by this user — run:",
-  opted_out: "installs are off (AGENTS_DECK_NO_INSTALL=1) — run:",
+  get one_off() { return t("shell.banner.block.one_off"); },
+  get not_writable() { return t("shell.banner.block.not_writable"); },
+  get opted_out() { return t("shell.banner.block.opted_out"); },
   // The deck was installed under a name npm no longer serves a deck for, so
   // reinstalling it would fetch a pointer package and take this install with
   // it. The command beneath this moves the machine onto the published name,
   // which is the only update it can have.
-  retired_name: "this install came from a name that is no longer published — run:",
+  get retired_name() { return t("shell.banner.block.retired_name"); },
 };
 
 type Restart = ReturnType<typeof useAutoRestart>;
@@ -55,6 +59,7 @@ export default function VersionBanner({
   restartFuseMs: Restart["restartFuseMs"];
   restarting: Restart["restarting"];
 }) {
+  const t = useT();
   return (
     // Both banners want grid row 2, and a dead connection is the more
     // urgent of the two — the version notice waits its turn.
@@ -68,7 +73,7 @@ export default function VersionBanner({
       <span className={`ver-dot${restartFuseMs == null ? "" : " armed"}`} />
       {notice.kind === "restart" ? (
         <>
-          <strong>v{notice.to} is installed — this deck still runs v{notice.from}.</strong>
+          <strong>{t("shell.banner.installedStale", { to: notice.to, from: notice.from })}</strong>
           {version?.canRestart ? (
             <>
               {/* #620: `disabled={restarting}` disabled the control the
@@ -88,9 +93,8 @@ export default function VersionBanner({
                   existed and rendered only under `canRestart: false` — the
                   one audience that cannot act on it. */}
               <button type="button" className="ver-act" onClick={() => askRestart()} {...selfPressProps(restarting)}
-                title={"Stop this process and bring it back on the same port. The canvas replays from the event log.\n\n"
-                  + "Node loads every module once, at startup. An upgrade replaces the files on disk but not the code already in memory, so this process keeps running the old version until it is restarted."}>
-                {restarting ? "restarting…" : restartCopy.label}
+                title={t("shell.banner.restartTitle")}>
+                {restarting ? t("shell.banner.restarting") : restartCopy.label}
               </button>
               {/* And the consequence, in the open. It was in a `title`,
                   which is reachable by mouse and by nothing else — the
@@ -109,10 +113,8 @@ export default function VersionBanner({
               <label className="ver-auto">
               <button type="button" className="switch"
                 role="switch" aria-checked={autoRestart} onClick={toggleAutoRestart}
-                aria-label="Auto-restart when idle"
-                title={autoRestart
-                  ? "Updates on its own. While you are here it restarts once nothing has been running for 30 seconds; while you are away it also installs the new version first. Click to require a click instead."
-                  : "Only updates when you click. Click to let it update itself when idle or while you are away."}>
+                aria-label={t("shell.banner.autoRestart")}
+                title={autoRestart ? t("shell.banner.autoOnTitle") : t("shell.banner.autoOffTitle")}>
                 <span className="switch-knob" />
               </button>
               <span aria-hidden>{autoRestartLabel(autoRestart, restartFuseMs)}</span>
@@ -121,8 +123,8 @@ export default function VersionBanner({
           ) : (
             <span
               className="ver-sub"
-              title="Node loads every module once, at startup. An upgrade replaces the files on disk but not the code already in memory, so this process keeps running the old version until it is restarted."
-            >Restart it to pick up the new code.</span>
+              title={t("shell.banner.restartNeededTitle")}
+            >{t("shell.banner.restartNeeded")}</span>
           )}
         </>
       ) : (
@@ -135,7 +137,7 @@ export default function VersionBanner({
               one, and contradicts the wordmark directly above it. The
               package belongs where it is actionable — the button's title
               below, which is the command that actually installs. */}
-          <strong>{PRODUCT} v{notice.to} is out — you are on v{notice.from}.</strong>
+          <strong>{t("shell.banner.isOut", { product: PRODUCT, to: notice.to, from: notice.from })}</strong>
           {/* One button when we can actually install; the command, always,
               because the button can fail and the command never does.
 
@@ -162,10 +164,10 @@ export default function VersionBanner({
                `disabled` is exactly right for. */
             <button type="button" className="ver-act" onClick={startUpgrade}
               {...selfPressProps(upgradeState === "running", upgradeState === "done")}
-              title={`Runs ${version?.upgrade?.command ?? version?.command ?? "npm i -g"} here, then restarts once nothing is running.`}>
-              {upgradeState === "running" ? "installing…"
-                : upgradeState === "done" ? "installed"
-                : "Update now"}
+              title={t("shell.banner.installTitle", { command: version?.upgrade?.command ?? version?.command ?? "npm i -g" })}>
+              {upgradeState === "running" ? t("shell.banner.installing")
+                : upgradeState === "done" ? t("shell.banner.installed")
+                : t("shell.update.now")}
             </button>
           )}
           {/* npx never installs anything — there is nothing here to install
@@ -179,26 +181,28 @@ export default function VersionBanner({
                spend with focus on `<body>`. */
             <button type="button" className="ver-act" onClick={() => askRestart({ upgrade: true })}
               {...selfPressProps(restarting)}
-              title={`Runs ${version?.command} and hands it this port. Nothing is installed globally — npx unpacks its own copy.`}>
-              {restarting ? "fetching…"
+              title={t("shell.banner.npxTitle", { command: version?.command ?? "" })}>
+              {restarting ? t("shell.banner.fetching")
                 /* A retry after a failure must not look like the first
                    click: the last one already came back on the same
                    version, and the label is where that shows. */
-                : upgradeState === "failed" ? "Retry update"
-                : "Update & restart"}
+                : upgradeState === "failed" ? t("shell.update.retry")
+                : t("shell.update.andRestart")}
             </button>
           )}
           {upgradeState === "failed" ? (
             <span className="ver-sub fail" title={version?.upgrade?.error ?? ""}>
               {/* npx installs nothing — its failure is a fetch that came
                   back on the old version, not a broken install. */}
-              {version?.upgradeMode === "npx" ? "update failed" : "install failed"}
-              : {version?.upgrade?.error ?? "unknown error"} — run it yourself:
+              {t("shell.banner.failedLine", {
+                what: version?.upgradeMode === "npx" ? t("shell.banner.updateFailed") : t("shell.banner.installFailed"),
+                error: version?.upgrade?.error ?? t("shell.banner.unknownError"),
+              })}
             </span>
           ) : version?.upgradeMode === "npx" ? (
             <span className="ver-sub">
               {version?.canRestart
-                ? "npx cannot upgrade in place, so the deck re-runs:"
+                ? t("shell.banner.npxRerun")
                 : UPGRADE_BLOCK_TEXT.npx}
             </span>
           ) : version?.upgradeBlocked ? (
@@ -206,12 +210,12 @@ export default function VersionBanner({
               {/* An own row, not a bare `??` — see ownRow (#474). The reason
                   is a string off /api/version, so a build that sends one naming
                   an Object.prototype member would put a function here. */}
-              {ownRow(UPGRADE_BLOCK_TEXT, version.upgradeBlocked) ?? "cannot install from here"}
+              {ownRow(UPGRADE_BLOCK_TEXT, version.upgradeBlocked) ?? t("shell.banner.cannotInstall")}
             </span>
           ) : null}
-          <button type="button" className="ver-cmd" onClick={copyCommand} title="Copy to clipboard">
+          <button type="button" className="ver-cmd" onClick={copyCommand} title={t("shell.banner.copyTitle")}>
             <code>{version?.command}</code>
-            <span className="ver-cmd-hint">{cmdCopied ? "copied" : "copy"}</span>
+            <span className="ver-cmd-hint">{cmdCopied ? t("shell.banner.copiedHint") : t("shell.banner.copyHint")}</span>
           </button>
         </>
       )}
@@ -220,7 +224,7 @@ export default function VersionBanner({
           and its Space branch existed only to undo the global preventDefault
           this handler now never reaches, since ownsKeystroke() leaves a
           focused <button> alone. */}
-      <button type="button" aria-label="Dismiss" className="ver-close" onClick={dismissNotice}>×</button>
+      <button type="button" aria-label={t("shell.dismiss")} className="ver-close" onClick={dismissNotice}>×</button>
     </div>
   );
 }

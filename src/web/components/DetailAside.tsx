@@ -12,6 +12,7 @@ import { exportFileName, sessionExport } from "../session-export";
 import type { AgentNodeData } from "../types";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import Detail from "./Detail";
+import { useT } from "../i18n";
 
 /** Build a portable JSON snapshot of a single session (root + every subagent)
  *  and trigger a browser download.
@@ -49,6 +50,7 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
   // Drawn: one of the features the usage reports name (feature-use.ts). Said
   // here rather than off `detailOpen`, which stays on across a reload that
   // left nothing selected and so nothing on screen.
+  const t = useT();
   useFeatureUse("detail-panel");
   const singleKeys = useSingleKeyShortcuts();
   return (
@@ -59,12 +61,12 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
     // identity when nothing is selected, and a landmark whose name changes
     // under the reader is a landmark they cannot come back to. The agent's
     // name is the panel's <h2>, which is where a changing title belongs.
-    <aside className="detail" aria-label="Detail">
+    <aside className="detail" aria-label={t("board.detailPanel.title")}>
       <button
         type="button"
         className="glyph-btn detail-close"
-        title="Close panel"
-        aria-label="Close detail panel"
+        title={t("board.detailPanel.close")}
+        aria-label={t("board.detailPanel.closeLabel")}
         onClick={onClose}
       >×</button>
       <Detail

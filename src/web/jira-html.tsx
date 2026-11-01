@@ -26,6 +26,7 @@
 //              instead; an emoticon is its own text (":)").
 
 import { createElement, Fragment, useMemo, useState, type ReactNode } from "react";
+import { t as translateNow, useLanguage } from "./i18n";
 
 /** The part of a DOM node the walk reads — what DOMParser gives, and what a
  *  suite's own parser can give. */
@@ -106,7 +107,7 @@ function span(raw: string | null | undefined): number | undefined {
  *  (":)"), anything else as a link to it. */
 function ImageFallback({ href, alt, emoticon }: { href: string; alt: string; emoticon: boolean }) {
   if (emoticon) return <>{alt}</>;
-  return <a className="jr-image-link" href={href} target="_blank" rel="noreferrer noopener">{alt || "Image"}</a>;
+  return <a className="jr-image-link" href={href} target="_blank" rel="noreferrer noopener">{alt || translateNow("integrations.html.image")}</a>;
 }
 
 /** An image the deck loads, which falls back when it will not. */
@@ -193,11 +194,11 @@ export function htmlToReact(html: string, ctx: HtmlContext, parse: (html: string
     if (tag === "table") {
       // A wide table scrolls inside its own frame, not the pane, and a frame
       // that scrolls takes focus, so the keyboard can scroll it too.
-      return <div key={key} className="jr-table-wrap" tabIndex={0} role="region" aria-label="Table">{createElement("table", { className }, ...children())}</div>;
+      return <div key={key} className="jr-table-wrap" tabIndex={0} role="region" aria-label={translateNow("integrations.html.table")}>{createElement("table", { className }, ...children())}</div>;
     }
     if (tag === "pre") {
       // Code keeps its lines and scrolls sideways; the same, for the keyboard.
-      Object.assign(props, { tabIndex: 0, role: "region", "aria-label": "Code" });
+      Object.assign(props, { tabIndex: 0, role: "region", "aria-label": translateNow("integrations.html.code") });
     }
     if (VOID.has(tag)) return createElement(tag, props);
     return createElement(tag, props, ...children());
@@ -213,7 +214,9 @@ export function htmlToReact(html: string, ctx: HtmlContext, parse: (html: string
 
 /** An issue's description or a comment, drawn. */
 export default function JiraHtml({ html, ctx, className = "jr-html", empty }: { html: string; ctx: HtmlContext; className?: string; empty?: ReactNode }) {
-  const body = useMemo(() => htmlToReact(html, ctx), [html, ctx]);
+  const language = useLanguage();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the language names its images, tables and code
+  const body = useMemo(() => htmlToReact(html, ctx), [html, ctx, language]);
   if (!body) return empty ? <>{empty}</> : null;
   return <div className={className}>{body}</div>;
 }

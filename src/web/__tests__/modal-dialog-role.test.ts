@@ -84,7 +84,7 @@ describe("the deck's modals", () => {
   it("gives every dialog a name, so none of them announces as just 'dialog'", () => {
     for (const f of MODALS) {
       const tag = dialogTags(read(f))[0];
-      expect(`${f}: ${/aria-label(ledby)?="/.test(tag)}`).toBe(`${f}: true`);
+      expect(`${f}: ${/aria-label(ledby)?=("|\{t\()/.test(tag)}`).toBe(`${f}: true`);
     }
   });
 });

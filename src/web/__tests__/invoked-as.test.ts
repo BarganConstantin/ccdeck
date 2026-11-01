@@ -38,6 +38,7 @@ import { glyphs, labelColumn, palette, statusLine, stripAnsi } from "../../serve
 import { upgradeBlock, upgradeMode } from "../../server/self-update.mjs";
 import { clientText } from "./client-source";
 import { CLI_FILES, cliSurface } from "./cli-surface";
+import shellEn from "../i18n/areas/shell/en";
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
 const read = (...parts: string[]) => readFileSync(join(repo, ...parts), "utf8");
@@ -245,7 +246,8 @@ describe("what gets said, and to whom", () => {
       expect(notice.said.startsWith(`${name} still works`), name).toBe(true);
       expect(`${notice.said} ${notice.fix}`).not.toMatch(/[!]/);
     }
-    expect(banner).toContain("{oldName} still works — the deck is called {PRODUCT} now.");
+    expect(banner).toContain('t("shell.banner.oldName", { old: oldName, product: PRODUCT })');
+    expect(shellEn["shell.banner.oldName"]).toBe("{old} still works — the deck is called {product} now.");
     // Only the first line is written in the browser. The second one is renameNotice's
     // `fix`, handed over by /api/version — see "one fact, one place" below for
     // why it stopped being written twice.

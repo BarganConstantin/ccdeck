@@ -34,6 +34,7 @@ import { sessionHue, type GraphState } from "./reducer";
 import { boardNote, noteTag } from "./session-note";
 import type { AgentNodeData } from "./types";
 import type React from "react";
+import { t } from "./i18n";
 
 // A recap note's size before React Flow has measured it, and the gap it keeps
 // to its card: layout-geometry.ts's, since the gap pass reserves the note's
@@ -280,6 +281,7 @@ export function snapshotToFlow(
         id: `e:${a.parentId}->${a.id}`,
         source: a.parentId,
         target: a.id,
+        ariaLabel: t("board.edge.aria", { label: a.label }),
         animated: (a.state === "active" || isSelectedEdge) && !fading,
         type: "smoothstep",
         // No edge label — the target node already displays the agent name.
@@ -332,7 +334,7 @@ export function snapshotToFlow(
         // focused node selects its id, and a note's id is not an agent's. Its ×
         // is still a button, and still reached by Tab.
         focusable: false,
-        ariaLabel: !note ? `${a.label}: plan` : note.kind === "recap" ? `Claude Code's recap for ${a.label}` : `${a.label}: ${noteTag(note.kind)}`,
+        ariaLabel: !note ? t("board.note.planFor", { label: a.label }) : note.kind === "recap" ? t("board.note.recapFor", { label: a.label }) : `${a.label}: ${noteTag(note.kind)}`,
         ...(mn ? { width: mn.width, height: mn.height } : null),
       } as unknown as (typeof nodes)[number]);
       edges.push({
@@ -341,6 +343,7 @@ export function snapshotToFlow(
         target: a.id,
         type: "recapTie",
         className: "recap-edge",
+        ariaLabel: t("board.edge.aria", { label: a.label }),
         // Decoration: not a stop for Tab. It draws no hit area to click either
         // (RecapTieEdge renders none, and the sheet gives it no pointer).
         focusable: false,

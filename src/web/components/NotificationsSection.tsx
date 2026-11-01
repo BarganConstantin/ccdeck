@@ -7,9 +7,10 @@
 // section now, and Settings is the way to them on every machine, because the
 // gear is always on the bar.
 import { useRef } from "react";
+import { useT } from "../i18n";
 import { useFocusRescue } from "./use-focus-rescue";
 import {
-  ACCOUNT_NOTIFY_NOTE, ACCOUNT_NOTIFY_SWITCHES, ACCOUNT_NOTIFY_VETO_NOTE, browserChannel, notifyNote, NOTIFY_VETO_NOTE,
+  ACCOUNT_NOTIFY_SWITCHES, browserChannel, notifyNote,
   type NotifyPermission,
 } from "../notify-reach";
 import type { AccountNotify, AccountNotifyKind } from "../use-os-notifications";
@@ -54,7 +55,8 @@ export default function NotificationsSection({
   /* The channel, and whether it is worth drawing at all. A veto silences both
      notifiers, so there is no channel to report on; the switch's own note says
      what happened instead. */
-  const channel = browserChannel(notifyPermission);
+  const t = useT();
+  const channel = browserChannel(notifyPermission, t);
   // Not inside the desktop app: its notifications are its own, and the
   // browser's permission that this section reports is never asked there.
   const inApp = inDesktopApp();
@@ -76,12 +78,12 @@ export default function NotificationsSection({
           decoration: it is what separates this switch from Sounds — sound
           fires on every finished turn while a tab is open, this fires only
           when something has stopped and no tab is. */}
-      <SettingsGroup id="sm-closed-caption" title="While the deck is closed">
+      <SettingsGroup id="sm-closed-caption" title={t("settings.notify.closedGroup")}>
         <SettingRow
           settingId="notify-closed"
-          name="Notifications while closed"
+          name={t("settings.notify.closedName")}
           nameId="sm-notify-label"
-          note={notifyVetoed ? NOTIFY_VETO_NOTE : notifyNote(inApp)}
+          note={notifyVetoed ? t("settings.notify.veto") : notifyNote(inApp, t)}
           noteId="sm-notify-note"
           control={
             <button
@@ -115,12 +117,12 @@ export default function NotificationsSection({
         {showChannel && (
           <SettingRow
             as="div"
-            name="Browser notifications"
+            name={t("settings.notify.browserName")}
             nameId="sm-channel-name"
             note={channel.note}
             control={channel.ask ? (
               <button type="button" className="btn sm-channel-action" onClick={() => { rescueChannel(); onAskNotify(); }}>
-                Enable
+                {t("settings.notify.enable")}
               </button>
             ) : (
               /* A word, not a control, and it keeps the button's slot so the
@@ -149,8 +151,8 @@ export default function NotificationsSection({
           screen or a keyboard never saw. */}
       <SettingsGroup
         id="sm-accounts-caption"
-        title="Accounts"
-        note={notifyVetoed ? ACCOUNT_NOTIFY_VETO_NOTE : ACCOUNT_NOTIFY_NOTE}
+        title={t("settings.notify.accountsGroup")}
+        note={notifyVetoed ? t("settings.notify.accountsVeto") : t("settings.notify.accountsNote")}
       >
         {ACCOUNT_NOTIFY_SWITCHES.map(({ kind, label, title }) => (
           <SettingRow

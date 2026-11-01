@@ -25,6 +25,7 @@ import { inDesktopApp } from "../in-app";
 import { CHECKS_OFF } from "../update-check";
 import type { VersionInfo } from "../use-version-check";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
+import { useT, type TFunction } from "../i18n";
 
 export const AUTO_UPDATE_LABEL = "Update when idle";
 export const AUTO_UPDATE_NOTE =
@@ -67,10 +68,10 @@ export function updatesShape(version: VersionInfo | null, inApp: boolean): Updat
   return "plain";
 }
 
-const NOTES: Record<Exclude<UpdatesShape, "app">, string> = {
-  plain: AUTO_UPDATE_NOTE,
-  "checks-off": AUTO_UPDATE_CHECKS_OFF_NOTE,
-  "no-restart": AUTO_UPDATE_NO_RESTART_NOTE,
+const NOTE_KEYS: Record<Exclude<UpdatesShape, "app">, string> = {
+  plain: "settings.updates.plainDetails",
+  "checks-off": "settings.updates.checksOffDetails",
+  "no-restart": "settings.updates.noRestartDetails",
 };
 
 interface Props {
@@ -83,20 +84,21 @@ interface Props {
 }
 
 export default function UpdatesSection({ autoRestart, onToggleAutoRestart, version, inApp = inDesktopApp() }: Props) {
+  const t = useT();
   const shape = updatesShape(version, inApp);
   return (
-    <SettingsGroup id="settings-updates-caption" title="Updates">
+    <SettingsGroup id="settings-updates-caption" title={t("settings.updates.title")}>
       {shape === "app" ? (
-        <SettingRow as="div" settingId="auto-update" name="Updates" note={APP_UPDATES_NOTE} />
+        <SettingRow as="div" settingId="auto-update" name={t("settings.updates.title")} note={t("settings.updates.appNote")} />
       ) : (
         <SettingRow
           settingId="auto-update"
-          name={AUTO_UPDATE_LABEL}
+          name={t("settings.updates.label")}
           nameId="settings-auto-update-label"
-          note={shape === "no-restart" ? "Automatic updates are unavailable in this session. Your choice is saved for the next start."
-            : shape === "checks-off" ? "Update checks are disabled. Only versions installed another way can be applied."
-            : "Restart into a newer version after 30 seconds without active agents."}
-          details={NOTES[shape]}
+          note={shape === "no-restart" ? t("settings.updates.noRestartNote")
+            : shape === "checks-off" ? t("settings.updates.checksOffNote")
+            : t("settings.updates.plainNote")}
+          details={t(NOTE_KEYS[shape])}
           noteId="settings-auto-update-note"
           control={
             /* Operable in every shape it is drawn in, as Notifications' switch

@@ -2,10 +2,10 @@
 // across all sessions, by model and by session. Toggled via $ button
 // in the topbar or the U keyboard shortcut.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fmtCost, UNPRICED_LABEL } from "../pricing";
+import { fmtCost } from "../pricing";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
 import {
-  boardScopeTitle, boardSessionTable, BOARD_SCOPE_LABEL, BOARD_SPEND_LABEL,
+  boardScopeTitle, boardSessionTable, boardScopeLabel, boardSpendLabel,
   type BoardSessionRow,
 } from "../board-usage";
 import {
@@ -34,6 +34,7 @@ import { useUsageRange } from "../use-usage-range";
 import { useCountUp } from "../use-count-up";
 import { useBoardSpend } from "../use-board-spend";
 import { usePanelClock } from "../use-panel-clock";
+import { useT } from "../i18n";
 import { anyUnpriced, quotaRefreshLabel, worthALine } from "../usage-panel-rules";
 import { reportedCost } from "../reported-cost";
 import { boardSessionNames, boardSessionStates, distinctSessionLabels } from "../usage-session-join";
@@ -211,6 +212,10 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
   // chip the reader just pressed. While a slower range loads, the panel reads
   // "$4.20 today" with `all` pressed and dimmed — never "$4.20 all time".
   const periodNoun = nounFor(shownPeriod, period);
+  // The same word in the reader's language, for the lines this panel draws
+  // itself; the breakdown component below still takes the English one.
+  const t = useT();
+  const periodWord = t(`usage.period.${shownPeriod ?? period}.noun`);
 
   // NOTHING DIMS WHILE A SLOWER RANGE LOADS — not the chips, which stay
   // pressable, and since #1289 not the figures either. They used to fade to
@@ -280,7 +285,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
   // construction: the name a voice-control user says is the words the tooltip
   // shows, per provider, and cannot drift into promising a section that is not
   // rendered.
-  const refreshLabel = quotaRefreshLabel(providers);
+  const refreshLabel = quotaRefreshLabel(providers, t);
 
   return (
     // The id is the target of the topbar toggle's aria-controls. It is spelled
@@ -297,16 +302,16 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
     // take a name, and complementary is what this panel is: spend beside the
     // canvas, openable and closable without changing what the canvas shows.
     // Its header moves it (panel-place.ts).
-    <aside className={`usage-panel${leaving ? " leaving" : ""}`} id="usage-panel" aria-label="Usage" {...place.panel}>
+    <aside className={`usage-panel${leaving ? " leaving" : ""}`} id="usage-panel" aria-label={t("usage.title")} {...place.panel}>
       <div className="up-header" {...place.grip}>
         {/* h2, under the topbar's h1 (#381). Same level as the other panels'
             titles, and the four `up-section-title`s below stepped from h4 to h3
             with it, so the panel reads h1 → h2 → h3 with nothing skipped. */}
-        <h2>Usage</h2>
+        <h2>{t("usage.title")}</h2>
         <div className="up-header-right">
           {(providers.claude || providers.codex) && <button type="button"
-            className="glyph-btn" aria-label="Open quota history"
-            title="Quota history" onClick={event => setQuotaHistoryOpen(event.detail === 0 ? "keyboard" : "pointer")}>
+            className="glyph-btn" aria-label={t("usage.historyOpen")}
+            title={t("usage.history")} onClick={event => setQuotaHistoryOpen(event.detail === 0 ? "keyboard" : "pointer")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M4 4v16h16M8 8l4 4 4-3 4 7" />
@@ -341,8 +346,8 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             type="button"
             className="glyph-btn up-close"
             onClick={onClose}
-            aria-label="Close usage panel"
-            title={withKey("Close", "U", singleKeys)}
+            aria-label={t("usage.closePanel")}
+            title={withKey(t("usage.close"), "U", singleKeys)}
           ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="1.6" strokeLinecap="round" aria-hidden><path d="m6 6 12 12M18 6 6 18" /></svg></button>
         </div>
@@ -411,11 +416,11 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             <span className={!hasCost && hasUnpriced ? "up-total-value up-unpriced" : "up-total-value"}>
               {hasCost ? <>{fmtCost(shownCost)}{hasUnpriced && "+"}</> : reportedCost(0, hasUnpriced)}
             </span>
-            {hasCost && <span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>}
+            {hasCost && <span className="up-total-label">{fromRange ? periodWord : boardSpendLabel()}</span>}
           </div>
           {hasCost && (
             <>
-              <p className="up-source">Local estimate · {fromRange ? "ccusage" : "live sessions"}</p>
+              <p className="up-source">{t("usage.estimate", { source: fromRange ? "ccusage" : t("usage.source.live") })}</p>
               {/* NO BAR OVER A ccusage HEADLINE, and it is not an omission.
                   The bar splits a total across input / output / cache, and
                   ccusage publishes one cost per model rather than that split —
@@ -431,12 +436,12 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
           )}
 
           <div className="up-tokens-row" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>
-            <span className="up-tok"><span className="up-k">in</span>{fmtTokens(shownIn)}</span>
-            <span className="up-tok"><span className="up-k">out</span>{fmtTokens(shownOut)}</span>
+            <span className="up-tok"><span className="up-k">{t("usage.tokens.in")}</span>{fmtTokens(shownIn)}</span>
+            <span className="up-tok"><span className="up-k">{t("usage.tokens.out")}</span>{fmtTokens(shownOut)}</span>
             {/* Gated on the TRUE value, not the counted one: a strip that
                 appeared and vanished as a count crossed zero would flicker. */}
-            {figures.cacheReadTokens > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(shownCacheR)}</span>}
-            {figures.cacheCreateTokens > 0 && <span className="up-tok"><span className="up-k">cache c</span>{fmtTokens(shownCacheC)}</span>}
+            {figures.cacheReadTokens > 0 && <span className="up-tok"><span className="up-k">{t("usage.tokens.cacheRead")}</span>{fmtTokens(shownCacheR)}</span>}
+            {figures.cacheCreateTokens > 0 && <span className="up-tok"><span className="up-k">{t("usage.tokens.cacheCreate")}</span>{fmtTokens(shownCacheC)}</span>}
             {/* On a deck where nothing is priced there is no headline above this
                 — the money block is gated on cost — so the strip is the only
                 aggregate on screen and the only place left to say what it is
@@ -445,7 +450,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
                 The same word the headline's label takes, on the same rule:
                 under ccusage the strip is the period's reading from the logs,
                 and "on this board" there named a canvas it does not count. */}
-            {!hasCost && <span className="up-tok up-scope">{fromRange ? periodNoun : BOARD_SCOPE_LABEL}</span>}
+            {!hasCost && <span className="up-tok up-scope">{fromRange ? periodWord : boardScopeLabel()}</span>}
           </div>
 
           {/* NO BOARD FIGURE UNDER A ccusage HEADLINE.
@@ -482,10 +487,9 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               no answer yet. */}
           {fromRange && rangeSessionRows.length === 0 && rangeSum.tokens > 0 && (
             <section className="up-section">
-              <h3 className="up-section-title">By session</h3>
+              <h3 className="up-section-title">{t("usage.bySession")}</h3>
               <div className="up-hint">
-                No session is dated {periodNoun} yet — ccusage dates sessions in UTC,
-                and the totals above are your local day.
+                {t("usage.noSessionDated")}
               </div>
             </section>
           )}
@@ -507,8 +511,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
 
           {hasUnpriced && (
             <div className="up-hint">
-              “{UNPRICED_LABEL}” means this build holds no published rate for that model —
-              those tokens are counted above and their dollars are not.
+              {t("usage.unpricedNote", { label: t("insights.cost.notPriced") })}
             </div>
           )}
         </>
@@ -523,9 +526,9 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               "No usage all time" is not a sentence (#1806). */}
           {fromRange
             ? (shownPeriod ?? period) === "all"
-              ? <>No usage in any transcript on this machine.</>
-              : <>No usage {periodNoun}.<br />Try a longer period.</>
-            : <>No usage data yet.<br />Start a Claude Code or Codex session.</>}
+              ? <>{t("usage.empty.all")}</>
+              : <>{t("usage.empty.period", { period: periodWord })}<br />{t("usage.empty.longer")}</>
+            : <>{t("usage.empty.none")}<br />{t("usage.empty.start")}</>}
         </div>
       )}
       {/* The panel's last line, whatever is above it: the header's row is

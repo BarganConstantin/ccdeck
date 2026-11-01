@@ -31,8 +31,9 @@
 // others go back through the queue as an add. `clear` lets go of them all,
 // fits under way and adds still waiting included.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { t } from "./i18n";
 import {
-  MAX_IMAGES, FULL_MESSAGE, browserDecoder, imageBudget, leftOutMessage, prepareImage, problemMessage,
+  MAX_IMAGES, fullMessage, browserDecoder, imageBudget, leftOutMessage, prepareImage, problemMessage,
   type Size,
 } from "./feedback-images";
 
@@ -206,11 +207,11 @@ export function useFeedbackImages(restore?: KeptImages): FeedbackImages {
       if (shotsRef.current.length > before) added++;
     }
     if (!open.current || generation.current !== begun) return;
-    if (leftOut > 0) problems.push(added === 0 && problems.length === 0 ? FULL_MESSAGE : leftOutMessage(leftOut));
+    if (leftOut > 0) problems.push(added === 0 && problems.length === 0 ? fullMessage() : leftOutMessage(leftOut));
     setProblem(problems.join(" "));
     const count = shotsRef.current.length;
     // A refusal is said by the alert beside the images; this says the rest.
-    if (added > 0) setAnnouncement(`${added === 1 ? "Image" : `${added} images`} added, ${count} of ${MAX_IMAGES}.`);
+    if (added > 0) setAnnouncement(t("shell.feedback.imagesAdded", { count: added, total: count, max: MAX_IMAGES }));
   }, [addOne, setProblem]);
 
   const replaceOne = useCallback(async (id: number, file: File) => {
@@ -222,7 +223,7 @@ export function useFeedbackImages(restore?: KeptImages): FeedbackImages {
     if (!open.current) return;
     setProblem(said);
     const at = shotsRef.current.findIndex(shot => shot.id === id);
-    if (!said && at !== -1) setAnnouncement(`Image ${at + 1} replaced, ${shotsRef.current.length} of ${MAX_IMAGES}.`);
+    if (!said && at !== -1) setAnnouncement(t("shell.feedback.imageReplaced", { n: at + 1, total: shotsRef.current.length, max: MAX_IMAGES }));
   }, [addAll, addOne, setProblem]);
 
   /** A job queued before a `clear` never starts. */
@@ -258,10 +259,10 @@ export function useFeedbackImages(restore?: KeptImages): FeedbackImages {
     fitting.current.delete(id);
     setShots(prev => prev.filter(shot => shot.id !== id));
     setProblem("");
-    setAnnouncement(`Image removed, ${shotsRef.current.length} of ${MAX_IMAGES}.`);
+    setAnnouncement(t("shell.feedback.imageRemoved", { count: shotsRef.current.length, max: MAX_IMAGES }));
   }, [setShots, setProblem]);
 
-  const sayFull = useCallback(() => setProblem(FULL_MESSAGE), [setProblem]);
+  const sayFull = useCallback(() => setProblem(fullMessage()), [setProblem]);
 
   const ready = useCallback(async () => {
     const said = refusals.current;

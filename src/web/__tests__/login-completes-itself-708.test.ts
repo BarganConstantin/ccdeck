@@ -567,9 +567,13 @@ describe("the sign-in dialog's own copy", () => {
     // The heading over the field, and the primer that is read before the
     // browser is ever opened. Both have to hedge, because the common case is
     // that nothing is asked of the user here at all.
-    expect(dialog).toContain("Paste a code, if the page shows one");
-    expect(dialog).toContain("It usually finishes on its own");
-    expect(dialog).toContain("only if the page hands you a code does it need pasting back here");
+    expect(dialog).toContain('t("accounts.add.pasteCode")');
+    expect(dialog).toContain('t("accounts.add.codeNote")');
+    expect(dialog).toContain('"accounts.add.primerNote"');
+    const catalog = readFileSync(fileURLToPath(new URL("../i18n/areas/accounts/en.ts", import.meta.url)), "utf8");
+    expect(catalog).toContain("Paste a code, if the page shows one");
+    expect(catalog).toContain("It usually finishes on its own");
+    expect(catalog).toContain("only if the page hands you a code does it need pasting back here");
   });
 });
 

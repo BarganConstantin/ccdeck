@@ -151,7 +151,7 @@ describe("the wiring", () => {
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.usage\(\); setUsagePanelOpen\(false\); \}\}/);
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.machine\(\); setMachinePanelOpen\(false\); \}\}/);
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\}/);
-    expect(detail).toMatch(/aria-label="Close detail panel"\s+onClick=\{onClose\}/);
+    expect(detail).toMatch(/aria-label=\{t\("board\.detailPanel\.closeLabel"\)\}\s+onClick=\{onClose\}/);
   });
 
   it("says whether each panel is still drawn, by the same test that draws it", () => {

@@ -27,6 +27,7 @@
     "test": "vitest run",
     "prepublishOnly": "npm run build",
     "prepack": "npm run build",
+    "i18n:missing": "node scripts/i18n-missing.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.build.json"
   },
   "engines": {

@@ -1,6 +1,7 @@
 // The server owns durable write receipts; this store also keeps drafts across mounts.
 import { useEffect, useState } from "react";
 import { IntegrationFailure, jiraGuardOperation, readThrough, type JiraGuardOperation } from "./integrations/client";
+import { t } from "./i18n";
 import type { JiraApi } from "./jira-api";
 import { states, listeners, revisions, type JiraWriteState as State } from "./jira-write-store";
 
@@ -54,9 +55,9 @@ export function useJiraWriteState(connectionId: string, issueKey: string, kind: 
         if (!mounted || acknowledgements.has(key) || (revisions.get(key) ?? 0) !== revision) return;
         const current = states.get(key) ?? empty;
         if (current.busy) return;
-        update(key, { loading: false, operation: op, uncertain: !!op || current.uncertain, ...(op && kind === "move" && !current.draft ? { draft: `${op.issueKeys?.join(", ")} · Board ${op.boardId}` } : {}), ...(op ? { error: op.state === "pending" ? "Jira is still processing this write. Wait before checking again." : "Check Jira before trying again." } : {}) });
+        update(key, { loading: false, operation: op, uncertain: !!op || current.uncertain, ...(op && kind === "move" && !current.draft ? { draft: t("integrations.write.boardRef", { keys: op.issueKeys?.join(", ") ?? "", id: op.boardId ?? "" }) } : {}), ...(op ? { error: op.state === "pending" ? t("integrations.write.processing") : t("integrations.write.checkJira") } : {}) });
       } catch {
-        if (mounted && !acknowledgements.has(key) && (revisions.get(key) ?? 0) === revision) update(key, { loading: false, uncertain: true, error: "Could not check Jira write safety. Try again before writing." });
+        if (mounted && !acknowledgements.has(key) && (revisions.get(key) ?? 0) === revision) update(key, { loading: false, uncertain: true, error: t("integrations.write.checkFailed") });
       } finally { inFlight = false; }
     };
     const notify = (state: State) => setView({ key, state });
@@ -113,10 +114,10 @@ export function useJiraWriteState(connectionId: string, issueKey: string, kind: 
         if (!Array.isArray(body.operations)) throw new Error();
         const op = body.operations.map(jiraGuardOperation).find((item: JiraGuardOperation | undefined) => item && matches(item));
         if (!unchanged()) return false;
-        if (op) { update(key, { operation: op, uncertain: true, error: "Check Jira before trying again.", ...(kind === "move" && op.operationId !== id ? { draft: `${op.issueKeys?.join(", ")} · Board ${op.boardId}` } : {}) }); return false; }
+        if (op) { update(key, { operation: op, uncertain: true, error: t("integrations.write.checkJira"), ...(kind === "move" && op.operationId !== id ? { draft: t("integrations.write.boardRef", { keys: op.issueKeys?.join(", ") ?? "", id: op.boardId ?? "" }) } : {}) }); return false; }
         if (!unchanged()) return false;
         update(key, { uncertain: false, error: "", operation: undefined, ...(kind === "move" ? { draft: "" } : {}) }); return true;
-      } catch { if (unchanged()) update(key, { uncertain: true, error: "Could not clear the Jira write guard. Check Jira and try again." }); return false; }
+      } catch { if (unchanged()) update(key, { uncertain: true, error: t("integrations.write.clearFailed") }); return false; }
       finally {
         clearTimeout(timer);
         acknowledgements.delete(key);

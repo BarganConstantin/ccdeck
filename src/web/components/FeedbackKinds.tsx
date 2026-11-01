@@ -11,6 +11,7 @@
 // picked with the arrows and settled with Enter sent the report on the spot;
 // that Enter does nothing here, as in the contact field (isPlainEnter).
 import { KINDS, isPlainEnter, type Kind } from "../feedback";
+import { useT } from "../i18n";
 
 interface Props {
   kind: Kind;
@@ -18,9 +19,10 @@ interface Props {
 }
 
 export default function FeedbackKinds({ kind, onChange }: Props) {
+  const t = useT();
   return (
     <fieldset className="fb-kinds">
-      <legend className="vis-hidden">Kind of feedback</legend>
+      <legend className="vis-hidden">{t("shell.feedback.kinds")}</legend>
       {KINDS.map(option => (
         <label key={option.value} className="fb-kind">
           <input

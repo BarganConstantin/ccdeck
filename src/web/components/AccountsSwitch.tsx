@@ -10,6 +10,8 @@
 // arrows, Home and End switch as they go, as a click does.
 import { type KeyboardEvent } from "react";
 
+import { useT } from "../i18n";
+
 export type AccountSide = "claude" | "codex";
 
 const SIDES: readonly { side: AccountSide; name: string }[] = [
@@ -43,6 +45,7 @@ interface Props {
 }
 
 export default function AccountsSwitch({ shown, notices, onPick }: Props) {
+  const t = useT();
   const move = (event: KeyboardEvent<HTMLDivElement>) => {
     const next = sideForKey(shown, event.key);
     if (!next) return;
@@ -50,14 +53,14 @@ export default function AccountsSwitch({ shown, notices, onPick }: Props) {
     onPick(next);
   };
   return (
-    <div className="ap-sides" role="radiogroup" aria-label="Show accounts for" onKeyDown={move}>
+    <div className="ap-sides" role="radiogroup" aria-label={t("accounts.switch.label")} onKeyDown={move}>
       {SIDES.map(({ side, name }) => {
         const flagged = side !== shown && notices[side];
         return (
           <button key={side} type="button" className="ap-side" role="radio"
             aria-checked={side === shown} tabIndex={side === shown ? 0 : -1}
-            aria-label={flagged ? `${name}, needs attention` : name}
-            title={flagged ? `The current ${name} account needs attention` : undefined}
+            aria-label={flagged ? t("accounts.switch.attention", { name }) : name}
+            title={flagged ? t("accounts.switch.attentionTip", { name }) : undefined}
             onClick={() => onPick(side)}>
             {name}
             {flagged && <span className="ap-side-dot" aria-hidden />}

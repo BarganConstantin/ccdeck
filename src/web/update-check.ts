@@ -12,7 +12,8 @@
 // A pure function of what the deck has already said, so every state and every
 // channel can be pinned without a browser.
 import type { DesktopUpdateState } from "./desktop-update";
-import { agoLabel } from "./browser-watch-model";
+import { t } from "./i18n";
+import { agoSpelled } from "./shell-ago";
 import { compareVersions, isVersion } from "./release-notes";
 import { ownRow } from "./own-row";
 import type { VersionInfo } from "./use-version-check";
@@ -72,84 +73,86 @@ export type UpdateCheckFacts = {
   app: { inApp: boolean; update: DesktopUpdateState | null; version: string | null; menu: string } | null;
 };
 
-export const CHECK_LABEL = "Check for updates";
-export const CHECK_WHY = "Ask npm now whether a newer ccdeck is out.";
-export const CHECKING = "Checking…";
-export const NPM_UNREACHABLE = "Couldn't reach npm. Try again.";
-export const DECK_UNREACHABLE = "Couldn't reach the deck. Try again.";
+export const checkLabel = () => t("shell.update.check");
+export const checkWhy = () => t("shell.update.checkWhy");
+export const checkingWord = () => t("shell.update.checking");
+export const npmUnreachable = () => t("shell.update.npmUnreachable");
+export const deckUnreachable = () => t("shell.update.deckUnreachable");
+export const checksOff = () => t("shell.update.checksOff");
+export const pendingRetry = () => t("shell.update.pendingRetry");
+/** The English line, for a caller outside the shell that has not moved to checksOff() yet. */
 export const CHECKS_OFF = "Update checks are off on this deck (AGENTS_DECK_NO_UPDATE_CHECK or AGENTS_DECK_NO_INSTALL).";
-export const PENDING_RETRY = "The deck looks again in five minutes.";
 
 /** "3.38.7 is out", and why this install is offered a command rather than a
  *  button, in the banner's own words (VersionBanner.tsx's UPGRADE_BLOCK_TEXT).
  *  An own row, as the banner reads it (#474): the reason arrives over the wire. */
 export function outWithReason(to: string, reasons: Record<string, string>, blocked: string | null | undefined, npxUnsupervised: boolean): string {
   const reason = npxUnsupervised ? reasons.npx : (blocked ? ownRow(reasons, blocked) : undefined);
-  return reason ? `${to} is out, but ${reason}` : `${to} is out. Run:`;
+  return reason ? t("shell.update.outBlocked", { to, reason }) : t("shell.update.outRun", { to });
 }
 
 const line = (said: string, more: Partial<UpdateLine> = {}): UpdateLine => ({ said, tone: "answer", age: null, command: null, action: null, ...more });
 const note = (said: string): UpdateLine => line(said, { tone: "note" });
 
 function ago(at: number, now: number): string {
-  return agoLabel(at, now) ?? "just now";
+  return agoSpelled(now - at);
 }
 
 /** The desktop app's own updater, which this page can read but not ask. Null
  *  once its update is ready: the door at the top of the dialog is that. */
 function appLine(app: NonNullable<UpdateCheckFacts["app"]>, running: string): UpdateLine | null {
   const u = app.update;
-  if (u?.status === "ready") return note(`${u.version} is ready. Restart to update.`);
-  if (u?.status === "checking") return note("The app is checking for updates…");
-  if (u?.status === "downloading") return note(u.version ? `${u.version} is out. The app is downloading it.` : "The app is downloading an update.");
-  if (u?.status === "current") return note(`You're on the latest, ${app.version ?? running}. You can check again here.`);
-  if (u?.status === "error") return note(`The app's last update check failed. Try Check for updates again.`);
-  return note(`The app keeps itself up to date. Check for updates here.`);
+  if (u?.status === "ready") return note(t("shell.update.appReady", { version: u.version ?? "" }));
+  if (u?.status === "checking") return note(t("shell.update.appChecking"));
+  if (u?.status === "downloading") return note(u.version ? t("shell.update.appDownloadingVersion", { version: u.version }) : t("shell.update.appDownloading"));
+  if (u?.status === "current") return note(t("shell.update.appCurrent", { version: app.version ?? running }));
+  if (u?.status === "error") return note(t("shell.update.appError"));
+  return note(t("shell.update.appIdle"));
 }
 
 /** npm names a newer release: the banner's offer for this install. */
 function availableLine(f: UpdateCheckFacts, to: string, reasons: Record<string, string>): UpdateLine {
   const v = f.version;
   if (v?.upgradeMode === "install" && f.upgradeState !== "failed") {
-    if (f.upgradeState === "done") return line(`${to} is installed.`);
+    if (f.upgradeState === "done") return line(t("shell.update.installed", { to }));
     const busy = f.upgradeState === "running";
-    const why = `Runs ${v.upgrade?.command ?? v.command} here, then restarts once nothing is running.`;
-    return line(busy ? `Installing ${to}…` : `${to} is out.`, { action: { kind: "install", label: "Update now", busy, why } });
+    const why = t("shell.update.installWhy", { command: v.upgrade?.command ?? v.command });
+    return line(busy ? t("shell.update.installing", { to }) : t("shell.update.out", { to }), { action: { kind: "install", label: t("shell.update.now"), busy, why } });
   }
   if (v?.upgradeMode === "npx" && v.canRestart) {
     const retry = f.upgradeState === "failed";
-    return line(retry ? `The last update to ${to} came back on ${f.running}.` : `${to} is out.`, {
+    return line(retry ? t("shell.update.npxFailedBack", { to, running: f.running }) : t("shell.update.out", { to }), {
       action: {
-        kind: "npx", label: retry ? "Retry update" : "Update & restart", busy: f.restarting,
-        why: `Runs ${v.command} and hands it this port. Nothing is installed globally — npx unpacks its own copy.`,
+        kind: "npx", label: retry ? t("shell.update.retry") : t("shell.update.andRestart"), busy: f.restarting,
+        why: t("shell.update.npxWhy", { command: v.command }),
       },
     });
   }
   const said = f.upgradeState === "failed"
-    ? `Installing ${to} failed. Run it yourself:`
+    ? t("shell.update.installFailed", { to })
     : outWithReason(to, reasons, v?.upgradeBlocked, v?.upgradeMode === "npx");
   const command = v?.command ?? null;
-  return line(said, { command, action: command ? { kind: "copy", label: f.copied ? "Copied" : "Copy", busy: false } : null });
+  return line(said, { command, action: command ? { kind: "copy", label: f.copied ? t("shell.copied") : t("shell.copy"), busy: false } : null });
 }
 
 /** Nothing to act on: what the last check found, or when it ran. */
 function settledLine(f: UpdateCheckFacts): UpdateLine {
   const v = f.version;
-  if (f.unreachable) return line(DECK_UNREACHABLE, { tone: "warn" });
+  if (f.unreachable) return line(deckUnreachable(), { tone: "warn" });
   const failedAt = v?.checkFailedAt && v.checkFailedAt > (v.checkedAt ?? 0) ? v.checkFailedAt : null;
-  if (failedAt) return line(NPM_UNREACHABLE, { tone: "warn", age: f.answered ? null : `Last tried ${ago(failedAt, f.now)}.` });
+  if (failedAt) return line(npmUnreachable(), { tone: "warn", age: f.answered ? null : t("shell.update.lastTried", { ago: ago(failedAt, f.now) }) });
   const pending = v?.latestPending && v.latestPending !== f.running ? v.latestPending : null;
-  if (pending) return line(`${pending} is tagged on npm but can't be installed yet. ${PENDING_RETRY}`);
+  if (pending) return line(t("shell.update.pending", { pending, retry: pendingRetry() }));
   const checked = v?.checkedAt ? ago(v.checkedAt, f.now) : null;
   // An old successful lookup is history, not evidence that this build is current.
   const fresh = v?.checkedAt && f.now >= v.checkedAt && f.now - v.checkedAt <= 60 * 60_000;
   if (fresh && v?.latest && isVersion(v.latest) && isVersion(f.running)) {
     const drift = compareVersions(v.latest, f.running);
-    const said = drift === 0 ? `You're on the latest, ${f.running}.`
-      : drift < 0 ? `You're on ${f.running}, ahead of npm's ${v.latest}.` : `${v.latest} is out.`;
-    return line(said, { age: checked ? `Checked ${checked}.` : null });
+    const said = drift === 0 ? t("shell.update.latest", { version: f.running })
+      : drift < 0 ? t("shell.update.ahead", { running: f.running, latest: v.latest }) : t("shell.update.out", { to: v.latest });
+    return line(said, { age: checked ? t("shell.update.checkedAgo", { ago: checked }) : null });
   }
-  return line(checked ? "Update status may have changed." : "No update check yet.", { age: checked ? `Last checked ${checked}.` : null });
+  return line(checked ? t("shell.update.mayHaveChanged") : t("shell.update.noneYet"), { age: checked ? t("shell.update.lastChecked", { ago: checked }) : null });
 }
 
 /**
@@ -160,19 +163,19 @@ export function updateCheckState(f: UpdateCheckFacts, reasons: Record<string, st
   const v = f.version;
   if (f.app?.inApp && v?.checkDisabled) {
     const l = appLine(f.app, f.running);
-    return l && { canCheck: true, checking: f.checking || f.app.update?.status === "checking", line: f.unreachable ? line("The desktop updater did not accept the check. Try the ccdeck menu or update the desktop app.", { tone: "warn" }) : f.checking ? line(CHECKING) : l };
+    return l && { canCheck: true, checking: f.checking || f.app.update?.status === "checking", line: f.unreachable ? line(t("shell.update.appRefused"), { tone: "warn" }) : f.checking ? line(checkingWord()) : l };
   }
-  if (v?.checkDisabled) return { canCheck: false, checking: false, line: note(CHECKS_OFF) };
+  if (v?.checkDisabled) return { canCheck: false, checking: false, line: note(checksOff()) };
 
   const notice = v?.notice ?? null;
   if (notice?.kind === "upgrade") return { canCheck: true, checking: f.checking, line: availableLine(f, notice.to, reasons) };
   if (notice?.kind === "restart") {
     const said = v?.canRestart
-      ? `${notice.to} is installed. Restart the deck to start running it.`
-      : `${notice.to} is installed. Restart ccdeck to start running it.`;
+      ? t("shell.update.restartDeck", { to: notice.to })
+      : t("shell.update.restartApp", { to: notice.to });
     return { canCheck: true, checking: f.checking, line: line(said) };
   }
-  if (f.checking) return { canCheck: true, checking: true, line: line(CHECKING) };
+  if (f.checking) return { canCheck: true, checking: true, line: line(checkingWord()) };
   return { canCheck: true, checking: false, line: settledLine(f) };
 }
 

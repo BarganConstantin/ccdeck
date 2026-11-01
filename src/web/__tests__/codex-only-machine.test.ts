@@ -473,13 +473,13 @@ describe("which panels the UI draws for each machine", () => {
     expect(appSrc).toContain("codexDoor: providers.claude && providers.codex ? [codex] : []");
     // Account capacity and Reset calendar open Claude's accounts report, so they
     // are Claude's alone and follow its button off a Codex-only stripe.
-    expect(appSrc).toMatch(/leftStripe: \[\s*\.\.\.\(providers\.claude \? \[named\(providers\.codex \? "Accounts" : "Claude accounts", \[accounts, \.\.\.capacity\]\)\] : \[\]\),\s*\.\.\.\(providers\.codex && !providers\.claude \? \[\[codex\]\] : \[\]\),\s*\[sessionList\],\s*\]/);
+    expect(appSrc).toMatch(/leftStripe: \[\s*\.\.\.\(providers\.claude \? \[named\(providers\.codex \? t\("board\.rail\.accounts"\) : t\("board\.rail\.group\.accounts"\), \[accounts, \.\.\.capacity\]\)\] : \[\]\),\s*\.\.\.\(providers\.codex && !providers\.claude \? \[\[codex\]\] : \[\]\),\s*\[sessionList\],\s*\]/);
     expect(appSrc).toMatch(/capacity: providers\.claude \? capacity : \[\]/);
     // The connected trackers (#2178) are a group of their own after it, so
     // they cannot stand in for the accounts button either.
-    expect(appSrc).toMatch(/<EdgeRail side="left" label="Accounts and sessions" groups=\{\[\.\.\.rails\.leftStripe, rails\.integrations, rails\.explore\]\}/);
+    expect(appSrc).toMatch(/<EdgeRail side="left" label=\{t\("shell.rail.left"\)\} groups=\{\[\.\.\.rails\.leftStripe, rails\.integrations, rails\.explore\]\}/);
     // And nowhere else: the right stripe and the utilities never carry it.
-    expect(appSrc).toMatch(/right: \[\s*named\("Usage and machine", \[usage, machine\]\),\s*named\("Activity history", \[history, \.\.\.activity\]\),\s*named\("Watchers", \[browserWatch, \.\.\.radar\]\),\s*radio,\s*\]/);
+    expect(appSrc).toMatch(/right: \[\s*named\(t\("board\.rail\.group\.usage"\), \[usage, machine\]\),\s*named\(t\("board\.rail\.group\.activity"\), \[history, \.\.\.activity\]\),\s*named\(t\("board\.rail\.group\.watchers"\), \[browserWatch, \.\.\.radar\]\),\s*radio,\s*\]/);
     expect(appSrc).toMatch(/utilities: \[settings, feedback\]/);
   });
 
@@ -501,8 +501,8 @@ describe("which panels the UI draws for each machine", () => {
     const second = sectionsSrc.indexOf(SECTION, first + 1);
     expect(first, "the quota sections are gone or renamed").toBeGreaterThan(-1);
     expect(second, "there is no longer a second quota section").toBeGreaterThan(first);
-    expect(sectionsSrc.slice(first + SECTION.length, second)).toContain("Claude quota");
-    expect(sectionsSrc.slice(second)).toContain("Codex quota");
+    expect(sectionsSrc.slice(first + SECTION.length, second)).toContain("usage.quota.claude.title");
+    expect(sectionsSrc.slice(second)).toContain("usage.quota.codex.title");
     expect(usageSrc).toMatch(/\{providers\.claude && \(\s*<ClaudeQuotaSection /);
     expect(usageSrc).toMatch(/\{providers\.codex && \(\s*<CodexQuotaSection /);
   });

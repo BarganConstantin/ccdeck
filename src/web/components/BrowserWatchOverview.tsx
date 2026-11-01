@@ -13,6 +13,8 @@ import {
   agoLabel, armsIn, untilLabel, visitTotals,
   type WatchBrowser, type WatchSnapshot,
 } from "../browser-watch-model";
+import { useT } from "../i18n";
+import { formatNumber } from "../i18n/format";
 
 export default function BrowserWatchOverview({
   snap,
@@ -27,13 +29,14 @@ export default function BrowserWatchOverview({
   /** Handed down rather than read here — see WatchRadar. */
   palette: Palette;
 }) {
+  const t = useT();
   const [showKey, setKey] = useState(false);
   // Its own clock, so the countdown moves every second rather than jumping
   // whenever the panel happens to refetch.
   const [tick, setTick] = useState(() => Date.now());
   useEffect(() => {
-    const t = setInterval(() => setTick(Date.now()), 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setTick(Date.now()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
   /** The quiet gate, if it is currently closed. It lives beside the numbers it
@@ -44,7 +47,7 @@ export default function BrowserWatchOverview({
   return (
     <section className="bw-sec">
       <h4 className="bw-sec-head">
-        Activity overview
+        {t("settings.bw.overview")}
         {/* Progressive disclosure. The three-line explanation of
             what the disc's marks mean was permanent furniture in a
             column that has real work to do — and it is read once,
@@ -55,7 +58,7 @@ export default function BrowserWatchOverview({
           className="bw-help"
           onClick={() => setKey(k => !k)}
           aria-expanded={showKey}
-          aria-label="What the sweep and the dots mean"
+          aria-label={t("settings.bw.overview.help")}
         >?</button>
       </h4>
 
@@ -78,10 +81,10 @@ export default function BrowserWatchOverview({
           palette={palette}
         />
         <ul className="bw-counts">
-          {visitTotals(watching, snap.profiles).map(t => (
-            <li key={t.key}>
-              <span className="bw-count-n">{t.visits.toLocaleString("en-US")}</span>
-              <span className="bw-count-of">{t.name}</span>
+          {visitTotals(watching, snap.profiles).map(total => (
+            <li key={total.key}>
+              <span className="bw-count-n">{formatNumber(total.visits, 0)}</span>
+              <span className="bw-count-of">{total.name}</span>
             </li>
           ))}
         </ul>
@@ -92,7 +95,7 @@ export default function BrowserWatchOverview({
           what the figures ARE — rows in the browser's own history,
           newer than this deck's start, not visits a person made and
           not findings. The second is the only part that moves. */}
-      <p className="bw-since">Pages a program opened, since this deck started</p>
+      <p className="bw-since">{t("settings.bw.overview.since")}</p>
       {/* THE DECK'S OWN CLOCK, NOT THE BROWSER'S. This read
           `lastWrittenMs`, which is the History file's mtime — when
           the BROWSER last wrote, not when the watch last looked. On
@@ -101,10 +104,9 @@ export default function BrowserWatchOverview({
           panel would read as though the watch had stopped. */}
       {snap.coverage.checkedMs > 0 && (
         <p className="bw-since">
-          Last checked {agoLabel(snap.coverage.checkedMs, tick)}
+          {t("settings.bw.overview.checked", { ago: agoLabel(snap.coverage.checkedMs, tick, t) ?? "" })}
           {snap.coverage.checks > 0 && (
-            <> · {snap.coverage.checks.toLocaleString("en-US")}{" "}
-            {snap.coverage.checks === 1 ? "check" : "checks"}</>
+            <> · {t("settings.bw.overview.checks", { count: snap.coverage.checks })}</>
           )}
         </p>
       )}
@@ -112,14 +114,14 @@ export default function BrowserWatchOverview({
         /* The quiet gate, where it belongs: beside the numbers it
            decides. In the toolbar it was a third idea competing
            with the mode and its count. */
-        <p className="bw-gate">You are browsing — a program page would count in {untilLabel(gate)}</p>
+        <p className="bw-gate">{t("settings.bw.overview.gate", { time: untilLabel(gate) })}</p>
       )}
 
       {showKey && (
         <dl className="bw-key">
-          <dt>Sweep</dt><dd>one poll of every watched profile</dd>
-          <dt>Dot</dt><dd>a browser, further out the longer since it last wrote history</dd>
-          <dt>Ring</dt><dd>a finding, leaving the browser it came from</dd>
+          <dt>{t("settings.bw.key.sweep")}</dt><dd>{t("settings.bw.key.sweepText")}</dd>
+          <dt>{t("settings.bw.key.dot")}</dt><dd>{t("settings.bw.key.dotText")}</dd>
+          <dt>{t("settings.bw.key.ring")}</dt><dd>{t("settings.bw.key.ringText")}</dd>
         </dl>
       )}
     </section>

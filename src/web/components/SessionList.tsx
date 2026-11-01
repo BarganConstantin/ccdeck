@@ -7,7 +7,6 @@
 import { useMemo } from "react";
 import { isAlarming } from "../ambient-counts";
 import { fmtCost } from "../pricing";
-import { SESSION_SPEND_LABEL } from "../board-usage";
 // Per-model pricing. A session that switched model has tokens from two rate
 // cards in one bucket, and the row used to bill the lot at whichever model the
 // session was last seen on — see usage-models.ts (#686).
@@ -17,6 +16,7 @@ import type { SessionRecap, WaitingBlock } from "../types";
 import { modelChipText, modelChipTitle, modelFamily } from "../model-label";
 import { noteSource, noteTag, sessionNoteShown, type SessionNote } from "../session-note";
 import { blockedToolTooltip, stateLabel, waitingSentence } from "../agent-copy";
+import { t as translate, useLanguage, useT, type TFunction } from "../i18n";
 import { RecapMark } from "./RecapMark";
 import { drawnState } from "../node-face";
 import { isAgentVisible } from "../visibility";
@@ -86,8 +86,8 @@ export function buildRows(state: GraphState, now: number): Row[] {
       if (sub.sessionId !== a.sessionId || sub.kind === "root") continue;
       toolCount += sub.toolCount;
       cost += agentCost(sub).total;
-      const t = sub.endedAt ?? sub.startedAt;
-      if (t > lastActivity) lastActivity = t;
+      const last = sub.endedAt ?? sub.startedAt;
+      if (last > lastActivity) lastActivity = last;
     }
     // The session's note, the one its card ties to it on the canvas: a recap
     // draws as one, anything else as a tagged line.
@@ -96,7 +96,7 @@ export function buildRows(state: GraphState, now: number): Row[] {
     const status = note && note.kind !== "recap" ? note : null;
     rows.push({
       sessionId: a.sessionId,
-      label: a.label || a.cwdBasename || "session",
+      label: a.label || a.cwdBasename || translate("board.kind.session"),
       cwdBasename: a.cwdBasename,
       // A turn that stopped on an error is drawn as a failure here as on its
       // card (#2185); it sorts with the ended ones either way.
@@ -132,8 +132,8 @@ export function buildRows(state: GraphState, now: number): Row[] {
 /** The whole line, uncut, and who wrote it: two lines of a sidebar cut most
  *  questions short, and how far to trust a line depends on whether Claude
  *  Code's classifier wrote it or the deck read it off the newest reply. */
-function statusTooltip(s: SessionNote): string {
-  return [s.text, s.reply ? `Suggested reply: ${s.reply}` : "", noteSource(s)].filter(Boolean).join("\n");
+function statusTooltip(s: SessionNote, t: TFunction): string {
+  return [s.text, s.reply ? t("board.list.suggestedReply", { reply: s.reply }) : "", noteSource(s)].filter(Boolean).join("\n");
 }
 
 /** "<1s" / "42s" / "3m" / "1h 15m": the compact clock a row prints, which the
@@ -169,6 +169,8 @@ interface Props {
 }
 
 export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false }: Props) {
+  const t = useT();
+  const language = useLanguage();
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
   // the reducer mutates it in place, so identity never moves and the rest of the
@@ -198,23 +200,23 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
     // aria-label that makes the rotor's complementary entries tellable apart —
     // and that is now this panel's only announcement, since nothing reports its
     // open state any more.
-    <aside className={`session-list${leaving ? " leaving" : ""}`} id="session-list" aria-label="Sessions">
+    <aside className={`session-list${leaving ? " leaving" : ""}`} id="session-list" aria-label={t("board.list.title")}>
       <div className="sl-header">
         {/* h2, under the topbar's h1 — the level every panel title sits at
             (#381). This <aside> was already the shape the other two panels
             were given there; only its heading moved. */}
-        <h2>Sessions <span className="sl-count">{rows.length}</span></h2>
+        <h2>{t("board.list.title")} <span className="sl-count">{rows.length}</span></h2>
         {/* Beside the live count, not instead of it: the two answer different
             questions, and a session can be both (a permission prompt lands
             mid-turn). Codex sessions are counted in neither — they emit no
             notification, so their absence from this number is the absence of a
             signal rather than a claim that none of them is blocked. */}
-        {waitingCount > 0 && <span className="sl-waiting-count">{waitingCount} waiting</span>}
-        {liveCount > 0 && <span className="sl-live-count">{liveCount} live</span>}
-        <button className="glyph-btn sl-close" onClick={onClose} title={withKey("Hide sidebar", "L", singleKeys)} aria-label="Hide session list">‹</button>
+        {waitingCount > 0 && <span className="sl-waiting-count">{t("board.list.waitingCount", { n: waitingCount })}</span>}
+        {liveCount > 0 && <span className="sl-live-count">{t("board.list.liveCount", { n: liveCount })}</span>}
+        <button className="glyph-btn sl-close" onClick={onClose} title={withKey(t("board.list.hideSidebar"), "L", singleKeys)} aria-label={t("board.list.hide")}>‹</button>
       </div>
       <ul className="sl-rows">
-        {rows.length === 0 && <li className="sl-empty">No sessions yet.</li>}
+        {rows.length === 0 && <li className="sl-empty">{t("board.list.empty")}</li>}
         {rows.map(r => {
           const isSelected = selectedIds.has(r.sessionId);
           const removed = removedIds?.has(r.sessionId) ?? false;
@@ -225,7 +227,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                 className={`sl-row state-${r.state}${isSelected ? " selected" : ""}${removed ? " removed" : ""}`}
                 aria-current={isSelected ? "true" : undefined}
                 onClick={() => onSelect(r.sessionId)}
-                title={removed ? `Bring ${r.label} back to the board` : `Focus ${r.label}`}
+                title={removed ? t("board.list.bring", { label: r.label }) : t("board.list.focus", { label: r.label })}
               >
               {/* The dot stays hidden and the word beside it is new (#373).
                   A row's accessible name is its contents, so this joins it in
@@ -246,20 +248,20 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                   only the fallback the name computation never reaches — it is
                   also unreachable by keyboard and by touch. */}
               <span className={`sl-dot state-${r.state}`} aria-hidden />
-              <span className="vis-hidden">{stateLabel(r.state)}</span>
+              <span className="vis-hidden">{stateLabel(r.state, t)}</span>
               <div className="sl-row-body">
                 <div className="sl-row-head">
                   <span className="sl-label">{r.label}</span>
                   {/* Words, in the row's name, rather than the dimming alone:
                       the press on this row does something different, and a
                       reader has to hear that before making it. */}
-                  {removed && <span className="sl-removed">off the board</span>}
+                  {removed && <span className="sl-removed">{t("board.list.offBoard")}</span>}
                   {r.modelId && <span className="model-chip" data-family={modelFamily(r.modelId)} title={modelChipTitle(r.modelId, r.effort)}>{modelChipText(r.modelId, r.effort)}</span>}
                 </div>
                 <div className="sl-row-meta">
                   {/* One tool, as the peek card and the card's label say it
                       (#1810): the row is a button, so this is heard as well. */}
-                  <span title="tool calls"><b>{r.toolCount}</b> {r.toolCount === 1 ? "tool" : "tools"}</span>
+                  <span title={t("board.list.toolCalls")}><b>{r.toolCount}</b> {t("board.meta.tools", { count: r.toolCount })}</span>
                   {/* "session spend", not "total spend" (#687). The row sums
                       the root and every subagent of this session that is still
                       on the board, and `pruneOldAgents` takes finished
@@ -268,7 +270,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                       agents lost 67.10M tokens out of its roll-up in one sweep.
                       So "total" was a claim this figure cannot keep, and the
                       scope it CAN claim is the session named beside it. */}
-                  {r.cost > 0 && <span className="sl-cost" title={SESSION_SPEND_LABEL}><b>{fmtCost(r.cost)}</b></span>}
+                  {r.cost > 0 && <span className="sl-cost" title={t("insights.board.sessionSpend")}><b>{fmtCost(r.cost)}</b></span>}
                   {/* How long it has been stuck, in the slot the run time had.
                       On a blocked row that is the number worth the space: the
                       session's own age says nothing about whether to go look,
@@ -285,12 +287,12 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                       <span
                         className="sl-waiting"
                         title={[
-                          waitingSentence(r.waiting),
-                          blockedToolTooltip(r.waiting, waitingSentence(r.waiting)),
-                          `${isAlarming(r.waiting) ? "Blocked" : "Your turn"} since ${new Date(r.waiting.since).toLocaleTimeString()} · started ${new Date(r.startedAt).toLocaleString()}`,
+                          waitingSentence(r.waiting, t),
+                          blockedToolTooltip(r.waiting, waitingSentence(r.waiting, t), t),
+                          t(isAlarming(r.waiting) ? "board.list.blockedSince" : "board.list.turnSince", { since: new Date(r.waiting.since).toLocaleTimeString(language), started: new Date(r.startedAt).toLocaleString(language) }),
                         ].filter(Boolean).join("\n")}
                       >
-                        {isAlarming(r.waiting) ? "waiting" : "your turn"} {elapsedShort(r.waiting.since, undefined, now)}
+                        {isAlarming(r.waiting) ? t("board.list.waiting") : t("board.list.yourTurn")} {elapsedShort(r.waiting.since, undefined, now)}
                         {/* The tool NAME only, never the preview: this sits at the
                             end of a row that already carries a model, a tool count
                             and a cost, and the preview is a command line. The
@@ -299,7 +301,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                       </span>
                     )
                     : (
-                      <span className="sl-elapsed" title={`Started ${new Date(r.startedAt).toLocaleString()}`}>{elapsedShort(r.startedAt, r.state === "active" ? undefined : r.lastActivity, now)}</span>
+                      <span className="sl-elapsed" title={t("board.node.started", { time: new Date(r.startedAt).toLocaleString(language) })}>{elapsedShort(r.startedAt, r.state === "active" ? undefined : r.lastActivity, now)}</span>
                     )}
                 </div>
                 {/* How far down its own checklist the session is, and the step
@@ -311,9 +313,9 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                 {r.plan && (
                   <span className={r.plan.allDone ? "sl-plan sl-plan-done" : "sl-plan"} title={r.planTitle}>
                     <span className="sl-plan-count" aria-hidden>{r.plan.done}/{r.plan.total}</span>
-                    <span className="vis-hidden">{planSpoken(r.plan)}</span>
+                    <span className="vis-hidden">{planSpoken(r.plan, t)}</span>
                     <span className="sl-plan-step" aria-hidden>
-                      {r.plan.allDone || !r.plan.current ? "done" : `${r.plan.next ? "next: " : ""}${r.plan.current}`}
+                      {r.plan.allDone || !r.plan.current ? t("board.state.done") : `${r.plan.next ? t("board.plan.next") : ""}${r.plan.current}`}
                     </span>
                   </span>
                 )}
@@ -329,7 +331,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                     in the row's name, not a colour: "needs you" is heard as
                     well as seen. */}
                 {r.status && (
-                  <span className={`sl-status status-${r.status.kind}`} title={statusTooltip(r.status)}>
+                  <span className={`sl-status status-${r.status.kind}`} title={statusTooltip(r.status, t)}>
                     {/* A real space after the tag, not only its margin: the row's
                         name is its text, and "doneShipped" is one word to a
                         screen reader. */}
@@ -343,7 +345,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                     guess, so it is shown as one — muted, quoted — and never
                     typed for anybody. One line, so a long one is cut, and
                     carries itself whole on hover. */}
-                {r.status?.reply && <span className="sl-status-reply" title={`suggested reply “${r.status.reply}”`}>suggested reply “{r.status.reply}”</span>}
+                {r.status?.reply && <span className="sl-status-reply" title={t("board.list.reply", { reply: r.status.reply })}>{t("board.list.reply", { reply: r.status.reply })}</span>}
               </div>
               </button>
             </li>
@@ -377,7 +379,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                 requestAnimationFrame(() => panel?.querySelector<HTMLButtonElement>(".sl-row")?.focus());
               }}
             >
-              Bring back {count} removed {count === 1 ? "card" : "cards"}
+              {t("board.list.bringBack", { count })}
             </button>
           </div>
         );

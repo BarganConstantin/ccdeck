@@ -25,6 +25,7 @@
 import { BODY_MAX, CONTACT_MAX, KINDS, type FeedbackPrefill, type Kind } from "./feedback";
 import { MAX_IMAGES } from "./feedback-images";
 import type { KeptImages } from "./use-feedback-images";
+import { t } from "./i18n";
 
 export const DRAFTS_STORAGE_KEY = "agent-dag.feedbackDrafts";
 export const MAX_DRAFTS = 4;
@@ -62,15 +63,13 @@ export function holdsSomething(draft: { body: string; contact: string; images: n
 
 /** The quiet line a draft brought back by a reload shows in place of its images. */
 export function imagesLostLine(count: number): string {
-  return count === 1
-    ? "The screenshot was not kept through the page reload. Add it again to send it."
-    : `The ${count} screenshots were not kept through the page reload. Add them again to send them.`;
+  return t("shell.feedback.lost", { count });
 }
 
-export const DISCARD_LABEL = "Discard";
-export const DISCARD_ARMED_LABEL = "Confirm discard";
-export const DISCARD_TITLE = "Clear the message, the screenshots and the contact";
-export const DISCARD_ARMED_TITLE = "Press again to clear this draft. It cannot be brought back.";
+export const discardLabel = (): string => t("shell.feedback.discard");
+export const discardArmedLabel = (): string => t("shell.feedback.discardConfirm");
+export const discardTitle = (): string => t("shell.feedback.discardTitle");
+export const discardArmedTitle = (): string => t("shell.feedback.discardArmed");
 
 interface Entry {
   kind: Kind;

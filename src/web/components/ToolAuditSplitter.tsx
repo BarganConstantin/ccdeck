@@ -1,4 +1,5 @@
 import { useRef, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
+import { useT } from '../i18n';
 import { clampDetails, DETAILS_WIDTH, standardDetailsWidth } from '../tool-audit-layout';
 
 /** The line between the report and the details. Drag it, or focus it and use
@@ -8,6 +9,7 @@ import { clampDetails, DETAILS_WIDTH, standardDetailsWidth } from '../tool-audit
 export default function ToolAuditSplitter({ width, workspace, onCommit }: {
   width: number; workspace: RefObject<HTMLDivElement>; onCommit: (width: number) => void;
 }) {
+  const t = useT();
   const self = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; width: number; room: number; last: number } | null>(null);
   const room = () => workspace.current?.clientWidth ?? window.innerWidth;
@@ -50,9 +52,9 @@ export default function ToolAuditSplitter({ width, workspace, onCommit }: {
     commit(clampDetails(next, room()));
   };
 
-  return <div ref={self} className="ta-splitter" role="separator" aria-orientation="vertical" aria-label="Details width"
+  return <div ref={self} className="ta-splitter" role="separator" aria-orientation="vertical" aria-label={t('insights.audit.split.label')}
     aria-controls="tool-operation-inspector" aria-valuemin={DETAILS_WIDTH.min} aria-valuemax={clampDetails(DETAILS_WIDTH.max, room())} aria-valuenow={shown}
-    tabIndex={0} title="Drag to resize · double-click for the standard width"
+    tabIndex={0} title={t('insights.audit.split.title')}
     onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}
     onDoubleClick={() => commit(clampDetails(standardDetailsWidth(), room()))} onKeyDown={key} />;
 }

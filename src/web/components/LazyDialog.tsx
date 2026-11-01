@@ -14,6 +14,7 @@
 // Not forwarded as a crash: a missing chunk is the tab being older than the
 // deck, which a reload clears and nobody has to hear about.
 import { lazy, useRef, type ComponentType } from "react";
+import { useT } from "../i18n";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 interface Closable {
@@ -37,6 +38,7 @@ export function lazyDialog<P extends Closable>(
 }
 
 export function DialogDidNotLoad({ name, onClose }: { name: string; onClose: () => void }) {
+  const t = useT();
   const reloadRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: reloadRef });
   const scrimPress = useScrimDismiss(onClose);
@@ -55,17 +57,16 @@ export function DialogDidNotLoad({ name, onClose }: { name: string; onClose: () 
             <span id="dialog-missing-title" className="modal-tool-name">{name}</span>
           </div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+            <button type="button" className="glyph-btn" onClick={onClose} aria-label={t("shell.closeEsc")} title={t("shell.closeEsc")}>×</button>
           </div>
         </header>
         <section className="modal-body">
           <p className="dm-note">
-            {name} did not load. The deck has most likely been updated since this tab opened, and a
-            reload picks up the new version.
+            {t("shell.lazy.didNotLoad", { name })}
           </p>
           <div className="dm-actions">
-            <button type="button" className="btn" onClick={onClose}>Close</button>
-            <button type="button" ref={reloadRef} className="btn primary" onClick={() => window.location.reload()}>Reload</button>
+            <button type="button" className="btn" onClick={onClose}>{t("shell.close")}</button>
+            <button type="button" ref={reloadRef} className="btn primary" onClick={() => window.location.reload()}>{t("shell.reload")}</button>
           </div>
         </section>
       </div>

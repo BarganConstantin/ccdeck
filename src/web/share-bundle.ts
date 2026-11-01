@@ -8,6 +8,7 @@
 // user acts on — they close the tab believing a machine is configured. Plain
 // data in, plain data out, tested without a DOM.
 import { arrivalCheck } from "./admin-failure";
+import { t as tNow, type TFunction } from "./i18n";
 
 /** What the accounts panel knows about an account, narrowed to the naming. */
 export interface NamedAccount {
@@ -41,11 +42,11 @@ export interface NamedAccount {
  * is why `gone` is the emphatic one. The warning about what the text IS lives
  * beside the countdown rather than on it.
  */
-export function shareExpiry(expiresAt: number, nowSec: number): { text: string; tone: "ok" | "soon" | "gone" } {
+export function shareExpiry(expiresAt: number, nowSec: number, t: TFunction = tNow): { text: string; tone: "ok" | "soon" | "gone" } {
   const left = Math.round(expiresAt / 1000) - nowSec;
-  if (left <= 0) return { text: "expired", tone: "gone" };
-  if (left < 60) return { text: `expires in ${left}s`, tone: "soon" };
-  return { text: `expires in ${Math.round(left / 60)}m`, tone: "ok" };
+  if (left <= 0) return { text: t("accounts.share.expired"), tone: "gone" };
+  if (left < 60) return { text: t("accounts.share.expiresSec", { n: left }), tone: "soon" };
+  return { text: t("accounts.share.expiresMin", { n: Math.round(left / 60) }), tone: "ok" };
 }
 
 export interface PickerRow {
@@ -74,7 +75,7 @@ export interface PickerRow {
  * literal "no organization" on both rows would leave them identical, which is
  * the exact failure this line exists to prevent.
  */
-export function pickerRows(accounts: NamedAccount[]): PickerRow[] {
+export function pickerRows(accounts: NamedAccount[], t: TFunction = tNow): PickerRow[] {
   const seen = new Map<string, number>();
   for (const a of accounts) {
     const key = (a.email ?? "").trim().toLowerCase();
@@ -82,10 +83,10 @@ export function pickerRows(accounts: NamedAccount[]): PickerRow[] {
   }
   return accounts.map(a => {
     const email = (a.email ?? "").trim();
-    const label = a.alias || email || `account ${a.num}`;
+    const label = a.alias || email || t("accounts.accountNLower", { n: a.num });
     const parts: string[] = [];
     if (a.alias && email) parts.push(email);
-    if (email && (seen.get(email.toLowerCase()) ?? 0) > 1) parts.push(a.org || `slot ${a.num}`);
+    if (email && (seen.get(email.toLowerCase()) ?? 0) > 1) parts.push(a.org || t("accounts.slotN", { n: a.num }));
     return { num: a.num, label, sub: parts.length ? parts.join(" · ") : null };
   });
 }
@@ -130,10 +131,9 @@ export function shareRequest(picked: readonly number[]): { action: "share"; acco
  * intended to move one account and left the defaults alone should learn that
  * from this line rather than from the far end.
  */
-export function shareCountLine(n: number): string {
-  if (n <= 0) return "Nothing picked yet.";
-  if (n === 1) return "1 account — its sign-in token will be on your clipboard.";
-  return `${n} accounts — ${n} sign-in tokens will be on your clipboard.`;
+export function shareCountLine(n: number, t: TFunction = tNow): string {
+  if (n <= 0) return t("accounts.share.nothingPicked");
+  return t("accounts.share.count", { count: n });
 }
 
 /** The five things that can happen to one account in an import. */
@@ -181,13 +181,13 @@ export function replaceImportRow(
  * other is a person pressing "update anyway". Collapsing them would make an
  * automatic rewrite look like something the user did.
  */
-export function outcomeWord(state: ImportState): string {
+export function outcomeWord(state: ImportState, t: TFunction = tNow): string {
   switch (state) {
-    case "imported": return "imported";
-    case "healed":   return "dead token replaced";
-    case "updated":  return "updated";
-    case "present":  return "already here";
-    default:         return "not imported";
+    case "imported": return t("accounts.import.word.imported");
+    case "healed":   return t("accounts.import.word.healed");
+    case "updated":  return t("accounts.import.word.updated");
+    case "present":  return t("accounts.import.word.present");
+    default:         return t("accounts.import.word.failed");
   }
 }
 
@@ -200,21 +200,22 @@ export function outcomeWord(state: ImportState): string {
  * that did not happen is left out rather than printed as a zero, so the common
  * case reads as one clause and not as a table of nothing.
  */
-export function importSummary(results: ImportResult[]): string {
+export function importSummary(results: ImportResult[], t: TFunction = tNow): string {
   const total = results.length;
-  if (!total) return "Nothing to import.";
+  if (!total) return t("accounts.import.nothing");
   const count = (s: ImportState) => results.filter(r => r.state === s).length;
   const parts: string[] = [];
   const arrived = count("imported");
-  if (arrived) parts.push(`${arrived} of ${total} imported`);
+  if (arrived) parts.push(t("accounts.import.arrived", { arrived, total }));
   const healed = count("healed");
-  if (healed) parts.push(`${healed} had a dead token replaced`);
+  if (healed) parts.push(t("accounts.import.healedN", { n: healed }));
   const updated = count("updated");
-  if (updated) parts.push(`${updated} updated`);
+  if (updated) parts.push(t("accounts.import.updatedN", { n: updated }));
   const present = count("present");
-  if (present) parts.push(`${present} already here`);
+  if (present) parts.push(t("accounts.import.presentN", { n: present }));
   const failed = count("failed");
-  if (failed) parts.push(`${failed} did not arrive`);
-  const warnings = [...new Set(results.map(r => arrivalCheck(r.check)?.short).filter((s): s is string => !!s))];
-  return `${parts.join(", ")}${warnings.length ? `, ${warnings.join(", ")}` : ""}.`;
+  if (failed) parts.push(t("accounts.import.failedN", { n: failed }));
+  const warnings = [...new Set(results.map(r => arrivalCheck(r.check, t)?.short).filter((s): s is string => !!s))];
+  const joiner = t("accounts.joiner");
+  return `${parts.join(joiner)}${warnings.length ? `${joiner}${warnings.join(joiner)}` : ""}${t("accounts.endMark")}`;
 }

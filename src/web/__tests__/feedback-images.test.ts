@@ -26,10 +26,12 @@ import {
   MAX_IMAGES, MAX_IMAGE_BYTES, MAX_REQUEST_BYTES, MAX_SIDE, JPEG_QUALITY, MIN_BUDGET,
   imageFormat, imageSize, needsFitting, imageBudget, firstFit, fitImage, prepareImage,
   carriesFiles, shouldAttachPaste, focusAfterRemove, feedbackRequest, shotsSummary,
-  problemMessage, leftOutMessage, replaceLabel, FULL_MESSAGE, SHOTS_NOTE, ADD_LABEL, ADD_HINT,
+  problemMessage, leftOutMessage, replaceLabel, fullMessage, shotsNote, addLabel, addHint,
   type Encoder, type Decoder, type ImageFormat, type Size,
 } from "../feedback-images";
-import { feedbackFailure, WHERE_IT_GOES } from "../feedback";
+import { feedbackFailure, whereItGoes } from "../feedback";
+
+const FULL_MESSAGE = fullMessage(), SHOTS_NOTE = shotsNote(), ADD_LABEL = addLabel(), ADD_HINT = addHint(), WHERE_IT_GOES = whereItGoes();
 import { placeShot, withdrawShot, type Shot } from "../use-feedback-images";
 import { withoutComments } from "./tsx-scan";
 
@@ -410,7 +412,7 @@ describe("the images stay with the people who make ccdeck", () => {
     expect(said).toContain("the people who make ccdeck");
     expect(said).toContain("public GitHub issue");
     expect(said).toContain("your contact and screenshots are never put on one");
-    expect(detailsView).toMatch(/\{WHERE_IT_GOES\.map\(/);
+    expect(detailsView).toMatch(/\{whereItGoes\(\)\.map\(/);
   });
 });
 
@@ -448,9 +450,9 @@ describe("the dialog takes an image three ways", () => {
     expect(shotsView).toMatch(/const ACCEPT = "image\/png,image\/jpeg";/);
     expect(shotsView).toMatch(/<input ref=\{pickRef\} type="file" accept=\{ACCEPT\} multiple hidden/);
     expect(shotsView).toMatch(/<input ref=\{replacePickRef\} type="file" accept=\{ACCEPT\} hidden/);
-    expect(shotsView).toMatch(/<button ref=\{buttonRef\} type="button" className="fb-tool" title=\{ADD_HINT\}/);
-    expect(shotsView).toMatch(/\{ADD_LABEL\}/);
-    expect(shotsView).toMatch(/title=\{ADD_HINT\}/);
+    expect(shotsView).toMatch(/<button ref=\{buttonRef\} type="button" className="fb-tool" title=\{addHint\(\)\}/);
+    expect(shotsView).toMatch(/\{addLabel\(\)\}/);
+    expect(shotsView).toMatch(/title=\{addHint\(\)\}/);
   });
 
   it("draws each image in a fixed box, named, with a remove of its own", () => {
@@ -459,10 +461,10 @@ describe("the dialog takes an image three ways", () => {
     // carries the image's name and the picture inside it is decoration.
     expect(shotsView).toMatch(/<button type="button" className="fb-shot-pick" aria-label=\{replaceLabel\(index, shot\.name, shot\.resized\)\}/);
     expect(shotsView).toMatch(/<img className="fb-shot-img" src=\{shot\.url\} alt="" \/>/);
-    expect(shotsView).toMatch(/aria-label=\{`Remove image \$\{index \+ 1\}`\}/);
+    expect(shotsView).toMatch(/aria-label=\{t\("shell\.feedback\.removeImage", \{ n: index \+ 1 \}\)\}/);
     expect(shotsView).toMatch(/const summary = shotsSummary\(shots\.length, shots\.filter\(shot => shot\.resized\)\.length\);/);
     expect(shotsView).toMatch(/<span className="fb-shots-count">\{summary\}<\/span>/);
-    expect(shotsView).toMatch(/\{SHOTS_NOTE\}/);
+    expect(shotsView).toMatch(/\{shotsNote\(\)\}/);
   });
 
   it("says each change out loud, since a paste makes no sound", () => {
@@ -497,7 +499,7 @@ describe("the dialog takes an image three ways", () => {
   it("describes the add button once, not again as text after it", () => {
     // A visually hidden hint is still read in browse mode, straight after the
     // description that already said it.
-    expect(shotsView).toMatch(/<span id="fb-attach-hint" hidden>\{ADD_HINT\}<\/span>/);
+    expect(shotsView).toMatch(/<span id="fb-attach-hint" hidden>\{addHint\(\)\}<\/span>/);
     expect(shotsView).toMatch(/aria-describedby="fb-attach-hint"/);
   });
 

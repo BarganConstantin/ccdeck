@@ -1,5 +1,6 @@
 // A move names explicit issues and a known sprint/backlog destination.
 // DOM drag payloads never become API paths or arbitrary Jira requests.
+import { t as translateNow, type TFunction } from "./i18n";
 import type { JiraIssue } from "./jira-api";
 import type { GroupDef } from "./jira-board";
 
@@ -48,19 +49,24 @@ export function movableIssue(issue: JiraIssue, group: GroupDef): boolean {
   return issueMoveBlocker({ issue, group }) === null;
 }
 
-export function issueMoveBlocker({ issue, group }: JiraMoveItem): string | null {
-  if (issue.type.subtask) return "is a subtask";
-  if (issue.type.epic) return "is an epic";
-  if (group.kind === "closed") return "is in a closed sprint";
-  if (!moveDestination(group)) return "is not in an active/future sprint or the backlog";
+export function issueMoveBlocker({ issue, group }: JiraMoveItem, t: TFunction = translateNow): string | null {
+  if (issue.type.subtask) return t("integrations.move.blocker.subtask");
+  if (issue.type.epic) return t("integrations.move.blocker.epic");
+  if (group.kind === "closed") return t("integrations.move.blocker.closed");
+  if (!moveDestination(group)) return t("integrations.move.blocker.destination");
   return null;
 }
 
 /** Name the actual blockers instead of making the reader inspect the batch. */
-export function moveSelectionProblem(items: readonly JiraMoveItem[]): string {
-  const blocked = items.filter(i => issueMoveBlocker(i));
-  if (blocked.length) return `${blocked.slice(0, 2).map(i => `${i.issue.key} ${issueMoveBlocker(i)}`).join("; ")}${blocked.length > 2 ? `; ${blocked.length - 2} more blocked` : ""}. Remove blocked issues to move the rest.`;
-  return items.length > 50 ? "Move up to 50 issues at a time." : "";
+export function moveSelectionProblem(items: readonly JiraMoveItem[], t: TFunction = translateNow): string {
+  const blocked = items.filter(i => issueMoveBlocker(i, t));
+  if (blocked.length) {
+    return t("integrations.move.problem", {
+      list: blocked.slice(0, 2).map(i => `${i.issue.key} ${issueMoveBlocker(i, t)}`).join(t("integrations.move.listSep")),
+      more: blocked.length > 2 ? t("integrations.move.moreBlocked", { n: blocked.length - 2 }) : "",
+    });
+  }
+  return items.length > 50 ? t("integrations.move.max") : "";
 }
 
 /** No unanchored same-group drop: that would look like a reorder but do none. */

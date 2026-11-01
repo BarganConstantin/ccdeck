@@ -1,6 +1,7 @@
 import type { Account } from "./claude-accounts";
 import { accountIssue } from "./account-issue";
-import { ago } from "./account-freshness";
+import { agoLabel } from "./accounts-time";
+import { t as tNow, type TFunction } from "./i18n";
 import { accountName, observationAt, readingOf, REPORT_STALE_MS } from "./accounts-usage-report";
 import { laneKey } from "./lane-open";
 
@@ -32,7 +33,7 @@ export function resetDayKey(date: Date): string {
 
 /** Today and six more local calendar days. Reported timestamps are seconds;
  *  no countdown rounding, fixed 24-hour steps, or guessed next weekly reset. */
-export function resetCalendar(accounts: readonly Account[], nowSec: number, held = false): {
+export function resetCalendar(accounts: readonly Account[], nowSec: number, held = false, t: TFunction = tNow): {
   days: ResetDay[];
   unscheduled: UnscheduledReset[];
 } {
@@ -48,15 +49,15 @@ export function resetCalendar(accounts: readonly Account[], nowSec: number, held
     const raw = lane?.resetAt;
     const at = raw != null && raw > 0 && Number.isFinite(raw) && Number.isFinite(new Date(raw * 1000).getTime()) ? raw : null;
     const cell = readingOf(account, "seven_day", nowSec);
-    const issue = accountIssue(account, nowSec);
+    const issue = accountIssue(account, nowSec, undefined, t);
     const observed = observationAt(account.fetchedAt);
     const unread = observed == null;
     const stale = held || unread || account.stale || account.staleCopy === true || account.stopped === true
       || issue?.blocksSwitch === true || nowSec * 1000 - observed! > REPORT_STALE_MS;
-    const note = held ? "Last saved reading"
-      : issue?.blocksSwitch || account.staleCopy || account.stopped ? issue?.text ?? "Not collecting"
-      : unread ? "Never read"
-      : stale ? `${account.stale ? "Marked stale · " : ""}Read ${ago(observed!, nowSec)}` : null;
+    const note = held ? t("accounts.cal.lastSaved")
+      : issue?.blocksSwitch || account.staleCopy || account.stopped ? issue?.text ?? t("accounts.issue.notCollecting")
+      : unread ? t("accounts.cal.neverRead")
+      : stale ? t(account.stale ? "accounts.cal.readStale" : "accounts.cal.read", { ago: agoLabel(observed!, nowSec, t) }) : null;
     const entry: ResetEntry = {
       key: laneKey(account), name: accountName(account), active: account.active,
       heldOut: account.disabled, at, used: cell.counted ? cell.pct : cell.last,

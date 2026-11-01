@@ -21,10 +21,11 @@ import { peerView } from "../lan-peer";
 import { deckRows, rowSource } from "../lan-roster";
 import { lanPeerSurface } from "./lan-peer-surface";
 import { sheetText } from "./sheet-source";
+import { english } from "./lan-english-source";
 
 /** A file with its comments taken out, so a rule cannot be satisfied by a
  *  paragraph that describes it. */
-const code = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8")
+const code = (rel: string) => english(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8"))
   .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 /** The picture in the dialog, which moved out of the component into its own:
  *  both ends' notes and the lanes are drawn there. */
