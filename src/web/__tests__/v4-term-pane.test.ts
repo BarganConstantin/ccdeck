@@ -23,7 +23,7 @@ import KeysBar, { type KeysBarProps } from "../components/terminal/KeysBar";
 import { glyphForState } from "../components/terminal/stage-icons";
 import { agentName, headerStatus, type StagePhase, type StageState, type StageStatus } from "../components/terminal/stage-model";
 import { contextUseOf } from "../components/terminal/stage-board";
-import { contextFill } from "../components/ContextModal";
+import { contextFill } from "../context-figure";
 import type { AgentNodeData } from "../types";
 import { crossfadeFrame, morphFrame, type MorphPlan } from "../stage-morph";
 import { FLIP_CLOSE_MS, FLIP_EASE, FLIP_OPEN_MS } from "../navigator-flip";
@@ -194,16 +194,17 @@ describe("the context chip", () => {
   // same place the Inspector's Context tab reads it.
   it("says the figure at the row's end, before the controls, with a 4px bar of the same percent", () => {
     const out = html(createElement(StageHeader, headerProps({ context: { used: 129_000, window: 200_000 } })));
-    expect(out).toContain('<span class="ts-ctxchip" title="Context window"><span class="vis-hidden">Context </span>129k / 200k · 65%');
+    expect(out).toContain('<span class="ts-ctxchip" title="Context window"><span class="vis-hidden">Context </span><span class="ts-ctxlead">129k / 200k · </span>65%');
     expect(out).toContain('<span class="ts-ctxbar" aria-hidden="true"><i style="width:65%"></i></span>');
     expect(out.indexOf("ts-ctxchip")).toBeGreaterThan(out.indexOf('class="ts-meta"'));
     expect(out.indexOf("ts-ctxchip")).toBeLessThan(out.indexOf('class="ts-ctl"'));
     expect(out.indexOf("ts-ctxchip"), "before ⌨ ⤢ ✕").toBeLessThan(out.indexOf("glyph-btn"));
   });
 
-  it("holds the bar at 100% when a session runs past its window, and says the real percent", () => {
+  it("says the window full past it, in the text and the bar: the Inspector's tab reads 100.0% there too", () => {
     const out = html(createElement(StageHeader, headerProps({ context: { used: 300_000, window: 200_000 } })));
-    expect(out).toContain("300k / 200k · 150%");
+    expect(out).toContain('<span class="ts-ctxlead">300k / 200k · </span>100%');
+    expect(out).not.toContain("150%");
     expect(out).toContain('<i style="width:100%"></i>');
   });
 
@@ -239,7 +240,8 @@ describe("the context chip", () => {
     // The Inspector's Context tab reads contextFill(agent); the stage takes the
     // same two numbers from the same function (stage-board.ts) ...
     const board = withoutComments(read("components/terminal/stage-board.ts"));
-    expect(board).toContain('import { contextFill } from "../ContextModal"');
+    expect(board).toContain('import { contextFill } from "../../context-figure"');
+    expect(board, "no component module behind the stage's data").not.toContain("ContextModal");
     expect(board).toMatch(/contextUse: contextUseOf\(root\)/);
     expect(withoutComments(read("components/Inspector.tsx"))).toContain("contextFill(agent)");
     // ... and TerminalStage hands the session's figure to the header.
@@ -268,7 +270,7 @@ describe("the reconnect sentence", () => {
 
   it("says it in the keys bar in --warn, 12/16 sans, as one sentence with no glyph", () => {
     const out = html(createElement(KeysBar, barProps({ owner: "pane", reconnecting: true })));
-    expect(out).toContain('<span class="ts-reconnecting">Reconnecting to web-api. Nothing typed now is sent.</span>');
+    expect(out).toContain('<span class="ts-reconnecting" title="Reconnecting to web-api. Nothing typed now is sent.">Reconnecting to web-api. Nothing typed now is sent.</span>');
     expect(out).not.toContain("ts-glyph");
     expect(decl(rule(stage, ".ts-reconnecting"), "color")).toBe("var(--warn)");
     expect(rule(stage, ".ts-reconnecting")).not.toMatch(/font/);
@@ -461,14 +463,14 @@ describe("the keys bar", () => {
     const everything = [
       html(createElement(KeysBar, barProps())), html(createElement(KeysBar, barProps({ owner: "pane" }))),
       html(createElement(KeysBar, barProps({ firstRun: true }))), run,
-      html(createElement(KeysBar, barProps({ asks: { segments: ["done", "todo"], next: { name: "docs-site", waited: "4m" }, resumed: "web-api" } }))),
+      html(createElement(KeysBar, barProps({ asks: { next: { name: "docs-site", waited: "4m" }, resumed: "web-api" } }))),
       html(createElement(KeysBar, barProps({ arrival: { name: "docs-site", tool: "Bash" }, onAnswerArrival: vi.fn() }))),
     ].join("");
     expect(everything).not.toMatch(/aria-live|role="status"|role="alert"/);
   });
 
   it("runs the asks in the same type, behaviour as it was", () => {
-    const out = html(createElement(KeysBar, barProps({ asks: { segments: ["done", "now", "todo"], position: { index: 1, total: 3 } } })));
+    const out = html(createElement(KeysBar, barProps({ asks: { position: { index: 1, total: 3 } } })));
     // CHANGED ON PURPOSE (this block, Figma Keys bar 91:590, 91:600, 91:609):
     // "Asks" --muted then "2 of 3" --text-secondary with no segment track;
     // the Done glyph and --text-secondary text instead of "✓" in --ok; and
@@ -477,13 +479,13 @@ describe("the keys bar", () => {
     expect(out).not.toContain("ts-track");
     expect(decl(rule(stage, ".ts-count"), "color")).toBe("var(--text-secondary)");
     expect(stage).not.toMatch(/\.ts-track|ts-seg-in/);
-    const next = html(createElement(KeysBar, barProps({ asks: { segments: ["done", "todo"], resumed: "web-api", next: { name: "docs-site", waited: "4m" } } })));
+    const next = html(createElement(KeysBar, barProps({ asks: { resumed: "web-api", next: { name: "docs-site", waited: "4m" } } })));
     expect(next).toMatch(/<span class="ts-resumed"><span class="ts-glyph" data-glyph="done"[\s\S]*<\/span>web-api resumed<\/span>/);
     expect(next).not.toContain("✓");
     expect(decl(rule(stage, ".ts-resumed"), "color")).toBe("var(--text-secondary)");
     expect(next).toContain("Next ask <span class=\"ts-next-name\">docs-site</span> 4m</button>");
     expect(next).toContain("btn ts-next ts-plain");
-    const clear = html(createElement(KeysBar, barProps({ asks: { segments: ["done"], clear: true } })));
+    const clear = html(createElement(KeysBar, barProps({ asks: { clear: true } })));
     expect(clear).toMatch(/data-glyph="done"[\s\S]*No more asks/);
     expect(clear).not.toContain("✓");
     // The ask note: the Waiting glyph, "name asks · tool" in --text-secondary,
@@ -515,6 +517,53 @@ describe("the keys bar", () => {
     expect(decl(said, "text-overflow")).toBe("ellipsis");
     expect(said).not.toMatch(/white-space:\s*normal/);
     expect(stage).not.toContain(":has(.ts-hosts)");
+  });
+
+  it("grows the bar for the hosts line under a coarse pointer, so a fingertip reads the whole sentence", () => {
+    // Fine pointer: one line, an ellipsis, the title. Coarse: the sentence
+    // wraps and the bar (height auto, 36 at least) grows with it.
+    expect(touch).toMatch(/@media \(pointer: coarse\)[\s\S]*\.ts-bar:has\(\.ts-asks\) \{ min-height: 36px; \}/);
+    expect(touch).toMatch(/\.ts-asks > \.ts-hosts-said \{[^}]*white-space: normal;[^}]*\}/);
+    expect(decl(rule(stage, ".ts-bar:has(.ts-asks:not(.ts-hosts))"), "flex-wrap")).toBe("wrap");
+    expect(touch).toMatch(/\.ts-bar:has\(\.ts-hosts\) \{ height: auto;[^}]*flex-wrap: wrap;/);
+    expect(stage, "a fine pointer keeps the hosts line on one row").not.toContain(":has(.ts-hosts)");
+    // Review is the keys bar's 28 high everywhere, 32 under a fingertip.
+    expect(decl(rule(stage, ".ts-hosts .btn"), "min-height")).toBe("28px");
+    expect(touch).toMatch(/\.ts-hosts \.btn,/);
+  });
+
+  it("keeps a long name from pushing the buttons beside it out of reach", () => {
+    // The ask note, the resumed note, the keys bar's sentences: cut with an
+    // ellipsis; the buttons keep their size.
+    const notes = rule(stage, ".ts-asks > .ts-arrival,\n.ts-asks > .ts-resumed");
+    expect(decl(notes, "min-width")).toBe("0");
+    expect(decl(notes, "text-overflow")).toBe("ellipsis");
+    expect(decl(rule(stage, ".ts-asks > *"), "flex")).toBe("none");
+    expect(decl(rule(stage, ".ts-keys > *"), "flex")).toBe("none");
+    expect(rule(stage, ".ts-keys > .ts-label,\n.ts-keys > .ts-reconnecting,\n.ts-keys > .ts-end")).toContain("text-overflow: ellipsis");
+    const out = html(createElement(KeysBar, barProps({ owner: "pane", reconnecting: true, name: "a-very-long-session-name" })));
+    expect(out).toContain('title="Reconnecting to a-very-long-session-name. Nothing typed now is sent."');
+  });
+
+  it("gives a bar under 480px its way out first: the Esc hint goes, the release chord stays", () => {
+    expect(decl(rule(stage, ".ts-bar"), "container")).toBe("ts-bar / inline-size");
+    expect(stage).toMatch(/@container ts-bar \(max-width: 480px\) \{\s*\.ts-hint\[data-optional\] \{ display: none; \}/);
+    const out = html(createElement(KeysBar, barProps({ owner: "pane", chordLabel: "Ctrl+]" })));
+    expect(out).toContain('<span class="ts-hint" data-optional="true"><kbd class="kbd">Esc</kbd> goes to the session</span>');
+    expect(out.match(/data-optional/g)).toHaveLength(1);
+  });
+
+  it("gives the Waiting and Done marks their own colours wherever the text beside them is quieter", () => {
+    expect(decl(rule(stage, '.ts-glyph[data-glyph="waiting"]'), "color")).toBe("var(--warn)");
+    expect(decl(rule(stage, '.ts-glyph[data-glyph="done"]'), "color")).toBe("var(--ok)");
+  });
+
+  it("drops the chip to its percent alone in a header too narrow for the name", () => {
+    expect(decl(rule(stage, ".ts-head"), "container")).toBe("ts-head / inline-size");
+    expect(stage).toMatch(/@container ts-head \(max-width: 480px\) \{\s*\.ts-ctxlead \{[^}]*clip-path: inset\(50%\)/);
+    // The words stay in the text for a screen reader; only the sight loses them.
+    const out = html(createElement(StageHeader, headerProps({ context: { used: 640, window: 200_000 } })));
+    expect(out).toContain('<span class="ts-ctxlead">640 / 200k · </span>0%');
   });
 
   it("offers no \"Answer in Chat\": Chat is a later phase", () => {

@@ -80,7 +80,7 @@ export function hostsLine(view: HostsView | null, kept: boolean): string | null 
     ? `Kept running: the Command Panel cannot open ${n === 1 ? "that session" : `those ${n} sessions`} here.`
     : listed.some(h => h.state === "security")
       ? `A security update is waiting on ${count(n)} on ${where}.`
-      : `${count(n)} on an older host`;
+      : `${count(n)} on ${listed.length === 1 ? "an older host" : "older hosts"}`;
   // The plain count is Figma's phrase, with no full stop of its own; the refusal
   // follows it as a sentence.
   return view.launchesRefused ? `${said.endsWith(".") ? said : `${said}.`} ${REFUSED_UNTIL_THEY_END}` : said;

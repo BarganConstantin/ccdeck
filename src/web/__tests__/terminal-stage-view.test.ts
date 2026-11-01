@@ -527,14 +527,14 @@ describe("the keys bar", () => {
   });
 
   it("runs the asks: where the stage is in them, then Next ask, then no more", () => {
-    const now = html(createElement(KeysBar, barProps({ asks: { segments: ["now", "todo"], position: { index: 0, total: 2 } } })));
+    const now = html(createElement(KeysBar, barProps({ asks: { position: { index: 0, total: 2 } } })));
     // CHANGED ON PURPOSE: Figma V4 (Keys bar 91:590) says "Asks  1 of 2" with
     // no segment track between the words.
     expect(now).toMatch(/Asks<\/span><span class="ts-count">1 of 2<\/span>/);
     expect(now).not.toContain("ts-track");
 
     const onNextAsk = vi.fn();
-    const props = barProps({ asks: { segments: ["done", "todo"], resumed: "paycore", next: { name: "travel-portal", waited: "2m", tool: "Edit" } }, onNextAsk });
+    const props = barProps({ asks: { resumed: "paycore", next: { name: "travel-portal", waited: "2m", tool: "Edit" } }, onNextAsk });
     const out = html(createElement(KeysBar, props));
     // CHANGED ON PURPOSE: Figma V4 (Keys bar 91:600) leads with the Done glyph,
     // not a "✓" character in --ok.
@@ -546,10 +546,10 @@ describe("the keys bar", () => {
 
     // CHANGED ON PURPOSE: Done glyph and "No more asks" (Figma 91:609), no "✓"
     // character; and the segments, with their fresh one, are no longer drawn.
-    const clear = html(createElement(KeysBar, barProps({ asks: { segments: ["done", "done"], clear: true } })));
+    const clear = html(createElement(KeysBar, barProps({ asks: { clear: true } })));
     expect(clear).toMatch(/data-glyph="done"[\s\S]*No more asks/);
     expect(clear).not.toContain("✓");
-    expect(html(createElement(KeysBar, barProps({ asks: { segments: ["now", "todo", "todo"], freshIndex: 2, position: { index: 0, total: 3 } } }))))
+    expect(html(createElement(KeysBar, barProps({ asks: { position: { index: 0, total: 3 } } }))))
       .not.toContain("<i ");
   });
 

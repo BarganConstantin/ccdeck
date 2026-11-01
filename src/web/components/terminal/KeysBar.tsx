@@ -34,10 +34,6 @@ import { StageGlyph } from "./stage-icons";
 
 /** One run through the waiting sessions, as the integrator's use-asks has it. */
 export interface AsksView {
-  /** One per ask in the run, in order. */
-  segments: Array<"todo" | "now" | "done">;
-  /** The segment that just joined the run, which grows in. */
-  freshIndex?: number | null;
   /** "1 of 2", while the stage is on an ask of the run. */
   position?: { index: number; total: number } | null;
   /** The session just answered: "✓ paycore resumed". */
@@ -106,7 +102,7 @@ const ControlKey = ({ children }: { children: string }) => <kbd className="kbd" 
 
 /** The run, in words: "Asks 2 of 3" while the stage is on one of them, the
  *  answered session and the next ask after it. (V4 draws no segment track: the
- *  count says it, and `segments` stays the integrator's data.) */
+ *  count says it.) */
 export function AsksTrack({ asks, onNextAsk }: { asks: AsksView; onNextAsk?(): void }) {
   if (asks.position) {
     return (
@@ -196,14 +192,14 @@ export default function KeysBar(p: KeysBarProps) {
     // stage cannot keep. The whole sentence is the warning's colour.
     left = (
       <div className="ts-keys" data-owner="none">
-        <span className="ts-reconnecting">{`Reconnecting to ${p.name}. ${RECONNECT_NOTE}`}</span>
+        <span className="ts-reconnecting" title={`Reconnecting to ${p.name}. ${RECONNECT_NOTE}`}>{`Reconnecting to ${p.name}. ${RECONNECT_NOTE}`}</span>
       </div>
     );
   } else if (p.owner === "pane") {
     left = (
       <div className="ts-keys" data-owner="pane">
         <span className="ts-label" data-strong>{`Typing into ${p.name}`}</span>
-        <span className="ts-hint"><Kbd>Esc</Kbd> goes to the session</span>
+        <span className="ts-hint" data-optional><Kbd>Esc</Kbd> goes to the session</span>
         <span className="ts-hint"><Kbd label={RELEASE_CHORD_SPOKEN}>{p.chordLabel}</Kbd> back to the board</span>
       </div>
     );

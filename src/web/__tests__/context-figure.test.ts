@@ -2,7 +2,8 @@
 // a million as "1M". Owner answer 17; the Term header's chip and the
 // Inspector's Context tab both say it.
 import { describe, expect, it } from "vitest";
-import { contextFigure, contextPercent, contextTokens } from "../context-figure";
+import { contextFigure, contextFill, contextPercent, contextTokens } from "../context-figure";
+import type { AgentNodeData } from "../types";
 
 describe("the context figure", () => {
   it("says the used part, the window and the percent", () => {
@@ -41,12 +42,18 @@ describe("the context figure", () => {
     expect(contextTokens(2_000_000)).toBe("2M");
   });
 
-  it("rounds the percent to a whole number and holds it to 0..999", () => {
+  it("rounds the percent to a whole number and holds it to 0..100, as the Inspector's tab does", () => {
     expect(contextPercent(129_000, 200_000)).toBe(65);
     expect(contextPercent(1, 200_000)).toBe(0);
     expect(contextPercent(-5, 200_000)).toBe(0);
-    expect(contextPercent(10_000_000, 200_000)).toBe(999);
+    expect(contextPercent(10_000_000, 200_000)).toBe(100);
     expect(contextPercent(100, 0)).toBe(0);
-    expect(contextFigure(400_000, 200_000)).toBe("400k / 200k · 200%");
+    expect(contextFigure(400_000, 200_000)).toBe("400k / 200k · 100%");
+    // One fill for the chip and the Inspector: past the window both say full.
+    const over = { context: { currentContextTokens: 250_000 }, contextWindow: 200_000, model: "claude-opus-4" } as unknown as AgentNodeData;
+    expect(contextFill(over).pct).toBe(100);
+    expect(contextPercent(contextFill(over).used, contextFill(over).limit)).toBe(100);
+    const part = { context: { currentContextTokens: 126_600 }, contextWindow: 200_000, model: "claude-opus-4" } as unknown as AgentNodeData;
+    expect(contextPercent(contextFill(part).used, contextFill(part).limit)).toBe(Math.round(contextFill(part).pct));
   });
 });

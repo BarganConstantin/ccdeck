@@ -38,7 +38,7 @@
 // drawn in the takeover too, where there is no width to give but that. There
 // is no Chat/Term toggle and no Split: Chat is a later phase behind a flag
 // that is off, and a control for either would be a dead one.
-import { contextFigure, contextPercent } from "../../context-figure";
+import { contextFigure, contextFigureParts, contextPercent } from "../../context-figure";
 import type { TerminalProvider } from "../../terminal-api";
 import { agentName, type KeysOwner, type StageStatus } from "./stage-model";
 import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, StageGlyph, glyphForState } from "./stage-icons";
@@ -106,7 +106,9 @@ export function contextChipText(context: StageHeaderProps["context"]): string | 
 
 export default function StageHeader(p: StageHeaderProps) {
   const { status } = p;
-  const chip = contextChipText(p.context);
+  // One reading for the chip: its figure and its bar are the same percent.
+  const used = p.context && p.context.used > 0 ? p.context : null;
+  const parts = used ? contextFigureParts(used.used, used.window) : null;
   const glyph = glyphForState(status.state);
   const rest = metaRest(status);
   const pane = p.keysOwner === "pane";
@@ -139,11 +141,11 @@ export default function StageHeader(p: StageHeaderProps) {
           </div>
         )}
       </div>
-      {chip && p.context && (
+      {parts && used && (
         <span className="ts-ctxchip" title="Context window">
           <span className="vis-hidden">Context </span>
-          {chip}
-          <span className="ts-ctxbar" aria-hidden="true"><i style={{ width: `${Math.min(100, contextPercent(p.context.used, p.context.window))}%` }} /></span>
+          {parts.pct == null ? parts.lead : <><span className="ts-ctxlead">{parts.lead}</span>{parts.pct}</>}
+          <span className="ts-ctxbar" aria-hidden="true"><i style={{ width: `${contextPercent(used.used, used.window)}%` }} /></span>
         </span>
       )}
       <div className="ts-ctl">

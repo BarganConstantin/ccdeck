@@ -62,6 +62,7 @@
      strips, projects, field and buttons; and the navigator's New session. */
   .ts-keys .btn,
   .ts-asks .ts-next,
+  .ts-hosts .btn,
   .ts-acts .btn,
   .ns-pop .uh-range-btn,
   .ns-pop .ns-option,
@@ -69,7 +70,12 @@
   .ns-pop .ns-acts .btn,
   .board-nav button.btn.nav-new { min-height: 32px; }
   .ts-bar { height: 36px; }
-  .ts-bar:has(.ts-first) { min-height: 36px; }
+  .ts-bar:has(.ts-first),
+  .ts-bar:has(.ts-asks) { min-height: 36px; }
+  .ts-bar:has(.ts-hosts) { height: auto; padding-block: 1px; flex-wrap: wrap; row-gap: 0; }
+  /* The hosts line, said whole: a fingertip has no hover to read the rest of a
+     line the bar cut, so it wraps and the bar grows with it. */
+  .ts-asks > .ts-hosts-said { overflow: visible; text-overflow: clip; white-space: normal; line-height: 15px; }
   .board-nav[data-density="rail"] button.btn.nav-new { width: 32px; }
   /* The header's glyphs (✕, ⤢, ⌨, ‹, and the install line's copy) are 32px
      squares: their reach above and below stays, the 2px aside goes, so two

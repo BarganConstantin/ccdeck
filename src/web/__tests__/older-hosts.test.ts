@@ -62,8 +62,13 @@ describe("the keys bar's line", () => {
     // older host", one line, no full stop; the longer "still run on … session
     // host." wording and its plural-host variant are gone.
     expect(hostsLine(view([host(1, "stranded", session(1))]), false)).toBe("1 session on an older host");
-    expect(hostsLine(view([host(1, "stranded", session(1), session(2)), host(2, "stranded", session(3))]), false))
+    expect(hostsLine(view([host(1, "stranded", session(1), session(2), session(3))]), false))
       .toBe("3 sessions on an older host");
+    // Sessions on more than one host: the plural host (the host count, not the session count, picks it).
+    expect(hostsLine(view([host(1, "stranded", session(1), session(2)), host(2, "stranded", session(3))]), false))
+      .toBe("3 sessions on older hosts");
+    expect(hostsLine(view([host(1, "stranded", session(1)), host(2, "stranded", session(3))]), false))
+      .toBe("2 sessions on older hosts");
   });
 
   it("names a security update waiting on them as one", () => {
