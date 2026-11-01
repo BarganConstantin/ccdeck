@@ -77,6 +77,14 @@ export function monthlyDailyTarget(pct: number, resetAtSec: number, windowSec: n
   return days > 0 ? (100 - pct) / days : null;
 }
 
+/** How a known, already-capped reading is printed: a whole percentage, the way
+ *  Claude's readings arrive (clampPct), and "< 1%" under one, because 0.25% of
+ *  the track is a fill nobody can see (#1804). The bar and the rail's usage
+ *  meter (RailParts.tsx) print it from here, so the two cannot disagree. */
+export function quotaPctText(capped: number): string {
+  return capped < 1 ? "< 1%" : `${Math.round(capped)}%`;
+}
+
 // ── Quota bar ──────────────────────────────────────────────────────────────
 interface QuotaBarProps {
   /** How full the window is, or null when the source sent no reading for it.
@@ -110,7 +118,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   // "33.33333333333333%" (#1804). Under 1% reads "< 1%" like a zero does:
   // 0.25% of the track is a fill nobody can see.
   const underOne = capped < 1;
-  const pctLabel = rolled ? "reset" : !known ? "no reading" : underOne ? "< 1%" : `${Math.round(capped)}%`;
+  const pctLabel = rolled ? "reset" : !known ? "no reading" : quotaPctText(capped);
   // minimum 2% visual fill so a bar under 1% is still visible as a thin sliver
   const fillW    = underOne ? 2 : capped;
 

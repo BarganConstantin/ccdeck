@@ -28,7 +28,9 @@ import { leaveHoldMs, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
 import { runningTool } from "../rail-row-copy";
 import { PauseGlyph } from "./rail-glyphs";
-import { CloseGlyph, FoldBody, GroupHead, MoreLine, RailGlyph, RailRow, type FoldMode } from "./RailParts";
+import { CloseGlyph, FoldBody, GroupHead, MoreLine, RailGlyph, RailRow, RailUsage, type FoldMode } from "./RailParts";
+import { usageMeter } from "../rail-usage";
+import type { QuotaData } from "../use-quota";
 
 export interface Row {
   sessionId: string;
@@ -214,13 +216,19 @@ interface Props {
   /** The sessions you are looking at: selected, or open on the stage. Their
    *  finished turns count as seen in the rows themselves. */
   watching?: ReadonlySet<string>;
+  /** The Claude quota reading the Usage panel draws, held once in App.tsx
+   *  (use-quota.ts); null until it lands. The rail never fetches it. */
+  quota?: QuotaData | null;
+  /** What the usage meter does: the Usage stripe door's own toggle. Without it
+   *  the meter is not drawn. */
+  onOpenUsage?: () => void;
 }
 
 /** A row that has left the list, kept drawn until its fade and its closing space are done. */
 interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
-export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching }: Props) {
+export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, quota, onOpenUsage }: Props) {
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
   // the reducer mutates it in place, so identity never moves and the rest of the
@@ -468,6 +476,9 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
           </div>
         );
       })()}
+      {/* The foot of the rail, below the list that scrolls: the Usage panel's
+          own 5-hour reading, held once in App.tsx. No reading, nothing drawn. */}
+      {onOpenUsage && <RailUsage meter={usageMeter(quota, Math.floor(now / 1000))} onPress={onOpenUsage} />}
     </aside>
   );
 }

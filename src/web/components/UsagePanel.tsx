@@ -28,7 +28,7 @@ import SessionUsageModal from "./SessionUsageModal";
 import QuotaHistoryModal from "./QuotaHistoryModal";
 import type { SessionSelection } from "../session-usage";
 import { selfPressProps } from "../panel-press";
-import { useCodexQuota, useQuota } from "../use-quota";
+import { useCodexQuota, type useQuota } from "../use-quota";
 import { useEndedWeeks } from "../quota-closes";
 import { useUsageRange } from "../use-usage-range";
 import { useCountUp } from "../use-count-up";
@@ -65,6 +65,8 @@ import { PLACE_KEYS, usePanelPlace } from "../panel-place";
 // whether the session list is open — are usage-prefs.ts's, with the reasons
 // each is kept and the default each falls back to.
 
+const NO_QUOTA_READ: ReturnType<typeof useQuota> = { quota: null, loading: false, refresh: () => {} };
+
 interface Props {
   state: GraphState;
   now: number;
@@ -73,12 +75,15 @@ interface Props {
   /** What the providers' status pages report, incidents only (#1311). Each
    *  quota section draws its own provider's, under its heading. */
   incidents?: Incident[];
+  /** Claude's quota reading, with its forced-read lock and ↻ — useQuota's
+   *  answer, from App.tsx (see the note where the panel unpacks it). */
+  claudeQuota?: ReturnType<typeof useQuota>;
   /** Asked to close, still on screen for the length of its exit. */
   leaving?: boolean;
   onClose: () => void;
 }
 
-export default function UsagePanel({ state, now, providers, incidents = [], leaving, onClose, liveSince = null }: Props & {
+export default function UsagePanel({ state, now, providers, incidents = [], claudeQuota, leaving, onClose, liveSince = null }: Props & {
   /** When the stream's replay landed, or null while there is none — see App.tsx.
    *  The $/min counts only from here (#821). */
   liveSince?: number | null;
@@ -91,7 +96,12 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
     [...state.agents.values()].filter(agent => agent.kind === "root")
       .map(agent => [agent.sessionId, agent.provider ?? "claude"]),
   ), [state, state.revision]);
-  const { quota, loading: quotaLoading, refresh: refreshQuota } = useQuota(providers.claude);
+  // Claude's reading is App.tsx's, held there so the rail's usage meter reads
+  // the same one while this panel is shut; the poll and its rules are still
+  // use-quota.ts's.
+  // Absent only where a bare panel is drawn without a deck behind it: no
+  // reading yet, nothing out, ↻ does nothing.
+  const { quota, loading: quotaLoading, refresh: refreshQuota } = claudeQuota ?? NO_QUOTA_READ;
   const { data: codexQuota, loading: codexLoading, refresh: refreshCodex } = useCodexQuota(providers.codex);
   // How full each account's last weeks ended, under its 7-day bar.
   const claudeWeekEnds = useEndedWeeks("claude", providers.claude ? quota?.historyAccount : undefined);

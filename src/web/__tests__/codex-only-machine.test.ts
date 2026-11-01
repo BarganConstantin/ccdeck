@@ -508,7 +508,13 @@ describe("which panels the UI draws for each machine", () => {
     // /api/quota can spawn `claude --print /usage`, and the Codex poll refreshes
     // an OAuth token against OpenAI. Neither is work to do once a minute for a
     // section nobody is going to see.
-    expect(usageSrc).toContain("useQuota(providers.claude)");
+    // Claude's hook moved up to App.tsx so the rail's usage meter reads the same
+    // reading while the panel is shut (v4-rail-usage.test.ts); the panel is
+    // handed it and must not poll a second time. The rule is the same: the
+    // single call is still gated on providers.claude.
+    const appSrc = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+    expect(appSrc).toContain("useQuota(providers.claude)");
+    expect(usageSrc).not.toMatch(/\buseQuota\(/);
     expect(usageSrc).toContain("useCodexQuota(providers.codex)");
     // Usage insights retired the local token summary and its unused poll.
     expect(usageSrc).not.toContain("useCodexUsage(");
