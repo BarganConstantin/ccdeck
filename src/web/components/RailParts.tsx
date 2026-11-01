@@ -77,6 +77,23 @@ export interface RailRowProps {
   onOpenKeys?: (sessionId: string) => void;
 }
 
+/** WORKSPACE: a row's keydown. A bare Enter opens the session and takes the
+ *  keys into its pane — not the button's click, which leaves them on the list —
+ *  and any other key, or a modified or held Enter, is the row's own. Nothing
+ *  where the view gives the row no handler: the Board's Enter is the click. */
+export function openKeysOnEnter(
+  sessionId: string,
+  onOpenKeys: ((sessionId: string) => void) | undefined,
+): ((e: { key: string; repeat: boolean; shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean; preventDefault(): void }) => void) | undefined {
+  if (!onOpenKeys) return undefined;
+  return e => {
+    if (e.key !== "Enter" || e.repeat || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+    // Not the button's click: Enter here also takes the keys along.
+    e.preventDefault();
+    onOpenKeys(sessionId);
+  };
+}
+
 export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys }: RailRowProps) {
   const line = railLine(r, group);
   const time = railTime(r, group, now);
@@ -94,12 +111,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
           aria-current={selected ? "true" : undefined}
           data-session={r.sessionId}
           onClick={() => onSelect(r.sessionId)}
-          onKeyDown={onOpenKeys ? e => {
-            if (e.key !== "Enter" || e.repeat || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
-            // Not the button's click: Enter here also takes the keys along.
-            e.preventDefault();
-            onOpenKeys(r.sessionId);
-          } : undefined}
+          onKeyDown={openKeysOnEnter(r.sessionId, onOpenKeys)}
           title={rowTooltip(r, removed)}
         >
           {/* Once, on the row a jump arrived at; a new nonce is a new element,

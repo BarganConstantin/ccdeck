@@ -122,11 +122,13 @@ describe("Enter on a row", () => {
   const parts = withoutComments(sourceOf("components/RailParts.tsx"));
 
   it("opens the session with the keys, not through the click", () => {
+    // The handler is openKeysOnEnter (run in v4-workspace-keys-behavior.test.ts).
     expect(parts).toContain('e.key !== "Enter"');
     expect(parts).toContain("e.preventDefault();");
-    expect(parts).toContain("onOpenKeys(r.sessionId)");
+    expect(parts).toContain("onOpenKeys(sessionId)");
     // Only where Workspace gives the row a handler: the Board's Enter is the click.
-    expect(parts).toContain("onKeyDown={onOpenKeys ?");
+    expect(parts).toContain("if (!onOpenKeys) return undefined;");
+    expect(parts).toContain("onKeyDown={openKeysOnEnter(r.sessionId, onOpenKeys)}");
   });
 
   it("names the row by session, for the list to be walked", () => {

@@ -46,9 +46,8 @@ import { AccountAttention } from "./AccountAttentionModal";
 import ReleaseNotesModal from "./ReleaseNotesModal";
 import SessionSummary from "./SessionSummary";
 import SettingsModal, { type AccountSwitch } from "./SettingsModal";
-import type { TerminalSwitch } from "./TerminalSection";
+import { offersWorkspace, type TerminalSwitch } from "./TerminalSection";
 import ToolModal from "./ToolModal";
-import { workspaceOffered } from "../use-view";
 // Loaded when they open (#883). Both are opened rarely and each is a large
 // file; imported here, they were in the one bundle every reload and every deck
 // opened from another machine had to fetch before drawing anything. The topbar
@@ -265,7 +264,7 @@ export default function DeckDialogs({
           onClose={() => setKeyHelpOpen(false)}
           onTour={() => { setKeyHelpOpen(false); openTour(); }}
           onSettings={() => { setKeyHelpOpen(false); openSettings("keyboard"); }}
-          workspace={terminal != null && workspaceOffered({ enabled: terminal.on, supported: terminal.supported }, false)}
+          workspace={offersWorkspace(terminal)}
         />
       )}
       {tourOpen && (

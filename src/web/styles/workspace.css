@@ -75,6 +75,21 @@
    edge), so the hide is lifted. Same specificity as that rule, later. */
 .app[data-view="workspace"]:has(.stage-dock) :is(.usage-panel, .sysdetail) { visibility: visible; }
 
+/* USAGE AND MACHINE SIT OVER THE INSPECTOR'S COLUMN, from 1320 up, where the
+   Inspector is a column. The Board puts their right edge at --rail-r, which
+   clears the detail column (machine-panel.css): there the column is under the
+   canvas's cell, and in Workspace that cell is the pane, which they covered
+   (x 792-1072 at 1440, the pane ending at 1080). Here --rail-r is the value
+   it has with no detail panel, the Board's own right edge (8px inside the
+   stripe), and the panel's left edge is then 280 (+ the density's increase)
+   in from there, inside the Inspector's 320 (Compact) or 360 (Default): never
+   left of the pane's right edge. Under 1320 the Inspector is a sheet and the
+   Board's place stands. \`body\` in front outranks the Board's two --rail-r rules
+   whichever of them is in force. */
+@media (min-width: 1320px) {
+  body .app[data-view="workspace"] { --rail-r: calc(8px + var(--edge-w)); }
+}
+
 /* The pane's header, empty: its title is a description, not a session. */
 .ts-stage[data-fill][data-empty] .ts-name { color: var(--muted); }
 /* Zoom is a state: pressed is filled, as the kit's IconButton / Active. The

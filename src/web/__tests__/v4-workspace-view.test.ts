@@ -33,9 +33,24 @@ describe("the remembered view", () => {
     expect(readView(() => written[0][1])).toBe("workspace");
   });
 
-  it("is a blocked store's loss only: an accessor that throws reads as the Board, through storage.ts", async () => {
-    // readStored swallows the throw, so the default read is the Board.
-    expect(readView()).toBe("board");
+  it("is a blocked store's loss only: an accessor that throws reads as the Board, through storage.ts", () => {
+    // A site whose data is blocked throws on the `localStorage` getter itself.
+    // readStored swallows the throw, so the default read is the Board, and a
+    // write is a no-op rather than an error.
+    const g = globalThis as Record<string, unknown>;
+    const had = "window" in g;
+    const before = g.window;
+    const blocked = {};
+    Object.defineProperty(blocked, "localStorage", { get() { throw new Error("blocked site data"); } });
+    g.window = blocked;
+    try {
+      expect(() => (blocked as { localStorage: unknown }).localStorage).toThrow();
+      expect(readView()).toBe("board");
+      expect(() => writeView("workspace")).not.toThrow();
+      expect(readView()).toBe("board");
+    } finally {
+      if (had) g.window = before; else delete g.window;
+    }
   });
 
   it("is per browser: not an account field, not a shape the build prunes", () => {

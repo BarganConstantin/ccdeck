@@ -162,10 +162,13 @@ describe("the empty pane", () => {
     expect(out).toContain("Click a session on the board to watch it here, or start a new one.");
   });
 
-  it("opens the waiting session through the next-ask door, as N does", () => {
+  it("opens the session the card names, by id, with the keys in its pane (not the next-ask door)", () => {
+    // Was wired to p.onNextAsk, which goes to the arrival the bar names first and
+    // so could open another session than the one the button says (review 2).
     const ts = withoutComments(sourceOf("components/terminal/TerminalStage.tsx"));
-    expect(ts).toContain("onOpenWaiting={p.onNextAsk}");
+    expect(ts).toContain("onOpenWaiting={openWaiting(p.waiting, p.onOpenWaiting)}");
     const shell = withoutComments(sourceOf("components/terminal/StageShell.tsx"));
+    expect(shell).toContain("onOpenWaiting={id => stage.switchTo(id, { focusPane: true })}");
     expect(shell).toContain("onNextAsk={p.asks.nextAsk}");
   });
 });
@@ -202,7 +205,9 @@ describe("the hook", () => {
   it("empties the pane without ending anything, and clears the selection", () => {
     const at = stage.indexOf("const emptyPane = useCallback");
     const body = stage.slice(at, stage.indexOf("}, [enabledRef, openOn, clearRef]);", at));
-    expect(body).toContain('openOn({ kind: "empty" })');
+    // Asks for the focus through the stage's request (review 10), so it lands on the
+    // empty pane's action once that is drawn.
+    expect(body).toContain('openOn({ kind: "empty" }, { focusPane: true })');
     expect(body).toContain("clearRef.current?.()");
     expect(body).not.toMatch(/stop|kill|end\(/i);
   });

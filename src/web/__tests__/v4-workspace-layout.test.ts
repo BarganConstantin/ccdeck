@@ -135,7 +135,8 @@ describe("narrower windows", () => {
     // of its own, because data-view is never set there (App draws it only when
     // the stage hook says Workspace, which is false on a phone).
     const stage = readFileSync(fileURLToPath(new URL("../use-stage.ts", import.meta.url)), "utf8");
-    expect(stage).toContain('const workspace = view === "workspace" && !phone && (offered || !prefsKnown);');
+    // `!chunkFailed` joined the formula (review 3c): a stage that cannot load is the Board.
+    expect(stage).toContain('const workspace = view === "workspace" && !phone && !chunkFailed && (offered || !prefsKnown);');
   });
 });
 
