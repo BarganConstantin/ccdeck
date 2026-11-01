@@ -452,18 +452,25 @@ describe("what was migrated to the secondary tier", () => {
       ".settings-row-details",
       // The terminal stage. Its keys bar says in a sentence who has the
       // keyboard — "Keys on the board", "Typing into paycore", the first-run
-      // line, "The session ended 14m ago — this is its last frame" — in
-      // V4's --muted on the bar's --bg-soft, as the kit draws it (the bar
-      // itself left this list for that); the one thing set apart is the
-      // session's name in it (.ts-who). The header's sentence takes the
+      // line, "The session ended 14m ago. This is its last frame" — in
+      // V4's --muted on the bar's --panel, as the kit draws it (the bar
+      // itself left this list for that). CHANGED ON PURPOSE: Figma V4's
+      // Keys bar sets apart the board's label (.ts-label), the asks run's
+      // count, the answered session ("web-api resumed") and the ask note
+      // ("docs-site asks · Bash") in this tier, where the session's name in
+      // a sentence (.ts-who) used to be the one thing set apart; that span
+      // is gone. The header's sentence takes the
       // tier for its state part ("working", "waiting 6m"), the tool and its
       // argument after it staying --muted.
-      ".ts-who",
+      ".ts-arrival",
+      ".ts-count",
+      ".ts-label",
       ".ts-meta-state",
       // And its state cards: the one sentence that says why there is no pane
       // (the deck's describeTarget, tmux missing, an error), and the note that
       // answers a refused Reopen here in place. Prose read once and acted on.
       ".ts-note",
+      ".ts-resumed",
       ".ts-text",
       // What's new: the sentence under each change, the always-visible notice
       // beside it, the one line that says which releases are shown (or that

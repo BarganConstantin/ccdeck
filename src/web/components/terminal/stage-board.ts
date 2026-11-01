@@ -16,6 +16,7 @@ import { isAlarming, type BlockedSession } from "../../ambient-counts";
 import { SEP } from "../../cluster-header";
 import { distinctIdTail } from "../../session-id-tail";
 import { FACE_WORDS } from "../../board-navigator";
+import { contextFill } from "../ContextModal";
 import { faceSignal } from "../../node-face";
 import { shortAgo } from "../../relative-time";
 import { sessionHue } from "../../session-hue";
@@ -86,6 +87,13 @@ export function boardFactsFor(root: AgentNodeData, subagents: readonly AgentNode
   };
 }
 
+/** How full the session's context window is: what the Inspector's Context tab
+ *  prints, from the same function, so the chip and the tab cannot disagree. */
+export function contextUseOf(root: AgentNodeData): { used: number; window: number } {
+  const { used, limit } = contextFill(root);
+  return { used, window: limit };
+}
+
 /** A session's name on the board, before any telling apart. */
 const boardName = (a: AgentNodeData) => a.label || a.cwdBasename || a.sessionId.slice(0, 8);
 
@@ -150,6 +158,8 @@ export function stageShowFor(
       model: root.model ?? null,
       effort: root.effort ?? null,
       status: stageStatusFrom(facts, now),
+      // The Inspector's Context tab reads the same two numbers (contextFill).
+      contextUse: contextUseOf(root),
       // While the pane attaches: what the face says the session is doing, or
       // failing that, what it was last asked.
       ghostLine: signal?.long ?? promptLine(lastPrompt),

@@ -91,9 +91,12 @@ describe("the header", () => {
     expect(out).toMatch(/class="ts-meta-state">working<.*class="ts-meta-rest">· Task · 3 subagents running · 7m 38s</);
   });
 
-  it("says waiting with how long in bold, beside the rail's alert glyph and no ping", () => {
+  it("says waiting with how long, beside the rail's alert glyph and no ping", () => {
     const out = html(createElement(StageHeader, headerProps({ status: { state: "waiting", phrase: "waiting", emphasis: "6m", tool: "Bash", arg: "git push" } })));
-    expect(out).toContain("waiting <b>6m</b>");
+    // CHANGED ON PURPOSE: Figma V4 (Term header 22:13272) draws "waiting 6m" in
+    // one regular weight, the state colour doing the work; it was bold.
+    expect(out).toContain("waiting 6m");
+    expect(out).not.toContain("<b>");
     expect(out).toContain('data-glyph="waiting"');
     expect(out).not.toContain("ap-pulse");
     expect(out).not.toMatch(/blocked/i);
@@ -441,7 +444,9 @@ describe("the keys bar", () => {
     const out = html(createElement(KeysBar, barProps()));
     expect(out).toContain('data-owner="board"');
     expect(out).toContain("Keys on the board");
-    expect(out).toMatch(/<kbd class="kbd">j<\/kbd><kbd class="kbd">k<\/kbd> sessions/);
+    // CHANGED ON PURPOSE: Figma V4 (Keys bar 91:536) draws one key cap "j k",
+    // not two.
+    expect(out).toMatch(/<kbd class="kbd">j k<\/kbd> sessions/);
     expect(out).toContain("next ask");
     const props = barProps();
     press(button(KeysBar(props), "type here"));
@@ -451,7 +456,9 @@ describe("the keys bar", () => {
 
   it("does not claim the keys reach the session while the pane reconnects", () => {
     const out = html(createElement(KeysBar, barProps({ owner: "pane", reconnecting: true })));
-    expect(out).toContain("nothing typed now is sent");
+    // CHANGED ON PURPOSE: the sentence is Figma V4's (Keys bar 91:554, owner
+    // answer 18), with a full stop and a capital, not "— nothing typed now is sent".
+    expect(out).toContain("Reconnecting to paycore. Nothing typed now is sent.");
     expect(out).not.toContain("Typing into");
   });
 
@@ -470,7 +477,9 @@ describe("the keys bar", () => {
   it("says who is being typed into, that Escape goes to the session, and how to give the keys back", () => {
     const out = html(createElement(KeysBar, barProps({ owner: "pane" })));
     expect(out).toContain('data-owner="pane"');
-    expect(out).toContain('Typing into <span class="ts-who">paycore</span>');
+    // CHANGED ON PURPOSE: the label is one phrase in --text (Figma 91:545); the
+    // name is no longer set apart in a span of its own.
+    expect(out).toContain('<span class="ts-label" data-strong="true">Typing into paycore</span>');
     expect(out).toContain("goes to the session");
     expect(out).toMatch(/<kbd class="kbd" aria-hidden="true">Ctrl\+Shift\+X<\/kbd><span class="kbd-spoken">Control Shift X<\/span> back to the board/);
   });
@@ -486,17 +495,19 @@ describe("the keys bar", () => {
 
   it("says the first-run line whole without its key names, for a fingertip", () => {
     // On a phone the coarse-pointer sheet drops the bar's key chips, and the
-    // line read "Typing goes to the session — included. closes the Command
+    // line read "Typing goes to the session, included. closes the Command
     // Panel…". The clause that names Esc is its own element, so it goes
     // whole (the sheet's side is "the keys bar under a fingertip"), and ✕,
     // the header's control rather than a key, is marked to stay.
+    // CHANGED ON PURPOSE: the line is Figma V4's (Keys bar 91:551): ", Esc
+    // included" with a comma where it had a dash.
     const out = html(createElement(KeysBar, barProps({ owner: "pane", firstRun: true })));
     const line = out.match(/<span class="ts-first">([\s\S]*?)<\/span><button/)?.[1];
     expect(line, "the sentence is its own element, before Got it").toBeTruthy();
     const words = (s: string) => s.replace(/<[^>]+>/g, "");
-    expect(words(line!)).toBe("Typing goes to the session — Esc included. ✕ closes the Command Panel; the session keeps running.");
+    expect(words(line!)).toBe("Typing goes to the session, Esc included. ✕ closes the Command Panel; the session keeps running.");
     const keys = line!.match(/<span class="ts-first-keys">([\s\S]*?)<\/span>/)?.[0];
-    expect(keys && words(keys)).toBe(" — Esc included");
+    expect(keys && words(keys)).toBe(", Esc included");
     expect(words(line!.replace(keys!, ""))).toBe("Typing goes to the session. ✕ closes the Command Panel; the session keeps running.");
     expect(line).toContain('<kbd class="kbd" data-control="true">✕</kbd>');
     expect(line).toContain('<kbd class="kbd">Esc</kbd>');
@@ -505,36 +516,53 @@ describe("the keys bar", () => {
 
   it("turns into the end bar for a finished session, with Reopen here", () => {
     const onAction = vi.fn();
-    const props = barProps({ end: { sentence: "The session ended 14m ago — this is its last frame.", action: "Reopen here", onAction } });
+    const props = barProps({ end: { sentence: "The session ended 14m ago. This is its last frame.", action: "Reopen here", onAction } });
     const out = html(createElement(KeysBar, props));
-    expect(out).toContain("The session ended 14m ago — this is its last frame.");
+    expect(out).toContain("The session ended 14m ago. This is its last frame.");
+    // CHANGED ON PURPOSE: Figma V4 draws no square mark before the sentence.
+    expect(out).not.toContain("ts-end-mark");
     expect(out).not.toContain("Keys on the board");
     press(button(KeysBar(props), "Reopen here"));
     expect(onAction).toHaveBeenCalled();
   });
 
-  it("runs the asks: the track and where the stage is in it, then Next ask, then no more", () => {
+  it("runs the asks: where the stage is in them, then Next ask, then no more", () => {
     const now = html(createElement(KeysBar, barProps({ asks: { segments: ["now", "todo"], position: { index: 0, total: 2 } } })));
-    expect(now).toMatch(/Asks<\/span><span class="ts-track" aria-hidden="true"><i data-s="now"><\/i><i data-s="todo"><\/i><\/span><span class="ts-count">1 of 2<\/span>/);
+    // CHANGED ON PURPOSE: Figma V4 (Keys bar 91:590) says "Asks  1 of 2" with
+    // no segment track between the words.
+    expect(now).toMatch(/Asks<\/span><span class="ts-count">1 of 2<\/span>/);
+    expect(now).not.toContain("ts-track");
 
     const onNextAsk = vi.fn();
     const props = barProps({ asks: { segments: ["done", "todo"], resumed: "paycore", next: { name: "travel-portal", waited: "2m", tool: "Edit" } }, onNextAsk });
     const out = html(createElement(KeysBar, props));
-    expect(out).toContain("✓ paycore resumed");
+    // CHANGED ON PURPOSE: Figma V4 (Keys bar 91:600) leads with the Done glyph,
+    // not a "✓" character in --ok.
+    expect(out).toMatch(/data-glyph="done"[\s\S]*paycore resumed/);
+    expect(out).not.toContain("✓");
     expect(out).toContain('aria-label="Next ask: travel-portal, waiting 2m on Edit"');
     press(button(AsksTrack({ asks: props.asks!, onNextAsk }), "Next ask: travel-portal, waiting 2m on Edit"));
     expect(onNextAsk).toHaveBeenCalled();
 
-    expect(html(createElement(KeysBar, barProps({ asks: { segments: ["done", "done"], clear: true } })))).toContain("✓ No more asks");
+    // CHANGED ON PURPOSE: Done glyph and "No more asks" (Figma 91:609), no "✓"
+    // character; and the segments, with their fresh one, are no longer drawn.
+    const clear = html(createElement(KeysBar, barProps({ asks: { segments: ["done", "done"], clear: true } })));
+    expect(clear).toMatch(/data-glyph="done"[\s\S]*No more asks/);
+    expect(clear).not.toContain("✓");
     expect(html(createElement(KeysBar, barProps({ asks: { segments: ["now", "todo", "todo"], freshIndex: 2, position: { index: 0, total: 3 } } }))))
-      .toContain('<i data-s="todo" data-fresh="true"></i>');
+      .not.toContain("<i ");
   });
 
   it("says once, quietly, that another session asks — and answering is a press, never automatic", () => {
     const onAnswerArrival = vi.fn();
     const props = barProps({ owner: "pane", arrival: { name: "boom-next-gen", tool: "Bash" }, onAnswerArrival });
     const out = html(createElement(KeysBar, props));
-    expect(out).toMatch(/<b>boom-next-gen<\/b> asks · Bash/);
+    // CHANGED ON PURPOSE: Figma V4 (Keys bar 91:583) leads with the Waiting
+    // glyph (not the pulse dot), says "name asks · tool" with the name not bold,
+    // then the key cap n and the word Answer, in that order.
+    expect(out).toMatch(/data-glyph="waiting"[\s\S]*boom-next-gen asks · Bash/);
+    expect(out).not.toMatch(/ap-pulse|<b>/);
+    expect(out).toMatch(/<kbd class="kbd">n<\/kbd> Answer/);
     expect(onAnswerArrival).not.toHaveBeenCalled();
     press(button(ArrivalNote({ arrival: props.arrival!, onAnswer: onAnswerArrival }), "Answer boom-next-gen"));
     expect(onAnswerArrival).toHaveBeenCalled();
@@ -588,7 +616,7 @@ describe("the stage as a whole", () => {
     const act = { reopen: vi.fn(), launchAgain: vi.fn(), attachAgain: vi.fn() };
     const codex: StageShow = { kind: "launch", agent: "codex", cwd: "/w/ccdeck", name: "ccdeck", hue: 3, key: "n1" };
     const ended = endView({ kind: "ended" }, codex, act);
-    expect(ended).toMatchObject({ sentence: "Codex exited — this is its last frame.", action: "Start Codex again" });
+    expect(ended).toMatchObject({ sentence: "Codex exited. This is its last frame.", action: "Start Codex again" });
     ended?.onAction();
     expect(act.launchAgain).toHaveBeenCalledTimes(1);
     expect(act.reopen).not.toHaveBeenCalled();
@@ -597,7 +625,7 @@ describe("the stage as a whole", () => {
 
     const gone: StageShow = { ...session, session: { ...(session as Extract<StageShow, { kind: "session" }>).session, endedAgo: "14m ago" } } as StageShow;
     const reopen = endView({ kind: "ended" }, gone, act);
-    expect(reopen).toMatchObject({ sentence: "The session ended 14m ago — this is its last frame.", action: "Reopen here" });
+    expect(reopen).toMatchObject({ sentence: "The session ended 14m ago. This is its last frame.", action: "Reopen here" });
     reopen?.onAction();
     expect(act.reopen).toHaveBeenCalledTimes(1);
     expect(endView({ kind: "detached" }, session, act)).toMatchObject({ action: "Attach again" });
@@ -885,8 +913,13 @@ describe("the stage's sheet", () => {
   it("keeps the stage's marks under a Contrast theme, in the deck's one forced-colours block", () => {
     const forced = css.slice(css.indexOf("@media (forced-colors: active) {"));
     // The state glyphs draw in currentColor and need nothing here; the marks
-    // that are fills do (the ended bar's square, the card's fact mark).
-    expect(forced).toMatch(/\.ts-end-mark,\s*\.ts-fact-mark \{ background: CanvasText; \}/);
+    // that are fills do (the card's fact mark, the context chip's bar).
+    // CHANGED ON PURPOSE: the ended bar's square is gone (Figma V4 draws none),
+    // and the header's context bar is a fill that needs its own track and fill.
+    expect(forced).toMatch(/\.ts-fact-mark \{ background: CanvasText; \}/);
+    expect(forced).not.toContain("ts-end-mark");
+    expect(forced).toMatch(/\.ts-ctxbar \{ background: Canvas; outline: 1px solid CanvasText; \}/);
+    expect(forced).toMatch(/\.ts-ctxbar i \{ background: CanvasText; \}/);
     expect(forced).not.toMatch(/\.ts-lamp|\.ts-spine/);
     expect(css.split("@media (forced-colors: active) {").length - 1, "one block, as #871 holds").toBe(1);
   });

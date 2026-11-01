@@ -17,11 +17,15 @@ import { fileURLToPath } from "node:url";
 
 import { all, one, textOf } from "./fake-react";
 import { withoutComments } from "./tsx-scan";
-import StageHeader, { CLOSE_LABEL, metaRest, type StageHeaderProps } from "../components/terminal/StageHeader";
+import StageHeader, { CLOSE_LABEL, contextChipText, metaRest, type StageHeaderProps } from "../components/terminal/StageHeader";
 import StageBody, { StateCard, type StageBodyProps } from "../components/terminal/StageBody";
 import KeysBar, { type KeysBarProps } from "../components/terminal/KeysBar";
 import { glyphForState } from "../components/terminal/stage-icons";
-import { agentName, type StagePhase, type StageState, type StageStatus } from "../components/terminal/stage-model";
+import { agentName, headerStatus, type StagePhase, type StageState, type StageStatus } from "../components/terminal/stage-model";
+import { contextUseOf } from "../components/terminal/stage-board";
+import { contextFill } from "../components/ContextModal";
+import type { AgentNodeData } from "../types";
+import { crossfadeFrame, morphFrame, type MorphPlan } from "../stage-morph";
 import { FLIP_CLOSE_MS, FLIP_EASE, FLIP_OPEN_MS } from "../navigator-flip";
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
@@ -134,7 +138,11 @@ describe("the Term header: one row", () => {
     expect(decl(rule(stage, ".ts-meta-rest"), "overflow")).toBe("hidden");
     // The words are the face's: the state part, then "· Bash · npm test …".
     const out = html(createElement(StageHeader, headerProps()));
-    expect(out).toContain('<span class="ts-meta-state">waiting <b>6m</b></span>');
+    // CHANGED ON PURPOSE: Figma V4 (22:13272) draws "waiting 6m" in one regular
+    // weight, so the minutes are no longer in a <b>.
+    expect(out).toContain('<span class="ts-meta-state">waiting 6m</span>');
+    expect(out).not.toContain("<b>");
+    expect(stage).not.toContain(".ts-meta-state b");
     expect(out).toContain('<span class="ts-meta-rest">· Bash · npm test -- rate-limit</span>');
     expect(metaRest(working)).toBe("Task · 3 subagents running · 7m 38s");
     expect(metaRest({ state: "idle", phrase: "idle" }), "no tool, no rest of the sentence").toBeNull();
@@ -180,14 +188,90 @@ describe("the Term header: one row", () => {
 });
 
 describe("the context chip", () => {
-  it("is not drawn: the stage is not handed a context figure yet, and a chip with nothing in it would say nothing", () => {
-    // StageSessionInfo (TerminalStage.tsx, lifecycle-bound) carries no context
-    // figure, so the header has no chip and no prop for one until it does.
+  // CHANGED ON PURPOSE (the whole block): the chip is drawn now (owner answer
+  // 17, Figma 22:13272). It used to be pinned as not drawn, because nothing
+  // handed the stage a figure; the tests below prove one is handed, from the
+  // same place the Inspector's Context tab reads it.
+  it("says the figure at the row's end, before the controls, with a 4px bar of the same percent", () => {
+    const out = html(createElement(StageHeader, headerProps({ context: { used: 129_000, window: 200_000 } })));
+    expect(out).toContain('<span class="ts-ctxchip" title="Context window"><span class="vis-hidden">Context </span>129k / 200k · 65%');
+    expect(out).toContain('<span class="ts-ctxbar" aria-hidden="true"><i style="width:65%"></i></span>');
+    expect(out.indexOf("ts-ctxchip")).toBeGreaterThan(out.indexOf('class="ts-meta"'));
+    expect(out.indexOf("ts-ctxchip")).toBeLessThan(out.indexOf('class="ts-ctl"'));
+    expect(out.indexOf("ts-ctxchip"), "before ⌨ ⤢ ✕").toBeLessThan(out.indexOf("glyph-btn"));
+  });
+
+  it("holds the bar at 100% when a session runs past its window, and says the real percent", () => {
+    const out = html(createElement(StageHeader, headerProps({ context: { used: 300_000, window: 200_000 } })));
+    expect(out).toContain("300k / 200k · 150%");
+    expect(out).toContain('<i style="width:100%"></i>');
+  });
+
+  it("is not drawn when the figure is unknown or nothing is used", () => {
+    for (const context of [undefined, null, { used: 0, window: 200_000 }]) {
+      expect(html(createElement(StageHeader, headerProps({ context }))), JSON.stringify(context)).not.toContain("ts-ctxchip");
+    }
+    expect(contextChipText({ used: 0, window: 0 })).toBeNull();
+    expect(contextChipText({ used: 850, window: 0 }), "no window: the used part alone").toBe("850");
+  });
+
+  it("is Mono Medium 11/14 --muted, 24 high at the control radius, over a --line track filled --text-secondary", () => {
+    const chip = rule(stage, ".ts-ctxchip");
+    expect(decl(chip, "font")).toBe("500 11px/14px var(--font-mono)");
+    expect(decl(chip, "color")).toBe("var(--muted)");
+    expect(decl(chip, "height")).toBe("24px");
+    expect(decl(chip, "border-radius")).toBe("var(--r-ctl)");
+    const bar = rule(stage, ".ts-ctxbar");
+    expect(decl(bar, "height")).toBe("4px");
+    expect(decl(bar, "background")).toBe("var(--line)");
+    expect(decl(rule(stage, ".ts-ctxbar i"), "background")).toBe("var(--text-secondary)");
+  });
+
+  it("fades in on the morph's chip ramp, last of all, and not with the controls", () => {
+    expect(shell).toMatch(/\.stage-dock\[data-rider\] \.ts-ctxchip \{ opacity: var\(--stage-chip, 1\); \}/);
+    expect(shell).not.toMatch(/\.ts-ctxchip[^{]*\.ts-ctl|\.ts-ctl[^{]*\.ts-ctxchip/);
+    // A sibling of the controls, so the controls' own fade does not double it.
+    const out = html(createElement(StageHeader, headerProps({ context: { used: 1000, window: 200_000 } })));
+    expect(out).not.toMatch(/class="ts-ctl"[^]*ts-ctxchip/);
+  });
+
+  it("is handed a figure from where the data lives: the board's context numbers, through the show, to the header", () => {
+    // The Inspector's Context tab reads contextFill(agent); the stage takes the
+    // same two numbers from the same function (stage-board.ts) ...
+    const board = withoutComments(read("components/terminal/stage-board.ts"));
+    expect(board).toContain('import { contextFill } from "../ContextModal"');
+    expect(board).toMatch(/contextUse: contextUseOf\(root\)/);
+    expect(withoutComments(read("components/Inspector.tsx"))).toContain("contextFill(agent)");
+    // ... and TerminalStage hands the session's figure to the header.
     const header = /<StageHeader[\s\S]*?\/>/.exec(withoutComments(read("components/terminal/TerminalStage.tsx")))?.[0] ?? "";
-    expect(header).toContain("identity={key}");
-    expect(header).not.toMatch(/context=|model=|effort=/);
-    expect(html(createElement(StageHeader, headerProps()))).not.toMatch(/ctxchip|role="img"/);
-    expect(stage).not.toContain("ts-ctxchip");
+    expect(header).toContain('context={p.show.kind === "session" ? p.show.session.contextUse : null}');
+  });
+
+  it("takes the used tokens and the window of a board agent as the Inspector counts them", () => {
+    const agent = { context: { currentContextTokens: 129_000 }, contextWindow: 200_000, model: "claude-opus-4" } as unknown as AgentNodeData;
+    expect(contextUseOf(agent)).toEqual({ used: 129_000, window: 200_000 });
+    expect(contextUseOf(agent)).toEqual({ used: contextFill(agent).used, window: contextFill(agent).limit });
+    expect(contextUseOf({ ...agent, context: undefined } as unknown as AgentNodeData).used, "nothing read yet").toBe(0);
+  });
+});
+
+describe("the reconnect sentence", () => {
+  it("adds what the frozen frame cannot say to the header's phrase, and draws no card over the frame", () => {
+    const status = headerStatus(null, { kind: "attaching", reconnect: true });
+    expect(status).toMatchObject({ phrase: "reconnecting…", arg: "Nothing typed now is sent." });
+    expect(metaRest(status)).toBe("Nothing typed now is sent.");
+    expect(html(createElement(StageHeader, headerProps({ status })))).toContain('<span class="ts-meta-rest">· Nothing typed now is sent.</span>');
+    // Figma's card (91:459) is noted, not built: the last frame stays.
+    expect(html(createElement(StateCard, bodyProps({ kind: "attaching", reconnect: true })))).toBe("");
+    expect(headerStatus(null, { kind: "attaching", reconnect: false })).toEqual({ state: "attaching", phrase: "attaching…" });
+  });
+
+  it("says it in the keys bar in --warn, 12/16 sans, as one sentence with no glyph", () => {
+    const out = html(createElement(KeysBar, barProps({ owner: "pane", reconnecting: true })));
+    expect(out).toContain('<span class="ts-reconnecting">Reconnecting to web-api. Nothing typed now is sent.</span>');
+    expect(out).not.toContain("ts-glyph");
+    expect(decl(rule(stage, ".ts-reconnecting"), "color")).toBe("var(--warn)");
+    expect(rule(stage, ".ts-reconnecting")).not.toMatch(/font/);
   });
 });
 
@@ -261,7 +345,8 @@ describe("the state cards: centred in the pane", () => {
     expect(out).not.toMatch(/spin|loader/i);
     // A reconnect keeps the frozen frame; the keys bar says nothing typed is sent.
     expect(html(createElement(StateCard, bodyProps({ kind: "attaching", reconnect: true })))).toBe("");
-    expect(html(createElement(KeysBar, barProps({ owner: "pane", reconnecting: true })))).toContain("nothing typed now is sent");
+    // CHANGED ON PURPOSE: the sentence is Figma V4's (91:554, owner answer 18).
+    expect(html(createElement(KeysBar, barProps({ owner: "pane", reconnecting: true })))).toContain("Nothing typed now is sent.");
   });
 
   it("restyles the install line to 360 by 32 and the progress to a 320 by 2 bar, behaviour as it was", () => {
@@ -293,52 +378,83 @@ describe("the state cards: centred in the pane", () => {
 });
 
 describe("the keys bar", () => {
-  it("is 32 tall on --bg-soft with a soft rule above, 12px padding, 6px gap, 12/16 --muted", () => {
+  it("is 32 tall on --panel with a soft rule above, 12px padding, 12px gap, 12/16 --muted", () => {
+    // CHANGED ON PURPOSE: Figma V4 (Keys bar, every variant) fills the bar
+    // --panel (was --bg-soft) and puts 12px between its items (was 6px).
     const bar = rule(stage, ".ts-bar");
     expect(decl(bar, "height")).toBe("32px");
-    expect(decl(bar, "background")).toBe("var(--bg-soft)");
+    expect(decl(bar, "background")).toBe("var(--panel)");
     expect(decl(bar, "border-top")).toBe("1px solid var(--line-soft)");
     expect(decl(bar, "padding")).toBe("0 12px");
-    expect(decl(bar, "gap")).toBe("6px");
+    expect(decl(bar, "gap")).toBe("12px");
+    expect(decl(rule(stage, ".ts-keys"), "gap")).toBe("12px");
     expect(decl(bar, "align-items")).toBe("center");
     expect(decl(bar, "font-size")).toBe("12px");
     expect(decl(bar, "line-height")).toBe("16px");
     expect(decl(bar, "color")).toBe("var(--muted)");
-    expect(decl(rule(stage, ".ts-who"), "color"), "the session's name is the one thing set apart").toBe("var(--text-secondary)");
+    // CHANGED ON PURPOSE: the name is no longer set apart (Figma 91:545 draws
+    // "Typing into web-api" whole in --text); the label's colour says who has the keys.
+    expect(stage).not.toContain(".ts-who");
+    expect(decl(rule(stage, ".ts-label"), "color")).toBe("var(--text-secondary)");
+    expect(decl(rule(stage, '.ts-label[data-strong]'), "color")).toBe("var(--text)");
   });
 
-  it("holds its keys in the kit's Kbd, 16 tall, and the chord by its label", () => {
+  it("sets the hints --muted with 4px between a key and its word, and no mark between hints", () => {
+    expect(decl(rule(stage, ".ts-hint"), "gap")).toBe("4px");
+    expect(decl(rule(stage, ".ts-hint"), "color")).toBe("var(--muted)");
+    expect(stage).not.toContain(".ts-hint + .ts-hint");
+    expect(stage).not.toContain('content: "·"');
+  });
+
+  it("holds its keys in the kit's Kbd as it is, and the chord by its label", () => {
     const board = html(createElement(KeysBar, barProps()));
-    expect(board).toContain('<kbd class="kbd">j</kbd><kbd class="kbd">k</kbd> sessions');
+    // CHANGED ON PURPOSE: one key cap "j k" (Figma 91:536), not two.
+    expect(board).toContain('<kbd class="kbd">j k</kbd> sessions');
     expect(board).toContain('<kbd class="kbd" aria-hidden="true">↵</kbd><span class="kbd-spoken">Enter</span>');
     expect(board).toContain('<kbd class="kbd">n</kbd> next ask');
     const pane = html(createElement(KeysBar, barProps({ owner: "pane", chordLabel: "Ctrl+]" })));
-    expect(pane).toContain('Typing into <span class="ts-who">web-api</span>');
+    expect(pane).toContain('Typing into web-api');
     expect(pane).toContain('<kbd class="kbd">Esc</kbd> goes to the session');
     expect(pane).toContain('<kbd class="kbd" aria-hidden="true">Ctrl+]</kbd><span class="kbd-spoken">Control Shift X</span> back to the board');
-    // The stage's own cap is gone; the kit's, at 16: its 14px line, no padding above or below.
+    // The stage's own cap is gone, and so is the override that squeezed the
+    // kit's: CHANGED ON PURPOSE, the bar's cap takes the kit's own 1px 5px
+    // (Figma Keys bar), where it was 0 4px.
     expect(stage).not.toContain("ts-kbd");
-    expect(decl(rule(stage, ".ts-bar .kbd"), "padding")).toBe("0 4px");
-    expect(read("styles/status-bar.css")).toMatch(/\.kbd \{[^}]*line-height: calc\(14px/);
+    expect(stage).not.toContain(".ts-bar .kbd");
+    expect(read("styles/status-bar.css")).toMatch(/\.kbd \{[^}]*padding: 1px 5px/);
   });
 
-  it("says who has the keys with the rail's 14px glyph: working for the pane, idle for the board", () => {
+  it("leads no bar with a glyph: the label says who has the keys", () => {
+    // CHANGED ON PURPOSE: Figma V4 (91:536, 91:545) draws no leading glyph; the
+    // pane's label is --text and the board's --text-secondary instead.
     const pane = html(createElement(KeysBar, barProps({ owner: "pane" })));
-    expect(pane).toMatch(/data-owner="pane"><span class="ts-glyph" data-glyph="working"/);
+    expect(pane).toMatch(/data-owner="pane"><span class="ts-label" data-strong="true">Typing into web-api<\/span>/);
     const board = html(createElement(KeysBar, barProps()));
-    expect(board).toMatch(/data-owner="board"><span class="ts-glyph" data-glyph="idle"/);
-    expect(board).toMatch(/class="state-mark" data-kind="idle"[^>]*width="14" height="14"/);
+    expect(board).toMatch(/data-owner="board"><span class="ts-label">Keys on the board<\/span>/);
+    for (const out of [board, pane, html(createElement(KeysBar, barProps({ owner: "pane", firstRun: true }))),
+      html(createElement(KeysBar, barProps({ owner: "pane", reconnecting: true })))]) {
+      expect(out).not.toContain("ts-glyph");
+    }
     expect(board + pane).not.toContain("ts-lamp");
     expect(stage).not.toContain("ts-lamp");
-    // Reconnecting keeps what the hollow lamp meant: nothing is reaching the session.
-    expect(html(createElement(KeysBar, barProps({ owner: "pane", reconnecting: true })))).toMatch(/data-glyph="idle"/);
+  });
+
+  it("draws \"type here\" as plain --muted text that lifts to --text, still a button", () => {
+    const out = html(createElement(KeysBar, barProps()));
+    expect(out).toContain('<button type="button" class="btn ts-type ts-plain">type here</button>');
+    const plain = rule(stage, ".btn.ts-plain");
+    expect(decl(plain, "color")).toBe("var(--muted)");
+    expect(decl(plain, "font-weight")).toBe("400");
+    expect(decl(plain, "background")).toBe("none");
+    expect(decl(rule(stage, ".btn.ts-plain:hover"), "color")).toBe("var(--text)");
+    expect(stage).not.toMatch(/\.ts-type\s*\{[^}]*(accent|600)/);
   });
 
   it("puts the buttons in the kit's Quiet at 28, and the owner sentence in no live region", () => {
     expect(decl(rule(stage, ".ts-keys .btn"), "min-height")).toBe("28px");
     expect(decl(rule(stage, ".ts-asks .ts-next"), "min-height")).toBe("28px");
     const run = html(createElement(KeysBar, barProps({
-      end: { sentence: "The session ended 14m ago — this is its last frame.", action: "Reopen here", onAction: vi.fn() },
+      end: { sentence: "The session ended 14m ago. This is its last frame.", action: "Reopen here", onAction: vi.fn() },
     })));
     expect(run).toContain('<button type="button" class="btn"');
     expect(run).not.toContain("btn primary");
@@ -353,15 +469,52 @@ describe("the keys bar", () => {
 
   it("runs the asks in the same type, behaviour as it was", () => {
     const out = html(createElement(KeysBar, barProps({ asks: { segments: ["done", "now", "todo"], position: { index: 1, total: 3 } } })));
+    // CHANGED ON PURPOSE (this block, Figma Keys bar 91:590, 91:600, 91:609):
+    // "Asks" --muted then "2 of 3" --text-secondary with no segment track;
+    // the Done glyph and --text-secondary text instead of "✓" in --ok; and
+    // Next ask as plain --muted text, with no bold wait and no chevron.
     expect(out).toContain('<span class="ts-count">2 of 3</span>');
+    expect(out).not.toContain("ts-track");
+    expect(decl(rule(stage, ".ts-count"), "color")).toBe("var(--text-secondary)");
+    expect(stage).not.toMatch(/\.ts-track|ts-seg-in/);
     const next = html(createElement(KeysBar, barProps({ asks: { segments: ["done", "todo"], resumed: "web-api", next: { name: "docs-site", waited: "4m" } } })));
-    expect(next).toContain("✓ web-api resumed");
-    expect(next).toContain("Next ask <span class=\"ts-next-name\">docs-site</span> <b>4m</b>");
-    expect(html(createElement(KeysBar, barProps({ asks: { segments: ["done"], clear: true } })))).toContain("✓ No more asks");
-    expect(html(createElement(KeysBar, barProps({ arrival: { name: "docs-site", tool: "Bash" } })))).toContain('<kbd class="kbd">n</kbd>');
-    // No pill, no waiting colour on the button: the kit's Quiet.
+    expect(next).toMatch(/<span class="ts-resumed"><span class="ts-glyph" data-glyph="done"[\s\S]*<\/span>web-api resumed<\/span>/);
+    expect(next).not.toContain("✓");
+    expect(decl(rule(stage, ".ts-resumed"), "color")).toBe("var(--text-secondary)");
+    expect(next).toContain("Next ask <span class=\"ts-next-name\">docs-site</span> 4m</button>");
+    expect(next).toContain("btn ts-next ts-plain");
+    const clear = html(createElement(KeysBar, barProps({ asks: { segments: ["done"], clear: true } })));
+    expect(clear).toMatch(/data-glyph="done"[\s\S]*No more asks/);
+    expect(clear).not.toContain("✓");
+    // The ask note: the Waiting glyph, "name asks · tool" in --text-secondary,
+    // then the key cap n and the word Answer.
+    const arrival = html(createElement(KeysBar, barProps({ arrival: { name: "docs-site", tool: "Bash" } })));
+    expect(arrival).toMatch(/<span class="ts-arrival"><span class="ts-glyph" data-glyph="waiting"[\s\S]*<\/span>docs-site asks · Bash<\/span>/);
+    expect(arrival).toContain('<kbd class="kbd">n</kbd> Answer</button>');
+    expect(arrival).not.toMatch(/ap-pulse|<b>/);
+    expect(decl(rule(stage, ".ts-arrival"), "color")).toBe("var(--text-secondary)");
+    // No pill, no waiting colour on the button: plain text.
     expect(rule(stage, ".ts-asks .ts-next")).not.toMatch(/border-radius|color:/);
     expect(decl(rule(stage, ".ts-asks-label"), "color")).toBe("var(--muted)");
+  });
+
+  it("ends the end and notice bars without a square mark, in one forced-colours block", () => {
+    // CHANGED ON PURPOSE: Figma V4 draws the sentence alone (91:559, 91:564, 91:569).
+    expect(stage).not.toContain("ts-end-mark");
+    expect(touch).not.toContain("ts-end-mark");
+    expect(html(createElement(KeysBar, barProps({ notice: "That paste is over 1 MB." })))).toContain('<span class="ts-end">That paste is over 1 MB.</span>');
+    expect(touch.split("@media (forced-colors: active) {").length - 1).toBe(1);
+  });
+
+  it("says the hosts line in --muted on one line with an ellipsis, Review beside it", () => {
+    const out = html(createElement(KeysBar, barProps({ hosts: { said: "2 sessions on an older host", onReview: vi.fn() } })));
+    expect(out).toContain('<span class="ts-hosts-said" title="2 sessions on an older host">2 sessions on an older host</span>');
+    expect(out).toContain(">Review</button>");
+    const said = rule(stage, ".ts-hosts-said");
+    expect(decl(said, "color")).toBe("var(--muted)");
+    expect(decl(said, "text-overflow")).toBe("ellipsis");
+    expect(said).not.toMatch(/white-space:\s*normal/);
+    expect(stage).not.toContain(":has(.ts-hosts)");
   });
 
   it("offers no \"Answer in Chat\": Chat is a later phase", () => {
@@ -413,8 +566,37 @@ describe("the morph's motion", () => {
     expect(shell).not.toMatch(/transition:[^;]*(?:opacity|color)/);
   });
 
-  it("takes no time under reduced motion", () => {
-    expect(withoutComments(read("components/terminal/StageShell.tsx"))).toContain("reduced ? 0 : dir === \"open\" ? FLIP_OPEN_MS : FLIP_CLOSE_MS");
+  it("crossfades under reduced motion over the house Fast duration, with no travel", () => {
+    // CHANGED ON PURPOSE: this pinned duration 0 (an instant cut). Figma 91:675
+    // and owner answer 19 say "Crossfade, no travel", and motion.md rule 10
+    // "Travel goes, fades stay", over --dur-fast.
+    const src = withoutComments(read("components/terminal/StageShell.tsx"));
+    expect(src).toContain('reduced ? tokenMs("--dur-fast") : dir === "open" ? FLIP_OPEN_MS : FLIP_CLOSE_MS');
+    expect(src).toContain("(reduced ? crossfadeFrame : morphFrame)(plan, eased)");
+    expect(src).toMatch(/rider: !reduced && card/);
+  });
+
+  it("holds the stage in its column and moves only opacity when it crossfades", () => {
+    const column = { x: 400, y: 0, w: 600, h: 800 };
+    const card = { x: 40, y: 40, w: 200, h: 100 };
+    const open: MorphPlan = { direction: "open", w: 1000, h: 800, from: card, to: column, rider: { card, header: { x: 412, y: 10, w: 80, h: 20 } } };
+    const close: MorphPlan = { direction: "close", w: 1000, h: 800, from: column, to: card, rider: null };
+    for (const plan of [open, close]) {
+      const a = crossfadeFrame(plan, 0), b = crossfadeFrame(plan, 0.5), c = crossfadeFrame(plan, 1);
+      // Never a travelling rect, rider or edge: the same cut and no rider in every frame.
+      expect(b.clip).toBe(a.clip);
+      expect(c.clip).toBe(a.clip);
+      expect(a.clip).toBe("inset(0px 0px 0px 400px round 0px)");
+      expect([a.rider, b.rider, c.rider]).toEqual([null, null, null]);
+      expect([a.edge.opacity, b.edge.opacity, c.edge.opacity]).toEqual([0, 0, 0]);
+      expect([a.content, a.late, a.chip]).toEqual([1, 1, 1]);
+    }
+    expect([crossfadeFrame(open, 0).stage, crossfadeFrame(open, 1).stage]).toEqual([0, 1]);
+    expect([crossfadeFrame(close, 0).stage, crossfadeFrame(close, 1).stage]).toEqual([1, 0]);
+    expect(crossfadeFrame(open, 0.5).stage).toBe(0.5);
+    expect(crossfadeFrame(close, 0.25).stage).toBe(0.75);
+    // The full morph does travel, so the two are not the same thing.
+    expect(morphFrame({ ...open }, 0.5).clip).not.toBe(crossfadeFrame(open, 0.5).clip);
   });
 
   it("flies the rider at the header's name size, 13px", () => {

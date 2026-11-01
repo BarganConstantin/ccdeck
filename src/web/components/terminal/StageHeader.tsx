@@ -18,9 +18,15 @@
 // THE MODEL CHIP IS GONE from this header: the rail's row and the agent card
 // carry the model, and Figma's Term header draws none. What its accessible name
 // said is not lost — the provider is still named, in words, after the session's
-// name, for a screen reader. Figma puts a context chip at the row's end
-// ("61.4k / 200k" over a 4px bar); the stage is not handed that figure yet,
-// so it is not drawn rather than drawn empty.
+// name, for a screen reader.
+//
+// THE CONTEXT CHIP is at the row's end, before the controls: how full the
+// session's window is, "129k / 200k · 65%" (context-figure.ts, the Inspector's
+// words) with a 4px bar of the same percent. The stage is handed the two
+// numbers by stage-board.ts, from the same place the Inspector's Context tab
+// reads them; with no figure, or nothing used yet, no chip is drawn rather than
+// an empty one. It is a sibling of the controls, not inside them, so it fades in
+// on the morph's own `chip` ramp (stage-morph.ts) and not with the controls.
 //
 // THREE CONTROLS AND NO MORE: ⌨ (only while there is a pane to type into),
 // ⤢ and ✕ — each the deck's own header glyph (.glyph-btn, panel-glyph.css),
@@ -32,6 +38,7 @@
 // drawn in the takeover too, where there is no width to give but that. There
 // is no Chat/Term toggle and no Split: Chat is a later phase behind a flag
 // that is off, and a control for either would be a dead one.
+import { contextFigure, contextPercent } from "../../context-figure";
 import type { TerminalProvider } from "../../terminal-api";
 import { agentName, type KeysOwner, type StageStatus } from "./stage-model";
 import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, StageGlyph, glyphForState } from "./stage-icons";
@@ -62,6 +69,9 @@ export interface StageHeaderProps {
   /** The deck is in the full screen ⤢ asked for. */
   full?: boolean;
   takeover: boolean;
+  /** How much of the session's context window is used, for the chip at the
+   *  row's end; none (or nothing used) draws no chip. */
+  context?: { used: number; window: number } | null;
   /** No session behind the stage — the empty stage, a launch that never
    *  started — so ✕ and ‹ promise nothing about one. */
   nothingRunning?: boolean;
@@ -89,8 +99,14 @@ export const FULL_LABEL = "Full screen — Ctrl+W, Ctrl+T and Ctrl+N go to the s
  *  not, and the browser's own bubble says which. */
 export const FULL_LEAVE_LABEL = "Leave full screen";
 
+/** The chip's figure, or null when there is none to say. */
+export function contextChipText(context: StageHeaderProps["context"]): string | null {
+  return context && context.used > 0 ? contextFigure(context.used, context.window) : null;
+}
+
 export default function StageHeader(p: StageHeaderProps) {
   const { status } = p;
+  const chip = contextChipText(p.context);
   const glyph = glyphForState(status.state);
   const rest = metaRest(status);
   const pane = p.keysOwner === "pane";
@@ -117,13 +133,19 @@ export default function StageHeader(p: StageHeaderProps) {
         {status.state !== "none" && (
           <div className="ts-meta" data-state={status.state}>
             <span className="ts-meta-state">
-              {status.phrase}
-              {status.emphasis && <> <b>{status.emphasis}</b></>}
+              {status.emphasis ? `${status.phrase} ${status.emphasis}` : status.phrase}
             </span>
             {rest && <span className="ts-meta-rest">· {rest}</span>}
           </div>
         )}
       </div>
+      {chip && p.context && (
+        <span className="ts-ctxchip" title="Context window">
+          <span className="vis-hidden">Context </span>
+          {chip}
+          <span className="ts-ctxbar" aria-hidden="true"><i style={{ width: `${Math.min(100, contextPercent(p.context.used, p.context.window))}%` }} /></span>
+        </span>
+      )}
       <div className="ts-ctl">
         <div className="ts-tools">
           {p.canType && (

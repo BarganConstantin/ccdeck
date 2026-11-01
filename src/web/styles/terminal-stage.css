@@ -96,10 +96,29 @@
   color: var(--muted);
   white-space: nowrap;
 }
-.ts-meta-state { flex: none; color: var(--text-secondary); }
+.ts-meta-state { flex: none; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .ts-meta[data-state="waiting"] .ts-meta-state { color: var(--warn); }
-.ts-meta-state b { font-weight: 600; font-variant-numeric: tabular-nums; }
 .ts-meta-rest { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+
+/* How full the session's context window is (StageHeader): the figure in mono
+   --muted, then a 4px bar of the same percent, 24 tall like the controls that
+   follow it. It is drawn before them, at the row's end. */
+.ts-ctxchip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border-radius: var(--r-ctl);
+  font: 500 11px/14px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ts-ctxbar { display: block; width: 28px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.ts-ctxbar i { display: block; height: 100%; border-radius: 2px; background: var(--text-secondary); }
 
 .ts-ctl { flex: none; display: flex; align-items: center; gap: 4px; }
 /* The controls are the deck's header glyphs (.glyph-btn), as 24px squares at
@@ -323,30 +342,34 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
   padding: 0 12px;
   border-top: 1px solid var(--line-soft);
-  background: var(--bg-soft);
+  background: var(--panel);
   font-size: 12px;
   line-height: 16px;
   color: var(--muted);
   white-space: nowrap;
 }
-.ts-keys { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
-/* The session's name in the sentence is the one thing set apart. */
-.ts-who { color: var(--text-secondary); }
-.ts-hint { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
-.ts-hint + .ts-hint::before { content: "·"; color: var(--muted); }
-/* The kit's Kbd (status-bar.css) is 18 tall; the keys bar draws it at 16:
-   the same 14px line, without the 1px of padding above and below. */
-.ts-bar .kbd { padding: 0 4px; }
-/* The bar's buttons are the kit's Quiet (topbar-controls.css) at 28. "type
-   here" is the one in the accent, and edgeless at rest — a word in the hint
-   line, not a box in it; .btn's own hover draws its edge and fill when the
-   pointer finds it. A fingertip gets them at 32px, and the bar with them
-   (touch-and-forced-colours.css). */
+.ts-keys { display: flex; align-items: center; gap: 12px; min-width: 0; overflow: hidden; }
+/* Who has the keys, said by the label's colour: the board's is --text-secondary,
+   the pane's --text. */
+.ts-label { color: var(--text-secondary); }
+.ts-label[data-strong] { color: var(--text); }
+/* A pane that cannot take keys until it is back: the whole sentence is the
+   warning's colour (Figma 91:554). */
+.ts-reconnecting { color: var(--warn); }
+/* A key and its word, 4px apart; no mark between one hint and the next. */
+.ts-hint { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
+/* The bar's buttons are the kit's Quiet (topbar-controls.css) at 28. The ones
+   that are behaviour but not a box in the drawn bar (type here, Next ask,
+   Answer) are plain text at rest, a word in the line; the pointer lifts it to
+   --text, and the focus ring is the button's own. A fingertip gets them at
+   32px, and the bar with them (touch-and-forced-colours.css). */
 .ts-keys .btn { min-height: 28px; padding: 0 10px; }
-.ts-keys .ts-type { padding: 0 6px; border-color: transparent; font-weight: 600; color: var(--accent); }
+.btn.ts-plain { border-color: transparent; background: none; font-weight: 400; color: var(--muted); }
+.btn.ts-plain:hover { border-color: transparent; background: none; color: var(--text); }
+.ts-keys .ts-type { padding: 0 4px; }
 /* The first-run line is said whole wherever it shows: on a stage too narrow
    for it on one line (the takeover: a phone, a narrow window) it wraps in the
    bar rather than pushing Got it off the end. There, two lines of 15px fit
@@ -358,45 +381,26 @@
 .ts-stage[data-takeover] .ts-first { line-height: 15px; }
 .ts-bar:has(.ts-first) { height: auto; min-height: 32px; padding-block: 1px; }
 .ts-end { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.ts-end-mark { flex: none; width: 7px; height: 7px; border-radius: 2px; background: var(--muted); }
 
 .ts-asks { display: flex; align-items: center; gap: 6px; flex: none; margin-left: auto; }
 .ts-asks-label { color: var(--muted); }
-.ts-track { display: inline-flex; gap: 3px; }
-.ts-track i {
-  width: 16px;
-  height: 4px;
-  box-sizing: border-box;
-  border-radius: 2px;
-  border: 1px solid color-mix(in srgb, var(--warn) 80%, transparent);
-  transition: background-color 200ms, border-color 200ms;
-}
-.ts-track i[data-s="now"] { background: var(--warn); border-color: var(--warn); }
-.ts-track i[data-s="done"] { background: var(--ok); border-color: var(--ok); }
-.ts-track i[data-fresh] { animation: ts-seg-in 320ms cubic-bezier(0.23, 1, 0.32, 1); }
-@keyframes ts-seg-in { from { width: 0; opacity: 0; } }
-.ts-count { font-variant-numeric: tabular-nums; color: var(--muted); }
-.ts-resumed { display: inline-flex; align-items: center; gap: 6px; color: var(--ok); }
-/* Next ask and Answer: the kit's Quiet at 28, its name in --text and the wait
-   in bold. (v3 drew them as a pill with the words in --warn; the waiting
-   colour stays on the arrival note beside them.) */
+.ts-count { font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.ts-resumed { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+/* Next ask and Answer: plain --muted text (.ts-plain), the name and the wait in
+   the same colour. (v3 drew them as a pill with the words in --warn.) */
 .ts-asks .ts-next {
-  gap: 6px;
+  gap: 4px;
   min-height: 28px;
-  padding: 0 6px 0 10px;
+  padding: 0 4px;
 }
-.ts-next b { font-weight: 700; font-variant-numeric: tabular-nums; }
-.ts-next-name { max-width: 150px; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
-.ts-arrival { display: inline-flex; align-items: center; gap: 6px; color: var(--warn); animation: ts-arrive 260ms cubic-bezier(0.23, 1, 0.32, 1); }
-.ts-arrival b { max-width: 170px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: var(--text); }
+.ts-next-name { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.ts-arrival { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); animation: ts-arrive 260ms cubic-bezier(0.23, 1, 0.32, 1); }
 @keyframes ts-arrive { from { opacity: 0; transform: translateY(6px); } }
 /* Sessions on an older session host (Windows, older-hosts.ts): a sentence
-   and Review, in the slot an ask would take. The sentence may be longer than
-   the bar is wide, so it wraps like the first-run line, and the stage fits its
-   rows above the grown bar. */
+   and Review, in the slot an ask would take. One line in --muted, cut with an
+   ellipsis from the end (its whole text is the title); Review stays. */
 .ts-asks.ts-hosts { flex: 0 1 auto; min-width: 0; }
-.ts-hosts-said { min-width: 0; white-space: normal; line-height: 15px; color: var(--warn); }
-.ts-bar:has(.ts-hosts) { height: auto; min-height: 32px; padding-block: 1px; }
+.ts-hosts-said { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
 
 /* Review: one host's sessions per block, its End under them. */
 .modal.older-hosts .modal-title .status-dot { background: var(--warn); }
@@ -565,7 +569,6 @@
   .ts-id,
   .ts-host[data-shown],
   .ts-arrival,
-  .ts-track i[data-fresh],
   .anchored-popover.ns-pop { animation: none; }
   .ts-host,
   .ts-host[data-held],
