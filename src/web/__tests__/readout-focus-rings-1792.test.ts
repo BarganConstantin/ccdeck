@@ -50,8 +50,8 @@ describe("every focusable in the topbar's readout draws its whole ring (#1792)",
     for (const [name, chain] of Object.entries(FOCUSABLES)) {
       it(`${name} at ${width}px`, () => {
         const r = ring(chain, width);
-        // The global ring's width, unchanged — only where it is drawn moves.
-        expect(r.width).toBe(2);
+        // V4's Figma: the one ring is 1.5px (--focus-w), inside the box.
+        expect(r.width).toBe(1.5);
         // Inside the chip's own edge by at least its width, where the
         // readout's overflow clip cannot reach it.
         expect(r.offset, `outline-offset ${r.offset}px`).toBeLessThanOrEqual(-r.width);
@@ -60,11 +60,12 @@ describe("every focusable in the topbar's readout draws its whole ring (#1792)",
   }
 
   it("resolves the chips #1706 already fixed, so it would have caught them", () => {
-    expect(ring(FOCUSABLES["the blocked-session chip"], 1280).offset).toBe(-3);
-    expect(ring(FOCUSABLES["a provider's incident chip"], 1280).offset).toBe(-3);
+    // The per-chip -3px offsets are gone: the global ring is inside every box (-1.5).
+    expect(ring(FOCUSABLES["the blocked-session chip"], 1280).offset).toBe(-1.5);
+    expect(ring(FOCUSABLES["a provider's incident chip"], 1280).offset).toBe(-1.5);
   });
 
-  it("is reading the global ring, not a guess: an ordinary button's sits outside it", () => {
-    expect(ring([el("html", [], { states: ["root"] }), el("body"), el("button", [], FOCUSED)], 1280)).toEqual({ width: 2, offset: 1 });
+  it("is reading the global ring, not a guess: an ordinary button's sits inside it too", () => {
+    expect(ring([el("html", [], { states: ["root"] }), el("body"), el("button", [], FOCUSED)], 1280)).toEqual({ width: 1.5, offset: -1.5 });
   });
 });

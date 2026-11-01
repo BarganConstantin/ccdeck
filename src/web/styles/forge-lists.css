@@ -97,7 +97,6 @@
   transition: background var(--dur-fast);
 }
 .fgl-hit { position: absolute; inset: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: pointer; }
-.fgl-hit:focus-visible { outline-offset: -2px; border-radius: 0; }
 /* Pressed, the branch row deepens as a list row does; the hit area itself
    draws nothing. */
 .fg-rows > li.fgl-branch:has(> .fgl-hit:active) { background: color-mix(in srgb, var(--text) 10%, transparent); }

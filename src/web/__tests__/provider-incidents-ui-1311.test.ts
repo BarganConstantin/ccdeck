@@ -378,7 +378,10 @@ describe("the sheet", () => {
   });
 
   it("keeps the focus ring inside a readout that clips", () => {
-    expect(css).toContain(".topbar .provider-incident:focus-visible { outline-offset: -3px; }");
+    // V4's Figma: the global ring is already inside the box (offset -1.5), so
+    // the chip's own -3px offset is gone and nothing outside can be clipped.
+    expect(css).not.toContain(".topbar .provider-incident:focus-visible { outline-offset");
+    expect(css).toMatch(/:focus-visible \{\s*outline: var\(--focus-w\) solid var\(--accent\);\s*outline-offset: calc\(-1 \* var\(--focus-w\)\);/);
   });
 
   it("shows one length of the words at a time", () => {

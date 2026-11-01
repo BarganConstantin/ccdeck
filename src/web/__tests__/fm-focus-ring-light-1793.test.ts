@@ -96,7 +96,7 @@ function contrast(a: Rgb, b: Rgb): number {
 function ringColour(chain: El[]): Rgb {
   const longhand = own(chain, "outline-color");
   const shorthand = own(chain, "outline");
-  const c = longhand ?? splitTop(shorthand ?? "", " ").filter(t => !/^(-?[\d.]+px|solid|dashed|dotted|double|auto)$/.test(t)).join(" ");
+  const c = longhand ?? splitTop(shorthand ?? "", " ").filter(t => !/^(-?[\d.]+px|var\(--focus-w\)|solid|dashed|dotted|double|auto)$/.test(t)).join(" ");
   return colour(vars(c, chain));
 }
 

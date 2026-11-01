@@ -214,21 +214,6 @@
   animation: up-period-reading 1100ms ease-in-out infinite;
 }
 
-/* The ring goes inside the segment, for the reason the control exists at all.
-   The shared `button:focus-visible` draws 2px of accent at `outline-offset:
-   1px` — an 87.3 x 34px rectangle around a control whose premise is no box —
-   and `border-radius: 0` above beat the global rule's 4px, so this was the one
-   hard-cornered focus ring in the deck. Worse: its bottom stroke landed on
-   412.27 -> 414.27, the indicator's exact pixels in the indicator's exact
-   colour, so the selected segment, focused, showed no indicator at all. Inset
-   it clears the hairline, cannot be clipped by `.usage-panel`'s own scroll box
-   on a short viewport, and reads as a hint rather than a resurrected chip.
-   `.canvas-wrap` and `.uh-bar-col` inset theirs for the same reason; the 4px
-   radius is the deck's own, taken back from the global rule this had shadowed. */
-.up-period .uh-range-btn:focus-visible {
-  outline-offset: -4px;
-  border-radius: 4px;
-}
 
 /* A session ccusage remembers and the canvas is not drawing. The dot keeps its
    box so every label in the list starts at the same x — a ragged left edge
@@ -390,7 +375,6 @@
 /* The ring on the words rather than on the section: `.up-section` has no
    padding of its own at the top, so the shared 1px offset would have sat on the
    hairline above. -2px keeps it inside the line it belongs to. */
-.up-disclose:focus-visible { outline-offset: -2px; }
 /* Turns rather than swaps. Pushed to the right edge by `.up-section-age`'s
    `margin-left: auto` when there is an age, and by its own when there is not —
    the board branch prints no age, and a chevron that jumped to the middle of

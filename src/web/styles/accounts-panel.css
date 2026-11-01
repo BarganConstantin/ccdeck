@@ -127,7 +127,6 @@
 }
 .ap-side[aria-checked="true"] { background: color-mix(in srgb, var(--text) 11%, transparent); color: var(--text); }
 .ap-side:active { transform: scale(var(--press)); }
-.ap-side:focus-visible { outline-offset: -2px; }
 /* The side out of sight has an account that needs attention. Colour alone would
    not say it to a reader: the button's name does (AccountsSwitch.tsx). */
 .ap-side-dot {
@@ -218,7 +217,6 @@
   color: inherit;
   cursor: pointer;
 }
-.ap-row-open:focus-visible { outline-offset: -2px; }
 /* The row's own controls, over the door: a press on one does what it says and
    does not also open the row. */
 .ap-account :is(.ap-switch, .ap-sign-in, .ap-more, .ap-issue, .ap-failure, .ap-switched) {

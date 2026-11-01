@@ -13,8 +13,11 @@ const css = sheetText();
 
 describe("the topbar chips' focus rings", () => {
   it("are drawn inside the chip, where the readout cannot clip them", () => {
-    expect(css).toContain(".topbar .waiting-stat:focus-visible { outline-offset: -3px; }");
-    expect(css).toContain(".topbar .provider-incident:focus-visible { outline-offset: -3px; }");
+    // V4's Figma: the global ring is already inside the box (offset -1.5), so the
+    // per-chip -3px offsets are gone and the chips take the global one.
+    expect(css).not.toContain(".topbar .waiting-stat:focus-visible { outline-offset");
+    expect(css).not.toContain(".topbar .provider-incident:focus-visible { outline-offset");
+    expect(css).toMatch(/:focus-visible \{\s*outline: var\(--focus-w\) solid var\(--accent\);\s*outline-offset: calc\(-1 \* var\(--focus-w\)\);/);
   });
 
   it("move only the offset, never the ring's colour or width", () => {

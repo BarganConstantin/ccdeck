@@ -80,7 +80,6 @@
   font-weight: 600;
 }
 /* Drawn inside, so the nav's own edge does not clip the ring. */
-.settings-tab:focus-visible { outline-offset: -2px; }
 .settings-tab:active { transform: scale(var(--press)); }
 /* THE ONE THING IN THE DIALOG THAT SCROLLS, and only when a window is too
    short for its section; a scroll that reaches either end stays here rather
@@ -594,7 +593,6 @@
 }
 .appearance-theme[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
 .appearance-theme[aria-checked="true"] { color: var(--text); }
-.appearance-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .appearance-preview {
   display: block;
   overflow: hidden;
@@ -701,7 +699,6 @@
   .switch:hover:not(:disabled) .switch-knob { background: var(--text); }
   .switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: var(--panel); }
 }
-.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .switch:focus-visible .switch-knob { transition-duration: var(--dur-fast); }
 /* Chrome sets :active on Space too, so the stretch is the pointer's alone. The
    on knob grows toward the left (12 - 4 = 8px) so its right edge stays put. */
@@ -981,7 +978,6 @@ button.btn.sm-hear {
 }
 .sm-voice summary:active { transform: scale(var(--press)); }
 .sm-custom .sm-voice summary[aria-disabled="true"]:active { transform: none; }
-.sm-voice summary:focus-visible { outline-offset: -2px; }
 .sm-voice summary::-webkit-details-marker { display: none; }
 .sm-voice-chevron {
   display: block;
@@ -1048,7 +1044,6 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
 .character-choice:hover { background: var(--ctl-fill); }
 }
 .character-choice[aria-checked="true"] { border-color: var(--accent); }
-.character-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .character-preview { display: block; flex: 0 0 36px; width: 36px; height: 32px; }
 .character-preview svg { width: 36px; height: 28px; overflow: visible; }
 .character-check { flex: 0 0 16px; width: 16px; height: 16px; margin-left: auto; visibility: hidden; }

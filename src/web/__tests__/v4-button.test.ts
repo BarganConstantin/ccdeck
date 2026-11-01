@@ -50,8 +50,13 @@ describe("V4's Quiet button", () => {
   it("presses to --press on a pointer press, and not by keyboard", () => {
     expect(decl("button.btn:active:not(:disabled):not(:focus-visible)", "transform")).toBe("scale(var(--press))");
   });
-  it("draws the focus ring 2px outside the button", () => {
-    expect(decl("button.btn:focus-visible", "outline-offset")).toBe("2px");
+  it("draws the focus ring inside the button, 1.5px, with no radius change", () => {
+    // V4's Figma: a Quiet button's focus stroke is --accent 1.5px INSIDE the box
+    // (the global ring), not 2px outside; the button restates nothing.
+    expect(() => body("button.btn:focus-visible")).toThrow();
+    expect(decl(":focus-visible", "outline")).toBe("var(--focus-w) solid var(--accent)");
+    expect(decl(":focus-visible", "outline-offset")).toBe("calc(-1 * var(--focus-w))");
+    expect(decl(":focus-visible", "border-radius")).toBeUndefined();
   });
 });
 

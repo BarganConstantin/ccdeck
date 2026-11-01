@@ -63,7 +63,6 @@
    would shrink the whole ribbon as well as the ×, saying "fit view" while
    doing "deselect". The two verbs are different, so only one of them moves. */
 .selected-ribbon:active:not(:has(.selected-close:active)) { transform: scale(var(--press)); }
-.selected-ribbon:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .selected-ribbon .selected-label {
   font-weight: 600;
   white-space: nowrap;

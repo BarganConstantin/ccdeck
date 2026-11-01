@@ -409,17 +409,20 @@ describe("5. one focus language, and nothing quietly opting out of it", () => {
     // Nothing does today. The loop is what matters: the next rule that opts out
     // has to opt back in for the keyboard.
     // Search focuses its entire labelled wrapper; map suppresses only pointer focus.
-    expect(declOf(".radio-panel[data-keyboard-interaction] .radio-search:focus-within", "outline")).toBe("2px solid var(--accent)");
-    expect(declOf(".radio-map-canvas:focus-visible", "outline")).toBe("2px solid var(--accent)");
+    // V4's Figma: the radio search is a text field, so no ring, its border
+    // turns --accent (radio.css); the map canvas takes the global ring.
+    expect(declOf(".radio-search:focus-within", "border-color")).toBe("var(--accent)");
     expect(declOf(".radio-search:focus-within", "outline")).toBe("none");
     expect(declOf(".radio-pin:focus-visible .radio-pin-dot", "stroke")).toBe("var(--accent)");
     // Quick open's input draws the ring on the field row it sits in, inset
     // under the dialog's clipped edge.
-    expect(declOf(".qo-field:has(.qo-input:focus-visible)", "outline")).toBe("2px solid var(--accent)");
+    expect(declOf(".qo-field:has(.qo-input:focus-visible)", "outline")).toBe("var(--focus-w) solid var(--accent)");
     // A Jira issue's main button draws its ring on the whole row, around the
     // disclosure and actions button that sit beside it.
-    expect(declOf(".jr-row:has(> .jr-row-main:focus-visible)", "outline")).toBe("2px solid var(--accent)");
+    expect(declOf(".jr-row:has(> .jr-row-main:focus-visible)", "outline")).toBe("var(--focus-w) solid var(--accent)");
     expect(killers).toEqual([
+      // The text-field family (tokens.css): V4's Figma gives fields no ring, their border turns --accent.
+      ".settings-filter-field:focus-visible, .sm-select:focus-visible, .ap-manage-input:focus-visible,\n.aa-field input:focus-visible, .radio-filter-search input:focus-visible,\n.tr-input:focus-visible, .tr-select:focus-visible,\n.qh-window select:focus-visible, .jr-move-pop select:focus-visible, .jr-transition select:focus-visible,\n.jr-comment-compose textarea:focus-visible, .su-pricing select:focus-visible,\n.ap-field select:focus-visible, .ap-pop .ap-field select:focus-visible,\n.ap-rest-sort select:focus-visible, .bw-settings select:focus-visible",
       ".qo-input:focus-visible",
       ".radio-pin",
       ".radio-search:focus-within",
@@ -429,19 +432,21 @@ describe("5. one focus language, and nothing quietly opting out of it", () => {
       ".radio-panel:not([data-keyboard-interaction]) .radio-filter-popup :focus-visible",
       ".jr-row-main:focus-visible",
     ]);
-    for (const sel of killers.filter(sel => !sel.startsWith(".radio") && !sel.startsWith(".qo-") && !sel.startsWith(".jr-row-main"))) {
+    for (const sel of killers.filter(sel => !sel.startsWith(".radio") && !sel.startsWith(".qo-") && !sel.startsWith(".jr-row-main") && !sel.startsWith(".settings-filter-field"))) {
       expect(declOf(`${sel}:focus-visible`, "outline"), sel).not.toBeNull();
     }
   });
 
   it("draws every ring in the deck's one focus language, not a second one", () => {
-    for (const sel of [".ap-manage-input:focus-visible", ".aa-field input:focus-visible"]) {
-      expect(declOf(sel, "outline"), sel).toBe("2px solid var(--accent)");
-    }
+    // V4's Figma: the ring is --focus-w of --accent; the text fields (which
+    // set outline: none and turn their border instead) are the one exception.
+    expect(declOf(":focus-visible", "outline")).toBe("var(--focus-w) solid var(--accent)");
+    // (v4-focus-ring.test.ts pins each field's none + border-color in the grouped rule.)
     // Offset may vary, colour and weight may not.
     for (const [, body] of css.matchAll(/:focus-visible[^{}]*\{([^}]*)\}/g)) {
       const outline = decl(body, "outline");
-      if (outline && outline !== "none") expect(outline).toBe("2px solid var(--accent)");
+      // Forced colours swap the accent for the system Highlight; nothing else varies.
+      if (outline && outline !== "none") expect(outline).toMatch(/^var\(--focus-w\) solid (?:var\(--accent\)|Highlight)$/);
     }
   });
 });

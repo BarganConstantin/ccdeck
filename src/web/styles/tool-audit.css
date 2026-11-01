@@ -8,7 +8,6 @@
 .ta-inspector-head .glyph-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; flex: none; }
 .ta-actions [aria-busy=true] { cursor: wait; }
 .ta-actions [data-loading] svg { animation: ta-spin 900ms linear infinite; }
-.ta-highlight:focus-visible, .ta-row:focus-visible { outline-offset: -2px; }
 .ta-report ::selection, .ta-drawer ::selection { background: var(--accent-dim); color: var(--text); }
 .ta-report code, .ta-drawer code { font-family: var(--font-mono); }
 
@@ -29,7 +28,6 @@
 @media (hover: hover) and (pointer: fine) {
 .ta-splitter:hover::before { left: 2px; width: 3px; background: var(--accent); }
 }
-.ta-splitter:focus-visible { outline-offset: -2px; }
 .ta-body { min-height: 0; min-width: 0; overflow-y: auto; scrollbar-gutter: stable; container: tool-report / inline-size; }
 .ta-body, .ta-drawer { scrollbar-color: var(--ctl-edge) transparent; }
 .ta-report-content { max-width: 1040px; margin: 0 auto; padding: 24px 40px 40px; }

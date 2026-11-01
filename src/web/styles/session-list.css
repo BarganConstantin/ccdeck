@@ -69,7 +69,6 @@
 @media (hover: hover) and (pointer: fine) {
 .session-list .sl-close:hover { background: var(--ctl-fill); color: var(--text); }
 }
-.session-list .sl-close:focus-visible { border-radius: 6px; }
 
 /* The list: padding 4, and the panel's scroller. The groups are headers and
    rows in one flat list, so a row that changes group is the same element. */
@@ -156,7 +155,6 @@
 .session-list .sl-row:hover .sl-line2,
 .session-list .sl-row:hover .sl-model { color: var(--text-secondary); }
 }
-.session-list .sl-row:focus-visible { outline-offset: -2px; border-radius: var(--r-panel); }
 /* The most-clicked control in the app answers a press. Nothing interactive
    nests inside the row, so the scale is the row's alone. */
 .session-list .sl-row:active { transform: scale(var(--press)); }
@@ -307,8 +305,6 @@
 @media (hover: hover) and (pointer: fine) {
 .session-list .sl-fold-btn:hover { background: var(--ctl-fill); }
 }
-.session-list .sl-fold-btn:focus-visible,
-.session-list .sl-more:focus-visible { outline-offset: -2px; border-radius: var(--r-panel); }
 .session-list .sl-fold-btn .sl-group-count { margin-left: auto; }
 .session-list .sl-chev { flex: none; transition: transform var(--dur-exit) var(--ease); }
 .session-list [aria-expanded="true"] > .sl-chev { transform: rotate(90deg); transition-duration: var(--dur-base); }
@@ -429,7 +425,6 @@
 @media (hover: hover) and (pointer: fine) {
 .session-list .sl-usage-btn:hover { background: var(--ctl-fill); }
 }
-.session-list .sl-usage-btn:focus-visible { outline-offset: -2px; border-radius: var(--r-panel); }
 .session-list .sl-usage-btn:active { transform: scale(var(--press)); }
 .session-list .sl-usage-line1,
 .session-list .sl-usage-line2 {
