@@ -82,27 +82,18 @@ describe("a pressed or chosen control under a Contrast theme (#1786)", () => {
     }
   });
 
-  it("gives the selected session a heavier edge in the highlight, and the row its size", () => {
+  it("gives the selected session a ring in the highlight, inside the row so the row keeps its size", () => {
+    // V4's rail row has no border, and its selection is a fill the theme drops;
+    // the ring is an outline drawn inside the row's box (negative offset), so
+    // it grows nothing and moves no word. (It was a heavier border edge worked
+    // out of the row's padding when the row had one.)
     const row = ".session-list .sl-row";
-    const selected = `${row}.selected`;
     const outsideRules = parse(outside);
     const outsideBody = (sel: string) => outsideRules.filter(r => r.sels.includes(sel)).map(r => r.body).join("\n");
-    const px = (v: string | undefined) => Number(/^([\d.]+)px$/.exec(v ?? "")?.[1]);
+    expect(decl(outsideBody(row), "border")).toBe("0");
 
-    const edge = px(decl(outsideBody(".session-list .sl-rows"), "--sl-card-edge"));
-    const padTop = px(decl(outsideBody(row), "padding")?.split(/\s+/)[0]);
-    expect(decl(outsideBody(row), "border-width")).toBe("var(--sl-card-edge)");
-
-    const body = forcedBody(selected);
-    expect(decl(body, "border-color")).toBe("Highlight");
-    const heavier = px(decl(body, "--sl-card-edge"));
-    expect(heavier).toBeGreaterThanOrEqual(2 * edge);
-    // The edge is a term in the row's side padding, so the words stay where
-    // they are; what it adds above and below comes out of the padding. The
-    // padding is worked out from the edge, so it is evaluated with it.
-    const padBlock = decl(body, "padding-block")!.replace(/var\(--sl-card-edge\)/g, `${heavier}px`);
-    expect(padBlock).toMatch(/^calc\([\d.px\s()+-]+\)$/);
-    const evaluated = Number(new Function(`return ${padBlock.replace(/^calc/, "").replace(/px/g, "")};`)());
-    expect(evaluated + heavier).toBe(padTop + edge);
+    const body = forcedBody(`${row}.selected`);
+    expect(decl(body, "outline")).toBe("2px solid Highlight");
+    expect(decl(body, "outline-offset")).toBe("-2px");
   });
 });

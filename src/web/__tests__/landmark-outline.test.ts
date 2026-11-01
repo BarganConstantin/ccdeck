@@ -200,9 +200,10 @@ describe("the deck's five regions are five landmarks (#381)", () => {
       // What follows the label is not the rotor's: the accounts panel listens
       // for focus on the whole column (#1497), and handlers render nothing;
       // Usage spreads the place its header moves it to (panel-place.ts), a
-      // ref, a data attribute and a style.
+      // ref, a data attribute and a style; the rail keeps a ref to ask whether
+      // focus is inside it, which renders nothing either.
       expect(code(source(file)), file)
-        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label="${label}"(?:\\s+on[A-Z]\\w*=\\{[\\w.]+\\}|\\s+\\{\\.\\.\\.place\\.panel\\})*>`));
+        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label="${label}"(?:\\s+on[A-Z]\\w*=\\{[\\w.]+\\}|\\s+ref=\\{\\w+\\}|\\s+\\{\\.\\.\\.place\\.panel\\})*>`));
     }
     // The detail panel was already an <aside> and was the unnamed one. Its
     // frame is components/DetailAside.tsx, which App.tsx mounts.

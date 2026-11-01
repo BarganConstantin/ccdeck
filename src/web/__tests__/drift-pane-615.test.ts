@@ -161,8 +161,12 @@ function accountsPanelWidth(): number {
 /** The session list's width, declared on the list since 2026-10-08, when its
  *  track went `auto` with Accounts' (styles/left-column.css). */
 function sessionListWidth(): number {
-  const m = /\.session-list\s*\{[^}]*?\bwidth:\s*(\d+)px/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""));
-  expect(m, ".session-list declares its own width").toBeTruthy();
+  // V4's rail draws at the density's --rail-w; this suite's layouts are the
+  // Default density's, where the token is the 288 tokens.css declares first.
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  expect(/\.session-list\s*\{[^}]*?\bwidth:\s*calc\(var\(--rail-w\)/.test(text), ".session-list declares its own width").toBe(true);
+  const m = /--rail-w:\s*(\d+)px/.exec(text);
+  expect(m, "--rail-w declares the Default width").toBeTruthy();
   return Number(m![1]);
 }
 
@@ -279,7 +283,7 @@ describe("the six layouts are still the six the stylesheet declares", () => {
       .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
     expect(rightCode).toMatch(/function loadDetailOpen\(\): boolean \{\s*return readStored\(DETAIL_OPEN_KEY\) === "1";\s*\}/);
     expect(rightCode).toMatch(/useState<boolean>\(loadDetailOpen\)/);
-    expect(appCode).toMatch(/\bdetailOpen\b[^}]*\}\s*= useRightPanels\(leftColumnWidth\(leftPanel\)\);/);
+    expect(appCode).toMatch(/\bdetailOpen\b[^}]*\}\s*= useRightPanels\(leftColumnWidth\(leftPanel, railWidth\)\);/);
   });
 });
 

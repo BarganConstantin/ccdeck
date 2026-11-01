@@ -1505,7 +1505,7 @@ const bedOf = (selector: string, theme: Theme, under: Rgba) => {
 
 describe("words quietened with an opacity, measured as what they composite to (#1787)", () => {
   const HINT = ".empty-hero .hint-row";
-  const TOOL = ".session-list .sl-waiting-tool";
+  const TOOL = ".session-list .sl-tool";
   const RELOADING = ".ap-proj-body.refreshing > *";
   const canvas = (theme: Theme) => bedOf(".canvas-wrap", theme, parseColor(TOK[theme]["--bg"]));
 
@@ -1530,32 +1530,37 @@ describe("words quietened with an opacity, measured as what they composite to (#
     }
   });
 
-  it("reads the waiting tool at 4.5:1 on a row at rest, hovered and selected, in both themes", () => {
+  it("reads the rail's blocked tool, wait and note at 4.5:1 on a row at rest, hovered and selected, in both themes", () => {
+    // V4's Attention rail: the tool name is --text-secondary, the wait --warn
+    // and the second line --muted, none of them under an opacity any more.
     for (const theme of themes) {
       const list = bedOf(".session-list", theme, parseColor(TOK[theme]["--bg"]));
-      const beds: Array<[string, Rgba]> = [
-        ["at rest", list],
-        ["hovered", bedOf(".session-list .sl-row:hover", theme, list)],
-        ["selected", bedOf(".session-list .sl-row.selected", theme, list)],
+      // The second line and the model are --muted at rest and step up a tier
+      // under the pointer and on the chosen row: --muted on the row's fill is
+      // 4.05:1 in dark (#1789), the same reason the Tool activity rows do.
+      const beds: Array<[string, Rgba, string]> = [
+        ["at rest", list, ""],
+        ["hovered", bedOf(".session-list .sl-row:hover", theme, list), ".sl-row:hover "],
+        ["selected", bedOf(".session-list .sl-row.selected", theme, list), ".sl-row.selected "],
       ];
-      const ink = inkOf(theme, TOOL, ".session-list .sl-waiting");
-      for (const [state, bed] of beds) {
-        const r = through(ink, opacityOf(TOOL), bed);
-        expect(r, `${theme} ${TOOL} ${state} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      for (const sel of [TOOL, ".session-list .sl-time.warn", ".session-list .sl-line2", ".session-list .sl-model"]) {
+        for (const [state, bed, within] of beds) {
+          const ink = inkOf(theme, sel.replace(".session-list ", `.session-list ${within}`), sel);
+          const r = through(ink, opacityOf(sel), bed);
+          expect(r, `${theme} ${sel} ${state} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+        }
       }
     }
   });
 
-  it("still sets the guessed tool quieter than the duration it qualifies", () => {
-    // The duration is measured and the tool is inferred (BlockedTool in
-    // types.ts), so the two must not read with the same confidence.
-    const weight = (sel: string) => Number(declFor(sel, "font-weight"));
-    expect(weight(TOOL)).toBeLessThan(weight(".session-list .sl-waiting"));
+  it("still sets the guessed tool apart from the line it leads by weight, and under the wait by tier", () => {
+    // The wait is measured and the tool is inferred (BlockedTool in types.ts):
+    // the tool is the heavier word of a line that is otherwise --muted, and
+    // never the loud --warn the wait owns.
+    expect(Number(declFor(TOOL, "font-weight"))).toBeGreaterThan(Number(declFor(".session-list .sl-line2", "font-weight") ?? "400"));
     for (const theme of themes) {
-      const panel = parseColor(TOK[theme]["--panel"]);
-      const tool = through(inkOf(theme, TOOL, ".session-list .sl-waiting"), opacityOf(TOOL), panel);
-      const duration = through(inkOf(theme, ".session-list .sl-waiting"), opacityOf(".session-list .sl-waiting"), panel);
-      expect(tool, theme).toBeLessThanOrEqual(duration);
+      expect(themed(TOOL, "color", theme), theme).toBe("var(--text-secondary)");
+      expect(themed(".session-list .sl-time.warn", "color", theme), theme).toBe("var(--warn)");
     }
   });
 

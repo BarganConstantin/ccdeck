@@ -13,7 +13,8 @@ import { fileURLToPath } from "node:url";
 import { elapsed } from "../duration";
 import { cascade, el, selects } from "./sheet-cascade";
 
-const list = readFileSync(fileURLToPath(new URL("../components/SessionList.tsx", import.meta.url)), "utf8");
+// The row's clock has its own module since the rail (SessionList re-exports it).
+const list = readFileSync(fileURLToPath(new URL("../elapsed-short.ts", import.meta.url)), "utf8");
 const MIN = 60_000;
 const HOUR = 60 * MIN;
 

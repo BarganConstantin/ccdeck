@@ -614,8 +614,10 @@ const CONTROLS: Control[] = [
   // check at the bottom of this describe is what keeps that honest — the day
   // either one draws an edge again it lands in `unclassified` and has to come
   // back up here or be written into EXEMPT with a reason.
-  { at: ".session-list .sl-row:hover", fillFrom: ".session-list .sl-row:hover",
-    states: [".session-list .sl-row.selected"], beds: ["--panel"] },
+  // (The session list's rows left this sweep with V4's Attention rail: a rail
+  // row draws no border at rest or on hover, its hover is the kit's --ctl-fill
+  // and its selection --selected, both fills, and the ink on each is held to
+  // 4.5:1 by contrast-floors.test.ts.)
   // accounts panel
   // Every switch in the deck, one control since #886. Its ON state fills with
   // --accent rather than the control fill, which is the point of listing both:
@@ -897,7 +899,6 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".react-flow__node:focus-visible .lod-face",
       ".reading-choice:has(input:focus-visible)",
       ".selected-ribbon:focus-visible",
-      ".session-list .sl-row:focus-visible",
       // Settings' search results: the highlight the arrows move while focus
       // stays in the field — VIRTUAL_FOCUS again (SettingsSearch.tsx).
       '.settings-result[data-highlighted="true"]',
@@ -1434,9 +1435,11 @@ describe("the control surface, promoted (#332)", () => {
     }
     const darkFill = over(resolve("var(--ctl-fill)", "dark"), parseColor(TOK.dark["--panel"]));
     expect(contrastRatio(parseColor(TOK.dark["--muted"]), darkFill)).toBeLessThan(BODY);
-    for (const sel of [".selected-ribbon", ".aa-field input", ".session-list .sl-row:hover"]) {
+    for (const sel of [".selected-ribbon", ".aa-field input"]) {
       expect(decl(sel, "background"), sel).toBe("var(--bg-soft)");
     }
+    // The rail's row hover is the control fill itself, the one this case measures.
+    expect(decl(".session-list .sl-row:hover", "background")).toBe("var(--ctl-fill)");
   });
 
   it("stopped asking --accent-dim to be a boundary anywhere, however the boundary is spelled", () => {
