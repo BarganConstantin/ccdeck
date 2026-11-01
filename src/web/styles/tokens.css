@@ -115,6 +115,11 @@
    named now so the whole ladder is one decision, not five. */
 :root {
   --statusbar-h: 28px;
+  /* The board header's height (styles/board-header.css). The same at every
+     density: Figma draws its Board only at Compact, so there is no smaller or
+     larger step to restate. Whatever sits at the canvas cell's top edge reads
+     it through --board-head-top, so the number is written once. */
+  --board-head-h: 56px;
   --rail-w: 288px;
   --inspector-w: 360px;
   --pane-head-h: 44px;
