@@ -7,7 +7,7 @@
 // directly would rate-limit the user's actual account. That has a visible
 // consequence here — numbers can be minutes old, and saying so is part of the
 // display rather than a caveat to hide.
-import { useCallback, useEffect, useRef, useState, type FocusEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FocusEvent, type ReactNode } from "react";
 import AccountProjectsModal from "./AccountProjectsModal";
 import { withKey } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
@@ -68,11 +68,16 @@ interface Props {
    *  `onLanShown` says the ask has been answered. */
   lanWanted?: boolean;
   onLanShown?: () => void;
+  /** With both CLIs on this deck: the Claude/Codex switch for the header, this
+   *  side's place in it, and whether its current account needs attention. */
+  switcher?: ReactNode;
+  side?: "shown" | "hidden";
+  onNotice?: (needs: boolean) => void;
 }
 
-export default function AccountsPanel({ onClose, leaving, onReport, onRoster, lanWanted = false, onLanShown }: Props) {
+export default function AccountsPanel({ onClose, leaving, onReport, onRoster, lanWanted = false, onLanShown, switcher, side, onNotice }: Props) {
   // Opened: one of the features the usage reports name (feature-use.ts).
-  useFeatureUse("accounts-panel");
+  useFeatureUse("accounts-panel", side !== "hidden");
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   // The one request the panel has out, and the attributes it puts on every
@@ -258,6 +263,9 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   };
   const activeAcct = data?.accounts?.find(a => a.active);
   const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec, lanFor(activeAcct), t) : null;
+  const needsAttention = activeIssue?.tone === "warn";
+  const rosterRead = data != null;
+  useEffect(() => { if (rosterRead) onNotice?.(needsAttention); }, [onNotice, needsAttention, rosterRead]);
   // ── the fold ──
   // WHO THE COLUMN DRAWS AT ONCE, and who stands behind one row. The live
   // account is the reading the panel is opened for and never folds; the others
@@ -518,12 +526,13 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
     // the name away (#381). This panel is the left sidebar beside the canvas,
     // which is complementary content by any reading.
     <aside className={`accounts-panel${leaving ? " leaving" : ""}`} id="accounts-panel" aria-label={t("accounts.panel.label")}
+      hidden={side === "hidden"} data-side={side}
       onFocus={rosterFocus.onFocus} onBlur={rosterFocus.onBlur}>
       {view === "accounts" && (
         <AccountsHeader canShare={(data?.accounts?.length ?? 0) > 0}
           onAdd={() => setAddOpen(true)}
           onShareSet={() => setShareSetOpen(true)} onReload={() => load(true)}
-          pressProps={pressProps} reloading={reloading} closeButton={closeBtn} />
+          pressProps={pressProps} reloading={reloading} closeButton={closeBtn} switcher={switcher} />
       )}
 
       {/* THE ACCOUNTS SCROLL, AND ONE ROW BELOW IT. The column used to be one

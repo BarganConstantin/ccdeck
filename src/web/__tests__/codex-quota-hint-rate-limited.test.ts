@@ -27,6 +27,12 @@ describe("the Codex hint while the deck waits", () => {
     expect(hint("waiting")).not.toContain("unreachable");
   });
 
+  it("says a login that moved during a read moved, not that the API is unreachable", () => {
+    const h = hint("profile_changed");
+    expect(h).toContain("The Codex login just changed");
+    expect(h).not.toContain("unreachable");
+  });
+
   it("still sends a real failure to ↻", () => {
     expect(hint("http_500")).toContain("ChatGPT API unreachable — click ↻ to retry.");
   });

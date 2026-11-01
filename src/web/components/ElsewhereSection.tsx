@@ -27,6 +27,8 @@ import { SettingRow, SettingsGroup } from "./SettingsParts";
 import { useT } from "../i18n";
 
 export const ACCOUNTS_ROW = "Accounts and auto-switch";
+export const CODEX_ACCOUNTS_ROW = "Codex accounts";
+export const CODEX_ACCOUNTS_ROW_NOTE = "Your Codex profiles and what each has left, and which one new sessions use.";
 export const ACCOUNTS_ROW_NOTE = "Your Claude accounts, and Auto-switch, which moves Claude Code to another one before the account in use runs out.";
 export const LAN_ROW = "Local network";
 export const LAN_ROW_NOTE = "Pairing with the decks on your other machines, so a login that expires on one is repaired from another.";
@@ -37,18 +39,24 @@ interface Props {
   /** Whether Claude Code is on this machine — the condition the accounts
    *  panel's own stripe button is drawn under. */
   claudeHere: boolean;
+  /** Whether Codex is on this machine: the accounts panel lists its profiles,
+   *  so its door is drawn for either provider. Local network repairs Claude
+   *  logins and stays behind `claudeHere`. */
+  codexHere?: boolean;
   /** Whether single keys answer, so whether a cap is drawn. */
   singleKeys: boolean;
   doors: Pick<SettingsDoors, "accounts" | "localNetwork" | "browserWatch">;
 }
 
-export default function ElsewhereSection({ claudeHere, singleKeys, doors }: Props) {
+export default function ElsewhereSection({ claudeHere, codexHere = false, singleKeys, doors }: Props) {
   const t = useT();
   return (
     <SettingsGroup id="settings-elsewhere-caption" title={t("lan.ew.group")}>
-      {claudeHere && (
-        <DoorRow settingId="accounts" name={t("lan.ew.accounts")} note={t("lan.ew.accountsNote")} onOpen={doors.accounts}
+      {(claudeHere || codexHere) && (
+        <DoorRow settingId="accounts" name={claudeHere ? t("lan.ew.accounts") : CODEX_ACCOUNTS_ROW}
+          note={claudeHere ? t("lan.ew.accountsNote") : CODEX_ACCOUNTS_ROW_NOTE} onOpen={doors.accounts}
           cap={singleKeys ? { key: "A", title: t("lan.ew.pressA") } : null} />
+
       )}
       {claudeHere && (
         <DoorRow settingId="local-network" name={t("lan.ew.lan")} note={t("lan.ew.lanNote")} onOpen={doors.localNetwork} cap={null} />

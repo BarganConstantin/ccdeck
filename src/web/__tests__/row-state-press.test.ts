@@ -192,7 +192,8 @@ describe("the wash stopped being asked to be a state channel (#519)", () => {
 // The verb stayed under the account; it lost its edge rather than gaining one.
 describe("three tiers, one per kind of thing a row says", () => {
   it("marks the live account with a dot in the accent, and says it in words to a screen reader", () => {
-    expect(clientText()).toMatch(/<span className="ap-live" title=\{t\("accounts\.row\.activeTitle", \{ n: a\.num \}\)\}>\s*<span className="vis-hidden">\{t\("accounts\.row\.activeSr", \{ n: a\.num \}\)\}<\/span>/);
+    // A provider's own words replace Claude's; absent, the catalog's say it.
+    expect(clientText()).toMatch(/<span className="ap-live" title=\{voice\.liveTitle\?\.\(a\.num\) \?\? t\("accounts\.row\.activeTitle", \{ n: a\.num \}\)\}>\s*<span className="vis-hidden">\{voice\.liveSpoken\?\.\(a\.num\) \?\? t\("accounts\.row\.activeSr", \{ n: a\.num \}\)\}<\/span>/);
     expect(clientText()).toMatch(/aria-current=\{a\.active \? "true" : undefined\}/);
     expect(declOf(".ap-live::before", "background")).toBe("var(--accent)");
     // A mark with no word beside it on screen is non-text contrast (1.4.11).
@@ -310,11 +311,11 @@ describe("a press never disables the control it came from (#518)", () => {
     // is replaced by the roster it brought in (#1411). A fifth is no press at
     // all: a Projects report whose account left the store closes over a row
     // that went with it (#1412).
-    expect(rescueSelectors(3)).toEqual(["#ap-more-3", ".accounts-panel .ap-refresh"]);
-    expect(rescueSelectors(null)).toEqual([".accounts-panel .ap-refresh"]);
+    expect(rescueSelectors(3)).toEqual(["#ap-more-3", "#accounts-panel .ap-refresh"]);
+    expect(rescueSelectors(null)).toEqual(["#accounts-panel .ap-refresh"]);
     // Both targets are real, named controls in the panel rather than a
     // container nobody can hear.
-    expect(clientText()).toMatch(/id=\{`ap-more-\$\{a\.num\}`\}/);
+    expect(clientText()).toMatch(/id=\{`ap-\$\{ids\}more-\$\{a\.num\}`\}/);
     expect(readFileSync(fileURLToPath(new URL("../components/AccountsHeader.tsx", import.meta.url)), "utf8"))
       .toMatch(/className="glyph-btn ap-refresh"/);
     // And only when focus was really dropped — a reader who tabbed elsewhere

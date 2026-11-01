@@ -555,7 +555,7 @@ describe("the disclosure and what it opens are related (#325's seventh finding)"
     expect(popover).toMatch(/role=\{menu\.view === "menu" \? "menu" : "dialog"\}/);
     expect(popover).toMatch(/labelledBy=\{menu\.view === "menu" \? `ap-more-\$\{a\.num\}` : titleId\}/);
     expect(clientText()).toMatch(/const menuOpen = menuFor === a\.num;/);
-    expect(clientText()).toMatch(/aria-controls=\{menuOpen \? `ap-menu-\$\{a\.num\}` : undefined\}/);
+    expect(clientText()).toMatch(/aria-controls=\{menuOpen \? `ap-\$\{ids\}menu-\$\{a\.num\}` : undefined\}/);
     expect(clientText()).toMatch(/aria-haspopup="menu"/);
   });
 

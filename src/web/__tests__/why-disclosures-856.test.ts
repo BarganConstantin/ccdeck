@@ -38,7 +38,7 @@ function decl(selector: string, prop: string): string | null {
 // warning — the ⋯ menu's surface — with the fix as its one button.
 describe("why a login failed is a button, not a title (#856)", () => {
   // The row's own warning, from the file that draws the row.
-  const warning = /<button type="button" id=\{`ap-issue-\$\{a\.num\}`\}[\s\S]*?<\/button>/.exec(read("../components/AccountRow.tsx"))?.[0] ?? null;
+  const warning = /<button type="button" id=\{`ap-\$\{ids\}issue-\$\{a\.num\}`\}[\s\S]*?<\/button>/.exec(read("../components/AccountRow.tsx"))?.[0] ?? null;
 
   it("is a button that says whether its reason is open", () => {
     expect(warning, "the warning is not a button").not.toBeNull();

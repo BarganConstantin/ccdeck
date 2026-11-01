@@ -126,7 +126,7 @@ holds the terminal the way every version before 3.20 did.
 
 Sessions already working when ccdeck starts can appear with a **restored** marker. Codex recovery reads recent unfinished turns from local rollouts; an absent ending does not confirm that its process is still running. On macOS and Linux, Claude recovery verifies a busy session against its process-start identity. **Settings › General** has a separate startup-recovery switch for each provider. Earlier tool calls are not replayed. [Recovery behavior and limits](docs/features/session-recovery.md).
 
-The panels open from the window's edges, each stripe in groups with a rule between them. The stripe on the left holds the Claude accounts with Account capacity and the Reset calendar, then the session list, then a control for each connected Jira, GitHub or GitLab, with Explore integrations at its foot; the one on the right holds Usage and This machine, then Usage history, Tool activity and Skill activity, then Browser Watch and Telemetry Radar, then Radio. Each shows or hides beside the canvas, and several can be open at once. Point at one, or Tab to it, and its hint names its key — `L`, `A`, `U`, `S`, `H`, `B` — while the single-key shortcuts are on; Account capacity, the Reset calendar, Tool activity, Skill activity, Telemetry Radar and Radio have none. **Search** in the top bar (⌘K or Ctrl+K, which works with the single keys off) opens any of them, a setting or a session by name. On a phone they are in a dock along the bottom, and the session list and the Claude accounts panel open as a drawer over the canvas rather than beside it: picking a session closes the list, so the session is on screen.
+The panels open from the window's edges, each stripe in groups with a rule between them. The stripe on the left holds Accounts with Account capacity and the Reset calendar, then the session list, then a control for each connected Jira, GitHub or GitLab, with Explore integrations at its foot; the one on the right holds Usage and This machine, then Usage history, Tool activity and Skill activity, then Browser Watch and Telemetry Radar, then Radio. Each shows or hides beside the canvas, and several can be open at once. Point at one, or Tab to it, and its hint names its key — `L`, `A`, `U`, `S`, `H`, `B` — while the single-key shortcuts are on; Account capacity, the Reset calendar, Tool activity, Skill activity, Telemetry Radar and Radio have none. **Search** in the top bar (⌘K or Ctrl+K, which works with the single keys off) opens any of them, a setting or a session by name. On a phone they are in a dock along the bottom, and the session list and the Claude accounts panel open as a drawer over the canvas rather than beside it: picking a session closes the list, so the session is on screen.
 
 Two notes can appear at the bottom of the canvas: **Undo**, for a few seconds after `R` or the re-arrange button lays the canvas out again — `Ctrl+Z` (`⌘Z` on a Mac) does the same — and **Resume**, which turns auto-fit back on after you have panned or zoomed.
 
@@ -362,6 +362,14 @@ Each one fires the bundled `hook.js`, which POSTs the event JSON to the running 
 
 **OpenAI Codex** — Codex CLI hooks do not fire reliably on Windows, so nothing is installed at all. The server tails Codex's own rollout files at `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` and reconstructs the equivalent stream — session start, prompts, tool calls, token usage, model. No hook install, no trust prompt. Set `CODEX_HOME` to override the path.
 
+To use **multiple separate Codex logins**, open **Accounts → Add Codex account**, give the profile a label, and run its copied sign-in command in a terminal. Sign-in uses the official [Codex login flow](https://learn.chatgpt.com/docs/auth); each profile keeps its own login, configuration and history. Existing logins remain in place. You can also register existing homes at startup with `CCDECK_CODEX_HOMES`, a JSON array of additional absolute directories: for example, `CCDECK_CODEX_HOMES='["/home/me/.codex-work","/home/me/.codex-personal"]' npx ccdeck` on Linux.
+
+**Use account** saves the default for ccdeck's Codex quota and account notifications. Selection is serialized across local processes and persists across restarts. Running sessions keep their previous account; restart them to apply a different account. All configured profile session trees stay monitored independently of selection. Token renewal belongs to Codex. ccdeck never rotates managed-profile refresh tokens itself; system-store inspection uses the official Codex app-server, which may renew a login while reading quota. System-store account metadata depends on the installed CLI protocol and may not include a workspace ID. Native quota readings cover standard Codex limits; additional limits and credits are not included.
+
+For plain `codex` commands to use this default, click **Enable terminal selection**, run the copied setup command once, then open a new terminal. Supported shells are zsh, bash and PowerShell (PowerShell 5 uses `--shell powershell5`). The installed launcher uses durable local metadata, so ccdeck can be closed. An explicit `CODEX_HOME` always takes priority. **Remove terminal selection** provides the reverse command; it removes only ccdeck's shell integration and keeps profile data. Individual launch commands remain available without terminal setup. Terminal setup applies to shell commands, not an independently launched IDE extension.
+
+The Accounts panel shows account/workspace labels and independent quotas where available. Missing profiles remain inspectable so another account can be selected. Usage history outside the profile cards may still reflect the original home; historical sessions are never reassigned when the default changes. Migration from CC Switch currently means signing in to isolated profiles again; it does not modify CC Switch's store. Claude continues to use claude-swap.
+
 Quota is the one thing that is not just reading. It needs a live token, so when the one in `~/.codex/auth.json` is within 90 seconds of expiring the deck refreshes it exactly as the CLI does and writes the rotated credential back — one refresh at a time, re-reading the file inside the lock, and atomically, because OpenAI's refresh tokens are single-use and a rotation that never reaches disk costs you a `codex login`. It happens only while the page is open or a quota notification is on (see [Accounts](#accounts)), and nothing else in `auth.json` is touched.
 
 ## What it touches
@@ -404,7 +412,7 @@ Step by step: [Detect browser automation while you were away](https://ccdeck.dev
 
 ## Accounts
 
-The Accounts panel reads the store [claude-swap](https://github.com/realiti4/claude-swap) keeps, and can drive it.
+The Accounts panel shows Claude accounts managed by [claude-swap](https://github.com/realiti4/claude-swap) and configured Codex profiles. With both CLIs on a machine, the Claude | Codex switch at the top of the panel chooses which you see; it changes the view, not the account in use. Codex profiles support adding accounts, isolated quota checks and a persistent default for new sessions. The Claude controls described below continue to use claude-swap.
 
 The deck installs that package itself, so it installs it **bounded**: `claude-swap~=0.26`, which is `>= 0.26, == 0.*`, and when PyPI can be reached the exact version it resolved rather than the range. What `cswap --version` reports afterwards has to be that version, or the deck says so and leaves the panel dark rather than driving a copy it cannot account for — this is the tool that holds your Claude logins. The daily upgrade is bounded by the same specifier, and what it left behind is written to `~/.agents-deck/cswap-upgrade.json`.
 
@@ -500,7 +508,7 @@ Four pictures, which are also the guide the section opens from `See how it works
 </tr>
 </table>
 
-**On each machine, in order:** open the Claude accounts panel (`A`), open **Local network**'s settings (the sliders button), and tick the logins this machine may hand out. The section is on unless somebody switched it off. The two decks find each other over a UDP beacon on port 45317 and ask each other to pair; press `accept` where it is asked, and from then on every paired deck is asked once a minute for the ticked logins this deck is missing or has expired.
+**On each machine, in order:** open the Accounts panel (`A`) on its Claude side, open **Local network**'s settings (the sliders button), and tick the logins this machine may hand out. The section is on unless somebody switched it off. The two decks find each other over a UDP beacon on port 45317 and ask each other to pair; press `accept` where it is asked, and from then on every paired deck is asked once a minute for the ticked logins this deck is missing or has expired.
 
 **When they do not find each other** — a VPN, a guest network, two subnets — `+` at the top of the section reaches a deck by address, or with an invite the other deck minted. An invite is the route when the machine that cannot be seen is this one.
 
@@ -549,7 +557,7 @@ ccdeck <command> [options]      accounts, switch, usage, sessions, open — see 
       --no-codex           Skip Codex capture (Claude only)
       --claude             Force Claude capture even if Claude Code wasn't found
       --no-claude          Skip Claude entirely — no hooks, no claude-swap,
-                           no Accounts panel (Codex only)
+                           Codex accounts remain available (Codex only)
       --ref <name>         The ccdeck.dev page this command was copied from;
                            sent once, with the first install report
       --uninstall          Remove ccdeck's hooks from settings files, and name
@@ -647,6 +655,7 @@ Environment:
 |---|---|
 | `AGENT_DAG_PORT` | Default port, same as `-p` |
 | `CODEX_HOME` | Override `~/.codex` |
+| `CCDECK_CODEX_HOMES` | JSON array of additional absolute Codex home directories to monitor and list in Accounts; restart ccdeck after changing it |
 | `AGENTS_DECK_NO_INSTALL=1` | Never install or update claude-swap / ccusage or the terminal's `ccdeck`, never ask npm about releases, never read the status pages, and never send reports or feedback |
 | `AGENTS_DECK_NO_DOWNLOAD=1` | Never download the `uv` binary, but keep the managed installs |
 | `AGENTS_DECK_NO_UPDATE_CHECK=1` | Don't ask npm about releases, but keep everything else |

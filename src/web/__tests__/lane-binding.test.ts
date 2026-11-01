@@ -217,11 +217,11 @@ describe("the row renders the windows, and the panel reads the same function", (
 
   it("points the door at the detail only while the detail exists", () => {
     expect(clientText()).toMatch(/aria-expanded=\{open\}/);
-    expect(clientText()).toMatch(/aria-controls=\{open \? `ap-detail-\$\{a\.num\}` : undefined\}/);
-    expect(clientText()).toMatch(/<div className="ap-detail" id=\{`ap-detail-\$\{a\.num\}`\}>/);
+    expect(clientText()).toMatch(/aria-controls=\{open \? `ap-\$\{ids\}detail-\$\{a\.num\}` : undefined\}/);
+    expect(clientText()).toMatch(/<div className="ap-detail" id=\{`ap-\$\{ids\}detail-\$\{a\.num\}`\}>/);
     // The ⋯ follows the same rule for the same reason.
     expect(clientText()).toMatch(/const menuOpen = menuFor === a\.num;/);
-    expect(clientText()).toMatch(/aria-controls=\{menuOpen \? `ap-menu-\$\{a\.num\}` : undefined\}/);
+    expect(clientText()).toMatch(/aria-controls=\{menuOpen \? `ap-\$\{ids\}menu-\$\{a\.num\}` : undefined\}/);
   });
 
   it("no longer counts what is folded: there is no `1 more` to read", () => {

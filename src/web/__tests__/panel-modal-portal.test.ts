@@ -48,6 +48,7 @@ describe("a dialog opened from inside a panel is not laid out by it", () => {
       "AccountProjectsModal",
       "AccountsUsageReport",
       "AddAccountDialog",
+      "AddCodexAccountDialog",
       "GuideModal",
       "LanAddDeckModal",
       "LanNetworkMap",

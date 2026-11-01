@@ -102,7 +102,8 @@ export interface AutoTick {
   event: string;
   reason?: string | null;
   detail?: string | null;
-  to?: number | null;
+  /** A slot; for Codex, whose accounts have none, a profile's id. */
+  to?: number | string | null;
   /** Why it moved: the engine's "proactive"/"at-limit"/"failover", or the
    *  deck's own "home"/"weekly-reset". */
   trigger?: string | null;
@@ -122,4 +123,7 @@ export interface AutoStatus {
   settings: Record<string, { value: string | null; isDefault: boolean }>;
   /** Absent from a server older than the two rules. */
   choice?: AutoChoice;
+  /** Codex only: the profiles held out of rotation. Claude's roster carries it
+   *  per account, as `disabled`. */
+  heldOut?: string[];
 }

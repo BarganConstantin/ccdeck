@@ -27,10 +27,13 @@ interface Props {
   /** A reload the reader asked for is out — see the panel's `load`. */
   reloading: boolean;
   closeButton: ReactNode;
+  /** With both CLIs on this deck: the Claude/Codex switch, which stands where
+   *  the title stands. The title stays for a reader, out of sight. */
+  switcher?: ReactNode;
 }
 
 export default function AccountsHeader({
-  canShare, onAdd, onShareSet, onReload, pressProps, reloading, closeButton,
+  canShare, onAdd, onShareSet, onReload, pressProps, reloading, closeButton, switcher,
 }: Props) {
   const t = useT();
   return (
@@ -50,7 +53,8 @@ export default function AccountsHeader({
           carried since #381 — a region whose heading and whose accessible
           name are the same string is one thing to a screen reader rather than
           two. */}
-      <h2>{t("accounts.header.title")}</h2>
+      <h2 className={switcher ? "vis-hidden" : undefined}>{t("accounts.header.title")}</h2>
+      {switcher}
       <div className="ap-header-right">
         {/* The `+` is one glyph, so `title` was its whole accessible name.
             A last-resort name source that a touch user never sees and that

@@ -290,7 +290,7 @@ export default function SettingsModal({
             <SessionRecoverySettings provider="Codex" />
             {providers.claude && <SessionRecoverySettings provider="Claude" />}
             <UpdatesSection autoRestart={restart.autoRestart} onToggleAutoRestart={restart.toggleAutoRestart} version={versionCheck.version} />
-            <ElsewhereSection claudeHere={providers.claude} singleKeys={singleKeys} doors={doors} />
+            <ElsewhereSection claudeHere={providers.claude} codexHere={providers.codex} singleKeys={singleKeys} doors={doors} />
           </>
         );
     }

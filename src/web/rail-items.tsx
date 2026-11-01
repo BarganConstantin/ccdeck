@@ -35,7 +35,7 @@ import type { RailItem } from "./components/EdgeRails";
 import type { IntegrationWebDef } from "./integrations/types";
 import type { CapacityView } from "./components/AccountsUsageReport";
 import {
-  AccountsGlyph, BrowserWatchGlyph, CapacityGlyph, FeedbackGlyph, HistoryGlyph, IntegrationsGlyph, MachineGlyph, ResetCalendarGlyph,
+  AccountsGlyph, CodexAccountsGlyph, BrowserWatchGlyph, CapacityGlyph, FeedbackGlyph, HistoryGlyph, IntegrationsGlyph, MachineGlyph, ResetCalendarGlyph,
   SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph, SkillActivityGlyph, SearchGlyph,
 } from "./components/rail-glyphs";
 import type { ToolActivityView } from "./components/ToolAuditModal";
@@ -50,6 +50,9 @@ export interface RailItems {
   /** The left stripe's groups, top to bottom: Accounts with the two doors into
    *  its Account capacity report, then Session list. */
   leftStripe: RailItem[][];
+  /** Quick open's door straight to Codex's side, where the panel has two sides
+   *  and the rail one button. Empty when Codex's button is in `left`. */
+  codexDoor: RailItem[];
   /** Account capacity and Reset calendar, each one press from the stripe and
    *  their only door. On a phone they are rows under More, so the dock keeps
    *  its five slots. Empty without Claude Code. */
@@ -93,7 +96,7 @@ function named(group: string, items: RailItem[]): RailItem[] {
 }
 
 export function railItems({
-  providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
+  providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel, accountsPanelId = "accounts-panel", codexPanelOpen = false, toggleCodexPanel = () => {},
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
   openCapacity, integrations = [], openExploreIntegrations, openQuickOpen,
@@ -103,6 +106,10 @@ export function railItems({
   toggleSessionList: () => void;
   accountsPanelOpen: boolean;
   toggleAccountsPanel: () => void;
+  /** The side of the Accounts panel on screen, where a deck has both CLIs. */
+  accountsPanelId?: string;
+  codexPanelOpen?: boolean;
+  toggleCodexPanel?: () => void;
   usagePanelOpen: boolean;
   setUsagePanelOpen: Toggle;
   machinePanelOpen: boolean;
@@ -142,12 +149,13 @@ export function railItems({
     ariaLabel: t("board.rail.sessionList"), glyph: <SessionListGlyph />, kind: "panel",
     open: sessionListOpen, controls: "session-list", onPress: toggleSessionList, buttonRef: toggles.sessionList,
   };
-  // Gone without Claude Code rather than present and inert: every account in
-  // the panel is a Claude account, and a Codex-only machine has none to show.
+  // One door to Accounts: with both CLIs, the switch in the panel's header picks
+  // the side, and this button stays the same one whichever side is up.
   const accounts: RailItem = {
     id: "accounts", label: t("board.rail.accounts"), short: t("board.rail.accounts"), key: { cap: "A", aria: "A", single: true },
-    ariaLabel: t("board.rail.accounts"), hint: t("board.rail.accounts.hint"), glyph: <AccountsGlyph />, kind: "panel",
-    open: accountsPanelOpen, controls: "accounts-panel", onPress: toggleAccountsPanel, buttonRef: toggles.accounts,
+    // The hint names Claude's accounts, so with Codex beside it the word says it all.
+    ariaLabel: t("board.rail.accounts"), hint: providers.codex ? undefined : t("board.rail.accounts.hint"), glyph: <AccountsGlyph />, kind: "panel",
+    open: accountsPanelOpen, controls: accountsPanelId, onPress: toggleAccountsPanel, buttonRef: toggles.accounts,
   };
   // ACCOUNT CAPACITY AND RESET CALENDAR, ON THE STRIPE. Both lived behind the
   // gauge in the accounts panel's header, the calendar a tab inside its dialog,
@@ -163,6 +171,11 @@ export function railItems({
     detail: t("board.rail.calendar.detail"),
     glyph: <ResetCalendarGlyph />, kind: "dialog", onPress: () => openCapacity("calendar"),
   }] : [];
+  const codex: RailItem = {
+    id: "codex-accounts", label: "Codex accounts", short: "Codex",
+    ariaLabel: "Codex accounts", glyph: <CodexAccountsGlyph />, kind: "panel",
+    open: codexPanelOpen, controls: "codex-accounts-panel", onPress: toggleCodexPanel, buttonRef: toggles.codex,
+  };
   const usage: RailItem = {
     id: "usage", label: t("board.rail.usage"), short: t("board.rail.usage"), key: { cap: "U", aria: "U", single: true },
     ariaLabel: t("board.rail.usage"), glyph: <UsageGlyph />, kind: "panel",
@@ -238,11 +251,17 @@ export function railItems({
     // Accounts first, at the top of the stripe and the start of the dock: the
     // owner's call (2026-10-08), the panel a first run opens and the one read
     // before choosing where to start a session.
-    left: providers.claude ? [accounts, sessionList] : [sessionList],
-    // The owner's order (2026-10-22): Claude accounts, Account capacity,
-    // Reset calendar, Session list — the first three one group, since all
-    // three are about the accounts.
-    leftStripe: providers.claude ? [named(t("board.rail.group.accounts"), [accounts, ...capacity]), [sessionList]] : [[sessionList]],
+    left: providers.claude ? [accounts, sessionList] : providers.codex ? [codex, sessionList] : [sessionList],
+    codexDoor: providers.claude && providers.codex ? [codex] : [],
+    // The owner's order (2026-10-22): Accounts, Account capacity, Reset
+    // calendar, Session list — the first three one group, since all three are
+    // about the accounts. Codex has a button of its own only where it is all
+    // this deck has; beside Claude it is a side of the same panel.
+    leftStripe: [
+      ...(providers.claude ? [named(providers.codex ? t("board.rail.accounts") : t("board.rail.group.accounts"), [accounts, ...capacity])] : []),
+      ...(providers.codex && !providers.claude ? [[codex]] : []),
+      [sessionList],
+    ],
     capacity: providers.claude ? capacity : [],
     right: [
       named(t("board.rail.group.usage"), [usage, machine]),

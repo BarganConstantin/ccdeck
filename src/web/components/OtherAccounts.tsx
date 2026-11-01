@@ -110,7 +110,7 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
  * column rather than behind a view and a way back.
  */
 export default function OtherAccounts({
-  peers, strained, armed, threshold, open, onToggle, order, choices, onOrder, allOpen, onToggleAll, held = false,
+  peers, strained, armed, threshold, open, onToggle, order, choices, onOrder, allOpen, onToggleAll, held = false, idPrefix = "",
 }: {
   peers: Peer[];
   /** Where auto-switch trips. This row says it because the control that sets
@@ -134,6 +134,9 @@ export default function OtherAccounts({
   onToggleAll: () => void;
   /** The list is holding the order the reader found it in — see holdOrder. */
   held?: boolean;
+  /** Before each id, for the second column that draws this row (AccountRow's
+   *  RowVoice says why). */
+  idPrefix?: string;
 }) {
   const t = useT();
   const [peek, setPeek] = useState(false);
@@ -168,15 +171,15 @@ export default function OtherAccounts({
   const line = restLine(peers, { strained: strained && !open, armed, threshold }, t);
   return (
     <div className="ap-rest">
-      <button type="button" id="ap-rest-entry" className="ap-nav"
+      <button type="button" id={`ap-${idPrefix}rest-entry`} className="ap-nav"
         aria-expanded={open}
         // THE WHOLE BOX, not the list inside it. The press reveals the accounts
         // AND the policy over them; naming only the list would tell a screen
         // reader that half of what appeared is not what this row controls.
-        aria-controls={open ? "ap-rest-panel" : undefined}
+        aria-controls={open ? `ap-${idPrefix}rest-panel` : undefined}
         // Described by the card while the card is there, so a screen reader on
         // this row is read the same names a pointer is shown.
-        aria-describedby={peek ? "ap-rest-peek" : undefined}
+        aria-describedby={peek ? `ap-${idPrefix}rest-peek` : undefined}
         onClick={() => { dropPeek(); onToggle(); }}
         // A mouse only. Touch has no hover, and a pointerenter synthesised by a
         // tap would open a card the tap is already replacing with the list.
@@ -207,10 +210,10 @@ export default function OtherAccounts({
           <path d="M5.6 3.4 9.2 7l-3.6 3.6" />
         </svg>
       </button>
-      {peek && <FoldPeek anchorId="ap-rest-entry" id="ap-rest-peek" peers={peers}
+      {peek && <FoldPeek anchorId={`ap-${idPrefix}rest-entry`} id={`ap-${idPrefix}rest-peek`} peers={peers}
         onHold={holdPeek} onLet={shutPeek} />}
       {open && <RestTools order={order} choices={choices} onOrder={onOrder}
-        allOpen={allOpen} onToggleAll={onToggleAll} held={held} />}
+        allOpen={allOpen} onToggleAll={onToggleAll} held={held} listId={`ap-${idPrefix}rest-list`} />}
     </div>
   );
 }
@@ -241,13 +244,14 @@ export default function OtherAccounts({
  * controls, and a fixed reservation sized for the longest order cut "Auto-
  * switch has nowhere to go" in half beside "Slot", with sixty pixels unused.
  */
-function RestTools({ order, choices, onOrder, allOpen, onToggleAll, held }: {
+function RestTools({ order, choices, onOrder, allOpen, onToggleAll, held, listId }: {
   order: string;
   choices: OrderChoice[];
   onOrder: (order: string) => void;
   allOpen: boolean;
   onToggleAll: () => void;
   held: boolean;
+  listId: string;
 }) {
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
@@ -286,7 +290,7 @@ function RestTools({ order, choices, onOrder, allOpen, onToggleAll, held }: {
           it — because two chevrons stacked are the platform's sign for sort
           and for a list box, and this sits beside one. */}
       <button type="button" className="ap-rest-all" aria-label={t("accounts.other.expandAll")} aria-pressed={allOpen}
-        aria-controls="ap-rest-list" title={allOpen ? t("accounts.other.collapseAll") : t("accounts.other.expandAll")}
+        aria-controls={listId} title={allOpen ? t("accounts.other.collapseAll") : t("accounts.other.expandAll")}
         onClick={onToggleAll}>
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3"
           strokeLinecap="round" strokeLinejoin="round" aria-hidden>
