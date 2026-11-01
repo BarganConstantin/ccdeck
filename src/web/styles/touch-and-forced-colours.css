@@ -118,7 +118,8 @@
      canvas's own colour, so who started whom would vanish: paint them in the
      text colour, as the meters above are. */
   .insp-gut[data-line]::before,
-  .insp-gut[data-line]::after { forced-color-adjust: none; background: CanvasText; }
+  .insp-gut[data-line="elbow"]::after,
+  .insp-gut[data-line="tee"]::after { forced-color-adjust: none; background: CanvasText; }
   .tr-message[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
   .tr-detail-tabs .btn[aria-pressed="true"],
   .ap-reset-coverage-link[aria-pressed="true"],

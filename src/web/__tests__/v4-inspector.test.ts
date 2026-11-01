@@ -321,7 +321,7 @@ describe("the Agents tab", () => {
     expect(decl(".insp-tree", "gap")).toBe("8px");
   });
   it("keeps the tree lines visible in forced colours, in the text colour", () => {
-    for (const sel of [".insp-gut[data-line]::before", ".insp-gut[data-line]::after"]) {
+    for (const sel of [".insp-gut[data-line]::before", '.insp-gut[data-line="elbow"]::after', '.insp-gut[data-line="tee"]::after']) {
       expect(decl(sel, "forced-color-adjust", "(forced-colors: active)")).toBe("none");
       expect(decl(sel, "background", "(forced-colors: active)")).toBe("CanvasText");
     }
