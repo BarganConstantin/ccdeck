@@ -311,8 +311,8 @@ describe("a press never disables the control it came from (#518)", () => {
     // is replaced by the roster it brought in (#1411). A fifth is no press at
     // all: a Projects report whose account left the store closes over a row
     // that went with it (#1412).
-    expect(rescueSelectors(3)).toEqual(["#ap-more-3", ".accounts-panel .ap-refresh"]);
-    expect(rescueSelectors(null)).toEqual([".accounts-panel .ap-refresh"]);
+    expect(rescueSelectors(3)).toEqual(["#ap-more-3", "#accounts-panel .ap-refresh"]);
+    expect(rescueSelectors(null)).toEqual(["#accounts-panel .ap-refresh"]);
     // Both targets are real, named controls in the panel rather than a
     // container nobody can hear.
     expect(clientText()).toMatch(/id=\{`ap-\$\{ids\}more-\$\{a\.num\}`\}/);

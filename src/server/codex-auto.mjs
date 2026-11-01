@@ -145,7 +145,10 @@ export async function codexAutoTick(options = {}) {
     if (!home) return;
     const readOpts = { ...options, selection, enableNative: true };
     const homeQuota = await readQuota(home.id, readOpts);
-    const homeLoad = homeQuota?.ok ? loadOf(liveWindows(homeQuota, nowSec)) : null;
+    // Only a reading taken now says how full an account is: the last good one
+    // kept for a failed read is an old number, and acting on it moves sessions
+    // for a window that may have reset, or onto an account that has since filled.
+    const homeLoad = homeQuota?.ok && !homeQuota.stale ? loadOf(liveWindows(homeQuota, nowSec)) : null;
     if (homeLoad === null || homeLoad < threshold) return;
 
     // A row that is the same ChatGPT account shares the quota that just ran out.
@@ -154,7 +157,7 @@ export async function codexAutoTick(options = {}) {
     const fits = [];
     for (const row of roster) { // one at a time: each read may spawn a process
       const quota = await readQuota(row.id, readOpts);
-      if (!quota?.ok) continue;
+      if (!quota?.ok || quota.stale) continue;
       const live = liveWindows(quota, nowSec);
       const load = loadOf(live) ?? 0;
       if (load < threshold) fits.push({ id: row.id, load, reset: weeklyReset(live, nowSec) });

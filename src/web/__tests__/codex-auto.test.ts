@@ -110,6 +110,18 @@ describe("tick", () => {
     expect(select).not.toHaveBeenCalled();
   });
 
+  it("acts only on a reading taken now, never on the last good one kept for a failed read", async () => {
+    await enable();
+    // The home is full only in an old reading: nothing moves for it.
+    const old = rig(roster(), { [A]: { ...q(95), stale: true }, [B]: q(10) });
+    await codexAutoTick(old.options);
+    expect(old.select).not.toHaveBeenCalled();
+    // A candidate whose room is an old reading is not a place to move to.
+    const candidate = rig(roster(), { [A]: q(95), [B]: { ...q(5), stale: true }, [C]: q(50) });
+    await codexAutoTick(candidate.options);
+    expect(picked(candidate.select)).toMatchObject({ id: C });
+  });
+
   it("past the threshold moves to the account with most room", async () => {
     await enable();
     const { options, select } = rig(roster(), { [A]: q(95), [B]: q(60), [C]: q(20), [D]: q(40) });

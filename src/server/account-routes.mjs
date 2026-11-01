@@ -53,6 +53,9 @@ export async function handleCodexProfileMutation(req, res, action) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return send(res, 400, { ok: false, reason: 'bad_request' });
   const { selectCodexProfile, addCodexProfile, removeCodexProfile, renameCodexProfile } = await import('./codex-selection.mjs');
   const { replaceCodexLogin } = await import('./codex-profiles.mjs');
+  // A sign-in still waiting on this account would write its login into a home
+  // that is about to be moved away: stop it first, so nothing lands there.
+  if (action === 'remove' && typeof body.id === 'string') (await import('./codex-login.mjs')).cancelCodexLogin(body.id);
   try {
     const result = action === 'select' ? await selectCodexProfile(body)
       : action === 'remove' ? await removeCodexProfile(body)

@@ -44,6 +44,6 @@ describe("the empty state's retry keeps the keyboard in the panel (#1411)", () =
   it("hands focus to the panel's reload once the roster it brought in replaces it", () => {
     expect(retry).toMatch(/onClick=\{\(\) => load\(true\)\.then\(\(\) => rescueFocus\(null\)\)\}/);
     // No row to go back to — there was none — so the chain is the ↻ alone.
-    expect(rescueSelectors(null)).toEqual([".accounts-panel .ap-refresh"]);
+    expect(rescueSelectors(null)).toEqual(["#accounts-panel .ap-refresh"]);
   });
 });

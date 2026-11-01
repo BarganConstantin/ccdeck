@@ -1,5 +1,8 @@
 // Explicit Codex homes are separate profiles, not snapshots of auth.json.
 // Discovery reads display metadata only; credentials are never copied or refreshed.
+// The one place a login's access token is used is the quota fallback below, which
+// sends it to OpenAI's own usage endpoint, as the deck's ambient Codex quota
+// reader does, and never to a refresh endpoint.
 import { access, realpath, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';

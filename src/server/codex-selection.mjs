@@ -362,7 +362,10 @@ export async function moveCodexLogin({ id, into, expectedRevision } = {}, option
       await renameWithRetry(join(profile.home, 'auth.json'), join(target.home, 'auth.json'));
     } catch { fail('login_not_movable'); }
     const { settleMovedLogin } = await import('./codex-native-account.mjs');
-    await settleMovedLogin(target.home);
+    // The login has already crossed over. Settling its readings only spares one
+    // stale poll, so a failure here must not leave the empty row listed with a
+    // login that is no longer there to move again.
+    try { await settleMovedLogin(target.home); } catch { /* the next read settles it */ }
     return { ...await dropProfile(state, profile, options), status: 'replaced' };
   });
 }
