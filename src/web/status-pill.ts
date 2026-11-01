@@ -69,7 +69,7 @@ export interface StatusPill {
    * The pill is the leftmost thing in the readout run and it was on screen every
    * second of every session — 49.89px plus a 14px gap — to report that nothing
    * was wrong. The argument against that is already in this codebase, one
-   * surface over: `ambient.ts` refuses to write `(0) ccdeck` because "a badge
+   * surface over: `ambient.ts` refuses to write `(0) waiting · ccdeck` because "a badge
    * that reports nothing is wrong is a badge that gets ignored — and a badge
    * that gets ignored is ignored at (1) too." A pill that never leaves says the
    * same thing at the same cost, and the two states worth reading were paying

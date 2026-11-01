@@ -7,7 +7,7 @@
 // is a request that cannot succeed: offline is shown when the event stream has
 // failed, which is most often the deck's process gone. The offline mark was
 // first asked for at that moment, from the server that had just gone away, and
-// the tab kept the icon it had — the waiting mark beside `(1) ccdeck`, the pair
+// the tab kept the icon it had — the waiting mark beside `(1) waiting · ccdeck`, the pair
 // #719 removed. The files are not hashed, so static-cache.mjs serves them
 // no-cache and the HTTP cache cannot answer for them either.
 //

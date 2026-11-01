@@ -208,7 +208,9 @@ describe("the app's wiring", () => {
   });
 
   it("shows the reason in the tray until a deck answers", () => {
-    expect(main).toContain("statusLine({ restarting, starting, deck, snapshot, startFailed })");
+    // The tooltip's status line is trayTooltip's (tray-menu.mjs), which hands
+    // the whole state, startFailed included, to statusLine.
+    expect(main).toContain("trayTooltip({ restarting, starting, deck, snapshot, startFailed })");
     expect(fn("buildMenu")).toContain("startFailed,");
     expect(fn("attach")).toContain("if (found) startFailed = null;");
   });
