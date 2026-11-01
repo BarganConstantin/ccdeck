@@ -33,8 +33,9 @@ const bodyOf = (sel: string) => rules.filter(r => r.sels.includes(sel)).map(r =>
 const background = (sel: string) => /background:\s*([A-Za-z]+)\s*;/.exec(bodyOf(sel))?.[1];
 const opts = (sel: string) => /forced-color-adjust:\s*none/.test(bodyOf(sel));
 
+// The stream chip's live state has no rule to answer (V4 decision 19: Live has
+// no chip), so only the two states it draws are here.
 const RESTING_WORDED = [
-  ".topbar .status .pill.live::before",
   ".topbar .status .pill.paused::before",
   ".topbar .status .pill.dead::before",
   ".conn-banner .conn-dot",
