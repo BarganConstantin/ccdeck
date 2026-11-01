@@ -12,6 +12,7 @@ import { exportFileName, sessionExport } from "../session-export";
 import type { AgentNodeData } from "../types";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import Detail from "./Detail";
+import Inspector from "./Inspector";
 
 /** Build a portable JSON snapshot of a single session (root + every subagent)
  *  and trigger a browser download.
@@ -34,14 +35,16 @@ function exportSessionJson(state: GraphState, sessionId: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function DetailAside({ selected, now, openTool, setSummaryFor, onClose, stateRef, removeSelectedNode }: {
+export default function DetailAside({ selected, now, openTool, setSummaryFor, onClose, onSelectAgent, stateRef, removeSelectedNode }: {
   /** The primary selection, which is what the panel is about. */
   selected: AgentNodeData;
   now: number;
   openTool: (agentId: string, toolId: string) => void;
   setSummaryFor: (sessionId: string) => void;
-  /** The × — closes the panel, and hands keyboard focus to the card it was about. */
+  /** Fold — closes the panel, and hands keyboard focus to the card it was about. */
   onClose: () => void;
+  /** A card in the Agents tab was pressed: select that agent. */
+  onSelectAgent: (id: string) => void;
   /** Read when Export is pressed, for the graph as it is then. */
   stateRef: MutableRefObject<GraphState>;
   removeSelectedNode: () => void;
@@ -60,14 +63,14 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
     // under the reader is a landmark they cannot come back to. The agent's
     // name is the panel's <h2>, which is where a changing title belongs.
     <aside className="detail" aria-label="Detail">
-      <button
-        type="button"
-        className="glyph-btn detail-close"
-        title="Close panel"
-        aria-label="Close detail panel"
-        onClick={onClose}
-      >×</button>
-      <Detail
+      <Inspector
+        selected={selected}
+        agents={stateRef.current.agents}
+        revision={stateRef.current.revision}
+        onSelectAgent={onSelectAgent}
+        onClose={onClose}
+        detail={
+          <Detail
             agent={selected}
             now={now}
             onOpenTool={openTool}
@@ -76,6 +79,8 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
             onRemove={removeSelectedNode}
             singleKeys={singleKeys}
           />
+        }
+      />
     </aside>
   );
 }

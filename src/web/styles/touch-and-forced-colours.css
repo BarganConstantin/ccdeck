@@ -113,6 +113,17 @@
   .reading-choice:has(input:checked) { border-color: Highlight; }
 
   .tr-tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; border-bottom-color: Highlight; }
+  /* The Inspector's chosen tab is a --panel chip on a --bg-soft track, a
+     difference of fill that forced colours remove: it takes the outline, and
+     the card the tree is about takes the same one in place of its ring. */
+  .insp-tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .insp-card[data-current] .agent-node { box-shadow: none; outline: 2px solid Highlight; }
+  /* The tree's lines are drawn as a fill, which forced colours turn into the
+     canvas's own colour, so who started whom would vanish: paint them in the
+     text colour, as the meters above are. */
+  .insp-gut[data-line]::before,
+  .insp-gut[data-line="elbow"]::after,
+  .insp-gut[data-line="tee"]::after { forced-color-adjust: none; background: CanvasText; }
   .tr-message[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
   .tr-detail-tabs .btn[aria-pressed="true"],
   .ap-reset-coverage-link[aria-pressed="true"],
