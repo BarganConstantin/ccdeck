@@ -34,11 +34,11 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
   font-weight: 400;
-  transition: color 200ms ease, background-color 200ms ease, border-color 200ms ease;
-  animation: chip-in var(--dur-base) var(--ease) both;
+  transition: color var(--dur-base) var(--ease), background-color var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease),
+              opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
 }
 .topbar .status .pill::before {
-  transition: background-color 200ms ease;
+  transition: background-color var(--dur-base) var(--ease);
 }
 /* One box, every count (#504, relocated).
    The pill leads the readout group after the brand, so its width is upstream
@@ -195,9 +195,8 @@
   font-weight: 400;
   cursor: pointer;
   white-space: nowrap;
-  transition: border-color 120ms, background 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-  animation: chip-in var(--dur-base) var(--ease) both;
+  transition: border-color var(--dur-fast), background var(--dur-fast),
+              transform var(--dur-fast) var(--ease), opacity var(--dur-base) var(--ease);
 }
 .topbar .waiting-stat b {
   font-family: var(--font-mono);
@@ -216,11 +215,14 @@
   background: color-mix(in srgb, var(--warn) 12%, transparent);
 }
 }
-.topbar .waiting-stat:active { transform: scale(0.97); }
+.topbar .waiting-stat:active { transform: scale(var(--press)); }
 @media (prefers-reduced-motion: reduce) {
   .topbar .waiting-stat:active { transform: none; }
-  .topbar .waiting-stat,
-  .topbar .status .pill { animation: none; }
+  /* Starting where it ends: nothing to run. */
+  @starting-style {
+    .topbar .status .pill, .topbar .waiting-stat, .topbar .provider-incident,
+    .topbar .wait-list li[data-fresh] { opacity: 1; transform: none; }
+  }
 }
 /* V4's chip entrance (V4's motion rules, top bar chip): opacity and 4px of x, over
    --dur-base. The same keyframe `wait-in` below draws for a queue name, but
@@ -230,6 +232,14 @@
    so the arrival is the only time this is seen; the rest of the time it is
    just there. */
 @keyframes chip-in { from { opacity: 0; transform: translateX(-4px); } }
+/* The three chips that mount on the bar enter by transition from
+   @starting-style (V4's motion rules, rule 6: a chip that comes and goes and
+   comes again turns round from where it is). `.brand button.v` keeps the
+   keyframe above: it is one persistent button that gains .stale or .ready, and
+   a class change on a rendered element does not run a starting style. */
+@starting-style {
+  .topbar .status .pill, .topbar .waiting-stat, .topbar .provider-incident { opacity: 0; transform: translateX(-4px); }
+}
 /* INSIDE ITS OWN EDGE (#1706). `.readout` clips what overflows it and is
    exactly as tall as this chip, so the global ring, drawn 2px outside, lost
    its top and bottom and showed as two brackets. An inset ring is the one the
@@ -270,8 +280,8 @@
 /* A session that has just started waiting arrives, 160ms from 4px back; one
    the queue merely has room for again, as the window widens, is simply there —
    an entrance on every refit would be the bar fidgeting. */
-.topbar .wait-list li[data-fresh] { animation: wait-in 160ms cubic-bezier(0.23, 1, 0.32, 1) both; }
-@keyframes wait-in { from { opacity: 0; transform: translateX(-4px); } }
+.topbar .wait-list li[data-fresh] { transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease); }
+@starting-style { .topbar .wait-list li[data-fresh] { opacity: 0; transform: translateX(-4px); } }
 
 /* One name: edgeless at rest, like every control a word identifies on this
    bar, and neutral — the amber is the count's, and a row of amber names would
@@ -298,7 +308,7 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   white-space: nowrap;
   cursor: pointer;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
 .topbar .we-name {
   max-width: 160px;
@@ -323,19 +333,19 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
   .topbar .wait-entry:hover,
   .topbar .wait-more:hover {
     background: var(--ctl-fill);
     color: var(--text);
-    transition: background-color 120ms ease, color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+    transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
   }
   .topbar .wait-entry:hover .we-what { color: var(--text); }
 }
 .topbar .wait-entry:active,
-.topbar .wait-more:active { transform: scale(0.97); }
+.topbar .wait-more:active { transform: scale(var(--press)); }
 /* Inside the edge, for the reason the count's ring is: the box clips. */
 .topbar .wait-entry:focus-visible,
 .topbar .wait-more:focus-visible { outline-offset: -2px; }
@@ -388,19 +398,17 @@
   line-height: 16px;
   text-decoration: none;
   white-space: nowrap;
-  transition: border-color 120ms, background 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-  animation: chip-in var(--dur-base) var(--ease) both;
+  transition: border-color var(--dur-fast), background var(--dur-fast),
+              transform var(--dur-fast) var(--ease), opacity var(--dur-base) var(--ease);
 }
 .topbar .provider-incident[data-state="major_outage"] { border-color: var(--err); }
 .topbar .provider-incident[data-state="maintenance"] { border-color: var(--line); }
 @media (hover: hover) and (pointer: fine) {
 .topbar .provider-incident:hover { border-color: var(--text); background: var(--ctl-fill); }
 }
-.topbar .provider-incident:active { transform: scale(0.97); }
+.topbar .provider-incident:active { transform: scale(var(--press)); }
 @media (prefers-reduced-motion: reduce) {
   .topbar .provider-incident:active { transform: none; }
-  .topbar .provider-incident { animation: none; }
 }
 /* Inside its own edge, for the reason the waiting chip's is (#1706). */
 .topbar .provider-incident:focus-visible { outline-offset: -3px; }

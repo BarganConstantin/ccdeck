@@ -324,7 +324,7 @@
    0.94 rather than the 0.97 a labelled button takes: the ink here IS the
    control, so the press has to move the character enough to be seen against a
    sprite that may also be dancing. */
-.fm-sprite:active { transform: scale(0.94); }
+.fm-sprite:active { transform: scale(var(--press-small)); }
 /* THE VIEWBOX IS THE CHARACTER'S OWN BOUNDS, WITH NOTHING SPARE, and an SVG
    clips to its viewport by default — so the moment a dance lifted the sprite,
    the top row went outside the box and was simply cut. What that looked like

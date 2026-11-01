@@ -30,13 +30,13 @@
   font-family: var(--font-mono);
   padding: 2px 10px; border: none; border-radius: 999px;
   color: var(--muted); background: transparent; cursor: pointer;
-  transition: background 120ms, color 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background var(--dur-fast), color var(--dur-fast),
+              transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .uh-range-btn:hover { color: var(--text); }
 }
-.uh-range-btn:active { transform: scale(0.97); }
+.uh-range-btn:active { transform: scale(var(--press)); }
 /* #583's second half. The selected range used to add exactly two declarations
    to the rest state — an --accent-dim wash and a lift from --muted to --text —
    and neither of them reached 3:1 against what it sits on. The wash is 1.392:1
@@ -93,7 +93,7 @@
    whether each property their hover moves is one their own rule eases. Same
    values as `.glyph-btn`; that rule is still where the decision lives. */
 .uh-close {
-  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: color var(--dur-fast), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .uh-close:hover { color: var(--text); }
@@ -118,7 +118,7 @@
 .uh-reading-art { width: 208px; height: 83px; max-width: 100%; color: var(--muted); margin-bottom: 4px; }
 .uh-reading-link { stroke: var(--line); stroke-dasharray: 2 5; }
 .uh-reading-packets { color: var(--accent); }
-.uh-reading-packets rect { transform-box: view-box; animation: uh-reading-transfer 1800ms cubic-bezier(0.4, 0, 0.2, 1) infinite; opacity: 0; }
+.uh-reading-packets rect { transform-box: view-box; animation: uh-reading-transfer 1800ms ease-in-out infinite; opacity: 0; }
 .uh-reading-packets rect:nth-child(2) { animation-delay: 350ms; }
 .uh-reading-packets rect:nth-child(3) { animation-delay: 700ms; }
 .uh-reading-title { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
@@ -155,7 +155,7 @@
 .uh-stale .uh-bar-seg,
 .uh-stale .uh-agent-seg,
 .uh-stale .uh-model-bar-fill,
-.uh-stale .uh-legend-dot { opacity: var(--dim-stale); transition: opacity 120ms; }
+.uh-stale .uh-legend-dot { opacity: var(--dim-stale); transition: opacity var(--dur-fast); }
 
 .uh-totals {
   display: grid; grid-template-columns: repeat(4, 1fr);
@@ -249,7 +249,7 @@
   height: 100%; position: relative;
   background: none; border: none; padding: 0; cursor: pointer;
   min-width: 24px; font: inherit; color: inherit;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
 /* The ring goes inside, because the box it would otherwise be drawn outside of
    is now the edge of a scroll container. `overflow-x: auto` computes
@@ -266,31 +266,28 @@
 }
 /* The column is the target, not the bar drawn inside it — a press on the empty
    space above a short day still selects that day, so the whole column moves. */
-.uh-bar-col:active { transform: scale(0.97); }
+.uh-bar-col:active { transform: scale(var(--press)); }
 .uh-bar-col.sel .uh-bar { outline: 1px solid var(--accent); outline-offset: 1px; }
 .uh-bar {
-  width: 78%; min-height: 1px;
+  width: 78%;
+  /* The bar is as tall as its column and drawn at its share of it: the day's
+     height is a scaleY (--uh-h, 0 to 1), never a `height` (V4's motion rules,
+     rule 4: transform and opacity only). It used to ease `height` when the
+     range changed under an open chart and rise by a keyframe when the chart
+     first drew; it is one transition now, so a range that changes mid-rise
+     turns round from where the bars are. It squashes the stacked bands with the
+     column, so a day's mix is right in every frame. */
+  height: 100%;
   display: flex; flex-direction: column;
   border-radius: 2px 2px 0 0; overflow: hidden;
-  transition: height 300ms ease;
-  /* THE DAYS RISE FROM THE AXIS THEY ARE MEASURED AGAINST, which is what the
-     wait's hairline was holding the place of. `scaleY` from the bottom rather
-     than a height: it is compositor-only, it squashes the stacked bands with
-     the column so a day's mix is right in every frame of the growth, and it
-     cannot fight the `height` transition above — that one belongs to a range
-     that CHANGES while the chart is up, and this one belongs to a chart that
-     was not there a moment ago.
-     `both` so the first frame is already flat: without it the whole chart
-     paints at full height for one frame and then drops, which is the jump this
-     replaces, arriving 16ms later. */
   transform-origin: bottom;
-  animation: uh-bar-rise 340ms var(--ease) both;
-  animation-delay: calc(var(--uh-i, 0) * var(--uh-step, 10ms));
+  transform: scaleY(var(--uh-h, 1));
+  transition: transform var(--dur-slow) var(--ease), opacity var(--dur-slow) var(--ease);
+  transition-delay: calc(var(--uh-i, 0) * var(--uh-step, 10ms));
 }
-@keyframes uh-bar-rise {
-  from { transform: scaleY(0); opacity: 0.4; }
-  to   { transform: scaleY(1); opacity: 1; }
-}
+/* THE DAYS RISE FROM THE AXIS THEY ARE MEASURED AGAINST, flat on the first
+   frame so the whole chart never paints at full height and then drops. */
+@starting-style { .uh-bar { transform: scaleY(0); opacity: 0.4; } }
 /* A cut between stacked bands, in the modal's own paper (#583).
    The palette above can make every band visible against the panel; what it
    cannot do is make eight bands 3:1 from each other, because the arithmetic

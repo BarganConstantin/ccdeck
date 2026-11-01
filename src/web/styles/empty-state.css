@@ -41,8 +41,8 @@
   overflow-wrap: anywhere;
 }
 .empty-hero .empty-help { margin-top: 16px; pointer-events: auto; }
-.empty-hero .empty-help summary { cursor: pointer; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); transition: transform 120ms ease; }
-.empty-hero .empty-help summary:active { transform: scale(0.97); }
+.empty-hero .empty-help summary { cursor: pointer; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); transition: transform var(--dur-fast) var(--ease); }
+.empty-hero .empty-help summary:active { transform: scale(var(--press)); }
 @media (prefers-reduced-motion: reduce) {
   .empty-hero .empty-help summary { transition: none; }
   .empty-hero .empty-help summary:active { transform: none; }

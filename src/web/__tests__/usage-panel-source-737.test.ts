@@ -569,7 +569,7 @@ describe("the period strip's indicator", () => {
     expect(rest).toMatch(/background:\s*transparent/);
     // And because the row is always there, the state can fade rather than
     // teleport — over the same 120ms the label's colour takes.
-    expect(rest).toMatch(/transition:\s*background-color 120ms/);
+    expect(rest).toMatch(/transition:\s*background-color var\(--dur-fast\)/);
   });
 
   it("does not let hover wear the selected colour", () => {

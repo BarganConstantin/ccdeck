@@ -209,25 +209,31 @@ describe("V4's chips: 24 tall, 12 on 16", () => {
 });
 
 describe("V4's chip entrance: opacity and 4px of x over --dur-base", () => {
-  it("is one keyframe, from transparent and 4px back", () => {
-    expect(frames["chip-in"]).toBeDefined();
-    expect(frames["chip-in"]).toMatch(/from\s*\{\s*opacity:\s*0;\s*transform:\s*translateX\(-4px\);\s*\}/);
+  // V4's motion rules, rule 6: a chip a person can bring back twice enters by a
+  // transition from @starting-style, not a keyframe. The one that gains a class
+  // on a persistent button (.v.stale / .v.ready) keeps chip-in.
+  const MOUNTED = [".topbar .status .pill", ".topbar .waiting-stat", ".topbar .provider-incident"];
+  it("mounted chips start transparent and 4px back, and transition to rest", () => {
+    const sheet = css;
+    expect(sheet).toMatch(/@starting-style \{\s*\.topbar \.status \.pill, \.topbar \.waiting-stat, \.topbar \.provider-incident \{ opacity: 0; transform: translateX\(-4px\); \}\s*\}/);
+    for (const s of MOUNTED) {
+      expect(decl(s, "transition"), s).toMatch(/opacity var\(--dur-base\) var\(--ease\)/);
+      expect(decl(s, "transition"), s).toMatch(/transform /);
+      expect(decl(s, "animation"), s).toBeUndefined();
+    }
     expect(frames["pulse"]).toMatch(/opacity/);
     expect(frames["pulse"]).not.toMatch(/transform/);
   });
-  it("is worn by the stream chip, the count, an incident and a newer or ready version", () => {
-    const chip = "chip-in var(--dur-base) var(--ease) both";
-    for (const s of [".topbar .status .pill", ".topbar .waiting-stat", ".topbar .provider-incident", ".topbar .brand button.v:is(.stale, .ready)"]) {
-      expect(decl(s, "animation"), s).toBe(chip);
-    }
+  it("the newer-version chip keeps the keyframe, which a class change can run", () => {
+    expect(frames["chip-in"]).toMatch(/from\s*\{\s*opacity:\s*0;\s*transform:\s*translateX\(-4px\);\s*\}/);
+    expect(decl(".topbar .brand button.v:is(.stale, .ready)", "animation")).toBe("chip-in var(--dur-base) var(--ease) both");
+    expect(decl(".topbar .brand button.v:is(.stale, .ready)", "animation", REDUCED)).toBe("none");
   });
-  it("answers reduced motion with none, on each of them", () => {
-    for (const s of [".topbar .status .pill", ".topbar .waiting-stat", ".topbar .provider-incident", ".topbar .brand button.v:is(.stale, .ready)"]) {
-      expect(decl(s, "animation", REDUCED), s).toBe("none");
-    }
-    // The queue's own entrance is a separate, older rule and keeps its answer.
-    expect(frames["wait-in"]).toBeDefined();
-    expect(decl(".topbar .wait-list li[data-fresh]", "animation", REDUCED)).toBe("none");
+  it("answers reduced motion by starting where it ends, on each mounted chip and the queue", () => {
+    const sheet = css;
+    expect(sheet).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*@starting-style \{\s*\.topbar \.status \.pill, \.topbar \.waiting-stat, \.topbar \.provider-incident,\s*\.topbar \.wait-list li\[data-fresh\] \{ opacity: 1; transform: none; \}/);
+    // The queue's own entrance: a fresh name arrives by transition too.
+    expect(decl(".topbar .wait-list li[data-fresh]", "transition")).toMatch(/^opacity var\(--dur-base\)/);
   });
 });
 
@@ -297,8 +303,8 @@ describe("V4's Panel bar (the stripes)", () => {
       .toBe("color-mix(in srgb, var(--text) 6%, var(--selected))");
   });
   it("presses a door as V4's Icon button, 0.94, where the labelled controls keep 0.97; none under reduced motion", () => {
-    expect(decl(".rail-btn-stripe:active", "transform")).toBe("scale(0.94)");
-    expect(decl(".rail-btn:active", "transform")).toBe("scale(0.97)");
+    expect(decl(".rail-btn-stripe:active", "transform")).toBe("scale(var(--press-small))"); // --press-small is .94
+    expect(decl(".rail-btn:active", "transform")).toBe("scale(var(--press))"); // --press is .97
     expect(decl(".rail-btn-stripe:active", "transform", REDUCED)).toBe("none");
     expect(decl(".rail-btn:active", "transform", REDUCED)).toBe("none");
   });

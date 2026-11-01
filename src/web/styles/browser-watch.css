@@ -44,7 +44,7 @@
   align-self: center;
   margin-right: 6px;
   color: var(--text-dim);
-  transition: color 120ms ease;
+  transition: color var(--dur-fast) var(--ease);
 }
 .bw-ep-x:focus-visible { color: var(--warn); }
 @media (hover: hover) and (pointer: fine) {
@@ -72,7 +72,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: transform 120ms ease, background 120ms ease;
+  transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .bw-ep-head:hover { background: var(--bg-soft); }
@@ -80,7 +80,7 @@
 /* Joins the press convention rather than taking the exemption, for the reason
    #355 gave the control before it. A full-width row presses at 0.97 the way
    `.session-list .sl-row` does — the same tier, the same number. */
-.bw-ep-head:active { transform: scale(0.97); }
+.bw-ep-head:active { transform: scale(var(--press)); }
 /* INSIDE ITS OWN EDGE (#1815). The card clips at `overflow: hidden` and this
    row fills it flush on three sides, so the global ring, drawn outside, kept
    only its right edge — beside the ×, which then looked like what had focus.
@@ -275,7 +275,7 @@
   padding: 4px 8px;
   border-radius: 4px;
   min-width: 0;
-  transition: background 140ms ease;
+  transition: background var(--dur-fast) var(--ease);
 }
 /* A transcript is scanned by running a finger down it, and until now the
    finger had nothing to land on: sixteen near-identical rows, no way to hold
@@ -290,7 +290,7 @@
 .bw-log-line:hover .bw-log-profile,
 .bw-log-line:hover .bw-log-sys { color: var(--text); }
 }
-.bw-log-time, .bw-log-profile, .bw-log-sys, .bw-log-browser { transition: color 140ms ease; }
+.bw-log-time, .bw-log-profile, .bw-log-sys, .bw-log-browser { transition: color var(--dur-fast) var(--ease); }
 
 /* Arrival. The log is the panel's transcript and a new line in it is the one
    thing here that means something JUST happened — it should be seen landing,
@@ -298,7 +298,7 @@
    this fires on the line that is new and not on the fifteen that shifted down
    to make room for it. */
 @media (prefers-reduced-motion: no-preference) {
-  .bw-log-line { animation: bw-line-in 260ms var(--ease); }
+  .bw-log-line { animation: bw-line-in var(--dur-move) var(--ease); }
 }
 @keyframes bw-line-in {
   from { opacity: 0; transform: translateY(-4px); }
@@ -444,7 +444,7 @@
   background: var(--text-dim);
   flex: none;
   align-self: center;
-  transition: background 200ms ease, box-shadow 200ms ease;
+  transition: background var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
 }
 .bw-mode-dot.on { background: var(--accent); }
 /* A slow breath while armed, so "running" is legible without reading a word —
@@ -461,7 +461,7 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--text);
   font-weight: 600;
-  animation: bw-state-in 220ms var(--ease);
+  animation: bw-state-in var(--dur-base) var(--ease);
 }
 /* Fires when the MEANING changes — the mode word is keyed on the kind, so a
    render that leaves the state where it was does not restart it. Opacity and a
@@ -491,7 +491,7 @@
   transform-origin: top;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .bw-settings { animation: bw-settings-in 240ms var(--ease); }
+  .bw-settings { animation: bw-settings-in var(--dur-move) var(--ease); }
 }
 @keyframes bw-settings-in {
   from { opacity: 0; transform: translateY(-6px) scaleY(0.96); }
@@ -509,12 +509,12 @@
   padding: 4px 6px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   cursor: pointer;
-  transition: border-color 120ms ease, color 120ms ease, transform 120ms ease;
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .bw-settings select:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
 }
-.bw-settings select:active:not(:disabled) { transform: scale(0.97); }
+.bw-settings select:active:not(:disabled) { transform: scale(var(--press)); }
 .bw-settings-note {
   margin: 0;
   flex: 1 1 30ch;
@@ -597,7 +597,7 @@
   font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
   line-height: 1;
   cursor: pointer;
-  transition: color 120ms ease, border-color 120ms ease, transform 120ms ease;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 /* The circle stays 16px because it is a mark beside a label, not a button in a
    row of buttons — but a 16px hit target is a miss for anyone without a mouse
@@ -608,7 +608,7 @@
 @media (hover: hover) and (pointer: fine) {
 .bw-help:hover { color: var(--text); border-color: var(--text); }
 }
-.bw-help:active { transform: scale(0.94); }
+.bw-help:active { transform: scale(var(--press-small)); }
 .bw-help[aria-expanded="true"] { color: var(--text); border-color: var(--text); background: var(--ctl-fill); }
 
 /* THE NUMBERS THE PANEL NEVER HAD. Between "is this alive" and "what exactly
@@ -764,7 +764,7 @@ button.btn.bw-rc-copy { flex: none; font-size: calc(10px + max(-1px, var(--ui-te
 @media (prefers-reduced-motion: reduce) {
   .bw-mode-word,
   .bw-log-line,
-  .bw-settings { animation: bw-state-fade 220ms ease; }
+  .bw-settings { animation: bw-state-fade var(--dur-base) var(--ease); }
 }
 
 /* THE STATES THAT ARE NOT THE HAPPY PATH. A monitoring tool is judged on these,

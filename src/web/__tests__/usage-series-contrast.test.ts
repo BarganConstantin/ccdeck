@@ -805,7 +805,7 @@ describe("the selected range is a state you can see (#583)", () => {
   });
 
   it("keeps the press feedback the strip already had", () => {
-    expect(decl(".uh-range-btn:active", "transform")).toBe("scale(0.97)");
+    expect(decl(".uh-range-btn:active", "transform")).toBe("scale(var(--press))"); // --press is .97
   });
 });
 

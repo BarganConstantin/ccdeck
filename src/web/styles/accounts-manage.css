@@ -104,7 +104,7 @@
   border: 1px solid var(--line);
   border-radius: var(--r-overlay);
   box-shadow: var(--shadow-contact), var(--shadow-2);
-  animation: pop-from-anchor 120ms cubic-bezier(0.23, 1, 0.32, 1);
+  animation: pop-from-anchor var(--dur-fast) var(--ease);
   text-align: left;
 }
 /* Out of the anchor, not up from nowhere: 3px away from the button over
@@ -289,14 +289,14 @@
   font: inherit;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   cursor: pointer;
-  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: color var(--dur-fast), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ap-issue-report:hover { color: var(--text); text-decoration: underline; }
 }
 /* The press convention every clickable control here keeps — the same 0.97 and
    easing the Projects report's Copy takes (canvas-motion.test.ts). */
-.ap-issue-report:active { transform: scale(0.97); }
+.ap-issue-report:active { transform: scale(var(--press)); }
 @media (prefers-reduced-motion: reduce) {
   .ap-issue-report:active { transform: none; }
 }
@@ -354,8 +354,8 @@
   font: inherit;
   font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   cursor: pointer;
-  transition: border-color 120ms, color 120ms, background 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast),
+              transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ap-manage-btn:hover:not(:disabled) {
@@ -363,7 +363,7 @@
   background: color-mix(in srgb, var(--text) 12%, transparent);
 }
 }
-.ap-manage-btn:active:not(:disabled) { transform: scale(0.97); }
+.ap-manage-btn:active:not(:disabled) { transform: scale(var(--press)); }
 /* The same dimming the ↻ and the two selects use for the moment a request is
    out. At 0.45 this was the panel's only long-lived disabled control and it sat
    at 1.98:1; nothing here is disabled at rest any more, so the value can match

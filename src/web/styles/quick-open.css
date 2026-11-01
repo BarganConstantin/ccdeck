@@ -4,18 +4,18 @@
    dialog header: the field is its title. It sits a little under the bar and
    keeps one height while the list narrows, so typing never makes it jump.
 
-   The one authored motion is the arrival: down a few pixels, out of a slight
-   scale, on the house ease-out (DESIGN.md › Motion), and gone faster than it
-   came. Under reduced motion it only fades. */
+   It never animates (V4's motion rules): it opens and closes at once, whether
+   a key or the pointer did it. There is no enter and no exit here, and so no
+   reduced-motion answer to give. */
 
 .qo-backdrop {
   align-items: flex-start;
   padding: max(12vh, 64px) 16px 16px;
   /* The one scrim V4 draws under any overlay (.modal-backdrop already reads
-     it); it was a lighter one of its own before V4. */
-  animation: fadeIn var(--dur-base) var(--ease);
+     it); it was a lighter one of its own before V4. It carries no animation of
+     its own, and cancels the one .modal-backdrop brings. */
+  animation: none;
 }
-.qo-backdrop.closing { animation: qo-fade-out var(--dur-exit) var(--ease) forwards; }
 
 /* V4's overlay frame, as a dialog wears it: its corner and its one shadow. */
 .qo {
@@ -28,23 +28,6 @@
   box-shadow: var(--shadow-overlay);
   overflow: hidden;
   transform-origin: 50% 0;
-  animation: qo-in var(--dur-base) var(--ease) both;
-}
-/* Gone on the curve it came in on, faster: it settles away, it does not
-   fall off the bottom of a curve. */
-.qo.closing { animation: qo-out var(--dur-exit) var(--ease) forwards; }
-/* Opened by a key, or closed with Esc: no motion (QuickOpen.tsx unmounts at
-   once in that case, since no animationend would come). */
-:root[data-motion="instant"] :is(.qo-backdrop, .qo, .qo-backdrop.closing, .qo.closing) { animation: none; }
-
-@keyframes qo-in {
-  from { opacity: 0; transform: translateY(-12px) scale(0.97); }
-}
-@keyframes qo-out {
-  to { opacity: 0; transform: translateY(-6px) scale(0.98); }
-}
-@keyframes qo-fade-out {
-  to { opacity: 0; }
 }
 
 /* The field. It carries the deck's one focus ring for the input in it, inset
@@ -94,12 +77,12 @@
   color: var(--muted);
   font: calc(11px + var(--ui-text-increase, 0px))/22px var(--font-mono);
   cursor: pointer;
-  transition: color 120ms ease-out, transform 120ms ease-out;
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .qo-esc:hover { color: var(--text); }
 }
-.qo-esc:active { transform: scale(0.94); }
+.qo-esc:active { transform: scale(var(--press-small)); }
 
 /* The list. One height whatever it holds. */
 .qo-list {
@@ -283,7 +266,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .qo { animation: fadeIn 140ms ease-out both; }
-  .qo.closing { animation: qo-fade-out 100ms ease-out forwards; }
   .qo-esc:active { transform: none; }
 }

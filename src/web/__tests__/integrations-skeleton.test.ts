@@ -23,7 +23,7 @@ describe("the integrations' loading rows", () => {
   });
 
   it("stays out of sight for 300 ms, then fades in", () => {
-    expect(rule(".ig-skeleton")).toMatch(/animation:\s*fadeIn 120ms ease-out 300ms both/);
+    expect(rule(".ig-skeleton")).toMatch(/animation:\s*fadeIn var\(--dur-fast\) var\(--ease\) 300ms both/);
   });
 
   it("pulses at the deck's one ambient beat, and not at all under reduced motion", () => {

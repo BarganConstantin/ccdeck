@@ -28,7 +28,7 @@
   color: var(--text);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   box-shadow: var(--shadow-1);
-  transition: border-color 200ms ease, box-shadow 200ms ease;
+  transition: border-color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
   overflow: hidden;
 }
 @media (hover: hover) and (pointer: fine) {
@@ -396,7 +396,7 @@
   cursor: pointer;
   line-height: 0;
   border-radius: 50%;
-  transition: filter 120ms ease, transform 120ms ease;
+  transition: filter var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ctx-donut:hover { filter: brightness(1.2); transform: scale(1.08); }
@@ -405,7 +405,7 @@
    always a hover as well, so source order is the whole of what decides which
    scale the pointer sees. 26px of donut, so 0.94 like the other icon targets —
    0.97 of 26px is under a pixel. */
-.ctx-donut:active { transform: scale(0.94); }
+.ctx-donut:active { transform: scale(var(--press-small)); }
 .ctx-donut:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

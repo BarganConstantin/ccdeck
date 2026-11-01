@@ -356,6 +356,22 @@
   --enter-scale: 0.96;
 }
 
+/* V4's motion rules: a surface opened by a key (or by j/k) carries
+   data-motion="instant" itself until it closes, and nothing inside it
+   animates. NOT the root flag: input-modality.ts sets data-motion="instant" on
+   :root on any keydown, so a bare `[data-motion="instant"] *` would freeze the
+   whole deck after the user types. The root flag keeps driving only the
+   surfaces that opt in by name (`:root[data-motion="instant"] :is(.modal-backdrop,
+   .modal)` in dialogs.css, the peek in lan-sync.css, the workspace fade).
+   Exempt: loops that show a wait or a live state keep running inside an
+   instant surface, .loader, the --pulse-live marks (.state-mark, .tb-spin).
+   (`*` never matches a pseudo-element, so ::before pulses are untouched.) */
+[data-motion="instant"]:not(:root),
+[data-motion="instant"]:not(:root) *:not(.loader, .loader *, .state-mark, .tb-spin) {
+  transition-duration: 0ms !important;
+  animation: none !important;
+}
+
 /* THE MONO STACK, written once. Every value on this deck — a number, an id, a
    path, a token count, a model name, a dollar figure — is set in it, sixty-two
    declarations, and it was sixty-two copies of the same literal: a stack is
@@ -445,7 +461,7 @@ optgroup {
   border: 2px solid transparent;
   background-clip: padding-box;
   border-radius: 999px;
-  transition: background-color 160ms ease-out;
+  transition: background-color var(--dur-base) var(--ease);
 }
 /* `:focus-within` beside `:hover` because a scroller can be driven from the
    keyboard, and a bar that only exists under a pointer does not exist for the

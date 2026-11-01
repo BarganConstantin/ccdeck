@@ -72,6 +72,6 @@ describe("the canvas says when auto-fit is off (#820)", () => {
   it("centres by margins, so the press on Resume is the only transform", () => {
     const chip = /(?:^|\n)\.autofit-chip\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(chip).not.toMatch(/transform:\s*translate/);
-    expect(css).toMatch(/\.autofit-resume:active\s*\{\s*transform:\s*scale\(0\.97\);\s*\}/);
+    expect(css).toMatch(/\.autofit-resume:active\s*\{\s*transform:\s*scale\(var\(--press\)\);\s*\}/); // --press is .97 (V4's motion rules)
   });
 });

@@ -418,7 +418,9 @@ describe("an entrance lands without overshooting", () => {
     expect(segs).toHaveLength(2);
     for (const s of segs) expect(overshoots(s.easing), `segment from ${s.from}`).toBe(false);
     // And it is the sheet's own ease-out, not a curve invented for this rule.
-    const shared = [...css.matchAll(/cubic-bezier\([^)]*\)/g)].filter(m => m[0] === primary.easing);
+    // Spelled var(--ease) since V4's motion rules: the token IS that curve.
+    const shared = [...css.matchAll(/var\(--ease\)/g)];
+    expect(css).toMatch(/bubble-spawn 220ms var\(--ease\) both/);
     expect(shared.length).toBeGreaterThan(5);
   });
 
@@ -486,7 +488,9 @@ describe("this sheet decelerates into rest", () => {
       if (!(x2 < 1)) arriving.push(`styles.css:${lineOf(m.index!)} ${m[0]}`);
     }
     expect(arriving).toEqual([]);
-    expect([...css.matchAll(/cubic-bezier\([^)]*\)/g)].length).toBeGreaterThan(30);
+    // The sheet spells its one curve var(--ease) now (tokens.css owns the
+    // cubic-bezier), so the curves it uses are those literals plus the token.
+    expect([...css.matchAll(/cubic-bezier\([^)]*\)|var\(--ease\)/g)].length).toBeGreaterThan(30);
   });
 });
 
@@ -549,7 +553,7 @@ describe("the sheet names no animation it does not define, and defines none it d
     const missing: string[] = [];
     for (const rule of rules) {
       const value = decl(rule.body, "animation") ?? decl(rule.body, "animation-name");
-      if (value == null || value === "none") continue;
+      if (value == null || value.replace(/\s*!important$/, "") === "none") continue;
       for (const part of splitTop(value)) {
         const toks = tokens(part);
         if (!toks.some(t => keyframes.has(t))) missing.push(`styles.css:${lineOf(rule.at)} ${rule.selector} — ${part.trim()}`);

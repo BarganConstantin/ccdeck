@@ -64,7 +64,7 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: background var(--dur-fast), transform 140ms var(--ease);
+  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .session-list .sl-close:hover { background: var(--ctl-fill); color: var(--text); }
@@ -142,7 +142,7 @@
   text-align: left;
   color: var(--text);
   font: inherit;
-  transition: background var(--dur-fast), transform 140ms var(--ease);
+  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .session-list .sl-row:hover { background: var(--ctl-fill); }
@@ -159,8 +159,8 @@
 .session-list .sl-row:focus-visible { outline-offset: -2px; border-radius: var(--r-panel); }
 /* The most-clicked control in the app answers a press. Nothing interactive
    nests inside the row, so the scale is the row's alone. */
-.session-list .sl-row:active { transform: scale(0.97); }
-.session-list .sl-close:active { transform: scale(0.94); }
+.session-list .sl-row:active { transform: scale(var(--press)); }
+.session-list .sl-close:active { transform: scale(var(--press-small)); }
 /* A session "Remove from board" took off the canvas. Still listed, because the
    row is the way back; muted, because what it points at is not on the board. */
 .session-list .sl-row.removed .sl-label { color: var(--muted); }
@@ -424,13 +424,13 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background var(--dur-fast), transform 140ms var(--ease);
+  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .session-list .sl-usage-btn:hover { background: var(--ctl-fill); }
 }
 .session-list .sl-usage-btn:focus-visible { outline-offset: -2px; border-radius: var(--r-panel); }
-.session-list .sl-usage-btn:active { transform: scale(0.97); }
+.session-list .sl-usage-btn:active { transform: scale(var(--press)); }
 .session-list .sl-usage-line1,
 .session-list .sl-usage-line2 {
   display: flex;

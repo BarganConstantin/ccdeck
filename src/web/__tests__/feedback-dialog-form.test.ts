@@ -405,8 +405,8 @@ describe("Add details", () => {
   });
 
   it("unfolds a beat faster than it folds back, and only fades under reduced motion", () => {
-    expect(value(".fb-details", "transition")).toMatch(/grid-template-rows 160ms/);
-    expect(value(".fb-details[data-open]", "transition-duration")).toBe("220ms");
+    expect(value(".fb-details", "transition")).toMatch(/grid-template-rows var\(--dur-exit\)/); // 150 closing
+    expect(value(".fb-details[data-open]", "transition-duration")).toBe("var(--dur-base)"); // 200 opening
     const reduced = sheet.slice(sheet.lastIndexOf("@media (prefers-reduced-motion: reduce)", sheet.indexOf(".fb-details-body,\n  .fb-details[data-open] .fb-details-body { transform: none; }")));
     expect(reduced).toMatch(/\.fb-details,\s*\.fb-details\[data-open\] \{ transition: none; \}/);
   });
@@ -501,7 +501,8 @@ describe("once it is sent", () => {
     expect(flat(sendHook)).toMatch(/return \(\) => \{ window\.clearTimeout\(fade\); window\.clearTimeout\(close\); \};/);
     expect(dialog).toMatch(/const leaving = useCloseWhenSent\(sent, onClose\);/);
     expect(flatDialog).toMatch(/data-leaving=\{leaving \|\| undefined\}/);
-    expect(value(".modal-backdrop[data-leaving]", "transition")).toBe(`opacity ${SENT_EXIT_MS}ms ease-out`);
+    expect(value(".modal-backdrop[data-leaving]", "transition")).toBe("opacity var(--dur-exit) var(--ease)");
+    expect(SENT_EXIT_MS).toBe(150); // = --dur-exit, the timer mirrors the token
     expect(value(".modal-backdrop[data-leaving]", "opacity")).toBe("0");
   });
 

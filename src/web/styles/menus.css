@@ -66,7 +66,7 @@
   font-weight: 400;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms ease-out, color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 /* One line, always: a name that wrapped would make one tab taller than its
    neighbours. The clip is a last resort for enlarged text. */
@@ -81,7 +81,7 @@
 }
 /* Drawn inside, so the nav's own edge does not clip the ring. */
 .settings-tab:focus-visible { outline-offset: -2px; }
-.settings-tab:active { transform: scale(0.97); }
+.settings-tab:active { transform: scale(var(--press)); }
 /* THE ONE THING IN THE DIALOG THAT SCROLLS, and only when a window is too
    short for its section; a scroll that reaches either end stays here rather
    than handing on to the page behind the scrim. Keyed by its section in the
@@ -309,12 +309,12 @@
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .settings-link:hover { text-decoration: underline; }
 }
-.settings-link:active { transform: scale(0.97); }
+.settings-link:active { transform: scale(var(--press)); }
 /* A key cap, in a caption's right-hand slot or beside the switch it flips, and
    on the right of every row of Settings › Keyboard. */
 .settings-key {
@@ -412,7 +412,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms ease-out, color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .settings-result > svg { display: block; flex: none; }
 .settings-result-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -432,7 +432,7 @@
 .settings-result:hover { background: var(--ctl-fill); color: var(--text); }
 }
 .settings-result[data-highlighted="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
-.settings-result:active { transform: scale(0.97); }
+.settings-result:active { transform: scale(var(--press)); }
 /* A row's own ground — a hovered result, the mark a result leaves on the row
    it landed on — is rounded with the list at its two ends, so neither pokes a
    square corner past the list's round one. */
@@ -451,8 +451,8 @@
    later. */
 .settings-pane :is(.settings-group, .sm-custom)[data-jumped] { border-radius: var(--r-panel); }
 @media (prefers-reduced-motion: no-preference) {
-  .settings-pane [data-jumped] { animation: settings-jumped 1200ms ease-out; }
-  .settings-pane :is(.settings-group, .reading-options, .sm-custom)[data-jumped] { animation: settings-jumped-group 1200ms ease-out; }
+  .settings-pane [data-jumped] { animation: settings-jumped 1500ms var(--ease); }
+  .settings-pane :is(.settings-group, .reading-options, .sm-custom)[data-jumped] { animation: settings-jumped-group 1500ms var(--ease); }
 }
 /* Held for the first 40% — long enough to be seen where the eye lands —
    then faded to the row's own ground. */
@@ -587,7 +587,7 @@
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms ease-out, color 120ms ease-out;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .appearance-theme:hover { background: var(--ctl-fill); color: var(--text); }
@@ -600,7 +600,7 @@
   overflow: hidden;
   border: 1px solid var(--ctl-edge);
   border-radius: calc(var(--r-ctl) + 2px);
-  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .appearance-theme[aria-checked="true"] .appearance-preview {
   border-color: var(--accent);
@@ -628,7 +628,7 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   opacity: 0;
-  transition: opacity 120ms ease-out;
+  transition: opacity var(--dur-fast) var(--ease);
 }
 .appearance-theme[aria-checked="true"] .appearance-check { opacity: 1; }
 
@@ -974,19 +974,19 @@ button.btn.sm-hear {
 .sm-voice summary {
   cursor: pointer;
   list-style: none;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .sm-voice summary:hover .sm-voice-chevron { color: var(--text); }
 }
-.sm-voice summary:active { transform: scale(0.97); }
+.sm-voice summary:active { transform: scale(var(--press)); }
 .sm-custom .sm-voice summary[aria-disabled="true"]:active { transform: none; }
 .sm-voice summary:focus-visible { outline-offset: -2px; }
 .sm-voice summary::-webkit-details-marker { display: none; }
 .sm-voice-chevron {
   display: block;
   color: var(--muted);
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
 .sm-voice[open] .sm-voice-chevron { transform: rotate(90deg); }
 .sm-voice-fields {

@@ -223,13 +223,18 @@ describe("words an item page draws on a filled bed", () => {
 describe("choosing a tab or a section", () => {
   const reduced = (src: string) => blocks(src, "@media (prefers-reduced-motion: reduce)").join("\n");
 
-  it("fades the chosen one's content in over 100ms, moving nothing", () => {
-    expect(decls(topLevel(panel), ".fg-tab-body:not([hidden])")).toBe("animation: fadeIn 100ms ease-out;");
-    expect(decls(topLevel(detail), ".fd-section:not([hidden])")).toBe("animation: fadeIn 100ms ease-out;");
+  // V4's motion rules: tab content never animates. It used to fade in over
+  // 100ms (fadeIn); it is shown at once now, so there is nothing for reduced
+  // motion to take away either.
+  it("shows the chosen one's content at once: tab content never animates", () => {
+    expect(decls(topLevel(panel), ".fg-tab-body:not([hidden])")).toBe("");
+    expect(decls(topLevel(detail), ".fd-section:not([hidden])")).toBe("");
+    expect(panel).not.toMatch(/\.fg-tab-body[^{]*\{[^}]*animation/);
+    expect(detail).not.toMatch(/\.fd-section[^{]*\{[^}]*animation/);
   });
 
-  it("does not fade at all under reduced motion", () => {
-    expect(decls(reduced(panel), ".fg-tab-body:not([hidden])")).toBe("animation: none;");
-    expect(decls(reduced(detail), ".fd-section:not([hidden])")).toBe("animation: none;");
+  it("has no reduced-motion answer to give for it", () => {
+    expect(decls(reduced(panel), ".fg-tab-body:not([hidden])")).toBe("");
+    expect(decls(reduced(detail), ".fd-section:not([hidden])")).toBe("");
   });
 });

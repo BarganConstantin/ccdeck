@@ -521,7 +521,7 @@ input, textarea { caret-color: var(--accent); }
   inset: 0;
   border-radius: 50%;
   border: 1px solid var(--accent);
-  animation: ap-ping 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+  animation: ap-ping 2.6s ease-in-out infinite;
 }
 /* Less motion keeps the ring, still — the way `.ap-pulse` keeps its own. */
 @media (prefers-reduced-motion: reduce) {
@@ -660,17 +660,17 @@ input, textarea { caret-color: var(--accent); }
     animation: lan-draw-out 560ms var(--ease) calc(var(--i, 0) * 70ms + 80ms) both;
   }
   .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="out"] {
-    animation: lan-run-out 4.2s cubic-bezier(0.65, 0, 0.35, 1) calc(var(--i, 0) * 0.35s + 0.7s) infinite;
+    animation: lan-run-out 4.2s ease-in-out calc(var(--i, 0) * 0.35s + 0.7s) infinite;
   }
   .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="in"] {
-    animation: lan-run-in 4.2s cubic-bezier(0.65, 0, 0.35, 1) calc(var(--i, 0) * 0.35s + 2.8s) infinite;
+    animation: lan-run-in 4.2s ease-in-out calc(var(--i, 0) * 0.35s + 2.8s) infinite;
   }
   /* A check is a question and its answer: out along the network and back. */
   .lan-map[data-asking] .lan-link .lan-glint[data-dir="out"] {
-    animation: lan-run-out 1.3s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+    animation: lan-run-out 1.3s ease-in-out infinite;
   }
   .lan-map[data-asking] .lan-link .lan-glint[data-dir="in"] {
-    animation: lan-run-in 1.3s cubic-bezier(0.65, 0, 0.35, 1) 0.65s infinite;
+    animation: lan-run-in 1.3s ease-in-out 0.65s infinite;
   }
 }
 /* Named again for less motion, where none of them can run — they exist only
@@ -1062,7 +1062,7 @@ input, textarea { caret-color: var(--accent); }
   font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--muted);
   cursor: pointer;
-  transition: color 120ms ease, transform 120ms ease;
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ap-lan-word:hover:not(:disabled) { color: var(--text); }
@@ -1107,7 +1107,7 @@ input, textarea { caret-color: var(--accent); }
    is the one moving thing in a section whose job is to be read. */
 .ap-lan-chev {
   display: inline-block;
-  transition: transform 150ms var(--ease);
+  transition: transform var(--dur-fast) var(--ease);
   transform: rotate(0deg);
   opacity: 0.7;
 }
@@ -1118,7 +1118,7 @@ input, textarea { caret-color: var(--accent); }
 .ap-lan-more-bad { color: var(--warn); }
 /* The same 0.97 every pressable thing in this app gives back. A word without a
    box still has to answer a press. */
-.ap-lan-word:active:not(:disabled) { transform: scale(0.97); }
+.ap-lan-word:active:not(:disabled) { transform: scale(var(--press)); }
 .ap-lan-word:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .ap-lan-word:disabled { cursor: default; opacity: var(--dim-off); }
 /* BOTH OF THESE ANSWER A RULE BELOW THEM IN THE SHEET, WHICH IS WHY THEY ARE

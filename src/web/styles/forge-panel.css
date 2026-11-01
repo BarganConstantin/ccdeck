@@ -42,21 +42,20 @@
    and a click or a focus scrolled the whole modal up to reach them. */
 .fg-tab-body { position: relative; flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; padding: 8px 20px 32px; }
 .fg-note { margin: 8px 20px 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.6; }
-/* A tab's content fades in as the tab is chosen (a hidden panel shown runs
-   its animation again): 100ms of opacity, and nothing moves. */
-.fg-tab-body:not([hidden]) { animation: fadeIn 100ms ease-out; }
+/* A tab's content never animates (V4's motion rules): choosing a tab swaps
+   what it shows at once. */
 .fg-tab-body .fg-note { margin: 12px 0 0; }
 .fg-empty { margin: 24px 0 0; color: var(--text-secondary); line-height: 1.6; max-width: 60ch; }
 
 /* A group: a heading that folds, with its count. */
 .fg-group { margin-top: 16px; }
 .fg-group-head { display: flex; align-items: center; gap: 8px; margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
-.fg-fold { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 4px; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; border-radius: var(--r-ctl); transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fg-fold { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 4px; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; border-radius: var(--r-ctl); transition: background var(--dur-fast), transform var(--dur-fast) var(--ease); }
 @media (hover: hover) and (pointer: fine) {
 .fg-fold:hover { background: var(--ctl-fill); }
 }
-.fg-fold:active { transform: scale(0.97); }
-.fg-fold-chevron { width: 5px; height: 5px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(-45deg); transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fg-fold:active { transform: scale(var(--press)); }
+.fg-fold-chevron { width: 5px; height: 5px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(-45deg); transition: transform var(--dur-fast) var(--ease); }
 .fg-group[data-open] .fg-fold-chevron { transform: rotate(45deg); }
 .fg-count { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-weight: 400; color: var(--muted); }
 
@@ -67,7 +66,7 @@
 .fg-rows { list-style: none; margin: 6px 0 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); overflow: hidden; }
 .fg-rows > li { display: grid; }
 .fg-rows > li + li { border-top: 1px solid var(--line-soft); }
-.fg-row { display: grid; gap: 4px 16px; align-items: center; min-height: 48px; padding: 8px 14px; box-sizing: border-box; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background 120ms; }
+.fg-row { display: grid; gap: 4px 16px; align-items: center; min-height: 48px; padding: 8px 14px; box-sizing: border-box; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background var(--dur-fast); }
 @media (hover: hover) and (pointer: fine) {
 .fg-row:hover { background: var(--ctl-fill); }
 }
@@ -167,5 +166,4 @@
 @media (prefers-reduced-motion: reduce) {
   .fg-row, .fg-fold-chevron { transition: none; }
   .fg-fold:active { transform: none; }
-  .fg-tab-body:not([hidden]) { animation: none; }
 }

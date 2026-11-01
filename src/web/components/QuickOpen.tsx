@@ -2,10 +2,10 @@
 // in the manner of Raycast and VS Code (owner, 2026-10-24). What matches and in
 // what order is quick-open.ts; what each row opens is quick-open-items.tsx.
 //
-// One authored moment: the field drops in from a few pixels above and settles,
-// and leaves faster than it came. Nothing else moves. The highlight jumps with
-// the arrows rather than gliding, because a list walked a hundred times a day
-// should answer the key, not perform for it.
+// Nothing moves (V4's motion rules: Quick open never animates). It opens and
+// closes at once. The highlight jumps with the arrows rather than gliding,
+// because a list walked a hundred times a day should answer the key, not
+// perform for it.
 //
 // A combobox over a listbox, the pattern screen readers know from every
 // launcher: focus stays in the field and aria-activedescendant names the row,
@@ -22,9 +22,6 @@ import { useT } from "../i18n";
 import { isApplePlatform, platformName } from "../platform";
 import { SearchGlyph } from "./rail-glyphs";
 
-/** The exit's length, and the fallback that unmounts the field if no
- *  animationend comes (a browser with animations switched off). */
-const EXIT_MS = 150; // = --dur-exit
 /** Rows a Page key moves. */
 const PAGE = 5;
 
@@ -43,7 +40,7 @@ function Highlighted({ text, hits }: { text: string; hits: number[] }) {
 
 export default function QuickOpen({ items, onClose, onRun }: {
   items: readonly QuickItem[];
-  /** The field has finished leaving. */
+  /** The field was closed. */
   onClose: () => void;
   /** A row was chosen: the caller shuts the field and runs it in one go. */
   onRun: (item: QuickItem) => void;
@@ -52,7 +49,6 @@ export default function QuickOpen({ items, onClose, onRun }: {
   const [query, setQuery] = useState("");
   const [recent] = useState(readRecent);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [closing, setClosing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const closed = useRef(false);
@@ -63,13 +59,9 @@ export default function QuickOpen({ items, onClose, onRun }: {
     closed.current = true;
     onClose();
   }, [onClose]);
-  // Closed with a key (Esc, the chord) there is no exit animation to wait for:
-  // data-motion="instant" (input-modality.ts) turns it off, so no animationend
-  // would ever come.
-  const leave = useCallback(() => {
-    if (document.documentElement.dataset.motion === "instant") finish();
-    else setClosing(true);
-  }, [finish]);
+  // V4's motion rules: Quick open never animates. It opens and closes at once,
+  // by key or by pointer, so there is no exit to wait for.
+  const leave = finish;
   const dialogRef = useModalDismiss(leave, { focusRef: inputRef });
   const scrimPress = useScrimDismiss(leave);
 
@@ -78,12 +70,6 @@ export default function QuickOpen({ items, onClose, onRun }: {
   const found = rows.findIndex(row => row.item.id === activeId);
   const active = rows.length ? (found >= 0 ? found : 0) : -1;
   const activeRow: RankedItem | undefined = rows[active];
-
-  useEffect(() => {
-    if (!closing) return;
-    const fallback = setTimeout(finish, EXIT_MS + 60);
-    return () => clearTimeout(fallback);
-  }, [closing, finish]);
 
   // The chord that opened it closes it, wherever focus has wandered inside.
   useEffect(() => {
@@ -111,7 +97,7 @@ export default function QuickOpen({ items, onClose, onRun }: {
   }, [active, rows]);
 
   const run = (row: RankedItem | undefined) => {
-    if (!row || closing) return;
+    if (!row) return;
     rememberRecent(row.item.id);
     onRun(row.item);
   };
@@ -150,12 +136,11 @@ export default function QuickOpen({ items, onClose, onRun }: {
 
   let index = -1;
   return (
-    <div className={`modal-backdrop qo-backdrop${closing ? " closing" : ""}`} {...scrimPress} role="presentation">
+    <div className="modal-backdrop qo-backdrop" {...scrimPress} role="presentation">
       <div
         ref={dialogRef}
-        className={`qo${closing ? " closing" : ""}`}
+        className="qo"
         onClick={e => e.stopPropagation()}
-        onAnimationEnd={e => { if (closing && e.target === e.currentTarget) finish(); }}
         role="dialog"
         aria-modal="true"
         aria-label={t("board.quick.title")}

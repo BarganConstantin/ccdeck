@@ -120,13 +120,13 @@
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
-  transition: color 120ms ease-out, background-color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ap-side:hover { background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); }
 }
 .ap-side[aria-checked="true"] { background: color-mix(in srgb, var(--text) 11%, transparent); color: var(--text); }
-.ap-side:active { transform: scale(0.97); }
+.ap-side:active { transform: scale(var(--press)); }
 .ap-side:focus-visible { outline-offset: -2px; }
 /* The side out of sight has an account that needs attention. Colour alone would
    not say it to a reader: the button's name does (AccountsSwitch.tsx). */
@@ -382,12 +382,12 @@
   font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ap-sign-in:hover:not(:disabled), .ap-switch:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 12%, transparent); }
 }
-.ap-sign-in:active:not(:disabled), .ap-switch:active:not(:disabled) { transform: scale(0.97); }
+.ap-sign-in:active:not(:disabled), .ap-switch:active:not(:disabled) { transform: scale(var(--press)); }
 .ap-sign-in:disabled, .ap-switch:disabled { cursor: default; opacity: var(--dim-off); }
 
 /* EVERYTHING UNDER THE HEAD STARTS UNDER THE NAME. The slot's column — wide
@@ -518,7 +518,7 @@
   font: inherit;
   color: var(--muted);
   cursor: pointer;
-  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: color var(--dur-fast), transform var(--dur-fast) var(--ease);
 }
 .ap-issue[data-tone="warn"] { color: var(--warn); }
 .ap-issue-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -534,7 +534,7 @@
   text-underline-offset: 2px;
 }
 }
-.ap-issue:active { transform: scale(0.97); }
+.ap-issue:active { transform: scale(var(--press)); }
 .ap-warn-glyph { flex: none; }
 .ap-issue-age { margin-left: auto; color: var(--muted); white-space: nowrap; }
 
@@ -577,12 +577,12 @@
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ap-notice-fix:hover { background: color-mix(in srgb, var(--warn) 16%, transparent); }
 }
-.ap-notice-fix:active { transform: scale(0.97); }
+.ap-notice-fix:active { transform: scale(var(--press)); }
 
 .ap-empty {
   display: flex;
@@ -674,7 +674,7 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 1.2;
   cursor: pointer;
-  transition: opacity 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: opacity var(--dur-fast), transform var(--dur-fast) var(--ease);
 }
 /* The target, drawn AROUND the glyph rather than under it — the same technique
    `.selected-ribbon .selected-close::after` uses, for the same reason it gives:
@@ -704,7 +704,7 @@
 @media (hover: hover) and (pointer: fine) {
 .ap-failure-x:hover { opacity: 1; }
 }
-.ap-failure-x:active { transform: scale(0.94); }
+.ap-failure-x:active { transform: scale(var(--press-small)); }
 /* A switch's answer on its own row (#827). The refusal is the same box without
    the side inset the panel-level one needs, since the row already carries it;
    the confirmation is the quiet prose line a row's other notes are. */
@@ -734,7 +734,7 @@
    a little smaller. Backwards only: a fill that outlived the entrance would hold
    `transform` over the press scale. */
 .ap-policy > .ap-manage-btn {
-  animation: ap-commit-in 160ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+  animation: ap-commit-in var(--dur-base) var(--ease) backwards;
 }
 @keyframes ap-commit-in {
   from { opacity: 0; transform: scale(0.94); }
@@ -776,7 +776,7 @@
 .ap-threshold-field {
   position: relative;
   display: inline-block;
-  animation: ap-commit-in 160ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+  animation: ap-commit-in var(--dur-base) var(--ease) backwards;
 }
 .ap-policy .ap-threshold-input {
   min-height: 24px;

@@ -556,7 +556,7 @@ describe("the input behaves like its four siblings (#325's ninth finding)", () =
     // The block eased down 4px over 180ms from under its row. The popover
     // takes 120ms and 3px out of its anchor: shorter, because a menu is the
     // thing standing between a press and what the press was for.
-    expect(bare).toMatch(/animation: pop-from-anchor 120ms cubic-bezier\(0\.23, 1, 0\.32, 1\)/);
+    expect(bare).toMatch(/animation: pop-from-anchor var\(--dur-fast\) var\(--ease\)/); // Fast = 120);
     expect(bare).not.toMatch(/ap-manage-in(?![\w-])/);
   });
 });

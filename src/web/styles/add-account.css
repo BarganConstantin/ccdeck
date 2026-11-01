@@ -20,13 +20,13 @@
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   cursor: pointer;
-  transition: color 120ms, border-color 120ms, background 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast),
+              transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .aa-tab:hover { color: var(--text); }
 }
-.aa-tab:active { transform: scale(0.97); }
+.aa-tab:active { transform: scale(var(--press)); }
 .aa-tab.on {
   color: var(--text);
   border-color: var(--accent);
@@ -118,7 +118,7 @@
   padding: 6px 0 2px;
   text-align: center;
   /* From 0.97, never from 0 — nothing in the real world appears from nothing. */
-  animation: aa-done-in 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: aa-done-in var(--dur-base) var(--ease) both;
 }
 .aa-done h4,
 .aa-step .aa-repeat-title {
@@ -158,7 +158,7 @@
   stroke-dasharray: 32 126;
   transform-origin: 50% 50%;
   animation: aa-orbit-spin 760ms linear infinite;
-  transition: opacity 140ms ease;
+  transition: opacity var(--dur-fast) var(--ease);
 }
 @keyframes aa-orbit-spin {
   from { transform: rotate(-90deg); }
@@ -178,10 +178,10 @@
   stroke-dashoffset: 126;
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
-  animation: aa-draw 300ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  animation: aa-draw var(--dur-slow) var(--ease) forwards;
 }
 .aa-progress.resolving .aa-stages {
-  animation: aa-lift-out 160ms cubic-bezier(0.23, 1, 0.32, 1) 300ms both;
+  animation: aa-lift-out var(--dur-exit) var(--ease) var(--dur-slow) both;
 }
 @keyframes aa-lift-out { to { opacity: 0; transform: translateY(-4px); } }
 .aa-progress.failed .aa-orbit-track { stroke: color-mix(in srgb, var(--err) 45%, transparent); }
@@ -189,7 +189,7 @@
   stroke: var(--err);
   stroke-dasharray: 30;
   stroke-dashoffset: 30;
-  animation: aa-draw 260ms cubic-bezier(0.23, 1, 0.32, 1) 60ms forwards;
+  animation: aa-draw var(--dur-move) var(--ease) var(--delay-step) forwards;
 }
 
 .aa-stages {
@@ -207,12 +207,14 @@
   grid-template-columns: 16px minmax(0, 1fr);
   column-gap: 10px;
   align-items: start;
-  animation: aa-stage-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  /* An entrance is a transition from @starting-style, not a keyframe (V4's
+     motion rules): a stage that is raised twice turns round from where it is. */
+  transition: opacity var(--dur-move) var(--ease), transform var(--dur-move) var(--ease);
 }
-.aa-stage:nth-child(2) { animation-delay: 40ms; }
-.aa-stage:nth-child(3) { animation-delay: 80ms; }
-.aa-stage:nth-child(4) { animation-delay: 120ms; }
-@keyframes aa-stage-in { from { opacity: 0; transform: translateY(4px); } }
+.aa-stage:nth-child(2) { transition-delay: var(--delay-step); }
+.aa-stage:nth-child(3) { transition-delay: calc(var(--delay-step) * 2); }
+.aa-stage:nth-child(4) { transition-delay: calc(var(--delay-step) * 3); }
+@starting-style { .aa-stage { opacity: 0; transform: translateY(4px); } }
 /* The thread between the marks, green where it has been walked. */
 .aa-stage:not(:last-child)::after {
   content: "";
@@ -246,19 +248,19 @@
 .aa-stage-tick {
   stroke-dasharray: 14;
   stroke-dashoffset: 14;
-  animation: aa-draw 220ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  animation: aa-draw var(--dur-base) var(--ease) forwards;
 }
 .aa-stage-cross {
   stroke-dasharray: 18;
   stroke-dashoffset: 18;
-  animation: aa-draw 220ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  animation: aa-draw var(--dur-base) var(--ease) forwards;
 }
 
 .aa-stage-label {
   color: var(--text-dim);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(18px + var(--ui-text-increase, 0px));
-  transition: color 200ms ease;
+  transition: color var(--dur-base) var(--ease);
 }
 .aa-stage[data-status="done"] .aa-stage-label { color: var(--muted); }
 .aa-stage[data-status="active"] .aa-stage-label,
@@ -271,14 +273,18 @@
   flex-direction: column;
   gap: 8px;
   margin-top: 6px;
-  animation: aa-more-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  transition: opacity var(--dur-move) var(--ease), transform var(--dur-move) var(--ease);
 }
-@keyframes aa-more-in { from { opacity: 0; transform: translateY(-2px); } }
+/* aa-more-in's three users (this, .aa-arrive and .aa-live-line) arrive the same
+   way: 2px down into place, as a transition from @starting-style. */
+@starting-style {
+  .aa-stage-more, .aa-arrive, .aa-live-line { opacity: 0; transform: translateY(-2px); }
+}
 /* Why a stage failed: a sentence to read, so the reading tier rather than the
    error colour — the cross and the heading above it already say "failed". */
 .aa-reason { color: var(--text-secondary); }
 /* A line that arrives later than its row — the slow-browser hint. */
-.aa-arrive { animation: aa-more-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.aa-arrive { transition: opacity var(--dur-move) var(--ease), transform var(--dur-move) var(--ease); }
 .aa-progress-actions { justify-content: center; }
 
 /* The code field, behind the sentence that says when it is needed. */
@@ -295,15 +301,15 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   list-style: none;
   cursor: pointer;
-  transition: color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .aa-code > summary::-webkit-details-marker { display: none; }
-.aa-code-chev { flex: none; transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.aa-code-chev { flex: none; transition: transform var(--dur-fast) var(--ease); }
 .aa-code[open] .aa-code-chev { transform: rotate(90deg); }
 @media (hover: hover) and (pointer: fine) {
 .aa-code > summary:hover { color: var(--text); }
 }
-.aa-code > summary:active { transform: scale(0.97); }
+.aa-code > summary:active { transform: scale(var(--press)); }
 
 /* The import is one request with nothing reported inside it, so it gets one
    line: a small turning ring, and who is doing the work. */
@@ -315,7 +321,7 @@
   color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 1.5;
-  animation: aa-more-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  transition: opacity var(--dur-move) var(--ease), transform var(--dur-move) var(--ease);
 }
 /* Top-aligned with the first line, which 18px of line-height centres it on. */
 .aa-spin { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--accent); }
@@ -331,7 +337,7 @@
 /* After the handoff the ring is already round: the card keeps the mark still,
    draws only its tick, and brings the words in around it. */
 .aa-done.from-orbit { animation: none; }
-.aa-done.from-orbit > :not(.aa-mark) { animation: aa-done-in 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.aa-done.from-orbit > :not(.aa-mark) { animation: aa-done-in var(--dur-base) var(--ease) both; }
 .aa-done.from-orbit .aa-mark-ring { animation: none; stroke-dashoffset: 0; }
 .aa-done.from-orbit .aa-mark-tick { animation-delay: 0ms; }
 
@@ -372,12 +378,12 @@
   stroke-dashoffset: 126;
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
-  animation: aa-draw 380ms cubic-bezier(0.23, 1, 0.32, 1) 40ms forwards;
+  animation: aa-draw var(--dur-slow) var(--ease) var(--delay-step) forwards;
 }
 .aa-mark-tick {
   stroke-dasharray: 30;
   stroke-dashoffset: 30;
-  animation: aa-draw 260ms cubic-bezier(0.23, 1, 0.32, 1) 200ms forwards;
+  animation: aa-draw var(--dur-move) var(--ease) var(--dur-base) forwards;
 }
 @keyframes aa-draw { to { stroke-dashoffset: 0; } }
 
@@ -409,8 +415,8 @@
      which is why the first version looked like nothing happened. Movement keeps
      the ease-out; the fade runs linear on its own clock. */
   animation:
-    aa-burst-move 900ms cubic-bezier(0.16, 0.9, 0.3, 1) both,
-    aa-burst-fade 900ms linear both;
+    aa-burst-move 1100ms cubic-bezier(0.16, 0.9, 0.3, 1) both,
+    aa-burst-fade 1100ms linear both;
 }
 .confetti-bit.round { width: 6px; height: 6px; border-radius: 50%; }
 .confetti-bit[data-hue="1"] { background: var(--ok); }
@@ -436,7 +442,7 @@
 @media (prefers-reduced-motion: reduce) {
   /* Comprehension stays, movement goes: the mark still appears, it just does
      not draw, and the panel does not travel. Confetti is removed in JS. */
-  .aa-done { animation: aa-done-fade 160ms ease both; }
+  .aa-done { animation: aa-done-fade var(--dur-base) var(--ease) both; }
   .aa-mark-ring, .aa-mark-tick { animation: none; stroke-dashoffset: 0; }
   @keyframes aa-done-fade { from { opacity: 0; } to { opacity: 1; } }
   /* The sign-in in progress is instant: the rings hold still — the row's words
@@ -446,7 +452,7 @@
      list refuses to fake — so the arc becomes the whole ring, quietly. */
   .aa-orbit-arc, .aa-spin-arc { animation: none; stroke-dasharray: none; opacity: 0.5; }
   .aa-orbit-close, .aa-orbit-cross, .aa-stage-tick, .aa-stage-cross { animation: none; stroke-dashoffset: 0; }
-  .aa-stage, .aa-stage-more, .aa-arrive, .aa-live-line { animation: none; }
+  .aa-stage, .aa-stage-more, .aa-arrive, .aa-live-line { transition: none; }
   .aa-progress.resolving .aa-stages { animation: none; }
   .aa-done.from-orbit > :not(.aa-mark) { animation: none; }
   .aa-code > summary:active { transform: none; }
@@ -489,7 +495,7 @@
    A sticky :hover on touch now leaves the bar solid until the next tap
    elsewhere, which is the state it would have been in anyway. */
 .cat-filter-bar {
-  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  transition: background var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
 }
 .cat-filter-bar.occluded:not(:hover):not(:focus-within) {
   background: rgba(20, 22, 27, 0.35);

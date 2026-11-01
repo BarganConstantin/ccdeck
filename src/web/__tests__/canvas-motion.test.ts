@@ -499,7 +499,12 @@ const PRESSES: Press[] = [
 ];
 
 /** What the press declaration has to read, given the property carrying it. */
-const pressed = ([, scale, prop]: Press) => (prop === "transform" ? `scale(${scale})` : scale);
+const pressed = ([, scale, prop]: Press) => {
+  // V4's motion rules: the two press scales are tokens now (--press .97 for a
+  // labelled control, --press-small .94 for a glyph), so the sweep reads them.
+  const token = scale === "0.97" ? "var(--press)" : scale === "0.94" ? "var(--press-small)" : scale;
+  return prop === "transform" ? `scale(${token})` : token;
+};
 
 /** The control a press belongs to — the selector without its `:active…` tail. */
 const owner = (sel: string) => sel.replace(/:active.*$/, "");

@@ -341,10 +341,10 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                     style={{
                       flexBasis: `${100 / days.length}%`,
                       "--uh-i": i,
-                      "--uh-step": `${Math.min(10, 200 / Math.max(days.length, 1))}ms`,
+                      "--uh-step": `${Math.min(10, 160 / Math.max(days.length, 1))}ms`,
                     } as CSSProperties}
                   >
-                    <div className="uh-bar" style={{ height: `${Math.max(h, d.totalCost > 0 ? 2 : 0)}%` }}>
+                    <div className="uh-bar" style={{ "--uh-h": Math.max(h, d.totalCost > 0 ? 2 : 0) / 100 } as CSSProperties}>
                       {byCost(d.modelBreakdowns).map(mb => {
                         const seg = percentOf(mb.cost, d.totalCost);
                         return (

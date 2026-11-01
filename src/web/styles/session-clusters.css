@@ -84,7 +84,7 @@
      as a translate in layout space, so the same 320ms move no longer runs
      through left and top. The size stays width and height, which change only
      when a session gains or loses a node. */
-  transition: opacity 200ms ease, transform 320ms var(--ease),
+  transition: opacity var(--dur-base) var(--ease), transform 320ms var(--ease),
               width 320ms var(--ease),
               height 320ms var(--ease);
   overflow: visible;
@@ -142,7 +142,7 @@
   pointer-events: auto;
   user-select: none;
   /* Don't transition transform — it's used inline for viewport scale. */
-  transition: box-shadow 120ms ease, filter 120ms ease;
+  transition: box-shadow var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease);
 }
 /* The session name, between the workspace and the short id inside the same
    pill. Same family, same size, same hue, same --session-label-l — this is

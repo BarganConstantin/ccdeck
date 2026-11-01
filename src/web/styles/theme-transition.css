@@ -8,7 +8,7 @@
   animation: none;
 }
 :root[data-theme-transition]::view-transition-new(root) {
-  animation: theme-palette-in 180ms var(--ease) both;
+  animation: theme-palette-in var(--dur-base) var(--ease) both;
   mix-blend-mode: normal;
 }
 @keyframes theme-palette-in {

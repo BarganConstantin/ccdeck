@@ -92,7 +92,7 @@
 .ap-nav-chev {
   flex: none;
   color: var(--muted);
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ap-nav:hover .ap-nav-chev { color: var(--text); transform: translateX(1px); }
@@ -126,14 +126,14 @@
   background: none;
   color: var(--muted);
   cursor: pointer;
-  transition: border-color 120ms, color 120ms, background 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast),
+              transform var(--dur-fast) var(--ease);
 }
 .ap-lan-map:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
 @media (hover: hover) and (pointer: fine) {
 .ap-lan-map:hover { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
 }
-.ap-lan-map:active { transform: scale(0.97); }
+.ap-lan-map:active { transform: scale(var(--press)); }
 .ap-lan-map:focus-visible { outline-offset: -2px; }
 @media (prefers-reduced-motion: reduce) {
   .ap-lan-map:active { transform: none; }
@@ -204,7 +204,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
-  transition: border-color 120ms, color 120ms, background 120ms;
+  transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast);
 }
 .ap-rest-sort select[data-sorted] { color: var(--text); }
 .ap-rest-sort select:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
@@ -238,14 +238,14 @@
   background: none;
   color: var(--muted);
   cursor: pointer;
-  transition: border-color 120ms, color 120ms, background 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast),
+              transform var(--dur-fast) var(--ease);
 }
 .ap-rest-all:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
 @media (hover: hover) and (pointer: fine) {
 .ap-rest-all:hover { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
 }
-.ap-rest-all:active { transform: scale(0.97); }
+.ap-rest-all:active { transform: scale(var(--press)); }
 .ap-rest-all:focus-visible { outline-offset: -2px; }
 @media (prefers-reduced-motion: reduce) {
   .ap-rest-all:active { transform: none; }
@@ -352,7 +352,7 @@
      looking; travel would make it a thing that happened rather than a thing
      that is there — which is also why there is no reduced-motion rule to write:
      a fade is what that rule leaves behind everywhere else in this sheet. */
-  animation: fadeIn 110ms ease-out;
+  animation: fadeIn var(--dur-fast) var(--ease);
 }
 /* V4 motion: a card opened by a key (P, a Tab onto a card) arrives at once; the
    last input decides (input-modality.ts), a pointer press brings the fade back. */
@@ -610,12 +610,12 @@
   cursor: pointer;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--text);
-  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ap-lan-pick:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
 }
-.ap-lan-pick:active { transform: scale(0.97); }
+.ap-lan-pick:active { transform: scale(var(--press)); }
 .ap-lan-pick input { accent-color: var(--accent); margin: 0; }
 .ap-lan-pick-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Said on the row rather than left to be inferred from a missing tick: an
@@ -1008,7 +1008,7 @@
      in the first fifth of the cycle, so the ring hits full scale at zero
      opacity almost immediately and the ping reads as a flicker. This keeps
      the travel legible for about a second, then rests. */
-  animation: ap-ping 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+  animation: ap-ping 2.6s ease-in-out infinite;
 }
 @keyframes ap-ping {
   0%        { transform: scale(1);   opacity: 0.7; }
@@ -1081,8 +1081,8 @@
   line-height: 1.5;
   text-align: right;
   cursor: pointer;
-  transition: border-color 120ms, color 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast), color var(--dur-fast),
+              transform var(--dur-fast) var(--ease);
 }
 /* --accent, not --accent-dim: #325 already had to override the dim edge inside
    the manage block, where it dropped the slot select from 3.98:1 to 1.58:1 on
@@ -1096,7 +1096,7 @@
    that did nothing read as the one dead control in the panel. 0.97 rather than
    0.94 because the popup that opens on the same press is anchored to this box
    and the smaller step keeps the offset under a pixel. */
-.ap-field select:active:not(:disabled) { transform: scale(0.97); }
+.ap-field select:active:not(:disabled) { transform: scale(var(--press)); }
 .ap-field select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ap-field select:disabled { cursor: default; opacity: var(--dim-off); }
 @media (hover: hover) and (pointer: fine) {

@@ -94,36 +94,36 @@ describe("the days land on it, oldest first", () => {
   it("rises with a transform, so a 2px item cannot reflow the label above it", () => {
     const bar = block(".uh-bar");
     expect(bar).toMatch(/transform-origin: bottom/);
-    expect(bar).toMatch(/animation: uh-bar-rise 340ms/);
-    const rise = frames("uh-bar-rise");
-    expect(rise).toMatch(/scaleY\(0\)/);
-    expect(rise).toMatch(/scaleY\(1\)/);
-    // The height transition beside it belongs to a range that CHANGES while the
-    // chart is up; this belongs to a chart that was not there a moment ago. The
-    // entrance must not be the one animating layout.
-    expect(rise).not.toMatch(/\bwidth\b|\bheight\b|\bmargin\b|\bpadding\b|\btop\b|\bleft\b/);
+    // V4's motion rules (rule 6): a transition from @starting-style, not a
+    // keyframe, so a range that changes mid-rise turns round from where it is.
+    expect(bar).toMatch(/transition: transform var\(--dur-slow\) var\(--ease\)/);
+    expect(bar).toMatch(/transform: scaleY\(var\(--uh-h, 1\)\)/);
+    expect(css).not.toMatch(/@keyframes uh-bar-rise/);
+    expect(css).toMatch(/@starting-style \{ \.uh-bar \{ transform: scaleY\(0\); opacity: 0\.4; \} \}/);
+    // No layout property eases: the bar is full height and drawn at its share.
+    expect(bar).not.toMatch(/transition:[^;]*\b(width|height|margin|padding|top|left)\b/);
   });
 
   it("starts flat, so no frame paints the chart at full height first", () => {
-    // Without a backwards fill the whole chart paints full-size for one frame
-    // and then drops — which is the jump this replaces, arriving 16ms later.
-    expect(block(".uh-bar")).toMatch(/animation: uh-bar-rise 340ms [^;]*\bboth\b/);
+    // The @starting-style value is what the first frame paints, so the whole
+    // chart never paints full-size for one frame and then drops.
+    expect(css).toMatch(/@starting-style \{ \.uh-bar \{ transform: scaleY\(0\)/);
   });
 
   it("divides the stagger rather than fixing it, so 90 days is not 90 delays", () => {
     // A per-column delay makes the longest range the slowest to appear, which
     // is backwards: the longer the range, the more the reader is waiting on.
-    // The span is 200ms whatever the count, and the per-step cap keeps a short
+    // The span is 160ms whatever the count, and the per-step cap keeps a short
     // range reading as a sequence rather than as one block.
-    expect(modal).toMatch(/"--uh-step": `\$\{Math\.min\(10, 200 \/ Math\.max\(days\.length, 1\)\)\}ms`/);
+    expect(modal).toMatch(/"--uh-step": `\$\{Math\.min\(10, 160 \/ Math\.max\(days\.length, 1\)\)\}ms`/);
     expect(modal).toMatch(/"--uh-i": i/);
-    expect(block(".uh-bar")).toMatch(/animation-delay: calc\(var\(--uh-i, 0\) \* var\(--uh-step, 10ms\)\)/);
+    expect(block(".uh-bar")).toMatch(/transition-delay: calc\(var\(--uh-i, 0\) \* var\(--uh-step, 10ms\)\)/);
     // The arithmetic the sentence above depends on, so the cap cannot be
-    // loosened without this saying so: at 200ms of span plus a 340ms column,
+    // loosened without this saying so: at 160ms of span plus a 400ms column (--dur-slow),
     // every range arrives inside the band an authored entrance is allowed.
     for (const n of [7, 14, 30, 90]) {
-      const step = Math.min(10, 200 / n);
-      expect(step * (n - 1) + 340, `${n} days`).toBeLessThanOrEqual(560);
+      const step = Math.min(10, 160 / n);
+      expect(step * (n - 1) + 400, `${n} days`).toBeLessThanOrEqual(560);
     }
   });
 
@@ -163,7 +163,7 @@ describe("reduced motion keeps the meaning and drops the movement", () => {
   it("stops both loops and both entrances", () => {
     const rm = reducedMotion();
     expect(rm).toContain(".uh-reading-packets rect { animation: none;");
-    expect(rm).toContain(".uh-bar { animation: none; }");
+    expect(rm).toContain(".uh-bar { transition: none; }");
   });
 
   it("keeps the part that was never motion", () => {
