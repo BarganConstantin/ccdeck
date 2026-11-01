@@ -168,7 +168,7 @@ function SpanLine({ row, table, now, folded, onToggle }: {
           </button>
         ) : null}
         <span className="insp-time-op">{row.name}</span>
-        {row.arg && <span className="insp-time-arg">{row.arg}</span>}
+        {row.arg && <span className="insp-time-arg" title={row.arg}>{row.arg}</span>}
         {took && <span className="insp-time-took">{took}</span>}
       </span>
       <span className="insp-time-lane" role="cell">

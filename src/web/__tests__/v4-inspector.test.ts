@@ -721,7 +721,8 @@ describe("the Time tab", () => {
       const out = body(TURN);
       expect(out).toContain("<span role=\"columnheader\">Span</span>");
       expect(out).toMatch(/<span class="insp-time-ticks"[^>]*><span>0<\/span><span>[^<]+<\/span><span>[^<]+<\/span><span>[^<]+<\/span>/);
-      expect(out).toContain('<span class="insp-time-op">Read</span><span class="insp-time-arg">Read arg</span><span class="insp-time-took">0.3s</span>');
+      // CHANGED ON PURPOSE: the argument ends in an ellipsis on a narrow panel, so it carries itself as a title.
+      expect(out).toContain('<span class="insp-time-op">Read</span><span class="insp-time-arg" title="Read arg">Read arg</span><span class="insp-time-took">0.3s</span>');
       expect(out).toMatch(/aria-expanded="true" aria-label="Hide the calls of Explore"/);
       expect(out).toContain('<span class="insp-time-op">Glob</span>');
       expect(out).toMatch(/<span class="insp-time-wait"[^>]*>waiting on you · 18s<\/span>/);
