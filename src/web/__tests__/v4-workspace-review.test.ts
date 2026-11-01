@@ -149,6 +149,38 @@ describe("Enter on a row lands the keys in the pane, not back on the row (review
   });
 });
 
+describe("✕ on a pane lands the focus on the empty pane's action (review C)", () => {
+  const mk = (closeBtn: boolean) => {
+    const e = {
+      tagName: "BUTTON",
+      focus: vi.fn(() => { (globalThis as { document: { activeElement: unknown } }).document.activeElement = e; }),
+      closest: (sel: string) => (sel === "[data-stage-close]" && closeBtn ? {} : null),
+      setAttribute: () => {}, removeAttribute: () => {}, addEventListener: () => {}, removeEventListener: () => {},
+    };
+    return e;
+  };
+  const root = (found: Record<string, unknown>, inside: unknown[]) => ({
+    dataset: { fill: "true", empty: "true" },
+    contains: (n: unknown) => inside.includes(n),
+    querySelector: (sel: string) => found[sel] ?? null,
+  }) as unknown as HTMLElement;
+  afterEach(() => { delete (globalThis as Record<string, unknown>).document; });
+
+  it("moves it from the header ✕ onto Open <name>, the [data-stage-land] element", () => {
+    const close = mk(true), open = mk(false);
+    (globalThis as Record<string, unknown>).document = { body: {}, activeElement: close };
+    expect(landFocus(root({ "[data-stage-land]": open }, [close]))).toBe(true);
+    expect((globalThis as { document: { activeElement: unknown } }).document.activeElement).toBe(open);
+  });
+
+  it("leaves it on the ✕ only when the empty pane has no action", () => {
+    const close = mk(true);
+    (globalThis as Record<string, unknown>).document = { body: {}, activeElement: close };
+    expect(landFocus(root({}, [close]))).toBe(true);
+    expect(close.focus).not.toHaveBeenCalled();
+  });
+});
+
 describe("Usage and Machine over the Inspector (review 11)", () => {
   const css = strip(read("styles/workspace.css"));
   const machine = strip(read("styles/machine-panel.css"));

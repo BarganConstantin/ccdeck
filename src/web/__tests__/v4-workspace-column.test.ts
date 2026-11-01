@@ -71,11 +71,48 @@ describe("entering Workspace at 1440 on a fresh profile (accounts open)", () => 
 });
 
 describe("entering at 1024", () => {
-  it("changes nothing: the list is a sheet opened from its door", () => {
+  it("opens no list: it is a sheet opened from its door (the accounts sheet is closed, see review E)", () => {
     const { col, go } = setup({ workspace: false, wide: false });
     go({ workspace: true });
-    expect(col().panel).toBe("accounts");
     expect(col().sessionListOpen).toBe(false);
+    go({ workspace: false });
+    expect(col().panel).toBe("accounts");
+  });
+});
+
+describe("entering under 1100 (review E)", () => {
+  it("closes the accounts panel the column held, and leaving gives it back", () => {
+    const { col, go } = setup({ workspace: false, wide: false });
+    expect(col().panel).toBe("accounts");
+    go({ workspace: true });
+    expect(col().panel, "no column drawn over the pane").toBeNull();
+    go({ workspace: false });
+    expect(col().panel).toBe("accounts");
+  });
+
+  it("opens the list from its door inside Workspace, and leaving leaves it as the reader left it", () => {
+    const { col, go } = setup({ workspace: false, wide: false });
+    go({ workspace: true });
+    col().toggleSessionList();
+    expect(col().panel).toBe("session-list");
+    go({ workspace: false });
+    expect(col().panel).toBe("session-list");
+    expect(col().accountsPanelOpen).toBe(false);
+  });
+
+  it("takes a list that was open away too, and gives it back", () => {
+    store.set("agent-dag.sessionListOpen", "1");
+    const { col, go } = setup({ workspace: false, wide: false });
+    go({ workspace: true });
+    expect(col().panel).toBeNull();
+    go({ workspace: false });
+    expect(col().panel).toBe("session-list");
+  });
+
+  it("forgets it when the reader opens accounts inside Workspace", () => {
+    const { col, go } = setup({ workspace: false, wide: false });
+    go({ workspace: true });
+    col().toggleAccountsPanel();
     go({ workspace: false });
     expect(col().panel).toBe("accounts");
   });

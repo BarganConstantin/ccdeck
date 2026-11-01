@@ -134,6 +134,9 @@ export interface LeftColumn {
   /** The list closing to show the session just picked, on a phone. */
   closeSessionListToCanvas: () => void;
   closeAccountsPanel: () => void;
+  /** Whatever the column holds goes, the eviction memory with it (Workspace
+   *  under 1100, where the column would be a sheet over the pane). */
+  dismissColumn: () => void;
 }
 
 export function useLeftColumn(): LeftColumn {
@@ -229,56 +232,70 @@ export function useLeftColumn(): LeftColumn {
     setSessionListOpen(false);
   }, []);
   const closeAccountsPanel = useCallback(() => setAccountsPanelOpen(false), []);
+  const dismissColumn = useCallback(() => {
+    accountsEvictedRef.current = false;
+    setSessionListOpen(false);
+    setAccountsPanelOpen(false);
+  }, []);
 
   const panel = leftColumnPanel(sessionListOpen, accountsPanelOpen, accountsEvictedRef.current);
 
   return { sessionListOpen, accountsPanelOpen, panel, toggleSessionList, toggleAccountsPanel, openAccountsPanel,
-           closeSessionList, closeSessionListToCanvas, closeAccountsPanel };
+           closeSessionList, closeSessionListToCanvas, closeAccountsPanel, dismissColumn };
 }
 
 /**
- * WORKSPACE's left column. The rail the view is made of is the Sessions list,
- * so entering Workspace at 1100px and wider puts the list in the column, through
- * the state L and the Sessions door use, when the column held the accounts panel
- * or nothing; what it held is remembered. Leaving gives it back if the column
- * still shows the list that entering put there. A reader who changed the column
- * meanwhile (opened accounts, closed the list) is left as they left it, and the
- * memory is forgotten. Nothing is forced at render: the doors work as on the
- * Board. Under 1100 the column is a sheet opened from its door, so nothing
- * happens on entry.
+ * WORKSPACE's left column. The rail the view is made of is the Sessions list.
+ * Entering at 1100px and wider puts the list in the column, through the state L
+ * uses, when the column held the accounts panel or nothing. Entering under 1100,
+ * where the column is a fixed sheet over the pane, closes whatever it holds,
+ * through the state its door uses; the Sessions sheet then opens only from its
+ * door. What the column held is remembered either way, and leaving gives it back
+ * if the column is as entering left it. A reader who changed the column inside
+ * Workspace (opened accounts or the list, closed the list) is left as they left
+ * it, and the memory is forgotten. Nothing is forced at render: the doors work
+ * as on the Board.
  */
 export function useWorkspaceColumn({ active, wide, column }: {
   /** Workspace is on screen (the Command Panel on, off a phone). */
   active: boolean;
   /** The window is 1100px or wider. */
   wide: boolean;
-  column: Pick<LeftColumn, "sessionListOpen" | "toggleSessionList" | "closeSessionList">;
+  column: Pick<LeftColumn, "sessionListOpen" | "accountsPanelOpen" | "toggleSessionList" | "closeSessionList" | "openAccountsPanel" | "dismissColumn">;
 }): void {
-  /** The list is in the column because entering put it there. */
-  const putRef = useRef(false);
-  /** That list has been seen open, so a shut one after it is the reader's doing. */
-  const seenOpenRef = useRef(false);
+  /** What entering did to the column: put the list in it, or took out what it held. */
+  const putRef = useRef<null | { kind: "list" } | { kind: "dismissed"; held: "list" | "accounts" }>(null);
+  /** The column has been seen as entering left it, so a change after is the reader's. */
+  const seenRef = useRef(false);
   const wasRef = useRef(false);
-  const { sessionListOpen, toggleSessionList, closeSessionList } = column;
+  const { sessionListOpen, accountsPanelOpen, toggleSessionList, closeSessionList, openAccountsPanel, dismissColumn } = column;
   useEffect(() => {
     const was = wasRef.current;
     wasRef.current = active;
     if (active && !was) {
+      seenRef.current = false;
       if (wide && !sessionListOpen) {
-        putRef.current = true;
-        seenOpenRef.current = false;
+        putRef.current = { kind: "list" };
         toggleSessionList();
+      } else if (!wide && (sessionListOpen || accountsPanelOpen)) {
+        putRef.current = { kind: "dismissed", held: sessionListOpen ? "list" : "accounts" };
+        dismissColumn();
       }
       return;
     }
+    const put = putRef.current;
     if (!active && was) {
+      putRef.current = null;
+      if (put?.kind === "list" && sessionListOpen) closeSessionList();
       // Closing the list gives the column back to the panel it evicted (#824).
-      if (putRef.current && sessionListOpen) closeSessionList();
-      putRef.current = false;
+      else if (put?.kind === "dismissed" && !sessionListOpen && !accountsPanelOpen) {
+        if (put.held === "list") toggleSessionList(); else openAccountsPanel();
+      }
       return;
     }
-    if (!active || !putRef.current) return;
-    if (sessionListOpen) seenOpenRef.current = true;
-    else if (seenOpenRef.current) putRef.current = false;
-  }, [active, sessionListOpen]);
+    if (!active || !put) return;
+    const asLeft = put.kind === "list" ? sessionListOpen : !sessionListOpen && !accountsPanelOpen;
+    if (asLeft) seenRef.current = true;
+    else if (seenRef.current) putRef.current = null;
+  }, [active, sessionListOpen, accountsPanelOpen]);
 }

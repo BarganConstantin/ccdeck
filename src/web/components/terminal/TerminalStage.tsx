@@ -103,6 +103,15 @@ export function landFocus(root: HTMLElement | null, held: HeldKeys | null = null
   // press on a card does on the Board; the row is where the press left the
   // focus, not somewhere the reader has since taken it.
   const fromRow = root.dataset?.fill !== undefined && !!active?.closest?.(".session-list");
+  // WORKSPACE, the pane just emptied by its ✕: the header's button is still
+  // under the focus, and the empty pane's action is where the keys belong.
+  const action = root.dataset?.fill !== undefined && root.dataset?.empty !== undefined
+    ? root.querySelector<HTMLElement>("[data-stage-land]") : null;
+  if (action && active && active !== action && root.contains(active) && (active as HTMLElement).closest?.("[data-stage-close]")) {
+    if (held) catchKeys(action, { typing });
+    else action.focus();
+    return true;
+  }
   if (active && active !== document.body && !fromRow && (root.contains(active) || !active.closest?.(".react-flow"))) {
     if (held && root.contains(active) && (active as HTMLElement).tagName === "BUTTON") catchKeys(active as HTMLElement, { typing });
     return true;
