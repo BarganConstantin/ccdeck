@@ -16,6 +16,7 @@
 // Everything here is pure. The fetch, the caching and the two child processes
 // live on the server; what a component needs is the shaping, and shaping is the
 // part worth pinning in a test.
+import { t as translateNow, type TFunction } from "./i18n";
 import { presetSince } from "./usage-range";
 
 /** One row of the BY MODEL table. */
@@ -340,7 +341,12 @@ export function sessionListNote(
   noun: string,
   scale: SessionListScale,
   money: (usd: number) => string,
+  tr?: TFunction,
 ): string {
+  if (tr) {
+    const head = tr("usage.sessionNote", { noun });
+    return scale.over ? `${head}\n${tr("usage.sessionNote.over", { sum: money(scale.sum), total: money(scale.total) })}` : head;
+  }
   const first = `Sessions with activity ${noun}, and what ccusage puts against each one.`;
   if (!scale.over) return first;
   return `${first}\nThey add up to ${money(scale.sum)}, more than the ${money(scale.total)} above: `
@@ -478,8 +484,9 @@ export function rangeView(landed: Landed | null, pressed: PeriodKey): RangeView 
  * for a key no longer in PERIODS — a stored preference from an older build must
  * not leave the headline with no noun at all.
  */
-export function nounFor(shown: PeriodKey | null, pressed: PeriodKey): string {
-  return PERIODS.find(p => p.key === (shown ?? pressed))?.noun ?? "today";
+export function nounFor(shown: PeriodKey | null, pressed: PeriodKey, tr: TFunction = translateNow): string {
+  const key = PERIODS.find(p => p.key === (shown ?? pressed))?.key ?? "today";
+  return tr(`usage.period.${key}.noun`);
 }
 
 /** Everything the canvas can add to a reading between two of them. Structurally

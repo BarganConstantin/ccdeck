@@ -25,6 +25,7 @@ export interface PanelToggles {
   sessionList: RefObject<HTMLButtonElement>;
   usage: RefObject<HTMLButtonElement>;
   accounts: RefObject<HTMLButtonElement>;
+  codex?: RefObject<HTMLButtonElement>;
   machine: RefObject<HTMLButtonElement>;
 }
 
@@ -34,13 +35,14 @@ function keyboardPress(): boolean {
 }
 
 export function usePanelReturn({
-  sessionListShown, usageShown, machineShown, accountsShown, detailShown, primarySelectedId, canvasRef,
+  sessionListShown, usageShown, machineShown, accountsShown, codexShown = false, detailShown, primarySelectedId, canvasRef,
 }: {
   /** Whether each panel is in the DOM — a panel that animates out is still. */
   sessionListShown: boolean;
   usageShown: boolean;
   machineShown: boolean;
   accountsShown: boolean;
+  codexShown?: boolean;
   detailShown: boolean;
   primarySelectedId: string | null;
   canvasRef: RefObject<HTMLElement | null>;
@@ -49,6 +51,7 @@ export function usePanelReturn({
     sessionList: useRef<HTMLButtonElement>(null),
     usage: useRef<HTMLButtonElement>(null),
     accounts: useRef<HTMLButtonElement>(null),
+    codex: useRef<HTMLButtonElement>(null),
     machine: useRef<HTMLButtonElement>(null),
   };
   const keyed = (arm: () => void) => () => { if (keyboardPress()) arm(); };
@@ -58,6 +61,7 @@ export function usePanelReturn({
     usage: keyed(useFocusRescue(!usageShown, toggles.usage)),
     machine: keyed(useFocusRescue(!machineShown, toggles.machine)),
     accounts: keyed(useFocusRescue(!accountsShown, toggles.accounts)),
+    codex: keyed(useFocusRescue(!codexShown, toggles.codex!)),
     detail: keyed(useFocusRescue(!detailShown, () => {
       if (primarySelectedId) focusCanvasNode(primarySelectedId);
       if (focusDropped(document.activeElement?.tagName ?? null)) canvasRef.current?.focus({ preventScroll: true });

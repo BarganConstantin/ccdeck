@@ -28,8 +28,12 @@
   line-height: 1.5;
   color: var(--muted);
 }
+/* Eight 24px dots and two buttons do not fit a phone's card, so Back and Next
+   take a line of their own there instead of leaving the screen. */
 .guide-foot {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 8px;
   margin-top: 4px;

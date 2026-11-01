@@ -35,7 +35,7 @@ describe("where focus goes when a roster takes the focused control away (#1497)"
   it("falls back to the fold's own row, then to the panel's reload", () => {
     expect(FOLD_ROW).toBe("#ap-rest-entry");
     expect(refocusSelectors("ap-more-2")).toEqual(["#ap-more-2", FOLD_ROW, ...rescueSelectors(null)]);
-    expect(rescueSelectors(null)).toEqual([".accounts-panel .ap-refresh"]);
+    expect(rescueSelectors(null)).toEqual(["#accounts-panel .ap-refresh"]);
   });
 });
 

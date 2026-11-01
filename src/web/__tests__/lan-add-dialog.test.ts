@@ -19,13 +19,14 @@ import { addressFault, faultLine } from "../components/LanAddDeckModal";
 import { parseAddress } from "../lan-add-deck";
 import { writeFailure } from "../use-lan-section";
 import { sheetText } from "./sheet-source";
+import { english } from "./lan-english-source";
 
 /** The dialog, with its comments taken out, so no rule here can be satisfied by
  *  a paragraph that describes it. */
-const ADD = readFileSync(
+const ADD = english(readFileSync(
   fileURLToPath(new URL("../components/LanAddDeckModal.tsx", import.meta.url)),
   "utf8",
-).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+)).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 
 const CSS = sheetText();
 
@@ -184,10 +185,10 @@ describe("this deck's own address", () => {
  *  somebody finds out before concluding the feature is broken. The rules below
  *  are about the block's substance, so they followed it; that there is exactly
  *  one of it is pinned in lan-blocked-inbound. */
-const NOTE = readFileSync(
+const NOTE = english(readFileSync(
   fileURLToPath(new URL("../components/LanReachNote.tsx", import.meta.url)),
   "utf8",
-).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+)).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 
 describe("where the firewall lines are pasted", () => {
   // PowerShell is Windows' word. Saying it to somebody on Arch reads as a

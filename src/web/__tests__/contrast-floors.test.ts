@@ -396,7 +396,7 @@ describe("agent-node state rings (#268)", () => {
     // 1.4.1: running / done / failed are near-isoluminant under red-green CVD
     // (deuteranope ΔE 4.5 light, 4.5 dark between done and err), so the ring is
     // a reinforcement. The words are the channel that actually carries it.
-    expect(agentCopy).toMatch(/state === "active" \? "live" : state === "done" \? "done" : "err"/);
+    expect(agentCopy).toMatch(/tr\(state === "active" \? "board\.state\.live" : state === "done" \? "board\.state\.done" : "board\.state\.err"\)/);
     // The state the card draws (drawnState): a root whose turn stopped on an
     // error (#2185) spells "err" there, beside the row that says which error.
     expect(agentNode).toMatch(/const shown = drawnState\(data\);/);
@@ -1290,13 +1290,13 @@ describe("an opacity over text is a contrast ratio too (#1289)", () => {
     const src = (file: string) => MARKUP.find(m => m.file === file)!.src;
     // The history modal: the subtitle says what is running while a re-run is out.
     expect(src("components/UsageHistoryModal.tsx"))
-      .toContain('<div className="uh-sub">{view.stale ? "running ccusage…" : usageSubtitle(');
+      .toContain('<div className="uh-sub">{view.stale ? t("insights.usage.running") : usageSubtitle(');
     expect(declFor(".uh-sub", "color")).toBe("var(--text-dim)");
     // The usage panel: the headline names the period its figures are from.
     expect(src("components/UsagePanel.tsx"))
-      .toContain('<span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>');
+      .toContain('<span className="up-total-label">{fromRange ? periodWord : boardSpendLabel()}</span>');
     // The share dialog's heading, and the popover's countdown.
-    expect(src("components/ShareAccountsDialog.tsx")).toContain('"This share has expired"');
+    expect(src("components/ShareAccountsDialog.tsx")).toContain('t("accounts.sd.expired")');
     expect(src("components/AccountMenuPopover.tsx")).toContain("<span className={`ap-share-expiry ${exp.tone}`}>{exp.text}</span>");
     // And none of those words sits inside anything that still dims.
     for (const box of [".uh-sub", ".up-total", ".ap-share-blob", ".ap-share-expiry"]) {

@@ -6,8 +6,10 @@
 // not.
 import { useState } from "react";
 import type { BranchDetail as Branch, ForgeRepo, Page } from "../../forge-types";
-import { forgeWords } from "../../forge-types";
+import { forgeNouns } from "../../forge-types";
 import { changeBadge, ciMark, divergeCount, durationWords } from "../../forge-panel";
+import { useT } from "../../i18n";
+import { formatNumber } from "../../i18n/format";
 import { newChangeUrl } from "../../forge-detail";
 import { useForgeRead } from "../../use-forge-read";
 import { useForge, type ForgeSelection } from "./ForgeContext";
@@ -23,12 +25,13 @@ const COMMITS_SHOWN = 10;
 export default function BranchDetail({ selection }: { selection: Selection }) {
   const { kind, api, scope, refresh } = useForge();
   const bar = useDetailBar();
+  const t = useT();
   const read = useForgeRead<Branch>(api, scope, "branch", { repo: selection.repo, name: selection.name }, refresh);
   const d = read.data;
   return (
-    <DetailFrame label={`Branch ${selection.name}`}>
-      <IntegrationDetailBar {...bar} reference={selection.repo} copyLabel={forgeWords[kind].repo.toLowerCase()} href={d?.branch.webUrl ?? null} />
-      <DetailPending data={d} loading={read.loading} error={read.error} onRetry={read.reload} what="branch" />
+    <DetailFrame label={t("forge.branch.frame", { name: selection.name })}>
+      <IntegrationDetailBar {...bar} reference={selection.repo} copyLabel={forgeNouns(kind, t).repoLc} href={d?.branch.webUrl ?? null} />
+      <DetailPending data={d} loading={read.loading} error={read.error} onRetry={read.reload} what={t("forge.noun.branch")} />
       {d && (
         <>
           {read.error && <ReadFailure error={read.error} onRetry={read.reload} compact />}
@@ -39,9 +42,18 @@ export default function BranchDetail({ selection }: { selection: Selection }) {
   );
 }
 
+/** "3 behind": the number in bold, the rest of the phrase from the catalog
+ *  with {n} where the number goes. */
+function Counted({ text, n }: { text: string; n: string }) {
+  const [before, ...rest] = text.split("{n}");
+  return <span>{before}<strong>{n}</strong>{rest.join("{n}")}</span>;
+}
+
 function BranchBody({ repo, detail }: { repo: string; detail: Branch }) {
   const { kind, api, scope, refresh, connection, select } = useForge();
-  const words = forgeWords[kind];
+  const t = useT();
+  const words = forgeNouns(kind, t);
+  const sigil = kind === "gitlab" ? "!" : "#";
   const b = detail.branch;
   // The default branch's name is the project's, not the branch's: the
   // project list (already read for the picker) says it, when it holds this one.
@@ -49,38 +61,39 @@ function BranchBody({ repo, detail }: { repo: string; detail: Branch }) {
   const defaultName = repos.data?.items.find(r => r.path === repo)?.defaultBranch ?? null;
   const [allCommits, setAllCommits] = useState(false);
   const p = detail.pipeline;
-  const pipelineTime = p ? durationWords(p.durationSec) : null;
+  const pipelineTime = p ? durationWords(p.durationSec, t) : null;
+  const defaultLabel = defaultName ?? t("forge.defaultBranch");
   const commits = allCommits ? detail.commitsAhead : detail.commitsAhead.slice(0, COMMITS_SHOWN);
 
   return (
     <>
       <header className="fd-head">
         <h2 className="fd-title fd-title-mono">
-          <Copyable value={b.name} label="branch name"><code>{b.name}</code></Copyable>
+          <Copyable value={b.name} label={t("forge.copy.branchName")}><code>{b.name}</code></Copyable>
         </h2>
         {(b.isDefault || b.protected || b.stale) && (
           <p className="fd-byline">
-            {b.isDefault && <span className="fg-badge">default</span>}
-            {b.protected && <span className="fg-badge">protected</span>}
-            {b.stale && <span className="fg-badge">stale</span>}
+            {b.isDefault && <span className="fg-badge">{t("forge.badge.default")}</span>}
+            {b.protected && <span className="fg-badge">{t("forge.badge.protected")}</span>}
+            {b.stale && <span className="fg-badge">{t("forge.badge.stale")}</span>}
           </p>
         )}
       </header>
 
       <dl className="fd-facts fd-facts-page">
         <div className="fd-fact">
-          <dt>Latest commit</dt>
+          <dt>{t("forge.branch.latestCommit")}</dt>
           <dd>
             <ul className="fd-items fd-items-bare"><CommitRow commit={{ ...b.commit, authoredAt: b.commit.committedAt }} /></ul>
           </dd>
         </div>
         {!b.isDefault && (
           <div className="fd-fact">
-            <dt>Compared with {defaultName ?? "the default branch"}</dt>
+            <dt>{t("forge.branch.comparedWith", { branch: defaultLabel })}</dt>
             <dd className="fd-diverge">
-              <span><strong>{divergeCount(b.behind)}</strong> behind</span>
+              <Counted text={t("forge.branch.behind")} n={divergeCount(b.behind)} />
               <span aria-hidden="true">·</span>
-              <span><strong>{divergeCount(b.ahead)}</strong> ahead</span>
+              <Counted text={t("forge.branch.ahead")} n={divergeCount(b.ahead)} />
             </dd>
           </div>
         )}
@@ -110,11 +123,11 @@ function BranchBody({ repo, detail }: { repo: string; detail: Branch }) {
                 ? (
                   <button type="button" className="fd-jump" onClick={() => select({ type: "change", repo, number: b.change!.number })}>
                     <Badge mark={changeBadge(b.change)} />
-                    <span><code>{words.changeSigil}{b.change.number}</code></span>
+                    <span><code>{sigil}{b.change.number}</code></span>
                     <span className="fd-jump-arrow" aria-hidden="true">›</span>
                   </button>
                 )
-                : <OpenOnForge href={newChangeUrl(kind, connection.baseUrl, repo, b.name)}>Create {words.change.toLowerCase()}</OpenOnForge>}
+                : <OpenOnForge href={newChangeUrl(kind, connection.baseUrl, repo, b.name)}>{t("forge.createChange", { change: words.changeLc })}</OpenOnForge>}
             </dd>
           </div>
         )}
@@ -122,19 +135,19 @@ function BranchBody({ repo, detail }: { repo: string; detail: Branch }) {
 
       {!b.isDefault && (
         <section className="fd-block">
-          <DetailHeading count={b.ahead ?? detail.commitsAhead.length}>Commits not in {defaultName ?? "the default branch"}</DetailHeading>
+          <DetailHeading count={b.ahead ?? detail.commitsAhead.length}>{t("forge.branch.commitsNotIn", { branch: defaultLabel })}</DetailHeading>
           {detail.commitsAhead.length
             ? (
               <>
                 <ul className="fd-items">{commits.map(c => <CommitRow key={c.sha} commit={c} />)}</ul>
                 {!allCommits && detail.commitsAhead.length > COMMITS_SHOWN && (
                   <button type="button" className="btn fg-more" onClick={() => setAllCommits(true)}>
-                    Show all {detail.commitsAhead.length.toLocaleString()}
+                    {t("forge.branch.showAll", { n: formatNumber(detail.commitsAhead.length, 0) })}
                   </button>
                 )}
               </>
             )
-            : <p className="fg-empty">{b.ahead === 0 ? `Every commit here is already in ${defaultName ?? "the default branch"}.` : "The forge listed none."}</p>}
+            : <p className="fg-empty">{b.ahead === 0 ? t("forge.branch.allIn", { branch: defaultLabel }) : t("forge.branch.listedNone")}</p>}
         </section>
       )}
     </>

@@ -284,12 +284,13 @@ describe("the modal prints the floor wherever it prints a cost", () => {
   const src = sourceOf("components/AccountProjectsModal.tsx");
 
   it("labels the total, the rows, Other's members, Unattributed and the days", () => {
-    expect(src).toContain("{projectCostLabel(view.totalCost, view.unpricedTokens)}");
-    expect(src).toContain("{projectCostLabel(r.cost, r.unpricedTokens)}");
-    expect(src).toContain("{projectCostLabel(member.cost, member.unpricedTokens)}");
-    expect(src).toContain("{projectCostLabel(view.un.cost, view.un.unpricedTokens, fmtCostGrouped)}");
-    expect(src).toContain("{projectCostLabel(d.total, d.unpriced)}");
-    expect(src).toContain("{projectCostLabel(c, u)}");
+    // `cost` is the modal's projectCostText with the language bound in.
+    expect(src).toContain("{cost(view.totalCost, view.unpricedTokens)}");
+    expect(src).toContain("{cost(r.cost, r.unpricedTokens)}");
+    expect(src).toContain("{cost(member.cost, member.unpricedTokens)}");
+    expect(src).toContain("{cost(view.un.cost, view.un.unpricedTokens, fmtCostGrouped)}");
+    expect(src).toContain("{cost(d.total, d.unpriced)}");
+    expect(src).toContain("{cost(c, u)}");
     expect(src).toContain("{view.unpricedNote && <div className=\"ap-proj-note\">{view.unpricedNote}</div>}");
   });
 
@@ -305,6 +306,6 @@ describe("the modal prints the floor wherever it prints a cost", () => {
   });
 
   it("says the dollars cover the priced models, not that they are ccusage's in full", () => {
-    expect(src).toMatch(/: view\.reconciled \? "Dollars from ccusage · split by activity"\s*: view\.calibrated \? "Dollars from ccusage for the priced models · split by activity"/);
+    expect(src).toMatch(/: view\.reconciled \? t\("accounts\.projects\.footReconciled"\)\s*: view\.calibrated \? t\("accounts\.projects\.footCalibrated"\)/);
   });
 });

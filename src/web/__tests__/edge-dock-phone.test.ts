@@ -87,12 +87,12 @@ describe("the dock holds the four panels and Settings, then More", () => {
       .toEqual(["history", "browser-watch", "feedback"]);
   });
 
-  it("drops Accounts on a machine without Claude Code, and keeps the rest in place", () => {
-    // Every account the panel lists is a Claude account; a Codex-only machine
-    // gets no control for a panel with nothing in it.
+  it("puts Codex's own button where Claude's was on a machine without Claude Code", () => {
+    // Claude's accounts panel is Claude's alone; a Codex-only machine gets
+    // Codex's own button in its place, and the dock keeps its five slots.
     const view = dockFor(rails({ claude: false }));
     expect(buttons(view.tree).map(b => (b.props.item as { id: string }).id))
-      .toEqual(["session-list", "usage", "machine", "settings"]);
+      .toEqual(["codex-accounts", "session-list", "usage", "machine", "settings"]);
   });
 
   it("is what App.tsx draws at a phone's width, in place of both stripes and the topbar's utilities", () => {

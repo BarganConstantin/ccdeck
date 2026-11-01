@@ -10,7 +10,8 @@
 // drawn after the chip while the app has one (see readyButtonCopy).
 import type { readyDesktopUpdate } from "../desktop-update";
 import { desktopAppVersion, readyButtonCopy, readyChipCopy } from "../desktop-update";
-import { shortAgo } from "../relative-time";
+import { useLanguage, t } from "../i18n";
+import { agoWords } from "../shell-ago";
 import type { VersionInfo, VersionNotice } from "../use-version-check";
 import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "../version-chip";
 
@@ -37,6 +38,7 @@ export default function VersionChip({
   /** That press is out and has not been answered. */
   updateRestarting?: boolean;
 }) {
+  useLanguage(); // the copy helpers below read the language on show
   return (
     <>
       {/* The server's own version, not the bundle's — an upgrade replaces
@@ -104,8 +106,8 @@ export default function VersionChip({
              versionNoticeLabel for the rest of the reasoning (#381). */
           aria-label={versionNoticeLabel({ ...notice, open: noticeOpen })}
           title={notice.kind === "restart"
-            ? `Running v${notice.from}; v${notice.to} is installed on disk. Restart to pick it up · click for what's new`
-            : `Running v${notice.from}; v${notice.to} is on npm · click for what's new`}
+            ? t("shell.chip.runningRestart", { from: notice.from, to: notice.to })
+            : t("shell.chip.runningUpgrade", { from: notice.from, to: notice.to })}
         >
           {`${notice.to} is ready`}
           <span className="v-dot" aria-hidden />
@@ -132,13 +134,13 @@ export default function VersionChip({
             running: chipVersion,
             latest: version?.latest,
             latestPending: version?.latestPending,
-            checkedAgo: version?.checkedAt ? shortAgo(now - version.checkedAt) : null,
+            checkedAgo: version?.checkedAt ? agoWords(now - version.checkedAt) : null,
             // Only when it is the NEWER of the two. A failure older than
             // the last success is history, and saying so would describe a
             // problem that has already gone away.
             checkFailedAgo: version?.checkFailedAt
               && version.checkFailedAt > (version.checkedAt ?? 0)
-              ? shortAgo(now - version.checkFailedAt) : null,
+              ? agoWords(now - version.checkFailedAt) : null,
             checkDisabled: version?.checkDisabled,
             checking: versionChecking,
           };

@@ -16,8 +16,10 @@ import { useRef, type Ref } from "react";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { modalStack } from "../modal-dismiss";
 import {
-  attentionLead, attentionTitle, LATER_EXPLAINED, LOGIN_EXPIRED, promptShows, SINGLE_NOTE, type AttentionRow,
+  attentionLead, attentionTitle, laterExplainedText, loginExpiredText, promptShows, singleNoteText, type AttentionRow,
 } from "../reauth-attention";
+import { useT } from "../i18n";
+import { tNodes } from "../accounts-rich";
 import type { AccountAttention as Attention } from "../use-account-attention";
 import AddAccountDialog from "./AddAccountDialog";
 
@@ -34,23 +36,26 @@ interface BodyProps {
 /** What the dialog says, for one account or several. Its own component so it
  *  can be drawn without the dialog's focus handling — see the 1893 test. */
 export function AttentionBody({ rows, onSignIn, onLater, firstRef }: BodyProps) {
+  const t = useT();
   const single = rows.length === 1 ? rows[0] : null;
   return (
     <section className="modal-body">
       {single ? (
         <>
           <p id="reauth-lead" className="reauth-lead">
-            The Claude login for <strong className="reauth-name">{single.name}</strong>
-            {single.alias ? <span className="reauth-alias"> ({single.alias})</span> : null}
-            {/* A non-breaking hyphen: a line that ends on "sign-" reads as a
-                word cut in half, in a sentence this short. */}
-            {" "}has expired and needs a new sign{"‑"}in.
+            {/* The sentence is the catalog's, with a non-breaking hyphen in
+                "sign‑in": a line that ends on "sign-" reads as a word cut in
+                half, in a sentence this short. */}
+            {tNodes(t, "accounts.reauth.leadOne", {
+              name: <><strong className="reauth-name">{single.name}</strong>
+                {single.alias ? <span className="reauth-alias"> ({single.alias})</span> : null}</>,
+            })}
           </p>
-          <p className="reauth-note">{SINGLE_NOTE}</p>
+          <p className="reauth-note">{singleNoteText(t)}</p>
         </>
       ) : (
         <>
-          <p id="reauth-lead" className="reauth-lead">{attentionLead(rows.length)}</p>
+          <p id="reauth-lead" className="reauth-lead">{attentionLead(rows.length, t)}</p>
           <ul className="reauth-list">
             {rows.map((r, i) => (
               <li key={r.id} className="reauth-row">
@@ -58,22 +63,22 @@ export function AttentionBody({ rows, onSignIn, onLater, firstRef }: BodyProps) 
                   {r.name}
                   {r.alias ? <span className="reauth-alias"> {r.alias}</span> : null}
                 </span>
-                <span className="reauth-what">{LOGIN_EXPIRED}</span>
+                <span className="reauth-what">{loginExpiredText(t)}</span>
                 <button type="button" className="btn" ref={i === 0 ? firstRef : undefined}
-                  aria-label={`Sign in again as ${r.name}`} onClick={() => onSignIn(r)}>
-                  Sign in again
+                  aria-label={t("accounts.reauth.againAs", { name: r.name })} onClick={() => onSignIn(r)}>
+                  {t("accounts.reauth.again")}
                 </button>
               </li>
             ))}
           </ul>
-          <p className="reauth-note">Each keeps its slot, its alias and its history.</p>
+          <p className="reauth-note">{t("accounts.reauth.keeps")}</p>
         </>
       )}
       <div className="reauth-acts">
-        <button type="button" className="btn" title={LATER_EXPLAINED} onClick={onLater}>Not now</button>
+        <button type="button" className="btn" title={laterExplainedText(t)} onClick={onLater}>{t("accounts.reauth.later")}</button>
         {single && (
           <button type="button" className="btn primary" ref={firstRef} onClick={() => onSignIn(single)}>
-            Sign in again
+            {t("accounts.reauth.again")}
           </button>
         )}
       </div>
@@ -88,6 +93,7 @@ interface Props {
 }
 
 export default function AccountAttentionModal({ rows, onSignIn, onLater }: Props) {
+  const t = useT();
   const firstRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onLater, { focusRef: firstRef });
   const scrimPress = useScrimDismiss(onLater);
@@ -104,11 +110,11 @@ export default function AccountAttentionModal({ rows, onSignIn, onLater }: Props
       >
         <header className="modal-head">
           <div className="modal-title">
-            <span id="reauth-title" className="modal-tool-name">{attentionTitle(rows.length)}</span>
+            <span id="reauth-title" className="modal-tool-name">{attentionTitle(rows.length, t)}</span>
           </div>
           <div className="modal-actions">
             <button type="button" className="glyph-btn" onClick={onLater}
-              aria-label="Not now (Esc)" title="Not now (Esc)">×</button>
+              aria-label={t("accounts.reauth.laterEsc")} title={t("accounts.reauth.laterEsc")}>×</button>
           </div>
         </header>
         <AttentionBody rows={rows} onSignIn={onSignIn} onLater={onLater} firstRef={firstRef} />

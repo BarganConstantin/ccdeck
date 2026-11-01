@@ -22,6 +22,7 @@ export const DECISION_GROUP_TITLE = "Decision";
 export const DECISION_STATUS_LABEL = "Keys on the question";
 
 export const DECISION_KEY_GROUP: KeyHelpGroup = {
+  id: "decision",
   title: DECISION_GROUP_TITLE,
   rows: [
     { cap: "1 – 3", action: "Pick an answer and send it, after the prompt is read again", binds: ["1", "2", "3"] },
@@ -51,6 +52,7 @@ export function decisionStatusView(singleKeys: boolean): { layer: "decision"; la
 /** The sheet's group, less the digits' row while the single keys are off. */
 export function decisionKeyGroup(singleKeys: boolean): KeyHelpGroup {
   return {
+    id: DECISION_KEY_GROUP.id,
     title: DECISION_GROUP_TITLE,
     rows: DECISION_KEY_GROUP.rows.filter(r => singleKeys || !r.binds.some(isCharacterKey)),
   };

@@ -14,7 +14,8 @@
 // searched — because forty rows are a list somebody scans for one line.
 import { useId, useState } from "react";
 import { kindOffered, useIntegrations } from "../integrations/client";
-import { KEY_HELP_NOTE, keyHelpFor, type KeyHelpRow } from "../key-help";
+import { keyHelpFor, type KeyHelpRow } from "../key-help";
+import { t as tNow, useT } from "../i18n";
 import { isEscapeKey } from "../modal-dismiss";
 import { isApplePlatform, platformName } from "../platform";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
@@ -33,7 +34,7 @@ export const SINGLE_KEYS_NOTE =
 /** A row's action as the name of a setting row: a capital, and the sheet's
  *  "this sheet" said from outside it. */
 export function shortcutName(row: KeyHelpRow): string {
-  const action = row.binds.includes("?") ? "the keyboard shortcuts sheet" : row.action;
+  const action = row.binds.includes("?") ? tNow("settings.keyboard.sheetName") : row.action;
   return action.charAt(0).toUpperCase() + action.slice(1);
 }
 
@@ -46,6 +47,7 @@ export function shortcutMatches(row: KeyHelpRow, query: string): boolean {
 }
 
 export default function KeyboardSection({ singleKeys, onToggleSingleKeys, workspace = false }: Props) {
+  const t = useT();
   const apple = isApplePlatform(platformName());
   const [query, setQuery] = useState("");
   const filterId = useId();
@@ -59,9 +61,9 @@ export default function KeyboardSection({ singleKeys, onToggleSingleKeys, worksp
       <SettingsGroup>
         <SettingRow
           settingId="single-keys"
-          name={SINGLE_KEYS_LABEL}
+          name={t("settings.keyboard.singleKeys")}
           nameId="settings-single-keys-label"
-          note={SINGLE_KEYS_NOTE}
+          note={t("settings.keyboard.singleKeysNote")}
           noteId="settings-single-keys-note"
           control={
             <button
@@ -82,12 +84,12 @@ export default function KeyboardSection({ singleKeys, onToggleSingleKeys, worksp
       {/* Labelled by a visually hidden word rather than a placeholder alone:
           a placeholder is gone the moment somebody types, and is not a name. */}
       <div className="settings-filter">
-        <label className="vis-hidden" htmlFor={filterId}>Filter shortcuts</label>
+        <label className="vis-hidden" htmlFor={filterId}>{t("settings.keyboard.filter")}</label>
         <input
           id={filterId}
           type="search"
           className="settings-filter-field"
-          placeholder="Filter shortcuts"
+          placeholder={t("settings.keyboard.filter")}
           autoComplete="off"
           spellCheck={false}
           value={query}
@@ -103,9 +105,9 @@ export default function KeyboardSection({ singleKeys, onToggleSingleKeys, worksp
       </div>
 
       {groups.map(group => {
-        const id = `settings-keys-${group.title.toLowerCase().replace(/[^a-z]+/g, "-")}`;
+        const id = `settings-keys-${group.id}`;
         return (
-          <SettingsGroup key={group.title} id={id} title={group.title} className="settings-keys">
+          <SettingsGroup key={group.id} id={id} title={group.title} className="settings-keys">
             {group.rows.map(row => (
               <SettingRow
                 key={`${row.cap}:${row.action}`}
@@ -118,9 +120,9 @@ export default function KeyboardSection({ singleKeys, onToggleSingleKeys, worksp
         );
       })}
       {groups.length === 0 && (
-        <p className="settings-empty" role="status">No shortcut matches “{query.trim()}”.</p>
+        <p className="settings-empty" role="status">{t("settings.keyboard.noMatch", { query: query.trim() })}</p>
       )}
-      {query.trim() === "" && <p className="settings-foot">{KEY_HELP_NOTE}</p>}
+      {query.trim() === "" && <p className="settings-foot">{t("settings.key.note")}</p>}
     </>
   );
 }

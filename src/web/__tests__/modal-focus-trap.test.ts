@@ -292,7 +292,7 @@ describe("the deck's ten overlays", () => {
     // Quota history (#2121) shares the same trap and named close focus.
     // The thirtieth is a connected tracker's panel (#2178).
     // Explore integrations joins the same focus and dismissal contract.
-    expect(MODALS.length).toBe(31);
+    expect(MODALS.length).toBe(32);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -338,7 +338,11 @@ describe("the deck's ten overlays", () => {
       // report beside it: it is opened to be read, and it has nothing else to
       // press.
       "AccountsUsageReport.tsx",
-      "AddAccountDialog.tsx", "ClearConfirm.tsx", "ContextModal.tsx",
+      "AddAccountDialog.tsx",
+      // Add Codex account names its name field for a new account, and its sign-in
+      // button for one that exists: the one thing each is opened to do.
+      "AddCodexAccountDialog.tsx",
+      "ClearConfirm.tsx", "ContextModal.tsx",
       // Feedback names its message field: it was opened to write in, the
       // row of kinds above it already holds a sensible answer, and the message
       // is the one thing it asks for — the title under it is optional (#1853).
@@ -390,7 +394,7 @@ describe("the deck's ten overlays", () => {
     // default is already the right answer there, and this is what makes that
     // true.
     const firstButton = (/<button(?:=>|[^>])*>/.exec(code(read("ToolModal.tsx"))) ?? [""])[0];
-    expect(firstButton).toContain('aria-label="Close (Esc)"');
+    expect(firstButton).toContain('aria-label={t("insights.audit.closeEsc")}');
   });
 
   it("greets the usage modal's keyboard with Close and not with a range tab", () => {
@@ -407,7 +411,7 @@ describe("the deck's ten overlays", () => {
     // the dialog that opens a browser tab did it with focus outside itself.
     const src = read("AddAccountDialog.tsx");
     expect(src).toMatch(/useModalDismiss\(close, \{ focusRef: primerRef \}\)/);
-    expect(src).toMatch(/<button type="button" ref=\{primerRef\}[\s\S]*?Open the sign-in page/);
+    expect(src).toMatch(/<button type="button" ref=\{primerRef\}[\s\S]*?accounts\.add\.openSignIn/);
   });
 });
 

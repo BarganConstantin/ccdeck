@@ -15,6 +15,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { WELCOME_STEPS } from "../components/guide-art";
+import { en } from "../i18n/en";
 
 // selectAgent moved to use-selection.ts; everything that calls it stayed in
 // App.tsx. The two are read as one, so a body is found wherever it lives.
@@ -81,7 +82,8 @@ describe("selecting an agent opens its details (#814)", () => {
     // The × is DetailAside's onClose, which also arms the keyboard's hand-off
     // to the card (panel-close-focus.test.ts).
     expect(appCode).toMatch(/onClose=\{\(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\}/);
-    expect(appCode).toMatch(/aria-label="Close detail panel"\s+onClick=\{onClose\}/);
+    expect(appCode).toMatch(/aria-label=\{t\("board\.detailPanel\.closeLabel"\)\}\s+onClick=\{onClose\}/);
+    expect(en["board.detailPanel.closeLabel"]).toBe("Close detail panel");
     // D toggles whenever something is selected; with nothing selected it now
     // selects first (#845, d-without-selection-845.test.ts).
     expect(appCode).toMatch(/if \(e\.key === "d" \|\| e\.key === "D"\) \{\s*if \(primarySelectedIdRef\.current\) setDetailOpen\(o => !o\);/);

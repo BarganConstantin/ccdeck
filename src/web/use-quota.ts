@@ -249,6 +249,7 @@ export interface CodexQuotaData {
   reachedType?: string | null;
   promo?: string | null;
   partial?: boolean;
+  coverage?: "standard_limits";
   resetCredits?: ResetCredits | null;
   reason?: string;
   fetchedAt?: number;
@@ -270,6 +271,15 @@ export interface CodexUsageData {
 }
 
 const CODEX_POLL_MS = 60_000;
+
+const CODEX_DEFAULT_MOVED = "ccdeck:codex-default-moved";
+
+/** The default Codex account changed: the Usage panel reads again now, rather
+ *  than showing the previous account's numbers for up to a minute. It costs no
+ *  extra usage request, because the once-a-minute floor stays on the server. */
+export function codexDefaultMoved(): void {
+  window.dispatchEvent(new Event(CODEX_DEFAULT_MOVED));
+}
 
 /** @param enabled whether this deck watches Codex — see useQuota above, which
  *   states the same rule for the other side. A Codex poll refreshes an OAuth
@@ -298,7 +308,12 @@ export function useCodexQuota(enabled: boolean) {
     if (!enabled) return;
     fetch_(true); // force on mount — get fresh data immediately
     timerRef.current = window.setInterval(() => fetch_(false), CODEX_POLL_MS);
-    return () => { if (timerRef.current != null) window.clearInterval(timerRef.current); };
+    const moved = () => { void fetch_(false); };
+    window.addEventListener(CODEX_DEFAULT_MOVED, moved);
+    return () => {
+      if (timerRef.current != null) window.clearInterval(timerRef.current);
+      window.removeEventListener(CODEX_DEFAULT_MOVED, moved);
+    };
   }, [enabled]);
 
   const refresh = () => { if (enabled) fetch_(true); };

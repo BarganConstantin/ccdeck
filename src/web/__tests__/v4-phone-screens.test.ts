@@ -73,7 +73,7 @@ describe("every rule this phase added sits inside the phone query", () => {
     // before this phase. A rule slipping out of the query changes a digest.
     const want: Record<string, string> = {
       "styles/search-and-banners.css": "ca499ed72de2128f",
-      "styles/left-column.css": "ffe6dee10043a1ca",
+      "styles/left-column.css": "84c43db7446fe955",
       "styles/session-list.css": "e569476eacf366b9",
       "styles/stage-shell.css": "91fdb28fec280fe0",
     };

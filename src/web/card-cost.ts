@@ -14,6 +14,11 @@ import {
 // what the last-wins multiplication this replaces was measured to cost (#686).
 import { agentCost, agentUnpricedTokens, usageByModelEntries, type UsageBearing } from "./usage-models";
 import type { AgentNodeData, TokenUsage } from "./types";
+import { t } from "./i18n";
+
+/** A row of the sum at the foot of a block: the label padded to the column the
+ *  `=` sits in, in whichever language the label is. */
+const sumRow = (label: string, value: string): string => `${label.padEnd(38)}= ${value}`;
 
 /** Multi-line breakdown for the cost chip tooltip — shows the actual
  *  multiplication so the user can verify pricing is sane.
@@ -24,7 +29,7 @@ import type { AgentNodeData, TokenUsage } from "./types";
  *  row whose operands don't produce its own result is worse than no row. */
 export function costBreakdownTooltip(usage: TokenUsage, modelId: string | undefined): string {
   const note = /^gpt[-_]/i.test(modelId ?? "")
-    ? "API-equivalent estimate. Recorded Codex settings do not confirm the served tier; tokens without tier evidence use standard rates.\n"
+    ? `${t("board.cost.note")}\n`
     : "";
   return note + usageCostTooltip(usage, modelId);
 }
@@ -40,7 +45,7 @@ function usageCostTooltip(usage: TokenUsage, modelId: string | undefined): strin
   return [
     ...shares.map(s => rateCardTooltip(s.usage, modelId, s.speed)),
     `═════════════════════════════════════════`,
-    `all speeds                            = ${fmtCost(costForUsage(usage, modelId).total)}`,
+    sumRow(t("board.cost.allSpeeds"), fmtCost(costForUsage(usage, modelId).total)),
   ].join("\n");
 }
 
@@ -54,7 +59,7 @@ function rateCardTooltip(usage: TokenUsage, modelId: string | undefined, speed: 
   if (usage.longContext && shares.some(s => s.long)) {
     return [
       ...shares.map(s => singleRateTooltip(s.usage, modelId, speed, s.long)),
-      `all context tiers                     = ${fmtCost(costAtSpeed(usage, modelId, speed).total)}`,
+      sumRow(t("board.cost.allContext"), fmtCost(costAtSpeed(usage, modelId, speed).total)),
     ].join("\n");
   }
   return singleRateTooltip(usage, modelId, speed, false);
@@ -63,8 +68,8 @@ function rateCardTooltip(usage: TokenUsage, modelId: string | undefined, speed: 
 function singleRateTooltip(usage: TokenUsage, modelId: string | undefined, speed: string, long: boolean): string {
   const base = ratesForModel(modelId, Date.now(), speed);
   const rates = base ? contextRates(base, long) : null;
-  const tier = long ? " · prompt >100K" : "";
-  const heading = (speed === FREE_AUTO_REVIEW_TIER ? `model: ${modelId} · no charge for ChatGPT auto-review` : speed === STANDARD_SPEED ? `model: ${modelId}` : `model: ${modelId} · ${speed}`) + tier;
+  const tier = long ? ` · ${t("board.cost.longPrompt")}` : "";
+  const heading = (speed === FREE_AUTO_REVIEW_TIER ? t("board.cost.headingFree", { model: String(modelId) }) : speed === STANDARD_SPEED ? t("board.cost.heading", { model: String(modelId) }) : t("board.cost.headingSpeed", { model: String(modelId), speed })) + tier;
   // This branch was unreachable until #400: the only element carrying this
   // tooltip was gated on the same ratesForModel call that returns null here, so
   // the graceful answer existed and could never be read. It names the model now
@@ -72,10 +77,12 @@ function singleRateTooltip(usage: TokenUsage, modelId: string | undefined, speed
   // sentence is otherwise a claim about nothing, and the id is what goes in the
   // issue asking for the row.
   if (!rates) {
-    return `${heading}\nno published rate in this build — the tokens are counted, the dollars are not`;
+    return `${heading}\n${t("board.cost.noRate")}`;
   }
   const fmtN = (n: number) => n.toLocaleString();
   const fmtR = (r: number) => `$${r}/MTok`;
+  const row = (label: string, tokens: number, rate: string, usd: number) =>
+    `${label.padEnd(9)}${fmtN(tokens).padStart(14)}  × ${rate.padEnd(11)} = ${fmtCost(usd)}`;
   const c = costAtSpeed(long ? { ...usage, longContext: usage } : { ...usage, longContext: undefined }, modelId, speed);
   const cw = cacheWriteBreakdown(usage, rates);
   // Cache writes are billed per TTL — 2× input for a 1-hour entry, 1.25× for a
@@ -84,10 +91,10 @@ function singleRateTooltip(usage: TokenUsage, modelId: string | undefined, speed
   // product that doesn't check out.
   const cacheWriteRows = cw.tokens1h > 0
     ? [
-        `cache w5m${fmtN(cw.tokens5m).padStart(14)}  × ${fmtR(rates.cacheWrite).padEnd(11)} = ${fmtCost(cw.usd5m)}`,
-        `cache w1h${fmtN(cw.tokens1h).padStart(14)}  × ${fmtR(rates.cacheWrite1h ?? rates.cacheWrite).padEnd(11)} = ${fmtCost(cw.usd1h)}`,
+        row(t("board.cost.cacheW5m"), cw.tokens5m, fmtR(rates.cacheWrite), cw.usd5m),
+        row(t("board.cost.cacheW1h"), cw.tokens1h, fmtR(rates.cacheWrite1h ?? rates.cacheWrite), cw.usd1h),
       ]
-    : [`cache w  ${fmtN(cw.tokens5m).padStart(14)}  × ${fmtR(rates.cacheWrite).padEnd(11)} = ${fmtCost(cw.usd5m)}`];
+    : [row(t("board.cost.cacheW"), cw.tokens5m, fmtR(rates.cacheWrite), cw.usd5m)];
   // Codex reports a single `input_tokens` that already contains the cached
   // prefix, and only the remainder is billed at the input rate — so the raw
   // count printed here disagreed with its own dollar column by ~10x on a
@@ -95,15 +102,15 @@ function singleRateTooltip(usage: TokenUsage, modelId: string | undefined, speed
   // the row when that differs from what the agent reported so the missing
   // tokens are visibly the ones on the cache-read line below.
   const inputTokens = billedInputTokens(usage, modelId);
-  const inputLabel = inputTokens === usage.inputTokens ? "input" : "uncached";
+  const inputLabel = t(inputTokens === usage.inputTokens ? "insights.cost.input" : "board.cost.uncached");
   return [
     heading,
-    `${inputLabel.padEnd(9)}${fmtN(inputTokens).padStart(14)}  × ${fmtR(rates.input).padEnd(11)} = ${fmtCost(c.input)}`,
-    `output   ${fmtN(usage.outputTokens).padStart(14)}  × ${fmtR(rates.output).padEnd(11)} = ${fmtCost(c.output)}`,
-    `cache r  ${fmtN(usage.cacheReadTokens).padStart(14)}  × ${fmtR(rates.cacheRead).padEnd(11)} = ${fmtCost(c.cacheRead)}`,
+    row(inputLabel, inputTokens, fmtR(rates.input), c.input),
+    row(t("insights.cost.output"), usage.outputTokens, fmtR(rates.output), c.output),
+    row(t("board.cost.cacheR"), usage.cacheReadTokens, fmtR(rates.cacheRead), c.cacheRead),
     ...cacheWriteRows,
     `─────────────────────────────────────────`,
-    `total                                 = ${fmtCost(c.total)}`,
+    sumRow(t("board.cost.total"), fmtCost(c.total)),
   ].join("\n");
 }
 
@@ -130,7 +137,7 @@ export function agentCostTooltip(a: UsageBearing): string {
   return [
     ...entries.map(e => costBreakdownTooltip(e.usage, e.model)),
     `═════════════════════════════════════════`,
-    `all models                            = ${fmtCost(agentCost(a).total)}`,
+    sumRow(t("board.cost.allModels"), fmtCost(agentCost(a).total)),
   ].join("\n");
 }
 
@@ -181,7 +188,7 @@ export function costChip(data: AgentNodeData): CostChip | null {
   // session's and its clock only the part this page saw, so the quotient
   // would overstate the burn by however much of the session was missed.
   const rate = data.state === "active" && !data.synthetic ? fmtCostRate(c.total, elapsedSec) : null;
-  const tt = agentCostTooltip(data) + (rate ? `\nburn: ${rate}` : "");
+  const tt = agentCostTooltip(data) + (rate ? `\n${t("board.cost.burn", { rate })}` : "");
   // THE BURN RATE IS IN THE TOOLTIP AND NOWHERE ELSE NOW. The row is
   // flex, no-wrap, inside `overflow: hidden`, with 232px of content;
   // five items at 11px measure about 290px, so the live card — the one

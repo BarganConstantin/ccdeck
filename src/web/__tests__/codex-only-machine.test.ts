@@ -459,29 +459,32 @@ describe("which panels the UI draws for each machine", () => {
     // thing on screen, and every route out of it ends at the claude CLI.
     // The gate is one name since 2026-10-08, `accountsDrawn`, because the
     // left column mounts on it too; Claude Code is in its definition.
-    expect(leadUpTo(appSrc, "<AccountsPanel leaving=")).toContain("{accountsDrawn && (");
-    expect(appSrc).toMatch(/const accountsDrawn = isDrawn\(accountsPanelOpen, accountsPhase\) && providers\.claude;/);
+    expect(leadUpTo(appSrc, "<AccountsPanel leaving=")).toContain('{accountsDrawn && (shownAccountProvider === "claude" || accountSide.bothMounted) && (');
+    expect(appSrc).toMatch(/const accountsDrawn = isDrawn\(accountsPanelOpen, accountsPhase\) && \(providers\.claude \|\| providers\.codex\);/);
   });
 
   it("hides the accounts button too, rather than opening onto nothing", () => {
     // The left stripe — and the phone's dock, which draws the same list — holds
-    // Accounts only where Claude Code is; without it, Session list alone.
-    expect(appSrc).toMatch(/left: providers\.claude \? \[accounts, sessionList\] : \[sessionList\]/);
+    // Claude's accounts button where Claude Code is and Codex's where only Codex is.
+    expect(appSrc).toContain("left: providers.claude ? [accounts, sessionList] : providers.codex ? [codex, sessionList] : [sessionList]");
     expect(appSrc).toMatch(/<EdgeDock items=\{\[\.\.\.rails\.left, /);
-    // Account capacity and Reset calendar open the accounts' report, so they
-    // follow the accounts button off a Codex-only stripe and out of More.
-    expect(appSrc).toMatch(/leftStripe: providers\.claude \? \[named\("Claude accounts", \[accounts, \.\.\.capacity\]\), \[sessionList\]\] : \[\[sessionList\]\]/);
+    // With both, one Accounts button covers both CLIs (a switch in the panel's
+    // header picks the side); only quick open keeps a door to Codex's side.
+    expect(appSrc).toContain("codexDoor: providers.claude && providers.codex ? [codex] : []");
+    // Account capacity and Reset calendar open Claude's accounts report, so they
+    // are Claude's alone and follow its button off a Codex-only stripe.
+    expect(appSrc).toMatch(/leftStripe: \[\s*\.\.\.\(providers\.claude \? \[named\(providers\.codex \? t\("board\.rail\.accounts"\) : t\("board\.rail\.group\.accounts"\), \[accounts, \.\.\.capacity\]\)\] : \[\]\),\s*\.\.\.\(providers\.codex && !providers\.claude \? \[\[codex\]\] : \[\]\),\s*\[sessionList\],\s*\]/);
     expect(appSrc).toMatch(/capacity: providers\.claude \? capacity : \[\]/);
     // The connected trackers (#2178) are a group of their own after it, so
     // they cannot stand in for the accounts button either.
-    expect(appSrc).toMatch(/<EdgeRail side="left" label="Accounts and sessions" groups=\{\[\.\.\.rails\.leftStripe, rails\.integrations, rails\.explore\]\}/);
+    expect(appSrc).toMatch(/<EdgeRail side="left" label=\{t\("shell.rail.left"\)\} groups=\{\[\.\.\.rails\.leftStripe, rails\.integrations, rails\.explore\]\}/);
     // And nowhere else: the right stripe and the utilities never carry it.
-    expect(appSrc).toMatch(/right: \[\s*named\("Usage and machine", \[usage, machine\]\),\s*named\("Activity history", \[history, \.\.\.activity\]\),\s*named\("Watchers", \[browserWatch, \.\.\.radar\]\),\s*radio,\s*\]/);
+    expect(appSrc).toMatch(/right: \[\s*named\(t\("board\.rail\.group\.usage"\), \[usage, machine\]\),\s*named\(t\("board\.rail\.group\.activity"\), \[history, \.\.\.activity\]\),\s*named\(t\("board\.rail\.group\.watchers"\), \[browserWatch, \.\.\.radar\]\),\s*radio,\s*\]/);
     expect(appSrc).toMatch(/utilities: \[settings, feedback\]/);
   });
 
   it("does not let the A shortcut toggle a panel that is not there", () => {
-    expect(appSrc).toMatch(/providersRef\.current\.claude\) toggleAccountsPanel/);
+    expect(appSrc).toMatch(/providersRef\.current\.claude \|\| providersRef\.current\.codex\) toggleAccountsPanel/);
   });
 
   it("renders each quota section only for the CLI it is about", () => {
@@ -498,8 +501,8 @@ describe("which panels the UI draws for each machine", () => {
     const second = sectionsSrc.indexOf(SECTION, first + 1);
     expect(first, "the quota sections are gone or renamed").toBeGreaterThan(-1);
     expect(second, "there is no longer a second quota section").toBeGreaterThan(first);
-    expect(sectionsSrc.slice(first + SECTION.length, second)).toContain("Claude quota");
-    expect(sectionsSrc.slice(second)).toContain("Codex quota");
+    expect(sectionsSrc.slice(first + SECTION.length, second)).toContain("usage.quota.claude.title");
+    expect(sectionsSrc.slice(second)).toContain("usage.quota.codex.title");
     expect(usageSrc).toMatch(/\{providers\.claude && \(\s*<ClaudeQuotaSection /);
     expect(usageSrc).toMatch(/\{providers\.codex && \(\s*<CodexQuotaSection /);
   });

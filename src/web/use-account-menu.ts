@@ -27,6 +27,7 @@ import { copyText } from "./copy-text";
 import { armedPress, focusDropped } from "./panel-press";
 import { type PickerCommit } from "./picker-commit";
 import { CONFIRM_GAP_MS } from "./components/LanSyncSection";
+import { t as tNow } from "./i18n";
 
 /** What an account's ⋯ is showing. Rename and Move are forms; Share is its
  *  answer — the text to copy. */
@@ -137,10 +138,10 @@ export function useAccountMenu({ claim, release, load, clearFailure, rescueFocus
       const out = await res.json().catch(() => null);
       // The admin route composes its `detail` with failureText(), so here the
       // server's own words are the message and explainFailure ranks them first.
-      if (!out?.ok) setMenuError({ text: explainFailure(out, "command failed", res.status) });
+      if (!out?.ok) setMenuError({ text: explainFailure(out, tNow("accounts.net.commandFailed"), res.status) });
       return out;
     } catch {
-      setMenuError({ text: "server unreachable" });
+      setMenuError({ text: tNow("accounts.net.unreachable") });
       return null;
     } finally {
       release();

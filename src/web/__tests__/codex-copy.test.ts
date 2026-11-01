@@ -165,7 +165,7 @@ describe("the topbar readouts", () => {
     expect(strip, "the pill left the strip").toContain("title={pill.title}");
     // The Machine button on the right stripe, which discloses the panel.
     expect(appCode, "nothing in the chrome opens the machine panel any more")
-      .toMatch(/ariaLabel: "Machine"[^}]*controls: "system-panel", onPress: \(\) => setMachinePanelOpen\(o => !o\)/);
+      .toMatch(/ariaLabel: t\("board\.rail\.machine"\)[^}]*controls: "system-panel", onPress: \(\) => setMachinePanelOpen\(o => !o\)/);
     expect((readouts.match(/title=|title:/g) ?? []).length).toBeGreaterThanOrEqual(3);
   });
 

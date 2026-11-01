@@ -377,7 +377,7 @@ describe("which deck --stop ends", () => {
     expect(at, "the default shape is gone or renamed").toBeGreaterThan(-1);
     const mine = ONE_SHOT.slice(at, ONE_SHOT.indexOf("\n  };", at));
     expect(mine).toContain('workspace: "",');
-    expect(mine).toContain("codex: hasCodexInstalled(),");
+    expect(mine).toContain("codex: await hasCodexInstalled(),");
     expect(mine).toContain("claude: hasClaudeInstalled(),");
     expect(mine).not.toContain("flags.");
   });

@@ -8,11 +8,14 @@
 // sound each tone plays stays with the menu's own select; this is handed the
 // library and the callbacks that change it.
 import { useEffect, useRef, useState } from "react";
+import { ownMessage } from "../own-error";
 import { armedPress, focusDropped } from "../panel-press";
 import { CONFIRM_GAP_MS } from "./LanSyncSection";
 import { useClipRecorder } from "../use-clip-recorder";
 import SpokenVoiceForm from "./SpokenVoiceForm";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
+import { useT } from "../i18n";
+import { formatNumber } from "../i18n/format";
 import {
   MAX_CUSTOM_ASSETS,
   deleteFocusTarget,
@@ -32,6 +35,7 @@ export interface CustomSoundsProps {
 export default function CustomSoundsSection({
   customAssets, onImportCustom, onCreateVoice, onRenameCustom, onPreviewCustom, onDeleteCustom,
 }: CustomSoundsProps) {
+  const t = useT();
   const [customError, setCustomError] = useState("");
   // The ceiling, said where sounds are added and before any work is done. It
   // used to arrive as an error after the fact — after a 4.4-second recording,
@@ -57,14 +61,14 @@ export default function CustomSoundsSection({
   // An armed delete stands down on its own, the way the unpairs do.
   useEffect(() => {
     if (!armedDelete) return;
-    const t = window.setTimeout(() => setArmedDelete(null), 4_000);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setArmedDelete(null), 4_000);
+    return () => window.clearTimeout(timer);
   }, [armedDelete]);
 
   const runCustom = async (work: () => Promise<void>) => {
     setCustomError("");
     try { await work(); }
-    catch (error) { setCustomError(error instanceof Error ? error.message : "Custom audio could not be saved."); }
+    catch (error) { setCustomError(ownMessage(error, t("settings.sounds.custom.saveFail"))); }
   };
 
   const pressDelete = (id: string, pressed: HTMLButtonElement) => {
@@ -98,9 +102,9 @@ export default function CustomSoundsSection({
     // a section whose tones above are rows.
     <SettingsGroup
       id="sm-custom-title"
-      title="Custom sounds"
-      note="Your own files, clips and voices, kept on this machine. Either tone above can play one."
-      aside={<span className="settings-caption-count">{customCount} of {MAX_CUSTOM_ASSETS}</span>}
+      title={t("settings.sounds.custom.title")}
+      note={t("settings.sounds.custom.note")}
+      aside={<span className="settings-caption-count">{t("settings.sounds.custom.count", { count: customCount, max: MAX_CUSTOM_ASSETS })}</span>}
       className="sm-custom"
       settingId="custom-sounds"
     >
@@ -108,8 +112,8 @@ export default function CustomSoundsSection({
       <SettingRow
         as="div"
         settingId="custom-import"
-        name="Import audio"
-        note="WAV, MP3 or OGG"
+        name={t("settings.sounds.custom.import")}
+        note={t("settings.sounds.custom.importNote")}
         control={
           <button
             ref={importRef}
@@ -118,7 +122,7 @@ export default function CustomSoundsSection({
             {...fullProps}
             onClick={() => { if (!full) pickerRef.current?.click(); }}
           >
-            Choose file
+            {t("settings.sounds.custom.chooseFile")}
           </button>
         }
       >
@@ -137,12 +141,12 @@ export default function CustomSoundsSection({
       <SettingRow
         as="div"
         settingId="custom-record"
-        name="Record a clip"
-        note={recording ? "Recording…" : "Up to 5 seconds"}
+        name={t("settings.sounds.custom.record")}
+        note={recording ? t("settings.sounds.custom.recording") : t("settings.sounds.custom.upTo5")}
         control={recording ? (
-          <button type="button" className="btn sm-custom-action" onClick={stopRecording}>Stop &amp; save</button>
+          <button type="button" className="btn sm-custom-action" onClick={stopRecording}>{t("settings.sounds.custom.stopSave")}</button>
         ) : (
-          <button type="button" className="btn sm-custom-action" {...fullProps} onClick={() => void startRecording()}>Record</button>
+          <button type="button" className="btn sm-custom-action" {...fullProps} onClick={() => void startRecording()}>{t("settings.sounds.custom.recordBtn")}</button>
         )}
       />
 
@@ -152,7 +156,7 @@ export default function CustomSoundsSection({
         <div className="sm-custom-item" key={asset.id}>
           <input
             className="ap-manage-input"
-            aria-label={`Rename ${asset.name}`}
+            aria-label={t("settings.sounds.custom.rename", { name: asset.name })}
             defaultValue={asset.name}
             maxLength={80}
             onBlur={e => {
@@ -163,11 +167,11 @@ export default function CustomSoundsSection({
             }}
             onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
           />
-          <span>{asset.kind === "audio" ? `${asset.duration.toFixed(1)}s` : "Voice"}</span>
+          <span>{asset.kind === "audio" ? `${formatNumber(asset.duration, 1)}s` : t("settings.sounds.custom.voice")}</span>
           {/* Named for the sound, not only the verb: a list of eight
               rows read aloud as "Play, Delete, Play, Delete" says
               nothing about which one a press would act on. */}
-          <button type="button" className="btn sm-custom-icon" aria-label={`Play ${asset.name}`} onClick={() => onPreviewCustom(asset.id)}>Play</button>
+          <button type="button" className="btn sm-custom-icon" aria-label={t("settings.sounds.custom.playName", { name: asset.name })} onClick={() => onPreviewCustom(asset.id)}>{t("settings.sounds.custom.play")}</button>
           {/* Two presses, because nothing brings a deleted sound back:
               the first arms, a second inside four seconds deletes. And
               it hands focus on, since the row it sat in goes with it. */}
@@ -179,10 +183,10 @@ export default function CustomSoundsSection({
             // while the finger has never come up: one decision.
             onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
             onClick={e => pressDelete(asset.id, e.currentTarget)}
-            aria-label={armedDelete === asset.id ? `Confirm deleting ${asset.name}` : `Delete ${asset.name}`}
-            title={armedDelete === asset.id ? "Press again to delete this sound. It cannot be brought back." : "Delete this sound"}
+            aria-label={armedDelete === asset.id ? t("settings.sounds.custom.confirmName", { name: asset.name }) : t("settings.sounds.custom.deleteName", { name: asset.name })}
+            title={armedDelete === asset.id ? t("settings.sounds.custom.deleteAgain") : t("settings.sounds.custom.deleteTip")}
           >
-            {armedDelete === asset.id ? "Confirm" : "Delete"}
+            {armedDelete === asset.id ? t("settings.sounds.custom.confirm") : t("settings.sounds.custom.delete")}
           </button>
         </div>
       ))}

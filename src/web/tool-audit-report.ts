@@ -1,14 +1,12 @@
+import { currentLanguage, t } from './i18n';
 import { operationDescription } from './operation-glossary';
 import { auditDuration, type AuditProvider, type AuditReport, type AuditRow } from './tool-audit';
 
 /** The four questions the list answers. Each is one column of the row. */
 export type ToolSort = 'calls' | 'time' | 'slowest' | 'failed';
-export const toolSorts: { id: ToolSort; label: string }[] = [
-  { id: 'calls', label: 'Most used' },
-  { id: 'time', label: 'Most time' },
-  { id: 'slowest', label: 'Slowest' },
-  { id: 'failed', label: 'Failures' },
-];
+export const toolSorts: { id: ToolSort }[] = [{ id: 'calls' }, { id: 'time' }, { id: 'slowest' }, { id: 'failed' }];
+/** The sort's name in the language on show. */
+export const toolSortLabel = (id: ToolSort) => t(`insights.audit.sort.${id}`);
 
 /** Null is "not measured", which sorts last rather than reading as zero. */
 export function toolSortValue(row: AuditRow, sort: ToolSort): number | null {
@@ -53,53 +51,64 @@ export function findHighlights(rows: AuditRow[], totalMs: number | null): Highli
   const timed = rows.filter(row => row.totalMs !== null && row.measured >= 2);
   const hog = timed.slice().sort((a, b) => b.totalMs! - a.totalMs!)[0];
   if (hog && totalMs && hog.totalMs! >= totalMs * 0.2) {
-    found.push({ kind: 'time', operation: hog.operation, title: 'takes the most time',
-      detail: `${auditDuration(hog.totalMs)} over ${count(hog.calls, 'call')}, ${percent(hog.totalMs!, totalMs)} of all tool time.` });
+    found.push({ kind: 'time', operation: hog.operation, title: t('insights.audit.hl.time'),
+      detail: t('insights.audit.hl.time.detail', { time: auditDuration(hog.totalMs), calls: countOf(hog.calls, 'call'), share: percent(hog.totalMs!, totalMs) }) });
   }
   const failing = rows.filter(row => row.completed >= 5 && row.failed >= 2 && row.failed / row.completed >= 0.1)
     .sort((a, b) => b.failed / b.completed - a.failed / a.completed || b.failed - a.failed)[0];
   if (failing) {
-    found.push({ kind: 'failing', operation: failing.operation, title: 'fails often',
-      detail: `${failing.failed.toLocaleString()} of ${count(failing.completed, 'call')} failed (${failureShare(failing)}).` });
+    found.push({ kind: 'failing', operation: failing.operation, title: t('insights.audit.hl.failing'),
+      detail: t('insights.audit.hl.failing.detail', { failed: failing.failed.toLocaleString(currentLanguage()), calls: countOf(failing.completed, 'call'), share: failureShare(failing) ?? '' }) });
   }
   const slow = rows.filter(row => row.medianMs !== null && row.measured >= 3 && row.medianMs >= 10000 && row.operation !== hog?.operation)
     .sort((a, b) => b.medianMs! - a.medianMs!)[0];
   if (slow) {
-    found.push({ kind: 'slow', operation: slow.operation, title: 'is the slowest',
-      detail: `Usually ${auditDuration(slow.medianMs)} per call; the longest took ${auditDuration(slow.maxMs)}.` });
+    found.push({ kind: 'slow', operation: slow.operation, title: t('insights.audit.hl.slow'),
+      detail: t('insights.audit.hl.slow.detail', { usual: auditDuration(slow.medianMs), longest: auditDuration(slow.maxMs) }) });
   }
   return found;
 }
 
-export const count = (n: number, noun: string) => `${n.toLocaleString()} ${noun}${n === 1 ? '' : 's'}`;
+export const count = (n: number, noun: string) => `${n.toLocaleString(currentLanguage())} ${noun}${n === 1 ? '' : 's'}`;
+
+/** What `count` counts, in the language on show: "1 call", "3 tool calls", "2 sessions". */
+export type Countable = 'call' | 'toolCall' | 'use' | 'session' | 'repeat' | 'repeatedRun' | 'time' | 'reply' | 'turn' | 'skill' | 'moreProject';
+export const countOf = (n: number, kind: Countable) => t(`insights.count.${kind}`, { count: n, n: n.toLocaleString(currentLanguage()) });
 
 export const periodLabels: Record<string, string> = { '1': '24 hours', '7': '7 days', '30': '30 days', '90': '90 days' };
 const who: Record<AuditProvider, string> = { all: 'your agents', claude: 'Claude', codex: 'Codex' };
+/** The period in words, in the language on show ("7 days", "24 hours"). */
+export const periodLabel = (period: string) => periodLabels[period] ? t(`insights.audit.period.${period}`) : t('insights.audit.period.days', { n: period });
+/** The period for the middle of a sentence ("in the last 7 Tagen": German wants the dative). */
+export const periodIn = (period: string) => periodLabels[period] ? t(`insights.audit.periodIn.${period}`) : t('insights.audit.periodIn.days', { n: period });
+export const whoLabel = (provider: AuditProvider) => provider === 'all' ? t('insights.audit.who.all') : who[provider];
 
 /** The report in one sentence, as parts so the numbers can be emphasised. */
 export function summaryParts(report: Pick<AuditReport, 'total' | 'totalMs' | 'failed' | 'completed'>, provider: AuditProvider, period: string) {
   return {
-    lead: `In the last ${periodLabels[period] ?? `${period} days`}, ${who[provider]} made`,
-    calls: count(report.total, 'tool call'),
+    period: periodIn(period),
+    who: whoLabel(provider),
+    calls: countOf(report.total, 'toolCall'),
     time: report.totalMs ? auditDuration(report.totalMs) : null,
     failed: report.failed,
     failedShare: report.failed && report.completed ? percent(report.failed, report.completed) : null,
   };
 }
 
-export const auditDay = (ms: number) => new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+export const auditDay = (ms: number) => new Date(ms).toLocaleDateString(currentLanguage(), { month: 'short', day: 'numeric' });
 
 /** A call's day as a list groups by it: "Today", "Yesterday", "Oct 21". */
-export function callDay(ms: number, now = Date.now()) {
+export function callDay(ms: number, now = Date.now(), inSentence = false) {
   const day = (t: number) => new Date(t).toDateString();
-  if (day(ms) === day(now)) return 'Today';
-  if (day(ms) === day(now - 86400000)) return 'Yesterday';
-  return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (day(ms) === day(now)) return t(inSentence ? 'insights.audit.todayMid' : 'insights.audit.today');
+  if (day(ms) === day(now - 86400000)) return t(inSentence ? 'insights.audit.yesterdayMid' : 'insights.audit.yesterday');
+  return new Date(ms).toLocaleDateString(currentLanguage(), { month: 'short', day: 'numeric' });
 }
-export const callClock = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+export const callClock = (ms: number) => new Date(ms).toLocaleTimeString(currentLanguage(), { hour: '2-digit', minute: '2-digit' });
 
 /** "Today 09:12", "Yesterday 18:40", "Oct 12, 14:03". */
-export function callTime(ms: number, now = Date.now()) {
-  const day = callDay(ms, now);
-  return day === 'Today' || day === 'Yesterday' ? `${day} ${callClock(ms)}` : `${day}, ${callClock(ms)}`;
+export function callTime(ms: number, now = Date.now(), inSentence = false) {
+  const day = callDay(ms, now, inSentence);
+  const relative = day === t(inSentence ? 'insights.audit.todayMid' : 'insights.audit.today') || day === t(inSentence ? 'insights.audit.yesterdayMid' : 'insights.audit.yesterday');
+  return relative ? t('insights.audit.dayTime', { day, time: callClock(ms) }) : t('insights.audit.dateTime', { day, time: callClock(ms) });
 }

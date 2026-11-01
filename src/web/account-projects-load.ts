@@ -20,6 +20,8 @@
 // request may write, so a range's late answer — its report or its ccusage run
 // — can never land on the range the user has moved on to.
 import { presetSince } from "./usage-range";
+import { t as tNow } from "./i18n";
+import { OwnError, ownMessage } from "./own-error";
 
 /** ccusage's part of a report on screen. `running` and `failed` both draw
  *  pricing.ts's estimate; only `running` says it is about to move. */
@@ -138,10 +140,10 @@ export function loadProjects<R>({ num, days, gen, dispatch, get = (url, init) =>
   const urls = projectsUrls(num, days, now);
   const init = { credentials: "same-origin" } as const;
   get(urls.report, init)
-    .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+    .then(r => (r.ok ? r.json() : Promise.reject(new OwnError(`HTTP ${r.status}`))))
     .then(
       data => dispatch({ type: "report", gen, days, data: data as R }),
-      (err: Error) => dispatch({ type: "reportFailed", gen, message: err?.message || "Could not load" }),
+      (err: Error) => dispatch({ type: "reportFailed", gen, message: ownMessage(err, tNow("accounts.projects.couldNotLoad")) }),
     );
   // Best-effort: a failure leaves the report on pricing.ts rather than
   // blocking it on a subprocess.

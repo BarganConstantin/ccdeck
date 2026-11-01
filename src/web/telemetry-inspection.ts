@@ -1,4 +1,5 @@
 import type { RadarSnapshot, RadarVariable } from "./traffic-radar";
+import { t as translateNow, type TFunction } from "./i18n";
 export interface RadarSession { id: string; label: string; workspace?: string; project?: string }
 export function configuredDestinations(variables: RadarVariable[]) {
   return [...new Set(variables.filter(v => v.key.endsWith("ENDPOINT")).map(v => v.value).filter(v => /^https?:\/\//.test(v)))];
@@ -15,14 +16,22 @@ export function captureAddress(endpoint: string): string | null {
     return `${url.hostname}:${url.port || (url.protocol === "https:" ? "443" : "80")}`;
   } catch { return null; }
 }
-export function configuredState(variables: RadarVariable[]) {
+export type ConfiguredKind = "unknown" | "conflict" | "enabled" | "disabled";
+/** What the settings say about telemetry, as a kind the UI decides on. */
+export function configuredKind(variables: RadarVariable[]): ConfiguredKind {
+  const values = variables.filter(v => v.key === "CLAUDE_CODE_ENABLE_TELEMETRY").map(v => v.value);
+  if (!values.length) return "unknown";
+  if (new Set(values).size > 1) return "conflict";
+  return values[0] === "Enabled" ? "enabled" : values[0] === "Disabled" ? "disabled" : "unknown";
+}
+export function configuredState(variables: RadarVariable[], t: TFunction = translateNow) {
   const rows = variables.filter(v => v.key === "CLAUDE_CODE_ENABLE_TELEMETRY");
   const values = rows.map(v => v.value);
-  if (!values.length) return "Unknown";
-  if (new Set(values).size > 1) return "Conflicting settings";
+  if (!values.length) return t("radar.state.unknown");
+  if (new Set(values).size > 1) return t("radar.state.conflict");
   // Settings wording whenever a settings file names the flag.
-  const where = rows.every(v => v.launch) ? "in launch environment" : "in settings";
-  return values[0] === "Enabled" ? `Enabled ${where}` : values[0] === "Disabled" ? `Disabled ${where}` : "Unknown";
+  const launch = rows.every(v => v.launch);
+  return values[0] === "Enabled" ? t(launch ? "radar.state.enabledLaunch" : "radar.state.enabledSettings") : values[0] === "Disabled" ? t(launch ? "radar.state.disabledLaunch" : "radar.state.disabledSettings") : t("radar.state.unknown");
 }
 export interface TelemetryFileRow { line: number; raw: string; label: string; sessionId: string | null; sessionIds: string[]; timestamp: string | null; valid: boolean }
 export function parseTelemetryFile(text: string): TelemetryFileRow[] {
@@ -31,7 +40,7 @@ export function parseTelemetryFile(text: string): TelemetryFileRow[] {
   // A whole JSON document and a JSONL stream are both useful inspection inputs.
   let lines: string[];
   try { JSON.parse(trimmed); lines = [trimmed]; } catch { lines = text.replace(/^\uFEFF/, "").split(/\r?\n/); }
-  if (lines.length > 10000) throw new Error("This file has more than 10,000 lines. Choose a smaller export.");
+  if (lines.length > 10000) throw new Error(translateNow("radar.file.tooLong"));
   return lines.flatMap<TelemetryFileRow>((raw, index) => {
     if (!raw.trim()) return [];
     try {
@@ -51,9 +60,9 @@ export function parseTelemetryFile(text: string): TelemetryFileRow[] {
         }
         for (const child of Object.values(node)) pending.push(child);
       }
-      return [{ line: index + 1, raw, sessionIds: [...ids], label: String(record.eventName ?? record.event?.name ?? record.type ?? record.model ?? "JSON record").slice(0, 160),
+      return [{ line: index + 1, raw, sessionIds: [...ids], label: String(record.eventName ?? record.event?.name ?? record.type ?? record.model ?? translateNow("radar.file.jsonRecord")).slice(0, 160),
         sessionId: typeof (record.session_id ?? record.sessionId ?? record["session.id"]) === "string" ? (record.session_id ?? record.sessionId ?? record["session.id"]) : null,
         timestamp: typeof record.timestamp === "string" ? record.timestamp : null, valid: true }];
-    } catch { return [{ line: index + 1, raw, label: "Invalid JSON", sessionId: null, timestamp: null, sessionIds: [], valid: false }]; }
+    } catch { return [{ line: index + 1, raw, label: translateNow("radar.invalidJson"), sessionId: null, timestamp: null, sessionIds: [], valid: false }]; }
   });
 }

@@ -32,7 +32,7 @@ describe("project path disclosure", () => {
     const src = readFileSync(resolve(here, "../components/AccountProjectsModal.tsx"), "utf8");
     expect(src).toContain("members: tail.map(rowFor)");
     expect(src).toContain("aria-expanded={expanded}");
-    expect(src).toContain('`${expanded ? "Hide" : "Show"} location for ${r.label}`');
+    expect(src).toContain('t(expanded ? "accounts.projects.hideLocation" : "accounts.projects.showLocation", { label: r.label })');
     expect(src).toContain("aria-label={infoLabel}");
     expect(src).toContain("r.members.map(member =>");
     expect(src).toContain("homeRelativePath(member.path)");
@@ -42,8 +42,7 @@ describe("project path disclosure", () => {
     // Other has no location of its own: it opens the folded projects, and its
     // label already reads "Other · N projects".
     const src = readFileSync(resolve(here, "../components/AccountProjectsModal.tsx"), "utf8");
-    expect(src).toMatch(/const infoLabel = r\.members\s*\? `\$\{expanded \? "Hide" : "Show"\} the \$\{r\.members\.length\} project/);
-    expect(src).toContain("folded into Other`");
+    expect(src).toMatch(/const infoLabel = r\.members\s*\? t\(expanded \? "accounts\.projects\.hideOther" : "accounts\.projects\.showOther", \{ count: r\.members\.length \}\)/);
   });
 
   it("points the toggle at the details only while they are on the page (#800)", () => {
@@ -65,13 +64,14 @@ describe("project path disclosure", () => {
     expect(src).toContain("onClick={() => copyLocation(member.path, member.label)}");
     // Every Copy is named for its project — a column of bare "Copy" is a column
     // a screen reader cannot tell apart — and the name follows the word shown.
-    expect(src).toContain("aria-label={`${copyWord(r.path)} location for ${r.label}`}");
-    expect(src).toContain("aria-label={`${copyWord(member.path)} location for ${member.label}`}");
+    expect(src).toContain("aria-label={copyAria(r.path, r.label)}");
+    expect(src).toContain("aria-label={copyAria(member.path, member.label)}");
+    expect(src).toContain('t(copied?.ok && copied.path === path ? "accounts.projects.copiedLocation" : "accounts.projects.copyLocation", { label })');
     expect(src).not.toMatch(/className="ap-proj-copy"[^>]*>Copy</);
     // The result is spoken from a polite region that is always on the page, so
     // the text arriving is what gets announced (WCAG 4.1.3).
     expect(src).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">\s*\{copied && \(copied\.ok/);
-    expect(src).toContain("Copied the location of ${copied.label}");
+    expect(src).toContain('t("accounts.projects.copiedStatus", { label: copied.label })');
   });
 
   it("keeps an Other member to two rows on a narrow screen", () => {

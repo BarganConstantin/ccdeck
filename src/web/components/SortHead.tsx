@@ -18,6 +18,8 @@ export function ariaSort<K extends string>(sort: SortOf<K> | null, key: K): "asc
   return sort.dir === "asc" ? "ascending" : "descending";
 }
 
+import { useT } from "../i18n";
+
 export function SortHead<K extends string>({ col, label, note, sort, next, onSort, className }: {
   col: K;
   label: string;
@@ -33,13 +35,14 @@ export function SortHead<K extends string>({ col, label, note, sort, next, onSor
   /** The cell's own class, for a column that is laid out differently. */
   className?: string;
 }) {
+  const t = useT();
   const state = ariaSort(sort, col);
   return (
     <th scope="col" aria-sort={state} className={className}>
       <button
         type="button"
         className="sd-sort"
-        title={note ? `Sort by ${label}\n\n${note}` : `Sort by ${label}`}
+        title={note ? `${t("accounts.sort.by", { label })}\n\n${note}` : t("accounts.sort.by", { label })}
         onClick={() => onSort(next(sort, col))}
       >
         {label}

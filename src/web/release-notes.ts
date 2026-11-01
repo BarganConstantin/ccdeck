@@ -59,6 +59,7 @@
 // fail.
 
 import raw from "../../release-notes.json";
+import { t } from "./i18n";
 
 /** One thing a user would notice. `title` is what the eye catches; `body` is
  *  what they need in order to act on it or stop worrying about it. */
@@ -365,16 +366,16 @@ export interface ReleaseNotesIntroInput {
  */
 export function releaseNotesIntro({ since, running, entries, firstRun }: ReleaseNotesIntroInput): string {
   if (!entries.length) {
-    return "Nothing in this build has anything to report yet. Most releases do not, which is the point.";
+    return t("shell.notes.intro.empty");
   }
   if (since !== null) {
-    const releases = entries.length === 1 ? "one release" : `${entries.length} releases`;
+    const releases = t("shell.notes.intro.releases", { count: entries.length });
     // Naming the way back, in the dialog itself, is what makes dismissing this
     // safe. It has to name the control that actually exists, and since #715
     // that is the version chip itself — the separate What's new button beside
     // it is gone, and a sentence still pointing at it would be sending people
     // to look for something that is not there.
-    return `You were last caught up at v${since}. Since then ${releases} changed something you would notice. Clicking the version in the topbar brings this back.`;
+    return t("shell.notes.intro.since", { since, releases });
   }
   // The welcome (#717). It says three things and each one is load-bearing: why
   // an unasked-for dialog is on screen at all, which release the list belongs
@@ -384,26 +385,26 @@ export function releaseNotesIntro({ since, running, entries, firstRun }: Release
   // a caller that manages one gets the browse sentences below rather than a
   // sentence naming a release the deck cannot name.
   if (firstRun && isVersion(running)) {
-    return `The deck has not run in this browser before, so this is what v${running} — the release you have — changed. Earlier releases are not repeated here; clicking the version in the topbar brings all of them back.`;
+    return t("shell.notes.intro.firstRun", { running });
   }
   const newest = entries[0].version;
   // Nothing to compare against: /api/version never answered and the bundle's
   // own number is standing in. Say what is true of the list and nothing about
   // the deck.
   if (!isVersion(running)) {
-    return "Everything this build has to say, newest first. Most releases have nothing here, which is why the deck stays quiet about them.";
+    return t("shell.notes.intro.browse");
   }
   const drift = compareVersions(newest, running);
   if (drift < 0) {
-    return `v${running} · 🐛 Bug fixes and performance improvements. Earlier release notes are shown below.`;
+    return t("shell.notes.intro.behind", { running });
   }
   // drift > 0 cannot happen through the chip, which never asks for notes past
   // the running version. It can happen to a caller that does, and the honest
   // answer there is the one that claims nothing about which release is yours.
   if (drift > 0) {
-    return "Everything this build has to say, newest first. Most releases have nothing here, which is why the deck stays quiet about them.";
+    return t("shell.notes.intro.browse");
   }
-  return `You are running v${running}, and this is what it changed — and everything before it, newest first. Most releases have nothing here, which is why the deck stays quiet about them.`;
+  return t("shell.notes.intro.running", { running });
 }
 
 // ── a note title that opens with an emoji ────────────────────────────────────

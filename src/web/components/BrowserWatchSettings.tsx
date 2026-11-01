@@ -10,6 +10,8 @@
 import type { Dispatch, SetStateAction } from "react";
 
 import { logBytesLabel, type WatchSettings, type WatchSnapshot } from "../browser-watch-model";
+import { currentLanguage, useT } from "../i18n";
+import { richText } from "./settings-rich";
 
 export default function BrowserWatchSettings({
   snap,
@@ -26,37 +28,31 @@ export default function BrowserWatchSettings({
   access: boolean;
   setAccess: Dispatch<SetStateAction<boolean>>;
 }) {
+  const t = useT();
   return (
     <div className="bw-settings">
-      <label title={
-        "A program opening a page counts as a finding only if nobody had touched the browser "
-        + "for this long. Shorter catches more and reports more of your own work; longer is quieter."
-      }>
-        <span>Nobody browsing for</span>
+      <label title={t("settings.bw.quiet.tip")}>
+        <span>{t("settings.bw.quiet.label")}</span>
         <select value={quiet ?? snap.settings.quietMinutes} onChange={e => { setQuiet(Number(e.target.value)); void save({ quietMinutes: Number(e.target.value) }); }}>
-          <option value={1}>1 min</option>
-          <option value={5}>5 min</option>
-          <option value={15}>15 min</option>
-          <option value={30}>30 min</option>
-          <option value={60}>60 min</option>
+          {[1, 5, 15, 30, 60].map(n => <option key={n} value={n}>{t("settings.bw.minutes", { n })}</option>)}
         </select>
       </label>
 
       <label>
-        <span>When it finds one</span>
+        <span>{t("settings.bw.reaction.label")}</span>
         <select
           value={snap.settings.reaction}
           onChange={e => void save({ reaction: e.target.value as WatchSettings["reaction"] })}
           disabled={!snap.settings.enabled}
           title={snap.settings.enabled
-            ? "What to do besides writing it down."
-            : "Turn watching on to arm a reaction."}
+            ? t("settings.bw.reaction.hintOn")
+            : t("settings.bw.reaction.hintOff")}
         >
           {(snap.reactions ?? ["notify"]).map(r => (
             <option key={r} value={r}>
-              {r === "notify" ? "notify me"
-                : r === "close-tab" ? "close the tab"
-                : "quit the browser"}
+              {r === "notify" ? t("settings.bw.reaction.notify")
+                : r === "close-tab" ? t("settings.bw.reaction.closeTab")
+                : t("settings.bw.reaction.quit")}
             </option>
           ))}
         </select>
@@ -64,38 +60,26 @@ export default function BrowserWatchSettings({
 
       <div className="bw-settings-note">
         <p>
-          Chrome marks a navigation that came from an extension or a command rather than from a
-          click. These are the ones that happened while nobody had touched the browser for the
-          time above. <strong>Usually that is your own agent doing what you asked.</strong>
+          {t("settings.bw.note.chrome")} <strong>{t("settings.bw.note.usually")}</strong>
         </p>
         <button className="bw-why" onClick={() => setAccess(a => !a)} aria-expanded={access}>
-          <span className="bw-chev" aria-hidden>{access ? "▾" : "▸"}</span> What Browser Watch can access
+          <span className="bw-chev" aria-hidden>{access ? "▾" : "▸"}</span> {t("settings.bw.access.toggle")}
         </button>
         {access && (
           <dl className="bw-access">
-            <dt>Reads</dt>
+            <dt>{t("settings.bw.access.reads")}</dt>
+            <dd>{t("settings.bw.access.readsText", { when: new Date(snap.coverage.startedMs).toLocaleString(currentLanguage()) })}</dd>
+            <dt>{t("settings.bw.access.keeps")}</dt>
             <dd>
-              A copy of each browser&apos;s own history database — the live file is locked while
-              the browser holds it. Only rows newer than the moment this deck started:{" "}
-              {new Date(snap.coverage.startedMs).toLocaleString()}.
+              {richText(t("settings.bw.access.keepsText", {
+                path: "{path}",
+                size: typeof snap.coverage.logBytes === "number" ? ` (${logBytesLabel(snap.coverage.logBytes)})` : "",
+              }), { path: <code className="bw-path">{snap.coverage.logPath}</code> })}
             </dd>
-            <dt>Keeps</dt>
-            <dd>
-              Only while the switch is on, and only the episodes it flagged — never your ordinary
-              browsing. In <code className="bw-path">{snap.coverage.logPath}</code>
-              {typeof snap.coverage.logBytes === "number" ? ` (${logBytesLabel(snap.coverage.logBytes)})` : ""},
-              with every address written in full so you can check it yourself.
-            </dd>
-            <dt>Sends</dt>
-            <dd>
-              Nothing. No part of this reads or writes over the network; the deck serves on
-              127.0.0.1 and this panel talks only to it.
-            </dd>
-            <dt>Never reads</dt>
-            <dd>
-              Anything from before this deck started, cookies, saved passwords, page contents, or
-              any browser profile with no history file.
-            </dd>
+            <dt>{t("settings.bw.access.sends")}</dt>
+            <dd>{t("settings.bw.access.sendsText")}</dd>
+            <dt>{t("settings.bw.access.never")}</dt>
+            <dd>{t("settings.bw.access.neverText")}</dd>
           </dl>
         )}
       </div>

@@ -3,6 +3,8 @@
 // estimate and a status. A failed read is the shared IntegrationFailureNote.
 import { useEffect, useState, type ReactNode } from "react";
 import type { JiraEpic, JiraIssue, JiraPriority, JiraStatus, JiraType, TimeTracking } from "../jira-api";
+import { useT } from "../i18n";
+import { formatNumber } from "../i18n/format";
 import { jiraDuration, priorityLevel, type PriorityLevel } from "../jira-board";
 
 export { priorityLevel };
@@ -70,12 +72,14 @@ const PRIORITY_PATHS: Record<PriorityLevel, string> = {
 
 /** A priority as Jira draws it, arrows up for urgent and down for not. */
 export function PriorityGlyph({ priority }: { priority: JiraPriority }) {
+  const t = useT();
   const level = priorityLevel(priority.name);
-  if (!level) return <span className="jr-icon" title={`Priority: ${priority.name}`} aria-hidden />;
+  const label = t("integrations.parts.priority", { name: priority.name });
+  if (!level) return <span className="jr-icon" title={label} aria-hidden />;
   return (
     <svg className="jr-icon jr-priority-glyph" data-level={level} width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
-      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label={`Priority: ${priority.name}`}>
-      <title>{`Priority: ${priority.name}`}</title>
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label={label}>
+      <title>{label}</title>
       <path d={PRIORITY_PATHS[level]} />
     </svg>
   );
@@ -83,12 +87,15 @@ export function PriorityGlyph({ priority }: { priority: JiraPriority }) {
 
 export const TypeIcon = ({ type, subtask }: { type: JiraType; subtask?: boolean }) =>
   <JiraIcon src={type.icon} label={type.name} fallback={<TypeGlyph type={type} subtask={subtask} />} />;
-export const PriorityIcon = ({ priority }: { priority: JiraPriority | null }) =>
-  priority ? <JiraIcon src={priority.icon} label={`Priority: ${priority.name}`} fallback={<PriorityGlyph priority={priority} />} /> : <span className="jr-icon" aria-hidden />;
+export const PriorityIcon = ({ priority }: { priority: JiraPriority | null }) => {
+  const t = useT();
+  return priority ? <JiraIcon src={priority.icon} label={t("integrations.parts.priority", { name: priority.name })} fallback={<PriorityGlyph priority={priority} />} /> : <span className="jr-icon" aria-hidden />;
+};
 
 /** An epic, in the colour Jira gave it (1-14), or neutral when it gave none. */
 export function EpicChip({ epic }: { epic: JiraEpic }) {
-  return <span className="jr-epic ig-chip" data-color={epic.color ?? undefined} title={`Epic ${epic.key}: ${epic.name}`}>{epic.name}</span>;
+  const t = useT();
+  return <span className="jr-epic ig-chip" data-color={epic.color ?? undefined} title={t("integrations.parts.epicTip", { key: epic.key, name: epic.name })}>{epic.name}</span>;
 }
 
 /** Jira's status lozenge: grey for to do, blue for in progress, green for done,
@@ -100,15 +107,16 @@ export function StatusLozenge({ status }: { status: JiraStatus }) {
 /** What a row says about the work in it: the estimate and, when Jira has a
  *  different one, what remains — or story points on a board that counts them. */
 export function Estimate({ issue, estimation, time }: { issue: JiraIssue; estimation: "time" | "points" | "count"; time: TimeTracking }) {
+  const t = useT();
   if (estimation === "points") {
-    return issue.points == null ? null : <span className="jr-estimate ig-chip" title="Story points">{Number.isInteger(issue.points) ? issue.points : issue.points.toFixed(1)}</span>;
+    return issue.points == null ? null : <span className="jr-estimate ig-chip" title={t("integrations.parts.storyPoints")}>{Number.isInteger(issue.points) ? issue.points : formatNumber(issue.points, 1)}</span>;
   }
   const estimate = jiraDuration(issue.estimate, time);
   const remaining = issue.remaining != null && issue.remaining !== issue.estimate ? jiraDuration(issue.remaining, time) : "";
   if (!estimate && !remaining) return null;
   return (
-    <span className="jr-estimate ig-chip" title={`${estimate ? `Original estimate ${estimate}` : "No original estimate"}${remaining ? ` · ${remaining} remaining` : ""}`}>
-      {estimate || "–"}{remaining && <span className="jr-remaining"> · {remaining} left</span>}
+    <span className="jr-estimate ig-chip" title={`${estimate ? t("integrations.parts.originalEstimate", { value: estimate }) : t("integrations.parts.noOriginalEstimate")}${remaining ? ` · ${t("integrations.parts.remaining", { value: remaining })}` : ""}`}>
+      {estimate || "–"}{remaining && <span className="jr-remaining"> · {t("integrations.time.left", { value: remaining })}</span>}
     </span>
   );
 }

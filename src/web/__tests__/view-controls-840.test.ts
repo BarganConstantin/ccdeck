@@ -20,7 +20,7 @@ describe("one way to fit the canvas (#840)", () => {
 
   it("keeps Recenter, which fits and re-enables autofit", () => {
     expect(app).toMatch(/<ControlButton\s+onClick=\{enableAutoFitAndRefit\}/);
-    expect(app).toMatch(/aria-label="Recenter view"/);
+    expect(app).toMatch(/aria-label=\{t\("board\.controls\.recenter"\)\}/);
   });
 
   it("still fits from the keyboard", () => {

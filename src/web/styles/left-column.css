@@ -64,6 +64,9 @@
 @starting-style {
   .left-column > :only-child { transform: translateX(-100%); }
   .left-column > :not(:only-child) { opacity: 0; }
+  /* The two sides of the Accounts panel swap on the switch's press with nothing
+     between them: a thing pressed over and over does not wait on a fade. */
+  .left-column > .accounts-panel[data-side] { opacity: 1; }
 }
 /* How a panel leaves: under the one arriving, faded out before that one is
    halfway in, and no longer the reader's (LeftColumn.tsx makes it inert). Its

@@ -6,6 +6,7 @@
 // the card says, and where on the screen it goes, is this file's.
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useT } from "../i18n";
 import type { DeckRow } from "../lan-roster";
 import { placeBeside } from "../popover-place";
 
@@ -45,6 +46,7 @@ export default function LanPeek({ anchorId, id, rows, onHold, onLet }: {
   /** The pointer left the card: shut it, on the same grace as the row's. */
   onLet: () => void;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const paired = rows.filter(r => r.kind === "paired");
   const here = paired.filter(r => r.here);
@@ -53,9 +55,9 @@ export default function LanPeek({ anchorId, id, rows, onHold, onLet }: {
   // One tail line, and the count that is missing from the names above it: the
   // ones too many to print if there are any, the ones not on if there are not.
   const rest = here.length > shown.length
-    ? `and ${here.length - shown.length} more`
+    ? t("lan.peek.more", { n: here.length - shown.length })
     : off > 0
-      ? `${off} not on right now`
+      ? t("lan.peek.off", { n: off })
       : null;
 
   const place = useCallback(() => {
@@ -86,13 +88,13 @@ export default function LanPeek({ anchorId, id, rows, onHold, onLet }: {
 
   return createPortal(
     <div ref={ref} id={id} className="ap-peek" role="tooltip" onPointerEnter={onHold} onPointerLeave={onLet}>
-      <p className="ap-peek-title">{here.length ? "On the network now" : "Nobody on the network"}</p>
+      <p className="ap-peek-title">{here.length ? t("lan.peek.now") : t("lan.peek.nobody")}</p>
       {shown.length > 0 && (
         <div className="ap-peek-list">
           {shown.map(r => (
             <span key={`${r.kind}:${r.fp}`} className="ap-peek-who">
               <i className="ap-nav-live" aria-hidden />
-              <span title={r.via === "tailscale" ? `${r.name} · Tailscale` : r.name}>{r.name}{r.via === "tailscale" && <span className="ap-lan-via"> · Tailscale</span>}</span>
+              <span title={r.via === "tailscale" ? `${r.name} · ${t("lan.list.via")}` : r.name}>{r.name}{r.via === "tailscale" && <span className="ap-lan-via"> · {t("lan.list.via")}</span>}</span>
             </span>
           ))}
         </div>

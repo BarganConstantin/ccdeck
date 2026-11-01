@@ -7,6 +7,7 @@
 // news, or why not — so a later refusal replaces it the way any other does.
 import { useEffect, useRef, useState } from "react";
 import { afterGiveBack, requestGiveBack, type SettingsLine } from "../settings-give-back";
+import { useT } from "../i18n";
 
 export function SettingsFailureLine({ line, onDismiss, onAnswer }: {
   line: SettingsLine | null;
@@ -14,6 +15,7 @@ export function SettingsFailureLine({ line, onDismiss, onAnswer }: {
   /** The press has an answer; `next` is what the line says now. */
   onAnswer: (next: SettingsLine) => void;
 }) {
+  const t = useT();
   const [asking, setAsking] = useState(false);
   /** Read by the press rather than `asking`, which is a render behind: two
    *  clicks in one frame would both see false and open two dialogs. */
@@ -44,7 +46,7 @@ export function SettingsFailureLine({ line, onDismiss, onAnswer }: {
     if (!alive.current) return;
     setAsking(false);
     rescue.current = document.activeElement === pressRef.current;
-    onAnswer(afterGiveBack(answer));
+    onAnswer(afterGiveBack(answer, t));
   };
 
   return (
@@ -53,12 +55,12 @@ export function SettingsFailureLine({ line, onDismiss, onAnswer }: {
       {line.giveBack && (
         <button ref={pressRef} type="button" className="ap-fix ap-give-back" aria-busy={asking}
           onClick={press}
-          title="Opens macOS's password dialog to make the settings folder yours again">
-          {asking ? "waiting for macOS…" : "give it back"}
+          title={t("settings.giveBack.tip")}>
+          {asking ? t("settings.giveBack.waiting") : t("settings.giveBack.press")}
         </button>
       )}
       <button ref={xRef} type="button" className="ap-failure-x" onClick={onDismiss}
-        aria-label="Dismiss this message" title="Dismiss">×</button>
+        aria-label={t("settings.giveBack.dismissAria")} title={t("settings.giveBack.dismiss")}>×</button>
     </div>
   );
 }

@@ -16,8 +16,9 @@
 import { describe, expect, it } from "vitest";
 
 import { sourceOf } from "./client-source";
+import { english } from "./lan-english-source";
 
-const modal = sourceOf("components/LanPeerModal.tsx");
+const modal = english(sourceOf("components/LanPeerModal.tsx"));
 /** The pencil's opening tag, up to its accessible name. */
 const pencil = /<button type="button" className="glyph-btn lan-peer-rename"[\s\S]*?aria-label=\{`Rename \$\{row\.name\} on this deck`\}/.exec(modal)?.[0] ?? "";
 /** The effect that answers `editing` turning false. */

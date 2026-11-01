@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { faceTitle } from "../node-face";
 import { sheetRules } from "./sheet-cascade";
+import { en } from "../i18n/en";
 
 const node = readFileSync(fileURLToPath(new URL("../components/RecapNoteNode.tsx", import.meta.url)), "utf8");
 /** The rail's row and the tooltip it reads its figures from, together. */
@@ -43,7 +44,9 @@ describe("the note at the full card's size", () => {
 
   it("carries the whole suggested reply on hover, as the line reads, here and in the session list", () => {
     // `note?.`: a note can hold the session's plan alone (session-note.ts, boardNote).
-    expect(node).toContain("{note?.reply && <p className=\"recap-note-reply\" title={`suggested reply “${note.reply}”`}>suggested reply “{note.reply}”</p>}");
+    expect(node).toContain("{note?.reply && <p className=\"recap-note-reply\" title={t(\"board.list.reply\", { reply: note.reply })}>{t(\"board.list.reply\", { reply: note.reply })}</p>}");
+    // The words behind the key are the ones V4 drew: suggested reply “…”.
+    expect(en["board.list.reply"]).toBe("suggested reply “{reply}”");
     // The rail's row (V4's Attention rail) draws one line and no suggested
     // reply; the whole reply, like the whole note, is the row's tooltip.
     expect(list).toContain("title={rowTooltip(r, removed)}");

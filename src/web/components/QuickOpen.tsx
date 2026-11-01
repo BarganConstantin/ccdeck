@@ -16,8 +16,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import {
   flatRows, isQuickOpenChord, rankQuick, readRecent, rememberRecent, stepRow,
-  type QuickItem, type RankedItem,
+  sectionTitle, type QuickItem, type RankedItem,
 } from "../quick-open";
+import { useT } from "../i18n";
 import { isApplePlatform, platformName } from "../platform";
 import { SearchGlyph } from "./rail-glyphs";
 
@@ -47,6 +48,7 @@ export default function QuickOpen({ items, onClose, onRun }: {
   /** A row was chosen: the caller shuts the field and runs it in one go. */
   onRun: (item: QuickItem) => void;
 }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [recent] = useState(readRecent);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -156,7 +158,7 @@ export default function QuickOpen({ items, onClose, onRun }: {
         onAnimationEnd={e => { if (closing && e.target === e.currentTarget) finish(); }}
         role="dialog"
         aria-modal="true"
-        aria-label="Quick open"
+        aria-label={t("board.quick.title")}
       >
         <div className="qo-field">
           <SearchGlyph />
@@ -169,7 +171,7 @@ export default function QuickOpen({ items, onClose, onRun }: {
             aria-controls="qo-list"
             aria-autocomplete="list"
             aria-activedescendant={active >= 0 ? `qo-opt-${active}` : undefined}
-            placeholder="Search panels, sessions, settings…"
+            placeholder={t("board.quick.placeholder")}
             value={query}
             onChange={e => { setQuery(e.target.value); setActiveId(null); }}
             onKeyDown={onKeyDown}
@@ -178,17 +180,17 @@ export default function QuickOpen({ items, onClose, onRun }: {
             autoCapitalize="off"
             spellCheck={false}
           />
-          <button type="button" className="qo-esc" onClick={leave} aria-label="Close">esc</button>
+          <button type="button" className="qo-esc" onClick={leave} aria-label={t("board.quick.close")}>{t("board.quick.esc")}</button>
         </div>
 
         {/* Out of the Tab order: Chrome makes a scrolling box a Tab stop of its
             own, and focus belongs in the field, which walks the list. A press
             anywhere in it leaves focus there too, so the next key types. */}
-        <div ref={listRef} className="qo-list" id="qo-list" role="listbox" aria-label="Results" tabIndex={-1}
+        <div ref={listRef} className="qo-list" id="qo-list" role="listbox" aria-label={t("board.quick.results")} tabIndex={-1}
           onMouseDown={e => e.preventDefault()}>
           {sections.map(section => (
             <div key={section.section} className="qo-group" role="group" aria-labelledby={`qo-cap-${section.section}`}>
-              <div className="qo-caption" id={`qo-cap-${section.section}`} role="presentation">{section.title}</div>
+              <div className="qo-caption" id={`qo-cap-${section.section}`} role="presentation">{sectionTitle(section.section, t)}</div>
               {section.items.map((row, n) => {
                 index++;
                 const i = index;
@@ -221,20 +223,20 @@ export default function QuickOpen({ items, onClose, onRun }: {
           ))}
           {rows.length === 0 && (
             <div className="qo-empty">
-              <p className="qo-empty-title">Nothing matches “{query.trim()}”</p>
-              <p className="qo-empty-note">Try the name of a panel, a session, a setting or a theme.</p>
+              <p className="qo-empty-title">{t("board.quick.nothing", { query: query.trim() })}</p>
+              <p className="qo-empty-note">{t("board.quick.try")}</p>
             </div>
           )}
         </div>
 
         <div className="qo-foot" aria-hidden>
-          <span className="qo-foot-count">{rows.length === 1 ? "1 result" : `${rows.length} results`}</span>
+          <span className="qo-foot-count">{t("board.quick.results.count", { count: rows.length })}</span>
           <span className="qo-foot-keys">
             {activeRow && <span className="qo-foot-act">{activeRow.item.verb} <kbd>↵</kbd></span>}
-            <span className="qo-foot-act">Move <kbd>↑</kbd><kbd>↓</kbd></span>
+            <span className="qo-foot-act">{t("board.quick.move")} <kbd>↑</kbd><kbd>↓</kbd></span>
           </span>
         </div>
-        <span className="qo-live" role="status">{query.trim() ? (rows.length === 1 ? "1 result" : `${rows.length} results`) : ""}</span>
+        <span className="qo-live" role="status">{query.trim() ? t("board.quick.results.count", { count: rows.length }) : ""}</span>
       </div>
     </div>
   );

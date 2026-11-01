@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { CapturedExport } from "../use-telemetry-capture";
 import { promptPreview } from "../telemetry-highlights";
+import { useT } from "../i18n";
 
 /** Load content only for prompt exports near the visible part of the feed. */
 export default function RadarPromptPreview({ event }: { event: CapturedExport }) {
+  const t = useT();
   const node = useRef<HTMLSpanElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   useEffect(() => {
@@ -22,5 +24,5 @@ export default function RadarPromptPreview({ event }: { event: CapturedExport })
     if (node.current && observer) observer.observe(node.current); else load();
     return () => { controller.abort(); observer?.disconnect(); };
   }, [event.id, event.observedAt]);
-  return <span ref={node} className="tr-prompt-preview">{preview ?? "Prompt-related fields · open to inspect"}</span>;
+  return <span ref={node} className="tr-prompt-preview">{preview ?? t("radar.feed.preview")}</span>;
 }

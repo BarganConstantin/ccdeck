@@ -12,6 +12,7 @@ import { rootAgentId, type GraphState } from "./graph-state";
 import { injectedPrompt } from "./injected-prompt";
 import { HOOK_REDELIVERY_WINDOW_MS, recordPrompt, sessionEvidenceAt } from "./redelivery";
 import { settleUnanswered, shortPreview } from "./tool-calls";
+import { t as translateNow } from "./i18n";
 import type { AgentNodeData, HookPayload } from "./types";
 import type { StopFacts } from "../server/stop-failure.mjs";
 
@@ -253,7 +254,7 @@ export function applyTurnEnd(
   // stops it doing so — 223 of 250 `Stop`s on this machine's logs were
   // followed by another prompt on the same session. Turn one's `Stop`
   // arriving twice, three seconds into turn two, drew a live `npm test` red
-  // with "the turn ended before this call returned", flipped the card to
+  // with translateNow("board.tool.turnEnded"), flipped the card to
   // `done`, raised the error count and dropped the stack mid-turn — healing
   // only when the command's real `PostToolUse` landed, which for that
   // command is four minutes.

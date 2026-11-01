@@ -5,6 +5,8 @@
 // on macOS, and only for that case — and does all of the work; this is the
 // press, and the sentence the line says after it.
 
+import { t as tNow, type TFunction } from "./i18n";
+
 /** What a failure line holds: the sentence, whether the press is on offer, and
  *  whether the sentence is the good news rather than a refusal. */
 export type SettingsLine = { text: string; giveBack: boolean; done: boolean };
@@ -38,26 +40,24 @@ export async function requestGiveBack(): Promise<GiveBackAnswer> {
   }
 }
 
-/** The answers after which pressing again can still work. */
+/** The answers after which pressing again can still work, as the keys of what the line says. */
 const TRY_AGAIN: Record<string, string> = {
-  cancelled: "Nothing changed — the password dialog was closed. The folder still belongs to another user.",
-  timed_out: "Nothing changed — the password dialog was not answered in time.",
-  busy: "The password dialog is already open. It may be behind this window.",
+  cancelled: "settings.giveBack.cancelled",
+  timed_out: "settings.giveBack.timedOut",
+  busy: "settings.giveBack.busy",
 };
 
 /** What the line says once the press has an answer. */
-export function afterGiveBack(answer: GiveBackAnswer): SettingsLine {
+export function afterGiveBack(answer: GiveBackAnswer, t: TFunction = tNow): SettingsLine {
   if (answer?.ok) {
-    const text = answer.changed === false
-      ? "The settings folder is already yours, and the deck has read it again. Try that once more."
-      : "Done — the settings folder is yours again, and the deck has read it again. Try that once more.";
+    const text = answer.changed === false ? t("settings.giveBack.already") : t("settings.giveBack.done");
     return { text, giveBack: false, done: true };
   }
-  if (answer == null) return { text: "Could not give it back — the deck did not answer.", giveBack: true, done: false };
+  if (answer == null) return { text: t("settings.giveBack.noAnswer"), giveBack: true, done: false };
   const again = answer.reason ? TRY_AGAIN[answer.reason] : undefined;
-  if (again) return { text: again, giveBack: true, done: false };
+  if (again) return { text: t(again), giveBack: true, done: false };
   return {
-    text: "macOS did not give the folder back. The deck's log has the command that does it by hand.",
+    text: t("settings.giveBack.failed"),
     giveBack: false,
     done: false,
   };

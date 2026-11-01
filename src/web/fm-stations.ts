@@ -1,4 +1,7 @@
 import type { FmSource } from "./appearance";
+// A type only: this file is bundled alone by the player harness, which cannot
+// load the catalog index (import.meta.glob), so the English stays here.
+import type { TFunction } from "./i18n";
 
 export const FM_CUSTOM_STATIONS_KEY = "agent-dag.fm-custom-stations";
 export const FM_MUTED_KEY = "agent-dag.fm-muted";
@@ -61,7 +64,8 @@ export function fmAvailabilityKey(selection: string): string {
 
 /** What the menu says under the picker when the chosen station cannot play,
  *  so silence is never left to explain itself. */
-export function fmUnavailableNote(custom: boolean): string {
+export function fmUnavailableNote(custom: boolean, t?: TFunction): string {
+  if (t) return custom ? t("radio.fm.unavailable.custom") : t("radio.fm.unavailable.builtin");
   return custom
     ? "This station could not be played. Check its link, pick another, or pick it again to retry."
     : "This station is not live right now. Pick another, or pick it again later to retry.";

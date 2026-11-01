@@ -52,6 +52,7 @@
 // covers sessions this deck never watched, and does not forget. A canvas-scoped
 // number beside an authoritative one is useful; two competing totals are not.
 // So the board figure says it is the board's, and points at the durable one.
+import { t } from "./i18n";
 import { costForUsage, type CostBreakdown } from "./pricing";
 import type { AgentState } from "./types";
 // Tokens are priced at the model that produced them, not at the last model the
@@ -128,6 +129,8 @@ export function boardTotals(agents: Iterable<Billable>): BoardTotals {
  *  own word for the canvas — `pruneDoneSessions` has said "on the board" since
  *  it was written — and it is the word the reporter of #687 reached for too. */
 export const BOARD_SPEND_LABEL = "spend on this board";
+/** The same label in the language on show. */
+export const boardSpendLabel = () => t("insights.board.spend");
 
 /** The same scope, as a bare qualifier. The panel prints this beside the token
  *  strip on a deck where every model is unpriced: there is no headline on that
@@ -135,6 +138,7 @@ export const BOARD_SPEND_LABEL = "spend on this board";
  *  on screen and would otherwise stand with no scope stated anywhere. Only on
  *  the board's own figures: under ccusage the strip takes the period's noun. */
 export const BOARD_SCOPE_LABEL = "on this board";
+export const boardScopeLabel = () => t("insights.board.scope");
 
 /**
  * The tooltip every board-wide figure carries. One surface now — the usage
@@ -161,9 +165,7 @@ export const BOARD_SCOPE_TITLE =
  *  rather than by H once the single-key shortcuts are off (Settings › General),
  *  so the way to the durable total is one that still works. */
 export function boardScopeTitle(singleKeys: boolean): string {
-  return singleKeys
-    ? BOARD_SCOPE_TITLE
-    : BOARD_SCOPE_FACTS + "Usage history has the totals ccusage reads off the logs on disk, which do not forget.";
+  return t("insights.board.scopeFacts") + "\n" + t(singleKeys ? "insights.board.scopeKeys" : "insights.board.scopeNoKeys");
 }
 
 /**
@@ -178,6 +180,7 @@ export function boardScopeTitle(singleKeys: boolean): string {
  * beside the figure.
  */
 export const SESSION_SPEND_LABEL = "session spend";
+export const sessionSpendLabel = () => t("insights.board.sessionSpend");
 
 // ── the usage panel's two tables, when ccusage has not answered ─────────────
 //

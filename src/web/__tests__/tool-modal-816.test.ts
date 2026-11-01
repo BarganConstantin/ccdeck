@@ -25,7 +25,7 @@ describe("the tool dialog shows a call as what it is (#816)", () => {
     // tool-modal-held-payload.test.ts draws both.
     expect(code).toMatch(/const input = held\.current\.input \?\? tool\.inputPreview;/);
     expect(code).toMatch(/const response = held\.current\.response \?\? tool\.errorPreview;/);
-    expect(code).toMatch(/<pre>\(waiting…\)<\/pre>/);
+    expect(code).toMatch(/<pre>\{t\("insights\.tool\.waiting"\)\}<\/pre>/);
   });
 
   it("colours a change by side through classes the sheet defines", () => {
@@ -50,8 +50,8 @@ describe("the tool dialog shows a call as what it is (#816)", () => {
     expect(code).toMatch(/<CopyButton text=\{drawn\.copyInput\} what="input" \/>/);
     expect(code).toMatch(/\{tool\.endedAt != null && <CopyButton text=\{drawn\.copyResponse\} what="response" \/>\}/);
     // Its visible word is inside its accessible name, before and after.
-    expect(code).toMatch(/aria-label=\{copied \? `The \$\{what\} was copied` : `Copy the \$\{what\}`\}/);
-    expect(code).toMatch(/\{copied \? "copied" : "copy"\}/);
+    expect(code).toMatch(/aria-label=\{t\(copied \? `insights\.tool\.copied\.\$\{what\}` : `insights\.tool\.copy\.\$\{what\}`\)\}/);
+    expect(code).toMatch(/\{copied \? t\("insights\.tool\.copiedWord"\) : t\("insights\.tool\.copyWord"\)\}/);
   });
 
   it("keeps the × the first control in the dialog, so focus lands where it did", () => {

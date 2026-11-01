@@ -15,6 +15,8 @@
 // unknown branch is the one nobody exercises by hand: it is what an older deck,
 // or a health request that has not landed yet, produces.
 
+import { t, type TFunction } from "./i18n";
+
 /** The empty-state sentence, split where a path has to be set in `<code>`. */
 export interface EmptyScope {
   /** Which branch produced this, so the caller can tell them apart. */
@@ -32,7 +34,7 @@ export interface EmptyScope {
  *   for a scoped one, and null while the answer is still missing — an older
  *   server that does not report it, or the first render before the fetch lands.
  */
-export function emptyScope(workspace: string | null | undefined): EmptyScope {
+export function emptyScope(workspace: string | null | undefined, tr: TFunction = t): EmptyScope {
   // Nothing known about the scope. Say only what holds in either case: a claim
   // about coverage is exactly what this branch cannot make.
   if (workspace == null) {
@@ -44,7 +46,7 @@ export function emptyScope(workspace: string | null | undefined): EmptyScope {
       // signal that can never arrive, in the one file whose whole purpose is to
       // stop the empty state asserting things that are not true (#404). What
       // both paths share is the event, so that is what it waits for now.
-      lead: "No data yet. Start a Claude Code or Codex session — it appears here as soon as the deck sees its first event.",
+      lead: tr("board.scope.unknown"),
       workspace: null,
       tail: "",
     };
@@ -53,15 +55,15 @@ export function emptyScope(workspace: string | null | undefined): EmptyScope {
   if (scoped === "") {
     return {
       kind: "machine",
-      lead: "No data yet. Start a Claude Code or Codex session anywhere on this machine — this deck is unscoped and captures every workspace.",
+      lead: tr("board.scope.machine"),
       workspace: null,
       tail: "",
     };
   }
   return {
     kind: "scoped",
-    lead: "No data yet. This deck only captures sessions running under",
+    lead: tr("board.scope.scopedLead"),
     workspace: scoped,
-    tail: " — start one there, or restart it without --workspace/--scope to watch the whole machine.",
+    tail: tr("board.scope.scopedTail"),
   };
 }

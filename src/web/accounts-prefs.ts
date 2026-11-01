@@ -23,20 +23,21 @@ const ORDER_KEY = "agent-dag.otherAccountsOrder";
 const OPEN_KEY = "agent-dag.otherAccountsOpen";
 
 /** The stored order, or slot order. Checked against the choices the roster
- *  offers once the roster is here — see validOrder. */
-export function loadOrder(): string {
-  const stored = readStored(ORDER_KEY);
+ *  offers once the roster is here — see validOrder. `scope` keeps a second
+ *  column's choices (Codex's) apart from this one's. */
+export function loadOrder(scope = ""): string {
+  const stored = readStored(ORDER_KEY + scope);
   return typeof stored === "string" && stored.length > 0 && stored.length <= 64 ? stored : SLOT_ORDER;
 }
 
-export function saveOrder(order: string): void {
-  writeStored(ORDER_KEY, order);
+export function saveOrder(order: string, scope = ""): void {
+  writeStored(ORDER_KEY + scope, order);
 }
 
 /** Which rows are open, or none: anything that does not parse as an
  *  Openness is a store written by something else. */
-export function loadOpenness(): Openness {
-  const raw = readStored(OPEN_KEY);
+export function loadOpenness(scope = ""): Openness {
+  const raw = readStored(OPEN_KEY + scope);
   if (!raw) return NONE_OPEN;
   try {
     const v = JSON.parse(raw);
@@ -51,6 +52,6 @@ export function loadOpenness(): Openness {
  *  where it stands, and whoever stands there next time the deck opens is not
  *  who was opened — #542, across a reload. Those rows are remembered for as
  *  long as the page is open, as they always were. */
-export function saveOpenness(state: Openness): void {
-  writeStored(OPEN_KEY, JSON.stringify({ mode: state.mode, keys: state.keys.filter(k => !k.startsWith("slot:")) }));
+export function saveOpenness(state: Openness, scope = ""): void {
+  writeStored(OPEN_KEY + scope, JSON.stringify({ mode: state.mode, keys: state.keys.filter(k => !k.startsWith("slot:")) }));
 }

@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import type { Tone } from "../machine-readings";
 import SectionHistoryModal from "./SectionHistoryModal";
+import { useT } from "../i18n";
 
 /**
  * One figure: the number in the panel's reading weight, and what it is.
@@ -102,6 +103,7 @@ export function OpensHistory({ group, title, action, label, value, hint, liveNot
   liveNote?: string | null;
   children: React.ReactNode;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const heading = useRef<HTMLButtonElement>(null);
   const pending = useRef<number | null>(null);
@@ -138,7 +140,7 @@ export function OpensHistory({ group, title, action, label, value, hint, liveNot
           // Not passed on to the block, which would open it a second time.
           onClick={e => { e.stopPropagation(); callOff(); setOpen(true); }}
           title={action}
-          aria-label={value == null ? `${label}: show history` : `${label}: show history, now ${value}`}
+          aria-label={value == null ? t("insights.machine.showHistory", { label }) : t("insights.machine.showHistoryNow", { label, value })}
           aria-describedby={hint ? `sd-hint-${group}` : undefined}
         >
           <span className="sd-h" aria-hidden>

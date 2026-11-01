@@ -37,6 +37,8 @@ import LanPeerMap from "./LanPeerMap";
 import LanPeerTwins from "./LanPeerTwins";
 import { askedLabel, type DeckRow, type RowSource } from "../lan-roster";
 import type { LanAccount, LanStatus } from "../lan-types";
+import { useT } from "../i18n";
+import { Fill } from "./LanAsks";
 
 interface Props {
   row: DeckRow;
@@ -84,6 +86,7 @@ export default function LanPeerModal({
   row, source, status, accounts, now, busy, onClose, onRename, onCheck, onVerb, onSettings, onInvite,
   twins = [], onUnpair,
 }: Props) {
+  const t = useT();
   // The keyboard lands on ×, as it does in the tool inspector: this dialog is
   // opened to be read, and the first control in it — the pencil — would put a
   // stray Enter into renaming the machine somebody only came to look at.
@@ -159,7 +162,7 @@ export default function LanPeerModal({
       setCopied(true);
       window.setTimeout(() => { if (alive.current) setCopied(false); }, 1_600);
     } catch {
-      if (alive.current) setFailure("Could not copy it — select the fingerprint and copy it by hand.");
+      if (alive.current) setFailure(t("lan.fail.copyFp"));
     }
   };
 
@@ -167,23 +170,23 @@ export default function LanPeerModal({
   // was made, and the fingerprint to compare with the other screen.
   const facts: Array<{ label: string; value: ReactNode; tone?: "quiet" | "meta" }> = [];
   if (paired && peer?.pairedAt) {
-    facts.push({ label: "Paired", value: sinceLabel(peer.pairedAt, now), tone: "meta" });
+    facts.push({ label: t("lan.peer.factPaired"), value: sinceLabel(peer.pairedAt, now), tone: "meta" });
   } else if (row.kind === "declined" && stranger) {
-    facts.push({ label: "Paired", value: `no · you said no ${askedLabel(stranger.at, now)}`, tone: "meta" });
+    facts.push({ label: t("lan.peer.factPaired"), value: t("lan.peer.factPairedNo", { when: askedLabel(stranger.at, now) }), tone: "meta" });
   }
   facts.push({
-    label: "Fingerprint",
+    label: t("lan.peer.factFingerprint"),
     value: fp
       ? (
         <span className="lan-fp">
           <code className="ap-lan-code">{fp}</code>
           <button type="button" className="ap-lan-word lan-copy" onClick={() => void copy()}
-            aria-label={copied ? "Fingerprint copied" : "Copy the fingerprint"}>
-            {copied ? "copied" : "copy"}
+            aria-label={copied ? t("lan.fpCopied") : t("lan.peer.fpCopyThe")}>
+            {copied ? t("lan.copied") : t("lan.copy")}
           </button>
         </span>
       )
-      : "not known — nothing has answered there",
+      : t("lan.peer.fpNone"),
     tone: fp ? undefined : "quiet",
   });
 
@@ -205,10 +208,10 @@ export default function LanPeerModal({
                 <span id="lan-peer-title" className="vis-hidden">{row.name}</span>
                 <input ref={inputRef} className="ap-manage-input lan-peer-input"
                   value={draft ?? ""} maxLength={48} placeholder={own}
-                  aria-label="Name for this deck, shown on this deck only"
+                  aria-label={t("lan.peer.nameAria")}
                   onChange={e => setDraft(e.target.value)} />
-                <button type="submit" className="ap-manage-btn" {...press(`alias:${row.fp}`)}>save</button>
-                <button type="button" className="ap-manage-btn" onClick={() => setDraft(null)}>cancel</button>
+                <button type="submit" className="ap-manage-btn" {...press(`alias:${row.fp}`)}>{t("lan.save")}</button>
+                <button type="button" className="ap-manage-btn" onClick={() => setDraft(null)}>{t("lan.cancel")}</button>
               </form>
             ) : (
               <span className="lan-peer-title">
@@ -216,8 +219,8 @@ export default function LanPeerModal({
                 {canRename && (
                   <button type="button" className="glyph-btn lan-peer-rename" ref={renameRef}
                     onClick={() => { setFailure(null); setDraft(row.name); }}
-                    aria-label={`Rename ${row.name} on this deck`}
-                    title="Give it a name of your own. Only this deck sees it.">
+                    aria-label={t("lan.peer.renameAria", { name: row.name })}
+                    title={t("lan.peer.renameTitle")}>
                     <Pencil />
                   </button>
                 )}
@@ -232,11 +235,11 @@ export default function LanPeerModal({
             <p id="lan-peer-sub" className="lan-peer-sub">
               {row.self && (
                 <>
-                  calls itself <span className="lan-peer-self">{row.self}</span>
+                  <Fill text={t("lan.peer.callsItself")} parts={{ name: <span className="lan-peer-self">{row.self}</span> }} />
                   {editing && (
                     <button type="button" className="ap-lan-word lan-peer-restore" {...press(`alias:${row.fp}`)}
                       onClick={() => void saveName("")}>
-                      use this name
+                      {t("lan.peer.useName")}
                     </button>
                   )}
                   {/* The pause belongs to the sentence, not to the glyph: read
@@ -251,7 +254,7 @@ export default function LanPeerModal({
           </div>
           <div className="modal-actions">
             <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose}
-              aria-label="Close (Esc)" title="Close (Esc)">×</button>
+              aria-label={t("lan.closeEsc")} title={t("lan.closeEsc")}>×</button>
           </div>
         </header>
 
@@ -260,7 +263,7 @@ export default function LanPeerModal({
             <div className="ap-failure" role="alert">
               <span className="ap-failure-text">{failure}</span>
               <button type="button" className="ap-failure-x" onClick={() => setFailure(null)}
-                aria-label="Dismiss this message" title="Dismiss">×</button>
+                aria-label={t("lan.dismissMsg")} title={t("lan.dismiss")}>×</button>
             </div>
           )}
 

@@ -2,7 +2,8 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useStore, useViewport, type ReactFlowState } from "reactflow";
 import { sessionHue } from "../reducer";
-import { SEP } from "../cluster-header";
+import { SEP, clusterTooltip } from "../cluster-header";
+import { useT } from "../i18n";
 import { clusterBounds, clusterBoxStyle, clusterLabelStyle, shallowEqualClusters, type Cluster } from "../cluster-bounds";
 import { labelRoom, paneChrome, sameBoxes, type PaneBox } from "../cluster-label-room";
 import { createFocusHold } from "../focus-hold";
@@ -31,6 +32,7 @@ const selectViewport = (s: ReactFlowState) => s.domNode?.querySelector<HTMLEleme
  * session clear of the floating panels at a readable zoom and stamps after it.
  */
 export default function SessionClusters({ onFocusSession }: { onFocusSession?: (sessionId: string) => void }) {
+  const t = useT();
   const { x, y, zoom } = useViewport();
   const clusters = useStore(selectClusters, shallowEqualClusters);
   // The pane's size, from the store React Flow measures it into, and the
@@ -181,7 +183,7 @@ export default function SessionClusters({ onFocusSession }: { onFocusSession?: (
             data-alarm={c.alarm ? "" : undefined}
             data-offpane={room.hidden ? "" : undefined}
             style={labelStyle}
-            title={c.title}
+            title={clusterTooltip(c, t)}
             onClick={e => pressSession(e, c.sessionId)}
           >
             {/* Stopped until a human answers, said first and in words for a
@@ -189,7 +191,7 @@ export default function SessionClusters({ onFocusSession }: { onFocusSession?: (
                 The pill is the only thing on a cluster that is 1× at every
                 zoom, so it is the one place a blocked session can always be
                 found from — the tile under it may be twenty pixels wide. */}
-            {c.alarm ? <><AlertMark /><span className="cluster-label-said">waiting on you: </span></> : null}
+            {c.alarm ? <><AlertMark /><span className="cluster-label-said">{t("board.cluster.waitingOnYou")}</span></> : null}
             {/* THREE FIELDS, THREE RANKS. They were one run of identical
                 uppercase hue text, so the workspace, the session's own name
                 and the four-character address all asked for the eye equally
@@ -216,7 +218,7 @@ export default function SessionClusters({ onFocusSession }: { onFocusSession?: (
                 session is FOR, and the one surface that still reads it once
                 the root card has shrunk to a face. Hidden at `detail`, where
                 the card's own plan row says it. */}
-            {c.plan ? <span className="cluster-label-plan">{SEP + c.plan}</span> : null}
+            {c.plan ? <span className="cluster-label-plan">{SEP + t("board.cluster.planCount", { progress: c.plan.replace(/^plan /, "") })}</span> : null}
             {/* The branch, between the address and the description: it is
                 about what the session is doing now, and at a distance that
                 is the question the pill is being read for. The sheet shows it

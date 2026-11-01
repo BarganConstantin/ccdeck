@@ -9,6 +9,7 @@ import { PRODUCT } from "../brand";
 import { UnreachableGlyph } from "./action-glyphs";
 import { outageSentence } from "../status-pill";
 import type { useAutoRestart } from "../use-auto-restart";
+import { useT } from "../i18n";
 
 type Restart = ReturnType<typeof useAutoRestart>;
 
@@ -30,6 +31,7 @@ export default function ConnectionBanner({ restarting, restartMode, live, paused
    *  restart the deck asked for keeps its own sentence at every width. */
   phone?: boolean;
 }) {
+  const t = useT();
   if (phone && !restarting) {
     return (
       <div className="conn-banner conn-banner-phone" role="alert">
@@ -46,8 +48,8 @@ export default function ConnectionBanner({ restarting, restartMode, live, paused
       <span className="conn-dot" />
       {restarting
         ? restartMode === "npx"
-          ? "Fetching the new version with npx — this can take a minute…"
-          : `Restarting ${PRODUCT}…`
+          ? t("shell.banner.fetchingNpx")
+          : t("shell.banner.restartingProduct", { product: PRODUCT })
         : (() => {
             // The one sentence on this page that was reachable by mouse and
             // by nothing else (#510). It lived in the title of the status
@@ -68,7 +70,7 @@ export default function ConnectionBanner({ restarting, restartMode, live, paused
             const outage = outageSentence({ connected: live, paused });
             return (
               <>
-                {`Lost connection to the ${PRODUCT} server. Reconnecting…`}
+                {t("shell.banner.lost", { product: PRODUCT })}
                 {outage && <span className="conn-sub">{outage}</span>}
               </>
             );

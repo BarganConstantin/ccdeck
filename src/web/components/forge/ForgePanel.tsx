@@ -20,7 +20,8 @@
 // beside the list when there is none to put back.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import type { ForgeKind, ForgeRefTarget, Page, ForgeRepo } from "../../forge-types";
-import { forgeWords } from "../../forge-types";
+import { forgeNouns, forgeWords } from "../../forge-types";
+import { useT, type TFunction } from "../../i18n";
 import {
   fetchForge, focusAfterSelect, forgeReadPath, ForgeReadError, loadForgeView, looksLikeRef, saveForgeView, tabAllowsAllProjects,
   type ForgeApi, type ForgePrefs, type ForgeTab, type ForgeView,
@@ -79,25 +80,32 @@ export interface ForgeTabProps {
 
 const TAB_ORDER: ForgeTab[] = ["branches", "changes", "pipelines", "issues"];
 
-function tabLabel(kind: ForgeKind, tab: ForgeTab): string {
+function tabLabel(kind: ForgeKind, tab: ForgeTab, t: TFunction): string {
+  const words = forgeNouns(kind, t);
   switch (tab) {
-    case "branches": return "Branches";
-    case "changes": return forgeWords[kind].changes;
-    case "pipelines": return forgeWords[kind].pipelines;
-    case "issues": return "Issues";
+    case "branches": return t("forge.tab.branches");
+    case "changes": return words.changes;
+    case "pipelines": return words.pipelines;
+    case "issues": return t("forge.tab.issues");
   }
 }
 
 /** What the drill-in screen's Back returns to: "Back to merge requests". */
-function backLabel(kind: ForgeKind, tab: ForgeTab): string {
-  const label = tabLabel(kind, tab);
-  return `Back to ${label === "Actions" ? label : label.toLowerCase()}`;
+function backLabel(kind: ForgeKind, tab: ForgeTab, t: TFunction): string {
+  const words = forgeNouns(kind, t);
+  switch (tab) {
+    case "branches": return t("forge.back.branches");
+    case "changes": return t("forge.back.to", { what: words.changesLc });
+    case "pipelines": return t("forge.back.to", { what: words.pipelinesLc });
+    case "issues": return t("forge.back.issues");
+  }
 }
 
 /** The list's scroller: the chosen tab's body. */
 const LIST_SCROLLER = ".fg-tab-body:not([hidden])";
 
 export default function ForgePanel({ kind, connection, api, assetUrl, prefs, narrow, onReconnect, Split }: ForgePanelProps) {
+  const t = useT();
   const scope = `${kind}:${connection.id}`;
   const [view, setViewState] = useState<ForgeView>(() => loadForgeView(prefs));
   const [refresh, setRefresh] = useState(0);
@@ -211,10 +219,10 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
     setResolveError(null);
     try {
       const target = await fetchForge<ForgeRefTarget | null>(api, forgeReadPath("resolve", { q: query.trim() }));
-      if (!target) setResolveError("Nothing to open at that address.");
+      if (!target) setResolveError(t("forge.resolve.nothing"));
       else select(target.type === "change" ? { type: "change", repo: target.repo, number: target.number } : { type: "issue", repo: target.repo, number: target.number });
     } catch (err) {
-      setResolveError(err instanceof ForgeReadError ? err.info.message : "Could not open it.");
+      setResolveError(err instanceof ForgeReadError ? err.info.message : t("forge.resolve.failed"));
     } finally {
       resolvingRef.current = false;
       setResolving(false);
@@ -226,7 +234,8 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   const chooseTab = (tab: ForgeTab) => { setView({ tab }); setQuery(""); };
   useChosenInView(tabsRef, view.tab);
 
-  const words = forgeWords[kind];
+  const words = forgeNouns(kind, t);
+  const name = forgeWords[kind].name;
   const tabProps: ForgeTabProps = { view, setView, query };
 
   const list = (
@@ -234,14 +243,14 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
       <div className="fg-toolbar">
         <RepoPicker value={view.repo} allowAll={allowsAll} onChange={repo => setView({ repo })} />
         <IntegrationFreshness loadedAt={fresh.loadedAt} loading={fresh.loading} stale={fresh.stale}
-          onRefresh={() => setRefresh(n => n + 1)} label={`Refresh ${words.name}`} />
+          onRefresh={() => setRefresh(n => n + 1)} label={t("forge.refresh", { name })} />
       </div>
       {/* One tab stop for the strip, the arrows between its tabs (#581). */}
       <div
         ref={tabsRef}
         className="uh-range fg-tabs"
         role="tablist"
-        aria-label={`${words.name} views`}
+        aria-label={t("forge.views", { name })}
         onKeyDown={event => {
           const move = tabStripMove(event, TAB_ORDER.indexOf(view.tab), TAB_ORDER.length);
           if (move.kind === "pass") return;
@@ -263,7 +272,7 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
             tabIndex={view.tab === tab ? 0 : -1}
             onClick={() => chooseTab(tab)}
           >
-            {tabLabel(kind, tab)}
+            {tabLabel(kind, tab, t)}
           </button>
         ))}
       </div>
@@ -273,13 +282,13 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
         <IntegrationSearch
           value={query}
           onChange={v => { setQuery(v); setResolveError(null); }}
-          label={view.tab === "branches" ? "Filter by branch name" : `Search by title or number, or paste a ${words.name} link`}
-          placeholder={view.tab === "branches" ? "Filter by branch name" : narrow ? `Search, or paste a ${words.name} link` : `Search by title or number, or paste a ${words.name} link`}
+          label={view.tab === "branches" ? t("forge.search.branches") : t("forge.search.full", { name })}
+          placeholder={view.tab === "branches" ? t("forge.search.branches") : narrow ? t("forge.search.short", { name }) : t("forge.search.full", { name })}
           onKeyDown={e => { if (e.key === "Enter" && looksLikeRef(query)) void openRef(); }}
         />
         {looksLikeRef(query) && (
           <button type="button" className="btn fg-resolve" onClick={() => void openRef()} {...selfPressProps(resolving)}>
-            {resolving ? "Opening…" : "Open"}
+            {resolving ? t("forge.opening") : t("forge.open")}
           </button>
         )}
       </div>
@@ -293,8 +302,8 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
               ? repos.error
                 ? <ReadFailure error={repos.error} onRetry={repos.reload} />
                 : repos.data && !repos.data.items.length
-                  ? <p className="fg-empty">This token can see no {words.repo.toLowerCase()} yet.</p>
-                  : <p className="fg-note">Finding your most recent {words.repo.toLowerCase()}…</p>
+                  ? <p className="fg-empty">{t("forge.repos.noneYet", { repos: words.repos })}</p>
+                  : <p className="fg-note">{t("forge.repos.finding", { repo: words.repoLc })}</p>
               : tab === "branches" ? <BranchesTab {...tabProps} />
               : tab === "changes" ? <ChangesTab {...tabProps} />
               : tab === "pipelines" ? <PipelinesTab {...tabProps} />
@@ -313,7 +322,7 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   return (
     <ForgeProvider value={ctx}>
       <div ref={panelRef} className="fg-panel" data-kind={kind}>
-        <Split list={list} detail={detail} onBack={() => select(null)} backLabel={backLabel(kind, view.tab)} storageKey={kind} detailKey={selected ? selectionKey(selected) : undefined} />
+        <Split list={list} detail={detail} onBack={() => select(null)} backLabel={backLabel(kind, view.tab, t)} storageKey={kind} detailKey={selected ? selectionKey(selected) : undefined} />
       </div>
     </ForgeProvider>
   );

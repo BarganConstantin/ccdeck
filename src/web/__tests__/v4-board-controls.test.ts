@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { sheetText } from "./sheet-source";
 import { zoomPercent } from "../zoom-percent";
+import { en } from "../i18n/en";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const component = read("../components/CanvasControls.tsx");
@@ -30,18 +31,24 @@ describe("the bar's items, left to right", () => {
   // Each item is found by what only it carries, in source order, which is the
   // DOM order and so the tab order.
   const order = [
-    'aria-label="Zoom out"',
+    'aria-label={t("board.controls.zoomOut")}',
     "<ZoomLevel />",
-    'aria-label="Zoom in"',
+    'aria-label={t("board.controls.zoomIn")}',
     "react-flow__controls-divider",
-    'aria-label="Recenter view"',
-    'aria-label="Re-arrange the canvas"',
-    "aria-label={PAUSE_LABEL}",
-    'aria-label="Clear the deck"',
+    'aria-label={t("board.controls.recenter")}',
+    'aria-label={t("board.controls.arrangeLabel")}',
+    "aria-label={pauseLabel(t)}",
+    'aria-label={t("board.controls.clearLabel")}',
     "react-flow__controls-divider",
-    'aria-label="Open the keyboard shortcuts"',
+    'aria-label={t("board.controls.keysLabel")}',
     'aria-label="Open the Command Panel"',
   ];
+  it("says those names in the words V4 drew", () => {
+    expect([
+      en["board.controls.zoomOut"], en["board.controls.zoomIn"], en["board.controls.recenter"],
+      en["board.controls.arrangeLabel"], en["board.controls.clearLabel"], en["board.controls.keysLabel"], en["board.pill.pause"],
+    ]).toEqual(["Zoom out", "Zoom in", "Recenter view", "Re-arrange the canvas", "Clear the deck", "Open the keyboard shortcuts", "Pause the canvas"]);
+  });
   it("runs zoom out, level, zoom in | recenter, re-arrange, pause, clear | keyboard, Command Panel", () => {
     let from = 0;
     for (const needle of order) {

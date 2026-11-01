@@ -10,6 +10,7 @@
 // its new place when both have left (rail-model.ts holdOrder, rail-motion.ts).
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { isAlarming } from "../ambient-counts";
+import { t as translate, useT } from "../i18n";
 import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { BackgroundJob, SessionRecap, WaitingBlock } from "../types";
@@ -127,8 +128,8 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
       if (sub.sessionId !== a.sessionId || sub.kind === "root") continue;
       toolCount += sub.toolCount;
       cost += agentCost(sub).total;
-      const t = sub.endedAt ?? sub.startedAt;
-      if (t > lastActivity) lastActivity = t;
+      const last = sub.endedAt ?? sub.startedAt;
+      if (last > lastActivity) lastActivity = last;
     }
     // The session's note, the one its card ties to it on the canvas: a recap
     // draws as one, anything else as a tagged line.
@@ -138,7 +139,7 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
     const ended = turnEndedAt(a);
     rows.push({
       sessionId: a.sessionId,
-      label: a.label || a.cwdBasename || "session",
+      label: a.label || a.cwdBasename || translate("board.kind.session"),
       cwdBasename: a.cwdBasename,
       // A turn that stopped on an error is drawn as a failure here as on its
       // card (#2185); it sorts with the ended ones either way.
@@ -235,6 +236,7 @@ interface Ghost { row: Row; group: RailGroup; after: string | null; until: numbe
 interface Entry { id: string; row: Row; ghost: boolean }
 
 export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, quota, activeAlias = null, onOpenUsage, onOpenKeys }: Props) {
+  const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
   // the reducer mutates it in place, so identity never moves and the rest of the
@@ -391,7 +393,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
 
   const nodes: ReactNode[] = [];
   if (rows.length === 0) {
-    nodes.push(<li key="empty" className="sl-empty">No sessions yet.</li>);
+    nodes.push(<li key="empty" className="sl-empty">{t("board.list.empty")}</li>);
   } else if (counts[0] === 0) {
     // Quiet when nothing needs you; the count is the rows at work.
     nodes.push(<li key="nobody" className="sl-nobody"><RailGlyph kind="idle" /><span>{nobodyWaitingText(counts[1])}</span></li>);
@@ -434,7 +436,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
     // aria-label that makes the rotor's complementary entries tellable apart —
     // and that is now this panel's only announcement, since nothing reports its
     // open state any more.
-    <aside className={`session-list${leaving ? " leaving" : ""}`} id="session-list" aria-label="Sessions"
+    <aside className={`session-list${leaving ? " leaving" : ""}`} id="session-list" aria-label={t("board.list.title")}
       ref={aside} onPointerEnter={pointerEnter} onPointerLeave={pointerLeave}>
       {/* Order held: an overlay on the header's own box, so it takes no space in
           the list and never moves a row it is protecting. Not a live region. */}
@@ -444,8 +446,8 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
             (#381). This <aside> was already the shape the other two panels
             were given there; only its heading moved. The groups say what the
             waiting and live chips used to. */}
-        <h2>Sessions <span className="sl-count">{rows.length}</span></h2>
-        <button type="button" className="sl-close" onClick={onClose} title={withKey("Hide sidebar", "L", singleKeys)} aria-label="Hide session list"><CloseGlyph /></button>
+        <h2>{t("board.list.title")} <span className="sl-count">{rows.length}</span></h2>
+        <button type="button" className="sl-close" onClick={onClose} title={withKey(t("board.list.hideSidebar"), "L", singleKeys)} aria-label={t("board.list.hide")}><CloseGlyph /></button>
       </div>
       <ul className="sl-rows" ref={list}>
         {nodes}
@@ -477,7 +479,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                 requestAnimationFrame(() => panel?.querySelector<HTMLButtonElement>(".sl-row")?.focus());
               }}
             >
-              Bring back {count} removed {count === 1 ? "card" : "cards"}
+              {t("board.list.bringBack", { count })}
             </button>
           </div>
         );

@@ -7,7 +7,8 @@
 // itself, and whether a read for it is out, stay the panel's: they decide which
 // figures are drawn, and the strip shows both and changes only the period.
 import { useRef } from "react";
-import { nounFor, PERIODS, periodFocusMove, type PeriodKey } from "../usage-from-ccusage";
+import { useT } from "../i18n";
+import { PERIODS, periodFocusMove, type PeriodKey } from "../usage-from-ccusage";
 
 export default function UsagePeriodStrip({ period, rangePending, setPeriod }: {
   /** The pressed period: the reader's intent, which is not always the one shown yet. */
@@ -18,6 +19,7 @@ export default function UsagePeriodStrip({ period, rangePending, setPeriod }: {
 }) {
   // One tab stop for the strip, not three. `role="toolbar"` is what pays for
   // that — see the markup — and moving the ring needs the buttons themselves.
+  const t = useT();
   const periodRefs = useRef<Array<HTMLButtonElement | null>>([]);
   return (
     <>
@@ -48,7 +50,7 @@ export default function UsagePeriodStrip({ period, rangePending, setPeriod }: {
         className="uh-range up-period"
         role="toolbar"
         aria-orientation="horizontal"
-        aria-label="Period"
+        aria-label={t("usage.period.label")}
         aria-busy={rangePending || undefined}
         onKeyDown={e => {
           // From where the RING is, not from where the selection is. Arrows
@@ -82,10 +84,10 @@ export default function UsagePeriodStrip({ period, rangePending, setPeriod }: {
             // the deck walking transcripts on this disk, and a reader who
             // knows that reads two and a half seconds as work rather than as a
             // request that may not come back.
-            title={period === p.key && rangePending ? `Reading ${p.noun} from the transcripts on this machine…` : p.hint}
+            title={period === p.key && rangePending ? t("usage.period.reading", { period: t(`usage.period.${p.key}.noun`) }) : t(`usage.period.${p.key}.hint`)}
             className="uh-range-btn"
             onClick={() => setPeriod(p.key)}
-          >{p.label}</button>
+          >{t(`usage.period.${p.key}`)}</button>
         ))}
       </div>
       {/* WHAT THE WAIT SOUNDS LIKE, since until now it made no sound at all: a
@@ -104,7 +106,7 @@ export default function UsagePeriodStrip({ period, rangePending, setPeriod }: {
           talking over the reader costs a sentence. `aria-atomic` because half
           of this only means the wrong thing. */}
       <div className="vis-hidden" role="status" aria-atomic="true">
-        {rangePending ? `Reading ${nounFor(period, period)}…` : ""}
+        {rangePending ? t("usage.period.readingShort", { period: t(`usage.period.${period}.noun`) }) : ""}
       </div>
     </>
   );

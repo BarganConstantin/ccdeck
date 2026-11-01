@@ -54,6 +54,7 @@ import { join } from "node:path";
 import { USAGE_FILES } from "./usage-surface";
 import { ACCOUNTS_FILES } from "./accounts-surface";
 import { sheetText } from "./sheet-source";
+import { en } from "../i18n/en";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const cssRaw = sheetText();
@@ -487,14 +488,16 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     expect(railParts).toMatch(/<RailGlyph kind=\{railGlyph\(r, group\)\} \/>\s*<span className="vis-hidden">\{stateLabel\(r\.state\)\}<\/span>/);
     expect(railParts).toMatch(/<span className="sl-glyph" data-glyph=\{kind\} aria-hidden>/);
     expect(sessionBreakdown).toMatch(/<span className=\{`sl-dot state-\$\{s\.state\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{stateLabel\(s\.state\)\}<\/span>/);
-    expect(app).toMatch(/<span className=\{`status-dot \$\{status\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{TOOL_STATUS_LABEL\[status\]\}<\/span>/);
+    expect(app).toMatch(/<span className=\{`status-dot \$\{status\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{t\(TOOL_STATUS_LABEL\[status\]\)\}<\/span>/);
   });
 
   it("says it in one vocabulary, shared with the word already on the card", () => {
     // A card that reads `live` beside a row that reads `running` is one state
     // with two names. StatePill and both lists go through the same function.
-    expect(agentCopy).toMatch(/export function stateLabel\(state: AgentNodeData\["state"\]\): string/);
-    expect(agentCopy).toMatch(/state === "active" \? "live" : state === "done" \? "done" : "err"/);
+    expect(agentCopy).toMatch(/export function stateLabel\(state: AgentNodeData\["state"\], tr: TFunction = t\): string/);
+    expect(agentCopy).toMatch(/tr\(state === "active" \? "board\.state\.live" : state === "done" \? "board\.state\.done" : "board\.state\.err"\)/);
+    // The words behind those keys are the three the lists have always said.
+    expect([en["board.state.live"], en["board.state.done"], en["board.state.err"]]).toEqual(["live", "done", "err"]);
     // V4's card is the one surface that says it in sentence case ("Working",
     // "Done", "Failed", "Waiting"), through cardState (node-face.ts) in the
     // state's own token; the lists and the card's accessible name keep the
@@ -512,7 +515,7 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // Not stateLabel's: a tool call is not a session. `in-flight` is what the
     // modal writes where the duration goes and `error` is what it tags the
     // response with, and both predate this change.
-    expect(app).toMatch(/const TOOL_STATUS_LABEL = \{ inflight: "in-flight", done: "done", err: "error" \} as const;/);
+    expect(app).toMatch(/const TOOL_STATUS_LABEL = \{ inflight: "board\.toolStatus\.inflight", done: "board\.toolStatus\.done", err: "board\.toolStatus\.err" \} as const;/);
     // The modal used to `return "in-flight…"` from its own duration formatter.
     // #374 merged that formatter with the row's, which rounded the same
     // milliseconds one decimal coarser, and the sentinel is the one genuine
@@ -520,8 +523,8 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // than a literal in a function body. What this test is about did not
     // change: the word the modal prints where the duration goes is still
     // `in-flight…`, and it is still written in this file.
-    expect(toolModal).toMatch(/toolDuration\(tool, "in-flight…"\)/);
-    expect(toolModal).toMatch(/<span className="err-tag">error<\/span>/);
+    expect(toolModal).toMatch(/toolDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
+    expect(toolModal).toMatch(/<span className="err-tag">\{t\("insights\.tool\.error"\)\}<\/span>/);
   });
 
   it("left the row's name to its contents — no aria-label, and no reliance on title", () => {

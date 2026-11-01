@@ -51,7 +51,7 @@ describe("the version banner's dismiss control", () => {
   });
 
   it("keeps the name a screen reader reads out, since the glyph is only an x", () => {
-    expect(control![0]).toContain('aria-label="Dismiss"');
+    expect(control![0]).toContain('aria-label={t("shell.dismiss")}');
   });
 
   it("is the same element in the old-name notice, which the one rule also styles", () => {
@@ -59,7 +59,7 @@ describe("the version banner's dismiss control", () => {
     expect(other).not.toBeNull();
     expect(other![1]).toBe("button");
     expect(other![0]).toContain('type="button"');
-    expect(other![0]).toContain('aria-label="Dismiss"');
+    expect(other![0]).toContain('aria-label={t("shell.dismiss")}');
     expect(other![2] + other![3]).not.toMatch(/onKeyDown|tabIndex|role="button"/);
   });
 

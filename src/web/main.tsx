@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { pruneStaleState } from "./storage";
 import { installInputModality } from "./input-modality";
+import { applyDocumentLanguage } from "./i18n";
 import "reactflow/dist/style.css";
 import "./styles.css";
 
@@ -9,6 +10,9 @@ import "./styles.css";
 // initialisers, so state written by an incompatible version has to be gone by
 // the time the component exists.
 try { pruneStaleState(window.localStorage); } catch { /* private mode */ }
+
+// <html lang> and <html dir> follow the chosen (or detected) language from the first frame.
+applyDocumentLanguage();
 
 const root = createRoot(document.getElementById("root")!);
 if (window.ccdeckWindow) {

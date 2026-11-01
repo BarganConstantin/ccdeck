@@ -16,16 +16,18 @@
 // goes, in whereItGoesAccount's words.
 import { useId } from "react";
 import {
-  ADD_DETAILS, CONTACT_HINT, CONTACT_LABEL, CONTACT_MAX, CONTACT_PLACEHOLDER, WHERE_IT_GOES, isPlainEnter, whereItGoesAccount,
+  addDetails, contactHint, contactLabel, CONTACT_MAX, contactPlaceholder, whereItGoes, isPlainEnter, whereItGoesAccount,
 } from "../feedback";
+import { useT } from "../i18n";
 
 export const DETAILS_ID = "fb-details";
 
 /** The way in: quiet, in the row under the message, opposite Add screenshot. */
 export function DetailsToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  useT();
   return (
     <button type="button" className="fb-tool fb-more" aria-expanded={open} aria-controls={DETAILS_ID} onClick={onToggle}>
-      {ADD_DETAILS}
+      {addDetails()}
       <svg className="fb-chev" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor"
         strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false">
         <path d="M2.5 3.75 5 6.25l2.5-2.5" />
@@ -45,6 +47,7 @@ interface Props {
 }
 
 export default function FeedbackDetails({ open, contact, onContact, account = false, mail = true }: Props) {
+  const t = useT();
   const hintId = useId();
   return (
     <div id={DETAILS_ID} className="fb-details" data-open={open || undefined}>
@@ -52,8 +55,8 @@ export default function FeedbackDetails({ open, contact, onContact, account = fa
         <div className="fb-details-body">
           {!account && <div className="fb-field">
             <label className="fb-field-label" htmlFor="fb-contact">
-              {CONTACT_LABEL}
-              <span className="fb-optional">optional</span>
+              {contactLabel()}
+              <span className="fb-optional">{t("shell.feedback.optional")}</span>
             </label>
             <input
               id="fb-contact"
@@ -62,18 +65,18 @@ export default function FeedbackDetails({ open, contact, onContact, account = fa
               value={contact}
               maxLength={CONTACT_MAX}
               autoComplete="email"
-              placeholder={CONTACT_PLACEHOLDER}
+              placeholder={contactPlaceholder()}
               aria-describedby={hintId}
               onChange={e => onContact(e.target.value)}
               onKeyDown={e => { if (isPlainEnter(e.nativeEvent)) e.preventDefault(); }}
             />
-            <p id={hintId} className="fb-hint">{CONTACT_HINT}</p>
+            <p id={hintId} className="fb-hint">{contactHint()}</p>
           </div>}
           {account ? (
             <div className="fb-where">{whereItGoesAccount(mail).map(line => <p key={line}>{line}</p>)}</div>
           ) : (
             <div className="fb-where">
-              {WHERE_IT_GOES.map(line => <p key={line}>{line}</p>)}
+              {whereItGoes().map(line => <p key={line}>{line}</p>)}
             </div>
           )}
         </div>

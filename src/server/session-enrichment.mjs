@@ -644,9 +644,9 @@ const codexMemoryReads = sessionReadGate(CONTEXT_READ_THROTTLE_MS);
  * discovery record: a line written twice is recoverable, a deck that quietly
  * records nothing is not.
  */
-function maybeResolveCodexMemory(sid, cwd, persist) {
+function maybeResolveCodexMemory(sid, cwd, persist, codexHome) {
   if (!sid || !cwd) return;
-  codexMemoryReads.run(sid, () => scanAgentsMdFiles(cwd)
+  codexMemoryReads.run(sid, () => scanAgentsMdFiles(cwd, codexHome)
     .then(memoryFiles => {
       // Nothing found is not a fact worth an event: the reducer merges a
       // ContextObserved into whatever the session already had, and an empty list

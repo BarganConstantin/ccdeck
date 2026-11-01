@@ -22,6 +22,8 @@ import { useFocusRescue } from "./use-focus-rescue";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { type NamedAccount, pickedAccounts, pickerRows, shareCountLine, shareExpiry, shareRequest, toggleUnpicked } from "../share-bundle";
 import { useFeatureUse } from "../feature-use";
+import { useT } from "../i18n";
+import { Rich } from "../accounts-rich";
 
 /** One account the bundle could not carry, and why. */
 interface Refused { num: string; email: string; detail?: string }
@@ -53,6 +55,7 @@ async function admin(body: Record<string, unknown>) {
 const COPIED_MS = 1800;
 
 export default function ShareAccountsDialog({ accounts, onClose, copyText }: Props) {
+  const t = useT();
   // Opened: one of the features the usage reports name (feature-use.ts).
   useFeatureUse("share-accounts");
   // What the user has taken OUT, not what they have left in.
@@ -98,11 +101,11 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
   useEffect(() => {
     if (!bundle) return;
     setNowSec(Math.floor(Date.now() / 1000));
-    const t = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000);
-    return () => window.clearInterval(t);
+    const timer = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000);
+    return () => window.clearInterval(timer);
   }, [bundle]);
 
-  const rows = pickerRows(accounts);
+  const rows = pickerRows(accounts, t);
   // Derived, so it can never disagree with the list on screen.
   const picked = pickedAccounts(accounts, unpicked);
   const allPicked = picked.length === accounts.length;
@@ -124,16 +127,16 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
     const out = await admin(request).catch(() => null);
     busyRef.current = false;
     setBusy(false);
-    if (!out?.ok) { setError(explainFailure(out, "the share could not be made")); return; }
+    if (!out?.ok) { setError(explainFailure(out, t("accounts.sd.makeFailed"), undefined, t)); return; }
     setBundle({
       blob: out.blob,
       expiresAt: out.expiresAt,
       shared: out.shared ?? [],
       failed: out.failed ?? [],
     });
-  }, [accounts, picked]);
+  }, [accounts, picked, t]);
 
-  const exp = bundle ? shareExpiry(bundle.expiresAt, nowSec) : null;
+  const exp = bundle ? shareExpiry(bundle.expiresAt, nowSec, t) : null;
   const dead = exp?.tone === "gone";
   // What the bundle CARRIES, which is not what was ticked when an export
   // failed. Every count on this view reads off this number, so a bundle that
@@ -143,11 +146,9 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
   // the region above the steps says them as the bundle lands (#1794). Focus goes
   // to the copy then, and a reader who hears only "copy all 3" has not heard
   // that it is three passwords.
-  const heading = dead
-    ? "This share has expired"
-    : carried === 1 ? "1 account, ready to paste" : `${carried} accounts, ready to paste`;
-  const warning = carried === 1 ? "this is the password" : `this is ${carried} passwords`;
-  const said = !bundle ? "" : dead ? heading : `${heading} — ${warning}`;
+  const heading = dead ? t("accounts.sd.expired") : t("accounts.sd.ready", { count: carried });
+  const warning = t("accounts.sd.warn", { count: carried });
+  const said = !bundle ? "" : dead ? heading : t("accounts.sd.said", { heading, warning });
 
   // Portalled for the reason AddAccountDialog is: this also mounts as a direct
   // child of the accounts panel, whose `.accounts-panel > *` gave the fixed
@@ -155,12 +156,12 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
   return createPortal(
     <div className="modal-backdrop" {...scrimPress} role="presentation">
       <div ref={dialogRef} className="modal sa-modal" onClick={e => e.stopPropagation()}
-        role="dialog" aria-modal="true" aria-label="Share accounts with another deck">
+        role="dialog" aria-modal="true" aria-label={t("accounts.header.share")}>
         <header className="modal-head">
-          <div className="modal-title"><h3>Share accounts</h3></div>
+          <div className="modal-title"><h3>{t("accounts.sd.title")}</h3></div>
           <div className="modal-actions">
             <button type="button" className="glyph-btn" onClick={onClose}
-              aria-label="Close (Esc)" title="Close (Esc)">×</button>
+              aria-label={t("accounts.closeEsc")} title={t("accounts.closeEsc")}>×</button>
           </div>
         </header>
 
@@ -203,12 +204,10 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                       window.setTimeout(() => setCopied(false), COPIED_MS);
                     }
                   }}>
-                  {dead ? "make a new share" : copied ? "copied" : `copy ${carried === 1 ? "the share" : "all " + carried}`}
+                  {dead ? t("accounts.sd.makeNew") : copied ? t("accounts.sd.copied") : t("accounts.sd.copy", { count: carried })}
                 </button>
                 <span className="ap-manage-hint"
-                  title={"This text is the sign-in for every account in it. It is base64 of plain JSON — the expiry inside it is not signed, so anyone holding a copy can change it, "
-                       + "and the logins themselves are in there in the clear either way. The countdown only says how long another deck's import dialog will still accept it. "
-                       + "If a copy escapes, sign those accounts out and back in."}>
+                  title={t("accounts.sd.blobTip")}>
                   <span className="ap-share-warn">{warning}</span>
                   {" · "}
                   <span className={`ap-share-expiry ${exp?.tone}`}>{exp?.text}</span>
@@ -223,9 +222,7 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
               {bundle.failed.length > 0 && (
                 <div className="sa-failed" role="alert">
                   <p className="sa-failed-head">
-                    {bundle.failed.length === 1
-                      ? "One account is not in this bundle:"
-                      : `${bundle.failed.length} accounts are not in this bundle:`}
+                    {t("accounts.sd.failedHead", { count: bundle.failed.length })}
                   </p>
                   <ul className="sa-list">
                     {bundle.failed.map(f => {
@@ -237,8 +234,8 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                       const named = Boolean(f.email && f.detail?.includes(f.email));
                       return (
                         <li key={`${f.num}-${f.email}`}>
-                          {!named && <span className="sa-who">{f.email || `account ${f.num}`}</span>}
-                          <span className="sa-why">{f.detail || "could not be exported"}</span>
+                          {!named && <span className="sa-who">{f.email || t("accounts.accountNLower", { n: f.num })}</span>}
+                          <span className="sa-why">{f.detail || t("accounts.sd.couldNotExport")}</span>
                         </li>
                       );
                     })}
@@ -248,22 +245,16 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
 
               <p className="sa-note">
                 {dead ? (
-                  <>
-                    Another deck will refuse this text now. Make a new one — the same accounts
-                    are still picked.
-                  </>
+                  t("accounts.sd.deadNote")
                 ) : (
-                  <>
-                    Paste it into the other deck with <strong>+</strong> → <strong>Paste a share</strong>.
-                    Accounts it already holds are left exactly as they are.
-                  </>
+                  <Rich text={t("accounts.sd.liveNote")} />
                 )}
               </p>
               <div className="sa-actions">
                 <button type="button" className="btn" onClick={() => { rescuePick(); setBundle(null); setCopied(false); }}>
-                  Pick again
+                  {t("accounts.sd.pickAgain")}
                 </button>
-                <button type="button" className="btn primary" onClick={onClose}>Done</button>
+                <button type="button" className="btn primary" onClick={onClose}>{t("accounts.done")}</button>
               </div>
             </div>
           ) : accounts.length === 0 ? (
@@ -272,19 +263,16 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                claude-swap spends rewriting its store, and for a machine that
                has no accounts yet. */
             <div className="sa-step">
-              <h4>Nothing to share</h4>
-              <p className="sa-note">
-                This deck is not holding any accounts right now. Sign one in with <strong>+</strong>,
-                or wait — the panel is still reading the store.
-              </p>
+              <h4>{t("accounts.sd.nothing")}</h4>
+              <p className="sa-note"><Rich text={t("accounts.sd.nothingNote")} /></p>
               <div className="sa-actions">
-                <button type="button" className="btn primary" ref={primaryRef} onClick={onClose}>Close</button>
+                <button type="button" className="btn primary" ref={primaryRef} onClick={onClose}>{t("accounts.close")}</button>
               </div>
             </div>
           ) : (
             <div className="sa-step">
-              <h4>Which accounts go to the other {PRODUCT}?</h4>
-              <p className={`sa-count${picked.length ? "" : " empty"}`}>{shareCountLine(picked.length)}</p>
+              <h4>{t("accounts.sd.which", { product: PRODUCT })}</h4>
+              <p className={`sa-count${picked.length ? "" : " empty"}`}>{shareCountLine(picked.length, t)}</p>
               <ul className="sa-list sa-pick">
                 {rows.map(r => (
                   <li key={r.num}>
@@ -306,7 +294,7 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
               <div className="sa-actions">
                 <button type="button" className="btn"
                   onClick={() => setUnpicked(allPicked ? accounts.map(a => a.num) : [])}>
-                  {allPicked ? "Clear all" : "Select all"}
+                  {allPicked ? t("accounts.sd.clearAll") : t("accounts.sd.selectAll")}
                 </button>
                 {/* #620's two attributes, from the helper rather than spelled
                     here: enabled while its own request is out, disabled only
@@ -318,10 +306,10 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                     nothing is picked. */}
                 <button type="button" className="btn primary" ref={primaryRef}
                   {...selfPressProps(busy, !picked.length)} onClick={() => { rescueShare(); void make(); }}>
-                  {busy ? "making the share…"
-                    : picked.length === 0 ? "Share"
-                    : picked.length === 1 ? "Share 1 account"
-                    : `Share ${picked.length} accounts`}
+                  {busy ? t("accounts.sd.making")
+                    : picked.length === 0 ? t("accounts.sd.shareBtn")
+                    : picked.length === 1 ? t("accounts.sd.shareBtn1")
+                    : t("accounts.sd.shareBtnN", { count: picked.length })}
                 </button>
               </div>
             </div>

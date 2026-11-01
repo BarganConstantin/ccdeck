@@ -13,9 +13,11 @@ import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
-  incidentOf, incidentsOf, incidentSentence, INCIDENT_EXPIRE_MS, INCIDENT_STALE_MS, INCIDENTS_CLEAR, safeStatusPage,
+  incidentOf, incidentsOf, incidentSentence, INCIDENT_EXPIRE_MS, INCIDENT_STALE_MS, incidentsClear, safeStatusPage,
   type ProviderStatus, type ProviderStatusReport,
 } from "../provider-status";
+
+const INCIDENTS_CLEAR = incidentsClear();
 import { nextAnnouncement } from "../block-announce";
 import { PROVIDER_STATUS_POLL_MS, statusPoll } from "../use-provider-status";
 import { IncidentChips, QuotaIncident } from "../components/ProviderIncidents";

@@ -89,10 +89,16 @@ describe("the share envelope's expiry", () => {
 const panel = readFileSync(
   fileURLToPath(new URL("../components/AccountMenuPopover.tsx", import.meta.url)), "utf8");
 
+// The sentences themselves are the accounts catalog's.
+const english = readFileSync(
+  fileURLToPath(new URL("../i18n/areas/accounts/en.ts", import.meta.url)), "utf8");
+
 describe("what the accounts panel says a share is", () => {
   it("tells the reader the text IS the password", () => {
-    expect(panel).toMatch(/treat it as the password/i);
-    expect(panel).toMatch(/this is the password/i);
+    expect(panel).toContain('t("accounts.menu.shareTip"');
+    expect(panel).toContain('t("accounts.menu.isPassword")');
+    expect(english).toMatch(/treat it as the password/i);
+    expect(english).toMatch(/This is the password/i);
   });
 
   it("no longer offers the ten minutes as a protection", () => {
@@ -102,7 +108,7 @@ describe("what the accounts panel says a share is", () => {
     expect(accountsSurface()).not.toMatch(/carries a live login and expires in 10 minutes/);
     // Whatever the sentence becomes, the ten minutes has to be attributed to
     // the receiving deck rather than left standing on its own.
-    expect(panel).toMatch(/other deck stops accepting it/i);
+    expect(english).toMatch(/other deck stops accepting it/i);
   });
 
   it("puts the warning colour on the warning rather than on the timer", () => {

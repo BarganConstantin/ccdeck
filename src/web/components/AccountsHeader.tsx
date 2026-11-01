@@ -12,6 +12,7 @@
 import { type ReactNode } from "react";
 
 import { PRODUCT } from "../brand";
+import { useT } from "../i18n";
 import { type useRequestSlot } from "../use-request-slot";
 
 type RequestSlot = ReturnType<typeof useRequestSlot>;
@@ -26,11 +27,15 @@ interface Props {
   /** A reload the reader asked for is out — see the panel's `load`. */
   reloading: boolean;
   closeButton: ReactNode;
+  /** With both CLIs on this deck: the Claude/Codex switch, which stands where
+   *  the title stands. The title stays for a reader, out of sight. */
+  switcher?: ReactNode;
 }
 
 export default function AccountsHeader({
-  canShare, onAdd, onShareSet, onReload, pressProps, reloading, closeButton,
+  canShare, onAdd, onShareSet, onReload, pressProps, reloading, closeButton, switcher,
 }: Props) {
+  const t = useT();
   return (
     <div className="ap-header">
       {/* h2, under the topbar's h1 — the level every panel title sits at.
@@ -48,7 +53,8 @@ export default function AccountsHeader({
           carried since #381 — a region whose heading and whose accessible
           name are the same string is one thing to a screen reader rather than
           two. */}
-      <h2>Claude accounts</h2>
+      <h2 className={switcher ? "vis-hidden" : undefined}>{t("accounts.header.title")}</h2>
+      {switcher}
       <div className="ap-header-right">
         {/* The `+` is one glyph, so `title` was its whole accessible name.
             A last-resort name source that a touch user never sees and that
@@ -56,8 +62,8 @@ export default function AccountsHeader({
             second and last of the two the #381 sweep found. The tooltip stays
             as the longer hover sentence. */}
         <button type="button" className="glyph-btn ap-add" onClick={() => onAdd()}
-          aria-label="Add an account"
-          title="Sign in to another Claude account, or paste one shared from another deck">
+          aria-label={t("accounts.header.add")}
+          title={t("accounts.header.addTip")}>
           {/* AUTHORED, NOT TYPED. These four were `+`, `↗`, `↻` and `×` —
               four Unicode codepoints out of four different blocks, all set at
               16px and measuring 8.3, 9.1, 10.9 and 7.4 of ink, with the
@@ -92,8 +98,8 @@ export default function AccountsHeader({
             is holding. */}
         {canShare && (
           <button type="button" className="glyph-btn" onClick={() => onShareSet()}
-            aria-label="Share accounts with another deck"
-            title={`Copy several accounts to another ${PRODUCT} in one paste. The text carries a live login for each one — treat it as those passwords.`}>
+            aria-label={t("accounts.header.share")}
+            title={t("accounts.header.shareTip", { product: PRODUCT })}>
             {/* Out and away: the same arrowhead the reload beside it is built
                 from, so the two read as one hand rather than two. */}
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
@@ -104,8 +110,8 @@ export default function AccountsHeader({
           </button>
         )}
         <button type="button" className="glyph-btn ap-refresh" onClick={() => onReload()}
-          {...pressProps("reload", reloading)} aria-label="Reload accounts"
-          title="Reload from claude-swap">
+          {...pressProps("reload", reloading)} aria-label={t("accounts.header.reload")}
+          title={t("accounts.header.reloadTip")}>
           {/* IT TURNS WHILE IT WORKS, where it used to swap the arrow for an
               ellipsis. Both say which of the two states the control is in,
               which is what #518 asked of it; a rotation says it without the

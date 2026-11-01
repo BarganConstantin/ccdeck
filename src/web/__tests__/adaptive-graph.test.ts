@@ -388,7 +388,7 @@ describe("the canvas wiring the pure halves depend on", () => {
 
   it("marks a blocked session on the one label that is 1× at every zoom", () => {
     expect(clusters).toContain('data-alarm={c.alarm ? "" : undefined}');
-    expect(clusters).toContain('<span className="cluster-label-said">waiting on you: </span>');
+    expect(clusters).toContain('<span className="cluster-label-said">{t("board.cluster.waitingOnYou")}</span>');
     expect(css).toMatch(/\.cluster-label\[data-alarm\] \{\s*border-color: var\(--warn\);\s*\}/);
   });
 });

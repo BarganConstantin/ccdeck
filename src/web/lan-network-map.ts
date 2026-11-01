@@ -48,6 +48,8 @@
 // testable without a DOM.
 import type { DeckRow } from "./lan-roster";
 import type { LanStatus } from "./lan-types";
+import { t } from "./i18n";
+import { isSeenNow } from "./lan-round";
 
 /** Which ring a deck stands on. `declined` is on none: somebody here already
  *  said no to it, and a machine drawn on the map is a machine the map is
@@ -590,7 +592,7 @@ function placeRings(
 /** What the slice's name says: what stands in it, not this deck's own
  *  address — the panel has that. */
 export function zoneLabel(count: number): string {
-  return `Tailscale · ${count} deck${count === 1 ? "" : "s"}`;
+  return t("lan.map.zone", { count });
 }
 
 /**
@@ -714,7 +716,7 @@ export function mapSummary(rows: DeckRow[]): MapSummary {
     dialling: count(r => r.kind === "dialling"),
     declined: count(r => r.kind === "declined"),
     tailnet: count(r => r.kind !== "declined" && r.via === "tailscale"),
-    oneWay: count(r => r.kind === "paired" && !r.here && r.state.startsWith("one-way")),
+    oneWay: count(r => r.kind === "paired" && !r.here && isOneWay(r)),
   };
 }
 
@@ -726,13 +728,13 @@ export function mapSummary(rows: DeckRow[]): MapSummary {
  *  different things. */
 export function mapHeadline(s: MapSummary): string {
   const parts: string[] = [];
-  if (s.asks) parts.push(s.asks === 1 ? "1 deck wants to pair" : `${s.asks} decks want to pair`);
-  if (s.paired === 0) parts.push("no paired decks yet");
-  else if (s.paired === 1) parts.push(s.online ? "1 paired deck, online" : "1 paired deck, away");
-  else if (s.online === s.paired) parts.push(`${s.paired} paired decks, all online`);
-  else parts.push(`${s.online} of ${s.paired} paired decks online`);
-  if (s.nearby) parts.push(`${s.nearby} nearby, not paired`);
-  if (s.dialling) parts.push(`${s.dialling} still dialling`);
+  if (s.asks) parts.push(t("lan.entry.wantsPair", { count: s.asks }));
+  if (s.paired === 0) parts.push(t("lan.map.noPaired"));
+  else if (s.paired === 1) parts.push(t(s.online ? "lan.map.onePairedOnline" : "lan.map.onePairedAway"));
+  else if (s.online === s.paired) parts.push(t("lan.map.allOnline", { n: s.paired }));
+  else parts.push(t("lan.map.someOnline", { online: s.online, n: s.paired }));
+  if (s.nearby) parts.push(t("lan.map.nearby", { n: s.nearby }));
+  if (s.dialling) parts.push(t("lan.map.dialling", { n: s.dialling }));
   return parts.join(" · ");
 }
 
@@ -748,17 +750,17 @@ export function mapHeadline(s: MapSummary): string {
  *  others rather than the caption of every machine. */
 export function nodeCaption(row: DeckRow, os: string | null | undefined): string {
   switch (row.kind) {
-    case "asks": return "wants to pair";
+    case "asks": return t("lan.wantsPair");
     case "nearby": return row.state;
     // An address is named by its host, so its port goes under it.
-    case "dialling": return namedByHost(row) ? `${row.name.slice(row.addr.length)} · dialling` : "dialling";
-    case "declined": return "declined";
+    case "dialling": return namedByHost(row) ? t("lan.cap.diallingPort", { port: row.name.slice(row.addr.length) }) : t("lan.cap.dialling");
+    case "declined": return t("lan.cap.declined");
     case "paired": {
-      if (row.here) return os ? shortOs(os) : "online";
+      if (row.here) return os ? shortOs(os) : t("lan.online");
       const since = lastOnline(row);
-      if (since) return since === "now" ? "away · just now" : `away · ${since}`;
+      if (since) return isSeenNow(since) ? t("lan.cap.awayJustNow") : t("lan.cap.awaySince", { since });
       // The list's own words for a deck that calls in and has not yet.
-      return row.state.startsWith("one-way") ? "has not called yet" : "away";
+      return isOneWay(row) ? t("lan.notCalledYet") : t("lan.away");
     }
   }
 }
@@ -777,19 +779,26 @@ function namedByHost(row: DeckRow): boolean {
 /** Whether a deck is there, in a sentence: the list's presence word without
  *  the round the list appends to it. */
 export function presenceLine(row: DeckRow): string {
-  if (row.kind !== "paired") return row.via === "tailscale" ? `${row.state}, over Tailscale` : row.state;
-  if (row.here) return row.via === "tailscale" ? "online, over Tailscale" : "online";
+  if (row.kind !== "paired") return row.via === "tailscale" ? t("lan.overTailscale", { text: row.state }) : row.state;
+  if (row.here) return row.via === "tailscale" ? t("lan.overTailscale", { text: t("lan.online") }) : t("lan.online");
   const since = lastOnline(row);
   // AWAY, NOT OFFLINE: the list's own word for these ("6 ready · 8 away"),
   // and the honest one — a deck that only calls in may well be switched on.
   const quiet = since
-    ? (since === "now" ? "away · last online just now" : `away · last online ${since}`)
-    : row.state.startsWith("one-way") ? row.state : "away";
-  return row.via === "tailscale" ? `${quiet}, over Tailscale` : quiet;
+    ? (isSeenNow(since) ? t("lan.presence.awayLastJustNow") : t("lan.presence.awayLast", { since }))
+    : isOneWay(row) ? row.state : t("lan.away");
+  return row.via === "tailscale" ? t("lan.overTailscale", { text: quiet }) : quiet;
 }
 
 function lastOnline(row: DeckRow): string | null {
+  if (row.since) return row.since;
   return /last online (.+)$/.exec(row.state)?.[1] ?? null;
+}
+
+/** A deck that only calls in and has no address here. The row says so itself;
+ *  the state's wording is the fallback for a row built by hand. */
+function isOneWay(row: DeckRow): boolean {
+  return row.oneWay ?? row.state.startsWith("one-way");
 }
 
 /** `macOS 26.0` reads whole at 10px; `Ubuntu 24.04.1 LTS` does not, and the
@@ -840,44 +849,23 @@ export function continuousAngle(prev: number | undefined, next: number): number 
  * offer, but to an invite, in deckNextStep's own words.
  */
 export function networkNextStep(s: MapSummary, pairingMode?: "automatic" | "invite"): string | null {
-  if (s.asks) {
-    return s.asks === 1
-      ? "1 deck wants to pair. Answer it in the Local network list, behind this map."
-      : `${s.asks} decks want to pair. Answer them in the Local network list, behind this map.`;
-  }
-  if (s.oneWay) {
-    return `${s.oneWay} away deck${s.oneWay === 1 ? " only calls" : "s only call"} in, and this deck has no address to call `
-      + `${s.oneWay === 1 ? "it" : "them"} on. Add ${s.oneWay === 1 ? "its address" : "their addresses"} through Add a deck `
-      + `to reach ${s.oneWay === 1 ? "it" : "them"} both ways.`;
-  }
-  if (s.dialling) {
-    return s.dialling === 1
-      ? "1 address has never answered. Open it to stop dialling it."
-      : `${s.dialling} addresses have never answered. Open one to stop dialling it.`;
-  }
-  if (s.nearby) {
-    const unpaired = s.nearby === 1 ? "1 deck nearby is not paired." : `${s.nearby} decks nearby are not paired.`;
-    if (pairingMode === "invite") return `${unpaired} ${INVITE_ONLY}`;
-    return s.nearby === 1 ? `${unpaired} Open it to ask to pair.` : `${unpaired} Open one to ask to pair.`;
-  }
+  if (s.asks) return t("lan.next.asks", { count: s.asks });
+  if (s.oneWay) return t("lan.next.oneWay", { count: s.oneWay });
+  if (s.dialling) return t("lan.next.dialling", { count: s.dialling });
+  if (s.nearby) return t(pairingMode === "invite" ? "lan.next.nearbyInvite" : "lan.next.nearbyAsk", { count: s.nearby });
   return null;
 }
-
-/** What a deck that pairs by invite only does about a machine heard nearby. */
-const INVITE_ONLY = "This deck pairs by invite only. Send one from Add a deck.";
 
 /** What to do about one deck that is not online, in its panel — or nothing,
  *  for a deck that is on or simply away. */
 export function deckNextStep(row: DeckRow, pairingMode?: "automatic" | "invite"): string | null {
   switch (row.kind) {
-    case "asks": return "Waiting for your answer, in the Local network list behind this map.";
-    case "dialling": return "Nothing has answered here yet. Its dialog can stop dialling it.";
+    case "asks": return t("lan.next.deckAsks");
+    case "dialling": return t("lan.next.deckDialling");
     case "nearby":
-      return pairingMode === "invite" ? INVITE_ONLY : "Not paired yet. Its dialog can ask to pair.";
+      return pairingMode === "invite" ? t("lan.next.inviteOnly") : t("lan.next.deckNearby");
     case "paired":
-      return !row.here && row.state.startsWith("one-way")
-        ? "It can reach this deck, not the other way. Add its address through Add a deck."
-        : null;
+      return !row.here && isOneWay(row) ? t("lan.next.deckOneWay") : null;
     default: return null;
   }
 }
@@ -897,7 +885,7 @@ export function troubleFirst<T extends { tone: "ok" | "wait" | "bad" | "idle" }>
 export function sharedLoginsTitle(lanes: ReadonlyArray<{ tone: "ok" | "wait" | "bad" | "idle" }>): string {
   const total = lanes.length;
   const fine = lanes.filter(l => l.tone === "ok").length;
-  return total === 0 ? "No shared logins"
-    : fine === total ? `${total} shared login${total === 1 ? ", fine" : "s, all fine"}`
-    : `${total} shared login${total === 1 ? "" : "s"} · ${fine} fine`;
+  return total === 0 ? t("lan.title.none")
+    : fine === total ? t("lan.title.allFine", { count: total })
+    : t("lan.title.some", { count: total, fine });
 }

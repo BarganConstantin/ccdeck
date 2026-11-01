@@ -36,6 +36,7 @@
 // only real revocation is a re-login at Anthropic, which kills the session on
 // every machine at once.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useT } from "../i18n";
 import { checkedLabel, deckRows, entryLine, rowSource, sectionState, viewRows } from "../lan-roster";
 import { noCopyWorksNearby, offeredHere, sharedMarks, type SharedMark } from "../account-lan";
 import type { LanAccount } from "../lan-types";
@@ -90,6 +91,7 @@ export default function LanSyncSection({
   /** The panel's close, drawn in this view's header as it is in the accounts'. */
   closeButton?: ReactNode;
 }) {
+  const t = useT();
   const [setupOpen, setSetupOpen] = useState(false);
   /** The dialog that holds the two ways of reaching a deck the network could
    *  not offer. A DIALOG RATHER THAN A DRAWER IN THIS COLUMN: an address is
@@ -185,12 +187,12 @@ export default function LanSyncSection({
 
       {guideOpen && (
         <GuideModal
-          title="How Local network works"
+          title={t("lan.sync.guideTitle")}
           steps={LAN_STEPS}
           // The guide ends on the act it was describing, while there is one to
           // do. It goes through the same toggle the switch does, so the setup
           // dialog still opens on the press that puts this deck on the network.
-          finish={on ? undefined : { label: "Turn it on", act: () => { setGuideOpen(false); void toggle(); } }}
+          finish={on ? undefined : { label: t("lan.sync.turnOn"), act: () => { setGuideOpen(false); void toggle(); } }}
           onClose={() => setGuideOpen(false)}
         />
       )}
@@ -277,7 +279,7 @@ export default function LanSyncSection({
       <div className="ap-scroll" id="ap-lan-scroll">
         <div className="ap-lan">
           <div className="ap-policy">
-            <h3 className="ap-auto-title">Sync with paired decks</h3>
+            <h3 className="ap-auto-title">{t("lan.sync.title")}</h3>
               {/* A track and a knob, like every other switch in this app — the shape
                   lives on the shared `.switch` (#886), and the reasoning with it. */}
               <button
@@ -285,12 +287,12 @@ export default function LanSyncSection({
                 className="switch ap-auto-state"
                 role="switch"
                 aria-checked={on}
-                aria-label="Sync with paired decks"
+                aria-label={t("lan.sync.title")}
                 {...pressProps("switch")}
                 onClick={() => void toggle()}
                 title={on
-                  ? "Stop talking to other decks. Nothing is shared while this is off."
-                  : "Let the decks you pair with repair this one's expired logins"}
+                  ? t("lan.sync.titleOn")
+                  : t("lan.sync.titleOff")}
               >
                 <span className="switch-knob" />
               </button>
@@ -318,10 +320,10 @@ export default function LanSyncSection({
             {!on && (
               <div className="ap-lan-intro-row">
                 <button type="button" className="ap-lan-intro" onClick={() => setGuideOpen(true)}
-                  title="Four pictures: what this does, and what to do on each machine">
+                  title={t("lan.sync.introTitle")}>
                   <LanIntroArt />
-                  <span className="ap-lan-intro-text">Paired machines repair each other&apos;s expired logins.</span>
-                  <span className="ap-lan-intro-go">See how it works</span>
+                  <span className="ap-lan-intro-text">{t("lan.sync.intro")}</span>
+                  <span className="ap-lan-intro-go">{t("lan.sync.introGo")}</span>
                 </button>
                 <FilmLink film="localNetwork" />
               </div>
@@ -399,16 +401,16 @@ export default function LanSyncSection({
                   <button type="button" className="ap-lan-word ap-lan-more" aria-expanded={foldOpen}
                     onClick={() => setFoldOpen(v => !v)}
                     title={foldOpen
-                      ? "Show only the decks that are on"
-                      : `Show the ${folded.length} deck${folded.length === 1 ? "" : "s"} that are not responding right now`}>
+                      ? t("lan.sync.foldOnTitle")
+                      : t("lan.sync.foldOffTitle", { count: folded.length })}>
                     <span className={`ap-lan-chev${foldOpen ? " open" : ""}`} aria-hidden>›</span>
                     {/* Open, the control offers the reverse of what it did — `2 more`
                         over two rows that are already showing is a label describing
                         the press before last. */}
-                    {foldOpen ? "fewer" : `${folded.length} more`}
+                    {foldOpen ? t("lan.sync.fewer") : t("lan.sync.more", { n: folded.length })}
                     {!foldOpen && troubled > 0 && (
                       <span className="ap-lan-more-bad">
-                        {" · "}{troubled} not responding
+                        {" · "}{t("lan.sync.notResponding", { n: troubled })}
                       </span>
                     )}
                   </button>
@@ -425,15 +427,13 @@ export default function LanSyncSection({
                 {rest.length === 0 && asks.length === 0 && !status?.stalled && !status?.deaf && !status?.lanTunneled && (
                   <>
                     <p className="ap-lan-fine">
-                      No other deck yet. Decks on one network usually find each other on their own;
-                      when that has not happened, the link at the top of this view reaches one
-                      by address or by invite.
+                      {t("lan.sync.empty")}
                     </p>
                     {/* The moment somebody has switched this on and is waiting for a
                         first machine is the moment they most want to know what the
                         other machine has to do. */}
                     <button type="button" className="ap-lan-word ap-lan-how" onClick={() => setGuideOpen(true)}>
-                      How it works
+                      {t("lan.sync.how")}
                     </button>
                     <FilmLink film="localNetwork" />
                   </>

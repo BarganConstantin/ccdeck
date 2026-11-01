@@ -1,17 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Providers } from "../providers";
-import { captureAge, quotaPlot, quotaSeriesKey, type QuotaHistory, type QuotaSeries } from "../quota-history";
+import { currentLanguage, t as translate, useT } from "../i18n";
+import { quotaPlot, quotaSeriesKey, type QuotaHistory, type QuotaSeries } from "../quota-history";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import ReadActivity from "./ReadActivity";
 import { RefreshGlyph } from "./action-glyphs";
 
-const timestamp = (t: number) => new Date(t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-const clock = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+const timestamp = (ms: number) => new Date(ms).toLocaleString(currentLanguage(), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+const clock = (ms: number) => new Date(ms).toLocaleTimeString(currentLanguage(), { hour: "2-digit", minute: "2-digit" });
 type Provider = "claude" | "codex";
 
+/** The window's name: the two the server records by id, anything else as it sent it. */
+const windowLabel = (series: QuotaSeries) => series.id === "five_hour" || series.id === "seven_day" ? translate(`insights.quota.window.${series.id}`) : series.label;
+
+/** How long ago a reading was taken. */
+function captureAge(ms: number, now: number) {
+  const minutes = Math.max(0, Math.floor((now - ms) / 60_000));
+  if (minutes < 1) return translate("insights.quota.justNow");
+  if (minutes < 60) return translate("insights.quota.minutesAgo", { m: minutes });
+  if (minutes < 1440) return translate("insights.quota.hoursAgo", { h: Math.floor(minutes / 60), m: minutes % 60 });
+  return translate("insights.quota.daysAgo", { d: Math.floor(minutes / 1440) });
+}
+
 function QuotaChart({ series }: { series: QuotaSeries }) {
+  const t = useT();
   const segments = quotaPlot(series);
   const start = (series.resetAt - series.windowSec) * 1000;
   const end = series.resetAt * 1000;
@@ -19,7 +33,7 @@ function QuotaChart({ series }: { series: QuotaSeries }) {
     <div className="qh-chart-wrap">
     <div className="qh-axis" aria-hidden="true"><span>100%</span><span>50%</span><span>0%</span></div>
     <svg className="qh-chart" viewBox="36 12 516 150" role="img"
-      aria-label={`${series.label}: observed remaining quota over time. Dashed line is an even-use guide, not a forecast.`}>
+      aria-label={t("insights.quota.chartAria", { label: windowLabel(series) })}>
       {[0, 50, 100].map(used => <g key={used}>
         <line className="qh-grid" x1="36" x2="552" y1={12 + used * 1.5} y2={12 + used * 1.5} />
       </g>)}
@@ -27,18 +41,19 @@ function QuotaChart({ series }: { series: QuotaSeries }) {
       {segments.map((segment, i) => <g key={i}>
         {segment.length > 1 && <path className="qh-observed" d={segment.map((p, j) => `${j ? "L" : "M"}${p.x} ${p.y}`).join(" ")} />}
         {[segment[0], ...(segment.length > 1 ? [segment.at(-1)!] : [])].map(p =>
-          <circle className="qh-point" key={p.t} cx={p.x} cy={p.y} r="2.5"><title>{timestamp(p.t)} · {Math.round(100 - p.pct)}% remaining</title></circle>)}
+          <circle className="qh-point" key={p.t} cx={p.x} cy={p.y} r="2.5"><title>{t("insights.quota.pointTitle", { when: timestamp(p.t), pct: Math.round(100 - p.pct) })}</title></circle>)}
       </g>)}
     </svg>
     <div className="qh-times" aria-hidden="true"><span>{series.windowSec > 86400 ? timestamp(start) : clock(start)}</span><span>{series.windowSec > 86400 ? timestamp(end) : clock(end)}</span></div>
     </div>
-    <div className="qh-legend"><span><i className="qh-key" />Observed remaining</span><span><i className="qh-key qh-key-guide" />Even-use guide</span></div>
+    <div className="qh-legend"><span><i className="qh-key" />{t("insights.quota.observed")}</span><span><i className="qh-key qh-key-guide" />{t("insights.quota.guide")}</span></div>
   </>;
 }
 
 export default function QuotaHistoryModal({ providers, accounts, onClose, instant = false }: {
   providers: Providers; accounts: { claude?: string; codex?: string }; onClose: () => void; instant?: boolean;
 }) {
+  const t = useT();
   const [provider, setProvider] = useState<Provider>(providers.claude ? "claude" : "codex");
   const [data, setData] = useState<QuotaHistory | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,44 +105,44 @@ export default function QuotaHistoryModal({ providers, accounts, onClose, instan
   return createPortal(<div className="modal-backdrop" role="presentation" {...scrim}>
     <div className="modal qh-modal" data-keyboard-interaction={instant || undefined} ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="quota-history-title">
       <header className="modal-head">
-        <h2 id="quota-history-title">Quota history</h2>
+        <h2 id="quota-history-title">{t("insights.quota.title")}</h2>
         <div className="qh-header-actions">
-          <button type="button" className="glyph-btn" aria-label="Refresh quota history" title="Read recorded quota history" {...selfPressProps(loading)} onClick={refreshHistory}><RefreshGlyph /></button>
-          <button type="button" ref={closeRef} className="glyph-btn" onClick={onClose} aria-label="Close quota history">×</button>
+          <button type="button" className="glyph-btn" aria-label={t("insights.quota.refresh")} title={t("insights.quota.read")} {...selfPressProps(loading)} onClick={refreshHistory}><RefreshGlyph /></button>
+          <button type="button" ref={closeRef} className="glyph-btn" onClick={onClose} aria-label={t("insights.quota.close")}>×</button>
         </div>
       </header>
       <div className="modal-body qh-body" aria-busy={loading}>
         <div className="qh-controls">
-          <div className="qh-providers" role="group" aria-label="Quota provider">
+          <div className="qh-providers" role="group" aria-label={t("insights.quota.provider")}>
             {(["claude", "codex"] as const).filter(p => providers[p]).map(p => <button type="button" className="qh-provider" key={p}
               aria-pressed={provider === p} onClick={() => { setProvider(p); setSelection(""); }}>{p === "claude" ? "Claude" : "Codex"}</button>)}
           </div>
-          {series.length > 0 && <label className="qh-window">Window
-            <select aria-label="Quota window" value={picked ? quotaSeriesKey(picked) : ""} onChange={e => setSelection(e.target.value)}>
-              {series.map(s => <option key={quotaSeriesKey(s)} value={quotaSeriesKey(s)}>{s.label} · {timestamp(s.resetAt * 1000)}</option>)}
+          {series.length > 0 && <label className="qh-window">{t("insights.quota.window")}
+            <select aria-label={t("insights.quota.windowAria")} value={picked ? quotaSeriesKey(picked) : ""} onChange={e => setSelection(e.target.value)}>
+              {series.map(s => <option key={quotaSeriesKey(s)} value={quotaSeriesKey(s)}>{windowLabel(s)} · {timestamp(s.resetAt * 1000)}</option>)}
             </select>
           </label>}
         </div>
-        {error && <p className="qh-message" role="status">Could not read saved quota history. Use Refresh to try again.{data && " Showing the last loaded history."}</p>}
+        {error && <p className="qh-message" role="status">{t("insights.quota.error")}{data && ` ${t("insights.quota.lastLoaded")}`}</p>}
         {picked && latest ? <div className="qh-result read-result">
-          <div className="qh-summary"><strong>{Math.round(100 - latest.pct)}% remaining</strong>
-            <span title={timestamp(latest.t)}>Captured {captureAge(latest.t, now)}{picked.resetAt * 1000 <= now && " · window ended"}</span>
+          <div className="qh-summary"><strong>{t("insights.quota.remaining", { pct: Math.round(100 - latest.pct) })}</strong>
+            <span title={timestamp(latest.t)}>{t("insights.quota.captured", { age: captureAge(latest.t, now) })}{picked.resetAt * 1000 <= now && ` · ${t("insights.quota.ended")}`}</span>
           </div>
           <QuotaChart series={picked} />
-          <p className="qh-note">Recorded quota readings. The dashed guide shows even use until reset; it is not a forecast. Gaps are left unconnected.</p>
-          <details className="qh-readings"><summary>Recorded readings ({picked.points.length})</summary>
-            <table><caption>{picked.points.length > 50 ? "Latest 50 readings" : "Recorded readings"}</caption>
-              <thead><tr><th scope="col">Captured</th><th scope="col">Remaining</th></tr></thead>
-              <tbody>{picked.points.slice(-50).reverse().map(p => <tr key={p.t}><td>{timestamp(p.t)}</td><td>{(100 - p.pct).toLocaleString(undefined, { maximumFractionDigits: 1 })}%</td></tr>)}</tbody>
+          <p className="qh-note">{t("insights.quota.note")}</p>
+          <details className="qh-readings"><summary>{t("insights.quota.readings", { n: picked.points.length })}</summary>
+            <table><caption>{picked.points.length > 50 ? t("insights.quota.latest50") : t("insights.quota.recorded")}</caption>
+              <thead><tr><th scope="col">{t("insights.quota.colCaptured")}</th><th scope="col">{t("insights.quota.colRemaining")}</th></tr></thead>
+              <tbody>{picked.points.slice(-50).reverse().map(p => <tr key={p.t}><td>{timestamp(p.t)}</td><td>{(100 - p.pct).toLocaleString(currentLanguage(), { maximumFractionDigits: 1 })}%</td></tr>)}</tbody>
             </table>
           </details>
         </div> : !error && (loading && account
-          ? <ReadActivity kind="quota" title="Reading quota history…" note="Loading this account’s saved quota readings." />
+          ? <ReadActivity kind="quota" title={t("insights.quota.reading")} note={t("insights.quota.loading")} />
           : <p className="qh-message" role="status">{!account
-            ? "History starts when a quota reading can be matched to your active account."
-            : "No recorded readings yet. History fills in as ccdeck receives quota updates."}</p>)}
-        {data?.storageOk === false && <p className="qh-note" role="status">History is available for this run, but could not be saved to disk.</p>}
-        <footer className="qh-note qh-footer">Recorded on this machine from existing quota reads. No extra provider requests. Account changes and resets are kept separate.</footer>
+            ? t("insights.quota.noAccount")
+            : t("insights.quota.noReadings")}</p>)}
+        {data?.storageOk === false && <p className="qh-note" role="status">{t("insights.quota.notSaved")}</p>}
+        <footer className="qh-note qh-footer">{t("insights.quota.footer")}</footer>
       </div>
     </div>
   </div>, document.body);

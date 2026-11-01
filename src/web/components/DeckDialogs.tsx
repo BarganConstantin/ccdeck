@@ -48,15 +48,16 @@ import SessionSummary from "./SessionSummary";
 import SettingsModal, { type AccountSwitch } from "./SettingsModal";
 import { offersWorkspace, type TerminalSwitch } from "./TerminalSection";
 import ToolModal from "./ToolModal";
+import { t, useLanguage } from "../i18n";
 // Loaded when they open (#883). Both are opened rarely and each is a large
 // file; imported here, they were in the one bundle every reload and every deck
 // opened from another machine had to fetch before drawing anything. The topbar
 // needs only Browser Watch's unseen count, which lives in browser-watch-seen.
 // A chunk that does not arrive — a tab older than an upgrade asking for a name
 // the new build no longer has — fails that dialog alone; see LazyDialog.tsx.
-const UsageHistoryModal = lazyDialog(() => import("./UsageHistoryModal"), "Usage history");
-const BrowserWatchModal = lazyDialog(() => import("./BrowserWatchModal"), "Browser Watch");
-const TrafficRadar = lazyDialog(() => import("./TrafficRadar"), "Telemetry Radar");
+const UsageHistoryModal = lazyDialog(() => import("./UsageHistoryModal"), () => t("shell.lazy.usageHistory"));
+const BrowserWatchModal = lazyDialog(() => import("./BrowserWatchModal"), () => t("shell.lazy.browserWatch"));
+const TrafficRadar = lazyDialog(() => import("./TrafficRadar"), () => t("shell.lazy.radar"));
 
 export default function DeckDialogs({
   dialogs, welcome, desktopUpdate, versionCheck, restart, upgrade, lanPairs, attention, clearFlow, watchBadge, announcements,
@@ -94,6 +95,7 @@ export default function DeckDialogs({
   /** Whether Settings draws its hidden Account section (/api/prefs). */
   account?: AccountSwitch;
 }) {
+  useLanguage(); // the guide's title below is worded for the language on show
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
           setKeyHelpOpen, feedbackOpen, setFeedbackOpen, feedbackPrefill, setFeedbackPrefill, openFeedback } = dialogs;
@@ -268,7 +270,7 @@ export default function DeckDialogs({
         />
       )}
       {tourOpen && (
-        <GuideModal title="What the deck shows you" steps={WELCOME_STEPS} onClose={closeTour} />
+        <GuideModal title={t("shell.guide.welcome.title")} steps={WELCOME_STEPS} onClose={closeTour} />
       )}
       {/* Last, so it sits above a session summary that pops in from a Stop
           hook while the user is still deciding. The gate keeps it from opening

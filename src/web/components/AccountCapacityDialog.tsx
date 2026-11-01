@@ -20,6 +20,8 @@ import { reachable } from "../account-fold";
 import { laneKey } from "../lane-open";
 import { sortAccounts, validOrder } from "../other-accounts-order";
 import type { Account } from "../claude-accounts";
+import { reloadText } from "../accounts-reload";
+import { useT } from "../i18n";
 
 /** The order the accounts panel lists a roster in: the live account, then the
  *  others in the order the reader last chose for them (#1579). With nobody
@@ -35,6 +37,7 @@ export function panelOrder(roster: readonly Account[], order: string, nowSec: nu
 function ignoreRoster() {}
 
 export default function AccountCapacityDialog({ view, onClose }: { view: CapacityView; onClose: () => void }) {
+  const t = useT();
   const { data, failure } = useAccountRoster(ignoreRoster);
   const nowSec = usePanelClock();
   // Taken from the first roster and held: a poll does not move the rows under
@@ -46,7 +49,7 @@ export default function AccountCapacityDialog({ view, onClose }: { view: Capacit
   if (order == null && failure == null) return null;
   return (
     <AccountsUsageReport accounts={data?.accounts ?? null} order={order ?? []}
-      failed={failure?.reload ? failure.text : null}
+      failed={failure?.reload ? reloadText(failure, t) : null}
       nowSec={nowSec} onClose={onClose} view={view} />
   );
 }

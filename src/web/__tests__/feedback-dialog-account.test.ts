@@ -23,10 +23,13 @@ import ErrorBoundary from "../components/ErrorBoundary";
 import { publishFeedbackAccount, type FeedbackAccount } from "../feedback-unread";
 import { draftKey, feedbackDrafts, feedbackSeed } from "../feedback-draft";
 import {
-  ACCOUNT_UNAVAILABLE, CONTACT_LABEL, SEND_WITHOUT_ACCOUNT, SENT_LINE, SENT_LINE_ACCOUNT, SENT_LINE_ACCOUNT_NO_MAIL, WHERE_IT_GOES, WHERE_IT_GOES_ACCOUNT,
-  WHERE_IT_GOES_ACCOUNT_NO_MAIL, accountFailure, accountSentAs, outcomeAnnouncement, sentLine, whereItGoesAccount,
+  ACCOUNT_UNAVAILABLE, SEND_WITHOUT_ACCOUNT, SENT_LINE_ACCOUNT, SENT_LINE_ACCOUNT_NO_MAIL, WHERE_IT_GOES_ACCOUNT,
+  WHERE_IT_GOES_ACCOUNT_NO_MAIL, accountFailure, accountSentAs, contactLabel, outcomeAnnouncement, sentLine, whereItGoes, whereItGoesAccount,
 } from "../feedback";
 import { withoutComments } from "./tsx-scan";
+
+// The anonymous dialog's words now come from the catalog (feedback.ts); the same words as before.
+const CONTACT_LABEL = contactLabel(), SENT_LINE = sentLine(), WHERE_IT_GOES = whereItGoes();
 
 const read = (rel: string) => withoutComments(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8"));
 const ACCOUNT: FeedbackAccount = { connected: true, email: "me@example.com", unread: 2, latestAt: "2026-10-28T09:12:00Z" };
@@ -150,6 +153,7 @@ describe("every door but one opens on Write", () => {
 
 describe("the words for how it went", () => {
   it("thanks and announces the way it was sent", () => {
+    expect(SENT_LINE).toBe("Thanks — feedback sent.");
     expect(sentLine(false)).toBe(SENT_LINE);
     expect(sentLine(true)).toBe(SENT_LINE_ACCOUNT);
     expect(SENT_LINE_ACCOUNT).toBe("Sent — replies will show in Your conversations and by email.");

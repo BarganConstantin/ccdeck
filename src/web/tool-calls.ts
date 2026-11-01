@@ -12,6 +12,7 @@ import { rootAgentId, subagentIdFor, toolKey, type GraphState } from "./graph-st
 import { extractUsage } from "./usage-wire";
 import type { AgentNodeData, HookEnvelope, HookPayload, ToolCall } from "./types";
 import { withCutNotes } from "./tool-view";
+import { t as translateNow } from "./i18n";
 import { applyPlanCall, applyPlanOutcome } from "./agent-plan";
 
 // V8 may keep a slice's entire source string alive. A preview outlives the
@@ -301,7 +302,9 @@ export function returnLentCalls(state: GraphState, sessionId: string): void {
  *  while it was paused (#676). It is the one cause the deck can vouch for, so
  *  the stale sweep and the turn end both say it in place of their own reading
  *  of the silence. */
-const DROPPED_OUTCOME_PREVIEW = "no result reached the deck — events were dropped while the deck was paused";
+export const DROPPED_OUTCOME_PREVIEW = "no result reached the deck — events were dropped while the deck was paused";
+/** The same sentence in the language on show. */
+const droppedOutcomePreview = () => translateNow("board.tool.dropped");
 
 /** Settle a call whose outcome is never coming: failed, ended at `endedAt`, and
  *  saying `cause` — or `DROPPED_OUTCOME_PREVIEW` when the deck dropped events
@@ -321,7 +324,7 @@ export function settleUnanswered(
 ): void {
   t.endedAt = endedAt;
   setOk(a, t, false);
-  t.errorPreview = t.outcomeGap ? DROPPED_OUTCOME_PREVIEW : cause;
+  t.errorPreview = t.outcomeGap ? droppedOutcomePreview() : cause;
   state.toolIndex.delete(toolKey(a.sessionId, t.id));
 }
 

@@ -10,6 +10,8 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ForgeCommit, ForgeErrorInfo, ForgeLabel, ForgeUser } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
+import { useT } from "../../i18n";
+import { formatNumber } from "../../i18n/format";
 import { parseForgeHtml, type ForgeNode } from "../../forge-html";
 import { labelColor, labelParts } from "../../forge-detail";
 import { useForge } from "./ForgeContext";
@@ -47,7 +49,8 @@ export function DetailFrame({ label, children }: { label: string; children: Reac
  *  stands in for Close on a narrow window, and Close itself. */
 export function useDetailBar(): { openLabel: string; narrow: boolean; onClose: () => void } {
   const { kind, narrow, select } = useForge();
-  return { openLabel: `Open in ${forgeWords[kind].name}`, narrow, onClose: () => select(null) };
+  const t = useT();
+  return { openLabel: t("forge.openIn", { name: forgeWords[kind].name }), narrow, onClose: () => select(null) };
 }
 
 /** Before there is anything to draw: loading, a failure, or an item that is
@@ -56,12 +59,13 @@ export function useDetailBar(): { openLabel: string; narrow: boolean; onClose: (
 export function DetailPending({ data, loading, error, onRetry, what }: {
   data: unknown; loading: boolean; error: ForgeErrorInfo | null; onRetry: () => void; what: string;
 }) {
+  const t = useT();
   if (data) return null;
   if (error?.kind === "not-found") {
-    return <p className="fg-empty">This {what} no longer exists, or this token cannot see it.</p>;
+    return <p className="fg-empty">{t("forge.gone", { what })}</p>;
   }
   if (error) return <ReadFailure error={error} onRetry={onRetry} />;
-  if (loading) return <LoadingRows rows={5} label={`Loading the ${what}`} />;
+  if (loading) return <LoadingRows rows={5} label={t("forge.loadingThe", { what })} />;
   return null;
 }
 
@@ -92,7 +96,8 @@ export function SideFacts({ label, children }: { label: string; children: ReactN
 
 /** People in a fact: each with a name, or "None". */
 export function PeopleFact({ users, extra }: { users: ForgeUser[]; extra?: (u: ForgeUser) => ReactNode }) {
-  if (!users.length) return <span className="fd-none">None</span>;
+  const t = useT();
+  if (!users.length) return <span className="fd-none">{t("forge.none")}</span>;
   return (
     <ul className="fd-people">
       {users.map(u => (
@@ -107,7 +112,8 @@ export function PeopleFact({ users, extra }: { users: ForgeUser[]; extra?: (u: F
 
 /** Avatars only, for a long list of people (participants). */
 export function Faces({ users, max = 12 }: { users: ForgeUser[]; max?: number }) {
-  if (!users.length) return <span className="fd-none">None</span>;
+  const t = useT();
+  if (!users.length) return <span className="fd-none">{t("forge.none")}</span>;
   const shown = users.slice(0, max);
   return (
     <ul className="fd-faces">
@@ -132,19 +138,21 @@ export function LabelChip({ label }: { label: ForgeLabel }) {
 }
 
 export function LabelsFact({ labels }: { labels: ForgeLabel[] }) {
-  if (!labels.length) return <span className="fd-none">None</span>;
+  const t = useT();
+  if (!labels.length) return <span className="fd-none">{t("forge.none")}</span>;
   return <span className="fd-labels">{labels.map(l => <LabelChip key={l.name} label={l} />)}</span>;
 }
 
 /** A commit: its title (a link to it on the forge), then short sha, author, when. */
 export function CommitRow({ commit }: { commit: ForgeCommit }) {
+  const t = useT();
   return (
     <li className="fd-item">
       {commit.webUrl
         ? <a className="fd-item-title fd-out" href={commit.webUrl} target="_blank" rel="noreferrer noopener">{commit.title}<span className="fd-out-mark" aria-hidden="true"> ↗</span></a>
         : <span className="fd-item-title">{commit.title}</span>}
       <span className="fd-item-meta">
-        <Copyable value={commit.sha} label="commit sha"><code>{commit.shortSha}</code></Copyable>
+        <Copyable value={commit.sha} label={t("forge.copy.commitSha")}><code>{commit.shortSha}</code></Copyable>
         {commit.authorName && <span>{commit.authorName}</span>}
         {commit.authoredAt != null && <Ago at={commit.authoredAt} />}
       </span>
@@ -157,7 +165,7 @@ export function DetailHeading({ children, count, aside }: { children: ReactNode;
   return (
     <h3 className="fd-heading">
       <span>{children}</span>
-      {count != null && <span className="fg-count">{count.toLocaleString()}</span>}
+      {count != null && <span className="fg-count">{formatNumber(count, 0)}</span>}
       {aside}
     </h3>
   );
@@ -175,7 +183,7 @@ export function DetailFold({ title, count, startsOpen, aside, children }: {
         <button type="button" className="fg-fold" aria-expanded={open} onClick={() => setOpen(o => !o)}>
           <span className="fg-fold-chevron" aria-hidden="true" />
           {title}
-          {count != null && <span className="fg-count">{count.toLocaleString()}</span>}
+          {count != null && <span className="fg-count">{formatNumber(count, 0)}</span>}
         </button>
         {aside}
       </h3>

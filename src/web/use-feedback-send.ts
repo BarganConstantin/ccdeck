@@ -27,7 +27,7 @@
 // words them. Otherwise it is /api/feedback, exactly as it always was.
 import { useEffect, useRef, useState } from "react";
 import { selfPressAccepted } from "./panel-press";
-import { REFUSED_WHILE_SENDING, feedbackRequest } from "./feedback-images";
+import { refusedWhileSending, feedbackRequest } from "./feedback-images";
 import {
   SENT_EXIT_MS, SENT_HOLD_MS, accountFailure, feedbackFailure, fieldsToSend, type FeedbackDraft, type Outcome,
 } from "./feedback";
@@ -67,7 +67,7 @@ export function useFeedbackSend(images: FeedbackImages, { asAccount = false }: {
       // An image refused while this waited: what would go is not what the
       // person pressed Send on, and the thanks would cover the refusal.
       if (!attached) {
-        setOutcome({ state: "failed", message: REFUSED_WHILE_SENDING });
+        setOutcome({ state: "failed", message: refusedWhileSending() });
         return;
       }
       // As the account, no contact goes at all: the account is the way back.

@@ -10,24 +10,25 @@
 import { FIGURE_SETS, type Chime, type ToneSettings } from "../sound";
 import { type CustomAssetSummary, type CustomSelections } from "../notification-audio";
 import { customIdOf, customOptionValue } from "../tone-option";
+import { t as tNow, useT } from "../i18n";
 import VolumeRow from "./VolumeRow";
 import { SettingsGroup } from "./SettingsParts";
 
 /** What each tone is called where a user is choosing between the two. Not
  *  "done" and "needs-input" — those are event names. */
 export const TONE_LABEL: Record<Chime, string> = {
-  done: "Turn finished",
-  "needs-input": "Claude is asking",
+  get done() { return tNow("settings.sounds.tone.done"); },
+  get "needs-input"() { return tNow("settings.sounds.tone.needsInput"); },
 };
 
 /** The one line that says what fires the tone, because "Turn finished" alone
  *  does not tell a Codex user which of their turns are covered. */
 const TONE_NOTE: Record<Chime, string> = {
-  done: "Plays when Claude or Codex finishes a turn.",
+  get done() { return tNow("settings.sounds.tone.doneNote"); },
   // "Codex has no such event" was the true reason and the wrong sentence: why
   // the other CLI cannot do this is ours to know, and a user reading a settings
   // menu needs the boundary, not the cause.
-  "needs-input": "Available in Claude Code only.",
+  get "needs-input"() { return tNow("settings.sounds.tone.needsInputNote"); },
 };
 
 /** What the menu passes every tone row unchanged, and so takes itself. */
@@ -55,6 +56,7 @@ export default function ToneSection({
   chime, tone, soundOn, customAssets, customSelections,
   onLevel, onFigure, onPreview, onBuiltInSelected, onCustomSelected,
 }: ToneSectionProps) {
+  const t = useT();
   const levelId = `sm-level-${chime}`;
   const figureId = `sm-figure-${chime}`;
   const customId = customSelections[chime];
@@ -69,7 +71,7 @@ export default function ToneSection({
           type="button"
           className="btn sm-hear"
           onClick={() => onPreview(chime)}
-          aria-label={`Hear the ${TONE_LABEL[chime].toLowerCase()} tone`}
+          aria-label={t("settings.sounds.hearAria", { tone: TONE_LABEL[chime] })}
           /* Nothing below is dimmed or disabled while Play sounds is off, and
              that is the decision rather than an oversight: the person
              most likely to open this menu is somebody who silenced the
@@ -89,21 +91,21 @@ export default function ToneSection({
              description is read in sequence by somebody who cannot see
              the switch above, and carries why the exception is useful. */
           title={soundOn
-            ? "Play this tone now, at what it is set to"
-            : "Plays even when sounds are off"}
+            ? t("settings.sounds.hearTip")
+            : t("settings.sounds.hearTipMuted")}
           aria-describedby={soundOn ? undefined : "sm-preview-note"}
         >
           <svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
             <path d="M3 1.6v8.8l7-4.4z" />
           </svg>
-          Hear it
+          {t("settings.sounds.hear")}
         </button>
       }
     >
       <VolumeRow id={levelId} value={tone.level} onLevel={level => onLevel(chime, level)} />
 
       <div className="sm-row">
-        <label htmlFor={figureId}>Tone</label>
+        <label htmlFor={figureId}>{t("settings.sounds.toneLabel")}</label>
         {/* A native select for the same reason the range is native: it
             arrives with the keyboard, the platform's own popup and a
             reader that already knows how to announce a list of options.
@@ -124,7 +126,7 @@ export default function ToneSection({
             <option key={f.id} value={f.id}>{f.label}</option>
           ))}
           {customAssets.length > 0 && (
-            <optgroup label="Custom">
+            <optgroup label={t("settings.sounds.customGroup")}>
               {customAssets.map(asset => (
                 <option key={asset.id} value={customOptionValue(asset.id)}>{asset.name}</option>
               ))}

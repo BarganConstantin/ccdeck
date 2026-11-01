@@ -21,6 +21,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { readStored, removeStored, writeStored } from "./storage";
 import { useMediaQuery } from "./use-media-query";
 import { PHONE_QUERY } from "./phone-load";
+import { t } from "./i18n";
 
 export type PanelPlace = {
   /** The window edge the panel is kept from. */
@@ -287,7 +288,7 @@ export function usePanelPlace(key: string) {
   };
   const grip = phone ? {} : {
     "data-grip": "",
-    title: "Drag to move · double-click to put it back",
+    title: t("shell.dragToMove"),
     onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onLostPointerCapture: onPointerCancel, onDoubleClick,
   };
   return { place: placed, panel, grip };

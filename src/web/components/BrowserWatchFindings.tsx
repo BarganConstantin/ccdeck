@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 import type { WatchEpisode, WatchSnapshot } from "../browser-watch-model";
+import { currentLanguage, useT, type TFunction } from "../i18n";
 // A removed row's successor: the next, else the previous, else none. The rule a
 // deleted custom sound's row already follows.
 import { deleteFocusTarget } from "../notification-audio";
@@ -22,20 +23,20 @@ function span(e: WatchEpisode): string {
   // so on an en-US machine an episode's head read `01:28 PM` directly above its
   // own URL rows reading `13:28` — two clocks in one card, and the reader left
   // to work out they are the same minute.
-  const t = (ms: number) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
-  return e.count === 1 || e.endMs - e.startMs < 60_000 ? t(e.startMs) : `${t(e.startMs)} → ${t(e.endMs)}`;
+  const clock = (ms: number) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return e.count === 1 || e.endMs - e.startMs < 60_000 ? clock(e.startMs) : `${clock(e.startMs)} → ${clock(e.endMs)}`;
 }
 
 function day(ms: number): string {
-  return new Date(ms).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+  return new Date(ms).toLocaleDateString(currentLanguage(), { weekday: "short", day: "numeric", month: "short" });
 }
 
 /** "41 minutes", "2 minutes", "" for an instant. The headline of a card is how
  *  long a program was working, which is the part that separates one opened tab
  *  from something that ran for three quarters of an hour. */
-function lasted(e: WatchEpisode): string {
+function lasted(e: WatchEpisode, t: TFunction): string {
   const mins = Math.round((e.endMs - e.startMs) / 60_000);
-  return mins < 1 ? "" : `${mins} min`;
+  return mins < 1 ? "" : t("settings.bw.findings.minutes", { n: mins });
 }
 
 export default function BrowserWatchFindings({
@@ -49,6 +50,7 @@ export default function BrowserWatchFindings({
   /** The dialog's ↻, where focus goes once the last finding is dismissed. */
   refreshRef: RefObject<HTMLElement | null>;
 }) {
+  const t = useT();
   const [open, setOpen] = useState<string | null>(null);
 
   /* A DISMISSED CARD TAKES ITS × WITH IT (#1813). The server leaves the episode
@@ -91,30 +93,26 @@ export default function BrowserWatchFindings({
   return (
     <section className="bw-findings">
       <h4 className="bw-sec-head bw-head-row">
-        Findings
+        {t("settings.bw.findings")}
         {/* No count at zero: the body directly below already says
             "Nothing found yet", and a `none` beside it is the same
             sentence twice in two vocabularies. */}
         {snap.episodes.length > 0 && (
           <span className="bw-feed-count">
-            {snap.episodes.length} {snap.episodes.length === 1 ? "episode" : "episodes"}
+            {t("settings.bw.findings.count", { count: snap.episodes.length })}
           </span>
         )}
       </h4>
       <div className="bw-eps">
         {grouped.length === 0 ? (
           <div className="bw-empty">
-            <p className="bw-empty-head">Nothing found yet</p>
+            <p className="bw-empty-head">{t("settings.bw.findings.none")}</p>
             <p className="bw-empty-note">
-              An episode lands here when a program opens pages in a browser nobody has touched for{" "}
-              {snap.settings.quietMinutes}{" "}
-              {snap.settings.quietMinutes === 1 ? "minute" : "minutes"}. On most machines that is
-              rare, so an empty list is the ordinary result rather than a sign something is wrong.
+              {t("settings.bw.findings.noneNote", { count: snap.settings.quietMinutes })}
             </p>
             {!snap.settings.enabled && (
               <p className="bw-empty-note">
-                Watching is off, so this shows only what this deck has seen since it started.
-                Anything an earlier run recorded comes back when you switch it on.
+                {t("settings.bw.findings.offNote")}
               </p>
             )}
           </div>
@@ -143,17 +141,17 @@ export default function BrowserWatchFindings({
                       <span className="bw-ep-host">{e.host}</span>
                       <span className="bw-ep-meta">
                         {span(e)}
-                        {lasted(e) && <> · {lasted(e)}</>}
+                        {lasted(e, t) && <> · {lasted(e, t)}</>}
                         {e.provisional && (
                           <>
                             {" · "}
-                            <span title="Its quiet window has not closed yet. If somebody used the browser in the minutes after it, it is withdrawn; until then it is not written down and no reaction runs.">
-                              provisional
+                            <span title={t("settings.bw.findings.provisionalTip")}>
+                              {t("settings.bw.findings.provisional")}
                             </span>
                           </>
                         )}
                       </span>
-                      <span className="bw-ep-count">{e.count} {e.count === 1 ? "page" : "pages"}</span>
+                      <span className="bw-ep-count">{t("settings.bw.findings.pages", { count: e.count })}</span>
                     </button>
                     {/* DISMISS, NOT DELETE, and the title says which.
                         The panel rebuilds episodes from the browser's
@@ -167,8 +165,8 @@ export default function BrowserWatchFindings({
                     <button
                       className="glyph-btn bw-ep-x"
                       onClick={() => pressDismiss(e)}
-                      aria-label={`Dismiss ${e.host}`}
-                      title="Dismiss — it leaves this list for good, and stays in the log file"
+                      aria-label={t("settings.bw.findings.dismissHost", { host: e.host })}
+                      title={t("settings.bw.findings.dismissTip")}
                     >×</button>
                   </div>
                   {isOpen && (

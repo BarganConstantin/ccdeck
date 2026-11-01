@@ -17,10 +17,11 @@ import { planSpoken, planSummary } from "./agent-plan";
 import { stopSpoken } from "./stop-failure-copy";
 // The card names its state with the word it shows (cardState).
 import { cardState } from "./node-face";
+import { t, type TFunction } from "./i18n";
 
 /** A Codex child remains its own session, wherever its kind is displayed. */
-export function agentKindLabel(a: Pick<AgentNodeData, "provider" | "parentId" | "kind">): string {
-  return a.provider === "codex" && a.parentId ? "child session" : a.kind === "root" ? "session" : "subagent";
+export function agentKindLabel(a: Pick<AgentNodeData, "provider" | "parentId" | "kind">, tr: TFunction = t): string {
+  return tr(a.provider === "codex" && a.parentId ? "board.kind.child" : a.kind === "root" ? "board.kind.session" : "board.kind.subagent");
 }
 
 /** The one word this app uses for a session's state, wherever it says it.
@@ -35,8 +36,8 @@ export function agentKindLabel(a: Pick<AgentNodeData, "provider" | "parentId" | 
  *
  *  `err` rather than `failed` even in text nobody sees, for that reason exactly
  *  — it is the word on the card, so it is the word in the row. */
-export function stateLabel(state: AgentNodeData["state"]): string {
-  return state === "active" ? "live" : state === "done" ? "done" : "err";
+export function stateLabel(state: AgentNodeData["state"], tr: TFunction = t): string {
+  return tr(state === "active" ? "board.state.live" : state === "done" ? "board.state.done" : "board.state.err");
 }
 
 /** What a blocked session says for itself, on the card, in the row and in the
@@ -48,19 +49,19 @@ export function stateLabel(state: AgentNodeData["state"]): string {
  *  function so the three surfaces cannot drift apart, the way shortModel — now
  *  in model-label.ts, imported at the top of this file — is one for the same
  *  reason. */
-export function waitingSentence(waiting: WaitingBlock): string {
+export function waitingSentence(waiting: WaitingBlock, tr: TFunction = t): string {
   if (waiting.message) return waiting.message;
   // The fallbacks only ever show for a block whose payload carried no message,
   // which CC does not currently produce. `asked` shares idle's wording rather
   // than getting a third string: what distinguishes it is the QUESTION, and a
   // block that lost its message has no question to show.
-  return waiting.kind === "permission" ? "Needs your permission" : "Waiting for your input";
+  return waiting.kind === "permission" ? tr("board.waiting.permission") : tr("board.waiting.input");
 }
 
 /** The hover text on a card's → N badge: how many subagents the session has
  *  spawned, singular for one (#1776). */
-export function spawnBadgeTitle(count: number): string {
-  return `${count} subagent${count === 1 ? "" : "s"} spawned`;
+export function spawnBadgeTitle(count: number, tr: TFunction = t): string {
+  return tr("board.spawned", { count });
 }
 
 /** The hover text on a card's second row: the row's own words, whole, in the
@@ -73,8 +74,8 @@ export function spawnBadgeTitle(count: number): string {
  *  the name on the row above, so the row leaves it out and so does this; a
  *  Codex session with no model yet says Codex, as its chip does, and a Claude
  *  one says nothing about a model it has not reported. */
-export function subRowTitle(a: AgentNodeData): string {
-  const parts = [agentKindLabel(a)];
+export function subRowTitle(a: AgentNodeData, tr: TFunction = t): string {
+  const parts = [agentKindLabel(a, tr)];
   if (a.childCount > 0) parts.push(`→ ${a.childCount}`);
   if (a.kind === "subagent" && a.cwdBasename) parts.push(a.cwdBasename);
   if (a.model) {
@@ -94,30 +95,30 @@ export function subRowTitle(a: AgentNodeData): string {
  *  is composed from the data instead, so it does not change with zoom, and it
  *  says the things a reader chooses a card by, in the card's own words: name,
  *  kind, the state pill, the waiting sentence, model, tools, failures, cost. */
-export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), selected = false): string {
+export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), selected = false, tr: TFunction = t): string {
   // Over the agent's whole life, like the card's "err" (#1809).
   const failed = data.toolErrorCount ?? 0;
   const cost = agentCost(data, now).total;
   return [
     data.label,
-    agentKindLabel(data),
+    agentKindLabel(data, tr),
     // The word the card SHOWS (Working / Done / Failed / Waiting, from
     // cardState), so the visible label is in the accessible name (WCAG 2.5.3).
     // The session list and the peek keep stateLabel's words.
     cardState(data).word,
     // A turn that stopped on an error also says which one and what to type: the
     // card draws it as "Failed" and its row says the rest.
-    data.kind === "root" && data.stopFailure ? stopSpoken(data.stopFailure, data.job != null) : null,
-    isAlarming(data.waiting) ? waitingSentence(data.waiting!) : null,
+    data.kind === "root" && data.stopFailure ? stopSpoken(data.stopFailure, data.job != null, tr) : null,
+    isAlarming(data.waiting) ? waitingSentence(data.waiting!, tr) : null,
     data.model ? shortModel(data.model) : null,
     // The card's plan row, where a screen reader hears it (#2157): this name,
     // not the card's rows, is what a reader on the node is told.
-    (() => { const plan = planSummary(data.plan); return plan ? planSpoken(plan) : null; })(),
-    `${data.toolCount} ${data.toolCount === 1 ? "tool" : "tools"}`,
-    failed > 0 ? `${failed} failed` : null,
+    (() => { const plan = planSummary(data.plan); return plan ? planSpoken(plan, tr) : null; })(),
+    tr("board.toolCount", { count: data.toolCount }),
+    failed > 0 ? tr("board.failedCount", { n: failed }) : null,
     cost > 0 ? `${fmtCost(cost)}${agentUnpricedTokens(data, now) > 0 ? "+" : ""}` : null,
-    selected ? "selected" : null,
-  ].filter(Boolean).join(", ");
+    selected ? tr("board.selected") : null,
+  ].filter(Boolean).join(tr("board.listSep"));
 }
 
 /** The same guess, worded for a surface with room to hedge — and worded against
@@ -136,9 +137,9 @@ export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), se
  *  pushes the command further from the eye. The notification body had this
  *  fixed first and the tooltip did not, which left the same block reading two
  *  different ways depending on where you saw it. One rule, both surfaces. */
-export function blockedToolTooltip(waiting: WaitingBlock, said: string): string | null {
+export function blockedToolTooltip(waiting: WaitingBlock, said: string, tr: TFunction = t): string | null {
   const label = guessLine(waiting, said);
-  return label ? `Likely on: ${label}` : null;
+  return label ? tr("board.likelyOn", { label }) : null;
 }
 
 /** The visible label, which is CC's sentence for a permission block and a
@@ -152,12 +153,17 @@ export function blockedToolTooltip(waiting: WaitingBlock, said: string): string 
  *  stays in the tooltip, where it is still the only human wording the payload
  *  gives us and still exactly what CC said. A permission block is genuinely
  *  urgent and keeps its sentence untouched. */
-export function waitingLabel(waiting: WaitingBlock): string {
+export function waitingLabel(waiting: WaitingBlock, tr: TFunction = t): string {
   // The sentence for both alarming kinds, "Your turn" only for idle. An `asked`
   // block's message IS the question — "paycore needs your input: merge both
   // branches to main, or just one?" — which is the single most useful string
   // this card can carry, and "Your turn" would throw it away on the one surface
   // with room for it. Idle keeps the short label because CC's sentence there is
   // the contentless "Claude is waiting for your input".
-  return waiting.kind === "idle" ? "Your turn" : waitingSentence(waiting);
+  return waiting.kind === "idle" ? tr("board.yourTurn") : waitingSentence(waiting, tr);
+}
+
+/** A tool category's word, as the filter chips and the detail panel say it. */
+export function categoryLabel(cat: string, tr: TFunction = t): string {
+  return tr(`board.cat.${cat}` as Parameters<TFunction>[0]);
 }

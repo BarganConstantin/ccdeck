@@ -4,7 +4,8 @@
 // don't re-open on refresh (the dismissed list is in localStorage).
 import { useMemo, useRef } from "react";
 import { costForUsage, fmtCost } from "../pricing";
-import { SESSION_SPEND_LABEL } from "../board-usage";
+import { t as translate, useT, currentLanguage } from "../i18n";
+import { sessionSpendLabel } from "../board-usage";
 import { agentCost, agentModelIds } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { AgentNodeData } from "../types";
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export default function SessionSummary({ state, sessionId, onClose }: Props) {
+  const t = useT();
   // `state.revision` as well as `state`, for the reason SessionList gives: the
   // prop is `stateRef.current`, which the reducer mutates in place, so its
   // identity never moves and a memo keyed on it alone froze the recap at the
@@ -43,13 +45,13 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
       <div ref={dialogRef} className="modal session-summary" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="ss-title">
         <div className="modal-head">
           <div className="modal-title">
-            <span className="state-pill state-done" aria-hidden>done</span>
+            <span className="state-pill state-done" aria-hidden>{t("insights.summary.done")}</span>
             <span id="ss-title" className="modal-tool-name" title={summary.cwd ?? summary.sessionId}>{summary.label}</span>
             <span className="modal-tool-id">· {summary.sessionId.slice(0, 8)}</span>
           </div>
           <div className="modal-actions">
-            <span className="modal-dur" title="Total wall time">{summary.durationLabel}</span>
-            <button type="button" ref={closeRef} className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+            <span className="modal-dur" title={t("insights.summary.wall")}>{summary.durationLabel}</span>
+            <button type="button" ref={closeRef} className="glyph-btn" onClick={onClose} aria-label={t("insights.audit.closeEsc")} title={t("insights.audit.closeEsc")}>×</button>
           </div>
         </div>
 
@@ -61,7 +63,7 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
                   on the board, which is a scope and not a total. The session it
                   belongs to is named in this modal's own title two inches
                   above, so the scope needs no more words than that. */}
-              <div className="ss-cost-label">{SESSION_SPEND_LABEL}</div>
+              <div className="ss-cost-label">{sessionSpendLabel()}</div>
               <div className="ss-cost">{fmtCost(summary.cost.total)}</div>
               {summary.modelChips.length > 0 && (
                 <div className="ss-models">
@@ -76,10 +78,10 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
                 <>
                   <CostBar cost={summary.cost} size="lg" />
                   <div className="ss-cost-legend">
-                    <span className="ssl ssl-in">input <b>{fmtCost(summary.cost.input)}</b></span>
-                    <span className="ssl ssl-out">output <b>{fmtCost(summary.cost.output)}</b></span>
-                    <span className="ssl ssl-cr">cache r <b>{fmtCost(summary.cost.cacheRead)}</b></span>
-                    <span className="ssl ssl-cw">cache w <b>{fmtCost(summary.cost.cacheWrite)}</b></span>
+                    <span className="ssl ssl-in">{t("insights.cost.input")} <b>{fmtCost(summary.cost.input)}</b></span>
+                    <span className="ssl ssl-out">{t("insights.cost.output")} <b>{fmtCost(summary.cost.output)}</b></span>
+                    <span className="ssl ssl-cr">{t("insights.summary.cacheR")} <b>{fmtCost(summary.cost.cacheRead)}</b></span>
+                    <span className="ssl ssl-cw">{t("insights.summary.cacheW")} <b>{fmtCost(summary.cost.cacheWrite)}</b></span>
                   </div>
                 </>
               )}
@@ -87,17 +89,17 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
           </section>
 
           <section className="ss-stats">
-            <Stat label="agents" value={summary.agentCount} />
-            <Stat label="subagents" value={summary.subagentCount} />
-            <Stat label="tool calls" value={summary.toolCount} />
-            <Stat label="prompts" value={summary.promptCount} />
-            <Stat label="tokens" value={summary.tokensSum.toLocaleString()} />
-            {summary.errCount > 0 && <Stat label="errors" value={summary.errCount} tone="err" />}
+            <Stat label={t("insights.summary.agents")} value={summary.agentCount} />
+            <Stat label={t("insights.summary.subagents")} value={summary.subagentCount} />
+            <Stat label={t("insights.summary.toolCalls")} value={summary.toolCount} />
+            <Stat label={t("insights.summary.prompts")} value={summary.promptCount} />
+            <Stat label={t("insights.usage.tokens")} value={summary.tokensSum.toLocaleString(currentLanguage())} />
+            {summary.errCount > 0 && <Stat label={t("insights.summary.errors")} value={summary.errCount} tone="err" />}
           </section>
 
           {summary.topTools.length > 0 && (
             <section className="modal-section">
-              <h4>Most-used tools</h4>
+              <h4>{t("insights.summary.topTools")}</h4>
               <div className="ss-top-tools">
                 {summary.topTools.map(([name, count]) => (
                   <div className="ss-tt" key={name}>
@@ -112,7 +114,7 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
 
           {summary.firstPrompt && (
             <section className="modal-section">
-              <h4>Opening prompt</h4>
+              <h4>{t("insights.summary.opening")}</h4>
               <div className="ss-prompt">{summary.firstPrompt}</div>
             </section>
           )}
@@ -211,7 +213,7 @@ function buildSummary(state: GraphState, sessionId: string): Summary | null {
 
   return {
     sessionId,
-    label: root.label || root.cwdBasename || "session",
+    label: root.label || root.cwdBasename || translate("insights.summary.session"),
     cwd: root.cwd,
     durationLabel,
     cost,

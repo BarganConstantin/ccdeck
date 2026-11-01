@@ -10,6 +10,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resetCreditsLine } from "../reset-credits";
+import { en } from "../i18n/en";
 import { sourceOf } from "./client-source";
 import { USAGE_FILES } from "./usage-surface";
 import { sheetText } from "./sheet-source";
@@ -83,12 +84,13 @@ describe("the Claude card", () => {
     // grants is not news, and an inventory the server could not establish is
     // not a zero.
     expect(panel).toMatch(/\{quota\.resetCredits && quota\.resetCredits\.availableCount > 0 && \(/);
-    expect(panel).toContain('resetCreditsLine("limit reset", quota.resetCredits)');
+    expect(panel).toContain('resetCreditsText("limit", quota.resetCredits, t)');
   });
 
   it("says where a reset is redeemed, and that the deck only reports them", () => {
-    const row = panel.slice(panel.indexOf('resetCreditsLine("limit reset"') - 400, panel.indexOf('resetCreditsLine("limit reset"'));
-    expect(row).toMatch(/title=\{`[^`]*Redeem one in Claude on the web or desktop — \$\{PRODUCT\} only reports them`\}/);
+    const row = panel.slice(panel.indexOf('resetCreditsText("limit"') - 400, panel.indexOf('resetCreditsText("limit"'));
+    expect(row).toContain('title={t("usage.credits.claudeTitle", { product: PRODUCT })}');
+    expect(en["usage.credits.claudeTitle"]).toMatch(/Redeem one in Claude on the web or desktop — \{product\} only reports them/);
   });
 
   it("wears the Codex row's class, so both inventories read as the same kind of fact", () => {

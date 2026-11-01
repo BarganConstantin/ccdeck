@@ -12,6 +12,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Loader } from "../components/Loader";
 import { sheetText } from "./sheet-source";
+import { en } from "../i18n/en";
 
 const sheet = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 const norm = (s: string) => s.replace(/\s+/g, " ").trim();
@@ -137,9 +138,10 @@ describe("V4's Loader markup", () => {
 describe("V4's Loader placements", () => {
   it("shows beside 'Checking…' in both quota sections, the words carrying role=status", () => {
     const src = source("QuotaSections.tsx");
-    const lines = src.match(/<div className="up-quota-na up-quota-loading loader-line"><Loader \/><span role="status">Checking…<\/span><\/div>/g);
+    const lines = src.match(/<div className="up-quota-na up-quota-loading loader-line"><Loader \/><span role="status">\{t\("usage\.quota\.checking"\)\}<\/span><\/div>/g);
+    expect(en["usage.quota.checking"]).toBe("Checking…");
     expect(lines).toHaveLength(2);
-    expect(src).not.toMatch(/<div className="up-quota-na up-quota-loading">Checking…<\/div>/);
+    expect(src).not.toMatch(/<div className="up-quota-na up-quota-loading">\{t\("usage\.quota\.checking"\)\}<\/div>/);
   });
   it("lays the quota loading line out as a row without changing its font or colour", () => {
     expect(decl(".up-quota-loading", "flex-direction")).toBe("row");
@@ -149,14 +151,17 @@ describe("V4's Loader placements", () => {
     expect(decl(".up-quota-loading", "font-size")).toBe("calc(11px + var(--ui-text-increase, 0px))");
   });
   it("shows beside 'Reading connections…' in Settings", () => {
-    expect(source("IntegrationsSection.tsx")).toContain('<p className="loader-line" role="status"><Loader />Reading connections…</p>');
+    expect(source("IntegrationsSection.tsx")).toContain('<p className="loader-line" role="status"><Loader />{t("integrations.settings.reading")}</p>');
+    expect(en["integrations.settings.reading"]).toBe("Reading connections…");
   });
   it("shows beside 'Reading integrations…' only, not beside the error sentence", () => {
     const src = source("ExploreIntegrationsModal.tsx");
-    expect(src).toContain('<p className="explore-status" role="status">{integrations.error ? "Connection status is unavailable." : <span className="loader-line"><Loader />Reading integrations…</span>}</p>');
+    expect(src).toContain('<p className="explore-status" role="status">{integrations.error ? t("integrations.explore.statusUnavailable") : <span className="loader-line"><Loader />{t("integrations.explore.reading")}</span>}</p>');
+    expect([en["integrations.explore.statusUnavailable"], en["integrations.explore.reading"]]).toEqual(["Connection status is unavailable.", "Reading integrations…"]);
   });
   it("shows beside 'Reading boards…' in the Jira board picker", () => {
-    expect(source("JiraPanel.tsx")).toContain('<p className="jr-board-pop-note loader-line" role="status"><Loader />Reading boards…</p>');
+    expect(source("JiraPanel.tsx")).toContain('<p className="jr-board-pop-note loader-line" role="status"><Loader />{t("integrations.panel.readingBoards")}</p>');
+    expect(en["integrations.panel.readingBoards"]).toBe("Reading boards…");
   });
 });
 

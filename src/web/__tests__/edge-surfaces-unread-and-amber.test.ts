@@ -87,7 +87,7 @@ describe("Browser watch's unread count in the phone's dock", () => {
 
   it("says how many are unread on Browser watch's own row in the menu", () => {
     // The menu is drawn only while it is open, so its row is read off the source.
-    expect(rails).toMatch(/item\.badge \? `\$\{item\.menu \?\? item\.label\} · \$\{item\.badge\} unread` : item\.menu \?\? item\.label/);
+    expect(rails).toMatch(/item\.badge \? t\("board\.rail\.unread", \{ label: item\.menu \?\? item\.label, n: item\.badge \}\) : item\.menu \?\? item\.label/);
   });
 });
 

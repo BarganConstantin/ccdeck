@@ -1,11 +1,12 @@
+import { t } from "./i18n";
 import { readStored } from "./storage";
 
 export const CHARACTER_KEY = "agent-dag.character";
 export type Character = "deck" | "fox" | "penguin";
 export const CHARACTERS: readonly { id: Character; name: string }[] = [
-  { id: "deck", name: "Deck companion" },
-  { id: "fox", name: "Fox" },
-  { id: "penguin", name: "Penguin" },
+  { id: "deck", get name() { return t("settings.character.name.deck"); } },
+  { id: "fox", get name() { return t("settings.character.name.fox"); } },
+  { id: "penguin", get name() { return t("settings.character.name.penguin"); } },
 ];
 
 export function resolveCharacter(value: string | null | undefined): Character {

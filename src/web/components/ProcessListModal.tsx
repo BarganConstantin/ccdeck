@@ -29,6 +29,8 @@ import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SortHead as ColumnSortHead, type SortOf } from "./SortHead";
 import MachineStrip from "./MachineStrip";
 import { fmtBytes } from "../byte-format";
+import { useT } from "../i18n";
+import { currentLanguage } from "../i18n";
 import type { LiveSource } from "../machine-live";
 import { useFeatureUse } from "../feature-use";
 
@@ -262,22 +264,23 @@ export function ProcessListView({ read, sort, onSort, sys, onClose }: {
   // Every candidate the server sent, in the order asked for. Null until the
   // first read lands, which is a different thing from an empty list and says
   // so below.
+  const t = useT();
   const rows = read ? sortProcs(read.procs, sort) : null;
 
   return (
     <>
       <div className="modal-head">
-        <span className="modal-title" id="pl-modal-title">Busiest processes</span>
+        <span className="modal-title" id="pl-modal-title">{t("insights.proc.title")}</span>
         {/* Silent until there is something to count. "0 of 0 running" for
             the first half-second is a claim about a machine nobody has asked
             yet, and the heading already says what this is — and after a first
             read that failed it was a count of a machine nobody could read. */}
         {rows != null && rows.length > 0 && (
           <span className="pl-count">
-            {rows.length} of {read!.total} running
+            {t("insights.proc.count", { n: rows.length, total: read!.total })}
           </span>
         )}
-        <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+        <button type="button" className="glyph-btn" onClick={onClose} aria-label={t("insights.audit.closeEsc")} title={t("insights.audit.closeEsc")}>×</button>
       </div>
 
       {/* THE TABLE AND THE MACHINE, in one box so a media query can decide
@@ -291,18 +294,18 @@ export function ProcessListView({ read, sort, onSort, sys, onClose }: {
           // a read that came back with nothing look identical in the data and
           // are opposite things to tell somebody, and this dialog now opens
           // before its first read rather than inheriting the panel's.
-          <ReadActivity kind="processes" title="Reading the process list…" delayed />
+          <ReadActivity kind="processes" title={t("insights.proc.reading")} delayed />
         ) : rows.length === 0 ? (
           // Only when no read has ever returned rows — a failure after a good
           // one keeps that table (nextProcRead). And not "on this platform":
           // every platform this runs on can answer, and the usual cause is one
           // read that missed its deadline, which the next poll retries.
-          <p className="pl-empty">Could not read the process list — retrying.</p>
+          <p className="pl-empty">{t("insights.proc.error")}</p>
         ) : (
           <table className="sd-procs pl-table">
             <thead>
               <tr>
-                <SortHead col="cpu" label="cpu" sort={sort} onSort={onSort} />
+                <SortHead col="cpu" label={t("insights.proc.cpu")} sort={sort} onSort={onSort} />
                 {/* `rss`, not `mem`: the cell prints bytes and the sort has
                     to be the same quantity the cell is showing. They order
                     identically on the Unixes, where both come from RSS, and
@@ -312,23 +315,23 @@ export function ProcessListView({ read, sort, onSort, sys, onClose }: {
                     other would be right on two platforms out of three. */}
                 <SortHead
                   col="rss"
-                  label="memory"
-                  note="Resident set size, which is what ps and Task Manager report; macOS Activity Monitor shows a different figure."
+                  label={t("insights.proc.memory")}
+                  note={t("insights.proc.memoryNote")}
                   sort={sort}
                   onSort={onSort}
                 />
-                <SortHead col="threads" label="threads" sort={sort} onSort={onSort} />
-                <SortHead col="uptime" label="up" sort={sort} onSort={onSort} />
-                <SortHead col="user" label="user" sort={sort} onSort={onSort} />
+                <SortHead col="threads" label={t("insights.proc.threads")} sort={sort} onSort={onSort} />
+                <SortHead col="uptime" label={t("insights.proc.up")} sort={sort} onSort={onSort} />
+                <SortHead col="user" label={t("insights.proc.user")} sort={sort} onSort={onSort} />
                 {/* Not sortable. A pid is an identifier the machine handed
                     out, so ordering by it orders by nothing a reader cares
                     about — it is here to be COPIED, which is why it is a
                     column at all and not a tooltip like it is in the panel. */}
-                <th scope="col" className="pl-pid-h">pid</th>
+                <th scope="col" className="pl-pid-h">{t("insights.proc.pid")}</th>
                 <SortHead
                   col="name"
-                  label="process"
-                  note="Command lines have anything secret-shaped removed, which is a filter and not a guarantee."
+                  label={t("insights.proc.process")}
+                  note={t("insights.proc.processNote")}
                   sort={sort}
                   onSort={onSort}
                 />
@@ -347,7 +350,7 @@ export function ProcessListView({ read, sort, onSort, sys, onClose }: {
                       one — it has 40px. Here there is room for the figure
                       itself, and "6.5 GB" answers "can I close this and get
                       something back" in a way "20.3" never did. */}
-                  <td className="sd-num sd-dim" title={`${p.mem.toFixed(1)}% of installed memory`}>
+                  <td className="sd-num sd-dim" title={t("insights.proc.memPct", { pct: p.mem.toLocaleString(currentLanguage(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })}>
                     {fmtBytes(p.rssBytes)}
                   </td>
                   <td className="sd-num sd-dim">{p.threads ?? "—"}</td>

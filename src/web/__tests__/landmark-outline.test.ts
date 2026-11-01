@@ -32,6 +32,7 @@
 // before any "appears nowhere" assertion, because this repo's comments quote
 // the markup they replaced and a search for a retired shape would otherwise
 // find the sentence explaining why it is retired.
+import { en } from "../i18n/en";
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -187,9 +188,9 @@ describe("the deck's five regions are five landmarks (#381)", () => {
     // what makes the rotor's four entries tellable apart — "complementary,
     // complementary, complementary" is a list nobody can navigate.
     const named: Array<[string, string, string]> = [
-      ["UsagePanel.tsx", "usage-panel", "Usage"],
-      ["AccountsPanel.tsx", "accounts-panel", "Claude accounts"],
-      ["SessionList.tsx", "session-list", "Sessions"],
+      ["UsagePanel.tsx", "usage-panel", '\\{t\\("usage\\.title"\\)\\}'],
+      ["AccountsPanel.tsx", "accounts-panel", '\\{t\\("accounts\\.panel\\.label"\\)\\}'],
+      ["SessionList.tsx", "session-list", '\\{t\\("board\\.list\\.title"\\)\\}'],
     ];
     for (const [file, cls, label] of named) {
       // The class may carry a state alongside its name — the accounts panel
@@ -201,14 +202,16 @@ describe("the deck's five regions are five landmarks (#381)", () => {
       // for focus on the whole column (#1497), and handlers render nothing;
       // Usage spreads the place its header moves it to (panel-place.ts), a
       // ref, a data attribute and a style; the rail keeps a ref to ask whether
-      // focus is inside it, which renders nothing either.
+      // focus is inside it, which renders nothing either. The accounts panel also says which
+      // side of the Claude/Codex switch it is (hidden, data-side): the hidden
+      // side stays mounted but leaves the tree.
       expect(code(source(file)), file)
-        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label="${label}"(?:\\s+on[A-Z]\\w*=\\{[\\w.]+\\}|\\s+ref=\\{\\w+\\}|\\s+\\{\\.\\.\\.place\\.panel\\})*>`));
+        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label=${label}(?:\\s+on[A-Z]\\w*=\\{[\\w.]+\\}|\\s+ref=\\{\\w+\\}|\\s+\\{\\.\\.\\.place\\.panel\\}|\\s+hidden=\\{side === "hidden"\\}|\\s+data-side=\\{side\\})*>`));
     }
     // The detail panel was already an <aside> and was the unnamed one. Its
     // frame is components/DetailAside.tsx, which App.tsx mounts.
     expect(code(app)).toMatch(/<DetailAside\b/);
-    expect(code(source("components/DetailAside.tsx"))).toMatch(/<aside className="detail" aria-label="Detail">/);
+    expect(code(source("components/DetailAside.tsx"))).toMatch(/<aside className="detail" aria-label=\{t\("board\.detailPanel\.title"\)\}>/);
   });
 
   it("has no <div> left wearing one of those class names", () => {
@@ -270,7 +273,7 @@ describe("the deck's five regions are five landmarks (#381)", () => {
     // now, both of its class spellings carry the role, and the three panels
     // import it. The assertion got stronger rather than narrower — it is no
     // longer possible for one surface to have the role and another not.
-    expect(code(costBar)).toMatch(/className=\{large \? "cost-bar cost-bar-lg" : "cost-bar"\} role="img" aria-label="Cost breakdown"/);
+    expect(code(costBar)).toMatch(/className=\{large \? "cost-bar cost-bar-lg" : "cost-bar"\} role="img" aria-label=\{t\("insights\.cost\.breakdown"\)\}/);
     for (const [file, src] of [["components/Detail.tsx", detail], ["UsagePanel.tsx", usage], ["SessionSummary.tsx", summary]] as const) {
       expect(code(src), `${file} imports the bar`).toMatch(/import CostBar from "\.(\/components)?\/CostBar";/);
       expect(code(src), `${file} draws no bar of its own`).not.toMatch(/className="cost-bar/);
@@ -325,11 +328,13 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
   });
 
   it("heads every persistent region with an <h2>", () => {
-    expect(code(usage)).toMatch(/<h2>Usage<\/h2>/);
+    expect(code(usage)).toMatch(/<h2>\{t\("usage\.title"\)\}<\/h2>/);
     // `Claude accounts`, and the same string as the landmark name below: this
-    // panel holds Claude logins only, on a deck that also draws Codex.
-    expect(code(accountsHeader)).toMatch(/<h2>Claude accounts<\/h2>/);
-    expect(code(sessions)).toMatch(/<h2>Sessions <span className="sl-count">/);
+    // side holds Claude logins only, on a deck that also draws Codex. With the
+    // Claude/Codex switch in the header the <h2> stays for the outline and is
+    // visually hidden (the switch is the title).
+    expect(code(accountsHeader)).toMatch(/<h2 className=\{switcher \? "vis-hidden" : undefined\}>\{t\("accounts\.header\.title"\)\}<\/h2>/);
+    expect(code(sessions)).toMatch(/<h2>\{t\("board\.list\.title"\)\} <span className="sl-count">/);
     // The detail panel has one state left. It used to draw a second one — a
     // "Detail" h2 over "Click an agent to see its tools" and a shortcut list —
     // and that whole empty state is gone: the panel is about an agent, and with
@@ -359,7 +364,7 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       do { prev = out; out = out.replace(/\{[^{}]*\}/g, " "); } while (out !== prev);
       return out;
     };
-    const heads = [...code(usageAll).matchAll(/<h3 className="up-section-title">([\s\S]*?)<\/h3>/g)]
+    const heads = [...code(usageAll).replace(/\{t\("([\w.]+)"\)\}/g, (_m, key: string) => (en as Record<string, string>)[key] ?? "").matchAll(/<h3 className="up-section-title">([\s\S]*?)<\/h3>/g)]
       .map(m => stripBraces(m[1]).replace(/<[^>]*>/g, " ").match(/[A-Za-z][A-Za-z ]*/)?.[0].trim() ?? "");
     expect(heads).toHaveLength(5);
     expect(new Set(heads).size, `two sections share a heading: ${heads.join(", ")}`).toBe(4);
@@ -385,6 +390,7 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       // Weekly resets is an h3 within Account capacity; its day groups are h4.
       "components/AccountResetCalendar.tsx",
       "components/AddAccountDialog.tsx",
+      "components/AddCodexAccountDialog.tsx",
       // Browser Watch's sections, lifted out of BrowserWatchModal.tsx and still
       // rendered inside its dialog: their <h4>s are the dialog's, and the
       // dialog's own file has none left.
@@ -658,13 +664,13 @@ describe("no control is named by its title attribute alone (#381)", () => {
     expect(code(usage)).toMatch(/aria-label=\{refreshLabel\}\n\s+title=\{refreshLabel\}/);
     // The sentence is usage-panel-rules.ts's since it left the render, so it is
     // asked for rather than matched, and the panel is checked to use it.
-    expect(code(usage)).toContain("const refreshLabel = quotaRefreshLabel(providers);");
+    expect(code(usage)).toContain("const refreshLabel = quotaRefreshLabel(providers, t);");
     expect(quotaRefreshLabel({ kind: "reported", claude: true, codex: true })).toBe("Refresh Claude + Codex quota");
   });
 
   it("names the + and keeps its longer tooltip as the hint", () => {
-    expect(code(accountsHeader)).toMatch(/aria-label="Add an account"/);
-    expect(code(accountsHeader)).toMatch(/title="Sign in to another Claude account/);
+    expect(code(accountsHeader)).toMatch(/aria-label=\{t\("accounts\.header\.add"\)\}/);
+    expect(code(accountsHeader)).toMatch(/title=\{t\("accounts\.header\.addTip"\)\}/);
   });
 });
 
@@ -734,7 +740,7 @@ describe("the usage-history chart stopped hiding the days inside it (#381)", () 
     // The `ref` in front of the class list is #539's — the chart is a scroller
     // now and something has to park it on today — so the match allows the
     // attributes before `className` while still pinning the role and the name.
-    expect(code(history)).toMatch(/<div [^>]*className="uh-chart" role="group" aria-label="Daily cost by model">/);
+    expect(code(history)).toMatch(/<div [^>]*className="uh-chart" role="group" aria-label=\{t\("insights\.usage\.daily"\)\}>/);
     expect(code(historyAll)).not.toMatch(/role="img"/);
   });
 
@@ -750,7 +756,7 @@ describe("the usage-history chart stopped hiding the days inside it (#381)", () 
     // which is what the issue proposed — carries exactly the same unmet
     // contract, so the swap is to group + aria-pressed, which is the shape the
     // canvas category chips already use.
-    expect(code(history)).toMatch(/<div className="uh-range" role="group" aria-label="Range">/);
+    expect(code(history)).toMatch(/<div className="uh-range" role="group" aria-label=\{t\("insights\.usage\.range"\)\}>/);
     expect(code(historyAll)).not.toMatch(/role="tab(list)?"/);
     expect(code(historyAll)).not.toMatch(/aria-selected/);
   });

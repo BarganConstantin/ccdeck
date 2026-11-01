@@ -3,12 +3,14 @@
 //
 // Lifted out of UsageHistoryModal.tsx with the small stat it alone draws. It
 // is handed the one day and reads nothing else.
-import { reportedCost, storedCostNote, MISSING_PRICE_NOTE } from "../reported-cost";
+import { useT } from "../i18n";
+import { reportedCost, storedCostNote, missingPriceNote } from "../reported-cost";
 import { fmtTokens } from "../token-format";
 import { shortModel } from "../model-label";
 import { byCost, dayAgentsLine, modelColor, percentOf, type DayEntry } from "../usage-history";
 
 export default function UsageDayDetail({ selectedDay }: { selectedDay: DayEntry }) {
+  const t = useT();
   const agentsLine = dayAgentsLine(selectedDay);
   const missing = selectedDay.modelBreakdowns.some(m => m.missingPricing);
   const stored = selectedDay.modelBreakdowns.filter(m => m.storedCost !== undefined);
@@ -28,13 +30,13 @@ export default function UsageDayDetail({ selectedDay }: { selectedDay: DayEntry 
             nothing failed, it just wrapped. */}
         {agentsLine && <span className="uh-detail-agents" title={agentsLine}>{agentsLine}</span>}
       </div>
-      {missing && <p className="uh-cost-note">{MISSING_PRICE_NOTE}</p>}
+      {missing && <p className="uh-cost-note">{missingPriceNote()}</p>}
       {costNote && <p className="uh-cost-note">{costNote}</p>}
       <div className="uh-detail-mini">
-        <MiniStat label="input"       val={fmtTokens(selectedDay.inputTokens)} />
-        <MiniStat label="output"      val={fmtTokens(selectedDay.outputTokens)} />
-        <MiniStat label="cache write" val={fmtTokens(selectedDay.cacheCreationTokens)} />
-        <MiniStat label="cache read"  val={fmtTokens(selectedDay.cacheReadTokens)} />
+        <MiniStat label={t("insights.cost.input")}       val={fmtTokens(selectedDay.inputTokens)} />
+        <MiniStat label={t("insights.cost.output")}      val={fmtTokens(selectedDay.outputTokens)} />
+        <MiniStat label={t("insights.usage.cacheWrite")} val={fmtTokens(selectedDay.cacheCreationTokens)} />
+        <MiniStat label={t("insights.usage.cacheRead")}  val={fmtTokens(selectedDay.cacheReadTokens)} />
       </div>
       <div className="uh-detail-models">
         {byCost(selectedDay.modelBreakdowns).map(mb => {

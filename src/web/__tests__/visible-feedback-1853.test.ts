@@ -30,6 +30,8 @@ import { fileURLToPath } from "node:url";
 import { crashReportBody } from "../components/ErrorBoundary";
 import { forwardCaughtError, scrubReport } from "../report-errors";
 import { feedbackSeed } from "../feedback-draft";
+import shellEn from "../i18n/areas/shell/en";
+import boardEn from "../i18n/areas/board/en";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
@@ -205,7 +207,7 @@ describe("the topbar's Feedback button", () => {
   })();
 
   it("is a topbar control that opens the dialog through the one door", () => {
-    expect(item).toMatch(/ariaLabel: "Send feedback"/);
+    expect(item).toMatch(/ariaLabel: t\("board\.rail\.feedback\.menu"\)/);
     expect(item).toMatch(/kind: "dialog"/);
     expect(item).toMatch(/onPress: onFeedback/);
     // A modal behind it, so the button says so and holds no state.
@@ -225,7 +227,8 @@ describe("the topbar's Feedback button", () => {
     // held it. The controls are on the edges now, so the bar has the room at
     // every width the bar draws them: the word is the label, always, and no
     // rule in the sheet hides it.
-    expect(item).toMatch(/label: "Feedback"/);
+    expect(item).toMatch(/label: t\("board\.rail\.feedback"\)/);
+    expect(boardEn["board.rail.feedback"]).toBe("Feedback");
     // Search alone is named by the sentence its field shows (fieldText); every
     // other door, Feedback with it, keeps its own aria-label.
     expect(rails).toMatch(/aria-label=\{(?:fieldText \?\? )?item\.ariaLabel\}/);
@@ -238,7 +241,7 @@ describe("the topbar's Feedback button", () => {
     // Under 641px the dock stands in for the stripes and the utilities, and
     // the three rare dialogs — History, Browser watch, Feedback — sit behind
     // More, where a row has the room to say "Send feedback" whole.
-    expect(item).toMatch(/menu: "Send feedback"/);
+    expect(item).toMatch(/menu: t\("board\.rail\.feedback\.menu"\)/);
     // A connected tracker's row (#2178) comes before it; Feedback stays last.
     expect(app).toMatch(/more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, rails\.utilities\[1\]\]\}/);
     expect(rails).toMatch(/item\.menu \?\? item\.label/);
@@ -276,7 +279,7 @@ describe("Settings, which the Appearance menu became, has no Help improve ccdeck
     // nothing about reports, and it opens the topbar's dialog through the
     // dialogs hook's one door, closing Settings first.
     const about = read("../components/AboutSection.tsx");
-    expect(about).toContain('name="Send feedback"');
+    expect(about).toContain('name={t("settings.about.feedback")}');
     expect(about).toMatch(/onClick=\{doors\.feedback\}/);
     for (const gone of ["Help improve ccdeck", "Send usage reports", 'role="switch"', "reportsOn"]) {
       expect(about, gone).not.toContain(gone);
@@ -326,10 +329,12 @@ describe("the error boundary catches a render crash and offers a report", () => 
     // The card is the alert, not the pane, so the report dialog is not read
     // out inside it (crash-pane-alert.test.ts draws it).
     expect(boundary).toMatch(/className="error-fallback-card" role="alert"/);
-    expect(boundary).toMatch(/Something went wrong/);
+    expect(boundary).toMatch(/t\("shell\.error\.title"\)/);
+    expect(shellEn["shell.error.title"]).toBe("Something went wrong");
     expect(boundary).toMatch(/onClick=\{\(\) => window\.location\.reload\(\)\}/);
-    expect(boundary).toMatch(/>\s*Reload\s*</);
-    expect(boundary).toMatch(/>\s*Send report\s*</);
+    expect(boundary).toMatch(/\{t\("shell\.reload"\)\}/);
+    expect(boundary).toMatch(/\{t\("shell\.error\.report"\)\}/);
+    expect(shellEn["shell.error.report"]).toBe("Send report");
     // The fallback title is not a heading — the page's one <h1> is the wordmark
     // (landmark-outline.test.ts) — and there is no scrim class that would fold
     // it into the modal sweeps.
@@ -362,7 +367,8 @@ describe("an account warning's popover can report itself", () => {
     expect(at, "the panel does not wire the popover's report").toBeGreaterThan(-1);
     const wiring = accounts.slice(at, accounts.indexOf("})}", at));
     expect(wiring).toMatch(/initialKind: issue\.tone === "warn" \? "bug" : "other"/);
-    expect(wiring).toMatch(/initialBody: `[^`]*\$\{issue\.text\}[^`]*\$\{issue\.hint\}`/);
+    // English on purpose: the report goes to the makers, so the panel asks accountIssue for its English words.
+    expect(wiring).toMatch(/initialBody: `[^`]*\$\{reported\.text\}[^`]*\$\{reported\.hint\}`/);
     expect(wiring).not.toContain("who");
     // And App hands the panel the one door.
     expect(app).toMatch(/<AccountsPanel[^>]*onReport=\{dialogs\.openFeedback\}/);

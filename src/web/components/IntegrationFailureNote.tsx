@@ -20,7 +20,8 @@
 // `body` replace the shared words when a panel has better ones.
 import { useEffect, useState, type ReactNode } from "react";
 import { ErrorMark, WarnMark } from "./integration-glyphs";
-import { actionLabel, failureAction, failureSaid, failureWords, retryWait, retryWhen, type FailureInfo } from "../integrations/failure";
+import { useT } from "../i18n";
+import { actionLabel, failureAction, failureSaid, failureWords, retryWait, retryWhen, waitLabel, type FailureInfo } from "../integrations/failure";
 
 export default function IntegrationFailureNote({ error, provider, host, stale = false, onRetry, onReconnect, title, body, children, now }: {
   error: FailureInfo;
@@ -37,26 +38,27 @@ export default function IntegrationFailureNote({ error, provider, host, stale = 
   /** The clock, for tests. */
   now?: number;
 }) {
+  const t = useT();
   // When this failure arrived: the rate limit's wait counts from here. A new
   // failure is a new object, and starts its own wait.
   const [arrived, setArrived] = useState(() => now ?? Date.now());
   const [clock, setClock] = useState(() => now ?? Date.now());
-  useEffect(() => { const t = Date.now(); setArrived(t); setClock(t); }, [error]);
+  useEffect(() => { const at = Date.now(); setArrived(at); setClock(at); }, [error]);
   const at = now ?? clock;
   const wait = retryWait(error, arrived, at);
   useEffect(() => {
     if (wait <= 0) return;
-    const t = window.setTimeout(() => setClock(Date.now()), 1000);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setClock(Date.now()), 1000);
+    return () => window.clearTimeout(timer);
   }, [wait, clock]);
 
-  const words = failureWords(error, provider, host, at);
+  const words = failureWords(error, provider, host, at, t);
   const heading = title ?? words.title;
   const sentence = body ?? words.body;
   const said = failureSaid(error, sentence);
   const action = failureAction(error.kind);
   const handler = action === "retry" ? onRetry : action === "none" ? undefined : onReconnect;
-  const label = action === "none" ? "" : actionLabel(action);
+  const label = action === "none" ? "" : actionLabel(action, t);
   const primary = action === "reconnect";
 
   return (
@@ -64,7 +66,7 @@ export default function IntegrationFailureNote({ error, provider, host, stale = 
       <div className="ig-failure-text" role={stale ? "status" : "alert"}>
         <p className="ig-failure-title">{stale ? <WarnMark /> : <ErrorMark />}<strong>{heading}</strong></p>
         {sentence && <p className="ig-failure-body">{sentence}</p>}
-        {said && !stale && <p className="ig-failure-said">{provider} said: {said}</p>}
+        {said && !stale && <p className="ig-failure-said">{t("integrations.failure.said", { provider, said })}</p>}
       </div>
       {(handler || children) && (
         <div className="ig-failure-actions">
@@ -72,7 +74,7 @@ export default function IntegrationFailureNote({ error, provider, host, stale = 
             <button type="button" className={primary ? "btn primary" : "btn"}
               aria-disabled={wait > 0 || undefined}
               onClick={() => { if (wait <= 0) handler(); }}>
-              {wait > 0 ? `${label} ${retryWhen(wait, at)}` : label}
+              {wait > 0 ? waitLabel(label, retryWhen(wait, at, t), t) : label}
             </button>
           )}
           {children}

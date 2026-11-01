@@ -24,6 +24,9 @@ import { fileURLToPath } from "node:url";
 import { fmtTokens } from "../token-format";
 import { elapsed, toolDuration } from "../duration";
 import { resetCountdown, shortAgo, shortAgoSec } from "../relative-time";
+import { en } from "../i18n/en";
+import { translate } from "../i18n/translate";
+import { durationLabel } from "../i18n/format";
 import { isOlder } from "../../server/self-update.mjs";
 import { resetLabel, resetLabelIso } from "../../server/reset-label.mjs";
 import CostBar from "../components/CostBar";
@@ -340,8 +343,8 @@ describe("a tool call's duration", () => {
 
   it("is one function, called from the row and the dialog it opens", () => {
     expect(toolModal).toMatch(/import \{ toolDuration \} from "\.\.\/duration";/);
-    expect(code(detail)).toMatch(/const durLabel = toolDuration\(t, "…"\);/);
-    expect(code(toolModal)).toMatch(/toolDuration\(tool, "in-flight…"\)/);
+    expect(code(detail)).toMatch(/const durLabel = toolDuration\(call, "…"\);/);
+    expect(code(toolModal)).toMatch(/toolDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
     expect(code(toolModal)).not.toMatch(/function dur\(/);
     expect(code(app)).not.toMatch(/toFixed\(1\)\}s/);
     expect(code(detail)).not.toMatch(/toFixed\(1\)\}s/);
@@ -441,8 +444,8 @@ describe("how long ago something happened", () => {
     // SECONDS — "40s ago" — where these count minutes. Two thresholds and a
     // whole tier apart, so it is a third rule rather than a third copy, and
     // folding it in would have changed what the panel says.
-    expect(code(quotaSections)).toMatch(/if \(s < 10\)\s+return "just now";/);
-    expect(code(quotaSections)).toMatch(/if \(s < 60\)\s+return `\$\{s\}s ago`;/);
+    expect(code(quotaSections)).toMatch(/if \(s < 10\)\s+return t\("usage\.quota\.age\.now"\);/);
+    expect(code(quotaSections)).toMatch(/if \(s < 60\)\s+return t\("usage\.quota\.age\.seconds", \{ n: s \}\);/);
   });
 });
 
@@ -496,7 +499,12 @@ describe("the countdown to a quota reset", () => {
   it("is read from one place by both panels", () => {
     // The usage half is the quota bar now, lifted out of the panel with the
     // countdown it prints.
-    expect(quotaBar).toMatch(/import \{ resetCountdown \} from "\.\.\/relative-time";/);
+    // It words the same two units through the catalog now, so a reader's
+    // language writes "2 T 4 Std."; in English the sweep below proves it is
+    // still exactly resetCountdown's text.
+    expect(quotaBar).toMatch(/durationLabel\(t, resetAt - nowSec\)/);
+    const tEn = (key: never, vars?: Record<string, string | number>) => translate("en", en, key, vars);
+    for (let diff = 1; diff <= 40 * 86400; diff += 7) expect(durationLabel(tEn, diff), String(diff)).toBe(resetCountdown(1000 + diff, 1000));
     // The accounts half is the row's bars now, asked of the row's own file:
     // the usage panel's use would satisfy a search of the whole client.
     expect(accountRow).toMatch(/\bresetCountdown\b/);

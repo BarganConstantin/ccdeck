@@ -38,7 +38,7 @@ function decl(selector: string, prop: string): string | null {
 // warning — the ⋯ menu's surface — with the fix as its one button.
 describe("why a login failed is a button, not a title (#856)", () => {
   // The row's own warning, from the file that draws the row.
-  const warning = /<button type="button" id=\{`ap-issue-\$\{a\.num\}`\}[\s\S]*?<\/button>/.exec(read("../components/AccountRow.tsx"))?.[0] ?? null;
+  const warning = /<button type="button" id=\{`ap-\$\{ids\}issue-\$\{a\.num\}`\}[\s\S]*?<\/button>/.exec(read("../components/AccountRow.tsx"))?.[0] ?? null;
 
   it("is a button that says whether its reason is open", () => {
     expect(warning, "the warning is not a button").not.toBeNull();
@@ -74,7 +74,7 @@ describe("the pace note opens the number it is measured against (#856)", () => {
   });
 
   it("says the number on screen when open, which was a title on a 2px tick", () => {
-    expect(quotaBar).toMatch(/<div id=\{whyId\} className="qb-why">\s*To last until reset, stay near \{Math\.round\(pace\.expectedPct\)\}% by now\.(?:\{perDay != null[^\n]*\})?\s*<\/div>/);
+    expect(quotaBar).toMatch(/<div id=\{whyId\} className="qb-why">\{perDay != null\s*\? t\("usage\.quota\.pace\.whyPerDay", \{ pct: Math\.round\(pace\.expectedPct\), n: [^\n]*\}\)\s*: t\("usage\.quota\.pace\.why", \{ pct: Math\.round\(pace\.expectedPct\) \}\)\}<\/div>/);
   });
 
   it("keeps the 11px the note set, and a 24px target", () => {
@@ -91,6 +91,6 @@ describe("what stays a title, because it decides nothing (#856)", () => {
   });
 
   it("keeps where a quota reading came from a title", () => {
-    expect(quotaSections).toMatch(/className="up-section-age" title=\{quotaSourceHint\(quota\?\.source\)\}/);
+    expect(quotaSections).toMatch(/className="up-section-age" title=\{quotaSourceHint\(t, quota\?\.source\)\}/);
   });
 });

@@ -8,6 +8,7 @@
 // row goes with the accounts view and the state has to outlive it; so is the
 // live region beside the row. What is here is how the row is drawn and what
 // each thing that can happen to it asks of the peek.
+import { useT } from "../i18n";
 import type { DeckRow, entryLine } from "../lan-roster";
 import { PEEK_DELAY_MS, type useHoverPeek } from "../use-hover-peek";
 import { MapGlyph } from "./LanNetworkMap";
@@ -24,6 +25,7 @@ export default function LanEntryRow({ entry, rows, onOpen, onMap, peek, openPeek
    *  the map would be one machine and a sentence saying so. */
   onMap?: () => void;
 } & ReturnType<typeof useHoverPeek>) {
+  const t = useT();
   return (
     <>
       <button type="button" id="ap-lan-entry" className="ap-nav"
@@ -54,7 +56,7 @@ export default function LanEntryRow({ entry, rows, onOpen, onMap, peek, openPeek
           <path d="M5 11.9h4M7 9.5v2.4" />
         </svg>
         <span className="ap-nav-text">
-          <span className="ap-nav-name">Local network</span>
+          <span className="ap-nav-name">{t("lan.entry.name")}</span>
           <span className="ap-nav-state" data-tone={entry.tone}>
             {/* The mark, before the count, and only while somebody is there:
                 `online` is a word in the muted tier, read by whoever is
@@ -77,8 +79,8 @@ export default function LanEntryRow({ entry, rows, onOpen, onMap, peek, openPeek
           the family the view's header draws its acts in. */}
       {onMap && (
         <button type="button" className="ap-lan-map" onClick={() => { dropPeek(); onMap(); }}
-          aria-label="Show the network map"
-          title="Network map — every deck this one knows, drawn around it">
+          aria-label={t("lan.map.show")}
+          title={t("lan.map.showTitle")}>
           <MapGlyph />
         </button>
       )}
