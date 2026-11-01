@@ -79,6 +79,7 @@
 @import "./styles/guides.css";                   /* guides */
 @import "./styles/edge-rails.css";               /* the edge stripes, the phone dock and the topbar's two utilities */
 @import "./styles/hint.css";                     /* the chrome's one hint: a name and its keycap */
+@import "./styles/status-bar.css";               /* V4's status bar: the keys that work, across the foot of the window */
 @import "./styles/radio.css";                    /* radio explorer */
 @import "./styles/integrations.css";             /* Settings › Integrations and a tracker's modal (#2178) */
 @import "./styles/jira.css";                     /* the Jira panel: its backlog and an issue */

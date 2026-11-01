@@ -13,7 +13,7 @@
   right: var(--rail-r);  /* the usage panel's slot, when usage is not using it */
   z-index: 20;
   width: calc(280px + var(--ui-panel-increase, 0px));  /* the usage panel's width, so the rail reads as one system */
-  max-height: calc(100vh - var(--topbar-h) - 24px);
+  max-height: calc(100vh - var(--topbar-h) - 24px - var(--status-room, 0px));
   overflow-y: auto;
   /* Named so the one thing inside that has to bleed PAST it can be derived
      from it rather than from a 14 somebody retypes. See .sd-open. */

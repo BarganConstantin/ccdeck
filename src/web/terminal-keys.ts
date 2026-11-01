@@ -145,6 +145,18 @@ export const RELEASE_CHORD_SPOKEN = "Control Shift X";
  *  board, and from there j, k and n must work. */
 export const TERMINAL_PANEL_SELECTOR = "[data-terminal-panel]";
 
+/** The attribute on the pane that carries the name the stage's header shows,
+ *  so the status bar can say whose keys these are without knowing the stage. */
+export const PANE_NAME_ATTR = "data-terminal-name";
+
+/** The name of the session whose pane holds this element, or null when the
+ *  element is outside every pane. A pane with no name still answers (""). */
+export function paneNameOf(el: { closest?: (selector: string) => { getAttribute?: (name: string) => string | null } | null } | null | undefined): string | null {
+  if (typeof el?.closest !== "function") return null;
+  const pane = el.closest(TERMINAL_PANEL_SELECTOR);
+  return pane ? pane.getAttribute?.(PANE_NAME_ATTR) ?? "" : null;
+}
+
 /** Whether a keystroke's target sits inside the pane. Structural: the window
  *  and the document reach a listener with no `closest` at all, and neither is
  *  in a pane. */

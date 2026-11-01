@@ -23,7 +23,7 @@
 .edge-rail {
   position: fixed;
   top: var(--topbar-h);
-  bottom: 0;
+  bottom: var(--status-room, 0px);
   z-index: 15;
   box-sizing: border-box;
   width: var(--edge-w);

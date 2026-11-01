@@ -395,7 +395,14 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // touches it at all, which is the confinement this case exists for.
     // Desktop caption colours are resolved in an effect on mount/theme changes,
     // never during a canvas render or animation frame.
-    expect(callers).toEqual(["components/DesktopTitlebar.tsx", "components/use-modal-dismiss.ts", "use-appearance.ts"]);
+    // V4's Attention rail adds two, neither near the canvas: use-left-column.ts
+    // reads --rail-w when the density attribute changes (a mutation observer,
+    // not a render), and rail-motion.ts reads the motion tokens when the rail's
+    // order changes, and a row's transform only while that row is mid-move,
+    // inside a layout effect, for its FLIP.
+    expect(callers).toEqual([
+      "components/DesktopTitlebar.tsx", "components/use-modal-dismiss.ts", "rail-motion.ts", "use-appearance.ts", "use-left-column.ts",
+    ]);
   });
 
   it("never calls cssVar — it only ever hands it to readPalette", () => {

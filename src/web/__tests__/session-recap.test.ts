@@ -317,7 +317,10 @@ describe("where it is drawn", () => {
     // Through the note's rule, which decides between the recap and the status
     // line that shares its slot — still the one rule, asked the same way.
     expect(read("../components/SessionList.tsx")).toContain("const note = sessionNoteShown(a);");
-    expect(read("../components/SessionList.tsx")).toContain('<span className="sl-recap" title={r.recap.text}><RecapMark />');
+    // The rail (V4's Attention rail) says the note on its row's second line and
+    // keeps the full recap in the row's tooltip; it asks the rule once, in buildRows.
+    expect(read("../rail-row-copy.ts")).toContain("const note = r.recap?.text ?? r.status?.text ?? \"\";");
+    expect(read("../rail-row-copy.ts")).toContain("if (r.recap) lines.push(r.recap.text);");
     // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
     const app = read("../App.tsx") + "\n" + read("../components/Detail.tsx");
     expect(app).toContain("const note = sessionNoteShown(agent);");
@@ -363,11 +366,12 @@ describe("where it is drawn", () => {
     expect((tieSrc.match(/className="recap-tie-end"/g) ?? []).length).toBe(2);
   });
 
-  it("gives the note every recap measured whole, and the list three lines of it", () => {
+  it("gives the note every recap measured whole, and the list one line of it", () => {
     expect(body("\n.recap-note-text {")).toMatch(/-webkit-line-clamp: 8;/);
-    const list = body("\n.session-list .sl-recap {");
-    expect(list).toMatch(/-webkit-line-clamp: 3;/);
-    expect(list).toMatch(/color: var\(--text-secondary\);/);
+    // The rail's row is one line (Figma Rail / Row), cut with an ellipsis; it was three.
+    const list = body("\n.session-list .sl-line2 {");
+    expect(list).toMatch(/text-overflow: ellipsis;/);
+    expect(list).toMatch(/white-space: nowrap;/);
     expect(body("\n.detail-recap {")).toMatch(/color: var\(--text-secondary\);/);
   });
 
@@ -384,7 +388,7 @@ describe("where it is drawn", () => {
 
   it("arrives without motion", () => {
     // It is written because nothing is moving; the card has not earned a pulse.
-    for (const sel of ["\n.recap-note {", "\n.session-list .sl-recap {", "\n.detail-recap {"]) {
+    for (const sel of ["\n.recap-note {", "\n.session-list .sl-line2 {", "\n.detail-recap {"]) {
       expect(body(sel), sel).not.toMatch(/animation|transition/);
     }
   });

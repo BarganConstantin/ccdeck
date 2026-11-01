@@ -47,6 +47,9 @@ export interface StageContext {
 
 export interface StageBodyProps {
   hostRef: MutableRefObject<HTMLDivElement | null>;
+  /** The name the header shows for this session; the pane carries it for the
+   *  status bar (terminal-keys.ts, PANE_NAME_ATTR). */
+  paneName?: string;
   phase: StagePhase;
   /** The last line the board knew, shown while attaching. */
   ghostLine?: string | null;
@@ -313,7 +316,7 @@ export default function StageBody(p: StageBodyProps) {
   const run = frameRun(last.current, p.phase);
   const { state, afterHold } = run;
   useEffect(() => { last.current = run; });
-  const { hostRef, ...card } = p;
+  const { hostRef, paneName: _paneName, ...card } = p;
   // Out of the accessibility tree whenever a card speaks or a held frame is
   // only the last session's — but never over a focused textarea: Chrome
   // refuses aria-hidden on an element whose descendant keeps focus, and says
@@ -356,6 +359,7 @@ export default function StageBody(p: StageBodyProps) {
         ref={hostRef}
         className="ts-host"
         data-terminal-panel=""
+        data-terminal-name={p.paneName}
         data-shown={state === "shown" || undefined}
         data-held={state === "held" || undefined}
         data-after-hold={afterHold || undefined}

@@ -520,7 +520,9 @@ describe("what each of the four toggles announces", () => {
     expect(attr(buttons(dock).get("session-list")!, "aria-expanded")).toBe("false");
     // The panel keeps its landmark name either way, and wears `leaving` while
     // it animates out of the left column (2026-10-08).
-    expect(sessionList).toMatch(/<aside className=\{`session-list\$\{leaving \? " leaving" : ""\}`\} id="session-list" aria-label="Sessions">/);
+    // (With the rail's ref, which the hold asks for the focus inside it, and the
+    // pointer handlers the order is held under, v4-rail.test.ts.)
+    expect(sessionList).toMatch(/<aside className=\{`session-list\$\{leaving \? " leaving" : ""\}`\} id="session-list" aria-label="Sessions"(?:\s+ref=\{\w+\}|\s+on[A-Z]\w*=\{\w+\})*>/);
     // Enumerated rather than asked of one state, so a control that appeared
     // with some other state would fail here. Four, the four panels: the
     // speaker's popover left with the speaker (2026-10-07), the gear opens a
@@ -555,7 +557,7 @@ describe("what each of the four toggles announces", () => {
     // The close arms the keyboard's hand-off on the way (panel-close-focus.test.ts).
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.sessionList\(\); closeSessionList\(\); \}\}/);
     expect(client).toMatch(/const closeSessionList = useCallback\(\(\) => setSessionListOpen\(false\), \[\]\);/);
-    expect(sessionList).toMatch(/className="glyph-btn sl-close" onClick=\{onClose\}/);
+    expect(sessionList).toMatch(/className="sl-close" onClick=\{onClose\}/);
     // Escape is not a third way out and never was: this is an <aside> beside
     // the canvas, not a modal, so it registers no dismisser with modalStack and
     // the key falls through to clearing the canvas selection. Pinned so the

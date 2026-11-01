@@ -257,6 +257,9 @@
 .lod-face [data-tone="err"] { color: var(--err); }
 .lod-face [data-tone="idle"] { color: var(--accent); }
 .state-mark { flex: none; }
+/* The recap's ※ and the dot that stands in for it keep their size in a flex row. */
+.recap-glyph { flex: none; }
+.state-mark[data-kind="idle"] { color: var(--muted); }
 .state-mark[data-kind="live"] { color: var(--inflight); }
 .state-mark[data-kind="done"] { color: var(--ok); }
 .state-mark[data-kind="err"] { color: var(--err); }

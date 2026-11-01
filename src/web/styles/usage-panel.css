@@ -17,7 +17,7 @@
      60px and the usage panel's right edge slides under the detail panel. */
   right: var(--rail-r);
   width: calc(280px + var(--ui-panel-increase, 0px));
-  max-height: calc(100vh - var(--topbar-h) - 24px);
+  max-height: calc(100vh - var(--topbar-h) - 24px - var(--status-room, 0px));
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--line);

@@ -572,7 +572,8 @@ describe("where Remove lives and what follows it", () => {
     expect(app).toMatch(/onSelect=\{pickSession\}[\s\S]*?removedIds=\{removedAgentIds\}/);
     expect(app).toMatch(/const pickSession = useCallback\(\(sessionId: string\) => \{\s*openSession\(sessionId\);/);
     expect(app).toMatch(/if \(removedAgentIds\.has\(sessionId\)\) bringBack\(\[sessionId\]\);\s*focusSession\(sessionId\);/);
-    expect(list).toMatch(/\{removed && <span className="sl-removed">off the board<\/span>\}/);
+    // The row (components/RailParts.tsx since V4's Attention rail) says it in the model tag's own face.
+    expect(readFileSync(fileURLToPath(new URL("../components/RailParts.tsx", import.meta.url)), "utf8")).toMatch(/\{removed && <span className="sl-model">off the board<\/span>\}/);
     expect(list).toMatch(/Bring back \{count\} removed \{count === 1 \? "card" : "cards"\}/);
     expect(css).toMatch(/\.session-list \.sl-row\.removed \.sl-label \{ color: var\(--muted\); \}/);
   });

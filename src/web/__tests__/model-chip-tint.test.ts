@@ -83,7 +83,9 @@ describe("every surface that draws a chip stamps the family on it", () => {
     // AgentNode is not here any more: V4's card draws the model as plain mono
     // text (.model-text), no chip and no tint — v4-agent-card.test.ts holds it.
     ["Detail hero", "../components/Detail.tsx"],
-    ["SessionList", "../components/SessionList.tsx"],
+    // (The session list left this table with V4's Attention rail: a rail row
+    // names its model as a plain mono tag in --muted, Figma's Rail / Row, so it
+    // draws no chip and carries no family tint.)
     ["SessionSummary", "../components/SessionSummary.tsx"],
   ];
   for (const [name, rel] of surfaces) {

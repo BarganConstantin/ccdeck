@@ -71,10 +71,20 @@ describe("Material status text on its painted background", () => {
       });
     }
   }
-  it("keeps the inferred waiting tool readable on the session list", () => {
-    const chain = [root, el("aside", ["session-list"]), el("span", ["sl-waiting-tool"])];
-    const foreground = cascade(selector => selects(selector, chain), "color", 1920);
-    expect(foreground).not.toBeNull();
-    expect(contrast(color(foreground!), color(tokens.panel))).toBeGreaterThanOrEqual(4.5);
-  });
+  // V4's rail names the blocked tool in --text-secondary and the wait in --warn
+  // (Figma Rail / Row), both plain tokens, so there is no tone-toward-the-panel
+  // mix for Material to decline any more; what stays worth holding is that both
+  // read on the panel.
+  for (const [name, leaf] of [
+    ["blocked tool", el("b", ["sl-tool"])],
+    ["wait", el("span", ["sl-time", "warn"])],
+  ] as const) {
+    it(`keeps the rail's ${name} readable on the session list`, () => {
+      const chain = [root, el("aside", ["session-list"]), el("ul", ["sl-rows"]), el("li", ["sl-row-item"]), el("div", ["sl-row-in"]),
+        el("button", ["sl-row"]), el("span", ["sl-text"]), leaf];
+      const foreground = cascade(selector => selects(selector, chain), "color", 1920);
+      expect(foreground).not.toBeNull();
+      expect(contrast(color(foreground!), color(tokens.panel))).toBeGreaterThanOrEqual(4.5);
+    });
+  }
 });

@@ -177,7 +177,7 @@ export function faceTitle(text: string, tooltip?: string): string {
   return tooltip.includes(text) ? tooltip : `${text}\n${tooltip}`;
 }
 
-export type StateMarkKind = "live" | "done" | "err";
+export type StateMarkKind = "live" | "done" | "err" | "idle";
 
 /**
  * The state a card DRAWS, in its pill and its mark. A root whose last turn
