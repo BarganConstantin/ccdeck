@@ -51,6 +51,8 @@
 // Feedback pressed while it shows the dot opens on Your conversations.
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
+import { useT } from "../i18n";
+import { slot } from "./Slot";
 import { focusDropped, selfPressProps } from "../panel-press";
 import SuccessMark from "./SuccessMark";
 import FeedbackKinds from "./FeedbackKinds";
@@ -65,11 +67,11 @@ import { useFeedbackFacts } from "../use-feedback-facts";
 import { useCloseWhenSent, useFeedbackSend } from "../use-feedback-send";
 import { useArmedDiscard, useKeepDraft } from "../use-feedback-draft";
 import {
-  DISCARD_ARMED_LABEL, DISCARD_ARMED_TITLE, DISCARD_LABEL, DISCARD_TITLE, draftKey, feedbackDrafts, feedbackSeed,
+  discardArmedLabel, discardArmedTitle, discardLabel, discardTitle, draftKey, feedbackDrafts, feedbackSeed,
   holdsSomething, imagesLostLine,
 } from "../feedback-draft";
 import {
-  ACCOUNT_DIALOG_TITLE, BODY_MAX, FACTS_SUFFIX, FACTS_UNKNOWN, MESSAGE_MISSING, SEND_WITHOUT_ACCOUNT, accountSentAs,
+  ACCOUNT_DIALOG_TITLE, BODY_MAX, SEND_WITHOUT_ACCOUNT, accountSentAs, factsUnknown, factsWith, messageMissing,
   factsLabel, hasMessage, isSendShortcut, isSymbolCap, kindCopy, outcomeAnnouncement, sendShortcutCaps, sentLine,
   type FeedbackPrefill, type FeedbackTab, type Kind,
 } from "../feedback";
@@ -83,6 +85,7 @@ interface Props extends FeedbackPrefill {
 }
 
 export default function FeedbackDialog({ onClose, initialKind, initialBody, initialTab, account: caught }: Props) {
+  const t = useT();
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const addRef = useRef<HTMLButtonElement>(null);
@@ -297,16 +300,16 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
       >
         <header className="modal-head">
           <div className="modal-title">
-            <span id="feedback-title" className="modal-tool-name">{connected ? ACCOUNT_DIALOG_TITLE : "Send feedback"}</span>
+            <span id="feedback-title" className="modal-tool-name">{connected ? ACCOUNT_DIALOG_TITLE : t("shell.feedback.title")}</span>
           </div>
           <div className="modal-actions">
-            <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+            <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose} aria-label={t("shell.closeEsc")} title={t("shell.closeEsc")}>×</button>
           </div>
         </header>
         {/* The one live region, which also says what an armed Discard will
             do: the button's new name alone is not reliably read out while it
             has the focus, and its tooltip is where the warning lived. */}
-        <p className="vis-hidden" role="status">{discard.armed ? DISCARD_ARMED_TITLE : conversationsShown ? said : outcomeAnnouncement(outcome.state, sentAsAccount, mail)}</p>
+        <p className="vis-hidden" role="status">{discard.armed ? discardArmedTitle() : conversationsShown ? said : outcomeAnnouncement(outcome.state, sentAsAccount, mail)}</p>
         {connected && account ? (
           <FeedbackTabs
             tab={tab}
@@ -320,8 +323,8 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
         <div className="fb-drop" aria-hidden="true" data-active={dragging || undefined}>
           <div className="fb-drop-frame">
             <ImageGlyph className="fb-drop-glyph" />
-            <p className="fb-drop-title">Drop to attach</p>
-            <p className="fb-drop-note">PNG or JPEG, up to three</p>
+            <p className="fb-drop-title">{t("shell.feedback.dropTitle")}</p>
+            <p className="fb-drop-note">{t("shell.feedback.dropNote")}</p>
           </div>
         </div>
       </div>
@@ -361,7 +364,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
               />
               {/* A sibling of the field rather than inside its label: inside,
                   it would join the field's name and be read twice. */}
-              {bodyMissing && <p id="fb-body-error" className="fb-error">{MESSAGE_MISSING}</p>}
+              {bodyMissing && <p id="fb-body-error" className="fb-error">{messageMissing()}</p>}
               <FeedbackShots images={images} addRef={addRef} />
               {imagesLostShown && <p id="fb-images-lost" className="fb-hint">{imagesLostLine(imagesLost)}</p>}
               <div className="fb-tools">
@@ -380,7 +383,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
               <FeedbackDetails open={detailsOpen} contact={contact} onContact={setContact} account={asAccount} mail={mail} />
             </div>
             <p className="fb-facts">
-              {facts ? <><span className="fb-facts-value">{facts}</span> — {FACTS_SUFFIX}</> : FACTS_UNKNOWN}
+              {facts ? slot(factsWith(), "facts", <span className="fb-facts-value">{facts}</span>) : factsUnknown()}
             </p>
             {outcome.state === "failed" && <p className="fb-error" role="alert">{outcome.message}</p>}
           </section>
@@ -394,22 +397,22 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
                 // come up: one decision, not two.
                 onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
                 onClick={discard.press}
-                title={discard.armed ? DISCARD_ARMED_TITLE : DISCARD_TITLE}
+                title={discard.armed ? discardArmedTitle() : discardTitle()}
               >
-                {discard.armed ? DISCARD_ARMED_LABEL : DISCARD_LABEL}
+                {discard.armed ? discardArmedLabel() : discardLabel()}
               </button>
             )}
             <span className="fb-shortcut" aria-hidden="true">
-              <kbd data-symbol={isSymbolCap(capA) || undefined}>{capA}</kbd><kbd>{capB}</kbd> to send
+              <kbd data-symbol={isSymbolCap(capA) || undefined}>{capA}</kbd><kbd>{capB}</kbd> {t("shell.feedback.toSend")}
             </span>
-            <button type="button" className="btn" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn" onClick={onClose}>{t("shell.cancel")}</button>
             <button ref={sendRef} type="submit" className="btn primary fb-send" aria-keyshortcuts="Meta+Enter Control+Enter" {...selfPressProps(sending)}>
               {/* Both words always laid out in one cell, one of them hidden,
                   so the button is as wide sending as before and Cancel never
                   shifts under the pointer. */}
               <span className="fb-send-label">
-                <span className="fb-send-idle">Send feedback</span>
-                <span className="fb-send-busy">Sending…</span>
+                <span className="fb-send-idle">{t("shell.feedback.send")}</span>
+                <span className="fb-send-busy">{t("shell.feedback.sending")}</span>
               </span>
             </button>
           </div>

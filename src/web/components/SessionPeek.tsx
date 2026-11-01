@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import { useT } from "../i18n";
 import { placeBeside } from "../popover-place";
 import { isAlarming } from "../ambient-counts";
 import { agentCost, agentUnpricedTokens } from "../usage-models";
@@ -173,6 +174,7 @@ function usePlacedBeside(anchor: Element, bounds: () => { width: number; height:
  * again nothing that exists only here.
  */
 function RecapPeek({ r, anchor, bounds }: { r: PeekRecap; anchor: Element; bounds: () => { width: number; height: number } }) {
+  const t = useT();
   const ref = usePlacedBeside(anchor, bounds);
   const now = useNow(30_000);
   const note = r.note;
@@ -183,14 +185,14 @@ function RecapPeek({ r, anchor, bounds }: { r: PeekRecap; anchor: Element; bound
     <div ref={ref} className="ap-peek node-peek recap-peek" role="tooltip" id="node-peek"
       style={{ "--session-hue": r.hue } as React.CSSProperties}>
       <div className="node-peek-head">
-        <span className="recap-peek-mark"><NoteMark recap={isRecap} />{note ? noteTag(note.kind) : "plan"}</span>
+        <span className="recap-peek-mark"><NoteMark recap={isRecap} />{note ? noteTag(note.kind) : t("insights.peek.plan")}</span>
         <span className="node-peek-time" title={written.title}>{written.label}</span>
       </div>
       {r.sessionLabel && <div className="node-peek-kind"><span>{note ? `${noteSource(note)} · ` : ""}{r.sessionLabel}</span></div>}
       {note && <p className="recap-peek-text">{note.text}</p>}
-      {note?.reply && <p className="recap-peek-text">Suggested reply: “{note.reply}”</p>}
-      {plan && r.plan && <p className="recap-peek-text recap-peek-plan">Plan {planLine(plan)}{plan.allDone ? "" : `\n${planTitle(r.plan.items)}`}</p>}
-      <p className="node-peek-hint">Click to go to the session · double-click for its details</p>
+      {note?.reply && <p className="recap-peek-text">{t("insights.peek.reply", { reply: note.reply })}</p>}
+      {plan && r.plan && <p className="recap-peek-text recap-peek-plan">{t("insights.peek.planLine", { line: planLine(plan) })}{plan.allDone ? "" : `\n${planTitle(r.plan.items)}`}</p>}
+      <p className="node-peek-hint">{t("insights.peek.hintNote")}</p>
     </div>,
     document.body,
   );
@@ -202,6 +204,7 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
   parentLabel?: string;
   bounds: () => { width: number; height: number };
 }) {
+  const t = useT();
   const ref = usePlacedBeside(anchor, bounds);
   // Its own beat: the clock and the waiting duration count while it is open.
   const now = useNow(1000);
@@ -216,11 +219,11 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
   // What a live Codex session says in the waiting line's slot, as its card does:
   // the deck cannot see its approval prompts (codex-approval.ts).
   const blind = codexApprovalTell(a);
-  const kind = a.kind === "root" ? "session" : parentLabel ? `subagent of ${parentLabel}` : "subagent";
+  const kind = a.kind === "root" ? t("insights.peek.session") : parentLabel ? t("insights.peek.subagentOf", { parent: parentLabel }) : t("insights.peek.subagent");
   const facts = [
-    `${a.toolCount} ${a.toolCount === 1 ? "tool" : "tools"}`,
-    inflight > 0 ? `${inflight} in-flight` : null,
-    tokens > 0 ? `${fmtTokens(tokens)} tok` : null,
+    t("insights.peek.tools", { count: a.toolCount, n: a.toolCount }),
+    inflight > 0 ? t("insights.peek.inflight", { n: inflight }) : null,
+    tokens > 0 ? t("insights.peek.tok", { n: fmtTokens(tokens) }) : null,
     cost > 0 ? `${fmtCost(cost)}${agentUnpricedTokens(a, now) > 0 ? "+" : ""}` : null,
   ].filter(Boolean).join(" · ");
 
@@ -249,10 +252,10 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
       {blind && <p className="node-peek-blind"><span className="approval-blind-dot" aria-hidden />{blind.label}</p>}
       <p className="node-peek-facts">
         {facts}
-        {failed > 0 && <span className="node-peek-failed"> · {failed} failed</span>}
+        {failed > 0 && <span className="node-peek-failed"> · {t("insights.peek.failed", { n: failed })}</span>}
       </p>
       {a.branch && a.branch.total > 0 && <p className="node-peek-branch">{branchLong(a.branch)}</p>}
-      <p className="node-peek-hint">Click to go to the session · double-click for details</p>
+      <p className="node-peek-hint">{t("insights.peek.hint")}</p>
     </div>,
     document.body,
   );

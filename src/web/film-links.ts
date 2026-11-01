@@ -4,6 +4,8 @@
 // change here. Plain addresses with no query string: the deck sends nothing
 // for a press on one of these, and the browser it opens in is the reader's own.
 
+import type { MessageKey } from "./i18n";
+
 const SITE = "https://ccdeck.dev/guides";
 
 /** Which film, the page it plays on, and what it is about in a sentence's words. */
@@ -15,3 +17,11 @@ export const FILMS = {
 } as const;
 
 export type Film = keyof typeof FILMS;
+
+/** The catalog key that words each film's subject in the language on show. */
+export const FILM_SUBJECT: Record<Film, MessageKey> = {
+  localNetwork: "shell.film.localNetwork",
+  claudeAccounts: "shell.film.claudeAccounts",
+  usage: "shell.film.usage",
+  tour: "shell.film.tour",
+};

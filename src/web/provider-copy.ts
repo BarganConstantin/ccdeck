@@ -22,6 +22,7 @@
 // Kept out of App.tsx for the same reason scope.ts and providers.ts are: these
 // branches can then be read and tested without rendering React, and the branch
 // that matters most is the one nobody exercises by hand — a Codex-only machine.
+import { t } from "./i18n";
 import type { Providers } from "./providers";
 import { ownRow } from "./own-row";
 
@@ -33,7 +34,7 @@ import { ownRow } from "./own-row";
  * not reading, so the caller drops the qualifier instead.
  */
 function providerNames(p: Providers): string | null {
-  if (p.claude && p.codex) return "Claude Code and Codex";
+  if (p.claude && p.codex) return joinNames(["Claude Code", "Codex"]);
   if (p.claude) return "Claude Code";
   if (p.codex) return "Codex";
   return null;
@@ -87,7 +88,7 @@ export function agentLabel(id: string): string {
  *  and Codex" since it was written. */
 function joinNames(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? "";
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return t("insights.names.and", { head: names.slice(0, -1).join(t("insights.split.listSep")), last: names[names.length - 1] });
 }
 
 /**
@@ -121,7 +122,7 @@ function joinNames(names: readonly string[]): string {
  */
 export function usageSubtitle(p: Providers, found: readonly string[] = []): string {
   const names = found.length ? joinNames(found.map(agentLabel)) : providerNames(p);
-  return names ? `via ccusage · local ${names} logs` : "via ccusage · local agent logs";
+  return names ? t("insights.provider.subtitle", { names }) : t("insights.provider.subtitleNone");
 }
 
 /** One run of the hint sentence. `code` marks the runs that render in <code>,
@@ -129,6 +130,16 @@ export function usageSubtitle(p: Providers, found: readonly string[] = []): stri
 export interface HintSpan {
   text: string;
   code?: boolean;
+}
+
+/** A translated sentence as runs: each {name} in it becomes a code run holding
+ *  `codes[name]`, the rest stays text. */
+function runs(template: string, codes: Record<string, string>): HintSpan[] {
+  return template.split(/(\{\w+\})/g).flatMap((piece): HintSpan[] => {
+    const name = /^\{(\w+)\}$/.exec(piece)?.[1];
+    if (name && name in codes) return [{ text: codes[name], code: true }];
+    return piece ? [{ text: piece }] : [];
+  });
 }
 
 /** What the empty canvas is allowed to say about one capture path. */
@@ -156,48 +167,24 @@ export function captureHints(p: Providers): CaptureHint[] {
     ? {
         provider: "claude",
         watching: true,
-        spans: [
-          { text: "Claude Code sends its events through a hook in " },
-          { text: "~/.claude/settings.json", code: true },
-          { text: " — or in " },
-          { text: "$CLAUDE_CONFIG_DIR/settings.json", code: true },
-          { text: " when you have that set — which the deck installs on first run." },
-        ],
+        spans: runs(t("insights.provider.hint.claude"), { file: "~/.claude/settings.json", dir: "$CLAUDE_CONFIG_DIR/settings.json" }),
       }
     : {
         provider: "claude",
         watching: false,
-        spans: [
-          { text: "Claude Code capture is off: no Claude Code was found on this machine, or the deck was started with " },
-          { text: "--no-claude", code: true },
-          { text: "." },
-        ],
+        spans: runs(t("insights.provider.hint.claudeOff"), { flag: "--no-claude" }),
       };
 
   const codex: CaptureHint = p.codex
     ? {
         provider: "codex",
         watching: true,
-        spans: [
-          { text: "Codex installs nothing and needs no trust prompt — the deck reads " },
-          { text: "~/.codex/sessions/", code: true },
-          { text: " itself, so an empty canvas means no rollout has been written there yet, or that " },
-          { text: "$CODEX_HOME", code: true },
-          { text: " points at a different tree." },
-        ],
+        spans: runs(t("insights.provider.hint.codex"), { dir: "~/.codex/sessions/", home: "$CODEX_HOME" }),
       }
     : {
         provider: "codex",
         watching: false,
-        spans: [
-          { text: "Codex capture is off: no " },
-          { text: "~/.codex/", code: true },
-          { text: " was found — set " },
-          { text: "$CODEX_HOME", code: true },
-          { text: " if yours lives elsewhere — or the deck was started with " },
-          { text: "--no-codex", code: true },
-          { text: "." },
-        ],
+        spans: runs(t("insights.provider.hint.codexOff"), { dir: "~/.codex/", home: "$CODEX_HOME", flag: "--no-codex" }),
       };
 
   return [claude, codex];

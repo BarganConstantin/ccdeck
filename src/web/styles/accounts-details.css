@@ -82,6 +82,7 @@
   .uh-bar-col:active, .ap-failure-x:active,
   .ap-field select:active:not(:disabled),
   .ap-sign-in:active:not(:disabled), .ap-switch:active:not(:disabled), .ap-issue:active, .ap-notice-fix:active,
+  .ap-side:active,
   button.qb-pace:active,
   .aa-tab:active,
   .aa-result-fix:active,

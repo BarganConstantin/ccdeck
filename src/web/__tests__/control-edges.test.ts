@@ -331,14 +331,22 @@ function rootTokens(theme: Theme): Record<string, string> {
 
 const TOK: Record<Theme, Record<string, string>> = { dark: rootTokens("dark"), light: rootTokens("light") };
 
-/** var() with an optional fallback, and the `color-mix(in srgb, X N%, transparent)`
- *  form this sheet uses for every tint — which is just X at N% alpha. */
-function resolve(value: string, theme: Theme): Rgba {
+/** Resolve tokens and two-color sRGB mixes, with premultiplied alpha. */
+function resolve(value: string, theme: Theme, scope?: string): Rgba {
   const v = value.trim();
-  const mix = /^color-mix\(in srgb,\s*(.+?)\s+([\d.]+)%,\s*transparent\)$/.exec(v);
+  const mix = /^color-mix\(in srgb,([\s\S]*)\)$/.exec(v);
   if (mix) {
-    const base = resolve(mix[1], theme);
-    return [base[0], base[1], base[2], base[3] * (+mix[2] / 100)];
+    const parts = topLevelParts(mix[1]).map(part => /^(.*?)(?:\s+([\d.]+)%)?$/.exec(part.trim())!);
+    if (parts.length !== 2) throw new Error(`unsupported mix: ${v}`);
+    const weights = parts.map(part => part[2] === undefined ? null : +part[2] / 100);
+    const first = weights[0] ?? (weights[1] === null ? 0.5 : 1 - weights[1]);
+    const second = weights[1] ?? 1 - first;
+    const total = first + second;
+    if (first < 0 || second < 0 || total <= 0) throw new Error(`invalid mix weights: ${v}`);
+    const a = resolve(parts[0][1], theme, scope), b = resolve(parts[1][1], theme, scope);
+    const alpha = (a[3] * first + b[3] * second) / total;
+    return [0, 1, 2].map(i => alpha === 0 ? 0 : (a[i] * a[3] * first + b[i] * b[3] * second) / (total * alpha))
+      .concat(alpha * Math.min(1, total)) as Rgba;
   }
   const blend = /^color-mix\(in srgb,\s*(.+?)\s+([\d.]+)%,\s*(.+)\)$/.exec(v);
   if (blend) {
@@ -348,13 +356,33 @@ function resolve(value: string, theme: Theme): Rgba {
   }
   const ref = /^var\(\s*(--[\w-]+)\s*(?:,\s*([\s\S]+))?\)$/.exec(v);
   if (ref) {
-    const defined = TOK[theme][ref[1]];
-    if (defined !== undefined) return resolve(defined, theme);
+    const defined = (scope ? decl(scope, ref[1]) : null) ?? TOK[theme][ref[1]];
+    if (defined !== undefined) return resolve(defined, theme, scope);
     if (ref[2] === undefined) throw new Error(`undefined token with no fallback: ${v}`);
-    return resolve(ref[2], theme);
+    return resolve(ref[2], theme, scope);
   }
   return parseColor(v);
 }
+
+describe('the contrast sweep resolves sRGB color mixes', () => {
+  it('interpolates two opaque colors and preserves alpha for transparent tints', () => {
+    expect(resolve('color-mix(in srgb, #ff0000 25%, #0000ff)', 'dark')).toEqual([63.75, 0, 191.25, 1]);
+    expect(resolve('color-mix(in srgb, #ff0000 25%, transparent)', 'dark')).toEqual([255, 0, 0, 0.25]);
+    expect(resolve('color-mix(in srgb, #ff0000 25%, #0000ff 25%)', 'dark')).toEqual([127.5, 0, 127.5, 0.5]);
+  });
+  it('reads the selected Radar fill from each theme, including the panel contribution', () => {
+    for (const theme of ['dark', 'light'] as const) {
+      const actual = resolve('var(--tr-selection)', theme, '.modal.tr-modal');
+      const mix = decl('.modal.tr-modal', '--tr-selection')!;
+      const weight = Number(/var\(--accent\)\s+([\d.]+)%/.exec(mix)?.[1]) / 100;
+      expect(weight).toBeGreaterThan(0);
+      expect(weight).toBeLessThan(1);
+      const accent = resolve('var(--accent)', theme), panel = resolve('var(--panel)', theme);
+      for (const channel of [0, 1, 2]) expect(actual[channel]).toBeCloseTo(accent[channel] * weight + panel[channel] * (1 - weight));
+      expect(actual[3]).toBe(1);
+    }
+  });
+});
 
 /** Every opaque bed a control is ever painted on, by the name the sheet gives
  *  it. The topbar is flat --panel now (V4's Top bar; it was a gradient between
@@ -377,6 +405,7 @@ function surfaces(theme: Theme): Record<string, Rgba> {
     "--bg-soft": parseColor(TOK[theme]["--bg-soft"]),
     "--bg": bg,
     "the topbar": panel,
+    "Radar feed": resolve("var(--tr-feed-surface)", theme, ".modal.tr-modal"),
     "the version banner": over(bannerTint, bg),
     "the active account row": over(activeTint, panel),
   };
@@ -387,6 +416,7 @@ function surfaces(theme: Theme): Record<string, Rgba> {
 const BEDS = [
   "--panel", "--bg-soft", "--bg",
   "the topbar",
+  "Radar feed",
   "the version banner", "the active account row",
 ];
 
@@ -495,6 +525,7 @@ interface Control {
   fillFrom?: string;
   states?: string[];
   beds: string[];
+  scope?: string;
 }
 
 const CONTROLS: Control[] = [
@@ -754,9 +785,9 @@ function restingFill(c: Control): string {
 /** A boundary's ratio against the bed it is drawn on, with the control's own
  *  fill in between — `background-clip` is `border-box` by default, so the
  *  border composites over the fill, not straight onto the surface. */
-function edgeRatio(edge: string, fill: string, bed: Rgba, theme: Theme): number {
-  const filled = over(resolve(fill, theme), bed);
-  return contrastRatio(over(resolve(edge, theme), filled), bed);
+function edgeRatio(edge: string, fill: string, bed: Rgba, theme: Theme, scope?: string): number {
+  const filled = over(resolve(fill, theme, scope), bed);
+  return contrastRatio(over(resolve(edge, theme, scope), filled), bed);
 }
 
 // ── the rings ────────────────────────────────────────────────────────────────
@@ -959,7 +990,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // the row around it.
     // Jira Move adds a select boundary and the full-row keyboard perimeter;
     // both are swept at the unchanged 3:1 floor, not exempted.
-    expect(EDGED_CONTROLS.length).toBeLessThan(164);
+    expect(EDGED_CONTROLS.length).toBeLessThan(166);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
@@ -1039,7 +1070,7 @@ describe("the scan everything below is built on (#513)", () => {
     // The panel's own example is its empty state's, which is a component of
     // its own now, so the sentence is asked of the file that renders it.
     const empty = COMPONENTS.find(([name]) => name === "components/AccountsEmptyState.tsx")![1];
-    expect(withoutComments(empty)).toContain("Couldn't read the account store.");
+    expect(withoutComments(empty)).toContain('t("accounts.empty.unreadable")');
   });
 
   it("closes a quote at the end of a line, because a string cannot span one", () => {
@@ -1187,7 +1218,7 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
         const fill = restingFill(c);
         const edge = borderColour(c.at);
         for (const bedName of c.beds) {
-          expect(edgeRatio(edge, fill, beds[bedName], theme), `${theme} ${c.at} on ${bedName}`)
+          expect(edgeRatio(edge, fill, beds[bedName], theme, c.scope), `${theme} ${c.at} on ${bedName}`)
             .toBeGreaterThanOrEqual(NON_TEXT);
         }
       }
@@ -1207,8 +1238,8 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
           const edge = borderColourIn(body) ?? restEdge;
           for (const bedName of c.beds) {
             const bed = beds[bedName];
-            expect(edgeRatio(edge, fill, bed, theme), `${theme} ${state} on ${bedName}`)
-              .toBeGreaterThanOrEqual(edgeRatio(restEdge, restFill, bed, theme) - 1e-9);
+            expect(edgeRatio(edge, fill, bed, theme, c.scope), `${theme} ${state} on ${bedName}`)
+              .toBeGreaterThanOrEqual(edgeRatio(restEdge, restFill, bed, theme, c.scope) - 1e-9);
           }
         }
       }

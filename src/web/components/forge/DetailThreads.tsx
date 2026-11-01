@@ -4,38 +4,42 @@
 // with who wrote it, when, and the forge's own rendering of what they said.
 import type { ForgeComment, ForgeKind, ReviewThread } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
+import type { TFunction } from "../../i18n";
 import { pathParts, threadPlace } from "../../forge-detail";
+import { useT } from "../../i18n";
 import ForgeHtml from "../ForgeHtml";
 import { useForge } from "./ForgeContext";
 import { Ago, Person } from "./ForgeParts";
 import { PathDir, useForgeNodes } from "./DetailParts";
 
-function linkWords(kind: ForgeKind): string {
-  return `Open this comment in ${forgeWords[kind].name}`;
+function linkWords(kind: ForgeKind, t: TFunction): string {
+  return t("forge.comment.openIn", { name: forgeWords[kind].name });
 }
 
 /** One comment: its author, when, a link to it, and its body. */
 export function Comment({ comment }: { comment: ForgeComment }) {
   const { kind } = useForge();
+  const t = useT();
   const nodes = useForgeNodes(comment.bodyHtml);
   return (
     <li className="fd-comment">
       <div className="fd-comment-head">
-        {comment.author ? <Person user={comment.author} size={20} /> : <span className="fd-none">Someone</span>}
+        {comment.author ? <Person user={comment.author} size={20} /> : <span className="fd-none">{t("forge.comment.someone")}</span>}
         {comment.createdAt != null && <span className="fd-comment-time"><Ago at={comment.createdAt} /></span>}
         {comment.webUrl && (
-          <a className="fd-comment-link" href={comment.webUrl} target="_blank" rel="noreferrer noopener" aria-label={linkWords(kind)} title={linkWords(kind)}>
+          <a className="fd-comment-link" href={comment.webUrl} target="_blank" rel="noreferrer noopener" aria-label={linkWords(kind, t)} title={linkWords(kind, t)}>
             <span aria-hidden="true">↗</span>
           </a>
         )}
       </div>
-      {nodes.length ? <ForgeHtml className="fd-comment-body" nodes={nodes} /> : <p className="fd-comment-body fd-none">No text.</p>}
+      {nodes.length ? <ForgeHtml className="fd-comment-body" nodes={nodes} /> : <p className="fd-comment-body fd-none">{t("forge.comment.noText")}</p>}
     </li>
   );
 }
 
 /** A thread: where it is on the diff, when it has a place, then its comments. */
 export function Thread({ thread }: { thread: ReviewThread }) {
+  const t = useT();
   const place = thread.path ? pathParts(thread.path) : null;
   return (
     <li className="fd-thread">
@@ -45,7 +49,7 @@ export function Thread({ thread }: { thread: ReviewThread }) {
             <PathDir dir={place.dir} />
             <span className="fd-path-name">{place.name}{thread.line != null && <span className="fd-path-line">:{thread.line}</span>}</span>
           </code>
-          {thread.outdated && <span className="fg-badge fd-outdated">outdated</span>}
+          {thread.outdated && <span className="fg-badge fd-outdated">{t("forge.thread.outdated")}</span>}
         </div>
       )}
       <ol className="fd-comments">

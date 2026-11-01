@@ -3,6 +3,7 @@ import type { AgentNodeData, ToolCall, WaitingBlock } from "./types";
 import { isAlarming } from "./ambient-counts";
 import { planLine, planSummary } from "./agent-plan";
 import { stopRowLabel, stopShortLabel } from "./stop-failure-copy";
+import { t, type TFunction } from "./i18n";
 
 /**
  * WHAT A SESSION'S SUBAGENTS ADD UP TO, for the faces that are too small to
@@ -51,20 +52,20 @@ export function branchSummaries(agents: Iterable<AgentNodeData>): Map<string, Br
 
 /** "5 subagents · 3 live · 2 done". A zero is left out rather than printed,
  *  except the total, which is what the line is about. */
-export function branchLong(b: BranchSummary): string {
+export function branchLong(b: BranchSummary, tr: TFunction = t): string {
   return [
-    `${b.total} ${b.total === 1 ? "subagent" : "subagents"}`,
-    b.live > 0 ? `${b.live} live` : null,
-    b.done > 0 ? `${b.done} done` : null,
-    b.err > 0 ? `${b.err} err` : null,
+    tr("board.branch.subagents", { count: b.total }),
+    b.live > 0 ? tr("board.branch.live", { n: b.live }) : null,
+    b.done > 0 ? tr("board.branch.done", { n: b.done }) : null,
+    b.err > 0 ? tr("board.branch.err", { n: b.err }) : null,
   ].filter(Boolean).join(" · ");
 }
 
 /** The same fact in the card's own notation: `→ 5` is what the spawn badge on
  *  a full card has always said for "spawned five". */
-export function branchShort(b: BranchSummary): string {
-  if (b.live > 0) return `→ ${b.total} · ${b.live} live`;
-  return `→ ${b.total} · done`;
+export function branchShort(b: BranchSummary, tr: TFunction = t): string {
+  if (b.live > 0) return `→ ${b.total} · ${tr("board.branch.live", { n: b.live })}`;
+  return `→ ${b.total} · ${tr("board.state.done")}`;
 }
 
 /** The tone a face's second line is drawn in. `warn` is how this sheet says
@@ -107,17 +108,18 @@ export function faceSignal(
     sayWaiting: (w: WaitingBlock) => string;
     describeCall: (t: ToolCall) => { name: string; subject?: string | null };
   },
+  tr: TFunction = t,
 ): FaceSignal | null {
   const w = data.kind === "root" ? data.waiting : null;
   if (w && isAlarming(w)) {
     return {
       tone: "warn",
       long: words.sayWaiting(w),
-      short: w.kind === "permission" ? "Needs you" : "Asked you",
+      short: w.kind === "permission" ? tr("board.face.needsYou") : tr("board.face.askedYou"),
     };
   }
   const stop = data.kind === "root" ? data.stopFailure : null;
-  if (stop) return { tone: "err", long: stopRowLabel(stop), short: stopShortLabel(stop) };
+  if (stop) return { tone: "err", long: stopRowLabel(stop, tr), short: stopShortLabel(stop, tr) };
   if (w && w.kind === "idle") {
     const said = words.sayWaiting(w);
     return { tone: "idle", long: said, short: said };
@@ -126,8 +128,8 @@ export function faceSignal(
   if (failed > 0) {
     return {
       tone: "err",
-      long: `${failed} tool ${failed === 1 ? "call" : "calls"} failed`,
-      short: `${failed} failed`,
+      long: tr("board.face.toolsFailed", { count: failed }),
+      short: tr("board.failedCount", { n: failed }),
     };
   }
   // The step of its own plan a running card is on (#2157), ahead of the call it
@@ -145,17 +147,17 @@ export function faceSignal(
   if (data.state === "active") {
     const plan = planSummary(data.plan);
     if (plan && plan.current && !plan.allDone) {
-      return { tone: "muted", long: planLine(plan), short: `${plan.done}/${plan.total} done` };
+      return { tone: "muted", long: planLine(plan, tr), short: tr("board.face.planDone", { done: plan.done, total: plan.total }) };
     }
   }
-  if (branch && branch.total > 0) return { tone: "muted", long: branchLong(branch), short: branchShort(branch) };
+  if (branch && branch.total > 0) return { tone: "muted", long: branchLong(branch, tr), short: branchShort(branch, tr) };
   // The newest call still open, when the card is running one: the line a
   // bubble would have carried, now that the bubbles are not drawn.
   if (data.state === "active") {
     for (let i = data.tools.length - 1; i >= 0; i--) {
-      const t = data.tools[i];
-      if (t.endedAt != null) continue;
-      const { name, subject } = words.describeCall(t);
+      const call = data.tools[i];
+      if (call.endedAt != null) continue;
+      const { name, subject } = words.describeCall(call);
       return { tone: "muted", long: subject ? `${name} · ${subject}` : name, short: name };
     }
   }

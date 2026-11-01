@@ -25,7 +25,8 @@ const { default: FeedbackDialog } = await import("../components/FeedbackDialog")
 const { default: FeedbackShots } = await import("../components/FeedbackShots");
 const { default: FeedbackDetails } = await import("../components/FeedbackDetails");
 const { default: FeedbackKinds } = await import("../components/FeedbackKinds");
-const { draftKey, feedbackDrafts, feedbackSeed, DISCARD_LABEL, DISCARD_ARMED_LABEL, DISCARD_ARMED_TITLE } = await import("../feedback-draft");
+const { draftKey, feedbackDrafts, feedbackSeed, discardLabel, discardArmedLabel, discardArmedTitle } = await import("../feedback-draft");
+const DISCARD_LABEL = discardLabel(), DISCARD_ARMED_LABEL = discardArmedLabel(), DISCARD_ARMED_TITLE = discardArmedTitle();
 const { CONFIRM_GAP_MS } = await import("../panel-press");
 
 /** A PNG small enough to be sent as it is, so no canvas is asked for. */

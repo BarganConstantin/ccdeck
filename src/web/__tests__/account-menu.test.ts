@@ -64,15 +64,17 @@ describe("the row keeps its shape when its ⋯ is pressed", () => {
   });
 
   it("opens from a trigger that says what it opens, and for which account", () => {
-    const trigger = /<button type="button" id=\{`ap-more-\$\{a\.num\}`\}[\s\S]*?<\/button>/.exec(row)![0];
+    const trigger = /<button type="button" id=\{`ap-\$\{ids\}more-\$\{a\.num\}`\}[\s\S]*?<\/button>/.exec(row)![0];
     expect(trigger).toMatch(/aria-haspopup="menu"/);
+    // Claude's ids carry no prefix: the default voice's is empty.
+    expect(read("../components/AccountRow.tsx")).toMatch(/export const CLAUDE_VOICE: RowVoice = \{ idPrefix: "" \};/);
     // Whether this row's ⋯ is the open one, read once off the panel's menu.
     expect(clientText()).toMatch(/const menuOpen = menuFor === a\.num;/);
     expect(trigger).toMatch(/aria-expanded=\{menuOpen\}/);
-    expect(trigger).toMatch(/aria-controls=\{menuOpen \? `ap-menu-\$\{a\.num\}` : undefined\}/);
-    expect(trigger).toMatch(/title="More actions"/);
+    expect(trigger).toMatch(/aria-controls=\{menuOpen \? `ap-\$\{ids\}menu-\$\{a\.num\}` : undefined\}/);
+    expect(trigger).toMatch(/title=\{t\("accounts\.row\.more"\)\}/);
     // The account in the name, from the account's own data.
-    expect(trigger).toMatch(/aria-label=\{`More actions for \$\{a\.email \?\? a\.alias \?\? `account \$\{a\.num\}`\}`\}/);
+    expect(trigger).toMatch(/aria-label=\{t\("accounts\.row\.moreFor", \{ who: a\.email \?\? a\.alias \?\? t\("accounts\.accountNLower", \{ n: a\.num \}\) \}\)\}/);
     // Drawn, not typed.
     expect(trigger).toMatch(/<svg[^>]*aria-hidden/);
     expect(trigger).not.toMatch(/⋯/);
@@ -88,7 +90,7 @@ describe("the menu", () => {
     // Auto-switch's home or removing that, which the row's ⌂ only shows.
     const menu = view("menu");
     expect([...menu.matchAll(/role="menuitem"/g)]).toHaveLength(7);
-    const order = [">Rename</button>", ">Move to slot…</button>", ': "Share"}', ">Projects</button>", ': "Hold out of rotation"}', ': "Set as home"}', 'role="separator"', ': "Remove"}']
+    const order = ['t("accounts.menu.rename")}</button>', 't("accounts.menu.moveSlot")}</button>', ': t("accounts.menu.share")}', 't("accounts.menu.projects")}</button>', ': t("accounts.menu.holdOut")}', ': t("accounts.menu.setHome")}', 'role="separator"', ': t("accounts.menu.remove")}']
       .map(s => menu.indexOf(s));
     expect(order.every(i => i >= 0), order.join()).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
@@ -118,8 +120,8 @@ describe("the menu", () => {
   });
 
   it("gives every form a way out that is a word, not a gesture to discover", () => {
-    for (const v of ["rename", "move"] as const) expect(view(v)).toMatch(/>Cancel<\/button>/);
-    expect(view("share")).toMatch(/>Done<\/button>/);
+    for (const v of ["rename", "move"] as const) expect(view(v)).toMatch(/\{t\("accounts\.cancel"\)\}<\/button>/);
+    expect(view("share")).toMatch(/\{t\("accounts\.done"\)\}<\/button>/);
   });
 
   it("saves a name on Enter through a form, and sends a move only from its button", () => {

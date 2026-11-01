@@ -52,7 +52,7 @@ describe("both stripes follow one rule", () => {
 
   it("names every run of two or more, the same name on each of its doors", () => {
     const names = [...leftGroups, ...rails.right].filter(g => g.length > 1).map(g => [...new Set(g.map(i => i.group))]);
-    expect(names).toEqual([["Claude accounts"], ["Usage and machine"], ["Activity history"], ["Watchers"]]);
+    expect(names).toEqual([["Accounts"], ["Usage and machine"], ["Activity history"], ["Watchers"]]);
   });
 
   it("draws each named run as a group a screen reader announces, and a lone door as itself", () => {
@@ -77,7 +77,7 @@ describe("both stripes follow one rule", () => {
     expect(button).not.toContain("aria-expanded");
   });
 
-  it("leaves a stripe without the Claude accounts' run where Claude Code is missing", () => {
+  it("gives a Codex-only stripe its own button, without the Claude capacity doors", () => {
     const codexOnly = railItems({
       providers: { kind: "reported", claude: false, codex: true },
       sessionListOpen: false, toggleSessionList: noop, accountsPanelOpen: false, toggleAccountsPanel: noop,
@@ -86,6 +86,6 @@ describe("both stripes follow one rule", () => {
       openCapacity: noop, openSettings: noop, onFeedback: noop,
       toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
     });
-    expect(codexOnly.leftStripe.map(ids)).toEqual([["session-list"]]);
+    expect(codexOnly.leftStripe.map(ids)).toEqual([["codex-accounts"], ["session-list"]]);
   });
 });

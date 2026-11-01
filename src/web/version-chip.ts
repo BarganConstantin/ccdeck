@@ -27,6 +27,8 @@
 // answered perfectly well, or "click to check" while a click is already in
 // flight, is worse than the plain caption it replaced.
 
+import { t } from "./i18n";
+
 export type VersionChipCopy = {
   /** The version rendered on the chip, already defaulted by the caller. */
   running: string;
@@ -49,14 +51,14 @@ export type VersionChipCopy = {
   checking?: boolean;
 };
 
-const CHECKS_OFF = "Update checks are off (AGENTS_DECK_NO_UPDATE_CHECK=1)";
+const checksOff = () => t("shell.chip.checksOff");
 
 /** The half of the click that has no failure mode. It is in every branch below,
  *  including the two that used to describe a chip with nothing to do: a deck
  *  with checks switched off, and one already waiting on npm, both still open
  *  the notes on a click, and a tooltip that said otherwise would be describing
  *  a dead control that is not dead. */
-const NOTES_CLICK = "click for what's new";
+const notesClick = () => t("shell.chip.notesClick");
 
 /** The chip's tooltip: what npm last said, when it said it, and what a click
  *  would do about it. */
@@ -64,17 +66,17 @@ export function versionChipTitle(c: VersionChipCopy): string {
   // No lookup will ever run, so the notes are the ONLY thing a click does — and
   // are named rather than left out, which is what turned this branch from "this
   // button is off" into "this button does the other thing".
-  if (c.checkDisabled) return `${CHECKS_OFF} · ${NOTES_CLICK}`;
+  if (c.checkDisabled) return t("shell.chip.titleOff", { off: checksOff(), click: notesClick() });
   // A check is already in flight, so a click cannot usefully start another one.
   // It can still open the notes, because those never needed the network.
-  if (c.checking) return `Asking npm for the newest release… · ${NOTES_CLICK}`;
+  if (c.checking) return t("shell.chip.titleBusy", { asking: t("shell.chip.asking"), click: notesClick() });
   const state = c.latest
-    ? `npm has v${c.latest}`
+    ? t("shell.chip.npmHas", { latest: c.latest })
     : c.latestPending
       // Reached, but holding the version back: the dist-tag moves before the
       // tarball is servable, and offering it there ends in ETARGET.
-      ? `npm's latest tag names v${c.latestPending}, which it cannot serve yet`
-      : "npm not reached yet";
+      ? t("shell.chip.pendingTag", { pending: c.latestPending })
+      : t("shell.chip.notReached");
   // NPM NOT REACHED, SAID OUT LOUD. Without this the chip described a machine
   // behind a proxy exactly as it described a machine that was up to date: a
   // cached `npm has vX`, an hour-old `checked 3h ago` — the age deliberately
@@ -83,29 +85,29 @@ export function versionChipTitle(c: VersionChipCopy): string {
   // dropped on arrival (#1046). It goes where the age goes, because it is the
   // same fact about the same attempt: when the deck last managed to ask.
   const age = c.checkFailedAgo
-    ? ` · could not reach npm ${c.checkFailedAgo}`
-    : c.checkedAgo ? ` · checked ${c.checkedAgo}` : "";
+    ? ` · ${t("shell.chip.couldNotReach", { ago: c.checkFailedAgo })}`
+    : c.checkedAgo ? ` · ${t("shell.chip.checked", { ago: c.checkedAgo })}` : "";
   // The deck re-checks on its own now, so the chip must not claim to be the
   // only way — it is the way to not wait. The notes come first in the sentence
   // because they come first in time: they are already in the bundle.
-  return `${state}${age} · re-checked periodically · ${NOTES_CLICK}, and to check npm now`;
+  return t("shell.chip.title", { state, age, click: notesClick() });
 }
 
 /** The chip's accessible name. The visible text is a version number and both
  *  actions are invisible, so this has to carry all three. */
 export function versionChipLabel(c: VersionChipCopy): string {
-  const v = `Version v${c.running}, show what's new`;
+  const v = t("shell.chip.label", { running: c.running });
   // The check is what varies; the notes are what does not. Stated in that order
   // so the constant half is heard first and the caveat second, rather than a
   // reader having to sit through "update checks are off" to find out whether
   // pressing this does anything at all.
-  if (c.checkDisabled) return `${v} — update checks are off`;
-  if (c.checking) return `${v} — checking npm for a newer release`;
+  if (c.checkDisabled) return t("shell.chip.labelOff", { base: v });
+  if (c.checking) return t("shell.chip.labelChecking", { base: v });
   // A reader who cannot see the tooltip needs the failure most: the chip looks
   // identical either way, and "check npm for a newer release" on a machine that
   // has not reached npm for three hours is a promise the control cannot keep.
-  if (c.checkFailedAgo) return `${v} — npm could not be reached ${c.checkFailedAgo}, check again`;
-  return `${v} and check npm for a newer release`;
+  if (c.checkFailedAgo) return t("shell.chip.labelFailed", { base: v, ago: c.checkFailedAgo });
+  return t("shell.chip.labelPlain", { base: v });
 }
 
 /** What the chip is about once a drift has been found. */
@@ -144,17 +146,15 @@ export type VersionNoticeCopy = {
  *  still carries the visible version string. */
 export function versionNoticeLabel(n: VersionNoticeCopy): string {
   const what = n.kind === "restart"
-    ? `v${n.to} is installed and waiting for a restart`
-    : `v${n.to} is available on npm`;
+    ? t("shell.chip.noticeRestart", { to: n.to })
+    : t("shell.chip.noticeUpgrade", { to: n.to });
   // What the NEXT click does, not what the chip is showing — a name that
   // describes its current state reads backwards to anyone deciding whether to
   // press it. Opening the notes is the half that is true either way; the notice
   // is promised only while it is not already there, because promising to show
   // something the reader can see is how a name stops being trusted.
-  const does = n.open ? "show what's new" : "show what's new and the notice";
-  // Starts with the visible words, "{to} is ready" (WCAG 2.5.3, label in name),
-  // then the version this deck is running, which the chip no longer shows.
-  return `${n.to} is ready. Running v${n.from}; ${what} — ${does}`;
+  const does = n.open ? t("shell.chip.noticeShow") : t("shell.chip.noticeShowBanner");
+  return t("shell.chip.noticeLabel", { to: n.to, from: n.from, what, does });
 }
 
 // ── which update a dismissal was about (#1175) ──────────────────────────────

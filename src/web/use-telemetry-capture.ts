@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { pressAccepted } from "./panel-press";
+import { t } from "./i18n";
+import { serverText } from "./radar-server-text";
+import { OwnError, ownMessage } from "./own-error";
 
 export interface CapturedExport {
   id: number; at: number; observedAt: number; signal: "logs" | "metrics" | "traces";
@@ -71,11 +74,11 @@ export function useTelemetryCapture() {
         method: "POST", headers: { "Content-Type": "application/json" }, body: "{}", signal: request.signal,
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Capture action failed. Please retry.");
+      if (!response.ok) throw new OwnError(serverText(data.error) || t("radar.srv.captureActionFailed"));
       if (kind === "permission") setPermission(data);
       const fresh = await fetch("/api/system/traffic-radar/capture", { signal: request.signal });
       if (fresh.ok) { setCapture(await fresh.json()); setFailed(false); }
-    } catch (value) { setError(value instanceof Error ? value.message : "Capture action failed. Please retry."); }
+    } catch (value) { setError(ownMessage(value, t("radar.srv.captureActionFailed"))); }
     finally { clearTimeout(timeout); actionRequest.current = null; inflight.current = null; setPendingAction(null); setBusy(false); }
   };
   return { capture, failed, busy, pendingAction, error, permission, action };

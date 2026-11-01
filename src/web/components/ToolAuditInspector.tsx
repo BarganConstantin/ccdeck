@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
+import { t as translate, useT, currentLanguage } from '../i18n';
 import ToolAuditHistory, { HistorySkeleton } from './ToolAuditHistory';
 import { operationDescription, operationName } from '../operation-glossary';
 import { auditDuration, type AuditCall, type AuditReport, type AuditRow } from '../tool-audit';
-import { callTime, count, failureShare } from '../tool-audit-report';
+import { callTime, countOf, failureShare } from '../tool-audit-report';
 
 export function AuditCloseGlyph() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>;
@@ -16,13 +17,13 @@ export const PendingLines = ({ label }: { label: string }) => <div className="ta
   {[92, 78, 86, 70, 82].map(width => <i key={width} className="ta-skel" style={{ width: `${width}%` }} />)}
 </div>;
 
-const stateWord: Record<AuditCall['state'], string> = { success: 'Done', failed: 'Failed', unmatched: 'No result' };
+const stateWord = (state: AuditCall['state']) => translate(`insights.audit.state.${state}`);
 const StateGlyph = ({ state }: { state: AuditCall['state'] }) => <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d={state === 'failed' ? 'm4 4 8 8m0-8-8 8' : state === 'success' ? 'm3 8.5 3 3 7-7' : 'M4 8h8'} /></svg>;
 
 function whoUsed(row: AuditRow) {
   const { claude, codex } = row.providers;
-  if (claude && codex) return `${claude.toLocaleString()} by Claude, ${codex.toLocaleString()} by Codex`;
-  return claude ? 'All by Claude' : 'All by Codex';
+  if (claude && codex) return translate('insights.audit.by.both', { claude: claude.toLocaleString(currentLanguage()), codex: codex.toLocaleString(currentLanguage()) });
+  return translate(claude ? 'insights.audit.by.claude' : 'insights.audit.by.codex');
 }
 
 export default function ToolAuditInspector({ row, details, loading, pending = false, charted = true, error, kind, setKind, onClose, onShowSkills }: {
@@ -35,59 +36,60 @@ export default function ToolAuditInspector({ row, details, loading, pending = fa
   /** The Skill tool's row: which skills those calls loaded is the Skills view's answer. */
   onShowSkills?: () => void;
 }) {
+  const t = useT();
   const description = operationDescription(row.operation);
   const calls = details?.[kind] ?? [];
   const now = Date.now();
   const share = failureShare(row);
   const reading = (loading || pending) && !details;
   const n = (value: ReactNode) => pending ? <Pending /> : value;
-  return <section className="ta-inspector" aria-label={`${operationName(row.operation)} details`} id="tool-operation-inspector">
+  return <section className="ta-inspector" aria-label={t('insights.audit.insp.details', { name: operationName(row.operation) })} id="tool-operation-inspector">
     <header className="ta-inspector-head">
       <div>
         <h3 tabIndex={-1} id="tool-operation-heading">{operationName(row.operation)}</h3>
         {description && <p>{description}</p>}
       </div>
-      <button type="button" className="glyph-btn" aria-label="Close details" onClick={onClose}><AuditCloseGlyph /></button>
+      <button type="button" className="glyph-btn" aria-label={t('insights.audit.insp.close')} onClick={onClose}><AuditCloseGlyph /></button>
     </header>
 
     <dl className="ta-facts" aria-busy={pending || undefined}>
-      <div><dt>Calls</dt><dd>{n(row.calls.toLocaleString())}</dd></div>
-      <div><dt>Total time</dt><dd>{n(auditDuration(row.totalMs))}</dd></div>
-      <div><dt>Usually</dt><dd>{n(auditDuration(row.medianMs))}</dd></div>
-      <div><dt>Failed</dt><dd data-bad={(!pending && row.failed > 0) || undefined}>{n(<>{row.failed.toLocaleString()}{share && <small>{share}</small>}</>)}</dd></div>
+      <div><dt>{t('insights.audit.col.calls')}</dt><dd>{n(row.calls.toLocaleString(currentLanguage()))}</dd></div>
+      <div><dt>{t('insights.audit.col.time')}</dt><dd>{n(auditDuration(row.totalMs))}</dd></div>
+      <div><dt>{t('insights.audit.col.usually')}</dt><dd>{n(auditDuration(row.medianMs))}</dd></div>
+      <div><dt>{t('insights.audit.col.failed')}</dt><dd data-bad={(!pending && row.failed > 0) || undefined}>{n(<>{row.failed.toLocaleString(currentLanguage())}{share && <small>{share}</small>}</>)}</dd></div>
     </dl>
     <p className="ta-note">
       {pending ? <Pending width="14em" /> : <>
         {whoUsed(row)}
-        {row.maxMs !== null && row.measured > 1 && <> · longest {auditDuration(row.maxMs)}</>}
-        {row.unmatched > 0 && <> · {count(row.unmatched, 'call')} without a result yet</>}
+        {row.maxMs !== null && row.measured > 1 && <> · {t('insights.audit.insp.longest', { time: auditDuration(row.maxMs) })}</>}
+        {row.unmatched > 0 && <> · {t('insights.audit.insp.noResult', { calls: countOf(row.unmatched, 'call') })}</>}
       </>}
     </p>
-    {onShowSkills && <button type="button" className="btn ta-show-skills" onClick={onShowSkills}>See which skills ran →</button>}
+    {onShowSkills && <button type="button" className="btn ta-show-skills" onClick={onShowSkills}>{t('insights.audit.insp.skills')}</button>}
 
     {error && <p className="ta-message" role="alert">{error}</p>}
     {details?.history ? <ToolAuditHistory key={row.operation} history={details.history} /> : reading && charted && <HistorySkeleton />}
 
     <section className="ta-calls-section" aria-labelledby="ta-calls-title">
       <div className="ta-calls-head">
-        <h4 id="ta-calls-title">Calls</h4>
-        <div className="uh-range" role="group" aria-label="Show calls">
-          <button type="button" className="uh-range-btn" aria-pressed={kind === 'recent'} onClick={() => setKind('recent')}>Latest</button>
-          <button type="button" className="uh-range-btn" aria-pressed={kind === 'slowest'} onClick={() => setKind('slowest')}>Slowest</button>
+        <h4 id="ta-calls-title">{t('insights.audit.col.calls')}</h4>
+        <div className="uh-range" role="group" aria-label={t('insights.audit.insp.showCalls')}>
+          <button type="button" className="uh-range-btn" aria-pressed={kind === 'recent'} onClick={() => setKind('recent')}>{t('insights.audit.insp.latest')}</button>
+          <button type="button" className="uh-range-btn" aria-pressed={kind === 'slowest'} onClick={() => setKind('slowest')}>{t('insights.audit.sort.slowest')}</button>
         </div>
       </div>
-      {reading && <PendingLines label="Reading calls" />}
+      {reading && <PendingLines label={t('insights.audit.insp.readingCalls')} />}
       {details && <>
         <ul className="ta-calls">{calls.map(call => <li key={call.id} data-state={call.state}>
           <span className="ta-call-when">{callTime(call.capturedAt, now)}</span>
           <span className="ta-call-who">{call.provider === 'claude' ? 'Claude' : 'Codex'}</span>
           <span className="ta-call-took">{auditDuration(call.durationMs)}</span>
-          <span className="ta-call-state"><StateGlyph state={call.state} />{stateWord[call.state]}</span>
+          <span className="ta-call-state"><StateGlyph state={call.state} />{stateWord(call.state)}</span>
         </li>)}</ul>
-        {!calls.length && <p className="ta-note">{kind === 'slowest' ? 'None of these calls was timed.' : 'No calls in this period.'}</p>}
-        {details.total > calls.length && calls.length > 0 && <p className="ta-note">The {kind === 'recent' ? 'latest' : 'slowest'} {calls.length} of {details.total.toLocaleString()}.</p>}
+        {!calls.length && <p className="ta-note">{kind === 'slowest' ? t('insights.audit.insp.noneTimed') : t('insights.audit.insp.noCalls')}</p>}
+        {details.total > calls.length && calls.length > 0 && <p className="ta-note">{t(kind === 'recent' ? 'insights.audit.insp.latestOf' : 'insights.audit.insp.slowestOf', { n: calls.length, total: details.total.toLocaleString(currentLanguage()) })}</p>}
       </>}
     </section>
-    <p className="ta-note ta-inspector-foot">Times include any wait for your approval.</p>
+    <p className="ta-note ta-inspector-foot">{t('insights.audit.insp.foot')}</p>
   </section>;
 }

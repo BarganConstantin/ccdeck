@@ -12,6 +12,7 @@
 // for reuse; if one of them ever needs to differ, the comment that says why
 // belongs here.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useT } from "../i18n";
 import { createPortal } from "react-dom";
 import { type Peer, foldPeek, restLine } from "../other-accounts";
 import { SLOT_ORDER, type OrderChoice } from "../other-accounts-order";
@@ -46,8 +47,9 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
   /** The pointer left the card: shut it, on the same grace as the row's. */
   onLet: () => void;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
-  const { title, shown, rest } = foldPeek(peers);
+  const { title, shown, rest } = foldPeek(peers, t);
 
   const place = useCallback(() => {
     const el = ref.current;
@@ -87,7 +89,7 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
                 A name nothing has ever been collected for gets no number and no
                 guess — see foldPeek on why it also sorts last. */}
             <span className="ap-fold-state" data-tone={p.ready ? "ok" : p.warn ? "warn" : "idle"}>
-              {p.ready ? (p.headroom == null ? "not read yet" : `${Math.round(p.headroom)}% free`) : p.why}
+              {p.ready ? (p.headroom == null ? t("accounts.other.notReadYet") : t("accounts.other.free", { pct: Math.round(p.headroom) })) : p.why}
             </span>
           </span>
         ))}
@@ -108,7 +110,7 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
  * column rather than behind a view and a way back.
  */
 export default function OtherAccounts({
-  peers, strained, armed, threshold, open, onToggle, order, choices, onOrder, allOpen, onToggleAll, held = false,
+  peers, strained, armed, threshold, open, onToggle, order, choices, onOrder, allOpen, onToggleAll, held = false, idPrefix = "",
 }: {
   peers: Peer[];
   /** Where auto-switch trips. This row says it because the control that sets
@@ -132,7 +134,11 @@ export default function OtherAccounts({
   onToggleAll: () => void;
   /** The list is holding the order the reader found it in — see holdOrder. */
   held?: boolean;
+  /** Before each id, for the second column that draws this row (AccountRow's
+   *  RowVoice says why). */
+  idPrefix?: string;
 }) {
+  const t = useT();
   const [peek, setPeek] = useState(false);
   const peekTimer = useRef(0);
   useEffect(() => () => window.clearTimeout(peekTimer.current), []);
@@ -162,18 +168,18 @@ export default function OtherAccounts({
   // "where do I go" before the reader unfolds anything; once they have, the
   // rows underneath say it per account, and a summary repeating one of them
   // makes a reader check whether the two are counting the same thing.
-  const line = restLine(peers, { strained: strained && !open, armed, threshold });
+  const line = restLine(peers, { strained: strained && !open, armed, threshold }, t);
   return (
     <div className="ap-rest">
-      <button type="button" id="ap-rest-entry" className="ap-nav"
+      <button type="button" id={`ap-${idPrefix}rest-entry`} className="ap-nav"
         aria-expanded={open}
         // THE WHOLE BOX, not the list inside it. The press reveals the accounts
         // AND the policy over them; naming only the list would tell a screen
         // reader that half of what appeared is not what this row controls.
-        aria-controls={open ? "ap-rest-panel" : undefined}
+        aria-controls={open ? `ap-${idPrefix}rest-panel` : undefined}
         // Described by the card while the card is there, so a screen reader on
         // this row is read the same names a pointer is shown.
-        aria-describedby={peek ? "ap-rest-peek" : undefined}
+        aria-describedby={peek ? `ap-${idPrefix}rest-peek` : undefined}
         onClick={() => { dropPeek(); onToggle(); }}
         // A mouse only. Touch has no hover, and a pointerenter synthesised by a
         // tap would open a card the tap is already replacing with the list.
@@ -196,7 +202,7 @@ export default function OtherAccounts({
             Those three left edges are the column's spine, and a 23px indent on
             the middle one was the loudest thing in the block. */}
         <span className="ap-nav-text">
-          <span className="ap-nav-name">Other accounts</span>
+          <span className="ap-nav-name">{t("accounts.other.title")}</span>
           <span className="ap-nav-state" data-tone={line.tone}>{line.text}</span>
         </span>
         <svg className="ap-nav-chev" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
@@ -204,10 +210,10 @@ export default function OtherAccounts({
           <path d="M5.6 3.4 9.2 7l-3.6 3.6" />
         </svg>
       </button>
-      {peek && <FoldPeek anchorId="ap-rest-entry" id="ap-rest-peek" peers={peers}
+      {peek && <FoldPeek anchorId={`ap-${idPrefix}rest-entry`} id={`ap-${idPrefix}rest-peek`} peers={peers}
         onHold={holdPeek} onLet={shutPeek} />}
       {open && <RestTools order={order} choices={choices} onOrder={onOrder}
-        allOpen={allOpen} onToggleAll={onToggleAll} held={held} />}
+        allOpen={allOpen} onToggleAll={onToggleAll} held={held} listId={`ap-${idPrefix}rest-list`} />}
     </div>
   );
 }
@@ -238,14 +244,16 @@ export default function OtherAccounts({
  * controls, and a fixed reservation sized for the longest order cut "Auto-
  * switch has nowhere to go" in half beside "Slot", with sixty pixels unused.
  */
-function RestTools({ order, choices, onOrder, allOpen, onToggleAll, held }: {
+function RestTools({ order, choices, onOrder, allOpen, onToggleAll, held, listId }: {
   order: string;
   choices: OrderChoice[];
   onOrder: (order: string) => void;
   allOpen: boolean;
   onToggleAll: () => void;
   held: boolean;
+  listId: string;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = ref.current;
@@ -258,15 +266,15 @@ function RestTools({ order, choices, onOrder, allOpen, onToggleAll, held }: {
     ro.observe(el);
     return () => { ro.disconnect(); row.style.removeProperty("--rest-tools-w"); };
   }, []);
-  const label = choices.find(c => c.id === order)?.label ?? "Slot";
+  const label = choices.find(c => c.id === order)?.label ?? t("accounts.order.slot");
   return (
     <div className="ap-rest-tools" ref={ref}>
       <span className="ap-rest-sort">
         <select value={order} onChange={e => onOrder(e.target.value)}
-          aria-label="Order of the other accounts"
+          aria-label={t("accounts.other.orderLabel")}
           // The whole order, for a label the cap has cut; and while the list
           // is held, why it does not match what the numbers now say.
-          title={held ? `${label} — held where it was while you are in the list` : label}
+          title={held ? t("accounts.other.heldTip", { label }) : label}
           data-sorted={order === SLOT_ORDER ? undefined : ""}
           data-held={held ? "" : undefined}>
           {choices.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
@@ -281,8 +289,8 @@ function RestTools({ order, choices, onOrder, allOpen, onToggleAll, held }: {
           The glyph is unfold and fold — arrows away from a rule and towards
           it — because two chevrons stacked are the platform's sign for sort
           and for a list box, and this sits beside one. */}
-      <button type="button" className="ap-rest-all" aria-label="Expand every account" aria-pressed={allOpen}
-        aria-controls="ap-rest-list" title={allOpen ? "Collapse every account" : "Expand every account"}
+      <button type="button" className="ap-rest-all" aria-label={t("accounts.other.expandAll")} aria-pressed={allOpen}
+        aria-controls={listId} title={allOpen ? t("accounts.other.collapseAll") : t("accounts.other.expandAll")}
         onClick={onToggleAll}>
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3"
           strokeLinecap="round" strokeLinejoin="round" aria-hidden>

@@ -194,7 +194,9 @@ describe("the boundary the rename must not cross", () => {
       "AGENTS_DECK_NO_DOWNLOAD", "AGENTS_DECK_NO_FRESHEN", "AGENTS_DECK_NO_INSTALL",
       "AGENTS_DECK_NO_UPDATE_CHECK", "AGENTS_DECK_RESPAWN", "CLAUDE_SWAP_BACKUP",
     ]) expect([...named]).toContain(v);
-    expect([...named].filter(v => /^CCDECK/.test(v))).toEqual([]);
+    // This opt-in profile roster is new; existing variables retain their names.
+    expect([...named].filter(v => /^CCDECK/.test(v) && v !== "CCDECK_CODEX_HOMES")).toEqual([]);
+    expect(named.has("CCDECK_CODEX_HOMES")).toBe(true);
   });
 
   it("asks npm about ccdeck, the one name the deck is published under", () => {

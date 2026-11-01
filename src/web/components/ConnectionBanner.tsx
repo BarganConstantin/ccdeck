@@ -8,6 +8,7 @@
 import { PRODUCT } from "../brand";
 import { outageSentence } from "../status-pill";
 import type { useAutoRestart } from "../use-auto-restart";
+import { useT } from "../i18n";
 
 type Restart = ReturnType<typeof useAutoRestart>;
 
@@ -19,13 +20,14 @@ export default function ConnectionBanner({ restarting, restartMode, live, paused
   /** Whether the canvas is paused, which the outage sentence pairs with the drop. */
   paused: boolean;
 }) {
+  const t = useT();
   return (
     <div className="conn-banner" role="alert">
       <span className="conn-dot" />
       {restarting
         ? restartMode === "npx"
-          ? "Fetching the new version with npx — this can take a minute…"
-          : `Restarting ${PRODUCT}…`
+          ? t("shell.banner.fetchingNpx")
+          : t("shell.banner.restartingProduct", { product: PRODUCT })
         : (() => {
             // The one sentence on this page that was reachable by mouse and
             // by nothing else (#510). It lived in the title of the status
@@ -46,7 +48,7 @@ export default function ConnectionBanner({ restarting, restartMode, live, paused
             const outage = outageSentence({ connected: live, paused });
             return (
               <>
-                {`Lost connection to the ${PRODUCT} server. Reconnecting…`}
+                {t("shell.banner.lost", { product: PRODUCT })}
                 {outage && <span className="conn-sub">{outage}</span>}
               </>
             );

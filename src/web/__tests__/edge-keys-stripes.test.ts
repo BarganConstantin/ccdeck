@@ -136,7 +136,7 @@ describe("the keys did not move with the buttons", () => {
   const rails = sourceOf("rail-items.tsx");
   const pairs: Array<[string, RegExp, RegExp]> = [
     ["L", /if \(e\.key === "l" \|\| e\.key === "L"\) toggleSessionList\(\);/, /onPress: toggleSessionList,/],
-    ["A", /if \(e\.key === "a" \|\| e\.key === "A"\) \{ if \(providersRef\.current\.claude\) toggleAccountsPanel\(\); \}/, /onPress: toggleAccountsPanel,/],
+    ["A", /if \(e\.key === "a" \|\| e\.key === "A"\) \{ if \(providersRef\.current\.claude \|\| providersRef\.current\.codex\) toggleAccountsPanel\(\); \}/, /onPress: toggleAccountsPanel,/],
     ["U", /if \(e\.key === "u" \|\| e\.key === "U"\) setUsagePanelOpen\(o => !o\);/, /onPress: \(\) => setUsagePanelOpen\(o => !o\),/],
     ["S", /if \(e\.key === "s" \|\| e\.key === "S"\) setMachinePanelOpen\(o => !o\);/, /onPress: \(\) => setMachinePanelOpen\(o => !o\),/],
     ["H", /if \(e\.key === "h" \|\| e\.key === "H"\) setUsageHistoryOpen\(o => !o\);/, /onPress: \(\) => setUsageHistoryOpen\(o => !o\),/],
@@ -152,7 +152,10 @@ describe("the keys did not move with the buttons", () => {
 
 describe("Accounts, and the left column it shares", () => {
   it("is gone without Claude Code — from the stripe and from the dock — rather than present and inert", () => {
-    expect(ids(left({ claude: false }))).toEqual(["session-list"]);
+    expect(ids(left({ claude: false, codex: false }))).toEqual(["session-list"]);
+    expect(ids(dock({ claude: false, codex: false }))).not.toContain("accounts");
+    // Codex alone is not Claude's panel: it draws its own button, never "accounts".
+    expect(ids(left({ claude: false }))).toEqual(["codex-accounts", "session-list"]);
     expect(ids(dock({ claude: false }))).not.toContain("accounts");
     expect(ids(dock({ claude: true }))).toContain("accounts");
   });
@@ -161,7 +164,12 @@ describe("Accounts, and the left column it shares", () => {
     // The eviction itself is use-left-column.ts's and left-column-824.test.ts
     // runs it; what this pins is that the stripe reaches the panels through
     // those toggles and nothing else, so it cannot draw both into one slot.
-    expect(sourceOf("App.tsx")).toMatch(/railItems\(\{\s*providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,/);
+    // The one Accounts button opens the panel through the accounts toggle, and
+    // Codex's own button (a Codex-only deck) opens its side through the same
+    // toggle (openAccountSide), never a second way in.
+    const app = sourceOf("App.tsx");
+    expect(app).toMatch(/railItems\(\{\s*providers, sessionListOpen, toggleSessionList,\s*accountsPanelOpen, toggleAccountsPanel, accountsPanelId: panelId\(shownAccountProvider\),\s*codexPanelOpen: accountsPanelOpen && shownAccountProvider === "codex",\s*toggleCodexPanel: \(\) => openAccountSide\("codex"\),/);
+    expect(app).toContain("if (!accountsPanelOpen || shownAccountProvider === side) toggleAccountsPanel();");
     const column = sourceOf("use-left-column.ts");
     expect(column).toMatch(/const toggleSessionList = useCallback\(\(\) => \{\s*setSessionListOpen\(open => \{[\s\S]*?if \(!open\) setAccountsPanelOpen\(/);
     expect(column).toMatch(/const toggleAccountsPanel = useCallback\(\(\) => \{[\s\S]*?if \(!open\) setSessionListOpen\(false\);/);

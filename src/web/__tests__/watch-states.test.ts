@@ -101,7 +101,7 @@ describe("the switch announces what it switches", () => {
     expect(source).toMatch(/id="bw-enabled-label"/);
     // Pointing at the VISIBLE text rather than repeating it, so the spoken
     // name and the printed one cannot drift apart.
-    expect(source).toMatch(/<span className="bw-switch-label" id="bw-enabled-label">Watch browser activity<\/span>/);
+    expect(source).toMatch(/<span className="bw-switch-label" id="bw-enabled-label">\{t\("settings\.bw\.switch"\)\}<\/span>/);
   });
 
   it("keeps role and state on the control itself", () => {

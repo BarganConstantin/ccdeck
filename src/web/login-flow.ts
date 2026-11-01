@@ -18,6 +18,8 @@
 // React or a DOM — the repo's usual home for a decision a component makes.
 
 /** Every state the login route can report. */
+import { t as tNow, type TFunction } from "./i18n";
+
 export type LoginServerState =
   | "idle" | "awaiting_url" | "awaiting_code" | "registering" | "done" | "failed";
 
@@ -48,6 +50,10 @@ export const LOGIN_VANISHED =
 /** Said when the server called it a failure but sent no reason with it. */
 export const LOGIN_FAILED = "the sign-in did not complete";
 
+/** The same two sentences in the language on show. */
+export const loginVanishedText = (t: TFunction = tNow): string => t("accounts.signin.vanished");
+export const loginFailedText = (t: TFunction = tNow): string => t("accounts.signin.didNotComplete");
+
 /**
  * The heading and sentence for an ended sign-in.
  *
@@ -61,11 +67,12 @@ export const LOGIN_FAILED = "the sign-in did not complete";
 export function loginEndNotice(
   { state, serverError, localError }:
   { state?: string | null; serverError?: string | null; localError?: string | null },
+  t: TFunction = tNow,
 ): { title: string; message: string } {
   const vanished = state === "idle";
   return {
-    title: vanished ? "Sign-in ended" : "Sign-in failed",
-    message: localError || serverError || (vanished ? LOGIN_VANISHED : LOGIN_FAILED),
+    title: t(vanished ? "accounts.signin.ended" : "accounts.signin.failed"),
+    message: localError || serverError || (vanished ? loginVanishedText(t) : loginFailedText(t)),
   };
 }
 
@@ -100,12 +107,13 @@ export type ActiveAccount = { num: string | null; email: string | null };
 export function restoreWarning(
   { restored, activeAccount }:
   { restored?: boolean | null; activeAccount?: ActiveAccount | null },
+  t: TFunction = tNow,
 ): string | null {
   if (restored !== false) return null;
-  const who = activeAccount?.email || (activeAccount?.num != null ? `account ${activeAccount.num}` : null);
+  const who = activeAccount?.email || (activeAccount?.num != null ? t("accounts.accountNLower", { n: activeAccount.num }) : null);
   return who
-    ? `This machine is now signed in as ${who} — the account you were using could not be put back. Switch back from the accounts panel.`
-    : "The account you were using could not be put back — check which account this machine is signed in as from the accounts panel.";
+    ? t("accounts.signin.restored.who", { who })
+    : t("accounts.signin.restored.unknown");
 }
 
 // ── leaving the dialog while a sign-in is on the server (#1175) ─────────────

@@ -11,7 +11,8 @@ import { useEffect, useState } from "react";
 
 import { blockedAnnouncement, nextAnnouncement } from "./block-announce";
 import type { BlockedSession } from "./ambient-counts";
-import { incidentSentence, INCIDENTS_CLEAR, type Incident } from "./provider-status";
+import { incidentSentence, incidentsClear, type Incident } from "./provider-status";
+import { t } from "./i18n";
 
 export interface LiveAnnouncementsDeps {
   waitingSessions: BlockedSession[];
@@ -60,11 +61,9 @@ export function useLiveAnnouncements({ waitingSessions, watchUnseen, incidents =
   }, [blockedNow]);
 
   const [watchSaid, setWatchSaid] = useState("");
-  const watchNow = watchUnseen > 0
-    ? `Browser watch has ${watchUnseen} unread ${watchUnseen === 1 ? "finding" : "findings"}.`
-    : "";
+  const watchNow = watchUnseen > 0 ? t("shell.announce.watch", { count: watchUnseen }) : "";
   useEffect(() => {
-    setWatchSaid(said => nextAnnouncement(said, watchNow, "Browser watch has no unread findings."));
+    setWatchSaid(said => nextAnnouncement(said, watchNow, t("shell.announce.watchNone")));
   }, [watchNow]);
 
   // An incident upstream, said once when it begins and once when it ends. The
@@ -75,7 +74,7 @@ export function useLiveAnnouncements({ waitingSessions, watchUnseen, incidents =
   const [incidentSaid, setIncidentSaid] = useState("");
   const incidentNow = incidentSentence(incidents);
   useEffect(() => {
-    setIncidentSaid(said => nextAnnouncement(said, incidentNow, INCIDENTS_CLEAR));
+    setIncidentSaid(said => nextAnnouncement(said, incidentNow, incidentsClear()));
   }, [incidentNow]);
 
   return { blockedSaid, watchSaid, setWatchSaid, incidentSaid };

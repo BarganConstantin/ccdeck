@@ -202,7 +202,7 @@ describe("the snapshot carries what relay-guard can say", () => {
 describe("the panel renders it", () => {
   it("has a section for the question, gated on the field being there", () => {
     expect(modal).toContain("{snap.relay && <RemoteControl relay={snap.relay} />}");
-    expect(modal).toContain('<h4 className="bw-sec-head">Remote control</h4>');
+    expect(modal).toContain('<h4 className="bw-sec-head">{t("shell.remote.title")}</h4>');
   });
 
   it("offers the command that matches the state, rather than always the block", () => {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { currentLanguage, t } from "./i18n";
 
 /** How full one quota window was when it ended (quota-closes.mjs). */
 export interface QuotaClose {
@@ -31,17 +32,17 @@ export function endedWeeks(closed: QuotaClose[], count = 4): QuotaClose[] {
 export function weekEndsLine(weeks: QuotaClose[]): string | null {
   if (!weeks.length) return null;
   const used = Math.round(weeks.reduce((sum, c) => sum + c.pct, 0) / weeks.length);
-  return `${weeks.length === 1 ? "Last week" : `Last ${weeks.length} weeks`} ended ${used}% used, ${100 - used}% unused`;
+  return t("shell.closes.last", { count: weeks.length, used, unused: 100 - used });
 }
 
-const day = (ms: number) => new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-const before = (ms: number) => ms < 3600_000 ? `${Math.max(1, Math.round(ms / 60_000))} min` : `${Math.round(ms / 3600_000)} h`;
+const day = (ms: number) => new Date(ms).toLocaleDateString(currentLanguage(), { month: "short", day: "numeric" });
+const before = (ms: number) => ms < 3600_000 ? t("shell.closes.min", { n: Math.max(1, Math.round(ms / 60_000)) }) : t("shell.closes.hour", { n: Math.round(ms / 3600_000) });
 
 /** Each week on its own line, for the title: what it ended at and how near its reset that was read. */
 export function weekEndsTitle(weeks: QuotaClose[]): string {
   return [
-    ...weeks.map(c => `${day(c.resetAt * 1000)}: ${Math.round(c.pct)}% used, read ${before(c.resetAt * 1000 - c.t)} before the reset`),
-    "An average of the weekly window's last reading before each reset",
+    ...weeks.map(c => t("shell.closes.week", { date: day(c.resetAt * 1000), pct: Math.round(c.pct), before: before(c.resetAt * 1000 - c.t) })),
+    t("shell.closes.average"),
   ].join("\n");
 }
 

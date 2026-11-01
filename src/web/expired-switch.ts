@@ -10,14 +10,15 @@
 // Pure, for the suite's usual reason: it has no DOM, so the rule lives where it
 // can be called.
 import { type Failure } from "./accounts-reload";
+import { t as tNow, type TFunction } from "./i18n";
 
 /** The server's reason for that refusal, as /api/claude-accounts/switch sends it. */
 export const LOGIN_EXPIRED = "login_expired";
 
 /** The refusal to draw on row `row`, or null when this answer is not that one. */
-export function expiredSwitch(body: { reason?: string } | null | undefined, name: string, row: number): Failure | null {
+export function expiredSwitch(body: { reason?: string } | null | undefined, name: string, row: number, t: TFunction = tNow): Failure | null {
   if (body?.reason !== LOGIN_EXPIRED) return null;
-  return { text: `${name}'s login expired · sign in again to use it`, row, signIn: true };
+  return { text: t("accounts.expiredSwitch.text", { name }), row, signIn: true };
 }
 
 /** What a removal answers beyond `ok`, when the account removed was the active
@@ -39,11 +40,11 @@ export const STILL_EXPIRED =
  * took to — the same confirmation a press of Switch leaves — or why every
  * session is still stopped. Null for every other removal, which moves nothing.
  */
-export function afterRemoval(out: RemoveAnswer | null | undefined):
+export function afterRemoval(out: RemoveAnswer | null | undefined, t: TFunction = tNow):
   { switched: { num: number; name: string } } | { failure: Failure } | null {
   if (!out?.ok) return null;
   const to = out.movedTo;
-  if (to && Number.isInteger(to.num)) return { switched: { num: to.num, name: to.alias ?? to.email ?? `account ${to.num}` } };
-  if (out.stillExpired) return { failure: { text: STILL_EXPIRED } };
+  if (to && Number.isInteger(to.num)) return { switched: { num: to.num, name: to.alias ?? to.email ?? t("accounts.accountNLower", { n: to.num }) } };
+  if (out.stillExpired) return { failure: { text: t("accounts.expiredSwitch.stillExpired") } };
   return null;
 }

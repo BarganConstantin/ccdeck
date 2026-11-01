@@ -357,7 +357,7 @@ describe("the custom section of the sound menu (#1207)", () => {
   const css = sheetText();
 
   it("says how full the library is where sounds are added, before any work is done", () => {
-    expect(customSounds).toMatch(/\{customCount\} of \{MAX_CUSTOM_ASSETS\}/);
+    expect(customSounds).toMatch(/t\("settings\.sounds\.custom\.count", \{ count: customCount, max: MAX_CUSTOM_ASSETS \}\)/);
     expect(customSounds).toMatch(/\{full && <p className="settings-row settings-row-status" id="sm-custom-full">\{fullReason\}<\/p>\}/);
     // The recording refuses before the microphone is asked for, and the voice
     // form stays shut rather than being filled in for nothing.
@@ -381,7 +381,7 @@ describe("the custom section of the sound menu (#1207)", () => {
   });
 
   it("asks twice before deleting, and says which sound the second press is for", () => {
-    expect(customSounds).toMatch(/aria-label=\{armedDelete === asset\.id \? `Confirm deleting \$\{asset\.name\}` : `Delete \$\{asset\.name\}`\}/);
+    expect(customSounds).toMatch(/aria-label=\{armedDelete === asset\.id \? t\("settings\.sounds\.custom\.confirmName", \{ name: asset\.name \}\) : t\("settings\.sounds\.custom\.deleteName", \{ name: asset\.name \}\)\}/);
     expect(customSounds).toMatch(/onKeyDown=\{e => \{ if \(e\.repeat\) e\.preventDefault\(\); \}\}/);
     expect(customSounds).toMatch(/window\.setTimeout\(\(\) => setArmedDelete\(null\), 4_000\)/);
   });

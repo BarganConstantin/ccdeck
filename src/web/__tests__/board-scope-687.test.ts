@@ -57,6 +57,7 @@ import {
   boardScopeTitle,
   BOARD_SPEND_LABEL,
   SESSION_SPEND_LABEL,
+  sessionSpendLabel,
   type Billable,
 } from "../board-usage";
 import { costForUsage, fmtCost } from "../pricing";
@@ -398,7 +399,7 @@ describe("every surface that prints one of these figures prints the shared label
     // Asserted as the whole expression, because the half that matters is the
     // one after the colon and a bare `toContain(BOARD_SPEND_LABEL)` would pass
     // on a panel that had stopped rendering it at all.
-    expect(panel).toContain(`<span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>`);
+    expect(panel).toContain(`<span className="up-total-label">{fromRange ? periodWord : boardSpendLabel()}</span>`);
     // The title is what this issue is about — asserted as the whole attribute
     // so the board branch cannot quietly lose its sentence. (The class carried
     // a stale dim as a template literal until #1289 took the dim off words.)
@@ -411,7 +412,7 @@ describe("every surface that prints one of these figures prints the shared label
     // — on the same rule, the board word on the board branch only. Under
     // ccusage it said "on this board" of the period's reading until
     // usage-token-strip-scope.test.ts, which checks the rendered caption.
-    expect(panel).toContain(`{!hasCost && <span className="up-tok up-scope">{fromRange ? periodNoun : BOARD_SCOPE_LABEL}</span>}`);
+    expect(panel).toContain(`{!hasCost && <span className="up-tok up-scope">{fromRange ? periodWord : boardScopeLabel()}</span>}`);
   });
 
   it("prints no board figure at all under a ccusage headline", () => {
@@ -458,7 +459,9 @@ describe("every surface that prints one of these figures prints the shared label
     // The rail's row folded its cost into the row's tooltip (rail-row-copy.ts),
     // where it still wears the label.
     expect(code(read("rail-row-copy.ts"))).toContain("fmtCost(r.cost)} ${SESSION_SPEND_LABEL}");
-    expect(sessionSummary).toContain(`<div className="ss-cost-label">{SESSION_SPEND_LABEL}</div>`);
+    expect(sessionSummary).toContain(`<div className="ss-cost-label">{sessionSpendLabel()}</div>`);
+    // The words behind the call are the shared label.
+    expect(sessionSpendLabel()).toBe(SESSION_SPEND_LABEL);
   });
 });
 

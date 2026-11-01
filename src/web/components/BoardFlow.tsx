@@ -35,6 +35,7 @@ import RecapTieEdge from "./RecapTieEdge";
 import SessionClusters from "./SessionClusters";
 import SessionGroupNode from "./SessionGroupNode";
 import ToolBursts from "./ToolBursts";
+import { useT } from "../i18n";
 
 // Stable geometry keeps MiniMap memoised; surfaces stay in CSS.
 const MINIMAP_SIZE = { width: 140, height: 105 };
@@ -79,6 +80,7 @@ export default function BoardFlow({
    *  on; absent with the terminal flag off, and so is the button. */
   onTerminal?: (button: Element | null) => void;
 }) {
+  const t = useT();
   const { allNodes, edges, visibleAgentIds, spotlightSet } = graph;
   const { positionsRef, pinnedRef, handleRelayout, rearrangeUndo } = layout;
   const { restoredViewport, onMoveStart, onMove } = viewport;
@@ -213,6 +215,7 @@ export default function BoardFlow({
         onTerminal={onTerminal}
       />
       <MiniMap
+        ariaLabel={t("board.minimap")}
         style={MINIMAP_SIZE}
         zoomable
         pannable

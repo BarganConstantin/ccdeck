@@ -17,6 +17,7 @@
 // components the suite has no DOM to mount, so their wiring to it is read from
 // the markup, the way #1762's is.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { en } from "../i18n/en";
 
 import { sourceOf } from "./client-source";
 
@@ -143,21 +144,27 @@ describe("the wiring", () => {
   const detail = sourceOf("components/DetailAside.tsx") + sourceOf("components/Inspector.tsx");
 
   it("arms each panel's hand-off on the close that panel draws", () => {
-    expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.accounts\(\); closeAccountsPanel\(\); \}\}/);
+    // Both sides of the one Accounts panel close through closeAccounts, which
+    // arms the hand-off of the side the deck has (Claude's, else Codex's).
+    expect(app).toContain("const closeAccounts = () => { (providers.claude ? panelReturn.accounts : panelReturn.codex)(); closeAccountsPanel(); };");
+    expect(app).toMatch(/<AccountsPanel[^>]*onClose=\{closeAccounts\}/);
+    expect(app).toMatch(/<CodexAccountsPanel[^>]*onClose=\{closeAccounts\}/);
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.sessionList\(\); closeSessionList\(\); \}\}/);
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.usage\(\); setUsagePanelOpen\(false\); \}\}/);
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.machine\(\); setMachinePanelOpen\(false\); \}\}/);
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\}/);
-    expect(detail).toMatch(/aria-label="Close detail panel"\s+onClick=\{onClose\}/);
+    expect(detail).toMatch(/aria-label=\{t\("board\.detailPanel\.closeLabel"\)\}\s+onClick=\{onClose\}/);
+    expect(en["board.detailPanel.closeLabel"]).toBe("Close detail panel");
   });
 
   it("says whether each panel is still drawn, by the same test that draws it", () => {
     // The two left panels animate out of the left column since 2026-10-08 and
     // are drawn by `sessionListDrawn` and `accountsDrawn` (panel-exit.ts,
     // isDrawn), which is what their hand-offs read too.
-    expect(app).toMatch(/const panelReturn = usePanelReturn\(\{\s*sessionListShown: sessionListDrawn, usageShown: isMounted\(usagePhase\), machineShown: isMounted\(machinePhase\),\s*accountsShown: accountsDrawn, detailShown, primarySelectedId, canvasRef,\s*\}\);/);
+    expect(app).toMatch(/const panelReturn = usePanelReturn\(\{\s*sessionListShown: sessionListDrawn, usageShown: isMounted\(usagePhase\), machineShown: isMounted\(machinePhase\),\s*accountsShown: accountsDrawn && providers.claude, codexShown: accountsDrawn && !providers.claude, detailShown, primarySelectedId, canvasRef,\s*\}\);/);
     expect(app).toMatch(/\{sessionListDrawn && \(\s*<SessionList/);
-    expect(app).toMatch(/\{accountsDrawn && \(\s*<AccountsPanel/);
+    expect(app).toMatch(/\{accountsDrawn && \(shownAccountProvider === "claude" \|\| accountSide\.bothMounted\) && \(\s*<AccountsPanel/);
+    expect(app).toMatch(/\{accountsDrawn && \(shownAccountProvider === "codex" \|\| accountSide\.bothMounted\) && \(\s*<CodexAccountsPanel/);
   });
 
   it("hands the chrome its four toggles' refs, and every placement puts them on the button", () => {

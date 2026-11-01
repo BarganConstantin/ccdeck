@@ -13,7 +13,9 @@
 // that names none is said above Cancel and Connect.
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { isPlainEnter } from "../feedback";
+import { useT } from "../i18n";
 import type { IntegrationFailure } from "../integrations/client";
+import { providerText } from "../integrations/provider-text";
 import type { FieldDef, IntegrationConnection, IntegrationWebDef } from "../integrations/types";
 
 interface FormState {
@@ -49,6 +51,7 @@ const shown = (field: FieldDef, values: Readonly<Record<string, string>>) =>
   !field.when || field.when.is.includes(values[field.when.field] ?? "");
 
 export default function IntegrationConnectionForm({ def, existing, busy, error, onSubmit, onCancel, onDirtyChange }: IntegrationConnectionFormProps) {
+  const t = useT();
   const uid = useId();
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(def.fields.map(f => [
     f.name, f.secret ? "" : f.initial?.(existing) ?? (f.type === "choice" ? f.options?.[0]?.value ?? "" : ""),
@@ -106,8 +109,8 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
 
   const errorWords = error && <>
     {error.message}
-    {error.detail && <span className="ig-form-detail"> {def.label} said: {error.detail}</span>}
-    {error.kind === "rate-limit" && error.retryAfter ? <span> Try again in {error.retryAfter} s.</span> : null}
+    {error.detail && <span className="ig-form-detail"> {t("integrations.failure.said", { provider: def.label, said: error.detail })}</span>}
+    {error.kind === "rate-limit" && error.retryAfter ? <span> {t("integrations.form.retryIn", { n: error.retryAfter })}</span> : null}
   </>;
 
   return (
@@ -116,13 +119,14 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
         <header className="ig-managed-header">
           <span className="ig-provider-glyph" aria-hidden><def.Glyph /></span>
           <div className="ig-managed-identity">
-            <h2 className="ig-form-title" id={`${uid}-title`}>{editing ? `Edit ${existing!.name}` : `Connect ${def.label}`}</h2>
-            {editing && <p>{def.label} connection</p>}
+            <h2 className="ig-form-title" id={`${uid}-title`}>{editing ? t("integrations.form.edit", { name: existing!.name }) : t("integrations.form.connect", { provider: def.label })}</h2>
+            {editing && <p>{t("integrations.form.connectionOf", { provider: def.label })}</p>}
           </div>
         </header>
 
         {visible.map(raw => {
-          const field = resolved(raw, values);
+          const base = resolved(raw, values);
+          const field = { ...base, label: providerText(t, base.label), hint: providerText(t, base.hint), placeholder: providerText(t, base.placeholder) };
           const invalid = error?.field === field.name;
           const describedBy = [field.hint ? `${uid}-${field.name}-hint` : "", invalid ? errorId : ""].filter(Boolean).join(" ") || undefined;
           if (field.type === "choice") {
@@ -134,7 +138,7 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
                     <input type="radio" name={`${uid}-${field.name}`} value={option.value} checked={values[field.name] === option.value}
                       aria-disabled={busy || undefined} onChange={() => set(field.name, option.value)}
                       onKeyDown={e => { if (isPlainEnter(e.nativeEvent)) e.preventDefault(); }} />
-                    {option.label}
+                    {providerText(t, option.label)}
                   </label>
                 ))}
               </fieldset>
@@ -144,13 +148,13 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
           const id = `${uid}-${field.name}`;
           return (
             <div key={field.name} className="fb-field">
-              <label className="fb-field-label" htmlFor={id}>{field.label}{field.optional && <span className="fb-optional"> optional</span>}</label>
+              <label className="fb-field-label" htmlFor={id}>{field.label}{field.optional && <span className="fb-optional"> {t("integrations.form.optional")}</span>}</label>
               <input id={id} className={`ap-manage-input ig-input${field.secret ? " ig-mono" : ""}`}
                 ref={el => { if (el) inputs.current.set(field.name, el); else inputs.current.delete(field.name); }}
                 type={field.type} inputMode={field.type === "url" ? "url" : field.type === "email" ? "email" : undefined}
                 autoComplete={field.autoComplete ?? "off"} spellCheck={false}
                 value={values[field.name] ?? ""} onChange={e => set(field.name, e.target.value)}
-                placeholder={keeps ? "Saved. Leave blank to keep it" : field.placeholder}
+                placeholder={keeps ? t("integrations.form.keepSaved") : field.placeholder}
                 readOnly={busy} aria-invalid={invalid || undefined} aria-describedby={describedBy} aria-required={!field.optional && !keeps || undefined} />
               {field.hint && <span className="ig-hint" id={`${uid}-${field.name}-hint`}>{field.hint}</span>}
               {invalid && errorField === field.name && <span className="ig-form-error" id={errorId} role="alert">{errorWords}</span>}
@@ -159,12 +163,12 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
         })}
 
         <details className="ig-help ig-token-help">
-          <summary>How to create a {def.label} token</summary>
+          <summary>{t("integrations.form.howTo", { provider: def.label })}</summary>
           {def.tokenHelp}
         </details>
 
         <div className="fb-field">
-          <label className="fb-field-label" htmlFor={`${uid}-name`}>Name <span className="fb-optional">optional</span></label>
+          <label className="fb-field-label" htmlFor={`${uid}-name`}>{t("integrations.form.name")} <span className="fb-optional">{t("integrations.form.optional")}</span></label>
           <input id={`${uid}-name`} className="ap-manage-input ig-input" type="text" autoComplete="off" maxLength={120}
             readOnly={busy} value={name} onChange={e => setName(e.target.value)} placeholder={host || def.label} />
         </div>
@@ -173,9 +177,9 @@ export default function IntegrationConnectionForm({ def, existing, busy, error, 
 
         <div className="ig-form-actions">
           <button type="submit" className="btn primary" aria-disabled={busy} aria-busy={busy}>
-            {busy ? "Checking…" : editing ? "Save" : "Connect"}
+            {busy ? t("integrations.form.checking") : editing ? t("integrations.form.save") : t("integrations.form.connectBtn")}
           </button>
-          <button type="button" className="btn" aria-disabled={busy || undefined} onClick={() => { if (!busy) onCancel(); }}>Cancel</button>
+          <button type="button" className="btn" aria-disabled={busy || undefined} onClick={() => { if (!busy) onCancel(); }}>{t("integrations.cancel")}</button>
         </div>
       </form>
     </FormContext.Provider>

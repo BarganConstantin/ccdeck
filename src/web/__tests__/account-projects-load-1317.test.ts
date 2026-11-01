@@ -291,7 +291,7 @@ describe("the report's own failure is said apart from ccusage", () => {
     m.deck.report(1).fail(new TypeError("Failed to fetch"));
     await settle();
     expect(m.state.report).toBeNull();
-    expect(m.state.error).toBe("Failed to fetch");
+    expect(m.state.error).toBe("Could not load");
   });
 });
 
@@ -322,9 +322,9 @@ describe("the modal itself", () => {
 
   it("says the dollars are still moving, and never calls a running ccusage unavailable", () => {
     expect(src).toContain('const costPending = load.report?.cost.phase === "running";');
-    expect(src).toContain('{costPending && <span className="ap-proj-total-pending">Reconciling cost…</span>}');
+    expect(src).toContain('{costPending && <span className="ap-proj-total-pending">{t("accounts.projects.reconciling")}</span>}');
     // The pending case is asked first, so the foot cannot fall through to
     // "ccusage unavailable" while ccusage is in fact still running.
-    expect(src).toMatch(/\{costPending \? "Dollars estimated · ccusage still running"\s*: view\.reconciled \?/);
+    expect(src).toMatch(/\{costPending \? t\("accounts\.projects\.footPending"\)\s*: view\.reconciled \?/);
   });
 });

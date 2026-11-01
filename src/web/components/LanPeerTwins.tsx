@@ -4,7 +4,8 @@
 // the machine's address, the one the dialog is about first, and the dialog's
 // own busy tag, press state and unpair for each; the arming is the dialog's,
 // in use-peer-unpair.ts.
-import { seenLabel } from "../lan-round";
+import { useT } from "../i18n";
+import { seenOrJustNow } from "../lan-round";
 import type { DeckRow, RowSource } from "../lan-roster";
 
 /**
@@ -31,26 +32,27 @@ export default function LanPeerTwins({ instances, now, busy, press, armedTwin, p
   /** Unpair one of the folded decks. None, and there is no button to press. */
   onUnpair?: (fp: string) => Promise<string | null>;
 }) {
+  const t = useT();
   return (
     <div className="modal-section">
-      <h3 className="lan-h">{instances.length} decks on this machine</h3>
+      <h3 className="lan-h">{t("lan.twins.h", { count: instances.length })}</h3>
       <ul className="lan-twins" role="list">
-        {instances.map((t, i) => {
-          const at = t.peer?.addr ? `${t.peer.addr}:${t.peer.port}` : t.row.addr;
-          const named = at || t.row.fp;
-          const since = t.peer?.pairedAt ? seenLabel(t.peer.pairedAt, now) : null;
+        {instances.map((inst, i) => {
+          const at = inst.peer?.addr ? `${inst.peer.addr}:${inst.peer.port}` : inst.row.addr;
+          const named = at || inst.row.fp;
+          const since = inst.peer?.pairedAt ? seenOrJustNow(inst.peer.pairedAt, now) : null;
           const meta = [
-            t.peer?.about?.version ? `runs ${t.peer.about.version}` : null,
-            since ? `paired ${since === "now" ? "just now" : since}` : null,
-            t.row.state,
+            inst.peer?.about?.version ? t("lan.twins.runs", { version: inst.peer.about.version }) : null,
+            since ? t("lan.twins.paired", { when: since }) : null,
+            inst.row.state,
           ].filter(Boolean).join(" · ");
-          const fpT = t.row.fp;
+          const fpT = inst.row.fp;
           return (
-            <li key={fpT} role="listitem" className="lan-twin" data-tone={t.row.tone}>
-              <i className={t.row.here ? "ap-pulse" : "ap-dot"} aria-hidden />
+            <li key={fpT} role="listitem" className="lan-twin" data-tone={inst.row.tone}>
+              <i className={inst.row.here ? "ap-pulse" : "ap-dot"} aria-hidden />
               {at
                 ? <code className="ap-lan-code lan-twin-at">{at}</code>
-                : <span className="lan-twin-at lan-twin-none">no address here</span>}
+                : <span className="lan-twin-at lan-twin-none">{t("lan.twins.noAddr")}</span>}
               <code className="ap-lan-code lan-twin-fp">{fpT}</code>
               {/* Before the second line in the markup, so the grid
                   places it beside the identity and lets it span both
@@ -62,14 +64,14 @@ export default function LanPeerTwins({ instances, now, busy, press, armedTwin, p
                   {...press(`unpair:${fpT}`)}
                   onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
                   onClick={() => pressTwin(fpT)}
-                  aria-label={armedTwin === fpT ? `Confirm unpairing ${named}` : `Unpair ${named}`}
+                  aria-label={t(armedTwin === fpT ? "lan.unpair.confirmAria" : "lan.unpair.aria", { name: named })}
                   title={armedTwin === fpT
-                    ? "Press again to stop talking to this deck. Logins it already has stay with it."
-                    : "Stop talking to this one of the machine's decks"}>
-                  {busy === `unpair:${fpT}` ? "unpairing…" : armedTwin === fpT ? "confirm" : "unpair"}
+                    ? t("lan.unpair.confirmTitle")
+                    : t("lan.twins.title")}>
+                  {busy === `unpair:${fpT}` ? t("lan.twins.unpairing") : armedTwin === fpT ? t("lan.list.confirm") : t("lan.list.unpair")}
                 </button>
               )}
-              <span className="lan-twin-meta">{i === 0 ? `${meta} · shown above` : meta}</span>
+              <span className="lan-twin-meta">{i === 0 ? t("lan.twins.shownAbove", { meta }) : meta}</span>
             </li>
           );
         })}

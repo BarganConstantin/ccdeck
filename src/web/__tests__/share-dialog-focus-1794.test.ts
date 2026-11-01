@@ -41,7 +41,7 @@ describe("focus follows the step (#1794)", () => {
 
   it("hands focus to Share once Pick again takes the bundle away", () => {
     expect(src).toMatch(/const rescuePick = useFocusRescue\(bundle == null, primaryRef\);/);
-    expect(src).toMatch(/onClick=\{\(\) => \{ rescuePick\(\); setBundle\(null\); setCopied\(false\); \}\}>\s*Pick again/);
+    expect(src).toMatch(/onClick=\{\(\) => \{ rescuePick\(\); setBundle\(null\); setCopied\(false\); \}\}>\s*\{t\("accounts\.sd\.pickAgain"\)\}/);
   });
 
   it("carries focus through a new share made after the expiry: to Share while it is out, then to the copy", () => {
@@ -56,7 +56,7 @@ describe("what the dialog says (#1794)", () => {
 
   it("says the bundle's heading and its warning as it lands, from a region outside the steps", () => {
     expect(src).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">\{said\}<\/div>\s*\{bundle \? \(/);
-    expect(src).toMatch(/const said = !bundle \? "" : dead \? heading : `\$\{heading\} — \$\{warning\}`;/);
+    expect(src).toMatch(/const said = !bundle \? "" : dead \? heading : t\("accounts\.sd\.said", \{ heading, warning \}\);/);
     // The view draws the same two, so what is said is what is on screen.
     expect(src).toMatch(/<h4>\{heading\}<\/h4>/);
     expect(src).toMatch(/<span className="ap-share-warn">\{warning\}<\/span>/);

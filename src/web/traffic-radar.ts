@@ -1,3 +1,5 @@
+import { t as translateNow, type TFunction } from "./i18n";
+
 export interface RadarVariable {
   key: string;
   value: string;
@@ -38,27 +40,27 @@ export interface RadarSnapshot {
   alerts: { id: number; message: string; at: number }[];
 }
 
-export function radarStatus(snapshot: RadarSnapshot | null, failed = false): string {
-  if (failed) return "Visibility interrupted";
-  if (!snapshot) return "Reading configuration and connections…";
-  if (snapshot.status === "unsupported") return "Connection monitoring is unavailable on this operating system";
-  if (snapshot.status === "unavailable") return "Connection visibility incomplete";
-  if (snapshot.connections.some(connection => connection.active && !connection.connecting)) return "Connections observed";
-  return "No connections observed in this sample";
+export function radarStatus(snapshot: RadarSnapshot | null, failed = false, t: TFunction = translateNow): string {
+  if (failed) return t("radar.status.interrupted");
+  if (!snapshot) return t("radar.status.reading");
+  if (snapshot.status === "unsupported") return t("radar.status.unsupported");
+  if (snapshot.status === "unavailable") return t("radar.status.incomplete");
+  if (snapshot.connections.some(connection => connection.active && !connection.connecting)) return t("radar.status.observed");
+  return t("radar.status.none");
 }
 
-export function connectionLabel(connection: { active: boolean | null; connecting?: boolean }, stale = false): string {
-  if (stale || connection.active === null) return "Visibility unavailable";
-  if (connection.connecting) return connection.active ? "Connecting · no reply yet" : "Attempted · no reply seen";
-  return connection.active ? "Active connection" : "Previously observed";
+export function connectionLabel(connection: { active: boolean | null; connecting?: boolean }, stale = false, t: TFunction = translateNow): string {
+  if (stale || connection.active === null) return t("radar.conn.unavailable");
+  if (connection.connecting) return connection.active ? t("radar.conn.connecting") : t("radar.conn.attempted");
+  return connection.active ? t("radar.conn.active") : t("radar.conn.previous");
 }
 
-export function captureSummary(variables: RadarVariable[]): string {
+export function captureSummary(variables: RadarVariable[], t: TFunction = translateNow): string {
   const content = variables.filter(v => [
     "OTEL_LOG_USER_PROMPTS", "OTEL_LOG_ASSISTANT_RESPONSES", "OTEL_LOG_TOOL_DETAILS",
     "OTEL_LOG_TOOL_CONTENT", "OTEL_LOG_RAW_API_BODIES",
   ].includes(v.key));
-  if (content.some(v => v.value.startsWith("Enabled"))) return "Content capture enabled in a configuration source";
-  if (content.length) return "Review capture flags; live session settings are unverified";
-  return "Content capture settings unknown";
+  if (content.some(v => v.value.startsWith("Enabled"))) return t("radar.capture.enabled");
+  if (content.length) return t("radar.capture.review");
+  return t("radar.capture.unknown");
 }

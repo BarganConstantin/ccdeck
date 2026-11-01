@@ -11,6 +11,7 @@ import { landFocus, openWaiting } from "../components/terminal/TerminalStage";
 import { offersWorkspace, type TerminalSwitch } from "../components/TerminalSection";
 import { keyHelpFor, WORKSPACE_KEY_ROW } from "../key-help";
 import { SKIP_TO_PANE, WORKSPACE_PANE_ID, skipToPane } from "../workspace-pane";
+import { en } from "../i18n/en";
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "");
@@ -93,7 +94,8 @@ describe("the skip link in Workspace (review 8)", () => {
   it("reads Skip to the pane there, and the Board's link is the link it was, byte for byte", () => {
     expect(SKIP_TO_PANE).toBe("Skip to the pane");
     const app = withoutComments(sourceOf("App.tsx"));
-    expect(app).toContain('<a className="skip-link" href="#canvas">Skip to the canvas</a>');
+    expect(app).toContain('<a className="skip-link" href="#canvas">{t("shell.skipToCanvas")}</a>');
+    expect(en["shell.skipToCanvas"]).toBe("Skip to the canvas");
     expect(app).toContain("href={`#${WORKSPACE_PANE_ID}`}");
     expect(app.indexOf("{inWorkspace\n")).toBeGreaterThan(-1);
   });

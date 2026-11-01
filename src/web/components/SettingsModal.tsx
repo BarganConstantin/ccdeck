@@ -17,6 +17,8 @@
 // component, lifted whole out of the menu it used to live in; this file is
 // only the frame, the nav and the search above it (SettingsSearch.tsx).
 import { useMediaQuery } from "../use-media-query";
+import { useT } from "../i18n";
+import LanguageSection from "./LanguageSection";
 import SessionRecoverySettings from "./SessionRecoverySettings";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
@@ -104,6 +106,7 @@ export default function SettingsModal({
   // Focus starts on the section's own tab, not on the ×: the nav is what this
   // dialog is walked by, and a door that opened it at Sounds lands the reader
   // on "Sounds", which says where they are.
+  const t = useT();
   const leaveGuardRef = useRef<SettingsLeaveGuard | null>(null);
   const registerLeaveGuard = useCallback((guard: SettingsLeaveGuard | null) => { leaveGuardRef.current = guard; }, []);
   function requestLeave(action: () => void, back = false) {
@@ -140,7 +143,7 @@ export default function SettingsModal({
   const searchRef = useRef<HTMLInputElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
   const searching = query.trim() !== "";
-  const results = useMemo(() => searchSettings(query, indexFor(providers.claude, integrationsReachHere, offeredKinds(integrations))), [query, providers.claude, integrationsReachHere, integrations]);
+  const results = useMemo(() => searchSettings(query, indexFor(providers.claude, integrationsReachHere, offeredKinds(integrations))), [query, providers.claude, integrationsReachHere, integrations, t]);
   const jumpTo = useSettingsJump(paneRef, !searching, section);
   const changeQuery = (next: string) => { setQuery(next); setActive(0); };
   // Opened at one setting, the dialog lands on it the way a result of its own
@@ -311,11 +314,12 @@ export default function SettingsModal({
         // panel of their own (#2176).
         return (
           <>
+            <LanguageSection />
             <BoardSection />
             <SessionRecoverySettings provider="Codex" />
             {providers.claude && <SessionRecoverySettings provider="Claude" />}
             <UpdatesSection autoRestart={restart.autoRestart} onToggleAutoRestart={restart.toggleAutoRestart} version={versionCheck.version} />
-            <ElsewhereSection claudeHere={providers.claude} singleKeys={singleKeys} doors={doors} />
+            <ElsewhereSection claudeHere={providers.claude} codexHere={providers.codex} singleKeys={singleKeys} doors={doors} />
           </>
         );
     }
@@ -326,7 +330,7 @@ export default function SettingsModal({
   const paneAction = section === "reading"
     ? <ReadingReset textSize={appearance.textSize} density={appearance.density} onTextSize={appearance.setTextSize} onDensity={appearance.setDensity} />
     : section === "integrations" && integrations.connections !== null
-      ? <span className="ig-total">{integrations.connections.length} saved connection{integrations.connections.length === 1 ? "" : "s"}</span>
+      ? <span className="ig-total">{t("settings.savedConnections", { count: integrations.connections.length })}</span>
       : null;
 
   return (
@@ -343,15 +347,15 @@ export default function SettingsModal({
       >
         <header className="modal-head">
           <div className="modal-title">
-            <span id="settings-title" className="modal-tool-name">Settings</span>
+            <span id="settings-title" className="modal-tool-name">{t("settings.title")}</span>
           </div>
           <div className="modal-actions">
             <button
               type="button"
               className="glyph-btn"
               onClick={() => requestLeave(onClose)}
-              aria-label="Close settings"
-              title="Close (Esc)"
+              aria-label={t("settings.close")}
+              title={t("settings.closeTip")}
             >×</button>
           </div>
         </header>
@@ -378,7 +382,7 @@ export default function SettingsModal({
             <div
               className="settings-nav"
               role="tablist"
-              aria-label="Settings sections"
+              aria-label={t("settings.sections")}
               aria-orientation={narrowNav ? "horizontal" : "vertical"}
               onKeyDown={moveSection}
             >

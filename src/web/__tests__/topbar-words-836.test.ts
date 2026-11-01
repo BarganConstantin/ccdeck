@@ -56,7 +56,7 @@ const rails = railItems({
   setUsageHistoryOpen: noop, watchOn: false, watchUnseen: 0, setBrowserWatchOpen: noop,
   openSettings: noop, onFeedback: noop, toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
 });
-const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Left column", groups: [rails.left] }));
+const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Left column", groups: rails.leftStripe }));
 const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Right panels", groups: rails.right }));
 const corner = renderToStaticMarkup(createElement(UtilityRun, { items: rails.utilities }));
 const dock = renderToStaticMarkup(createElement(EdgeDock, {
@@ -109,12 +109,14 @@ describe("every control in the chrome says its name (#836)", () => {
     // Drawn on the stripes and in the corner whenever the window is not a
     // phone's — the dock takes over there, in the same breakpoint.
     expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>\}/);
-    expect(app).toMatch(/: <EdgeRail side="left" label="Accounts and sessions" groups=\{\[\.\.\.rails\.leftStripe, rails\.integrations, rails\.explore\]\} \/>\}/);
-    expect(app).toMatch(/\{!phone && <EdgeRail side="right" label="Usage and activity" groups=\{rails\.right\} \/>\}/);
+    expect(app).toMatch(/: <EdgeRail side="left" label=\{t\("shell.rail.left"\)\} groups=\{\[\.\.\.rails\.leftStripe, rails\.integrations, rails\.explore\]\} \/>\}/);
+    expect(app).toMatch(/\{!phone && <EdgeRail side="right" label=\{t\("shell.rail.right"\)\} groups=\{rails\.right\} \/>\}/);
   });
 
   it("says a short word under each glyph in the phone's dock, and the rest by name behind More", () => {
     const words = buttons(dock).map(b => b.word);
+    // The dock keeps its five slots; one Accounts button covers both CLIs, so
+    // Codex has no door of its own behind More.
     expect(words).toEqual(["Accounts", "Sessions", "Usage", "Machine", "Settings", "More"]);
     expect(dock).toMatch(/aria-label="More: Usage history, Browser watch, not watching, Send feedback"/);
   });
@@ -259,7 +261,7 @@ describe("the bar keeps amber for the alarm", () => {
     // in the dock, the bar has the room for "2 waiting" whole, and nothing
     // hides the word. Its name keeps the whole sentence.
     expect(css).not.toMatch(/ws-word/);
-    expect(readouts).toMatch(/<b>\{count\}<\/b> waiting\s*<\/button>/);
-    expect(readouts).toMatch(/aria-label=\{`\$\{count\} session\$\{count === 1 \? "" : "s"\} waiting for you`\}/);
+    expect(readouts).toMatch(/<b>\{count\}<\/b> \{t\("board\.queue\.waiting"\)\}\s*<\/button>/);
+    expect(readouts).toMatch(/aria-label=\{t\("board\.queue\.waitingForYou", \{ count \}\)\}/);
   });
 });

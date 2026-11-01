@@ -22,6 +22,7 @@ import {
   type Point,
 } from "../components/SectionHistoryModal";
 import { machinePanelSurface } from "./machine-panel-surface";
+import insightsEn from "../i18n/areas/insights/en";
 
 const MIN = 60_000;
 /** Points a minute apart, newest last, as the server emits them. */
@@ -311,16 +312,18 @@ describe("the two names a section carries", () => {
   const src = machinePanelSurface();
 
   it("names every button with a verb", () => {
-    const actions = [...src.matchAll(/action="([^"]+)"/g)].map(m => m[1]);
+    const keys = [...src.matchAll(/action=\{t\("([^"]+)"\)\}/g)].map(m => m[1]);
     // Cores, memory, load, network, thermal.
-    expect(actions.length).toBe(5);
+    expect(keys.length).toBe(5);
+    const actions = keys.map(k => (insightsEn as Record<string, string>)[k]);
     expect(actions.filter(a => !a.startsWith("Show "))).toEqual([]);
   });
 
   it("gives the dialog a name of its own, not the button's", () => {
-    for (const m of src.matchAll(/title="([^"]+)" action="([^"]+)"/g)) {
-      expect(m[1], "the dialog is named like a control").not.toMatch(/^Show /);
-      expect(m[2]).toContain(m[1].toLowerCase());
+    for (const m of src.matchAll(/title=\{t\("([^"]+)"\)\} action=\{t\("([^"]+)"\)\}/g)) {
+      const title = (insightsEn as Record<string, string>)[m[1]], action = (insightsEn as Record<string, string>)[m[2]];
+      expect(title, "the dialog is named like a control").not.toMatch(/^Show /);
+      expect(action).toContain(title.toLowerCase());
     }
   });
 
@@ -329,7 +332,8 @@ describe("the two names a section carries", () => {
     // under the chart. A drift would show a chart with no series in it.
     const modal = readFileSync(
       fileURLToPath(new URL("../components/SectionHistoryModal.tsx", import.meta.url)), "utf8");
-    expect(src).toContain(`label="${THROTTLE_LABEL}"`);
+    expect(src).toContain('label={t("insights.machine.throttling")}');
+    expect((insightsEn as Record<string, string>)["insights.machine.throttling"]).toBe(THROTTLE_LABEL);
     expect(modal).toContain(`label === "${THROTTLE_LABEL}"`);
   });
 });

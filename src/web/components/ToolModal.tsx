@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useT } from "../i18n";
 import type { ToolCall } from "../types";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 // The row that opens this dialog printed the same milliseconds one decimal
@@ -22,6 +23,7 @@ export default function ToolModal({
   // default — the first tabbable — already lands there. What this modal was
   // missing is the ref below, without which there is no boundary to hold Tab
   // inside and the claim on the surface tag is a claim about nothing.
+  const t = useT();
   const dialogRef = useModalDismiss(onClose);
   const scrimPress = useScrimDismiss(onClose);
 
@@ -83,8 +85,8 @@ export default function ToolModal({
             <span className="modal-tool-id" title={tool.id}>{tool.id.slice(0, 12)}…</span>
           </div>
           <div className="modal-actions">
-            <span className="modal-dur">{toolDuration(tool, "in-flight…")}</span>
-            <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+            <span className="modal-dur">{toolDuration(tool, t("insights.tool.inflight"))}</span>
+            <button className="glyph-btn" onClick={onClose} aria-label={t("insights.audit.closeEsc")} title={t("insights.audit.closeEsc")}>×</button>
           </div>
         </header>
 
@@ -92,25 +94,24 @@ export default function ToolModal({
           {released && (
             <div className="modal-section">
               <p className="modal-note">
-                Full payloads for this call were released to keep memory bounded — only
-                the previews below are still held.
+                {t("insights.tool.released")}
               </p>
             </div>
           )}
           <div className="modal-section">
             <div className="tm-head">
-              <h4>Input</h4>
+              <h4>{t("insights.cost.inputTitle")}</h4>
               <CopyButton text={drawn.copyInput} what="input" />
             </div>
             {drawn.input}
           </div>
           <div className="modal-section">
             <div className="tm-head">
-              <h4>Response {status === "err" && <span className="err-tag">error</span>}</h4>
+              <h4>{t("insights.tool.response")} {status === "err" && <span className="err-tag">{t("insights.tool.error")}</span>}</h4>
               {tool.endedAt != null && <CopyButton text={drawn.copyResponse} what="response" />}
             </div>
             {tool.endedAt == null
-              ? <pre>(waiting…)</pre>
+              ? <pre>{t("insights.tool.waiting")}</pre>
               : drawn.response}
           </div>
         </section>
@@ -171,18 +172,19 @@ export function ToolBlock({ block }: { block: Block }) {
  * copy that fails leaves the text on screen to select by hand.
  */
 function CopyButton({ text, what }: { text: string; what: "input" | "response" }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
   return (
     <button type="button" className="btn tm-copy" disabled={!text}
-      aria-label={copied ? `The ${what} was copied` : `Copy the ${what}`}
+      aria-label={t(copied ? `insights.tool.copied.${what}` : `insights.tool.copy.${what}`)}
       onClick={() => void copyText(text).then(ok => {
         if (!ok || !alive.current) return;
         setCopied(true);
         window.setTimeout(() => { if (alive.current) setCopied(false); }, 1_600);
       })}>
-      {copied ? "copied" : "copy"}
+      {copied ? t("insights.tool.copiedWord") : t("insights.tool.copyWord")}
     </button>
   );
 }

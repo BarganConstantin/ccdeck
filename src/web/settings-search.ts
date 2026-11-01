@@ -27,13 +27,18 @@
 // and cannot drift from it. Keywords are what people type instead: synonyms,
 // the other spelling, the word another app uses.
 
+import { claudeGroupTitle, claudeRowLabel } from "./claude-settings-text";
 import { CLAUDE_SETTING_GROUPS, CLAUDE_SETTINGS } from "../server/claude-settings-catalog.mjs";
 import { CHARACTERS } from "./character";
 import type { IntegrationsReach } from "./integrations/client";
 import { ACCOUNT_NOTIFY_SWITCHES } from "./notify-reach";
 import { SETTINGS_SECTIONS, type SettingsSection } from "./settings";
-import { CHIME_ORDER, type Chime } from "./sound";
-import { THEME_DEFINITIONS, THEMES } from "./theme";
+import { CHIME_ORDER } from "./sound";
+import { THEMES } from "./theme";
+import { themeName } from "./settings-names";
+import { en } from "./i18n/en";
+import { currentLanguage, t } from "./i18n";
+import type { Vars } from "./i18n/translate";
 
 export interface SettingsEntry {
   /** The `data-setting` the jump scrolls to, or `section:<id>` for a section. */
@@ -58,162 +63,159 @@ export function isSectionEntry(entry: SettingsEntry): boolean {
   return entry.id.startsWith(SECTION_PREFIX);
 }
 
-/** The words people use for each section as a whole, past its own name. A
- *  word that names one setting in it is that setting's keyword and not the
- *  section's: an equal match lists the section first, and "font" is asking
- *  for Text size, not for the page it is on. */
-const SECTION_KEYWORDS: Record<Exclude<SettingsSection, "account">, readonly string[]> = {
-  general: ["behaviour", "behavior", "preferences"],
-  appearance: ["look", "style"],
-  reading: ["readability", "legibility"],
-  keyboard: ["shortcuts", "hotkeys", "keybindings", "keys"],
-  notifications: ["alerts", "notify"],
-  sounds: ["audio", "tones", "chimes"],
-  integrations: ["github", "gitlab", "pull requests", "merge requests", "pipelines", "jira", "atlassian", "tracker", "issues", "connect", "token", "board", "sprint"],
-  data: ["privacy", "local data"],
-  claude: ["claude", "claude code", "cli", "settings.json", "config", "configuration"],
-  radar: ["telemetry", "collector", "monitoring"],
-  experimental: ["beta", "labs", "preview", "early access"],
-  about: ["information"],
-};
 
-/** The two tones as Settings › Sounds names them (TONE_LABEL in
- *  ToneSection.tsx, which is React and so cannot be imported here; the test
- *  holds the two spellings together). */
-const TONE_LABEL: Record<Chime, string> = { done: "Turn finished", "needs-input": "Claude is asking" };
-const TONE_KEYWORDS: Record<Chime, readonly string[]> = {
-  done: ["done", "complete", "finished", "end of turn", "volume", "preview", "chime", "tone"],
-  "needs-input": ["question", "needs input", "permission", "waiting", "volume", "preview", "chime", "tone"],
-};
 
-const ACCOUNT_KEYWORDS: Record<(typeof ACCOUNT_NOTIFY_SWITCHES)[number]["kind"], readonly string[]> = {
-  notifySwap: ["auto-switch", "switch account", "swap", "alerts"],
-  notifyQuota: ["quota", "limit", "rate limit", "usage", "alerts"],
-  notifyReset: ["quota", "limit", "window", "available", "alerts"],
-  notifyStopped: ["stopped", "login", "expired", "usage limit", "continue", "alerts"],
-};
 
 const sectionLabel = (section: SettingsSection) => SETTINGS_SECTIONS.find(s => s.id === section)?.label ?? section;
 
+/** The words people type for an entry, in English (always: the product is
+ *  documented in English, and many people type the English word whatever their
+ *  language) and in the language on show, both from the catalog, comma
+ *  separated, under `settings.search.kw.<name>`. */
+function keywordsOf(name: string): readonly string[] {
+  const key = `settings.search.kw.${name}`;
+  const split = (text: string | undefined) => (text ? text.split(/\s*[,，、]\s*/).filter(Boolean) : []);
+  const english = split(en[key]);
+  if (currentLanguage() === "en") return english;
+  const own = t(key);
+  return [...english, ...(own === key ? [] : split(own))];
+}
+
+type Text = () => string;
+/** The words of a catalog key, read when the entry is read so a change of
+ *  language shows at once. */
+const L = (key: string, vars?: Vars): Text => () => t(key, vars);
+
+interface Spec {
+  id: string;
+  section: SettingsSection;
+  group?: Text;
+  label: Text;
+  /** Which `settings.search.kw.*` entry holds the words; the id by default. */
+  kw?: string;
+  claudeOnly?: true;
+  /** Words that are not in the catalog (a Claude Code setting's own). */
+  words?: readonly string[];
+}
+
+/** An entry whose label, group and keywords follow the language on show. They
+ *  are read where they are used (a getter), so the index built once at load is
+ *  still right after the language changes. */
+function entryOf(spec: Spec): SettingsEntry {
+  const base: SettingsEntry = {
+    id: spec.id,
+    section: spec.section,
+    get label() { return spec.label(); },
+    get keywords() { return spec.words ?? keywordsOf(spec.kw ?? spec.id); },
+    ...(spec.claudeOnly ? { claudeOnly: true as const } : {}),
+  };
+  return Object.defineProperty(base, "group", { get: () => spec.group?.(), enumerable: true });
+}
+
+/** The words people type for the Experimental page (no catalog entry yet). */
+const EXPERIMENTAL_WORDS = ["beta", "labs", "preview", "early access"];
+
 function sectionEntry(section: SettingsSection): SettingsEntry {
-  return {
-    id: `${SECTION_PREFIX}${section}`, section, label: sectionLabel(section),
-    keywords: SECTION_KEYWORDS[section as Exclude<SettingsSection, "account">] ?? [],
+  return entryOf({
+    id: `${SECTION_PREFIX}${section}`, section, label: () => sectionLabel(section), kw: `section-${section}`,
+    ...(section === "experimental" ? { words: EXPERIMENTAL_WORDS } : {}),
     // Drawn only where Claude Code is (sectionsDrawn, settings.ts).
     ...(section === "claude" ? { claudeOnly: true as const } : {}),
-  };
+  });
 }
+
+const CHARACTER_WORDS = ["deck companion", "fox", "penguin"];
 
 /** Every entry, in nav order, each section's own entry first in its block. */
 function buildIndex(): SettingsEntry[] {
+  const recover = (provider: "Claude" | "Codex") => L("settings.recover.group", { provider });
   // Account is a hidden section (settings.ts ACCOUNT_SECTION) and is never in
   // the index: the walk below is over the released SETTINGS_SECTIONS.
   const rows: Record<Exclude<SettingsSection, "account">, SettingsEntry[]> = {
     general: [
-      { id: "claude-session-recovery", claudeOnly: true, section: "general", group: "Claude sessions", label: "Restore unfinished sessions", keywords: ["claude", "recover", "restore", "startup", "restart", "busy"] },
-      { id: "claude-continue-stopped", claudeOnly: true, section: "general", group: "Claude sessions", label: "Continue stopped background sessions", keywords: ["claude", "continue", "background", "stopped", "login", "usage limit", "automatically"] },
-      { id: "codex-session-recovery", section: "general", group: "Codex sessions", label: "Restore unfinished sessions", keywords: ["codex", "recover", "restore", "startup", "restart", "unfinished"] },
-      { id: "hide-finished", section: "general", group: "Board", label: "Hide finished sessions after",
-        keywords: ["finished", "done", "completed", "idle", "clean up", "auto hide", "canvas", "board", "remove"] },
-      { id: "auto-update", section: "general", group: "Updates", label: "Update when idle",
-        keywords: ["update", "auto update", "automatic updates", "upgrade", "restart", "new version"] },
-      { id: "accounts", section: "general", group: "Elsewhere on the deck", label: "Accounts and auto-switch", claudeOnly: true,
-        keywords: ["accounts", "auto-switch", "switch account", "login", "claude accounts"] },
-      { id: "local-network", section: "general", group: "Elsewhere on the deck", label: "Local network", claudeOnly: true,
-        keywords: ["lan", "pairing", "pair", "other machines", "sync", "network"] },
-      { id: "browser-watch", section: "general", group: "Elsewhere on the deck", label: "Browser Watch",
-        keywords: ["browser", "watch", "away", "automation", "security"] },
+      entryOf({ id: "claude-session-recovery", claudeOnly: true, section: "general", group: recover("Claude"), label: L("settings.recover.name") }),
+      entryOf({ id: "claude-continue-stopped", claudeOnly: true, section: "general", group: recover("Claude"), label: L("settings.recover.continueName") }),
+      entryOf({ id: "codex-session-recovery", section: "general", group: recover("Codex"), label: L("settings.recover.name") }),
+      entryOf({ id: "language", section: "general", group: L("settings.language.group"), label: L("settings.language.name") }),
+      entryOf({ id: "hide-finished", section: "general", group: L("settings.board.title"), label: L("settings.board.hideLabel") }),
+      entryOf({ id: "auto-update", section: "general", group: L("settings.updates.title"), label: L("settings.updates.label") }),
+      entryOf({ id: "accounts", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.accounts"), claudeOnly: true }),
+      entryOf({ id: "local-network", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.localNetwork"), claudeOnly: true }),
+      entryOf({ id: "browser-watch", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.browserWatch") }),
     ],
     appearance: [
-      { id: "theme", section: "appearance", label: "Theme",
-        keywords: ["colour theme", "color theme", "dark mode", "light mode", "colours", "colors", "palette", "skin"] },
-      ...THEMES.map((theme): SettingsEntry => ({
-        id: `theme-${theme}`, section: "appearance", group: "Theme", label: THEME_DEFINITIONS[theme].name,
-        keywords: theme.endsWith("contrast") ? ["high contrast", "accessibility"] : [],
+      entryOf({ id: "theme", section: "appearance", label: L("settings.theme.title") }),
+      ...THEMES.map((theme): SettingsEntry => entryOf({
+        id: `theme-${theme}`, section: "appearance", group: L("settings.theme.title"), label: () => themeName(theme),
+        ...(theme.endsWith("contrast") ? { kw: "contrast" } : { words: [] }),
       })),
-      { id: "character", section: "appearance", group: "Character", label: "Show the character",
-        keywords: ["character", "mascot", "companion", "claude fm", "radio", "music", "minimap", "hide the character"] },
-      { id: "character-choice", section: "appearance", group: "Character", label: "Choose character",
-        keywords: ["mascot", "avatar", ...CHARACTERS.map(c => c.name.toLowerCase())] },
+      entryOf({ id: "character", section: "appearance", group: L("settings.character.title"), label: L("settings.character.show") }),
+      entryOf({
+        id: "character-choice", section: "appearance", group: L("settings.character.title"), label: L("settings.character.choose"),
+        // The names as printed, and as English has them, so either finds a character.
+        get words() { return [...keywordsOf("character-choice"), ...CHARACTERS.map(c => c.name.toLowerCase()), ...CHARACTER_WORDS]; },
+      } as Spec),
     ],
     reading: [
-      { id: "text-size", section: "reading", label: "Text size",
-        keywords: ["font", "font size", "zoom", "bigger", "larger", "smaller", "scale", "readability"] },
-      { id: "density", section: "reading", label: "Density",
-        keywords: ["spacing", "compact", "comfortable", "padding", "tight", "dense"] },
+      entryOf({ id: "text-size", section: "reading", label: L("settings.reading.sizeTitle") }),
+      entryOf({ id: "density", section: "reading", label: L("settings.reading.densityTitle") }),
     ],
     keyboard: [
-      { id: "single-keys", section: "keyboard", label: "Single-key shortcuts",
-        keywords: ["single key", "letters", "voice control", "dictation", "accessibility"] },
+      entryOf({ id: "single-keys", section: "keyboard", label: L("settings.keyboard.singleKeys") }),
     ],
     notifications: [
-      { id: "notify-closed", section: "notifications", group: "While the deck is closed", label: "Notifications while closed",
-        keywords: ["alerts", "desktop notifications", "browser notifications", "push", "background", "permission"] },
-      ...ACCOUNT_NOTIFY_SWITCHES.map(({ kind, label }): SettingsEntry => ({
-        id: kind, section: "notifications", group: "Accounts", label, keywords: ACCOUNT_KEYWORDS[kind],
+      entryOf({ id: "notify-closed", section: "notifications", group: L("settings.notify.closedGroup"), label: L("settings.notify.closedName") }),
+      ...ACCOUNT_NOTIFY_SWITCHES.map(({ kind }): SettingsEntry => entryOf({
+        id: kind, section: "notifications", group: L("settings.notify.accountsGroup"),
+        label: () => ACCOUNT_NOTIFY_SWITCHES.find(s => s.kind === kind)?.label ?? kind,
       })),
     ],
     sounds: [
-      { id: "play-sounds", section: "sounds", label: "Play sounds",
-        keywords: ["sound", "mute", "unmute", "silence", "quiet"] },
-      ...CHIME_ORDER.map((chime): SettingsEntry => ({
-        id: `tone-${chime}`, section: "sounds", label: TONE_LABEL[chime], keywords: TONE_KEYWORDS[chime],
+      entryOf({ id: "play-sounds", section: "sounds", label: L("settings.search.playSounds") }),
+      ...CHIME_ORDER.map((chime): SettingsEntry => entryOf({
+        id: `tone-${chime}`, section: "sounds", label: L(chime === "done" ? "settings.sounds.tone.done" : "settings.sounds.tone.needsInput"),
       })),
-      { id: "custom-sounds", section: "sounds", label: "Custom sounds",
-        keywords: ["voice", "speech", "text to speech", "spoken voice", "own sound", "library"] },
-      { id: "custom-import", section: "sounds", group: "Custom sounds", label: "Import audio",
-        keywords: ["import", "upload", "file", "mp3", "wav", "ogg", "own sound"] },
-      { id: "custom-record", section: "sounds", group: "Custom sounds", label: "Record a clip",
-        keywords: ["record", "microphone", "mic", "clip"] },
+      entryOf({ id: "custom-sounds", section: "sounds", label: L("settings.sounds.custom.title") }),
+      entryOf({ id: "custom-import", section: "sounds", group: L("settings.sounds.custom.title"), label: L("settings.sounds.custom.import") }),
+      entryOf({ id: "custom-record", section: "sounds", group: L("settings.sounds.custom.title"), label: L("settings.sounds.custom.record") }),
     ],
     integrations: [
-      { id: "integration-github", section: "integrations", label: "GitHub", keywords: ["connect", "repositories", "pull requests", "actions", "personal access token"] },
-      { id: "integration-gitlab", section: "integrations", label: "GitLab", keywords: ["connect", "projects", "merge requests", "pipelines", "self-managed", "personal access token"] },
-      { id: "integration-jira", section: "integrations", label: "Jira", keywords: ["connect", "boards", "sprints", "issues", "atlassian", "cloud", "server", "data center", "api token"] },
-      { id: "integrations-add", section: "integrations", label: "Connect development tools",
-        keywords: ["connect", "add integration", "github", "gitlab", "jira", "jira cloud", "jira server", "data center", "api token", "personal access token", "pat"] },
-      { id: "integrations-connections", section: "integrations", label: "Connections",
-        keywords: ["disconnect", "reconnect", "test connection", "edit", "token", "expired", "github", "gitlab", "jira"] },
+      // The names of the tools are the tools'.
+      entryOf({ id: "integration-github", section: "integrations", label: () => "GitHub" }),
+      entryOf({ id: "integration-gitlab", section: "integrations", label: () => "GitLab" }),
+      entryOf({ id: "integration-jira", section: "integrations", label: () => "Jira" }),
+      entryOf({ id: "integrations-add", section: "integrations", label: L("settings.search.connectTools") }),
+      entryOf({ id: "integrations-connections", section: "integrations", label: L("settings.search.connections") }),
     ],
     data: [
-      { id: "tool-history-retention", section: "data", group: "Tool history", label: "Keep history",
-        keywords: ["retention", "delete history", "history", "days", "tool calls", "statistics"] },
-      { id: "tool-history-size", section: "data", group: "Tool history", label: "Space used",
-        keywords: ["storage", "disk", "size", "bytes"] },
-      { id: "tool-history-clear", section: "data", group: "Tool history", label: "Clear history",
-        keywords: ["delete history", "erase", "wipe", "remove"] },
+      entryOf({ id: "tool-history-retention", section: "data", group: L("settings.tools.title"), label: L("settings.tools.keep") }),
+      entryOf({ id: "tool-history-size", section: "data", group: L("settings.tools.title"), label: L("settings.tools.space") }),
+      entryOf({ id: "tool-history-clear", section: "data", group: L("settings.tools.title"), label: L("settings.tools.clear") }),
     ],
     // From the table the rows are drawn from (claude-settings-catalog.mjs), in
-    // its words, so a result and its row cannot drift apart.
+    // its words — Claude Code's own, so they stay English — and a result and
+    // its row cannot drift apart.
     claude: [
-      ...CLAUDE_SETTINGS.map((entry): SettingsEntry => ({
+      ...CLAUDE_SETTINGS.map((entry): SettingsEntry => entryOf({
         id: `claude-${entry.id}`, claudeOnly: true, section: "claude",
-        group: CLAUDE_SETTING_GROUPS.find(g => g.id === entry.group)?.title, label: entry.label, keywords: entry.keywords,
+        group: () => claudeGroupTitle(entry.group, CLAUDE_SETTING_GROUPS.find(g => g.id === entry.group)?.title as string), label: () => claudeRowLabel(entry), words: entry.keywords,
       })),
-      { id: "claude-all-settings", claudeOnly: true, section: "claude", label: "All Claude Code settings",
-        keywords: ["every setting", "all keys", "reference", "documentation", "lookup", "settings.json"] },
+      entryOf({ id: "claude-all-settings", claudeOnly: true, section: "claude", label: L("settings.claudeIndex.title") }),
     ],
     radar: [
-      { id: "radar-open", section: "radar", label: "Radar",
-        keywords: ["telemetry", "collector", "monitoring", "traffic", "background", "automatic", "packet capture"] },
+      entryOf({ id: "radar-open", section: "radar", label: L("settings.section.radar.label") }),
     ],
     experimental: [
       { id: "terminal", section: "experimental", label: "Command Panel",
         keywords: ["terminal", "tmux", "shell", "console", "command line", "cli", "pane", "attach", "type", "beta", "experimental"] },
     ],
     about: [
-      { id: "version", section: "about", group: "ccdeck", label: "Version",
-        keywords: ["update", "release", "build", "about"] },
-      { id: "whats-new", section: "about", group: "ccdeck", label: "What's new",
-        keywords: ["changelog", "release notes", "changes", "news"] },
-      { id: "licence", section: "about", group: "ccdeck", label: "Licence",
-        keywords: ["license", "agpl", "source", "source code", "open source", "github"] },
-      { id: "sponsor", section: "about", group: "ccdeck", label: "Sponsor ccdeck",
-        keywords: ["sponsor", "support", "donate", "donation", "fund", "funding", "github sponsors", "coffee", "tip"] },
-      { id: "tour", section: "about", group: "Tour and feedback", label: "Take the tour",
-        keywords: ["tour", "guide", "help", "onboarding", "tutorial", "introduction"] },
-      { id: "feedback", section: "about", group: "Tour and feedback", label: "Send feedback",
-        keywords: ["feedback", "bug", "report", "contact", "suggestion", "idea"] },
+      entryOf({ id: "version", section: "about", group: () => "ccdeck", label: L("settings.about.version") }),
+      entryOf({ id: "whats-new", section: "about", group: () => "ccdeck", label: L("settings.about.whatsNew") }),
+      entryOf({ id: "licence", section: "about", group: () => "ccdeck", label: L("settings.about.licence") }),
+      entryOf({ id: "sponsor", section: "about", group: () => "ccdeck", label: L("settings.about.sponsor") }),
+      entryOf({ id: "tour", section: "about", group: L("settings.about.helpGroup"), label: L("settings.about.tour") }),
+      entryOf({ id: "feedback", section: "about", group: L("settings.about.helpGroup"), label: L("settings.about.feedback") }),
     ],
   };
   return SETTINGS_SECTIONS.flatMap(({ id }) => [sectionEntry(id), ...rows[id as Exclude<SettingsSection, "account">]]);
@@ -238,7 +240,7 @@ export function indexFor(claudeHere: boolean, integrations: IntegrationsReach = 
 /** Where a result lives, as its line in the list says it: "Appearance › Theme".
  *  A section is said as what it is. */
 export function resultPlace(entry: SettingsEntry): string {
-  if (isSectionEntry(entry)) return "Section";
+  if (isSectionEntry(entry)) return t("settings.search.section");
   const section = sectionLabel(entry.section);
   return entry.group && entry.group !== entry.label ? `${section} › ${entry.group}` : section;
 }
@@ -304,8 +306,8 @@ export function searchSettings(query: string, index: readonly SettingsEntry[] = 
 /** The line under the results' heading, and what the live region says. */
 export function resultsLine(count: number, query: string): string {
   const said = query.trim();
-  if (count === 0) return `No setting matches “${said}”.`;
-  return count === 1 ? `1 setting matches “${said}”` : `${count} settings match “${said}”`;
+  if (count === 0) return t("settings.search.none", { query: said });
+  return count === 1 ? t("settings.search.one", { query: said }) : t("settings.search.many", { count, query: said });
 }
 
 /** What a key pressed in the search field does to the results. */

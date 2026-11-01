@@ -44,14 +44,19 @@ describe("the left stripe's two doors into Account capacity", () => {
   it("stand between Accounts and Session list, in the owner's order", () => {
     const groups = rails().leftStripe;
     expect(groups.map(ids)).toEqual([["accounts", "account-capacity", "reset-calendar"], ["session-list"]]);
-    // One run about the accounts, named for a screen reader; Session list its own.
-    expect(groups[0].map(i => i.group)).toEqual(["Claude accounts", "Claude accounts", "Claude accounts"]);
+    // One run about the accounts, named for a screen reader (with both CLIs one
+    // Accounts button covers Claude and Codex, so Codex has no button beside
+    // it); Session list stands alone.
+    expect(groups[0].map(i => i.group)).toEqual(["Accounts", "Accounts", "Accounts"]);
     expect(groups[1][0].group).toBeUndefined();
+    expect(ids(rails().leftStripe.flat())).not.toContain("codex-accounts");
   });
 
-  it("go with the accounts button on a machine without Claude Code", () => {
+  it("leave a machine without Claude Code Codex's own button and not the Claude-only doors", () => {
     const r = rails({ claude: false });
-    expect(r.leftStripe.map(ids)).toEqual([["session-list"]]);
+    expect(r.leftStripe.map(ids)).toEqual([["codex-accounts"], ["session-list"]]);
+    expect(ids(r.left)).toEqual(["codex-accounts", "session-list"]);
+    expect(r.codexDoor).toEqual([]);
     expect(r.capacity).toEqual([]);
   });
 
@@ -75,7 +80,7 @@ describe("the left stripe's two doors into Account capacity", () => {
     const dockIds = (buttons[0] as { props: { item: { id: string } } }[]).map(b => b.props.item.id);
     expect(dockIds).toEqual(["accounts", "session-list", "usage", "machine", "settings"]);
     const more = one(view.tree, e => typeof e.type === "function" && "items" in e.props && "index" in e.props)!;
-    expect(ids(more.props.items as { id: string }[]).slice(0, 2)).toEqual(["account-capacity", "reset-calendar"]);
+    expect(ids(more.props.items as { id: string }[]).slice(0, 3)).toEqual(["account-capacity", "reset-calendar", "history"]);
   });
 });
 

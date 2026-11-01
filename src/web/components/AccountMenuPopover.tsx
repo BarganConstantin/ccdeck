@@ -15,10 +15,11 @@ import { sentence } from "../account-issue";
 import { ALIAS_MAX_LENGTH } from "../alias-save";
 import { PRODUCT } from "../brand";
 import { type Account } from "../claude-accounts";
-import { slotCommit, slotShowing } from "../picker-commit";
+import { slotChoiceLabel, slotCommit, slotShowing } from "../picker-commit";
 import { shareExpiry } from "../share-bundle";
 import { type useAccountMenu } from "../use-account-menu";
 import { type useRequestSlot } from "../use-request-slot";
+import { useT } from "../i18n";
 
 type AccountMenuState = ReturnType<typeof useAccountMenu>;
 type RequestSlot = ReturnType<typeof useRequestSlot>;
@@ -54,6 +55,7 @@ export default function AccountMenuPopover({
     makeShare, copyShare, pressRemove,
   } = accountMenu;
   // The panel draws this only while a menu is open; this is for the type.
+  const t = useT();
   if (!menu) return null;
   const titleId = `ap-pop-title-${a.num}`;
   // Under the control that was pressed, in every view. The popover
@@ -82,9 +84,9 @@ export default function AccountMenuPopover({
               the one form it needs. The arrows walk the items, and
               Tab leaves the menu instead of stepping through it. */}
           <button type="button" role="menuitem" className="ap-menu-item"
-            onClick={() => startRename(a.num, a.alias)}>Rename</button>
+            onClick={() => startRename(a.num, a.alias)}>{t("accounts.menu.rename")}</button>
           <button type="button" role="menuitem" className="ap-menu-item"
-            onClick={() => startMove(a.num)}>Move to slot…</button>
+            onClick={() => startMove(a.num)}>{t("accounts.menu.moveSlot")}</button>
           <button type="button" role="menuitem" className="ap-menu-item"
             {...pressProps(`share-${a.num}`)}
             /* It leads with what the reader is about to put on their
@@ -92,16 +94,16 @@ export default function AccountMenuPopover({
                are: how long the OTHER deck will still take it. The
                share is plain text with the account's token inside and
                an expiry nothing signs. */
-            title={`Copy this account to another ${PRODUCT}. Anyone who has the text can use the account — treat it as the password. The other deck stops accepting it after 10 minutes; that does not make an escaped copy safe.`}
+            title={t("accounts.menu.shareTip", { product: PRODUCT })}
             onClick={() => makeShare(a.num)}
-          >{busy === `share-${a.num}` ? "Sharing…" : "Share"}</button>
+          >{busy === `share-${a.num}` ? t("accounts.menu.sharing") : t("accounts.menu.share")}</button>
           {/* Where this account spent its work, per project. Opens a
               full modal — the report is a chart and a list, not a
               menu-sized thing — so the popover closes behind it. */}
           <button type="button" role="menuitem" className="ap-menu-item"
-            title="See how much this account worked in each project"
+            title={t("accounts.menu.projectsTip")}
             onClick={() => onProjects()}
-          >Projects</button>
+          >{t("accounts.menu.projects")}</button>
           {/* Holding an account out is offered on every account but the
               one in use, with Auto-switch on or off: it is set up before
               the switch is turned on, and claude-swap keeps it either way.
@@ -113,10 +115,10 @@ export default function AccountMenuPopover({
             <button type="button" role="menuitem" className="ap-menu-item"
               {...pressProps(`rot-${a.num}`)}
               title={a.disabled
-                ? "Return this account to auto-rotation"
-                : "Hold this account out of auto-rotation"}
+                ? t("accounts.menu.putBackTip")
+                : t("accounts.menu.holdOutTip")}
               onClick={() => onRotation()}
-            >{a.disabled ? "Put back in rotation" : "Hold out of rotation"}</button>
+            >{a.disabled ? t("accounts.menu.putBack") : t("accounts.menu.holdOut")}</button>
           )}
           {/* Home, by the rotation item's rule: set it with Auto-switch on
               or off — a tick only reads it while the switch is on — and
@@ -127,10 +129,10 @@ export default function AccountMenuPopover({
             <button type="button" role="menuitem" className="ap-menu-item"
               {...pressProps(`home-${a.num}`)}
               title={home
-                ? "Auto-switch stops coming back to this account"
-                : "Auto-switch takes you here, and comes back after this account's 5-hour window resets"}
+                ? t("accounts.menu.removeHomeTip")
+                : t("accounts.menu.setHomeTip")}
               onClick={() => onHome()}
-            >{home ? "Remove home" : "Set as home"}</button>
+            >{home ? t("accounts.menu.removeHome") : t("accounts.menu.setHome")}</button>
           )}
           <div role="separator" className="ap-menu-sep" />
           {/* Two presses, and the second one expires. There is no
@@ -147,12 +149,12 @@ export default function AccountMenuPopover({
             role="menuitem"
             className={`ap-menu-item danger${confirmRemove === a.num ? " armed" : ""}`}
             {...pressProps(`rm-${a.num}`)}
-            aria-label={confirmRemove === a.num ? "Confirm remove" : undefined}
+            aria-label={confirmRemove === a.num ? t("accounts.menu.confirmRemove") : undefined}
             title={confirmRemove === a.num
-              ? "This deletes the stored credentials for this account"
-              : "Remove this account from claude-swap"}
+              ? t("accounts.menu.removeArmedTip")
+              : t("accounts.menu.removeTip")}
             onClick={() => pressRemove(a.num)}
-          >{busy === `rm-${a.num}` ? "Removing…" : confirmRemove === a.num ? "Confirm" : "Remove"}</button>
+          >{busy === `rm-${a.num}` ? t("accounts.menu.removing") : confirmRemove === a.num ? t("accounts.confirm") : t("accounts.menu.remove")}</button>
           {refusal}
         </>
       )}
@@ -165,7 +167,7 @@ export default function AccountMenuPopover({
            names the field, where the block had a hidden label and a
            placeholder doing the naming. */
         <form className="ap-pop-form" onSubmit={e => { e.preventDefault(); doAlias(a.num, a.alias); }}>
-          <label className="ap-pop-title" id={titleId} htmlFor={`ap-alias-${a.num}`}>Rename account</label>
+          <label className="ap-pop-title" id={titleId} htmlFor={`ap-alias-${a.num}`}>{t("accounts.menu.renameTitle")}</label>
           <input
             id={`ap-alias-${a.num}`}
             className="ap-manage-input"
@@ -178,7 +180,7 @@ export default function AccountMenuPopover({
             maxLength={ALIAS_MAX_LENGTH}
             /* An example, not a narration of the empty state: "no
                alias" reads as a field whose value is those two words. */
-            placeholder="e.g. work"
+            placeholder={t("accounts.menu.aliasPlaceholder")}
             spellCheck={false}
             autoComplete="off"
             /* The keyboard lands in the field, with the name that is
@@ -189,10 +191,10 @@ export default function AccountMenuPopover({
           />
           {refusal}
           <div className="ap-pop-actions">
-            <button type="button" className="btn" onClick={() => closeMenu()}>Cancel</button>
+            <button type="button" className="btn" onClick={() => closeMenu()}>{t("accounts.cancel")}</button>
             <button type="submit" className="btn primary" {...pressProps(`alias-${a.num}`)}
-              title="A short name to show instead of the email">
-              {busy === `alias-${a.num}` ? "…" : "Save"}
+              title={t("accounts.menu.aliasTip")}>
+              {busy === `alias-${a.num}` ? "…" : t("accounts.save")}
             </button>
           </div>
         </form>
@@ -208,13 +210,13 @@ export default function AccountMenuPopover({
       {menu.view === "move" && (() => {
         const choices = slotChoices(slots, a.num);
         const picked = slotShowing(choices, slotDraft, a.num);
-        const commit = slotCommit(choices, picked, a.num);
+        const commit = slotCommit(choices, picked, a.num, t);
         return (
           // Not a form: with no text field in it there is nothing for
           // Enter to submit from, and the one way to send is the
           // press on the button — which is the point of #516.
           <div className="ap-pop-form">
-            <label className="ap-pop-title" id={titleId} htmlFor={`ap-slot-${a.num}`}>Move to slot</label>
+            <label className="ap-pop-title" id={titleId} htmlFor={`ap-slot-${a.num}`}>{t("accounts.menu.moveTitle")}</label>
             <span className="ap-field">
               <select
                 id={`ap-slot-${a.num}`}
@@ -226,12 +228,12 @@ export default function AccountMenuPopover({
                 {/* The consequence rides on the option that carries
                     it, and the one harmless move is visible as the
                     exception — see slotChoices. */}
-                {choices.map(c => <option key={c.slot} value={c.slot}>{c.label}</option>)}
+                {choices.map(c => <option key={c.slot} value={c.slot}>{slotChoiceLabel(c, t)}</option>)}
               </select>
             </span>
             {refusal}
             <div className="ap-pop-actions">
-              <button type="button" className="btn" onClick={() => closeMenu()}>Cancel</button>
+              <button type="button" className="btn" onClick={() => closeMenu()}>{t("accounts.cancel")}</button>
               <button type="button" className="btn primary" {...pressProps(`move-${a.num}`)}
                 title={commit.title}
                 onClick={() => doSlot(a.num, picked, commit)}
@@ -242,11 +244,11 @@ export default function AccountMenuPopover({
       })()}
 
       {menu.view === "share" && share?.num === a.num && (() => {
-        const exp = shareExpiry(share.expiresAt, nowSec);
+        const exp = shareExpiry(share.expiresAt, nowSec, t);
         const dead = exp.tone === "gone";
         return (
           <div className="ap-pop-form">
-            <p className="ap-pop-title" id={titleId}>Share account</p>
+            <p className="ap-pop-title" id={titleId}>{t("accounts.menu.shareTitle")}</p>
             {/* The text keeps its ink past the expiry (#1289): it used to fade
                 to --dim-stale, 1.93:1 on the dark panel, through an `expired`
                 class on this form that was there for nothing else. The
@@ -259,16 +261,14 @@ export default function AccountMenuPopover({
                 carries the colour, and the full explanation is one
                 hover away rather than a paragraph in a popover. */}
             <p className="ap-pop-note"
-              title={"This text is the account's password. It is base64 of plain JSON — the expiry inside it is not signed, so anyone holding a copy can change it, "
-                   + "and the login itself is in there in the clear either way. The countdown only says how long another deck's import dialog will still accept it. "
-                   + "If a copy escapes, sign the account out and back in."}>
-              <span className="ap-share-warn">This is the password</span>
+              title={t("accounts.menu.blobTip")}>
+              <span className="ap-share-warn">{t("accounts.menu.isPassword")}</span>
               {" · "}
               <span className={`ap-share-expiry ${exp.tone}`}>{exp.text}</span>
             </p>
             {refusal}
             <div className="ap-pop-actions">
-              <button type="button" className="btn" onClick={() => closeMenu()}>Done</button>
+              <button type="button" className="btn" onClick={() => closeMenu()}>{t("accounts.done")}</button>
               {/* Past the expiry the import dialog on the other deck
                   refuses this text, so offering to copy it is offering
                   a dead end — see shareExpiry. */}
@@ -277,7 +277,7 @@ export default function AccountMenuPopover({
                   if (dead) { await makeShare(a.num); return; }
                   await copyShare(share.blob);
                 }}>
-                {dead ? "Make a new share" : shareCopied ? "Copied" : "Copy"}
+                {dead ? t("accounts.menu.makeNew") : shareCopied ? t("accounts.copied") : t("accounts.copy")}
               </button>
             </div>
           </div>

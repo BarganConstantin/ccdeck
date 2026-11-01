@@ -249,7 +249,7 @@ describe('Skill activity list', () => {
   });
   it('sums the period in one sentence and leaves repeats out of the count', () => {
     const summary = skillSummary({ total: 1, failed: 0, repeats: 4, rows: [row('loop', 1, 0, { repeats: 4 }), row('idle', 0, 0, { repeats: 2 })] }, 'claude', '7');
-    expect(summary).toEqual({ lead: 'In the last 7 days, Claude used', skills: '1 skill', uses: 'once', failed: 0, repeats: 4 });
+    expect(summary).toEqual({ period: '7 days', who: 'Claude', skills: '1 skill', uses: 'once', failed: 0, repeats: 4 });
     expect(countingStartedLate({ countedSince: 10, since: 5 })).toBe(true);
     expect(countingStartedLate({ countedSince: 5, since: 10 })).toBe(false);
   });

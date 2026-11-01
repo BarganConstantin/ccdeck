@@ -28,6 +28,7 @@
 // Canvas rather than SVG: the sweep is a gradient arc redrawn sixty times a
 // second, and a DOM node per frame is the wrong shape for that.
 import { useEffect, useRef } from "react";
+import { useT } from "../i18n";
 import type { Palette } from "../palette";
 
 /** Whether the ground this is drawn on is a light one, from the palette's own
@@ -79,6 +80,7 @@ export default function WatchRadar({
    *  to have already done. */
   palette: Palette;
 }) {
+  const t = useT();
   const ref = useRef<HTMLCanvasElement | null>(null);
   // Seeded with null and filled on every render, rather than seeded with an
   // object literal that is rebuilt each time and thrown away.
@@ -232,8 +234,8 @@ export default function WatchRadar({
       className="bw-radar"
       role="img"
       aria-label={watching
-        ? `Watching ${browsers.length} browser${browsers.length === 1 ? "" : "s"}`
-        : "Not watching"}
+        ? t("radar.watch.watching", { count: browsers.length })
+        : t("radar.watch.idle")}
     />
   );
 }

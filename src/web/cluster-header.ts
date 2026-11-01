@@ -6,6 +6,7 @@
 // React or the canvas: clusterBounds asks clusterHeader for the three fields
 // when it builds a cluster, and the component draws them with SEP.
 import { distinctIdTail } from "./session-id-tail";
+import { t, type TFunction } from "./i18n";
 
 /**
  * The three fields a cluster header draws, kept apart rather than joined into
@@ -40,6 +41,17 @@ export interface ClusterHeader {
    *  then what a press does. The pill ellipsises at its gutter and at the
    *  pane's edge, and this is where the cut part is read back. */
   title: string;
+  /** The whole workspace, and the fields after the plan (branch, name, id)
+   *  already joined: what `clusterTooltip` needs to word the tooltip again in
+   *  the language on show without rebuilding the header. */
+  tipWorkspace: string;
+  tipRest: string;
+}
+
+/** The pill's tooltip for a header, in the language `tr` speaks. */
+export function clusterTooltip(h: { alarm?: boolean; tipWorkspace: string; tipRest: string; planLine?: string }, tr: TFunction = t): string {
+  const whole = [h.tipWorkspace, h.planLine ? tr("board.cluster.plan", { plan: h.planLine }) : undefined, h.tipRest || undefined].filter(Boolean).join(SEP);
+  return `${h.alarm ? tr("board.cluster.waitingOnYou") : ""}${whole}\n${tr("board.cluster.zoomTo")}\n${tr("board.cluster.dragWrapper")}`;
 }
 
 /** The separator between two header fields. One glyph for all of them — see
@@ -175,7 +187,7 @@ export function clusterHeader(
   // The pill draws the plan and the subagents' summary between the workspace
   // and the name, and says "waiting on you: " first for a screen reader; the
   // tooltip reads the same run, with the plan's step whole.
-  const whole = [workspace, plan ? `plan ${plan}` : undefined, branch, named || undefined, id].filter(Boolean).join(SEP);
+  const tipRest = [branch, named || undefined, id].filter(Boolean).join(SEP);
   return {
     // THE LAST UNBOUNDED STRING ON THE HEADER, and it is capped by the same
     // ruler as the name beside it. The note above records that a long
@@ -192,7 +204,9 @@ export function clusterHeader(
     name: named ? truncateName(named) : undefined,
     shortId: id,
     fullLabel: fields.join(SEP),
-    title: `${alarm ? "waiting on you: " : ""}${whole}\nZoom to this session\ndrag the wrapper to move the whole session`,
+    title: clusterTooltip({ alarm, tipWorkspace: workspace, tipRest, planLine: plan }),
+    tipWorkspace: workspace,
+    tipRest,
   };
 }
 

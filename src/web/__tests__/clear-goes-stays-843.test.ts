@@ -69,13 +69,13 @@ describe("what goes and what stays, per plan (#843)", () => {
 describe("the dialog lays them out as labelled groups (#843)", () => {
   it("renders Goes and Stays as a definition list, not one paragraph", () => {
     expect(component).toMatch(/<dl className="cc-plan">/);
-    expect(component).toMatch(/<dt>Goes<\/dt>/);
-    expect(component).toMatch(/<dt>Stays<\/dt>/);
+    expect(component).toMatch(/<dt>\{t\("board\.clear\.goes"\)\}<\/dt>/);
+    expect(component).toMatch(/<dt>\{t\("board\.clear\.stays"\)\}<\/dt>/);
     expect(component).not.toMatch(/\{note\}/);
   });
 
   it("says nothing stays when nothing does, rather than leaving the line empty", () => {
     expect(component).toContain("stays.length > 0 ? stays.map(");
-    expect(component).toContain("<span>nothing</span>");
+    expect(component).toContain("<span>{t(\"board.clear.nothing\")}</span>");
   });
 });

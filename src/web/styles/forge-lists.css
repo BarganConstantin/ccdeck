@@ -168,7 +168,9 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
 }
 @container fgl (max-width: 520px) {
   .fg-rows > li.fgl-branch { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name name" "commit commit" "stats change"; row-gap: 4px; }
-  .fgl-stats { justify-self: start; display: flex; gap: 14px; }
+  /* A longer word for the pipeline (German "fehlgeschlagen") wraps under
+     the behind | ahead pair instead of running under the Create link. */
+  .fgl-stats { justify-self: start; display: flex; flex-wrap: wrap; gap: 2px 14px; }
   .fgl-stats[data-empty], .fgl-diverge[data-empty] { display: none; }
   .fgl-branch:has(.fgl-stats[data-empty]) { grid-template-areas: "name name" "commit commit" "change change"; }
 }

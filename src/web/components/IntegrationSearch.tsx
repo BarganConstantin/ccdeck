@@ -13,6 +13,7 @@
 // name; the placeholder is only a hint. Lay it out with flex: it grows from
 // 220px and shrinks to nothing, so a panel sets only where it sits.
 import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { useT } from "../i18n";
 import { modalStack } from "../modal-dismiss";
 import { CrossGlyph, SearchGlyph } from "./integration-glyphs";
 
@@ -27,6 +28,7 @@ export default function IntegrationSearch({ value, onChange, label, placeholder,
   /** A panel's own keys, e.g. Enter to open a pasted link. Escape is the field's. */
   onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
 }) {
+  const t = useT();
   const ownRef = useRef<HTMLInputElement>(null);
   const ref = inputRef ?? ownRef;
   const [focused, setFocused] = useState(false);
@@ -45,7 +47,7 @@ export default function IntegrationSearch({ value, onChange, label, placeholder,
         value={value} onChange={e => onChange(e.target.value)} onKeyDown={onKeyDown}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} />
       {value !== "" && (
-        <button type="button" className="glyph-btn ig-search-clear" aria-label="Clear the search" title="Clear"
+        <button type="button" className="glyph-btn ig-search-clear" aria-label={t("integrations.search.clearAria")} title={t("integrations.search.clear")}
           onClick={() => { onChange(""); ref.current?.focus(); }}>
           <CrossGlyph />
         </button>

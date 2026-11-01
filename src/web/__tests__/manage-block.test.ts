@@ -514,7 +514,7 @@ describe("no row grid, and one form at a time", () => {
   });
 
   it("keeps the two-step arm and its four-second expiry", () => {
-    expect(popover).toMatch(/confirmRemove === a\.num \? "Confirm" : "Remove"/);
+    expect(popover).toMatch(/confirmRemove === a\.num \? t\("accounts\.confirm"\) : t\("accounts\.menu\.remove"\)/);
     // The press itself is the ⋯ menu's hook's, which holds the armed account.
     const menu = readFileSync(fileURLToPath(new URL("../use-account-menu.ts", import.meta.url)), "utf8");
     // Stood down by an effect keyed on the armed account, so each arm gets its
@@ -569,7 +569,7 @@ describe("the disclosure and what it opens are related (#325's seventh finding)"
     expect(popover).toMatch(/role=\{menu\.view === "menu" \? "menu" : "dialog"\}/);
     expect(popover).toMatch(/labelledBy=\{menu\.view === "menu" \? `ap-more-\$\{a\.num\}` : titleId\}/);
     expect(clientText()).toMatch(/const menuOpen = menuFor === a\.num;/);
-    expect(clientText()).toMatch(/aria-controls=\{menuOpen \? `ap-menu-\$\{a\.num\}` : undefined\}/);
+    expect(clientText()).toMatch(/aria-controls=\{menuOpen \? `ap-\$\{ids\}menu-\$\{a\.num\}` : undefined\}/);
     expect(clientText()).toMatch(/aria-haspopup="menu"/);
   });
 
@@ -579,8 +579,8 @@ describe("the disclosure and what it opens are related (#325's seventh finding)"
     // room for a label and hid one; each form in the popover has a title, and
     // the title IS the <label for> — one line that names the field and says
     // what the form is for. Still never an aria-label on a bare input.
-    expect(popover).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-alias-\$\{a\.num\}`\}>Rename account<\/label>/);
-    expect(popover).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>Move to slot<\/label>/);
+    expect(popover).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-alias-\$\{a\.num\}`\}>\{t\("accounts\.menu\.renameTitle"\)\}<\/label>/);
+    expect(popover).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>\{t\("accounts\.menu\.moveTitle"\)\}<\/label>/);
     expect(accountsSurface()).not.toMatch(/aria-label=\{`Alias for account/);
     expect(accountsSurface()).not.toMatch(/aria-label=\{`Slot for account/);
   });
@@ -604,7 +604,7 @@ describe("the disclosure and what it opens are related (#325's seventh finding)"
 
 describe("microcopy (#325's eighth finding)", () => {
   it("shows the shape of an answer instead of narrating the empty state", () => {
-    expect(popoverCode).toMatch(/placeholder="e\.g\. work"/);
+    expect(popoverCode).toMatch(/placeholder=\{t\("accounts\.menu\.aliasPlaceholder"\)\}/);
     expect(surfaceCode).not.toMatch(/placeholder="no alias"/);
   });
 
@@ -632,7 +632,7 @@ describe("microcopy (#325's eighth finding)", () => {
     // The row's own note, read once off the panel's: `swapped` is the swap
     // when it landed on this row.
     expect(clientText()).toMatch(/const swapped = swapNote\?\.at === a\.num \? swapNote : null;/);
-    expect(clientText()).toMatch(/swapped with slot \{swapped\.displaced\}/);
-    expect([...surfaceCode.matchAll(/swapped with slot/g)]).toHaveLength(1);
+    expect(clientText()).toMatch(/t\("accounts\.row\.swapped", \{ n: swapped\.displaced \}\)/);
+    expect([...surfaceCode.matchAll(/"accounts\.row\.swapped"/g)]).toHaveLength(1);
   });
 });

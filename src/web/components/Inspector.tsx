@@ -12,6 +12,7 @@
 import { memo, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { agentAriaLabel } from "../agent-copy";
+import { useT } from "../i18n";
 import { agentTree, sessionCostLabel, subagentCount, type TreeRow } from "../inspector-tree";
 import {
   INSPECTOR_TAB_LABEL, INSPECTOR_TABS, loadInspectorTab, saveInspectorTab, type InspectorTab,
@@ -47,6 +48,7 @@ export default function Inspector({ selected, agents, revision = 0, onSelectAgen
   /** The detail panel's own sections (Detail.tsx), shown under the tree. */
   detail: ReactNode;
 }) {
+  const t = useT();
   const [tab, setTab] = useState<InspectorTab>(loadInspectorTab);
   const tabRefs = useRef<Partial<Record<InspectorTab, HTMLButtonElement | null>>>({});
   const choose = (next: InspectorTab) => { setTab(next); saveInspectorTab(next); };
@@ -86,8 +88,8 @@ export default function Inspector({ selected, agents, revision = 0, onSelectAgen
         <button
           type="button"
           className="glyph-btn insp-fold"
-          title="Close panel"
-          aria-label="Close detail panel"
+          title={t("board.detailPanel.close")}
+          aria-label={t("board.detailPanel.closeLabel")}
           onClick={onClose}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4"

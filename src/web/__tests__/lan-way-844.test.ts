@@ -17,8 +17,10 @@ import { entryLine, type DeckRow } from "../lan-roster";
 import { accountsSurface } from "./accounts-surface";
 import { lanSectionSurface } from "./lan-section-surface";
 import { sheetText } from "./sheet-source";
+import shellEn from "../i18n/areas/shell/en";
+import { english } from "./lan-english-source";
 
-const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+const read = (rel: string) => english(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8"));
 const panel = read("../components/AccountsPanel.tsx");
 const lan = read("../components/LanSyncSection.tsx");
 /** The card itself, which moved out of the section into its own file. What the
@@ -115,7 +117,7 @@ describe("what the way in says (#844)", () => {
     expect(lanSectionSurface()).not.toMatch(/ap-nav-bad|not responding<\/span>\}/);
     expect(css).not.toMatch(/\.ap-nav-bad/);
     // The fold inside the view keeps its own count, which is where it belongs.
-    expect(lan).toMatch(/\{" · "\}\{troubled\} not responding/);
+    expect(lan).toMatch(/· \$\{troubled\} not responding/);
   });
 });
 
@@ -262,6 +264,7 @@ describe("the view (#844)", () => {
 describe("the tour no longer has to say where it is (#844)", () => {
   it("points at the row instead of describing the panel's layout", () => {
     expect(guide).not.toMatch(/last section of the Claude accounts panel/);
-    expect(guide).toMatch(/tip: "Open it from the row at the foot of the Claude accounts panel\."/);
+    expect(guide).toContain('"shell.guide.welcome.7.tip"');
+    expect(shellEn["shell.guide.welcome.7.tip"]).toBe("Open it from the row at the foot of the Claude accounts panel.");
   });
 });

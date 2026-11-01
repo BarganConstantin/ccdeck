@@ -2,6 +2,7 @@
 // normalises Cloud's and Server's answers into, so one panel draws both — and
 // the GET reads and bounded moves under /api/integrations/jira/<connId>/.
 
+import { t } from "./i18n";
 import { IntegrationFailure, failureOf, queryOf, readThrough } from "./integrations/client";
 import { moveKeys, type JiraMove } from "./jira-move";
 import type { IntegrationConnection } from "./integrations/types";
@@ -161,7 +162,7 @@ export async function moveJiraIssue(api: JiraApi, boardId: string, move: JiraMov
     return { ...("notice" in result ? { notice: result.notice as string } : {}), ...("operationId" in result && typeof result.operationId === "string" ? { operationId: result.operationId } : {}) };
   } catch (error) {
     if (error instanceof IntegrationFailure) throw error;
-    throw new IntegrationFailure("network", "The move could not be confirmed. Refresh the board before trying again.");
+    throw new IntegrationFailure("network", t("integrations.error.moveUnconfirmed"));
   } finally { window.clearTimeout(timer); }
 }
 

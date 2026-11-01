@@ -47,7 +47,7 @@ describe("the settings button names what it opens (#855)", () => {
     // and the character are no longer read out on the button.
     // The title "Settings (⌘,)" is the hint now: the name and the chord's
     // keycap, in the spelling of the keyboard in front of the reader.
-    expect(settingsItem).toMatch(/ariaLabel: "Settings"/);
+    expect(settingsItem).toMatch(/ariaLabel: t\("board\.rail\.settings"\)/);
     expect(settingsItem).toMatch(/kind: "dialog"/);
     expect(settingsItem).toMatch(/key: \{ cap: settingsCap, aria: "Control\+, Meta\+,", single: false \}/);
     expect(items).toContain("const settingsCap = settingsChordLabel(platformName());");

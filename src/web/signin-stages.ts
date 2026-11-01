@@ -21,6 +21,7 @@
 // stage's failure and the timings can be tested without React or a DOM.
 import type { LoginServerState } from "./login-flow";
 import { LOGIN_VANISHED } from "./login-flow";
+import { t as tNow, type TFunction } from "./i18n";
 
 export type SignInStage = "link" | "approve" | "confirm" | "save";
 /** Where inside `registering` the server is — LOGIN_STEPS in cswap-admin.mjs. */
@@ -79,20 +80,13 @@ export function failedStage(
   return "link";
 }
 
-const LABELS: Record<SignInStage, Record<"pending" | "active" | "done", string>> = {
-  link:    { pending: "Open the sign-in page",   active: "Opening the sign-in page",                  done: "Sign-in page opened" },
-  approve: { pending: "Approve in your browser", active: "Waiting for you to approve in the browser", done: "Approved in the browser" },
-  confirm: { pending: "Confirm who signed in",   active: "Confirming who signed in",                  done: "Sign-in confirmed" },
-  save:    { pending: "Save the credentials",    active: "Saving the credentials",                    done: "Credentials saved" },
-};
-
 /**
  * A row's words for its status. A failed row says what went wrong in a few
  * words — its heading — and the sentence under it says why; `state` tells a
  * flow the server forgot ("idle") from one that failed.
  */
-export function stageLabel(id: SignInStage, status: StageStatus, state?: string | null): string {
-  return status === "failed" ? stageFailureTitle(id, state) : LABELS[id][status];
+export function stageLabel(id: SignInStage, status: StageStatus, state?: string | null, t: TFunction = tNow): string {
+  return status === "failed" ? stageFailureTitle(id, state, t) : t(`accounts.signin.stage.${id}.${status}`);
 }
 
 /**
@@ -107,13 +101,14 @@ export function stageRows(
   { live = null, failed = null, done = false, state = null }: {
     live?: SignInStage | null; failed?: SignInStage | null; done?: boolean; state?: string | null;
   },
+  t: TFunction = tNow,
 ): StageRow[] {
   const at = done ? SIGN_IN_STAGES.length : SIGN_IN_STAGES.indexOf((failed ?? live)!);
   return SIGN_IN_STAGES.map((id, i) => {
     const status: StageStatus = done || i < at ? "done"
       : i > at || at < 0 ? "pending"
       : failed ? "failed" : "active";
-    return { id, status, label: stageLabel(id, status, state) };
+    return { id, status, label: stageLabel(id, status, state, t) };
   });
 }
 
@@ -123,28 +118,21 @@ export function stageRows(
  * server reports two steps under it, and the second — putting the user's own
  * account back in front — is the one they would otherwise wonder about.
  */
-export function stageDetail(id: SignInStage, step?: string | null): string {
+export function stageDetail(id: SignInStage, step?: string | null, t: TFunction = tNow): string {
   switch (id) {
-    case "link": return "The claude CLI is preparing a sign-in link, and opens a browser tab with it.";
-    case "approve": return "Approve the sign-in in the tab that opened. This finishes by itself.";
-    case "confirm": return "Asking the claude CLI which account just signed in.";
+    case "link": return t("accounts.signin.detail.link");
+    case "approve": return t("accounts.signin.detail.approve");
+    case "confirm": return t("accounts.signin.detail.confirm");
     case "save": return step === "restore"
-      ? "Switching this machine back to the account you were using."
-      : "claude-swap is recording the account.";
+      ? t("accounts.signin.detail.restore")
+      : t("accounts.signin.detail.save");
   }
 }
 
-const FAILED_TITLES: Record<SignInStage, string> = {
-  link: "The sign-in page did not open",
-  approve: "The sign-in did not finish in the browser",
-  confirm: "The sign-in could not be confirmed",
-  save: "claude-swap could not save the account",
-};
-
 /** The heading a failed stage gets — or "Sign-in ended" for a flow the server
  *  forgot, which is not a failure of any stage. */
-export function stageFailureTitle(id: SignInStage, state?: string | null): string {
-  return state === "idle" ? "Sign-in ended" : FAILED_TITLES[id];
+export function stageFailureTitle(id: SignInStage, state?: string | null, t: TFunction = tNow): string {
+  return state === "idle" ? t("accounts.signin.ended") : t(`accounts.signin.failed.${id}`);
 }
 
 /** Product and command names the server's reasons start with. They are
@@ -157,15 +145,18 @@ const LOWERCASE_NAMES = /^(?:claude|claude-swap|cswap|ccdeck|npm|uv)\b/;
  * ("the sign-in window expired") because the accounts panel strings them into
  * longer lines; here each one stands alone under a heading.
  */
-export function asSentence(text: string | null | undefined): string {
-  const t = String(text ?? "").trim();
-  if (!t) return "";
-  const head = LOWERCASE_NAMES.test(t) ? t : t[0].toUpperCase() + t.slice(1);
-  return /[.!?…]$/.test(head) ? head : `${head}.`;
+export function asSentence(text: string | null | undefined, t: TFunction = tNow): string {
+  const said = String(text ?? "").trim();
+  if (!said) return "";
+  const head = LOWERCASE_NAMES.test(said) ? said : said[0].toUpperCase() + said.slice(1);
+  return /[.!?…。！？]$/.test(head) ? head : `${head}${t("accounts.endMark")}`;
 }
 
 /** The message an ended sign-in shows when nothing more specific arrived. */
 export const SIGN_IN_VANISHED = asSentence(LOGIN_VANISHED);
+
+/** The same sentence in the language on show. */
+export const signInVanished = (t: TFunction = tNow): string => asSentence(t("accounts.signin.vanished"), t);
 
 // ── timing ──────────────────────────────────────────────────────────────────
 
@@ -188,20 +179,20 @@ const LOGIN_WINDOW_MINUTES = 5;
  */
 export function approveHint(
   { since, now, expiresAt }: { since: number | null; now: number; expiresAt?: number | null },
+  t: TFunction = tNow,
 ): string | null {
   if (since == null || now - since < SLOW_BROWSER_MS) return null;
   const left = expiresAt != null ? Math.ceil((expiresAt - now) / 60_000) : NaN;
-  const lead = "Still waiting for the browser. If no tab opened, or you closed it, use the link above";
   return left >= 1 && left <= LOGIN_WINDOW_MINUTES
-    ? `${lead} — the sign-in stays open ${left} more minute${left === 1 ? "" : "s"}.`
-    : `${lead}.`;
+    ? t("accounts.signin.waitBrowser", { count: left })
+    : t("accounts.signin.waitBrowser.plain");
 }
 
 /** The line under the import once it has been slow, or null. claude-swap's
  *  own timeout is a minute (CSWAP_TIMEOUT_MS), which is what makes this true. */
-export function importHint({ since, now }: { since: number | null; now: number }): string | null {
+export function importHint({ since, now }: { since: number | null; now: number }, t: TFunction = tNow): string | null {
   if (since == null || now - since < SLOW_IMPORT_MS) return null;
-  return "Still importing. claude-swap stops by itself after a minute if it cannot finish.";
+  return t("accounts.signin.stillImporting");
 }
 
 /**
@@ -250,9 +241,9 @@ export function celebrates({ added, reducedMotion }: { added: boolean; reducedMo
 }
 
 /** The success card's heading. */
-export function doneTitle({ num, added }: { num: string | null; added: boolean }): string {
-  if (!added) return "Credentials refreshed";
-  return num != null && num !== "" ? `Account ${num} added` : "Account added";
+export function doneTitle({ num, added }: { num: string | null; added: boolean }, t: TFunction = tNow): string {
+  if (!added) return t("accounts.signin.done.refreshed");
+  return num != null && num !== "" ? t("accounts.signin.done.addedN", { num }) : t("accounts.signin.done.added");
 }
 
 // ── what a screen reader hears ─────────────────────────────────────────────
@@ -265,11 +256,11 @@ export function doneTitle({ num, added }: { num: string | null; added: boolean }
  * Link is left out because it is answering the press the user just made, and
  * the next sentence arrives within a second.
  */
-export function stageAnnouncement(id: SignInStage | null): string | null {
+export function stageAnnouncement(id: SignInStage | null, t: TFunction = tNow): string | null {
   switch (id) {
-    case "approve": return "Waiting for you to approve the sign-in in your browser.";
-    case "confirm": return "Approved. Confirming who signed in.";
-    case "save": return "Saving the credentials.";
+    case "approve": return t("accounts.signin.say.approve");
+    case "confirm": return t("accounts.signin.say.confirm");
+    case "save": return t("accounts.signin.say.save");
     default: return null;
   }
 }

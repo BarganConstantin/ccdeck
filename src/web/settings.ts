@@ -11,6 +11,7 @@
 // left the topbar (2026-10-07); V opens this at Sounds instead.
 
 import type { IntegrationsReach } from "./integrations/client";
+import { t } from "./i18n";
 import { isApplePlatform } from "./platform";
 
 /** A section of Settings, in nav order. */
@@ -38,18 +39,18 @@ export interface SettingsSectionEntry {
  *  what it is. About comes last and stands at the foot of the nav, as it does
  *  in the desktop settings windows this dialog is modelled on. */
 export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
-  { id: "general", label: "General", note: "Session behavior, board preferences, and automatic updates." },
-  { id: "appearance", label: "Appearance", note: "The colour theme and the character on the canvas." },
-  { id: "reading", label: "Text & density", note: "Make the deck comfortable to read. Changes apply immediately and stay separate from canvas zoom." },
-  { id: "keyboard", label: "Keyboard", note: "Keyboard shortcuts and single-key controls." },
-  { id: "notifications", label: "Notifications", note: "How the deck reaches you while you are not looking at it." },
-  { id: "sounds", label: "Sounds", note: "Notification tones and custom audio." },
-  { id: "integrations", label: "Integrations", note: "Manage connections to your developer tools." },
-  { id: "data", label: "Data", note: "What the deck keeps on this device." },
-  { id: "claude", label: "Claude Code", note: "Claude Code settings, saved to your settings.json. Most changes reach running sessions." },
-  { id: "radar", label: "Radar", note: "What Claude Code sends to its telemetry collector, watched all the time." },
+  { id: "general", get label() { return t("settings.section.general.label"); }, get note() { return t("settings.section.general.note"); } },
+  { id: "appearance", get label() { return t("settings.section.appearance.label"); }, get note() { return t("settings.section.appearance.note"); } },
+  { id: "reading", get label() { return t("settings.section.reading.label"); }, get note() { return t("settings.section.reading.note"); } },
+  { id: "keyboard", get label() { return t("settings.section.keyboard.label"); }, get note() { return t("settings.section.keyboard.note"); } },
+  { id: "notifications", get label() { return t("settings.section.notifications.label"); }, get note() { return t("settings.section.notifications.note"); } },
+  { id: "sounds", get label() { return t("settings.section.sounds.label"); }, get note() { return t("settings.section.sounds.note"); } },
+  { id: "integrations", get label() { return t("settings.section.integrations.label"); }, get note() { return t("settings.section.integrations.note"); } },
+  { id: "data", get label() { return t("settings.section.data.label"); }, get note() { return t("settings.section.data.note"); } },
+  { id: "claude", get label() { return t("settings.section.claude.label"); }, get note() { return t("settings.section.claude.note"); } },
+  { id: "radar", get label() { return t("settings.section.radar.label"); }, get note() { return t("settings.section.radar.note"); } },
   { id: "experimental", label: "Experimental", note: "Features still being tested, each off until you turn it on." },
-  { id: "about", label: "About", note: "The version you are running, and where to say what you think of it." },
+  { id: "about", get label() { return t("settings.section.about.label"); }, get note() { return t("settings.section.about.note"); } },
 ];
 
 /** Settings › Account, while the ccdeck account is hidden: drawn only on a

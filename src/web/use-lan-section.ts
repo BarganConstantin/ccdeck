@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { LanStatus } from "./lan-types";
 import { pressAccepted, pressState } from "./panel-press";
 import { refusalLine, type SettingsLine } from "./settings-give-back";
+import { t } from "./i18n";
 
 /** How often to ask the deck about the network while it IS on the network.
  *  A pairing request arriving is the point of this section and of the dialog in
@@ -46,23 +47,66 @@ export function writeFailure(
   what: string,
   out: { ok?: boolean; reason?: string; detail?: RefusalDetail | null } | null,
 ): string {
-  if (out == null) return `Could not ${what} — the deck did not answer.`;
+  const head = actionHead(what);
+  if (out == null) return t("lan.fail.noAnswer", { head });
   const machine = out.reason ? outOfReach(out.reason, out.detail) : undefined;
-  if (machine) return `Could not ${what} — ${machine}`;
+  if (machine) return t("lan.fail.reach", { head, machine });
   return out.reason
-    ? `Could not ${what} — the deck refused it (${out.reason}).`
-    : `Could not ${what}.`;
+    ? t("lan.fail.refused", { head, reason: out.reason })
+    : t("lan.fail.plain", { head });
+}
+
+/** The verb phrases the callers pass (English, so a source search finds them),
+ *  each with the catalog sentence that opens its failure line. A phrase with no
+ *  entry still reads, in the generic frame. */
+const ACTION_HEADS: Record<string, string> = {
+  "turn this off": "lan.act.turnOff",
+  "turn this on": "lan.act.turnOn",
+  "stop dialling that address": "lan.act.dropAddress",
+  "rename that deck": "lan.act.rename",
+  "check that deck": "lan.act.checkOne",
+  "check the other decks": "lan.act.checkAll",
+  "save the name": "lan.act.saveName",
+  "share that account": "lan.act.share",
+  "stop sharing that account": "lan.act.unshare",
+  "stop showing which account this deck is using": "lan.act.stopShowing",
+  "show which account this deck is using": "lan.act.startShowing",
+  "keep the login this deck is using here": "lan.act.keepInUse",
+  "send the login this deck is using": "lan.act.sendInUse",
+  "let decks pair on their own again": "lan.act.pairAuto",
+  "pair new decks only by invite": "lan.act.pairInvite",
+  "stop asking automatically": "lan.act.askOff",
+  "ask every deck this one finds": "lan.act.askOn",
+  "stop accepting automatically": "lan.act.acceptOff",
+  "accept every deck that asks": "lan.act.acceptOn",
+  "stop looking over Tailscale": "lan.act.tsOff",
+  "look for your devices over Tailscale": "lan.act.tsOn",
+  "stop asking your devices automatically": "lan.act.tsAskOff",
+  "ask your devices automatically": "lan.act.tsAskOn",
+  "stop accepting your devices automatically": "lan.act.tsAcceptOff",
+  "accept your devices automatically": "lan.act.tsAcceptOn",
+  "add that address": "lan.act.addAddress",
+  "use that invite": "lan.act.useInvite",
+  "make an invite": "lan.act.makeInvite",
+  "cancel that invite": "lan.act.cancelInvite",
+  "unpair that deck": "lan.act.unpair",
+  "reach that deck": "lan.act.reach",
+  "let that deck ask again": "lan.act.allow",
+  "accept that deck": "lan.act.accept",
+  "decline that request": "lan.act.decline",
+};
+
+function actionHead(what: string): string {
+  const key = Object.prototype.hasOwnProperty.call(ACTION_HEADS, what) ? ACTION_HEADS[what] : null;
+  return key ? t(key) : t("lan.fail.generic", { what });
 }
 
 /** The two refusals whose next move is on the machine rather than in the panel
  *  (#1335), so a bracketed code would send the reader looking in the wrong
  *  place. The server keeps the path out of its answer; its log has it. */
 const SETTINGS_OUT_OF_REACH: Record<string, string> = {
-  prefs_unreadable: "this deck cannot read its settings file, so it will not write over it. "
-    + "The file may belong to another user, for example after ccdeck was run with sudo. The deck's log names the file.",
-  prefs_not_writable: "this deck is not allowed to save its settings. "
-    + "The settings folder may belong to another user, for example after ccdeck was run with sudo, "
-    + "or another program may be holding the file. The deck's log names the folder.",
+  prefs_unreadable: "lan.fail.prefsUnreadable",
+  prefs_not_writable: "lan.fail.prefsNotWritable",
 };
 
 /** What the deck says blocked a settings write — deck-prefs.mjs's
@@ -80,37 +124,21 @@ const PERMISSION = new Set(["EACCES", "EPERM"]);
  * left when the deck could not say more.
  */
 function outOfReach(reason: string, detail?: RefusalDetail | null): string | undefined {
-  const general = SETTINGS_OUT_OF_REACH[reason];
-  if (!general) return undefined;
+  const generalKey = SETTINGS_OUT_OF_REACH[reason];
+  if (!generalKey) return undefined;
+  const general = t(generalKey);
   const exact = reason === "prefs_unreadable" && detail ? unreadableBecause(detail) : undefined;
-  const code = detail?.code && detail.code !== "BADJSON" ? ` Error code: ${detail.code}.` : "";
+  const code = detail?.code && detail.code !== "BADJSON" ? t("lan.fail.errorCode", { code: detail.code }) : "";
   return (exact ?? general) + code;
 }
 
 function unreadableBecause({ code, owner, on }: RefusalDetail): string | undefined {
-  if (code === "BADJSON") {
-    return "its settings file is damaged and could not be moved aside, so it will not write over it. "
-      + "The deck's log names the file.";
-  }
-  if (on === "folder" && owner === "other") {
-    return "this deck cannot open its settings folder, which belongs to another user, "
-      + "for example after ccdeck was run with sudo. The deck's log has the command that gives it back.";
-  }
-  if (on === "folder" && owner === "you") {
-    return "this deck cannot open its own settings folder, so it will not write over what is in it. "
-      + "The deck's log names the folder.";
-  }
-  if (owner === "other") {
-    return "its settings file belongs to another user and could not be moved aside, so it will not write over it. "
-      + "The deck's log names the file.";
-  }
-  if (owner === "you") {
-    return "this deck cannot read its settings file although the file is yours, so it will not write over it. "
-      + "Something on this machine is blocking the read; the deck's log names the file.";
-  }
-  if (code && !PERMISSION.has(code)) {
-    return "this deck cannot read its settings file, so it will not write over it. The deck's log names the file.";
-  }
+  if (code === "BADJSON") return t("lan.fail.badJson");
+  if (on === "folder" && owner === "other") return t("lan.fail.folderOther");
+  if (on === "folder" && owner === "you") return t("lan.fail.folderYou");
+  if (owner === "other") return t("lan.fail.fileOther");
+  if (owner === "you") return t("lan.fail.fileYou");
+  if (code && !PERMISSION.has(code)) return t("lan.fail.fileGeneric");
   return undefined;
 }
 
@@ -301,7 +329,7 @@ export function useLanSection(onChanged: () => void, onSwitchedOn: () => void) {
    *  dialog is the only caller, so the answer is the sentence to show there
    *  rather than a line in the section behind it. */
   const rename = useCallback(async (fp: string, name: string): Promise<string | null> => {
-    if (!claim(`alias:${fp}`)) return "Something else is still being saved. Try again in a moment.";
+    if (!claim(`alias:${fp}`)) return t("lan.fail.busy");
     try {
       const out = await post("/api/lan/peer", { action: "alias", fp, name });
       if (!alive.current) return null;
@@ -324,7 +352,7 @@ export function useLanSection(onChanged: () => void, onSwitchedOn: () => void) {
       if (!alive.current) return null;
       if (out?.ok) { setStatus(out); onChanged(); return null; }
       return out?.reason === "no_address"
-        ? "There is no address here to call it on. It calls this deck, and it is up to date each time it does."
+        ? t("lan.fail.noAddress")
         : writeFailure("check that deck", out);
     } catch {
       return writeFailure("check that deck", null);

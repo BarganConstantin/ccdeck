@@ -14,6 +14,7 @@
 // IntegrationModalOnDemand.tsx: nothing here is in the page's own bundle.
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import { useT } from "../i18n";
 import { connectionApi, connectionAssetUrl, connectionHost } from "../integrations/client";
 import { INTEGRATION_PANELS } from "../integrations/panels";
 import { connectionPrefs, loadActiveConnection, saveActiveConnection } from "../integrations/prefs";
@@ -35,6 +36,7 @@ export interface IntegrationModalProps {
 }
 
 export default function IntegrationModal({ kind, connections, onClose, onReconnect }: IntegrationModalProps) {
+  const t = useT();
   const def = integrationDef(kind);
   const Panel = INTEGRATION_PANELS[kind];
   const selectId = useId();
@@ -125,7 +127,7 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
           <h2 className="ig-title" id="integration-modal-title"><span className="ig-title-glyph" aria-hidden><Glyph /></span>{def.label}</h2>
           {connections.length > 1 ? (
             <label className="ig-conn-select">
-              <span className="vis-hidden">Connection</span>
+              <span className="vis-hidden">{t("integrations.modal.connection")}</span>
               <select id={selectId} className="sm-select" value={connection.id} onChange={e => choose(e.target.value)}>
                 {connections.map(c => <option key={c.id} value={c.id}>{c.name}{c.name !== connectionHost(c) ? ` · ${connectionHost(c)}` : ""}</option>)}
               </select>
@@ -133,7 +135,7 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
           ) : (
             <span className="ig-conn-name" title={connection.baseUrl}>{connection.name}</span>
           )}
-          <button type="button" className="glyph-btn ig-close" onClick={close} aria-label={`Close ${def.label}`} title="Close (Esc)">×</button>
+          <button type="button" className="glyph-btn ig-close" onClick={close} aria-label={t("integrations.closeProvider", { label: def.label })} title={t("integrations.closeEsc")}>×</button>
         </div>
         <div ref={bodyRef} className="ig-body">
           <Panel

@@ -176,6 +176,6 @@ describe("the two unrelated fmtN helpers", () => {
     // have no tiers at all, so folding them in would have changed real output.
     // The card's is its cost tooltip's, which moved to card-cost.ts.
     expect(src("../card-cost.ts")).toMatch(/const fmtN = \(n: number\) => n\.toLocaleString\(\);/);
-    expect(src("../components/ContextModal.tsx")).toMatch(/function fmtN\(n: number\): string \{ return n\.toLocaleString\(\); \}/);
+    expect(src("../components/ContextModal.tsx")).toMatch(/function fmtN\(n: number\): string \{ return n\.toLocaleString\(currentLanguage\(\)\); \}/);
   });
 });

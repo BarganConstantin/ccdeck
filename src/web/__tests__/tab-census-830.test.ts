@@ -85,9 +85,12 @@ describe("a queued tab says so instead of blaming the server (#830)", () => {
     const heroes = readFileSync(fileURLToPath(new URL("../components/EmptyHero.tsx", import.meta.url)), "utf8");
     const hero = /function TabCapHero\([^\n]*\) \{[\s\S]*?\n\}/.exec(heroes)?.[0] ?? "";
     expect(hero, "TabCapHero is not in components/EmptyHero.tsx").not.toBe("");
-    const said = /<p>([\s\S]*?)<\/p>/.exec(hero)?.[1].replace(/\s+/g, " ").trim() ?? "";
-    expect(said).toBe("This browser keeps at most six live connections to one address, and other <code>{PRODUCT}</code> tabs are holding them. Close one and this tab connects on its own.");
-    expect(hero).toMatch(/<h2>Too many \{PRODUCT\} tabs are open<\/h2>/);
+    // The words are the board catalog's; the hero asks for them by key and sets the product name in <code>.
+    expect(hero).toContain('coded(t("board.hero.tabsBody", { product: PRODUCT }), [PRODUCT])');
+    const english = readFileSync(fileURLToPath(new URL("../i18n/areas/board/en.ts", import.meta.url)), "utf8");
+    expect(english).toContain('"board.hero.tabsBody": "This browser keeps at most six live connections to one address, and other {product} tabs are holding them. Close one and this tab connects on its own."');
+    expect(english).toContain('"board.hero.tabs": "Too many {product} tabs are open"');
+    expect(hero).toContain('<h2>{t("board.hero.tabs", { product: PRODUCT })}</h2>');
     expect(hero).not.toMatch(/still running|unreachable/);
   });
 });

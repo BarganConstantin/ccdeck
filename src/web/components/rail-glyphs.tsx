@@ -228,3 +228,9 @@ export const ClearGlyph = () => (
     <path d="M2.4 3.8h9.2M5.6 3.8V2.6h2.8v1.2M3.6 3.8l.6 7.6c0 .4.4.6.7.6h4.2c.4 0 .7-.3.7-.6l.6-7.6" />
   </Glyph>
 );
+
+export const CodexAccountsGlyph = () => (
+  <Glyph>
+    <path d="M4.6 3.6 1.4 7l3.2 3.4M9.4 3.6 12.6 7l-3.2 3.4M8 2.2 6 11.8" />
+  </Glyph>
+);

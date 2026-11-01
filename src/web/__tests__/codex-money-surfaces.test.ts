@@ -234,7 +234,7 @@ describe("a model with no rate says so instead of vanishing", () => {
     expect(card + "\n" + cardCost).not.toMatch(/data\.model && ratesForModel\(data\.model\) &&/);
     expect(cardCost).toMatch(/const rates = ratesForModel\(data\.model\);/);
     expect(card).toMatch(/className="cost-unpriced"/);
-    expect(card).toMatch(/\{UNPRICED_LABEL\}/);
+    expect(card).toMatch(/\{t\("insights\.cost\.notPriced"\)\}/);
     // And only once there are tokens: a card that has not reported usage yet
     // has nothing to be unpriced about.
     expect(cardCost).toMatch(/data\.usage\.inputTokens \+ data\.usage\.outputTokens\) <= 0\) return null/);
@@ -255,7 +255,7 @@ describe("a model with no rate says so instead of vanishing", () => {
     expect(panel).toMatch(/const boardModelRows\s+= byModel\.filter\(worthALine\);/);
     expect(panel).toMatch(/const boardSessionRows = bySessions\.filter\(worthALine\);/);
     expect(rules).toContain("return dollars > 0 || (row.inputTokens + row.outputTokens) > 0;");
-    expect(panel).toMatch(/\{UNPRICED_LABEL\}/);
+    expect(panel).toMatch(/label: t\("insights\.cost\.notPriced"\)/);
   });
 
   it("shows the breakdown even when nothing in the deck could be priced at all", () => {

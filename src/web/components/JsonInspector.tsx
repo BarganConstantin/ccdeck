@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { useT } from "../i18n";
 import { JsonViewer, type CustomNodeDefinition, type FilterFunction, type JsonViewerHandle, type ThemeInput } from "json-edit-react";
 
 export type Json = null | string | number | boolean | Json[] | { [key: string]: Json };
@@ -47,6 +48,7 @@ function JsonNode({ value, name, root = false }: { value: Json; name?: string | 
 }
 
 function JsonCollection({ value, name, root }: { value: Json[] | { [key: string]: Json }; name?: string | number; root: boolean }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(root);
   const [limit, setLimit] = useState(BATCH_SIZE);
   const command = useContext(CollapseContext);
@@ -66,7 +68,7 @@ function JsonCollection({ value, name, root }: { value: Json[] | { [key: string]
     <summary>
       {name !== undefined && <JsonKey name={name} />}
       <span>{array ? "[" : "{"}{count === 0 ? (array ? "]" : "}") : "…"}</span>
-      {count > 0 && <span className="tr-count">{count} {array ? (count === 1 ? "item" : "items") : (count === 1 ? "key" : "keys")}</span>}
+      {count > 0 && <span className="tr-count">{t(array ? "radar.json.items" : "radar.json.keys", { count })}</span>}
     </summary>
     {expanded && count > 0 && <div>
       {Array.from({ length: shown }, (_, index) => {
@@ -75,7 +77,7 @@ function JsonCollection({ value, name, root }: { value: Json[] | { [key: string]
         return <JsonNode key={key} name={key} value={child} />;
       })}
       {shown < count && <button type="button" className="btn" onClick={() => setLimit(current => current + BATCH_SIZE)}>
-        Show {Math.min(BATCH_SIZE, count - shown)} more ({count - shown} remaining)
+        {t("radar.json.more", { n: Math.min(BATCH_SIZE, count - shown), rest: count - shown })}
       </button>}
       <div>{array ? "]" : "}"}</div>
     </div>}
@@ -107,6 +109,7 @@ function RawJson({ value }: { value: Json }) {
 
 /** Inspect JSON without mounting closed descendants or truncating the raw value. */
 export function JsonInspector({ value, initialMode = "tree" }: { value: Json; initialMode?: Mode }) {
+  const t = useT();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [search, setSearch] = useState("");
   const [copyError, setCopyError] = useState(false);
@@ -125,18 +128,18 @@ export function JsonInspector({ value, initialMode = "tree" }: { value: Json; in
     return () => observer.disconnect();
   }, [mode, value]);
   return <div>
-    <div className="tr-detail-tabs" role="group" aria-label="JSON view">
-      <button type="button" className="btn" aria-pressed={mode === "tree"} onClick={() => setMode("tree")}>Tree</button>
-      <button type="button" className="btn" aria-pressed={mode === "raw"} onClick={() => setMode("raw")}>Raw JSON</button>
+    <div className="tr-detail-tabs" role="group" aria-label={t("radar.json.view")}>
+      <button type="button" className="btn" aria-pressed={mode === "tree"} onClick={() => setMode("tree")}>{t("radar.json.tree")}</button>
+      <button type="button" className="btn" aria-pressed={mode === "raw"} onClick={() => setMode("raw")}>{t("radar.json.raw")}</button>
     </div>
     {mode === "raw" ? <RawJson value={value} /> : <>
       <div className="tr-json-tools">
-        <label className="tr-json-search">Search JSON<input type="search" className="tr-input" value={search} placeholder="Find a key or value…" onChange={event => setSearch(event.target.value)} /></label>
-        <button type="button" className="btn" onClick={() => { setCollapseCommand(current => ({ revision: (current?.revision ?? 0) + 1, collapsed: true })); viewer.current?.collapse({ path: [], collapsed: true, includeChildren: true }); }}>Collapse all</button>
-        <button type="button" className="btn" onClick={() => { setCollapseCommand(current => ({ revision: (current?.revision ?? 0) + 1, collapsed: false })); viewer.current?.collapse([{ path: [], collapsed: true, includeChildren: true }, { path: [], collapsed: false, includeChildren: false }]); }}>Open root</button>
+        <label className="tr-json-search">{t("radar.json.search")}<input type="search" className="tr-input" value={search} placeholder={t("radar.json.find")} onChange={event => setSearch(event.target.value)} /></label>
+        <button type="button" className="btn" onClick={() => { setCollapseCommand(current => ({ revision: (current?.revision ?? 0) + 1, collapsed: true })); viewer.current?.collapse({ path: [], collapsed: true, includeChildren: true }); }}>{t("radar.json.collapse")}</button>
+        <button type="button" className="btn" onClick={() => { setCollapseCommand(current => ({ revision: (current?.revision ?? 0) + 1, collapsed: false })); viewer.current?.collapse([{ path: [], collapsed: true, includeChildren: true }, { path: [], collapsed: false, includeChildren: false }]); }}>{t("radar.json.openRoot")}</button>
       </div>
-      <p className="tr-note">Copy a value with its copy button; hold ⌘ / Ctrl to copy its path.</p>
-      {copyError && <p role="alert" className="tr-capture-error">Clipboard unavailable. Select the value and copy it manually.</p>}
+      <p className="tr-note">{t("radar.json.copyHint")}</p>
+      {copyError && <p role="alert" className="tr-capture-error">{t("radar.clipboard.value")}</p>}
       <SearchContext.Provider value={search}><CollapseContext.Provider value={collapseCommand}><div ref={tree} className="tr-value tr-json-tree">
         {value === null || typeof value !== "object" ? <JsonNode value={value} /> : <JsonViewer
           key={search ? "search" : "browse"} data={value} editorRef={viewer} theme={viewerTheme}
@@ -144,7 +147,7 @@ export function JsonInspector({ value, initialMode = "tree" }: { value: Json; in
           searchText={search || undefined} searchFilter={search ? "all" : undefined}
           searchDebounceTime={200} customNodeDefinitions={largeCollections}
           minWidth={0} maxWidth="100%" baseFontSize="inherit" indent={2}
-          stringTruncateLength={300} showIconTooltips onCopy={({ success }) => setCopyError(!success)}
+          stringTruncateLength={300} showIconTooltips translations={{ ITEM_SINGLE: t("radar.json.lib.item"), ITEMS_MULTIPLE: t("radar.json.lib.items"), ITEMS_FILTERED: t("radar.json.lib.filtered"), SHOW_LESS: t("radar.json.lib.showLess"), SHOW_MORE: t("radar.json.lib.showMore"), EMPTY_STRING: t("radar.json.lib.empty"), TOOLTIP_COPY: t("radar.json.lib.copy"), TOOLTIP_COLLAPSE: t("radar.json.lib.collapse"), TOOLTIP_EXPAND: t("radar.json.lib.expand") }} onCopy={({ success }) => setCopyError(!success)}
         />}
       </div></CollapseContext.Provider></SearchContext.Provider>
     </>}

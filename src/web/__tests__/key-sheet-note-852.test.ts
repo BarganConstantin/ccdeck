@@ -27,12 +27,12 @@ describe("the keyboard sheet's note (#852)", () => {
     const grid = sheet.indexOf('<div className="shortcuts">');
     // The footnote's second sentence says where the single-key shortcuts are
     // turned off (WCAG 2.1.4); KEY_HELP_NOTE still opens it, once.
-    const note = sheet.indexOf("<p className=\"kh-foot\">{KEY_HELP_NOTE} {KEY_HELP_SWITCH_NOTE}</p>");
+    const note = sheet.indexOf("<p className=\"kh-foot\">{t(\"settings.key.note\")} {t(\"settings.key.switchNote\", { place: t(\"settings.key.place\") })}</p>");
     const end = sheet.indexOf("</section>");
     expect(grid).toBeGreaterThan(-1);
     expect(note).toBeGreaterThan(grid);
     expect(note).toBeLessThan(end);
-    expect(sheet.match(/\{KEY_HELP_NOTE\}/g)).toHaveLength(1);
+    expect(sheet.match(/t\("settings\.key\.note"\)/g)).toHaveLength(1);
   });
 
   it("reads as a footnote — no box of its own", () => {

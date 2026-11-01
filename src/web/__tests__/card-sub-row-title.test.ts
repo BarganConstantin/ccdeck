@@ -38,7 +38,7 @@ describe("the card's second row", () => {
   });
 
   it("carries its whole text on hover", () => {
-    expect(node).toContain('<div className="task-line" title={subRowTitle(data)}>');
+    expect(node).toContain('<div className="task-line" title={subRowTitle(data, t)}>');
   });
 
   it("says a subagent's kind, folder and model, in the order the row draws them", () => {

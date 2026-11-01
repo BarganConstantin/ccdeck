@@ -1615,7 +1615,7 @@ describe("the character", () => {
     // beside it made a second, conflicting report — "Stop Claude FM, pressed"
     // — so a stable name and a pressed state, or a flipping name alone, and
     // this is the second.
-    expect(component).toContain("aria-label={playing ? `Stop ${label}` : `Play ${label}`}");
+    expect(component).toContain('aria-label={playing ? t("radio.fm.stop", { label }) : t("radio.fm.play", { label })}');
     const sprite = component.slice(component.indexOf('className="fm-sprite"'), component.indexOf("<svg viewBox={`0 0 ${SPRITE_W}"));
     expect(sprite).toContain("aria-label={playing ?");
     expect(sprite).not.toContain("aria-pressed");
@@ -1624,8 +1624,8 @@ describe("the character", () => {
     // And says where the sound comes from before anybody presses it: YouTube
     // for every station the embed plays, the stream's own host for a direct
     // one (#1208) — the press is what makes the browser call either.
-    expect(component).toContain("`Play ${label} — streams from ${from}`");
-    expect(component).toContain('const from = probe.audio ? streamHost(probe.audio) : "YouTube";');
+    expect(component).toContain('t("radio.fm.playTitle", { label, from })');
+    expect(component).toContain('const from = probe.audio ? streamHost(probe.audio, t) : "YouTube";');
   });
 });
 

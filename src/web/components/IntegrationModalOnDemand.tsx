@@ -14,6 +14,7 @@
 // lazyDialog has them.
 import { Suspense, useEffect } from "react";
 import { integrationDef } from "../integrations/registry";
+import { t } from "../i18n";
 import { modalStack } from "../modal-dismiss";
 import type { IntegrationModalProps } from "./IntegrationModal";
 import { lazyDialog } from "./LazyDialog";
@@ -26,7 +27,7 @@ export function preloadIntegrationModal(): void {
   void loadIntegrationModal().catch(() => {});
 }
 
-export const LazyIntegrationModal = lazyDialog(loadIntegrationModal, (props: IntegrationModalProps) => integrationDef(props.kind)?.label ?? "The tracker");
+export const LazyIntegrationModal = lazyDialog(loadIntegrationModal, (props: IntegrationModalProps) => integrationDef(props.kind)?.label ?? t("integrations.modal.tracker"));
 
 /** What stands in while the chunk arrives: nothing drawn, and the dialog's
  *  place on modalStack, held until the modal takes it or the dialog closes. */

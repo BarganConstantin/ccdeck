@@ -32,6 +32,7 @@
 // complete has to compare like with like.
 import type { IntegrationKind } from "./integrations/types";
 import { isCharacterKey } from "./single-key-shortcuts";
+import { t } from "./i18n";
 
 /** One line of the sheet: what you press, and what happens. */
 export interface KeyHelpRow {
@@ -64,6 +65,8 @@ export interface KeyHelpRow {
 }
 
 export interface KeyHelpGroup {
+  /** A stable name for the group, whatever language its title is in. */
+  id: string;
   title: string;
   rows: readonly KeyHelpRow[];
 }
@@ -82,12 +85,13 @@ export const KEY_HELP_NOTE = "Press Esc first if a key does nothing.";
 
 export const KEY_HELP: readonly KeyHelpGroup[] = [
   {
-    title: "Canvas",
+    id: "canvas",
+    get title() { return t("settings.key.group.canvas"); },
     rows: [
-      { cap: "Space", action: "pause or resume the stream", binds: [" "] },
-      { cap: "J", action: "next agent", binds: ["j", "J"] },
-      { cap: "K", action: "previous agent", binds: ["k", "K"] },
-      { cap: "W", action: "the session waiting on you — oldest first, again for the next", binds: ["w", "W"] },
+      { cap: "Space", get action() { return t("settings.key.pause"); }, binds: [" "] },
+      { cap: "J", get action() { return t("settings.key.next"); }, binds: ["j", "J"] },
+      { cap: "K", get action() { return t("settings.key.prev"); }, binds: ["k", "K"] },
+      { cap: "W", get action() { return t("settings.key.waiting"); }, binds: ["w", "W"] },
       // New in 4.0. N walks the same queue as W (one cursor), and Shift+N goes
       // the other way, so the row binds the letter and the sheet says Shift
       // the way it does for Shift + Enter. With the Command Panel open both
@@ -95,82 +99,86 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       { cap: "N", action: "the next one waiting on you — W does the same", binds: ["n", "N"] },
       { cap: "Shift + N", action: "the previous one waiting, on the board", binds: ["N"] },
       { cap: "P", action: "peek at the selected card without opening it", binds: ["p", "P"] },
-      { cap: "F", action: "fit every agent on screen", binds: ["f", "F"] },
-      { cap: "Z", action: "zoom to the selected agent and its session", binds: ["z", "Z"] },
-      { cap: "Delete", action: "take the selected card off the board — the session list (L) brings it back", binds: ["Delete"] },
-      { cap: "R", action: "re-arrange the canvas and drop the pins", binds: ["r", "R"] },
+      { cap: "F", get action() { return t("settings.key.fit"); }, binds: ["f", "F"] },
+      { cap: "Z", get action() { return t("settings.key.zoom"); }, binds: ["z", "Z"] },
+      { cap: "Delete", get action() { return t("settings.key.delete"); }, binds: ["Delete"] },
+      { cap: "R", get action() { return t("settings.key.rearrange"); }, binds: ["r", "R"] },
       // Re-arrange's way back, for the few seconds the canvas offers it, after
       // R or the stack's button alike. A chord, so it stays on the sheet with
       // the single-key shortcuts off, where the button still re-arranges.
-      { cap: "Ctrl + Z", macCap: "⌘ Z", action: "undo a re-arrange, while the canvas offers it", binds: ["z", "Z"], chord: true },
-      { cap: "C", action: "clear the deck and the event log — asks first", binds: ["c", "C"] },
+      { cap: "Ctrl + Z", macCap: "⌘ Z", get action() { return t("settings.key.undo"); }, binds: ["z", "Z"], chord: true },
+      { cap: "C", get action() { return t("settings.key.clear"); }, binds: ["c", "C"] },
     ],
   },
   {
-    title: "Panels and dialogs",
+    id: "panels-and-dialogs",
+    get title() { return t("settings.key.group.panels"); },
     rows: [
       // Quick open (quick-open.ts): every row below, and the sessions, the
       // settings and the themes, by name. A chord, so it stays on the sheet
       // with the single-key shortcuts off; ⌘ on a Mac, where Ctrl+K belongs
       // to the text field.
-      { cap: "Ctrl + K", macCap: "⌘ K", action: "search panels, sessions, settings, actions and themes", binds: ["k", "K"], chord: true },
-      { cap: "U", action: "usage panel", binds: ["u", "U"] },
-      { cap: "L", action: "session list", binds: ["l", "L"] },
-      { cap: "D", action: "detail panel", binds: ["d", "D"] },
-      { cap: "H", action: "usage history", binds: ["h", "H"] },
-      // Drawn only where Claude Code is, so the key is guarded the same way —
-      // see the handler in App.tsx, which checks `providers.claude` first.
-      { cap: "A", action: "Claude accounts, where Claude Code is installed", binds: ["a", "A"] },
+      { cap: "Ctrl + K", macCap: "⌘ K", get action() { return t("settings.key.quick"); }, binds: ["k", "K"], chord: true },
+      { cap: "U", get action() { return t("settings.key.usage"); }, binds: ["u", "U"] },
+      { cap: "L", get action() { return t("settings.key.sessions"); }, binds: ["l", "L"] },
+      { cap: "D", get action() { return t("settings.key.detail"); }, binds: ["d", "D"] },
+      { cap: "H", get action() { return t("settings.key.history"); }, binds: ["h", "H"] },
+      // Drawn where a CLI with accounts is, and the key is guarded the same way:
+      // see the handler in use-deck-shortcuts.ts.
+      { cap: "A", get action() { return t("settings.key.accounts"); }, binds: ["a", "A"] },
       // #826: the three topbar panels that were pointer-only.
-      { cap: "S", action: "this machine — cores, memory, temperature", binds: ["s", "S"] },
-      { cap: "B", action: "Browser Watch", binds: ["b", "B"] },
+      { cap: "S", get action() { return t("settings.key.machine"); }, binds: ["s", "S"] },
+      { cap: "B", get action() { return t("settings.key.bw"); }, binds: ["b", "B"] },
       // Drawn once a Jira connection exists (#2178); the key does nothing before.
       // On the sheet only where the deck offers Jira (keyHelpFor).
-      { cap: "I", action: "Jira, once it is connected in Settings › Integrations", binds: ["i", "I"], integration: "jira" },
-      { cap: "?", action: "this sheet", binds: ["?"] },
+      { cap: "I", get action() { return t("settings.key.jira"); }, binds: ["i", "I"], integration: "jira" },
+      { cap: "?", get action() { return t("settings.key.sheet"); }, binds: ["?"] },
     ],
   },
   {
-    title: "Settings",
+    id: "settings",
+    get title() { return t("settings.key.group.settings"); },
     rows: [
       // The chord every desktop app opens its settings with, and the one
       // chord the deck claims for itself (use-deck-shortcuts.ts). Both
       // spellings work on every platform; the sheet prints the one on the
       // keyboard in front of the reader.
-      { cap: "Ctrl + ,", macCap: "⌘ ,", action: "all settings", binds: [","], chord: true },
+      { cap: "Ctrl + ,", macCap: "⌘ ,", get action() { return t("settings.key.all"); }, binds: [","], chord: true },
       // Settings at its Sounds section, on every machine. V opened the topbar
       // speaker's quick popover (#826) until the speaker left the bar
       // (2026-10-07); everything that popover held is in this section.
-      { cap: "V", action: "sound settings — the switch, and each tone's volume and sound", binds: ["v", "V"] },
+      { cap: "V", get action() { return t("settings.key.sound"); }, binds: ["v", "V"] },
       // The one-press route to silence from anywhere, and the only one with no
       // dialog in the way: the switch it flips is in Settings › Sounds, the
       // row above.
-      { cap: "M", action: "sound on or off", binds: ["m", "M"] },
+      { cap: "M", get action() { return t("settings.key.mute"); }, binds: ["m", "M"] },
       // Every theme in turn, in Settings › Appearance's order, not a
       // light/dark pair — and from inside a dialog too, the one letter that
       // goes through one (use-deck-shortcuts.ts).
-      { cap: "T", action: "next theme", binds: ["t", "T"] },
+      { cap: "T", get action() { return t("settings.key.theme"); }, binds: ["t", "T"] },
     ],
   },
   {
-    title: "Focus and selection",
+    id: "focus-and-selection",
+    get title() { return t("settings.key.group.focus"); },
     rows: [
       // Tab binds no key of the deck's: it is the browser's, and it is here
       // because reaching a card is the step every row under it depends on.
-      { cap: "Tab", action: "reach the agent cards", binds: [] },
-      { cap: "Enter", action: "select the focused card", binds: ["Enter"] },
-      { cap: "Shift + Enter", action: "add the focused card to the selection", binds: ["Enter"] },
-      { cap: "Esc", action: "close what is open, deselect, release focus", binds: ["Escape"] },
+      { cap: "Tab", get action() { return t("settings.key.tab"); }, binds: [] },
+      { cap: "Enter", get action() { return t("settings.key.enter"); }, binds: ["Enter"] },
+      { cap: "Shift + Enter", get action() { return t("settings.key.shiftEnter"); }, binds: ["Enter"] },
+      { cap: "Esc", get action() { return t("settings.key.esc"); }, binds: ["Escape"] },
     ],
   },
   {
-    title: "Mouse",
+    id: "mouse",
+    get title() { return t("settings.key.group.mouse"); },
     rows: [
-      { cap: "drag", action: "move a node, and pin it where you dropped it", binds: [] },
-      { cap: "shift-click", action: "add an agent to the selection", binds: [] },
-      { cap: "click", action: "a card: go to it and its session", binds: [] },
-      { cap: "double-click", action: "a card: its prompt, every tool call, tokens and timing", binds: [] },
-      { cap: "hover", action: "zoomed out, a card's name, state and numbers", binds: [] },
+      { get cap() { return t("settings.key.cap.drag"); }, get action() { return t("settings.key.drag"); }, binds: [] },
+      { get cap() { return t("settings.key.cap.shiftClick"); }, get action() { return t("settings.key.shiftClick"); }, binds: [] },
+      { get cap() { return t("settings.key.cap.click"); }, get action() { return t("settings.key.click"); }, binds: [] },
+      { get cap() { return t("settings.key.cap.doubleClick"); }, get action() { return t("settings.key.doubleClick"); }, binds: [] },
+      { get cap() { return t("settings.key.cap.hover"); }, get action() { return t("settings.key.hover"); }, binds: [] },
     ],
   },
 ];
@@ -198,7 +206,7 @@ function withWorkspaceRow(groups: readonly KeyHelpGroup[]): readonly KeyHelpGrou
 
 /** An action naming another row's letter in passing — Delete's "the session
  *  list (L)" — which would point at a dead key with the shortcuts off. */
-const SINGLE_KEY_ASIDE = / \([A-Z?]\)/g;
+const SINGLE_KEY_ASIDE = / ?\([A-Z?]\)/g;
 
 /** The sheet as it stands with the single-key shortcuts off (Settings ›
  *  Keyboard, WCAG 2.1.4): only the rows that still do something — the chord,

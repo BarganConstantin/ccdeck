@@ -224,24 +224,24 @@ describe("the row, in Local network's idiom and with its timings", () => {
 
   it("says which way it goes, to a screen reader and to an eye", () => {
     expect(fold).toMatch(/aria-expanded=\{open\}/);
-    expect(fold).toMatch(/aria-controls=\{open \? "ap-rest-panel" : undefined\}/);
-    expect(fold).toMatch(/aria-describedby=\{peek \? "ap-rest-peek" : undefined\}/);
+    expect(fold).toMatch(/aria-controls=\{open \? `ap-\$\{idPrefix\}rest-panel` : undefined\}/);
+    expect(fold).toMatch(/aria-describedby=\{peek \? `ap-\$\{idPrefix\}rest-peek` : undefined\}/);
     // A chevron that turns is the one thing that tells this row from Local
     // network's before either is pressed: that one leads away, this one opens
     // here. The turn beats the hover nudge — a `translateX` on a rotated box
     // would send it downward.
     expect(css).toMatch(/\.ap-nav\[aria-expanded="true"\] \.ap-nav-chev,\s*\n\.ap-nav\[aria-expanded="true"\]:hover \.ap-nav-chev \{ transform: rotate\(90deg\); \}/);
     // The box it names is everything the press reveals, not just the list.
-    expect(fold).toMatch(/aria-controls=\{open \? "ap-rest-panel" : undefined\}/);
+    expect(fold).toMatch(/aria-controls=\{open \? `ap-\$\{idPrefix\}rest-panel` : undefined\}/);
   });
 
   it("drops the freest number once the list is open, where every row says its own", () => {
-    expect(fold).toMatch(/const line = restLine\(peers, \{ strained: strained && !open, armed, threshold \}\);/);
+    expect(fold).toMatch(/const line = restLine\(peers, \{ strained: strained && !open, armed, threshold \}, t\);/);
   });
 
   it("is not hover-only: every name on the card is in the list the row opens", () => {
     // The card is a shortcut past a press, never the only route to anything.
-    expect(fold).toMatch(/\{peek && <FoldPeek anchorId="ap-rest-entry" id="ap-rest-peek" peers=\{peers\}/);
+    expect(fold).toMatch(/\{peek && <FoldPeek anchorId=\{`ap-\$\{idPrefix\}rest-entry`\} id=\{`ap-\$\{idPrefix\}rest-peek`\} peers=\{peers\}/);
     expect(panel).toMatch(/\{rest\.length > 0 && restOpen && \(\s*<div className="ap-rest-panel" id="ap-rest-panel">/);
     expect(panel).toMatch(/<ul className="ap-list ap-others" id="ap-rest-list" \{\.\.\.listHold\}>/);
   });
@@ -280,8 +280,13 @@ describe("what the column folds, and when it does not", () => {
     // What it hands the row is what the panel's state says about THAT account,
     // never the state itself: no row can read another account's open menu,
     // refusal, switch, swap, warning or disclosure.
+    // The provider's own words (`voice.switched`, and the RowVoice / CLAUDE_VOICE
+    // declarations that hold them) are the row's props, not the panel's state.
     const rowCode = read("../components/AccountRow.tsx")
-      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "")
+      .replace(/export interface RowVoice \{[\s\S]*?\n\}\n/, "")
+      .replace(/export const CLAUDE_VOICE: RowVoice = \{[\s\S]*?\n\};\n/, "")
+      .replace(/\bvoice\.switched\b/g, "");
     // (`ap-failure` and `ap-switched` are class names, and stay.)
     expect(rowCode).not.toMatch(/\b(menuFor|openLanes|issueOpen|swapNote|roster)\b|(?<![-\w])(failure|switched)(?![-\w])/);
   });
@@ -303,7 +308,7 @@ describe("what the column folds, and when it does not", () => {
     expect(accountFold).toMatch(/ready: reachable\(a, nowSec\),/);
     // The panel hands the fold what Local network knows as well, so a folded
     // row's reason reads as its unfolded row does; who is ready is unchanged.
-    expect(panel).toMatch(/const peers = peersOf\(rest, nowSec, lanFor\);/);
+    expect(panel).toMatch(/const peers = peersOf\(rest, nowSec, lanFor, t\);/);
     expect(clientText()).toMatch(/!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
     // Identity, not slot: a `cswap move` must not hand one account's key to
     // another. lane-open.ts holds that rule for the rows; this reuses it.

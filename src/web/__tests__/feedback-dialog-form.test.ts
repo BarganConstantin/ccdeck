@@ -24,9 +24,13 @@ import { fileURLToPath } from "node:url";
 import {
   KINDS, kindCopy, hasMessage, titleFromBody, feedbackTitle, fieldsToSend, parseFacts, systemLabel, factsLabel,
   isSendShortcut, isPlainEnter, sendShortcutCaps, isSymbolCap, outcomeAnnouncement, feedbackFailure,
-  TITLE_MIN, TITLE_MAX, CONTACT_MAX, MESSAGE_MISSING, SENT_LINE, sentLine, SENT_HOLD_MS, SENT_EXIT_MS, FACTS_SUFFIX,
-  FACTS_UNKNOWN, ADD_DETAILS, CONTACT_LABEL, CONTACT_PLACEHOLDER, CONTACT_HINT, WHERE_IT_GOES, type EnterKey,
+  TITLE_MIN, TITLE_MAX, CONTACT_MAX, messageMissing, sentLine, SENT_HOLD_MS, SENT_EXIT_MS, factsWith,
+  factsUnknown, addDetails, contactLabel, contactPlaceholder, contactHint, whereItGoes, type EnterKey,
 } from "../feedback";
+
+// The wording is read from the catalog now; English is what the suite runs in.
+const MESSAGE_MISSING = messageMissing(), SENT_LINE = sentLine(), FACTS_UNKNOWN = factsUnknown(), ADD_DETAILS = addDetails();
+const CONTACT_LABEL = contactLabel(), CONTACT_PLACEHOLDER = contactPlaceholder(), CONTACT_HINT = contactHint(), WHERE_IT_GOES = whereItGoes();
 import { openTags, withoutComments } from "./tsx-scan";
 import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
@@ -120,7 +124,7 @@ describe("the default state asks for one thing", () => {
     }
     // Where a report goes is said once, in the folded section, not before Send.
     expect(dialog).not.toMatch(/WHERE_IT_GOES/);
-    expect(details).toMatch(/\{WHERE_IT_GOES\.map\(line => <p key=\{line\}>\{line\}<\/p>\)\}/);
+    expect(details).toMatch(/\{whereItGoes\(\)\.map\(line => <p key=\{line\}>\{line\}<\/p>\)\}/);
   });
 
   it("opens with the caret in the message", () => {
@@ -178,7 +182,7 @@ describe("the kinds, as one compact control", () => {
   });
 
   it("is native radios in one named group, so the arrows walk them and Tab stops once", () => {
-    expect(flat(kinds)).toMatch(/<fieldset className="fb-kinds"> <legend className="vis-hidden">Kind of feedback<\/legend>/);
+    expect(flat(kinds)).toMatch(/<fieldset className="fb-kinds"> <legend className="vis-hidden">\{t\("shell\.feedback\.kinds"\)\}<\/legend>/);
     expect(flat(kinds)).toMatch(/<input type="radio" name="feedback-kind" value=\{option\.value\} checked=\{kind === option\.value\}/);
     expect(flatDialog).toMatch(/<FeedbackKinds kind=\{kind\} onChange=\{setKind\} \/>/);
   });
@@ -287,16 +291,16 @@ describe("what Send needs: a message, and nothing else", () => {
     expect(flatDialog).toMatch(/const messageDescribedBy = \[bodyMissing && "fb-body-error", imagesLostShown && "fb-images-lost"\] \.filter\(Boolean\)\.join\(" "\) \|\| undefined;/);
     expect(flatDialog).toMatch(/aria-describedby=\{messageDescribedBy\}/);
     // Outside the label, so it is read once, as the description.
-    expect(flatDialog).toMatch(/\{bodyMissing && <p id="fb-body-error" className="fb-error">\{MESSAGE_MISSING\}<\/p>\}/);
+    expect(flatDialog).toMatch(/\{bodyMissing && <p id="fb-body-error" className="fb-error">\{messageMissing\(\)\}<\/p>\}/);
   });
 });
 
 describe("Send feedback is never greyed out, and never drops focus (#518)", () => {
   it("says what it does", () => {
-    expect(flatDialog).toMatch(/<span className="fb-send-idle">Send feedback<\/span>/);
-    expect(flatDialog).toMatch(/<button type="button" className="btn" onClick=\{onClose\}>Cancel<\/button>/);
+    expect(flatDialog).toMatch(/<span className="fb-send-idle">\{t\("shell\.feedback\.send"\)\}<\/span>/);
+    expect(flatDialog).toMatch(/<button type="button" className="btn" onClick=\{onClose\}>\{t\("shell\.cancel"\)\}<\/button>/);
     // Cancel before Send, the quieter of the two.
-    expect(flatDialog.indexOf(">Cancel<")).toBeLessThan(flatDialog.indexOf('"fb-send-idle">Send feedback'));
+    expect(flatDialog.indexOf('{t("shell.cancel")}')).toBeLessThan(flatDialog.indexOf('"fb-send-idle">{t("shell.feedback.send")}'));
   });
 
   it("has no `disabled` anywhere in the dialog", () => {
@@ -306,7 +310,7 @@ describe("Send feedback is never greyed out, and never drops focus (#518)", () =
   it("says aria-busy while the request is out, and refuses a second press itself", () => {
     expect(flatDialog).toMatch(/<button ref=\{sendRef\} type="submit" className="btn primary fb-send"[^>]*\{\.\.\.selfPressProps\(sending\)\}/);
     expect(sendHook).toMatch(/if \(!selfPressAccepted\(sendingRef\.current\)\) return;/);
-    expect(flatDialog).toMatch(/<span className="fb-send-busy">Sending…<\/span>/);
+    expect(flatDialog).toMatch(/<span className="fb-send-busy">\{t\("shell\.feedback\.sending"\)\}<\/span>/);
   });
 
   it("holds its width while it says Sending…, so Cancel never moves under the pointer", () => {
@@ -358,7 +362,7 @@ describe("the keyboard", () => {
     expect(sendShortcutCaps("")).toEqual(["Ctrl", "Enter"]);
     expect(isSymbolCap("⌘")).toBe(true);
     expect(isSymbolCap("Ctrl")).toBe(false);
-    expect(flatDialog).toMatch(/<kbd data-symbol=\{isSymbolCap\(capA\) \|\| undefined\}>\{capA\}<\/kbd><kbd>\{capB\}<\/kbd> to send/);
+    expect(flatDialog).toMatch(/<kbd data-symbol=\{isSymbolCap\(capA\) \|\| undefined\}>\{capA\}<\/kbd><kbd>\{capB\}<\/kbd> \{t\("shell\.feedback\.toSend"\)\}/);
   });
 });
 
@@ -386,7 +390,7 @@ describe("Add details", () => {
     expect(CONTACT_PLACEHOLDER).toBe("Email or GitHub @name");
     expect(CONTACT_HINT).toBe("Only if you would like an answer.");
     expect(CONTACT_MAX).toBe(200);
-    expect(flatDetails).toMatch(/\{CONTACT_LABEL\} <span className="fb-optional">optional<\/span>/);
+    expect(flatDetails).toMatch(/\{contactLabel\(\)\} <span className="fb-optional">\{t\("shell\.feedback\.optional"\)\}<\/span>/);
     expect(flatDetails).toMatch(/maxLength=\{CONTACT_MAX\}/);
   });
 
@@ -428,10 +432,10 @@ describe("what goes with it, said before Send", () => {
   it("draws one quiet line: the version and system, or the same words without them", () => {
     expect(factsLabel({ appVersion: "3.36.0", platform: "darwin-arm64" })).toBe("ccdeck 3.36.0 · macOS · arm64");
     expect(factsLabel(null)).toBeNull();
-    expect(FACTS_SUFFIX).toBe("sent with it");
+    expect(factsWith()).toBe("{facts} — sent with it");
     expect(FACTS_UNKNOWN).toBe("Your ccdeck version and system are sent with it.");
     expect(flatDialog).toMatch(/const facts = factsLabel\(useFeedbackFacts\(\)\);/);
-    expect(flatDialog).toMatch(/<p className="fb-facts"> \{facts \? <><span className="fb-facts-value">\{facts\}<\/span> — \{FACTS_SUFFIX\}<\/> : FACTS_UNKNOWN\} <\/p>/);
+    expect(flatDialog).toMatch(/<p className="fb-facts"> \{facts \? slot\(factsWith\(\), "facts", <span className="fb-facts-value">\{facts\}<\/span>\) : factsUnknown\(\)\} <\/p>/);
   });
 
   it("asks the deck's own server, which answers from the function that attaches them", () => {
@@ -464,7 +468,7 @@ describe("once it is sent", () => {
     // conversations has to say while that tab is shown, and the thanks for a
     // conversation started (feedback-dialog-account.test.ts); without one, it
     // says exactly what it always did.
-    const region = dialog.indexOf('<p className="vis-hidden" role="status">{discard.armed ? DISCARD_ARMED_TITLE : conversationsShown ? said : outcomeAnnouncement(outcome.state, sentAsAccount, mail)}</p>');
+    const region = dialog.indexOf('<p className="vis-hidden" role="status">{discard.armed ? discardArmedTitle() : conversationsShown ? said : outcomeAnnouncement(outcome.state, sentAsAccount, mail)}</p>');
     expect(region, "no persistent live region").toBeGreaterThan(-1);
     expect(region).toBeLessThan(dialog.indexOf("{sent && ("));
   });
@@ -484,7 +488,7 @@ describe("once it is sent", () => {
     expect(effect).toMatch(/const held = form\.contains\(document\.activeElement\) \|\| focusDropped\(document\.activeElement\?\.tagName \?\? null\);/);
     expect(effect).toMatch(/form\.inert = sent;/);
     expect(effect).toMatch(/if \(sent && held\) closeRef\.current\?\.focus\(\);/);
-    expect(flatDialog).toMatch(/<button ref=\{closeRef\} type="button" className="glyph-btn" onClick=\{onClose\} aria-label="Close \(Esc\)"/);
+    expect(flatDialog).toMatch(/<button ref=\{closeRef\} type="button" className="glyph-btn" onClick=\{onClose\} aria-label=\{t\("shell\.closeEsc"\)\}/);
   });
 
   it("closes itself after a moment, fading out faster than anything arrived", () => {

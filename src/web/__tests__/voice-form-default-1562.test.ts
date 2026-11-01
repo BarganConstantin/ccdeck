@@ -20,7 +20,7 @@ const form = withoutComments(readFileSync(
 describe("the spoken voice form's Voice field (#1562)", () => {
   it("starts on System default", () => {
     expect(form).toMatch(/const \[voiceURI, setVoiceURI\] = useState\(""\);/);
-    expect(form).toMatch(/value=\{voiceURI\} onChange=\{e => setVoiceURI\(e\.target\.value\)\}>\s*<option value="">System default<\/option>/);
+    expect(form).toMatch(/value=\{voiceURI\} onChange=\{e => setVoiceURI\(e\.target\.value\)\}>\s*<option value="">\{t\("settings\.sounds\.voice\.default"\)\}<\/option>/);
   });
 
   it("is moved by the person's choice and by nothing else", () => {

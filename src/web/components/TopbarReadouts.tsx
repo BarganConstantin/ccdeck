@@ -26,6 +26,7 @@ import { AlertMark } from "./StateMark";
 import { elapsedShort } from "./SessionList";
 import { useHint } from "./use-hint";
 import VersionChip from "./VersionChip";
+import { t as translate, useT, type TFunction } from "../i18n";
 
 export function StatusStrip({ live, paused, pauseGate }: {
   /** Whether the event stream is connected right now. */
@@ -33,6 +34,7 @@ export function StatusStrip({ live, paused, pauseGate }: {
   paused: boolean;
   pauseGate: PauseControls["pauseGate"];
 }) {
+  const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   return (
     <span className="status">
@@ -65,7 +67,7 @@ export function StatusStrip({ live, paused, pauseGate }: {
         const pill = statusPill({
           connected: live, paused,
           held: pauseGate.size, dropped: pauseGate.dropped, singleKeys,
-        });
+        }, t);
         // Nothing at rest (#719). The ghost above explains why the box
         // measures its own worst case; this is the case where the box
         // itself is not earned. The strip is then empty, and `:empty` takes
@@ -111,14 +113,14 @@ export function StatusStrip({ live, paused, pauseGate }: {
 
 /** One queued session in a line, for a hint that lists the ones the bar has
  *  no room to name: "web-api — Bash · 6m". */
-function queueLine(w: BlockedSession, now: number): string {
-  return `${w.label} — ${waitWhat(w.waiting)} · ${elapsedShort(w.waiting.since, undefined, now)}`;
+function queueLine(w: BlockedSession, now: number, t: TFunction): string {
+  return `${w.label} — ${waitWhat(w.waiting, t)} · ${elapsedShort(w.waiting.since, undefined, now)}`;
 }
 
 /** Up to six of them, and how many more past those. */
-function queueLines(sessions: BlockedSession[], now: number): string {
-  const lines = sessions.slice(0, 6).map(w => queueLine(w, now));
-  if (sessions.length > 6) lines.push(`and ${sessions.length - 6} more`);
+function queueLines(sessions: BlockedSession[], now: number, t: TFunction): string {
+  const lines = sessions.slice(0, 6).map(w => queueLine(w, now, t));
+  if (sessions.length > 6) lines.push(t("board.queue.andMore", { n: sessions.length - 6 }));
   return lines.join("\n");
 }
 
@@ -140,6 +142,7 @@ export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, n
    *  (use-asks.ts) instead of moving the camera; absent with the flag off. */
   startAsks?: () => void;
 }) {
+  const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   const hint = useHint("below");
   const unnamed = waitingSessions.slice(named);
@@ -158,16 +161,16 @@ export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, n
           waitingCursorRef.current = waitingSessions[0].id;
           focusSession(waitingSessions[0].id);
         }}
-        aria-label={`${count} session${count === 1 ? "" : "s"} waiting for you`}
+        aria-label={t("board.queue.waitingForYou", { count })}
         aria-keyshortcuts={singleKeys ? "W" : undefined}
         {...hint.bind({
-          label: "Go to the longest wait",
+          label: t("board.queue.longest"),
           keys: singleKeys ? "W" : undefined,
-          detail: unnamed.length > 0 ? queueLines(unnamed, now) : undefined,
+          detail: unnamed.length > 0 ? queueLines(unnamed, now, t) : undefined,
         })}
       >
         <AlertMark size={14} />
-        <b>{count}</b> waiting
+        <b>{count}</b> {t("board.queue.waiting")}
       </button>
       {hint.node}
     </>
@@ -179,11 +182,12 @@ export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, n
  *  same. The wait is the line's number and stands in the foreground; what it
  *  is on is the annotation (DESIGN.md, duration beats description). */
 function QueueEntryWords({ w, now }: { w: BlockedSession; now: number }) {
+  const t = useT();
   return (
     <>
       <span className="we-name">{queueName(w.label)}</span>
       <span className="we-wait">{elapsedShort(w.waiting.since, undefined, now)}</span>
-      <span className="we-what">· {waitWhat(w.waiting)}</span>
+      <span className="we-what">· {waitWhat(w.waiting, t)}</span>
     </>
   );
 }
@@ -244,6 +248,7 @@ export function WaitingNames({ waitingSessions, waitingCursorRef, focusSession, 
   /** Opens the session list, where every one of them is, and focuses it. */
   onMore: () => void;
 }) {
+  const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   const hint = useHint("below");
   const boxRef = useRef<HTMLDivElement>(null);
@@ -290,8 +295,8 @@ export function WaitingNames({ waitingSessions, waitingCursorRef, focusSession, 
               type="button"
               className="wait-entry"
               onClick={() => go(w.id)}
-              aria-label={queueEntryName(w.label, w.waiting, now - w.waiting.since)}
-              {...hint.bind({ label: w.label, detail: queueEntryDetail(w.waiting) })}
+              aria-label={queueEntryName(w.label, w.waiting, now - w.waiting.since, t)}
+              {...hint.bind({ label: w.label, detail: queueEntryDetail(w.waiting, t) })}
             >
               <QueueEntryWords w={w} now={now} />
             </button>
@@ -303,14 +308,14 @@ export function WaitingNames({ waitingSessions, waitingCursorRef, focusSession, 
               type="button"
               className="wait-more"
               onClick={onMore}
-              aria-label={`${rest.length} more waiting; open the session list`}
+              aria-label={t("board.queue.moreLabel", { n: rest.length })}
               aria-keyshortcuts={singleKeys ? "L" : undefined}
               {...hint.bind({
-                label: "Open the session list",
+                label: t("board.queue.openList"),
                 keys: singleKeys ? "L" : undefined,
-                detail: queueLines(rest, now),
+                detail: queueLines(rest, now, t),
               })}
-            >+{rest.length} more</button>
+            >{t("board.note.more", { n: rest.length })}</button>
           </li>
         )}
       </ul>
@@ -321,7 +326,7 @@ export function WaitingNames({ waitingSessions, waitingCursorRef, focusSession, 
         {waitingSessions.map(w => (
           <span key={w.id} className="wait-entry"><QueueEntryWords w={w} now={now} /></span>
         ))}
-        <span className="wait-more">+{waitingSessions.length} more</span>
+        <span className="wait-more">{t("board.note.more", { n: waitingSessions.length })}</span>
       </span>}
       {hint.node}
     </div>
@@ -330,21 +335,22 @@ export function WaitingNames({ waitingSessions, waitingCursorRef, focusSession, 
 
 /** What each answer means, for the chip's title and the region's sentence. */
 const NOTIFY_SAID_MEANS = {
-  on: "The deck will raise a system notification when a session blocks on you and this tab is in the background",
-  blocked: "Notifications are blocked for this page. Only your browser can undo that — its site settings for this address",
+  on: "board.notify.means.on",
+  blocked: "board.notify.means.blocked",
 } as const;
 
 /** What the always-mounted region says about the browser's answer, or nothing
  *  (#1763). The whole of it rather than the chip's two words: what they mean
  *  is on the chip only as a hover title, which a screen reader cannot be
  *  relied on to reach — and for a refusal, the remedy is that half. */
-export function notifySaidSentence(notifySaid: "on" | "blocked" | null): string {
-  if (notifySaid === "on") return `Notifications on. ${NOTIFY_SAID_MEANS.on}.`;
-  if (notifySaid === "blocked") return `${NOTIFY_SAID_MEANS.blocked}.`;
+export function notifySaidSentence(notifySaid: "on" | "blocked" | null, tr: TFunction = translate): string {
+  if (notifySaid === "on") return tr("board.notify.said.on");
+  if (notifySaid === "blocked") return tr("board.notify.said.blocked");
   return "";
 }
 
 export function NotifySaid({ notifySaid }: { notifySaid: "on" | "blocked" }) {
+  const t = useT();
   return (
     <span
       // Written out rather than composed from the state, so the class
@@ -357,8 +363,8 @@ export function NotifySaid({ notifySaid }: { notifySaid: "on" | "blocked" }) {
       // A status role here arrived with its own text, which a screen reader
       // routinely never announces.
       aria-hidden
-      title={NOTIFY_SAID_MEANS[notifySaid]}
-    >{notifySaid === "on" ? "notifications on" : "notifications blocked"}</span>
+      title={t(NOTIFY_SAID_MEANS[notifySaid])}
+    >{notifySaid === "on" ? t("board.notify.on") : t("board.notify.blocked")}</span>
   );
 }
 
@@ -410,6 +416,7 @@ export function ReadoutGroup({
     void askDesktopUpdateRestart(updateVersion);
   };
   const { paused, pauseGate } = pause;
+  const t = useT();
   const { blockedSaid, watchSaid, incidentSaid } = announcements;
   const { notifySaid } = notify;
   return (
@@ -521,7 +528,7 @@ export function ReadoutGroup({
       {/* What the browser answered the notification prompt (#1763). The chip
           at the end of the group says it on screen, and comes and goes; this
           is mounted always, for the reason above, and says the same. */}
-      <div className="vis-hidden" role="status" aria-atomic="true">{notifySaidSentence(notifySaid)}</div>
+      <div className="vis-hidden" role="status" aria-atomic="true">{notifySaidSentence(notifySaid, t)}</div>
       {/* The asks run's sentences — "paycore resumed.", "No more asks." —
           beside the alarm they follow up on. Mounted from the moment the
           terminal flag is known to be on, which is before any run can start,

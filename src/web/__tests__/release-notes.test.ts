@@ -938,7 +938,7 @@ describe("how App.tsx wires it up", () => {
     expect(src("../use-modal-gate.ts")).toMatch(/modalOpenRef\.current = openedTool != null[\s\S]{0,400}\|\| tourOpen\n/);
     expect(src("../use-dialogs.ts")).toMatch(/useModalGate\(\{[^}]*\btourOpen\b/);
     expect(src("../App.tsx")).toMatch(/useDialogs\(\{[^}]*\btourOpen\b/);
-    expect(app).toMatch(/<GuideModal title="What the deck shows you" steps=\{WELCOME_STEPS\}/);
+    expect(app).toMatch(/<GuideModal title=\{t\("shell\.guide\.welcome\.title"\)\} steps=\{WELCOME_STEPS\}/);
     expect(app).toMatch(/className="btn empty-tour" onClick=\{onTour\}/);
   });
 
