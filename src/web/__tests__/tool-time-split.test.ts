@@ -6,13 +6,17 @@
 // with the approval wait inside their time — so neither question had an answer.
 import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtemp, readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { createReadStream } from 'node:fs';
+import { createInterface } from 'node:readline';
 import { rmTempDir } from './rm-temp-dir';
 // @ts-expect-error server module
 import { createToolAudit } from '../../server/tool-audit.mjs';
 // @ts-expect-error server module
-import { auditQuery } from '../../server/tool-audit-routes.mjs';
+import { auditQuery, sessionQuery } from '../../server/tool-audit-routes.mjs';
+// @ts-expect-error server module
+import { buildToolAuditReport } from '../../server/tool-audit-report.mjs';
 import { donutArcs, glanceTime, laneFact, laneParts, laneShares, slowDays, stopsLine, STARTING } from '../time-split';
 import { auditDuration, type TimeSplit } from '../tool-audit';
 
@@ -198,6 +202,169 @@ describe('the report\'s query', () => {
   it('carries the reader\'s time zone, so the days are theirs', () => {
     expect(auditQuery(new URLSearchParams('days=7&timeZone=Europe/Chisinau'))).toMatchObject({ days: 7, timeZone: 'Europe/Chisinau' });
     expect(auditQuery(new URLSearchParams('days=7'))).toMatchObject({ timeZone: 'UTC' });
+  });
+});
+
+describe('one session\'s turn', () => {
+  const ask = (audit: any, session = 'session-secret') => audit.report({ provider: 'claude', days: 7, timeZone: 'UTC', session });
+
+  it('answers a closed turn with the lanes the split gives it', async () => {
+    const { audit } = await setup();
+    playTurn(audit);
+    const { turn } = await ask(audit);
+    expect(turn).toEqual({ open: false, totalMs: 100 * SEC, claudeMs: 35 * SEC, machineMs: 35 * SEC, youMs: 30 * SEC });
+    // The same numbers Tool activity reads for the same turn.
+    const { split } = await audit.report(query);
+    expect(turn).toMatchObject({ totalMs: split.totalMs, claudeMs: split.claudeMs, machineMs: split.machineMs, youMs: split.youMs });
+  });
+
+  it('answers the turn that is open, timed to now, and counts a question still waiting as yours', async () => {
+    const { audit } = await setup();
+    at(audit, 0, 'UserPromptSubmit');
+    at(audit, 10, 'PreToolUse', tool('g', 'Bash', { command: 'git status' }));
+    at(audit, 12, 'PostToolUse', { ...tool('g', 'Bash'), duration_ms: 2 * SEC });
+    at(audit, 20, 'PreToolUse', tool('q', 'AskUserQuestion'));
+    clock = T0 + 50 * SEC;
+    const { turn } = await ask(audit);
+    expect(turn).toEqual({ open: true, totalMs: 50 * SEC, claudeMs: 18 * SEC, machineMs: 2 * SEC, youMs: 30 * SEC });
+  });
+
+  it('answers the last turn when a new prompt has not come, and the new one once it has', async () => {
+    const { audit } = await setup();
+    playTurn(audit);
+    expect((await ask(audit)).turn).toMatchObject({ open: false, totalMs: 100 * SEC });
+    at(audit, 200, 'UserPromptSubmit', { prompt_id: 'second' });
+    clock = T0 + 230 * SEC;
+    expect((await ask(audit)).turn).toEqual({ open: true, totalMs: 30 * SEC, claudeMs: 30 * SEC, machineMs: 0, youMs: 0 });
+  });
+
+  it('answers null for a session that has no turn, and ignores the others', async () => {
+    const { audit } = await setup();
+    playTurn(audit);
+    expect((await ask(audit, 'nobody')).turn).toBeNull();
+    at(audit, 300, 'UserPromptSubmit', { session_id: 'other', prompt_id: 'o1' });
+    at(audit, 310, 'Stop', { session_id: 'other', prompt_id: 'o1' });
+    expect((await ask(audit)).turn).toMatchObject({ totalMs: 100 * SEC });
+    expect((await ask(audit, 'other')).turn).toEqual({ open: false, totalMs: 10 * SEC, claudeMs: 10 * SEC, machineMs: 0, youMs: 0 });
+  });
+
+  it('finds the turn whatever the day, and never carries the id into the answer', async () => {
+    const { audit } = await setup();
+    playTurn(audit);
+    clock = T0 + 30 * 86400000;
+    const result = await ask(audit);
+    expect(result.turn).toMatchObject({ open: false, totalMs: 100 * SEC });
+    expect(JSON.stringify(result.turn)).not.toContain('session-secret');
+  });
+
+  it('leaves the unfiltered report exactly as it was', async () => {
+    const { audit } = await setup();
+    playTurn(audit);
+    const before = JSON.stringify(await audit.report(query));
+    await ask(audit);
+    const after = JSON.stringify(await audit.report(query));
+    expect(after).toBe(before);
+    expect(JSON.parse(after)).not.toHaveProperty('turn');
+  });
+
+  it('ends an interrupted turn at its last event, not at now, once nothing came for half an hour', async () => {
+    const { audit } = await setup();
+    at(audit, 0, 'UserPromptSubmit');
+    at(audit, 10, 'PreToolUse', tool('g', 'Bash', { command: 'ls' }));
+    at(audit, 12, 'PostToolUse', { ...tool('g', 'Bash'), duration_ms: 2 * SEC });
+    clock = T0 + 12 * SEC + 29 * 60 * SEC;
+    expect((await ask(audit)).turn).toMatchObject({ open: true });
+    clock = T0 + 12 * SEC + 31 * 60 * SEC;
+    expect((await ask(audit)).turn).toEqual({ open: false, totalMs: 12 * SEC, claudeMs: 10 * SEC, machineMs: 2 * SEC, youMs: 0 });
+    // Hours later it still reads the same, instead of 0.0s open.
+    clock = T0 + 20 * 3600 * SEC;
+    expect((await ask(audit)).turn).toEqual({ open: false, totalMs: 12 * SEC, claudeMs: 10 * SEC, machineMs: 2 * SEC, youMs: 0 });
+    // The unfiltered report does not change its rule for open turns.
+    expect((await audit.report(query)).split).toMatchObject({ turns: 0, open: 1 });
+  });
+
+  it('counts a call still running as this machine\'s time, up to now', async () => {
+    const { audit } = await setup();
+    at(audit, 0, 'UserPromptSubmit');
+    at(audit, 10, 'PreToolUse', tool('b', 'Bash', { command: 'npm test' }));
+    clock = T0 + 40 * SEC;
+    expect((await ask(audit)).turn).toEqual({ open: true, totalMs: 40 * SEC, claudeMs: 10 * SEC, machineMs: 30 * SEC, youMs: 0 });
+    // An Agent call only holds its subagent's calls, so it adds nothing of its own.
+    at(audit, 41, 'PreToolUse', tool('t', 'Task'));
+    clock = T0 + 50 * SEC;
+    expect((await ask(audit)).turn).toMatchObject({ machineMs: 40 * SEC, claudeMs: 10 * SEC });
+  });
+
+  it('does not close a turn at a Stop that Claude worked on past', async () => {
+    const { audit } = await setup();
+    at(audit, 0, 'UserPromptSubmit');
+    at(audit, 10, 'Stop');
+    expect((await ask(audit)).turn).toMatchObject({ open: false, totalMs: 10 * SEC });
+    // A Stop hook sent Claude back to work: the turn runs on.
+    at(audit, 12, 'PreToolUse', tool('g', 'Bash', { command: 'ls' }));
+    clock = T0 + 20 * SEC;
+    expect((await ask(audit)).turn).toEqual({ open: true, totalMs: 20 * SEC, claudeMs: 12 * SEC, machineMs: 8 * SEC, youMs: 0 });
+    at(audit, 22, 'PostToolUse', { ...tool('g', 'Bash'), duration_ms: 10 * SEC });
+    at(audit, 25, 'Stop', { stop_hook_active: true });
+    expect((await ask(audit)).turn).toMatchObject({ open: false, totalMs: 25 * SEC, machineMs: 10 * SEC, claudeMs: 15 * SEC });
+  });
+
+  it('never makes the range report busy, nor waits for it', async () => {
+    let release: (value: unknown) => void = () => {};
+    const gate = new Promise(resolve => { release = resolve; });
+    const dir = await mkdtemp(join(tmpdir(), 'ccdeck-time-split-')); dirs.push(dir);
+    const real = (input: any) => buildToolAuditReport(input, { createReadStream, createInterface });
+    const audit = createToolAudit({ dir, now: () => clock, runReport: async (input: any) => { if (!input.query.turnId) await gate; return real(input); } });
+    audits.push(audit); await audit.start();
+    at(audit, 0, 'UserPromptSubmit'); at(audit, 5, 'Stop');
+    const range = audit.report(query);
+    expect(await audit.report(query)).toEqual({ ok: false, reason: 'busy' });
+    // The session's read goes through while the range report is in flight.
+    expect((await ask(audit)).turn).toMatchObject({ open: false, totalMs: 5 * SEC });
+    release(null);
+    expect((await range).ok).toBe(true);
+    expect((await ask(audit)).ok).toBe(true);
+  });
+
+  it('hands the worker only the journal files that can hold the turn', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'ccdeck-time-split-')); dirs.push(dir);
+    const real = (input: any) => buildToolAuditReport(input, { createReadStream, createInterface });
+    const seen: string[][] = [];
+    const audit = createToolAudit({ dir, now: () => clock, runReport: async (input: any) => { seen.push(input.files.map((f: any) => basename(f.path))); return real(input); } });
+    audits.push(audit); await audit.start();
+    for (let day = 0; day < 4; day++) {
+      clock = T0 + day * 86400000;
+      audit.observe(hook('UserPromptSubmit', { session_id: 'old' + day, prompt_id: 'p' }), 'hook', { receivedAt: clock });
+      audit.observe(hook('Stop', { session_id: 'old' + day, prompt_id: 'p' }), 'hook', { receivedAt: clock + 1000 });
+      await audit.status();
+    }
+    clock = T0 + 3 * 86400000 + 60000;
+    audit.observe(hook('UserPromptSubmit', { session_id: 'newest', prompt_id: 'n' }), 'hook', { receivedAt: clock });
+    await audit.report(query);
+    await ask(audit, 'newest');
+    expect(seen[0]).toHaveLength(4);
+    expect(seen[1]).toEqual(['2026-10-23.jsonl']);
+  });
+
+  it('finds the turn again after a restart, from the prompt the boot replay heard', async () => {
+    const { audit, dir } = await setup();
+    playTurn(audit);
+    await audit.close();
+    const again = createToolAudit({ dir, now: () => clock }); audits.push(again); await again.start();
+    expect((await ask(again)).turn).toBeNull();
+    again.observe(hook('UserPromptSubmit'), 'hook', { replay: true, receivedAt: T0 });
+    expect((await ask(again)).turn).toMatchObject({ open: false, totalMs: 100 * SEC, youMs: 30 * SEC });
+    // Replay writes nothing.
+    await again.close();
+    const journal = (await readdir(dir)).filter(name => name.endsWith('.jsonl'));
+    expect(journal).toHaveLength(1);
+    expect((await readFile(join(dir, journal[0]), 'utf8')).split('\n').filter(Boolean)).toHaveLength(10);
+  });
+
+  it('takes only a session, shaped like one', () => {
+    expect(sessionQuery(new URLSearchParams('session=5b1c1c0e-71d9-4c7e-9a62-0f6ac3c2d111'))).toMatchObject({ provider: 'claude', session: '5b1c1c0e-71d9-4c7e-9a62-0f6ac3c2d111' });
+    for (const bad of ['session=', 'session=a%20b', 'session=a<b', `session=${'a'.repeat(257)}`, 'session=a&session=b', 'session=a&days=7', 'session=a&provider=claude'])
+      expect(sessionQuery(new URLSearchParams(bad))).toBeNull();
   });
 });
 
