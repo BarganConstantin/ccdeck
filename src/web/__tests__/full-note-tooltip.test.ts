@@ -17,7 +17,9 @@ import { faceTitle } from "../node-face";
 import { sheetRules } from "./sheet-cascade";
 
 const node = readFileSync(fileURLToPath(new URL("../components/RecapNoteNode.tsx", import.meta.url)), "utf8");
-const list = readFileSync(fileURLToPath(new URL("../components/SessionList.tsx", import.meta.url)), "utf8");
+/** The rail's row and the tooltip it reads its figures from, together. */
+const list = readFileSync(fileURLToPath(new URL("../components/RailParts.tsx", import.meta.url)), "utf8")
+  + readFileSync(fileURLToPath(new URL("../rail-row-copy.ts", import.meta.url)), "utf8");
 const body = (sel: string) => sheetRules().filter(r => r.media == null && r.selectors.includes(sel)).map(r => r.body).join("\n");
 
 describe("the note at the full card's size", () => {
@@ -42,8 +44,10 @@ describe("the note at the full card's size", () => {
   it("carries the whole suggested reply on hover, as the line reads, here and in the session list", () => {
     // `note?.`: a note can hold the session's plan alone (session-note.ts, boardNote).
     expect(node).toContain("{note?.reply && <p className=\"recap-note-reply\" title={`suggested reply “${note.reply}”`}>suggested reply “{note.reply}”</p>}");
-    // The list's line is cut the same way, and was the other place it had no tooltip.
-    expect(body(".session-list .sl-status-reply")).toMatch(/text-overflow:\s*ellipsis;/);
-    expect(list).toContain("{r.status?.reply && <span className=\"sl-status-reply\" title={`suggested reply “${r.status.reply}”`}>suggested reply “{r.status.reply}”</span>}");
+    // The rail's row (V4's Attention rail) draws one line and no suggested
+    // reply; the whole reply, like the whole note, is the row's tooltip.
+    expect(list).toContain("title={rowTooltip(r, removed)}");
+    expect(list).toContain("lines.push(`Suggested reply: ${r.status.reply}`)");
+    expect(body(".session-list .sl-line2")).toMatch(/text-overflow:\s*ellipsis;/);
   });
 });

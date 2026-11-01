@@ -136,7 +136,7 @@ describe("--rail-r is read by both panels it was introduced to hold together (#1
     // moved to the window's edges (edge-rails.css): the rail starts inside the
     // stripe, by the stripe's own token, which is nothing on a phone.
     const defs = [...css.matchAll(/--rail-r\s*:\s*([^;]+);/g)].map(m => m[1].trim());
-    expect(defs).toEqual(["calc(368px + var(--edge-w))", "calc(8px + var(--edge-w))"]);
+    expect(defs).toEqual(["calc(var(--inspector-w) + 8px + var(--edge-w))", "calc(8px + var(--edge-w))"]);
     expect(css).not.toMatch(/\.usage-panel\s*\{[^}]*right:\s*368px/);
     // And the duplicate override is gone with it.
     expect(css).not.toMatch(/:not\(:has\(\.detail\)\)\s+\.usage-panel/);

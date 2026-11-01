@@ -177,7 +177,7 @@ export function faceTitle(text: string, tooltip?: string): string {
   return tooltip.includes(text) ? tooltip : `${text}\n${tooltip}`;
 }
 
-export type StateMarkKind = "live" | "done" | "err";
+export type StateMarkKind = "live" | "done" | "err" | "idle";
 
 /**
  * The state a card DRAWS, in its pill and its mark. A root whose last turn
@@ -192,4 +192,34 @@ export function drawnState(data: Pick<AgentNodeData, "kind" | "state" | "stopFai
 
 export function stateMarkKind(state: AgentNodeData["state"]): StateMarkKind {
   return state === "active" ? "live" : state === "done" ? "done" : "err";
+}
+
+/** What the detail card says about its state, beside the mark (V4's Agent /
+ *  Card): a sentence-case word and the glyph. One function so the card's head
+ *  and the faces at a distance agree on which state a card is in: `mark` is the
+ *  face's own stateMarkKind for the three states.
+ *
+ *  A session blocked on you is the one case the two differ, on purpose. On the
+ *  detail card the word "Waiting" names the state, so Figma's single Waiting
+ *  glyph (the alert triangle) REPLACES the state mark. On the zoomed-out face
+ *  there is no word, so the alert triangle stands BESIDE the state mark (a
+ *  permission prompt lands on a session that is still live and the reader needs
+ *  both). The colour is the CSS's, from `data-tone`. */
+export type CardStateTone = "active" | "done" | "err" | "waiting";
+export interface CardState {
+  tone: CardStateTone;
+  word: string;
+  /** The mark beside the word; the waiting tone draws the alert triangle. */
+  mark: StateMarkKind | "alert";
+}
+
+export function cardState(data: Pick<AgentNodeData, "kind" | "state" | "stopFailure" | "waiting">): CardState {
+  if (data.kind === "root" && isAlarming(data.waiting)) {
+    return { tone: "waiting", word: "Waiting", mark: "alert" };
+  }
+  const shown = drawnState(data);
+  const mark = stateMarkKind(shown);
+  return shown === "active" ? { tone: "active", word: "Working", mark }
+    : shown === "done" ? { tone: "done", word: "Done", mark }
+    : { tone: "err", word: "Failed", mark };
 }

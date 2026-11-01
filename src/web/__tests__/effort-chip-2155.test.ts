@@ -210,9 +210,16 @@ describe("the card's chip", () => {
     // the order is card-row-squeeze.test.ts's); tried again when the row's
     // contents or width change.
     const src = readFileSync(fileURLToPath(new URL("../components/AgentNode.tsx", import.meta.url)), "utf8");
-    expect(src).toMatch(/overflowing: el\.scrollWidth > el\.clientWidth,/);
-    expect(src).toMatch(/useBeforePaint\(\(\) => \{ setSqueeze\(0\); \}, \[data\.effort, data\.model, otherModels\.length, data\.cwdBasename, data\.childCount, data\.kind, squeezeMax, rowWidth\]\)/);
+    // CHANGED ON PURPOSE (V4's Agent / Card): the model is plain text in the
+    // head, beside the name, so the card measures the head (a cut name) rather
+    // than the sub row; the model text still gives up its effort and never
+    // itself, tried again when what the head holds changes or the NAME gets
+    // wider. CHANGED ON PURPOSE (review): the measurement is the name's overflow
+    // against the effort's width (the effort goes only when that can uncut the
+    // name), and the width trigger is the label's, not the head's.
+    expect(src).toMatch(/overflow: label\.scrollWidth - label\.clientWidth,/);
+    expect(src).toMatch(/useBeforePaint\(\(\) => \{ setSqueeze\(0\); \}, \[data\.effort, data\.model, otherModels\.length, data\.label, data\.kind, squeezeMax\]\)/);
     expect(src).toMatch(/modelChipText\(data\.model, row\.effort \? data\.effort : undefined\)/);
-    expect(src).toMatch(/className="sub-details" ref=\{detailsRef\}/);
+    expect(src).toMatch(/className="label" title=\{cardTooltip\} ref=\{labelRef\}/);
   });
 });

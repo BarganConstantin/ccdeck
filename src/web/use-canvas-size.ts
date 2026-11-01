@@ -6,8 +6,9 @@
 // `canvasSize`, quantised to 40px so a nudge of the window cannot reflow the
 // layout, and `paneSizeRef`, whole, because an intersection test must not
 // inherit that tolerance (#615). Both are written here and nowhere else.
-import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
 
+import { BOARD_HEAD_CLASS } from "./board-header";
 import type { PaneSize } from "./drift";
 
 /**
@@ -75,7 +76,11 @@ export function useCanvasSize(settleRef?: MutableRefObject<number>) {
   // and nothing here reads a property a <div> has and a <main> does not.
   const canvasRef = useRef<HTMLElement | null>(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
-  useEffect(() => {
+  const remeasureRef = useRef<() => void>(() => {});
+  // A layout effect, so App's own (which runs after this one and asks for the
+  // strip's first measure) finds `remeasureRef` set, and the commit that mounts
+  // the board is packed for the right height.
+  useLayoutEffect(() => {
     const el = canvasRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     // Quantised so a one-pixel resize doesn't reflow the canvas.
@@ -88,9 +93,14 @@ export function useCanvasSize(settleRef?: MutableRefObject<number>) {
       schedule: (run, ms) => window.setTimeout(run, ms),
       cancel: id => window.clearTimeout(id),
     });
+    // The board is the cell less the header strip (board-header.css), and it
+    // is the board that is packed and watched, not the cell. The strip is a
+    // fixed height, so it is read off the element rather than guessed at.
+    const headH = () => el.querySelector<HTMLElement>(`:scope > .${BOARD_HEAD_CLASS}`)?.offsetHeight ?? 0;
     const ro = new ResizeObserver(entries => {
-      const r = entries[0]?.contentRect;
-      if (!r) return;
+      const seen = entries[0]?.contentRect;
+      if (!seen) return;
+      const r = { width: seen.width, height: seen.height - headH() };
       // Unrounded, and updated on every callback: the drift watchdog compares
       // node boxes against this rectangle, and a 40px tolerance in an
       // intersection test is a 40px strip of the canvas that reads as
@@ -103,8 +113,20 @@ export function useCanvasSize(settleRef?: MutableRefObject<number>) {
     ro.observe(el);
     paneSizeRef.current = { width: el.clientWidth, height: el.clientHeight };
     setCanvasSize({ w: el.clientWidth, h: el.clientHeight });
-    return () => { ro.disconnect(); reading.dispose(); };
+    // The strip coming or going changes the board without changing the cell,
+    // so the observer above never hears of it: App says so (remeasureCanvas),
+    // on mount too, which is where the first reading above is corrected.
+    // Through the same held reading as the observer's, so a reading held while
+    // the left column moves is replaced by this one, not overwritten behind its
+    // back, and nothing re-packs mid-move; the pane ref is whole and at once.
+    remeasureRef.current = () => {
+      const width = el.clientWidth, height = el.clientHeight - headH();
+      paneSizeRef.current = { width, height };
+      reading.read(width, height);
+    };
+    return () => { ro.disconnect(); reading.dispose(); remeasureRef.current = () => {}; };
   }, []);
+  const remeasureCanvas = useCallback(() => remeasureRef.current(), []);
 
-  return { canvasRef, canvasSize, paneSizeRef };
+  return { canvasRef, canvasSize, paneSizeRef, remeasureCanvas };
 }

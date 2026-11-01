@@ -84,7 +84,7 @@ describe("what raises an alarm", () => {
     const blocked = [root("a", PERMISSION), root("b", IDLE)];
     const waiting = blocked.filter(a => alarming(a.waiting)).length;
     expect(ambientSignal({ waiting, running: 2 }).icon).toBe("waiting");
-    expect(ambientSignal({ waiting, running: 2 }).title).toBe("(1) ccdeck");
+    expect(ambientSignal({ waiting, running: 2 }).title).toBe("(1) waiting · ccdeck");
   });
 });
 
@@ -132,9 +132,11 @@ describe("the two call sites", () => {
     expect(app, "App.tsx grew its own copy of the alarm rule again")
       .not.toMatch(/for \(const a of stateRef\.current\.agents\.values\(\)\) \{\s*\n\s*if \(a\.kind === "root"/);
 
+    // The rail's header chip that counted them is gone (V4's groups say it), so
+    // the call site is rank(): Needs you is exactly the alarming blocks.
     const list = src("../components/SessionList.tsx");
-    expect(list, "SessionList counts any block again")
-      .toMatch(/rows\.filter\(r => isAlarming\(r\.waiting\)\)/);
+    expect(list, "SessionList ranks any block as Needs you again")
+      .toMatch(/if \(isAlarming\(r\.waiting\)\) return 0;/);
   });
 
 });
@@ -175,12 +177,16 @@ function start(state: GraphState, session: string, at: number): GraphState {
 }
 
 describe("the order the sidebar reads in", () => {
-  it("puts a permission block above an idle one, and both above anything running", () => {
-    // rank(): permission 0, idle 1, active 2, rest 3. #348 dropped idle out of
-    // the COUNT and it has to stay in the ORDER — the sidebar is the surface
-    // idle keeps, so the two questions are separable and this is the one that
-    // says the second answer did not follow the first. Fails if the tiers are
-    // reordered in any way, which the regex this replaced did not.
+  it("puts a permission block first, then what is running, then the turns that ended unseen", () => {
+    // rank(): permission 0 (Needs you), running 1 (Working), an ended turn you
+    // have not looked at 2 (Done · unseen), the rest 3 (Idle). THIS CHANGED ON
+    // PURPOSE with V4's Attention rail: "your turn" used to sort second, above
+    // anything running, as the next-most urgent thing. V4 puts it below Working
+    // — it is not a decision a session is stalled on, and once seen it is Idle.
+    // #348 dropped idle out of the COUNT and the rail keeps it in the ORDER, in
+    // the group a finished turn lives in; the longest-ended turn goes last.
+    // Fails if the tiers are reordered in any way, which the regex this
+    // replaced did not.
     seq = 0;
     let state = initialState();
     for (const s of ["running", "idle", "permission", "finished"]) state = start(state, s, 1_000);
@@ -189,7 +195,7 @@ describe("the order the sidebar reads in", () => {
     state = send(state, "idle", { hook_event_name: "Notification", ...NOTIFY.idle }, 4_000);
 
     expect(buildRows(state, 9_000).map(r => r.sessionId))
-      .toEqual(["permission", "idle", "running", "finished"]);
+      .toEqual(["permission", "running", "idle", "finished"]);
   });
 
   it("puts the longest-blocked session first, which is the opposite of every other tier", () => {
@@ -226,14 +232,18 @@ describe("the order the sidebar reads in", () => {
     // strip ask. Called directly here so a rank() that grew its own idea of
     // what an alarm is — the exact shape #377 found in three other places —
     // fails rather than merely looking different.
-    const at = (waiting: WaitingBlock | null, state: "active" | "done") =>
-      rank({ sessionId: "s", label: "s", state, waiting, toolCount: 0, cost: 0, startedAt: 0, lastActivity: 0 });
+    const at = (waiting: WaitingBlock | null, state: "active" | "done", unseen?: boolean) =>
+      rank({ sessionId: "s", label: "s", state, waiting, toolCount: 0, cost: 0, startedAt: 0, lastActivity: 0, plan: null, planTitle: "", unseen });
     expect(at(PERMISSION, "active")).toBe(0);
-    expect(at(IDLE, "active")).toBe(1);
-    expect(at(null, "active")).toBe(2);
+    expect(at(null, "active")).toBe(1);
+    // An idle block is a turn that ended: Done · unseen until you have looked,
+    // Idle after (it was second, above anything running, before the rail).
+    expect(at(IDLE, "active", true)).toBe(2);
+    expect(at(IDLE, "active", false)).toBe(3);
+    expect(at(null, "done", true)).toBe(2);
     expect(at(null, "done")).toBe(3);
     // Strictly increasing, which is what "above" means for a numeric rank.
-    expect([at(PERMISSION, "active"), at(IDLE, "active"), at(null, "active"), at(null, "done")])
+    expect([at(PERMISSION, "active"), at(null, "active"), at(null, "done", true), at(null, "done")])
       .toEqual([0, 1, 2, 3]);
   });
 });

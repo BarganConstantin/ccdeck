@@ -139,7 +139,8 @@ describe("the wiring", () => {
   const app = sourceOf("App.tsx");
   const rails = sourceOf("rail-items.tsx");
   const edge = sourceOf("components/EdgeRails.tsx");
-  const detail = sourceOf("components/DetailAside.tsx");
+  // The close is the Inspector's Fold now, in the header it draws.
+  const detail = sourceOf("components/DetailAside.tsx") + sourceOf("components/Inspector.tsx");
 
   it("arms each panel's hand-off on the close that panel draws", () => {
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.accounts\(\); closeAccountsPanel\(\); \}\}/);

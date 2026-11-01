@@ -171,6 +171,9 @@
 .canvas-wrap[data-stage="opening"] > .cat-filter-bar,
 .canvas-wrap[data-stage="open"] > .cat-filter-bar,
 .canvas-wrap[data-stage="closing"] > .cat-filter-bar,
+.canvas-wrap[data-stage="opening"] > .board-head,
+.canvas-wrap[data-stage="open"] > .board-head,
+.canvas-wrap[data-stage="closing"] > .board-head,
 .canvas-wrap[data-stage="opening"] > .empty-hero,
 .canvas-wrap[data-stage="open"] > .empty-hero,
 .canvas-wrap[data-stage="closing"] > .empty-hero { visibility: hidden; }

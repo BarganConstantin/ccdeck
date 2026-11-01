@@ -274,7 +274,7 @@ describe("a model with no rate says so instead of vanishing", () => {
       const hit = new RegExp(`(?:^|;)\\s*${prop}\\s*:([^;]*)`).exec(body);
       return hit ? hit[1].trim() : null;
     };
-    for (const sel of [".up-unpriced", ".agent-node .meta .cost-unpriced"]) {
+    for (const sel of [".up-unpriced", ".agent-node .foot .cost-unpriced"]) {
       expect(declOf(sel, "color"), sel).toBe("var(--muted)");
       expect(declOf(sel, "font-style"), sel).toBe("italic");
     }

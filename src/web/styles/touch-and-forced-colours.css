@@ -109,6 +109,17 @@
   .reading-choice:has(input:checked) { border-color: Highlight; }
 
   .tr-tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; border-bottom-color: Highlight; }
+  /* The Inspector's chosen tab is a --panel chip on a --bg-soft track, a
+     difference of fill that forced colours remove: it takes the outline, and
+     the card the tree is about takes the same one in place of its ring. */
+  .insp-tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .insp-card[data-current] .agent-node { box-shadow: none; outline: 2px solid Highlight; }
+  /* The tree's lines are drawn as a fill, which forced colours turn into the
+     canvas's own colour, so who started whom would vanish: paint them in the
+     text colour, as the meters above are. */
+  .insp-gut[data-line]::before,
+  .insp-gut[data-line="elbow"]::after,
+  .insp-gut[data-line="tee"]::after { forced-color-adjust: none; background: CanvasText; }
   .tr-message[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
   .tr-detail-tabs .btn[aria-pressed="true"],
   .ap-reset-coverage-link[aria-pressed="true"],
@@ -186,6 +197,10 @@
   .react-flow__controls-button[aria-pressed="true"],
   .react-flow__controls-button[aria-pressed="true"]:hover,
   .aa-tab.on { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  /* The rule between the control bar's groups is a fill too, and the theme
+     paints every fill Canvas, so it would vanish. It takes the text colour,
+     the way the hairline it replaced did. */
+  .react-flow__controls-divider { forced-color-adjust: none; background: CanvasText; }
   /* The GitHub and GitLab panel's tabs and a change's sections are the same
      chip, chosen by aria-selected because they are tabs (#2179). */
   .fg-tabs .uh-range-btn[aria-selected="true"],
@@ -212,12 +227,11 @@
   .up-period .uh-range-btn[aria-pressed="true"],
   .up-period .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: auto; background: transparent; }
   .up-period .uh-range-btn[aria-pressed="true"]::after { forced-color-adjust: none; background: Highlight; }
-  /* Every session row's edge is repainted in the text colour, the chosen
-     one's accent with them: it takes the highlight, twice as heavy. The edge
-     is a term in the row's side padding, so the words stay put, and what it
-     grows by above and below comes out of the row's 10px, so the row keeps
-     its height. */
-  .session-list .sl-row.selected { --sl-card-edge: 2px; padding-block: calc(10px - (var(--sl-card-edge) - 1px)); border-color: Highlight; }
+  /* The rail's selected row is a fill (--selected), which the theme drops: it
+     takes a highlight ring drawn inside the row instead, so the words stay put
+     and the row keeps its height. The status glyphs draw in currentColor and
+     follow the text. */
+  .session-list .sl-row.selected { outline: 2px solid Highlight; outline-offset: -2px; }
   /* The selected card's ring, in the same highlight as its row. The theme
      drops the lift that sets selection apart from the keyboard's ring, and
      repaints the session's own colour in the text colour that ring is drawn

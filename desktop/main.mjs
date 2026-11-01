@@ -30,7 +30,7 @@ import { shouldOfferReadyUpdate } from "./update-notice.mjs";
 import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
 import { createNotificationAudioStore } from "./notification-audio-store.mjs";
 import { createDesktopState } from "./desktop-state.mjs";
-import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";
+import { statusWorthAsking, trayMenuItems, trayTooltip } from "./tray-menu.mjs";
 import { createMenuSwap } from "./tray-menu-swap.mjs";
 import { canRestartForTray, MISSES_BEFORE_RESTART, screenLockedNow, selfRestartHeld, trayCheck, trayMissesNext, trayOutcomeNext, watcherOnBusNow } from "./tray-presence.mjs";
 import { restartApp } from "./relaunch-linux.mjs";
@@ -179,7 +179,7 @@ function scheduleRedraw() {
     tray.setImage(trayImage(snapshot.icon));
     // macOS draws text beside a menu-bar icon; nowhere else can.
     if (process.platform === "darwin") tray.setTitle(snapshot.waiting > 0 ? ` ${snapshot.waiting}` : "");
-    tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot, startFailed })}`);
+    tray.setToolTip(trayTooltip({ restarting, starting, deck, snapshot, startFailed }));
     // Only when what it says has changed, and not while it is open: a new
     // menu closes the one somebody is reading (tray-menu-swap.mjs).
     menuSwap?.refresh();

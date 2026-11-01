@@ -28,15 +28,17 @@ function card(over: Partial<AgentNodeData>): AgentNodeData {
 }
 
 describe("the card's second row", () => {
-  it("cuts a subagent's folder short at the card's width, which is why it needs the tooltip", () => {
-    // The row was one run of text that ellipsised at its end, so a long folder
-    // took the model chip with it (#2169). Now only the folder is cut.
-    expect(body(".agent-node .sub-details")).toMatch(/white-space:\s*nowrap;/);
-    expect(body(".agent-node .sub-details > .sub-folder")).toMatch(/text-overflow:\s*ellipsis;/);
+  // CHANGED ON PURPOSE (V4's Agent / Card): the second row is the task line now.
+  // It pinned `.sub-details` and `.sub-folder` (the row and its one cut piece);
+  // it pins the task line, which is the whole cut line and carries the same
+  // tooltip for a subagent, so the model it no longer draws is still readable.
+  it("cuts a subagent's task line short at the card's width, which is why it needs the tooltip", () => {
+    expect(body(".agent-node .task-line")).toMatch(/white-space:\s*nowrap;/);
+    expect(body(".agent-node .task-line")).toMatch(/text-overflow:\s*ellipsis;/);
   });
 
   it("carries its whole text on hover", () => {
-    expect(node).toContain('<div className="sub" title={subRowTitle(data)}>');
+    expect(node).toContain('<div className="task-line" title={subRowTitle(data)}>');
   });
 
   it("says a subagent's kind, folder and model, in the order the row draws them", () => {

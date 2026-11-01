@@ -50,7 +50,7 @@ The tab's states follow the owner's mapping: idle → the kit's default, waiting
 waiting, running → syncing, offline → error. The kit's paused has no state in the
 deck and is not copied. `src/web/ambient.ts` names the file for each state, and
 `src/web/use-tab-ambient.ts` swaps both icon links, as the kit's snippet does;
-the tab title's `(n) ccdeck` carries the waiting count beside it.
+the tab title's `(n) waiting · ccdeck` carries the waiting count beside it.
 
 The topbar follows the kit's pattern for product chrome: the small mark 16px
 high (heights in multiples of 4, so its strokes land on whole pixels), the name

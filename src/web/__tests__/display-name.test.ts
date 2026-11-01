@@ -75,7 +75,7 @@ describe("the product's display name", () => {
     // has to be the same name with a prefix rather than a second spelling.
     expect(ambientSignal({ waiting: 0, running: 0 }).title).toBe(PRODUCT);
     expect(read("src/web/index.html")).toContain(`<title>${ambientSignal({ waiting: 0, running: 0 }).title}</title>`);
-    expect(ambientSignal({ waiting: 2, running: 0 }).title).toBe(`(2) ${PRODUCT}`);
+    expect(ambientSignal({ waiting: 2, running: 0 }).title).toBe(`(2) waiting · ${PRODUCT}`);
   });
 
   it("is the name the terminal banner draws, so the two surfaces cannot drift", () => {
@@ -124,7 +124,7 @@ describe("the boundary the rename must not cross", () => {
       "agent-dag.schema", "agent-dag.layout", "agent-dag.viewport",
       "agent-dag.theme", "agent-dag.autoRestart", "agent-dag.autoFitDisabled",
       "agent-dag.detailOpen", "agent-dag.sessionListOpen", "agent-dag.usagePanelOpen",
-      "agent-dag.accountsPanelOpen",
+      "agent-dag.accountsPanelOpen", "agent-dag.sessionsSeen",
       "agent-dag.versionNoticeDismissed", "agent-dag.bundleReloadedFor",
       "agent-dag.restartPending",
     ]) expect([...storageKeys]).toContain(key);
