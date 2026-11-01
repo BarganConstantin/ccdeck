@@ -99,13 +99,23 @@ describe("area files", () => {
 describe.each(LANGUAGES.filter(l => l.code !== "en"))("catalog $code", ({ code, catalog }) => {
   const keys = Object.keys(catalog);
 
+  // A language may need plural forms English does not write: Romanian "few",
+  // French, Spanish and Portuguese "many". They are the English ".other" key
+  // with another category, and are compared against it.
+  const englishFor = (k: string): string | undefined => {
+    const text = (en as Record<string, string>)[k];
+    if (text !== undefined) return text;
+    const m = /^(.+)\.(zero|two|few|many)$/.exec(k);
+    return m ? (en as Record<string, string>)[`${m[1]}.other`] : undefined;
+  };
+
   it("has no key English does not have", () => {
-    expect(keys.filter(k => !(k in en))).toEqual([]);
+    expect(keys.filter(k => englishFor(k) === undefined)).toEqual([]);
   });
 
   it("uses the same {placeholders} as English", () => {
-    const bad = keys.filter(k => k in en).filter(k =>
-      placeholders(catalog[k]).join() !== placeholders((en as Record<string, string>)[k]).join());
+    const bad = keys.filter(k => englishFor(k) !== undefined).filter(k =>
+      placeholders(catalog[k]).join() !== placeholders(englishFor(k)!).join());
     expect(bad).toEqual([]);
   });
 
@@ -142,7 +152,7 @@ describe("detectLanguage", () => {
   });
 
   it("takes the first preference the registry can serve, else English", () => {
-    expect(detectLanguage(["fr-CH", "de"])).toBe("de");
+    expect(detectLanguage(["it-CH", "de"])).toBe("de");
     expect(detectLanguage(["xx", "yy-ZZ"])).toBe("en");
     expect(detectLanguage([])).toBe("en");
     expect(detectLanguage(undefined)).toBe("en");
@@ -153,9 +163,14 @@ describe("detectLanguage", () => {
     expect(detectLanguage(["zh-TW", "ja"], [{ code: "en" }, { code: "ja" }])).toBe("ja");
   });
 
+  it("finds a shipped language from a regional tag", () => {
+    const tags: Record<string, string> = { "ko-KR": "ko", "fr-CA": "fr", "fr-CH": "fr", "es-MX": "es", "es-419": "es", "pt-PT": "pt-BR", "pt-BR": "pt-BR", "ro-RO": "ro", "ro-MD": "ro" };
+    for (const [tag, code] of Object.entries(tags)) expect(detectLanguage([tag]), tag).toBe(code);
+  });
+
   it("would find every planned language once it is registered", () => {
     const registry = [{ code: "en" }, ...PLANNED_LANGUAGES];
-    const regional: Record<string, string> = { ko: "ko-KR", fr: "fr-FR", es: "es-MX", "pt-BR": "pt-PT", it: "it-IT", pl: "pl-PL", vi: "vi-VN", ro: "ro-RO", id: "id-ID", th: "th-TH", cs: "cs-CZ" };
+    const regional: Record<string, string> = { ko: "ko-KR", fr: "fr-FR", es: "es-MX", "pt-BR": "pt-PT", it: "it-IT", pl: "pl-PL", vi: "vi-VN", ro: "ro-RO", id: "id-ID", th: "th-TH", cs: "cs-CZ", ru: "ru-RU", tr: "tr-TR" };
     for (const p of PLANNED_LANGUAGES) {
       expect(detectLanguage([p.code], registry), p.code).toBe(p.code);
       expect(detectLanguage([regional[p.code]], registry), regional[p.code]).toBe(p.code);

@@ -40,8 +40,7 @@ your to-do list and never fails a build.
 2. Add one line to `LANGUAGES` in `src/web/i18n/registry.ts`: the code, the language's name in that language, `dir`, and, only if the translation has not been checked yet, `beta: true` (the select then shows "(beta)"; the shipped languages carry no flag).
 3. Run `npx vitest run src/web/__tests__/i18n.test.ts`. It fails on unknown keys, changed `{placeholders}` and empty values, and lists what is still missing.
 
-Languages already agreed but not shipped (`ko`, `fr`, `es`, `pt-BR`, `it`, `pl`,
-`vi`, `ro`, `id`, `th`, `cs`) are listed with their native names under
+Languages already agreed but not shipped (`it`, `pl`, `vi`, `id`, `th`, `cs`, `ru`, `tr`) are listed with their native names under
 `PLANNED_LANGUAGES` in the registry. Move the line into `LANGUAGES`; browser
 detection already finds them from then on.
 
@@ -50,7 +49,7 @@ detection already finds them from then on.
 - Keys are ids (`usage.quota.pace.over`), not sentences. Never rename a key to follow an English edit.
 - `{name}` is filled in at run time. Keep every placeholder, spelled the same, and move it where your grammar wants it. Numbers with decimals and durations are formatted in code (`i18n/format.ts`): pass the formatted string, never `toFixed`.
 - Do not translate product names (ccdeck, Claude Code, Codex, Claude, Sonnet, Opus), model names, commands, file names or the shape of times and units.
-- Plurals: add `<key>.one` and `<key>.other` (and `few`, `many`, ... if your language needs them) and call `t(key, { count })`. The form is chosen with `Intl.PluralRules`.
+- Plurals: add `<key>.one` and `<key>.other` (and `few`, `many`, ... if your language needs them: Romanian writes `.few`; Korean needs only `.other`; the test compares such a key with the English `.other`) and call `t(key, { count })`. The form is chosen with `Intl.PluralRules`.
 - Write the way the language's own software speaks (Traditional Chinese: Taiwan usage, not Hong Kong; German: informal "du"). Keep it about as short as English: the panels are narrow, and layouts are checked at 320 px.
 - `dir` in the registry is `"ltr"` for every language today. `"rtl"` is reserved for Arabic, Persian and Hebrew; it sets `<html dir>` only, and the layouts do not mirror yet.
 - Strings shared by many areas (Close, Cancel, durations) belong to `common` and are added by the lead, not by an area.
