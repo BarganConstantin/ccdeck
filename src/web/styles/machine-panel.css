@@ -398,14 +398,20 @@
 .sysdetail .sd-reading > .sd-open { margin-bottom: 2px; }
 .sysdetail .sd-reading > .sd-open .sd-h { margin-bottom: 0; }
 .sysdetail .sd-reading > .sd-open + .sd-note { margin-top: 0; }
+@media (hover: hover) and (pointer: fine) {
 .sysdetail .sd-open:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+}
 .sysdetail .sd-open:active { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) {
 .sysdetail .sd-reading:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+}
 .sysdetail .sd-reading:active { transform: scale(0.97); }
 /* The heading inside a block that lights and presses already: its own band
    would lay 6% over the block's 6% on the one row under the pointer, and its
    own press would shrink the heading twice inside a block that is shrinking. */
+@media (hover: hover) and (pointer: fine) {
 .sysdetail .sd-reading > .sd-open:hover { background: none; }
+}
 .sysdetail .sd-reading > .sd-open:active { transform: none; }
 /* The chevron that says the section opens something. --text-dim, the only dim
    tier text may take (#262), so it reads as a hint rather than as a value, and
@@ -417,10 +423,12 @@
   color: var(--text-dim);
   transition: color 140ms ease;
 }
+@media (hover: hover) and (pointer: fine) {
 .sysdetail .sd-open:hover .sd-h,
 .sysdetail .sd-open:hover .sd-row-more,
 .sysdetail .sd-reading:hover .sd-h,
 .sysdetail .sd-reading:hover .sd-row-more { color: var(--text); }
+}
 
 /* The headers need nothing here: `.sd-sort` already declares its own pointer
    and its own press, and the section's handler steps aside for them. */
@@ -528,8 +536,12 @@
   transition: background 140ms ease, color 140ms ease, transform 140ms ease;
 }
 .sd-detail .sd-row-more { margin-left: auto; }
+@media (hover: hover) and (pointer: fine) {
 .sysdetail .sd-detail:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); }
+}
+@media (hover: hover) and (pointer: fine) {
 .sysdetail .sd-detail:hover .sd-row-more { color: var(--text); }
+}
 .sysdetail .sd-detail:active { transform: scale(0.97); }
 .sd-route-relay { color: var(--warn); }
 
@@ -612,7 +624,9 @@
   justify-content: flex-start;
   padding-right: 8px;
 }
+@media (hover: hover) and (pointer: fine) {
 :is(.sysdetail, .pl-body) .sd-sort:hover { background: var(--line); color: var(--text); }
+}
 :is(.sysdetail, .pl-body) .sd-sort:active { transform: scale(0.97); }
 /* The column doing the sorting reads at full strength and the other two stay
    with the rest of the labels. Keyed on aria-sort rather than on a class of its

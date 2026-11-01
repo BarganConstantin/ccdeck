@@ -469,15 +469,21 @@ optgroup {
    Under forced colours none of this applies: Chromium draws its own system
    scrollbar there, in every state including rest (measured), so the
    forced-colours block at the end of this sheet has nothing to add for it. */
+@media (hover: hover) and (pointer: fine) {
 :hover::-webkit-scrollbar-thumb { background-color: var(--line); }
+}
 :focus-within::-webkit-scrollbar-thumb { background-color: var(--ctl-edge); }
 /* Last, so it beats the two above on source order at equal specificity — and
    louder than either, so hovering the bar of a scroller that also holds focus
    never dims it. That is why it is --muted now rather than --muted-dim: 2.35:1
    in dark would have been a step DOWN from the keyboard's thumb. */
+@media (hover: hover) and (pointer: fine) {
 *::-webkit-scrollbar-thumb:hover { background-color: var(--muted); }
+}
 * { scrollbar-color: transparent transparent; scrollbar-width: thin; }
+@media (hover: hover) and (pointer: fine) {
 :hover { scrollbar-color: var(--line) transparent; }
+}
 :focus-within { scrollbar-color: var(--ctl-edge) transparent; }
 
 /* Visible focus ring for keyboard nav */

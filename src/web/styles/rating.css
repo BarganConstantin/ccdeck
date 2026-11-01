@@ -43,7 +43,9 @@
   transition: background 120ms, border-color 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .rating-banner .rating-pick:hover { border-color: var(--text); background: var(--panel); }
+}
 .rating-banner .rating-pick:active { transform: scale(0.94); }
 /* Its press switches off under reduced motion with every other one, in the one
    list at accounts-details.css. Under a Contrast theme the border is redrawn in

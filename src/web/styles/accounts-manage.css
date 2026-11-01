@@ -55,8 +55,15 @@
   line-height: 1;
   cursor: pointer;
 }
-.ap-account:hover .ap-more, .ap-more:hover, .ap-more:focus-visible, .ap-more[aria-expanded="true"] {
+.ap-more:focus-visible,
+.ap-more[aria-expanded="true"] {
   color: var(--text);
+}
+@media (hover: hover) and (pointer: fine) {
+.ap-account:hover .ap-more,
+.ap-more:hover {
+  color: var(--text);
+}
 }
 /* SECONDARY TO `switch`, AND IT LOOKS IT. It drew a --ctl-edge outline under
    the pointer and while open, which is the exact boundary the `switch` pill
@@ -65,7 +72,9 @@
    fill now, the neutral --ctl-fill every control here sits in, a step
    stronger while its menu is open so the popover has something visible to
    hang from. The glyph is the identification; the fill is only the answer. */
+@media (hover: hover) and (pointer: fine) {
 .ap-more:hover { background: var(--ctl-fill); }
+}
 .ap-more[aria-expanded="true"] { background: color-mix(in srgb, var(--text) 12%, transparent); }
 
 /* ── the ⋯ popover ──────────────────────────────────────────────────────────
@@ -146,8 +155,10 @@
   text-align: left;
   cursor: pointer;
 }
-.ap-menu-item:hover:not(:disabled),
 .ap-menu-item:focus-visible { background: var(--selected); }
+@media (hover: hover) and (pointer: fine) {
+.ap-menu-item:hover:not(:disabled) { background: var(--selected); }
+}
 /* Inset, because the global ring's 1px offset would draw over the rows on
    either side of this one. */
 .ap-menu-item:focus-visible { outline-offset: -2px; }
@@ -165,8 +176,10 @@
    the word alone. Pointed at, it takes the same 12% --err wash `.btn.danger`
    takes under the pointer. */
 .ap-menu-item.danger { color: var(--err); }
-.ap-menu-item.danger:hover:not(:disabled),
 .ap-menu-item.danger:focus-visible { background: color-mix(in srgb, var(--err) 12%, transparent); color: var(--err); }
+@media (hover: hover) and (pointer: fine) {
+.ap-menu-item.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--err) 12%, transparent); color: var(--err); }
+}
 /* Armed is a different item, not a hover state: the next press deletes stored
    credentials, and it disarms itself after four seconds. The fill-and-invert
    `.ap-manage-btn.danger.armed` uses for the same moment, and the same bar
@@ -174,13 +187,21 @@
    nothing about a countdown should ease. Spelled out for the pointed-at states
    too, which would otherwise outrank it and paint the wash over the fill. */
 .ap-menu-item.danger.armed,
-.ap-menu-item.danger.armed:hover:not(:disabled),
 .ap-menu-item.danger.armed:focus-visible {
   position: relative;
   overflow: hidden;
   background: var(--err);
   color: var(--bg);
   font-weight: 600;
+}
+@media (hover: hover) and (pointer: fine) {
+.ap-menu-item.danger.armed:hover:not(:disabled) {
+  position: relative;
+  overflow: hidden;
+  background: var(--err);
+  color: var(--bg);
+  font-weight: 600;
+}
 }
 .ap-menu-item.danger.armed::after {
   content: "";
@@ -270,7 +291,9 @@
   cursor: pointer;
   transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-issue-report:hover { color: var(--text); text-decoration: underline; }
+}
 /* The press convention every clickable control here keeps — the same 0.97 and
    easing the Projects report's Copy takes (canvas-motion.test.ts). */
 .ap-issue-report:active { transform: scale(0.97); }
@@ -304,7 +327,9 @@
   line-height: var(--lh-body);
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-manage-input:hover { border-color: var(--text); }
+}
 .ap-manage-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* V4's field: the six placeholders these fields carry take --muted in both
    schemes. On --bg-soft it is at least 4.91:1 in every theme (it was 4.05:1 on
@@ -332,9 +357,11 @@
   transition: border-color 120ms, color 120ms, background 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-manage-btn:hover:not(:disabled) {
   border-color: var(--text);
   background: color-mix(in srgb, var(--text) 12%, transparent);
+}
 }
 .ap-manage-btn:active:not(:disabled) { transform: scale(0.97); }
 /* The same dimming the ↻ and the two selects use for the moment a request is
@@ -350,7 +377,9 @@
    did not: only its LABEL did, at 9.54:1, which is exactly why it out-drew
    everything around it. */
 .ap-manage-btn.danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 65%, transparent); }
+@media (hover: hover) and (pointer: fine) {
 .ap-manage-btn.danger:hover:not(:disabled) { border-color: var(--err); }
+}
 /* Armed is a different button, not a hover state: it is one click from
    deleting stored credentials, and it disarms itself after four seconds. */
 .ap-manage-btn.danger.armed {
@@ -388,7 +417,9 @@
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-share-foot .ap-manage-btn:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
 }
 

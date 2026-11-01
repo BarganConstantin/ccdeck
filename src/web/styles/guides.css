@@ -176,7 +176,9 @@
   cursor: pointer;
   transition: border-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-intro:hover:not(:disabled) { border-color: var(--accent); }
+}
 .ap-lan-intro:active:not(:disabled) { transform: scale(0.97); }
 .ap-lan-intro-text { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--text-secondary); }
 .ap-lan-intro-go { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--accent); }
@@ -215,7 +217,9 @@
   cursor: pointer;
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .film-link:hover { text-decoration: underline; }
+}
 .film-link:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) {
   .film-link:active { transform: none; }
@@ -229,7 +233,9 @@
 .empty-hero .empty-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 .empty-hero .film-link { pointer-events: auto; margin-left: 0; }
 .empty-hero .film-action { min-height: 36px; padding: 0 12px; gap: 8px; border-radius: 6px; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text-secondary); transition: background 140ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+@media (hover: hover) and (pointer: fine) {
 .empty-hero .film-action:hover { background: var(--ctl-fill); color: var(--text); text-decoration: none; }
+}
 .empty-hero .film-duration { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .empty-hero .film-action svg { flex: none; }
 @container (max-width: 360px) {

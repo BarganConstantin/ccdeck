@@ -236,9 +236,11 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+@media (hover: hover) and (pointer: fine) {
 .cluster-label:hover {
   filter: brightness(1.25);
   box-shadow: 0 4px 14px rgba(0,0,0,0.45), 0 0 0 1px currentColor;
+}
 }
 /* `.cluster-label.dragging` used to sit here, and its light-theme twin below
    `:root[data-color-scheme="light"] .cluster-label:hover`. Both are gone with the grab
@@ -272,6 +274,7 @@
    would have dropped the only text in this layer under AA. Same gesture,
    mirrored: the pill deepens instead, and the ratio goes up rather than down.
    A hover that lowers a contrast is not a hover. */
+@media (hover: hover) and (pointer: fine) {
 :root[data-color-scheme="light"] .cluster-label:hover {
   filter: brightness(0.9);
   /* The ring had to come back with it. `:root[data-color-scheme="light"]
@@ -280,5 +283,6 @@
      the dark hover draws never appeared. Measured, light theme, hovered:
      `rgba(15,23,42,0.08) 0 1px 4px` — the resting value. */
   box-shadow: 0 4px 14px rgba(15,23,42,0.16), 0 0 0 1px currentColor;
+}
 }
 

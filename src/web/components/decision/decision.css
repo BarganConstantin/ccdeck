@@ -107,7 +107,9 @@
 .dc-opt:focus { outline: none; }
 /* The ring: 1.5px of --accent, where the keys are. */
 .dc-opt[data-focus] { border-color: var(--accent); box-shadow: 0 0 0 0.5px var(--accent); }
+@media (hover: hover) and (pointer: fine) {
 .dc-opt:hover:not([data-focus]):not([aria-disabled="true"]) { border-color: var(--line); }
+}
 .dc-chip {
   flex: none;
   box-sizing: border-box;
@@ -229,7 +231,9 @@
   color: var(--accent);
   cursor: pointer;
 }
+@media (hover: hover) and (pointer: fine) {
 .dc-link:hover { text-decoration: underline; }
+}
 
 /* The phone frame: the card on a line of its own, the answers stacked below. */
 .dc-dock[data-size="phone"] .dc-decision { display: flex; flex-direction: column; gap: 8px; }

@@ -51,7 +51,9 @@
   transition: border-color 120ms, background 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .selected-ribbon:hover { border-color: var(--text); background: var(--bg); }
+}
 /* The ribbon itself is a button — it fits the view to the agent it names — and
    it was the only part of this chip that did not answer a press while its own ×
    did, so the small target moved and the large one holding it did not.
@@ -165,7 +167,9 @@
   inset: -3px;
   border-radius: inherit;
 }
+@media (hover: hover) and (pointer: fine) {
 .selected-ribbon .selected-close:hover { background: var(--line); color: var(--text); }
+}
 .selected-ribbon .selected-close:active { transform: scale(0.94); }
 /* NOT ON A PHONE'S BAR (#1790). Below 640px the detail panel stands over the
    canvas under this bar, with the session's name in its hero and its own ×,

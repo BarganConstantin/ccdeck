@@ -122,7 +122,9 @@
   cursor: pointer;
   transition: color 120ms ease-out, background-color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-side:hover { background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); }
+}
 .ap-side[aria-checked="true"] { background: color-mix(in srgb, var(--text) 11%, transparent); color: var(--text); }
 .ap-side:active { transform: scale(0.97); }
 .ap-side:focus-visible { outline-offset: -2px; }
@@ -185,15 +187,19 @@
 /* A shut row is a door, and it answers the pointer with a tone rather than a
    card: the row's own box, 4%, on at once and off at once — the same answer a
    machine's row gives in Local network. */
+@media (hover: hover) and (pointer: fine) {
 .ap-account:has(> .ap-row-open):hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+}
 .ap-account:has(> .ap-row-open):active:not(:has(:is(.ap-switch, .ap-sign-in, .ap-more, .ap-issue):active)) {
   background: color-mix(in srgb, var(--text) 7%, transparent);
 }
 /* Secondary text on a lit row is still text. The tone lifts the ground under
    it, and --muted clears 4.5:1 only against --panel, so on a lit row it is
    mixed toward the foreground — the rule the LAN rows already write down. */
+@media (hover: hover) and (pointer: fine) {
 .ap-account:has(> .ap-row-open):hover :is(.ap-num, .ap-q-label, .ap-issue-age, .ap-alias + .ap-email, .ap-shared, .ap-home) {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
 }
 /* THE ROW IS THE DOOR. A button laid over the whole row, under the row's own
    controls: a press anywhere on it opens or shuts the detail, and the keyboard's
@@ -378,7 +384,9 @@
   cursor: pointer;
   transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-sign-in:hover:not(:disabled), .ap-switch:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 12%, transparent); }
+}
 .ap-sign-in:active:not(:disabled), .ap-switch:active:not(:disabled) { transform: scale(0.97); }
 .ap-sign-in:disabled, .ap-switch:disabled { cursor: default; opacity: var(--dim-off); }
 
@@ -514,11 +522,17 @@
 }
 .ap-issue[data-tone="warn"] { color: var(--warn); }
 .ap-issue-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ap-issue:hover .ap-issue-text,
 .ap-issue[aria-expanded="true"] .ap-issue-text {
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+.ap-issue:hover .ap-issue-text {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
 }
 .ap-issue:active { transform: scale(0.97); }
 .ap-warn-glyph { flex: none; }
@@ -565,7 +579,9 @@
   cursor: pointer;
   transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-notice-fix:hover { background: color-mix(in srgb, var(--warn) 16%, transparent); }
+}
 .ap-notice-fix:active { transform: scale(0.97); }
 
 .ap-empty {
@@ -685,7 +701,9 @@
   height: 24px;
   margin: -12px 0 0 -12px;
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-failure-x:hover { opacity: 1; }
+}
 .ap-failure-x:active { transform: scale(0.94); }
 /* A switch's answer on its own row (#827). The refusal is the same box without
    the side inset the panel-level one needs, since the row already carries it;

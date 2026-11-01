@@ -59,7 +59,9 @@
   color: var(--text);
   font-weight: 600;
 }
+@media (hover: hover) and (pointer: fine) {
 .insp-tab:hover:not([aria-selected="true"]) { color: var(--text); }
+}
 /* Fold: one quiet 24x24 icon button, radius 6 (the rail's close, on the right). */
 .detail .insp-fold {
   display: inline-flex;
@@ -73,7 +75,9 @@
   border-radius: 6px;
   background: transparent;
 }
+@media (hover: hover) and (pointer: fine) {
 .detail .insp-fold:hover { background: var(--ctl-fill); }
+}
 .detail .insp-fold:focus-visible { border-radius: 6px; }
 /* The body: padding 8 12 12, a gap of 8, and the scroller. A tabpanel that is
    not the chosen one is `hidden`, which a `display` here would otherwise beat. */

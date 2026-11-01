@@ -269,7 +269,9 @@
   filter: saturate(0.4);
   transition: opacity 180ms ease, filter 180ms ease;
 }
+@media (hover: hover) and (pointer: fine) {
 .tool-burst.dim:hover { opacity: 0.6; }
+}
 
 /* Shell sub-bubble — slightly compressed and a touch dimmer so the eye
    parses "primary → sub" instead of "two equal bubbles". Spawn is delayed so
@@ -335,9 +337,11 @@
   transition: translate 120ms ease, scale 140ms cubic-bezier(0.23, 1, 0.32, 1),
               box-shadow 120ms ease, opacity 180ms ease, filter 180ms ease;
 }
+@media (hover: hover) and (pointer: fine) {
 .tool-burst.clickable:hover {
   translate: 0 -1px;
   box-shadow: 0 3px 8px rgba(0,0,0,0.26);
+}
 }
 /* The press is `scale`, for the reason the lift above is `translate`: transform
    is bubble-spawn's for the bubble's whole life. Same convention as every other
@@ -464,8 +468,10 @@
    too and is written EARLIER, so on the light theme the hover resolved to the
    resting shadow and `transition: box-shadow 120ms` animated a property that
    never changed. Dark's geometry, in slate at --shadow-2's own weight. */
+@media (hover: hover) and (pointer: fine) {
 :root[data-color-scheme="light"] .tool-burst.clickable:hover {
   box-shadow: 0 3px 8px rgba(15,23,42,0.14);
+}
 }
 :root[data-color-scheme="light"] .tool-conn.status-inflight {
   stroke: rgba(126,34,206,0.85);

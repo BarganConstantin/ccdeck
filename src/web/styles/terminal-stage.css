@@ -399,7 +399,9 @@
 .ts-keys .btn { min-height: 28px; padding: 0 10px; }
 .ts-hosts .btn { min-height: 28px; padding: 0 10px; }
 .btn.ts-plain { border-color: transparent; background: none; font-weight: 400; color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
 .btn.ts-plain:hover { border-color: transparent; background: none; color: var(--text); }
+}
 .ts-keys .ts-type { padding: 0 4px; }
 /* The first-run line is said whole wherever it shows: on a stage too narrow
    for it on one line (the takeover: a phone, a narrow window) it wraps in the
@@ -492,8 +494,12 @@
   opacity: 0;
   transition: opacity 120ms 80ms;
 }
+@media (hover: hover) and (pointer: fine) {
 .ts-divider:hover::before { width: 2px; background: var(--accent); }
+}
+@media (hover: hover) and (pointer: fine) {
 .ts-divider:hover .ts-grip { opacity: 1; }
+}
 .ts-divider[data-held]::before,
 .ts-divider:focus-visible::before { width: 2px; background: var(--accent); transition: none; }
 .ts-divider[data-held] .ts-grip,

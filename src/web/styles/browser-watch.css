@@ -46,7 +46,10 @@
   color: var(--text-dim);
   transition: color 120ms ease;
 }
-.bw-ep-x:hover, .bw-ep-x:focus-visible { color: var(--warn); }
+.bw-ep-x:focus-visible { color: var(--warn); }
+@media (hover: hover) and (pointer: fine) {
+.bw-ep-x:hover { color: var(--warn); }
+}
 .bw-ep.open { border-color: var(--ctl-edge); }
 .bw-ep-head {
   display: grid;
@@ -71,7 +74,9 @@
   cursor: pointer;
   transition: transform 120ms ease, background 120ms ease;
 }
+@media (hover: hover) and (pointer: fine) {
 .bw-ep-head:hover { background: var(--bg-soft); }
+}
 /* Joins the press convention rather than taking the exemption, for the reason
    #355 gave the control before it. A full-width row presses at 0.97 the way
    `.session-list .sl-row` does — the same tier, the same number. */
@@ -92,7 +97,9 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+@media (hover: hover) and (pointer: fine) {
 .bw-ep-head:hover .bw-ep-count { color: var(--text); }
+}
 
 .bw-urls { list-style: none; margin: 0; padding: 0 12px 10px; display: flex; flex-direction: column; gap: 4px; }
 /* Wide enough for a 12-hour clock with its AM/PM, which is what an en-US
@@ -150,7 +157,9 @@
   cursor: pointer;
 }
 .bw-switch-label { font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) {
 .bw-switch:hover .bw-switch-label { color: var(--text); }
+}
 
 .bw-prof-name { font-weight: 600; }
 .bw-note { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-secondary); max-width: 72ch; line-height: 1.55; }
@@ -197,7 +206,9 @@
   text-underline-offset: 2px;
   cursor: pointer;
 }
+@media (hover: hover) and (pointer: fine) {
 .bw-why:hover { color: var(--text); }
+}
 
 /* ── The watch switch ─────────────────────────────────────────────────────
    A real switch rather than a button labelled with the action: "turn off"
@@ -271,10 +282,14 @@
    your place between the stamp on the left and the text on the right. The
    hover is that place. Background only — the row must not move, or the next
    line arrives under a cursor that was pointing at this one. */
+@media (hover: hover) and (pointer: fine) {
 .bw-log-line:hover { background: var(--bg-soft); }
+}
+@media (hover: hover) and (pointer: fine) {
 .bw-log-line:hover .bw-log-time,
 .bw-log-line:hover .bw-log-profile,
 .bw-log-line:hover .bw-log-sys { color: var(--text); }
+}
 .bw-log-time, .bw-log-profile, .bw-log-sys, .bw-log-browser { transition: color 140ms ease; }
 
 /* Arrival. The log is the panel's transcript and a new line in it is the one
@@ -496,7 +511,9 @@
   cursor: pointer;
   transition: border-color 120ms ease, color 120ms ease, transform 120ms ease;
 }
+@media (hover: hover) and (pointer: fine) {
 .bw-settings select:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+}
 .bw-settings select:active:not(:disabled) { transform: scale(0.97); }
 .bw-settings-note {
   margin: 0;
@@ -588,7 +605,9 @@
    control in the deck, without the drawing changing size. */
 .bw-help { position: relative; }
 .bw-help::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
+@media (hover: hover) and (pointer: fine) {
 .bw-help:hover { color: var(--text); border-color: var(--text); }
+}
 .bw-help:active { transform: scale(0.94); }
 .bw-help[aria-expanded="true"] { color: var(--text); border-color: var(--text); background: var(--ctl-fill); }
 

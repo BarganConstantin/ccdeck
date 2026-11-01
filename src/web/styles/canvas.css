@@ -163,7 +163,9 @@
   cursor: pointer;
   transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .autofit-resume:hover { background: var(--ctl-fill); }
+}
 /* The status stays one phrase, never broken across two lines of a strip this
    small. */
 .autofit-state { white-space: nowrap; }
@@ -266,14 +268,18 @@
   cursor: pointer;
   transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .rearrange-undo-act:hover { background: var(--ctl-fill); }
+}
 .rearrange-undo-act:active { transform: scale(0.97); }
 /* The chord, beside the word it presses, a step quieter than the word. The
    pointer lifts it to the foreground with the word, as it lifts a category
    chip: on the hover fill --muted comes to 4.23:1 in dark, and the weight
    still tells the key from the action. */
 .rearrange-undo-key { color: var(--muted); font-weight: 400; }
+@media (hover: hover) and (pointer: fine) {
 .rearrange-undo-act:hover .rearrange-undo-key { color: var(--text); }
+}
 /* Both words sit flush in a strip whose edge is 2px away: the ring goes
    inside the word's own box, as it does for the other controls set flush in
    a container, instead of landing on the strip's edge as a second box. */
@@ -372,7 +378,9 @@
    --ctl-fill is 7–8% of the foreground, which exists in both themes. The resting
    border stays transparent: the chip is named by its glyph and its word, which
    is the identification 1.4.11 accepts in place of a boundary. */
+@media (hover: hover) and (pointer: fine) {
 .cat-filter:hover { background: var(--ctl-fill); color: var(--text); }
+}
 .cat-filter:active { transform: scale(0.97); }
 .cat-filter:focus-visible {
   outline: 2px solid var(--accent);
@@ -394,7 +402,9 @@
 .cat-filter.off {
   color: var(--muted);
 }
+@media (hover: hover) and (pointer: fine) {
 .cat-filter.off:hover { color: var(--text); }
+}
 /* The redundant channel #368 deferred to #370. What was left after it dropped
    the opacity fade was a colour tier and a desaturated emoji, and both of those
    are colour: --text against --muted is 2.75:1 in dark and 2.40:1 in light, so

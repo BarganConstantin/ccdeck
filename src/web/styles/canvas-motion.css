@@ -114,7 +114,9 @@
 
   /* Small, but still a scale under the pointer. */
   .ctx-donut { transition: filter 120ms ease; }
+  @media (hover: hover) and (pointer: fine) {
   .ctx-donut:hover { transform: none; }
+  }
   /* A stopped session's Continue (#2193) keeps its colour change and loses
      the travel of its press. */
   .agent-node .stop-continue { transition: background-color 120ms ease, border-color 120ms ease; }
@@ -145,7 +147,9 @@
   .state-pill.state-active::before,
   .agent-node .state-line[data-tone="active"] .state-mark { animation: none; }
   .tool-burst.clickable { transition: box-shadow 120ms ease, opacity 180ms ease, filter 180ms ease; }
+  @media (hover: hover) and (pointer: fine) {
   .tool-burst.clickable:hover { translate: none; }
+  }
 
   @keyframes canvas-fade-out { to { opacity: 0; } }
 }

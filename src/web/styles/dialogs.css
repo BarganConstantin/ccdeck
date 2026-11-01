@@ -325,7 +325,9 @@
   transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out,
     transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .fb-kind:hover { color: var(--text); }
+}
 .fb-kind:active { transform: scale(0.97); }
 .fb-kind:has(input:checked) {
   border-color: var(--ctl-edge);
@@ -405,8 +407,10 @@
   transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out,
     transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.fb-tool:hover,
 .fb-tool:focus-visible { border-color: var(--ctl-edge); background: var(--ctl-fill); color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+.fb-tool:hover { border-color: var(--ctl-edge); background: var(--ctl-fill); color: var(--text); }
+}
 .fb-tool:active { transform: scale(0.97); }
 /* Turns rather than swaps, so open and shut are one control in two states. */
 .fb-chev { display: block; flex: none; transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
@@ -528,8 +532,10 @@
   object-fit: cover;
   transition: border-color 120ms ease-out;
 }
-.fb-shot-pick:hover .fb-shot-img,
 .fb-shot-pick:focus-visible .fb-shot-img { border-color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+.fb-shot-pick:hover .fb-shot-img { border-color: var(--text); }
+}
 /* The words on the image's own box — what a press does, and that a fit is
    under way — so neither is carried by a dimmed picture alone. */
 .fb-shot-cue,
@@ -545,8 +551,10 @@
   text-align: center;
 }
 .fb-shot-cue { opacity: 0; transition: opacity 120ms ease-out; }
-.fb-shot-pick:hover .fb-shot-cue,
 .fb-shot-pick:focus-visible .fb-shot-cue { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+.fb-shot-pick:hover .fb-shot-cue { opacity: 1; }
+}
 /* The remove, a disc at the image's corner that stands on the panel rather
    than on the picture, so it reads the same on any screenshot. It keeps
    .glyph-btn's 24px target, press and hover; the disc is the panel's with the
@@ -651,10 +659,15 @@
   border-color: transparent;
   color: var(--muted);
 }
-.fb-foot .btn.danger:not(.armed):hover:not(:disabled),
 .fb-foot .btn.danger:not(.armed):focus-visible {
   border-color: color-mix(in srgb, var(--err) 65%, transparent);
   color: var(--err);
+}
+@media (hover: hover) and (pointer: fine) {
+.fb-foot .btn.danger:not(.armed):hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--err) 65%, transparent);
+  color: var(--err);
+}
 }
 .fb-foot .btn.danger.armed { position: relative; overflow: hidden; color: var(--bg); background: var(--err); }
 /* The armed window is real (DISCARD_ARMED_MS), so it is visible: the accounts
@@ -857,10 +870,14 @@
 .release-notes .rn-more > div { padding-top: 8px; }
 .release-notes .rn-history > div { padding: 0; }
 /* Keep the full reading row clickable; structural surfaces are not hover fills. */
+@media (hover: hover) and (pointer: fine) {
 .release-notes .rn-more > summary:is(:hover, :focus-visible) .rn-more-label,
 .release-notes .rn-history > summary:is(:hover, :focus-visible) { text-decoration: underline; text-decoration-color: var(--ctl-edge); text-underline-offset: 3px; }
+}
+@media (hover: hover) and (pointer: fine) {
 .release-notes .rn-more > summary:is(:hover, :focus-visible) :is(.rn-chevron, .rn-more-hint),
 .release-notes .rn-history > summary:is(:hover, :focus-visible) { color: var(--text); }
+}
 .release-notes .rn-more > summary:focus-visible, .release-notes .rn-history > summary:focus-visible { outline-offset: -2px; }
 .release-notes .rn-more > summary:active .rn-more-label { text-decoration-color: currentColor; text-decoration-thickness: 2px; }
 .release-notes .rn-history > summary { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; color: var(--muted); }
@@ -880,12 +897,19 @@
 .release-notes .rn-text-button { border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer; text-decoration: none; }
 .release-notes .rn-footer a, .release-notes .rn-text-button { display: inline-flex; align-items: center; gap: 4px; min-height: var(--ctl-h); color: var(--muted); text-decoration-color: var(--ctl-edge); text-underline-offset: 3px; white-space: nowrap; }
 .release-notes .rn-footer a { text-decoration-line: underline; }
-.release-notes .rn-footer a:hover, .release-notes .rn-text-button:hover,
-.release-notes .rn-footer a:focus-visible, .release-notes .rn-text-button:focus-visible { color: var(--text); text-decoration-color: currentColor; }
+.release-notes .rn-footer a:focus-visible,
+.release-notes .rn-text-button:focus-visible { color: var(--text); text-decoration-color: currentColor; }
+@media (hover: hover) and (pointer: fine) {
+.release-notes .rn-footer a:hover,
+.release-notes .rn-text-button:hover { color: var(--text); text-decoration-color: currentColor; }
+}
 /* Done is V4's Primary at its own size: the footer in the kit's What's new draws
    the button, not a taller one. */
 .release-notes .rn-footer > .primary { min-width: 70px; margin-left: auto; }
-.release-notes .rn-text-button:hover, .release-notes .rn-text-button:focus-visible { text-decoration: underline; }
+.release-notes .rn-text-button:focus-visible { text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) {
+.release-notes .rn-text-button:hover { text-decoration: underline; }
+}
 .release-notes .rn-footer a:active, .release-notes .rn-text-button:active { color: var(--text); text-decoration: underline; text-decoration-thickness: 2px; }
 /* Keep native placement above body content and its complete item hit areas. */
 .rn-options-menu { width: 224px; max-width: calc(100vw - 16px); }

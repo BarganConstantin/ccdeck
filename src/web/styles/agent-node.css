@@ -31,7 +31,9 @@
   transition: border-color 200ms ease, box-shadow 200ms ease;
   overflow: hidden;
 }
+@media (hover: hover) and (pointer: fine) {
 .agent-node:hover { box-shadow: var(--shadow-2); }
+}
 
 /* The rows Figma does not draw (waiting, stop, continued, approval, plan, spark)
    share ONE top spacing, on top of the column's 2px gap, so the card's rhythm is
@@ -214,8 +216,10 @@
 :root[data-color-scheme="light"] .agent-node.state-err > .lod-face { --lod-edge: var(--err); }
 .lod-face[data-alarm] { --lod-alarm: var(--warn); padding-inline: 6px; }
 .agent-node.synthetic > .lod-face { border-style: dashed; }
+@media (hover: hover) and (pointer: fine) {
 .react-flow__node:hover .lod-face {
   background: color-mix(in srgb, var(--text) 6%, var(--panel));
+}
 }
 /* Selection and the keyboard's ring move to the face with the chrome — the
    card's own outline is 2px of layout, which at a distance is a hairline. No
@@ -394,7 +398,9 @@
   border-radius: 50%;
   transition: filter 120ms ease, transform 120ms ease;
 }
+@media (hover: hover) and (pointer: fine) {
 .ctx-donut:hover { filter: brightness(1.2); transform: scale(1.08); }
+}
 /* After the hover, not before it: the two tie on specificity and a press is
    always a hover as well, so source order is the whole of what decides which
    scale the pointer sees. 26px of donut, so 0.94 like the other icon targets —

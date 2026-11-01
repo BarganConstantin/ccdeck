@@ -8,7 +8,9 @@
 .qh-providers { display: flex; gap: 4px; }
 .qh-provider { font: inherit; color: var(--text-dim); background: transparent; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px 10px; cursor: pointer; min-height: 28px; }
 .qh-provider[aria-pressed="true"] { color: var(--text); border-color: var(--accent); background: var(--ctl-fill); }
+@media (hover: hover) and (pointer: fine) {
 .qh-provider:hover { color: var(--text); background: var(--ctl-fill); }
+}
 .qh-window { display: grid; gap: 6px; min-width: 0; max-width: 100%; color: var(--text-dim); }
 .qh-window select { min-width: 0; max-width: 100%; font: inherit; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px 8px; }
 .qh-summary { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; padding-top: 4px; }

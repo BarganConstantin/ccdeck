@@ -170,9 +170,11 @@
   color: var(--muted);
   font-weight: 400;
 }
+@media (hover: hover) and (pointer: fine) {
 .topbar .brand button.v:not(.stale):not(.ready):hover {
   color: var(--text);
   background: var(--ctl-fill);
+}
 }
 /* A forced check is a request to npm, which on a slow line is seconds. Without
    this the click looks like it did nothing at all. */
@@ -197,8 +199,10 @@
   background: var(--accent-16);
   font-weight: 400;
 }
+@media (hover: hover) and (pointer: fine) {
 .topbar .brand button.v:is(.stale, .ready, .v-update):hover {
   background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
 }
 /* The press itself, beside the chip, while the update is ready (owner's call,
    2026-10-18): the chip says what is on offer and opens the notes; this one

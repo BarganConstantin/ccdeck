@@ -33,7 +33,9 @@
   transition: background 120ms, color 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .uh-range-btn:hover { color: var(--text); }
+}
 .uh-range-btn:active { transform: scale(0.97); }
 /* #583's second half. The selected range used to add exactly two declarations
    to the rest state — an --accent-dim wash and a lift from --muted to --text —
@@ -66,7 +68,9 @@
    that rule uses would collide with both neighbours, and the pressed chip is
    already the loudest thing in the group. The press still answers through
    `:active`, which scales every chip in the strip. */
+@media (hover: hover) and (pointer: fine) {
 .uh-range-btn[aria-pressed="true"]:hover { color: var(--bg); }
+}
 /* #380 deleted a 13px font-size here that `button.btn.icon-btn`'s 14px had
    always beaten, and left the width, height and padding standing as dead by the
    same arithmetic. The class set is `glyph-btn uh-reload` now and all three are
@@ -91,7 +95,9 @@
 .uh-close {
   transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .uh-close:hover { color: var(--text); }
+}
 
 .uh-status { padding: 40px 0; text-align: center; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 /* The wait, standing in the room the answer will need.
@@ -255,7 +261,9 @@
    the gutter `.uh-bar`'s 78% leaves free, and it is the offset that changes —
    the ring is still the deck's one ring, drawn by the global rule. */
 .uh-bar-col:focus-visible { outline-offset: -1px; }
+@media (hover: hover) and (pointer: fine) {
 .uh-bar-col:hover .uh-bar { filter: brightness(1.15); }
+}
 /* The column is the target, not the bar drawn inside it — a press on the empty
    space above a short day still selects that day, so the whole column moves. */
 .uh-bar-col:active { transform: scale(0.97); }

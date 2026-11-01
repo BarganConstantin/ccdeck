@@ -50,8 +50,10 @@
   cursor: pointer;
   transition: color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.fc-tab:hover,
 .fc-tab[aria-selected="true"] { color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+.fc-tab:hover { color: var(--text); }
+}
 .fc-tab[aria-selected="true"]::after {
   content: "";
   position: absolute;
@@ -137,7 +139,9 @@
   cursor: pointer;
   transition: background-color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .fc-row:hover { background: var(--ctl-fill); }
+}
 .fc-row:active { transform: scale(0.97); }
 .fc-row-head,
 .fc-row-foot { display: flex; align-items: center; gap: 8px; min-width: 0; }

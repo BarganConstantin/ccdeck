@@ -210,9 +210,11 @@
    --warn, standing still. Its global rule pushes it to a row's end; here it
    leads the chip. */
 .topbar .waiting-stat .alert-mark { margin-left: 0; }
+@media (hover: hover) and (pointer: fine) {
 .topbar .waiting-stat:hover {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
 }
 .topbar .waiting-stat:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) {
@@ -323,7 +325,7 @@
   cursor: pointer;
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .topbar .wait-entry:hover,
   .topbar .wait-more:hover {
     background: var(--ctl-fill);
@@ -355,7 +357,7 @@
   .topbar .wait-entry:active,
   .topbar .wait-more:active { transform: none; }
 }
-@media (prefers-reduced-motion: reduce) and (hover: hover) {
+@media (prefers-reduced-motion: reduce) and (hover: hover) and (pointer: fine) {
   .topbar .wait-entry:hover,
   .topbar .wait-more:hover { transition: none; }
 }
@@ -392,7 +394,9 @@
 }
 .topbar .provider-incident[data-state="major_outage"] { border-color: var(--err); }
 .topbar .provider-incident[data-state="maintenance"] { border-color: var(--line); }
+@media (hover: hover) and (pointer: fine) {
 .topbar .provider-incident:hover { border-color: var(--text); background: var(--ctl-fill); }
+}
 .topbar .provider-incident:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) {
   .topbar .provider-incident:active { transform: none; }
@@ -480,7 +484,9 @@ button.btn:focus-visible { outline-offset: 2px; }
    whole foreground and the control fill comes up, which is the version chip's
    own hover. That is stronger than the resting edge in both themes, so no
    hover lowers a contrast, which is why --accent-dim was never allowed here. */
+@media (hover: hover) and (pointer: fine) {
 button.btn:hover { border-color: var(--text); color: var(--text); background: var(--ctl-fill); }
+}
 /* Scale, not a 1px drop. A press should read as the surface giving under the
    finger; a translate reads as the label jumping, and at 1px it mostly reads as
    nothing at all — which is what a button that does something irreversible can
@@ -521,10 +527,12 @@ button.btn.primary { background: var(--btn-primary-wash, var(--accent-16)); colo
    deepens the wash to 14%, as far as Rider Black's label can go (4.64:1 over
    --panel; 16% is 4.47:1). */
 button.btn.danger { background: var(--btn-danger-wash, var(--err-12)); color: var(--err); border-color: var(--err); font-weight: 600; }
+@media (hover: hover) and (pointer: fine) {
 button.btn.danger:hover {
   border-color: var(--err);
   color: var(--err);
   background: var(--btn-danger-wash-hover, color-mix(in srgb, var(--err) 14%, transparent));
+}
 }
 /* The themes where the kit's washes would take a label under the 4.5:1 floor
    answer with lighter ones (label on wash over --panel):

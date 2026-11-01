@@ -45,14 +45,18 @@
 .su-dates dd { margin: 0; font-variant-numeric: tabular-nums; }
 .su-id { color: var(--text-dim); }
 .su-id summary { width: fit-content; cursor: pointer; padding-block: 6px; transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+@media (hover: hover) and (pointer: fine) {
 .su-id summary:hover { color: var(--text); }
+}
 .su-id summary:active { transform: scale(0.97); }
 .su-id code { display: block; margin-top: 8px; overflow-wrap: anywhere; color: var(--text); user-select: text; }
 .su-footer { border-top: 1px solid var(--line); padding-top: 12px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .su-footer > .su-note { margin-bottom: 6px; }
 .su-assumptions .su-note { padding-block: 6px 12px; }
 .up-session-open { width: 100%; min-height: 28px; text-align: left; background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer; border-radius: var(--r-ctl); transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), background 120ms; }
+@media (hover: hover) and (pointer: fine) {
 .up-session-open:hover { background: var(--bg-soft); }
+}
 .up-session-open:active { background: var(--accent-dim); transform: scale(0.97); }
 .up-session-inspect { flex: none; color: var(--text-dim); }
 @media (max-width: 420px) {

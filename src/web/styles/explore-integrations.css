@@ -26,7 +26,7 @@
 .explore-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .explore-actions .btn { gap: 4px; }
 .explore-text-action { display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text-secondary); font: inherit; font-size: calc(13px + var(--ui-text-increase, 0px)); padding: 6px 4px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--ctl-edge); }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .explore-text-action:hover { color: var(--text); text-decoration-color: currentColor; }
 }
 .explore-text-action:active { color: var(--text); text-decoration-thickness: 2px; }

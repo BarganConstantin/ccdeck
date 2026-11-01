@@ -52,7 +52,9 @@
 .fg-group { margin-top: 16px; }
 .fg-group-head { display: flex; align-items: center; gap: 8px; margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .fg-fold { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 4px; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; border-radius: var(--r-ctl); transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+@media (hover: hover) and (pointer: fine) {
 .fg-fold:hover { background: var(--ctl-fill); }
+}
 .fg-fold:active { transform: scale(0.97); }
 .fg-fold-chevron { width: 5px; height: 5px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(-45deg); transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
 .fg-group[data-open] .fg-fold-chevron { transform: rotate(45deg); }
@@ -66,7 +68,9 @@
 .fg-rows > li { display: grid; }
 .fg-rows > li + li { border-top: 1px solid var(--line-soft); }
 .fg-row { display: grid; gap: 4px 16px; align-items: center; min-height: 48px; padding: 8px 14px; box-sizing: border-box; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background 120ms; }
+@media (hover: hover) and (pointer: fine) {
 .fg-row:hover { background: var(--ctl-fill); }
+}
 /* A row is the door to its item, as an account's row is: a press deepens its
    tone a step and nothing moves, so the words stay under the pointer while
    the item opens. (Inside a list, so it outranks the shared row's hover.) */
@@ -133,7 +137,9 @@
 /* An image that would not load is the link it stood for, drawn as the
    panel's other links out are: its words and ↗, underlined under the pointer. */
 .forge-html .fh-image-link { text-decoration: none; }
+@media (hover: hover) and (pointer: fine) {
 .forge-html .fh-image-link:hover { text-decoration: underline; }
+}
 .fh-check { display: inline-flex; margin: 0 6px 0 0; vertical-align: -1px; color: var(--muted); }
 .fh-check[data-checked] { color: var(--text); }
 .forge-html li:has(> .fh-check) { list-style: none; margin-left: -1.3em; }
@@ -148,7 +154,9 @@
 /* A link inside the help's sentences: underlined, since its colour alone is
    under 3:1 against the words around it. */
 .fg-token-link { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) {
 .fg-token-link:hover { text-decoration-thickness: 2px; }
+}
 .fg-token-link svg { vertical-align: -1px; }
 
 @media (max-width: 640px) {

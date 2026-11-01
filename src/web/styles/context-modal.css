@@ -36,7 +36,9 @@
 .ctx-modal-close {
   transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .ctx-modal-close:hover { color: var(--text); }
+}
 /* THE BODY (V4; the Inspector's Context tab and the modal both): a column with 12
    between its blocks. The window block keeps 6 between its meter and the line
    under it; each section is a 20px caption over 20px rows, label left, value
@@ -395,7 +397,7 @@
    tens of times a day, the card's 200ms is long for that, and no fade at all
    reads as a flicker. Everything here, the fades included, is behind
    `(hover: hover)`, so a tap on a touch screen does not leave a note lit. */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .recap-note { transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
   .lod-face.recap-face { transition: background-color 120ms ease, border-color 120ms ease; }
   .canvas-wrap[data-lod="detail"] .recap-note:hover {
@@ -684,7 +686,9 @@
   cursor: pointer;
   transition: background-color 120ms ease, border-color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .agent-node .stop-continue:hover:not(:disabled) { background: var(--ctl-fill); border-color: var(--text); }
+}
 .agent-node .stop-continue:active:not(:disabled) { transform: scale(0.97); }
 .agent-node .stop-continue:disabled { opacity: var(--dim-off); cursor: default; }
 /* What a continue did, once the session is going again: the stop row's

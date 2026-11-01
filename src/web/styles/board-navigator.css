@@ -164,7 +164,9 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
 :root[data-theme="light"] .nav-face[data-state="done"] { --nav-edge: var(--ok); }
 :root[data-theme="light"] .nav-face[data-state="err"] { --nav-edge: var(--err); }
 .nav-face[data-alarm] { --nav-alarm: var(--warn); }
+@media (hover: hover) and (pointer: fine) {
 .nav-open:hover .nav-face { background: color-mix(in srgb, var(--text) 6%, var(--panel)); }
+}
 
 .nav-id {
   display: flex;

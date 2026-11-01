@@ -71,7 +71,9 @@
 /* One line, always: a name that wrapped would make one tab taller than its
    neighbours. The clip is a last resort for enlarged text. */
 .settings-tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) {
 .settings-tab:hover { background: var(--ctl-fill); color: var(--text); }
+}
 .settings-tab[aria-selected="true"] {
   background: var(--selected);
   color: var(--text);
@@ -309,7 +311,9 @@
   cursor: pointer;
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .settings-link:hover { text-decoration: underline; }
+}
 .settings-link:active { transform: scale(0.97); }
 /* A key cap, in a caption's right-hand slot or beside the switch it flips, and
    on the right of every row of Settings › Keyboard. */
@@ -363,8 +367,12 @@
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M3.5 3.5l7 7M10.5 3.5l-7 7'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M3.5 3.5l7 7M10.5 3.5l-7 7'/%3E%3C/svg%3E") center / contain no-repeat;
 }
+@media (hover: hover) and (pointer: fine) {
 .settings-filter-field::-webkit-search-cancel-button:hover { background-color: var(--text); }
+}
+@media (hover: hover) and (pointer: fine) {
 .settings-filter-field:hover { border-color: var(--text); }
+}
 /* SEARCH (SettingsSearch.tsx): the same field at the top of the nav's
    column, with a magnifier inside its leading edge — the glyph is centred on
    the field by the flex line it stands in, and drawn on the nav glyphs' spec
@@ -420,7 +428,9 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
+@media (hover: hover) and (pointer: fine) {
 .settings-result:hover { background: var(--ctl-fill); color: var(--text); }
+}
 .settings-result[data-highlighted="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
 .settings-result:active { transform: scale(0.97); }
 /* A row's own ground — a hovered result, the mark a result leaves on the row
@@ -579,7 +589,9 @@
   cursor: pointer;
   transition: background-color 120ms ease-out, color 120ms ease-out;
 }
+@media (hover: hover) and (pointer: fine) {
 .appearance-theme:hover { background: var(--ctl-fill); color: var(--text); }
+}
 .appearance-theme[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
 .appearance-theme[aria-checked="true"] { color: var(--text); }
 .appearance-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -937,7 +949,9 @@ button.btn.sm-hear {
   line-height: var(--lh-body);
   accent-color: var(--accent);
 }
+@media (hover: hover) and (pointer: fine) {
 .sm-select:hover { border-color: var(--text); }
+}
 
 /* Custom sounds and voices (#1207), under the tones they can stand in for.
    Built from parts that already exist wherever one fits — the heading is a
@@ -962,7 +976,9 @@ button.btn.sm-hear {
   list-style: none;
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .sm-voice summary:hover .sm-voice-chevron { color: var(--text); }
+}
 .sm-voice summary:active { transform: scale(0.97); }
 .sm-custom .sm-voice summary[aria-disabled="true"]:active { transform: none; }
 .sm-voice summary:focus-visible { outline-offset: -2px; }
@@ -1028,7 +1044,9 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
   padding: 10px; border: 1px solid var(--ctl-edge); border-radius: 6px;
   color: var(--text); background: var(--panel); font: inherit; text-align: left; cursor: pointer;
 }
+@media (hover: hover) and (pointer: fine) {
 .character-choice:hover { background: var(--ctl-fill); }
+}
 .character-choice[aria-checked="true"] { border-color: var(--accent); }
 .character-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .character-preview { display: block; flex: 0 0 36px; width: 36px; height: 32px; }

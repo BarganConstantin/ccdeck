@@ -96,7 +96,9 @@
   cursor: pointer;
   transition: color 120ms ease-out, transform 120ms ease-out;
 }
+@media (hover: hover) and (pointer: fine) {
 .qo-esc:hover { color: var(--text); }
+}
 .qo-esc:active { transform: scale(0.94); }
 
 /* The list. One height whatever it holds. */

@@ -92,7 +92,9 @@
 .radio-panel[data-keyboard-interaction] .radio-search:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .radio-search input { flex: 1; min-width: 0; color: var(--text); border: 0; background: none; font: inherit; min-height: 24px; }
 .radio-search input:focus { outline: none; }
+@media (hover: hover) and (pointer: fine) {
 .radio-search:hover:not(:focus-within) { border-color: var(--text-secondary); }
+}
 .radio-search input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
 .radio-search .icon-btn { width: 22px; min-width: 22px; height: 22px; }
 .radio-search input::placeholder { color: var(--text-secondary); opacity: 1; }
@@ -101,7 +103,9 @@
 .radio-filter-trigger > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .radio-filter-trigger > svg { width: 12px; height: 12px; flex: none; transform: rotate(-90deg); }
 .radio-filter-trigger[data-filtered="true"] { color: var(--text); border-color: var(--accent); }
+@media (hover: hover) and (pointer: fine) {
 .radio-filter-trigger:hover { color: var(--text); border-color: var(--text-secondary); }
+}
 .radio-filter-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* This shared popover opens inside Radio's modal layer (100). */
 .radio-filter-popup { z-index: 101; width: min(280px, calc(100vw - 24px)); padding: 6px; display: flex; flex-direction: column; }
@@ -322,7 +326,9 @@
 .radio-filter-toggle { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 6px 10px; flex: none; border: 0; border-radius: var(--r-ctl); background: var(--ctl-fill); color: var(--text-secondary); font: inherit; cursor: pointer; }
 .radio-filter-toggle > svg { width: 16px; height: 16px; }
 .radio-filter-toggle[data-active="true"] { color: var(--accent); }
+@media (hover: hover) and (pointer: fine) {
 .radio-filter-toggle:hover, .radio-filter-chip:hover { background: var(--ctl-fill); color: var(--text); }
+}
 .radio-active-filters { display: flex; min-width: 0; align-items: flex-start; gap: 6px; }
 .radio-active-filter-list { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
 .radio-filter-chip { display: flex; align-items: center; gap: 6px; max-width: 100%; min-height: 28px; padding: 4px 8px; border: 0; border-radius: var(--r-ctl); background: var(--ctl-fill); color: var(--text); font: inherit; font-size: calc(11px + var(--ui-text-increase, 0px)); cursor: pointer; }
@@ -336,7 +342,9 @@
 .radio-filter-field > span:first-child { flex: none; width: 64px; font-weight: 500; }
 .radio-filter-field > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .radio-filter-field > svg { width: 12px; height: 12px; flex: none; transform: rotate(180deg); }
+@media (hover: hover) and (pointer: fine) {
 .radio-filter-field:hover, .radio-filter-back:hover, .radio-workspace-toggle:hover { background: var(--ctl-fill); }
+}
 .radio-filter-note { margin: 8px; color: var(--text-secondary); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.5; }
 .radio-filter-footer { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 8px 6px 2px; border-top: 1px solid var(--line); }
 .radio-filter-footer .radio-reset { margin-right: auto; }

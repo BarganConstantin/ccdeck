@@ -158,8 +158,10 @@
    and 1.66:1 down from selected in dark, 1.57 / 1.53 in light. It cannot be
    mistaken for either end. Type only — a box or a tint arriving under the
    pointer would be the container this design refuses. */
+@media (hover: hover) and (pointer: fine) {
 .up-period .uh-range-btn:hover {
   color: color-mix(in srgb, var(--text) 45%, var(--muted));
+}
 }
 
 .up-period .uh-range-btn[aria-pressed="true"] {
@@ -174,8 +176,10 @@
    in light. It vanished under the pointer that had just chosen it, which is the
    one moment the pointer is guaranteed to be there. One more class here settles
    the tie the right way. */
+@media (hover: hover) and (pointer: fine) {
 .up-period .uh-range-btn[aria-pressed="true"]:hover {
   color: var(--text);
+}
 }
 .up-period .uh-range-btn[aria-pressed="true"]::after {
   /* The foreground, not the accent: which range is showing is a selection,
@@ -379,7 +383,9 @@
 /* The whole heading brightens, chevron included, because the whole heading is
    the control. --text is where the section titles' --muted has room to go and
    is what every other hover in this panel steps to. */
+@media (hover: hover) and (pointer: fine) {
 .up-disclose:hover { color: var(--text); }
+}
 .up-disclose:active { transform: scale(0.97); }
 /* The ring on the words rather than on the section: `.up-section` has no
    padding of its own at the top, so the shared 1px offset would have sat on the
@@ -399,7 +405,9 @@
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), color 120ms ease;
 }
 .up-section-age + .up-chev { margin-left: 0; }
+@media (hover: hover) and (pointer: fine) {
 .up-disclose:hover .up-chev { color: var(--text); }
+}
 .up-disclose[aria-expanded="true"] .up-chev { transform: rotate(180deg); }
 
 .up-section-age {
@@ -719,7 +727,9 @@ button.qb-pace::after {
   transition: border-color 120ms, background 120ms;
 }
 .up-incident[data-state$="outage"] { border-color: color-mix(in srgb, var(--err) 65%, transparent); }
+@media (hover: hover) and (pointer: fine) {
 .up-incident:hover { border-color: var(--text); background: var(--ctl-fill); }
+}
 .up-incident-stale { border-style: dashed; }
 .up-incident-words {
   font-weight: 600;
