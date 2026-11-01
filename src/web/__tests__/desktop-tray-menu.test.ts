@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { ago, statusLine, trayMenuItems, updateItem } from "../../../desktop/tray-menu.mjs";
+import { ago, statusLine, trayMenuItems, trayTooltip, updateItem } from "../../../desktop/tray-menu.mjs";
 
 type Item = { label?: string; type?: string; enabled?: boolean; checked?: boolean; click?: (item?: unknown) => unknown };
 
@@ -51,6 +51,30 @@ describe("the line under the icon", () => {
     expect(s({ snapshot: { ...quiet, running: 1 } })).toBe("1 session running");
     expect(s({ snapshot: { ...quiet, running: 4 } })).toBe("4 sessions running");
     expect(s({})).toBe("Idle");
+  });
+});
+
+describe("the tooltip", () => {
+  const t = (over: Record<string, unknown>) =>
+    trayTooltip({ restarting: null, starting: null, deck, snapshot: quiet, ...over });
+  const waiting2 = { ...quiet, icon: "waiting", waiting: 2, title: "(2) waiting · ccdeck" };
+
+  it("says the waiting count once, in the status line, while the line carries it", () => {
+    // The title would make it `(2) waiting · ccdeck — 2 sessions waiting for you`.
+    expect(t({ snapshot: waiting2 })).toBe("ccdeck — 2 sessions waiting for you");
+  });
+
+  it("keeps the title's count while the line says something else", () => {
+    // Reconnecting, restarting, starting: the line drops the count, so the
+    // title is the only place left that says it, as in the tab.
+    expect(t({ snapshot: { ...waiting2, icon: "offline" } })).toBe("(2) waiting · ccdeck — Reconnecting to the deck…");
+    expect(t({ snapshot: waiting2, restarting: NOW })).toBe("(2) waiting · ccdeck — Restarting the deck…");
+    expect(t({ snapshot: waiting2, starting: Promise.resolve() })).toBe("(2) waiting · ccdeck — Starting the deck…");
+  });
+
+  it("is the bare name and the line when nothing waits", () => {
+    expect(t({})).toBe("ccdeck — Idle");
+    expect(t({ snapshot: { ...quiet, running: 1 } })).toBe("ccdeck — 1 session running");
   });
 });
 
@@ -166,13 +190,13 @@ describe("the app's wiring", () => {
   const main = readFileSync(fileURLToPath(new URL("../../../desktop/main.mjs", import.meta.url)), "utf8");
 
   it("draws the menu and the tooltip from tray-menu.mjs, with the app's live state", () => {
-    expect(main).toContain('import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";');
+    expect(main).toContain('import { statusWorthAsking, trayMenuItems, trayTooltip } from "./tray-menu.mjs";');
     // buildMenu gives the template; the tray menu is built from it, and only
     // from it, where tray-menu-swap.mjs installs a new one.
     expect(main).toMatch(/function buildMenu\(\) \{\s*return trayMenuItems\(\{[\s\S]*?\}, TRAY_ACTIONS\);\s*\}/);
     expect(main).toContain("build: buildMenu,");
     expect(main).toContain("const menu = Menu.buildFromTemplate(template);");
-    expect(main).toContain("tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot, startFailed })}`);");
+    expect(main).toContain("tray.setToolTip(trayTooltip({ restarting, starting, deck, snapshot, startFailed }));");
     // Nothing of the menu is left written out in main.mjs to drift from it.
     expect(main).not.toMatch(/label: "(?:Restart ccdeck|Quit ccdeck|Start at login|Open in browser)"/);
   });

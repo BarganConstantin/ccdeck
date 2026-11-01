@@ -8,7 +8,9 @@
 // have to focus to read is a dashboard you close.
 //
 // The tab strip gives about four characters and sixteen pixels, so it gets two
-// signals and no more: a count in the title, a state in the icon. Both are
+// signals and no more: a count in the title, a state in the icon. The count
+// leads, so the four characters a crowded strip leaves are `(2) ` and the word
+// after it (`waiting`, V4's copy deck) is read only where there is room. Both are
 // decided here, as plain strings, because the vitest suite runs in bare node
 // with no DOM — nothing in this file touches `document`, and the caller owns
 // every write.
@@ -32,9 +34,9 @@ export interface AmbientSignal {
  * first thing clipped and the deck is back to saying nothing at exactly the
  * moment it has something to say. `(2) w…` is readable down to almost
  * nothing. This ordering is the whole feature, it looks like a typo to anyone
- * tidying the file, and
- * ambient-signal.test.ts asserts the count is at index 0 rather than merely
- * present so that the tidy fails there instead of in a user's tab strip.
+ * tidying the file, and ambient-signal.test.ts asserts the count is at index 0
+ * rather than merely present so that the tidy fails there instead of in a
+ * user's tab strip.
  *
  * `waiting` follows the count because V4's copy deck says what is being counted:
  * a bare `(2)` does not. It sits after the count so the clipped end loses the

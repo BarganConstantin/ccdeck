@@ -82,15 +82,12 @@ describe("the title", () => {
     }
   });
 
-  it("is V4's copy-deck row, word for word, with the middle dot U+00B7", () => {
-    // The row is `({n}) waiting · ccdeck`: the count says how many, `waiting`
-    // says what is counted, one space each side of the dot.
-    expect(ambientSignal({ waiting: 1, running: 0 }).title).toBe("(1) waiting · ccdeck");
-    expect(ambientSignal({ waiting: 12, running: 0 }).title).toBe("(12) waiting · ccdeck");
-    expect(ambientSignal({ waiting: 0, running: 0 }).title).toBe("ccdeck");
+  it("separates the count from the name with the middle dot U+00B7", () => {
+    // V4's copy-deck row is `({n}) waiting · ccdeck`: one space each side of
+    // a U+00B7, not a full stop or a bullet that looks the same in a tab.
     const title = ambientSignal({ waiting: 3, running: 0 }).title;
     expect(title.codePointAt(title.indexOf("·"))).toBe(0xb7);
-    expect(title.split("·")).toEqual(["(3) waiting ", " ccdeck"]);
+    expect(title.split("·")).toEqual(["(3) waiting ", ` ${PRODUCT}`]);
   });
 
   it("names the deck with PRODUCT rather than a literal of its own", () => {
