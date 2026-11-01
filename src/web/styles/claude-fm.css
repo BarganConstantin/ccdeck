@@ -17,7 +17,9 @@
   --minimap-h: 107px;    /* MiniMap's 105 drawing plus the 1px edge each side */
   --minimap-w: 142px;    /* its 140 drawing, the same 1px edge each side */
   position: absolute;
-  right: var(--flow-gutter);
+  /* The minimap's right edge lines up with the control bar's under it, 12px
+     in (react-flow.css), so the ledge's does too. */
+  right: var(--board-controls-edge);
   /* THE SCENE SITS ON THE CANVAS FLOOR, NOT ON THE LEDGE, and the ledge is a
      height within it. It used to be pinned to the minimap's top border, which
      made that border the only place in the world — there was no way to express
@@ -27,11 +29,15 @@
      to exactly the ledge's height above the floor, so every position that was
      right before is right now. What it buys is somewhere else to go. */
   bottom: var(--flow-gutter);
-  --fm-y: calc(-1 * var(--minimap-h));
+  /* The minimap stands over the control bar (react-flow.css), so the ledge is
+     its height plus that room above the floor, less the gutter the floor
+     already stands at. Only the ledge moves: the floor stays the canvas's. */
+  --fm-y: calc(-1 * (var(--minimap-h) + var(--board-controls-room) - var(--flow-gutter)));
   width: var(--minimap-w);
   height: 0;
   /* Above the canvas, alongside the chrome it stands next to: the same z-index
-     the control stack and the minimap are given. */
+     the minimap is given. The control bar stands one over it (react-flow.css),
+     since the character lands behind the bar when it jumps down. */
   z-index: 5;
   /* The canvas is under this. A press that misses the character should pan the
      deck as if nothing were there, so only the button takes the pointer. */
@@ -64,7 +70,9 @@
    never moves, so every ledge coordinate and the 21px prop offset below stay
    exactly as valid as they were, and only the amount of floor changes. */
 .fm[data-place="floor"] {
-  left: var(--flow-gutter);
+  /* The same gutter as the right, which floorReach (use-fm-scene.ts) reads
+     once and assumes on both sides. */
+  left: var(--board-controls-edge);
   width: auto;
 }
 /* The floor is the bottom of the scene, which is what the scene was moved down
