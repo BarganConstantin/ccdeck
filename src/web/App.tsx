@@ -80,6 +80,7 @@ import { useDesktopUpdate } from "./use-desktop-update";
 import { useAutoRestart } from "./use-auto-restart";
 import { useLanPairRequests } from "./use-lan-pair-requests";
 import { useAccountAttention } from "./use-account-attention";
+import { useMeterQuota } from "./use-quota";
 import { leftColumnWidth, useColumnSettle, useLeftColumn, useRailWidth, useWorkspaceColumn } from "./use-left-column";
 import { sessionsOf, useMarkSeen } from "./use-mark-seen";
 import { useRightPanels } from "./use-right-panels";
@@ -388,6 +389,10 @@ function Inner() {
   // the board's clock, so an answer the page is still holding expires on
   // screen even while the deck itself has stopped answering.
   const providerStatus = useProviderStatus(providers.claude || providers.codex);
+  // Claude's 5-hour reading for the rail's usage meter: the usual /api/quota
+  // read once a minute while the page is open and visible, never forced
+  // (the owner's OK, 2026-11-01). The Usage panel keeps its own useQuota.
+  const meterQuota = useMeterQuota(providers.claude);
   const incidents = incidentsOf(providerStatus, now);
 
   // An account the deck signed in whose login has stopped working, asked about
@@ -1002,6 +1007,9 @@ function Inner() {
               onBringBackAll={bringBackAll}
               landed={landed}
               watching={watchingSessions}
+              quota={meterQuota}
+              activeAlias={attention.accounts?.find(a => a.active)?.alias ?? null}
+              onOpenUsage={() => usageRail.set(o => !o)}
               onOpenKeys={inWorkspace ? openSessionWithKeys : undefined}
             />
           )}
