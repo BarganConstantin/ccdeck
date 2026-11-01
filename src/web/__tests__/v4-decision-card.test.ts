@@ -141,7 +141,9 @@ describe("the sheet", () => {
   it("is 300 + 24 + 460 wide on the dock's tokens", () => {
     expect(rule(".dc-decision")).toContain("grid-template-columns: 300px 24px minmax(0, 460px);");
     const dock = rule(".dc-dock");
-    expect(dock).toContain("padding: 12px 16px;");
+    // 12/16 as drawn, with the 1px top border counted in the top: one decision is 192.
+    expect(dock).toContain("padding: 11px 16px 12px;");
+    expect(rule(".dc-decision")).toContain("row-gap: 4px;");
     expect(dock).toContain("background: var(--dock);");
     expect(dock).toContain("border-top: 1px solid var(--line-soft);");
   });
