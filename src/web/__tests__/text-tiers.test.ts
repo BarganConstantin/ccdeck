@@ -455,9 +455,14 @@ describe("what was migrated to the secondary tier", () => {
       ".settings-row-details",
       // The terminal stage. Its keys bar says in a sentence who has the
       // keyboard — "Keys on the board", "Typing into paycore", the first-run
-      // line, "The session ended 14m ago — this is its last frame" — on the
-      // bar's --chrome-bg; the keys and hints beside it stay on --muted.
-      ".ts-bar",
+      // line, "The session ended 14m ago — this is its last frame" — in
+      // V4's --muted on the bar's --bg-soft, as the kit draws it (the bar
+      // itself left this list for that); the one thing set apart is the
+      // session's name in it (.ts-who). The header's sentence takes the
+      // tier for its state part ("working", "waiting 6m"), the tool and its
+      // argument after it staying --muted.
+      ".ts-who",
+      ".ts-meta-state",
       // And its state cards: the one sentence that says why there is no pane
       // (the deck's describeTarget, tmux missing, an error), and the note that
       // answers a refused Reopen here in place. Prose read once and acted on.

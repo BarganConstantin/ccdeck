@@ -7,13 +7,15 @@
 // header). Soft detents are the product's change from v3's hard ones, so the
 // magnetism gets its own sweep.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   ASSUMED_CELL,
   BAR_H,
   DETENTS,
   DETENT_PULL,
   HEAD_H,
-  HEAD_H_NARROW,
+  HEAD_H_MIN,
   INSET_X,
   MIN_COLS,
   NAV_MIN,
@@ -21,6 +23,7 @@ import {
   STAGE_COLS_KEY,
   colsAtX,
   colsRange,
+  headHFor,
   loadStageCols,
   saveStageCols,
   snapCols,
@@ -40,17 +43,17 @@ describe("the default stage at the windows v3 was shot in", () => {
   it("gives 1440×900 the 120 columns, 1004px stage and 436px navigator v3 measured", () => {
     const g = stageGeometry(at(1440, 900));
     expect(g).toMatchObject({ cols: 120, stageW: 1004, navW: 436, density: "tiles", takeover: false, headH: HEAD_H });
-    // 848px of body less the 64px header and 36px bar is 748; 40 rows of 18
-    // leave 28, so the grid starts 14px under the header.
-    expect(g.rows, "rows at 1440×900").toBe(40);
-    expect(g.termTop, "the grid's first row").toBe(14);
+    // 848px of body less V4's 44px header and 32px bar is 772; 42 rows of 18
+    // leave 16, so the grid starts 8px under the header.
+    expect(g.rows, "rows at 1440×900").toBe(42);
+    expect(g.termTop, "the grid's first row").toBe(8);
   });
 
-  it("gives a 1024 window a rail beside 100 columns, under a shorter header", () => {
+  it("gives a 1024 window a rail beside 100 columns, under the same one-row header", () => {
     const g = stageGeometry(at(1024, 768));
-    expect(g).toMatchObject({ cols: 100, density: "rail", takeover: false, headH: 52 });
+    expect(g).toMatchObject({ cols: 100, density: "rail", takeover: false, headH: HEAD_H });
     expect(g.navW, "the rail keeps its 168px").toBeGreaterThanOrEqual(NAV_MIN_RAIL);
-    expect(g.rows).toBe(Math.floor((768 - 52 - 52 - BAR_H - 12) / ASSUMED_CELL.h));
+    expect(g.rows).toBe(Math.floor((768 - 52 - HEAD_H - BAR_H - 12) / ASSUMED_CELL.h));
   });
 
   it("takes the whole body when not even 80 columns fit beside a rail", () => {
@@ -118,36 +121,109 @@ describe("whole cells, always", () => {
 });
 
 describe("the rows fit above the keys bar as it is drawn", () => {
-  // A 320px phone's takeover (measured: 540px of body, 52px header). The
-  // first-run line wraps to a third line there, and the bar grows from 36px
-  // to 51px for as long as it is said. The rows were fitted to a 36px bar, so
-  // the bar covered 5px of the last one (9px on other heights).
+  // A 320px phone's takeover (540px of body, V4's one-row 44px header). The
+  // first-run line wraps to a third line there, and the bar grows from 32px
+  // to 51px for as long as it is said. The rows were fitted to the nominal
+  // bar, so the bar covered some of the last one.
   const phone = { appW: 320, bodyH: 540, cellW: 8, cellH: 18, expanded: false, narrow: true, storedCols: null };
 
-  it("gives the grid only the height left above a bar taller than 36px", () => {
+  it("gives the grid only the height left above a bar taller than 32px", () => {
     const plain = stageGeometry(phone);
-    expect(plain.rows, "24 rows of 18 under a 36px bar").toBe(24);
+    expect(plain.rows, "25 rows of 18 under a 32px bar").toBe(25);
     const g = stageGeometry({ ...phone, barH: 51 });
-    const room = phone.bodyH - HEAD_H_NARROW - 51;
+    const room = phone.bodyH - HEAD_H - 51;
     expect(g.termTop + g.rows * phone.cellH, "the last row ends above the bar's top").toBeLessThanOrEqual(room);
-    expect(g.rows, "one row fewer while the line is said").toBe(23);
+    expect(g.rows, "one row fewer while the line is said").toBe(24);
     // Every row that fits is given: one more would leave less than the
     // 12px kept between the grid and the two rules.
     expect((g.rows + 1) * phone.cellH + 12).toBeGreaterThan(room);
     expect(g.termTop, "centred in what is left, as before").toBe(Math.floor((room - g.rows * phone.cellH) / 2));
   });
 
-  it("is the same geometry as before for a bar at its own 36px, given or not", () => {
+  it("is the same geometry as before for a bar at its own 32px, given or not", () => {
     for (const [w, h] of [[1440, 900], [1024, 768], [760, 700], [390, 844], [320, 640]] as const) {
       expect(stageGeometry(at(w, h, { barH: BAR_H })), `${w}×${h}`).toEqual(stageGeometry(at(w, h)));
     }
   });
 
-  it("never gives the grid the bar's own 36px, whatever height it is handed", () => {
+  it("never gives the grid the bar's own 32px, whatever height it is handed", () => {
     // A bar not drawn yet reads 0, and a measurement can be anything: the
-    // bar is never less than its 36px, so the grid never gets that room.
+    // bar is never less than its 32px, so the grid never gets that room.
     for (const bad of [0, 20, -5, NaN, Infinity]) {
       expect(stageGeometry({ ...phone, barH: bad }), String(bad)).toEqual(stageGeometry(phone));
+    }
+  });
+
+  it("honours V4's 32px bar, and takes a fingertip's 36px as 36", () => {
+    expect(BAR_H).toBe(32);
+    const body = { ...phone, bodyH: 600 };
+    const base = stageGeometry(body);
+    expect(base.rows, "(600 - 44 - 32 - 12) / 18").toBe(Math.floor((600 - HEAD_H - 32 - 12) / 18));
+    const touch = stageGeometry({ ...body, barH: 36 });
+    expect(touch.termTop + touch.rows * 18, "ends above a 36px bar").toBeLessThanOrEqual(600 - HEAD_H - 36);
+    expect(touch.rows).toBe(Math.floor((600 - HEAD_H - 36 - 12) / 18));
+  });
+});
+
+describe("the rows fit below the header as it is drawn", () => {
+  const body = { appW: 1440, bodyH: 848, cellW: 8, cellH: 18, expanded: false, narrow: false, storedCols: null };
+
+  it("gives a measured 36px header (Compact) more rows than the 44px default for the same body", () => {
+    expect(HEAD_H).toBe(44);
+    expect(stageGeometry(body).headH).toBe(HEAD_H);
+    expect(stageGeometry({ ...body, headH: 36 }).headH).toBe(36);
+    // 606px of body: 530 left under a 44px header (28 rows), 538 under a 36px
+    // one (29 rows) — the 8px Compact saves is a row here.
+    const tight = { ...body, bodyH: 606 };
+    expect(stageGeometry(tight).rows).toBe(28);
+    expect(stageGeometry({ ...tight, headH: 36 }).rows).toBe(29);
+  });
+
+  it("uses the same header height in a narrow window as in a wide one", () => {
+    for (const bodyH of [540, 700, 848]) {
+      expect(stageGeometry({ ...body, appW: 900, narrow: true, bodyH }).headH).toBe(HEAD_H);
+      expect(stageGeometry({ ...body, appW: 1440, narrow: false, bodyH }).headH).toBe(HEAD_H);
+    }
+  });
+
+  it("fills the body: avail is bodyH less the header and the bar, and rows plus termTop sit inside it", () => {
+    for (const [bodyH, headH, barH] of [[848, 44, 32], [848, 36, 32], [600, 44, 36], [540, 36, 51]] as const) {
+      const g = stageGeometry({ ...body, bodyH, headH, barH });
+      const avail = bodyH - headH - barH;
+      expect(g.rows, `${bodyH}/${headH}/${barH}`).toBe(Math.floor((avail - 12) / 18));
+      expect(g.termTop + g.rows * 18, `${bodyH}/${headH}/${barH}`).toBeLessThanOrEqual(avail);
+      expect(g.termTop, `${bodyH}/${headH}/${barH}`).toBe(Math.max(6, Math.floor((avail - g.rows * 18) / 2)));
+    }
+  });
+
+  it("falls back to HEAD_H for a header height that is not a size, and never goes below 0", () => {
+    for (const bad of [0, -4, NaN, Infinity]) {
+      expect(stageGeometry({ ...body, headH: bad }), String(bad)).toEqual(stageGeometry(body));
+    }
+  });
+
+  it("knows the header's height at each density as the sheets draw it", () => {
+    // headHFor answers before the header is drawn, from data-density; the
+    // sheets are what draws it, so the two are held together here.
+    const read = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");
+    const reading = read("styles/reading.css");
+    const tokens = read("styles/tokens.css");
+    const block = /((?::root\[data-density="[a-z]+"\],?\s*)+)\{[^}]*--pane-head-h:\s*(\d+)px/.exec(reading);
+    expect(block, "reading.css restates --pane-head-h for the compact steps").not.toBeNull();
+    const compact = [...block![1].matchAll(/data-density="([a-z]+)"/g)].map(m => m[1]).sort();
+    expect(Number(block![2])).toBe(HEAD_H_MIN);
+    expect(compact).toEqual(["compact", "tighter", "tightest"]);
+    for (const d of compact) expect(headHFor(d), d).toBe(HEAD_H_MIN);
+    expect(tokens).toMatch(new RegExp(`--pane-head-h:\\s*${HEAD_H}px`));
+    for (const d of [undefined, "", "comfortable", "default", "anything"]) expect(headHFor(d), String(d)).toBe(HEAD_H);
+  });
+
+  it("never fits the rows to a header smaller than Compact's, a header not laid out yet", () => {
+    expect(HEAD_H_MIN).toBe(36);
+    for (const tiny of [1, 12, 35]) {
+      const g = stageGeometry({ ...body, headH: tiny });
+      expect(g.headH, String(tiny)).toBe(HEAD_H_MIN);
+      expect(g, String(tiny)).toEqual(stageGeometry({ ...body, headH: HEAD_H_MIN }));
     }
   });
 });

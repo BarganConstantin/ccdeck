@@ -50,7 +50,7 @@ import { DOUBLE_CLICK_MS } from "./focus-hold";
 import { notePanelLaunch } from "./panel-launch";
 import type { GraphState } from "./reducer";
 import {
-  ASSUMED_CELL, BAR_H, NARROW_BELOW, STAGE_COLS_KEY, loadStageCols, saveStageCols, stageGeometry,
+  ASSUMED_CELL, BAR_H, BAR_H_TOUCH, NARROW_BELOW, STAGE_COLS_KEY, headHFor, loadStageCols, saveStageCols, stageGeometry,
   type Cell, type StageGeometry,
 } from "./stage-geometry";
 import {
@@ -93,6 +93,18 @@ function nameElement(card: Element): Element | null {
   const face = card.querySelector(".lod-name");
   if (face && face.getBoundingClientRect().width > 0) return face;
   return card.querySelector(".title .label");
+}
+
+/** The pane header's height at the density in force, from the root's
+ *  `data-density` rather than from the token: the stage's hook runs in App's
+ *  render, and nothing there computes a style (render-path-cost-612-613). */
+function paneHeadH(): number {
+  return headHFor(typeof document === "undefined" ? undefined : document.documentElement?.dataset?.density);
+}
+
+/** A fingertip, as the sheet's own `(pointer: coarse)` block asks. */
+function coarsePointer(): boolean {
+  return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
 }
 
 export interface StageDeps {
@@ -151,8 +163,13 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   const [expanded, setExpanded] = useState(false);
   const [box, setBox] = useState<{ w: number; h: number; narrow: boolean } | null>(null);
   // The keys bar as the stage last drew it (onBarH): the rows are fitted
-  // above it, and a first-run line on three lines makes it taller.
-  const [barH, setBarH] = useState(BAR_H);
+  // above it, and a first-run line on three lines makes it taller. Until it
+  // has said, the height it will be drawn at: a fingertip's 36, else 32.
+  const [barH, setBarH] = useState(() => (coarsePointer() ? BAR_H_TOUCH : BAR_H));
+  // The pane header likewise (onHeadH). Until it has said, the height the
+  // density draws it at (36 at Compact, the default; 44 above), so the first
+  // attach is fitted to the header it is drawn under and not resized after.
+  const [headH, setHeadH] = useState(paneHeadH);
   const measure = useCallback(() => {
     const el = canvasRef.current;
     if (!el) return;
@@ -172,7 +189,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
   }, [open, measure, canvasRef]);
   const geometry: StageGeometry | null = box && open
-    ? stageGeometry({ appW: box.w, bodyH: box.h, cellW: cell.w, cellH: cell.h, expanded, narrow: box.narrow, storedCols: cols, barH })
+    ? stageGeometry({ appW: box.w, bodyH: box.h, cellW: cell.w, cellH: cell.h, expanded, narrow: box.narrow, storedCols: cols, barH, headH })
     : null;
   const geometryRef = useMirroredRef(geometry);
 
@@ -463,6 +480,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   }, []);
   const onCell = useCallback((c: Cell) => setCell(p => (p.w === c.w && p.h === c.h ? p : c)), []);
   const onBarH = useCallback((h: number) => setBarH(h), []);
+  const onHeadH = useCallback((h: number) => setHeadH(h), []);
 
   // ── effects on the page ────────────────────────────────────────────────────
   // The chunk on its way as soon as the flag is known to be on.
@@ -708,7 +726,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     enabled, supported, windows, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
     onNodeClick, followSession, switchTo, openFromButton, openTile, launch, onLaunched,
     focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
-    openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, firstRunDone, onCell, onBarH,
+    openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, firstRunDone, onCell, onBarH, onHeadH,
   };
 }
 

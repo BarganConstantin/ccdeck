@@ -18,7 +18,7 @@ import { all, one, textOf, type Drawn } from "./fake-react";
 import { withoutComments } from "./tsx-scan";
 import { sheetText } from "./sheet-source";
 import TerminalStage, { endView, stageName, subjectOf, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
-import StageHeader, { BACK_EMPTY_LABEL, BACK_LABEL, CLOSE_EMPTY_LABEL, CLOSE_LABEL, FULL_LABEL, FULL_LEAVE_LABEL, chipLabel, chipText, type StageHeaderProps } from "../components/terminal/StageHeader";
+import StageHeader, { BACK_EMPTY_LABEL, BACK_LABEL, CLOSE_EMPTY_LABEL, CLOSE_LABEL, FULL_LABEL, FULL_LEAVE_LABEL, type StageHeaderProps } from "../components/terminal/StageHeader";
 import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE, StateCard, downloadNote, setupLine, setupShare, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
@@ -49,7 +49,7 @@ const working: StageStatus = { state: "working", phrase: "working", tool: "Task"
 
 function headerProps(over: Partial<StageHeaderProps> = {}): StageHeaderProps {
   return {
-    identity: "session:a", name: "paycore", provider: "claude", model: "claude-sonnet-5", status: working,
+    identity: "session:a", name: "paycore", provider: "claude", status: working,
     keysOwner: "board", chordLabel: "Ctrl+Shift+X", canType: true, expanded: false, takeover: false,
     onKeys: vi.fn(), onExpand: vi.fn(), onClose: vi.fn(), ...over,
   };
@@ -88,32 +88,24 @@ describe("the header", () => {
     const out = html(createElement(StageHeader, headerProps()));
     expect(out).toContain('<h2 class="ts-name">paycore</h2>');
     expect(out).toContain('data-state="working"');
-    expect(out).toMatch(/class="ts-tool">Task<.*class="ts-arg">3 subagents running<.*class="ts-sec">7m 38s</);
+    expect(out).toMatch(/class="ts-meta-state">working<.*class="ts-meta-rest">· Task · 3 subagents running · 7m 38s</);
   });
 
-  it("says waiting with how long in bold, pinging the deck's own still-asking mark", () => {
+  it("says waiting with how long in bold, beside the rail's alert glyph and no ping", () => {
     const out = html(createElement(StageHeader, headerProps({ status: { state: "waiting", phrase: "waiting", emphasis: "6m", tool: "Bash", arg: "git push" } })));
     expect(out).toContain("waiting <b>6m</b>");
-    expect(out).toContain('class="ap-pulse"');
+    expect(out).toContain('data-glyph="waiting"');
+    expect(out).not.toContain("ap-pulse");
     expect(out).not.toMatch(/blocked/i);
   });
 
-  it("wears the model chip with the provider in words for a screen reader", () => {
-    expect(chipText("claude", "claude-opus-5-5")).toBe("Opus 5.5");
-    expect(chipText("codex", null)).toBe("Codex");
-    expect(chipText("claude", null), "no model yet: no chip guessing one").toBeNull();
-    expect(chipLabel("claude", "Opus 5.5")).toBe("Claude Code · Opus 5.5");
-    expect(chipLabel("codex", "Codex")).toBe("Codex");
-    const out = html(createElement(StageHeader, headerProps({ model: "claude-opus-5-5" })));
-    expect(out).toMatch(/class="model-chip ts-chip" data-family="opus" role="img" aria-label="Claude Code · Opus 5.5"/);
-  });
-
-  it("names the effort after the model, as the session's card does", () => {
-    expect(chipText("claude", "claude-opus-5-5", "max")).toBe("Opus 5.5 · max");
-    expect(chipText("claude", "claude-opus-5-5", null)).toBe("Opus 5.5");
-    expect(chipText("claude", null, "max"), "an effort with no model is no chip").toBeNull();
-    const out = html(createElement(StageHeader, headerProps({ model: "claude-opus-5-5", effort: "xhigh" })));
-    expect(out).toContain('aria-label="Claude Code · Opus 5.5 · xhigh"');
+  it("names the provider in words for a screen reader, where the model chip used to say it", () => {
+    // V4's Term header has no model chip (the rail's row and the agent card
+    // carry the model); the provider is still said, hidden from the eye.
+    const out = html(createElement(StageHeader, headerProps()));
+    expect(out).toContain('<span class="vis-hidden">Claude Code</span>');
+    expect(html(createElement(StageHeader, headerProps({ provider: "codex" })))).toContain('<span class="vis-hidden">Codex</span>');
+    expect(out).not.toContain("model-chip");
   });
 
   it("offers ⌨ only for a pane that takes keys, pressed while the pane has them", () => {
@@ -449,7 +441,7 @@ describe("the keys bar", () => {
     const out = html(createElement(KeysBar, barProps()));
     expect(out).toContain('data-owner="board"');
     expect(out).toContain("Keys on the board");
-    expect(out).toMatch(/<kbd class="ts-kbd">j<\/kbd><kbd class="ts-kbd">k<\/kbd> sessions/);
+    expect(out).toMatch(/<kbd class="kbd">j<\/kbd><kbd class="kbd">k<\/kbd> sessions/);
     expect(out).toContain("next ask");
     const props = barProps();
     press(button(KeysBar(props), "type here"));
@@ -480,7 +472,7 @@ describe("the keys bar", () => {
     expect(out).toContain('data-owner="pane"');
     expect(out).toContain('Typing into <span class="ts-who">paycore</span>');
     expect(out).toContain("goes to the session");
-    expect(out).toMatch(/<kbd class="ts-kbd" aria-label="Control Shift X">Ctrl\+Shift\+X<\/kbd> back to the board/);
+    expect(out).toMatch(/<kbd class="kbd" aria-hidden="true">Ctrl\+Shift\+X<\/kbd><span class="kbd-spoken">Control Shift X<\/span> back to the board/);
   });
 
   it("carries the first-run line, so it never costs the terminal a row", () => {
@@ -506,8 +498,8 @@ describe("the keys bar", () => {
     const keys = line!.match(/<span class="ts-first-keys">([\s\S]*?)<\/span>/)?.[0];
     expect(keys && words(keys)).toBe(" — Esc included");
     expect(words(line!.replace(keys!, ""))).toBe("Typing goes to the session. ✕ closes the Command Panel; the session keeps running.");
-    expect(line).toContain('<kbd class="ts-kbd" data-control="true">✕</kbd>');
-    expect(line).toContain('<kbd class="ts-kbd">Esc</kbd>');
+    expect(line).toContain('<kbd class="kbd" data-control="true">✕</kbd>');
+    expect(line).toContain('<kbd class="kbd">Esc</kbd>');
     expect(out.indexOf(">Got it</button>"), "Got it follows the sentence").toBeGreaterThan(out.indexOf("keeps running."));
   });
 
@@ -565,8 +557,8 @@ describe("the stage as a whole", () => {
     const out = html(createElement(TerminalStage, stageProps(session)));
     expect(out).toMatch(/^<section class="ts-stage" role="region" aria-label="Command Panel — paycore" data-kind="empty"/);
     expect(out).toContain("--session-hue:270");
-    expect(out).toContain("--ts-term-top:14px");
-    expect(out).toContain("--ts-head-h:64px");
+    expect(out).toContain("--ts-term-top:8px");
+    expect(out, "the header is drawn at its token, so the stage hands it no height").not.toContain("--ts-head-h");
     expect(out, "the divider is a separator with a value").toMatch(/role="separator" aria-orientation="vertical" aria-label="Command Panel width" aria-valuemin="80" aria-valuemax="134" aria-valuenow="120" aria-valuetext="120 columns"/);
   });
 
@@ -725,7 +717,7 @@ describe("the keys bar under a fingertip", () => {
     const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
     const coarse = [...css.matchAll(/@media \(pointer: coarse\) \{([\s\S]*?)\n\}/g)].map(m => m[1]).join("\n");
     expect(coarse).toContain(".ts-keys .ts-hint:not(:has(button)) { display: none; }");
-    expect(coarse).toContain(".ts-keys .ts-kbd { display: none; }");
+    expect(coarse).toContain(".ts-keys .kbd { display: none; }");
   });
 
   it("drops the first-run line's Esc clause whole, and keeps ✕ there", () => {
@@ -733,8 +725,8 @@ describe("the keys bar under a fingertip", () => {
     const coarse = [...css.matchAll(/@media \(pointer: coarse\) \{([\s\S]*?)\n\}/g)].map(m => m[1]).join("\n");
     expect(coarse).toContain(".ts-keys .ts-first-keys { display: none; }");
     // Outranks the chips' own rule above: one attribute more.
-    const keep = coarse.indexOf(".ts-keys .ts-kbd[data-control] { display: inline-flex; }");
-    expect(keep).toBeGreaterThan(coarse.indexOf(".ts-keys .ts-kbd { display: none; }"));
+    const keep = coarse.indexOf(".ts-keys .kbd[data-control] { display: inline-flex; }");
+    expect(keep).toBeGreaterThan(coarse.indexOf(".ts-keys .kbd { display: none; }"));
   });
 
   it("wraps the first-run line on a narrow stage, so Got it is never pushed off the end", () => {
@@ -746,12 +738,12 @@ describe("the keys bar under a fingertip", () => {
     const first = css.slice(at, css.indexOf("}", at));
     expect(first).toContain("min-width: 0");
     expect(first).toContain("white-space: normal");
-    // In the takeover two lines of 15px fit the bar's 36px; past that the bar
+    // In the takeover two lines of 15px fit the bar's 32px; past that the bar
     // grows rather than spilling the line over the terminal. Beside the board
     // the one line keeps the type it had.
     expect(first).not.toContain("line-height");
     expect(css).toContain(".ts-stage[data-takeover] .ts-first { line-height: 15px; }");
-    expect(css).toMatch(/\.ts-bar:has\(\.ts-first\) \{ height: auto; min-height: 36px;/);
+    expect(css).toMatch(/\.ts-bar:has\(\.ts-first\) \{ height: auto; min-height: 32px;/);
   });
 });
 
@@ -812,9 +804,11 @@ describe("the Command Panel under a fingertip (#884)", () => {
     expect(px(glyph, "min-width"), "min-width").toBeGreaterThanOrEqual(32);
     expect(px(glyph, "min-height"), "min-height").toBeGreaterThanOrEqual(32);
     expect(coarse(".ts-stage .glyph-btn::after")).toMatch(/inset:\s*-4px 0;/);
-    // In the takeover ‹ leads, 8px wider: the spine moves with the name it
-    // stands before (8px padding, a 32px ‹, the header's 12px gap).
-    expect(px(coarse(".ts-stage[data-takeover] .ts-spine"), "left")).toBe(8 + 32 + 12);
+    // And they fit the header: 32px squares inside V4's 36px pane header.
+    expect(px(coarse(".ts-stage .glyph-btn"), "min-height")).toBeLessThanOrEqual(36);
+    // (The takeover's spine, which moved with the name past a wider ‹, left
+    // with the spine: the row's gap does that on its own now.)
+    expect(css).not.toContain(".ts-spine");
   });
 
   it("widens the divider to 32px over the stage's own inset, its line still on the edge", () => {
@@ -831,22 +825,24 @@ describe("the Command Panel under a fingertip (#884)", () => {
   });
 
   it("keeps the grown buttons inside the keys bar's own height, the first-run line's included", () => {
-    // The bar is drawn at its height with a 1px rule on top, and with the
-    // first-run line as tall as its content plus 1px above and below: a
-    // button that needed more would grow the bar under every fingertip.
-    const barH = px(plain(".ts-bar"), "height");
+    // The bar is drawn at 32px beside a mouse (V4) and at 36px under a
+    // fingertip — the height its buttons need, with a 1px rule on top — and
+    // with the first-run line as tall as its content plus 1px above and
+    // below: a button that needed more would grow the bar under every
+    // fingertip.
+    expect(px(plain(".ts-bar"), "height")).toBe(32);
+    const barH = px(coarse(".ts-bar"), "height");
     expect(barH).toBe(36);
-    expect(css).toMatch(/\.ts-bar:has\(\.ts-first\) \{ height: auto; min-height: 36px; padding-block: 1px; \}/);
+    expect(css).toMatch(/\.ts-bar:has\(\.ts-first\) \{ height: auto; min-height: 32px; padding-block: 1px; \}/);
     for (const sel of [".ts-keys .btn", ".ts-asks .ts-next"]) {
       expect(px(coarse(sel), "min-height") + 1 + 2, sel).toBeLessThanOrEqual(barH);
     }
   });
 
   it("leaves the panel as a mouse draws it", () => {
-    expect(plain(".ts-keys .btn")).toContain("min-height: 26px");
-    expect(plain(".ts-asks .ts-next")).toContain("min-height: 26px");
+    expect(plain(".ts-keys .btn")).toContain("min-height: 28px");
+    expect(plain(".ts-asks .ts-next")).toContain("min-height: 28px");
     expect(plain(".ts-divider")).toMatch(/left: -6px;[\s\S]*width: 12px;/);
-    expect(plain(".ts-stage[data-takeover] .ts-spine")).toContain("left: 44px");
     // The floors above are the coarse pointer's alone: no rule a mouse reads
     // gives these a size of their own.
     for (const sel of [".ts-stage .glyph-btn", ".ts-acts .btn", ".ns-pop .uh-range-btn", ".ns-pop .ns-option", ".ns-pop .ns-field", ".board-nav button.btn.nav-new"]) {
@@ -876,22 +872,22 @@ describe("the stage's sheet", () => {
     return css.slice(at, css.indexOf("}", at));
   };
 
-  it("draws the header at 64px with its spine, and the keys bar at 36px", () => {
-    expect(rule(".ts-head")).toContain("height: var(--ts-head-h, 64px)");
-    expect(rule(".ts-spine")).toMatch(/width: 3px;[\s\S]*height: 32px/);
-    expect(rule(".ts-bar")).toContain("height: 36px");
+  it("draws the header at V4's pane header height, one row, and the keys bar at 32px", () => {
+    expect(rule(".ts-head")).toContain("height: var(--pane-head-h)");
+    expect(rule(".ts-bar")).toContain("height: 32px");
   });
 
-  it("travels a light down the spine only while live, and takes it away under reduced motion", () => {
-    expect(css).toContain(".ts-stage[data-live] .ts-spine::after {");
-    const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce) {\n  .ts-stage[data-live]"));
-    expect(reduced).toMatch(/\.ts-stage\[data-live\] \.ts-spine::after \{ display: none; \}/);
+  it("has no spine and no light travelling down it: the hue left the header, so there is none to take away", () => {
+    expect(css).not.toMatch(/\.ts-spine|ts-spine-flow/);
+    expect(css).not.toContain("@keyframes ts-spine-flow");
   });
 
   it("keeps the stage's marks under a Contrast theme, in the deck's one forced-colours block", () => {
     const forced = css.slice(css.indexOf("@media (forced-colors: active) {"));
-    expect(forced).toMatch(/\.ts-spine \{ background: Highlight; \}/);
-    expect(forced).toMatch(/\.ts-keys\[data-owner="pane"\] \.ts-lamp \{ background: Highlight;/);
+    // The state glyphs draw in currentColor and need nothing here; the marks
+    // that are fills do (the ended bar's square, the card's fact mark).
+    expect(forced).toMatch(/\.ts-end-mark,\s*\.ts-fact-mark \{ background: CanvasText; \}/);
+    expect(forced).not.toMatch(/\.ts-lamp|\.ts-spine/);
     expect(css.split("@media (forced-colors: active) {").length - 1, "one block, as #871 holds").toBe(1);
   });
 
