@@ -321,7 +321,11 @@ describe("agent-node state rings (#268)", () => {
   // blocked on you is edged in --warn (V4 decision 22). Unset, the ring is the
   // fallback, so that is what each state is measured by, and "alarm" measures
   // the --warn edge itself on the same beds.
-  const unalarmed = (v: string) => /^var\(--card-alarm,\s*([\s\S]+)\)$/.exec(v.trim())?.[1] ?? v;
+  const unalarmed = (v: string) => {
+    const m = /^var\(--card-alarm,\s*([\s\S]+)\)$/.exec(v.trim());
+    if (!m) throw new Error(`a state edge that does not read --card-alarm first: ${v}`);
+    return m[1];
+  };
   const ringOf = (state: string, theme: Theme) => {
     if (state === "alarm") return resolve(decl(rule(".agent-node[data-alarm]"), "--card-alarm")!, theme);
     const base = unalarmed(decl(rule(`.agent-node.state-${state}`), "border-color")!);

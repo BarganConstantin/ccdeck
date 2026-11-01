@@ -90,10 +90,14 @@ describe("what the restyle does not touch", () => {
     // its word and its ask line. Every theme's twin of a state edge reads the
     // variable first, so none outranks it on specificity.
     expect(decl(".agent-node[data-alarm]", "--card-alarm")).toBe("var(--warn)");
-    const edges = [...sheet.matchAll(/\.agent-node\.state-(?:active|done|err)\s*\{([^}]*)\}/g)]
-      .map(m => /border-color:\s*([^;]+);?/.exec(m[1])?.[1]).filter(Boolean);
-    expect(edges.length).toBeGreaterThanOrEqual(9);
-    for (const e of edges) expect(e).toMatch(/^var\(--card-alarm, /);
+    // Any rule whose selector names a card's state edge, whatever else the
+    // selector says (a :where(), a list, a theme prefix), and sets border-color.
+    const edges = [...sheet.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+      .filter(m => /\.agent-node\.state-(?:active|done|err)\b/.test(m[1]))
+      .map(m => [m[1].trim(), /border-color:\s*([^;]+);?/.exec(m[2])?.[1]] as const)
+      .filter(([, e]) => e !== undefined);
+    expect(edges.length).toBeGreaterThanOrEqual(11);
+    for (const [sel, e] of edges) expect(e, sel).toMatch(/^var\(--card-alarm, /);
     expect(html({ state: "active", waiting: { kind: "permission", since: 1 } as never })).toMatch(/class="agent-node state-active" data-alarm=""/);
     expect(html({ state: "done", waiting: { kind: "idle", since: 1 } as never })).not.toMatch(/agent-node[^>]*data-alarm/);
   });

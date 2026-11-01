@@ -588,9 +588,10 @@ function StopRow({ data, stop }: { data: AgentNodeData; stop: StopFacts }) {
  *  A dot alone would not carry it: a permission prompt is a decision a session
  *  cannot proceed without, an idle prompt is a finished turn waiting for your
  *  next instruction, and those are not the same errand. So the sentence carries
- *  it and the hue and the dot reinforce it — and only the permission variant
- *  pings: a stalled session is interrupt-driven and rare, which is the case a
- *  pulse is for, and a session that finished and is resting is neither. The
+ *  it and the dot reinforces it (the hue is one --warn for both, V4 decision
+ *  22) — and only the permission variant pings: a stalled session is
+ *  interrupt-driven and rare, which is the case a pulse is for, and a session
+ *  that finished and is resting is neither. The
  *  ping is .ap-pulse, the emitter the accounts panel
  *  already uses, so the app keeps one idiom for "still asking" and one
  *  reduced-motion answer for it. */

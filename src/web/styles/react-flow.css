@@ -130,7 +130,7 @@
    cap on the icon; both are overridden here, not added to.
    A control in a bar takes the bar's radius less its inset: --r-ctl less the
    2px padding is --r-tag (V4 decision 21), so the fill a hover or a press
-   brings up sits concentric inside the bar's corner. */
+   brings up follows the bar's corner instead of rounding wider than it. */
 .react-flow__controls-button {
   width: var(--board-controls-btn);
   height: var(--board-controls-btn);
