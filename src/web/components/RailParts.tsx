@@ -131,10 +131,13 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
  *  Nothing at all without a reading (rail-usage.ts), not an empty box. */
 export function RailUsage({ meter, onPress }: { meter: UsageMeter | null; onPress: () => void }) {
   if (!meter) return null;
-  const line2 = [meter.reset, meter.reset && meter.week ? "·" : null, meter.week].filter(Boolean);
+  // A stale reading leads with its age and drops the 7-day figure from the line
+  // (the one line has room for two things; the spoken name still has it).
+  const second = meter.stale ? [meter.readAgo, meter.reset] : [meter.reset, meter.week];
+  const line2 = second.flatMap((part, i) => (part ? [i > 0 && second[0] ? "·" : null, part] : [])).filter(Boolean);
   return (
     <div className="sl-usage">
-      <button type="button" className="sl-usage-btn" onClick={onPress} aria-label={meter.spoken}>
+      <button type="button" className="sl-usage-btn" onClick={onPress} data-stale={meter.stale || undefined} aria-label={meter.spoken}>
         <span className="sl-usage-line1" aria-hidden>
           {meter.name && <span className="sl-usage-name">{meter.name}</span>}
           <span className="sl-usage-what">5-hour limit</span>

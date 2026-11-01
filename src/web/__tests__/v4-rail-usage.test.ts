@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { RailUsage } from "../components/RailParts";
 import { usageMeter } from "../rail-usage";
 import { resetCountdown } from "../relative-time";
-import type { QuotaData } from "../use-quota";
+import type { CachedQuota, QuotaData } from "../use-quota";
 import { sheetRules } from "./sheet-cascade";
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
@@ -40,8 +40,15 @@ const reading = (over: Partial<QuotaData> = {}): QuotaData => ({
   week7dPct: 31, week7dResetAt: NOW + 3 * 86400,
   ...over,
 });
-const draw = (q: QuotaData | null, nowSec = NOW) =>
-  renderToStaticMarkup(createElement(RailUsage, { meter: usageMeter(q, nowSec), onPress: () => {} }));
+// What the server's memory hands the rail: the reading, when it was taken (ms)
+// and whether a window has reset since. By default read this very second, so
+// the cases that are not about age see a fresh meter.
+const cachedOf = (q: QuotaData | null | undefined, nowSec: number, over: Partial<CachedQuota> = {}): CachedQuota =>
+  ({ reading: q ?? null, readAt: nowSec * 1000, lapsed: false, ...over });
+const meter = (q: QuotaData | null | undefined, nowSec = NOW, over: Partial<CachedQuota> = {}) =>
+  usageMeter(cachedOf(q, nowSec, over), nowSec * 1000);
+const draw = (q: QuotaData | null, nowSec = NOW, over: Partial<CachedQuota> = {}) =>
+  renderToStaticMarkup(createElement(RailUsage, { meter: meter(q, nowSec, over), onPress: () => {} }));
 
 describe("Rail / Usage box (22:831)", () => {
   it("sits at the foot, 4 round it, outside the scrolling list", () => {
@@ -134,19 +141,19 @@ describe("one fill, never amber", () => {
   it("caps the width at 0 to 100", () => {
     expect(draw(reading({ session5hPct: 140 }))).toContain('style="width:100%"');
     expect(draw(reading({ session5hPct: -5 }))).toContain('style="width:0%"');
-    expect(usageMeter(reading({ session5hPct: 140 }), NOW)?.pctText).toBe("100%");
+    expect(meter(reading({ session5hPct: 140 }))?.pctText).toBe("100%");
   });
 
   it("prints the percent the way the panel's bar does", () => {
-    expect(usageMeter(reading({ session5hPct: 61.6 }), NOW)?.pctText).toBe("62%");
-    expect(usageMeter(reading({ session5hPct: 0.25 }), NOW)?.pctText).toBe("< 1%");
+    expect(meter(reading({ session5hPct: 61.6 }))?.pctText).toBe("62%");
+    expect(meter(reading({ session5hPct: 0.25 }))?.pctText).toBe("< 1%");
     expect(code("../components/QuotaBar.tsx")).toContain("quotaPctText(capped)");
   });
 });
 
 describe("what it says, and when it says nothing", () => {
   it("prints the account, the limit, the percent, the reset and the 7-day figure", () => {
-    const m = usageMeter(reading(), NOW)!;
+    const m = meter(reading())!;
     expect(m.name).toBe("Max 20x");
     expect(m.pctText).toBe("62%");
     expect(m.reset).toBe(`Resets in ${resetCountdown(NOW + 2 * 3600 + 9 * 60, NOW)}`);
@@ -159,7 +166,7 @@ describe("what it says, and when it says nothing", () => {
   });
 
   it("is named by one sentence with every figure, and hides the pieces from a reader", () => {
-    expect(usageMeter(reading(), NOW)?.spoken).toBe("Usage: Max 20x, 5-hour limit 62%, resets in 2h 9m, 7-day 31%");
+    expect(meter(reading())?.spoken).toBe("Usage: Max 20x, 5-hour limit 62%, resets in 2h 9m, 7-day 31%");
     const html = draw(reading());
     expect(html).toContain('aria-label="Usage: Max 20x, 5-hour limit 62%, resets in 2h 9m, 7-day 31%"');
     expect(html).toContain('<span class="sl-usage-bar" aria-hidden="true">');
@@ -175,16 +182,16 @@ describe("what it says, and when it says nothing", () => {
     expect(draw({ ok: true })).toBe("");
     expect(draw(reading({ session5hPct: undefined }))).toBe("");
     expect(draw(reading({ session5hResetAt: NOW - 1 }))).toBe("");
-    expect(usageMeter(undefined, NOW)).toBeNull();
+    expect(meter(undefined)).toBeNull();
   });
 
   it("drops '· 7-day …' without a 7-day reading, and 'Resets in …' without a reset", () => {
-    const noWeek = usageMeter(reading({ week7dPct: null }), NOW)!;
+    const noWeek = meter(reading({ week7dPct: null }))!;
     expect(noWeek.week).toBeNull();
     expect(noWeek.spoken).toBe("Usage: Max 20x, 5-hour limit 62%, resets in 2h 9m");
     expect(draw(reading({ week7dPct: null }))).toContain("<span>Resets in 2h 9m</span></span>");
     expect(draw(reading({ week7dPct: null }))).not.toContain("·");
-    const noReset = usageMeter(reading({ session5hResetAt: undefined }), NOW)!;
+    const noReset = meter(reading({ session5hResetAt: undefined }))!;
     expect(noReset.reset).toBeNull();
     expect(noReset.spoken).toBe("Usage: Max 20x, 5-hour limit 62%, 7-day 31%");
     expect(draw(reading({ session5hResetAt: undefined }))).toContain('<span class="sl-usage-line2" aria-hidden="true"><span>7-day 31%</span></span>');
@@ -198,29 +205,33 @@ describe("what it says, and when it says nothing", () => {
   });
 
   it("drops the name when the reading carries none, rather than inventing one", () => {
-    const m = usageMeter(reading({ planLabel: null }), NOW)!;
+    const m = meter(reading({ planLabel: null }))!;
     expect(m.name).toBeNull();
     expect(m.spoken).toBe("Usage: 5-hour limit 62%, resets in 2h 9m, 7-day 31%");
     expect(draw(reading({ planLabel: undefined }))).not.toContain("sl-usage-name");
   });
 
   it("does not print a week whose reset has passed", () => {
-    expect(usageMeter(reading({ week7dResetAt: NOW - 5 }), NOW)?.week).toBeNull();
+    expect(meter(reading({ week7dResetAt: NOW - 5 }))?.week).toBeNull();
   });
 });
 
 describe("where the reading comes from, and what the button does", () => {
-  it("polls /api/quota once: App.tsx holds useQuota, the panel is handed it, the rail only reads", () => {
+  it("causes no quota read of its own: App.tsx only looks (useCachedQuota), the Usage panel keeps its own useQuota, the rail never fetches", () => {
     const app = code("../App.tsx");
-    expect(app.match(/useQuota\(/g)).toHaveLength(1);
-    expect(app).toContain("useQuota(providers.claude)");
-    expect(app).toMatch(/claudeQuota=\{claudeQuota\}/);
-    expect(app).toMatch(/quota=\{providers\.claude \? claudeQuota\.quota : null\}/);
-    expect(code("../components/UsagePanel.tsx")).not.toMatch(/\buseQuota\(/);
+    expect(app).not.toMatch(/\buseQuota\(/);
+    expect(app).not.toMatch(/import \{[^}]*\buseQuota\b/);
+    expect(app.match(/useCachedQuota\(/g)).toHaveLength(1);
+    expect(app).toContain("useCachedQuota(providers.claude)");
+    expect(app).toMatch(/quota=\{cachedQuota\}/);
+    expect(app).not.toMatch(/claudeQuota/);
+    // The poll is the panel's again, where it only runs while the panel is open.
+    expect(code("../components/UsagePanel.tsx")).toContain("useQuota(providers.claude)");
+    expect(code("../components/UsagePanel.tsx")).not.toMatch(/claudeQuota/);
     for (const f of ["../components/SessionList.tsx", "../components/RailParts.tsx", "../rail-usage.ts"]) {
-      expect(code(f), f).not.toMatch(/\bfetch\(|setInterval|useQuota\(|import \{[^}]*useQuota/);
+      expect(code(f), f).not.toMatch(/\bfetch\(|setInterval|useQuota\(|useCachedQuota\(|import \{[^}]*useQuota/);
     }
-    expect(code("../rail-usage.ts")).toContain('import type { QuotaData } from "./use-quota"');
+    expect(code("../rail-usage.ts")).toContain('import type { CachedQuota } from "./use-quota"');
   });
 
   it("presses the Usage stripe door's own toggle, so an open panel closes", () => {
@@ -241,7 +252,7 @@ describe("where the reading comes from, and what the button does", () => {
       expect(s, f).not.toMatch(/\blazy\(|import\(/);
     }
     const imports = [...code("../rail-usage.ts").matchAll(/from "([^"]+)"/g)].map(m => m[1]);
-    expect(imports.sort()).toEqual(["./components/QuotaBar", "./relative-time", "./use-quota"]);
+    expect(imports.sort()).toEqual(["./components/QuotaBar", "./elapsed-short", "./relative-time", "./use-quota"]);
     // QuotaBar is reached from App.tsx's static UsagePanel import already.
     expect(code("../App.tsx")).toContain('import UsagePanel from "./components/UsagePanel";');
     expect(code("../App.tsx")).not.toMatch(/const UsagePanel = lazy/);
@@ -250,5 +261,71 @@ describe("where the reading comes from, and what the button does", () => {
   it("writes no literal colour in the rule it adds", () => {
     const css = rail.slice(rail.indexOf(".session-list .sl-usage {"), rail.indexOf("The phone keeps the drawer")).replace(/\/\*[\s\S]*?\*\//g, "");
     expect(css).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
+  });
+});
+
+describe("a reading the deck has not taken lately is drawn quiet and says so", () => {
+  const MIN = 60_000;
+  const readAgo = (min: number) => NOW * 1000 - min * MIN;
+
+  it("is fresh up to ten minutes and stale past them", () => {
+    expect(meter(reading(), NOW, { readAt: readAgo(0) })?.stale).toBe(false);
+    expect(meter(reading(), NOW, { readAt: readAgo(10) })?.stale, "exactly ten minutes is still fresh").toBe(false);
+    expect(meter(reading(), NOW, { readAt: readAgo(10) - 1 })?.stale).toBe(true);
+    expect(meter(reading(), NOW, { readAt: readAgo(12) })?.stale).toBe(true);
+  });
+
+  it("is stale when a window has reset since the reading, however recent", () => {
+    expect(meter(reading(), NOW, { readAt: readAgo(1), lapsed: true })?.stale).toBe(true);
+    expect(meter(reading(), NOW, { readAt: readAgo(1), lapsed: false })?.stale).toBe(false);
+  });
+
+  it("draws the fill and the percent in the accent when fresh, in --muted when stale, on the same markup otherwise", () => {
+    const fresh = draw(reading(), NOW, { readAt: readAgo(2) });
+    const stale = draw(reading(), NOW, { readAt: readAgo(12) });
+    expect(fresh).not.toContain("data-stale");
+    expect(stale).toContain('data-stale="true"');
+    expect(decl(".session-list .sl-usage-fill", "background")).toBe("var(--accent)");
+    expect(decl(".session-list .sl-usage-btn[data-stale] .sl-usage-fill", "background")).toBe("var(--muted)");
+    expect(decl(".session-list .sl-usage-btn[data-stale] .sl-usage-pct", "color")).toBe("var(--muted)");
+    // The same one fill, the same width: only its colour changes.
+    expect(stale.match(/sl-usage-fill/g)).toHaveLength(1);
+    expect(stale).toContain('style="width:62%"');
+  });
+
+  it("says when it was read on line 2, with the deck's short clock, and in the spoken name", () => {
+    const m = meter(reading(), NOW, { readAt: readAgo(12) })!;
+    expect(m.readAgo).toBe("read 12m ago");
+    expect(m.spoken).toBe("Usage: Max 20x, 5-hour limit 62%, resets in 2h 9m, 7-day 31%, last read 12 minutes ago");
+    const html = draw(reading(), NOW, { readAt: readAgo(12) });
+    expect(html).toContain("<span>read 12m ago</span><span>·</span><span>Resets in 2h 9m</span>");
+    expect(html).toContain('aria-label="Usage: Max 20x, 5-hour limit 62%, resets in 2h 9m, 7-day 31%, last read 12 minutes ago"');
+    expect(meter(reading(), NOW, { readAt: readAgo(75) })?.readAgo).toBe("read 1h 15m ago");
+  });
+
+  it("names a lapsed but recent reading in whole minutes too", () => {
+    expect(meter(reading({ week7dResetAt: NOW - 5 }), NOW, { readAt: readAgo(0), lapsed: true })?.spoken).toMatch(/last read less than a minute ago$/);
+    expect(meter(reading(), NOW, { readAt: readAgo(1), lapsed: true })?.spoken).toMatch(/last read 1 minute ago$/);
+  });
+
+  it("says nothing of age on a fresh meter", () => {
+    const m = meter(reading(), NOW, { readAt: readAgo(3) })!;
+    expect(m.readAgo).toBeNull();
+    expect(m.spoken).not.toContain("last read");
+    expect(draw(reading(), NOW, { readAt: readAgo(3) })).not.toContain("read ");
+  });
+
+  it("still draws nothing without a reading or on a failed one, however it is aged", () => {
+    expect(draw(null, NOW, { readAt: readAgo(30) })).toBe("");
+    expect(draw(reading({ ok: false }), NOW, { readAt: readAgo(30), lapsed: true })).toBe("");
+    expect(usageMeter(null, NOW * 1000)).toBeNull();
+    expect(usageMeter({ reading: null, readAt: 0, lapsed: false }, NOW * 1000)).toBeNull();
+  });
+
+  it("uses tokens only for the quiet colours", () => {
+    const quiet = rail.slice(rail.indexOf("A reading the deck has not taken lately"), rail.indexOf("The phone keeps the drawer"));
+    expect(quiet).toContain("[data-stale]");
+    expect(quiet.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
+    expect(quiet).not.toMatch(/--accent/);
   });
 });

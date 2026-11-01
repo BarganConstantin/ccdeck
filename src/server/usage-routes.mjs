@@ -29,10 +29,18 @@ const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
  * carries on behind it and publishes for the next poll.
  */
 export async function handleQuota(req, res) {
-  const { fetchClaudeQuota, withClaudePlan, QUOTA_DEADLINE_MS } = await import(
+  const { fetchClaudeQuota, peekClaudeQuota, withClaudePlan, QUOTA_DEADLINE_MS } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/quota.mjs")).href
   );
   const url = new URL(req.url, "http://localhost");
+  // The rail's usage meter: what the deck already read, with when, and no read
+  // of its own. It wins over `refresh=1` so no spelling of the URL can turn the
+  // meter's poll into a provider call.
+  if (url.searchParams.get("cached") === "1") {
+    const { reading, at, lapsed } = peekClaudeQuota();
+    if (!reading) return send(res, 200, { ok: false, reason: "no_reading" });
+    return send(res, 200, { ...(await withClaudePlan(reading)), readAt: at, lapsed });
+  }
   const force = url.searchParams.get("refresh") === "1";
   const quota = await fetchClaudeQuota({ force, deadlineMs: QUOTA_DEADLINE_MS });
   send(res, 200, await withClaudePlan(quota));

@@ -80,7 +80,7 @@ import { useDesktopUpdate } from "./use-desktop-update";
 import { useAutoRestart } from "./use-auto-restart";
 import { useLanPairRequests } from "./use-lan-pair-requests";
 import { useAccountAttention } from "./use-account-attention";
-import { useQuota } from "./use-quota";
+import { useCachedQuota } from "./use-quota";
 import { leftColumnWidth, useColumnSettle, useLeftColumn, useRailWidth } from "./use-left-column";
 import { sessionsOf, useMarkSeen } from "./use-mark-seen";
 import { useRightPanels } from "./use-right-panels";
@@ -376,12 +376,10 @@ function Inner() {
   // the board's clock, so an answer the page is still holding expires on
   // screen even while the deck itself has stopped answering.
   const providerStatus = useProviderStatus(providers.claude || providers.codex);
-  // THE CLAUDE QUOTA READING, held once. The Usage panel mounts only while it is
-  // open, so its own poll could not feed the rail's usage meter (which is there
-  // while the panel is shut); the hook lives here and both are handed the same
-  // reading. One poll of /api/quota, still switched off on a deck that does not
-  // watch Claude Code (#402).
-  const claudeQuota = useQuota(providers.claude);
+  // What the server last read of Claude's quota, for the rail's usage meter. A
+  // look at memory (/api/quota?cached=1), never a read: the Usage panel's own
+  // poll, while it is open, is what takes one.
+  const cachedQuota = useCachedQuota(providers.claude);
   const incidents = incidentsOf(providerStatus, now);
 
   // An account the deck signed in whose login has stopped working, asked about
@@ -924,7 +922,7 @@ function Inner() {
               onBringBackAll={bringBackAll}
               landed={landed}
               watching={watchingSessions}
-              quota={providers.claude ? claudeQuota.quota : null}
+              quota={cachedQuota}
               onOpenUsage={() => usageRail.set(o => !o)}
             />
           )}
@@ -1018,7 +1016,6 @@ function Inner() {
           now={now}
           providers={providers}
           incidents={incidents}
-          claudeQuota={claudeQuota}
           liveSince={liveSince}
           leaving={usagePhase === "leaving"}
           onClose={() => { panelReturn.usage(); setUsagePanelOpen(false); }}

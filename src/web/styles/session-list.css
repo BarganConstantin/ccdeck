@@ -453,6 +453,11 @@
   background: var(--line);
 }
 .session-list .sl-usage-fill { display: block; height: 100%; background: var(--accent); }
+/* A reading the deck has not taken lately (rail-usage.ts says when): the accent
+   is for numbers that are true now, so an old one goes quiet, fill and percent
+   both, and its second line says how long ago it was read. */
+.session-list .sl-usage-btn[data-stale] .sl-usage-fill { background: var(--muted); }
+.session-list .sl-usage-btn[data-stale] .sl-usage-pct { color: var(--muted); }
 
 /* The phone keeps the drawer, and a touch target of 44 (Phase 4 redoes it). */
 @media (max-width: 640px) {

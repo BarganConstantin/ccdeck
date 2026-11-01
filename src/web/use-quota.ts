@@ -139,6 +139,66 @@ export function useQuota(enabled: boolean) {
   return { quota, loading, refresh };
 }
 
+/** What /api/quota?cached=1 answers with: the reading the deck already holds,
+ *  when it was collected (epoch ms), and whether a window of it has reset since. */
+export interface CachedQuota {
+  reading: QuotaData | null;
+  readAt: number;
+  lapsed: boolean;
+}
+
+const NO_CACHED_QUOTA: CachedQuota = { reading: null, readAt: 0, lapsed: false };
+
+/**
+ * The rail's usage meter's view of Claude's quota: what the server read last,
+ * and never a read of its own. The URL always carries `cached=1`, which the
+ * route answers from memory alone, so this can run on every open page without
+ * spending an OAuth request or a `claude --print /usage` run. Reads happen
+ * because the Usage panel is open (useQuota) or a quota notification's watcher
+ * took one; this only looks.
+ *
+ * @param enabled whether this deck watches Claude Code, as for useQuota.
+ */
+export function useCachedQuota(enabled: boolean): CachedQuota {
+  const [cached, setCached] = useState<CachedQuota>(NO_CACHED_QUOTA);
+
+  useEffect(() => {
+    if (!enabled) { setCached(NO_CACHED_QUOTA); return; }
+    let alive = true;
+    let timer: number | null = null;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/quota?cached=1", { signal: AbortSignal.timeout(QUOTA_REQUEST_MS) });
+        if (!res.ok || !alive) return;
+        const body: QuotaData & { readAt?: number; lapsed?: boolean } = await res.json();
+        if (!alive) return;
+        setCached(body.ok && typeof body.readAt === "number"
+          ? { reading: body, readAt: body.readAt, lapsed: body.lapsed === true }
+          : NO_CACHED_QUOTA);
+      } catch { /* server unreachable: keep what is drawn */ }
+    };
+    const start = () => { if (timer == null) timer = window.setInterval(load, QUOTA_POLL_MS); };
+    const stop = () => { if (timer != null) { window.clearInterval(timer); timer = null; } };
+    // A tab that comes back looks now rather than on the next tick; hidden, it
+    // stops asking at all.
+    const onVis = () => {
+      if (document.visibilityState === "hidden") { stop(); return; }
+      start();
+      load();
+    };
+    load();
+    start();
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      alive = false;
+      stop();
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [enabled]);
+
+  return enabled ? cached : NO_CACHED_QUOTA;
+}
+
 // ── Codex quota types + hook ───────────────────────────────────────────────
 // Lanes arrive as a list rather than fixed 5h/7d slots: which windows an
 // account has depends on its plan (free plans get weekly only, some get a
