@@ -81,6 +81,13 @@ export interface RailItem {
   /** The name of the run of doors this one stands in on a stripe, said once on
    *  the way into it (rail-items.tsx). */
   group?: string;
+  /** How the top bar draws this door where it is not a word button: a field
+   *  holding `fieldText` and the chord (Search), or a bare icon (Feedback).
+   *  Looks only, on the same button; the stripes and the dock ignore it. */
+  barLook?: "field" | "icon";
+  /** The sentence a field shows, and so its name (WCAG 2.5.3, label in name)
+   *  and its hint's. */
+  fieldText?: string;
 }
 
 /** The key a control may name right now: its own, unless it is a single
@@ -98,13 +105,10 @@ export function railHint(item: RailItem, singleKeys: boolean, wordShown: boolean
   return addsSomething ? { label, keys, detail: item.detail } : null;
 }
 
-/** What the top bar's search field says before anything is typed (Figma 22:979),
- *  and so its name too: a name that holds the words on screen (WCAG 2.5.3). */
-export const QUICK_OPEN_PLACEHOLDER = "Open a session or run a command";
-
 /** Each placement's classes, written out whole so every class the markup can
  *  carry is a literal the sheet sweeps can hold to a rule. */
 const BUTTON_CLASS = { stripe: "rail-btn rail-btn-stripe", dock: "rail-btn rail-btn-dock", bar: "rail-btn rail-btn-bar" } as const;
+const BAR_LOOK_CLASS = { field: "rail-btn rail-btn-bar rail-btn-field", icon: "rail-btn rail-btn-bar rail-btn-icon" } as const;
 const RAIL_CLASS = { left: "edge-rail edge-rail-left", right: "edge-rail edge-rail-right" } as const;
 
 const NEXT_KEYS = { vertical: "ArrowDown", horizontal: "ArrowRight" } as const;
@@ -168,22 +172,23 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
   variant: "stripe" | "dock" | "bar";
 }) {
   const singleKeys = useSingleKeyShortcuts();
-  const hintHandlers = hint.bind(railHint(item, singleKeys, variant !== "stripe"));
+  // V4's top bar draws some doors as a field (its sentence and its chord) or as
+  // a bare icon: looks only, on the same button with the same handler. A field
+  // is named by the sentence it shows, and its hint says the same words; an
+  // icon shows no word, so its hint always names it.
+  const look = variant === "bar" ? item.barLook : undefined;
+  const fieldText = look === "field" ? item.fieldText ?? item.label : null;
+  const hinted = fieldText != null ? { ...item, label: fieldText, hint: undefined } : item;
+  const hintHandlers = hint.bind(railHint(hinted, singleKeys, variant !== "stripe" && look !== "icon"));
   const disclosure = item.kind === "panel";
-  // V4's top bar draws Search as a field with its sentence and its chord, and
-  // Feedback as a bare icon: looks only, on the same buttons, with the same
-  // handlers. Feedback keeps its name in aria-label and the hint; the field is
-  // named by the sentence it shows, so the words on screen are the name.
-  const field = variant === "bar" && item.id === "quick-open";
-  const iconOnly = variant === "bar" && item.id === "feedback";
   return (
     <button
       ref={item.buttonRef}
       type="button"
       data-rail-item={item.id}
-      className={field ? `${BUTTON_CLASS[variant]} rail-btn-field` : iconOnly ? `${BUTTON_CLASS[variant]} rail-btn-icon` : BUTTON_CLASS[variant]}
+      className={look ? BAR_LOOK_CLASS[look] : BUTTON_CLASS[variant]}
       tabIndex={variant === "bar" ? undefined : tabbable ? 0 : -1}
-      aria-label={field ? QUICK_OPEN_PLACEHOLDER : item.ariaLabel}
+      aria-label={fieldText ?? item.ariaLabel}
       aria-keyshortcuts={liveKey(item.key, singleKeys)?.aria}
       aria-expanded={disclosure ? item.open === true : undefined}
       aria-controls={disclosure && item.open ? item.controls : undefined}
@@ -193,10 +198,10 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
       onClick={() => item.onPress()}
     >
       {item.glyph}
-      {field ? <>
-        <span className="rail-field-text">{QUICK_OPEN_PLACEHOLDER}</span>
+      {fieldText != null ? <>
+        <span className="rail-field-text">{fieldText}</span>
         {item.key && <Kbd>{item.key.cap}</Kbd>}
-      </> : iconOnly ? null
+      </> : look === "icon" ? null
         : variant !== "stripe" && <span className="rail-word">{variant === "dock" ? item.short : item.label}</span>}
       {item.badge != null && item.badge > 0 && <span className="rail-badge" aria-hidden>{item.badge}</span>}
       {item.dot && !(item.badge != null && item.badge > 0) && <span className="rail-dot" aria-hidden />}

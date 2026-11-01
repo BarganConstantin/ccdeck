@@ -39,6 +39,10 @@ import {
 } from "./components/rail-glyphs";
 import type { ToolActivityView } from "./components/ToolAuditModal";
 
+/** What the top bar's search field says before anything is typed (Figma
+ *  22:979), and so its name: the words on screen are the name (WCAG 2.5.3). */
+export const QUICK_OPEN_PLACEHOLDER = "Open a session or run a command";
+
 type Toggle = Dispatch<SetStateAction<boolean>>;
 
 export interface RailItems {
@@ -218,16 +222,18 @@ export function railItems({
     ariaLabel: "Settings", glyph: <SettingsGlyph />, kind: "dialog", onPress: () => openSettings(),
   };
   // The field every door is also behind, by name. A chord, like Settings',
-  // so it answers with the single-key shortcuts off.
+  // so it answers with the single-key shortcuts off. The top bar draws it as
+  // V4's search field (Figma 22:966); Feedback beside it as a bare icon.
   const search: RailItem = {
     id: "quick-open", label: "Search", short: "Search",
     key: { cap: quickOpenChordLabel(apple), aria: apple ? "Meta+K" : "Control+K", single: false },
     ariaLabel: "Search", detail: "Panels, sessions, settings, actions and themes",
     glyph: <SearchGlyph />, kind: "dialog", onPress: openQuickOpen,
+    barLook: "field", fieldText: QUICK_OPEN_PLACEHOLDER,
   };
   const feedback: RailItem = {
     id: "feedback", label: "Feedback", short: "Feedback", menu: "Send feedback",
-    ariaLabel: "Send feedback", glyph: <FeedbackGlyph />, kind: "dialog", onPress: onFeedback,
+    ariaLabel: "Send feedback", glyph: <FeedbackGlyph />, kind: "dialog", onPress: onFeedback, barLook: "icon",
     ...feedbackUnreadDoor(feedbackUnread, openFeedbackConversations),
   };
   // TOOLS AND SKILLS, ONE DOOR EACH. Skills were a tab inside Tool activity,

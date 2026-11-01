@@ -22,7 +22,7 @@ import type { Incident } from "../provider-status";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { namesThatFit, queueEntryDetail, queueEntryName, queueName, waitWhat } from "../waiting-queue";
 import { IncidentChips } from "./ProviderIncidents";
-import { RailGlyph } from "./RailParts";
+import { AlertMark } from "./StateMark";
 import { elapsedShort } from "./SessionList";
 import { useHint } from "./use-hint";
 import VersionChip from "./VersionChip";
@@ -166,7 +166,7 @@ export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, n
           detail: unnamed.length > 0 ? queueLines(unnamed, now) : undefined,
         })}
       >
-        <RailGlyph kind="waiting" />
+        <AlertMark size={14} />
         <b>{count}</b> waiting
       </button>
       {hint.node}

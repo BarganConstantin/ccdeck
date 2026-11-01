@@ -206,11 +206,9 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-/* V4's Waiting glyph (RailGlyph, the rail's own alert triangle), in a 14px
-   slot, standing still and in the chip's --warn: the glyph takes the colour
-   from the chip. The rail's rules for it are scoped to the session list. */
-.topbar .waiting-stat .sl-glyph { display: inline-flex; align-items: center; flex: none; width: 14px; height: 14px; }
-.topbar .waiting-stat .sl-glyph-mark { display: inline-flex; }
+/* V4's Waiting glyph (Figma 22:952): the deck's alert triangle at 14px, in
+   --warn, standing still. Its global rule pushes it to a row's end; here it
+   leads the chip. */
 .topbar .waiting-stat .alert-mark { margin-left: 0; }
 .topbar .waiting-stat:hover {
   border-color: var(--warn);

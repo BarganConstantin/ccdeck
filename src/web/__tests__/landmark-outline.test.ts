@@ -672,9 +672,9 @@ describe("the version chip's drift branch says what drifted (#381)", () => {
 
   it("says which way the drift goes, in both kinds", () => {
     expect(versionNoticeLabel({ kind: "upgrade", from: "1.35.2", to: "1.36.0", open: false }))
-      .toBe("1.36.0 is ready. Version v1.35.2, v1.36.0 is available on npm — show what's new and the notice");
+      .toBe("1.36.0 is ready. Running v1.35.2; v1.36.0 is available on npm — show what's new and the notice");
     expect(versionNoticeLabel({ kind: "restart", from: "1.35.2", to: "1.36.0", open: false }))
-      .toBe("1.36.0 is ready. Version v1.35.2, v1.36.0 is installed and waiting for a restart — show what's new and the notice");
+      .toBe("1.36.0 is ready. Running v1.35.2; v1.36.0 is installed and waiting for a restart — show what's new and the notice");
   });
 
   it("describes the next click rather than the current state", () => {

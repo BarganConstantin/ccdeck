@@ -254,15 +254,15 @@
   white-space: nowrap;
   text-align: left;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .rail-btn-field .kbd { flex: none; }
 @media (hover: hover) and (pointer: fine) {
   .rail-btn-bar.rail-btn-field:hover { border-color: var(--line); background: var(--bg-soft); }
 }
 /* The room the field gives back before the bar overflows: 200 under 1280, and
-   under 900 the sentence goes to the name (aria-label) and the hint, leaving
-   the glyph and the chord. */
+   under 900 the sentence leaves the bar, leaving the glyph and the chord; the
+   name and the hint still say it (EdgeRails.tsx, fieldText). */
 @media (max-width: 1279px) {
   .rail-btn-bar.rail-btn-field { width: 200px; }
 }

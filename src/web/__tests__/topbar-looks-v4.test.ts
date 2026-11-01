@@ -8,8 +8,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { railItems } from "../rail-items";
-import { QUICK_OPEN_PLACEHOLDER, UtilityRun } from "../components/EdgeRails";
+import { QUICK_OPEN_PLACEHOLDER, railItems } from "../rail-items";
+import { railHint, UtilityRun } from "../components/EdgeRails";
 import { WaitingStat } from "../components/TopbarReadouts";
 import VersionChip from "../components/VersionChip";
 import { versionNoticeLabel } from "../version-chip";
@@ -40,9 +40,8 @@ describe("the waiting chip", () => {
     waitingCursorRef: { current: null }, focusSession: noop, now: 1000, named: 0,
   }));
 
-  it("draws the rail's Waiting glyph and does not pulse", () => {
-    expect(html).toContain('data-glyph="waiting"');
-    expect(html).toContain("alert-mark");
+  it("draws the deck's Waiting glyph, 14px, and does not pulse", () => {
+    expect(html).toMatch(/<svg class="alert-mark"[^>]*width="14" height="14"/);
     expect(html).not.toContain("ap-pulse");
     expect(html).toContain("<b>1</b> waiting");
   });
@@ -54,7 +53,8 @@ describe("the waiting chip", () => {
 
   it("leaves no rule behind for the dot it stopped drawing", () => {
     expect(read("../styles/topbar-controls.css")).not.toMatch(/waiting-stat \.ap-pulse/);
-    expect(strip(read("../styles/topbar-controls.css"))).toMatch(/\.topbar \.waiting-stat \.sl-glyph/);
+    // The glyph leads the chip: its global rule's margin-left: auto is undone here.
+    expect(strip(read("../styles/topbar-controls.css"))).toMatch(/\.topbar \.waiting-stat \.alert-mark \{ margin-left: 0; \}/);
   });
 });
 
@@ -76,7 +76,7 @@ describe("the newer-version chip", () => {
 
   it("carries the visible words at the start of its name (2.5.3)", () => {
     expect(versionNoticeLabel({ kind: "upgrade", from: "4.0.0", to: "4.0.1", open: false }).startsWith("4.0.1 is ready")).toBe(true);
-    expect(render("upgrade")).toContain('aria-label="4.0.1 is ready. Version v4.0.0');
+    expect(render("upgrade")).toContain('aria-label="4.0.1 is ready. Running v4.0.0');
   });
 });
 
@@ -99,6 +99,21 @@ describe("the right group", () => {
     expect(feedback).not.toContain(">Feedback<");
     expect(feedback).toMatch(/aria-label="Send feedback"/);
     expect(feedback).toContain("<svg");
+  });
+
+  it("gives the bare icon a hint that names it, and the field a hint in its own words", () => {
+    // The button asks for a hint as if no word were shown when it draws an icon,
+    // and hands the field's sentence over as the hint's name.
+    const src = read("../components/EdgeRails.tsx");
+    expect(src).toMatch(/railHint\(hinted, singleKeys, variant !== "stripe" && look !== "icon"\)/);
+    expect(src).toMatch(/aria-label=\{fieldText \?\? item\.ariaLabel\}/);
+    expect(railHint(rails.utilities[1], false, false)?.label).toBe("Feedback");
+    const field = railHint({ ...rails.search, label: QUICK_OPEN_PLACEHOLDER, hint: undefined }, false, true);
+    expect(field?.label).toBe(QUICK_OPEN_PLACEHOLDER);
+    expect(field?.keys).toBe(rails.search.key!.cap);
+    expect(rails.search.barLook).toBe("field");
+    expect(rails.search.fieldText).toBe(QUICK_OPEN_PLACEHOLDER);
+    expect(rails.utilities[1].barLook).toBe("icon");
   });
 
   it("leaves Settings as it was, with its word", () => {
