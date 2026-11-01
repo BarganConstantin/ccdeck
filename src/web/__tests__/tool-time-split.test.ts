@@ -6,7 +6,7 @@
 // with the approval wait inside their time — so neither question had an answer.
 import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtemp, readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
@@ -330,7 +330,7 @@ describe('one session\'s turn', () => {
     const dir = await mkdtemp(join(tmpdir(), 'ccdeck-time-split-')); dirs.push(dir);
     const real = (input: any) => buildToolAuditReport(input, { createReadStream, createInterface });
     const seen: string[][] = [];
-    const audit = createToolAudit({ dir, now: () => clock, runReport: async (input: any) => { seen.push(input.files.map((f: any) => f.path.split('/').pop())); return real(input); } });
+    const audit = createToolAudit({ dir, now: () => clock, runReport: async (input: any) => { seen.push(input.files.map((f: any) => basename(f.path))); return real(input); } });
     audits.push(audit); await audit.start();
     for (let day = 0; day < 4; day++) {
       clock = T0 + day * 86400000;
