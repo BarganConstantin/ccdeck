@@ -190,18 +190,20 @@
 .app:has(.left-column):not(:has(.detail)) { grid-template-columns: auto 1fr; }
 
 /* JUST ABOVE THE BREAKPOINT, WITH EITHER LEFT PANEL OPEN (#1840). Both left panels are 288px, and
-   the detail column's 360px are 648px between them, so from 641 to 647px the
-   desktop row was up to 7px wider than the window: the page scrolled sideways
-   and the last topbar control sat partly off screen. Here the column gives up
-   what the window lacks, 7px at most, rather than the layout turning into the
-   sheet a few pixels early; from 648px up it is 360px again. Before the block
-   below, which outranks it at 640px and under by source order. */
+   the detail column's --inspector-w are 288 + the column between them: at
+   Default (360px) 648px, so from 641 to 647px the desktop row was up to 7px
+   wider than the window: the page scrolled sideways and the last topbar
+   control sat partly off screen. Here the column gives up what the window
+   lacks, 7px at most, rather than the layout turning into the sheet a few
+   pixels early; from 648px up it is its full width again. At Compact (320px)
+   288 + 320 = 608, under the breakpoint, so the band is a no-op there. Before
+   the block below, which outranks it at 640px and under by source order. */
 @media (max-width: 647px) {
-  .app:has(.left-column) { grid-template-columns: auto 1fr minmax(0, 360px); }
+  .app:has(.left-column) { grid-template-columns: auto 1fr minmax(0, var(--inspector-w)); }
 }
 
 /* A SHEET OVER THE CANVAS, NOT A COLUMN BESIDE IT, below the sheet's 640px
-   breakpoint (#1790) — the move #849 made for the rails. The 360px track was
+   breakpoint (#1790) — the move #849 made for the rails. The --inspector-w track was
    added whatever the window's width, so on a phone or a zoomed window
    selecting a session took the canvas to 0px and the grid ran past the right
    edge, the topbar with it: at 400px with the session list open the page was
@@ -219,8 +221,9 @@
    320px window. A row of two tracks does not need it — an item spanning more
    than one track, one of them flexible, has no automatic minimum.
    On the rails' layer (20) and after them in the document, so where they meet
-   the panel a selection just opened is the one on top. The desktop layout is
-   untouched. */
+   the panel a selection just opened is the one on top. The sheet is as wide
+   as the column (--inspector-w: 320px at Compact, 360px at Default), or the
+   window when that is narrower. The desktop layout is untouched. */
 @media (max-width: 640px) {
   .app, .app:not(:has(.detail)) { grid-template-columns: minmax(0, 1fr); }
   .detail {
@@ -228,7 +231,7 @@
     top: var(--topbar-h);
     right: 0;
     bottom: 0;
-    width: min(360px, 100vw);
+    width: min(var(--inspector-w), 100vw);
     z-index: 20;
   }
 }
@@ -238,9 +241,13 @@
    h1, and the sections under a selected agent stay h3. The child combinator is
    load-bearing — `.detail-hero .hero-title` is an h2 too, and it is the
    agent's name rather than a caption, so a plain `.detail h2` would try to set
-   it in 11px uppercase grey. */
+   it in 11px uppercase grey.
+   The Context tab sets the context modal's own body in this panel, and its
+   headings (`h3.ctx-section-title`) are that body's: they keep the margin and
+   the look context-modal.css gives them, as in the modal, so they are left out
+   of the caption rule (which would zero their 18px 0 8px at specificity 0,1,1). */
 .detail > h2,
-.detail h3 {
+.detail h3:not(.ctx-section-title) {
   margin: 0;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   letter-spacing: 0.08em;

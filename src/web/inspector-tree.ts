@@ -19,20 +19,42 @@ export interface TreeRow {
   more: boolean[];
 }
 
+/** The session's root: the agent of `kind: "root"` in that session, else the
+ *  agent keyed by the session id. The tree and the Inspector's tabs both read
+ *  it here, so they cannot disagree about which agent is the root. */
+export function sessionRoot(agents: ReadonlyMap<string, AgentNodeData>, sessionId: string): AgentNodeData | undefined {
+  for (const a of agents.values()) if (a.sessionId === sessionId && a.kind === "root") return a;
+  return agents.get(sessionId);
+}
+
 /** The session's agents in the order they read: the root, then each child under
  *  it, oldest first, every child's own children right after it. An agent whose
- *  parent is not in the session (evicted, or not yet seen) hangs off the root
- *  rather than vanishing. */
+ *  parent chain does not reach the root hangs off the root rather than
+ *  vanishing: its parent is not in the session (evicted, or not yet seen), or
+ *  the chain loops back on itself (a self-parent, or A under B under A). */
 export function agentTree(agents: ReadonlyMap<string, AgentNodeData>, sessionId: string): TreeRow[] {
   const inSession: AgentNodeData[] = [];
   for (const a of agents.values()) if (a.sessionId === sessionId) inSession.push(a);
-  const root = inSession.find(a => a.kind === "root") ?? agents.get(sessionId);
+  const root = sessionRoot(agents, sessionId);
   if (!root) return [];
-  const ids = new Set(inSession.map(a => a.id));
+  const byId = new Map(inSession.map(a => [a.id, a]));
+  /** Whether walking up from `a` arrives at the root before it runs out of
+   *  parents or meets an agent it has already passed (a loop). */
+  const reachesRoot = (a: AgentNodeData): boolean => {
+    const passed = new Set<string>();
+    let at: AgentNodeData | undefined = a;
+    while (at) {
+      if (at === root) return true;
+      if (passed.has(at.id)) return false;
+      passed.add(at.id);
+      at = at.parentId ? byId.get(at.parentId) : undefined;
+    }
+    return false;
+  };
   const kids = new Map<string, AgentNodeData[]>();
   for (const a of inSession) {
     if (a === root) continue;
-    const parent = a.parentId && ids.has(a.parentId) && a.parentId !== a.id ? a.parentId : root.id;
+    const parent = a.parentId && reachesRoot(a) ? a.parentId : root.id;
     const list = kids.get(parent);
     if (list) list.push(a); else kids.set(parent, [a]);
   }
@@ -51,7 +73,8 @@ export function agentTree(agents: ReadonlyMap<string, AgentNodeData>, sessionId:
   return rows;
 }
 
-/** The head row's qualifier: how many agents the root started, in words. */
+/** The head row's qualifier: how many subagents the session has, at any depth
+ *  (every row but the root's), in words. */
 export function subagentCount(rows: readonly TreeRow[]): string {
   const n = rows.length - 1;
   return n <= 0 ? "no subagents" : `${n} subagent${n === 1 ? "" : "s"}`;

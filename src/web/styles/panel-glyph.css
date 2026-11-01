@@ -77,7 +77,9 @@
    the comment above draws. Nothing moves and nothing is painted; the ring keeps
    its circle, and the hover colour arrives wherever the pointer turns.
    `position` goes on at zero specificity so a control pinned to a corner
-   (`.detail-close`) keeps its `absolute` wherever in the sheet it says so. */
+   of its box keeps its `absolute` wherever in the sheet it says so (the
+   detail panel's close was one, until the Inspector's Fold, `.insp-fold`,
+   moved into the header's row). */
 :where(.glyph-btn) { position: relative; }
 .glyph-btn::after {
   content: "";
@@ -90,7 +92,7 @@
 .glyph-btn:focus-visible { outline-offset: 1px; }
 .glyph-btn:hover { color: var(--text); }
 /* 0.94, not the 0.97 a labelled button gets. The sheet's own rule is written at
-   `.detail-close` — on a box this size three percent is under a pixel of travel
+   `.insp-fold`, the detail panel's close now — on a box this size three percent is under a pixel of travel
    and reads as nothing having happened — and three of the four bare closes that
    already existed were at 0.94 while the machine panel's was at 0.97 on a 16px
    box, where it was invisible. One box, one number, and the number is the one

@@ -128,15 +128,23 @@ export default function ContextModal({ agent, onClose }: Props) {
   );
 }
 
+/** How full the agent's context window is: tokens used, the window's size and
+ *  the percent (unrounded, capped at 100). One function for the modal's meta
+ *  line and the Inspector's head, so the bar and the figure above it cannot
+ *  print two numbers for one fact; each rounds it as it prints it. */
+export function contextFill(agent: AgentNodeData): { used: number; limit: number; pct: number } {
+  const used = agent.context?.currentContextTokens ?? 0;
+  const limit = effectiveContextWindow(agent.contextWindow, agent.model);
+  return { used, limit, pct: Math.min(100, (used / limit) * 100) };
+}
+
 /** What the context breakdown says, without the dialog around it: the modal
  *  wraps it in a header and a close, and the Inspector's Context tab sets it
  *  under its own head. One body, so the two cannot drift apart. */
 export function ContextView({ agent }: { agent: AgentNodeData }) {
   const ctx = agent.context;
   const usage = agent.usage;
-  const current = ctx?.currentContextTokens ?? 0;
-  const window = effectiveContextWindow(agent.contextWindow, agent.model);
-  const pct = Math.min(100, (current / window) * 100);
+  const { used: current, limit: window, pct } = contextFill(agent);
   // Per model, not at `agent.model` — this panel prints a cumulative token
   // count for the whole session, and a session that switched model has that
   // count spread over two rate cards (#686).

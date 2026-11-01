@@ -89,7 +89,9 @@ interface Track { min: number; max: number; flex: boolean }
 
 /** Each track's floor and ceiling, the way grid sizing reads them. */
 function tracks(template: string, left: Left, width: number): Track[] {
-  const list = splitTop(template.replace(/\s+(?![^(]*\))/g, ","));
+  // The token is resolved first: the band's `minmax(0, var(--inspector-w))`
+  // nests a call inside a call, which the whitespace split below cannot see past.
+  const list = splitTop(template.replace(/var\(--inspector-w\)/g, `${DETAIL}px`).replace(/\s+(?![^(]*\))/g, ","));
   return list.map(t => {
     const mm = /^minmax\((.*)\)$/.exec(t);
     if (mm) {

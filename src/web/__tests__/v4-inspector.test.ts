@@ -10,7 +10,8 @@ import { dirname, join, relative, resolve } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import Inspector from "../components/Inspector";
-import { agentTree, sessionCostLabel, subagentCount } from "../inspector-tree";
+import { agentTree, sessionCostLabel, sessionRoot, subagentCount } from "../inspector-tree";
+import { contextFill } from "../components/ContextModal";
 import {
   INSPECTOR_TABS, INSPECTOR_TAB_KEY, loadInspectorTab, saveInspectorTab,
 } from "../inspector-tab";
@@ -18,7 +19,7 @@ import { tabStripMove } from "../tablist-keys";
 import { costChip } from "../card-cost";
 import { fmtCost } from "../pricing";
 import type { AgentNodeData } from "../types";
-import { sheetText } from "./sheet-source";
+import { sheetParts, sheetText } from "./sheet-source";
 import { WEB_DIR } from "./client-source";
 import { withoutComments } from "./tsx-scan";
 
@@ -115,7 +116,7 @@ describe("the Inspector's column", () => {
     expect(decl(".detail", "flex-direction")).toBe("column");
   });
   it("keeps the phone's sheet as it was", () => {
-    expect(decl(".detail", "width", "(max-width: 640px)")).toBe("min(360px, 100vw)");
+    expect(decl(".detail", "width", "(max-width: 640px)")).toBe("min(var(--inspector-w), 100vw)");
     expect(decl(".detail", "position", "(max-width: 640px)")).toBe("fixed");
   });
 });
@@ -264,6 +265,38 @@ describe("the remembered tab", () => {
   });
 });
 
+describe("the column's width is written once", () => {
+  const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "");
+  const LITERAL = /(?<![\d.-])(?:360|368|320)px/;
+  it("no sheet but tokens.css and reading.css writes it as a literal in the rules that size the column, the sheet or --rail-r", () => {
+    let checked = 0;
+    for (const [path, text] of sheetParts()) {
+      if (/\/(?:tokens|reading)\.css$/.test(path)) continue;
+      for (const r of parse(strip(text))) {
+        const sizesColumn = r.selectors.some(s => /^\.app\b/.test(s)) && "grid-template-columns" in r.decls;
+        const sizesSheet = r.selectors.includes(".detail") && ("width" in r.decls || "min-width" in r.decls || "max-width" in r.decls);
+        const setsRail = "--rail-r" in r.decls;
+        if (!sizesColumn && !sizesSheet && !setsRail) continue;
+        checked++;
+        for (const p of ["grid-template-columns", "width", "min-width", "max-width", "--rail-r"]) {
+          if (p in r.decls) expect(r.decls[p], `${path}: ${r.selectors.join(", ")} { ${p} }`).not.toMatch(LITERAL);
+        }
+      }
+    }
+    expect(checked).toBeGreaterThanOrEqual(5);
+  });
+  it("--rail-r and the narrow band read the token, plus the gap and the stripe for the rail", () => {
+    expect(decl(".app", "--rail-r")).toBe("calc(var(--inspector-w) + 8px + var(--edge-w))");
+    expect(decl(".app:has(.left-column)", "grid-template-columns", "(max-width: 647px)")).toBe("auto 1fr minmax(0, var(--inspector-w))");
+  });
+  it("is 360px at Default and 320px at Compact", () => {
+    const tokens = strip(sheetParts().find(([p]) => /\/tokens\.css$/.test(p))![1]);
+    const reading = strip(sheetParts().find(([p]) => /\/reading\.css$/.test(p))![1]);
+    expect(tokens).toMatch(/:root\s*\{[^}]*--inspector-w:\s*360px/);
+    expect(reading).toMatch(/data-density="compact"\][^{]*\{[^}]*--inspector-w:\s*320px/);
+  });
+});
+
 describe("the Agents tab", () => {
   it("reads the tree: the root, then each child oldest first with its own children right after it", () => {
     const rows = agentTree(TREE, "s");
@@ -273,6 +306,39 @@ describe("the Agents tab", () => {
     expect(agentTree(TREE, "s").map(r => r.agent.id)).not.toContain("other");
     const orphan = mapOf(ROOT, A("lost", { parentId: "gone" }));
     expect(agentTree(orphan, "s").map(r => [r.agent.id, r.depth])).toEqual([["s", 0], ["lost", 1]]);
+  });
+  it("hangs a loop of two off the root, each agent once", () => {
+    const rows = agentTree(mapOf(ROOT, A("x", { parentId: "y", startedAt: 2000 }), A("y", { parentId: "x", startedAt: 3000 })), "s");
+    expect(rows.map(r => [r.agent.id, r.depth])).toEqual([["s", 0], ["x", 1], ["y", 1]]);
+    expect(subagentCount(rows)).toBe("2 subagents");
+  });
+  it("hangs a loop of three off the root, each agent once", () => {
+    const rows = agentTree(mapOf(ROOT, A("x", { parentId: "z", startedAt: 2000 }), A("y", { parentId: "x", startedAt: 3000 }), A("z", { parentId: "y", startedAt: 4000 })), "s");
+    expect(rows.map(r => r.agent.id)).toEqual(["s", "x", "y", "z"]);
+    expect(subagentCount(rows)).toBe("3 subagents");
+  });
+  it("hangs a loop off the root beside a real child, with what hangs below the loop", () => {
+    const rows = agentTree(mapOf(
+      ROOT, A("c1", { parentId: "s", startedAt: 2000 }), A("g1", { parentId: "c1", startedAt: 2500 }),
+      A("x", { parentId: "y", startedAt: 3000 }), A("y", { parentId: "x", startedAt: 4000 }), A("below", { parentId: "x", startedAt: 5000 }),
+    ), "s");
+    const ids = rows.map(r => r.agent.id);
+    expect(ids.slice().sort()).toEqual(["below", "c1", "g1", "s", "x", "y"]);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(rows.find(r => r.agent.id === "g1")!.depth).toBe(2);
+    expect(subagentCount(rows)).toBe("5 subagents");
+  });
+  it("hangs a self-parent off the root", () => {
+    const rows = agentTree(mapOf(ROOT, A("me", { parentId: "me" })), "s");
+    expect(rows.map(r => [r.agent.id, r.depth])).toEqual([["s", 0], ["me", 1]]);
+  });
+  it("names the session's root once, for the tree and the tabs", () => {
+    expect(sessionRoot(TREE, "s")).toBe(ROOT);
+    expect(sessionRoot(TREE, "nope")).toBeUndefined();
+  });
+  it("counts every descendant, not only the root's children", () => {
+    expect(readFileSync(join(WEB_DIR, "inspector-tree.ts"), "utf8")).toMatch(/at any depth/);
+    expect(subagentCount(agentTree(TREE, "s"))).toBe("3 subagents");
   });
   it("draws each agent once even when parents loop", () => {
     const loop = mapOf(ROOT, A("x", { parentId: "y" }), A("y", { parentId: "x" }));
@@ -351,7 +417,8 @@ describe("the Agents tab", () => {
     expect(out).not.toMatch(/class="insp-card"[^>]*tabindex/);
     const source = readFileSync(join(WEB_DIR, "components/Inspector.tsx"), "utf8");
     expect(source).toMatch(/onClick=\{\(\) => onSelectAgent\(id\)\}/);
-    expect(readFileSync(join(WEB_DIR, "App.tsx"), "utf8")).toMatch(/onSelectAgent=\{id => selectAgent\(id, false, false\)\}/);
+    expect(readFileSync(join(WEB_DIR, "App.tsx"), "utf8")).toMatch(/onSelectAgent=\{selectInspected\}/);
+    expect(readFileSync(join(WEB_DIR, "App.tsx"), "utf8")).toMatch(/const selectInspected = useCallback\(\(id: string\) => selectAgent\(id, false, false\), \[selectAgent\]\)/);
   });
   it("puts the note under the tree and the detail panel's sections under the note", () => {
     const out = html(ROOT);
@@ -370,7 +437,7 @@ describe("the Context tab", () => {
     const out = withContext({ context: { msgsUser: 1, msgsAssistant: 1, toolUses: 0, toolResults: 0, systemReminders: 0, currentContextTokens: 50_000, memoryFiles: [] }, contextWindow: 200_000 });
     expect(out).toContain('<span class="insp-title">Context window</span>');
     expect(out).toMatch(/<span class="insp-qual">[^<]*opus[^<]*<\/span>/i);
-    expect(out).toContain('<span class="insp-fig">50.0k / 200.0k · 25%</span>');
+    expect(out).toContain('<span class="insp-fig">50.0k / 200.0k · 25.0%</span>');
   });
   it("shows the context modal's body", () => {
     const out = withContext({});
@@ -378,6 +445,24 @@ describe("the Context tab", () => {
     const modal = readFileSync(join(WEB_DIR, "components/ContextModal.tsx"), "utf8");
     expect(modal).toMatch(/<ContextView agent=\{agent\} \/>/);
     expect(modal).toMatch(/export function ContextView/);
+  });
+  it("is about the selected agent, not the session's root: a subagent's own model and figures head it", () => {
+    stubStore({ [INSPECTOR_TAB_KEY]: "context" });
+    const ctx = (tokens: number) => ({ msgsUser: 1, msgsAssistant: 1, toolUses: 0, toolResults: 0, systemReminders: 0, currentContextTokens: tokens, memoryFiles: [] });
+    const root = A("s", { model: "claude-opus-4-5", contextWindow: 200_000, context: ctx(150_000) });
+    const child = A("c1", { parentId: "s", model: "claude-haiku-4-5", contextWindow: 100_000, context: ctx(10_000) });
+    const out = html(child, mapOf(root, child));
+    expect(out).toMatch(/<span class="insp-qual">[^<]*haiku[^<]*<\/span>/i);
+    expect(out).toContain('<span class="insp-fig">10.0k / 100.0k · 10.0%</span>');
+    expect(out).not.toMatch(/opus/i);
+  });
+  it("prints the head's percent as the bar's meta line prints it, at 99.6%", () => {
+    stubStore({ [INSPECTOR_TAB_KEY]: "context" });
+    const a = A("s", { model: "claude-opus-4-5", contextWindow: 200_000, context: { msgsUser: 1, msgsAssistant: 1, toolUses: 0, toolResults: 0, systemReminders: 0, currentContextTokens: 199_200, memoryFiles: [] } });
+    expect(contextFill(a).pct).toBeCloseTo(99.6, 5);
+    const out = html(a, mapOf(a));
+    expect(out).toContain('<span class="ctx-window-pct">99.6%</span>');
+    expect(out).toMatch(/<span class="insp-fig">[^<]*· 99\.6%<\/span>/);
   });
   it("draws no treemap and no legend, and no number the deck does not have", () => {
     const out = withContext({});
@@ -437,6 +522,25 @@ describe("what the Inspector loads", () => {
     const reached = graph("components/Inspector.tsx");
     expect(reached).toContain("components/AgentNode.tsx");
     expect(reached.filter(p => lazyOnly.some(re => re.test(p)))).toEqual([]);
+  });
+});
+
+describe("the Context tab's headings", () => {
+  it("are left out of the panel's caption rule, which would zero their margin", () => {
+    const caption = rules.find(r => r.selectors.includes(".detail > h2") && r.decls.margin === "0");
+    expect(caption?.selectors).toContain(".detail h3:not(.ctx-section-title)");
+    expect(caption?.selectors).not.toContain(".detail h3");
+    expect(decl(".ctx-section-title", "margin")).toBe("18px 0 8px");
+  });
+  it("no other `.detail … h3` rule reaches them", () => {
+    for (const r of rules) {
+      for (const s of r.selectors) {
+        if (/\.detail\b[^,]*\bh3\b/.test(s) && !s.includes(":not(.ctx-section-title)")) {
+          // Scoped to a section of the agent's own detail, which ContextView sits in none of.
+          expect(s, s).toMatch(/\.detail-section|\.jr-detail-section/);
+        }
+      }
+    }
   });
 });
 
