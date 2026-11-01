@@ -794,13 +794,11 @@ const LIVE_PULSE = [
  *  written down here with a reason. */
 const NEWER_VERSION_DOT = ".topbar .brand button.v .v-dot";
 const OTHER_PULSES: [selector: string, meaning: string][] = [
-  [".topbar .brand button.v .v-dot", "--accent: a newer ccdeck is published"],
   // `.armed`, not the dot itself: it is still at rest for as long as the
   // notice is only a notice, and pulses only once a restart is actually
   // counting down — which is the one thing in this banner that IS happening
   // right now, and so the one thing the live grammar is for.
   [".ver-banner .ver-dot.armed", "--warn: the deck is about to restart itself"],
-  [".topbar .status .pill.live::before", "--ok: the event stream is connected"],
   [".conn-banner .conn-dot", "--err: the event stream is down"],
 ];
 
@@ -838,10 +836,10 @@ describe("one tempo for one meaning: the live pulse", () => {
     expect(decl(declared[0].body, "--pulse-live")).toBe("1.2s ease-in-out");
   });
 
-  it("leaves the three that answer a different question alone", () => {
-    // One --warn, one --ok, one --err. None of them may quietly adopt the live
-    // token: that would say an armed restart and a running tool are one fact.
-    for (const [sel, meaning] of OTHER_PULSES.filter(([sel]) => sel !== NEWER_VERSION_DOT)) {
+  it("leaves the two that answer a different question alone", () => {
+    // One --warn, one --err. Neither may quietly adopt the live token: that
+    // would say an armed restart and a running tool are one fact.
+    for (const [sel, meaning] of OTHER_PULSES) {
       const rule = pulsing.find(r => r.selector === sel)!;
       const value = decl(rule.body, "animation")!;
       expect(value, `${sel} — ${meaning}`).not.toContain("--pulse-live");
@@ -849,14 +847,16 @@ describe("one tempo for one meaning: the live pulse", () => {
     }
   });
 
-  it("gives the newer-version chip's dot the live token on purpose (V4's Top bar chip)", () => {
-    // V4's motion page draws the top bar chip's one dot on the deck's live
-    // pulse, and the chip's amber left with the redesign (v4-bars.test.ts), so
-    // the dot is no longer a --warn fact on its own tempo: it is the accent,
-    // and a newer version arriving is a thing the deck is telling you live.
-    // The other three keep their rates.
-    const rule = pulsing.find(r => r.selector === NEWER_VERSION_DOT)!;
-    expect(decl(rule.body, "animation")).toBe("pulse var(--pulse-live) infinite");
+  it("holds the top bar's dots still: the newer-version dot and the stream chip's (V4 decision 19)", () => {
+    // Decision 19 (2026-11-01): Live has no chip, and Paused, Lost and Version
+    // hold a still dot — nothing on the top bar pulses at rest. The version
+    // dot used to breathe on --pulse-live; a newer version waiting is a fact
+    // at rest, not something happening now. And no stream-chip dot pulses,
+    // whichever state it is in.
+    expect(pulsing.map(r => r.selector).filter(s => s === NEWER_VERSION_DOT || s.startsWith(".topbar .status .pill"))).toEqual([]);
+    const dot = all.find(r => !r.reduced && r.selector === NEWER_VERSION_DOT)!;
+    expect(dot, "the version dot is still drawn").toBeDefined();
+    expect(decl(dot.body, "animation")).toBeNull();
   });
 
   it("earns its reduced-motion exemption on the keyframes, not on a promise", () => {
