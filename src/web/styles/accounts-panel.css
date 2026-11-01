@@ -92,6 +92,53 @@
   letter-spacing: 0.02em;
 }
 .ap-header-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+/* The panel's two sides on a deck with both CLIs (AccountsSwitch.tsx). `hidden`
+   needs saying: `.accounts-panel` is display:flex, which outranks the browser's
+   own rule for the attribute. */
+.accounts-panel[hidden] { display: none; }
+/* Stands where the title stands, at the title's size, so the header keeps its
+   height and its four icons keep their place on either side. Both sides are one
+   width: the words do not shift when the choice does. */
+.ap-sides {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 2px;
+  margin-block: -3px;
+  padding: 2px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+}
+.ap-side {
+  position: relative;
+  min-width: 0;
+  padding: 1px 10px;
+  border: 0;
+  border-radius: calc(var(--r-ctl) - 2px);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 120ms ease-out, background-color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-side:hover { color: var(--text); }
+.ap-side[aria-checked="true"] { background: var(--ctl-fill); color: var(--text); }
+.ap-side:active { transform: scale(0.97); }
+.ap-side:focus-visible { outline-offset: -2px; }
+/* The side out of sight has an account that needs attention. Colour alone would
+   not say it to a reader: the button's name does (AccountsSwitch.tsx). */
+.ap-side-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+}
 /* Back, at the head of Local network's view. Pulled out by the glyph's own
    side bearing so the chevron's ink, not its 24px box, sits on the inset the
    accounts' title starts on. */

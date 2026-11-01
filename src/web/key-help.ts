@@ -111,9 +111,9 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       { cap: "L", action: "session list", binds: ["l", "L"] },
       { cap: "D", action: "detail panel", binds: ["d", "D"] },
       { cap: "H", action: "usage history", binds: ["h", "H"] },
-      // Drawn only where Claude Code is, so the key is guarded the same way —
-      // see the handler in App.tsx, which checks `providers.claude` first.
-      { cap: "A", action: "Claude accounts, where Claude Code is installed", binds: ["a", "A"] },
+      // Drawn where a CLI with accounts is, and the key is guarded the same way:
+      // see the handler in use-deck-shortcuts.ts.
+      { cap: "A", action: "accounts", binds: ["a", "A"] },
       // #826: the three topbar panels that were pointer-only.
       { cap: "S", action: "this machine — cores, memory, temperature", binds: ["s", "S"] },
       { cap: "B", action: "Browser Watch", binds: ["b", "B"] },

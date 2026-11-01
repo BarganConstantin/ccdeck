@@ -421,7 +421,7 @@ describe("Settings › General › Elsewhere on the deck", () => {
     const column = flat(read("../use-left-column.ts"));
     expect(column).toContain("const openAccountsPanel = useCallback(() => { accountsEvictedRef.current = false; setAccountsPanelOpen(open => { if (!open) setSessionListOpen(false); return true; }); }, []);");
     const app = flat(read("../App.tsx"));
-    expect(app).toContain('const openLocalNetwork = useCallback(() => { setAccountProvider("claude"); openAccountsPanel(); setLanWanted(true); }, [openAccountsPanel]);');
+    expect(app).toContain('const openLocalNetwork = useCallback(() => { rememberAccountSide("claude"); openAccountsPanel(); setLanWanted(true); }, [openAccountsPanel, rememberAccountSide]);');
     expect(app).toContain("useEffect(() => { if (!accountsPanelOpen) setLanWanted(false); }, [accountsPanelOpen]);");
     expect(app).toContain("lanWanted={lanWanted} onLanShown={lanShown}");
     const panel = flat(read("../components/AccountsPanel.tsx"));

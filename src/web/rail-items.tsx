@@ -48,9 +48,9 @@ export interface RailItems {
   /** The left stripe's groups, top to bottom: Accounts with the two doors into
    *  its Account capacity report, then Session list. */
   leftStripe: RailItem[][];
-  /** Codex's own button where Claude's holds the dock's slot: on the phone it
-   *  goes in More, so the dock keeps its five. Empty when it is in `left`. */
-  codexMore: RailItem[];
+  /** Quick open's door straight to Codex's side, where the panel has two sides
+   *  and the rail one button. Empty when Codex's button is in `left`. */
+  codexDoor: RailItem[];
   /** Account capacity and Reset calendar, each one press from the stripe and
    *  their only door. On a phone they are rows under More, so the dock keeps
    *  its five slots. Empty without Claude Code. */
@@ -96,7 +96,7 @@ function named(group: string, items: RailItem[]): RailItem[] {
 }
 
 export function railItems({
-  providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel, codexPanelOpen = false, toggleCodexPanel = () => {},
+  providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel, accountsPanelId = "accounts-panel", codexPanelOpen = false, toggleCodexPanel = () => {},
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
   openCapacity, integrations = [], openExploreIntegrations, openQuickOpen,
@@ -106,6 +106,8 @@ export function railItems({
   toggleSessionList: () => void;
   accountsPanelOpen: boolean;
   toggleAccountsPanel: () => void;
+  /** The side of the Accounts panel on screen, where a deck has both CLIs. */
+  accountsPanelId?: string;
   codexPanelOpen?: boolean;
   toggleCodexPanel?: () => void;
   usagePanelOpen: boolean;
@@ -147,11 +149,12 @@ export function railItems({
     ariaLabel: "Session list", glyph: <SessionListGlyph />, kind: "panel",
     open: sessionListOpen, controls: "session-list", onPress: toggleSessionList, buttonRef: toggles.sessionList,
   };
-  // Accounts is available whenever either provider has profiles to inspect.
+  // One door to Accounts: with both CLIs, the switch in the panel's header picks
+  // the side, and this button stays the same one whichever side is up.
   const accounts: RailItem = {
-    id: "accounts", label: providers.codex ? "Claude accounts" : "Accounts", short: providers.codex ? "Claude" : "Accounts", key: { cap: "A", aria: "A", single: true },
-    ariaLabel: providers.codex ? "Claude accounts" : "Accounts", hint: providers.codex ? "Claude accounts" : "Agent accounts", glyph: <AccountsGlyph />, kind: "panel",
-    open: accountsPanelOpen, controls: "accounts-panel", onPress: toggleAccountsPanel, buttonRef: toggles.accounts,
+    id: "accounts", label: "Accounts", short: "Accounts", key: { cap: "A", aria: "A", single: true },
+    ariaLabel: "Accounts", hint: providers.codex ? "Claude and Codex accounts" : "Agent accounts", glyph: <AccountsGlyph />, kind: "panel",
+    open: accountsPanelOpen, controls: accountsPanelId, onPress: toggleAccountsPanel, buttonRef: toggles.accounts,
   };
   // ACCOUNT CAPACITY AND RESET CALENDAR, ON THE STRIPE. Both lived behind the
   // gauge in the accounts panel's header, the calendar a tab inside its dialog,
@@ -248,13 +251,14 @@ export function railItems({
     // owner's call (2026-10-08), the panel a first run opens and the one read
     // before choosing where to start a session.
     left: providers.claude ? [accounts, sessionList] : providers.codex ? [codex, sessionList] : [sessionList],
-    codexMore: providers.claude && providers.codex ? [codex] : [],
-    // The owner's order (2026-10-22): Claude accounts, Account capacity,
-    // Reset calendar, Session list — the first three one group, since all
-    // three are about the accounts.
+    codexDoor: providers.claude && providers.codex ? [codex] : [],
+    // The owner's order (2026-10-22): Accounts, Account capacity, Reset
+    // calendar, Session list — the first three one group, since all three are
+    // about the accounts. Codex has a button of its own only where it is all
+    // this deck has; beside Claude it is a side of the same panel.
     leftStripe: [
-      ...(providers.claude ? [named("Claude accounts", [accounts, ...capacity])] : []),
-      ...(providers.codex ? [[codex]] : []),
+      ...(providers.claude ? [named(providers.codex ? "Accounts" : "Claude accounts", [accounts, ...capacity])] : []),
+      ...(providers.codex && !providers.claude ? [[codex]] : []),
       [sessionList],
     ],
     capacity: providers.claude ? capacity : [],

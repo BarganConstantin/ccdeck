@@ -21,12 +21,13 @@ describe("Codex accounts, in their own column", () => {
     expect(ids(items({ claude: false, codex: false }).left)).toEqual(["session-list"]);
   });
 
-  it("keeps the two providers' panels separate on a machine with both CLIs", () => {
-    // The dock keeps its five slots: Claude's button leads it and Codex's waits in More.
+  it("gives a machine with both CLIs one Accounts button, with no Codex button beside it", () => {
+    // The dock keeps its five slots: one Accounts button leads it, and a switch
+    // in the panel's header picks the side. Only quick open keeps a Codex door.
     const both = items({ claude: true, codex: true });
     expect(ids(both.left)).toEqual(["accounts", "session-list"]);
-    expect(ids(both.codexMore)).toEqual(["codex-accounts"]);
-    expect(ids(both.leftStripe.flat())).toEqual(["accounts", "codex-accounts", "session-list"]);
+    expect(ids(both.codexDoor)).toEqual(["codex-accounts"]);
+    expect(ids(both.leftStripe.flat())).toEqual(["accounts", "session-list"]);
     expect(ids(items({ claude: true, codex: false }).left)).toEqual(["accounts", "session-list"]);
   });
 });

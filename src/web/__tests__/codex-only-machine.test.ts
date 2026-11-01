@@ -459,7 +459,7 @@ describe("which panels the UI draws for each machine", () => {
     // thing on screen, and every route out of it ends at the claude CLI.
     // The gate is one name since 2026-10-08, `accountsDrawn`, because the
     // left column mounts on it too; Claude Code is in its definition.
-    expect(leadUpTo(appSrc, "<AccountsPanel leaving=")).toContain('{accountsDrawn && shownAccountProvider === "claude" && (');
+    expect(leadUpTo(appSrc, "<AccountsPanel leaving=")).toContain('{accountsDrawn && (shownAccountProvider === "claude" || accountSide.bothMounted) && (');
     expect(appSrc).toMatch(/const accountsDrawn = isDrawn\(accountsPanelOpen, accountsPhase\) && \(providers\.claude \|\| providers\.codex\);/);
   });
 
@@ -468,11 +468,12 @@ describe("which panels the UI draws for each machine", () => {
     // Claude's accounts button where Claude Code is and Codex's where only Codex is.
     expect(appSrc).toContain("left: providers.claude ? [accounts, sessionList] : providers.codex ? [codex, sessionList] : [sessionList]");
     expect(appSrc).toMatch(/<EdgeDock items=\{\[\.\.\.rails\.left, /);
-    // With both, the stripe draws both buttons and the phone's More holds Codex's.
-    expect(appSrc).toContain("codexMore: providers.claude && providers.codex ? [codex] : []");
+    // With both, one Accounts button covers both CLIs (a switch in the panel's
+    // header picks the side); only quick open keeps a door to Codex's side.
+    expect(appSrc).toContain("codexDoor: providers.claude && providers.codex ? [codex] : []");
     // Account capacity and Reset calendar open Claude's accounts report, so they
     // are Claude's alone and follow its button off a Codex-only stripe.
-    expect(appSrc).toMatch(/leftStripe: \[\s*\.\.\.\(providers\.claude \? \[named\("Claude accounts", \[accounts, \.\.\.capacity\]\)\] : \[\]\),\s*\.\.\.\(providers\.codex \? \[\[codex\]\] : \[\]\),\s*\[sessionList\],\s*\]/);
+    expect(appSrc).toMatch(/leftStripe: \[\s*\.\.\.\(providers\.claude \? \[named\(providers\.codex \? "Accounts" : "Claude accounts", \[accounts, \.\.\.capacity\]\)\] : \[\]\),\s*\.\.\.\(providers\.codex && !providers\.claude \? \[\[codex\]\] : \[\]\),\s*\[sessionList\],\s*\]/);
     expect(appSrc).toMatch(/capacity: providers\.claude \? capacity : \[\]/);
     // The connected trackers (#2178) are a group of their own after it, so
     // they cannot stand in for the accounts button either.

@@ -43,19 +43,20 @@ const ids = (items: { id: string }[]) => items.map(i => i.id);
 describe("the left stripe's two doors into Account capacity", () => {
   it("stand between Accounts and Session list, in the owner's order", () => {
     const groups = rails().leftStripe;
-    expect(groups.map(ids)).toEqual([["accounts", "account-capacity", "reset-calendar"], ["codex-accounts"], ["session-list"]]);
-    // One run about Claude's accounts, named for a screen reader; Codex's own
-    // button and Session list each stand alone.
-    expect(groups[0].map(i => i.group)).toEqual(["Claude accounts", "Claude accounts", "Claude accounts"]);
+    expect(groups.map(ids)).toEqual([["accounts", "account-capacity", "reset-calendar"], ["session-list"]]);
+    // One run about the accounts, named for a screen reader (with both CLIs one
+    // Accounts button covers Claude and Codex, so Codex has no button beside
+    // it); Session list stands alone.
+    expect(groups[0].map(i => i.group)).toEqual(["Accounts", "Accounts", "Accounts"]);
     expect(groups[1][0].group).toBeUndefined();
-    expect(groups[2][0].group).toBeUndefined();
+    expect(ids(rails().leftStripe.flat())).not.toContain("codex-accounts");
   });
 
   it("leave a machine without Claude Code Codex's own button and not the Claude-only doors", () => {
     const r = rails({ claude: false });
     expect(r.leftStripe.map(ids)).toEqual([["codex-accounts"], ["session-list"]]);
     expect(ids(r.left)).toEqual(["codex-accounts", "session-list"]);
-    expect(r.codexMore).toEqual([]);
+    expect(r.codexDoor).toEqual([]);
     expect(r.capacity).toEqual([]);
   });
 
@@ -73,13 +74,13 @@ describe("the left stripe's two doors into Account capacity", () => {
     const r = rails();
     const view = mount(EdgeDock, {
       items: [...r.left, ...r.right[0], r.utilities[0]],
-      more: [...r.capacity, ...r.codexMore, ...r.right.slice(1).flat(), ...r.integrations, r.utilities[1]],
+      more: [...r.capacity, ...r.right.slice(1).flat(), ...r.integrations, r.utilities[1]],
     });
     const buttons = (view.tree as { props: { children: unknown[] } }).props.children;
     const dockIds = (buttons[0] as { props: { item: { id: string } } }[]).map(b => b.props.item.id);
     expect(dockIds).toEqual(["accounts", "session-list", "usage", "machine", "settings"]);
     const more = one(view.tree, e => typeof e.type === "function" && "items" in e.props && "index" in e.props)!;
-    expect(ids(more.props.items as { id: string }[]).slice(0, 3)).toEqual(["account-capacity", "reset-calendar", "codex-accounts"]);
+    expect(ids(more.props.items as { id: string }[]).slice(0, 3)).toEqual(["account-capacity", "reset-calendar", "history"]);
   });
 });
 

@@ -15,10 +15,10 @@ import ToolAuditModal, { type ToolActivityView } from "./components/ToolAuditMod
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
+import AccountsSwitch, { type AccountSide } from "./components/AccountsSwitch";
 import AccountCapacityDialog from "./components/AccountCapacityDialog";
 import type { CapacityView } from "./components/AccountsUsageReport";
 import CodexAccountsPanel from "./components/CodexAccountsPanel";
-import { readStored, writeStored } from "./storage";
 import LeftColumn from "./components/LeftColumn";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
@@ -67,6 +67,7 @@ import DeckBanner from "./components/DeckBanner";
 import DeckDialogs from "./components/DeckDialogs";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { usePauseGate } from "./use-pause-gate";
+import { panelId, useAccountSide } from "./use-account-side";
 import { useDeckScope } from "./use-deck-scope";
 import { useProviderStatus } from "./use-provider-status";
 import { incidentsOf } from "./provider-status";
@@ -149,8 +150,6 @@ function Inner() {
   /** Both panels outlive their own `false` by the length of their exit: a
    *  close slides the panel out with the column's edge, and a switch fades the
    *  one leaving under the one arriving. Must match `--side-exit` in the sheet. */
-  const [accountProvider, setAccountProvider] = useState<"claude" | "codex">(() =>
-    readStored("agent-dag.accountPanelProvider") === "codex" ? "codex" : "claude");
   const accountsPhase = usePanelPresence(accountsPanelOpen, 200);
   const sessionListPhase = usePanelPresence(sessionListOpen, 200);
   /** Drawn, and leaving, from the render that flips the flag: the same render
@@ -241,11 +240,13 @@ function Inner() {
   // What this deck may see — its workspace scope and which CLIs it watches —
   // comes from /api/health, re-asked on every reconnect, in use-deck-scope.ts.
   const { workspace, providers, providersRef } = useDeckScope(live);
-  const shownAccountProvider = providers.claude && providers.codex ? accountProvider : providers.codex ? "codex" : "claude";
-  const toggleProviderAccounts = (provider: "claude" | "codex") => {
-    setAccountProvider(provider);
-    writeStored("agent-dag.accountPanelProvider", provider);
-    if (!accountsPanelOpen || shownAccountProvider === provider) toggleAccountsPanel();
+  // One Accounts panel with a Claude/Codex switch, or the one CLI this deck has.
+  const accountSide = useAccountSide(providers, accountsPanelOpen);
+  const shownAccountProvider = accountSide.shown;
+  /** The doors that name a side: opened on it, moved to it if already open. */
+  const openAccountSide = (side: AccountSide) => {
+    accountSide.remember(side);
+    if (!accountsPanelOpen || shownAccountProvider === side) toggleAccountsPanel();
   };
   /** How wide the left column is drawn: the open panel's own width, or 0 —
    *  never anything the two panels make between them (LeftColumn.tsx). The
@@ -260,14 +261,15 @@ function Inner() {
   // and is dropped if the panel is shut first, rather than springing the view
   // open on some later visit nobody asked it of.
   const [lanWanted, setLanWanted] = useState(false);
-  // Settings' door to Accounts opens Claude's panel, or Codex's where it is all there is.
-  const openAccounts = useCallback(() => { setAccountProvider(providers.claude ? "claude" : "codex"); openAccountsPanel(); }, [openAccountsPanel, providers.claude]);
-  // Local network is Claude's view, so it opens on Claude's panel.
+  const rememberAccountSide = accountSide.remember;
+  // Settings' door names Claude's accounts where Claude Code is, so it opens that side.
+  const openAccounts = useCallback(() => { rememberAccountSide(providers.claude ? "claude" : "codex"); openAccountsPanel(); }, [openAccountsPanel, providers.claude, rememberAccountSide]);
+  // Local network is Claude's view, so it opens on Claude's side.
   const openLocalNetwork = useCallback(() => {
-    setAccountProvider("claude");
+    rememberAccountSide("claude");
     openAccountsPanel();
     setLanWanted(true);
-  }, [openAccountsPanel]);
+  }, [openAccountsPanel, rememberAccountSide]);
   useEffect(() => { if (!accountsPanelOpen) setLanWanted(false); }, [accountsPanelOpen]);
   const lanShown = useCallback(() => setLanWanted(false), []);
 
@@ -499,7 +501,8 @@ function Inner() {
   // about — use-panel-return.ts.
   const panelReturn = usePanelReturn({
     sessionListShown: sessionListDrawn, usageShown: isMounted(usagePhase), machineShown: isMounted(machinePhase),
-    accountsShown: accountsDrawn && shownAccountProvider === "claude", codexShown: accountsDrawn && shownAccountProvider === "codex", detailShown, primarySelectedId, canvasRef,
+    // One rail button for both sides where Claude Code is; Codex's own only where it is all there is.
+    accountsShown: accountsDrawn && providers.claude, codexShown: accountsDrawn && !providers.claude, detailShown, primarySelectedId, canvasRef,
   });
 
   // What the floating panels cover of the canvas, and the frame the layout and
@@ -606,7 +609,7 @@ function Inner() {
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
     handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList,
-    toggleAccountsPanel: () => toggleProviderAccounts(providers.claude ? "claude" : "codex"),
+    toggleAccountsPanel,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
     setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen,
   });
@@ -675,10 +678,9 @@ function Inner() {
   const closeCapacity = useCallback(() => setCapacityView(null), []);
   const rails = railItems({
     providers, sessionListOpen, toggleSessionList,
-    accountsPanelOpen: accountsPanelOpen && shownAccountProvider === "claude",
-    toggleAccountsPanel: () => toggleProviderAccounts("claude"),
+    accountsPanelOpen, toggleAccountsPanel, accountsPanelId: panelId(shownAccountProvider),
     codexPanelOpen: accountsPanelOpen && shownAccountProvider === "codex",
-    toggleCodexPanel: () => toggleProviderAccounts("codex"),
+    toggleCodexPanel: () => openAccountSide("codex"),
     usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
     watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, openSettings, onFeedback: dialogs.openFeedback,
     setRadioOpen,
@@ -705,6 +707,11 @@ function Inner() {
     if (!sessionListOpen) toggleSessionList();
     requestAnimationFrame(() => document.querySelector<HTMLElement>("#session-list .sl-row")?.focus());
   }, [sessionListOpen, toggleSessionList]);
+  const closeAccounts = () => { (providers.claude ? panelReturn.accounts : panelReturn.codex)(); closeAccountsPanel(); };
+  const accountsSwitch = accountSide.both
+    ? <AccountsSwitch shown={shownAccountProvider} notices={accountSide.notices} onPick={accountSide.pick} />
+    : undefined;
+  const sideState = (side: AccountSide) => accountSide.bothMounted ? (side === shownAccountProvider ? "shown" : "hidden") : undefined;
 
   return (
     <div className="app">
@@ -774,7 +781,7 @@ function Inner() {
           control before the region it discloses — or, on a phone, the dock
           that stands in for both stripes and the utilities. */}
       {phone
-        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[rails.search, ...rails.capacity, ...rails.codexMore, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, rails.utilities[1]]} />
+        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, rails.utilities[1]]} />
         : <EdgeRail side="left" label="Accounts and sessions" groups={[...rails.leftStripe, rails.integrations, rails.explore]} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
@@ -795,15 +802,18 @@ function Inner() {
           the two inside it — components/LeftColumn.tsx. */}
       {(sessionListDrawn || accountsDrawn) && (
         <LeftColumn width={leftColumnTarget}>
-          {/* The accounts panel shows each installed provider separately. */}
-          {accountsDrawn && shownAccountProvider === "claude" && (
+          {/* One Accounts panel: with both CLIs a switch in its header shows
+              one side and keeps the other mounted (use-account-side.ts). */}
+          {accountsDrawn && (shownAccountProvider === "claude" || accountSide.bothMounted) && (
             <AccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
-              onRoster={attention.observe} onClose={() => { panelReturn.accounts(); closeAccountsPanel(); }}
-              lanWanted={lanWanted} onLanShown={lanShown} />
+              onRoster={attention.observe} onClose={closeAccounts}
+              lanWanted={lanWanted} onLanShown={lanShown} switcher={accountsSwitch}
+              side={sideState("claude")} onNotice={accountSide.noteClaude} />
           )}
-          {accountsDrawn && shownAccountProvider === "codex" && (
+          {accountsDrawn && (shownAccountProvider === "codex" || accountSide.bothMounted) && (
             <CodexAccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)}
-              onClose={() => { panelReturn.codex(); closeAccountsPanel(); }} />
+              onClose={closeAccounts} switcher={accountsSwitch}
+              side={sideState("codex")} onNotice={accountSide.noteCodex} />
           )}
           {sessionListDrawn && (
             <SessionList

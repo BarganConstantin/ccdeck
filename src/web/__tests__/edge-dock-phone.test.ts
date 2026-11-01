@@ -101,7 +101,7 @@ describe("the dock holds the four panels and Settings, then More", () => {
     // A connected tracker (#2178) is a left-stripe control on a desktop and a
     // More row on a phone, before Feedback: the dock keeps its five slots. So
     // are Account capacity and Reset calendar, the first two rows of More.
-    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\], rails\.utilities\[0\]\]\} more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.codexMore, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, rails\.utilities\[1\]\]\} \/>\s*:\s*<EdgeRail side="left"/);
+    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\], rails\.utilities\[0\]\]\} more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, rails\.utilities\[1\]\]\} \/>\s*:\s*<EdgeRail side="left"/);
     expect(app).toMatch(/\{!phone && <EdgeRail side="right"/);
     expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>\}/);
   });
@@ -136,7 +136,7 @@ describe("the dock is one toolbar", () => {
     const view = dockFor(rails());
     expect(buttons(view.tree).map(b => b.props.variant)).toEqual(["dock", "dock", "dock", "dock", "dock"]);
     expect(buttons(view.tree).map(b => (b.props.item as { short: string }).short))
-      .toEqual(["Claude", "Sessions", "Usage", "Machine", "Settings"]);
+      .toEqual(["Accounts", "Sessions", "Usage", "Machine", "Settings"]);
   });
 
   it("gives every control a thumb's target on the narrowest phone", () => {

@@ -1,13 +1,21 @@
+import { type ReactNode } from "react";
+
 import CodexProfilesSection from "./CodexProfilesSection";
 
-/** Codex's own column beside Claude's. The two stay separate while Codex's
- *  account controls settle; the rail gives each its own button, and this one is
- *  drawn the way Claude's is (the header, the open default account with its
- *  bars, Other accounts behind one row). */
-export default function CodexAccountsPanel({ onClose, leaving }: { onClose: () => void; leaving?: boolean }) {
+/** Codex's side of the Accounts panel, or the whole panel on a deck with only
+ *  Codex. It is drawn the way Claude's is (the header, the open default account
+ *  with its bars, Other accounts behind one row). */
+export default function CodexAccountsPanel({ onClose, leaving, switcher, side, onNotice }: {
+  onClose: () => void;
+  leaving?: boolean;
+  switcher?: ReactNode;
+  side?: "shown" | "hidden";
+  onNotice?: (needs: boolean) => void;
+}) {
   return (
-    <aside className={`accounts-panel codex-accounts-panel${leaving ? " leaving" : ""}`} id="codex-accounts-panel" aria-label="Codex accounts">
-      <CodexProfilesSection onClose={onClose} />
+    <aside className={`accounts-panel codex-accounts-panel${leaving ? " leaving" : ""}`} id="codex-accounts-panel" aria-label="Codex accounts"
+      hidden={side === "hidden"} data-side={side}>
+      <CodexProfilesSection onClose={onClose} switcher={switcher} onNotice={onNotice} />
     </aside>
   );
 }

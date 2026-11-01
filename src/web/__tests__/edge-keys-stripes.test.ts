@@ -164,11 +164,12 @@ describe("Accounts, and the left column it shares", () => {
     // The eviction itself is use-left-column.ts's and left-column-824.test.ts
     // runs it; what this pins is that the stripe reaches the panels through
     // those toggles and nothing else, so it cannot draw both into one slot.
-    // Claude's and Codex's buttons each open their own panel through the one
-    // accounts toggle (toggleProviderAccounts), never a second way in.
+    // The one Accounts button opens the panel through the accounts toggle, and
+    // Codex's own button (a Codex-only deck) opens its side through the same
+    // toggle (openAccountSide), never a second way in.
     const app = sourceOf("App.tsx");
-    expect(app).toMatch(/railItems\(\{\s*providers, sessionListOpen, toggleSessionList,\s*accountsPanelOpen: accountsPanelOpen && shownAccountProvider === "claude",\s*toggleAccountsPanel: \(\) => toggleProviderAccounts\("claude"\),\s*codexPanelOpen: accountsPanelOpen && shownAccountProvider === "codex",\s*toggleCodexPanel: \(\) => toggleProviderAccounts\("codex"\),/);
-    expect(app).toContain("if (!accountsPanelOpen || shownAccountProvider === provider) toggleAccountsPanel();");
+    expect(app).toMatch(/railItems\(\{\s*providers, sessionListOpen, toggleSessionList,\s*accountsPanelOpen, toggleAccountsPanel, accountsPanelId: panelId\(shownAccountProvider\),\s*codexPanelOpen: accountsPanelOpen && shownAccountProvider === "codex",\s*toggleCodexPanel: \(\) => openAccountSide\("codex"\),/);
+    expect(app).toContain("if (!accountsPanelOpen || shownAccountProvider === side) toggleAccountsPanel();");
     const column = sourceOf("use-left-column.ts");
     expect(column).toMatch(/const toggleSessionList = useCallback\(\(\) => \{\s*setSessionListOpen\(open => \{[\s\S]*?if \(!open\) setAccountsPanelOpen\(/);
     expect(column).toMatch(/const toggleAccountsPanel = useCallback\(\(\) => \{[\s\S]*?if \(!open\) setSessionListOpen\(false\);/);

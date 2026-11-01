@@ -8,7 +8,7 @@
 // a slot, so nothing here moves or shares a login: a login is a single-use
 // rotating token, and a copy of it would burn the original. codex-accounts.ts
 // turns a profile and its reading into what the shared components read.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { allOpen, isOpen, orderChoices, orderKey, SLOT_ORDER, sortAccounts, toggleAll, toggleOne, validOrder, type Openness } from "../other-accounts-order";
 import { loadOpenness, loadOrder, saveOpenness, saveOrder } from "../accounts-prefs";
 import { sentence } from "../account-issue";
@@ -49,7 +49,14 @@ async function postJson(path: string, body: unknown): Promise<{ ok: boolean; sta
   return { ok: response.ok && result?.ok === true, status: response.status, reason: result?.reason, id: result?.id };
 }
 
-export default function CodexProfilesSection({ onClose }: { onClose?: () => void } = {}) {
+export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
+  onClose?: () => void;
+  /** With both CLIs on this deck: the Claude/Codex switch, which stands where
+   *  the title stands. The title stays for a reader, out of sight. */
+  switcher?: ReactNode;
+  /** Whether the default account needs attention, for the switch's dot. */
+  onNotice?: (needs: boolean) => void;
+} = {}) {
   const { busy, claim, release, pressProps } = useRequestSlot();
   const nowSec = usePanelClock();
   const [profiles, setProfiles] = useState<CodexProfile[] | null>(null);
@@ -245,6 +252,9 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
   });
   type Row = (typeof rows)[number];
   const head = rows.find(row => row.profile.active) ?? rows[0];
+  const needsAttention = head?.issue?.tone === "warn";
+  const rosterRead = profiles !== null;
+  useEffect(() => { if (rosterRead) onNotice?.(needsAttention); }, [onNotice, needsAttention, rosterRead]);
   const others = rows.filter(row => row !== head);
   const otherAccounts = others.map(row => row.account);
   const choices = orderChoices(otherAccounts).map(choice => choice.id === SLOT_ORDER ? { ...choice, label: "Order added" } : choice);
@@ -407,7 +417,8 @@ export default function CodexProfilesSection({ onClose }: { onClose?: () => void
   return (
     <>
       <div className="ap-header">
-        <h2>Codex accounts</h2>
+        <h2 className={switcher ? "vis-hidden" : undefined}>Codex accounts</h2>
+        {switcher}
         <div className="ap-header-right">
           <button type="button" className="glyph-btn ap-add" aria-label="Add a Codex account" title="Sign in to another Codex account"
             aria-haspopup="dialog" onClick={() => setDialog({})}>
