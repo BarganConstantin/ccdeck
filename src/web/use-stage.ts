@@ -64,7 +64,7 @@ import { heldKeys, heldText, holdKey, isPaneInput, startTypeAhead, typesItself, 
 import { useAsks, type Asks } from "./use-asks";
 import type { StageShortcuts } from "./use-deck-shortcuts";
 import { useMirroredRef } from "./use-mirrored-ref";
-import { workspaceOffered, type View } from "./use-view";
+import { readView, workspaceOffered, writeView, type View } from "./use-view";
 
 /** The lazy chunk's one door: the navigator, the stage and everything they
  *  pull in, xterm's own further import included, are reached only through
@@ -174,12 +174,24 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   // the prefs take (use-view.ts). Given up after PREFS_WAIT_MS, so a deck that
   // never answers is not a Workspace with no way back.
   const [prefsKnown, setPrefsKnown] = useState(false);
+  // The stage's lazy chunk would not load (failed() below): Workspace is not on
+  // offer, the deck draws the Board, and the stored view is left as it was.
+  const [chunkFailed, setChunkFailed] = useState(false);
+  const phoneRef = useMirroredRef(phone);
   const loadTerminalPrefs = useCallback((d: TerminalPrefsAnswer) => {
     setEnabled(d.terminalOn === true);
     setSupported(typeof d.terminalSupported === "boolean" ? d.terminalSupported : null);
     setWindows(d.terminalWindows === true);
     setPrefsKnown(true);
-  }, []);
+    // THE GATE IS KNOWN TO BE OFF: the deck answered, and the Command Panel is
+    // off or its platform has none. The browser forgets Workspace then, so the
+    // hold below (which spares readers whose gate is on a first paint of the
+    // Board) is never drawn for a reader whose gate is off: one who turns the
+    // panel off in Settings sees it no more, and one who turns it on again picks
+    // Workspace again. Not on a phone, which says nothing about the gate, and
+    // not when the read failed, which never gets here.
+    if ((d.terminalOn !== true || d.terminalSupported === false) && !phoneRef.current && readView() === "workspace") writeView("board");
+  }, [phoneRef]);
   useEffect(() => {
     if (prefsKnown || view !== "workspace") return;
     const t = window.setTimeout(() => setPrefsKnown(true), PREFS_WAIT_MS);
@@ -187,14 +199,24 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   }, [prefsKnown, view]);
   /** Workspace is on offer here: the Command Panel is on, off a phone. */
   const offered = workspaceOffered({ enabled, supported }, phone);
+  /** On offer, and the stage's chunk is there to draw it. */
+  const onOffer = offered && !chunkFailed;
   /** What the layout follows. */
-  const workspace = view === "workspace" && !phone && (offered || !prefsKnown);
+  const workspace = view === "workspace" && !phone && !chunkFailed && (offered || !prefsKnown);
 
   // A reducer held in a state rather than useReducer, for the same answer
-  // with one hook fewer for the suite's stand-in React to know.
+  // with one hook fewer for the suite's stand-in React to know. Each action is
+  // applied to the latest shell the moment it is dispatched, and the ref holds
+  // that result until the render that shows it: an effect later in the same
+  // commit (the Workspace entry, after a restore) sees what an earlier one did
+  // instead of the shell the render began with.
   const [shell, setShell] = useState(initialShell);
-  const dispatch = useCallback((action: ShellAction) => setShell(s => shellReducer(s, action)), []);
   const shellRef = useMirroredRef(shell);
+  const dispatch = useCallback((action: ShellAction) => {
+    const next = shellReducer(shellRef.current, action);
+    shellRef.current = next;
+    setShell(next);
+  }, [shellRef]);
   const detailOpenRef = useMirroredRef(detailOpen);
   const workspaceRef = useMirroredRef(workspace);
   const open = shell.phase !== "closed";
@@ -217,6 +239,16 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   const [cell, setCell] = useState<Cell>(ASSUMED_CELL);
   const [cols, setCols] = useState<number | null>(() => loadStageCols());
   const [expanded, setExpanded] = useState(false);
+  // ⤢ (and the browser's full screen it asked for) belongs to the view it was
+  // pressed in: Zoom in Workspace and the Board's wide stage are not the same
+  // thing, and neither is carried across. Reset on EVERY change of view, both
+  // ways, before the paint that would have shown the pane zoomed.
+  const viewKeptRef = useRef(workspace);
+  useLayoutEffect(() => {
+    if (viewKeptRef.current === workspace) return;
+    viewKeptRef.current = workspace;
+    setExpanded(false);
+  }, [workspace]);
   const [box, setBox] = useState<{ w: number; h: number; narrow: boolean } | null>(null);
   // The keys bar as the stage last drew it (onBarH): the rows are fitted
   // above it, and a first-run line on three lines makes it taller. Until it
@@ -318,9 +350,21 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    *  hands it the focus. Never inspecting: the detail panel would evict the
    *  stage. A click on a card has already selected the card it was. */
   const selectRef = useMirroredRef(selectAgent);
+  const clearRef = useMirroredRef(clearSelection);
+  /** WORKSPACE: a session the board has not heard of is on the pane, and the
+   *  one the Inspector showed is not: nothing is in focus until the board hears
+   *  of it ("launch" while it is a launch, not yet a session). Read by the
+   *  effect below, which selects the session once it is known. */
+  const unheardRef = useRef<string | null>(null);
   const follow = useCallback((sessionId: string) => {
-    if (stateRef.current.agents.has(sessionId)) selectRef.current(sessionId, false, false);
-  }, [stateRef, selectRef]);
+    if (stateRef.current.agents.has(sessionId)) {
+      selectRef.current(sessionId, false, false);
+      return;
+    }
+    if (!workspaceRef.current) return;
+    unheardRef.current = sessionId;
+    clearRef.current?.();
+  }, [stateRef, selectRef, workspaceRef, clearRef]);
 
   /** use-canvas-clicks.ts's: a plain click on a card, true when the stage took
    *  it. The card's session goes on the stage with the keys in its pane, once
@@ -367,16 +411,15 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   /** WORKSPACE: ✕ on a pane. It empties; the session it showed runs on
    *  (closing never stopped anything), and with no session in the pane none is
    *  in focus. The focus goes to the empty pane's own action. */
-  const clearRef = useMirroredRef(clearSelection);
   const emptyPane = useCallback(() => {
     if (!enabledRef.current) return;
-    openOn({ kind: "empty" });
+    // The focus goes through the stage's own request (a card is an answer too,
+    // use-focus-request.ts): once the empty pane is drawn it lands on its
+    // action, "Open <name>" when someone waits, else New session. A frame's
+    // wait for it fell to <body> when the pane had not drawn yet.
+    openOn({ kind: "empty" }, { focusPane: true });
+    unheardRef.current = null;
     clearRef.current?.();
-    requestAnimationFrame(() => {
-      const active = document.activeElement;
-      if (active && active !== document.body && !active.closest?.(".stage-dock")) return;
-      document.querySelector<HTMLElement>(".stage-dock [data-stage-land]")?.focus();
-    });
   }, [enabledRef, openOn, clearRef]);
 
   /** The canvas's Terminal button: the selected session, else the last one,
@@ -442,7 +485,12 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     // launchOnce), so unique across every tab on the deck, not just this one.
     const key = `launch-${Date.now().toString(36)}-${++launchSeqRef.current}-${Math.random().toString(36).slice(2, 10)}`;
     openOn({ kind: "launch", agent, cwd, key, ...(options ? { options } : {}) }, { focusPane: true });
-  }, [openOn]);
+    // A new session on the pane: the Inspector does not go on showing the last one.
+    if (workspaceRef.current && enabledRef.current) {
+      unheardRef.current = "launch";
+      clearRef.current?.();
+    }
+  }, [openOn, workspaceRef, enabledRef, clearRef]);
 
   /** The stage reports what a launch became; once the board has heard from
    *  that session, the stage shows it as itself (the effect below). A Codex
@@ -474,6 +522,27 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     const l = launchedRef.current;
     if (t?.kind !== "launch" || !l || l.key !== t.key || !l.sessionId) return;
     if (stateRef.current.agents.has(l.sessionId)) dispatch({ type: "launched", key: t.key, sessionId: l.sessionId });
+  });
+  // WORKSPACE: the board has now heard of the session the pane showed while it
+  // was unknown (follow, launch above), and it is still on the pane: it is the
+  // session in focus, so the Inspector shows it. A pane that has moved on first
+  // is not waited for.
+  useEffect(() => {
+    const waited = unheardRef.current;
+    if (waited === null) return;
+    const t = shell.phase === "closed" ? null : shell.target;
+    if (!workspaceRef.current || !t || t.kind === "empty") { unheardRef.current = null; return; }
+    if (t.kind === "launch") {
+      if (waited !== "launch") unheardRef.current = null;
+      return;
+    }
+    if (waited !== "launch" && t.id !== waited) { unheardRef.current = null; return; }
+    if (!stateRef.current.agents.has(t.id)) {
+      unheardRef.current = t.id;
+      return;
+    }
+    unheardRef.current = null;
+    selectRef.current(t.id, false, false);
   });
 
   // ── the keys ───────────────────────────────────────────────────────────────
@@ -556,6 +625,9 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   /** The lazy chunk would not load: nothing to show, so nothing stays. */
   const failed = useCallback(() => {
     setSaid(SHELL_UNAVAILABLE);
+    // And Workspace, which is only a pane, is not on offer: the Board is drawn,
+    // the switch and the chord go with it, and the stored view stays.
+    setChunkFailed(true);
     dispatch({ type: "close", instant: true });
   }, []);
 
@@ -664,7 +736,14 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       return;
     }
     if (enteredRef.current || !enabled) return;
+    // A Board stage still closing is waited for: the effect runs again when the
+    // phase moves on, and does the entry once it is closed. Entered now, the
+    // pane would be marked as opened with nothing in the cell once the close
+    // finished.
+    if (shellRef.current.phase === "closing") return;
     enteredRef.current = true;
+    // Open already (a Board stage the view carried over, or the restore, which
+    // ran earlier in this same commit): the pane is what it shows.
     if (shellRef.current.phase !== "closed") return;
     const selected = primarySelectedIdRef.current;
     const selectedSession = selected ? stateRef.current.agents.get(selected)?.sessionId ?? null : null;
@@ -672,7 +751,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       id => stateRef.current.agents.has(id) || launchedIdsRef.current.has(id));
     openOn(target);
     if (target.kind === "session") follow(target.id);
-  }, [workspace, enabled, shellRef, primarySelectedIdRef, stateRef, openOn, follow, giveRightBack]);
+  }, [workspace, enabled, shell.phase, shellRef, primarySelectedIdRef, stateRef, openOn, follow, giveRightBack]);
 
   // React Flow under the stage: inert while the stage covers it, so neither a
   // Tab nor a screen reader's cursor walks a board nobody can see. Set on the
@@ -862,7 +941,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
 
   return {
     enabled, supported, windows, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
-    workspace, workspaceOffered: offered, openInPane, emptyPane, leaveWorkspace,
+    workspace, workspaceOffered: onOffer, chunkFailed, openInPane, emptyPane, leaveWorkspace,
     onNodeClick, followSession, switchTo, openFromButton, openTile, launch, onLaunched,
     focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
     openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, firstRunDone, onCell, onBarH, onHeadH,

@@ -136,7 +136,11 @@ describe("--rail-r is read by both panels it was introduced to hold together (#1
     // moved to the window's edges (edge-rails.css): the rail starts inside the
     // stripe, by the stripe's own token, which is nothing on a phone.
     const defs = [...css.matchAll(/--rail-r\s*:\s*([^;]+);/g)].map(m => m[1].trim());
-    expect(defs).toEqual(["calc(var(--inspector-w) + 8px + var(--edge-w))", "calc(8px + var(--edge-w))"]);
+    // The third is Workspace's, from 1320 up: its Inspector is a column beside the
+    // pane, so the panels sit over it (workspace.css; review 11). It is the second
+    // definition's value, keyed on the view, and written nowhere else.
+    expect(defs).toEqual(["calc(var(--inspector-w) + 8px + var(--edge-w))", "calc(8px + var(--edge-w))", "calc(8px + var(--edge-w))"]);
+    expect(raw.split("--rail-r: calc(8px + var(--edge-w));").length - 1, "two spellings of the no-detail value: the Board's and Workspace's").toBeGreaterThanOrEqual(2);
     expect(css).not.toMatch(/\.usage-panel\s*\{[^}]*right:\s*368px/);
     // And the duplicate override is gone with it.
     expect(css).not.toMatch(/:not\(:has\(\.detail\)\)\s+\.usage-panel/);

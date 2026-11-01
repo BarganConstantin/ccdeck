@@ -350,6 +350,7 @@ export function StageDock(p: StageDockProps) {
           holdsTypeAhead={stage.holdsTypeAhead}
           onWantKeys={stage.focusPane}
           onNextAsk={p.asks.nextAsk}
+          onOpenWaiting={id => stage.switchTo(id, { focusPane: true })}
           onAnswerArrival={p.asks.nextAsk}
           // Workspace: ✕ empties the pane, and on the empty pane leaves for the
           // Board. The Board's ✕ closes the stage, as it did.

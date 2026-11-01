@@ -38,7 +38,8 @@ export function writeView(view: View, write: (key: string, value: string) => voi
 
 /** Whether Workspace is on offer: the Command Panel's gate, off a phone. While
  *  the deck has not said whether its platform has the panel (`supported` is
- *  null) it is not yet on offer. */
+ *  null) it is on offer, as the switch in Settings is: only a platform the deck
+ *  says has none (`false`) refuses it. */
 export function workspaceOffered(gate: { enabled: boolean; supported: boolean | null }, phone: boolean): boolean {
   return gate.enabled && gate.supported !== false && !phone;
 }

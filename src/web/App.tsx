@@ -80,7 +80,7 @@ import { useDesktopUpdate } from "./use-desktop-update";
 import { useAutoRestart } from "./use-auto-restart";
 import { useLanPairRequests } from "./use-lan-pair-requests";
 import { useAccountAttention } from "./use-account-attention";
-import { leftColumnWidth, useColumnSettle, useLeftColumn, useRailWidth } from "./use-left-column";
+import { leftColumnWidth, useColumnSettle, useLeftColumn, useRailWidth, useWorkspaceColumn } from "./use-left-column";
 import { sessionsOf, useMarkSeen } from "./use-mark-seen";
 import { useRightPanels } from "./use-right-panels";
 import { useLiveAnnouncements } from "./use-live-announcements";
@@ -110,6 +110,7 @@ import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import ViewSwitch from "./components/ViewSwitch";
 import { EmptyInspector } from "./components/Inspector";
 import { useView, type View } from "./use-view";
+import { SKIP_TO_PANE, WORKSPACE_PANE_ID, skipToPane } from "./workspace-pane";
 import { createChimePlayer } from "./chime-player";
 import type { AccountSwitch } from "./components/SettingsModal";
 import type { Appliers } from "./account-bridge";
@@ -121,6 +122,8 @@ import type { Theme } from "./theme";
 /** Under this width the Inspector is the detail sheet, not a Workspace column
  *  (workspace.css, "Narrower windows"). */
 const INSPECTOR_SHEET_QUERY = "(max-width: 1319px)";
+/** Under this width the Sessions list is a sheet in Workspace (workspace.css). */
+const WORKSPACE_LIST_SHEET_QUERY = "(max-width: 1099px)";
 /** How long the switch's crossfade holds its attribute: --dur-base and a beat. */
 const VIEW_FADE_MS = 260;
 
@@ -160,8 +163,9 @@ function Inner() {
   // and opening one evicts the other (#824). Both panels' state, persistence and
   // the eviction live in use-left-column.ts; only its toggles can open either.
   // Restored first, because the right-hand panels' room depends on its width.
+  const leftColumn = useLeftColumn();
   const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
-          openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel } = useLeftColumn();
+          openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel } = leftColumn;
   // The rail's width at the density in force (--rail-w), which the column and
   // the right-hand panels' room both follow.
   const railWidth = useRailWidth();
@@ -596,6 +600,10 @@ function Inner() {
     view: viewState.stored, phone, clearSelection,
   });
   const inWorkspace = stage.workspace;
+  // Workspace puts the Sessions list in the left column when it is entered at
+  // 1100px and wider, and gives the column back on leaving (use-left-column.ts).
+  const wideWindow = !useMediaQuery(WORKSPACE_LIST_SHEET_QUERY);
+  useWorkspaceColumn({ active: inWorkspace && stage.enabled, wide: wideWindow, column: leftColumn });
   // The Inspector is a column in Workspace down to 1320px, and the detail sheet
   // (D, the ribbon) under it: workspace.css says why.
   const inspectorColumn = !useMediaQuery(INSPECTOR_SHEET_QUERY);
@@ -672,6 +680,16 @@ function Inner() {
     focusSession(sessionId);
   }, [workspaceRef, stage.enabled, openInPane, markLanded, focusSession]);
   const openSession = useCallback((sessionId: string) => {
+    // In Workspace a row opens that session in the pane, whatever the stage is
+    // doing: a pane still on its way, or the empty one. followSession answers
+    // only a stage that is up (the Board's rule), which left a click on a row
+    // doing nothing in a Workspace whose pane had not opened yet.
+    if (workspaceRef.current && stage.enabled) {
+      if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
+      openInPane(sessionId);
+      markLanded(sessionId);
+      return;
+    }
     if (followSession(sessionId)) {
       markLanded(sessionId);
       if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
@@ -679,7 +697,7 @@ function Inner() {
     }
     if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
     focusSession(sessionId);
-  }, [removedAgentIds, bringBack, focusSession, followSession, markLanded]);
+  }, [removedAgentIds, bringBack, focusSession, followSession, markLanded, workspaceRef, stage.enabled, openInPane]);
   // Enter on a row, in Workspace: the session in the pane, the keys in it.
   const openSessionWithKeys = useCallback((sessionId: string) => {
     if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
@@ -898,7 +916,9 @@ function Inner() {
           first card: cards come and go with the sessions, main is always
           there, and landing on it puts the deck's own single-key shortcuts
           back in play (ownsKeystroke() leaves a <main> alone). */}
-      <a className="skip-link" href="#canvas">Skip to the canvas</a>
+      {inWorkspace
+        ? <a className="skip-link" href={`#${WORKSPACE_PANE_ID}`} onClick={e => { if (skipToPane()) e.preventDefault(); }}>{SKIP_TO_PANE}</a>
+        : <a className="skip-link" href="#canvas">Skip to the canvas</a>}
       <header className="topbar">
         <DesktopTitlebar />
         {/* The observation group, and the notes on each readout in it — components/TopbarReadouts.tsx. */}
@@ -1134,7 +1154,7 @@ function Inner() {
         upgrade={upgrade} lanPairs={lanPairs} attention={attention} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
         menus={menus} sound={sound} tones={tones} customTones={customTones} notify={notify}
-        terminal={{ on: stage.enabled, supported: stage.supported, windows: stage.windows, toggle: stage.toggleTerminal }}
+        terminal={{ on: stage.enabled, supported: stage.supported, windows: stage.windows, phone, failed: stage.chunkFailed, toggle: stage.toggleTerminal }}
         panelDoors={{ accounts: openAccountsPanel, localNetwork: openLocalNetwork }}
         account={account}
       />

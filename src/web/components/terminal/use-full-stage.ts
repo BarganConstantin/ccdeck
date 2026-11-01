@@ -53,6 +53,16 @@ export function useFullStage(expanded: boolean, toggleExpand: () => void, canOve
     };
   }, [can]);
 
+  // The width went without ⤡ being pressed (the deck changed view, Board or
+  // Workspace, and gave it back: use-stage.ts): the full screen ⤢ asked for
+  // goes with it, as it does when the stage closes.
+  useEffect(() => {
+    if (expanded || !ours.current) return;
+    ours.current = false;
+    setFull(false);
+    leaveFullStage();
+  }, [expanded]);
+
   const toggle = useCallback(() => {
     if (expandedRef.current) {
       if (ours.current) {
