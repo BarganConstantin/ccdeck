@@ -93,7 +93,7 @@ describe("the header", () => {
 
   it("says waiting with how long, beside the rail's alert glyph and no ping", () => {
     const out = html(createElement(StageHeader, headerProps({ status: { state: "waiting", phrase: "waiting", emphasis: "6m", tool: "Bash", arg: "git push" } })));
-    // CHANGED ON PURPOSE: Figma V4 (Term header 22:13272) draws "waiting 6m" in
+    // CHANGED ON PURPOSE: V4's Figma (Term header) draws "waiting 6m" in
     // one regular weight, the state colour doing the work; it was bold.
     expect(out).toContain("waiting 6m");
     expect(out).not.toContain("<b>");
@@ -444,7 +444,7 @@ describe("the keys bar", () => {
     const out = html(createElement(KeysBar, barProps()));
     expect(out).toContain('data-owner="board"');
     expect(out).toContain("Keys on the board");
-    // CHANGED ON PURPOSE: Figma V4 (Keys bar 91:536) draws one key cap "j k",
+    // CHANGED ON PURPOSE: V4's Figma (keys bar) draws one key cap "j k",
     // not two.
     expect(out).toMatch(/<kbd class="kbd">j k<\/kbd> sessions/);
     expect(out).toContain("next ask");
@@ -456,8 +456,8 @@ describe("the keys bar", () => {
 
   it("does not claim the keys reach the session while the pane reconnects", () => {
     const out = html(createElement(KeysBar, barProps({ owner: "pane", reconnecting: true })));
-    // CHANGED ON PURPOSE: the sentence is Figma V4's (Keys bar 91:554, owner
-    // answer 18), with a full stop and a capital, not "— nothing typed now is sent".
+    // CHANGED ON PURPOSE: the sentence is V4's Figma (the keys bar),
+    // with a full stop and a capital, not "— nothing typed now is sent".
     expect(out).toContain("Reconnecting to paycore. Nothing typed now is sent.");
     expect(out).not.toContain("Typing into");
   });
@@ -477,7 +477,7 @@ describe("the keys bar", () => {
   it("says who is being typed into, that Escape goes to the session, and how to give the keys back", () => {
     const out = html(createElement(KeysBar, barProps({ owner: "pane" })));
     expect(out).toContain('data-owner="pane"');
-    // CHANGED ON PURPOSE: the label is one phrase in --text (Figma 91:545); the
+    // CHANGED ON PURPOSE: the label is one phrase in --text (V4's Figma); the
     // name is no longer set apart in a span of its own.
     expect(out).toContain('<span class="ts-label" data-strong="true">Typing into paycore</span>');
     expect(out).toContain("goes to the session");
@@ -499,7 +499,7 @@ describe("the keys bar", () => {
     // Panel…". The clause that names Esc is its own element, so it goes
     // whole (the sheet's side is "the keys bar under a fingertip"), and ✕,
     // the header's control rather than a key, is marked to stay.
-    // CHANGED ON PURPOSE: the line is Figma V4's (Keys bar 91:551): ", Esc
+    // CHANGED ON PURPOSE: the line is V4's Figma (keys bar): ", Esc
     // included" with a comma where it had a dash.
     const out = html(createElement(KeysBar, barProps({ owner: "pane", firstRun: true })));
     const line = out.match(/<span class="ts-first">([\s\S]*?)<\/span><button/)?.[1];
@@ -528,7 +528,7 @@ describe("the keys bar", () => {
 
   it("runs the asks: where the stage is in them, then Next ask, then no more", () => {
     const now = html(createElement(KeysBar, barProps({ asks: { position: { index: 0, total: 2 } } })));
-    // CHANGED ON PURPOSE: Figma V4 (Keys bar 91:590) says "Asks  1 of 2" with
+    // CHANGED ON PURPOSE: V4's Figma (keys bar) says "Asks  1 of 2" with
     // no segment track between the words.
     expect(now).toMatch(/Asks<\/span><span class="ts-count">1 of 2<\/span>/);
     expect(now).not.toContain("ts-track");
@@ -536,7 +536,7 @@ describe("the keys bar", () => {
     const onNextAsk = vi.fn();
     const props = barProps({ asks: { resumed: "paycore", next: { name: "travel-portal", waited: "2m", tool: "Edit" } }, onNextAsk });
     const out = html(createElement(KeysBar, props));
-    // CHANGED ON PURPOSE: Figma V4 (Keys bar 91:600) leads with the Done glyph,
+    // CHANGED ON PURPOSE: V4's Figma (keys bar) leads with the Done glyph,
     // not a "✓" character in --ok.
     expect(out).toMatch(/data-glyph="done"[\s\S]*paycore resumed/);
     expect(out).not.toContain("✓");
@@ -544,7 +544,7 @@ describe("the keys bar", () => {
     press(button(AsksTrack({ asks: props.asks!, onNextAsk }), "Next ask: travel-portal, waiting 2m on Edit"));
     expect(onNextAsk).toHaveBeenCalled();
 
-    // CHANGED ON PURPOSE: Done glyph and "No more asks" (Figma 91:609), no "✓"
+    // CHANGED ON PURPOSE: Done glyph and "No more asks" (V4's Figma), no "✓"
     // character; and the segments, with their fresh one, are no longer drawn.
     const clear = html(createElement(KeysBar, barProps({ asks: { clear: true } })));
     expect(clear).toMatch(/data-glyph="done"[\s\S]*No more asks/);
@@ -557,7 +557,7 @@ describe("the keys bar", () => {
     const onAnswerArrival = vi.fn();
     const props = barProps({ owner: "pane", arrival: { name: "boom-next-gen", tool: "Bash" }, onAnswerArrival });
     const out = html(createElement(KeysBar, props));
-    // CHANGED ON PURPOSE: Figma V4 (Keys bar 91:583) leads with the Waiting
+    // CHANGED ON PURPOSE: V4's Figma (keys bar) leads with the Waiting
     // glyph (not the pulse dot), says "name asks · tool" with the name not bold,
     // then the key cap n and the word Answer, in that order.
     expect(out).toMatch(/data-glyph="waiting"[\s\S]*boom-next-gen asks · Bash/);

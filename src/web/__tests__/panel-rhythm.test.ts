@@ -297,7 +297,7 @@ describe("a panel header against the rows it heads", () => {
 describe("the session list on a platform that draws a real scrollbar", () => {
   it("scrolls in its list, with the header and the foot fixed around it", () => {
     // V4's rail is a flex column of a header, the list and the removed cards'
-    // line (Figma Sessions, 22:14927), and the LIST is what scrolls. The panel
+    // line (V4's Figma, Sessions), and the LIST is what scrolls. The panel
     // clips instead of scrolling, so the header can never be taken off screen
     // and needs no sticky positioning; a classic scrollbar takes its width
     // from the list alone, which the header's right padding does not share

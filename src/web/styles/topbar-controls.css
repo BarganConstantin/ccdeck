@@ -206,7 +206,7 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-/* V4's Waiting glyph (Figma 22:952): the deck's alert triangle at 14px, in
+/* V4's Waiting glyph (V4's Figma): the deck's alert triangle at 14px, in
    --warn, standing still. Its global rule pushes it to a row's end; here it
    leads the chip. */
 .topbar .waiting-stat .alert-mark { margin-left: 0; }
@@ -220,7 +220,7 @@
   .topbar .waiting-stat,
   .topbar .status .pill { animation: none; }
 }
-/* V4's chip entrance (motion.md, "Top bar chip"): opacity and 4px of x, over
+/* V4's chip entrance (V4's motion rules, top bar chip): opacity and 4px of x, over
    --dur-base. The same keyframe `wait-in` below draws for a queue name, but
    that one is 160ms from its own curve and is the queue's alone, so the two
    share a shape and not a duration. A chip is not on the bar at rest — the

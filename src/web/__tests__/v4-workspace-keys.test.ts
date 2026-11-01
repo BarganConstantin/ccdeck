@@ -2,7 +2,8 @@
 // also with the keys in the terminal, and it never reaches the session; j and
 // k walk the Sessions list and open nothing; Enter on a row opens the session
 // with the keys; and with the Command Panel off none of it is claimed or named.
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
+import { resetLanguageForTest, setLanguage } from "../i18n";
 import { sourceOf } from "./client-source";
 import { withoutComments } from "./tsx-scan";
 import {
@@ -170,5 +171,19 @@ describe("what names the chord", () => {
     expect(WORKSPACE_KEY_ROW.chord, "a chord stays with the single keys off").toBe(true);
     expect(keyHelpFor(false, () => true, true).flatMap(g => g.rows).map(r => r.cap)).toContain(WORKSPACE_KEY_ROW.cap);
     expect(documentedKeys().has("`")).toBe(true);
+  });
+
+  // The group was found by its English title, so in every other language the row was missing.
+  describe("in another language", () => {
+    afterEach(() => { setLanguage("en"); resetLanguageForTest(); });
+    for (const code of ["de", "ja"]) {
+      it(`still sits right after Quick open's row (${code})`, () => {
+        setLanguage(code);
+        const panels = keyHelpFor(true, () => true, true).find(g => g.id === "panels-and-dialogs")!;
+        expect(panels.title, "the title is the translated one").not.toBe("Panels and dialogs");
+        expect(panels.rows[0].cap).toBe("Ctrl + K");
+        expect(panels.rows[1]).toBe(WORKSPACE_KEY_ROW);
+      });
+    }
   });
 });

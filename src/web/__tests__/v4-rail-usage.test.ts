@@ -1,4 +1,4 @@
-// V4's Rail / Usage (Figma 22:831): the 5-hour window at the foot of the
+// V4's Rail / Usage (V4's Figma): the 5-hour window at the foot of the
 // attention rail, one button that opens the Usage panel.
 //
 // The rules (what is drawn, what is said, when nothing is) are rail-usage.ts's
@@ -50,7 +50,7 @@ const meter = (q: QuotaData | null | undefined, nowSec = NOW, over: Partial<Mete
 const draw = (q: QuotaData | null, nowSec = NOW, over: Partial<MeterQuota> = {}) =>
   renderToStaticMarkup(createElement(RailUsage, { meter: meter(q, nowSec, over), onPress: () => {} }));
 
-describe("Rail / Usage box (22:831)", () => {
+describe("Rail / Usage box", () => {
   it("sits at the foot, 4 round it, outside the scrolling list", () => {
     expect(decl(".session-list .sl-usage", "flex")).toBe("none");
     expect(decl(".session-list .sl-usage", "padding")).toBe("4px");

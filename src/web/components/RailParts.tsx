@@ -149,7 +149,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
   );
 }
 
-/** Rail / Usage (Figma 22:831): the 5-hour window at the rail's foot, one
+/** Rail / Usage (V4's Figma): the 5-hour window at the rail's foot, one
  *  button that opens the Usage panel (or closes it, as its stripe door does).
  *  Nothing at all without a reading (rail-usage.ts), not an empty box. */
 export function RailUsage({ meter, onPress }: { meter: UsageMeter | null; onPress: () => void }) {

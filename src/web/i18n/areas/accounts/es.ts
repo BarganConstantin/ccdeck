@@ -624,6 +624,9 @@ const catalog: Catalog = {
   "accounts.fail.login.claudeMissing": "no se pudo ejecutar la CLI de claude: no está en el PATH. Define AGENTS_DECK_CLAUDE con su ruta completa.",
   "accounts.fail.login.cswapMissing": "no se pudo ejecutar cswap: no está en el PATH ni en los lugares donde instalan uv y pipx. Define AGENTS_DECK_CSWAP con su ruta completa.",
   "accounts.fail.login.tookLong": "{what} tardó demasiado y se detuvo",
+  "accounts.switch.label": "Mostrar cuentas de",
+  "accounts.switch.attention": "{name}, necesita atención",
+  "accounts.switch.attentionTip": "La cuenta actual de {name} necesita atención",
 };
 
 export default catalog;

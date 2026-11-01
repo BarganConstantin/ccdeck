@@ -213,7 +213,7 @@ describe("what was migrated to the secondary tier", () => {
       // under the foreground so the canvas stays the loudest thing, and the
       // pointer lifts a chip to --text. Its floors are held in quiet-signals.
       ".cat-filter",
-      // CHANGED ON PURPOSE (V4 Inspector, Figma 22:15126): the Context body's section
+      // CHANGED ON PURPOSE (V4 Inspector, V4's Figma): the Context body's section
       // captions, "Cumulative usage · whole session" and the two after it: titles a
       // reader reads to know which numbers follow, no longer 11px uppercase --muted.
       ".ctx-section-title",
@@ -248,7 +248,7 @@ describe("what was migrated to the secondary tier", () => {
       // provider's own words below it, which then step down to --muted. And
       // (V4's field: the shared search field's placeholder left for --muted.)
       ".ig-failure-body, .ig-failure-said",
-      // CHANGED ON PURPOSE (V4 Inspector, Figma 22:15126 and 22:15467): the Time tab's
+      // CHANGED ON PURPOSE (V4 Inspector, V4's Figma): the Time tab's
       // line over the turn's bar, "93% of this turn was waiting on you": the one sentence
       // that says what the bar is, read to understand it.
       ".insp-time-share",
@@ -335,7 +335,7 @@ describe("what was migrated to the secondary tier", () => {
       ".radio-tuning-tower",
       ".sa-why",
       // V4's status bar: who has the keys, in the one weight-500 label of a
-      // bar whose hints are --muted (Figma 27:7169 prints it --text-secondary).
+      // bar whose hints are --muted (V4's Figma prints it --text-secondary).
       ".statusbar-who",
       // Gruvbox's spend figures (#2125 follow-up): a quantity, so neither the
       // success green the other themes give them nor the totals' --text. Read
@@ -356,7 +356,7 @@ describe("what was migrated to the secondary tier", () => {
       ".session-list .sl-time.quiet",
       ".session-list .sl-tool",
       // Rail / Usage: "5-hour limit" beside the account's name, the one
-      // secondary-tier word on the meter's first line (Figma 22:831).
+      // secondary-tier word on the meter's first line (V4's Figma).
       ".session-list .sl-usage-what",
       // The agent's plan (#2157): its steps are sentences the agent wrote and a
       // reader reads to know where the work stands — on the card's row and in

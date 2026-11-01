@@ -221,7 +221,7 @@ export function stageStatusFrom(facts: BoardFacts, now: number): StageStatus {
 }
 
 /** What a reconnecting pane adds to the header's "reconnecting…", and the
- *  keys bar's second half (Figma V4, owner answer 18). */
+ *  keys bar's second half (V4's Figma). */
 export const RECONNECT_NOTE = "Nothing typed now is sent.";
 
 /**

@@ -111,7 +111,7 @@
   line-height: 16px;
   color: var(--muted);
 }
-/* THE TIME TAB (Figma 22:15467): the head row, four figures two by two, one bar
+/* THE TIME TAB (V4's Figma): the head row, four figures two by two, one bar
    split by lane, the calls of the turn on a span axis, and a note. The lane
    colours are the ring's in Tool activity (tool-audit.css: Claude, this machine,
    you), and nothing here moves: the bars are drawn where the data puts them. */

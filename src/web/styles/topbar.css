@@ -222,7 +222,7 @@
   border-radius: 50%;
   background: var(--accent);
 }
-/* V4's chip entrance (motion.md, "Top bar chip"): opacity and 4px of x, over
+/* V4's chip entrance (V4's motion rules, top bar chip): opacity and 4px of x, over
    --dur-base. A newer version arrives; the chip is not there at rest, so this
    is the only time it is seen. `chip-in` is topbar-controls.css's. */
 .topbar .brand button.v:is(.stale, .ready) { animation: chip-in var(--dur-base) var(--ease) both; }

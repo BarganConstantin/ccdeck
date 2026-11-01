@@ -1,4 +1,4 @@
-// V4's Board / Controls (Figma 64:300): the canvas's command stack became one
+// V4's Board / Controls (V4's Figma): the canvas's command stack became one
 // horizontal bar at the board's bottom right. This pins the order of the items
 // (read from the component's source), the box the bar is drawn in, the room it
 // leaves for the minimap and the character, the zoom figure's rounding, and

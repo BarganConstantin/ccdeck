@@ -1,6 +1,7 @@
 // Append-only, local metadata. Never stores raw command arguments or tool outputs.
 import { createHash, randomUUID } from 'node:crypto';
 import { appendFile, mkdir, readFile, readdir, stat, unlink } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { deckDataDir } from './deck-home.mjs';
@@ -217,9 +218,22 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
     async close() { await enqueue(flush); },
   };
 }
-function workerReport(input, signal) {
+/** A worker cannot start while the process's working directory is gone: Node asks
+ *  for it while it sets the worker up, and the folder the deck was started from
+ *  can be deleted at any time after (a temporary or build folder, a removed
+ *  project). The report then failed with `ENOENT … uv_cwd` for as long as the
+ *  deck ran. Nothing here depends on the directory, so a missing one is replaced
+ *  by the home directory, which every later worker, spawn and relative path then
+ *  starts from. */
+export function ensureUsableCwd() {
+  try { process.cwd(); return; } catch { /* gone: move out of it */ }
+  try { process.chdir(homedir()); } catch { /* a worker may still start; its own error says so */ }
+}
+
+export function workerReport(input, signal) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(new Error('Report cancelled'));
+    ensureUsableCwd();
     // Serialize the already-loaded function so self-update cannot mix builds.
     const build = input.query.view === 'skills' ? buildSkillReport : buildToolAuditReport;
     const code = `const { parentPort, workerData } = require('node:worker_threads'); (${build.toString()})(workerData, { createReadStream: require('node:fs').createReadStream, createInterface: require('node:readline').createInterface }).then(result => parentPort.postMessage(result));`;

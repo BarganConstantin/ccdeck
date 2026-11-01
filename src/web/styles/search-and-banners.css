@@ -24,7 +24,7 @@
   grid-row: 2;
   display: flex;
   align-items: center;
-  /* V4's banner: one frame for every tone (Banner 68:394). Panel fill, a
+  /* V4's banner: one frame for every tone (V4's Figma). Panel fill, a
      bottom --line rule and nothing else; the tone lives in the 14px dot slot.
      The kit's 32 includes the rule, so the foot pads 3px: 4 + 24 + 3 + 1. */
   gap: 8px;

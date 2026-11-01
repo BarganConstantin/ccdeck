@@ -58,7 +58,7 @@ const answer = (hosts: OlderHost[], launchesRefused: string | null = null): Host
 
 describe("the keys bar's line", () => {
   it("counts the sessions a host the engine moved on from still runs", () => {
-    // CHANGED ON PURPOSE: Figma V4 (Keys bar 91:617) says "{n} sessions on an
+    // CHANGED ON PURPOSE: V4's Figma (keys bar) says "{n} sessions on an
     // older host", one line, no full stop; the longer "still run on … session
     // host." wording and its plural-host variant are gone.
     expect(hostsLine(view([host(1, "stranded", session(1))]), false)).toBe("1 session on an older host");
@@ -79,7 +79,7 @@ describe("the keys bar's line", () => {
   it("adds that new sessions are refused, and says the engine's own sentence when that is all there is", () => {
     expect(hostsLine(view([host(1, "stranded", session(1))], REFUSED), false))
       // CHANGED ON PURPOSE: the count has no full stop of its own now (Figma
-      // 91:617); the refusal is appended as its own sentence, so one is added.
+      // (V4's Figma); the refusal is appended as its own sentence, so one is added.
       .toBe(`1 session on an older host. ${REFUSED_UNTIL_THEY_END}`);
     expect(REFUSED_UNTIL_THEY_END).toBe("New sessions are refused until they end.");
     expect(hostsLine(view([], REFUSED), false)).toBe(REFUSED);

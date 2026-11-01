@@ -1,4 +1,4 @@
-// V4's banner (its Figma kit, Banner 68:394): the strip under the top bar. One
+// V4's banner (its Figma kit, Banner): the strip under the top bar. One
 // frame for every tone (--panel fill, a bottom --line rule, no corner, 32px
 // high with the rule, 12px start and 4px end padding, an 8px gap); only the dot at the start
 // changes colour. The action is plain accent text, the dismiss a 24px icon

@@ -624,6 +624,9 @@ const catalog: Catalog = {
   "accounts.fail.login.claudeMissing": "无法运行 claude CLI：不在 PATH 中。请将 AGENTS_DECK_CLAUDE 设为其完整路径。",
   "accounts.fail.login.cswapMissing": "无法运行 cswap：不在 PATH 中，也不在 uv 和 pipx 的安装位置。请将 AGENTS_DECK_CSWAP 设为其完整路径。",
   "accounts.fail.login.tookLong": "{what} 耗时过长，已被停止",
+  "accounts.switch.label": "显示账号：",
+  "accounts.switch.attention": "{name}，需要处理",
+  "accounts.switch.attentionTip": "当前的 {name} 账号需要您处理",
 };
 
 export default catalog;

@@ -176,7 +176,7 @@ describe("the chrome is quiet: no edge at rest, a neutral look under the pointer
     // V4's Panel bar: an open door is --selected under the whole foreground.
     // Open used to be a 10% wash; the line in --text on the stripe's inner
     // edge and on the dock's top edge stays, since it carries the 3:1 the
-    // fill cannot (toggle-state.test.ts), and it is shown at once (motion.md:
+    // fill cannot (toggle-state.test.ts), and it is shown at once (V4's motion rules:
     // a selected door goes selected at once).
     expect(body('.rail-btn[aria-expanded="true"]')).toMatch(/color: var\(--text\);[^}]*background: var\(--selected\);/);
     // The line on the stripe's inner edge, and on the dock's top edge.

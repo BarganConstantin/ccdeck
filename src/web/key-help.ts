@@ -197,7 +197,7 @@ export const WORKSPACE_KEY_ROW: KeyHelpRow = {
 /** The table with Ctrl + backtick after Quick open's row. */
 function withWorkspaceRow(groups: readonly KeyHelpGroup[]): readonly KeyHelpGroup[] {
   return groups.map(group => {
-    if (group.title !== "Panels and dialogs") return group;
+    if (group.id !== "panels-and-dialogs") return group;
     const rows = [...group.rows];
     rows.splice(1, 0, WORKSPACE_KEY_ROW);
     return { ...group, rows };

@@ -1,5 +1,5 @@
 /* ---------------- status bar ----------------
-   V4's Shell / Status bar (Figma 27:7169): the last row of the shell, across
+   V4's Shell / Status bar (V4's Figma): the last row of the shell, across
    the whole window under the canvas, the columns and the stripes. components/
    StatusBar.tsx says what it holds. Its height is --statusbar-h (24 Compact, 28
    Default; reading.css switches it with the density), taken from the main area

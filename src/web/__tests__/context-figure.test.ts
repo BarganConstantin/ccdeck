@@ -1,5 +1,5 @@
 // The context figure (context-figure.ts): "129k / 200k · 64%", whole thousands,
-// a million as "1M". Owner answer 17; the Term header's chip and the
+// a million as "1M". V4's Figma; the Term header's chip and the
 // Inspector's Context tab both say it.
 import { describe, expect, it } from "vitest";
 import { contextFigure, contextFill, contextPercent, contextTokens } from "../context-figure";

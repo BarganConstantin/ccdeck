@@ -1,5 +1,5 @@
-// What the strip across the top of the board says (V4's Board header, Figma
-// Board › bhead 22:14910): five figures, worked out here and drawn by
+// What the strip across the top of the board says (V4's Figma board
+// header): five figures, worked out here and drawn by
 // components/BoardHeader.tsx.
 //
 // Everything comes from the agents map the page already holds and the clock App

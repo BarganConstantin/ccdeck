@@ -1,13 +1,12 @@
 // The phone at 640 and under, as LAYOUT: the drawer full width, the rail's rows
 // 62 high, the Term takeover's header and note, and the words for a dropped
 // connection. Every rule this phase added sits inside @media (max-width: 640px),
-// so the desktop (641 and up) is the sheet it was: the sheets it touched are
-// held, less their phone blocks, to the digests they had before.
+// so the desktop (641 and up) is the sheet it was: the phone declarations are held
+// inside the query by name, and none of them is in the desktop part of its sheet.
 //
 // Not built here, and held not built: the Term key row (a new input path), the
 // Machine tab's online dot, the push note, the rail's usage meter. What opens at
 // load is phone-load.ts's, untouched.
-import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
@@ -38,7 +37,6 @@ function desktopPart(css: string): string {
   for (const [a, b] of blocksOf(css, PHONE).reverse()) out = out.slice(0, a) + out.slice(b);
   return out;
 }
-const digest = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 16);
 
 describe("the phone is 640 and under", () => {
   it("is the query the deck already uses", () => {
@@ -68,18 +66,42 @@ describe("every rule this phase added sits inside the phone query", () => {
     expect(block).toMatch(/\.left-column > \.session-list,\s*\.left-column > \.accounts-panel \{ width: 100%; \}/);
   });
 
-  it("the sheets it touched are, less their phone blocks, what they were", () => {
-    // sha256 of each sheet with its `@media (max-width: 640px)` blocks cut out, taken
-    // before this phase. A rule slipping out of the query changes a digest.
-    const want: Record<string, string> = {
-      "styles/search-and-banners.css": "ca499ed72de2128f",
-      "styles/left-column.css": "84c43db7446fe955",
-      "styles/session-list.css": "e569476eacf366b9",
-      "styles/stage-shell.css": "91fdb28fec280fe0",
+  it("each phone declaration is held inside a phone block and appears nowhere in the desktop part", () => {
+    // By name, not by digest: a digest of the whole desktop sheet had to be re-pinned by
+    // every unrelated desktop change. A phone rule that slips out of the 640 query
+    // is found in the desktop part; one that is dropped is not found in a phone block.
+    // Whitespace is dropped on both sides, so a reflow of a rule is not a change.
+    const squash = (css: string) => css.replace(/\s+/g, "");
+    const phoneDecls: Record<string, string[]> = {
+      "styles/session-list.css": [
+        ".session-list .sl-usage-btn { min-height: 44px; }",
+        ".session-list .sl-row { min-height: 62px; }",
+        ".session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }",
+        ".session-list .sl-close { min-width: 44px; min-height: 44px; }",
+      ],
+      "styles/left-column.css": [
+        ".left-column:not(.closing) { width: 100vw; }",
+        ".left-column > .session-list, .left-column > .accounts-panel { width: 100%; }",
+      ],
+      "styles/search-and-banners.css": [
+        ".conn-banner-phone {",
+        ".conn-banner-phone .conn-unreachable {",
+      ],
+      "styles/stage-shell.css": [
+        ".ts-stage[data-takeover] .ts-head { height: 56px; }",
+        ".ts-stage[data-takeover] .ts-head > .glyph-btn { width: 32px; height: 44px; }",
+        ".ts-stage[data-takeover] .ts-bar { height: auto; min-height: 52px;",
+      ],
     };
-    // Comments are not the desktop's: they are cut first.
-    const got = Object.fromEntries(Object.keys(want).map(p => [p, digest(desktopPart(read(p).replace(/\/\*[\s\S]*?\*\//g, "")))]));
-    expect(got).toEqual(want);
+    for (const [path, decls] of Object.entries(phoneDecls)) {
+      const css = read(path).replace(/\/\*[\s\S]*?\*\//g, "");
+      const phone = squash(blocksOf(css, PHONE).map(([a, b]) => css.slice(a, b)).join(""));
+      const desktop = squash(desktopPart(css));
+      for (const d of decls) {
+        expect(phone, `${path}: ${d} is in a phone block`).toContain(squash(d));
+        expect(desktop, `${path}: ${d} is not in the desktop part`).not.toContain(squash(d));
+      }
+    }
   });
 });
 
@@ -90,10 +112,11 @@ describe("the rail on a phone", () => {
     expect(phone).toContain(".session-list .sl-row { min-height: 62px; }");
   });
 
-  it("keeps the other touch targets at 44", () => {
+  it("keeps the other touch targets at 44, inside the phone query", () => {
     const css = read("styles/session-list.css");
-    expect(css).toContain(".session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }");
-    expect(css).toContain(".session-list .sl-close { min-width: 44px; min-height: 44px; }");
+    const phone = css.slice(...blocksOf(css, PHONE)[0]);
+    expect(phone).toContain(".session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }");
+    expect(phone).toContain(".session-list .sl-close { min-width: 44px; min-height: 44px; }");
   });
 });
 

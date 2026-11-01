@@ -96,6 +96,8 @@ const catalog: Catalog = {
   "usage.credits.codexTitle": "Codex CLI 또는 ChatGPT에서 사용하세요. {product}은 보여주기만 합니다",
   "usage.sessionNote": "{noun} 활동이 있었던 세션과 ccusage가 각 세션에 매긴 금액입니다.",
   "usage.sessionNote.over": "합계는 {sum}으로, 위의 {total}보다 큽니다. 세션 비용과 하루 비용은 서로 다른 측정값이라 일치하지 않을 수 있습니다.",
+  "usage.quota.standardLimits": "표준 Codex 한도만 포함하며, 추가 한도와 크레딧은 포함되지 않습니다.",
+  "usage.quota.hint.codexProfileChanged": "Codex 로그인이 방금 바뀌었습니다. 1분 안에 다시 읽습니다.",
 };
 
 export default catalog;

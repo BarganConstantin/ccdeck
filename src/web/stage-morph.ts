@@ -112,8 +112,8 @@ export interface MorphFrame {
 }
 
 /**
- * The morph under reduced motion: a crossfade, no travel (Figma "Stage motion",
- * motion.md rule 10: travel goes, fades stay). The stage stays in its column,
+ * The morph under reduced motion: a crossfade, no travel (V4's motion rules:
+ * under reduced motion travel goes, fades stay). The stage stays in its column,
  * cut to the column's box from the first frame, with no rider and no edge
  * drawn, and only its opacity moves — up on an open, down on a close — while
  * the board under it fades the other way. Everything the header holds back

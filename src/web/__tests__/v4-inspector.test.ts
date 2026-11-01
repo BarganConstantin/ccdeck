@@ -204,7 +204,7 @@ describe("the tablist", () => {
   it("is a real tablist whose tabs are selected, controlling a tabpanel and in a roving tab order", () => {
     expect(out).toContain('role="tablist"');
     const tabs = [...out.matchAll(/<button[^>]*role="tab"[^>]*>/g)].map(m => m[0]);
-    // CHANGED ON PURPOSE: three tabs now (Agents, Time, Context; owner answer 15), so the
+    // CHANGED ON PURPOSE: three tabs now (Agents, Time, Context; V4's Figma), so the
     // Context tab is the third one and the Time tab sits between.
     expect(tabs).toHaveLength(3);
     expect(tabs[0]).toContain('aria-selected="true"');
@@ -218,7 +218,7 @@ describe("the tablist", () => {
     expect(tabs[2]).toContain('tabindex="-1"');
     expect(out).toMatch(/role="tabpanel"[^>]*id="insp-panel-agents"|id="insp-panel-agents"[^>]*role="tabpanel"/);
   });
-  // CHANGED ON PURPOSE: the Time tab is back, redrawn on the session's real turn (owner answer 15).
+  // CHANGED ON PURPOSE: the Time tab is back, redrawn on the session's real turn (V4's Figma).
   it("labels its tabs Agents, Time and Context, in Figma's order, each with a 14px glyph", () => {
     expect(INSPECTOR_TABS).toEqual(["agents", "time", "context"]);
     expect([...out.matchAll(/role="tab"[^>]*>.*?<span>([^<]+)<\/span><\/button>/g)].map(m => m[1])).toEqual(["Agents", "Time", "Context"]);
@@ -452,7 +452,7 @@ describe("the Context tab", () => {
     const out = withContext({ context: { msgsUser: 1, msgsAssistant: 1, toolUses: 0, toolResults: 0, systemReminders: 0, currentContextTokens: 50_000, memoryFiles: [] }, contextWindow: 200_000 });
     expect(out).toContain('<span class="insp-title">Context window</span>');
     expect(out).toMatch(/<span class="insp-qual">[^<]*opus[^<]*<\/span>/i);
-    // CHANGED ON PURPOSE: owner answer 17, whole k and a whole percent, as the Term header's chip says it.
+    // CHANGED ON PURPOSE: V4's Figma says whole k and a whole percent, as the Term header's chip says it.
     expect(out).toContain('<span class="insp-fig">50k / 200k · 25%</span>');
   });
   it("shows the context modal's body", () => {
@@ -471,13 +471,13 @@ describe("the Context tab", () => {
     const child = A("c1", { parentId: "s", model: "claude-haiku-4-5", contextWindow: 100_000, context: ctx(10_000) });
     const out = html(child, mapOf(root, child));
     expect(out).toMatch(/<span class="insp-qual">[^<]*haiku[^<]*<\/span>/i);
-    // CHANGED ON PURPOSE: owner answer 17's form (was "10.0k / 100.0k · 10.0%").
+    // CHANGED ON PURPOSE: V4's Figma form (was "10.0k / 100.0k · 10.0%").
     expect(out).toContain('<span class="insp-fig">10k / 100k · 10%</span>');
     expect(out).not.toMatch(/opus/i);
   });
-  // CHANGED ON PURPOSE: the panel's meter has no percent line any more (Figma 22:15126); the
+  // CHANGED ON PURPOSE: the panel's meter has no percent line any more (V4's Figma); the
   // head's figure is the one place it is printed there. The modal keeps its line, from the same fill.
-  // CHANGED ON PURPOSE: owner answer 17 gives the Inspector's head a whole percent (the Term chip's
+  // CHANGED ON PURPOSE: V4's Figma gives the Inspector's head a whole percent (the Term chip's
   // figure), so the head says that fill rounded, 100%, where the modal's line keeps its 99.6%.
   it("prints the head's percent once, the fill rounded, and the modal's meta line prints the same fill", () => {
     stubStore({ [INSPECTOR_TAB_KEY]: "context" });
@@ -536,7 +536,7 @@ describe("the Context tab", () => {
 
 // CHANGED ON PURPOSE: this block pinned "there is no Time tab, the client holds no turn start,
 // waiting time or thinking time". The server holds the turn's lanes (GET /api/tool-audit?session=)
-// and the client the calls, so the tab is built on those (owner answer 15). What it pinned that
+// and the client the calls, so the tab is built on those (V4's Figma). What it pinned that
 // still holds is kept: no field is invented on the reducer, and no thinking row is drawn.
 describe("the Time tab", () => {
   const reducer = ["reducer.ts", "types.ts", "graph-state.ts"].filter(f => existsSync(join(WEB_DIR, f)))
@@ -807,7 +807,7 @@ describe("the Context tab's headings", () => {
     const caption = rules.find(r => r.selectors.includes(".detail > h2") && r.decls.margin === "0");
     expect(caption?.selectors).toContain(".detail h3:not(.ctx-section-title)");
     expect(caption?.selectors).not.toContain(".detail h3");
-    // CHANGED ON PURPOSE: the captions are 20px rows with no margin now (Figma 22:15126); the
+    // CHANGED ON PURPOSE: the captions are 20px rows with no margin now (V4's Figma); the
     // 12px between sections is the body's gap, so the rule that must not zero it has nothing to protect.
     expect(decl(".ctx-section-title", "margin")).toBe("0");
   });

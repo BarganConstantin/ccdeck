@@ -351,7 +351,7 @@ const PRESSES: Press[] = [
   [".ap-issue-report:active", "0.97", "transform"],
   [".ap-failure-x:active", "0.94", "transform"],
   // The switch is not here any more: V4's press is the knob stretching to 18px
-  // (menus.css, motion.md Switch), not the whole track scaling, so there is
+  // (menus.css, V4's motion rules for the Switch), not the whole track scaling, so there is
   // no `transform: scale` on `.switch:active` to list.
   [".ap-field select:active:not(:disabled)", "0.97", "transform"],
   // Browser Watch's two range selects, in the same language as the panel's:

@@ -1,5 +1,5 @@
-// How a session's context is said in one figure: "129k / 200k · 64%" (V4, owner
-// answer 17). The Term header's chip says it today and the Inspector's Context
+// How a session's context is said in one figure: "129k / 200k · 64%" (V4's
+// Figma). The Term header's chip says it today and the Inspector's Context
 // tab will say it next, so the words are made in one place and the two cannot
 // print two numbers for one fact. `fmtTokens` stays as it is for every other
 // caller: it keeps a decimal under 100k ("61.4k"), which this figure does not.

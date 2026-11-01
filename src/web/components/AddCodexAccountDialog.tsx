@@ -29,6 +29,7 @@ import { createPortal } from "react-dom";
 import Confetti from "./Confetti";
 import SuccessMark from "./SuccessMark";
 import { copyText } from "../copy-text";
+import { useT, type TFunction } from "../i18n";
 import { celebrates, doneTitle } from "../signin-stages";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { prefersReducedMotion } from "../viewport-motion";
@@ -70,14 +71,21 @@ interface Props {
 
 const POLL_MS = 1500;
 
-function reasonText(reason: string | null | undefined): string {
-  if (reason === "codex_missing") return "Codex is not installed on this machine, or the deck cannot find it.";
-  if (reason === "code_expired") return "The code expired before it was used.";
-  if (reason === "no_code") return "Codex did not give a sign-in code.";
-  return "The sign-in did not finish.";
+/** A sentence with the account's name in bold, wherever its language puts it. */
+function withName(template: string, name: string) {
+  const [before, after = ""] = template.split("{name}");
+  return <>{before}<strong>{name}</strong>{after}</>;
+}
+
+function reasonText(reason: string | null | undefined, t: TFunction): string {
+  if (reason === "codex_missing") return t("codex.add.reason.missing");
+  if (reason === "code_expired") return t("codex.add.reason.expired");
+  if (reason === "no_code") return t("codex.add.reason.noCode");
+  return t("codex.add.reason.other");
 }
 
 export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand, onSignedIn, onReplace, onDiscard, onClose }: Props) {
+  const t = useT();
   const [stage, setStage] = useState<Stage>("ready");
   const [id, setId] = useState<string | null>(profile?.id ?? null);
   const [login, setLogin] = useState<LoginAnswer | null>(null);
@@ -224,7 +232,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
       let target = id;
       if (!target) {
         target = await onCreate();
-        if (!target) { setError("Could not add the account. Try again."); return; }
+        if (!target) { setError(t("codex.add.createFailed")); return; }
         setId(target);
       }
       await begin(target);
@@ -232,7 +240,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
   }
 
   const minutesLeft = login?.expiresAt ? Math.max(0, Math.ceil((login.expiresAt - clock) / 60_000)) : null;
-  const title = profile ? `Sign in ${profile.label}` : "Add a Codex account";
+  const title = profile ? t("codex.add.titleSignIn", { label: profile.label }) : t("codex.add.titleNew");
 
   return createPortal(
     <div className="modal-backdrop" {...scrimPress} role="presentation">
@@ -240,24 +248,22 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
         <header className="modal-head">
           <div className="modal-title"><span id="aa-codex-title">{title}</span></div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={close} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+            <button type="button" className="glyph-btn" onClick={close} aria-label={t("codex.add.close")} title={t("codex.add.close")}>×</button>
           </div>
         </header>
         <section className="modal-body aa-body">
           {stage === "ready" && (
             <div className="aa-step aa-primer">
               <p className="aa-note">
-                Sign in to ChatGPT with a link and a one-time code. {profile
-                  ? "The login is saved for this account only."
-                  : "The account is named after its email, and keeps its own login, settings and history, apart from your other Codex accounts."}
+                {profile ? t("codex.add.introExisting") : t("codex.add.introNew")}
               </p>
               {!profile && (
-                <p className="aa-note">The page uses the account your browser is signed in to, so sign out of ChatGPT there first to add a different one.</p>
+                <p className="aa-note">{t("codex.add.signOutFirst")}</p>
               )}
               {error && <p className="aa-err" role="alert">{error}</p>}
               <div className="aa-actions">
                 <button ref={primaryRef} type="button" className="btn primary" aria-busy={busy}
-                  onClick={() => void submit()}>Sign in with ChatGPT</button>
+                  onClick={() => void submit()}>{t("codex.add.signInButton")}</button>
               </div>
             </div>
           )}
@@ -269,7 +275,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
                   <circle className="aa-spin-track" cx="8" cy="8" r="6" />
                   <circle className="aa-spin-arc" cx="8" cy="8" r="6" />
                 </svg>
-                <span>Starting the sign-in…</span>
+                <span>{t("codex.add.starting")}</span>
               </p>
             </div>
           )}
@@ -277,12 +283,10 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
           {stage === "waiting" && login && (
             <div className="aa-step">
               <p className="aa-note">
-                <strong>1.</strong> {opened
-                  ? "The sign-in page opened in a new tab. Sign in to your ChatGPT account there."
-                  : "Open the sign-in page and sign in to your ChatGPT account."}
+                <strong>1.</strong> {opened ? t("codex.add.step1Opened") : t("codex.add.step1")}
               </p>
               <a className="aa-link" href={login.url ?? "#"} target="_blank" rel="noreferrer noopener">
-                <span>{opened ? "Open it again" : "Open the sign-in page"}</span>
+                <span>{opened ? t("codex.add.openAgain") : t("codex.add.openPage")}</span>
                 <span className="aa-link-host">
                   auth.openai.com
                   <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor"
@@ -291,11 +295,11 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
                   </svg>
                 </span>
               </a>
-              <p className="aa-note"><strong>2.</strong> Enter this one-time code.</p>
+              <p className="aa-note"><strong>2.</strong> {t("codex.add.step2")}</p>
               <div className="aa-field">
                 <code className="aa-device-code">{login.code}</code>
                 <button type="button" className="btn" onClick={async () => { if (login.code && await copyText(login.code)) setCopied(true); }}>
-                  {copied ? "Copied" : "Copy"}
+                  {copied ? t("codex.add.copied") : t("codex.add.copy")}
                 </button>
               </div>
               <p className="aa-live-line" role="status">
@@ -303,9 +307,9 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
                   <circle className="aa-spin-track" cx="8" cy="8" r="6" />
                   <circle className="aa-spin-arc" cx="8" cy="8" r="6" />
                 </svg>
-                <span>Waiting for you to approve it{minutesLeft !== null ? ` — the code lasts ${minutesLeft} more minute${minutesLeft === 1 ? "" : "s"}` : ""}.</span>
+                <span>{minutesLeft !== null ? t("codex.add.waitingMinutes", { count: minutesLeft }) : t("codex.add.waiting")}</span>
               </p>
-              <p className="aa-note">Only enter this code if you started this sign-in yourself.</p>
+              <p className="aa-note">{t("codex.add.onlyIfYou")}</p>
             </div>
           )}
 
@@ -316,7 +320,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
                   <circle className="aa-spin-track" cx="8" cy="8" r="6" />
                   <circle className="aa-spin-arc" cx="8" cy="8" r="6" />
                 </svg>
-                <span>Signed in. Reading the account…</span>
+                <span>{t("codex.add.checking")}</span>
               </p>
             </div>
           )}
@@ -325,42 +329,42 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
             <div className="aa-done">
               <SuccessMark ref={markRef} />
               {celebrates({ added: !profile && !refreshed, reducedMotion: reduced }) && <Confetti anchor={markRef} />}
-              <h4 role="status">{profile && !refreshed ? "Signed in" : doneTitle({ num: null, added: !refreshed })}</h4>
+              <h4 role="status">{profile && !refreshed ? t("codex.add.signedIn") : doneTitle({ num: null, added: !refreshed }, t)}</h4>
               <p className="aa-note">
                 {refreshed ? (
-                  <><strong>{landed}</strong> was already in the rotation, so its stored login was replaced with this one.</>
+                  withName(t("codex.add.doneRefreshed"), landed ?? "")
                 ) : profile ? (repeats
-                  ? `This is the same ChatGPT account as ${repeats}, so the two share one quota.`
-                  : "The account is ready. New Codex sessions can use it once you make it the default.")
+                  ? t("codex.add.doneSameAs", { name: repeats })
+                  : t("codex.add.doneReady"))
                 : (
-                  <><strong>{landed ?? "The account"}</strong> is in the rotation. The account you were using is still active.</>
+                  withName(t("codex.add.doneNew"), landed ?? t("codex.add.theAccount"))
                 )}
               </p>
-              <div className="aa-actions"><button ref={primaryRef} type="button" className="btn primary" onClick={close}>Done</button></div>
+              <div className="aa-actions"><button ref={primaryRef} type="button" className="btn primary" onClick={close}>{t("codex.add.done")}</button></div>
             </div>
           )}
 
           {stage === "repeat" && (
             <div className="aa-step">
-              <h4 className="aa-repeat-title">Already in your accounts</h4>
-              <p className="aa-note"><strong>{repeats}</strong> is already here, so nothing was added, and it keeps the login it had.</p>
-              <p className="aa-note">The sign-in page uses the ChatGPT account your browser is signed in to. To add a different one, sign out of ChatGPT in the browser first, or open the page in a private window.</p>
+              <h4 className="aa-repeat-title">{t("codex.add.repeatTitle")}</h4>
+              <p className="aa-note">{withName(t("codex.add.repeatNote"), repeats ?? "")}</p>
+              <p className="aa-note">{t("codex.add.repeatHelp")}</p>
               <div className="aa-actions">
-                <button ref={primaryRef} type="button" className="btn primary" onClick={() => { setLogin(null); setOpened(false); setStage("ready"); }}>Try another account</button>
-                <button type="button" className="btn" onClick={close}>Done</button>
+                <button ref={primaryRef} type="button" className="btn primary" onClick={() => { setLogin(null); setOpened(false); setStage("ready"); }}>{t("codex.add.tryAnother")}</button>
+                <button type="button" className="btn" onClick={close}>{t("codex.add.done")}</button>
               </div>
             </div>
           )}
 
           {stage === "failed" && (
             <div className="aa-step">
-              <p className="aa-err" role="alert">{reasonText(login?.reason)}</p>
+              <p className="aa-err" role="alert">{reasonText(login?.reason, t)}</p>
               {login?.reason === "codex_missing" && id && (
-                <p className="aa-note">Run the sign-in in a terminal instead, with the command below.</p>
+                <p className="aa-note">{t("codex.add.useTerminal")}</p>
               )}
               <div className="aa-actions">
-                {id && <button type="button" className="btn primary" onClick={() => { openTab(); void begin(id); }}>Try again</button>}
-                {id && <button type="button" className="btn" onClick={() => onCopyCommand(id)}>Copy the terminal command</button>}
+                {id && <button type="button" className="btn primary" onClick={() => { openTab(); void begin(id); }}>{t("codex.add.tryAgain")}</button>}
+                {id && <button type="button" className="btn" onClick={() => onCopyCommand(id)}>{t("codex.add.copyCommand")}</button>}
               </div>
             </div>
           )}

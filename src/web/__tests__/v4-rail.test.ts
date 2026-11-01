@@ -1,7 +1,7 @@
 // V4's Attention rail: the left column's session list as the Board window's
-// rail (Figma Sessions 22:14927, Rail / Header 22:735, Rail / Group header
-// 22:725, Rail / Row 22:804…22:754, Rail / Nobody waiting 22:741, the fold
-// 22:13461, and the motion cards Rail changes order, A row joins or leaves,
+// rail (V4's Figma: Sessions, Rail / Header, Rail / Group header,
+// Rail / Row, Rail / Nobody waiting, the fold line, and the motion cards Rail changes order, A row joins
+// or leaves,
 // Land, Row expand and fold, Status glyph).
 //
 // Three halves. The rules are pure (rail-model.ts, session-seen.ts,
@@ -72,7 +72,7 @@ describe("the column (Figma Sessions)", () => {
   });
 });
 
-describe("Rail / Header (22:735)", () => {
+describe("Rail / Header", () => {
   it("is --pane-head-h tall, 12 in and 6 out, a line under it, no fill", () => {
     expect(decl(".session-list .sl-header", "height")).toBe("var(--pane-head-h)");
     expect(decl(".session-list .sl-header", "padding")).toBe("0 6px 0 12px");
@@ -107,7 +107,7 @@ describe("Rail / Header (22:735)", () => {
   });
 });
 
-describe("Rail / Group header (22:725) and the fold line (22:13461)", () => {
+describe("Rail / Group header and the fold line", () => {
   it("is --row-group tall, 8 in, label 12/16 600 secondary, count 11/14 mono muted", () => {
     expect(decl(".session-list .sl-group-head", "height")).toBe("var(--row-group)");
     expect(decl(".session-list .sl-group-head", "padding")).toBe("0 8px");
@@ -146,7 +146,7 @@ describe("Rail / Group header (22:725) and the fold line (22:13461)", () => {
   });
 });
 
-describe("Rail / Row (22:804…22:754)", () => {
+describe("Rail / Row", () => {
   it("is --row-rail tall at least, 4 and 8 in, --r-panel round, 8 between, nothing at rest", () => {
     expect(decl(".session-list .sl-row", "min-height")).toBe("var(--row-rail)");
     expect(decl(".session-list .sl-row", "padding")).toBe("4px 8px");
@@ -234,7 +234,7 @@ describe("Rail / Row (22:804…22:754)", () => {
   });
 });
 
-describe("Rail / Nobody waiting (22:741) and the Order held line", () => {
+describe("Rail / Nobody waiting and the Order held line", () => {
   it("is the quiet 12/16 muted line, 6 and 8 in, 8 between", () => {
     expect(decl(".session-list .sl-nobody", "padding")).toBe("6px 8px");
     expect(decl(".session-list .sl-nobody", "gap")).toBe("8px");
