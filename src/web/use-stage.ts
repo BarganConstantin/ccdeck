@@ -42,6 +42,7 @@ import {
   type Dispatch, type MutableRefObject, type SetStateAction,
 } from "react";
 import type { BlockedSession } from "./ambient-counts";
+import { boardRect } from "./board-rect";
 import { focusCanvasNode } from "./canvas-node-element";
 import type { BoardNavigatorHandle } from "./components/BoardNavigator";
 import { hidePeek } from "./components/SessionPeek";
@@ -217,7 +218,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     }
     const canvas = canvasRef.current;
     const from = opts.el ?? (target.kind === "session" ? nodeElement(canvas, target.id) : null);
-    const pane = canvas ? pageRect(canvas.getBoundingClientRect()) : null;
+    const pane = canvas ? pageRect(boardRect(canvas)) : null;
     const origin = visibleOrigin(from ? pageRect(from.getBoundingClientRect()) : null, pane);
     // The rider is a card's name; a control the stage grew out of has none.
     const name = origin && from?.classList.contains("react-flow__node") ? nameElement(from) : null;
@@ -286,7 +287,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       id => stateRef.current.agents.has(id) || launchedIdsRef.current.has(id));
     // Out of the session's card when it is on screen, else out of the button.
     const card = target.kind === "session" ? nodeElement(canvasRef.current, target.id) : null;
-    const pane = canvasRef.current ? pageRect(canvasRef.current.getBoundingClientRect()) : null;
+    const pane = canvasRef.current ? pageRect(boardRect(canvasRef.current)) : null;
     const cardShows = card && visibleOrigin(pageRect(card.getBoundingClientRect()), pane);
     // The keys with it, as a card's click gives them: the button is how the
     // reader says "a terminal", and the board it sits on goes inert under the
