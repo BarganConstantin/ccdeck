@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
@@ -97,6 +97,7 @@ import { useVersionCheck } from "./use-version-check";
 import { useWelcomeAndNotes } from "./use-welcome-and-notes";
 import { useReports } from "./use-reports";
 import { blockedSessions } from "./ambient-counts";
+import { boardHeadBase, boardHeadLongest, boardHeadShown } from "./board-header";
 import { initialState } from "./reducer";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
@@ -420,7 +421,7 @@ function Inner() {
   // quantised for the layout, whole for the drift watchdog below. See
   // use-canvas-size.ts.
   // Held while the left column moves, so the board is re-packed once, after.
-  const { canvasRef, canvasSize, paneSizeRef } = useCanvasSize(columnSettleRef);
+  const { canvasRef, canvasSize, paneSizeRef, remeasureCanvas } = useCanvasSize(columnSettleRef);
   const autoFit = useAutoFitSwitch(fitLeft);
   const { autoFitDisabledRef, disableAutoFit } = autoFit;
 
@@ -709,6 +710,22 @@ function Inner() {
   // lives in — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
   // the two stripes and the utilities are one dock along the bottom.
   const phone = useMediaQuery(PHONE_QUERY);
+  // The strip across the top of the board, as the plain figures it draws —
+  // board-header.ts. Worked out here on the clock App already has, and handed
+  // down as numbers and strings so the memoised strip re-renders only when one
+  // changes. Where it is not drawn the canvas-size reading has nothing to take off.
+  // Everything but the longest wait holds still between two changes of the map,
+  // so it is kept on the revision `waitingSessions` is; only the wait reads the
+  // clock. The sessions waiting are handed in, not counted again.
+  const boardHeadOn = boardHeadShown(agentCount, phone);
+  const boardHeadStill = useMemo(
+    () => boardHeadOn ? boardHeadBase(stateRef.current.agents.values(), Date.now(), singleKeys, waitingSessions) : null,
+    [boardHeadOn, singleKeys, waitingSessions, stateRef.current, stateRef.current.revision],
+  );
+  const boardHead = boardHeadStill && { ...boardHeadStill, longestWait: boardHeadLongest(waitingSessions, now) };
+  // Before paint, so the commit that mounts or removes the strip is packed once,
+  // for the board's height and not the cell's.
+  useLayoutEffect(() => { remeasureCanvas(); }, [boardHeadOn, remeasureCanvas]);
   const [radioOpen, setRadioOpen] = useState(false);
   // Tool activity, on the view its door names: tools or skills.
   const [toolAuditView, setToolAuditView] = useState<ToolActivityView | null>(null);
@@ -886,6 +903,7 @@ function Inner() {
         canvasRef={canvasRef} bubbling={bubbling} dragging={dragging} trash={trash} zoom={zoom}
         viewport={viewport} stateRef={stateRef} peek={peek}
         stagePhase={stage.enabled && stage.shell.phase !== "closed" ? stage.shell.phase : undefined}
+        head={boardHead} headInset={railInsetRef.current}
       >
         {agentCount === 0 && (!live && tabCapped
           ? <TabCapHero reservedRight={railInsetRef.current} />

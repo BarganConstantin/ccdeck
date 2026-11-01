@@ -34,6 +34,7 @@
 @import "./styles/panel-glyph.css";              /* the glyph a panel header closes with */
 @import "./styles/search-and-banners.css";       /* search, and the connection and version banners */
 @import "./styles/canvas.css";                   /* the canvas */
+@import "./styles/board-header.css";             /* the strip across the top of the board */
 @import "./styles/detail-panel.css";             /* the detail panel */
 @import "./styles/react-flow.css";               /* React Flow overrides, the control stack and the minimap */
 @import "./styles/agent-node.css";               /* the agent card */

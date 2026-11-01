@@ -299,7 +299,8 @@
    ≥2 categories are present, so a single-tool session stays uncluttered. */
 .cat-filter-bar {
   position: absolute;
-  top: 14px;
+  /* Under the board header when there is one (board-header.css). */
+  top: calc(14px + var(--board-head-top, 0px));
   left: 14px;
   z-index: 6;
   display: flex;
